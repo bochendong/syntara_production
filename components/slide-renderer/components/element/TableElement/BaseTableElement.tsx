@@ -1,0 +1,44 @@
+'use client';
+
+import type { PPTTableElement } from '@/lib/types/slides';
+import { academyPaperBackground, academyPaperTheme } from '../academyPaperTheme';
+import { StaticTable } from './StaticTable';
+
+export interface BaseTableElementProps {
+  elementInfo: PPTTableElement;
+  target?: string;
+}
+
+/**
+ * Base table element for read-only / playback / thumbnail mode
+ */
+export function BaseTableElement({ elementInfo, target }: BaseTableElementProps) {
+  return (
+    <div
+      className={`base-element-table absolute ${target === 'thumbnail' ? 'pointer-events-none' : ''}`}
+      style={{
+        top: `${elementInfo.top}px`,
+        left: `${elementInfo.left}px`,
+        width: `${elementInfo.width}px`,
+        height: `${elementInfo.height}px`,
+      }}
+    >
+      <div
+        className="rotate-wrapper w-full h-full"
+        style={{ transform: `rotate(${elementInfo.rotate}deg)` }}
+      >
+        <div
+          className="element-content relative w-full h-full overflow-hidden"
+          style={{
+            background: academyPaperBackground(academyPaperTheme.primary),
+            border: `1px solid ${academyPaperTheme.cardBorder}`,
+            borderRadius: 18,
+            boxShadow: academyPaperTheme.quietShadow,
+          }}
+        >
+          <StaticTable elementInfo={elementInfo} />
+        </div>
+      </div>
+    </div>
+  );
+}

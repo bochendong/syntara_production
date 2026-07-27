@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#8b96aa" flood-opacity="0.24"/></filter>
+  <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="24"/></filter>
+  <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f6f7fa"/></linearGradient>
+</defs>
+<linearGradient id="rainbow" x1="0" y1="0" x2="1" y2="1">
+ <stop offset="0" stop-color="#ff9f0a"/><stop offset=".24" stop-color="#ffcc00"/><stop offset=".48" stop-color="#ff5e7d"/><stop offset=".72" stop-color="#7d5cff"/><stop offset="1" stop-color="#32ade6"/>
+</linearGradient>
+<linearGradient id="person" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa1b8"/><stop offset="1" stop-color="#666f90"/></linearGradient>
+
+<g filter="url(#shadow)"><rect x="112" y="112" width="800" height="800" rx="180" fill="url(#tile)"/></g>
+<rect x="245" y="230" width="534" height="570" rx="110" fill="none" stroke="url(#rainbow)" stroke-width="34"/>
+<rect x="276" y="261" width="472" height="508" rx="82" fill="#ffffff" opacity=".92"/>
+<circle cx="512" cy="415" r="79" fill="url(#person)"/>
+<path d="M355 635 C370 534 438 492 512 492 C586 492 654 534 669 635 Z" fill="url(#person)"/>
+<rect x="382" y="680" width="260" height="25" rx="13" fill="#7d849f" opacity=".82"/>
+<rect x="416" y="724" width="192" height="22" rx="11" fill="#b5bad0"/>
+</svg>

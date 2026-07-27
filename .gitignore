@@ -1,0 +1,112 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+CLAUDE.local.md
+.claude
+.superpowers
+
+# dependencies
+/node_modules
+/openclaw/node_modules
+/openclaw/package-lock.json
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+/temp
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+/dist
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files
+.env*
+!.env.example
+
+# server provider config (contains API keys)
+server-providers.yml
+server-providers-*.yml
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Prisma（schema 与 migrations 请提交；仅忽略若本地误用 SQLite）
+*.db
+*.db-journal
+
+# Turbopack / 构建缓存
+.turbo
+
+# IDE
+.idea
+.vscode
+
+# Cursor：机器本地会话/索引（规则若放在 .cursor/rules 可单独提交）
+.cursor/projects
+
+# worktrees
+.worktrees
+
+# generated / local bulk data
+# Ignore local bulk dirs, then re-include only fixtures needed by /test.
+/data/*
+!/data/csc148/
+!/data/csc148/**
+!/data/platform-tests/
+!/data/platform-tests/**
+/logs
+/OpenMAIC-org
+/outputs
+/db-backups
+/queue/*
+!/queue/CSC148/
+!/queue/CSC148/**
+/tmp
+/temp
+/题库
+/public/generated-notebooks
+/public/live2d
+/public/liv2d_poster
+
+# docs
+/docs/*
+!/docs/api/
+!/docs/api/**
+!/docs/course-settings-generation-effects.md
+!/docs/generation-chain/
+!/docs/generation-chain/**
+!/docs/lecture-narration-guidelines.md
+!/docs/notebook-generation-sidebar-options.md
+!/docs/repository-structure.md
+!/docs/text-notebook-generation/
+!/docs/text-notebook-generation/**
+
+# OS / 杂项
+Thumbs.db
+*.orig
+*.swp
+*~
+.pnpm-store/

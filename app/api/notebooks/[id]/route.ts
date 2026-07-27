@@ -1,0 +1,208 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { prisma } from '@/lib/server/prisma';
+import { requireUserId } from '@/lib/server/api-auth';
+import { safeRoute } from '@/lib/server/json-error-response';
+import { cleanupGeneratedNotebookArtifacts } from '@/lib/server/notebook-artifacts';
+import { stripPrivateSpeechAudioFromActions } from '@/lib/server/speech-action-assets';
+import { findOwnedCourse } from '@/lib/server/repositories/course-repository';
+import {
+  deleteOwnedNotebook,
+  findOwnedNotebookForStoreUpdate,
+  findOwnedNotebookId,
+  findReadableNotebook,
+  findReadableNotebookWithMarkdownSections,
+  findReadableNotebookWithScenes,
+  NotebookCourseMoveDedupeError,
+  updateOwnedNotebook,
+} from '@/lib/server/repositories/notebook-repository';
+import { publishNotebookProblemBankForUser } from '@/features/problems/server/service';
+import { scheduleUnlinkedCourseKnowledgeProjectionSync } from '@/lib/server/unlinked-course-knowledge-projection';
+
+const updateNotebookSchema = z.object({
+  courseId: z.string().trim().min(1).nullable().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+  description: z.string().trim().max(3000).optional(),
+  tags: z.array(z.string().trim().min(1).max(30)).max(16).optional(),
+  avatarUrl: z.string().trim().max(2048).optional(),
+  language: z.string().trim().max(24).optional(),
+  style: z.string().trim().max(80).optional(),
+  listedInNotebookStore: z.boolean().optional(),
+  notebookPriceCents: z.number().int().min(0).max(100000000).optional(),
+});
+
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  return safeRoute(async () => {
+    const auth = await requireUserId();
+    if ('response' in auth) return auth.response;
+    const { userId } = auth;
+    const { id } = await context.params;
+    const url = new URL(request.url);
+    const includeScenes = url.searchParams.get('includeScenes') !== '0';
+    const includeMarkdown = url.searchParams.get('includeMarkdown') === '1';
+
+    if (!includeScenes) {
+      const notebook = includeMarkdown
+        ? await findReadableNotebookWithMarkdownSections(prisma, userId, id)
+        : await findReadableNotebook(prisma, userId, id);
+      if (!notebook) {
+        return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
+      }
+      return NextResponse.json({
+        notebook: {
+          ...notebook,
+          accessRole: notebook.ownerId === userId ? 'owner' : 'enrolled',
+        },
+      });
+    }
+
+    const notebook = await findReadableNotebookWithScenes(prisma, userId, id);
+    if (!notebook) {
+      return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
+    }
+    return NextResponse.json({
+      notebook: {
+        ...notebook,
+        accessRole: notebook.ownerId === userId ? 'owner' : 'enrolled',
+        scenes: notebook.scenes.map((scene) => ({
+          ...scene,
+          actions: stripPrivateSpeechAudioFromActions(scene.actions),
+        })),
+      },
+    });
+  });
+}
+
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  return safeRoute(async () => {
+    const auth = await requireUserId();
+    if ('response' in auth) return auth.response;
+    const { userId } = auth;
+    const { id } = await context.params;
+
+    const payload = updateNotebookSchema.safeParse(await request.json());
+    if (!payload.success) {
+      return NextResponse.json(
+        { error: 'Invalid request body', details: payload.error.flatten() },
+        { status: 400 },
+      );
+    }
+
+    const existing = await findOwnedNotebookForStoreUpdate(prisma, userId, id);
+    if (!existing) {
+      return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
+    }
+
+    if (payload.data.listedInNotebookStore === true && existing.sourceNotebookId) {
+      return NextResponse.json(
+        { error: '购买得到的笔记本副本不能再次发布到商城' },
+        { status: 400 },
+      );
+    }
+
+    const nextCourseId = payload.data.courseId;
+    if (typeof nextCourseId === 'string') {
+      const ownCourse = await findOwnedCourse(prisma, userId, nextCourseId);
+      if (!ownCourse) {
+        return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+      }
+    }
+
+    const shouldPublishNotebook = payload.data.listedInNotebookStore === true;
+    const shouldUnpublishNotebook = payload.data.listedInNotebookStore === false;
+    let notebook;
+    try {
+      notebook = await updateOwnedNotebook(prisma, userId, id, {
+        ...payload.data,
+        ...(payload.data.courseId === null ? { courseId: null } : {}),
+        ...(shouldPublishNotebook ? { storePublishedAt: new Date() } : {}),
+        ...(shouldUnpublishNotebook ? { storePublishedAt: null } : {}),
+      });
+    } catch (error) {
+      if (error instanceof NotebookCourseMoveDedupeError) {
+        return NextResponse.json(
+          {
+            error: error.message,
+            code: error.code,
+            details: {
+              notebookId: error.notebookId,
+              sourceCourseId: error.sourceCourseId,
+              targetCourseId: error.targetCourseId,
+              conflicts: error.conflicts,
+              invalidProblemIds: error.invalidProblemIds,
+            },
+          },
+          { status: 409 },
+        );
+      }
+      throw error;
+    }
+    if (!notebook) {
+      return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
+    }
+    if (shouldPublishNotebook) {
+      await publishNotebookProblemBankForUser({ userId, notebookId: id });
+    }
+    const courseChanged = existing.courseId !== notebook.courseId;
+    const nameChanged = existing.name !== notebook.name;
+    if (courseChanged || nameChanged) {
+      const affectedCourseIds = Array.from(
+        new Set(
+          [existing.courseId, notebook.courseId].filter((courseId): courseId is string =>
+            Boolean(courseId),
+          ),
+        ),
+      );
+      for (const courseId of affectedCourseIds) {
+        scheduleUnlinkedCourseKnowledgeProjectionSync({
+          prisma,
+          courseId,
+          ownerId: userId,
+          reason: courseChanged ? 'notebook_course_changed' : 'notebook_renamed',
+        });
+      }
+    }
+    return NextResponse.json({ notebook });
+  });
+}
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  return safeRoute(async () => {
+    const auth = await requireUserId();
+    if ('response' in auth) return auth.response;
+    const { userId } = auth;
+    const { id } = await context.params;
+    const deferKnowledgeSyncParam = new URL(request.url).searchParams.get('deferKnowledgeSync');
+    if (deferKnowledgeSyncParam !== null && deferKnowledgeSyncParam !== '1') {
+      return NextResponse.json(
+        {
+          error: 'deferKnowledgeSync only accepts 1 when knowledge sync is finalized separately.',
+          code: 'INVALID_DEFER_KNOWLEDGE_SYNC',
+        },
+        { status: 400 },
+      );
+    }
+    const deferKnowledgeSync = deferKnowledgeSyncParam === '1';
+
+    const existing = await findOwnedNotebookId(prisma, userId, id);
+    if (!existing) {
+      return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
+    }
+
+    await deleteOwnedNotebook(prisma, userId, id);
+    if (!deferKnowledgeSync) {
+      scheduleUnlinkedCourseKnowledgeProjectionSync({
+        prisma,
+        courseId: existing.courseId,
+        ownerId: userId,
+        reason: 'notebook_deleted',
+      });
+    }
+    const artifactCleanup = await cleanupGeneratedNotebookArtifacts(id);
+    return NextResponse.json({
+      ok: true,
+      knowledgeSyncDeferred: deferKnowledgeSync,
+      artifactCleanup,
+    });
+  });
+}

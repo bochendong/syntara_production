@@ -1,0 +1,1357 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CoursePurpose {
+  research
+  university
+  daily
+}
+
+enum NotebookKind {
+  image
+  markdown
+}
+
+enum ConversationKind {
+  notebook
+  agent
+  system
+  course
+}
+
+enum AgentTaskStatus {
+  queued
+  running
+  waiting
+  completed
+  failed
+  cancelled
+}
+
+enum AgentEnvelopeType {
+  task_dispatch
+  task_ack
+  task_wait
+  task_partial
+  task_result
+  task_error
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum CreditTransactionKind {
+  WELCOME_BONUS
+  COURSE_PURCHASE
+  NOTEBOOK_PURCHASE
+  CREATOR_COURSE_SALE
+  CREATOR_NOTEBOOK_SALE
+  TOKEN_USAGE
+  CASH_TO_COMPUTE_TRANSFER
+  CASH_TO_PURCHASE_TRANSFER
+  LESSON_REWARD
+  QUIZ_COMPLETION_REWARD
+  QUIZ_ACCURACY_BONUS
+  REVIEW_REWARD
+  DAILY_TASK_REWARD
+  STREAK_BONUS
+  CHARACTER_UNLOCK_SPEND
+  AVATAR_UNLOCK_SPEND
+  GACHA_DRAW_SPEND
+  /// @deprecated Kept for backward compatibility — existing rows in the database still reference this value
+  NOTEBOOK_GENERATION_USAGE
+}
+
+enum CreditAccountType {
+  CASH
+  COMPUTE
+  PURCHASE
+  /// @deprecated Kept for backward compatibility — existing rows in the database still reference this value
+  NOTEBOOK_GENERATION
+}
+
+enum TopUpOrderStatus {
+  pending
+  fulfilled
+  expired
+}
+
+enum CharacterAssetType {
+  LIVE2D
+  AVATAR
+}
+
+enum LearningActionType {
+  DAILY_SIGN_IN
+  LESSON_MILESTONE_COMPLETED
+  QUIZ_COMPLETED
+  QUIZ_ACCURACY_BONUS
+  REVIEW_COMPLETED
+  DAILY_TASK_REWARD
+  STREAK_BONUS
+  CHARACTER_UNLOCK
+  AVATAR_UNLOCK
+  CHARACTER_EQUIP
+  GACHA_DRAW
+}
+
+enum MissionType {
+  DAILY_SIGN_IN
+  DAILY_LESSON
+  DAILY_QUIZ
+  DAILY_REVIEW
+  DAILY_ALL_CLEAR
+  WEEKLY_STUDY_DAYS
+  WEEKLY_QUIZ_BATCHES
+}
+
+enum NotebookProblemType {
+  short_answer
+  choice
+  proof
+  calculation
+  code
+  fill_blank
+}
+
+enum NotebookProblemStatus {
+  draft
+  published
+  archived
+}
+
+enum NotebookProblemSource {
+  chat
+  pdf
+  manual
+  web
+  legacy_quiz_scene
+}
+
+enum NotebookProblemDifficulty {
+  easy
+  medium
+  hard
+}
+
+enum NotebookProblemAttemptKind {
+  run
+  submit
+  answer
+}
+
+enum NotebookProblemAttemptStatus {
+  pending
+  passed
+  failed
+  partial
+  error
+}
+
+model User {
+  id                     String    @id @default(cuid())
+  name                   String?
+  email                  String?   @unique
+  emailVerified          DateTime?
+  image                  String?
+  role                   UserRole  @default(USER)
+  creditsBalance         Int       @default(0)
+  computeCreditsBalance  Int       @default(0)
+  purchaseCreditsBalance Int       @default(0)
+  stripeCustomerId       String?   @unique
+
+  accounts Account[]
+  sessions Session[]
+
+  courses                 Course[]
+  notebooks               Notebook[]
+  conversations           Conversation[]
+  messages                Message[]
+  agentTasks              AgentTask[]
+  agentEnvelopes          AgentEnvelope[]
+  llmUsageLogs            LLMUsageLog[]
+  llmPromptLogs           LLMPromptLog[]
+  creditTransactions      CreditTransaction[]
+  coursePurchases         CoursePurchase[]
+  courseEnrollments       CourseEnrollment[]
+  notebookPurchases       NotebookPurchase[]
+  courseReviews           CourseReview[]
+  notebookReviews         NotebookReview[]
+  notebookProblemAttempts NotebookProblemAttempt[]
+  notebookProblemProgress NotebookProblemProgress[]
+  topUpOrders             TopUpOrder[]
+  engagementProfile       UserEngagementProfile?
+  learningActionLogs      LearningActionLog[]
+  characterProgress       UserCharacterProgress[]
+  missionProgress         UserMissionProgress[]
+  testResults             TestResult[]
+  studyMemories           StudyMemory[]
+  studyMemoryChunks       StudyMemoryChunk[]
+  memoryFacts             MemoryFact[]
+  memoryFactEvents        MemoryFactEvent[]
+  knowledgeCacheEntries   MemoryKnowledgeCache[]
+  courseSources           CourseSource[]
+  knowledgeDocuments      KnowledgeDocument[]
+  knowledgeChunks         KnowledgeChunk[]
+  speechAudios            UserSpeechAudio[]
+  problemImportBatches    ProblemImportBatch[]
+  courseQuestionRuns      CourseQuestionRun[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Course {
+  id                    String        @id @default(cuid())
+  ownerId               String
+  name                  String
+  description           String?
+  language              String        @default("zh-CN")
+  tags                  String[]
+  purpose               CoursePurpose @default(daily)
+  university            String?
+  courseCode            String?
+  avatarUrl             String?
+  /**
+   * 开启后出现在「课程商城」社区列表
+   */
+  listedInCourseStore   Boolean       @default(false)
+  coursePriceCents      Int           @default(0)
+  storePublishedAt      DateTime?
+  sourceCourseId        String?
+  notebookCount         Int           @default(0)
+  sceneCount            Int           @default(0)
+  problemCount          Int           @default(0)
+  publishedProblemCount Int           @default(0)
+  speechReadyCount      Int           @default(0)
+  speechTotalCount      Int           @default(0)
+
+  owner              User                      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  notebooks          Notebook[]
+  notebookPages      NotebookPage[]
+  markdownSections   MarkdownNotebookSection[]
+  problems           NotebookProblem[]
+  conversations      Conversation[]
+  agentTasks         AgentTask[]
+  sourcePurchases    CoursePurchase[]          @relation("CoursePurchaseSource")
+  clonePurchase      CoursePurchase?           @relation("CoursePurchaseClone")
+  enrollments        CourseEnrollment[]
+  reviews            CourseReview[]
+  studyMemories      StudyMemory[]
+  studyMemoryChunks  StudyMemoryChunk[]
+  knowledgeCache     MemoryKnowledgeCache[]
+  problemImports     ProblemImportBatch[]
+  questionRuns       CourseQuestionRun[]
+  courseSources      CourseSource[]
+  knowledgeDocuments KnowledgeDocument[]
+  knowledgeChunks    KnowledgeChunk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, updatedAt(sort: Desc)])
+  @@index([listedInCourseStore, updatedAt(sort: Desc)])
+}
+
+model Notebook {
+  id                    String       @id @default(cuid())
+  ownerId               String
+  courseId              String?
+  name                  String
+  description           String?
+  tags                  String[]
+  avatarUrl             String?
+  language              String?
+  style                 String?
+  notebookKind          NotebookKind @default(image)
+  listedInNotebookStore Boolean      @default(false)
+  notebookPriceCents    Int          @default(0)
+  storePublishedAt      DateTime?
+  sourceNotebookId      String?
+  sceneCount            Int          @default(0)
+  sectionCount          Int          @default(0)
+  problemCount          Int          @default(0)
+  publishedProblemCount Int          @default(0)
+  speechReadyCount      Int          @default(0)
+  speechTotalCount      Int          @default(0)
+  speechStatus          String       @default("no_speech")
+  coverSlideJson        Json?
+  coverImagePath        String?
+  contentVersion        Int          @default(1)
+
+  owner              User                      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course             Course?                   @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  scenes             Scene[]
+  markdownSections   MarkdownNotebookSection[]
+  pages              NotebookPage[]
+  problems           NotebookProblem[]
+  conversations      Conversation[]
+  agentTasks         AgentTask[]
+  sourcePurchases    NotebookPurchase[]        @relation("NotebookPurchaseSource")
+  clonePurchase      NotebookPurchase?         @relation("NotebookPurchaseClone")
+  reviews            NotebookReview[]
+  studyMemories      StudyMemory[]
+  studyMemoryChunks  StudyMemoryChunk[]
+  knowledgeCache     MemoryKnowledgeCache[]
+  problemImports     ProblemImportBatch[]
+  knowledgeDocuments KnowledgeDocument[]
+  knowledgeChunks    KnowledgeChunk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, updatedAt(sort: Desc)])
+  @@index([courseId, updatedAt(sort: Desc)])
+  @@index([courseId, contentVersion])
+  @@index([listedInNotebookStore, updatedAt(sort: Desc)])
+}
+
+model Scene {
+  id         String @id @default(cuid())
+  notebookId String
+  title      String
+  type       String
+  order      Int
+  content    Json
+  actions    Json?
+  whiteboard Json?
+
+  notebook Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([notebookId, order])
+}
+
+model MarkdownNotebookSection {
+  id         String  @id @default(cuid())
+  notebookId String
+  courseId   String?
+  title      String
+  order      Int
+  markdown   String  @db.Text
+  summary    String? @db.Text
+  sourceMeta Json?
+
+  notebook Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  course   Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([notebookId, order])
+  @@index([courseId, order])
+  @@index([notebookId, updatedAt(sort: Desc)])
+}
+
+model NotebookPage {
+  id             String  @id @default(cuid())
+  notebookId     String
+  courseId       String?
+  sourceSceneId  String?
+  title          String
+  type           String
+  order          Int
+  contentHash    String?
+  actionsHash    String?
+  thumbnailJson  Json?
+  coverImagePath String?
+
+  notebook Notebook             @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  course   Course?              @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  content  NotebookPageContent?
+  actions  NotebookPageActions?
+  assets   NotebookPageAsset[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([notebookId, order])
+  @@index([courseId, order])
+  @@index([sourceSceneId])
+  @@index([notebookId, updatedAt(sort: Desc)])
+}
+
+model NotebookPageContent {
+  pageId     String @id
+  content    Json
+  whiteboard Json?
+
+  page NotebookPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NotebookPageActions {
+  pageId           String @id
+  actions          Json?
+  speechReadyCount Int    @default(0)
+  speechTotalCount Int    @default(0)
+  speechStatus     String @default("no_speech")
+
+  page NotebookPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NotebookImageAsset {
+  id        String  @id @default(cuid())
+  path      String  @unique
+  mimeType  String
+  data      Bytes
+  sizeBytes Int
+  sha256    String
+  source    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sha256])
+}
+
+model Asset {
+  id        String  @id @default(cuid())
+  path      String  @unique
+  mimeType  String
+  sizeBytes Int
+  sha256    String
+  source    String?
+  data      Bytes?
+
+  pageLinks NotebookPageAsset[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sha256])
+  @@index([source])
+}
+
+model NotebookPageAsset {
+  id       String @id @default(cuid())
+  pageId   String
+  assetId  String
+  role     String @default("image")
+  order    Int    @default(0)
+  metaJson Json?
+
+  page  NotebookPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  asset Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pageId, assetId, role])
+  @@index([assetId])
+  @@index([pageId, order])
+}
+
+model NotebookProblem {
+  id                String                    @id @default(cuid())
+  courseId          String?
+  notebookId        String?
+  title             String
+  type              NotebookProblemType
+  status            NotebookProblemStatus     @default(draft)
+  source            NotebookProblemSource     @default(manual)
+  order             Int
+  problemNumber     Int?
+  points            Int                       @default(1)
+  tags              String[]
+  difficulty        NotebookProblemDifficulty @default(medium)
+  publicContentJson Json
+  gradingJson       Json
+  sourceMeta        Json?
+  dedupeKey         String?
+
+  course   Course?                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  notebook Notebook?                 @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+  secret   NotebookProblemSecret?
+  attempts NotebookProblemAttempt[]
+  progress NotebookProblemProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseId, dedupeKey], map: "NotebookProblem_course_dedupe_key")
+  @@index([courseId, order])
+  @@index([courseId, problemNumber])
+  @@index([courseId, status, order])
+  @@index([courseId, updatedAt(sort: Desc)])
+  @@index([notebookId, order])
+  @@index([notebookId, problemNumber])
+  @@index([notebookId, updatedAt(sort: Desc)])
+}
+
+model ProblemImportBatch {
+  id                   String    @id @default(cuid())
+  ownerId              String
+  courseId             String?
+  notebookId           String?
+  targetType           String
+  source               String
+  status               String    @default("previewed")
+  sourceFileName       String?
+  sourceFileMime       String?
+  sourceTextHash       String?
+  draftCount           Int       @default(0)
+  committedCount       Int       @default(0)
+  commitPayloadHash    String?
+  commitLeaseToken     String?
+  commitLeaseExpiresAt DateTime?
+  commitResultJson     Json?
+  draftSnapshotJson    Json?
+  usageJson            Json?
+  webSearchJson        Json?
+  warnings             String[]
+
+  owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course   Course?   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  notebook Notebook? @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, targetType, courseId, updatedAt(sort: Desc)])
+  @@index([ownerId, targetType, notebookId, updatedAt(sort: Desc)])
+  @@index([ownerId, status, updatedAt(sort: Desc)])
+}
+
+model CourseQuestionRun {
+  id                 String    @id
+  ownerId            String
+  courseId           String
+  idempotencyKey     String
+  requestHash        String
+  requestId          String
+  sessionId          String
+  status             String    @default("processing")
+  leaseToken         String?
+  leaseExpiresAt     DateTime?
+  question           String
+  answer             String?
+  responseJson       Json?
+  conversationId     String?
+  userMessageId      String?
+  assistantMessageId String?
+  model              String?
+  errorReason        String?
+
+  owner  User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  @@unique([ownerId, courseId, idempotencyKey])
+  @@index([ownerId, courseId, updatedAt(sort: Desc)])
+  @@index([status, leaseExpiresAt])
+}
+
+model NotebookProblemSecret {
+  problemId       String @id
+  secretJudgeJson Json
+
+  problem NotebookProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NotebookProblemAttempt {
+  id         String                       @id @default(cuid())
+  problemId  String
+  userId     String
+  kind       NotebookProblemAttemptKind
+  answerJson Json
+  resultJson Json?
+  score      Float?
+  status     NotebookProblemAttemptStatus @default(pending)
+
+  problem NotebookProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  latestProgress NotebookProblemProgress? @relation("LatestNotebookProblemAttempt")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([problemId, createdAt(sort: Desc)])
+  @@index([problemId, userId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model NotebookProblemProgress {
+  id              String                       @id @default(cuid())
+  problemId       String
+  userId          String
+  latestAttemptId String?
+  status          NotebookProblemAttemptStatus @default(pending)
+  score           Float?
+  attemptedCount  Int                          @default(0)
+  passedCount     Int                          @default(0)
+  lastAttemptAt   DateTime?
+
+  problem       NotebookProblem         @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  latestAttempt NotebookProblemAttempt? @relation("LatestNotebookProblemAttempt", fields: [latestAttemptId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([problemId, userId])
+  @@unique([latestAttemptId])
+  @@index([userId, status, lastAttemptAt(sort: Desc)])
+  @@index([problemId, status])
+  @@index([userId, lastAttemptAt(sort: Desc)])
+}
+
+model Conversation {
+  id         String           @id @default(cuid())
+  ownerId    String
+  courseId   String?
+  notebookId String?
+  kind       ConversationKind
+  targetId   String?
+  title      String?
+  meta       Json?
+
+  owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course   Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  notebook Notebook? @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, updatedAt(sort: Desc)])
+  @@index([courseId, updatedAt(sort: Desc)])
+  @@index([notebookId, updatedAt(sort: Desc)])
+}
+
+model Message {
+  id             String  @id @default(cuid())
+  conversationId String
+  ownerId        String
+  role           String
+  senderAgentId  String?
+  targetAgentId  String?
+  content        Json
+  plainText      String?
+  meta           Json?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  owner        User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt(sort: Asc)])
+  @@index([ownerId, createdAt(sort: Desc)])
+}
+
+model AgentTask {
+  id            String          @id @default(cuid())
+  ownerId       String
+  courseId      String?
+  notebookId    String?
+  sourceAgentId String?
+  targetAgentId String?
+  taskType      String
+  status        AgentTaskStatus @default(queued)
+  request       Json?
+  result        Json?
+  error         String?
+
+  owner     User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course    Course?         @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  notebook  Notebook?       @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+  envelopes AgentEnvelope[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, updatedAt(sort: Desc)])
+  @@index([courseId, updatedAt(sort: Desc)])
+  @@index([notebookId, updatedAt(sort: Desc)])
+}
+
+model AgentEnvelope {
+  id           String            @id @default(cuid())
+  taskId       String
+  ownerId      String
+  fromAgentId  String?
+  toAgentId    String?
+  envelopeType AgentEnvelopeType
+  payload      Json
+
+  task  AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  owner User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt(sort: Asc)])
+  @@index([ownerId, createdAt(sort: Desc)])
+}
+
+model SystemLLMConfig {
+  id         String   @id @default("default")
+  providerId String   @default("openai")
+  modelId    String   @default("gpt-5.6-sol")
+  apiKey     String   @db.Text
+  baseUrl    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model LLMUsageLog {
+  id           String   @id @default(cuid())
+  userId       String?
+  userEmail    String?
+  userName     String?
+  route        String
+  source       String
+  providerId   String
+  modelId      String
+  modelString  String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  totalTokens  Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([route, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+
+model LLMPromptLog {
+  id           String   @id
+  userId       String?
+  userEmail    String?
+  userName     String?
+  route        String
+  source       String
+  providerId   String
+  modelId      String
+  modelString  String
+  notebookId   String?
+  notebookName String?
+  courseId     String?
+  courseName   String?
+  promptHash   String
+  systemPrompt String   @db.Text
+  userPrompt   String   @db.Text
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([route, source, createdAt(sort: Desc)])
+  @@index([notebookId, createdAt(sort: Desc)])
+  @@index([promptHash])
+}
+
+model TestResult {
+  id           String  @id @default(cuid())
+  ownerId      String
+  testId       String
+  resultKey    String
+  status       String  @default("saved")
+  title        String?
+  summary      Json?
+  payload      Json?
+  payloadBytes Int     @default(0)
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ownerId, testId, resultKey])
+  @@index([ownerId, testId, updatedAt(sort: Desc)])
+  @@index([ownerId, updatedAt(sort: Desc)])
+}
+
+model StudyMemory {
+  id               String  @id @default(cuid())
+  ownerId          String
+  courseId         String?
+  notebookId       String?
+  targetType       String
+  scope            String
+  kind             String  @default("manual")
+  status           String  @default("active")
+  source           String  @default("manual")
+  title            String
+  text             String  @db.Text
+  reason           String? @db.Text
+  question         String? @db.Text
+  sourceReferences Json?
+  confidence       Float?
+
+  owner    User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course   Course?            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  notebook Notebook?          @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  chunks   StudyMemoryChunk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, targetType, courseId, updatedAt(sort: Desc)])
+  @@index([ownerId, targetType, notebookId, updatedAt(sort: Desc)])
+  @@index([ownerId, targetType, updatedAt(sort: Desc)], map: "StudyMemory_owner_target_platform_updated_idx")
+  @@index([ownerId, scope, status, updatedAt(sort: Desc)])
+}
+
+model StudyMemoryChunk {
+  id                  String                @id
+  memoryId            String
+  ownerId             String
+  courseId            String?
+  notebookId          String?
+  targetType          String
+  scope               String
+  chunkIndex          Int
+  chunkText           String                @db.Text
+  contentHash         String
+  embeddingModel      String
+  embeddingDimensions Int
+  embedding           Unsupported("vector")
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @default(now())
+
+  memory   StudyMemory @relation(fields: [memoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  owner    User        @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  course   Course?     @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  notebook Notebook?   @relation(fields: [notebookId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([memoryId, chunkIndex, embeddingModel, embeddingDimensions], map: "StudyMemoryChunk_memory_chunk_model_idx")
+  @@index([ownerId, scope, targetType, courseId, notebookId], map: "StudyMemoryChunk_owner_scope_target_idx")
+  @@index([embedding], map: "StudyMemoryChunk_embedding_hnsw_idx")
+}
+
+/// One first-class record for an original source owned by a course.
+/// Derived notebooks, problems, memories, and search documents point back to this
+/// record instead of reconstructing source identity from sourceHash at read time.
+model CourseSource {
+  id                   String    @id @default(cuid())
+  ownerId              String
+  courseId             String
+  sourceHash           String
+  title                String
+  kind                 String    @default("upload")
+  fileMime             String?
+  usageProfile         String?
+  topic                String?
+  storageKey           String?
+  openaiFileId         String?
+  extractedText        String?   @db.Text
+  extractedTextHash    String?
+  ingestStatus         String    @default("pending")
+  ingestLeaseToken     String?
+  ingestLeaseExpiresAt DateTime?
+  indexStatus          String    @default("pending")
+  indexLeaseToken      String?
+  indexLeaseExpiresAt  DateTime?
+  errorReason          String?   @db.Text
+  metadataJson         Json?
+  artifactCountsJson   Json?
+  contentVersion       Int       @default(1)
+  ingestedAt           DateTime?
+  indexedAt            DateTime?
+
+  owner     User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course    Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  documents KnowledgeDocument[]
+  chunks    KnowledgeChunk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([courseId, sourceHash], map: "CourseSource_course_hash_key")
+  @@index([ownerId, courseId, updatedAt(sort: Desc)], map: "CourseSource_owner_course_updated_idx")
+  @@index([ingestStatus, ingestLeaseExpiresAt], map: "CourseSource_ingest_status_lease_idx")
+  @@index([courseId, ingestStatus, indexStatus, updatedAt(sort: Desc)], map: "CourseSource_course_status_updated_idx")
+  @@index([courseId, kind, updatedAt(sort: Desc)], map: "CourseSource_course_kind_updated_idx")
+  @@index([storageKey], map: "CourseSource_storage_key_idx")
+  @@index([openaiFileId], map: "CourseSource_openai_file_idx")
+}
+
+/// Rebuildable, course-scoped search projection over source sections, problems,
+/// notebook summaries, and other knowledge-bearing business records.
+model KnowledgeDocument {
+  id               String    @id @default(cuid())
+  ownerId          String
+  courseId         String
+  courseSourceId   String?
+  notebookId       String?
+  documentKey      String
+  documentType     String
+  sourceEntityType String
+  sourceEntityId   String
+  title            String
+  summary          String?   @db.Text
+  content          String    @db.Text
+  contentHash      String
+  language         String?
+  visibility       String    @default("course")
+  status           String    @default("pending")
+  errorReason      String?   @db.Text
+  metadataJson     Json?
+  contentVersion   Int       @default(1)
+  chunkCount       Int       @default(0)
+  publishedAt      DateTime?
+  indexedAt        DateTime?
+
+  owner        User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseSource CourseSource?    @relation(fields: [courseSourceId], references: [id], onDelete: Cascade)
+  notebook     Notebook?        @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+  chunks       KnowledgeChunk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([courseId, documentKey], map: "KnowledgeDocument_course_document_key")
+  @@index([courseId, status, documentType, updatedAt(sort: Desc)], map: "KnowledgeDocument_course_status_type_idx")
+  @@index([courseId, sourceEntityType, sourceEntityId], map: "KnowledgeDocument_course_entity_idx")
+  @@index([courseSourceId, updatedAt(sort: Desc)], map: "KnowledgeDocument_source_updated_idx")
+  @@index([notebookId, documentType, updatedAt(sort: Desc)], map: "KnowledgeDocument_notebook_type_idx")
+  @@index([ownerId, courseId, updatedAt(sort: Desc)], map: "KnowledgeDocument_owner_course_idx")
+}
+
+/// Search-sized slices of a KnowledgeDocument. Course, visibility, document type,
+/// and source are intentionally denormalized so filtered retrieval does not need
+/// to widen ANN candidates before applying authorization boundaries.
+model KnowledgeChunk {
+  id                  String                 @id @default(cuid())
+  documentId          String
+  ownerId             String
+  courseId            String
+  courseSourceId      String?
+  notebookId          String?
+  documentType        String
+  visibility          String                 @default("course")
+  chunkIndex          Int
+  chunkText           String                 @db.Text
+  contentHash         String
+  tokenCount          Int?
+  metadataJson        Json?
+  embeddingModel      String?
+  embeddingDimensions Int?
+  embedding           Unsupported("vector")?
+
+  document     KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  owner        User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course       Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseSource CourseSource?     @relation(fields: [courseSourceId], references: [id], onDelete: SetNull)
+  notebook     Notebook?         @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([documentId, chunkIndex], map: "KnowledgeChunk_document_chunk_key")
+  @@index([courseId, documentId, chunkIndex], map: "KnowledgeChunk_course_document_idx")
+  @@index([ownerId, courseId, visibility, documentType], map: "KnowledgeChunk_owner_course_filter_idx")
+  @@index([courseId, notebookId, visibility, documentType], map: "KnowledgeChunk_course_notebook_filter_idx")
+  @@index([courseSourceId, documentId], map: "KnowledgeChunk_source_document_idx")
+}
+
+model MemoryFact {
+  id           String    @id @default(cuid())
+  ownerId      String
+  scopeType    String
+  scopeId      String?
+  namespace    String
+  key          String
+  valueJson    Json
+  confidence   Float     @default(1)
+  source       String    @default("manual")
+  sourceRef    Json?
+  status       String    @default("active")
+  validFrom    DateTime  @default(now())
+  supersededAt DateTime?
+
+  owner  User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  events MemoryFactEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, scopeType, scopeId, namespace, key, status])
+  @@index([ownerId, scopeType, scopeId, validFrom(sort: Desc)])
+  @@index([ownerId, status, updatedAt(sort: Desc)])
+}
+
+model MemoryFactEvent {
+  id           String  @id @default(cuid())
+  factId       String?
+  ownerId      String
+  scopeType    String
+  scopeId      String?
+  namespace    String
+  key          String
+  eventType    String
+  oldValueJson Json?
+  newValueJson Json?
+  source       String  @default("manual")
+  sourceRef    Json?
+
+  fact  MemoryFact? @relation(fields: [factId], references: [id], onDelete: SetNull)
+  owner User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([ownerId, scopeType, scopeId, namespace, key, createdAt(sort: Desc)])
+  @@index([ownerId, eventType, createdAt(sort: Desc)])
+  @@index([factId, createdAt(sort: Desc)])
+}
+
+model MemoryKnowledgeCache {
+  id              String   @id
+  cacheKey        String   @unique
+  ownerId         String
+  targetType      String
+  courseId        String?
+  notebookId      String?
+  sourceType      String
+  sourceId        String
+  title           String
+  previewText     String   @db.Text
+  metadata        Json?
+  firstQuery      String   @db.Text
+  lastQuery       String   @db.Text
+  hitCount        Int      @default(1)
+  score           Float    @default(0)
+  firstAccessedAt DateTime @default(now())
+  lastAccessedAt  DateTime @default(now())
+
+  owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course   Course?   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  notebook Notebook? @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, targetType, courseId, lastAccessedAt(sort: Desc)])
+  @@index([ownerId, targetType, notebookId, lastAccessedAt(sort: Desc)])
+  @@index([ownerId, sourceType, sourceId])
+  @@index([ownerId, hitCount, lastAccessedAt(sort: Desc)])
+}
+
+model CoursePurchase {
+  id             String   @id @default(cuid())
+  buyerId        String
+  sourceCourseId String
+  clonedCourseId String   @unique
+  priceCents     Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  buyer        User   @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  sourceCourse Course @relation("CoursePurchaseSource", fields: [sourceCourseId], references: [id], onDelete: Cascade)
+  clonedCourse Course @relation("CoursePurchaseClone", fields: [clonedCourseId], references: [id], onDelete: Cascade)
+
+  @@unique([buyerId, sourceCourseId])
+  @@index([buyerId, createdAt(sort: Desc)])
+}
+
+model CourseEnrollment {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String
+  priceCents Int      @default(0)
+  joinedAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId, joinedAt(sort: Desc)])
+  @@index([courseId, joinedAt(sort: Desc)])
+}
+
+model UserSpeechAudio {
+  id              String   @id @default(cuid())
+  userId          String
+  assetKey        String
+  actionId        String
+  textHash        String
+  voiceConfigHash String
+  providerId      String
+  voice           String
+  speed           Float    @default(1)
+  format          String
+  base64          String   @db.Text
+  visemes         Json?
+  mouthCues       Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, assetKey])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@index([userId, actionId])
+}
+
+model NotebookPurchase {
+  id               String   @id @default(cuid())
+  buyerId          String
+  sourceNotebookId String
+  clonedNotebookId String   @unique
+  priceCents       Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  buyer          User     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  sourceNotebook Notebook @relation("NotebookPurchaseSource", fields: [sourceNotebookId], references: [id], onDelete: Cascade)
+  clonedNotebook Notebook @relation("NotebookPurchaseClone", fields: [clonedNotebookId], references: [id], onDelete: Cascade)
+
+  @@unique([buyerId, sourceNotebookId])
+  @@index([buyerId, createdAt(sort: Desc)])
+}
+
+model CourseReview {
+  id         String   @id @default(cuid())
+  courseId   String
+  reviewerId String
+  rating     Int
+  comment    String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  reviewer User   @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, reviewerId])
+  @@index([courseId, createdAt(sort: Desc)])
+  @@index([reviewerId, createdAt(sort: Desc)])
+}
+
+model CreditTransaction {
+  id            String                @id @default(cuid())
+  userId        String
+  kind          CreditTransactionKind
+  accountType   CreditAccountType     @default(CASH)
+  delta         Int
+  balanceAfter  Int
+  description   String?
+  referenceType String?
+  referenceId   String?
+  metadata      Json?
+  createdAt     DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([kind, createdAt(sort: Desc)])
+}
+
+model UserEngagementProfile {
+  id                         String    @id @default(cuid())
+  userId                     String    @unique
+  streakDays                 Int       @default(0)
+  lastStudyAt                DateTime?
+  todayEarnedPurchaseCredits Int       @default(0)
+  preferredCharacterId       String?
+  avatarInventory            Json?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([preferredCharacterId])
+}
+
+model LearningActionLog {
+  id                      String             @id @default(cuid())
+  userId                  String
+  actionType              LearningActionType
+  courseId                String?
+  sceneId                 String?
+  metadata                Json?
+  rewardedPurchaseCredits Int                @default(0)
+  rewardedAffinity        Int                @default(0)
+  createdAt               DateTime           @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([actionType, createdAt(sort: Desc)])
+  @@index([courseId, createdAt(sort: Desc)])
+  @@index([sceneId, createdAt(sort: Desc)])
+}
+
+model CharacterCatalog {
+  id                        String             @id
+  name                      String
+  assetType                 CharacterAssetType
+  unlockCostPurchaseCredits Int                @default(0)
+  affinityLevelRequired     Int                @default(1)
+  sortOrder                 Int                @default(0)
+  isDefault                 Boolean            @default(false)
+  metadata                  Json?
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+
+  userProgress UserCharacterProgress[]
+
+  @@index([assetType, sortOrder])
+}
+
+model UserCharacterProgress {
+  id            String    @id @default(cuid())
+  userId        String
+  characterId   String
+  isUnlocked    Boolean   @default(false)
+  fragmentCount Int       @default(0)
+  affinityExp   Int       @default(0)
+  affinityLevel Int       @default(1)
+  equippedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character CharacterCatalog @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, characterId])
+  @@index([userId, equippedAt(sort: Desc)])
+}
+
+model UserMissionProgress {
+  id            String      @id @default(cuid())
+  userId        String
+  missionType   MissionType
+  periodKey     String
+  targetValue   Int
+  progressValue Int         @default(0)
+  claimedAt     DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, missionType, periodKey])
+  @@index([userId, periodKey])
+}
+
+model CreditTopUpPrice {
+  id              String   @id @default(cuid())
+  packId          String
+  currency        String
+  credits         Int
+  unitAmount      Int
+  stripeProductId String
+  stripePriceId   String   @unique
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([packId, currency])
+  @@index([stripeProductId])
+}
+
+model TopUpOrder {
+  id                      String           @id @default(cuid())
+  userId                  String
+  packId                  String
+  packTitle               String
+  credits                 Int
+  currency                String
+  amountTotal             Int
+  stripeCustomerId        String?
+  stripeProductId         String?
+  stripePriceId           String?
+  stripeCheckoutSessionId String?          @unique
+  stripePaymentIntentId   String?          @unique
+  status                  TopUpOrderStatus @default(pending)
+  fulfilledAt             DateTime?
+  metadata                Json?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+}
+
+model StripeWebhookEvent {
+  id            String   @id @default(cuid())
+  stripeEventId String   @unique
+  eventType     String
+  createdAt     DateTime @default(now())
+
+  @@index([eventType, createdAt(sort: Desc)])
+}
+
+model NotebookReview {
+  id         String   @id @default(cuid())
+  notebookId String
+  reviewerId String
+  rating     Int
+  comment    String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  notebook Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  reviewer User     @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@unique([notebookId, reviewerId])
+  @@index([notebookId, createdAt(sort: Desc)])
+  @@index([reviewerId, createdAt(sort: Desc)])
+}

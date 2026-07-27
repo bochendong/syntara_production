@@ -1,0 +1,76 @@
+{
+  "name": "learn-course-chat-p0",
+  "description": "Focused transport fixtures for the first /learn course-chat P0 batch. These preserve prior turns and image metadata so the same cases can be inspected offline or sent through /api/learn/turn.",
+  "cases": [
+    {
+      "id": "mat136-text-follow-up-keeps-context",
+      "course": {
+        "id": "mat136-local-fixture",
+        "name": "Calculus II",
+        "code": "MAT 136"
+      },
+      "resources": {
+        "syllabus": true,
+        "problemBankCount": 12,
+        "uploadedSources": true,
+        "memory": true
+      },
+      "recentMessages": [
+        {
+          "role": "user",
+          "text": "为什么反常积分要先改写成极限？"
+        },
+        {
+          "role": "assistant",
+          "text": "因为无穷区间不是普通定积分的有限端点，需要用有限区间积分的极限来定义。"
+        }
+      ],
+      "input": "那第二步为什么可以交换极限和加法？",
+      "expect": [
+        "learn_turn_receives_prior_messages",
+        "course_answerer_receives_prior_messages",
+        "follow_up_resolves_second_step"
+      ]
+    },
+    {
+      "id": "mat136-image-follow-up-routes-through-learn-turn",
+      "course": {
+        "id": "mat136-local-fixture",
+        "name": "Calculus II",
+        "code": "MAT 136"
+      },
+      "resources": {
+        "syllabus": true,
+        "problemBankCount": 12,
+        "uploadedSources": true,
+        "memory": true
+      },
+      "recentMessages": [
+        {
+          "role": "user",
+          "text": "我在做比较判别法这道题。"
+        },
+        {
+          "role": "assistant",
+          "text": "先找一个正项基准函数，再比较尾部增长速度。"
+        }
+      ],
+      "attachments": [
+        {
+          "id": "attachment-mat136-comparison-test-1",
+          "name": "comparison-test-work.png",
+          "mimeType": "image/png",
+          "size": 4096,
+          "width": 1200,
+          "height": 900
+        }
+      ],
+      "input": "请看图里我圈出的这一步，结合刚才的比较判别思路解释。",
+      "expect": [
+        "learn_turn_receives_attachment_metadata",
+        "image_does_not_bypass_learn_turn",
+        "course_answerer_receives_prior_messages_and_image"
+      ]
+    }
+  ]
+}

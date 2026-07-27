@@ -1,0 +1,107 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="shadow1" x="80" y="80" width="864" height="864" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="12" stdDeviation="24" flood-color="#AAB7D6" flood-opacity="0.28"/>
+    </filter>
+    <filter id="shadow2" x="160" y="170" width="704" height="684" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#87A0C8" flood-opacity="0.20"/>
+    </filter>
+    <filter id="shadow3" x="250" y="390" width="468" height="340" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#A7B6D8" flood-opacity="0.18"/>
+    </filter>
+    <linearGradient id="bgGrad" x1="128" y1="128" x2="896" y2="896" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F9F9FB"/>
+      <stop offset="1" stop-color="#F1F1F5"/>
+    </linearGradient>
+    <linearGradient id="awningBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#6EB1FF"/>
+      <stop offset="1" stop-color="#2D7BEB"/>
+    </linearGradient>
+    <linearGradient id="windowGrad" x1="512" y1="297" x2="512" y2="752" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DCEEFF"/>
+      <stop offset="1" stop-color="#BFDDF7"/>
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="324" y1="440" x2="660" y2="680" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F3F4F8"/>
+    </linearGradient>
+    <linearGradient id="playGrad" x1="389" y1="524" x2="455" y2="598" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#66BCFF"/>
+      <stop offset="1" stop-color="#2F88F0"/>
+    </linearGradient>
+    <linearGradient id="bookmarkGrad" x1="623" y1="438" x2="623" y2="571" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6FE2D5"/>
+      <stop offset="1" stop-color="#34C7BA"/>
+    </linearGradient>
+    <linearGradient id="potGrad" x1="703" y1="671" x2="803" y2="759" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4D4A9"/>
+      <stop offset="1" stop-color="#D8A86A"/>
+    </linearGradient>
+    <linearGradient id="leafGrad" x1="706" y1="590" x2="797" y2="716" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A6E56E"/>
+      <stop offset="1" stop-color="#56B850"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App icon base -->
+  <g filter="url(#shadow1)">
+    <rect x="128" y="128" width="768" height="768" rx="120" fill="url(#bgGrad)"/>
+  </g>
+
+  <!-- Store frame -->
+  <g filter="url(#shadow2)">
+    <rect x="256" y="298" width="512" height="456" rx="26" fill="#FAFBFD"/>
+    <rect x="292" y="360" width="440" height="358" rx="18" fill="url(#windowGrad)"/>
+  </g>
+
+  <!-- Awning top band -->
+  <g>
+    <path d="M286 286H738L710 320H314L286 286Z" fill="#D9E2F2" opacity="0.45"/>
+    <path d="M256 326C256 283.489 290.489 249 333 249H691C733.511 249 768 283.489 768 326V338H256V326Z" fill="#EEF2F8"/>
+    <g>
+      <path d="M256 338H378V467C378 505.108 347.108 536 309 536C278.072 536 252 510.8 256 480V338Z" fill="url(#awningBlue)"/>
+      <path d="M378 338H500V467C500 505.108 469.108 536 431 536C392.892 536 362 505.108 362 467L378 338Z" fill="#FCFCFD"/>
+      <path d="M500 338H622V467C622 505.108 591.108 536 553 536C514.892 536 484 505.108 484 467L500 338Z" fill="url(#awningBlue)"/>
+      <path d="M622 338H744V467C744 505.108 713.108 536 675 536C636.892 536 606 505.108 606 467L622 338Z" fill="#FCFCFD"/>
+      <path d="M654 338H768V480C768 518.108 737.108 549 699 549C660.892 549 630 518.108 630 480L654 338Z" fill="url(#awningBlue)"/>
+    </g>
+    <!-- left first valance overlay to smooth -->
+    <path d="M256 338H378V467C378 505.108 347.108 536 309 536C270.892 536 240 505.108 240 467V354C240 345.163 247.163 338 256 338Z" fill="url(#awningBlue)" opacity="0.98"/>
+    <!-- center filler -->
+    <path d="M378 338H500V467C500 505.108 469.108 536 431 536C392.892 536 362 505.108 362 467V354C362 345.163 369.163 338 378 338Z" fill="#FBFBFD"/>
+    <path d="M500 338H622V467C622 505.108 591.108 536 553 536C514.892 536 484 505.108 484 467V354C484 345.163 491.163 338 500 338Z" fill="url(#awningBlue)"/>
+    <path d="M622 338H744V467C744 505.108 713.108 536 675 536C636.892 536 606 505.108 606 467V354C606 345.163 613.163 338 622 338Z" fill="#FBFBFD"/>
+    <path d="M744 338H768V467C768 505.108 737.108 536 699 536C660.892 536 630 505.108 630 467V354C630 345.163 637.163 338 646 338H744Z" fill="url(#awningBlue)"/>
+  </g>
+
+  <!-- Card -->
+  <g filter="url(#shadow3)">
+    <rect x="324" y="440" width="336" height="292" rx="36" fill="url(#cardGrad)"/>
+  </g>
+
+  <!-- Play icon -->
+  <path d="M417 514C417 502.934 429.265 496.265 438.566 502.301L499.841 542.074C508.275 547.55 508.275 559.95 499.841 565.426L438.566 605.199C429.265 611.235 417 604.566 417 593.5V514Z" fill="url(#playGrad)"/>
+
+  <!-- Bookmark -->
+  <path d="M585 435H644C656.15 435 666 444.85 666 457V558L625 529L585 558V457C585 444.85 594.85 435 607 435Z" fill="url(#bookmarkGrad)"/>
+
+  <!-- Text lines -->
+  <rect x="416" y="647" width="252" height="18" rx="9" fill="#D7DCE5"/>
+  <rect x="416" y="698" width="104" height="18" rx="9" fill="#D7DCE5"/>
+
+  <!-- Plant -->
+  <g>
+    <ellipse cx="752" cy="747" rx="71" ry="10" fill="#C7D0DC" opacity="0.28"/>
+    <path d="M702 666C689 616 723 577 764 584C756 626 741 674 718 711C709 703 705 687 702 666Z" fill="url(#leafGrad)"/>
+    <path d="M735 648C731 597 775 570 815 594C793 631 774 677 767 723C747 709 737 687 735 648Z" fill="url(#leafGrad)"/>
+    <path d="M770 677C782 631 825 620 852 650C838 682 815 709 790 728C777 716 763 703 770 677Z" fill="url(#leafGrad)"/>
+    <path d="M693 706C693 694.954 701.954 686 713 686H789C800.046 686 809 694.954 809 706V738C809 761.748 789.748 781 766 781H736C712.252 781 693 761.748 693 738V706Z" fill="url(#potGrad)"/>
+    <path d="M701 699C701 690.163 708.163 683 717 683H785C793.837 683 801 690.163 801 699V710H701V699Z" fill="#E6C08F"/>
+  </g>
+
+  <!-- Bottom shelf -->
+  <g>
+    <rect x="272" y="730" width="480" height="30" rx="10" fill="#F3F4F7"/>
+    <rect x="256" y="748" width="512" height="26" rx="13" fill="#E7EAF0"/>
+  </g>
+</svg>

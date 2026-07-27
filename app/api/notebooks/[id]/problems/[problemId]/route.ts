@@ -1,0 +1,143 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireUserId } from '@/lib/server/api-auth';
+import { safeRoute } from '@/lib/server/json-error-response';
+import { prisma } from '@/lib/server/prisma';
+import { scheduleUnlinkedCourseKnowledgeProjectionSync } from '@/lib/server/unlinked-course-knowledge-projection';
+import {
+  notebookProblemGradingSchema,
+  notebookProblemPublicContentSchema,
+} from '@/features/problems';
+import {
+  deleteNotebookProblem,
+  DuplicateCourseProblemError,
+  getNotebookProblemForUser,
+  updateNotebookProblem,
+} from '@/features/problems/server/service';
+
+const updateProblemSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  status: z.enum(['draft', 'published', 'archived']).optional(),
+  points: z.number().int().min(0).max(1000).optional(),
+  order: z.number().int().min(0).optional(),
+  tags: z.array(z.string().trim().min(1).max(30)).max(16).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  publicContent: notebookProblemPublicContentSchema.optional(),
+  grading: notebookProblemGradingSchema.optional(),
+  secretJudge: z.unknown().nullable().optional(),
+});
+
+function toClientProblem(
+  problem: Awaited<ReturnType<typeof getNotebookProblemForUser>>['problem'],
+  secretJudge?: Awaited<ReturnType<typeof getNotebookProblemForUser>>['secretJudge'],
+) {
+  return {
+    id: problem.id,
+    courseId: problem.courseId ?? null,
+    notebookId: problem.notebookId,
+    notebookName: problem.notebookName,
+    title: problem.title,
+    type: problem.type,
+    status: problem.status,
+    source: problem.source,
+    order: problem.order,
+    problemNumber: problem.problemNumber ?? null,
+    points: problem.points,
+    tags: problem.tags,
+    difficulty: problem.difficulty,
+    publicContent: problem.publicContent,
+    grading: problem.grading,
+    sourceMeta: problem.sourceMeta,
+    createdAt: problem.createdAt,
+    updatedAt: problem.updatedAt,
+    ...(secretJudge ? { secretJudge } : {}),
+  };
+}
+
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string; problemId: string }> },
+) {
+  return safeRoute(async () => {
+    const auth = await requireUserId();
+    if ('response' in auth) return auth.response;
+    const { id, problemId } = await context.params;
+    const { problem, secretJudge } = await getNotebookProblemForUser(auth.userId, id, problemId);
+    return NextResponse.json({ problem: toClientProblem(problem, secretJudge) });
+  });
+}
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string; problemId: string }> },
+) {
+  return safeRoute(async () => {
+    const auth = await requireUserId();
+    if ('response' in auth) return auth.response;
+    const { id, problemId } = await context.params;
+
+    const payload = updateProblemSchema.safeParse(await request.json());
+    if (!payload.success) {
+      return NextResponse.json(
+        { error: 'Invalid request body', details: payload.error.flatten() },
+        { status: 400 },
+      );
+    }
+
+    let problem: Awaited<ReturnType<typeof updateNotebookProblem>>;
+    try {
+      problem = await updateNotebookProblem({
+        userId: auth.userId,
+        notebookId: id,
+        problemId,
+        patch: payload.data,
+      });
+    } catch (error) {
+      if (error instanceof DuplicateCourseProblemError) {
+        return NextResponse.json(
+          {
+            error: '课程中已经存在相同题目。',
+            code: error.code,
+            existingProblemId: error.existingProblemId,
+          },
+          { status: 409 },
+        );
+      }
+      throw error;
+    }
+    scheduleUnlinkedCourseKnowledgeProjectionSync({
+      prisma,
+      courseId: problem.courseId,
+      ownerId: auth.userId,
+      reason: 'notebook_problem_updated',
+    });
+    return NextResponse.json({ problem: toClientProblem(problem, problem.secretJudge) });
+  });
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string; problemId: string }> },
+) {
+  return safeRoute(async () => {
+    const auth = await requireUserId();
+    if ('response' in auth) return auth.response;
+    const { id, problemId } = await context.params;
+    const notebook = await prisma.notebook.findFirst({
+      where: { id, ownerId: auth.userId },
+      select: { courseId: true },
+    });
+    await deleteNotebookProblem({
+      userId: auth.userId,
+      notebookId: id,
+      problemId,
+    });
+    scheduleUnlinkedCourseKnowledgeProjectionSync({
+      prisma,
+      courseId: notebook?.courseId,
+      ownerId: auth.userId,
+      reason: 'notebook_problem_deleted',
+    });
+    return NextResponse.json({ ok: true });
+  });
+}

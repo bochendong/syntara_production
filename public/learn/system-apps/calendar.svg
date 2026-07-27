@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#8b96aa" flood-opacity="0.24"/></filter>
+  <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="24"/></filter>
+  <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f6f7fa"/></linearGradient>
+</defs><linearGradient id="blueWave" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eaf4ff"/><stop offset="1" stop-color="#8dc1ff"/></linearGradient>
+<g filter="url(#shadow)"><rect x="112" y="112" width="800" height="800" rx="180" fill="url(#tile)"/></g>
+<text x="512" y="345" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="96" font-weight="500" fill="#ff3b30" letter-spacing="4">MON</text>
+<text x="512" y="620" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="290" font-weight="300" fill="#111216">10</text>
+<path d="M112 694 C300 760 420 760 558 738 C682 718 800 678 912 650 L912 732 C912 832 832 912 732 912 H292 C192 912 112 832 112 732 Z" fill="url(#blueWave)"/>
+<path d="M112 694 C300 760 420 760 558 738 C682 718 800 678 912 650" fill="none" stroke="#d8eaff" stroke-width="4" opacity=".9"/>
+</svg>

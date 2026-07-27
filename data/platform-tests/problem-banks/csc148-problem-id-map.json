@@ -1,0 +1,2107 @@
+{
+  "schemaVersion": 3,
+  "courseCode": "CSC148",
+  "courseId": "cmqjfarz800158oi68s595q9n",
+  "generatedAt": "2026-07-22T15:56:33.969Z",
+  "source": "NotebookProblem.sourceMeta.sourceQuestionId",
+  "verification": {
+    "method": "live PostgreSQL join on NotebookProblem.courseId and sourceMeta.sourceQuestionId",
+    "verifiedAt": "2026-07-22T16:21:00.000Z",
+    "courseId": "cmqjfarz800158oi68s595q9n",
+    "matchedCount": 298,
+    "publishedCount": 298,
+    "titleMismatchCount": 0
+  },
+  "problemIdsBySourceId": {
+    "notebook_1066": "cmqjqeqdo008b8oit5uc89fci",
+    "notebook_1067": "cmqjqeqen008d8oitthcrtjp4",
+    "notebook_1068": "cmqjqeqfm008f8oitzxfpic1p",
+    "notebook_1069": "cmqjqeqgl008h8oitw7na7nzp",
+    "notebook_1071": "cmqjqeqbr00878oitrii7nizw",
+    "notebook_1073": "cmqjqeqcr00898oitaxz1046d",
+    "notebook_1074": "cmqjqeqjq008n8oit1iqkg0hi",
+    "notebook_1078": "cmqjqeqks008p8oit7psplij6",
+    "notebook_1079": "cmqjqeqo7008r8oitvdf8txaa",
+    "notebook_1081": "cmqjqeqhk008j8oitzpndrjy2",
+    "notebook_1083": "cmqjqeqin008l8oithfhoy12f",
+    "notebook_1084": "cmqjqeq9s00838oitsni7gm8v",
+    "notebook_1085": "cmqjqeqat00858oit7xxax2j9",
+    "notebook_1088": "cmqjqeq5j007z8oit95uejiin",
+    "notebook_1090": "cmqjqeq8t00818oit5g8ndga5",
+    "notebook_1091": "cmqjqer5100978oitquqlo43f",
+    "notebook_1092": "cmqjqer6100998oitljigemib",
+    "notebook_1093": "cmqjqer72009b8oit5oz6set0",
+    "notebook_1094": "cmqjqer1w00938oit0nmx4v13",
+    "notebook_1095": "cmqjqer3y00958oit67avxain",
+    "notebook_1098": "cmqjqernq009t8oitmmfk2rg1",
+    "notebook_1099": "cmqjqerop009v8oitq2f3ss8t",
+    "notebook_11": "cmqjqelb600098oit3z7hh2mn",
+    "notebook_1100": "cmqjqerpr009x8oit2auerht0",
+    "notebook_1101": "cmqjqerjq009n8oitztfrwefk",
+    "notebook_1102": "cmqjqerlr009p8oitjuu2wrql",
+    "notebook_1104": "cmqjqermr009r8oito0n1teo3",
+    "notebook_1160": "cmqjqes4300aj8oiteho10llb",
+    "notebook_1162": "cmqjqes5500al8oitpemeg6sn",
+    "notebook_1164": "cmqjqes0500ad8oitt4lo0cca",
+    "notebook_1165": "cmqjqes1400af8oitl7idpfxg",
+    "notebook_1166": "cmqjqes2300ah8oitf0t12tmb",
+    "notebook_1169": "cmqjqesis00b58oit0rdyq6c5",
+    "notebook_1177": "cmqjqeshs00b38oits3592uvn",
+    "notebook_1179": "cmqjqesgr00b18oit23boygvz",
+    "notebook_1182": "cmqjqerv100a38oitx006hepj",
+    "notebook_1183": "cmqjqerw100a58oitnw40l5v4",
+    "notebook_1184": "cmqjqerx800a78oitxzsvlxuh",
+    "notebook_1186": "cmqjqery700a98oitmpgvd68q",
+    "notebook_1187": "cmqjqerz600ab8oiteyr4j81g",
+    "notebook_1188": "cmqjqerqr009z8oitu9debiro",
+    "notebook_1191": "cmqjqerrs00a18oitv7hgn2cx",
+    "notebook_1193": "cmqjqesdm00av8oitsfqif5cp",
+    "notebook_1194": "cmqjqeseo00ax8oitx5k6mc37",
+    "notebook_1195": "cmqjqesfp00az8oit57dtibdu",
+    "notebook_1197": "cmqjqes9m00ap8oit7v0udq8s",
+    "notebook_1198": "cmqjqes6600an8oitg9zrpbw9",
+    "notebook_1199": "cmqjqesan00ar8oity9q0hjet",
+    "notebook_12": "cmqjqele4000b8oitdv75ny4e",
+    "notebook_1200": "cmqjqesbl00at8oit32onha8a",
+    "notebook_1203": "cmqjqesr800bf8oitxraf05kp",
+    "notebook_1204": "cmqjqesq700bd8oit61io7hm1",
+    "notebook_1208": "cmqjqeqp8008t8oituicdch5g",
+    "notebook_1209": "cmqjqer85009d8oitjj27l487",
+    "notebook_1210": "cmqjqesjs00b78oittfvnifb2",
+    "notebook_1211": "cmqjqeqrf008v8oitnn0b23q5",
+    "notebook_1212": "cmqjqera9009f8oitfbbtdsrm",
+    "notebook_1213": "cmqjqeqte008x8oitbntbg8a9",
+    "notebook_1355": "cmqjqepu7007j8oit2vpywl76",
+    "notebook_1356": "cmqjqepw8007l8oit0maw0w96",
+    "notebook_1357": "cmqjqepy9007n8oitddf5fn2r",
+    "notebook_1359": "cmqjqeqvd008z8oit4ipo0yqs",
+    "notebook_1360": "cmqjqeqxe00918oit4yvafoqu",
+    "notebook_1362": "cmqjqeli2000j8oita79yslry",
+    "notebook_1363": "cmqjqelj4000l8oitdqg874st",
+    "notebook_1364": "cmqjqenkw003z8oit6wlanedd",
+    "notebook_1365": "cmqjqelk4000n8oithoy0gw27",
+    "notebook_1369": "cmqjqeln0000t8oitd2l11min",
+    "notebook_1370": "cmqjqerc9009h8oitnli3jr3w",
+    "notebook_1371": "cmqjqeso600b98oitqmnwrmbq",
+    "notebook_1372": "cmqjqesp700bb8oitfet9eerm",
+    "notebook_1373": "cmqjqerda009j8oitfqqfrw43",
+    "notebook_1374": "cmqjqerhi009l8oityhnrmjfd",
+    "notebook_1375": "cmqjqet9l00c38oit297dxyse",
+    "notebook_1376": "cmqjqetal00c58oitcjg52w1w",
+    "notebook_1377": "cmqjqetbl00c78oitg2ii12u1",
+    "notebook_1379": "cmqjqet8m00c18oit6aamfid1",
+    "notebook_1382": "cmqjqetr300cn8oitblpzql6b",
+    "notebook_1383": "cmqjqets300cp8oit9bo5xzev",
+    "notebook_1384": "cmqjqett200cr8oitl1s07umm",
+    "notebook_1385": "cmqjqetmh00ch8oit9gr8kydu",
+    "notebook_1386": "cmqjqetno00cj8oitypfpcuos",
+    "notebook_1387": "cmqjqetos00cl8oit9o0gfk04",
+    "notebook_1390": "cmqjqeu7300d78oitxsk0zukk",
+    "notebook_1391": "cmqjqeuae00d98oitq5tjnzuv",
+    "notebook_1392": "cmqjqeu1500d18oitzcvx3cl8",
+    "notebook_1394": "cmqjqeu3b00d38oittbs58jmj",
+    "notebook_1395": "cmqjqeu5y00d58oitfwi7qsc6",
+    "notebook_1399": "cmqjqety100cv8oitm8mybjr0",
+    "notebook_14": "cmqjqelf3000d8oit2tv22m8k",
+    "notebook_1400": "cmqjqetz100cx8oitzh1hi1n8",
+    "notebook_1402": "cmqjqeu0200cz8oit85mcfdfz",
+    "notebook_1405": "cmqjqetlg00cf8oit9ztbl49s",
+    "notebook_1409": "cmqjqetjb00cd8oitg3rgzrpt",
+    "notebook_1410": "cmqjqet4n00bt8oitpw1izr6d",
+    "notebook_1411": "cmqjqet5p00bv8oit2jj7as55",
+    "notebook_1412": "cmqjqet6o00bx8oit84bwmvqv",
+    "notebook_1413": "cmqjqet7m00bz8oitkjb1sk62",
+    "notebook_1414": "cmqjqesy800bn8oitgyfw66by",
+    "notebook_1415": "cmqjqet0800bp8oitlr2nh1iv",
+    "notebook_1417": "cmqjqet3k00br8oitqzpbnysh",
+    "notebook_16": "cmqjqelg1000f8oit623luozs",
+    "notebook_1940": "cmqjqetvs00ct8oit5p7gzhai",
+    "notebook_1941": "cmqjqess800bh8oittuoh42ky",
+    "notebook_1942": "cmqjqesu900bj8oito2ryigt1",
+    "notebook_1943": "cmqjqetcq00c98oitqco25mwm",
+    "notebook_1944": "cmqjqesw800bl8oit2is34uif",
+    "notebook_1945": "cmqjqevjb00el8oitm4eg7qtz",
+    "notebook_1946": "cmqjqevkb00en8oitr66jdnvp",
+    "notebook_1947": "cmqjqevas00ed8oitiw8ascb5",
+    "notebook_1948": "cmqjqev5k00e58oitdqo2063i",
+    "notebook_1949": "cmqjqevlb00ep8oit1ajtaj1m",
+    "notebook_1950": "cmqjqev8q00e98oitsby0jbll",
+    "notebook_1953": "cmqjqevbt00ef8oit1vwz6jpw",
+    "notebook_1954": "cmqjqev9s00eb8oitxa5xrd14",
+    "notebook_1957": "cmqjqev4j00e38oit1y5en7py",
+    "notebook_1959": "cmqjqeuu900dv8oitucqv0up9",
+    "notebook_1961": "cmqjqev0l00e18oitt06ucdz0",
+    "notebook_1965": "cmqjqeus300dr8oit4gjo717o",
+    "notebook_1966": "cmqjqeur100dp8oitya2jxkud",
+    "notebook_1970": "cmqjqeut400dt8oito2mshmn2",
+    "notebook_2006": "cmqjqeubd00db8oitl2j3ks8e",
+    "notebook_2007": "cmqjqevcv00eh8oitu4whi8jj",
+    "notebook_2008": "cmqjqev6l00e78oitnglczali",
+    "notebook_2009": "cmqjqeuwa00dx8oitec67puxw",
+    "notebook_2010": "cmqjqeuyg00dz8oitgsiu12he",
+    "notebook_2011": "cmqjqex9e00gr8oitmcys9qkw",
+    "notebook_2013": "cmqjqewlp00fr8oitxbc8zmoj",
+    "notebook_2014": "cmqjqex7e00gn8oitzrguj7jb",
+    "notebook_2016": "cmqjqewy300g98oit67ltxcjn",
+    "notebook_2018": "cmqjqexaf00gt8oitl1t6rc20",
+    "notebook_2020": "cmqjqex8d00gp8oitqw7og2tu",
+    "notebook_2022": "cmqjqex4d00gh8oitzv23ui3a",
+    "notebook_2023": "cmqjqex5f00gj8oite56jmmok",
+    "notebook_2024": "cmqjqex0c00gd8oitinf3h095",
+    "notebook_2025": "cmqjqex1h00gf8oitt2cuvun8",
+    "notebook_2027": "cmqjqew1q00f58oityq6e0nlf",
+    "notebook_2029": "cmqjqewip00fl8oit42k16yk1",
+    "notebook_2030": "cmqjqex6e00gl8oitvp2s18v2",
+    "notebook_2033": "cmqjqewpt00fv8oit9f8jsfsv",
+    "notebook_2034": "cmqjqew3200f78oit1gzlnvhe",
+    "notebook_2035": "cmqjqewjp00fn8oitsoxe2mbq",
+    "notebook_2036": "cmqjqewz900gb8oitvr4vdpjz",
+    "notebook_2038": "cmqjqewmr00ft8oit5trhfvk2",
+    "notebook_2040": "cmqjqewkp00fp8oitr2jo99n4",
+    "notebook_2041": "cmqjqewtb00g18oitr42z32t4",
+    "notebook_2042": "cmqjqewuv00g38oit1ugr07n8",
+    "notebook_2045": "cmqjqewvy00g58oit0adcr0vy",
+    "notebook_2046": "cmqjqewx100g78oitqxpfaw5o",
+    "notebook_2047": "cmqjqewqw00fx8oit2jmutlgy",
+    "notebook_2048": "cmqjqews100fz8oittrmgypj8",
+    "notebook_205": "cmqjqemh500258oit6cfyrvpn",
+    "notebook_206": "cmqjqemi300278oit3owutrpl",
+    "notebook_207": "cmqjqemj100298oit132zafqg",
+    "notebook_208": "cmqjqemlr002b8oitf6wzwu58",
+    "notebook_209": "cmqjqemms002d8oit7sbj1bu8",
+    "notebook_21": "cmqjqel7400038oitim6jre5o",
+    "notebook_210": "cmqjqemnr002f8oittpwwluhp",
+    "notebook_212": "cmqjqemor002h8oit49dvyyxz",
+    "notebook_2124": "cmqjqeth800cb8oithjps1l12",
+    "notebook_2125": "cmqjqevez00ej8oitcxrxo9is",
+    "notebook_2126": "cmqjqeucd00dd8oits0z54259",
+    "notebook_2127": "cmqjqeuef00df8oitwys7p1x3",
+    "notebook_2128": "cmqjqeugo00dh8oitqalv0o35",
+    "notebook_2129": "cmqjqeuip00dj8oitikezzdtp",
+    "notebook_213": "cmqjqempr002j8oityryzefwz",
+    "notebook_2130": "cmqjqeukp00dl8oit9ygmxcbc",
+    "notebook_2131": "cmqjqew4300f98oitc129lhma",
+    "notebook_2132": "cmqjqew6300fb8oitygzdlyzw",
+    "notebook_2134": "cmqjqew8500fd8oitqic6rt2r",
+    "notebook_2135": "cmqjqevmf00er8oit4x8qclf7",
+    "notebook_2136": "cmqjqewco00ff8oitdywca5cx",
+    "notebook_2137": "cmqjqeweq00fh8oiti4w33ifu",
+    "notebook_2138": "cmqjqewgo00fj8oit5jtk03nq",
+    "notebook_2139": "cmqjqevog00et8oit76z6enix",
+    "notebook_2140": "cmqjqevqf00ev8oitqb92avvh",
+    "notebook_2141": "cmqjqevsf00ex8oitcg4ks4vf",
+    "notebook_2142": "cmqjqevwn00ez8oitjz7urq8c",
+    "notebook_2143": "cmqjqeup200dn8oits8ge88ki",
+    "notebook_2144": "cmqjqevyp00f18oitkrnqn72l",
+    "notebook_2145": "cmqjqelws00198oittkl8t1wg",
+    "notebook_2147": "cmqjqelxt001b8oitqggsbalf",
+    "notebook_215": "cmqjqemg600238oit2j5p03po",
+    "notebook_22": "cmqjqel9700058oitzn5kxe5r",
+    "notebook_224": "cmqjqemqr002l8oiti1r4nuuv",
+    "notebook_2255": "cmqjqelyt001d8oitwy3jyilc",
+    "notebook_2256": "cmqjqelzt001f8oitpmg9z0s0",
+    "notebook_2257": "cmqjqeow6005z8oitjftp30kv",
+    "notebook_226": "cmqjqemrq002n8oitcmjkmi2f",
+    "notebook_229": "cmqjqemsq002p8oit394elk9r",
+    "notebook_23": "cmqjqela600078oit6b5jj8yu",
+    "notebook_230": "cmqjqemts002r8oitoy7cprf2",
+    "notebook_245": "cmqjqeme8001z8oit4orgizvh",
+    "notebook_248": "cmqjqemf700218oituujxrtq2",
+    "notebook_251": "cmqjqen08002z8oitu948ib59",
+    "notebook_253": "cmqjqen1800318oitm5qnvinl",
+    "notebook_254": "cmqjqen2a00338oit524ofofx",
+    "notebook_255": "cmqjqen3800358oit0d5515sd",
+    "notebook_256": "cmqjqen4700378oitssczmbas",
+    "notebook_257": "cmqjqen5700398oitl3566fw1",
+    "notebook_259": "cmqjqemuv002t8oitrnklzdeq",
+    "notebook_260": "cmqjqemvu002v8oit3gze3j3k",
+    "notebook_262": "cmqjqemws002x8oita286v08c",
+    "notebook_29": "cmqjqelsl00118oitn6w5nvor",
+    "notebook_35": "cmqjqelto00138oit8cvb6813",
+    "notebook_36": "cmqjqelur00158oitxwxa0yu1",
+    "notebook_37": "cmqjqelvr00178oitw8hukynd",
+    "notebook_39": "cmqjqelo0000v8oitgyjrv253",
+    "notebook_40": "cmqjqeloy000x8oitumgnf5ag",
+    "notebook_42": "cmqjqelpy000z8oitp9bsvsy1",
+    "notebook_480": "cmqjqeo3t004r8oit8cjsdnfa",
+    "notebook_481": "cmqjqeo4y004t8oitv29vzr1k",
+    "notebook_482": "cmqjqeo7w004v8oiti0yvtxst",
+    "notebook_484": "cmqjqenzj004l8oits6gozven",
+    "notebook_485": "cmqjqeo0k004n8oitk611ig54",
+    "notebook_486": "cmqjqeo1m004p8oitr3xwzpld",
+    "notebook_487": "cmqjqeocx00538oit92e065ph",
+    "notebook_488": "cmqjqeodv00558oit2618g1dw",
+    "notebook_489": "cmqjqeoeu00578oitr02yfs8l",
+    "notebook_490": "cmqjqeo8w004x8oitqkqjl6lu",
+    "notebook_491": "cmqjqeoau004z8oitu4kbv6i7",
+    "notebook_493": "cmqjqeobu00518oits7oq8r4r",
+    "notebook_494": "cmqjqen84003f8oitd7d5b2ya",
+    "notebook_495": "cmqjqen92003h8oitbar8uuhm",
+    "notebook_496": "cmqjqena1003j8oitvn5k9tq2",
+    "notebook_497": "cmqjqenaz003l8oit2ud3nri0",
+    "notebook_499": "cmqjqen69003b8oitfrryw9sv",
+    "notebook_501": "cmqjqen76003d8oitiufi2c7n",
+    "notebook_502": "cmqjqeni2003t8oitamwjbz28",
+    "notebook_503": "cmqjqeniz003v8oittq4e1ma9",
+    "notebook_504": "cmqjqenjy003x8oit84ifhfmm",
+    "notebook_506": "cmqjqenbx003n8oitfrmrunxf",
+    "notebook_507": "cmqjqenes003p8oitx3r4ppmj",
+    "notebook_508": "cmqjqenfz003r8oitms9e7eye",
+    "notebook_509": "cmqjqenu9004b8oitz9k6300j",
+    "notebook_510": "cmqjqenv7004d8oit3e2hubrx",
+    "notebook_511": "cmqjqenw5004f8oitadge8wgk",
+    "notebook_512": "cmqjqenx5004h8oittik97s5q",
+    "notebook_513": "cmqjqenyf004j8oitr7vfx2d8",
+    "notebook_514": "cmqjqenlu00418oit68f5niuz",
+    "notebook_515": "cmqjqenns00458oith31a61gz",
+    "notebook_516": "cmqjqenmu00438oit37fbwxwe",
+    "notebook_517": "cmqjqenpo00478oits29xsu90",
+    "notebook_518": "cmqjqenqk00498oitgvp6mu26",
+    "notebook_519": "cmqjqeoiy005f8oitic24o8ty",
+    "notebook_520": "cmqjqeomi005h8oitcfnwdvnr",
+    "notebook_521": "cmqjqeonh005j8oitvq4avimb",
+    "notebook_522": "cmqjqeooh005l8oitl472hpru",
+    "notebook_523": "cmqjqeofw00598oitnupy38yk",
+    "notebook_524": "cmqjqeogv005b8oite82j6xf9",
+    "notebook_526": "cmqjqeohu005d8oitzrhytep3",
+    "notebook_527": "cmqjqephp006z8oito9e9klum",
+    "notebook_528": "cmqjqepio00718oit3hktf3s3",
+    "notebook_529": "cmqjqepjn00738oitasvw11sw",
+    "notebook_530": "cmqjqepcz006t8oit05hmwqjq",
+    "notebook_531": "cmqjqepfm006v8oitnkq3lwyx",
+    "notebook_533": "cmqjqepgm006x8oitnnnpjiqr",
+    "notebook_534": "cmqjqepod007b8oitodz5h3yr",
+    "notebook_535": "cmqjqeppd007d8oituoei3fk5",
+    "notebook_536": "cmqjqepqb007f8oitwckc4ls1",
+    "notebook_537": "cmqjqeprb007h8oit6xekrpss",
+    "notebook_538": "cmqjqepkl00758oit44ffbym3",
+    "notebook_539": "cmqjqepmj00778oit1hm3419y",
+    "notebook_540": "cmqjqepnf00798oitr2n2hhrd",
+    "notebook_542": "cmqjqeq2c007t8oitfvnj0b8z",
+    "notebook_543": "cmqjqeq3e007v8oitmy4hs1nf",
+    "notebook_544": "cmqjqeq4j007x8oitik3jgx6x",
+    "notebook_546": "cmqjqeq0b007p8oitgnvoehgi",
+    "notebook_547": "cmqjqeq1c007r8oitxj11iadx",
+    "notebook_549": "cmqjqep2500678oitdhjlos66",
+    "notebook_55": "cmqjqem0w001h8oitqaxz2m68",
+    "notebook_550": "cmqjqep3600698oitv4luu24a",
+    "notebook_551": "cmqjqep47006b8oitewob88ak",
+    "notebook_552": "cmqjqeox900618oitf5mx4kek",
+    "notebook_553": "cmqjqeoya00638oitdq5tnypx",
+    "notebook_555": "cmqjqep1400658oity04xmpuy",
+    "notebook_556": "cmqjqeotc005t8oithe8f5v5a",
+    "notebook_557": "cmqjqeoub005v8oitl7kddd3i",
+    "notebook_558": "cmqjqeov9005x8oitu00s501q",
+    "notebook_559": "cmqjqeoph005n8oitscz5ncxu",
+    "notebook_56": "cmqjqem1v001j8oitg7oa1060",
+    "notebook_560": "cmqjqeord005p8oituh99ks40",
+    "notebook_561": "cmqjqeosb005r8oitta07eivz",
+    "notebook_563": "cmqjqep84006j8oit8v3okkyh",
+    "notebook_565": "cmqjqep92006l8oit7iddknkv",
+    "notebook_566": "cmqjqep9z006n8oitqb49usdq",
+    "notebook_567": "cmqjqepay006p8oit0r3uhy30",
+    "notebook_568": "cmqjqepbx006r8oit88if365y",
+    "notebook_569": "cmqjqep5a006d8oithea0nugl",
+    "notebook_571": "cmqjqep68006f8oit54h5txxt",
+    "notebook_572": "cmqjqep76006h8oitq029uy7c",
+    "notebook_59": "cmqjqem2u001l8oit4ywts0zg",
+    "notebook_62": "cmqjqem3v001n8oitzggm1799",
+    "notebook_64": "cmqjqem75001p8oitfe3kuqna",
+    "notebook_79": "cmqjqemc7001v8oit63xvjrso",
+    "notebook_80": "cmqjqemd8001x8oitzlx7861k",
+    "notebook_88": "cmqjqem84001r8oite66gxmpb",
+    "notebook_90": "cmqjqemb6001t8oittwvu1pzv"
+  },
+  "titlesBySourceId": {
+    "notebook_1066": "选择题：抽象数据类型概念",
+    "notebook_1067": "选择题：抽象数据类型概念",
+    "notebook_1068": "代码追踪：抽象数据类型概念",
+    "notebook_1069": "代码追踪：初始化与表示不变式",
+    "notebook_1071": "选择题：抽象类接口",
+    "notebook_1073": "代码追踪：Stack 操作",
+    "notebook_1074": "选择题：常见 ADT 接口",
+    "notebook_1078": "选择题：常见 ADT 接口",
+    "notebook_1079": "代码追踪：继承与方法覆盖",
+    "notebook_1081": "选择题：抽象类接口",
+    "notebook_1083": "代码追踪：常见 ADT 接口",
+    "notebook_1084": "选择题：ADT 与数据结构实现",
+    "notebook_1085": "代码追踪：Stack 操作",
+    "notebook_1088": "选择题：ADT 与数据结构实现",
+    "notebook_1090": "代码追踪：ADT 与数据结构实现",
+    "notebook_1091": "代码追踪：Docstring 与 doctest",
+    "notebook_1092": "代码追踪：Stack 操作",
+    "notebook_1093": "代码追踪：Stack 操作",
+    "notebook_1094": "编程题：括号匹配算法实现及平衡性判断",
+    "notebook_1095": "选择题：Stack 操作",
+    "notebook_1098": "选择题：Queue 操作",
+    "notebook_1099": "代码追踪：Docstring 与 doctest",
+    "notebook_11": "选择题：对象三要素与变量绑定",
+    "notebook_1100": "代码追踪：Stack 操作",
+    "notebook_1101": "编程题：编写函数用栈和队列判断回文字符串",
+    "notebook_1102": "选择题：Queue 操作与应用",
+    "notebook_1104": "代码追踪：Stack 操作",
+    "notebook_1160": "代码追踪：Stack 操作",
+    "notebook_1162": "代码追踪：Stack 操作",
+    "notebook_1164": "代码追踪：Stack 操作",
+    "notebook_1165": "选择题：Stack 操作",
+    "notebook_1166": "编程题：自定义异常与栈数据结构实现练习",
+    "notebook_1169": "选择题：参数与返回值类型注解",
+    "notebook_1177": "选择题：Stack 操作",
+    "notebook_1179": "选择题：Stack 操作",
+    "notebook_1182": "代码追踪：异常处理流程",
+    "notebook_1183": "代码追踪：异常处理流程",
+    "notebook_1184": "代码追踪：异常处理流程",
+    "notebook_1186": "代码追踪：异常处理流程",
+    "notebook_1187": "代码追踪：异常处理流程",
+    "notebook_1188": "代码追踪：异常处理流程",
+    "notebook_1191": "代码追踪：异常处理流程",
+    "notebook_1193": "代码追踪：异常处理流程",
+    "notebook_1194": "代码追踪：异常处理流程",
+    "notebook_1195": "代码追踪：异常处理流程",
+    "notebook_1197": "代码追踪：异常处理流程",
+    "notebook_1198": "选择题：异常处理流程",
+    "notebook_1199": "代码追踪：异常处理流程",
+    "notebook_12": "代码追踪：对象三要素与变量绑定",
+    "notebook_1200": "编程题：实现安全除法并抛出合适异常",
+    "notebook_1203": "选择题：魔术方法",
+    "notebook_1204": "代码追踪：Stack 操作",
+    "notebook_1208": "编程题：容量受限制的栈类设计与继承方法实现",
+    "notebook_1209": "编程题：借助栈转队列保持原入栈顺序",
+    "notebook_1210": "编程题：自定义异常层次结构与分层捕获实践",
+    "notebook_1211": "编程题：带整除约束的特殊栈类功能扩展",
+    "notebook_1212": "编程题：实现 Unix 路径简化规范化功能",
+    "notebook_1213": "编程题：实现逆波兰表达式求值的栈算法",
+    "notebook_1355": "编程题：实现带继承的多样测验题类设计",
+    "notebook_1356": "编程题：多重继承下活体及行为类与描述函数设计",
+    "notebook_1357": "编程题：根据用例实现选区投票类的功能方法",
+    "notebook_1359": "编程题：用栈转队列并清空原栈元素",
+    "notebook_1360": "编程题：实现特殊 push 方法的 DividingStack 子类",
+    "notebook_1362": "简答题：列表别名与可变对象输出",
+    "notebook_1363": "简答题：拷贝与别名输出",
+    "notebook_1364": "选择题：对象协议与方法设计",
+    "notebook_1365": "简答题：浅拷贝别名断言",
+    "notebook_1369": "简答题：类对象内存状态",
+    "notebook_1370": "简答题：初始化与表示不变式",
+    "notebook_1371": "简答题：初始化与表示不变式",
+    "notebook_1372": "简答题：Stack 操作",
+    "notebook_1373": "编程题：用两个队列模拟实现栈操作",
+    "notebook_1374": "编程题：用两个栈模拟队列基本操作",
+    "notebook_1375": "选择题：复杂度分析",
+    "notebook_1376": "代码追踪：链表动机与数组限制",
+    "notebook_1377": "选择题：链表操作",
+    "notebook_1379": "选择题：链表操作",
+    "notebook_1382": "选择题：复杂度分析",
+    "notebook_1383": "代码追踪：链表操作",
+    "notebook_1384": "代码追踪：链表操作",
+    "notebook_1385": "代码追踪：链表操作",
+    "notebook_1386": "选择题：链表操作",
+    "notebook_1387": "编程题：实现链表转标准列表的遍历函数",
+    "notebook_1390": "代码追踪：链表操作",
+    "notebook_1391": "代码追踪：链表操作",
+    "notebook_1392": "编程题：单向链表基本类实现及方法设计",
+    "notebook_1394": "编程题：Python 列表转链表的函数实现",
+    "notebook_1395": "代码追踪：链表操作",
+    "notebook_1399": "代码追踪：链表节点遍历",
+    "notebook_14": "代码追踪：对象身份比较输出",
+    "notebook_1400": "选择题：链表操作",
+    "notebook_1402": "代码追踪：链表操作",
+    "notebook_1405": "代码追踪：链表操作",
+    "notebook_1409": "编程题：实现支持尾指针优化的单链表",
+    "notebook_1410": "代码追踪：链表操作",
+    "notebook_1411": "选择题：Stack 操作",
+    "notebook_1412": "代码追踪：Queue 操作",
+    "notebook_1413": "代码追踪：链表操作",
+    "notebook_1414": "编程题：实现基本单向链表及其节点操作方法",
+    "notebook_1415": "选择题：Queue 操作",
+    "notebook_1417": "代码追踪：链表操作",
+    "notebook_16": "代码追踪：对象三要素与变量绑定",
+    "notebook_1940": "编程题：实现单链表反转（迭代/递归）",
+    "notebook_1941": "编程题：单链表中移除指定值的节点",
+    "notebook_1942": "编程题：判断链表是否为回文结构",
+    "notebook_1943": "编程题：用链表实现两个整数的逐位相加",
+    "notebook_1944": "编程题：有序链表中去除所有重复元素",
+    "notebook_1945": "代码追踪：递归结构",
+    "notebook_1946": "代码追踪：递归结构",
+    "notebook_1947": "代码追踪：递归结构",
+    "notebook_1948": "代码追踪：生成型递归",
+    "notebook_1949": "选择题：递归结构",
+    "notebook_1950": "代码追踪：递归结构",
+    "notebook_1953": "选择题：递归结构",
+    "notebook_1954": "代码追踪：递归结构",
+    "notebook_1957": "选择题：递归结构",
+    "notebook_1959": "编程题：计算嵌套列表元素的递归求和",
+    "notebook_1961": "编程题：用递归查找树结构中的最大值",
+    "notebook_1965": "代码追踪：嵌套列表求和",
+    "notebook_1966": "选择题：嵌套列表递归",
+    "notebook_1970": "代码追踪：嵌套列表递归",
+    "notebook_2006": "简答题：类型判断与 isinstance",
+    "notebook_2007": "编程题：实现 reverse 函数",
+    "notebook_2008": "编程题：实现 is_palindrome 函数",
+    "notebook_2009": "编程题：递归追加链表节点",
+    "notebook_2010": "编程题：递归删除链表节点值",
+    "notebook_2011": "选择题：树结构",
+    "notebook_2013": "代码追踪：树遍历顺序",
+    "notebook_2014": "选择题：树结构",
+    "notebook_2016": "选择题：树结构",
+    "notebook_2018": "选择题：树结构",
+    "notebook_2020": "选择题：树性质与基本结论",
+    "notebook_2022": "选择题：树结构",
+    "notebook_2023": "选择题：树结构",
+    "notebook_2024": "简答题：树结构",
+    "notebook_2025": "选择题：树结构",
+    "notebook_2027": "代码追踪：树结构",
+    "notebook_2029": "选择题：树结构",
+    "notebook_2030": "选择题：树结构",
+    "notebook_2033": "选择题：树遍历顺序",
+    "notebook_2034": "简答题：树遍历顺序",
+    "notebook_2035": "选择题：树遍历顺序",
+    "notebook_2036": "选择题：树术语与特殊树",
+    "notebook_2038": "代码追踪：属性封装",
+    "notebook_2040": "代码追踪：BST 操作",
+    "notebook_2041": "选择题：树结构",
+    "notebook_2042": "简答题：BST 操作",
+    "notebook_2045": "代码追踪：树结构",
+    "notebook_2046": "简答题：树结构",
+    "notebook_2047": "选择题：树结构",
+    "notebook_2048": "代码追踪：树结构",
+    "notebook_205": "选择题：函数命名与参数语义",
+    "notebook_206": "选择题：函数命名与参数语义",
+    "notebook_207": "选择题：函数命名与参数语义",
+    "notebook_208": "选择题：函数命名与参数语义",
+    "notebook_209": "选择题：函数头与类型契约",
+    "notebook_21": "选择题：对象三要素与变量绑定",
+    "notebook_210": "选择题：参数返回类型契约",
+    "notebook_212": "选择题：参数返回类型契约",
+    "notebook_2124": "编程题：链表交替合并",
+    "notebook_2125": "编程题：Reverses String. Implement the following",
+    "notebook_2126": "编程题：递归求嵌套列表总和",
+    "notebook_2127": "编程题：递归求嵌套列表奇数深度总和",
+    "notebook_2128": "编程题：递归查找嵌套列表最大值",
+    "notebook_2129": "编程题：递归计算嵌套列表最大深度",
+    "notebook_213": "选择题：函数头与类型契约",
+    "notebook_2130": "编程题：递归扁平化嵌套列表",
+    "notebook_2131": "编程题：实现 BST 插入",
+    "notebook_2132": "编程题：实现 BST 查找",
+    "notebook_2134": "编程题：实现 BST 删除",
+    "notebook_2135": "编程题：实现 BST 三种遍历",
+    "notebook_2136": "编程题：由先序遍历构造 BST",
+    "notebook_2137": "编程题：查找 BST 第 k 大元素",
+    "notebook_2138": "编程题：镜像翻转 BST",
+    "notebook_2139": "编程题：递归求树节点总和",
+    "notebook_2140": "编程题：递归查找树中最大值",
+    "notebook_2141": "编程题：实现 Tree 最长递增路径",
+    "notebook_2142": "编程题：统计 Tree 指定深度内的奇数节点",
+    "notebook_2143": "编程题：嵌套列表深拷贝",
+    "notebook_2144": "编程题：递归深拷贝树",
+    "notebook_2145": "选择题：浅拷贝与深拷贝",
+    "notebook_2147": "选择题：浅拷贝与深拷贝",
+    "notebook_215": "选择题：函数命名与参数语义",
+    "notebook_22": "代码追踪：对象三要素与变量绑定",
+    "notebook_224": "选择题：Docstring 与 doctest",
+    "notebook_2255": "选择题：对象别名与副作用",
+    "notebook_2256": "选择题：对象别名与副作用",
+    "notebook_2257": "选择题：类对象内存状态",
+    "notebook_226": "选择题：Docstring 与 doctest",
+    "notebook_229": "选择题：Docstring 与 doctest",
+    "notebook_23": "选择题：对象三要素与变量绑定",
+    "notebook_230": "简答题：Docstring 与 doctest",
+    "notebook_245": "选择题：参数与返回值类型注解",
+    "notebook_248": "选择题：参数与返回值类型注解",
+    "notebook_251": "选择题：高级类型注解",
+    "notebook_253": "选择题：高级类型注解",
+    "notebook_254": "代码追踪：高级类型注解",
+    "notebook_255": "选择题：高级类型注解",
+    "notebook_256": "代码追踪：高级类型注解",
+    "notebook_257": "选择题：函数类型注解",
+    "notebook_259": "选择题：参数返回类型契约",
+    "notebook_260": "选择题：函数类型注解",
+    "notebook_262": "选择题：参数与返回值类型注解",
+    "notebook_29": "代码追踪：可变对象与内存状态",
+    "notebook_35": "代码追踪：可变对象与内存状态",
+    "notebook_36": "选择题：浅拷贝与深拷贝",
+    "notebook_37": "代码追踪：可变对象与内存状态",
+    "notebook_39": "选择题：可变对象与内存状态",
+    "notebook_40": "代码追踪：可变对象与内存状态",
+    "notebook_42": "选择题：小整数缓存与对象身份",
+    "notebook_480": "代码追踪：属性封装",
+    "notebook_481": "代码追踪：类与对象基础",
+    "notebook_482": "代码追踪：类与对象基础",
+    "notebook_484": "选择题：属性封装",
+    "notebook_485": "代码追踪：类与对象基础",
+    "notebook_486": "编程题：实现 Person 类与成年判断方法",
+    "notebook_487": "代码追踪：Person 类与成年判断",
+    "notebook_488": "代码追踪：函数类型注解",
+    "notebook_489": "代码追踪：初始化与表示不变式",
+    "notebook_490": "编程题：实现 BankAccount 类的初始化和方法",
+    "notebook_491": "选择题：函数类型注解",
+    "notebook_493": "代码追踪：BankAccount 类设计",
+    "notebook_494": "代码追踪：属性封装",
+    "notebook_495": "代码追踪：魔术方法",
+    "notebook_496": "代码追踪：属性封装与私有属性",
+    "notebook_497": "代码追踪：属性封装",
+    "notebook_499": "选择题：属性封装",
+    "notebook_501": "代码追踪：属性封装与私有属性",
+    "notebook_502": "代码追踪：初始化与表示不变式",
+    "notebook_503": "代码追踪：初始化与表示不变式",
+    "notebook_504": "代码追踪：初始化与表示不变式",
+    "notebook_506": "选择题：方法调用与函数对比",
+    "notebook_507": "代码追踪：方法调用与函数对比",
+    "notebook_508": "编程题：实现统计字符串频率的函数",
+    "notebook_509": "代码追踪：魔术方法",
+    "notebook_510": "代码追踪：魔术方法",
+    "notebook_511": "代码追踪：属性封装",
+    "notebook_512": "代码追踪：Point 坐标相等判断",
+    "notebook_513": "代码追踪：魔术方法",
+    "notebook_514": "代码追踪：魔术方法",
+    "notebook_515": "编程题：实现支持多操作的 SimpleString 包装类",
+    "notebook_516": "选择题：魔术方法",
+    "notebook_517": "代码追踪：魔术方法与操作符支持",
+    "notebook_518": "编程题：实现基于坐标的点类相等比较方法",
+    "notebook_519": "代码追踪：初始化与表示不变式",
+    "notebook_520": "代码追踪：初始化与表示不变式",
+    "notebook_521": "代码追踪：属性封装",
+    "notebook_522": "代码追踪：初始化与表示不变式",
+    "notebook_523": "代码追踪：初始化与表示不变式",
+    "notebook_524": "选择题：初始化与表示不变式",
+    "notebook_526": "代码追踪：初始化与表示不变式",
+    "notebook_527": "代码追踪：对象身份 id",
+    "notebook_528": "代码追踪：魔术方法",
+    "notebook_529": "代码追踪：继承与方法覆盖",
+    "notebook_530": "代码追踪：魔术方法",
+    "notebook_531": "选择题：魔术方法",
+    "notebook_533": "代码追踪：初始化与表示不变式",
+    "notebook_534": "代码追踪：属性封装",
+    "notebook_535": "代码追踪：继承与方法覆盖",
+    "notebook_536": "代码追踪：继承与方法覆盖",
+    "notebook_537": "代码追踪：抽象类接口",
+    "notebook_538": "编程题：设计含继承和方法重写的动物类",
+    "notebook_539": "选择题：继承与方法覆盖",
+    "notebook_540": "代码追踪：继承与方法覆盖",
+    "notebook_542": "代码追踪：属性封装",
+    "notebook_543": "代码追踪：超类与子类结构",
+    "notebook_544": "代码追踪：超类与子类结构",
+    "notebook_546": "选择题：超类与子类结构",
+    "notebook_547": "代码追踪：超类与子类结构",
+    "notebook_549": "代码追踪：继承与方法覆盖",
+    "notebook_55": "代码追踪：对象别名与副作用",
+    "notebook_550": "代码追踪：方法覆盖与解析顺序",
+    "notebook_551": "代码追踪：方法覆盖与解析顺序",
+    "notebook_552": "代码追踪：方法覆盖与解析顺序",
+    "notebook_553": "选择题：方法覆盖与解析顺序",
+    "notebook_555": "代码追踪：初始化与表示不变式",
+    "notebook_556": "代码追踪：抽象类接口",
+    "notebook_557": "代码追踪：抽象类接口",
+    "notebook_558": "代码追踪：继承与方法覆盖",
+    "notebook_559": "编程题：实现 Shape 抽象类及其子类方法",
+    "notebook_56": "选择题：对象别名与副作用",
+    "notebook_560": "选择题：异常处理流程",
+    "notebook_561": "代码追踪：抽象类接口",
+    "notebook_563": "代码追踪：魔术方法",
+    "notebook_565": "代码追踪：继承与方法覆盖",
+    "notebook_566": "代码追踪：异常处理流程",
+    "notebook_567": "代码追踪：构造器扩展与 object 超类",
+    "notebook_568": "代码追踪：构造器扩展与 object 超类",
+    "notebook_569": "代码追踪：继承与方法覆盖",
+    "notebook_571": "选择题：构造器扩展与 object 超类",
+    "notebook_572": "代码追踪：属性封装",
+    "notebook_59": "代码追踪：对象别名与副作用",
+    "notebook_62": "选择题：可变对象与不可变对象",
+    "notebook_64": "选择题：对象别名与副作用",
+    "notebook_79": "选择题：相等性与类型机制",
+    "notebook_80": "代码追踪：相等性与类型机制",
+    "notebook_88": "编程题：实现 safe_binary_op 类型安全二元运算",
+    "notebook_90": "选择题：相等性与类型机制"
+  },
+  "metadataBySourceId": {
+    "notebook_1066": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1067": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1068": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1069": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1071": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1073": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1074": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1078": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1079": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1081": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1083": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1084": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1085": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1088": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1090": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1091": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1092": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1093": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1094": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1095": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1098": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1099": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_11": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1100": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1101": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1102": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1104": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1160": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1162": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1164": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1165": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1166": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1169": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1177": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1179": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1182": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1183": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1184": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1186": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1187": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1188": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1191": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1193": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1194": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1195": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1197": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1198": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1199": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_12": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1200": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1203": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1204": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1208": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1209": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1210": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1211": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1212": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1213": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1355": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1356": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1357": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1359": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1360": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1362": {
+      "type": "short_answer",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1363": {
+      "type": "short_answer",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1364": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1365": {
+      "type": "short_answer",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1369": {
+      "type": "short_answer",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1370": {
+      "type": "short_answer",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1371": {
+      "type": "short_answer",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1372": {
+      "type": "short_answer",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1373": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1374": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1375": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1376": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1377": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1379": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1382": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1383": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1384": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1385": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1386": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1387": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1390": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1391": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1392": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1394": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1395": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1399": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_14": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1400": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1402": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1405": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1409": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1410": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1411": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1412": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1413": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1414": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1415": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1417": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_16": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1940": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1941": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1942": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1943": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1944": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1945": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1946": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1947": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1948": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1949": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1950": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1953": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1954": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1957": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1959": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1961": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_1965": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1966": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_1970": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2006": {
+      "type": "short_answer",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2007": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2008": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2009": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2010": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2011": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2013": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2014": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2016": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2018": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2020": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2022": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2023": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2024": {
+      "type": "short_answer",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2025": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2027": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2029": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2030": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2033": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2034": {
+      "type": "short_answer",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2035": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2036": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2038": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2040": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2041": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2042": {
+      "type": "short_answer",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2045": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2046": {
+      "type": "short_answer",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2047": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2048": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_205": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_206": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_207": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_208": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_209": {
+      "type": "choice",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_21": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_210": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_212": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2124": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2125": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2126": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2127": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2128": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2129": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_213": {
+      "type": "choice",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2130": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2131": {
+      "type": "code",
+      "difficulty": "medium",
+      "status": "published"
+    },
+    "notebook_2132": {
+      "type": "code",
+      "difficulty": "medium",
+      "status": "published"
+    },
+    "notebook_2134": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2135": {
+      "type": "code",
+      "difficulty": "medium",
+      "status": "published"
+    },
+    "notebook_2136": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2137": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2138": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2139": {
+      "type": "code",
+      "difficulty": "medium",
+      "status": "published"
+    },
+    "notebook_2140": {
+      "type": "code",
+      "difficulty": "medium",
+      "status": "published"
+    },
+    "notebook_2141": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2142": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2143": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2144": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2145": {
+      "type": "choice",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2147": {
+      "type": "choice",
+      "difficulty": "medium",
+      "status": "published"
+    },
+    "notebook_215": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_22": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_224": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_2255": {
+      "type": "choice",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2256": {
+      "type": "choice",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_2257": {
+      "type": "choice",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_226": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_229": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_23": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_230": {
+      "type": "short_answer",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_245": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_248": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_251": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_253": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_254": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_255": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_256": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_257": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_259": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_260": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_262": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_29": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_35": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_36": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_37": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_39": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_40": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_42": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_480": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_481": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_482": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_484": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_485": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_486": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_487": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_488": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_489": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_490": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_491": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_493": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_494": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_495": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_496": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_497": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_499": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_501": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_502": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_503": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_504": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_506": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_507": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_508": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_509": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_510": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_511": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_512": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_513": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_514": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_515": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_516": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_517": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_518": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_519": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_520": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_521": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_522": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_523": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_524": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_526": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_527": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_528": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_529": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_530": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_531": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_533": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_534": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_535": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_536": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_537": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_538": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_539": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_540": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_542": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_543": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_544": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_546": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_547": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_549": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_55": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_550": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_551": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_552": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_553": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_555": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_556": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_557": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_558": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_559": {
+      "type": "code",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_56": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_560": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_561": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_563": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_565": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_566": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_567": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_568": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_569": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_571": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_572": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_59": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_62": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_64": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_79": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_80": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    },
+    "notebook_88": {
+      "type": "code",
+      "difficulty": "hard",
+      "status": "published"
+    },
+    "notebook_90": {
+      "type": "choice",
+      "difficulty": "easy",
+      "status": "published"
+    }
+  }
+}

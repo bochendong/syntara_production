@@ -1,0 +1,236 @@
+import type { TeachingToolContract } from './types';
+
+export const TEACHING_TOOL_CONTRACTS = [
+  {
+    id: 'classify_teaching_intent',
+    namespace: 'openmaic.teaching',
+    title: 'Classify teaching intent',
+    description:
+      'Route a user request to answer, review planning, question selection, grading, explanation, notebook generation, or source ingestion.',
+    readsFrom: ['user_message', 'conversation_state'],
+    writesTo: [],
+    sideEffects: ['none'],
+    requiredEvidenceSources: [],
+    outputEvidenceSources: [],
+  },
+  {
+    id: 'resolve_fixed_review_workflow',
+    namespace: 'openmaic.teaching',
+    title: 'Resolve fixed review workflow',
+    description:
+      'Apply the hard-coded review state machine: resolve concept/range/exam scope, ask explain/practice/both when missing, and select the required evidence steps.',
+    readsFrom: ['user_message', 'conversation_state', 'openmaic.memory'],
+    writesTo: [],
+    sideEffects: ['none'],
+    requiredEvidenceSources: [],
+    outputEvidenceSources: ['control_fact', 'memory', 'schedule', 'problem_bank'],
+  },
+  {
+    id: 'get_learning_state',
+    namespace: 'openmaic.teaching',
+    title: 'Get learning state',
+    description:
+      'Read current learner state from control facts, short-term memory, long-term memory, and recent problem attempts.',
+    readsFrom: ['openmaic.memory', 'openmaic.review'],
+    writesTo: [],
+    sideEffects: ['database-read', 'local-storage'],
+    requiredEvidenceSources: [],
+    outputEvidenceSources: ['control_fact', 'memory', 'problem_attempt'],
+  },
+  {
+    id: 'get_schedule_context',
+    namespace: 'openmaic.teaching',
+    title: 'Get schedule context',
+    description:
+      'Read deadline, class-session, calendar, or user-provided pacing context for review and practice planning.',
+    readsFrom: ['openmaic.content', 'openmaic.memory'],
+    writesTo: [],
+    sideEffects: ['database-read'],
+    requiredEvidenceSources: [],
+    outputEvidenceSources: ['schedule', 'control_fact', 'memory'],
+  },
+  {
+    id: 'search_teaching_memory',
+    namespace: 'openmaic.teaching',
+    title: 'Search teaching memory',
+    description:
+      'Use layered memory context to retrieve learner state, durable course rules, knowledge cache hits, and knowledge-base evidence.',
+    readsFrom: ['openmaic.memory'],
+    writesTo: ['openmaic.memory'],
+    sideEffects: ['database-read', 'database-write'],
+    requiredEvidenceSources: [],
+    outputEvidenceSources: ['control_fact', 'memory', 'knowledge_cache', 'course_material'],
+  },
+  {
+    id: 'search_problem_attempts',
+    namespace: 'openmaic.teaching',
+    title: 'Search problem attempts',
+    description:
+      'Find previous wrong, partial, or repeated attempts that explain learner weaknesses and next tasks.',
+    readsFrom: ['openmaic.review', 'openmaic.problem_bank'],
+    writesTo: [],
+    sideEffects: ['database-read'],
+    requiredEvidenceSources: [],
+    outputEvidenceSources: ['problem_attempt'],
+  },
+  {
+    id: 'search_problem_bank',
+    namespace: 'openmaic.teaching',
+    title: 'Search problem bank',
+    description:
+      'Retrieve candidate problems by concept, template, difficulty, status, and ownership scope.',
+    readsFrom: ['openmaic.problem_bank'],
+    writesTo: [],
+    sideEffects: ['database-read'],
+    requiredEvidenceSources: [],
+    outputEvidenceSources: ['problem_bank'],
+  },
+  {
+    id: 'search_template_library',
+    namespace: 'openmaic.teaching',
+    title: 'Search template library',
+    description:
+      'Retrieve local course templates, answer contracts, invariants, recipes, and validation checklists.',
+    readsFrom: ['openmaic.memory'],
+    writesTo: [],
+    sideEffects: ['database-read'],
+    requiredEvidenceSources: [],
+    outputEvidenceSources: ['template', 'memory'],
+  },
+  {
+    id: 'search_course_materials',
+    namespace: 'openmaic.teaching',
+    title: 'Search course materials',
+    description:
+      'Retrieve source passages, notebook sections, and course material excerpts for explanations and notebook generation.',
+    readsFrom: ['openmaic.content', 'openmaic.memory'],
+    writesTo: ['openmaic.memory'],
+    sideEffects: ['database-read', 'database-write'],
+    requiredEvidenceSources: [],
+    outputEvidenceSources: ['course_material', 'notebook', 'knowledge_cache'],
+  },
+  {
+    id: 'select_review_targets',
+    namespace: 'openmaic.teaching',
+    title: 'Select review targets',
+    description:
+      'Choose concepts to review from learning state, schedule pressure, attempts, problem coverage, and templates.',
+    readsFrom: ['openmaic.teaching'],
+    writesTo: [],
+    sideEffects: ['none'],
+    requiredEvidenceSources: ['schedule', 'memory', 'problem_attempt'],
+    outputEvidenceSources: ['memory', 'schedule', 'problem_attempt', 'template'],
+  },
+  {
+    id: 'generate_evidence_based_review_plan',
+    namespace: 'openmaic.teaching',
+    title: 'Generate evidence-based review plan',
+    description:
+      'Create a review plan with an evidence ledger explaining the schedule, wrong attempts, weak points, and templates behind each task.',
+    readsFrom: ['openmaic.teaching'],
+    writesTo: ['openmaic.memory'],
+    sideEffects: ['llm', 'database-write'],
+    requiredEvidenceSources: ['schedule', 'memory', 'problem_attempt'],
+    outputEvidenceSources: ['schedule', 'memory', 'problem_attempt', 'problem_bank', 'template'],
+  },
+  {
+    id: 'select_evidence_based_review_questions',
+    namespace: 'openmaic.teaching',
+    title: 'Select evidence-based review questions',
+    description:
+      'Choose or generate review questions with explicit links to weak points, prior attempts, problem-bank records, and templates.',
+    readsFrom: ['openmaic.teaching', 'openmaic.problem_bank'],
+    writesTo: [],
+    sideEffects: ['llm'],
+    requiredEvidenceSources: ['problem_bank', 'memory'],
+    outputEvidenceSources: ['problem_bank', 'problem_attempt', 'memory', 'template'],
+  },
+  {
+    id: 'grade_answer_with_diagnosis',
+    namespace: 'openmaic.teaching',
+    title: 'Grade answer with diagnosis',
+    description:
+      'Grade an answer, explain the error cause, cite rubric/template evidence, and prepare memory/progress writeback.',
+    readsFrom: ['openmaic.review', 'openmaic.problem_bank', 'openmaic.memory'],
+    writesTo: ['openmaic.review', 'openmaic.memory'],
+    sideEffects: ['llm', 'database-write'],
+    requiredEvidenceSources: ['problem_bank', 'problem_attempt'],
+    outputEvidenceSources: ['problem_attempt', 'problem_bank', 'template'],
+  },
+  {
+    id: 'explain_concept_with_templates',
+    namespace: 'openmaic.teaching',
+    title: 'Explain concept with templates',
+    description:
+      'Explain a concept after checking local templates, answer contracts, course material, and learner memory.',
+    readsFrom: ['openmaic.memory', 'openmaic.content'],
+    writesTo: ['openmaic.memory'],
+    sideEffects: ['llm', 'database-write'],
+    requiredEvidenceSources: ['template'],
+    outputEvidenceSources: ['template', 'course_material', 'notebook', 'memory'],
+  },
+  {
+    id: 'classify_memory_extraction_signal',
+    namespace: 'openmaic.teaching',
+    title: 'Classify memory extraction signal',
+    description:
+      'Classify whether a turn contains a student fact, concept diagnosis, practice attempt, mistake pattern, explanation feedback, source memory, problem metadata, cache hit, or correction.',
+    readsFrom: ['user_message', 'conversation_state', 'openmaic.teaching'],
+    writesTo: [],
+    sideEffects: ['none'],
+    requiredEvidenceSources: [],
+    outputEvidenceSources: [
+      'memory',
+      'control_fact',
+      'problem_attempt',
+      'course_material',
+      'problem_bank',
+    ],
+  },
+  {
+    id: 'extract_teaching_memory_signal',
+    namespace: 'openmaic.teaching',
+    title: 'Extract teaching memory signal',
+    description:
+      'Extract typed teaching-control fields such as masteredSignal, stuckPoint, probableCause, and nextTeachingMove. Student-code course-contract failures may ground these fields, but the full submission/source stays outside learner memory.',
+    readsFrom: ['openmaic.teaching', 'openmaic.memory', 'openmaic.review', 'openmaic.problem_bank'],
+    writesTo: [],
+    sideEffects: ['llm'],
+    requiredEvidenceSources: ['memory'],
+    outputEvidenceSources: [
+      'memory',
+      'control_fact',
+      'problem_attempt',
+      'course_material',
+      'problem_bank',
+    ],
+  },
+  {
+    id: 'route_teaching_memory_write',
+    namespace: 'openmaic.teaching',
+    title: 'Route teaching memory write',
+    description:
+      'Choose the correct storage layer for extracted memory: exact user facts to the control plane; mastery/gap/cause/next teaching move to learner state; full course sources and submissions remain in their authoritative source/RAG or attempt records.',
+    readsFrom: ['openmaic.teaching'],
+    writesTo: ['openmaic.memory', 'openmaic.review'],
+    sideEffects: ['none'],
+    requiredEvidenceSources: ['memory'],
+    outputEvidenceSources: ['memory', 'control_fact', 'problem_attempt', 'knowledge_cache'],
+  },
+  {
+    id: 'write_teaching_memory',
+    namespace: 'openmaic.teaching',
+    title: 'Write teaching memory',
+    description:
+      'Write short-term learner state, durable private memory, or exact control facts from supported teaching evidence.',
+    readsFrom: ['openmaic.teaching'],
+    writesTo: ['openmaic.memory'],
+    sideEffects: ['database-write', 'local-storage'],
+    requiredEvidenceSources: ['memory'],
+    outputEvidenceSources: ['memory', 'control_fact'],
+  },
+] satisfies readonly TeachingToolContract[];
+
+export function getTeachingToolContract(id: string): TeachingToolContract | null {
+  return TEACHING_TOOL_CONTRACTS.find((tool) => tool.id === id) ?? null;
+}
