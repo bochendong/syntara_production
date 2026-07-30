@@ -38,11 +38,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files
+# env files (commit templates only; never local credentials)
 .env*
 !.env.example
-!.env.local
-!.env.temp
 
 # server provider config (contains API keys)
 server-providers.yml
