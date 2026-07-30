@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import { routeLayeredMemoryWriteCandidates } from '@/features/memory/server/write-routing';
+import { indexStudyMemoryRecords } from '@/lib/server/study-memory-vector-store';
 
 const triggerSchema = z.enum([
   'explicit_user',
@@ -109,7 +110,18 @@ export async function POST(request: Request) {
       userId: auth.userId,
       candidates,
       dryRun: payload.data.dryRun,
+      // Persist the canonical memory first. Vector indexing is a derived
+      // projection and must not keep the confirmation button waiting.
+      indexStudyMemory: false,
     });
+    const memoriesToIndex = results
+      .filter((result) => result.executed && result.memory)
+      .map((result) => result.memory!);
+    if (!payload.data.dryRun && memoriesToIndex.length > 0) {
+      after(async () => {
+        await indexStudyMemoryRecords(prisma, memoriesToIndex);
+      });
+    }
 
     return NextResponse.json({
       storage: 'database',
@@ -121,6 +133,7 @@ export async function POST(request: Request) {
         needsConfirmation: results.filter((result) => result.action === 'needs_confirmation')
           .length,
         skipped: results.filter((result) => !result.executed).length,
+        indexingScheduled: memoriesToIndex.length,
       },
     });
   });

@@ -26,6 +26,7 @@ const DATABASE_READ_CONCURRENCY = 2;
 const DATABASE_READ_PREFIXES = [
   '/api/courses',
   '/api/notebooks',
+  '/api/learn/calendar',
   '/api/learn/conversations',
   '/api/memory',
   '/api/study-memory',

@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+@import '../styles/syntara-ui-tokens.css';
 
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/code/dist/*.js";
@@ -313,6 +314,532 @@
   }
 }
 
+/* Learn Dock 系统应用：按 apps/native 的全屏应用与弹窗结构在 Web 本地复刻。 */
+.learn-dock-profile-app {
+  position: absolute;
+  z-index: 60;
+  inset: 0;
+  display: flex;
+  min-height: 0;
+  color: #0f172a;
+  background: #f8fafc;
+  animation: workspace-parity-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.learn-dock-profile-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 6%);
+}
+
+.learn-dock-profile-aside {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 20px;
+  padding: 18px 16px;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.learn-dock-back-button {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  color: #0f172a;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.learn-dock-back-button:hover {
+  background: #f1f5f9;
+}
+
+.learn-dock-profile-hero {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 20px;
+  background: linear-gradient(160deg, #e0f2fe 0%, #f8fafc 72%);
+  box-shadow: inset 0 0 0 1px rgb(125 211 252 / 45%);
+}
+
+.learn-dock-profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(14 165 233 / 18%);
+}
+
+.learn-dock-profile-avatar.is-empty {
+  display: grid;
+  place-items: center;
+  color: #38bdf8;
+}
+
+.learn-dock-profile-hero strong {
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.learn-dock-profile-hero small {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.learn-dock-profile-school {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  color: #0369a1;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.learn-dock-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: auto;
+}
+
+.learn-dock-profile-stats span {
+  display: grid;
+  gap: 2px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #e2e8f0;
+}
+
+.learn-dock-profile-stats strong {
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.learn-dock-profile-stats small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.learn-dock-profile-main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  background: #fff;
+}
+
+.learn-dock-profile-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 12px;
+}
+
+.learn-dock-profile-toolbar span {
+  display: block;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.learn-dock-profile-toolbar h1 {
+  margin: 4px 0 0;
+  color: #020617;
+  font-size: clamp(28px, 3vw, 36px);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.learn-dock-profile-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: #0f172a;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.learn-dock-profile-save:disabled {
+  color: #64748b;
+  background: #e2e8f0;
+  cursor: default;
+}
+
+.learn-dock-profile-form {
+  display: grid;
+  gap: 16px;
+  padding: 8px 24px 28px;
+  overflow: auto;
+}
+
+.learn-dock-profile-field {
+  display: grid;
+  gap: 8px;
+}
+
+.learn-dock-profile-field > span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learn-dock-profile-field input,
+.learn-dock-profile-field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  color: #0f172a;
+  background: #f8fafc;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.learn-dock-profile-field input:focus,
+.learn-dock-profile-field textarea:focus {
+  border-color: #7dd3fc;
+  outline: none;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(125 211 252 / 35%);
+}
+
+.learn-dock-profile-avatar-block {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.learn-dock-profile-avatar-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learn-dock-profile-avatar-heading small {
+  color: #94a3b8;
+  font-weight: 650;
+}
+
+.learn-dock-profile-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.learn-dock-profile-avatar-option {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgb(148 163 184 / 28%);
+  cursor: pointer;
+}
+
+.learn-dock-profile-avatar-option img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.learn-dock-profile-avatar-option.is-selected {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px #38bdf8;
+}
+
+.learn-dock-profile-avatar-option:hover {
+  box-shadow: inset 0 0 0 1px #94a3b8;
+}
+
+.learn-dock-profile-avatar-pager {
+  display: flex;
+  gap: 8px;
+}
+
+.learn-dock-profile-avatar-pager button {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  color: #0f172a;
+  background: #f1f5f9;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.learn-dock-profile-avatar-pager button:disabled {
+  color: #94a3b8;
+  cursor: default;
+}
+
+.learn-dock-profile-avatar-pager button:not(:disabled):hover {
+  background: #e2e8f0;
+}
+
+.learn-dock-dialog-layer {
+  position: absolute;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  place-items: center;
+}
+
+.learn-dock-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: rgb(15 23 42 / 28%);
+  backdrop-filter: blur(7px);
+}
+
+.learn-dock-action-dialog {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: min(500px, 100%);
+  max-height: min(620px, 88vh);
+  min-height: 0;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid rgb(255 255 255 / 78%);
+  border-radius: 22px;
+  color: #0f172a;
+  background: rgb(248 250 252 / 96%);
+  box-shadow: 0 28px 90px rgb(15 23 42 / 25%);
+  backdrop-filter: blur(32px) saturate(1.15);
+  animation: parity-dialog-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.learn-dock-action-dialog > header,
+.learn-dock-action-dialog > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.learn-dock-action-dialog > header span,
+.learn-dock-action-dialog > footer > span {
+  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.learn-dock-action-dialog h2 {
+  margin: 3px 0 0;
+  color: #0f172a;
+  font-size: 20px;
+}
+
+.learn-dock-round-button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: #64748b;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #e2e8f0;
+  cursor: pointer;
+}
+
+.learn-dock-system-content {
+  display: grid;
+  min-height: 170px;
+  overflow-y: auto;
+  gap: 12px;
+}
+
+.learn-dock-system-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgb(186 230 253 / 70%);
+  border-radius: 15px;
+  color: #0369a1;
+  background: rgb(240 249 255 / 78%);
+}
+
+.learn-dock-system-summary > div,
+.learn-dock-system-note > div {
+  display: grid;
+  gap: 3px;
+}
+
+.learn-dock-system-summary strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.learn-dock-system-summary small {
+  color: #64748b;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.learn-dock-system-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid rgb(167 243 208 / 70%);
+  border-radius: 13px;
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.learn-dock-system-note strong {
+  color: #065f46;
+  font-size: 11px;
+}
+
+.learn-dock-system-note small {
+  color: #047857;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.learn-dock-system-primary {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 11px;
+  color: #fff;
+  background: #0f172a;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.learn-dock-system-settings {
+  display: grid;
+  gap: 6px;
+}
+
+.learn-dock-system-settings > span {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid rgb(148 163 184 / 18%);
+  border-radius: 12px;
+  color: #64748b;
+  background: #fff;
+}
+
+.learn-dock-system-settings small {
+  color: #64748b;
+  font-size: 9px;
+}
+
+.learn-dock-system-settings strong {
+  color: #334155;
+  font-size: 10px;
+}
+
+.learn-dock-action-dialog > footer {
+  padding-top: 4px;
+}
+
+.learn-dock-secondary-button {
+  min-width: 92px;
+  padding: 9px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  color: #334155;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 860px) {
+  .learn-dock-profile-shell {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+
+  .learn-dock-profile-aside {
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .learn-dock-profile-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 0;
+  }
+
+  .learn-dock-profile-avatar-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .learn-dock-dialog-layer {
+    align-items: end;
+    padding: 0;
+  }
+
+  .learn-dock-action-dialog {
+    width: 100%;
+    max-height: 82vh;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    border-radius: 22px 22px 0 0;
+  }
+}
+
 /* 登录后的学习桌面：iPadOS 主屏式蓝紫壁纸与玻璃组件。 */
 .learn-app-home {
   background: #155bdc;
@@ -338,16 +865,41 @@
 }
 
 @media (min-width: 1024px) {
+  /* Learn home shell: ~92% viewport width, capped for ultra-wide. */
+  .learn-app-home__shell {
+    width: min(92vw, 1680px);
+    max-width: none;
+    padding-inline: clamp(1rem, 2vw, 2.75rem);
+    padding-top: clamp(0.8vh, 1.5vh, 2vh);
+    padding-bottom: clamp(1vh, 2vh, 2.5vh);
+  }
+
+  /*
+   * Grid fills ~72% of shell height (dock + pagination take the rest).
+   * Columns: left widgets ~36% (2 tracks), course icons ~64% (4 tracks).
+   */
+  .learn-app-home__stage {
+    height: 72%;
+    flex: none;
+    overflow: hidden;
+  }
+
   .learn-app-home__grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    grid-template-rows: repeat(4, 132px);
-    gap: 18px 24px;
-    min-height: 582px;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.25fr) repeat(4, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(4, minmax(0, 1fr)) !important;
+    gap: clamp(0.8vh, 1.25vh, 1.6vh) clamp(1vw, 1.35vw, 1.75vw);
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
   }
 
   .learn-app-home__widget {
-    min-height: 0;
-    height: auto;
+    min-height: 0 !important;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
   }
 
   .learn-app-home__widget--schedule {
@@ -361,8 +913,14 @@
   .learn-app-home__grid-item {
     grid-column: var(--learn-home-grid-column);
     grid-row: var(--learn-home-grid-row);
-    align-self: stretch;
-    justify-content: center;
+    align-self: center;
+    justify-self: center;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .learn-app-home__dock {
+    bottom: 1.5vh;
   }
 }
 

@@ -790,7 +790,7 @@ function validateConversationMergeContracts(require) {
   let mergeMessages;
   try {
     ({ mergeRemoteLearnConversationMessages: mergeMessages } = require(
-      path.join(ROOT, 'lib', 'utils', 'learn-conversation-api.ts'),
+      path.join(ROOT, 'features', 'learn-conversations', 'client', 'remote-conversation-api.ts'),
     ));
   } finally {
     Module._load = originalLoad;
@@ -930,43 +930,65 @@ function validateConversationRevisionSourceContract() {
     path.join(ROOT, 'app', 'api', 'learn', 'conversations', 'route.ts'),
     'utf8',
   );
+  const repositorySource = fs.readFileSync(
+    path.join(
+      ROOT,
+      'features',
+      'learn-conversations',
+      'server',
+      'course-conversation-repository.ts',
+    ),
+    'utf8',
+  );
   const clientSource = fs.readFileSync(
-    path.join(ROOT, 'lib', 'utils', 'learn-conversation-api.ts'),
+    path.join(ROOT, 'features', 'learn-conversations', 'client', 'remote-conversation-api.ts'),
     'utf8',
   );
   const pageSource = fs.readFileSync(
     path.join(ROOT, 'components', 'learn', 'learn-page-client.tsx'),
     'utf8',
   );
-  const readPathStart = routeSource.indexOf('function sameConversationReadFence');
+  const localCacheSource = fs.readFileSync(
+    path.join(ROOT, 'features', 'learn-conversations', 'client', 'local-session-cache.ts'),
+    'utf8',
+  );
+  const getStart = routeSource.indexOf('export async function GET');
   const postStart = routeSource.indexOf('export async function POST');
   const getReadSource =
-    readPathStart >= 0 && postStart > readPathStart
-      ? routeSource.slice(readPathStart, postStart)
-      : '';
+    getStart >= 0 && postStart > getStart ? routeSource.slice(getStart, postStart) : '';
   const postEnd = routeSource.indexOf('export async function DELETE', postStart);
   const postSource =
     postStart >= 0 && postEnd > postStart ? routeSource.slice(postStart, postEnd) : '';
   const deleteSource = postEnd >= 0 ? routeSource.slice(postEnd) : '';
   for (const [label, source, pattern] of [
-    ['server base revision equality check', routeSource, /baseRevision !== currentRevision/],
+    [
+      'server base revision equality check',
+      repositorySource,
+      /"CourseConversation"\."revision" = \$6::bigint/,
+    ],
     [
       'legacy overwrite rejection after revision zero',
-      routeSource,
-      /currentRevision > 0 && baseRevision === undefined/,
+      repositorySource,
+      /\$6::bigint IS NOT NULL[\s\S]{0,100}"CourseConversation"\."revision" = \$6::bigint/,
     ],
-    ['per-conversation transaction lock', routeSource, /pg_advisory_xact_lock/],
+    ['per-conversation transaction lock', repositorySource, /pg_advisory_xact_lock/],
     [
-      'bounded non-transaction GET revision fence',
-      getReadSource,
-      /MAX_CONVERSATION_READ_FENCE_ATTEMPTS/,
+      'single-statement bounded conversation detail read',
+      repositorySource,
+      /loadCourseConversationSnapshot[\s\S]{0,500}\$queryRawUnsafe/,
     ],
-    ['GET conversation read confirmation', getReadSource, /sameConversationReadFence/],
-    ['parallel ordinary session-list reads', getReadSource, /Promise\.all/],
+    ['thirty-message default window', repositorySource, /DEFAULT_COURSE_MESSAGE_PAGE_LIMIT = 30/],
+    [
+      'opaque older-message cursor',
+      repositorySource,
+      /encodeCourseMessagePageCursor[\s\S]{0,300}base64url/,
+    ],
+    ['dedicated detail repository boundary', getReadSource, /loadCourseConversationSnapshot/],
+    ['dedicated list repository boundary', getReadSource, /listCourseConversationPage/],
     [
       'session GET response fields',
       getReadSource,
-      /session:[\s\S]*messages:[\s\S]*currentRevision:/,
+      /session:[\s\S]*messages:[\s\S]*messagePage:[\s\S]*summary:[\s\S]*currentRevision:/,
     ],
     [
       'session-list GET response fields',
@@ -975,10 +997,16 @@ function validateConversationRevisionSourceContract() {
     ],
     ['POST write transaction preserved', postSource, /\$transaction/],
     ['DELETE write transaction preserved', deleteSource, /\$transaction/],
+    ['foreign message ids rejected before insert', repositorySource, /write_candidates/],
+    [
+      'foreign message-id conflict is typed',
+      repositorySource,
+      /CourseConversationRepositoryError\([\s\S]{0,120}'message_conflict'/,
+    ],
     ['bounded conflict retries', clientSource, /MAX_CONVERSATION_SYNC_ATTEMPTS = 3/],
     ['client base revision write', clientSource, /baseRevision: baseSnapshot\.revision/],
     ['queued desired snapshot rebase', clientSource, /callBaseSnapshot/],
-    ['per-tab persisted merge base', pageSource, /sessionStorage\.setItem/],
+    ['per-tab persisted merge base', localCacheSource, /sessionStorage\.setItem/],
     ['explicit message tombstones', pageSource, /rememberDeletedLearnMessageId/],
     ['persisted cache does not imply deletion', pageSource, /inferLocalDeletions: false/],
     [
@@ -987,21 +1015,29 @@ function validateConversationRevisionSourceContract() {
       /: mergeRemoteAuthoritativeLearnMessages\(remoteMessages, latestLocalMessages\)/,
     ],
     [
-      'message actions stay disabled until the remote session is ready',
+      'message actions stay disabled until the local session is restored',
       pageSource,
       /disabled=\{!conversationInteractive\}/,
     ],
     [
-      'learning action handler rechecks remote session readiness',
+      'learning action handler rechecks visible-session ownership',
       pageSource,
-      /remoteConversationReadyKey !== actionStoreKey/,
+      /activeMessageStoreKeyRef\.current === actionStoreKey/,
     ],
     ['session owner scoping', clientSource, /ownerScope/],
+    [
+      'dedicated storage does not read generic conversation tables',
+      repositorySource,
+      /FROM "CourseConversation"/,
+    ],
   ]) {
     if (!pattern.test(source)) failures.push(`missing ${label}`);
   }
   if (/\$transaction|RepeatableRead/.test(getReadSource)) {
     failures.push('GET read path must not open an interactive Prisma transaction');
+  }
+  if (/FROM "Conversation"|FROM "Message"/.test(repositorySource)) {
+    failures.push('dedicated repository must not fall back to generic conversation tables');
   }
   return { id: 'conversation-revision-cas-contract', failures };
 }

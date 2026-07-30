@@ -14,7 +14,6 @@ import { MyCoursesCourseGridLoading } from '@/components/loading/app-page-skelet
 import { usePersistHydrated } from '@/lib/hooks/use-persist-hydrated';
 import { useAuthStore } from '@/lib/store/auth';
 import { deleteCourseAndNotebooks, listCourses, updateCourse } from '@/lib/utils/course-storage';
-import { listStagesByCourse } from '@/lib/utils/stage-storage';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
 import { toast } from '@/lib/notifications/client-toast';
 import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
@@ -61,12 +60,10 @@ export default function MyCoursesPage() {
   const loadMyCourses = useCallback(async () => {
     if (!userId) return;
     const mine = await listCourses();
-    const withCounts = await Promise.all(
-      mine.map(async (course) => {
-        const notebookCount = (await listStagesByCourse(course.id)).length;
-        return { course, notebookCount };
-      }),
-    );
+    const withCounts = mine.map((course) => ({
+      course,
+      notebookCount: Math.max(0, course.notebookCount ?? 0),
+    }));
     setCourses(withCounts);
   }, [userId]);
 

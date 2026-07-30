@@ -67,7 +67,7 @@ import { useAuthStore } from '@/lib/store/auth';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
 import { useSettingsStore } from '@/lib/store/settings';
 import { backendFetch, backendJson } from '@/lib/utils/backend-api';
-import { syncRemoteLearnConversation } from '@/lib/utils/learn-conversation-api';
+import { syncRemoteLearnConversation } from '@/features/learn-conversations/client/remote-conversation-api';
 import { getCourse } from '@/lib/utils/course-storage';
 import {
   listCourseProblemsByIds,

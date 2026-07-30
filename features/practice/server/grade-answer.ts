@@ -59,29 +59,51 @@ ${input.commentPrompt ? `Grading guidance: ${input.commentPrompt}\n` : ''}${inpu
 }
 
 function parseGradeResponse(text: string, input: GradeQuizAnswerInput): GradeQuizAnswerResult {
-  try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON found');
-    const parsed = JSON.parse(jsonMatch[0]) as { score?: unknown; comment?: unknown };
-    return {
-      score: Math.max(0, Math.min(input.points, Math.round(Number(parsed.score)))),
-      comment: String(parsed.comment || ''),
-    };
-  } catch {
-    return {
-      score: Math.round(input.points * 0.5),
-      comment:
-        input.language === 'zh-CN'
-          ? '已作答，请参考标准答案。'
-          : 'Answer received. Please refer to the standard answer.',
-    };
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('AI grading response did not contain a JSON object.');
   }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch {
+    throw new Error('AI grading response contained invalid JSON.');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('AI grading response must be a JSON object.');
+  }
+
+  const { score, comment } = parsed as Record<string, unknown>;
+  if (
+    typeof score !== 'number' ||
+    !Number.isFinite(score) ||
+    !Number.isInteger(score) ||
+    score < 0 ||
+    score > input.points
+  ) {
+    throw new Error(`AI grading score must be an integer from 0 to ${input.points}.`);
+  }
+  if (typeof comment !== 'string' || !comment.trim()) {
+    throw new Error('AI grading comment must be a non-empty string.');
+  }
+  if (comment.trim().length > 2_000) {
+    throw new Error('AI grading comment exceeded the maximum length.');
+  }
+
+  return {
+    score,
+    comment: comment.trim(),
+  };
 }
 
 export async function gradeQuizAnswer(
   input: GradeQuizAnswerInput,
   request: NextRequest,
 ): Promise<GradeQuizAnswerResult> {
+  if (!Number.isInteger(input.points) || input.points < 1 || input.points > 100) {
+    throw new Error('Grading points must be an integer from 1 to 100.');
+  }
   const { model: languageModel } = await resolveModelFromHeaders(request);
   const { systemPrompt, userPrompt } = buildGradePrompts(input);
   const result = await runWithRequestContext(request, '/api/quiz-grade', () =>

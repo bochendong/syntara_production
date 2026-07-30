@@ -11,7 +11,6 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   closestCenter,
   DndContext,
@@ -46,6 +45,7 @@ import {
 import { useAuthStore } from '@/lib/store/auth';
 import type { CourseRecord } from '@/lib/utils/database';
 import { cn } from '@/lib/utils';
+import { LearnHomeDockAppLayer, type LearnDockApp } from '@/components/learn/learn-home-dock-apps';
 
 const HOME_ICONS_PER_PAGE = 16;
 const LEARN_HOME_ICON_ORDER_STORAGE_KEY = 'syntara:learn-home-icon-order:v1';
@@ -370,21 +370,15 @@ function buildHomeIconItems(courses: CourseRecord[], systemApps: SystemApp[]): H
 }
 
 const HOME_ICON_BUTTON_CLASS_NAME =
-  'group flex min-w-0 touch-manipulation select-none flex-col items-center rounded-[22px] px-1 pb-2 pt-1 text-center outline-none focus-visible:ring-2 focus-visible:ring-blue-400/45';
+  'group flex min-w-0 w-full max-w-full touch-manipulation select-none flex-col items-center rounded-[22px] px-1 pb-2 pt-1 text-center outline-none focus-visible:ring-2 focus-visible:ring-blue-400/45';
 
-function CourseIconContent({
-  course,
-  active,
-}: {
-  course: CourseRecord;
-  active?: boolean;
-}) {
+function CourseIconContent({ course, active }: { course: CourseRecord; active?: boolean }) {
   const avatarUrl = resolveCourseAvatarDisplayUrl(course.id, course.avatarUrl);
   return (
     <>
       <span
         className={cn(
-          'relative grid size-[clamp(74px,6.3vw,96px)] shrink-0 place-items-center rounded-[22px] text-white transition-[transform,filter] duration-200 group-hover:-translate-y-0.5 group-hover:brightness-[1.04] group-focus-visible:-translate-y-0.5',
+          'relative grid size-[clamp(64px,min(5.4vw,8vh),96px)] shrink-0 place-items-center rounded-[22px] text-white transition-[transform,filter] duration-200 group-hover:-translate-y-0.5 group-hover:brightness-[1.04] group-focus-visible:-translate-y-0.5',
           active && 'ring-2 ring-white ring-offset-2 ring-offset-transparent',
         )}
       >
@@ -461,33 +455,36 @@ function SystemAppIconContent({
   app,
   compact = false,
   showLabel = true,
+  iconSrcOverride,
 }: {
   app: SystemApp;
   compact?: boolean;
   showLabel?: boolean;
+  iconSrcOverride?: string;
 }) {
   const Icon = app.Icon;
+  const iconSrc = iconSrcOverride || app.iconSrc;
   return (
     <>
       <span
         className={cn(
           'relative grid shrink-0 place-items-center overflow-hidden text-white transition-[transform,filter] duration-200 group-hover:-translate-y-0.5 group-hover:brightness-[1.04]',
           compact
-            ? 'size-[clamp(56px,5.4vw,74px)] rounded-[20px]'
-            : 'size-[clamp(74px,6.3vw,96px)] rounded-[22px]',
+            ? 'size-[clamp(52px,min(4.6vw,7vh),74px)] rounded-[20px]'
+            : 'size-[clamp(64px,min(5.4vw,8vh),96px)] rounded-[22px]',
         )}
         style={{
           background: app.background,
-          boxShadow: app.iconSrc
+          boxShadow: iconSrc
             ? undefined
             : compact
               ? '0 10px 22px rgba(31, 46, 108, 0.22)'
               : '0 14px 30px rgba(31, 46, 108, 0.24)',
         }}
       >
-        {app.iconSrc ? (
+        {iconSrc ? (
           <Image
-            src={app.iconSrc}
+            src={iconSrc}
             width={104}
             height={104}
             alt=""
@@ -516,9 +513,11 @@ function SystemAppIconContent({
 function DockSystemAppIcon({
   app,
   onRun,
+  iconSrcOverride,
 }: {
   app: SystemApp;
   onRun: () => void;
+  iconSrcOverride?: string;
 }) {
   return (
     <button
@@ -529,7 +528,7 @@ function DockSystemAppIcon({
       data-dock-system-app={app.action}
       className="group touch-manipulation rounded-[20px] outline-none transition-transform duration-200 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent active:translate-y-0 active:scale-[0.97]"
     >
-      <SystemAppIconContent app={app} compact />
+      <SystemAppIconContent app={app} compact iconSrcOverride={iconSrcOverride} />
     </button>
   );
 }
@@ -668,12 +667,12 @@ export function LearnHomeDashboard({
   onOpenCourse,
   onRetryCourseLoad,
 }: LearnHomeDashboardProps) {
-  const router = useRouter();
   const userId = useAuthStore((state) => state.userId) || 'anonymous';
   const learnBackgroundId = useSettingsStore((state) => state.learnBackgroundId);
   const [now, setNow] = useState<Date | null>(null);
   const [page, setPage] = useState(1);
   const [draggedHomeIconId, setDraggedHomeIconId] = useState<string | null>(null);
+  const [activeDockApp, setActiveDockApp] = useState<LearnDockApp | null>(null);
   const dragSensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: { distance: 6 },
@@ -777,19 +776,19 @@ export function LearnHomeDashboard({
 
   const runSystemAction = (action: SystemAppAction) => {
     if (action === 'calendar') {
-      router.push('/calendar');
+      onOpenCalendar();
       return;
     }
     if (action === 'profile') {
-      router.push('/profile');
+      setActiveDockApp('profile');
       return;
     }
     if (action === 'store') {
-      router.push('/store/courses');
+      setActiveDockApp('store');
       return;
     }
     if (action === 'settings') {
-      router.push('/settings');
+      setActiveDockApp('settings');
       return;
     }
     if (action === 'create') {
@@ -797,7 +796,7 @@ export function LearnHomeDashboard({
       return;
     }
     if (action === 'notifications') {
-      router.push('/notifications');
+      setActiveDockApp('notifications');
     }
   };
 
@@ -816,7 +815,7 @@ export function LearnHomeDashboard({
       {coursesLoading && courses.length === 0 ? <LearnHomeLoadingState /> : null}
 
       {coursesLoading && courses.length === 0 ? null : (
-        <div className="relative z-10 mx-auto flex h-full w-full max-w-[1320px] flex-col px-5 pb-4 pt-4 sm:px-8 lg:px-10">
+        <div className="learn-app-home__shell relative z-10 mx-auto flex h-full w-full max-w-[1320px] flex-col px-5 pb-[2vh] pt-[1.5vh] sm:px-8 lg:max-w-none lg:w-[min(92vw,1680px)] lg:px-[clamp(1rem,2vw,2.75rem)]">
           {courseLoadError ? (
             <div
               className="mb-2 flex shrink-0 items-center justify-between gap-3 rounded-[16px] border border-white/40 bg-slate-950/58 px-4 py-2.5 text-sm text-white shadow-lg backdrop-blur-xl"
@@ -844,13 +843,13 @@ export function LearnHomeDashboard({
               正在连接课程数据库并恢复课程列表…
             </div>
           ) : null}
-          <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-3 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="learn-app-home__grid grid grid-cols-3 gap-x-5 gap-y-5 sm:grid-cols-6 sm:gap-x-6">
-              <article className="learn-app-home__widget learn-app-home__widget--schedule col-span-3 min-h-[228px] rounded-[26px] border border-white/28 p-4 shadow-[0_20px_52px_rgba(28,43,114,0.14)] backdrop-blur-2xl sm:col-span-3 lg:col-span-2">
+          <div className="learn-app-home__stage min-h-0 flex-[1_1_auto] overflow-y-auto px-1 pb-[1vh] pt-[1vh] [scrollbar-width:none] lg:h-[72%] lg:flex-none lg:overflow-hidden [&::-webkit-scrollbar]:hidden">
+            <div className="learn-app-home__grid grid h-full min-h-0 w-full grid-cols-3 gap-x-5 gap-y-5 sm:gap-x-6 lg:grid-cols-none lg:h-full lg:max-h-full lg:min-h-0">
+              <article className="learn-app-home__widget learn-app-home__widget--schedule col-span-3 flex min-h-[200px] w-full flex-col rounded-[26px] border border-white/28 p-4 shadow-[0_20px_52px_rgba(28,43,114,0.14)] backdrop-blur-2xl sm:col-span-3 lg:col-auto lg:h-full lg:min-h-0">
                 <button
                   type="button"
                   onClick={onOpenCalendar}
-                  className="flex w-full items-center justify-between rounded-xl px-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                  className="flex w-full shrink-0 items-center justify-between rounded-xl px-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-white/80"
                 >
                   <span className="flex items-center gap-2 text-[17px] font-medium">
                     <CalendarDays className="size-[19px]" strokeWidth={2} aria-hidden />
@@ -858,7 +857,7 @@ export function LearnHomeDashboard({
                   </span>
                   <ChevronRight className="size-5 text-white/80" strokeWidth={2.1} aria-hidden />
                 </button>
-                <div className="mt-3 space-y-2">
+                <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {upcomingCourseEvents.map(({ course, event }) => {
                     const eventDate = new Date(`${event.date}T12:00:00`);
                     const kindMeta = CALENDAR_EVENT_KIND_META[event.kind];
@@ -897,7 +896,7 @@ export function LearnHomeDashboard({
                     <button
                       type="button"
                       onClick={onOpenCalendar}
-                      className="flex min-h-[150px] w-full flex-col items-center justify-center rounded-[16px] border border-dashed border-white/28 bg-white/16 px-4 text-center outline-none transition hover:bg-white/24 focus-visible:ring-2 focus-visible:ring-white/85"
+                      className="flex h-full min-h-[120px] w-full flex-col items-center justify-center rounded-[16px] border border-dashed border-white/28 bg-white/16 px-4 text-center outline-none transition hover:bg-white/24 focus-visible:ring-2 focus-visible:ring-white/85 lg:min-h-0"
                     >
                       <CalendarDays
                         className="size-7 text-white/72"
@@ -914,7 +913,7 @@ export function LearnHomeDashboard({
               </article>
 
               <article
-                className="learn-app-home__widget learn-app-home__widget--haru relative col-span-3 min-h-[260px] overflow-hidden rounded-[26px] border border-white/28 shadow-[0_20px_52px_rgba(28,43,114,0.14)] backdrop-blur-2xl sm:col-span-3 lg:col-span-2"
+                className="learn-app-home__widget learn-app-home__widget--haru relative col-span-3 min-h-[220px] w-full overflow-hidden rounded-[26px] border border-white/28 shadow-[0_20px_52px_rgba(28,43,114,0.14)] backdrop-blur-2xl sm:col-span-3 lg:col-auto lg:h-full lg:min-h-0"
                 aria-label="Haru Live2D 动态展示"
               >
                 <div className="absolute inset-x-0 -bottom-20 top-9 -translate-y-7">
@@ -975,9 +974,7 @@ export function LearnHomeDashboard({
                   {draggedHomeIcon ? (
                     <LiftedIcon>
                       {draggedHomeIcon.kind === 'system' ? (
-                        <SystemAppIconContent
-                          app={draggedHomeIcon.app}
-                        />
+                        <SystemAppIconContent app={draggedHomeIcon.app} />
                       ) : (
                         <CourseIconContent
                           course={draggedHomeIcon.course}
@@ -992,7 +989,7 @@ export function LearnHomeDashboard({
           </div>
 
           <nav
-            className="mb-[108px] flex h-7 shrink-0 items-center justify-center gap-2"
+            className="mb-[11vh] flex h-[3vh] shrink-0 items-center justify-center gap-2 lg:mb-[12vh]"
             aria-label="主屏分页"
           >
             {visiblePages.map((pageNumber) => (
@@ -1026,6 +1023,11 @@ export function LearnHomeDashboard({
           </nav>
         </div>
       )}
+      <LearnHomeDockAppLayer
+        app={activeDockApp}
+        courses={courses}
+        onClose={() => setActiveDockApp(null)}
+      />
     </section>
   );
 }

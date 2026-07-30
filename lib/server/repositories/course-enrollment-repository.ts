@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { Prisma } from '@/lib/server/generated-prisma';
 import type { DbClient } from '@/lib/server/repositories/types';
 
 export type CourseAccessRole = 'owner' | 'enrolled';
@@ -105,6 +106,42 @@ export async function hasCourseEnrollment(
     select: { id: true },
   });
   return Boolean(legacyPurchase);
+}
+
+export async function listEnrolledCourseIds(
+  db: DbClient,
+  userId: string,
+  courseIds: string[],
+): Promise<Set<string>> {
+  const uniqueCourseIds = Array.from(new Set(courseIds.map((id) => id.trim()).filter(Boolean)));
+  if (uniqueCourseIds.length === 0) return new Set();
+
+  const [enrollmentRows, legacyPurchases] = await Promise.all([
+    withCourseEnrollmentSchemaFallback(db, () =>
+      db.$queryRaw<Array<{ courseId: string }>>(
+        Prisma.sql`
+          SELECT "courseId"
+          FROM "CourseEnrollment"
+          WHERE "userId" = ${userId}
+            AND "courseId" IN (${Prisma.join(uniqueCourseIds)})
+        `,
+      ),
+    ),
+    db.coursePurchase.findMany({
+      where: {
+        buyerId: userId,
+        sourceCourseId: { in: uniqueCourseIds },
+      },
+      select: { sourceCourseId: true },
+    }),
+  ]);
+
+  return new Set([
+    ...enrollmentRows.map((row) => row.courseId),
+    ...legacyPurchases
+      .map((row) => row.sourceCourseId)
+      .filter((courseId): courseId is string => Boolean(courseId)),
+  ]);
 }
 
 export async function findCourseAccessRole(

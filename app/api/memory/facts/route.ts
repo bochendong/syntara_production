@@ -55,9 +55,21 @@ async function canWriteFactScope(args: {
 
   const rows = await args.prisma.$queryRawUnsafe<Array<{ id: string }>>(
     `
-      SELECT "id"
-      FROM "Conversation"
-      WHERE "id" = $1 AND "ownerId" = $2
+      SELECT owned_conversation."id"
+      FROM (
+        SELECT "id"
+        FROM "CourseConversation"
+        WHERE "id" = $1
+          AND "ownerId" = $2
+          AND "deletedAt" IS NULL
+
+        UNION ALL
+
+        SELECT "id"
+        FROM "Conversation"
+        WHERE "id" = $1
+          AND "ownerId" = $2
+      ) AS owned_conversation
       LIMIT 1
     `,
     args.scopeId,
@@ -99,6 +111,18 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Memory fact scope not found' }, { status: 404 });
       }
       ownerId = target.targetOwnerId;
+      scopeId = requestedScopeId;
+    }
+    if (parsedScopeType === 'conversation' && requestedScopeId?.trim()) {
+      const readable = await canWriteFactScope({
+        prisma,
+        userId: auth.userId,
+        scopeType: 'conversation',
+        scopeId: requestedScopeId,
+      });
+      if (!readable) {
+        return NextResponse.json({ error: 'Memory fact scope not found' }, { status: 404 });
+      }
       scopeId = requestedScopeId;
     }
     if (parsedScopeType === 'user') scopeId = null;

@@ -67,6 +67,11 @@ export type DeleteCourseSourceUploadResult = {
   };
 };
 
+export type CourseSourceUploadTextDetail = Pick<
+  CourseSourceUploadRecord,
+  'courseId' | 'sourceHash' | 'textSections'
+>;
+
 export async function listCourseSourceUploads(
   courseId: string,
   options?: { includeText?: boolean; includeArtifacts?: boolean } & BackendLoadOptions,
@@ -80,6 +85,19 @@ export async function listCourseSourceUploads(
     { signal: options?.signal, timeoutMs: options?.timeoutMs },
   );
   return data.uploads;
+}
+
+export async function getCourseSourceUploadText(args: {
+  courseId: string;
+  sourceHash: string;
+}): Promise<CourseSourceUploadTextDetail> {
+  const data = await backendJson<{ source: CourseSourceUploadTextDetail }>(
+    `/api/courses/${encodeURIComponent(args.courseId)}/source-uploads/${encodeURIComponent(
+      args.sourceHash,
+    )}`,
+    { timeoutMs: 8_000 },
+  );
+  return data.source;
 }
 
 export async function deleteCourseSourceUpload(args: {

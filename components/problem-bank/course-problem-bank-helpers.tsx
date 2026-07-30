@@ -352,7 +352,7 @@ const PROBLEM_BANK_EMERALD_ACTION_BUTTON_CLASS =
 const PROBLEM_BANK_EMERALD_OUTLINE_BUTTON_CLASS =
   'border border-emerald-200 bg-white text-emerald-700 shadow-none hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-500/30 dark:bg-slate-950 dark:text-emerald-200 dark:hover:border-emerald-400/50 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-100';
 const PROBLEM_BANK_LIST_GRID_CLASS =
-  'grid grid-cols-[4rem_5.25rem_minmax(14rem,1.7fr)_7rem_6.5rem_4rem_4.75rem_7.5rem]';
+  'grid grid-cols-[3.5rem_3.5rem_minmax(12rem,1.8fr)_6.5rem_5rem_4.75rem] gap-2.5';
 const PROBLEM_BANK_PAGE_SIZE = 10;
 
 function supportsPhotoAnswer(problem: NotebookProblemClientRecord | null): boolean {

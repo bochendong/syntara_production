@@ -2,19 +2,15 @@
 
 import type { UIMessage } from 'ai';
 import { COURSE_ORCHESTRATOR_ID, COURSE_ORCHESTRATOR_NAME } from '@/lib/constants/course-chat';
-import { buildCourseChatContext } from '@/lib/chat/course-chat-context';
 import { runCourseSideChatLoop } from '@/lib/chat/run-course-side-chat-loop';
 import type {
   ChatMessageMetadata,
   CourseChatContext,
-  CourseChatLayeredMemoryContext,
+  CourseChatEvidenceSummary,
   StatelessChatRequest,
 } from '@/lib/types/chat';
 import type { Scene } from '@/lib/types/stage';
 import { getCurrentModelConfig } from '@/lib/utils/model-config';
-import { backendJson } from '@/lib/utils/backend-api';
-
-const LAYERED_MEMORY_CONTEXT_TIMEOUT_MS = 6000;
 
 export type AskCourseOrchestratorOptions = {
   courseId: string;
@@ -43,6 +39,7 @@ export type AskCourseOrchestratorResult = {
   answer: string;
   messages: UIMessage<ChatMessageMetadata>[];
   courseContext: CourseChatContext;
+  courseEvidence: CourseChatEvidenceSummary[];
 };
 
 function messageText(message: UIMessage<ChatMessageMetadata>): string {
@@ -109,43 +106,6 @@ function buildOrchestratorAgentConfig(
   };
 }
 
-async function loadLayeredMemoryForCourseChat(args: {
-  courseId: string;
-  question: string;
-  signal?: AbortSignal;
-}): Promise<CourseChatLayeredMemoryContext | undefined> {
-  const question = args.question.trim();
-  if (!question) return undefined;
-
-  const params = new URLSearchParams({
-    targetType: 'course',
-    targetId: args.courseId,
-    message: question,
-  });
-
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), LAYERED_MEMORY_CONTEXT_TIMEOUT_MS);
-  const abortFromParent = () => controller.abort();
-  args.signal?.addEventListener('abort', abortFromParent, { once: true });
-  if (args.signal?.aborted) controller.abort();
-
-  try {
-    return await backendJson<CourseChatLayeredMemoryContext>(
-      `/api/memory/context?${params.toString()}`,
-      { cache: 'no-store', signal: controller.signal },
-    );
-  } catch (error) {
-    console.warn(
-      '[ask-course-orchestrator] Failed to load layered memory context:',
-      error instanceof Error ? error.message : error,
-    );
-    return undefined;
-  } finally {
-    window.clearTimeout(timeoutId);
-    args.signal?.removeEventListener('abort', abortFromParent);
-  }
-}
-
 export async function askCourseOrchestrator(
   options: AskCourseOrchestratorOptions,
 ): Promise<AskCourseOrchestratorResult> {
@@ -154,51 +114,22 @@ export async function askCourseOrchestrator(
     throw new Error('系统模型尚未配置，请联系管理员。');
   }
 
-  const baseCourseContext =
-    options.courseContext ??
-    (await buildCourseChatContext({
-      courseId: options.courseId,
-      courseName: options.courseName,
-      question: options.question,
-      learner: options.learnerContext,
-      resourceStates: options.answererHandoff?.resourceStates,
-      target: {
-        kind: 'orchestrator',
-        id: COURSE_ORCHESTRATOR_ID,
-        name: COURSE_ORCHESTRATOR_NAME,
-        role: 'teacher',
-      },
-    }));
-  const contextWithResourceStates =
-    options.courseContext && options.answererHandoff?.resourceStates
-      ? {
-          ...baseCourseContext,
-          resourceStates: {
-            notebooks: baseCourseContext.resourceStates?.notebooks ?? {
-              status: options.answererHandoff.resourceStates.notebooks,
-            },
-            problems: baseCourseContext.resourceStates?.problems ?? {
-              status: options.answererHandoff.resourceStates.problems,
-            },
-            sources: baseCourseContext.resourceStates?.sources ?? {
-              status: options.answererHandoff.resourceStates.sources,
-            },
-          },
-        }
-      : baseCourseContext;
-  const layeredMemory =
-    contextWithResourceStates.layeredMemory ||
-    (await loadLayeredMemoryForCourseChat({
-      courseId: options.courseId,
-      question: options.question,
-      signal: options.signal,
-    }));
-  const courseContextWithMemory = layeredMemory
-    ? { ...contextWithResourceStates, layeredMemory }
-    : contextWithResourceStates;
-  const courseContext = options.answererHandoff
-    ? { ...courseContextWithMemory, answererHandoff: options.answererHandoff }
-    : courseContextWithMemory;
+  // /api/chat rebuilds all prompt-bearing course state from the authenticated
+  // database. Sending sources, learner memory, and problem context from the
+  // browser only duplicates reads and is discarded by the trust boundary.
+  const courseContext: CourseChatContext = options.courseContext ?? {
+    course: {
+      id: options.courseId,
+      name: options.courseName?.trim() || '当前课程',
+    },
+    target: {
+      kind: 'orchestrator',
+      id: COURSE_ORCHESTRATOR_ID,
+      name: COURSE_ORCHESTRATOR_NAME,
+      role: 'teacher',
+    },
+    notebooks: [],
+  };
 
   let messages = [
     ...(options.conversation || []),
@@ -206,7 +137,7 @@ export async function askCourseOrchestrator(
   ];
   const controller = options.signal ? null : new AbortController();
 
-  await runCourseSideChatLoop({
+  const runResult = await runCourseSideChatLoop({
     initialMessages: messages,
     agentIds: [COURSE_ORCHESTRATOR_ID],
     agentConfigs: [buildOrchestratorAgentConfig(options.orchestratorAvatarUrl)],
@@ -220,6 +151,7 @@ export async function askCourseOrchestrator(
     userProfile: options.userProfile,
     surface: 'course-chat',
     courseContext,
+    trustedLearnAnswererHandoffToken: options.answererHandoff?.trustedToken,
     apiKey: modelConfig.apiKey,
     baseUrl: modelConfig.baseUrl || undefined,
     model: modelConfig.modelString,
@@ -234,5 +166,6 @@ export async function askCourseOrchestrator(
     answer: latestAssistantAnswer(messages),
     messages,
     courseContext,
+    courseEvidence: runResult.courseEvidence,
   };
 }

@@ -2,6 +2,11 @@
 
 import { CreateCourseForm } from '@/components/courses/create-course-form';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+  SYNTARA_DIALOG_HEADER_CLASS,
+} from '@/components/ui/syntara-dialog-style';
+import { cn } from '@/lib/utils';
 import { toast } from '@/lib/notifications/client-toast';
 
 type CreateCourseDialogProps = {
@@ -20,17 +25,21 @@ export function CreateCourseDialog({ open, onOpenChange, onSuccess }: CreateCour
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-2xl gap-0 overflow-y-auto rounded-2xl border-0 bg-background p-4 shadow-xl sm:max-h-[min(90dvh,720px)] sm:w-full sm:rounded-[20px] sm:p-6 sm:max-w-2xl"
+        className={cn(
+          SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+          'max-h-[min(720px,calc(100dvh-1rem))] max-w-[520px] gap-0 p-0',
+        )}
         showCloseButton
       >
-        <DialogHeader className="pr-8 text-left">
+        <DialogHeader className={SYNTARA_DIALOG_HEADER_CLASS}>
           <DialogTitle className="text-lg font-semibold">新建课程</DialogTitle>
         </DialogHeader>
-        <CreateCourseForm
-          key={open ? 'create-course-open' : 'create-course-closed'}
-          className="mt-6"
-          onSuccess={handleSuccess}
-        />
+        <div className="min-h-0 overflow-y-auto p-5">
+          <CreateCourseForm
+            key={open ? 'create-course-open' : 'create-course-closed'}
+            onSuccess={handleSuccess}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -10,6 +10,7 @@ import { createLogger } from '@/lib/logger';
 import { statelessGenerate } from '@/lib/orchestration/stateless-generate';
 import { buildCoursePackPromptContext } from '@/lib/server/course-pack-context';
 import { requireUserId } from '@/lib/server/api-auth';
+import type { PrismaClient } from '@/lib/server/generated-prisma';
 import { prisma } from '@/lib/server/prisma';
 import { hasCourseEnrollment } from '@/lib/server/repositories/course-enrollment-repository';
 import type { CourseChatContext, StatelessChatRequest, StatelessEvent } from '@/lib/types/chat';
@@ -43,6 +44,7 @@ export type ResolvedTrustedCourseTurn = {
   body: StatelessChatRequest;
   authenticatedUserId?: string;
   courseId?: string;
+  courseAccess?: TrustedCourseAccess;
   contextSource: 'not_course_chat' | 'database' | 'server' | 'development_mock';
 };
 
@@ -57,8 +59,9 @@ export type CollectedTrustedCourseTurn = TrustedCourseTurnRunResult & {
   answer: string;
 };
 
-type ResolvedCourse = {
+export type ResolvedTrustedCourse = {
   id: string;
+  ownerId: string;
   name: string;
   description: string | null;
   language: string;
@@ -66,6 +69,14 @@ type ResolvedCourse = {
   tags: string[];
   university: string | null;
   courseCode: string | null;
+  notebookCount: number;
+  problemCount: number;
+};
+
+export type TrustedCourseAccess = {
+  userId: string;
+  role: 'owner' | 'enrolled';
+  course: ResolvedTrustedCourse;
 };
 
 function messageText(message: StatelessChatRequest['messages'][number]): string {
@@ -129,7 +140,7 @@ function fixedCourseTarget(): CourseChatContext['target'] {
 }
 
 function trustedCourseContext(args: {
-  course: ResolvedCourse;
+  course: ResolvedTrustedCourse;
   serverCourseContext?: CourseChatContext;
 }): CourseChatContext {
   const { course, serverCourseContext } = args;
@@ -171,6 +182,37 @@ function trustedCourseContext(args: {
   };
 }
 
+export function attachTrustedServerCourseContext(args: {
+  resolved: ResolvedTrustedCourseTurn;
+  serverCourseContext: CourseChatContext;
+}): StatelessChatRequest {
+  const current = args.resolved.body.courseContext;
+  if (
+    !current ||
+    !args.resolved.courseId ||
+    current.course.id !== args.resolved.courseId ||
+    args.serverCourseContext.course.id !== args.resolved.courseId
+  ) {
+    throw new TrustedCourseTurnError(
+      'course_context_mismatch',
+      400,
+      'Server course context does not match the trusted course.',
+    );
+  }
+  return {
+    ...args.resolved.body,
+    courseContext: {
+      ...current,
+      learner: args.serverCourseContext.learner,
+      target: args.serverCourseContext.target,
+      notebooks: args.serverCourseContext.notebooks,
+      resourceStates: args.serverCourseContext.resourceStates,
+      layeredMemory: args.serverCourseContext.layeredMemory,
+      answererHandoff: args.serverCourseContext.answererHandoff,
+    },
+  };
+}
+
 function trustedDevelopmentMockContext(serverCourseContext?: CourseChatContext): CourseChatContext {
   return {
     course: {
@@ -205,6 +247,43 @@ async function authenticatedUserId(suppliedUserId?: string): Promise<string> {
   return auth.userId;
 }
 
+export async function resolveTrustedCourseAccess(args: {
+  userId: string;
+  courseId: string;
+  prisma?: PrismaClient;
+}): Promise<TrustedCourseAccess | null> {
+  const userId = args.userId.trim();
+  const courseId = args.courseId.trim();
+  if (!userId || !courseId) return null;
+
+  const db = args.prisma ?? prisma;
+  const course = await db.course.findUnique({
+    where: { id: courseId },
+    select: {
+      id: true,
+      ownerId: true,
+      name: true,
+      description: true,
+      language: true,
+      purpose: true,
+      tags: true,
+      university: true,
+      courseCode: true,
+      notebookCount: true,
+      problemCount: true,
+    },
+  });
+  if (!course) return null;
+
+  const role =
+    course.ownerId === userId
+      ? 'owner'
+      : (await hasCourseEnrollment(db, userId, courseId))
+        ? 'enrolled'
+        : null;
+  return role ? { userId, role, course } : null;
+}
+
 /**
  * Rebuild the prompt-bearing course context from authenticated server data.
  *
@@ -218,6 +297,7 @@ export async function resolveTrustedCourseTurn(args: {
   body: StatelessChatRequest;
   authenticatedUserId?: string;
   serverCourseContext?: CourseChatContext;
+  trustedAccess?: TrustedCourseAccess;
 }): Promise<ResolvedTrustedCourseTurn> {
   if (args.body.config.surface !== 'course-chat') {
     return {
@@ -255,23 +335,15 @@ export async function resolveTrustedCourseTurn(args: {
   }
 
   const userId = await authenticatedUserId(args.authenticatedUserId);
-  const course = await prisma.course.findUnique({
-    where: { id: courseId },
-    select: {
-      id: true,
-      ownerId: true,
-      name: true,
-      description: true,
-      language: true,
-      purpose: true,
-      tags: true,
-      university: true,
-      courseCode: true,
-    },
-  });
-  const canRead =
-    course && (course.ownerId === userId || (await hasCourseEnrollment(prisma, userId, courseId)));
-  if (!course || !canRead) {
+  const trustedAccess =
+    args.trustedAccess &&
+    args.trustedAccess.userId === userId &&
+    args.trustedAccess.course.id === courseId
+      ? args.trustedAccess
+      : args.trustedAccess
+        ? null
+        : await resolveTrustedCourseAccess({ userId, courseId });
+  if (!trustedAccess) {
     throw new TrustedCourseTurnError('course_not_found', 404, 'Course not found.');
   }
 
@@ -279,12 +351,13 @@ export async function resolveTrustedCourseTurn(args: {
     body: {
       ...args.body,
       courseContext: trustedCourseContext({
-        course,
+        course: trustedAccess.course,
         serverCourseContext: args.serverCourseContext,
       }),
     },
     authenticatedUserId: userId,
     courseId,
+    courseAccess: trustedAccess,
     contextSource: args.serverCourseContext ? 'server' : 'database',
   };
 }

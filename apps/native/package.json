@@ -1,0 +1,41 @@
+{
+  "name": "@syntara/native",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "desktop:dev": "dotenv -e ../../.env.local -- tauri dev",
+    "desktop:build": "dotenv -e ../../.env.local -- tauri build --bundles app",
+    "ios:init": "dotenv -e ../../.env.local -- sh -c 'PATH=./scripts:$PATH tauri ios init'",
+    "ios:dev": "dotenv -e ../../.env.local -- sh -c 'PATH=./scripts:$PATH tauri ios dev'",
+    "ios:build": "dotenv -e ../../.env.local -- sh -c 'PATH=./scripts:$PATH tauri ios build'"
+  },
+  "dependencies": {
+    "@pixi/unsafe-eval": "7.4.3",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-opener": "^2.5.0",
+    "@tauri-apps/plugin-sql": "^2.4.0",
+    "dexie": "^4.2.1",
+    "katex": "^0.16.38",
+    "lucide-react": "^0.562.0",
+    "pixi-live2d-display": "0.5.0-beta",
+    "pixi.js": "7.4.3",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/katex": "^0.16.8",
+    "@types/react": "^19.2.11",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  }
+}

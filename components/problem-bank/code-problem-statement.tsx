@@ -134,7 +134,7 @@ function CodeStatementSection({ section }: { section: CodeStatementSection }) {
 
   return (
     <section className="space-y-4">
-      <CodeProblemStatementHeading icon={Icon} label={section.title} kind={kind} />
+      <CodeProblemStatementHeading icon={Icon} label={section.title || 'Section'} kind={kind} />
       <div className="space-y-3 border-l border-slate-200 pl-4 dark:border-slate-800">
         {section.body ? (
           <div className="text-[15px] leading-7">

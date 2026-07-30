@@ -1,0 +1,96 @@
+{
+  "version": "queue-csc148-local-memory-v1",
+  "courseId": "course-csc148-local",
+  "memories": [
+    {
+      "id": "memory-csc148-course-answer-contract",
+      "notebookId": null,
+      "targetType": "course",
+      "kind": "answer_contract",
+      "title": "CSC148 本地课程回答合约",
+      "text": "## 适用范围\nCSC148 本地课程。\n\n## 执行合约\n- 代码设计回答先写 type annotations 与 docstring contract，再写实现。\n- 自定义类必须说明 public/private 边界；涉及内部状态时写出 Instance Attributes 与 Representation Invariants。\n- 数据结构题先区分 ADT 的接口与具体实现，再讨论正确性和运行时间。\n- 递归题必须明确输入的递归结构、base case、较小的同构子问题，以及如何组合递归结果。\n- trace 题按对象引用、调用栈或节点链接逐步更新状态，不用一句“代码会这样运行”跳过中间过程。\n\n## 验收清单\n答案中的模板必须完整可运行；测试覆盖正常、边界与变异/异常路径；不要混入 CPSC107 的 HtDF 或 mutual reference 模板。",
+      "sourceReferences": [
+        "queue/CSC148/1_The_Python_Memory_Model.md",
+        "queue/CSC148/2_Testing_Your_code.md",
+        "queue/CSC148/3_OOP.md",
+        "queue/CSC148/4_ADT.md",
+        "queue/CSC148/5_Exception.md",
+        "queue/CSC148/6_Linked_List.md",
+        "queue/CSC148/7_Recursion.md",
+        "queue/CSC148/8_trees.md"
+      ]
+    },
+    {
+      "id": "memory-csc148-python-memory-model",
+      "notebookId": "local-queue-csc148-01-memory-model",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "Python 记忆模型共有记忆",
+      "text": "## 适用范围\nCSC148《Python 记忆模型：对象、引用与变异》。\n\n## 知识路径\n1. 先把对象的 id、type、value 与变量保存的引用分开。\n2. 再判断语句是重新绑定变量，还是变异已有对象。\n3. 最后沿共享引用检查 aliasing、参数传递与 shallow/deep copy 的影响。\n\n## 回答合约\ntrace 时为每个对象保留独立身份，逐行记录变量当前指向；`==` 回答值相等，`is` 回答是否同一对象。看到 nested mutable object 时必须说明复制了哪一层。\n\n## 检查清单\n不要说“变量有类型”或“函数拿到对象副本”；先问哪些变量共享同一对象，再判断一次变异会被谁观察到。",
+      "sourceReferences": ["queue/CSC148/1_The_Python_Memory_Model.md"]
+    },
+    {
+      "id": "memory-csc148-testing",
+      "notebookId": "local-queue-csc148-02-testing",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "测试共有记忆",
+      "text": "## 适用范围\nCSC148《测试：例子、边界与性质》。\n\n## 知识路径\n从 docstring 中少量代表性 doctest 开始，把完整测试集放进 pytest；选择案例时按输入性质与输入之间的关系分组。\n\n## 回答合约\n每个 test function 表达一个清楚场景，并用 assert 检验可观察结果。对会变异参数的函数，同时检查返回值与原对象的新状态；对异常路径用明确的异常类型与触发条件测试。\n\n## 检查清单\n至少覆盖空、单元素、一般情况和与规格有关的边界；测试函数不能互相依赖或假设执行顺序；代码覆盖率只能说明代码被走到，不能单独证明行为正确。",
+      "sourceReferences": ["queue/CSC148/2_Testing_Your_code.md"]
+    },
+    {
+      "id": "memory-csc148-oop",
+      "notebookId": "local-queue-csc148-03-oop",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "面向对象共有记忆",
+      "text": "## 适用范围\nCSC148《面向对象：类、实例与表示不变量》。\n\n## 知识路径\n先用 class 定义一种数据及其允许操作，再用 `__init__` 建立合法初始状态，最后让 public methods 在操作前后都维护该状态。\n\n## 执行合约\n类模板必须包含 class docstring、Instance Attributes、Representation Invariants、type annotations、`__init__` 与目标 public method。private attribute 由类自己维护，client code 只依赖 public interface。\n\n## 检查清单\n构造器是否建立全部实例属性；每条 RI 是否在构造后成立并被方法保持；方法是否返回契约承诺的值，而不是泄漏或随意改写内部表示。",
+      "sourceReferences": ["queue/CSC148/3_OOP.md"]
+    },
+    {
+      "id": "memory-csc148-adts",
+      "notebookId": "local-queue-csc148-04-adt",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "ADT、Stack 与 Queue 共有记忆",
+      "text": "## 适用范围\nCSC148《抽象数据类型：Stack、Queue 与接口》。\n\n## 知识路径\n先写 ADT 储存什么以及支持哪些操作，再把它与某个具体 data structure 实现分开。Stack 按 LIFO 推理，Queue 按 FIFO 推理；client 只通过接口操作。\n\n## 回答合约\n设计题先列 interface 与行为，再给一种实现并说明表示选择。Stack/Queue trace 每一步写出容器状态和被移除的元素；不能用底层 list 的额外操作绕开 ADT 接口。\n\n## 检查清单\n答案是否混淆“做什么”和“怎么存”；空结构操作的行为是否明确；运行时间必须相对于所选实现说明，不能把一种实现的成本说成 ADT 的固有性质。",
+      "sourceReferences": ["queue/CSC148/4_ADT.md"]
+    },
+    {
+      "id": "memory-csc148-exceptions",
+      "notebookId": "local-queue-csc148-05-exceptions",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "异常与控制流共有记忆",
+      "text": "## 适用范围\nCSC148《Exceptions：错误路径与控制流》。\n\n## 知识路径\n区分 raise、propagate 与 catch：异常从发生点中断正常控制流，沿调用栈寻找第一个匹配的 handler；被捕获后才从整个 try-except 之后继续。\n\n## 回答合约\ntrace 时写出异常类型、发生行、被跳过的语句、检查 handler 的顺序和最终恢复位置。设计 handler 时捕获能够处理的最具体异常；不能用宽泛 `except` 隐藏未知错误。\n\n## 检查清单\n`else` 只在 try 正常完成时运行，`finally` 用于无论是否异常都必须执行的清理；raise 新异常时说明调用者是否应该处理它。",
+      "sourceReferences": ["queue/CSC148/5_Exception.md"]
+    },
+    {
+      "id": "memory-csc148-linked-lists",
+      "notebookId": "local-queue-csc148-06-linked-list",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "Linked List 共有记忆",
+      "text": "## 适用范围\nCSC148《Linked Lists：节点、链接与变异》。\n\n## 知识路径\n用 private `_Node` 保存 item 与 next，由 `LinkedList` 保存第一个节点引用。所有操作都沿 next 链移动；插入或删除通过重接链接完成，而不是移动一段连续元素。\n\n## 执行合约\n实现必须写出空表表示、`_Node.next` 类型和 LinkedList 的 RI。修改链接前保留仍需访问的节点引用；分别处理空表、表头、中间与表尾。\n\n## 检查清单\n画图时节点身份与箭头都要保留；删除不能只移动局部变量，插入不能丢失原后继链；复杂度按实际遍历节点数说明。",
+      "sourceReferences": ["queue/CSC148/6_Linked_List.md"]
+    },
+    {
+      "id": "memory-csc148-recursion",
+      "notebookId": "local-queue-csc148-07-recursion",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "递归共有记忆",
+      "text": "## 适用范围\nCSC148《Recursion：递归结构、调用栈与分支》。\n\n## 知识路径\n先找数据的递归定义，再写能直接回答的 base case；一般情况只处理当前一层，把较小且同构的部分交给递归调用，最后组合结果。\n\n## 回答合约\n递归设计必须明确规模如何变小，以及为什么会到达 base case。nested list 等分支结构要允许一次调用产生多个递归子调用；trace 使用独立 stack frame 记录每次参数、局部变量与返回值。\n\n## 检查清单\n不要在递归函数中偷偷固定嵌套深度；不要把 accumulator 当成证明终止的理由；每个递归调用的输入都必须满足原函数契约。",
+      "sourceReferences": ["queue/CSC148/7_Recursion.md"]
+    },
+    {
+      "id": "memory-csc148-trees",
+      "notebookId": "local-queue-csc148-08-trees",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "Trees 共有记忆",
+      "text": "## 适用范围\nCSC148《Trees：递归树结构与遍历》。\n\n## 知识路径\nTree 是空树，或一个 root 加零个或多个 subtrees。size、leaf、height、descendant 等方法都从空树/叶子基线出发，再组合各 subtree 的结果。\n\n## 执行合约\nTree 类必须保留 `_root` 与 `_subtrees` 的 RI：若 `_root is None`，则 `_subtrees` 为空；反向不成立，因为非空叶子也没有 subtree。递归方法先处理空树，再对每个 subtree 递归。\n\n## 检查清单\n区分 node、child 与 subtree；明确 height 采用的计数约定；遍历顺序题必须写出 root 与各 subtree 被访问的先后。",
+      "sourceReferences": ["queue/CSC148/8_trees.md"]
+    }
+  ]
+}

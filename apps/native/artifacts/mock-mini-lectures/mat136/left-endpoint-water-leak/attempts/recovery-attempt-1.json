@@ -1,0 +1,80 @@
+{
+  "status": "partial",
+  "findings": [
+    "速率乘宽度才得到漏水量: expected 4 isolated blue corner markers, recovered 3; skipped this component region."
+  ],
+  "components": [
+    {
+      "componentId": "native-mat136-left-endpoint-water-leak-page-1-six-subintervals",
+      "markerColorHex": "#ff0000",
+      "bbox": [
+        104.5,
+        64.5,
+        890.6,
+        222.7
+      ],
+      "markerPoints": [
+        {
+          "x": 110.8,
+          "y": 70.8,
+          "corner": "top-left"
+        },
+        {
+          "x": 885.3,
+          "y": 70.8,
+          "corner": "top-right"
+        },
+        {
+          "x": 110.4,
+          "y": 217.3,
+          "corner": "bottom-left"
+        },
+        {
+          "x": 885.3,
+          "y": 217.3,
+          "corner": "bottom-right"
+        }
+      ],
+      "markerCount": 4
+    },
+    {
+      "componentId": "native-mat136-left-endpoint-water-leak-page-1-why-three-is-excluded",
+      "markerColorHex": "#00ff00",
+      "bbox": [
+        104.5,
+        248,
+        427.7,
+        520.5
+      ],
+      "markerPoints": [
+        {
+          "x": 110.4,
+          "y": 253.9,
+          "corner": "top-left"
+        },
+        {
+          "x": 422.4,
+          "y": 253.9,
+          "corner": "top-right"
+        },
+        {
+          "x": 110.8,
+          "y": 515.6,
+          "corner": "bottom-left"
+        },
+        {
+          "x": 422.4,
+          "y": 514.2,
+          "corner": "bottom-right"
+        }
+      ],
+      "markerCount": 4
+    },
+    {
+      "componentId": "native-mat136-left-endpoint-water-leak-page-1-rate-to-volume",
+      "markerColorHex": "#0048ff",
+      "markerPoints": [],
+      "markerCount": 3
+    }
+  ]
+}

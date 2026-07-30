@@ -1,0 +1,479 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "8f468a865d025d49fdfdafb252ee7b9402c645214fcbd32b657482d35a9a5d16",
+  "generatedAt": "2026-07-28T07:10:50.134Z",
+  "generator": {
+    "imageProvider": "openai-image",
+    "imageModel": "gpt-image-2",
+    "ttsProvider": "openai-tts",
+    "ttsModel": "gpt-4o-mini-tts",
+    "ttsVoice": "marin"
+  },
+  "decks": {
+    "message-mat136-assistant-local": {
+      "id": "mock-lecture-riemann-limit",
+      "sourceMessageId": "message-mat136-assistant-local",
+      "title": "为什么定积分一定要取极限？",
+      "status": "ready",
+      "generatedBy": {
+        "imageProvider": "openai-image",
+        "imageModel": "gpt-image-2",
+        "ttsProvider": "openai-tts",
+        "ttsModel": "gpt-4o-mini-tts",
+        "ttsVoice": "marin"
+      },
+      "pages": [
+        {
+          "id": "riemann-limit-page-1",
+          "title": "为什么定积分一定要取极限？",
+          "imageUrl": "/mock-mini-lectures/mat136/riemann-limit/page-01.png",
+          "imageSha256": "fdf35f05e059a12f4ea994a20728395ecbe7da9dcfa6f7480b7f73d64feb9608",
+          "imageBytes": 522497,
+          "width": 1000,
+          "height": 562.5,
+          "recoveryStatus": "passed",
+          "regions": [
+            {
+              "id": "native-mat136-riemann-limit-page-1-finite-riemann-sums",
+              "semanticId": "finite-riemann-sums",
+              "label": "有限黎曼和：仍然只是近似",
+              "order": 1,
+              "role": "opening",
+              "color": "#38bdf8",
+              "bbox": [101.6, 105.5, 368.1, 232.39999999999998]
+            },
+            {
+              "id": "native-mat136-riemann-limit-page-1-mesh-goes-to-zero",
+              "semanticId": "mesh-goes-to-zero",
+              "label": "真正缩小的是网格宽度",
+              "order": 2,
+              "role": "strategy",
+              "color": "#34d399",
+              "bbox": [523.4, 105.5, 374.1, 232.39999999999998]
+            },
+            {
+              "id": "native-mat136-riemann-limit-page-1-integral-as-common-limit",
+              "semanticId": "integral-as-common-limit",
+              "label": "共同极限才是定积分",
+              "order": 3,
+              "role": "takeaway",
+              "color": "#f59e0b",
+              "bbox": [101.6, 361.3, 795.9, 173.90000000000003]
+            }
+          ],
+          "actions": [
+            {
+              "id": "riemann-limit-spotlight-1",
+              "type": "spotlight",
+              "regionId": "native-mat136-riemann-limit-page-1-finite-riemann-sums",
+              "title": "有限黎曼和：仍然只是近似",
+              "dimOpacity": 0.76
+            },
+            {
+              "id": "riemann-limit-speech-1-1",
+              "type": "speech",
+              "regionId": "native-mat136-riemann-limit-page-1-finite-riemann-sums",
+              "title": "先问：为什么矩形还不够",
+              "text": "你可以先问一个很实际的问题：我已经把曲线下面切成矩形并把面积加起来了，为什么还不能直接把这个和叫作面积？",
+              "audioUrl": "/mock-mini-lectures/mat136/riemann-limit/speech-01.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "548add8610a9925c7ffbb2acd4339a83d215a1fbc8a4b1dd17b995f7ca8fb84a",
+              "audioBytes": 180864
+            },
+            {
+              "id": "riemann-limit-speech-1-2",
+              "type": "speech",
+              "regionId": "native-mat136-riemann-limit-page-1-finite-riemann-sums",
+              "title": "有限分割留下两类不确定性",
+              "text": "只画有限个矩形时，每个矩形仍然有宽度，顶部通常贴不住曲线；而且左端点、右端点或中点取样，还会给出不同的近似值。",
+              "audioUrl": "/mock-mini-lectures/mat136/riemann-limit/speech-02.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "25cafe8c8d3209f7041856efcd45540ca08f117068fcbabdb742b0706fa34266",
+              "audioBytes": 203520
+            },
+            {
+              "id": "riemann-limit-spotlight-2",
+              "type": "spotlight",
+              "regionId": "native-mat136-riemann-limit-page-1-mesh-goes-to-zero",
+              "title": "真正缩小的是网格宽度",
+              "dimOpacity": 0.76
+            },
+            {
+              "id": "riemann-limit-speech-2-1",
+              "type": "speech",
+              "regionId": "native-mat136-riemann-limit-page-1-mesh-goes-to-zero",
+              "title": "矩形变多不是完整条件",
+              "text": "接着要抓住真正被控制的量。只说矩形数量增加还不够，因为某一段仍可能很宽；我们要让最宽的那一小段也越来越窄。",
+              "audioUrl": "/mock-mini-lectures/mat136/riemann-limit/speech-03.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "b8440bc2b12354da2d4356d4578910dc99ee5d114a38e7c5d169396a318a506f",
+              "audioBytes": 208896
+            },
+            {
+              "id": "riemann-limit-speech-2-2",
+              "type": "speech",
+              "regionId": "native-mat136-riemann-limit-page-1-mesh-goes-to-zero",
+              "title": "网格宽度趋近于零",
+              "text": "这个最大小区间宽度叫作网格宽度。当它趋近于零时，所有矩形都被迫变窄，不同分割和不同取样造成的误差才会一起被压下去。",
+              "audioUrl": "/mock-mini-lectures/mat136/riemann-limit/speech-04.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "e2543c24b040ca37d5b3435dcc3ab66157230f45ae9699889605a3c0e8c1b48d",
+              "audioBytes": 244224
+            },
+            {
+              "id": "riemann-limit-spotlight-3",
+              "type": "spotlight",
+              "regionId": "native-mat136-riemann-limit-page-1-integral-as-common-limit",
+              "title": "共同极限才是定积分",
+              "dimOpacity": 0.76
+            },
+            {
+              "id": "riemann-limit-speech-3-1",
+              "type": "speech",
+              "regionId": "native-mat136-riemann-limit-page-1-integral-as-common-limit",
+              "title": "极限消除取样依赖",
+              "text": "如果网格宽度趋近于零以后，无论怎样合法分割、怎样在每段里选取样点，所有黎曼和都靠近同一个数，那么近似就不再依赖选择。",
+              "audioUrl": "/mock-mini-lectures/mat136/riemann-limit/speech-05.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "5c4f9eaeefa053458106a18c9a148207855e888ebbe928467e936f4726c15fa6",
+              "audioBytes": 238464
+            },
+            {
+              "id": "riemann-limit-speech-3-2",
+              "type": "speech",
+              "regionId": "native-mat136-riemann-limit-page-1-integral-as-common-limit",
+              "title": "定积分是稳定下来的共同值",
+              "text": "所以定积分不是某一批矩形的面积，而是所有这些近似在细化过程中共同稳定下来的极限。取极限，正是为了得到唯一而可定义的数。",
+              "audioUrl": "/mock-mini-lectures/mat136/riemann-limit/speech-06.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "2d1dcdb6b89b8cb842ec7f4585d22b6b4be920fb7adce046d04d9adad6638a47",
+              "audioBytes": 231168
+            }
+          ]
+        }
+      ]
+    },
+    "message-mat136-water-leak-problem-assistant-local": {
+      "id": "mock-lecture-left-endpoint-water-leak",
+      "sourceMessageId": "message-mat136-water-leak-problem-assistant-local",
+      "title": "左端点为什么不取到 3？",
+      "status": "ready",
+      "generatedBy": {
+        "imageProvider": "openai-image",
+        "imageModel": "gpt-image-2",
+        "ttsProvider": "openai-tts",
+        "ttsModel": "gpt-4o-mini-tts",
+        "ttsVoice": "marin"
+      },
+      "pages": [
+        {
+          "id": "left-endpoint-water-leak-page-1",
+          "title": "左端点为什么不取到 3？",
+          "imageUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/page-01.png",
+          "imageSha256": "ec3d18fff99e81b67e80bf54f2bdb38f481c4ade56d1ac0a0cb5f74614325b9b",
+          "imageBytes": 608783,
+          "width": 1000,
+          "height": 562.5,
+          "recoveryStatus": "passed",
+          "regions": [
+            {
+              "id": "native-mat136-left-endpoint-water-leak-page-1-six-subintervals",
+              "semanticId": "six-subintervals",
+              "label": "六段区间与六个左端点",
+              "order": 1,
+              "role": "setup",
+              "color": "#38bdf8",
+              "bbox": [119.1, 51.8, 753, 180.6]
+            },
+            {
+              "id": "native-mat136-left-endpoint-water-leak-page-1-why-three-is-excluded",
+              "semanticId": "why-three-is-excluded",
+              "label": "3 是右端点，不是第七个左端点",
+              "order": 2,
+              "role": "pitfall",
+              "color": "#34d399",
+              "bbox": [103.5, 247.1, 325.2, 288.1]
+            },
+            {
+              "id": "native-mat136-left-endpoint-water-leak-page-1-rate-to-volume",
+              "semanticId": "rate-to-volume",
+              "label": "速率乘宽度才得到漏水量",
+              "order": 3,
+              "role": "formula",
+              "color": "#f59e0b",
+              "bbox": [453.1, 246.1, 445.3, 289.1]
+            }
+          ],
+          "actions": [
+            {
+              "id": "left-endpoint-water-leak-spotlight-1",
+              "type": "spotlight",
+              "regionId": "native-mat136-left-endpoint-water-leak-page-1-six-subintervals",
+              "title": "六段区间与六个左端点",
+              "dimOpacity": 0.76
+            },
+            {
+              "id": "left-endpoint-water-leak-speech-1-1",
+              "type": "speech",
+              "regionId": "native-mat136-left-endpoint-water-leak-page-1-six-subintervals",
+              "title": "先切区间，再选高度",
+              "text": "先别急着代函数。时间从零到三小时，一共分成六段，所以每一段的宽度是零点五小时；六个矩形必须一段对应一个高度。",
+              "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-01.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "f9f9bcba7a77db3016237f77692996557c5d2236a188fe330ad9f18acffaca23",
+              "audioBytes": 219264
+            },
+            {
+              "id": "left-endpoint-water-leak-speech-1-2",
+              "type": "speech",
+              "regionId": "native-mat136-left-endpoint-water-leak-page-1-six-subintervals",
+              "title": "左端点就是每段的起点",
+              "text": "左端点规则只取每一小段开始的位置，因此依次是零、零点五、一、一点五、二和二点五，正好六个点。",
+              "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-02.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "e6345493c33018ae6a334b3d1a482d1a7bee7b3f91c0597122736bcce200d090",
+              "audioBytes": 202368
+            },
+            {
+              "id": "left-endpoint-water-leak-spotlight-2",
+              "type": "spotlight",
+              "regionId": "native-mat136-left-endpoint-water-leak-page-1-why-three-is-excluded",
+              "title": "3 是右端点，不是第七个左端点",
+              "dimOpacity": 0.76
+            },
+            {
+              "id": "left-endpoint-water-leak-speech-2-1",
+              "type": "speech",
+              "regionId": "native-mat136-left-endpoint-water-leak-page-1-why-three-is-excluded",
+              "title": "看清最后一段的左右关系",
+              "text": "关键只在最后一段。最后一个小区间从二点五开始，到三结束；因此二点五是它的左端点，而三是它的右端点。",
+              "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-03.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "36b14508fe8ba298993fcd026611a854a33f65a293682c90bce687ba6c4ecd98",
+              "audioBytes": 188928
+            },
+            {
+              "id": "left-endpoint-water-leak-speech-2-2",
+              "type": "speech",
+              "regionId": "native-mat136-left-endpoint-water-leak-page-1-why-three-is-excluded",
+              "title": "加入 3 会破坏一段一个高度",
+              "text": "如果再把三加入取样点，就会出现七个高度，却只有六个小区间。三只有在右端点规则里才会被选中，不属于这次左端点和。",
+              "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-04.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "827a161bf5ee016c4237bd5a29ac9b4589d1832a25eadcce2b648b3e8cd12683",
+              "audioBytes": 217728
+            },
+            {
+              "id": "left-endpoint-water-leak-spotlight-3",
+              "type": "spotlight",
+              "regionId": "native-mat136-left-endpoint-water-leak-page-1-rate-to-volume",
+              "title": "速率乘宽度才得到漏水量",
+              "dimOpacity": 0.76
+            },
+            {
+              "id": "left-endpoint-water-leak-speech-3-1",
+              "type": "speech",
+              "regionId": "native-mat136-left-endpoint-water-leak-page-1-rate-to-volume",
+              "title": "写出六段左端点和",
+              "text": "现在把这六个左端点代入漏水速率函数，把六个函数值相加；这些函数值只是每个矩形的高度，也就是每小时漏多少升。",
+              "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-05.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "045581b2e998e6459884cf891c2a4e8af5da394152ca45ba4c184a1d8aff4275",
+              "audioBytes": 197760
+            },
+            {
+              "id": "left-endpoint-water-leak-speech-3-2",
+              "type": "speech",
+              "regionId": "native-mat136-left-endpoint-water-leak-page-1-rate-to-volume",
+              "title": "别漏掉零点五和单位",
+              "text": "最后一定要乘每段的时间宽度零点五小时。升每小时乘小时，才得到每段的漏水量；全部相加后的单位也才是升。",
+              "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-06.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "ac9f7208f33c21a3894436192ab7c549caa321790a8e3536ebf4e879b2870f9e",
+              "audioBytes": 193920
+            }
+          ]
+        }
+      ]
+    },
+    "message-mat136-substitution-assistant-local": {
+      "id": "mock-lecture-substitution-differential",
+      "sourceMessageId": "message-mat136-substitution-assistant-local",
+      "title": "换元时为什么必须一起换 dx？",
+      "status": "ready",
+      "generatedBy": {
+        "imageProvider": "openai-image",
+        "imageModel": "gpt-image-2",
+        "ttsProvider": "openai-tts",
+        "ttsModel": "gpt-4o-mini-tts",
+        "ttsVoice": "marin"
+      },
+      "pages": [
+        {
+          "id": "substitution-differential-page-1",
+          "title": "换元时为什么必须一起换 dx？",
+          "imageUrl": "/mock-mini-lectures/mat136/substitution-differential/page-01.png",
+          "imageSha256": "ef12e0d2d5bd189a755ac649f2fc2529eb4f38ff3159c1173fb9049ee2b2cb75",
+          "imageBytes": 463702,
+          "width": 1000,
+          "height": 562.5,
+          "recoveryStatus": "passed",
+          "regions": [
+            {
+              "id": "native-mat136-substitution-differential-page-1-dx-carries-width",
+              "semanticId": "dx-carries-width",
+              "label": "dx 指明变量，也代表微小宽度",
+              "order": 1,
+              "role": "opening",
+              "color": "#38bdf8",
+              "bbox": [104.5, 114.3, 377.9, 254.8]
+            },
+            {
+              "id": "native-mat136-substitution-differential-page-1-chain-rule-bridge",
+              "semanticId": "chain-rule-bridge",
+              "label": "du = g′(x) dx 是换元桥梁",
+              "order": 2,
+              "role": "formula",
+              "color": "#34d399",
+              "bbox": [531.3, 116.2, 353.5, 252.9]
+            },
+            {
+              "id": "native-mat136-substitution-differential-page-1-worked-substitution",
+              "semanticId": "worked-substitution",
+              "label": "例题：把 2x dx 整体替换成 du",
+              "order": 3,
+              "role": "example",
+              "color": "#f59e0b",
+              "bbox": [107.4, 397.5, 776.4, 138.6]
+            }
+          ],
+          "actions": [
+            {
+              "id": "substitution-differential-spotlight-1",
+              "type": "spotlight",
+              "regionId": "native-mat136-substitution-differential-page-1-dx-carries-width",
+              "title": "dx 指明变量，也代表微小宽度",
+              "dimOpacity": 0.76
+            },
+            {
+              "id": "substitution-differential-speech-1-1",
+              "type": "speech",
+              "regionId": "native-mat136-substitution-differential-page-1-dx-carries-width",
+              "title": "dx 不是公式末尾的标点",
+              "text": "很多人把微分看成积分号后面的装饰，但它其实告诉你现在沿哪个变量累加，也代表每一小片在这个变量上的微小宽度。",
+              "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-01.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "1c93c176e93f70a3dfc8aee8fa971471253f7f21c02c13aabffcdf383077b376",
+              "audioBytes": 195456
+            },
+            {
+              "id": "substitution-differential-speech-1-2",
+              "type": "speech",
+              "regionId": "native-mat136-substitution-differential-page-1-dx-carries-width",
+              "title": "换元必须连宽度一起换",
+              "text": "当你把横轴从 x 换成 u，原来用 x 衡量的微小宽度也必须改写成 u 的宽度；否则函数换了变量，累加尺度却还留在旧变量里。",
+              "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-02.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "2fb1cbdafccb264cd5a5b3b1aee9a240188391982c20dfa5ed8e8b6bd47fdcdb",
+              "audioBytes": 243456
+            },
+            {
+              "id": "substitution-differential-spotlight-2",
+              "type": "spotlight",
+              "regionId": "native-mat136-substitution-differential-page-1-chain-rule-bridge",
+              "title": "du = g′(x) dx 是换元桥梁",
+              "dimOpacity": 0.76
+            },
+            {
+              "id": "substitution-differential-speech-2-1",
+              "type": "speech",
+              "regionId": "native-mat136-substitution-differential-page-1-chain-rule-bridge",
+              "title": "链式法则给出两个微分的关系",
+              "text": "设 u 等于 g 作用在 x 上。对两边求微分，链式法则告诉我们，u 的微分等于 g 的导数乘 x 的微分。",
+              "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-03.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "34d7b94be080a7fd1c5a6c5ec3c55b14a4303f6f4ef6b389dc6339838ee91277",
+              "audioBytes": 172032
+            },
+            {
+              "id": "substitution-differential-speech-2-2",
+              "type": "speech",
+              "regionId": "native-mat136-substitution-differential-page-1-chain-rule-bridge",
+              "title": "把它当作可替换的整体",
+              "text": "这个关系不是为了多写一行，而是告诉你原积分中哪一整块可以换成 du。换元时要同时替换内层函数和与它匹配的导数因子。",
+              "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-04.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "59499191666ad8903eb0974484fa3c3c8e857e2f85e2f44ddf03d186aeea7939",
+              "audioBytes": 233856
+            },
+            {
+              "id": "substitution-differential-spotlight-3",
+              "type": "spotlight",
+              "regionId": "native-mat136-substitution-differential-page-1-worked-substitution",
+              "title": "例题：把 2x dx 整体替换成 du",
+              "dimOpacity": 0.76
+            },
+            {
+              "id": "substitution-differential-speech-3-1",
+              "type": "speech",
+              "regionId": "native-mat136-substitution-differential-page-1-worked-substitution",
+              "title": "先认出内层函数与配套导数",
+              "text": "看这个典型积分，余弦里面是 x 的平方，外面刚好有二 x 乘 dx。于是令 u 等于 x 的平方，微分关系正好是 du 等于二 x 乘 dx。",
+              "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-05.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "6d13c94ae16e90c5e07175a6f267e7282c4ca10f9dbcb2cd6f72eb44b783f1dd",
+              "audioBytes": 289920
+            },
+            {
+              "id": "substitution-differential-speech-3-2",
+              "type": "speech",
+              "regionId": "native-mat136-substitution-differential-page-1-worked-substitution",
+              "title": "换元完成的检查标准",
+              "text": "接着把 x 的平方换成 u，把二 x 乘 dx 整体换成 du，积分就只剩余弦 u 对 u 的积分。若还混着 x 或 dx，就说明换元还没有完成。",
+              "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-06.mp3",
+              "audioProvider": "openai-tts",
+              "audioModel": "gpt-4o-mini-tts",
+              "audioVoice": "marin",
+              "audioSha256": "8a71c3900cc6ec0e64ceca91530936c2e85806c6dfed7ef8b94a5917cc773e8f",
+              "audioBytes": 253824
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

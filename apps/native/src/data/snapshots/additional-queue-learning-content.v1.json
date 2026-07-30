@@ -1,0 +1,1775 @@
+{
+  "version": "additional-queue-learning-content-v1",
+  "generatedBy": "manual-static-content-copy",
+  "sourceBoundary": "repo-local queue sources; no API, database, LLM, or generation task",
+  "notebooks": [
+    {
+      "id": "queue-csc108-01-basic-operations",
+      "courseId": "course-csc108-local",
+      "name": "01 · Python 基础：运算、变量与字符串",
+      "description": "CSC108 学生版 Markdown 笔记：数学运算符、运算顺序、变量命名、赋值、数值类型和字符串基础。",
+      "tags": ["CSC108", "Python", "Markdown", "基础运算", "queue", "本地"],
+      "sourcePath": "queue/CSC108/01_基础运算.docx",
+      "sections": [
+        {
+          "title": "学习路线",
+          "markdown": "这本笔记把 Python 入门的第一组能力连起来：先会读表达式，再会保存结果，最后会处理字符串。\n\n你需要掌握四件事：\n\n- 数学表达式如何按 Python 的规则求值。\n- int 和 float 在运算结果中如何变化。\n- 变量名如何写，赋值语句如何更新变量。\n- 字符串如何拼接、重复、比较和调用方法。\n\n学习时不要只背操作符。更重要的是能解释：某一步为什么先算，结果是什么类型，变量现在指向哪个值。",
+          "summary": "这本笔记把 Python 入门的第一组能力连起来：先会读表达式，再会保存结果，最后会处理字符串。 你需要掌握四件事： 数学表达式如何按 Python 的规则求值。 int 和 float 在运算结果中如何变化。 变量名如何写，赋值语句如何更新变量。 字符串如何拼接、重复、比较和调用方法。 学习时不要只背操作符。更重要的是能解释：某一步为什么先算，结果是什么类型，变量现在指向哪个值。"
+        },
+        {
+          "title": "数学运算符和结果类型",
+          "markdown": "Python 常用数学运算符：\n\n| 运算符 | 意义 | 例子 | 结果 |\n| --- | --- | --- | --- |\n| + | 加法 | 3 + 2 | 5 |\n| - | 减法 | 6 - 1 | 5 |\n| * | 乘法 | 3 * 4 | 12 |\n| / | 除法 | 6 / 2 | 3.0 |\n| // | 整数除法，取商 | 7 // 3 | 2 |\n| % | 取余数 | 7 % 3 | 1 |\n| ** | 乘方 | 2 ** 3 | 8 |\n\n两个最容易错的点：\n\n- / 的结果总是 float，即使看起来刚好整除。\n- 除 / 以外，如果任意一边是 float，结果通常也是 float；两边都是 int 时通常得到 int。\n\n任何数除以 0 都会触发 ZeroDivisionError。// 和 % 也不能把 0 放在右边。",
+          "summary": "Python 常用数学运算符： 运算符 意义 例子 结果 + 加法 3 + 2 5 减法 6 1 5 乘法 3 4 12 / 除法 6 / 2 3.0 // 整数除法，取商 7 // 3 2 % 取余数 7 % 3 1 乘方 2 3 8 两个最容易错的点： / 的结果总是 float，即使看起来刚好整除。 除 / 以外，如果任意一边是 float，结果通常也是 float；两边都是 int 时通常得到 int。 任何数除以 0 都会触发 ZeroDivisionError。/"
+        },
+        {
+          "title": "例题 1：表达式逐步求值",
+          "markdown": "题目：求下面表达式的值和类型。\n\n~~~python\n8 / 2 * (2 + 2)\n6 / 3 * 2 + 1\n6 / 3 * (2 + 1)\n(3 / 1000) * 2 + 2 ** 3 * 1\n(3.0 // 1000) * 2 + 2 ** 3 * 1\n~~~\n\n步骤：\n\n1. 先算括号。\n2. 再算 **。\n3. 再算 *、/、//、%，同一层从左到右。\n4. 最后算 +、-。\n\n参考结果：\n\n~~~text\n8 / 2 * (2 + 2)        -> 4.0 * 4 -> 16.0\n6 / 3 * 2 + 1          -> 2.0 * 2 + 1 -> 5.0\n6 / 3 * (2 + 1)        -> 2.0 * 3 -> 6.0\n(3 / 1000) * 2 + 8     -> 0.003 * 2 + 8 -> 8.006\n(3.0 // 1000) * 2 + 8  -> 0.0 * 2 + 8 -> 8.0\n~~~\n\n检查点：只要中间用了 /，后面就很可能一路保持 float。",
+          "summary": "题目：求下面表达式的值和类型。 步骤： 1. 先算括号。 2. 再算 。 3. 再算 、/、//、%，同一层从左到右。 4. 最后算 +、 。 参考结果： 检查点：只要中间用了 /，后面就很可能一路保持 float。"
+        },
+        {
+          "title": "变量、赋值和命名",
+          "markdown": "变量是给值起名字。赋值语句的右边会先被计算，然后把结果绑定到左边的变量名。\n\n~~~python\ny = 12\nx = 3\nz = y + x\n~~~\n\n执行后，z 的值是 15。\n\n变量命名规则：\n\n- 必须以字母或下划线开头，不能以数字开头。\n- 只能包含字母、数字和下划线。\n- 区分大小写，age、Age、AGE 是三个不同变量。\n- Python 常用 snake_case，例如 student_count。\n\n合法变量名示例：\n\n~~~python\n__name\nrtn_98\nA_bc_def\nstudent_count\n~~~\n\n不建议使用 algo-ace，因为 - 会被 Python 当成减号。",
+          "summary": "变量是给值起名字。赋值语句的右边会先被计算，然后把结果绑定到左边的变量名。 执行后，z 的值是 15。 变量命名规则： 必须以字母或下划线开头，不能以数字开头。 只能包含字母、数字和下划线。 区分大小写，age、Age、AGE 是三个不同变量。 Python 常用 snake case，例如 student count。 合法变量名示例： 不建议使用 algo ace，因为 会被 Python 当成减号。"
+        },
+        {
+          "title": "例题 2：变量更新追踪",
+          "markdown": "题目：下面代码最后会输出什么？\n\n~~~python\nx = 3\ny = 12\nz = y + x\nx = z - 5\ny = x * 2\nprint(x, y, z)\n~~~\n\n步骤：\n\n1. x = 3，y = 12。\n2. z = y + x，所以 z = 15。\n3. x = z - 5，所以 x 被更新为 10。\n4. y = x * 2，使用的是更新后的 x，所以 y = 20。\n\n结果：\n\n~~~text\n10 20 15\n~~~\n\n易错点：变量不是数学里的永久等式。x = z - 5 之后，旧的 x = 3 已经不再是当前值。",
+          "summary": "题目：下面代码最后会输出什么？ 步骤： 1. x = 3，y = 12。 2. z = y + x，所以 z = 15。 3. x = z 5，所以 x 被更新为 10。 4. y = x 2，使用的是更新后的 x，所以 y = 20。 结果： 易错点：变量不是数学里的永久等式。x = z 5 之后，旧的 x = 3 已经不再是当前值。"
+        },
+        {
+          "title": "字符串基础操作",
+          "markdown": "字符串是字符序列。空格、换行、标点、中文和 emoji 都是字符，len 会数它们。\n\n~~~python\nlen(\"Hello世界\")      # 7\nlen(\"\")              # 0\n\"Hello\" + \", World!\" # \"Hello, World!\"\n\"Na\" * 4             # \"NaNaNaNa\"\n~~~\n\n字符串比较区分大小写，并按字典序比较：\n\n~~~python\n\"aBc\" == \"abc\"       # False\n\"apple\" < \"banana\"  # True\n\"abc\" < \"abC\"       # False\n~~~\n\n常用方法：\n\n| 方法 | 作用 |\n| --- | --- |\n| s.upper() | 转成大写，返回新字符串 |\n| s.lower() | 转成小写，返回新字符串 |\n| s.replace(old, new) | 替换子串，返回新字符串 |\n| s.count(substring) | 统计子串出现次数 |\n| s.find(substring) | 找第一次出现的位置，找不到返回 -1 |\n| s.isalpha() | 是否全是字母 |\n| s.isdigit() | 是否全是数字 |\n\n字符串本身不可变，所以这些方法不会原地改掉旧字符串。",
+          "summary": "字符串是字符序列。空格、换行、标点、中文和 emoji 都是字符，len 会数它们。 字符串比较区分大小写，并按字典序比较： 常用方法： 方法 作用 s.upper() 转成大写，返回新字符串 s.lower() 转成小写，返回新字符串 s.replace(old, new) 替换子串，返回新字符串 s.count(substring) 统计子串出现次数 s.find(substring) 找第一次出现的位置，找不到返回 1 s.isalpha() 是否全是字母 s.isdi"
+        },
+        {
+          "title": "例题 3：字符串表达式",
+          "markdown": "已知：\n\n~~~python\nstr1 = \"University \"\nstr2 = \"of \"\nstr3 = \"British Columbia\"\n~~~\n\n目标 A：得到 \"University of British Columbia\"。\n\n~~~python\nstr1 + str2 + str3\n~~~\n\n目标 B：得到 \"Universe\"。\n\n思路：从 \"University \" 中取前 7 个字符 \"Univers\"，再接上 \"e\"。\n\n~~~python\nstr1[:7] + \"e\"\n~~~\n\n再看换行字符：\n\n~~~python\nprint(len(\"hello\nworld\"))   # 11\nprint(len(\"hello\\nworld\"))  # 12\n~~~\n\n第一行里 \n 是一个换行字符。第二行里 \\n 是两个普通字符：反斜杠和 n。",
+          "summary": "已知： 目标 A：得到 \"University of British Columbia\"。 目标 B：得到 \"Universe\"。 思路：从 \"University \" 中取前 7 个字符 \"Univers\"，再接上 \"e\"。 再看换行字符： 第一行里 是一个换行字符。第二行里 \\n 是两个普通字符：反斜杠和 n。"
+        }
+      ]
+    },
+    {
+      "id": "queue-csc108-02-control",
+      "courseId": "course-csc108-local",
+      "name": "02 · 函数、Docstring 与条件控制",
+      "description": "CSC108 学生版 Markdown 笔记：函数 header、type contract、docstring、print/return、if/elif/else、作用域。",
+      "tags": ["CSC108", "Python", "Markdown", "Control", "queue", "本地"],
+      "sourcePath": "queue/CSC108/02_Control.docx",
+      "sections": [
+        {
+          "title": "函数设计的基本结构",
+          "markdown": "一个清楚的函数至少包含四层信息：\n\n1. header：函数名、参数名和类型、返回类型。\n2. docstring：说明函数做什么，并给出示例。\n3. body：真正计算并 return 结果。\n4. tests：用示例和边界情况检查函数。\n\n例子：\n\n~~~python\ndef is_even(value: int) -> bool:\n    \"\"\"Return True if and only if value is divisible by 2.\n\n    >>> is_even(2)\n    True\n    >>> is_even(17)\n    False\n    \"\"\"\n    return value % 2 == 0\n~~~\n\n函数名和参数名要尽量有意义。看见 is_even(value) 时，读者应该能猜到它在判断 value 是否为偶数。",
+          "summary": "一个清楚的函数至少包含四层信息： 1. header：函数名、参数名和类型、返回类型。 2. docstring：说明函数做什么，并给出示例。 3. body：真正计算并 return 结果。 4. tests：用示例和边界情况检查函数。 例子： 函数名和参数名要尽量有意义。看见 is even(value) 时，读者应该能猜到它在判断 value 是否为偶数。"
+        },
+        {
+          "title": "Docstring 为什么重要",
+          "markdown": "Docstring 不是给 Python 看的装饰，而是给人和测试看的契约。\n\n一个好的 docstring 应该说明：\n\n- 每个参数代表什么。\n- 返回值代表什么。\n- 至少两三个典型示例。\n- 必要时包含边界情况。\n\n不清楚的版本：\n\n~~~python\ndef abcdef(n):\n    if n == 1:\n        return 2\n    if n == 2:\n        return 3\n    if n == 3:\n        return 1\n~~~\n\n更清楚的版本：\n\n~~~python\ndef next_traffic_light(light: int) -> int:\n    \"\"\"Return the next traffic light code.\n\n    1 means red, 2 means yellow, and 3 means green.\n\n    >>> next_traffic_light(1)\n    2\n    >>> next_traffic_light(2)\n    3\n    \"\"\"\n    if light == 1:\n        return 2\n    if light == 2:\n        return 3\n    return 1\n~~~\n\n检查点：如果别人只读 header 和 docstring，是否已经知道这个函数的输入输出规则？",
+          "summary": "Docstring 不是给 Python 看的装饰，而是给人和测试看的契约。 一个好的 docstring 应该说明： 每个参数代表什么。 返回值代表什么。 至少两三个典型示例。 必要时包含边界情况。 不清楚的版本： 更清楚的版本： 检查点：如果别人只读 header 和 docstring，是否已经知道这个函数的输入输出规则？"
+        },
+        {
+          "title": "例题 1：print 和 return 的区别",
+          "markdown": "题目：下面代码执行时屏幕上会出现什么？函数调用的结果又是什么？\n\n~~~python\ndef foo_1(a: int, b: int) -> int:\n    x = a + 2\n    print(x)\n    y = b // 3\n    print(y)\n    return x * y\n\nresult = foo_1(0, 8)\nprint(result)\n~~~\n\n步骤：\n\n1. a = 0，所以 x = 2，先 print 2。\n2. b = 8，所以 y = 2，接着 print 2。\n3. 函数 return 4，result 接住 4。\n4. 最后一行 print(result)，再输出 4。\n\n输出：\n\n~~~text\n2\n2\n4\n~~~\n\n核心区别：print 是把信息显示在终端；return 是把结果交回给调用者，让后续代码继续使用。",
+          "summary": "题目：下面代码执行时屏幕上会出现什么？函数调用的结果又是什么？ 步骤： 1. a = 0，所以 x = 2，先 print 2。 2. b = 8，所以 y = 2，接着 print 2。 3. 函数 return 4，result 接住 4。 4. 最后一行 print(result)，再输出 4。 输出： 核心区别：print 是把信息显示在终端；return 是把结果交回给调用者，让后续代码继续使用。"
+        },
+        {
+          "title": "条件表达式和分支",
+          "markdown": "if 语句会根据布尔表达式选择执行路径。\n\n~~~python\nif condition:\n    ...\nelif another_condition:\n    ...\nelse:\n    ...\n~~~\n\n常用比较和逻辑：\n\n| 写法 | 意义 |\n| --- | --- |\n| x == y | 是否相等 |\n| x != y | 是否不相等 |\n| x < y | 是否小于 |\n| a < x < b | x 是否在开区间中 |\n| cond1 and cond2 | 两个条件都为真 |\n| cond1 or cond2 | 至少一个条件为真 |\n| not cond | 取反 |\n\n分支越多，越要检查每条路径是否都有 return。特别是函数返回 bool 时，很多 if/else 可以直接化简成布尔表达式。",
+          "summary": "if 语句会根据布尔表达式选择执行路径。 常用比较和逻辑： 写法 意义 x == y 是否相等 x != y 是否不相等 x < y 是否小于 a < x < b x 是否在开区间中 cond1 and cond2 两个条件都为真 cond1 or cond2 至少一个条件为真 not cond 取反 分支越多，越要检查每条路径是否都有 return。特别是函数返回 bool 时，很多 if/else 可以直接化简成布尔表达式。"
+        },
+        {
+          "title": "例题 2：把嵌套 if 化简",
+          "markdown": "题目：把下面逻辑写得更清楚。\n\n~~~python\ndef in_window(x: int) -> bool:\n    if x < 1:\n        if x > -5:\n            return True\n        else:\n            return False\n    else:\n        return False\n~~~\n\n分析：\n\n- 外层要求 x < 1。\n- 内层要求 x > -5。\n- 两个条件必须同时满足。\n\n化简：\n\n~~~python\ndef in_window(x: int) -> bool:\n    return -5 < x < 1\n~~~\n\n再看一个 or 的版本：\n\n~~~python\ndef is_outside(x: int) -> bool:\n    return x < 1 or x > 8\n~~~\n\n易错点：and 和 or 不只是英文翻译，要看条件是“同时成立”还是“满足任意一个”。",
+          "summary": "题目：把下面逻辑写得更清楚。 分析： 外层要求 x < 1。 内层要求 x 5。 两个条件必须同时满足。 化简： 再看一个 or 的版本： 易错点：and 和 or 不只是英文翻译，要看条件是“同时成立”还是“满足任意一个”。"
+        },
+        {
+          "title": "作用域：局部变量和全局变量",
+          "markdown": "在 function 外定义的变量是 global variable。函数可以读取全局变量，但通常不应该修改它。\n\n在 function 内定义的变量是 local variable。它只在函数内部有效。\n\n~~~python\na = 1\n\ndef add_one() -> int:\n    a = 2\n    a = a + 1\n    return a\n\nm = add_one()\nprint(m)\nprint(a)\n~~~\n\n输出：\n\n~~~text\n3\n1\n~~~\n\n函数内部的 a 是局部变量，不会改掉外面的 a。\n\n如果写 global a，函数会修改外部变量：\n\n~~~python\na = 1\n\ndef add_one() -> int:\n    global a\n    a = 2\n    a = a + 1\n    return a\n\nm = add_one()\nprint(m)\nprint(a)\n~~~\n\n输出：\n\n~~~text\n3\n3\n~~~\n\n课程中通常建议少用 global。常量可以放在外面，普通计算结果应通过参数和 return 传递。",
+          "summary": "在 function 外定义的变量是 global variable。函数可以读取全局变量，但通常不应该修改它。 在 function 内定义的变量是 local variable。它只在函数内部有效。 输出： 函数内部的 a 是局部变量，不会改掉外面的 a。 如果写 global a，函数会修改外部变量： 输出： 课程中通常建议少用 global。常量可以放在外面，普通计算结果应通过参数和 return 传递。"
+        },
+        {
+          "title": "例题 3：作用域代码追踪",
+          "markdown": "题目：下面代码输出什么？\n\n~~~python\na = 1\n\ndef foo() -> int:\n    a = 2\n    s = a * 3\n    return s\n\nm = foo()\nprint(m)\nprint(a)\n~~~\n\n步骤：\n\n1. 全局 a = 1。\n2. 调用 foo 时，函数内部创建局部 a = 2。\n3. s = 2 * 3，所以 return 6。\n4. print(m) 输出 6。\n5. 全局 a 从未被修改，所以 print(a) 输出 1。\n\n结果：\n\n~~~text\n6\n1\n~~~\n\n检查点：看到同名变量时，先问“这行代码处在哪个作用域里？”",
+          "summary": "题目：下面代码输出什么？ 步骤： 1. 全局 a = 1。 2. 调用 foo 时，函数内部创建局部 a = 2。 3. s = 2 3，所以 return 6。 4. print(m) 输出 6。 5. 全局 a 从未被修改，所以 print(a) 输出 1。 结果： 检查点：看到同名变量时，先问“这行代码处在哪个作用域里？”"
+        }
+      ]
+    },
+    {
+      "id": "queue-csc108-03-loop",
+      "courseId": "course-csc108-local",
+      "name": "03 · 循环：range、for、while 与嵌套循环",
+      "description": "CSC108 学生版 Markdown 笔记：range、for loop、break/continue、while、字符串循环、nested loop 和图形输出。",
+      "tags": ["CSC108", "Python", "Markdown", "Loop", "queue", "本地"],
+      "sourcePath": "queue/CSC108/03_Loop.docx",
+      "sections": [
+        {
+          "title": "range 和 for loop",
+          "markdown": "range(start, end, step) 会生成从 start 开始、到 end 之前停止的一串整数。end 不包含在结果里。\n\n~~~python\nrange(1, 5, 1)   # 1, 2, 3, 4\nrange(1, 5, 2)   # 1, 3\nrange(1, 5)      # step 默认是 1\nrange(5, 1, -1)  # 5, 4, 3, 2\nrange(1, 5, -1)  # 空序列\n~~~\n\nfor loop 的形状：\n\n~~~python\nfor i in range(a, b):\n    # loop body\n    ...\n~~~\n\n每一轮循环，i 会从 range 中取下一个值。循环变量通常不应该在 loop body 里手动改掉。",
+          "summary": "range(start, end, step) 会生成从 start 开始、到 end 之前停止的一串整数。end 不包含在结果里。 for loop 的形状： 每一轮循环，i 会从 range 中取下一个值。循环变量通常不应该在 loop body 里手动改掉。"
+        },
+        {
+          "title": "例题 1：break 和 continue 追踪",
+          "markdown": "题目：下面代码会输出什么？\n\n~~~python\npoints = 0\nfor day in range(1, 10):\n    if day == 3 or day == 6:\n        continue\n    points += day\n    print(\"Day\", day, \"->\", points)\n    if points >= 15:\n        break\n\nprint(\"final:\", points)\n~~~\n\n步骤：\n\n- day = 1，points = 1，输出 Day 1 -> 1。\n- day = 2，points = 3，输出 Day 2 -> 3。\n- day = 3，continue，跳过本轮。\n- day = 4，points = 7。\n- day = 5，points = 12。\n- day = 6，continue。\n- day = 7，points = 19，达到 15，break 结束整个循环。\n\n结果：\n\n~~~text\nDay 1 -> 1\nDay 2 -> 3\nDay 4 -> 7\nDay 5 -> 12\nDay 7 -> 19\nfinal: 19\n~~~\n\ncontinue 只跳过当前这一轮。break 直接离开整个循环。",
+          "summary": "题目：下面代码会输出什么？ 步骤： day = 1，points = 1，输出 Day 1 1。 day = 2，points = 3，输出 Day 2 3。 day = 3，continue，跳过本轮。 day = 4，points = 7。 day = 5，points = 12。 day = 6，continue。 day = 7，points = 19，达到 15，break 结束整个循环。 结果： continue 只跳过当前这一轮。break 直接离开整个循环。"
+        },
+        {
+          "title": "while loop 和停止条件",
+          "markdown": "while loop 会在条件为 True 时不断重复。\n\n~~~python\nwhile condition:\n    ...\n~~~\n\n写 while 时要特别关注停止条件：\n\n- 循环前要有初始值。\n- loop body 里要更新某个变量。\n- 更新后条件最终必须变成 False。\n\n例子：倒数输出。\n\n~~~python\ni = 5\nwhile i >= 1:\n    print(i)\n    i -= 1\n~~~\n\n如果忘记 i -= 1，i 会一直是 5，循环不会停止。",
+          "summary": "while loop 会在条件为 True 时不断重复。 写 while 时要特别关注停止条件： 循环前要有初始值。 loop body 里要更新某个变量。 更新后条件最终必须变成 False。 例子：倒数输出。 如果忘记 i = 1，i 会一直是 5，循环不会停止。"
+        },
+        {
+          "title": "例题 2：数字反转",
+          "markdown": "题目：给定 num = 2034，用 while loop 得到反转后的数字 4302。\n\n核心操作：\n\n- num % 10 取出最后一位。\n- num // 10 去掉最后一位。\n- result = result * 10 + digit 把新数字接到右边。\n\n代码：\n\n~~~python\nnum = 2034\nresult = 0\n\nwhile num > 0:\n    digit = num % 10\n    result = result * 10 + digit\n    num = num // 10\n\nprint(result)\n~~~\n\n追踪：\n\n| 轮次 | digit | result | num |\n| --- | ---: | ---: | ---: |\n| 初始 | - | 0 | 2034 |\n| 1 | 4 | 4 | 203 |\n| 2 | 3 | 43 | 20 |\n| 3 | 0 | 430 | 2 |\n| 4 | 2 | 4302 | 0 |\n\n检查点：如果 num 最终没有变小，while loop 很可能停不下来。",
+          "summary": "题目：给定 num = 2034，用 while loop 得到反转后的数字 4302。 核心操作： num % 10 取出最后一位。 num // 10 去掉最后一位。 result = result 10 + digit 把新数字接到右边。 代码： 追踪： 轮次 digit result num : : : 初始 0 2034 1 4 4 203 2 3 43 20 3 0 430 2 4 2 4302 0 检查点：如果 num 最终没有变小，while loop 很可能"
+        },
+        {
+          "title": "字符串循环和累计器",
+          "markdown": "很多字符串题都可以套用“累计器”模式。\n\n例子：计算字符串中数字字符的数量。\n\n~~~python\ndef count_digits(text: str) -> int:\n    \"\"\"Return the number of digit characters in text.\"\"\"\n    count = 0\n    for ch in text:\n        if ch.isdigit():\n            count += 1\n    return count\n~~~\n\n同一套结构可以改成：\n\n- 判断是否全部是元音。\n- 判断是否全部由字母组成。\n- 把只含数字的字符串转成 int。\n- 判断奇数位是否存在至少一个元音。\n\n做题顺序：\n\n1. 明确每一轮看一个字符还是一个 index。\n2. 设定累计器初始值。\n3. 写出一轮如何更新累计器。\n4. 循环结束后 return 累计结果。",
+          "summary": "很多字符串题都可以套用“累计器”模式。 例子：计算字符串中数字字符的数量。 同一套结构可以改成： 判断是否全部是元音。 判断是否全部由字母组成。 把只含数字的字符串转成 int。 判断奇数位是否存在至少一个元音。 做题顺序： 1. 明确每一轮看一个字符还是一个 index。 2. 设定累计器初始值。 3. 写出一轮如何更新累计器。 4. 循环结束后 return 累计结果。"
+        },
+        {
+          "title": "例题 3：嵌套循环画图",
+          "markdown": "题目：下面代码输出什么？\n\n~~~python\nfor k in range(1, 4):\n    for i in range(1, 5):\n        print(\"*\", end=\"\")\n    print()\n~~~\n\n外层循环控制行数，k 取 1、2、3，所以一共 3 行。\n\n内层循环控制每行的字符数，i 取 1、2、3、4，所以每行 4 个星号。\n\n输出：\n\n~~~text\n****\n****\n****\n~~~\n\n如果题目要求 draw_diamond(radius, symbol)，可以把每一行拆成两部分：\n\n- 先决定这一行有多少个 symbol。\n- 再决定前面需要多少空格让图形居中。\n\n嵌套循环题不要急着写完整代码，先用表格写出“第几行、几个空格、几个字符”。",
+          "summary": "题目：下面代码输出什么？ 外层循环控制行数，k 取 1、2、3，所以一共 3 行。 内层循环控制每行的字符数，i 取 1、2、3、4，所以每行 4 个星号。 输出： 如果题目要求 draw diamond(radius, symbol)，可以把每一行拆成两部分： 先决定这一行有多少个 symbol。 再决定前面需要多少空格让图形居中。 嵌套循环题不要急着写完整代码，先用表格写出“第几行、几个空格、几个字符”。"
+        },
+        {
+          "title": "例题 4：Icon Scaling",
+          "markdown": "题目：把 3 x 3 的字符图标放大 k 倍。每个字符要变成 k x k 的小方块。\n\n原图：\n\n~~~text\n*x*\n xx\n* *\n~~~\n\n如果 k = 3，思路是：\n\n1. 原图的每一行要重复输出 3 次。\n2. 行里的每个字符也要重复 3 次。\n3. 所以需要外层处理原始行，中层处理重复行数，内层处理每个字符。\n\n代码骨架：\n\n~~~python\nicon = [\"*x*\", \" xx\", \"* *\"]\nk = 3\n\nfor row in icon:\n    expanded = \"\"\n    for ch in row:\n        expanded += ch * k\n    for _ in range(k):\n        print(expanded)\n~~~\n\n检查点：缩放问题通常是“横向重复”和“纵向重复”两个循环，不是只把字符串乘 k。",
+          "summary": "题目：把 3 x 3 的字符图标放大 k 倍。每个字符要变成 k x k 的小方块。 原图： 如果 k = 3，思路是： 1. 原图的每一行要重复输出 3 次。 2. 行里的每个字符也要重复 3 次。 3. 所以需要外层处理原始行，中层处理重复行数，内层处理每个字符。 代码骨架： 检查点：缩放问题通常是“横向重复”和“纵向重复”两个循环，不是只把字符串乘 k。"
+        }
+      ]
+    },
+    {
+      "id": "queue-csc108-04-list",
+      "courseId": "course-csc108-local",
+      "name": "04 · List：索引、别名、方法与可变对象",
+      "description": "CSC108 学生版 Markdown 笔记：list index、negative index、aliasing、mutation、list methods、tuple 和 sequence。",
+      "tags": ["CSC108", "Python", "Markdown", "List", "queue", "本地"],
+      "sourcePath": "queue/CSC108/04_List.docx",
+      "sections": [
+        {
+          "title": "List 索引和边界",
+          "markdown": "Python list 是有顺序的元素序列。长度为 n 的 list，合法正向 index 是 0 到 n - 1。\n\n~~~python\nlst = [1, 2, 3, 4, 5]\nlst[0]   # 1\nlst[1]   # 2\nlst[4]   # 5\nlst[-1]  # 5\nlst[-5]  # 1\n~~~\n\n越界会报 IndexError：\n\n~~~python\nlst[5]\nlst[10]\nlst[-8]\n~~~\n\n记忆方式：程序员从 0 开始数。最后一个元素既可以用 lst[len(lst) - 1]，也可以用 lst[-1]。",
+          "summary": "Python list 是有顺序的元素序列。长度为 n 的 list，合法正向 index 是 0 到 n 1。 越界会报 IndexError： 记忆方式：程序员从 0 开始数。最后一个元素既可以用 lst[len(lst) 1]，也可以用 lst[ 1]。"
+        },
+        {
+          "title": "可变对象和别名",
+          "markdown": "list 是可变对象。变量里保存的不是整份 list 本身，而是指向 list 对象的引用。\n\n~~~python\nlst_a = [1, 2, 3]\nlst_b = lst_a\nlst_b[0] = 100\nprint(lst_a)\n~~~\n\n输出：\n\n~~~text\n[100, 2, 3]\n~~~\n\nlst_a 和 lst_b 是同一个 list 的两个名字，所以改其中一个会影响另一个。\n\n如果要复制一份浅拷贝，可以用 slicing：\n\n~~~python\ncopy = lst_a[:]\n~~~\n\n检查点：看到 a = s 时，问“这是创建新 list，还是让 a 指向同一个 list？”",
+          "summary": "list 是可变对象。变量里保存的不是整份 list 本身，而是指向 list 对象的引用。 输出： lst a 和 lst b 是同一个 list 的两个名字，所以改其中一个会影响另一个。 如果要复制一份浅拷贝，可以用 slicing： 检查点：看到 a = s 时，问“这是创建新 list，还是让 a 指向同一个 list？”"
+        },
+        {
+          "title": "例题 1：参数传递追踪",
+          "markdown": "题目：下面两段代码为什么结果不同？\n\n~~~python\ndef increase_num(x: int) -> None:\n    x = x + 1\n\na = 1\nincrease_num(a)\nprint(a)\n~~~\n\n输出是 1，因为函数内部的 x 被重新绑定，不会改掉外面的 a。\n\n再看 list：\n\n~~~python\ndef increase_first(lst: list[int]) -> None:\n    lst[0] = lst[0] + 1\n\narr = [1, 2, 3, 4]\nincrease_first(arr)\nprint(arr)\n~~~\n\n输出：\n\n~~~text\n[2, 2, 3, 4]\n~~~\n\n函数参数 lst 和外面的 arr 指向同一个 list。lst[0] = ... 是修改 list 内部内容，所以外面能看到变化。",
+          "summary": "题目：下面两段代码为什么结果不同？ 输出是 1，因为函数内部的 x 被重新绑定，不会改掉外面的 a。 再看 list： 输出： 函数参数 lst 和外面的 arr 指向同一个 list。lst[0] = ... 是修改 list 内部内容，所以外面能看到变化。"
+        },
+        {
+          "title": "List 方法：原地修改还是返回新对象",
+          "markdown": "常见 list 方法：\n\n| 方法 | 返回值 | 是否改变原 list |\n| --- | --- | --- |\n| arr.append(item) | None | 是 |\n| arr.extend(other) | None | 是 |\n| arr.pop(index) | 被删除的元素 | 是 |\n| arr.sort() | None | 是 |\n| arr.reverse() | None | 是 |\n\n常见错误：\n\n~~~python\nnumbers = [3, 1, 2]\nsorted_nums = numbers.sort()\nprint(sorted_nums)  # None\nprint(numbers)      # [1, 2, 3]\n~~~\n\n如果想得到一个新 list，可以用 sorted(numbers)：\n\n~~~python\nnumbers = [3, 1, 2]\nsorted_nums = sorted(numbers)\n~~~\n\n规律：append、extend、sort、pop、reverse 改本体；slicing、+、*、upper、lower、replace 通常创建新对象。",
+          "summary": "常见 list 方法： 方法 返回值 是否改变原 list arr.append(item) None 是 arr.extend(other) None 是 arr.pop(index) 被删除的元素 是 arr.sort() None 是 arr.reverse() None 是 常见错误： 如果想得到一个新 list，可以用 sorted(numbers)： 规律：append、extend、sort、pop、reverse 改本体；slicing、+、 、upper、l"
+        },
+        {
+          "title": "例题 2：append、+ 和 None",
+          "markdown": "题目：追踪下面代码。\n\n~~~python\ndef mystery(nums, extra):\n    print(\"start:\", nums)\n    nums.append(len(nums))\n    nums = nums + extra\n    extra_value = nums.append(42)\n    extra.append(extra_value)\n    print(\"inside:\", nums)\n    return nums\n\na = [1, 2]\nb = [10, 20]\nc = mystery(a, b)\nprint(\"after:\", a)\nprint(\"result:\", c)\nprint(\"extra:\", b)\n~~~\n\n步骤：\n\n1. nums 和 a 指向同一个 list，所以 nums.append(2) 会让 a 变成 [1, 2, 2]。\n2. nums = nums + extra 创建新 list，nums 不再指向 a。\n3. nums.append(42) 原地改新 list，并返回 None。\n4. extra.append(extra_value) 会把 None 加到 b 里。\n\n结果：\n\n~~~text\nstart: [1, 2]\ninside: [1, 2, 2, 10, 20, 42]\nafter: [1, 2, 2]\nresult: [1, 2, 2, 10, 20, 42]\nextra: [10, 20, None]\n~~~\n\n易错点：append 的返回值是 None，不是修改后的 list。",
+          "summary": "题目：追踪下面代码。 步骤： 1. nums 和 a 指向同一个 list，所以 nums.append(2) 会让 a 变成 [1, 2, 2]。 2. nums = nums + extra 创建新 list，nums 不再指向 a。 3. nums.append(42) 原地改新 list，并返回 None。 4. extra.append(extra value) 会把 None 加到 b 里。 结果： 易错点：append 的返回值是 None，不是修改后的 lis"
+        },
+        {
+          "title": "Tuple 和 Sequence",
+          "markdown": "tuple 是有顺序、不可变的序列。\n\n~~~python\nt1 = (1, 2, 3)\nt2 = \"apple\", \"banana\", \"cherry\"\nt3 = (1, \"hello\", 3.14, True)\nt4 = (5,)\nt5 = (5)\n~~~\n\nt4 是 tuple，t5 是 int。单元素 tuple 必须有逗号。\n\ntuple 支持很多 sequence 操作：\n\n~~~python\nt = (10, 20, 30)\nt[1]       # 20\nt[0:2]     # (10, 20)\n(1, 2) + (3, 4)\n(1, 2) * 3\n2 in (1, 2)\n~~~\n\n但 tuple 不能修改：\n\n~~~python\na = (1, 2, 3)\na[0] = 2  # TypeError\n~~~\n\n当你希望一组数据保持固定时，tuple 比 list 更合适。",
+          "summary": "tuple 是有顺序、不可变的序列。 t4 是 tuple，t5 是 int。单元素 tuple 必须有逗号。 tuple 支持很多 sequence 操作： 但 tuple 不能修改： 当你希望一组数据保持固定时，tuple 比 list 更合适。"
+        },
+        {
+          "title": "例题 3：切片复制和别名",
+          "markdown": "题目：两段代码分别输出什么？\n\n~~~python\ns = [1, 2, 3, 4]\na = s\na[0] = 99\nprint(s)\n~~~\n\n结果：\n\n~~~text\n[99, 2, 3, 4]\n~~~\n\na = s 让两个变量指向同一个 list。\n\n第二段：\n\n~~~python\ns = [1, 2, 3, 4]\na = s[:]\na[0] = 99\nprint(s)\n~~~\n\n结果：\n\n~~~text\n[1, 2, 3, 4]\n~~~\n\ns[:] 创建一份新 list。a 改的是新 list，不会影响 s。",
+          "summary": "题目：两段代码分别输出什么？ 结果： a = s 让两个变量指向同一个 list。 第二段： 结果： s[:] 创建一份新 list。a 改的是新 list，不会影响 s。"
+        }
+      ]
+    },
+    {
+      "id": "queue-csc108-05-input-output",
+      "courseId": "course-csc108-local",
+      "name": "05 · Input 和 Output：读入、类型转换与格式化输出",
+      "description": "CSC108 学生版 Markdown 笔记：input、print、end/sep、escape sequence、f-string 和 CCC 日期判断题。",
+      "tags": ["CSC108", "Python", "Markdown", "Input Output", "queue", "本地"],
+      "sourcePath": "queue/CSC108/05_Input_Output.docx",
+      "sections": [
+        {
+          "title": "input 读进来的一定是字符串",
+          "markdown": "input() 会从用户那里读入一行文本，返回值类型永远是 str。\n\n~~~python\nn = input()\nx = input(\"Where is your hometown? \")\n~~~\n\n如果需要数字，要显式转换：\n\n~~~python\nn = input()\nn = int(n)\n~~~\n\n常见流程：\n\n~~~python\nn = int(input())\n\nif n > 0:\n    if n % 2 == 0:\n        print(n)\nelse:\n    print(n, \"is not positive\")\n~~~\n\n检查点：只要来自 input，就先把它当字符串。要做数学比较或取余时，先 int(...) 或 float(...)。",
+          "summary": "input() 会从用户那里读入一行文本，返回值类型永远是 str。 如果需要数字，要显式转换： 常见流程： 检查点：只要来自 input，就先把它当字符串。要做数学比较或取余时，先 int(...) 或 float(...)。"
+        },
+        {
+          "title": "print、end 和多个值",
+          "markdown": "print 会把内容显示到终端。默认每次 print 后都会换行。\n\n~~~python\nprint(\"Hot\", end=\"\")\nprint(\"dog\")\n~~~\n\n输出：\n\n~~~text\nHotdog\n~~~\n\n如果不改 end：\n\n~~~python\nprint(\"Hot\")\nprint(\"dog\")\n~~~\n\n输出：\n\n~~~text\nHot\ndog\n~~~\n\nprint 可以接多个值，默认用空格分隔：\n\n~~~python\na = 123\nb = (1 == 2)\nc = \"Toy\"\nprint(a, b, c)\n~~~\n\n也可以自己控制 end：\n\n~~~python\nsplit = \", \"\nprint(a, end=split)\nprint(b, end=split)\nprint(c)\n~~~",
+          "summary": "print 会把内容显示到终端。默认每次 print 后都会换行。 输出： 如果不改 end： 输出： print 可以接多个值，默认用空格分隔： 也可以自己控制 end："
+        },
+        {
+          "title": "例题 1：日期判断 Before After Special",
+          "markdown": "题目：读入月份 month 和日期 day，判断日期在 2 月 18 日之前、之后，还是当天。\n\n输出规则：\n\n- 在 2 月 18 日之前：Before\n- 在 2 月 18 日之后：After\n- 正好 2 月 18 日：Special\n\n代码：\n\n~~~python\nmonth = int(input())\nday = int(input())\n\nif month < 2:\n    print(\"Before\")\nelif month > 2:\n    print(\"After\")\nelse:\n    if day < 18:\n        print(\"Before\")\n    elif day > 18:\n        print(\"After\")\n    else:\n        print(\"Special\")\n~~~\n\n检查点：先比较 month，可以避免把 1 月 30 日误判成 after，也避免把 3 月 1 日误判成 before。",
+          "summary": "题目：读入月份 month 和日期 day，判断日期在 2 月 18 日之前、之后，还是当天。 输出规则： 在 2 月 18 日之前：Before 在 2 月 18 日之后：After 正好 2 月 18 日：Special 代码： 检查点：先比较 month，可以避免把 1 月 30 日误判成 after，也避免把 3 月 1 日误判成 before。"
+        },
+        {
+          "title": "转义字符",
+          "markdown": "转义字符用反斜杠表示那些不好直接打出来的字符。\n\n常见转义：\n\n| 写法 | 含义 |\n| --- | --- |\n| \\n | 换行 |\n| \\t | tab |\n| \\\\ | 一个反斜杠 |\n| \\\" | 双引号 |\n| \\' | 单引号 |\n\n例子：\n\n~~~python\nprint(\"Hello\nWorld\")\nprint(\"Hello\tWorld\")\n~~~\n\n字符串长度题要分清：\n\n~~~python\nlen(\"hello\nworld\")   # 11\nlen(\"hello\\nworld\")  # 12\n~~~\n\n第一行里的 \n 是一个字符。第二行里的 \\n 是两个字符。",
+          "summary": "转义字符用反斜杠表示那些不好直接打出来的字符。 常见转义： 写法 含义 \\n 换行 \\t tab \\\\ 一个反斜杠 \\\" 双引号 \\' 单引号 例子： 字符串长度题要分清： 第一行里的 是一个字符。第二行里的 \\n 是两个字符。"
+        },
+        {
+          "title": "例题 2：格式化输出",
+          "markdown": "题目：输出价格，保留两位小数。\n\n~~~python\nname = \"notebook\"\nprice = 3.5\ncount = 4\ntotal = price * count\ncurrency = \"$\"\n\nprint(f\"{name}: {count} x {currency}{price:.2f} = {currency}{total:.2f}\")\n~~~\n\n输出：\n\n~~~text\nnotebook: 4 x $3.50 = $14.00\n~~~\n\nf-string 常用格式：\n\n- {value}：直接插入变量。\n- {value:.2f}：float 保留两位小数。\n- {value:>10}：右对齐，总宽度 10。\n- {value:<10}：左对齐，总宽度 10。\n\n考试中优先用 f-string。它比百分号格式和 str.format 更容易读。",
+          "summary": "题目：输出价格，保留两位小数。 输出： f string 常用格式： {value}：直接插入变量。 {value:.2f}：float 保留两位小数。 {value: 10}：右对齐，总宽度 10。 {value:<10}：左对齐，总宽度 10。 考试中优先用 f string。它比百分号格式和 str.format 更容易读。"
+        },
+        {
+          "title": "例题 3：读入后再分支",
+          "markdown": "题目：读入一个整数 n。如果 n 是正偶数，输出 n；如果 n 是正奇数，输出 \"odd\"；如果 n 不是正数，输出 \"not positive\"。\n\n代码：\n\n~~~python\nn = int(input())\n\nif n > 0:\n    if n % 2 == 0:\n        print(n)\n    else:\n        print(\"odd\")\nelse:\n    print(\"not positive\")\n~~~\n\n测试：\n\n| 输入 | 输出 |\n| --- | --- |\n| 8 | 8 |\n| 7 | odd |\n| 0 | not positive |\n| -3 | not positive |\n\n易错点：n > 0 和 n % 2 == 0 是两个层次。先判断是否正数，再判断奇偶。",
+          "summary": "题目：读入一个整数 n。如果 n 是正偶数，输出 n；如果 n 是正奇数，输出 \"odd\"；如果 n 不是正数，输出 \"not positive\"。 代码： 测试： 输入 输出 8 8 7 odd 0 not positive 3 not positive 易错点：n 0 和 n % 2 == 0 是两个层次。先判断是否正数，再判断奇偶。"
+        }
+      ]
+    },
+    {
+      "id": "queue-csc108-06-file-io",
+      "courseId": "course-csc108-local",
+      "name": "06 · File IO：打开、读取、写入与逐行处理",
+      "description": "CSC108 学生版 Markdown 笔记：open modes、read/readline/readlines、write/writelines、with 和大文件读取策略。",
+      "tags": ["CSC108", "Python", "Markdown", "File IO", "queue", "本地"],
+      "sourcePath": "queue/CSC108/06_File_IO.docx",
+      "sections": [
+        {
+          "title": "文件打开模式",
+          "markdown": "open(filename, mode) 用来打开文件。常见模式：\n\n| 模式 | 含义 | 文件不存在时 |\n| --- | --- | --- |\n| r | 只读 | 报错 |\n| w | 写入，先清空原文件 | 创建新文件 |\n| a | 追加到文件末尾 | 创建新文件 |\n| r+ | 读写，不清空 | 报错 |\n| w+ | 读写，先清空 | 创建新文件 |\n| a+ | 追加读写 | 创建新文件 |\n\n例子：\n\n~~~python\nfile = open(\"example.txt\", \"r\", encoding=\"utf-8\")\ncontent = file.read()\nfile.close()\n~~~\n\n课程里建议优先使用 with，因为它会自动关闭文件。",
+          "summary": "open(filename, mode) 用来打开文件。常见模式： 模式 含义 文件不存在时 r 只读 报错 w 写入，先清空原文件 创建新文件 a 追加到文件末尾 创建新文件 r+ 读写，不清空 报错 w+ 读写，先清空 创建新文件 a+ 追加读写 创建新文件 例子： 课程里建议优先使用 with，因为它会自动关闭文件。"
+        },
+        {
+          "title": "read、readline、readlines",
+          "markdown": "假设 example.txt 有多行文本。\n\nread() 会一次性读完整个文件，返回一个字符串：\n\n~~~python\nwith open(\"example.txt\", \"r\", encoding=\"utf-8\") as file:\n    content = file.read()\n~~~\n\nreadline() 一次读一行，读到文件末尾时返回空字符串：\n\n~~~python\nwith open(\"example.txt\", \"r\", encoding=\"utf-8\") as file:\n    line = file.readline()\n    while line != \"\":\n        print(line.strip())\n        line = file.readline()\n~~~\n\nreadlines() 一次读所有行，返回 list[str]：\n\n~~~python\nwith open(\"example.txt\", \"r\", encoding=\"utf-8\") as file:\n    lines = file.readlines()\n~~~\n\n大文件不要用 read() 或 readlines() 一次性读完。",
+          "summary": "假设 example.txt 有多行文本。 read() 会一次性读完整个文件，返回一个字符串： readline() 一次读一行，读到文件末尾时返回空字符串： readlines() 一次读所有行，返回 list[str]： 大文件不要用 read() 或 readlines() 一次性读完。"
+        },
+        {
+          "title": "例题 1：100GB 文件读第一行",
+          "markdown": "题目：book.txt 有 100GB，只想得到第一行。下面哪种策略合适？\n\n假设已经执行：\n\n~~~python\nfile = open(\"book.txt\", \"r\", encoding=\"utf-8\")\n~~~\n\n选项：\n\n~~~text\nA. file.read()[0]\nB. file.read().split(\"\n\")[0]\nC. file.readline()\nD. file.readlines()[0]\n~~~\n\n正确选择：C。\n\n原因：\n\n- read() 会把 100GB 全部读入内存，不适合。\n- readlines() 也会把所有行读入内存，不适合。\n- readline() 只读当前一行，最省内存。\n\n检查点：文件很大时，优先逐行处理。",
+          "summary": "题目：book.txt 有 100GB，只想得到第一行。下面哪种策略合适？ 假设已经执行： 选项： 正确选择：C。 原因： read() 会把 100GB 全部读入内存，不适合。 readlines() 也会把所有行读入内存，不适合。 readline() 只读当前一行，最省内存。 检查点：文件很大时，优先逐行处理。"
+        },
+        {
+          "title": "写入文件",
+          "markdown": "write() 写入一个字符串，不会自动加换行。\n\n~~~python\nwith open(\"example.txt\", \"w\", encoding=\"utf-8\") as file:\n    file.write(\"Hello, World!\n\")\n    file.write(\"This is a test file.\n\")\n    file.write(\"Goodbye!\n\")\n~~~\n\nwritelines() 写入字符串列表，也不会自动加换行，列表元素里要自己带 \n：\n\n~~~python\nlines = [\"Line 1\n\", \"Line 2\n\", \"Line 3\n\"]\n\nwith open(\"example.txt\", \"w\", encoding=\"utf-8\") as file:\n    file.writelines(lines)\n~~~\n\n如果用 w 模式打开已有文件，原内容会被清空。想保留旧内容并往后加，用 a 模式。",
+          "summary": "write() 写入一个字符串，不会自动加换行。 writelines() 写入字符串列表，也不会自动加换行，列表元素里要自己带 ： 如果用 w 模式打开已有文件，原内容会被清空。想保留旧内容并往后加，用 a 模式。"
+        },
+        {
+          "title": "例题 2：统计非空行",
+          "markdown": "题目：写一个函数，统计文件中非空行的数量。\n\n代码：\n\n~~~python\nfrom typing import TextIO\n\ndef count_non_empty_lines(file: TextIO) -> int:\n    \"\"\"Return the number of non-empty lines in file.\"\"\"\n    count = 0\n    for line in file:\n        if line.strip() != \"\":\n            count += 1\n    return count\n~~~\n\n使用：\n\n~~~python\nwith open(\"notes.txt\", \"r\", encoding=\"utf-8\") as f:\n    print(count_non_empty_lines(f))\n~~~\n\n为什么用 line.strip()？\n\n- line 末尾通常带 \n。\n- 如果一行只有空格，也应该算空行。",
+          "summary": "题目：写一个函数，统计文件中非空行的数量。 代码： 使用： 为什么用 line.strip()？ line 末尾通常带 。 如果一行只有空格，也应该算空行。"
+        },
+        {
+          "title": "例题 3：复制文件并加行号",
+          "markdown": "题目：把 input.txt 复制到 output.txt，每一行前面加行号。\n\n代码：\n\n~~~python\nwith open(\"input.txt\", \"r\", encoding=\"utf-8\") as source:\n    with open(\"output.txt\", \"w\", encoding=\"utf-8\") as target:\n        line_number = 1\n        for line in source:\n            target.write(f\"{line_number}: {line}\")\n            line_number += 1\n~~~\n\n注意：\n\n- for line in source 会逐行读取，适合大文件。\n- line 自己通常已经包含末尾的 \n，所以 target.write 不需要额外加换行。\n- 如果 line 没有换行，最后一行的格式可能不同，这是文件末尾常见边界情况。",
+          "summary": "题目：把 input.txt 复制到 output.txt，每一行前面加行号。 代码： 注意： for line in source 会逐行读取，适合大文件。 line 自己通常已经包含末尾的 ，所以 target.write 不需要额外加换行。 如果 line 没有换行，最后一行的格式可能不同，这是文件末尾常见边界情况。"
+        }
+      ]
+    },
+    {
+      "id": "queue-csc108-07-dictionary",
+      "courseId": "course-csc108-local",
+      "name": "07 · Dictionary：键值对、遍历与计数模式",
+      "description": "CSC108 学生版 Markdown 笔记：tuple、dictionary、key lookup、get、update、pop、items、word frequency 和测试思路。",
+      "tags": ["CSC108", "Python", "Markdown", "Dictionary", "queue", "本地"],
+      "sourcePath": "queue/CSC108/07_Dictionary.docx",
+      "sections": [
+        {
+          "title": "Tuple 快速复习",
+          "markdown": "tuple 是有顺序、不可变的序列，经常用来表示固定组合的数据。\n\n~~~python\nt1 = (1, 2, 3)\nt2 = (\"apple\", \"banana\", \"cherry\")\nt3 = (1, \"hello\", 3.14, True)\nt4 = (5,)\nt5 = (5)\n~~~\n\nt4 是 tuple，t5 是 int。\n\ntuple 支持 unpacking：\n\n~~~python\nperson = (\"Alice\", 25, \"Toronto\")\nname, age, city = person\n~~~\n\n函数也可以返回多个值，本质上是返回 tuple：\n\n~~~python\ndef divide(a: int, b: int) -> tuple[int, int]:\n    return a // b, a % b\n\nquotient, remainder = divide(10, 3)\n~~~",
+          "summary": "tuple 是有顺序、不可变的序列，经常用来表示固定组合的数据。 t4 是 tuple，t5 是 int。 tuple 支持 unpacking： 函数也可以返回多个值，本质上是返回 tuple："
+        },
+        {
+          "title": "Dictionary 的核心模型",
+          "markdown": "dictionary 用键值对存数据。key 必须唯一，value 可以重复。\n\n~~~python\nd = {}\nd = {\"a\": 5, \"b\": 4, \"c\": 3}\nd = {2: 5, True: 4}\n~~~\n\n访问：\n\n~~~python\nmy_dict = {\"name\": \"Alice\", \"age\": 25}\nprint(my_dict[\"name\"])     # Alice\nprint(my_dict.get(\"age\"))  # 25\nprint(my_dict.get(\"grade\")) # None\n~~~\n\n如果用 [] 访问不存在的 key，会触发 KeyError。get 更安全。\n\n添加或更新：\n\n~~~python\nmy_dict[\"grade\"] = 45\nmy_dict[\"name\"] = \"Nick\"\n~~~\n\n删除：\n\n~~~python\nmy_dict.pop(\"name\")\n~~~",
+          "summary": "dictionary 用键值对存数据。key 必须唯一，value 可以重复。 访问： 如果用 [] 访问不存在的 key，会触发 KeyError。get 更安全。 添加或更新： 删除："
+        },
+        {
+          "title": "例题 1：key 顺序和重复 key",
+          "markdown": "题目：下面代码输出什么？\n\n~~~python\nlst1 = [1, 2]\nlst2 = [2, 1]\nprint(lst1 == lst2)\n\nd1 = {\"a\": 1, \"b\": 2}\nd2 = {\"b\": 2, \"a\": 1}\nprint(d1 == d2)\n~~~\n\n结果：\n\n~~~text\nFalse\nTrue\n~~~\n\nlist 比较时顺序重要。dictionary 比较时看键值对是否一致，不看写出来的顺序。\n\n再看重复 key：\n\n~~~python\nmy_dict = {\"a\": 1, \"b\": 2, \"a\": 3}\nprint(my_dict)\n~~~\n\n结果：\n\n~~~text\n{\"a\": 3, \"b\": 2}\n~~~\n\n同一个 key 后面的值会覆盖前面的值。",
+          "summary": "题目：下面代码输出什么？ 结果： list 比较时顺序重要。dictionary 比较时看键值对是否一致，不看写出来的顺序。 再看重复 key： 结果： 同一个 key 后面的值会覆盖前面的值。"
+        },
+        {
+          "title": "遍历 dictionary",
+          "markdown": "遍历 dictionary 时，默认遍历 key：\n\n~~~python\nmy_dict = {\"name\": \"Alice\", \"age\": 25}\n\nfor key in my_dict:\n    print(key)\n    print(my_dict[key])\n~~~\n\n如果想同时得到 key 和 value，用 items()：\n\n~~~python\nfor key, value in my_dict.items():\n    print(key, value)\n~~~\n\n常用方法：\n\n~~~python\nlist(my_dict.keys())\nlist(my_dict.values())\nlist(my_dict.items())\n\"name\" in my_dict      # 检查 key\n\"Alice\" in my_dict     # 不是检查 value\n~~~\n\n检查点：in dict 检查的是 key，不是 value。",
+          "summary": "遍历 dictionary 时，默认遍历 key： 如果想同时得到 key 和 value，用 items()： 常用方法： 检查点：in dict 检查的是 key，不是 value。"
+        },
+        {
+          "title": "例题 2：词频统计",
+          "markdown": "题目：写函数 words_frequency，输入字符串列表，返回小写单词到出现次数的 dictionary。\n\n示例：\n\n~~~python\nwords_frequency([\"ab\", \"Ab\", \"bc\", \"cd\", \"bc\"])\n# {\"ab\": 2, \"bc\": 2, \"cd\": 1}\n~~~\n\n代码：\n\n~~~python\ndef words_frequency(words: list[str]) -> dict[str, int]:\n    \"\"\"Return a frequency dictionary for lower-case versions of words.\"\"\"\n    counts = {}\n    for word in words:\n        key = word.lower()\n        if key not in counts:\n            counts[key] = 0\n        counts[key] += 1\n    return counts\n~~~\n\n核心模式：\n\n1. 把原始元素转换成 key。\n2. 如果 key 第一次出现，先初始化。\n3. 更新累计值。\n\n这个模式会在 CSV、文本分析、图结构里反复出现。",
+          "summary": "题目：写函数 words frequency，输入字符串列表，返回小写单词到出现次数的 dictionary。 示例： 代码： 核心模式： 1. 把原始元素转换成 key。 2. 如果 key 第一次出现，先初始化。 3. 更新累计值。 这个模式会在 CSV、文本分析、图结构里反复出现。"
+        },
+        {
+          "title": "例题 3：dictionary of lists",
+          "markdown": "题目：已知图的邻接表：\n\n~~~python\ngraph = {\n    4: [2, 1, 3, 2, 5],\n    5: [1, 3, 7],\n    8: [2, 5, 1, 4],\n}\n~~~\n\n问题 A：节点 4 连接到哪些节点？\n\n~~~python\ngraph[4]\n~~~\n\n结果：\n\n~~~text\n[2, 1, 3, 2, 5]\n~~~\n\n问题 B：哪些节点连接到了 2？\n\n~~~python\nsources = []\nfor node, neighbours in graph.items():\n    if 2 in neighbours:\n        sources.append(node)\nprint(sources)\n~~~\n\n结果：\n\n~~~text\n[4, 8]\n~~~\n\n易错点：value 是 list 时，graph[node] 取出来以后还要用 list 的规则继续处理。",
+          "summary": "题目：已知图的邻接表： 问题 A：节点 4 连接到哪些节点？ 结果： 问题 B：哪些节点连接到了 2？ 结果： 易错点：value 是 list 时，graph[node] 取出来以后还要用 list 的规则继续处理。"
+        },
+        {
+          "title": "测试：黑盒和白盒的入口",
+          "markdown": "给函数写测试时，可以先做黑盒测试，再做白盒测试。\n\n黑盒测试只看 docstring 和需求，不看实现：\n\n- 空输入。\n- 典型输入。\n- 边界输入。\n- 可能暴露错误的特殊输入。\n\n白盒测试会看实现，专门覆盖代码里的分支和循环路径。\n\n例子：closest(data, val) 如果 data 为空，代码是否会访问 data[loc]？如果 val 里有多个目标值，循环是否每个都处理？这些问题通常要结合实现代码检查。",
+          "summary": "给函数写测试时，可以先做黑盒测试，再做白盒测试。 黑盒测试只看 docstring 和需求，不看实现： 空输入。 典型输入。 边界输入。 可能暴露错误的特殊输入。 白盒测试会看实现，专门覆盖代码里的分支和循环路径。 例子：closest(data, val) 如果 data 为空，代码是否会访问 data[loc]？如果 val 里有多个目标值，循环是否每个都处理？这些问题通常要结合实现代码检查。"
+        }
+      ]
+    },
+    {
+      "id": "queue-csc108-08-csv",
+      "courseId": "course-csc108-local",
+      "name": "08 · TextIO 和 CSV：表格文件读写",
+      "description": "CSC108 学生版 Markdown 笔记：TextIO 类型、CSV 格式、csv.reader、csv.writer、手动 split/join 和表格数据处理。",
+      "tags": ["CSC108", "Python", "Markdown", "CSV", "queue", "本地"],
+      "sourcePath": "queue/CSC108/08_csv.docx",
+      "sections": [
+        {
+          "title": "TextIO 是什么",
+          "markdown": "用 open 打开的文件对象可以标注为 TextIO。\n\n~~~python\nfrom typing import TextIO\n\nfile = open(\"example.txt\", \"r\", encoding=\"utf-8\")\n~~~\n\n把文件对象传给函数时，类型可以写成 TextIO：\n\n~~~python\nfrom typing import TextIO\n\ndef write_message(file: TextIO, message: str) -> None:\n    file.write(message + \"\n\")\n~~~\n\nTextIO 的好处是让函数更清楚：这个参数不是文件名字符串，而是一个已经打开的文本文件对象。",
+          "summary": "用 open 打开的文件对象可以标注为 TextIO。 把文件对象传给函数时，类型可以写成 TextIO： TextIO 的好处是让函数更清楚：这个参数不是文件名字符串，而是一个已经打开的文本文件对象。"
+        },
+        {
+          "title": "CSV 格式",
+          "markdown": "CSV 是 Comma-Separated Values，常用来存表格数据。\n\n文件内容：\n\n~~~text\nName,Subject,Score\nAlice,Math,90\nBob,English,85\nCharlie,Science,92\n~~~\n\n对应表格：\n\n| Name | Subject | Score |\n| --- | --- | --- |\n| Alice | Math | 90 |\n| Bob | English | 85 |\n| Charlie | Science | 92 |\n\nCSV 不一定永远用逗号。有些文件会用分号、tab 或空格作为分隔符，但课程里的基础题通常先从逗号开始。",
+          "summary": "CSV 是 Comma Separated Values，常用来存表格数据。 文件内容： 对应表格： Name Subject Score Alice Math 90 Bob English 85 Charlie Science 92 CSV 不一定永远用逗号。有些文件会用分号、tab 或空格作为分隔符，但课程里的基础题通常先从逗号开始。"
+        },
+        {
+          "title": "例题 1：用 csv.reader 读取",
+          "markdown": "题目：逐行读取 students.csv。\n\n~~~python\nimport csv\n\nwith open(\"students.csv\", \"r\", encoding=\"utf-8\") as f:\n    reader = csv.reader(f)\n    for row in reader:\n        print(row)\n~~~\n\n输出：\n\n~~~text\n['Name', 'Subject', 'Score']\n['Alice', 'Math', '90']\n['Bob', 'English', '85']\n['Charlie', 'Science', '92']\n~~~\n\n注意：csv.reader 读出来的每个 row 是 list[str]，所以 Score 也是字符串 \"90\"。要做数学运算时需要 int(row[2])。",
+          "summary": "题目：逐行读取 students.csv。 输出： 注意：csv.reader 读出来的每个 row 是 list[str]，所以 Score 也是字符串 \"90\"。要做数学运算时需要 int(row[2])。"
+        },
+        {
+          "title": "手动 split 读取",
+          "markdown": "不用 csv module，也可以用字符串方法处理简单 CSV：\n\n~~~python\nwith open(\"data.csv\", \"r\", encoding=\"utf-8\") as csv_file:\n    header = csv_file.readline()\n    for line in csv_file:\n        values = line.strip().split(\",\")\n        print(values)\n~~~\n\n这种方法适合非常简单的数据，但有局限：\n\n- 如果字段里本身有逗号，会解析错误。\n- 如果有引号规则，会变复杂。\n- 如果有空行，要额外处理。\n\n真实 CSV 题优先使用 csv module。手动 split 更适合帮助理解“每行拆成多个字段”的基本思路。",
+          "summary": "不用 csv module，也可以用字符串方法处理简单 CSV： 这种方法适合非常简单的数据，但有局限： 如果字段里本身有逗号，会解析错误。 如果有引号规则，会变复杂。 如果有空行，要额外处理。 真实 CSV 题优先使用 csv module。手动 split 更适合帮助理解“每行拆成多个字段”的基本思路。"
+        },
+        {
+          "title": "例题 2：计算平均分",
+          "markdown": "题目：读取 students.csv，计算 Score 平均值。\n\n~~~python\nimport csv\n\ntotal = 0\ncount = 0\n\nwith open(\"students.csv\", \"r\", encoding=\"utf-8\") as f:\n    reader = csv.reader(f)\n    next(reader)  # skip header\n    for row in reader:\n        total += int(row[2])\n        count += 1\n\nprint(total / count)\n~~~\n\n步骤：\n\n1. 用 next(reader) 跳过标题行。\n2. row[2] 是分数字段。\n3. int(row[2]) 把字符串转成整数。\n4. 用 total 和 count 两个累计器算平均。\n\n边界情况：如果文件只有 header，没有数据行，count 会是 0，不能直接除。",
+          "summary": "题目：读取 students.csv，计算 Score 平均值。 步骤： 1. 用 next(reader) 跳过标题行。 2. row[2] 是分数字段。 3. int(row[2]) 把字符串转成整数。 4. 用 total 和 count 两个累计器算平均。 边界情况：如果文件只有 header，没有数据行，count 会是 0，不能直接除。"
+        },
+        {
+          "title": "例题 3：写入 CSV",
+          "markdown": "题目：把二维列表写成 output.csv。\n\n~~~python\nimport csv\n\ndata = [\n    [\"Name\", \"Subject\", \"Score\"],\n    [\"Alice\", \"Math\", 90],\n    [\"Bob\", \"English\", 85],\n]\n\nwith open(\"output.csv\", \"w\", encoding=\"utf-8\", newline=\"\") as f:\n    writer = csv.writer(f)\n    writer.writerows(data)\n~~~\n\n也可以手动 join：\n\n~~~python\ndata = [\n    [\"Name\", \"Subject\", \"Score\"],\n    [\"Alice\", \"Math\", \"90\"],\n    [\"Bob\", \"English\", \"85\"],\n]\n\nwith open(\"output.csv\", \"w\", encoding=\"utf-8\") as f:\n    for row in data:\n        line = \",\".join(row)\n        f.write(line + \"\n\")\n~~~\n\n检查点：join 只能连接字符串，所以数字要先转成 str，或者让 csv.writer 帮你处理。",
+          "summary": "题目：把二维列表写成 output.csv。 也可以手动 join： 检查点：join 只能连接字符串，所以数字要先转成 str，或者让 csv.writer 帮你处理。"
+        }
+      ]
+    },
+    {
+      "id": "queue-csc108-09-regex",
+      "courseId": "course-csc108-local",
+      "name": "09 · DFA 和 Regex：模式、分组与 Python re",
+      "description": "CSC108 学生版 Markdown 笔记：DFA 基本概念、正则表达式、re.findall、re.match、re.search 和分组结果。",
+      "tags": ["CSC108", "Python", "Markdown", "Regex", "queue", "本地"],
+      "sourcePath": "queue/CSC108/09_Regex.docx",
+      "sections": [
+        {
+          "title": "DFA 的基本概念",
+          "markdown": "DFA 是 deterministic finite automaton，用来描述一个字符串是否被某种规则接受。\n\n一个 DFA 通常包含：\n\n- 有限个状态。\n- 一个输入字母表，例如 {0, 1}。\n- 转移函数，也就是读到某个字符时从一个状态走到另一个状态。\n- 初始状态。\n- 接受状态集合。\n\n读字符串时，从初始状态开始，一个字符一个字符走。读完后如果停在接受状态，就接受；否则拒绝。",
+          "summary": "DFA 是 deterministic finite automaton，用来描述一个字符串是否被某种规则接受。 一个 DFA 通常包含： 有限个状态。 一个输入字母表，例如 {0, 1}。 转移函数，也就是读到某个字符时从一个状态走到另一个状态。 初始状态。 接受状态集合。 读字符串时，从初始状态开始，一个字符一个字符走。读完后如果停在接受状态，就接受；否则拒绝。"
+        },
+        {
+          "title": "例题 1：不包含 substring 011 的思路",
+          "markdown": "题目：设计一个接受“不包含 011”的二进制字符串的 DFA。\n\n思路不要一开始画完整图，先记录“已经匹配到 011 的多少前缀”：\n\n| 状态 | 含义 |\n| --- | --- |\n| q0 | 目前没有匹配到 011 的前缀 |\n| q1 | 最近看到了 0 |\n| q2 | 最近看到了 01 |\n| q_bad | 已经看到了 011 |\n\n转移要点：\n\n- q0 读到 0 到 q1，读到 1 留在 q0。\n- q1 读到 0 仍可看作最近看到 0，留在 q1；读到 1 到 q2。\n- q2 读到 1 到 q_bad，因为出现 011；读到 0 回到 q1。\n- q_bad 读任何字符都留在 q_bad。\n\n接受状态是 q0、q1、q2。q_bad 不接受。\n\n检查点：如果题目是“不包含某模式”，通常先画“包含该模式”的坏状态，再把坏状态设为不接受。",
+          "summary": "题目：设计一个接受“不包含 011”的二进制字符串的 DFA。 思路不要一开始画完整图，先记录“已经匹配到 011 的多少前缀”： 状态 含义 q0 目前没有匹配到 011 的前缀 q1 最近看到了 0 q2 最近看到了 01 q bad 已经看到了 011 转移要点： q0 读到 0 到 q1，读到 1 留在 q0。 q1 读到 0 仍可看作最近看到 0，留在 q1；读到 1 到 q2。 q2 读到 1 到 q bad，因为出现 011；读到 0 回到 q1。 q bad "
+        },
+        {
+          "title": "Regex 基本符号",
+          "markdown": "正则表达式用模式匹配字符串。\n\n常见符号：\n\n| 写法 | 含义 |\n| --- | --- |\n| a | 字符 a |\n| a|b | a 或 b |\n| [abc] | a、b、c 之一 |\n| [a-z] | a 到 z 的任意小写字母 |\n| . | 任意一个字符 |\n| * | 前一个模式重复 0 次或更多 |\n| + | 前一个模式重复 1 次或更多 |\n| ? | 前一个模式重复 0 次或 1 次 |\n| ^ | 字符串开头 |\n| $ | 字符串结尾 |\n\n例子：\n\n~~~text\ndog(dog)*   可以匹配 dog, dogdog, dogdogdog\ndo*g        可以匹配 dg, dog, doog\ndog+        可以匹配 dog, dogg, doggg\n[abcdefg]og 可以匹配 aog, bog, cog, ... gog\n~~~",
+          "summary": "正则表达式用模式匹配字符串。 常见符号： 写法 含义 a 字符 a a b a 或 b [abc] a、b、c 之一 [a z] a 到 z 的任意小写字母 . 任意一个字符 前一个模式重复 0 次或更多 + 前一个模式重复 1 次或更多 ? 前一个模式重复 0 次或 1 次 ^ 字符串开头 $ 字符串结尾 例子："
+        },
+        {
+          "title": "例题 2：二进制字符串的正则表达式",
+          "markdown": "把语言描述翻译成 regex：\n\n| 语言 | Regex |\n| --- | --- |\n| 只包含 0，可以为空 | 0* |\n| 所有二进制字符串，可以为空 | (0|1)* |\n| 所有非空二进制字符串 | (0|1)(0|1)* |\n| 以 1 开头且以 1 结尾 | 1(0|1)*1 |\n| 至少有三个 1 | (0|1)*1(0|1)*1(0|1)*1(0|1)* |\n| 至少有三个连续的 1 | (0|1)*111(0|1)* |\n| 长度至少 3，第三个字符是 0 | (0|1)(0|1)0(0|1)* |\n\n检查点：* 表示可以出现 0 次，所以它经常允许空字符串。题目要求非空时，需要额外放一个必选字符。",
+          "summary": "把语言描述翻译成 regex： 语言 Regex 只包含 0，可以为空 0 所有二进制字符串，可以为空 (0 1) 所有非空二进制字符串 (0 1)(0 1) 以 1 开头且以 1 结尾 1(0 1) 1 至少有三个 1 (0 1) 1(0 1) 1(0 1) 1(0 1) 至少有三个连续的 1 (0 1) 111(0 1) 长度至少 3，第三个字符是 0 (0 1)(0 1)0(0 1) 检查点： 表示可以出现 0 次，所以它经常允许空字符串。题目要求非空时，需要额外放一个"
+        },
+        {
+          "title": "Python re.findall",
+          "markdown": "re.findall(pattern, string) 返回所有不重叠匹配。\n\n~~~python\nimport re\n\nre.findall(r\"do*g\", \"dgdogdoogdooog\")\n# ['dg', 'dog', 'doog', 'dooog']\n\nre.findall(r\"do+g\", \"dgdogdoogdooog\")\n# ['dog', 'doog', 'dooog']\n\nre.findall(r\"^Hello\", \"Hello world\")\n# ['Hello']\n\nre.findall(r\"^Hello\", \"He said Hello world\")\n# []\n~~~\n\nr\"...\" 是 raw string，适合写正则，避免反斜杠被 Python 字符串先解释。",
+          "summary": "re.findall(pattern, string) 返回所有不重叠匹配。 r\"...\" 是 raw string，适合写正则，避免反斜杠被 Python 字符串先解释。"
+        },
+        {
+          "title": "例题 3：字符类和数量",
+          "markdown": "题目：下面 findall 的结果是什么？\n\n~~~python\nimport re\n\nre.findall(r\"d+\", \"My phone is 123-456-7890 and my ID is 999888.\")\nre.findall(r\"[^0-9]\", \"a1b2c3\")\nre.findall(r\"[^aeiou]\", \"hello\")\nre.findall(r\"d+-d+\", \"My phone is 123-456-7890 and my ID is 999888.\")\n~~~\n\n结果：\n\n~~~python\n[\"123\", \"456\", \"7890\", \"999888\"]\n[\"a\", \"b\", \"c\"]\n[\"h\", \"l\", \"l\"]\n[\"123-456\"]\n~~~\n\n解释：\n\n- d+ 找连续数字。\n- [^0-9] 找不是数字的单个字符。\n- [^aeiou] 找不是元音的字符。\n- d+-d+ 需要数字、连字符、数字，所以在电话号码中匹配第一段 123-456。",
+          "summary": "题目：下面 findall 的结果是什么？ 结果： 解释： d+ 找连续数字。 [^0 9] 找不是数字的单个字符。 [^aeiou] 找不是元音的字符。 d+ d+ 需要数字、连字符、数字，所以在电话号码中匹配第一段 123 456。"
+        },
+        {
+          "title": "例题 4：分组、match 和 search",
+          "markdown": "分组会改变 findall 的返回结构。\n\n~~~python\nimport re\n\nre.findall(r\"(d{4})年\", \"我出生于1997年，如今是2025年\")\n# ['1997', '2025']\n\nre.findall(r\"((d{3})-(d{4}))\", \"123-4567 888-9999\")\n# [('123-4567', '123', '4567'), ('888-9999', '888', '9999')]\n~~~\n\nmatch 和 search 的区别：\n\n~~~python\nres = re.match(r\"Hello\", \"Hello world\")\nprint(res.group())  # Hello\n\nre.match(r\"Hello\", \"He said Hello world\")\n# None\n\nres = re.search(r\"Hello\", \"He said Hello world\")\nprint(res.group())  # Hello\n~~~\n\nmatch 只从开头尝试匹配。search 会在整个字符串里找第一个符合的位置。",
+          "summary": "分组会改变 findall 的返回结构。 match 和 search 的区别： match 只从开头尝试匹配。search 会在整个字符串里找第一个符合的位置。"
+        }
+      ]
+    },
+    {
+      "id": "queue-csc108-10-running-time",
+      "courseId": "course-csc108-local",
+      "name": "10 · Running Time：二分查找、排序与 Big-O",
+      "description": "CSC108 学生版 Markdown 笔记：binary search、insertion/selection/bubble/merge sort、Big-O 和 list operation 复杂度。",
+      "tags": ["CSC108", "Python", "Markdown", "Running Time", "queue", "本地"],
+      "sourcePath": "queue/CSC108/10_Running_time.docx",
+      "sections": [
+        {
+          "title": "运行时间分析看什么",
+          "markdown": "运行时间分析关心输入变大时，程序需要多少步。\n\n常见复杂度：\n\n| 复杂度 | 直觉 |\n| --- | --- |\n| O(1) | 和输入大小无关 |\n| O(log n) | 每次把范围缩小一大块 |\n| O(n) | 每个元素看一次 |\n| O(n log n) | 分治排序常见 |\n| O(n^2) | 双层遍历或简单排序常见 |\n\nBig-O 通常只保留增长最快的项，忽略常数和低阶项。例如 3n^2 + 20n + 5 是 O(n^2)。",
+          "summary": "运行时间分析关心输入变大时，程序需要多少步。 常见复杂度： 复杂度 直觉 O(1) 和输入大小无关 O(log n) 每次把范围缩小一大块 O(n) 每个元素看一次 O(n log n) 分治排序常见 O(n^2) 双层遍历或简单排序常见 Big O 通常只保留增长最快的项，忽略常数和低阶项。例如 3n^2 + 20n + 5 是 O(n^2)。"
+        },
+        {
+          "title": "Binary Search",
+          "markdown": "二分查找适用于有序 list。每次检查中间元素，然后丢掉一半搜索范围。\n\n步骤：\n\n1. low 指向最左，high 指向最右。\n2. mid = (low + high) // 2。\n3. 如果 L[mid] 是目标，找到。\n4. 如果目标更小，high = mid - 1。\n5. 如果目标更大，low = mid + 1。\n\n时间复杂度是 O(log n)。\n\n前提很重要：list 必须已经按同一种顺序排好。对未排序数字 list 不能直接做 binary search。按字母顺序排好的字符串 list 可以做。",
+          "summary": "二分查找适用于有序 list。每次检查中间元素，然后丢掉一半搜索范围。 步骤： 1. low 指向最左，high 指向最右。 2. mid = (low + high) // 2。 3. 如果 L[mid] 是目标，找到。 4. 如果目标更小，high = mid 1。 5. 如果目标更大，low = mid + 1。 时间复杂度是 O(log n)。 前提很重要：list 必须已经按同一种顺序排好。对未排序数字 list 不能直接做 binary search。按字母顺序排"
+        },
+        {
+          "title": "例题 1：Binary Search 追踪",
+          "markdown": "题目：在下面 list 中查找 8。\n\n~~~python\nvalues = [1, 3, 5, 6, 8, 9, 12]\n~~~\n\n追踪：\n\n| low | high | mid | values[mid] | 下一步 |\n| ---: | ---: | ---: | ---: | --- |\n| 0 | 6 | 3 | 6 | 8 更大，low = 4 |\n| 4 | 6 | 5 | 9 | 8 更小，high = 4 |\n| 4 | 4 | 4 | 8 | 找到 |\n\n检查点：每一步必须保证目标如果存在，还在 low 到 high 的范围里。",
+          "summary": "题目：在下面 list 中查找 8。 追踪： low high mid values[mid] 下一步 : : : : 0 6 3 6 8 更大，low = 4 4 6 5 9 8 更小，high = 4 4 4 4 8 找到 检查点：每一步必须保证目标如果存在，还在 low 到 high 的范围里。"
+        },
+        {
+          "title": "三种基础排序",
+          "markdown": "Insertion Sort：\n\n- 左边维护一个已排序区域。\n- 每次把下一个元素插入到左边正确位置。\n- 对几乎排好序的 list 往往表现很好。\n\nSelection Sort：\n\n- 每一轮从未排序区域找最小值。\n- 把它交换到当前最前面。\n- 每一轮固定一个最终位置。\n\nBubble Sort：\n\n- 相邻元素两两比较，顺序错了就交换。\n- 一轮结束后，最大的元素会被“冒泡”到右边。\n\n这三种基础排序最坏情况通常是 O(n^2)。它们适合学习算法过程，不适合大数据。",
+          "summary": "Insertion Sort： 左边维护一个已排序区域。 每次把下一个元素插入到左边正确位置。 对几乎排好序的 list 往往表现很好。 Selection Sort： 每一轮从未排序区域找最小值。 把它交换到当前最前面。 每一轮固定一个最终位置。 Bubble Sort： 相邻元素两两比较，顺序错了就交换。 一轮结束后，最大的元素会被“冒泡”到右边。 这三种基础排序最坏情况通常是 O(n^2)。它们适合学习算法过程，不适合大数据。"
+        },
+        {
+          "title": "例题 2：Bubble Sort 一轮追踪",
+          "markdown": "题目：对 [1, 9, 3, 5, 6, 8, 2] 做一轮 bubble sort。\n\n步骤：\n\n~~~text\n[1, 9, 3, 5, 6, 8, 2]\n[1, 3, 9, 5, 6, 8, 2]\n[1, 3, 5, 9, 6, 8, 2]\n[1, 3, 5, 6, 9, 8, 2]\n[1, 3, 5, 6, 8, 9, 2]\n[1, 3, 5, 6, 8, 2, 9]\n~~~\n\n结果：最大值 9 到达最后一个位置。\n\n检查点：bubble sort 的每一轮不一定让整个 list 排好，但会让一个大元素固定到右侧。",
+          "summary": "题目：对 [1, 9, 3, 5, 6, 8, 2] 做一轮 bubble sort。 步骤： 结果：最大值 9 到达最后一个位置。 检查点：bubble sort 的每一轮不一定让整个 list 排好，但会让一个大元素固定到右侧。"
+        },
+        {
+          "title": "Merge Sort 和分治",
+          "markdown": "Merge Sort 使用 divide and conquer：\n\n1. 如果 list 长度大于 1，把它分成两半。\n2. 对左半递归排序。\n3. 对右半递归排序。\n4. 把两个有序 list 合并成一个有序 list。\n\nMerge Sort 的典型复杂度是 O(n log n)。\n\n直觉：\n\n- 每一层合并总共看 n 个元素。\n- 一共有大约 log n 层。\n- 所以总时间是 O(n log n)。\n\n相比 insertion、selection、bubble sort，merge sort 更适合较大的 n。",
+          "summary": "Merge Sort 使用 divide and conquer： 1. 如果 list 长度大于 1，把它分成两半。 2. 对左半递归排序。 3. 对右半递归排序。 4. 把两个有序 list 合并成一个有序 list。 Merge Sort 的典型复杂度是 O(n log n)。 直觉： 每一层合并总共看 n 个元素。 一共有大约 log n 层。 所以总时间是 O(n log n)。 相比 insertion、selection、bubble sort，merge so"
+        },
+        {
+          "title": "例题 3：判断排序算法",
+          "markdown": "题目：list ['B', 'M', 'E', 'A', 'C', 'D'] 使用 selection sort 升序排序。\n\n已知：\n\n~~~text\nAfter one pass:  ['A', 'M', 'E', 'B', 'C', 'D']\nAfter two pass:  ['A', 'B', 'E', 'M', 'C', 'D']\n~~~\n\n继续：\n\n- 第三轮在 E, M, C, D 中找最小值 C，和位置 2 的 E 交换。\n- 第四轮在 M, E, D 中找最小值 D，和位置 3 的 M 交换。\n\n结果：\n\n~~~text\nAfter three pass: ['A', 'B', 'C', 'M', 'E', 'D']\nAfter four pass:  ['A', 'B', 'C', 'D', 'E', 'M']\n~~~\n\n检查点：selection sort 每一轮会把当前未排序区域的最小元素放到最左边。",
+          "summary": "题目：list ['B', 'M', 'E', 'A', 'C', 'D'] 使用 selection sort 升序排序。 已知： 继续： 第三轮在 E, M, C, D 中找最小值 C，和位置 2 的 E 交换。 第四轮在 M, E, D 中找最小值 D，和位置 3 的 M 交换。 结果： 检查点：selection sort 每一轮会把当前未排序区域的最小元素放到最左边。"
+        },
+        {
+          "title": "List 操作复杂度",
+          "markdown": "常见 list 操作复杂度：\n\n| 操作 | 时间复杂度 |\n| --- | --- |\n| 按 index 访问 L[i] | O(1) |\n| append 到末尾 | O(1) 平均 |\n| insert 到任意位置 | O(n) |\n| remove/pop 中间元素 | O(n) |\n| slicing L[a:b] | O(k)，k 是切片长度 |\n| 拼接 L1 + L2 | O(n + m) |\n| extend | O(k)，k 是被加入元素数 |\n| 在 list 中搜索元素 | O(n) |\n\n典型陷阱：循环里反复删除第一个元素通常是 O(n^2)，因为每次删除都要移动后面的元素。",
+          "summary": "常见 list 操作复杂度： 操作 时间复杂度 按 index 访问 L[i] O(1) append 到末尾 O(1) 平均 insert 到任意位置 O(n) remove/pop 中间元素 O(n) slicing L[a:b] O(k)，k 是切片长度 拼接 L1 + L2 O(n + m) extend O(k)，k 是被加入元素数 在 list 中搜索元素 O(n) 典型陷阱：循环里反复删除第一个元素通常是 O(n^2)，因为每次删除都要移动后面的元素。"
+        }
+      ]
+    },
+    {
+      "id": "queue-csc108-11-class",
+      "courseId": "course-csc108-local",
+      "name": "11 · Class：对象、属性、方法与封装",
+      "description": "CSC108 学生版 Markdown 笔记：OOP、class、__init__、self、实例属性、方法、Person 和 BankAccount。",
+      "tags": ["CSC108", "Python", "Markdown", "Class", "queue", "本地"],
+      "sourcePath": "queue/CSC108/11_Class.docx",
+      "sections": [
+        {
+          "title": "OOP 的核心想法",
+          "markdown": "class 用来定义自己的数据类型。它把数据和行为放在一起：\n\n- 数据叫 attribute。\n- 行为叫 method。\n- 根据 class 创建出来的具体东西叫 object 或 instance。\n\n基本形状：\n\n~~~python\nclass ClassName:\n    def __init__(self, param1, param2):\n        self.attr1 = param1\n        self.attr2 = param2\n\n    def method_name(self, param):\n        return self.attr1 + param\n~~~\n\nself 代表当前这个对象。写方法时第一个参数通常是 self，调用时不需要手动传 self。",
+          "summary": "class 用来定义自己的数据类型。它把数据和行为放在一起： 数据叫 attribute。 行为叫 method。 根据 class 创建出来的具体东西叫 object 或 instance。 基本形状： self 代表当前这个对象。写方法时第一个参数通常是 self，调用时不需要手动传 self。"
+        },
+        {
+          "title": "__init__ 和实例属性",
+          "markdown": "__init__ 是构造方法。创建对象时，Python 会自动调用它。\n\n~~~python\nclass Person:\n    def __init__(self, name: str, age: int):\n        self.name = name\n        self.age = age\n~~~\n\n创建对象：\n\n~~~python\nperson = Person(\"Alice\", 25)\n~~~\n\n执行后：\n\n- person.name 是 \"Alice\"。\n- person.age 是 25。\n\n实例属性属于某个具体对象。两个 Person 对象可以有不同的 name 和 age。",
+          "summary": "init 是构造方法。创建对象时，Python 会自动调用它。 创建对象： 执行后： person.name 是 \"Alice\"。 person.age 是 25。 实例属性属于某个具体对象。两个 Person 对象可以有不同的 name 和 age。"
+        },
+        {
+          "title": "例题 1：Person 方法",
+          "markdown": "题目：读懂下面 class。\n\n~~~python\nclass Person:\n    def __init__(self, name: str, age: int):\n        self.name = name\n        self.age = age\n\n    def greet(self) -> str:\n        return f\"Hello, my name is {self.name} and I'm {self.age} years old.\"\n\nperson = Person(\"Alice\", 25)\nprint(person.greet())\n~~~\n\n步骤：\n\n1. Person(\"Alice\", 25) 创建一个对象。\n2. __init__ 把 self.name 设为 \"Alice\"，self.age 设为 25。\n3. person.greet() 调用对象方法，self 是 person。\n4. 方法读取 person.name 和 person.age，返回字符串。\n\n输出：\n\n~~~text\nHello, my name is Alice and I'm 25 years old.\n~~~",
+          "summary": "题目：读懂下面 class。 步骤： 1. Person(\"Alice\", 25) 创建一个对象。 2. init 把 self.name 设为 \"Alice\"，self.age 设为 25。 3. person.greet() 调用对象方法，self 是 person。 4. 方法读取 person.name 和 person.age，返回字符串。 输出："
+        },
+        {
+          "title": "方法如何修改对象状态",
+          "markdown": "method 可以读取属性，也可以修改属性。\n\n~~~python\nclass Counter:\n    def __init__(self):\n        self.value = 0\n\n    def increase(self) -> None:\n        self.value += 1\n\n    def get_value(self) -> int:\n        return self.value\n~~~\n\n使用：\n\n~~~python\nc = Counter()\nc.increase()\nc.increase()\nprint(c.get_value())  # 2\n~~~\n\n对象状态是随着方法调用变化的。追踪 class 代码时，要像追踪 list mutation 一样追踪每个属性当前的值。",
+          "summary": "method 可以读取属性，也可以修改属性。 使用： 对象状态是随着方法调用变化的。追踪 class 代码时，要像追踪 list mutation 一样追踪每个属性当前的值。"
+        },
+        {
+          "title": "例题 2：BankAccount 封装",
+          "markdown": "题目：读懂 BankAccount。\n\n~~~python\nclass BankAccount:\n    def __init__(self, balance: int):\n        self.__balance = balance\n\n    def deposit(self, amount: int) -> None:\n        self.__balance += amount\n\n    def get_balance(self) -> int:\n        return self.__balance\n\naccount = BankAccount(100)\naccount.deposit(50)\nprint(account.get_balance())\n~~~\n\n输出：\n\n~~~text\n150\n~~~\n\n这里 __balance 表示内部属性，不希望外部直接随便改。外部应该通过 deposit 和 get_balance 这样的 method 与对象交互。\n\n检查点：class 的公开方法就是对象给外界使用的接口。",
+          "summary": "题目：读懂 BankAccount。 输出： 这里 balance 表示内部属性，不希望外部直接随便改。外部应该通过 deposit 和 get balance 这样的 method 与对象交互。 检查点：class 的公开方法就是对象给外界使用的接口。"
+        },
+        {
+          "title": "例题 3：多个对象互不影响",
+          "markdown": "题目：下面代码输出什么？\n\n~~~python\nclass BankAccount:\n    def __init__(self, balance: int):\n        self.balance = balance\n\n    def deposit(self, amount: int) -> None:\n        self.balance += amount\n\n    def get_balance(self) -> int:\n        return self.balance\n\na = BankAccount(100)\nb = BankAccount(20)\na.deposit(50)\nb.deposit(5)\nprint(a.get_balance())\nprint(b.get_balance())\n~~~\n\n结果：\n\n~~~text\n150\n25\n~~~\n\na 和 b 是两个不同对象，各自有自己的 balance。调用 a.deposit 不会修改 b.balance。",
+          "summary": "题目：下面代码输出什么？ 结果： a 和 b 是两个不同对象，各自有自己的 balance。调用 a.deposit 不会修改 b.balance。"
+        },
+        {
+          "title": "常见错误检查",
+          "markdown": "写 class 时常见错误：\n\n- 忘记在 method 的参数里写 self。\n- 在 __init__ 里写 name = name，而不是 self.name = name。\n- 调用方法时忘记括号，例如 person.greet。\n- 把 class attribute 和 instance attribute 混在一起。\n- 直接从外部乱改属性，导致对象状态不一致。\n\n自检问题：\n\n1. 这个对象有哪些属性？\n2. 每个属性在哪里初始化？\n3. 哪些方法会改变属性？\n4. 哪些方法只读取属性并返回结果？\n5. 如果创建两个对象，它们的属性是否各自独立？",
+          "summary": "写 class 时常见错误： 忘记在 method 的参数里写 self。 在 init 里写 name = name，而不是 self.name = name。 调用方法时忘记括号，例如 person.greet。 把 class attribute 和 instance attribute 混在一起。 直接从外部乱改属性，导致对象状态不一致。 自检问题： 1. 这个对象有哪些属性？ 2. 每个属性在哪里初始化？ 3. 哪些方法会改变属性？ 4. 哪些方法只读取属性并返回结"
+        }
+      ]
+    },
+    {
+      "id": "mat102-sets-propositions-proof-v2",
+      "courseId": "course-mat102-local",
+      "name": "02 · 集合与命题证明",
+      "description": "依据 MAT102 queue 讲义整理的 proof-first 本地文本笔记。",
+      "tags": ["MAT102", "证明", "queue", "本地"],
+      "sourcePath": "queue/MAT102/02SetsAndPropositions (1).pdf",
+      "sections": [
+        {
+          "title": "记忆角色",
+          "markdown": "Notebook 01 的详细操作记忆。回答集合、命题、真值表、子集和集合相等题时，用它把题目转成 element-chasing 或逻辑表格，而不是用直觉判断。",
+          "summary": "Notebook 01 的详细操作记忆。回答集合、命题、真值表、子集和集合相等题时，用它把题目转成 element chasing 或逻辑表格，而不是用直觉判断。"
+        },
+        {
+          "title": "核心模板",
+          "markdown": "证明 A subset B：\n~~~text\nLet x in A. Unpack the definition of A. Use those facts to prove x in B. Therefore A subset B.\n~~~\n\n证明 A = B：\n~~~text\nProve A subset B and B subset A.\n~~~\n\n证明 x in set-builder：\n~~~text\nCheck the universe, then verify the predicate after the vertical bar.\n~~~",
+          "summary": "证明 A subset B： 证明 A = B： 证明 x in set builder："
+        },
+        {
+          "title": "常见题型",
+          "markdown": "- set-builder notation：先读 universe，再读条件。\n- union/intersection/difference/complement：把符号翻译成 or/and/not。\n- De Morgan laws：用 element-chasing 或真值表证明。\n- power set：元素是 subsets，不是原集合的普通元素。\n- proposition：用 truth table 或等价变形检查 tautology/contradiction。",
+          "summary": "set builder notation：先读 universe，再读条件。 union/intersection/difference/complement：把符号翻译成 or/and/not。 De Morgan laws：用 element chasing 或真值表证明。 power set：元素是 subsets，不是原集合的普通元素。 proposition：用 truth table 或等价变形检查 tautology/contradiction。"
+        },
+        {
+          "title": "常见错误",
+          "markdown": "- 把 subset 符号当成 element 符号。\n- 证明集合相等只证明一个方向。\n- 只画 Venn diagram，没有写 proof。\n- power set 题把 {a} 和 a 混淆。\n- 逻辑连接词中 P implies Q 只有 P true、Q false 时为 false。",
+          "summary": "把 subset 符号当成 element 符号。 证明集合相等只证明一个方向。 只画 Venn diagram，没有写 proof。 power set 题把 {a} 和 a 混淆。 逻辑连接词中 P implies Q 只有 P true、Q false 时为 false。"
+        },
+        {
+          "title": "检查清单",
+          "markdown": "每一步是否从定义出发？变量 x 是否任意？集合相等是否两个方向都有？真值表是否覆盖所有 truth assignments？结尾是否明确回到原命题？",
+          "summary": "每一步是否从定义出发？变量 x 是否任意？集合相等是否两个方向都有？真值表是否覆盖所有 truth assignments？结尾是否明确回到原命题？"
+        }
+      ]
+    },
+    {
+      "id": "mat102-logic-quantifiers-proof-v2",
+      "courseId": "course-mat102-local",
+      "name": "03 · 量词、蕴含与否定",
+      "description": "依据 MAT102 queue 讲义整理的 proof-first 本地文本笔记。",
+      "tags": ["MAT102", "证明", "queue", "本地"],
+      "sourcePath": "queue/MAT102/03LogicCont.pdf",
+      "sections": [
+        {
+          "title": "记忆角色",
+          "markdown": "Notebook 02 的详细操作记忆。回答量词、否定、蕴含、逆否和充要条件题时，先处理逻辑骨架，再代入具体数学内容。",
+          "summary": "Notebook 02 的详细操作记忆。回答量词、否定、蕴含、逆否和充要条件题时，先处理逻辑骨架，再代入具体数学内容。"
+        },
+        {
+          "title": "量词模板",
+          "markdown": "任意命题：\n~~~text\nLet x be arbitrary. Prove P(x).\n~~~\n\n存在命题：\n~~~text\nChoose a concrete witness x = .... Verify P(x).\n~~~\n\n否定规则：\n~~~text\nnot forall x, P(x)  becomes  exists x such that not P(x)\nnot exists x, P(x)  becomes  forall x, not P(x)\nnot (P and Q)       becomes  not P or not Q\nnot (P or Q)        becomes  not P and not Q\n~~~",
+          "summary": "任意命题： 存在命题： 否定规则："
+        },
+        {
+          "title": "蕴含证明",
+          "markdown": "Direct proof：\n~~~text\nAssume P. Show Q.\n~~~\n\nContrapositive：\n~~~text\nAssume not Q. Show not P.\n~~~\n\nIf and only if：\n~~~text\nProve P implies Q and Q implies P separately.\n~~~",
+          "summary": "Direct proof： Contrapositive： If and only if："
+        },
+        {
+          "title": "常见错误",
+          "markdown": "- 否定量词时只加 not，没有交换 forall/exists。\n- 把 converse 当成 contrapositive。\n- 证明 iff 只写一个方向。\n- 存在命题没有 witness。\n- 任意命题选择了一个特殊例子。",
+          "summary": "否定量词时只加 not，没有交换 forall/exists。 把 converse 当成 contrapositive。 证明 iff 只写一个方向。 存在命题没有 witness。 任意命题选择了一个特殊例子。"
+        },
+        {
+          "title": "检查清单",
+          "markdown": "先写出原命题的逻辑形式。若要求否定，量词和连接词是否全部正确翻转？若要求证明蕴含，开头是否明确 assume antecedent？若是 iff，两个方向是否都有标题？",
+          "summary": "先写出原命题的逻辑形式。若要求否定，量词和连接词是否全部正确翻转？若要求证明蕴含，开头是否明确 assume antecedent？若是 iff，两个方向是否都有标题？"
+        }
+      ]
+    },
+    {
+      "id": "mat102-relations-equivalence-orders-proof-v2",
+      "courseId": "course-mat102-local",
+      "name": "04 · 反证、关系与序结构",
+      "description": "依据 MAT102 queue 讲义整理的 proof-first 本地文本笔记。",
+      "tags": ["MAT102", "证明", "queue", "本地"],
+      "sourcePath": "queue/MAT102/04Relations.pdf",
+      "sections": [
+        {
+          "title": "记忆角色",
+          "markdown": "Notebook 03 的详细操作记忆。回答反证法、二元关系、等价关系、偏序、极大/最大和上下界题时，先列定义，再逐条验证。",
+          "summary": "Notebook 03 的详细操作记忆。回答反证法、二元关系、等价关系、偏序、极大/最大和上下界题时，先列定义，再逐条验证。"
+        },
+        {
+          "title": "反证模板",
+          "markdown": "~~~text\nAssume the statement is false. Keep all original assumptions. Derive an impossible conclusion, such as a contradiction with definition, parity, order, or earlier theorem. Therefore the original statement is true.\n~~~",
+          "summary": ""
+        },
+        {
+          "title": "关系性质模板",
+          "markdown": "给定 relation R on A：\n- reflexive：for all a in A, aRa。\n- symmetric：if aRb then bRa。\n- antisymmetric：if aRb and bRa then a=b。\n- transitive：if aRb and bRc then aRc。\n\n等价关系要证明 reflexive、symmetric、transitive。偏序要证明 reflexive、antisymmetric、transitive。",
+          "summary": "给定 relation R on A： reflexive：for all a in A, aRa。 symmetric：if aRb then bRa。 antisymmetric：if aRb and bRa then a=b。 transitive：if aRb and bRc then aRc。 等价关系要证明 reflexive、symmetric、transitive。偏序要证明 reflexive、antisymmetric、transitive。"
+        },
+        {
+          "title": "等价类与划分",
+          "markdown": "等价类 [a] 是所有与 a related 的元素。证明两个等价类相等，常用方法是取任意 x in [a]，推出 x in [b]，再反向证明。",
+          "summary": "等价类 [a] 是所有与 a related 的元素。证明两个等价类相等，常用方法是取任意 x in [a]，推出 x in [b]，再反向证明。"
+        },
+        {
+          "title": "序结构",
+          "markdown": "- maximum 是集合里的一个元素，且大于等于所有元素。\n- maximal 是没有别的元素严格大于它。\n- upper bound 不一定在集合内。\n- supremum 是最小的 upper bound。",
+          "summary": "maximum 是集合里的一个元素，且大于等于所有元素。 maximal 是没有别的元素严格大于它。 upper bound 不一定在集合内。 supremum 是最小的 upper bound。"
+        },
+        {
+          "title": "常见错误",
+          "markdown": "- symmetric 和 antisymmetric 混淆。\n- 等价关系漏掉其中一个性质。\n- 用例子说明 transitive，而不是任取 a,b,c 证明。\n- maximum 和 maximal 混用。\n- upper bound 与 maximum 混用。",
+          "summary": "symmetric 和 antisymmetric 混淆。 等价关系漏掉其中一个性质。 用例子说明 transitive，而不是任取 a,b,c 证明。 maximum 和 maximal 混用。 upper bound 与 maximum 混用。"
+        },
+        {
+          "title": "检查清单",
+          "markdown": "关系题先写 universe A。每个性质是否用任意元素证明？若要否定某性质，是否给出明确反例？序结构题是否区分“在集合内”和“界可以在集合外”？",
+          "summary": "关系题先写 universe A。每个性质是否用任意元素证明？若要否定某性质，是否给出明确反例？序结构题是否区分“在集合内”和“界可以在集合外”？"
+        }
+      ]
+    },
+    {
+      "id": "mat102-functions-i-proof-v2",
+      "courseId": "course-mat102-local",
+      "name": "05 · 函数、像集与单双射",
+      "description": "依据 MAT102 queue 讲义整理的 proof-first 本地文本笔记。",
+      "tags": ["MAT102", "证明", "queue", "本地"],
+      "sourcePath": "queue/MAT102/05FunctionsI.pdf",
+      "sections": [
+        {
+          "title": "记忆角色",
+          "markdown": "Notebook 04 的详细操作记忆。回答函数定义、像、原像、单射、满射、双射和复合函数题时，必须按定义写 proof，不要只画箭头图。",
+          "summary": "Notebook 04 的详细操作记忆。回答函数定义、像、原像、单射、满射、双射和复合函数题时，必须按定义写 proof，不要只画箭头图。"
+        },
+        {
+          "title": "函数与像/原像",
+          "markdown": "函数 f: A -> B 要有 domain A、codomain B，并且每个 a in A 有唯一输出 f(a) in B。\n\nImage：\n~~~text\ny in f(S) means there exists x in S such that f(x)=y.\n~~~\n\nPreimage：\n~~~text\nx in f^{-1}(T) means f(x) in T.\n~~~",
+          "summary": "函数 f: A B 要有 domain A、codomain B，并且每个 a in A 有唯一输出 f(a) in B。 Image： Preimage："
+        },
+        {
+          "title": "单射/满射模板",
+          "markdown": "Injective：\n~~~text\nAssume f(a1)=f(a2). Use algebra/definitions to prove a1=a2.\n~~~\n\nSurjective：\n~~~text\nLet y in codomain be arbitrary. Find x in domain such that f(x)=y.\n~~~\n\nBijective：prove both injective and surjective。",
+          "summary": "Injective： Surjective： Bijective：prove both injective and surjective。"
+        },
+        {
+          "title": "复合函数",
+          "markdown": "证明 g o f 的性质时先检查 codomain/domain 是否匹配。单射复合通常从 g(f(a1))=g(f(a2)) 开始，先用 g injective，再用 f injective。",
+          "summary": "证明 g o f 的性质时先检查 codomain/domain 是否匹配。单射复合通常从 g(f(a1))=g(f(a2)) 开始，先用 g injective，再用 f injective。"
+        },
+        {
+          "title": "常见错误",
+          "markdown": "- 满射时把 y 取在 image，而不是 codomain。\n- 单射时假设 a1=a2，而不是从 f(a1)=f(a2) 出发。\n- 把 inverse image 当成 inverse function。\n- 忽略 codomain，导致 surjective 判断错误。",
+          "summary": "满射时把 y 取在 image，而不是 codomain。 单射时假设 a1=a2，而不是从 f(a1)=f(a2) 出发。 把 inverse image 当成 inverse function。 忽略 codomain，导致 surjective 判断错误。"
+        },
+        {
+          "title": "检查清单",
+          "markdown": "先写 domain/codomain。像集题是否有 exists x？原像题是否只需检查 f(x) in T？单射/满射是否严格按定义开头？",
+          "summary": "先写 domain/codomain。像集题是否有 exists x？原像题是否只需检查 f(x) in T？单射/满射是否严格按定义开头？"
+        }
+      ]
+    },
+    {
+      "id": "mat102-functions-ii-cardinality-proof-v2",
+      "courseId": "course-mat102-local",
+      "name": "06 · 逆函数、基数与可数性",
+      "description": "依据 MAT102 queue 讲义整理的 proof-first 本地文本笔记。",
+      "tags": ["MAT102", "证明", "queue", "本地"],
+      "sourcePath": "queue/MAT102/06FunctionsII.pdf",
+      "sections": [
+        {
+          "title": "记忆角色",
+          "markdown": "Notebook 05 的详细操作记忆。回答逆函数、双射、集合大小、可数性、对角线法和幂集定理时，先把“大小相同”翻译成是否存在 bijection。",
+          "summary": "Notebook 05 的详细操作记忆。回答逆函数、双射、集合大小、可数性、对角线法和幂集定理时，先把“大小相同”翻译成是否存在 bijection。"
+        },
+        {
+          "title": "逆函数模板",
+          "markdown": "函数有 inverse function 通常需要 bijective。证明 g 是 f 的 inverse：\n~~~text\nShow g(f(x))=x for all x in domain, and f(g(y))=y for all y in codomain.\n~~~",
+          "summary": "函数有 inverse function 通常需要 bijective。证明 g 是 f 的 inverse："
+        },
+        {
+          "title": "基数模板",
+          "markdown": "|A| = |B|：\n~~~text\nConstruct a bijection f: A -> B, then prove injective and surjective.\n~~~\n\n|A| <= |B|：\n~~~text\nConstruct an injection A -> B.\n~~~\n\n可数：\n~~~text\nShow a listing, or a bijection/injection with N depending on the theorem allowed.\n~~~",
+          "summary": "A = B ： A <= B ： 可数："
+        },
+        {
+          "title": "对角线法",
+          "markdown": "对角线法证明“不可能列完”。假设有一个 list 覆盖所有对象，然后构造一个新对象在第 n 位故意不同于第 n 个列表元素，推出新对象不在列表中。",
+          "summary": "对角线法证明“不可能列完”。假设有一个 list 覆盖所有对象，然后构造一个新对象在第 n 位故意不同于第 n 个列表元素，推出新对象不在列表中。"
+        },
+        {
+          "title": "幂集定理",
+          "markdown": "证明没有 surjection f: A -> P(A)。构造 D={a in A | a notin f(a)}，然后问 D=f(d) 是否导致 d in D iff d notin D 的矛盾。",
+          "summary": "证明没有 surjection f: A P(A)。构造 D={a in A a notin f(a)}，然后问 D=f(d) 是否导致 d in D iff d notin D 的矛盾。"
+        },
+        {
+          "title": "常见错误",
+          "markdown": "- 用“看起来无限”代替 bijection/injection。\n- 对角线法没有说明新对象为什么和每一项都不同。\n- 把 subset 与 element of power set 混淆。\n- 证明 inverse 时只验证一个方向。",
+          "summary": "用“看起来无限”代替 bijection/injection。 对角线法没有说明新对象为什么和每一项都不同。 把 subset 与 element of power set 混淆。 证明 inverse 时只验证一个方向。"
+        },
+        {
+          "title": "检查清单",
+          "markdown": "大小题是否明确构造函数？函数是否真的从 A 到 B？是否证明 injective/surjective？不可数证明是否有 contradiction structure？",
+          "summary": "大小题是否明确构造函数？函数是否真的从 A 到 B？是否证明 injective/surjective？不可数证明是否有 contradiction structure？"
+        }
+      ]
+    },
+    {
+      "id": "mat102-number-theory-i-euclidean-proof-v2",
+      "courseId": "course-mat102-local",
+      "name": "07 · 整除、gcd 与欧几里得算法",
+      "description": "依据 MAT102 queue 讲义整理的 proof-first 本地文本笔记。",
+      "tags": ["MAT102", "证明", "queue", "本地"],
+      "sourcePath": "queue/MAT102/07NumberTheoryI.pdf",
+      "sections": [
+        {
+          "title": "记忆角色",
+          "markdown": "Notebook 06 的详细操作记忆。回答整除、良序原理、带余除法、gcd、Euclidean algorithm 和 Bezout 题时，必须把整数条件和定义写出来。",
+          "summary": "Notebook 06 的详细操作记忆。回答整除、良序原理、带余除法、gcd、Euclidean algorithm 和 Bezout 题时，必须把整数条件和定义写出来。"
+        },
+        {
+          "title": "整除模板",
+          "markdown": "a divides b：\n~~~text\nThere exists k in Z such that b = ak.\n~~~\n\n证明整除题时，目标永远是构造这个整数 k。",
+          "summary": "a divides b： 证明整除题时，目标永远是构造这个整数 k。"
+        },
+        {
+          "title": "带余除法",
+          "markdown": "对整数 a 和正整数 b，存在唯一 q,r 使得 a=bq+r 且 0<=r<b。题目中 remainder 的范围不能漏。",
+          "summary": "对整数 a 和正整数 b，存在唯一 q,r 使得 a=bq+r 且 0<=r<b。题目中 remainder 的范围不能漏。"
+        },
+        {
+          "title": "gcd 与 Bezout",
+          "markdown": "gcd(a,b) 是正的 common divisor 中最大的那个。Euclidean algorithm 用连续余数求 gcd：\n~~~text\na = bq + r, so gcd(a,b)=gcd(b,r).\n~~~\n\nBezout identity：\n~~~text\ngcd(a,b)=ax+by for some integers x,y.\n~~~\n\n用 extended Euclidean algorithm 从最后一个非零余数往回代。",
+          "summary": "gcd(a,b) 是正的 common divisor 中最大的那个。Euclidean algorithm 用连续余数求 gcd： Bezout identity： 用 extended Euclidean algorithm 从最后一个非零余数往回代。"
+        },
+        {
+          "title": "常见错误",
+          "markdown": "- 写 a divides b 时把等式方向写反。\n- 忘记 k 必须是 integer。\n- gcd 必须为正。\n- Euclidean algorithm 停在余数为 0 时，gcd 是上一个非零余数。\n- Bezout 回代符号出错。",
+          "summary": "写 a divides b 时把等式方向写反。 忘记 k 必须是 integer。 gcd 必须为正。 Euclidean algorithm 停在余数为 0 时，gcd 是上一个非零余数。 Bezout 回代符号出错。"
+        },
+        {
+          "title": "检查清单",
+          "markdown": "整除命题是否出现 exists integer？带余除法是否写 0<=r<b？gcd 计算是否保留每一步？Bezout 是否回代到原始 a,b 的线性组合？",
+          "summary": "整除命题是否出现 exists integer？带余除法是否写 0<=r<b？gcd 计算是否保留每一步？Bezout 是否回代到原始 a,b 的线性组合？"
+        }
+      ]
+    },
+    {
+      "id": "mat102-number-theory-ii-primes-proof-v2",
+      "courseId": "course-mat102-local",
+      "name": "08 · 丢番图方程、素数与唯一分解",
+      "description": "依据 MAT102 queue 讲义整理的 proof-first 本地文本笔记。",
+      "tags": ["MAT102", "证明", "queue", "本地"],
+      "sourcePath": "queue/MAT102/08NumberTheoryII.pdf",
+      "sections": [
+        {
+          "title": "记忆角色",
+          "markdown": "Notebook 07 的详细操作记忆。回答线性丢番图方程、素数、互素、Euclid lemma、唯一分解和无穷素数题时，先判断是构造解还是证明不可解。",
+          "summary": "Notebook 07 的详细操作记忆。回答线性丢番图方程、素数、互素、Euclid lemma、唯一分解和无穷素数题时，先判断是构造解还是证明不可解。"
+        },
+        {
+          "title": "线性丢番图方程",
+          "markdown": "ax + by = c 有整数解当且仅当 gcd(a,b) divides c。求解模板：\n1. 用 Euclidean algorithm 找 d=gcd(a,b)。\n2. 若 d 不整除 c，则无整数解。\n3. 若 d 整除 c，把 Bezout identity 乘以 c/d 得一个 particular solution。\n4. 写 general solution。",
+          "summary": "ax + by = c 有整数解当且仅当 gcd(a,b) divides c。求解模板： 1. 用 Euclidean algorithm 找 d=gcd(a,b)。 2. 若 d 不整除 c，则无整数解。 3. 若 d 整除 c，把 Bezout identity 乘以 c/d 得一个 particular solution。 4. 写 general solution。"
+        },
+        {
+          "title": "素数与互素",
+          "markdown": "p prime：若 p divides ab，则 p divides a 或 p divides b。常和 Euclid lemma 搭配。\n\n证明 irrational 或不可分解题时，常用 prime factorization 中某个 prime 的指数奇偶矛盾。",
+          "summary": "p prime：若 p divides ab，则 p divides a 或 p divides b。常和 Euclid lemma 搭配。 证明 irrational 或不可分解题时，常用 prime factorization 中某个 prime 的指数奇偶矛盾。"
+        },
+        {
+          "title": "无穷素数模板",
+          "markdown": "~~~text\nAssume finitely many primes p1,...,pn. Consider N=p1...pn+1. No pi divides N, so N has a prime divisor not in the list. Contradiction.\n~~~",
+          "summary": ""
+        },
+        {
+          "title": "常见错误",
+          "markdown": "- 只找到一个解，忘记 general solution。\n- 忘记 gcd(a,b) divides c 的可解条件。\n- 把 prime 和 composite 的定义混淆。\n- 唯一分解题没有说明指数/素因子唯一。",
+          "summary": "只找到一个解，忘记 general solution。 忘记 gcd(a,b) divides c 的可解条件。 把 prime 和 composite 的定义混淆。 唯一分解题没有说明指数/素因子唯一。"
+        },
+        {
+          "title": "检查清单",
+          "markdown": "方程题先算 gcd。素数题是否用了 prime divides product 的性质？反证题的矛盾是否落在整除、互素或唯一分解上？",
+          "summary": "方程题先算 gcd。素数题是否用了 prime divides product 的性质？反证题的矛盾是否落在整除、互素或唯一分解上？"
+        }
+      ]
+    },
+    {
+      "id": "mat102-number-theory-iii-modular-proof-v2",
+      "courseId": "course-mat102-local",
+      "name": "09 · 同余、模运算与费马小定理",
+      "description": "依据 MAT102 queue 讲义整理的 proof-first 本地文本笔记。",
+      "tags": ["MAT102", "证明", "queue", "本地"],
+      "sourcePath": "queue/MAT102/09NumberTheoryIII.pdf",
+      "sections": [
+        {
+          "title": "记忆角色",
+          "markdown": "Notebook 08 的详细操作记忆。回答同余、模运算、消去律、乘法逆元、线性同余和 Fermat little theorem 题时，先写 modulus 和 gcd 条件。",
+          "summary": "Notebook 08 的详细操作记忆。回答同余、模运算、消去律、乘法逆元、线性同余和 Fermat little theorem 题时，先写 modulus 和 gcd 条件。"
+        },
+        {
+          "title": "同余定义",
+          "markdown": "a congruent b mod n：\n~~~text\nn divides a-b.\n~~~\n\n证明同余题时，可以转成整除，也可以使用同余的加法、乘法、幂运算规则。",
+          "summary": "a congruent b mod n： 证明同余题时，可以转成整除，也可以使用同余的加法、乘法、幂运算规则。"
+        },
+        {
+          "title": "消去与逆元",
+          "markdown": "乘法消去不是永远合法。若 ac congruent bc mod n，要消去 c，通常需要 gcd(c,n)=1。\n\nc mod n 有乘法逆元当且仅当 gcd(c,n)=1。用 extended Euclidean algorithm 找 x 使 cx congruent 1 mod n。",
+          "summary": "乘法消去不是永远合法。若 ac congruent bc mod n，要消去 c，通常需要 gcd(c,n)=1。 c mod n 有乘法逆元当且仅当 gcd(c,n)=1。用 extended Euclidean algorithm 找 x 使 cx congruent 1 mod n。"
+        },
+        {
+          "title": "线性同余",
+          "markdown": "ax congruent b mod n。先令 d=gcd(a,n)：\n- 若 d 不整除 b，则无解。\n- 若 d 整除 b，则可约化并找逆元。",
+          "summary": "ax congruent b mod n。先令 d=gcd(a,n)： 若 d 不整除 b，则无解。 若 d 整除 b，则可约化并找逆元。"
+        },
+        {
+          "title": "Fermat Little Theorem",
+          "markdown": "若 p prime 且 gcd(a,p)=1，则 a^{p-1} congruent 1 mod p。也可得到 a^p congruent a mod p。",
+          "summary": "若 p prime 且 gcd(a,p)=1，则 a^{p 1} congruent 1 mod p。也可得到 a^p congruent a mod p。"
+        },
+        {
+          "title": "常见错误",
+          "markdown": "- 模数 n 没有固定。\n- 直接除以一个数，没有检查互素。\n- 把 mod 运算当成普通等号运算。\n- Fermat 小定理忘记 p 必须 prime，且 a 与 p 互素。",
+          "summary": "模数 n 没有固定。 直接除以一个数，没有检查互素。 把 mod 运算当成普通等号运算。 Fermat 小定理忘记 p 必须 prime，且 a 与 p 互素。"
+        },
+        {
+          "title": "检查清单",
+          "markdown": "每一步是否在同一个 modulus 下？消去/求逆是否有 gcd=1？线性同余是否先检查 gcd(a,n)|b？Fermat 条件是否满足？",
+          "summary": "每一步是否在同一个 modulus 下？消去/求逆是否有 gcd=1？线性同余是否先检查 gcd(a,n) b？Fermat 条件是否满足？"
+        }
+      ]
+    },
+    {
+      "id": "nb-mat102-zh-induction-i-skill-v2-20260601",
+      "courseId": "course-mat102-local",
+      "name": "10 · 归纳法、强归纳与结构归纳",
+      "description": "依据 MAT102 queue 讲义整理的 proof-first 本地文本笔记。",
+      "tags": ["MAT102", "证明", "queue", "本地"],
+      "sourcePath": "queue/MAT102/10InductionI-1.pdf",
+      "sections": [
+        {
+          "title": "记忆角色",
+          "markdown": "Notebook 09 的详细操作记忆。回答归纳法题时，最重要的是写清楚 proposition P(n)、base case、induction hypothesis 和 inductive step。",
+          "summary": "Notebook 09 的详细操作记忆。回答归纳法题时，最重要的是写清楚 proposition P(n)、base case、induction hypothesis 和 inductive step。"
+        },
+        {
+          "title": "普通归纳模板",
+          "markdown": "~~~text\nLet P(n) be ...\nBase case: prove P(n0).\nInduction hypothesis: assume P(k) for an arbitrary k >= n0.\nInductive step: prove P(k+1).\nTherefore P(n) holds for all n >= n0.\n~~~",
+          "summary": ""
+        },
+        {
+          "title": "强归纳模板",
+          "markdown": "~~~text\nAssume P(n0), P(n0+1), ..., P(k). Prove P(k+1).\n~~~\n\n适合当前项可能依赖多个前面项的问题，例如递归定义、分解、数论存在性。",
+          "summary": "适合当前项可能依赖多个前面项的问题，例如递归定义、分解、数论存在性。"
+        },
+        {
+          "title": "结构归纳",
+          "markdown": "先读数据如何生成：base constructors 和 recursive constructors。证明时分别证明 base object，并假设 recursive parts 满足性质，再证明构造出的新对象满足性质。",
+          "summary": "先读数据如何生成：base constructors 和 recursive constructors。证明时分别证明 base object，并假设 recursive parts 满足性质，再证明构造出的新对象满足性质。"
+        },
+        {
+          "title": "常见错误",
+          "markdown": "- IH 写成 assume P(k+1)，把要证明的结论放进假设。\n- base case 起点错。\n- inductive step 没有使用 IH。\n- 强归纳只假设 P(k)，但题目需要多个前项。\n- 只验证前几项，以为就是证明。",
+          "summary": "IH 写成 assume P(k+1)，把要证明的结论放进假设。 base case 起点错。 inductive step 没有使用 IH。 强归纳只假设 P(k)，但题目需要多个前项。 只验证前几项，以为就是证明。"
+        },
+        {
+          "title": "检查清单",
+          "markdown": "P(n) 是否明确？base case 是否覆盖所有起点？IH 是否只假设已知范围？step 是否真的推出 k+1？结尾是否声明 by induction？",
+          "summary": "P(n) 是否明确？base case 是否覆盖所有起点？IH 是否只假设已知范围？step 是否真的推出 k+1？结尾是否声明 by induction？"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat102-11grouptheory-2",
+      "courseId": "course-mat102-local",
+      "name": "11 · 群论 I",
+      "description": "依据 MAT102 queue 讲义整理的 proof-first 本地文本笔记。",
+      "tags": ["MAT102", "证明", "queue", "本地"],
+      "sourcePath": "queue/MAT102/11GroupTheory-2.pdf",
+      "sections": [
+        {
+          "title": "记忆角色",
+          "markdown": "Notebook 10 的详细操作记忆。回答群、子群、循环群和元素阶题时，先确定集合与运算，再逐条检查公理。",
+          "summary": "Notebook 10 的详细操作记忆。回答群、子群、循环群和元素阶题时，先确定集合与运算，再逐条检查公理。"
+        },
+        {
+          "title": "群定义",
+          "markdown": "群是 set G 配 operation *，满足：\n1. closure：a*b in G。\n2. associativity：(a*b)*c=a*(b*c)。\n3. identity：存在 e 使 ea=ae=a。\n4. inverse：每个 a 有 a^{-1} 使 aa^{-1}=a^{-1}a=e。\n\nAbelian group 额外要求 commutative。",
+          "summary": "群是 set G 配 operation ，满足： 1. closure：a b in G。 2. associativity：(a b) c=a (b c)。 3. identity：存在 e 使 ea=ae=a。 4. inverse：每个 a 有 a^{ 1} 使 aa^{ 1}=a^{ 1}a=e。 Abelian group 额外要求 commutative。"
+        },
+        {
+          "title": "子群模板",
+          "markdown": "证明 H <= G：\n~~~text\nShow H is nonempty. For all a,b in H, show ab^{-1} in H.\n~~~\n\n或者按课程要求分别验证 closure、identity、inverse。注意 H 的运算继承自 G。",
+          "summary": "证明 H <= G： 或者按课程要求分别验证 closure、identity、inverse。注意 H 的运算继承自 G。"
+        },
+        {
+          "title": "循环群与阶",
+          "markdown": "<g>={g^n | n in Z}。元素阶是最小正整数 k 使 g^k=e；如果不存在则 infinite order。",
+          "summary": "<g ={g^n n in Z}。元素阶是最小正整数 k 使 g^k=e；如果不存在则 infinite order。"
+        },
+        {
+          "title": "常见错误",
+          "markdown": "- 忘记指定 operation。\n- 把 closure 当成自动成立。\n- 只验证左单位元或左逆元。\n- 子群题没有说明 H 是 G 的 subset。\n- 循环群题只列正幂，忘记负幂/逆元。",
+          "summary": "忘记指定 operation。 把 closure 当成自动成立。 只验证左单位元或左逆元。 子群题没有说明 H 是 G 的 subset。 循环群题只列正幂，忘记负幂/逆元。"
+        },
+        {
+          "title": "检查清单",
+          "markdown": "对象是集合还是元素？运算是什么？公理是否逐条覆盖？子群是否先确认 subset/nonempty？循环群 generator 是否真的生成目标集合？",
+          "summary": "对象是集合还是元素？运算是什么？公理是否逐条覆盖？子群是否先确认 subset/nonempty？循环群 generator 是否真的生成目标集合？"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat102-12grouptheoryii",
+      "courseId": "course-mat102-local",
+      "name": "12 · 群论 II",
+      "description": "依据 MAT102 queue 讲义整理的 proof-first 本地文本笔记。",
+      "tags": ["MAT102", "证明", "queue", "本地"],
+      "sourcePath": "queue/MAT102/12GroupTheoryII.pdf",
+      "sections": [
+        {
+          "title": "记忆角色",
+          "markdown": "Notebook 11 的详细操作记忆。回答群同态、核、像、同构和商结构入门题时，核心是“保运算”而不是只看函数是否双射。",
+          "summary": "Notebook 11 的详细操作记忆。回答群同态、核、像、同构和商结构入门题时，核心是“保运算”而不是只看函数是否双射。"
+        },
+        {
+          "title": "同态模板",
+          "markdown": "phi: G -> H 是 homomorphism：\n~~~text\nFor all a,b in G, prove phi(ab)=phi(a)phi(b).\n~~~\n\n左右两边的 operation 可能不同，要按各自群的运算解释。",
+          "summary": "phi: G H 是 homomorphism： 左右两边的 operation 可能不同，要按各自群的运算解释。"
+        },
+        {
+          "title": "kernel 和 image",
+          "markdown": "Kernel：\n~~~text\nker(phi) = {g in G | phi(g)=e_H}\n~~~\n\nImage：\n~~~text\nim(phi) = {phi(g) | g in G}\n~~~\n\n常见结论：ker(phi) 是 G 的 subgroup，im(phi) 是 H 的 subgroup。证明时用 subgroup test。",
+          "summary": "Kernel： Image： 常见结论：ker(phi) 是 G 的 subgroup，im(phi) 是 H 的 subgroup。证明时用 subgroup test。"
+        },
+        {
+          "title": "同构",
+          "markdown": "Isomorphism 是 bijective homomorphism。证明两个群同构需要构造 phi，证明 homomorphism，再证明 injective/surjective。",
+          "summary": "Isomorphism 是 bijective homomorphism。证明两个群同构需要构造 phi，证明 homomorphism，再证明 injective/surjective。"
+        },
+        {
+          "title": "常见错误",
+          "markdown": "- 只证明函数是 bijection，忘记 homomorphism。\n- kernel 用错 identity：必须是 codomain 的 identity。\n- phi(ab) 中 ab 用 domain operation，phi(a)phi(b) 用 codomain operation。\n- 把 image 和 codomain 混淆。",
+          "summary": "只证明函数是 bijection，忘记 homomorphism。 kernel 用错 identity：必须是 codomain 的 identity。 phi(ab) 中 ab 用 domain operation，phi(a)phi(b) 用 codomain operation。 把 image 和 codomain 混淆。"
+        },
+        {
+          "title": "检查清单",
+          "markdown": "同态等式是否对任意 a,b 证明？两个群的运算是否区分？kernel 是否映到 e_H？同构是否包含 homomorphism + bijection 两部分？",
+          "summary": "同态等式是否对任意 a,b 证明？两个群的运算是否区分？kernel 是否映到 e H？同构是否包含 homomorphism + bijection 两部分？"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat136-01-definite-integral",
+      "courseId": "course-mat136-local",
+      "name": "01 · 定积分",
+      "description": "依据 MAT136 queue 讲义整理的定积分本地文本笔记。",
+      "tags": ["MAT136", "定积分", "queue", "本地"],
+      "sourcePath": "queue/MAT136/01_Definite_Integral.pdf",
+      "sections": [
+        {
+          "title": "面积、位移与黎曼和",
+          "markdown": "## 本节目标\n\n定积分先不要背公式，把它看成“很多小矩形面积的极限”。如果区间是 $[a,b]$，分成 $n$ 份：\n\n$$\n\\Delta x=\\frac{b-a}{n},\\qquad x_i=a+i\\Delta x\n$$\n\n右端点黎曼和常写成\n\n$$\n\\sum_{i=1}^{n} f(x_i)\\Delta x\n$$\n\n当 $n\\to\\infty$ 时，小矩形越来越细，极限就是\n\n$$\n\\int_a^b f(x)\\,dx\n$$\n\n记住四个部件：区间 $[a,b]$、宽度 $\\Delta x$、采样点 $x_i$、高度 $f(x_i)$。",
+          "summary": "用小矩形逼近面积，并从求和式读出区间、宽度和采样点。"
+        },
+        {
+          "title": "左右端点与高估低估",
+          "markdown": "## 判断规则\n\n对递增函数：\n\n- 左端点矩形偏低，所以 left-hand sum 是 underestimate。\n- 右端点矩形偏高，所以 right-hand sum 是 overestimate。\n\n对递减函数，结论反过来。\n\n## 做题格式\n\n1. 先写出函数在区间上递增还是递减。\n2. 再说明采样点在每个小区间的左边还是右边。\n3. 最后判断矩形高度比真实曲线高还是低。\n\n不要只看图猜答案；题目给公式时也可以用导数符号或函数形状判断单调性。",
+          "summary": "用函数单调性判断 left/right sum 是 overestimate 还是 underestimate。"
+        },
+        {
+          "title": "定积分的基础性质",
+          "markdown": "## 常用性质\n\n线性性质：\n\n$$\n\\int_a^b \\big(c f(x)+d g(x)\\big)\\,dx\n=c\\int_a^b f(x)\\,dx+d\\int_a^b g(x)\\,dx\n$$\n\n拆区间：\n\n$$\n\\int_a^b f(x)\\,dx=\\int_a^c f(x)\\,dx+\\int_c^b f(x)\\,dx\n$$\n\n换方向会变号：\n\n$$\n\\int_a^b f(x)\\,dx=-\\int_b^a f(x)\\,dx\n$$\n\n同一点到同一点面积为 0：\n\n$$\n\\int_a^a f(x)\\,dx=0\n$$\n\n这些性质适用于 $c$ 在不在 $[a,b]$ 内的情况；关键是区间方向和符号不能乱。",
+          "summary": "整理线性、拆区间、换方向和零长度区间这些常用性质。"
+        },
+        {
+          "title": "微积分基本定理 II：把面积变成端点差",
+          "markdown": "## 公式\n\n如果 $F'(x)=f(x)$，那么\n\n$$\n\\int_a^b f(x)\\,dx=F(b)-F(a)\n$$\n\n这就是微积分基本定理第二部分。它把“累积面积”变成“原函数在端点的差”。\n\n## 计算模板\n\n1. 找一个原函数 $F$。\n2. 写成 $F(x)\\big|_a^b$。\n3. 代入上端点减下端点。\n\n例：\n\n$$\n\\int_1^3 2x\\,dx=x^2\\big|_1^3=9-1=8\n$$",
+          "summary": "用原函数计算定积分，核心是 F(b)-F(a)。"
+        },
+        {
+          "title": "微积分基本定理 I：变上限积分求导",
+          "markdown": "## 基本形式\n\n定义面积函数\n\n$$\nG(x)=\\int_a^x f(t)\\,dt\n$$\n\n则\n\n$$\nG'(x)=f(x)\n$$\n\n如果上限是 $g(x)$，要乘上限导数：\n\n$$\n\\frac{d}{dx}\\int_a^{g(x)}f(t)\\,dt=f(g(x))g'(x)\n$$\n\n如果下限也会动：\n\n$$\n\\frac{d}{dx}\\int_{u(x)}^{v(x)}f(t)\\,dt\n=f(v(x))v'(x)-f(u(x))u'(x)\n$$\n\n变量名不重要，$t$、$u$、$s$ 都只是积分内部的 dummy variable。",
+          "summary": "面积函数求导会回到 integrand；变上限需要链式法则。"
+        },
+        {
+          "title": "从求和式反推定积分",
+          "markdown": "## 翻译步骤\n\n看到\n\n$$\n\\lim_{n\\to\\infty}\\sum_{i=1}^n f(a+i\\Delta x)\\Delta x\n$$\n\n就按下面检查：\n\n1. 找 $\\Delta x$，由它判断区间长度 $b-a$。\n2. 看采样点 $a+i\\Delta x$，读出左端点 $a$。\n3. 把高度部分写成 integrand。\n4. 得到 $\\int_a^b f(x)\\,dx$。\n\n## 自检\n\n- 求和号里的 $\\Delta x$ 有没有保留下来？\n- 区间长度是不是 $n\\Delta x$ 的极限？\n- integrand 是否只保留成关于 $x$ 的函数？\n- 最后结果是定积分，不是还带着 $i$ 和 $n$ 的式子。",
+          "summary": "把复杂的极限求和式翻译成一个定积分。"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat136-02-substitution",
+      "courseId": "course-mat136-local",
+      "name": "02 · 换元法",
+      "description": "依据 MAT136 queue 讲义整理的换元法本地文本笔记。",
+      "tags": ["MAT136", "换元法", "queue", "本地"],
+      "sourcePath": "queue/MAT136/02_换元法.pdf",
+      "sections": [
+        {
+          "title": "换元法的核心想法",
+          "markdown": "## 一句话\n\n换元法就是反向使用链式法则。若 $u=g(x)$，则\n\n$$\ndu=g'(x)\\,dx\n$$\n\n原积分中如果同时出现 $g(x)$ 和接近 $g'(x)\\,dx$ 的部分，就可以把它换成关于 $u$ 的积分。\n\n## 典型结构\n\n$$\n\\int f(g(x))g'(x)\\,dx=\\int f(u)\\,du\n$$\n\n做题时先找“里面那一团”，再检查外面有没有它的导数。",
+          "summary": "把复杂的内层表达式命名为 u，让积分回到熟悉形状。"
+        },
+        {
+          "title": "怎样选择 u",
+          "markdown": "## 常见选择\n\n- 括号整体：$(3x+1)^7$ 里选 $u=3x+1$。\n- 根号里面：$\\sqrt{1+x^2}$ 里选 $u=1+x^2$。\n- 指数里面：$e^{5x-2}$ 里选 $u=5x-2$。\n- 三角里面：$\\sin(2x)$ 里选 $u=2x$。\n\n## 检查 du\n\n选好 $u$ 后立刻写 $du$，例如：\n\n$$\nu=3x+1,\\qquad du=3\\,dx,\\qquad dx=\\frac{1}{3}du\n$$\n\n差一个常数通常可以补出来；如果差的是变量，可能要把剩余变量也改写成 $u$，或者改选 $u$。",
+          "summary": "优先选括号、根号、指数、三角函数里面的表达式。"
+        },
+        {
+          "title": "不定积分流程",
+          "markdown": "## 标准步骤\n\n1. 令 $u=g(x)$，写出 $du=g'(x)\\,dx$。\n2. 把 integrand 和 $dx$ 全部改成 $u$ 和 $du$。\n3. 在 $u$ 系统里积分。\n4. 回代 $u=g(x)$。\n5. 加上 $+C$。\n\n例：\n\n$$\n\\int x(1+x^2)^4\\,dx\n$$\n\n令 $u=1+x^2$，则 $du=2x\\,dx$：\n\n$$\n\\int x(1+x^2)^4\\,dx=\\frac12\\int u^4\\,du\n=\\frac{u^5}{10}+C=\\frac{(1+x^2)^5}{10}+C\n$$",
+          "summary": "换元、积分、回代，三步缺一不可。"
+        },
+        {
+          "title": "定积分换元",
+          "markdown": "## 关键区别\n\n不定积分最后要回代 $x$；定积分可以直接把上下限也换成 $u$。\n\n如果 $u=g(x)$，原区间是 $x=a$ 到 $x=b$，新上下限是\n\n$$\nu=g(a)\\quad\\text{到}\\quad u=g(b)\n$$\n\n例：\n\n$$\n\\int_0^1 2x e^{x^2}\\,dx\n$$\n\n令 $u=x^2$，则 $du=2x\\,dx$。上下限变为 $0$ 到 $1$：\n\n$$\n\\int_0^1 e^u\\,du=e-1\n$$",
+          "summary": "定积分换元时上下限也要换，换完后不必回到 x。"
+        },
+        {
+          "title": "特殊题型：缩放与对称",
+          "markdown": "## 缩放型\n\n若已知 $\\int_a^b f(x)\\,dx$，遇到 $\\int f(kx+c)\\,dx$ 时，令 $u=kx+c$，会出现\n\n$$\ndx=\\frac{1}{k}du\n$$\n\n所以区间和面积都会被缩放。\n\n## 对称型\n\n三角函数或偶奇函数题，先观察区间是否对称。常见结论：\n\n- 奇函数在 $[-a,a]$ 上积分为 0。\n- 偶函数在 $[-a,a]$ 上积分为 $2\\int_0^a f(x)\\,dx$。\n\n但只有确认函数确实是奇函数或偶函数后才能用。",
+          "summary": "已知积分值时，重点是变量缩放带来的 dx 因子。"
+        },
+        {
+          "title": "换元法自检",
+          "markdown": "## 常见错误\n\n- 换成 $u$ 后 integrand 里还残留 $x$。\n- $du$ 中的常数因子漏掉。\n- 不定积分忘记回代。\n- 定积分换了 integrand，却没有换上下限。\n- 把 $dx$ 当成可有可无的装饰，导致少乘一个因子。\n\n## 最后一眼\n\n一行积分里只能有一套变量：要么全是 $x,dx$，要么全是 $u,du$。混着写就是还没换完。",
+          "summary": "防止变量残留、常数丢失和上下限错误。"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat136-03-inverse-substitution",
+      "courseId": "course-mat136-local",
+      "name": "03 · 逆换元法",
+      "description": "依据 MAT136 queue 讲义整理的逆换元法本地文本笔记。",
+      "tags": ["MAT136", "逆换元法", "queue", "本地"],
+      "sourcePath": "queue/MAT136/03_逆换元法.pdf",
+      "sections": [
+        {
+          "title": "逆换元法解决什么问题",
+          "markdown": "## 适用场景\n\n当普通换元不能处理下面这些根号时，可以考虑逆换元法：\n\n$$\n\\sqrt{a^2-x^2},\\qquad \\sqrt{a^2+x^2},\\qquad \\sqrt{x^2-a^2}\n$$\n\n核心是把 $x$ 换成三角表达式，让平方恒等式消掉根号。\n\n逆换元不是第一选择。先看普通换元、代数化简和配方；如果根号结构仍然明显，再使用三角代换。",
+          "summary": "用三角代换把根号里的平方结构变简单。"
+        },
+        {
+          "title": "三种根号对应三种代换",
+          "markdown": "## 对照表\n\n$$\n\\sqrt{a^2-x^2}\\quad\\Rightarrow\\quad x=a\\sin\\theta\n$$\n\n因为 $1-\\sin^2\\theta=\\cos^2\\theta$。\n\n$$\n\\sqrt{a^2+x^2}\\quad\\Rightarrow\\quad x=a\\tan\\theta\n$$\n\n因为 $1+\\tan^2\\theta=\\sec^2\\theta$。\n\n$$\n\\sqrt{x^2-a^2}\\quad\\Rightarrow\\quad x=a\\sec\\theta\n$$\n\n因为 $\\sec^2\\theta-1=\\tan^2\\theta$。\n\n选择代换后，第一步永远是同时写 $dx$。",
+          "summary": "按根号形状选择 sin、tan 或 sec。"
+        },
+        {
+          "title": "dx、恒等式与回代",
+          "markdown": "## 操作模板\n\n以 $x=a\\sin\\theta$ 为例：\n\n$$\ndx=a\\cos\\theta\\,d\\theta\n$$\n\n并且\n\n$$\n\\sqrt{a^2-x^2}\n=\\sqrt{a^2-a^2\\sin^2\\theta}\n=a\\cos\\theta\n$$\n\n不定积分完成后要回代。常用方法是画直角三角形，或者用\n\n$$\n\\theta=\\arcsin\\frac{x}{a}\n$$\n\n回代时不要把 $\\theta$ 留在最后答案里，除非题目本来就要求用三角变量表示。",
+          "summary": "代换后要完整替换 x、dx 和根号，最后回到原变量。"
+        },
+        {
+          "title": "定积分中的角度上下限",
+          "markdown": "## 定积分更省事\n\n如果原积分是 $x=\\alpha$ 到 $x=\\beta$，代换 $x=a\\sin\\theta$ 后，上下限变成\n\n$$\n\\theta=\\arcsin\\frac{\\alpha}{a}\\quad\\text{到}\\quad\n\\theta=\\arcsin\\frac{\\beta}{a}\n$$\n\n换完以后可以一直在 $\\theta$ 里算到结果，不需要再回到 $x$。\n\n## 注意范围\n\n角度范围要和代换一致。通常选让 $\\cos\\theta\\ge 0$ 或 $\\tan\\theta\\ge 0$ 的主区间，避免根号符号混乱。",
+          "summary": "定积分可以直接把 x 上下限换成 theta 上下限。"
+        },
+        {
+          "title": "配方后再逆换元",
+          "markdown": "## 配方模板\n\n遇到\n\n$$\n\\sqrt{-x^2+4x+5}\n$$\n\n先整理：\n\n$$\n-x^2+4x+5=9-(x-2)^2\n$$\n\n此时令\n\n$$\nx-2=3\\sin\\theta\n$$\n\n也就是说，被代换的不一定是 $x$ 本身，可能是 $x-c$。\n\n## 做题顺序\n\n先配方，再识别三种形状，最后选代换。",
+          "summary": "不是所有根号一开始就长成标准形，先把平方配出来。"
+        },
+        {
+          "title": "逆换元法自检",
+          "markdown": "## 检查清单\n\n- 根号是否已经整理成标准形？\n- 选择的代换是否匹配平方恒等式？\n- $dx$ 是否已经换成关于 $\\theta$ 的形式？\n- 不定积分最后是否回到 $x$？\n- 定积分上下限是否已经换成角度？\n- 三角函数平方积分是否需要半角公式？\n\n逆换元法计算量大，写清每一步比心算更重要。",
+          "summary": "选错形状、漏写 dx、回代不完整是最常见问题。"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat136-04-area-volume",
+      "courseId": "course-mat136-local",
+      "name": "04 · 面积与体积",
+      "description": "依据 MAT136 queue 讲义整理的面积与体积本地文本笔记。",
+      "tags": ["MAT136", "面积与体积", "queue", "本地"],
+      "sourcePath": "queue/MAT136/04_Area_Volume_学生版.pdf",
+      "sections": [
+        {
+          "title": "曲线间面积",
+          "markdown": "## 竖直切片\n\n如果用 $dx$ 切片，每片高度是上方函数减下方函数：\n\n$$\nA=\\int_a^b \\big(\\text{top}-\\text{bottom}\\big)\\,dx\n$$\n\n## 水平切片\n\n如果用 $dy$ 切片，每片长度是右边函数减左边函数：\n\n$$\nA=\\int_c^d \\big(\\text{right}-\\text{left}\\big)\\,dy\n$$\n\n先画区域或至少列交点。谁在上、谁在右如果会改变，就必须分段。",
+          "summary": "先找交点和上下关系，再建立面积积分。"
+        },
+        {
+          "title": "什么时候换成 dy",
+          "markdown": "## 选择切片方向\n\n优先选不用分段、边界表达式更简单的方向。\n\n典型需要 $dy$ 的情况：\n\n- 区域用 $x$ 表示成 $y$ 的函数更自然。\n- 竖直切片会遇到左右分叉或上下关系变化。\n- 几何宽度明显是 right-left。\n\n## 书写提醒\n\n如果用 $dy$，积分上下限必须是 $y$ 值；被积函数也必须写成关于 $y$ 的表达式。",
+          "summary": "水平切片适合左右边界比上下边界更简单的区域。"
+        },
+        {
+          "title": "截面积法算体积",
+          "markdown": "## 核心公式\n\n体积可以看成很多薄片截面积的累积：\n\n$$\nV=\\int_a^b A(x)\\,dx\n$$\n\n如果用水平切片：\n\n$$\nV=\\int_c^d A(y)\\,dy\n$$\n\n常见截面：\n\n- 圆：$A=\\pi r^2$\n- 正方形：$A=s^2$\n- 等腰直角三角形：$A=\\frac12 s^2$\n\n题目给几何形状时，重点是先把半径、边长或高度写成变量的函数。",
+          "summary": "先写每一片的截面积 A(x) 或 A(y)，再积分。"
+        },
+        {
+          "title": "旋转体：圆盘与垫片",
+          "markdown": "## 圆盘法\n\n如果截面是实心圆盘：\n\n$$\nV=\\pi\\int_a^b R(x)^2\\,dx\n$$\n\n## 垫片法\n\n如果中间有洞：\n\n$$\nV=\\pi\\int_a^b \\big(R(x)^2-r(x)^2\\big)\\,dx\n$$\n\n其中 $R$ 是外半径，$r$ 是内半径。半径不是曲线本身，而是“曲线到旋转轴的距离”。",
+          "summary": "围绕坐标轴旋转时，半径是到旋转轴的距离。"
+        },
+        {
+          "title": "建立积分的例题模板",
+          "markdown": "## 曲线间面积\n\n1. 解交点。\n2. 判断上下或左右。\n3. 选择 $dx$ 或 $dy$。\n4. 写出积分。\n\n## 体积题\n\n1. 判断切片方向。\n2. 写出几何截面积。\n3. 把几何量转成变量表达式。\n4. 对截面积积分。\n\n如果题目只问 setup，停在正确的积分式即可，不需要多算。",
+          "summary": "面积和体积题通常重在 setup，不要急着算。"
+        },
+        {
+          "title": "面积与体积自检",
+          "markdown": "## 常见错误\n\n- 面积写成 bottom-top 或 left-right，导致负值。\n- 已经用 $dy$，却还把函数写成 $y=f(x)$。\n- 体积忘记平方半径。\n- 垫片法把内外半径顺序写反。\n- 截面积法把长度直接积分成体积，少写了面积公式。\n\n## 快速检查\n\n面积单位应是平方单位；体积单位应是立方单位。若 integrand 的单位不对，setup 多半有问题。",
+          "summary": "避免上下颠倒、方向错用和单位混淆。"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat136-05-integration-by-parts",
+      "courseId": "course-mat136-local",
+      "name": "05 · 分部积分",
+      "description": "依据 MAT136 queue 讲义整理的分部积分本地文本笔记。",
+      "tags": ["MAT136", "分部积分", "queue", "本地"],
+      "sourcePath": "queue/MAT136/05分步积分.pdf",
+      "sections": [
+        {
+          "title": "分部积分来自乘积法则",
+          "markdown": "## 公式\n\n乘积法则：\n\n$$\n(uv)'=u'v+uv'\n$$\n\n移项并积分得到分部积分：\n\n$$\n\\int u\\,dv=uv-\\int v\\,du\n$$\n\n也常写成\n\n$$\n\\int u v'\\,dx=uv-\\int u'v\\,dx\n$$\n\n分部积分的目标不是套公式，而是让剩下的积分更简单。",
+          "summary": "把乘积求导公式反过来用，处理两个函数相乘的积分。"
+        },
+        {
+          "title": "如何选择 u 和 dv",
+          "markdown": "## 选择经验\n\n常用优先级可以记作：\n\n反三角、对数、多项式、三角、指数\n\n它不是硬规则，只是提醒：$u$ 最好求导后更简单，$dv$ 最好能直接积分。\n\n## 四格表\n\n每题建议先列：\n\n- $u$\n- $du$\n- $dv$\n- $v$\n\n然后再代入 $\\int u\\,dv=uv-\\int v\\,du$。",
+          "summary": "选 u 的原则是求导后变简单，选 dv 的原则是容易积分。"
+        },
+        {
+          "title": "基础例题模板",
+          "markdown": "## 例：$\\int x e^x\\,dx$\n\n令\n\n$$\nu=x,\\qquad dv=e^x\\,dx\n$$\n\n则\n\n$$\ndu=dx,\\qquad v=e^x\n$$\n\n所以\n\n$$\n\\int x e^x\\,dx=xe^x-\\int e^x\\,dx=xe^x-e^x+C\n$$\n\n## 单函数也能分部\n\n例如 $\\int \\ln x\\,dx$，把 $1\\,dx$ 当作 $dv$。",
+          "summary": "用 x e^x、ln x、x cos x 这些题掌握结构。"
+        },
+        {
+          "title": "重复分部与先换元再分部",
+          "markdown": "## 重复分部\n\n遇到 $x^n e^x$、$x^n\\sin x$、$x^n\\cos x$，通常让 $u=x^n$，因为每次求导次数都会下降。\n\n## 先判断是否需要换元\n\n有些题看起来像分部积分，但先换元会更轻：\n\n$$\n\\int x^3\\cos(x^2)\\,dx\n$$\n\n可先令 $u=x^2$，把 $x^3\\,dx$ 拆成 $x^2\\cdot x\\,dx$，再看是否需要分部。\n\n先化简结构，再决定工具。",
+          "summary": "多项式乘指数或三角时，可能要连续分部。"
+        },
+        {
+          "title": "定积分版本",
+          "markdown": "## 公式\n\n$$\n\\int_a^b u\\,dv=uv\\big|_a^b-\\int_a^b v\\,du\n$$\n\n定积分分部时有两个地方要处理边界：\n\n1. 边界项 $uv\\big|_a^b$。\n2. 剩余定积分 $\\int_a^b v\\,du$。\n\n如果中途换元，也要保证上下限属于当前变量系统。",
+          "summary": "边界项 uv 也要代上下限，不能只处理剩余积分。"
+        },
+        {
+          "title": "分部积分自检",
+          "markdown": "## 常见错误\n\n- 把 $u$ 和 $dv$ 选反，导致剩余积分更难。\n- 忘记减号：$uv-\\int v\\,du$。\n- $v$ 积分时漏常数因子。\n- 定积分边界项没有代入。\n- 多次分部时符号没有跟住。\n\n## 判断是否成功\n\n分部后剩下的积分应当更简单。如果没有变轻，回头重新选 $u$ 和 $dv$。",
+          "summary": "主要检查角色、符号、边界和剩余积分是否真的变简单。"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat136-06-differential-equations",
+      "courseId": "course-mat136-local",
+      "name": "06 · 微分方程",
+      "description": "依据 MAT136 queue 讲义整理的微分方程本地文本笔记。",
+      "tags": ["MAT136", "微分方程", "queue", "本地"],
+      "sourcePath": "queue/MAT136/06_Partical_fictions.pdf",
+      "sections": [
+        {
+          "title": "微分方程和初值问题",
+          "markdown": "## 基本概念\n\n微分方程描述函数和它的导数之间的关系，例如：\n\n$$\n\\frac{dy}{dx}=2x\n$$\n\n积分得到一族解：\n\n$$\ny=x^2+C\n$$\n\n若再给初值 $y(3)=5$，就可以求出唯一的 $C$。\n\n## 做题顺序\n\n先求通解，再代初值。不要一开始就把初值塞进导数方程里。",
+          "summary": "微分方程给变化率，初值从一族解中选出一条曲线。"
+        },
+        {
+          "title": "直接积分与分离变量",
+          "markdown": "## 直接积分\n\n如果右边只含 $x$：\n\n$$\n\\frac{dy}{dx}=f(x)\n\\quad\\Rightarrow\\quad\ny=\\int f(x)\\,dx\n$$\n\n## 分离变量\n\n如果可以整理成\n\n$$\ng(y)\\,dy=f(x)\\,dx\n$$\n\n就两边积分。\n\n积分后通常会出现常数 $C$。如果有初值，用初值确定它。",
+          "summary": "把 dy/dx 改写成可积分的形式。"
+        },
+        {
+          "title": "用微积分基本定理检查积分形式的解",
+          "markdown": "## 常见题型\n\n题目给出一个候选函数：\n\n$$\ny(x)=\\int_{a}^{g(x)} f(t)\\,dt\n$$\n\n要求判断它是否满足某个微分方程。\n\n直接求导：\n\n$$\ny'(x)=f(g(x))g'(x)\n$$\n\n如果下限也会动，则上限贡献减下限贡献。\n\n这类题不一定需要算出积分的闭式表达；直接用微积分基本定理检查即可。",
+          "summary": "变上限积分求导时要同时用微积分基本定理和链式法则。"
+        },
+        {
+          "title": "斜率场怎么读",
+          "markdown": "## 读图规则\n\n若\n\n$$\n\\frac{dy}{dx}=F(x,y)\n$$\n\n每个点 $(x,y)$ 的小线段斜率就是 $F(x,y)$。\n\n常见特征：\n\n- 只依赖 $x$：同一竖线上的斜率相同。\n- 只依赖 $y$：同一水平线上的斜率相同。\n- 有零斜率线：解曲线经过那里会变平。\n- 平衡解：若 $F(x,y)=0$ 对某个 $y$ 恒成立，解可能停在该水平线上。\n\n匹配斜率场先看正负区域，再看零斜率线和条纹方向。",
+          "summary": "斜率场把每个点的 dy/dx 画成一小段方向线。"
+        },
+        {
+          "title": "欧拉方法",
+          "markdown": "## 更新公式\n\n给步长 $h$，当前点是 $(x_n,y_n)$：\n\n$$\ny_{n+1}=y_n+hF(x_n,y_n)\n$$\n\n$$\nx_{n+1}=x_n+h\n$$\n\n每一步都要用“当前点”的斜率，不是用终点斜率。\n\n## 误差判断\n\n如果真实解曲线向上凹，切线法常低估；如果向下凹，常高估。具体仍要结合图像和方程判断。",
+          "summary": "用当前点的斜率走一小步，近似下一点。"
+        },
+        {
+          "title": "微分方程自检",
+          "markdown": "## 常见错误\n\n- 忘记积分常数 $C$。\n- 初值没有代回去求 $C$。\n- 分离变量时把 $x$ 和 $y$ 混在同一侧。\n- 微积分基本定理求导漏乘上限导数。\n- 欧拉方法每一步没有更新斜率。\n- 斜率场只靠视觉猜，不检查零斜率线。\n\n## 最后检查\n\n把答案对原微分方程求导验证一次，是最稳的收尾。",
+          "summary": "检查变量、常数、初值和斜率场特征。"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat136-07-sequence",
+      "courseId": "course-mat136-local",
+      "name": "07 · 数列",
+      "description": "依据 MAT136 queue 讲义整理的数列本地文本笔记。",
+      "tags": ["MAT136", "数列", "queue", "本地"],
+      "sourcePath": "queue/MAT136/07_Sequence.pdf",
+      "sections": [
+        {
+          "title": "数列是什么",
+          "markdown": "## 记号\n\n数列写成\n\n$$\n\\{a_n\\}_{n=1}^{\\infty}\n$$\n\n其中 $a_n$ 是第 $n$ 项。\n\n讨论数列收敛，就是问：\n\n$$\n\\lim_{n\\to\\infty}a_n\n$$\n\n是否存在且是有限数。\n\n数列不是级数。数列看的是 $a_n$，级数看的是 $\\sum a_n$。",
+          "summary": "数列是按自然数编号的一串数，重点是 n 趋向无穷时的行为。"
+        },
+        {
+          "title": "显式数列的常见极限",
+          "markdown": "## 常见模式\n\n- 有理式：分子分母同除最高次幂。\n- 几何型：若 $|r|<1$，则 $r^n\\to 0$。\n- 指数衰减：$e^{-n}\\to 0$。\n- 振荡项：看振幅是否趋于 0。\n\n例：\n\n$$\n\\frac{(-1)^n}{n}\\to 0\n$$\n\n因为虽然符号振荡，但大小被 $1/n$ 夹住。\n\n对 $\\sin n/n$ 也可用夹逼：\n\n$$\n-\\frac1n\\le \\frac{\\sin n}{n}\\le \\frac1n\n$$",
+          "summary": "先看最高次项、指数大小、振荡幅度和夹逼结构。"
+        },
+        {
+          "title": "递归数列",
+          "markdown": "## 例子\n\n$$\na_{n+1}=\\sqrt{2+a_n},\\qquad a_1=1\n$$\n\n处理递归数列时，先列前几项观察趋势，但观察不能代替证明。\n\n## 标准路线\n\n1. 猜测数列是否递增或递减。\n2. 证明它有上界或下界。\n3. 用单调有界定理得到收敛。\n4. 设极限为 $L$，代入递推式求 $L$。",
+          "summary": "递归数列由初始项和递推公式一步步生成。"
+        },
+        {
+          "title": "单调有界定理",
+          "markdown": "## 定理\n\n如果数列递增且有上界，则它收敛。\n\n如果数列递减且有下界，则它收敛。\n\n## 证明格式\n\n证明递增通常写：\n\n$$\na_{n+1}\\ge a_n\n$$\n\n证明有上界通常用归纳法，例如证明 $a_n\\le 2$。\n\n注意：只有 bounded 不够，只有 monotone 也可能发散。两者一起才给出收敛。",
+          "summary": "单调加有界是证明递归数列收敛的常用入口。"
+        },
+        {
+          "title": "求递归极限",
+          "markdown": "## 格式\n\n如果已经知道 $a_n\\to L$，且\n\n$$\na_{n+1}=\\sqrt{2+a_n}\n$$\n\n则\n\n$$\nL=\\sqrt{2+L}\n$$\n\n平方后：\n\n$$\nL^2-L-2=0\n$$\n\n所以 $L=2$ 或 $L=-1$。若数列为正，则排除 $-1$，得到 $L=2$。\n\n不能先解这个方程，再拿它当作收敛证明。",
+          "summary": "先证明极限存在，再把递推式两边取极限。"
+        },
+        {
+          "title": "数列自检",
+          "markdown": "## 常见错误\n\n- 看到 $(-1)^n$ 就直接说发散，没有检查振幅。\n- 把 bounded 当成 convergent。\n- 递归数列没有证明收敛就直接设极限。\n- 候选极限有多个根时，没有用数列范围排除。\n- 混淆 sequence 和 series。\n\n## 判断入口\n\n先问：这是显式公式，还是递归定义？不同类型对应不同工具。",
+          "summary": "区分显式和递归，警惕振荡和逻辑跳步。"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat136-08-improper-integrals",
+      "courseId": "course-mat136-local",
+      "name": "08 · 反常积分",
+      "description": "依据 MAT136 queue 讲义整理的反常积分本地文本笔记。",
+      "tags": ["MAT136", "反常积分", "queue", "本地"],
+      "sourcePath": "queue/MAT136/08_ Improper integrals .pdf",
+      "sections": [
+        {
+          "title": "什么是反常积分",
+          "markdown": "## 两类危险\n\n1. 区间无限，例如 $\\int_1^\\infty f(x)\\,dx$。\n2. integrand 在端点或区间内部无定义，例如 $\\int_0^1 \\frac1{\\sqrt{x}}\\,dx$。\n\n反常积分不是直接代 $\\infty$ 或爆点，而是先截断，再取极限。\n\n每道题第一步：找所有危险点。",
+          "summary": "无限区间或 integrand 在端点/内部爆掉时，要用极限定义。"
+        },
+        {
+          "title": "极限定义",
+          "markdown": "## 无限端点\n\n$$\n\\int_a^\\infty f(x)\\,dx\n=\\lim_{t\\to\\infty}\\int_a^t f(x)\\,dx\n$$\n\n## 端点奇点\n\n如果 $f$ 在 $a$ 附近爆掉：\n\n$$\n\\int_a^b f(x)\\,dx\n=\\lim_{t\\to a^+}\\int_t^b f(x)\\,dx\n$$\n\n## 内部奇点\n\n若 $c$ 在 $(a,b)$ 内是危险点：\n\n$$\n\\int_a^b f(x)\\,dx=\\int_a^c f(x)\\,dx+\\int_c^b f(x)\\,dx\n$$\n\n两段都收敛，整体才收敛。",
+          "summary": "无限端点、端点奇点和内部奇点分别处理。"
+        },
+        {
+          "title": "p-积分规则",
+          "markdown": "## 无穷远\n\n$$\n\\int_1^\\infty \\frac1{x^p}\\,dx\n$$\n\n当 $p>1$ 收敛；当 $p\\le 1$ 发散。\n\n## 0 附近\n\n$$\n\\int_0^1 \\frac1{x^p}\\,dx\n$$\n\n当 $p<1$ 收敛；当 $p\\ge 1$ 发散。\n\n同一个 $p$，危险点不同，结论可能相反。做题时先确认危险点在哪里。",
+          "summary": "无穷远和 0 附近的 p 规则方向相反。"
+        },
+        {
+          "title": "比较判别法",
+          "markdown": "## 收敛方向\n\n若 $0\\le f(x)\\le g(x)$，且\n\n$$\n\\int g(x)\\,dx\n$$\n\n收敛，则 $\\int f(x)\\,dx$ 收敛。\n\n## 发散方向\n\n若 $0\\le g(x)\\le f(x)$，且\n\n$$\n\\int g(x)\\,dx\n$$\n\n发散，则 $\\int f(x)\\,dx$ 发散。\n\n比较前要确认函数在目标区间非负，或说明为什么可以比较绝对值。",
+          "summary": "证明收敛找更大的已知收敛函数；证明发散找更小的已知发散函数。"
+        },
+        {
+          "title": "拆区间与有理函数",
+          "markdown": "## 拆区间\n\n如果 integrand 在多个位置危险，不能用一个整体极限盖过去。逐段检查：\n\n$$\n\\int_a^b f=\\int_a^{c_1}f+\\int_{c_1}^{c_2}f+\\int_{c_2}^b f\n$$\n\n任何一段发散，整体就发散。\n\n## 有理函数\n\n先因式分解分母，找出分母为 0 的点。若危险点在积分区间内，必须拆区间；之后再考虑部分分式或比较判别。",
+          "summary": "分母为零或多个危险点时，先拆再判定。"
+        },
+        {
+          "title": "反常积分自检",
+          "markdown": "## 常见错误\n\n- 忘记内部奇点。\n- 把 $\\infty$ 直接代入原函数。\n- 只算其中一段就判断整体收敛。\n- p-积分把无穷远和 0 附近规则混用。\n- 比较方向反了。\n- 振荡函数没有极限时，直接当成收敛。\n\n## 做题入口\n\n危险点在哪里？需要拆几段？每段用直接极限、p-积分，还是比较判别？",
+          "summary": "先找危险点，再选择极限计算或比较判别。"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat136-09-series",
+      "courseId": "course-mat136-local",
+      "name": "09 · 级数",
+      "description": "依据 MAT136 queue 讲义整理的级数本地文本笔记。",
+      "tags": ["MAT136", "级数", "queue", "本地"],
+      "sourcePath": "queue/MAT136/09_Series.pdf",
+      "sections": [
+        {
+          "title": "级数和部分和",
+          "markdown": "## 概念\n\n级数是无限求和：\n\n$$\n\\sum_{n=1}^{\\infty}a_n\n$$\n\n定义部分和：\n\n$$\nS_N=\\sum_{n=1}^{N}a_n\n$$\n\n如果 $S_N$ 有有限极限，级数收敛；否则发散。\n\n注意：$a_n$ 的极限和 $\\sum a_n$ 的收敛是两件事。",
+          "summary": "级数的收敛性由部分和数列决定。"
+        },
+        {
+          "title": "发散判别、几何级数和 p-级数",
+          "markdown": "## 发散判别\n\n如果\n\n$$\n\\lim_{n\\to\\infty}a_n\\ne 0\n$$\n\n或极限不存在，则 $\\sum a_n$ 发散。\n\n如果 $\\lim a_n=0$，只能说发散判别没有判出发散，不能说级数收敛。\n\n## 几何级数\n\n$$\n\\sum ar^n\n$$\n\n当 $|r|<1$ 收敛；当 $|r|\\ge 1$ 发散。\n\n## p-级数\n\n$$\n\\sum_{n=1}^{\\infty}\\frac1{n^p}\n$$\n\n当 $p>1$ 收敛；当 $p\\le 1$ 发散。",
+          "summary": "先检查通项极限，再识别最基本的结构。"
+        },
+        {
+          "title": "望远镜级数与积分判别",
+          "markdown": "## 望远镜级数\n\n若\n\n$$\na_n=b_n-b_{n+1}\n$$\n\n部分和会大量相消。写出前几项，不要只凭感觉省略。\n\n## 积分判别法\n\n对 $a_n=f(n)$，若 $f$ 在足够大的区间上 continuous、positive、decreasing，则\n\n$$\n\\sum a_n\n$$\n\n与\n\n$$\n\\int f(x)\\,dx\n$$\n\n同收敛或同发散。\n\n使用前必须说明三个条件。",
+          "summary": "能相消就先相消；积分判别要先检查条件。"
+        },
+        {
+          "title": "比较与极限比较",
+          "markdown": "## 直接比较法\n\n证明收敛：找更大的已知收敛级数。\n\n证明发散：找更小的已知发散级数。\n\n## 极限比较法\n\n若 $a_n,b_n>0$ 且\n\n$$\n\\lim_{n\\to\\infty}\\frac{a_n}{b_n}=L\n$$\n\n其中 $0<L<\\infty$，则两个级数同收敛或同发散。\n\n选择 $b_n$ 时看最高次项、根号主项或 dominant term。",
+          "summary": "非负项级数常用比较法处理。"
+        },
+        {
+          "title": "比值判别法与交错级数",
+          "markdown": "## 比值判别法\n\n计算\n\n$$\nL=\\lim_{n\\to\\infty}\\left|\\frac{a_{n+1}}{a_n}\\right|\n$$\n\n结论：\n\n- $L<1$：绝对收敛。\n- $L>1$ 或 $L=\\infty$：发散。\n- $L=1$：没有结论。\n\n## 交错级数判别法\n\n对 $\\sum (-1)^n b_n$，若 $b_n\\ge 0$、$b_n$ 递减且 $b_n\\to 0$，则级数收敛。\n\n还要区分 conditional convergence 和 absolute convergence。",
+          "summary": "阶乘、指数和 n 次幂混合时优先用比值判别法。"
+        },
+        {
+          "title": "级数判别策略",
+          "markdown": "## 推荐顺序\n\n1. 先做发散判别。\n2. 识别几何级数、p-级数、望远镜级数。\n3. 如果像函数积分，考虑积分判别法。\n4. 非负项用比较法或极限比较法。\n5. 有阶乘、指数、幂混合，用比值判别法。\n6. 有 $(-1)^n$，检查交错级数判别法，并再看绝对收敛。\n\n## 常见错误\n\n$\\lim a_n=0$ 不是收敛结论；比值判别法的 $L=1$ 也不是收敛结论。",
+          "summary": "按通项极限、结构、比较、ratio 的顺序选工具。"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat136-10-power-series",
+      "courseId": "course-mat136-local",
+      "name": "10 · 幂级数",
+      "description": "依据 MAT136 queue 讲义整理的幂级数本地文本笔记。",
+      "tags": ["MAT136", "幂级数", "queue", "本地"],
+      "sourcePath": "queue/MAT136/10_幂级数.pdf",
+      "sections": [
+        {
+          "title": "幂级数的直觉",
+          "markdown": "## 形式\n\n幂级数常写成\n\n$$\n\\sum_{n=0}^{\\infty} c_n(x-a)^n\n$$\n\n其中 $a$ 是中心。\n\n它的收敛性取决于 $x$ 离中心多远。通常存在一个半径 $R$：\n\n- $|x-a|<R$ 时收敛。\n- $|x-a|>R$ 时发散。\n- 端点要单独检查。",
+          "summary": "幂级数是在某个中心附近用无限多项式逼近函数。"
+        },
+        {
+          "title": "中心、半径和区间",
+          "markdown": "## 读中心\n\n表达式 $(x-a)^n$ 的中心是 $a$。\n\n若看到 $(x+2)^n$，中心是 $-2$。\n\n## 收敛区间\n\n若得到\n\n$$\n|x-a|<R\n$$\n\n则开区间是\n\n$$\n(a-R,a+R)\n$$\n\n最后还要检查 $x=a-R$ 和 $x=a+R$ 两个端点。",
+          "summary": "先读中心，再用判别法求半径和开区间。"
+        },
+        {
+          "title": "用比值判别法求半径",
+          "markdown": "## 模板\n\n令\n\n$$\na_n=c_n(x-a)^n\n$$\n\n计算\n\n$$\nL=\\lim_{n\\to\\infty}\\left|\\frac{a_{n+1}}{a_n}\\right|\n$$\n\n比值判别法要求 $L<1$。解这个不等式，就得到关于 $x$ 的开区间。\n\n常见结果：\n\n- 若 $L=0$ 对所有 $x$ 成立，则 $R=\\infty$。\n- 若只有 $x=a$ 可使级数收敛，则 $R=0$。",
+          "summary": "把 x 当作参数，先求相邻项比值。"
+        },
+        {
+          "title": "端点检查",
+          "markdown": "## 为什么要单独检查\n\n比值判别法通常只给出开区间。端点处 $L=1$，测试没有结论。\n\n## 检查方法\n\n把端点 $x=a-R$、$x=a+R$ 代回原级数，可能变成：\n\n- p-级数\n- alternating series\n- geometric series\n- 发散判别\n\n两个端点可能一个收敛、一个发散，所以必须分别写。",
+          "summary": "端点必须代回原级数，不能从半径自动判断。"
+        },
+        {
+          "title": "常见模板与变量替换",
+          "markdown": "## 基本模板\n\n$$\n\\frac1{1-x}=\\sum_{n=0}^{\\infty}x^n,\\qquad |x|<1\n$$\n\n如果是\n\n$$\n\\frac1{1-(x-2)}\n$$\n\n就把模板中的 $x$ 整体换成 $x-2$，收敛条件也变成\n\n$$\n|x-2|<1\n$$\n\n不要只替换公式，不替换区间。",
+          "summary": "用已知幂级数时，要整体替换变量块。"
+        },
+        {
+          "title": "幂级数自检",
+          "markdown": "## 常见错误\n\n- 把 $(x+2)$ 的中心读成 $2$。\n- 只写半径，不写收敛区间。\n- 端点没有代回原级数。\n- 比值判别法化简时把含 $x$ 的部分丢掉。\n- 用已知模板时忘记更新收敛条件。\n\n## 最后答案格式\n\n同时给出中心、半径、开区间和端点结论。",
+          "summary": "中心、半径、端点和变量块是四个重点。"
+        }
+      ]
+    },
+    {
+      "id": "queue-mat136-11-taylor-series",
+      "courseId": "course-mat136-local",
+      "name": "11 · 泰勒级数",
+      "description": "依据 MAT136 queue 讲义整理的泰勒级数本地文本笔记。",
+      "tags": ["MAT136", "泰勒级数", "queue", "本地"],
+      "sourcePath": "queue/MAT136/11_Taylor_series.pdf",
+      "sections": [
+        {
+          "title": "泰勒级数的主线",
+          "markdown": "## 公式\n\n函数在 $a$ 附近的泰勒级数是\n\n$$\n\\sum_{n=0}^{\\infty}\\frac{f^{(n)}(a)}{n!}(x-a)^n\n$$\n\n当 $a=0$ 时，称为麦克劳林级数。\n\n直觉：函数在中心点的函数值、一阶导数、二阶导数等，依次决定常数项、一次项、二次项等。",
+          "summary": "用函数在中心点的导数拼出函数。"
+        },
+        {
+          "title": "直接展开的写法",
+          "markdown": "## 标准步骤\n\n1. 写出 $f(x), f'(x), f''(x), \\ldots$。\n2. 代入中心 $a$，得到 $f(a),f'(a),f''(a),\\ldots$。\n3. 放进\n\n$$\nf(a)+f'(a)(x-a)+\\frac{f''(a)}{2!}(x-a)^2+\\cdots\n$$\n\n直接展开时，不要只背答案；要让系数从导数值来。",
+          "summary": "先列导数表，再代入泰勒公式。"
+        },
+        {
+          "title": "常用麦克劳林模板",
+          "markdown": "## 常用模板\n\n$$\ne^x=\\sum_{n=0}^{\\infty}\\frac{x^n}{n!}\n$$\n\n$$\n\\sin x=\\sum_{n=0}^{\\infty}(-1)^n\\frac{x^{2n+1}}{(2n+1)!}\n$$\n\n$$\n\\cos x=\\sum_{n=0}^{\\infty}(-1)^n\\frac{x^{2n}}{(2n)!}\n$$\n\n$$\n\\frac1{1-x}=\\sum_{n=0}^{\\infty}x^n,\\qquad |x|<1\n$$\n\n使用模板时，收敛区间也要跟着处理。",
+          "summary": "把常见函数的级数当作工具使用。"
+        },
+        {
+          "title": "由已知级数变形",
+          "markdown": "## 整体替换\n\n$\\sin(x^2)$ 是把 $\\sin x$ 模板里的 $x$ 整体换成 $x^2$。\n\n## 逐项求导与积分\n\n在收敛区间内部，可以逐项求导或逐项积分。操作后要更新系数、幂次和常数项。\n\n## 乘法\n\n求前几项时，可以只把需要的低阶项相乘，不必写出完整无限级数。",
+          "summary": "替换、求导、积分和乘法都可以生成新级数。"
+        },
+        {
+          "title": "误差与近似",
+          "markdown": "## 泰勒多项式\n\n取前 $N$ 项得到泰勒多项式：\n\n$$\nP_N(x)=\\sum_{n=0}^{N}\\frac{f^{(n)}(a)}{n!}(x-a)^n\n$$\n\n函数值可以写成\n\n$$\nf(x)=P_N(x)+R_N(x)\n$$\n\n其中 $R_N(x)$ 是余项。\n\n项数增加通常让中心附近更准确，但仍受收敛区间限制。",
+          "summary": "泰勒多项式是有限项近似，余项描述误差。"
+        },
+        {
+          "title": "泰勒级数自检",
+          "markdown": "## 常见错误\n\n- 把泰勒展开中心写错。\n- 麦克劳林级数和一般泰勒级数混用。\n- 替换时没有替换整个变量块。\n- 逐项积分后漏常数。\n- 求前几项时阶数截错。\n- 忘记检查收敛区间或端点。\n\n## 做题入口\n\n先判断：这题适合直接列导数表，还是由已知模板变形？",
+          "summary": "区分直接展开和套模板，注意中心与收敛区间。"
+        }
+      ]
+    }
+  ],
+  "memories": [
+    {
+      "id": "memory-csc108-course-answer-contract-local",
+      "courseId": "course-csc108-local",
+      "notebookId": null,
+      "targetType": "course",
+      "kind": "answer_contract",
+      "title": "CSC108 本地课程回答合约",
+      "text": "## 记忆角色\nCSC108 的课程级公共记忆。它控制整门课答题口径：先判断题型和当前 notebook 已学工具，再选择最朴素的 Python 解法。具体 API、模板和典型错误由 notebook 公共记忆补充。\n\n## 总答题协议\n1. 先判题型：表达式求值、输出追踪、错误原因、选择题、函数设计、文件/CSV 处理、复杂度分析，还是 class 设计。\n2. 只使用当前 notebook 和之前 notebook 已经学过的工具。不要为早期章节引入 list comprehension、lambda、高阶函数、异常处理、dataclass、pathlib、pandas、numpy 等未学工具。\n3. 代码题优先保留题目给的 function header、type annotation、docstring 和参数名；不要改函数名或额外 print。\n4. 函数题通常返回结果，不在函数内部 print，除非题目明确要求输出。\n5. 解释题要追踪 execution state：变量当前值、数据类型、对象是否被 mutation、文件指针位置、循环变量和 accumulator 当前状态。\n\n## 通用函数设计模板\n~~~python\ndef function_name(param: Type) -> ReturnType:\n    \"\"\"Return/produce ...\n\n    >>> function_name(example)\n    expected\n    \"\"\"\n    # compute intermediate values if helpful\n    return result\n~~~\n\n提交代码时检查：\n- signature/header 是否和题目一致。\n- docstring 示例是否覆盖普通情况和边界情况。\n- 返回值类型是否和 annotation 一致。\n- 没有把调试用 print 留在函数 body。\n- 没有把测试代码写进函数内部。\n\n## 常见边界测试\n- 空字符串、空 list、空 dict、空文件。\n- 单元素 list、只有一行的文件、没有匹配 regex 的文本。\n- 大小写、空格、换行符、标点。\n- 重复值、重复 key、aliasing/mutation。\n- 循环边界：第一个元素、最后一个元素、range 是否少 1。\n\n## 章节工具边界\n- Notebook 01-02：表达式、变量、字符串、函数、return、if/elif/else。\n- Notebook 03：for/while/range、nested loop、accumulator。\n- Notebook 04：list、索引、切片、mutation、aliasing。\n- Notebook 05：input、print、f-string、类型转换。\n- Notebook 06：open/read/readline/readlines/write/writelines/with。\n- Notebook 07：dict lookup、update、membership、frequency/counting pattern。\n- Notebook 08：TextIO、csv.reader/csv.writer、row conversion。\n- Notebook 09：DFA/regex/re module。\n- Notebook 10：Big-O、linear/binary search、sorting。\n- Notebook 11：class、self、attributes、methods、encapsulation。\n\n## 回答风格\n选择题先排除为什么错，再给正确选项。代码题先给可运行版本，再解释关键状态。错误题要说清楚错误类型和触发位置。复杂度题要指出主导循环或算法步骤，不只写一个 O(...)。",
+      "sourceReferences": [
+        "queue/CSC108/01_基础运算.docx",
+        "queue/CSC108/02_Control.docx",
+        "queue/CSC108/03_Loop.docx",
+        "queue/CSC108/04_List.docx",
+        "queue/CSC108/05_Input_Output.docx",
+        "queue/CSC108/06_File_IO.docx",
+        "queue/CSC108/07_Dictionary.docx",
+        "queue/CSC108/08_csv.docx",
+        "queue/CSC108/09_Regex.docx",
+        "queue/CSC108/10_Running_time.docx",
+        "queue/CSC108/11_Class.docx"
+      ]
+    },
+    {
+      "id": "local-memory_csc108_queue_01_basic_operations_public_20260615",
+      "courseId": "course-csc108-local",
+      "notebookId": "queue-csc108-01-basic-operations",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "CSC108 Python 基础公共记忆",
+      "text": "## 记忆角色\nNotebook 01 的操作记忆。回答 Python 基础题时，用它检查表达式求值、变量、字符串、切片和类型转换，不要引入后面章节的复杂控制结构。\n\n## 核心工具\n- arithmetic: '+', '-', '*', '/', '//', '%', '**'\n- comparison: '==', '!=', '<', '<=', '>', '>='\n- assignment: 右边先求值，再绑定给左边变量名。\n- types: 'int', 'float', 'str', 'bool'\n- conversion: 'int(...)', 'float(...)', 'str(...)'\n- string operators: '+', '*', indexing, slicing\n- string methods: 'lower', 'upper', 'strip', 'replace', 'find', 'count', 'startswith', 'endswith', 'isalpha', 'isdigit'\n\n## 表达式求值模板\n1. 先算括号。\n2. 再算 '**'。\n3. 再算 '*', '/', '//', '%'；同级从左到右。\n4. 最后算 '+', '-'。\n5. 判断结果类型：'/' 总产生 float；涉及 float 的算术通常产生 float。\n\n例子：\n~~~python\n8 / 2 * (2 + 2)      # 16.0\n7 // 3               # 2\n7 % 3                # 1\n2 ** 3 + 1           # 9\n~~~\n\n## 字符串索引与切片\nPython index 从 0 开始；负数 index 从右边数。切片 's[start:end]' 包含 start，不包含 end。\n\n~~~python\nword = 'abcdef'\nword[0]      # 'a'\nword[-1]     # 'f'\nword[1:4]    # 'bcd'\nword[:3]     # 'abc'\nword[3:]     # 'def'\nword[::-1]   # 'fedcba'\n~~~\n\n字符串 immutable。方法通常返回新字符串，不会原地修改原字符串。\n\n~~~python\nname = '  Ada  '\nname.strip()       # 'Ada'\nname               # still '  Ada  '\nname = name.strip()\n~~~\n\n## 变量追踪\n赋值不是数学等式，而是更新 name 到 value 的绑定。\n\n~~~python\nx = 10\ny = x + 2\nx = 3\nprint(y)  # 12\n~~~\n\n解释这类题时要按执行顺序维护变量表，不要用最后的 x 回头改 y。\n\n## 常见错误\n- 把 '/' 当成整数除法。\n- 把 '==' 写成 '='，或把赋值语句当成表达式比较。\n- 忘记字符串用引号。\n- 切片 end 算成包含位置。\n- 用 string method 后忘记接住返回的新字符串。\n- 把数字字符串和数字直接相加：'3' + 4 会 TypeError。\n\n## 检查清单\n表达式题给出最终 value 和 type。字符串题说明 index/slice 边界。变量题按每一行更新状态。报错题指出具体 operator 或 method 的参数类型不匹配。",
+      "sourceReferences": ["queue/CSC108/01_基础运算.docx"]
+    },
+    {
+      "id": "local-memory_csc108_queue_02_control_public_20260615",
+      "courseId": "course-csc108-local",
+      "notebookId": "queue-csc108-02-control",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "CSC108 函数与条件控制公共记忆",
+      "text": "## 记忆角色\nNotebook 02 的操作记忆。回答函数、docstring、return/print、Boolean 和 if/elif/else 题时，优先用这一章的函数设计模板，不要跳到循环或 list-heavy 解法，除非题目已进入后续章节。\n\n## 函数设计骨架\n~~~python\ndef is_passing(score: float) -> bool:\n    \"\"\"Return True iff score is at least 50.\n\n    >>> is_passing(50)\n    True\n    >>> is_passing(49.9)\n    False\n    \"\"\"\n    return score >= 50\n~~~\n\n关键点：\n- header 包含函数名、参数、type annotation、返回类型。\n- docstring 用自然语言说明结果，不复述实现细节。\n- examples/doctest 要覆盖边界。\n- function body 用 return 交出结果。\n\n## return vs print\n'return' 是函数结果；'print' 只是把文本输出到屏幕。\n\n~~~python\ndef f(x: int) -> int:\n    print(x + 1)\n\nresult = f(3)\nprint(result)\n~~~\n\n这会先输出 4，再输出 None，因为 f 没有 return。\n\n## 条件模板\n~~~python\nif condition_1:\n    ...\nelif condition_2:\n    ...\nelse:\n    ...\n~~~\n\n只执行第一个 condition 为 True 的 branch。后面的 elif/else 不再检查。\n\n范围题要注意顺序：\n~~~python\nif grade >= 90:\n    letter = 'A'\nelif grade >= 80:\n    letter = 'B'\nelse:\n    letter = 'C'\n~~~\n\n如果先写 'grade >= 80'，90 分也会提前进入 B。\n\n## Boolean 逻辑\n- 'and'：两边都 True 才 True。\n- 'or'：至少一边 True 就 True。\n- 'not'：取反。\n- Python 也会 short-circuit：'and' 左边 False 时不求右边；'or' 左边 True 时不求右边。\n\n~~~python\nx != 0 and 10 / x > 2\n~~~\n\nx 为 0 时右边不会执行，因此不会除以 0。\n\n## 作用域\n函数内部定义的变量是 local。函数外面不能直接使用函数内部的 local variable。\n\n~~~python\ndef area(length: float, width: float) -> float:\n    result = length * width\n    return result\n\nprint(result)  # NameError\n~~~\n\n## 常见错误\n- 漏写 return，导致函数返回 None。\n- 把 print 当成 return。\n- if/elif 顺序错误，导致更具体的 case 被前面的宽泛 case 吃掉。\n- 用 '=' 做比较。\n- Boolean expression 写得太复杂，忘记 short-circuit。\n- 修改题目给定的函数名、参数名或返回类型。\n\n## 检查清单\n函数题先确认 header 不变；再写 docstring examples；再根据参数类型和返回类型决定表达式或条件。追踪题说明每个 branch 是否会执行。错误题检查 NameError、TypeError、SyntaxError、None 返回。",
+      "sourceReferences": ["queue/CSC108/02_Control.docx"]
+    },
+    {
+      "id": "local-memory_csc108_queue_03_loop_public_20260615",
+      "courseId": "course-csc108-local",
+      "notebookId": "queue-csc108-03-loop",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "CSC108 循环公共记忆",
+      "text": "## 记忆角色\nNotebook 03 的操作记忆。回答 range、for、while、nested loop 和 accumulator 题时，重点追踪循环变量、循环次数和 accumulator 更新。\n\n## for/range 模板\n~~~python\ntotal = 0\nfor i in range(start, stop, step):\n    total = total + i\n~~~\n\nrange 的 stop 不包含。常见形式：\n~~~python\nrange(5)        # 0, 1, 2, 3, 4\nrange(2, 6)     # 2, 3, 4, 5\nrange(10, 0, -2) # 10, 8, 6, 4, 2\n~~~\n\n## accumulator 模板\n数值累计：\n~~~python\ncount = 0\nfor ch in text:\n    if ch.isdigit():\n        count = count + 1\nreturn count\n~~~\n\n字符串累计：\n~~~python\nresult = ''\nfor ch in text:\n    if ch.isalpha():\n        result = result + ch\nreturn result\n~~~\n\nlist 累计通常到 Notebook 04 后使用。\n\n## while 模板\n~~~python\ni = 0\nwhile i < len(text):\n    ...\n    i = i + 1\n~~~\n\nwhile 题要检查三件事：初始值、继续条件、每轮是否更新。如果循环变量没有靠近停止条件，就是 infinite loop 风险。\n\n## nested loop\n外层每执行一次，内层通常完整执行一轮。\n\n~~~python\nfor row in range(3):\n    for col in range(2):\n        print(row, col)\n~~~\n\n总次数是 3 * 2 = 6。输出顺序按 row 固定、col 变化来追踪。\n\n## break/continue\n如果课程题目使用：\n- 'break' 直接结束最近一层循环。\n- 'continue' 跳过本轮剩余 body，进入下一轮。\n\n没有讲到时，优先用 flag 或条件结构解释。\n\n## 常见错误\n- range end 多算或少算 1。\n- while 忘记更新 index。\n- accumulator 初始值类型错，比如字符串累计却从 0 开始。\n- 在循环里 return 太早，只处理第一个元素。\n- nested loop 输出顺序反了。\n- 修改正在遍历的序列，导致跳过元素。\n\n## 检查清单\n追踪题画表：iteration、loop variable、condition、accumulator。函数设计题先决定 accumulator 的含义和初始值。while 题必须说明停止条件为什么会到达。",
+      "sourceReferences": ["queue/CSC108/03_Loop.docx"]
+    },
+    {
+      "id": "local-memory_csc108_queue_04_list_public_20260615",
+      "courseId": "course-csc108-local",
+      "notebookId": "queue-csc108-04-list",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "CSC108 List 公共记忆",
+      "text": "## 记忆角色\nNotebook 04 的操作记忆。回答 list、索引、切片、mutation、aliasing 和 list-processing 函数时，必须区分“产生新 list”和“原地修改 list”。\n\n## 基础操作\n~~~python\nvalues = [10, 20, 30]\nvalues[0]      # 10\nvalues[-1]     # 30\nvalues[1:3]    # [20, 30]\nlen(values)    # 3\n20 in values   # True\n~~~\n\n切片产生新 list；index 访问单个元素。\n\n## mutation 方法\n这些通常原地修改 list，并返回 None：\n~~~python\nvalues.append(40)\nvalues.extend([50, 60])\nvalues.insert(1, 15)\nvalues.remove(20)\nlast = values.pop()\nvalues.sort()\nvalues.reverse()\n~~~\n\n特别注意：\n~~~python\nnums = [3, 1, 2]\nresult = nums.sort()\nprint(nums)    # [1, 2, 3]\nprint(result)  # None\n~~~\n\n## aliasing\n两个变量可以指向同一个 list object。\n\n~~~python\na = [1, 2]\nb = a\nb.append(3)\nprint(a)  # [1, 2, 3]\n~~~\n\n复制 list 的常见方式：\n~~~python\nb = a[:]\nb = list(a)\n~~~\n\n## list processing 模板\n累计新 list：\n~~~python\nresult = []\nfor item in items:\n    if condition:\n        result.append(item)\nreturn result\n~~~\n\n累计数值：\n~~~python\ntotal = 0\nfor item in items:\n    total = total + item\nreturn total\n~~~\n\n修改原 list：\n~~~python\nfor i in range(len(items)):\n    items[i] = transform(items[i])\n~~~\n\n## 常见错误\n- 把 'append' 的返回值赋回变量，导致变量变成 None。\n- 遍历 list 时同时 remove 元素，跳过后续元素。\n- aliasing 题忘记两个变量指向同一对象。\n- 用 '=' 复制 list，以为得到独立副本。\n- index 越界：合法 index 是 0 到 len(list)-1。\n\n## 检查清单\n先问：题目要求 return 新 list，还是 mutate 原 list？如果是追踪题，画 object/alias 状态。若用 sort/reverse/append，说明方法返回 None 还是修改对象。",
+      "sourceReferences": ["queue/CSC108/04_List.docx"]
+    },
+    {
+      "id": "local-memory_csc108_queue_05_input_output_public_20260615",
+      "courseId": "course-csc108-local",
+      "notebookId": "queue-csc108-05-input-output",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "CSC108 Input/Output 公共记忆",
+      "text": "## 记忆角色\nNotebook 05 的操作记忆。回答 input、print、类型转换、格式化输出和交互流程题时，用它检查输入永远是字符串、输出只是显示文本。\n\n## input\n'input(prompt)' 会显示 prompt，然后读取用户输入，结果类型总是 str。\n\n~~~python\nage = input('Age: ')\nprint(age + 1)      # TypeError\nprint(int(age) + 1)\n~~~\n\n如果用户输入 '19'，变量 age 的值是字符串 '19'，不是整数 19。\n\n## print\nprint 会把对象转成字符串显示，默认末尾加 newline。\n\n~~~python\nprint('A', 'B')              # A B\nprint('A', 'B', sep='-')     # A-B\nprint('A', end='')\nprint('B')                   # AB\n~~~\n\nprint 的返回值是 None，不应用它作为计算结果。\n\n## f-string\n~~~python\nname = 'Ada'\nscore = 92.5\nprint(f'{name}: {score:.1f}')\n~~~\n\n常见格式：\n- '{value:.2f}' 保留 2 位小数。\n- '{value:>10}' 右对齐宽度 10。\n- '{value:<10}' 左对齐宽度 10。\n\n## 转义字符\n- '\\n' newline\n- '\\t' tab\n- \"\\'\" 单引号\n- '\\\"' 双引号\n- '\\\\' 反斜杠\n\n## 交互程序模板\n~~~python\nraw = input('Enter a number: ')\nnumber = int(raw)\nanswer = number * 2\nprint(f'Double: {answer}')\n~~~\n\n## 常见错误\n- 忘记 input 返回 str。\n- 把 print 当成 return。\n- f-string 漏写前面的 f。\n- 格式化时把数字先转成 str，导致不能用 numeric format。\n- expected output 题漏掉空格或换行。\n\n## 检查清单\n输入题先标注每个 input 的返回字符串。输出题逐字符检查空格、sep、end、newline。函数题除非要求交互，否则不要在纯函数里调用 input 或 print。",
+      "sourceReferences": ["queue/CSC108/05_Input_Output.docx"]
+    },
+    {
+      "id": "local-memory_csc108_queue_06_file_io_public_20260615",
+      "courseId": "course-csc108-local",
+      "notebookId": "queue-csc108-06-file-io",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "CSC108 File IO 公共记忆",
+      "text": "## 记忆角色\nNotebook 06 的操作记忆。回答文件读写题时，重点检查 open mode、文件指针、换行符、每个读写函数的返回类型，以及写入内容必须是 str。\n\n## open mode\n- 'r'：只读；文件不存在会 FileNotFoundError。\n- 'w'：写入；先清空原文件，不存在则创建。\n- 'a'：追加；写到文件末尾，不存在则创建。\n- 'r+' / 'w+' / 'a+'：读写模式，按课程讲义边界使用。\n\n优先使用 with：\n~~~python\nwith open('data.txt', 'r', encoding='utf-8') as file:\n    text = file.read()\n~~~\n\n## read 系列\n- 'read()'：读剩余全部内容，返回 str。\n- 'readline()'：读一行，返回 str；到 EOF 返回 ''。\n- 'readlines()'：读剩余所有行，返回 list[str]。\n- 'for line in file'：逐行读取，适合大文件。\n\n~~~python\nwith open('data.txt', 'r', encoding='utf-8') as file:\n    for line in file:\n        clean = line.strip()\n~~~\n\n大文件题优先逐行处理，不要 read/readlines 一次读完。\n\n## write / writelines\n'write(s)' 要求 s 是 str，返回写入字符数。不会自动加 newline。\n\n~~~python\nwith open('out.txt', 'w', encoding='utf-8') as file:\n    file.write('hello\n')\n~~~\n\n'writelines(lines)' 要求 iterable 里的每个元素都是 str，也不会自动加 newline。\n\n~~~python\nfile.writelines(['a\n', 'b\n'])\nfile.writelines([1, 2, 3])  # TypeError\n~~~\n\n## 文件指针\n读过内容后，文件指针会前进。第二次 read 只读剩下的内容。\n\n~~~python\nwith open('data.txt', 'r') as file:\n    first = file.readline()\n    rest = file.read()\n~~~\n\n## 常见错误\n- 用 'w' 打开后误以为还能保留原文件内容。\n- write/writelines 写入 int/list object，而不是字符串。\n- 忘记 '\n'，导致所有内容连成一行。\n- readline 循环中忘记读取下一行，造成 infinite loop。\n- readlines 适合小文件，不适合 100GB 文件。\n- 文件没 close；课程答案可用 with 避免。\n\n## 检查清单\n文件题先说明 mode 的效果。读题说返回类型。写题确认写入的是 str 且是否需要 newline。逐行处理题用 for line in file 或 readline while 模板。",
+      "sourceReferences": ["queue/CSC108/06_File_IO.docx"]
+    },
+    {
+      "id": "local-memory_csc108_queue_07_dictionary_public_20260615",
+      "courseId": "course-csc108-local",
+      "notebookId": "queue-csc108-07-dictionary",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "CSC108 Dictionary 公共记忆",
+      "text": "## 记忆角色\nNotebook 07 的操作记忆。回答 dictionary、键值对、计数、分组和 lookup 错误题时，重点检查 key 是否存在、iteration 是按 key/value/item 哪一种。\n\n## 基础操作\n~~~python\ncounts = {'a': 2, 'b': 1}\ncounts['a']        # 2\ncounts['c']        # KeyError\ncounts.get('c', 0) # 0\n'a' in counts      # True, checks keys\ncounts['c'] = 1\n~~~\n\n遍历：\n~~~python\nfor key in counts:\n    ...\n\nfor key, value in counts.items():\n    ...\n\nfor value in counts.values():\n    ...\n~~~\n\n## frequency/counting template\n~~~python\ncounts = {}\nfor item in items:\n    if item not in counts:\n        counts[item] = 0\n    counts[item] = counts[item] + 1\nreturn counts\n~~~\n\n也可用 get：\n~~~python\ncounts[item] = counts.get(item, 0) + 1\n~~~\n\n如果当前课程还没讲 get，优先用 if-not-in 模板。\n\n## grouping template\n把同一个 key 的多个 value 收到 list 里：\n~~~python\ngroups = {}\nfor name, score in records:\n    if name not in groups:\n        groups[name] = []\n    groups[name].append(score)\nreturn groups\n~~~\n\n## mutation 与 aliasing\ndictionary 是 mutable。把 dict 传进函数后，在函数里改 key/value 会影响外面的同一个 object。\n\n## 常见错误\n- 以为 'x in d' 检查 values；它检查 keys。\n- 直接 'd[key] += 1'，但 key 第一次出现会 KeyError。\n- 遍历 dict 时同时新增/删除 key，可能 RuntimeError。\n- 忘记 values 可以是 list/dict 等 mutable object。\n- 输出顺序题要按 Python 当前插入顺序，但课程选择题通常更看重映射关系。\n\n## 检查清单\n先判断 key 类型和 value 类型。lookup 前确认 key 是否存在。计数题写出初始化规则。分组题说明什么时候创建空 list，什么时候 append。",
+      "sourceReferences": ["queue/CSC108/07_Dictionary.docx"]
+    },
+    {
+      "id": "local-memory_csc108_queue_08_csv_public_20260615",
+      "courseId": "course-csc108-local",
+      "notebookId": "queue-csc108-08-csv",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "CSC108 TextIO/CSV 公共记忆",
+      "text": "## 记忆角色\nNotebook 08 的操作记忆。回答 TextIO、CSV、表格文件读写题时，重点区分普通文本行、CSV row list、类型转换和 header 处理。\n\n## TextIO\n函数如果消费打开的文件对象，type annotation 常写 TextIO。调用者负责 open/close，函数内部按文件对象读。\n\n~~~python\nfrom typing import TextIO\n\ndef count_lines(file: TextIO) -> int:\n    count = 0\n    for line in file:\n        count = count + 1\n    return count\n~~~\n\n## csv.reader\n~~~python\nimport csv\n\nwith open('grades.csv', 'r', encoding='utf-8', newline='') as file:\n    reader = csv.reader(file)\n    for row in reader:\n        name = row[0]\n        score = float(row[1])\n~~~\n\nrow 是 list[str]。即使文件中看起来是数字，reader 读出来仍然是字符串，需要 int/float 转换。\n\n## header\n如果第一行是表头，可以先跳过：\n~~~python\nheader = next(reader)\nfor row in reader:\n    ...\n~~~\n\n如果课程尚未讲 next，也可以用 flag 或先 readline。\n\n## csv.writer\n~~~python\nimport csv\n\nwith open('out.csv', 'w', encoding='utf-8', newline='') as file:\n    writer = csv.writer(file)\n    writer.writerow(['name', 'score'])\n    writer.writerow(['Ada', 92])\n~~~\n\n'writerow' 接受一行数据；CSV 模块会处理逗号和引号。\n\n## 手动 split 的边界\n简单 CSV 可用 line.strip().split(',')，但字段中有逗号或引号时会错。题目明确要求 csv module 时，不要手写 split 代替。\n\n## 常见错误\n- 忘记 import csv。\n- 忘记 row 元素都是 str。\n- 把 reader 当成 list，重复遍历时发现已经被消耗。\n- 写 CSV 时漏 newline=''，在某些系统出现空行。\n- 手动 split 不能处理 quoted comma。\n\n## 检查清单\n先问输入是 filename、TextIO，还是已经读出的 rows。CSV row 处理题写清每列含义和类型转换。写文件题确认使用 writerow/writerows，并解释 header 是否写入。",
+      "sourceReferences": ["queue/CSC108/08_csv.docx"]
+    },
+    {
+      "id": "local-memory_csc108_queue_09_regex_public_20260615",
+      "courseId": "course-csc108-local",
+      "notebookId": "queue-csc108-09-regex",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "CSC108 Regex/DFA 公共记忆",
+      "text": "## 记忆角色\nNotebook 09 的操作记忆。回答 DFA、regex 和 Python re 题时，重点说明匹配对象、pattern 含义、是否匹配整个字符串，以及 group 的含义。\n\n## DFA 题\nDFA 通常包含：\n- states\n- start state\n- accepting states\n- transition function\n\n追踪模板：从 start state 出发，逐字符读 input，每个字符根据 transition 进入下一个 state。读完后，如果当前 state 是 accepting state，则接受。\n\n## regex 基础符号\n- '.' 任意单个字符。\n- '*' 前一项重复 0 次或多次。\n- '+' 前一项重复 1 次或多次。\n- '?' 前一项重复 0 次或 1 次。\n- '[abc]' 匹配 a/b/c 之一。\n- '[^abc]' 匹配不是 a/b/c 的字符。\n- '\\d' digit，'\\w' word char，'\\s' whitespace。\n- '^' 字符串开头，'$' 字符串结尾。\n- '()' 捕获 group。\n\nPython 中建议用 raw string：\n~~~python\npattern = r'^[A-Z]d{3}$'\n~~~\n\n## re 常用函数\n~~~python\nimport re\n\nre.search(pattern, text)   # anywhere\nre.match(pattern, text)    # beginning\nre.fullmatch(pattern, text) # whole string\nre.findall(pattern, text)  # all matches\n~~~\n\nmatch object 为 truthy；没匹配返回 None。\n\n~~~python\nmatch = re.search(r'(d+)-(d+)', text)\nif match is not None:\n    first = match.group(1)\n~~~\n\n## 常见错误\n- 用 re.match 以为能在任意位置找；match 只从开头开始。\n- 忘记 fullmatch / anchors，导致只匹配一部分。\n- 没有 raw string，反斜杠变难读。\n- group 编号从 1 开始；group(0) 是整个匹配。\n- findall 有 capturing group 时，返回 groups 而不是整个 match。\n\n## 检查清单\n先把 pattern 翻译成人话。再判断目标是 anywhere、beginning 还是 whole string。DFA 题画 state trace。Python re 题说明返回 None、match object、list[str] 或 list[tuple]。",
+      "sourceReferences": ["queue/CSC108/09_Regex.docx"]
+    },
+    {
+      "id": "local-memory_csc108_queue_10_running_time_public_20260615",
+      "courseId": "course-csc108-local",
+      "notebookId": "queue-csc108-10-running-time",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "CSC108 Running Time 公共记忆",
+      "text": "## 记忆角色\nNotebook 10 的操作记忆。回答 running time、搜索、排序和 Big-O 题时，重点找主导操作和输入规模 n，不要只凭代码长度猜复杂度。\n\n## Big-O 规则\n- 常数操作：O(1)。\n- 单层循环遍历 n 个元素：O(n)。\n- 嵌套循环各跑 n 次：O(n^2)。\n- 每轮把搜索范围减半：O(log n)。\n- sort 通常按课程算法或 Python sort 说明；如果题目是内建 sort，通常记作 O(n log n)。\n- 丢掉常数和低阶项：O(3n + 10) 是 O(n)，O(n^2 + n) 是 O(n^2)。\n\n## linear search\n~~~python\nfor item in items:\n    if item == target:\n        return True\nreturn False\n~~~\n\nWorst-case O(n)，因为 target 可能在最后或不存在。\n\n## binary search\n前提：list 已经 sorted。每轮比较 middle，丢掉一半。\n\n~~~python\nlow = 0\nhigh = len(items) - 1\nwhile low <= high:\n    mid = (low + high) // 2\n    if items[mid] == target:\n        return True\n    elif items[mid] < target:\n        low = mid + 1\n    else:\n        high = mid - 1\nreturn False\n~~~\n\nWorst-case O(log n)。如果题目还包括先排序，再 binary search，总体要加上排序成本。\n\n## 常见排序题\n按课程讲过的算法解释，不要只写结论：\n- selection sort：反复找最小值，常见 O(n^2)。\n- insertion sort：把元素插入已排序部分，worst-case O(n^2)。\n- merge sort：分半并合并，O(n log n)。\n\n## list operation 成本\n常用近似：\n- index access: O(1)\n- append at end: amortized O(1)\n- 'in' on list: O(n)\n- slicing/copy: O(k)\n- insert/remove near front: O(n)\n\n## 常见错误\n- 忽略内层循环。\n- 把 binary search 用在 unsorted list。\n- 只看 best-case，不看题目要求 worst-case。\n- 忘记 slicing 本身要复制元素。\n- 把 O(log n) 写成 O(n) 因为有 while，却没有看范围每轮减半。\n\n## 检查清单\n复杂度题先定义 n。标出循环次数和每轮成本。若调用 helper 或内建函数，要把 helper/内建成本算进去。搜索题明确 sorted 前提。",
+      "sourceReferences": ["queue/CSC108/10_Running_time.docx"]
+    },
+    {
+      "id": "local-memory_csc108_queue_11_class_public_20260615",
+      "courseId": "course-csc108-local",
+      "notebookId": "queue-csc108-11-class",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "CSC108 Class/OOP 公共记忆",
+      "text": "## 记忆角色\nNotebook 11 的操作记忆。回答 class、object、attribute、method、self、encapsulation 和对象 aliasing 题时，重点区分 class definition、instance state 和 method call 的绑定过程。\n\n## class 基础模板\n~~~python\nclass BankAccount:\n    \"\"\"A bank account with an owner and balance.\"\"\"\n\n    owner: str\n    balance: float\n\n    def __init__(self, owner: str, balance: float) -> None:\n        self.owner = owner\n        self.balance = balance\n\n    def deposit(self, amount: float) -> None:\n        self.balance = self.balance + amount\n\n    def is_overdrawn(self) -> bool:\n        return self.balance < 0\n~~~\n\n__init__ 初始化 attribute；实例方法第一个参数是 self，代表当前 object。\n\n## method call\n~~~python\nacct = BankAccount('Ada', 10.0)\nacct.deposit(5.0)\n~~~\n\n'acct.deposit(5.0)' 等价于把 acct 作为 self 传入 deposit。执行后 acct.balance 变成 15.0。\n\n## __str__ / __eq__\n如果题目要求可读输出：\n~~~python\ndef __str__(self) -> str:\n    return f'{self.owner}: {self.balance}'\n~~~\n\n如果题目要求对象内容相等：\n~~~python\ndef __eq__(self, other: object) -> bool:\n    return isinstance(other, BankAccount) and self.owner == other.owner and self.balance == other.balance\n~~~\n\n早期课程如果没有讲 isinstance，就按讲义提供的模式写。\n\n## object aliasing\n~~~python\na = BankAccount('Ada', 10)\nb = a\nb.deposit(5)\nprint(a.balance)  # 15\n~~~\n\na 和 b 指向同一个 object。\n\n## encapsulation\n不要在 class 外随意依赖内部表示，除非题目允许。优先通过 method 表达行为，例如 deposit、withdraw、total、is_valid。\n\n## 常见错误\n- 忘记 method 的 self 参数。\n- 在 __init__ 里写局部变量 owner，而不是 self.owner。\n- __init__ 返回非 None。\n- 把 class attribute 和 instance attribute 混淆。\n- 对象 aliasing 题忘记 mutation 会被所有 alias 看见。\n- print object 时没有 __str__，得到默认 object representation。\n\n## 检查清单\nclass 设计题先列 attributes 和每个 method 的 contract。追踪题画 object state。method 题说明 self 绑定到哪个 object。mutation 题说明哪些 alias 指向同一个 object。",
+      "sourceReferences": ["queue/CSC108/11_Class.docx"]
+    },
+    {
+      "id": "memory-mat102-course-answer-contract-local",
+      "courseId": "course-mat102-local",
+      "notebookId": null,
+      "targetType": "course",
+      "kind": "answer_contract",
+      "title": "MAT102 本地课程回答合约",
+      "text": "## 记忆角色\nMAT102 的课程级公共记忆。它不是某个知识点摘要，而是 proof-first 课程的总答题协议：先识别命题结构和证明目标，再选择证明模板，最后写出可检查的数学文字。\n\n## 总答题协议\n1. 先翻译命题类型：集合包含、集合相等、存在/任意、蕴含、双向证明、反证、归纳、函数性质、数论命题、关系/群结构。\n2. 再选择 1-2 个证明模板：direct proof、contrapositive、contradiction、case split、element-chasing、induction、Bezout/modular arithmetic、homomorphism/kernel。\n3. 写 proof 时先声明任意对象或存在对象：Let x be arbitrary、Assume ...、Choose ...。不要直接跳到结论。\n4. 每一步都要说明用了哪个定义：subset、image/preimage、injective/surjective、divides、congruent、equivalence relation、subgroup、kernel 等。\n5. 最后用目标句收口：therefore ...，或 hence the desired statement follows。\n\n## 常用证明模板\n集合包含：\n~~~text\nTo prove A subset B, let x in A. Use definitions to show x in B.\n~~~\n\n集合相等：\n~~~text\nProve A subset B and B subset A separately.\n~~~\n\n存在命题：\n~~~text\nGive a witness, then verify it satisfies the condition.\n~~~\n\n任意命题：\n~~~text\nLet the object be arbitrary, then prove the required property without assuming extra facts.\n~~~\n\n反证：\n~~~text\nAssume the negation of the target. Derive a contradiction with a definition, theorem, or earlier assumption.\n~~~\n\n归纳：\n~~~text\nBase case. Induction hypothesis. Inductive step. Conclude by induction.\n~~~\n\n## 禁止/高风险习惯\n- 用例子代替证明。\n- 把结论写进假设。\n- 对存在命题没有给 witness。\n- 对任意命题只证明了一个特殊例子。\n- 证明函数单射/满射时不从定义出发。\n- 数论题只算几个数，不写整除或同余定义。\n- 关系/群论题漏掉封闭性、单位元、逆元、运算保留等结构条件。",
+      "sourceReferences": [
+        "queue/MAT102/02SetsAndPropositions (1).pdf",
+        "queue/MAT102/03LogicCont.pdf",
+        "queue/MAT102/04Relations.pdf",
+        "queue/MAT102/05FunctionsI.pdf",
+        "queue/MAT102/06FunctionsII.pdf",
+        "queue/MAT102/07NumberTheoryI.pdf",
+        "queue/MAT102/08NumberTheoryII.pdf",
+        "queue/MAT102/09NumberTheoryIII.pdf",
+        "queue/MAT102/10InductionI-1.pdf",
+        "queue/MAT102/11GroupTheory-2.pdf",
+        "queue/MAT102/12GroupTheoryII.pdf"
+      ]
+    },
+    {
+      "id": "local-memory_mat102_sets_propositions_public_20260602",
+      "courseId": "course-mat102-local",
+      "notebookId": "mat102-sets-propositions-proof-v2",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT102 集合与命题证明入口",
+      "text": "## 记忆角色\nNotebook 01 的详细操作记忆。回答集合、命题、真值表、子集和集合相等题时，用它把题目转成 element-chasing 或逻辑表格，而不是用直觉判断。\n\n## 核心模板\n证明 A subset B：\n~~~text\nLet x in A. Unpack the definition of A. Use those facts to prove x in B. Therefore A subset B.\n~~~\n\n证明 A = B：\n~~~text\nProve A subset B and B subset A.\n~~~\n\n证明 x in set-builder：\n~~~text\nCheck the universe, then verify the predicate after the vertical bar.\n~~~\n\n## 常见题型\n- set-builder notation：先读 universe，再读条件。\n- union/intersection/difference/complement：把符号翻译成 or/and/not。\n- De Morgan laws：用 element-chasing 或真值表证明。\n- power set：元素是 subsets，不是原集合的普通元素。\n- proposition：用 truth table 或等价变形检查 tautology/contradiction。\n\n## 常见错误\n- 把 subset 符号当成 element 符号。\n- 证明集合相等只证明一个方向。\n- 只画 Venn diagram，没有写 proof。\n- power set 题把 {a} 和 a 混淆。\n- 逻辑连接词中 P implies Q 只有 P true、Q false 时为 false。\n\n## 检查清单\n每一步是否从定义出发？变量 x 是否任意？集合相等是否两个方向都有？真值表是否覆盖所有 truth assignments？结尾是否明确回到原命题？",
+      "sourceReferences": ["queue/MAT102/02SetsAndPropositions (1).pdf"]
+    },
+    {
+      "id": "local-memory_mat102_logic_quantifiers_public_20260602",
+      "courseId": "course-mat102-local",
+      "notebookId": "mat102-logic-quantifiers-proof-v2",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT102 量词、蕴含与否定",
+      "text": "## 记忆角色\nNotebook 02 的详细操作记忆。回答量词、否定、蕴含、逆否和充要条件题时，先处理逻辑骨架，再代入具体数学内容。\n\n## 量词模板\n任意命题：\n~~~text\nLet x be arbitrary. Prove P(x).\n~~~\n\n存在命题：\n~~~text\nChoose a concrete witness x = .... Verify P(x).\n~~~\n\n否定规则：\n~~~text\nnot forall x, P(x)  becomes  exists x such that not P(x)\nnot exists x, P(x)  becomes  forall x, not P(x)\nnot (P and Q)       becomes  not P or not Q\nnot (P or Q)        becomes  not P and not Q\n~~~\n\n## 蕴含证明\nDirect proof：\n~~~text\nAssume P. Show Q.\n~~~\n\nContrapositive：\n~~~text\nAssume not Q. Show not P.\n~~~\n\nIf and only if：\n~~~text\nProve P implies Q and Q implies P separately.\n~~~\n\n## 常见错误\n- 否定量词时只加 not，没有交换 forall/exists。\n- 把 converse 当成 contrapositive。\n- 证明 iff 只写一个方向。\n- 存在命题没有 witness。\n- 任意命题选择了一个特殊例子。\n\n## 检查清单\n先写出原命题的逻辑形式。若要求否定，量词和连接词是否全部正确翻转？若要求证明蕴含，开头是否明确 assume antecedent？若是 iff，两个方向是否都有标题？",
+      "sourceReferences": ["queue/MAT102/03LogicCont.pdf"]
+    },
+    {
+      "id": "local-memory_mat102_relations_equivalence_orders_public_20260602",
+      "courseId": "course-mat102-local",
+      "notebookId": "mat102-relations-equivalence-orders-proof-v2",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT102 反证、关系与序结构",
+      "text": "## 记忆角色\nNotebook 03 的详细操作记忆。回答反证法、二元关系、等价关系、偏序、极大/最大和上下界题时，先列定义，再逐条验证。\n\n## 反证模板\n~~~text\nAssume the statement is false. Keep all original assumptions. Derive an impossible conclusion, such as a contradiction with definition, parity, order, or earlier theorem. Therefore the original statement is true.\n~~~\n\n## 关系性质模板\n给定 relation R on A：\n- reflexive：for all a in A, aRa。\n- symmetric：if aRb then bRa。\n- antisymmetric：if aRb and bRa then a=b。\n- transitive：if aRb and bRc then aRc。\n\n等价关系要证明 reflexive、symmetric、transitive。偏序要证明 reflexive、antisymmetric、transitive。\n\n## 等价类与划分\n等价类 [a] 是所有与 a related 的元素。证明两个等价类相等，常用方法是取任意 x in [a]，推出 x in [b]，再反向证明。\n\n## 序结构\n- maximum 是集合里的一个元素，且大于等于所有元素。\n- maximal 是没有别的元素严格大于它。\n- upper bound 不一定在集合内。\n- supremum 是最小的 upper bound。\n\n## 常见错误\n- symmetric 和 antisymmetric 混淆。\n- 等价关系漏掉其中一个性质。\n- 用例子说明 transitive，而不是任取 a,b,c 证明。\n- maximum 和 maximal 混用。\n- upper bound 与 maximum 混用。\n\n## 检查清单\n关系题先写 universe A。每个性质是否用任意元素证明？若要否定某性质，是否给出明确反例？序结构题是否区分“在集合内”和“界可以在集合外”？",
+      "sourceReferences": ["queue/MAT102/04Relations.pdf"]
+    },
+    {
+      "id": "local-memory_mat102_functions_i_public_20260602",
+      "courseId": "course-mat102-local",
+      "notebookId": "mat102-functions-i-proof-v2",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT102 函数、像集与单双射",
+      "text": "## 记忆角色\nNotebook 04 的详细操作记忆。回答函数定义、像、原像、单射、满射、双射和复合函数题时，必须按定义写 proof，不要只画箭头图。\n\n## 函数与像/原像\n函数 f: A -> B 要有 domain A、codomain B，并且每个 a in A 有唯一输出 f(a) in B。\n\nImage：\n~~~text\ny in f(S) means there exists x in S such that f(x)=y.\n~~~\n\nPreimage：\n~~~text\nx in f^{-1}(T) means f(x) in T.\n~~~\n\n## 单射/满射模板\nInjective：\n~~~text\nAssume f(a1)=f(a2). Use algebra/definitions to prove a1=a2.\n~~~\n\nSurjective：\n~~~text\nLet y in codomain be arbitrary. Find x in domain such that f(x)=y.\n~~~\n\nBijective：prove both injective and surjective。\n\n## 复合函数\n证明 g o f 的性质时先检查 codomain/domain 是否匹配。单射复合通常从 g(f(a1))=g(f(a2)) 开始，先用 g injective，再用 f injective。\n\n## 常见错误\n- 满射时把 y 取在 image，而不是 codomain。\n- 单射时假设 a1=a2，而不是从 f(a1)=f(a2) 出发。\n- 把 inverse image 当成 inverse function。\n- 忽略 codomain，导致 surjective 判断错误。\n\n## 检查清单\n先写 domain/codomain。像集题是否有 exists x？原像题是否只需检查 f(x) in T？单射/满射是否严格按定义开头？",
+      "sourceReferences": ["queue/MAT102/05FunctionsI.pdf"]
+    },
+    {
+      "id": "local-memory_mat102_functions_ii_cardinality_public_20260602",
+      "courseId": "course-mat102-local",
+      "notebookId": "mat102-functions-ii-cardinality-proof-v2",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT102 逆函数、基数与可数性",
+      "text": "## 记忆角色\nNotebook 05 的详细操作记忆。回答逆函数、双射、集合大小、可数性、对角线法和幂集定理时，先把“大小相同”翻译成是否存在 bijection。\n\n## 逆函数模板\n函数有 inverse function 通常需要 bijective。证明 g 是 f 的 inverse：\n~~~text\nShow g(f(x))=x for all x in domain, and f(g(y))=y for all y in codomain.\n~~~\n\n## 基数模板\n|A| = |B|：\n~~~text\nConstruct a bijection f: A -> B, then prove injective and surjective.\n~~~\n\n|A| <= |B|：\n~~~text\nConstruct an injection A -> B.\n~~~\n\n可数：\n~~~text\nShow a listing, or a bijection/injection with N depending on the theorem allowed.\n~~~\n\n## 对角线法\n对角线法证明“不可能列完”。假设有一个 list 覆盖所有对象，然后构造一个新对象在第 n 位故意不同于第 n 个列表元素，推出新对象不在列表中。\n\n## 幂集定理\n证明没有 surjection f: A -> P(A)。构造 D={a in A | a notin f(a)}，然后问 D=f(d) 是否导致 d in D iff d notin D 的矛盾。\n\n## 常见错误\n- 用“看起来无限”代替 bijection/injection。\n- 对角线法没有说明新对象为什么和每一项都不同。\n- 把 subset 与 element of power set 混淆。\n- 证明 inverse 时只验证一个方向。\n\n## 检查清单\n大小题是否明确构造函数？函数是否真的从 A 到 B？是否证明 injective/surjective？不可数证明是否有 contradiction structure？",
+      "sourceReferences": ["queue/MAT102/06FunctionsII.pdf"]
+    },
+    {
+      "id": "local-memory_mat102_number_theory_i_public_20260602",
+      "courseId": "course-mat102-local",
+      "notebookId": "mat102-number-theory-i-euclidean-proof-v2",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT102 整除、gcd 与欧几里得算法",
+      "text": "## 记忆角色\nNotebook 06 的详细操作记忆。回答整除、良序原理、带余除法、gcd、Euclidean algorithm 和 Bezout 题时，必须把整数条件和定义写出来。\n\n## 整除模板\na divides b：\n~~~text\nThere exists k in Z such that b = ak.\n~~~\n\n证明整除题时，目标永远是构造这个整数 k。\n\n## 带余除法\n对整数 a 和正整数 b，存在唯一 q,r 使得 a=bq+r 且 0<=r<b。题目中 remainder 的范围不能漏。\n\n## gcd 与 Bezout\ngcd(a,b) 是正的 common divisor 中最大的那个。Euclidean algorithm 用连续余数求 gcd：\n~~~text\na = bq + r, so gcd(a,b)=gcd(b,r).\n~~~\n\nBezout identity：\n~~~text\ngcd(a,b)=ax+by for some integers x,y.\n~~~\n\n用 extended Euclidean algorithm 从最后一个非零余数往回代。\n\n## 常见错误\n- 写 a divides b 时把等式方向写反。\n- 忘记 k 必须是 integer。\n- gcd 必须为正。\n- Euclidean algorithm 停在余数为 0 时，gcd 是上一个非零余数。\n- Bezout 回代符号出错。\n\n## 检查清单\n整除命题是否出现 exists integer？带余除法是否写 0<=r<b？gcd 计算是否保留每一步？Bezout 是否回代到原始 a,b 的线性组合？",
+      "sourceReferences": ["queue/MAT102/07NumberTheoryI.pdf"]
+    },
+    {
+      "id": "local-memory_mat102_number_theory_ii_public_20260602",
+      "courseId": "course-mat102-local",
+      "notebookId": "mat102-number-theory-ii-primes-proof-v2",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT102 丢番图方程、素数与唯一分解",
+      "text": "## 记忆角色\nNotebook 07 的详细操作记忆。回答线性丢番图方程、素数、互素、Euclid lemma、唯一分解和无穷素数题时，先判断是构造解还是证明不可解。\n\n## 线性丢番图方程\nax + by = c 有整数解当且仅当 gcd(a,b) divides c。求解模板：\n1. 用 Euclidean algorithm 找 d=gcd(a,b)。\n2. 若 d 不整除 c，则无整数解。\n3. 若 d 整除 c，把 Bezout identity 乘以 c/d 得一个 particular solution。\n4. 写 general solution。\n\n## 素数与互素\np prime：若 p divides ab，则 p divides a 或 p divides b。常和 Euclid lemma 搭配。\n\n证明 irrational 或不可分解题时，常用 prime factorization 中某个 prime 的指数奇偶矛盾。\n\n## 无穷素数模板\n~~~text\nAssume finitely many primes p1,...,pn. Consider N=p1...pn+1. No pi divides N, so N has a prime divisor not in the list. Contradiction.\n~~~\n\n## 常见错误\n- 只找到一个解，忘记 general solution。\n- 忘记 gcd(a,b) divides c 的可解条件。\n- 把 prime 和 composite 的定义混淆。\n- 唯一分解题没有说明指数/素因子唯一。\n\n## 检查清单\n方程题先算 gcd。素数题是否用了 prime divides product 的性质？反证题的矛盾是否落在整除、互素或唯一分解上？",
+      "sourceReferences": ["queue/MAT102/08NumberTheoryII.pdf"]
+    },
+    {
+      "id": "local-memory_mat102_number_theory_iii_public_20260602",
+      "courseId": "course-mat102-local",
+      "notebookId": "mat102-number-theory-iii-modular-proof-v2",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT102 同余、模运算与费马小定理",
+      "text": "## 记忆角色\nNotebook 08 的详细操作记忆。回答同余、模运算、消去律、乘法逆元、线性同余和 Fermat little theorem 题时，先写 modulus 和 gcd 条件。\n\n## 同余定义\na congruent b mod n：\n~~~text\nn divides a-b.\n~~~\n\n证明同余题时，可以转成整除，也可以使用同余的加法、乘法、幂运算规则。\n\n## 消去与逆元\n乘法消去不是永远合法。若 ac congruent bc mod n，要消去 c，通常需要 gcd(c,n)=1。\n\nc mod n 有乘法逆元当且仅当 gcd(c,n)=1。用 extended Euclidean algorithm 找 x 使 cx congruent 1 mod n。\n\n## 线性同余\nax congruent b mod n。先令 d=gcd(a,n)：\n- 若 d 不整除 b，则无解。\n- 若 d 整除 b，则可约化并找逆元。\n\n## Fermat Little Theorem\n若 p prime 且 gcd(a,p)=1，则 a^{p-1} congruent 1 mod p。也可得到 a^p congruent a mod p。\n\n## 常见错误\n- 模数 n 没有固定。\n- 直接除以一个数，没有检查互素。\n- 把 mod 运算当成普通等号运算。\n- Fermat 小定理忘记 p 必须 prime，且 a 与 p 互素。\n\n## 检查清单\n每一步是否在同一个 modulus 下？消去/求逆是否有 gcd=1？线性同余是否先检查 gcd(a,n)|b？Fermat 条件是否满足？",
+      "sourceReferences": ["queue/MAT102/09NumberTheoryIII.pdf"]
+    },
+    {
+      "id": "local-memory_mat102_induction_i_public_20260601",
+      "courseId": "course-mat102-local",
+      "notebookId": "nb-mat102-zh-induction-i-skill-v2-20260601",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT102 归纳法、强归纳与结构归纳",
+      "text": "## 记忆角色\nNotebook 09 的详细操作记忆。回答归纳法题时，最重要的是写清楚 proposition P(n)、base case、induction hypothesis 和 inductive step。\n\n## 普通归纳模板\n~~~text\nLet P(n) be ...\nBase case: prove P(n0).\nInduction hypothesis: assume P(k) for an arbitrary k >= n0.\nInductive step: prove P(k+1).\nTherefore P(n) holds for all n >= n0.\n~~~\n\n## 强归纳模板\n~~~text\nAssume P(n0), P(n0+1), ..., P(k). Prove P(k+1).\n~~~\n\n适合当前项可能依赖多个前面项的问题，例如递归定义、分解、数论存在性。\n\n## 结构归纳\n先读数据如何生成：base constructors 和 recursive constructors。证明时分别证明 base object，并假设 recursive parts 满足性质，再证明构造出的新对象满足性质。\n\n## 常见错误\n- IH 写成 assume P(k+1)，把要证明的结论放进假设。\n- base case 起点错。\n- inductive step 没有使用 IH。\n- 强归纳只假设 P(k)，但题目需要多个前项。\n- 只验证前几项，以为就是证明。\n\n## 检查清单\nP(n) 是否明确？base case 是否覆盖所有起点？IH 是否只假设已知范围？step 是否真的推出 k+1？结尾是否声明 by induction？",
+      "sourceReferences": ["queue/MAT102/10InductionI-1.pdf"]
+    },
+    {
+      "id": "local-memory_queue_mat102_11grouptheory_2_public_cover_20260602",
+      "courseId": "course-mat102-local",
+      "notebookId": "queue-mat102-11grouptheory-2",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT102 群论 I 公共记忆",
+      "text": "## 记忆角色\nNotebook 10 的详细操作记忆。回答群、子群、循环群和元素阶题时，先确定集合与运算，再逐条检查公理。\n\n## 群定义\n群是 set G 配 operation *，满足：\n1. closure：a*b in G。\n2. associativity：(a*b)*c=a*(b*c)。\n3. identity：存在 e 使 ea=ae=a。\n4. inverse：每个 a 有 a^{-1} 使 aa^{-1}=a^{-1}a=e。\n\nAbelian group 额外要求 commutative。\n\n## 子群模板\n证明 H <= G：\n~~~text\nShow H is nonempty. For all a,b in H, show ab^{-1} in H.\n~~~\n\n或者按课程要求分别验证 closure、identity、inverse。注意 H 的运算继承自 G。\n\n## 循环群与阶\n<g>={g^n | n in Z}。元素阶是最小正整数 k 使 g^k=e；如果不存在则 infinite order。\n\n## 常见错误\n- 忘记指定 operation。\n- 把 closure 当成自动成立。\n- 只验证左单位元或左逆元。\n- 子群题没有说明 H 是 G 的 subset。\n- 循环群题只列正幂，忘记负幂/逆元。\n\n## 检查清单\n对象是集合还是元素？运算是什么？公理是否逐条覆盖？子群是否先确认 subset/nonempty？循环群 generator 是否真的生成目标集合？",
+      "sourceReferences": ["queue/MAT102/11GroupTheory-2.pdf"]
+    },
+    {
+      "id": "local-memory_queue_mat102_12grouptheoryii_public_cover_20260602",
+      "courseId": "course-mat102-local",
+      "notebookId": "queue-mat102-12grouptheoryii",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT102 群论 II 公共记忆",
+      "text": "## 记忆角色\nNotebook 11 的详细操作记忆。回答群同态、核、像、同构和商结构入门题时，核心是“保运算”而不是只看函数是否双射。\n\n## 同态模板\nphi: G -> H 是 homomorphism：\n~~~text\nFor all a,b in G, prove phi(ab)=phi(a)phi(b).\n~~~\n\n左右两边的 operation 可能不同，要按各自群的运算解释。\n\n## kernel 和 image\nKernel：\n~~~text\nker(phi) = {g in G | phi(g)=e_H}\n~~~\n\nImage：\n~~~text\nim(phi) = {phi(g) | g in G}\n~~~\n\n常见结论：ker(phi) 是 G 的 subgroup，im(phi) 是 H 的 subgroup。证明时用 subgroup test。\n\n## 同构\nIsomorphism 是 bijective homomorphism。证明两个群同构需要构造 phi，证明 homomorphism，再证明 injective/surjective。\n\n## 常见错误\n- 只证明函数是 bijection，忘记 homomorphism。\n- kernel 用错 identity：必须是 codomain 的 identity。\n- phi(ab) 中 ab 用 domain operation，phi(a)phi(b) 用 codomain operation。\n- 把 image 和 codomain 混淆。\n\n## 检查清单\n同态等式是否对任意 a,b 证明？两个群的运算是否区分？kernel 是否映到 e_H？同构是否包含 homomorphism + bijection 两部分？",
+      "sourceReferences": ["queue/MAT102/12GroupTheoryII.pdf"]
+    },
+    {
+      "id": "memory-mat136-course-answer-contract-local",
+      "courseId": "course-mat136-local",
+      "notebookId": null,
+      "targetType": "course",
+      "kind": "answer_contract",
+      "title": "MAT136 本地课程回答合约",
+      "text": "## 记忆角色\nMAT136 的课程级公共记忆。它控制 Calculus II 的解题口径：先分类题型，再选计算/判别/建模模板，而不是把每题都写成泛泛的公式解释。\n\n## 总答题协议\n1. 先判题型：积分计算、定积分/FTC、几何建模、微分方程、数列极限、反常积分、级数判别、幂级数区间、Taylor 展开。\n2. 再选模板：u-sub、trig-sub、integration by parts、slice/washer、separable ODE、monotone bounded sequence、comparison/integral/ratio test、Taylor template。\n3. 写答案时必须保留条件：区间、端点、危险点、函数正负、单调性、收敛测试前提、power series center 和 endpoint 检查。\n4. 计算题先写结构，再化简；判别题先说明使用哪个 test 及其条件；建模题先定义变量、画/描述区域，再写 integral。\n5. 如果题目是概念解释，要回答“为什么这个工具适用”，而不是只给最后数值。\n\n## 常用模板选择\n- 根号形状 a^2-x^2、a^2+x^2、x^2-a^2：优先考虑三角代换。\n- 乘积且一部分求导会变简单：考虑 integration by parts。\n- 曲线间面积/体积：先找交点和切片方向，再写 top-bottom、right-left 或 A(x)/A(y)。\n- 反常积分：先找危险点并拆区间，再决定 p-integral、comparison 或 limit comparison。\n- 级数：先 divergence test；若 fail，再选 geometric、p-series、telescoping、integral/comparison/ratio。\n- 幂级数：先读 center，再用 ratio test 找 radius，最后单独检查 endpoints。\n\n## 检查清单\n- 上下限、变量和 differential 是否一致？\n- 反常积分是否拆了所有危险点？\n- 判别法的条件是否满足？\n- 级数题是否区分 sequence a_n 和 series sum a_n？\n- 幂级数是否检查端点？\n- Taylor 题是直接列导数，还是从已知级数替换/求导/积分得到？",
+      "sourceReferences": [
+        "queue/MAT136/01_Definite_Integral.pdf",
+        "queue/MAT136/02_换元法.pdf",
+        "queue/MAT136/03_逆换元法.pdf",
+        "queue/MAT136/04_Area_Volume_学生版.pdf",
+        "queue/MAT136/05分步积分.pdf",
+        "queue/MAT136/06_Partical_fictions.pdf",
+        "queue/MAT136/07_Sequence.pdf",
+        "queue/MAT136/08_ Improper integrals .pdf",
+        "queue/MAT136/09_Series.pdf",
+        "queue/MAT136/10_幂级数.pdf",
+        "queue/MAT136/11_Taylor_series.pdf"
+      ]
+    },
+    {
+      "id": "local-memory_mat136_queue_definite_integral_public_20260602",
+      "courseId": "course-mat136-local",
+      "notebookId": "queue-mat136-01-definite-integral",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT136 定积分公共记忆",
+      "text": "## 适用范围\nMAT136 notebook 01《定积分：从矩形到基本定理》。\n\n## 记忆边界\n不记录定积分、Riemann sum、FTC 的通用定义。共有记忆只保留本讲从面积近似到定积分识别、再到 FTC 变限求导的知识路径和答题格式。\n\n## 知识路径\n1. 先用速度变化时如何求路程/面积建立矩形近似直觉：采样越细，矩形面积和越接近真实面积。\n2. 再区分 left-hand sum 和 right-hand sum，并用函数递增/递减判断 overestimate 与 underestimate。\n3. 接着把 Riemann sum 的极限解释成定积分，重点是从求和式读出区间、Δx、采样点和 integrand。\n4. FTC II 用于把定积分转成 F(b)-F(a)；FTC I 用于把上限为 x 的面积函数求导回 integrand。\n5. 变上限/变下限积分求导时，最后进入链式法则形式：上限贡献减下限贡献。\n\n## 格式规则\n- Riemann sum 题先读 Δx，再读采样点是 a+iΔx 还是 a+(i-1)Δx，由此判断 left/right endpoint。\n- 从极限求和式反推定积分时，要显式写出 a、b、Δx、f(x)，并注意括号结构，如 7-x^2 和 (7-x)^2 不能混。\n- 四项 LHS/RHS 近似题要先写 Δx 和四个采样点，再代入函数值相乘，最后化简或估算数值。\n- FTC I 变限求导要先代入 integrand，再乘对应上限或下限的导数；下限项要带负号。\n- 若上下限都依赖 x，先拆成固定下限到上限的两个面积函数，再分别求导。\n\n## 例题/题型规则\n- 本讲反复训练 Riemann sum 与 definite integral 的双向转换：一种题从积分写求和式，另一种题从极限求和式读 b 和 f(x)。\n- LHS/RHS 估计题用 sqrt(x) 这类递增函数训练 under/over estimate 判断。\n- FTC I 题从 F(x)=∫f(t)dt 过渡到 F'(x)=f(x)，再训练 F''(x)=f'(x) 以及上下限含 x 的链式求导。\n\n## 检查点\n区间被分成几段？每段宽度 Δx 是多少？采样点是左端点还是右端点？integrand 里变量和积分变量是否一致？变限积分求导时是否乘了上/下限导数？下限项是否带负号？",
+      "sourceReferences": ["queue/MAT136/01_Definite_Integral.pdf"]
+    },
+    {
+      "id": "local-memory_mat136_queue_substitution_public_20260602",
+      "courseId": "course-mat136-local",
+      "notebookId": "queue-mat136-02-substitution",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT136 换元法公共记忆",
+      "text": "## 适用范围\nMAT136 notebook 02《换元法：从反向链式法则到定积分换元》。\n\n## 记忆边界\n不记录 u-substitution 的通用定义。共有记忆只保留本讲把整道题换到 u 的变量系统的格式规则、常数/负号处理和定积分换限规则。\n\n## 知识路径\n1. 不定积分换元从识别 inner function 开始：选 u 后写 du，把 dx 和缺少的常数一起处理。\n2. 换元完成后 integrand、differential、变量都必须属于同一个 u 系统，不能残留原变量。\n3. 不定积分求完后要回代 x；定积分则把上下限代入 u=g(x)，之后全程在 u 的区间里计算。\n4. 已知 ∫f(x)dx 的缩放题不需要找 f 的公式，核心是变量替换带来的区间缩放和 dx 因子。\n\n## 格式规则\n- 选 u 时说明它对应 integrand 的哪一层结构；du 中差出的常数或负号要在积分外补齐。\n- 定积分换元要把 x 上下限同步换成 u 上下限；换限后答案不再回代 x。\n- 若换元后仍出现 x、dx 或原上下限，说明变量系统没有统一。\n- 对 f(2x)、f(ax+b) 这类题，先令 u=ax+b，再用 dx=du/a 改写积分和区间。\n\n## 例题/题型规则\n- z sqrt(z^2-5)、sin t/cos^3 t、x/sqrt(x-1) 训练差常数、差负号和代数整理。\n- 已知 ∫_0^6 f(x)dx=8 求 ∫_0^3 f(2x)dx 这类题训练函数未知但积分区间可换元。\n- 定积分换元题优先检查变量、微分、上下限是否一致。\n\n## 检查点\nu 选的是哪一层结构？du 和原 integrand 差几个常数或负号？换元后是否还有原变量？定积分上下限是否已经换到 u 的世界？",
+      "sourceReferences": ["queue/MAT136/02_换元法.pdf"]
+    },
+    {
+      "id": "local-memory_mat136_queue_inverse_substitution_public_20260602",
+      "courseId": "course-mat136-local",
+      "notebookId": "queue-mat136-03-inverse-substitution",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT136 逆换元法公共记忆",
+      "text": "## 适用范围\nMAT136 notebook 03《逆换元法：从根号形状到三角代换》。\n\n## 记忆边界\n不记录三角恒等式清单。共有记忆只保留本讲从根号形状识别三角代换、处理 dx、化简根号和回代的格式。\n\n## 知识路径\n1. 普通换元无法简化根号时，先把根号内整理成 a^2-x^2、a^2+x^2 或 x^2-a^2。\n2. 按形状选择代换：a^2-x^2 对应 x=a sin u，a^2+x^2 对应 x=a tan u，x^2-a^2 对应 x=a sec u。\n3. 写出 dx 后，用对应恒等式把根号化成三角函数，再进入三角积分。\n4. 定积分可把上下限换成 u；不定积分需要用三角形或反三角函数回到 x。\n\n## 格式规则\n- 遇到 x^2 一次项时先 completing square，再判断根号形状。\n- 根号化简时 sqrt(cos^2 u) 这类表达式的正负由代换区间保证，不能随意丢绝对值。\n- 若三角积分出现课程暂未展开的复杂形式，可以先保留在三角函数积分阶段，再根据题目要求继续化简。\n- 不定积分回代时要把 sin u、tan u、sec u 等全部改回 x 的表达式。\n\n## 例题/题型规则\n- sqrt(5+4x-x^2) 训练先配方再选代换。\n- x^2/sqrt(4-x^2) 训练 x=2 sin u 后把剩余 x^2 也换成三角函数。\n- x^2+16 型题训练 sec/tan 关系和回代三角形。\n\n## 检查点\n根号内是否已配方？属于三种形状中的哪一种？dx 是否已替换？根号正负是否由区间控制？不定积分是否完成回代？",
+      "sourceReferences": ["queue/MAT136/03_逆换元法.pdf"]
+    },
+    {
+      "id": "local-memory_mat136_queue_area_volume_public_20260602",
+      "courseId": "course-mat136-local",
+      "notebookId": "queue-mat136-04-area-volume",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT136 面积与体积公共记忆",
+      "text": "## 适用范围\nMAT136 notebook 04《面积与体积：从曲线间面积到切片法》。\n\n## 记忆边界\n不记录面积/体积公式本身。共有记忆只保留本讲的几何建模顺序：画区域、找交点、选切片方向、写长度或截面积再积分。\n\n## 知识路径\n1. 曲线间面积先画区域并找交点，再判断 vertical slice 还是 horizontal slice。\n2. 竖直切片用 top-bottom，水平切片用 right-left；若上下或左右关系改变，必须分段。\n3. 体积题先把小片截面写成 A(x) 或 A(y)，再积分 V=∫A。\n4. 旋转体先确定旋转轴，再从到旋转轴的距离得到圆盘/垫片半径。\n5. 圆锥、球、金字塔等体积题用相似比例或几何关系先写截面积函数。\n\n## 格式规则\n- 面积 integrand 应是长度；体积 integrand 应是面积，单位不匹配通常表示建模错。\n- 曲线交点决定积分边界；图像关系决定 integrand 的顺序。\n- 水平切片要把 x 写成 y 的函数，并使用 x_right(y)-x_left(y)。\n- 垫片法要写 outer radius 和 inner radius，积分中是 π(R^2-r^2)。\n\n## 例题/题型规则\n- y=x^2 与 y=sqrt(x)、|2x| 与 x+2、sin 2x 与 cos 2x 训练交点和上下关系。\n- 旋转体题训练绕不同轴时半径表达式会变化。\n- 已知几何体切片题训练从相似三角形或边长比例写 A(y)。\n\n## 检查点\n区域画出来了吗？交点是否正确？该用 top-bottom 还是 right-left？是否需要分段？integrand 的单位是长度还是面积？旋转半径是否量到正确轴？",
+      "sourceReferences": ["queue/MAT136/04_Area_Volume_学生版.pdf"]
+    },
+    {
+      "id": "local-memory_mat136_queue_integration_by_parts_public_20260602",
+      "courseId": "course-mat136-local",
+      "notebookId": "queue-mat136-05-integration-by-parts",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT136 分部积分公共记忆",
+      "text": "## 适用范围\nMAT136 notebook 05《分部积分：从乘积法则到选 u》。\n\n## 记忆边界\n不记录 integration by parts 公式本身。共有记忆只保留本讲选 u、列 u/u'/v'/v 表、处理定积分边界和多次分部的格式规则。\n\n## 知识路径\n1. 分部积分来自乘积法则反向使用：∫u v' = uv - ∫u'v。\n2. 题目先拆成 u 和 v'，再求 u' 与 v，目标是让剩余积分更简单。\n3. 选 u 的优先级可按反三角、Log、Polynomial、三角、Exponential 参考，但最终以剩余积分是否变轻为准。\n4. 多项式乘 e^x、sin/cos 这类题可能要连续分部；技巧也可与换元组合。\n5. 定积分分部要同时处理边界项 uv|_a^b 和剩余定积分。\n\n## 格式规则\n- 每题先列 u、u'、v'、v，不省略 v 的积分过程。\n- ln x、arctan x 这类单函数题要把 1 当作 v'。\n- 多次分部时保持符号和边界项顺序，必要时让积分项抵消。\n- 反函数积分可先令 x=f(t) 改变量，再使用分部积分。\n\n## 例题/题型规则\n- ∫ln x dx、∫arctan x dx 训练补 v'=1。\n- ∫x^3 e^x dx 训练多次分部。\n- ∫x^3 cos(x^2) dx 训练先换元再分部。\n- 含 f''(x)ln x 与 f(x)/x^2 的题训练连续分部和抵消结构。\n\n## 检查点\nu' 是否比 u 更简单？v 是否能顺利积分？定积分边界项是否写出？多次分部的符号是否一致？剩余积分是否真的变轻？",
+      "sourceReferences": ["queue/MAT136/05分步积分.pdf"]
+    },
+    {
+      "id": "local-memory_mat136_queue_differential_equations_public_20260602",
+      "courseId": "course-mat136-local",
+      "notebookId": "queue-mat136-06-differential-equations",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT136 微分方程公共记忆",
+      "text": "## 适用范围\nMAT136 notebook 06《微分方程：从变化率到斜率场》。\n\n## 记忆边界\n不记录 differential equation、slope field 或 Euler method 的通用定义。共有记忆只保留本讲初值问题、变上限积分判解、斜率场读图和 Euler 估计的答题格式。\n\n## 知识路径\n1. 微分方程先被当作变化率规则处理：把 dy/dx 改写成 dy=...dx，两边积分得到 y=...+C。\n2. 初值问题分两步：先积分得到通解，再代入初值求 C。\n3. 判断某个积分形式是否为解时，不必先算出 y；用 FTC 和链式法则直接对变上限积分求导。\n4. 斜率场从右端公式的依赖关系读图：只依赖 x 时同一竖线斜率相同，含 y 时看水平线、零斜率线和平衡解。\n5. Euler 方法从当前点斜率一步步走，估计高低由解曲线凹凸判断。\n\n## 格式规则\n- 初值问题必须写出 C 的求法，不能停在不含初值的通解。\n- 变上限积分判解时，代入上限后还要乘上限导数；下限变化时加负号。\n- 斜率场匹配先看斜率的正负区域，再看零斜率线、对称性和只依赖 x/只依赖 y 的条纹特征。\n- Euler 表格按 x_n、y_n、slope、step update 的顺序记录，避免一次跨多步。\n\n## 例题/题型规则\n- dy/dx=2x, y(3)=5 训练通解加初值两步。\n- 压力/体积题训练从导数形状判断函数类型，如 1/P 对应 logarithmic。\n- 多选题给出变上限积分，训练用 FTC 判定哪个函数满足给定 dy/dx。\n- slope field 题训练由 x、y、x^2-y^2、(2-y)(y+1)^2 等依赖关系识别图像。\n\n## 检查点\n是否已经从 dy/dx 转成可积分形式？C 是否由初值确定？变上限积分求导是否乘了链式因子？斜率场的零斜率线和正负区域是否匹配？Euler 每一步是否使用当前点斜率？",
+      "sourceReferences": ["queue/MAT136/06_Partical_fictions.pdf"]
+    },
+    {
+      "id": "local-memory_mat136_queue_sequence_public_20260602",
+      "courseId": "course-mat136-local",
+      "notebookId": "queue-mat136-07-sequence",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT136 数列公共记忆",
+      "text": "## 适用范围\nMAT136 notebook 07《数列：从通项到极限》。\n\n## 记忆边界\n不记录 sequence、recursive sequence、convergence 的通用定义。共有记忆只保留本讲显式通项和递归数列的不同判断路线，以及单调有界证明格式。\n\n## 知识路径\n1. 先区分显式通项和递归定义；显式通项优先看几何型、指数型、最高次项、夹逼或有界因子除以 n。\n2. 交错或振荡通项不能只凭符号变化判发散，要同时看大小是否趋向 0。\n3. 递归数列先列前几项建立趋势，再证明 monotonic 和 bounded。\n4. 单调有界推出 converges 后，设极限 L 并代入递推式求候选极限。\n5. 候选极限若有多个根，要用数列范围或非负性排除不可能的根。\n\n## 格式规则\n- 显式数列题先写 lim a_n 的主要比较对象，再说明振荡、有界或夹逼如何进入判断。\n- 递归数列题按列项、证单调、证有界、设 L、解方程的顺序组织。\n- bounded alone 不能推出收敛，必须配合单调；振荡数列是常用反例。\n- 递推极限方程只在已证明收敛后使用，不能反过来当作收敛证明。\n\n## 例题/题型规则\n- (0.2)^n 与 (-0.2)^n 训练绝对值小于 1 时即使交错也趋 0。\n- (-1)^n/n、sin n/n 训练振荡因子被 1/n 夹住。\n- sqrt(2+a_n) 递归例题训练证明递增、有上界，再用 L=sqrt(2+L) 求极限并排除负根。\n\n## 检查点\n这是显式通项还是递归定义？振荡项的幅度是否趋 0？递归数列是否已经证明单调和有界？设 L 前是否已经有收敛依据？候选根是否符合数列范围？",
+      "sourceReferences": ["queue/MAT136/07_Sequence.pdf"]
+    },
+    {
+      "id": "local-memory_mat136_queue_improper_integrals_public_20260602",
+      "courseId": "course-mat136-local",
+      "notebookId": "queue-mat136-08-improper-integrals",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT136 反常积分公共记忆",
+      "text": "## 适用范围\nMAT136 notebook 08《反常积分：从极限定义到比较判别》。\n\n## 记忆边界\n不记录 improper integral 或 comparison test 的通用定义。共有记忆只保留本讲先找危险点、拆区间、设极限，再按比较方向判断的操作流程。\n\n## 知识路径\n1. 每题先找危险点：无限端点、0 附近的爆点、分母为 0 的内部点、或 integrand 没有极限的位置。\n2. 无限上限用 t 截断；端点爆点用单侧极限；区间内部有爆点时必须拆成多段。\n3. 只有每一段都收敛，整个反常积分才收敛。\n4. p-integral 要分清无穷远和 0 附近的相反结论：同一个 p 在两类端点的结果不同。\n5. 比较判别按目标选方向：证明收敛找更大的已知收敛上界，证明发散找更小的已知发散下界。\n\n## 格式规则\n- 写比较前先确认 integrand 在目标区间非负，或者明确处理绝对值/正负问题。\n- 内部奇点不能被一个整体极限盖过去，要先拆区间再分别判定。\n- 有理函数反常积分可配合 partial fractions，但分母为 0 的点仍先作为危险点处理。\n- 振荡项若没有极限，可能直接导致发散；不能只凭函数大小感觉判断。\n\n## 例题/题型规则\n- ∫_1^∞ 1/x^p dx 与 ∫_0^1 1/x^p dx 训练 p 规则的两套方向。\n- sin x/x^2、sec^2 x/(x sqrt x)、sin^2 x/sqrt x、1/(sqrt x(1+x)) 训练先拆危险点再比较。\n- 含 rational function 的题训练先因式分解分母、检查内部奇点，再选择部分分式或比较。\n\n## 检查点\n危险点在哪里？是否需要拆区间？每一段是否都收敛？比较方向是否服务于要证明的结论？p-integral 用的是无穷远版本还是 0 附近版本？",
+      "sourceReferences": ["queue/MAT136/08_ Improper integrals .pdf"]
+    },
+    {
+      "id": "local-memory_queue_mat136_09_series_public_cover_20260602",
+      "courseId": "course-mat136-local",
+      "notebookId": "queue-mat136-09-series",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT136 级数公共记忆",
+      "text": "## 适用范围\nMAT136 notebook 09《级数：从部分和到判别法》。\n\n## 记忆边界\n不记录 series、geometric series、p-series 或各判别法的通用定义。共有记忆只保留本讲判别法选择顺序、Divergence Test fail 的用语，以及不同题型进入不同测试的格式。\n\n## 知识路径\n1. 先把 series 理解成 partial sums 的 sequence，收敛是部分和有有限极限。\n2. 做题先用 Divergence Test 看通项极限：不为 0 或不存在则发散；等于 0 只说明 Divergence Test Fail，需要换方法。\n3. 可识别 telescoping、geometric 或 p-series 时先用结构性方法。\n4. Integral Test 前检查对应函数 continuous、positive、decreasing。\n5. Comparison Test 和 Limit Comparison Test 处理非负项；Ratio Test 优先处理 factorial、指数、n 次幂混合的相邻项。\n\n## 格式规则\n- 写 Divergence Test 时要区分 fail 和 diverge：lim a_n=0 不是收敛结论。\n- Comparison Test 证明收敛找更大的已知收敛对象，证明发散找更小的已知发散对象。\n- Ratio Test 写 |a_{n+1}/a_n| 的极限 L：L<1 收敛，L>1 发散，L=1 没结论。\n- sequence 的收敛和 series 的收敛分开判断；a_n 有极限不代表 ∑a_n 收敛。\n\n## 例题/题型规则\n- a_n=1/(n(n+1)) 训练 partial sums/telescoping。\n- ∑(-1)^{n+1} 与 ∑2/(n+1) 训练 Divergence Test 的两种结果。\n- 含 factorial、指数和 n 的式子训练 Ratio Test 中 a_{n+1}/a_n 的化简。\n- A_n 可收敛到 1 但 ∑A_n 因通项不趋 0 而发散，用来区分 sequence 和 series。\n\n## 检查点\n通项极限是否先检查？lim a_n=0 时是否改用别的判别法？Integral Test 的三个条件是否满足？比较法方向是否正确？Ratio Test 的 L=1 是否被当作没有结论？",
+      "sourceReferences": ["queue/MAT136/09_Series.pdf"]
+    },
+    {
+      "id": "local-memory_queue_mat136_10_power_series_public_cover_20260602",
+      "courseId": "course-mat136-local",
+      "notebookId": "queue-mat136-10-power-series",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT136 幂级数公共记忆",
+      "text": "## 适用范围\nMAT136 notebook 10《幂级数：收敛半径与可靠区间》。\n\n## 记忆边界\n不记录 power series 的通用定义。共有记忆只保留本讲把幂级数解释成中心附近的可靠近似，以及用 Ratio Test 找半径、区间和端点的格式。\n\n## 知识路径\n1. 先用 e^x、sin x、ln(1+x) 的近似直觉说明：幂级数是在中心附近用无限多层小多项式逼近函数。\n2. 可靠性随距离中心变化：靠近中心更准，远离中心可能失效。\n3. 对 ∑C_n(x-c)^n，优先用 Ratio Test 计算 |a_{n+1}/a_n| 的极限。\n4. 解 L<1 得开区间和半径；若极限为 0，则任意 x 可靠；若为 infinity，则只有中心点可用。\n5. 开区间端点必须代回原级数单独判定，不能由半径自动推出。\n\n## 格式规则\n- 先读中心 c，再读变量块 x-c；例如 x+2 对应中心 -2。\n- Ratio Test 中把含 x 的部分留到最后解不等式，避免先把中心读错。\n- 形如 (x-1)/3 的题可先令 z=(x-1)/3，再把 |z|<1 转回 x 区间。\n- 写 convergence interval 时要分别说明开区间、半径 R 和端点结果。\n\n## 例题/题型规则\n- e^x 和 sin x 的前几项用来建立近似越来越贴近的直觉。\n- ln(1+x) 用来说明靠近中心更可靠，远离中心可能不准。\n- 一般 ∑C_n(x-c)^n 训练从 Ratio Test 得到 radius of convergence。\n- 端点代回常变成 p-series、alternating series 或 divergence test 题。\n\n## 检查点\n中心 c 是否读对？Ratio Test 的 L<1 是否解成关于 x 的区间？端点是否代回原级数单独判断？R 是半径还是区间长度？",
+      "sourceReferences": ["queue/MAT136/10_幂级数.pdf"]
+    },
+    {
+      "id": "local-memory_queue_mat136_11_taylor_series_public_cover_20260602",
+      "courseId": "course-mat136-local",
+      "notebookId": "queue-mat136-11-taylor-series",
+      "targetType": "notebook",
+      "kind": "notebook_public_memory",
+      "title": "MAT136 泰勒级数公共记忆",
+      "text": "## 适用范围\nMAT136 notebook 11《泰勒级数：从导数拼出函数》。\n\n## 记忆边界\n不记录 Taylor series 或 Maclaurin series 的通用定义表。共有记忆只保留本讲用中心点导数拼函数的书写模板，以及用已知级数做替换、求导、积分和乘法的操作格式。\n\n## 知识路径\n1. 主线是用函数在某点的导数拼出函数本身；a=0 时才称为 Maclaurin series。\n2. 直接展开题先列 f、f'、f'' 等在中心点的值，再代入 Taylor formula。\n3. 误差项按函数值 = Taylor 多项式 + remainder 理解；项数增加通常更贴近原函数，但仍受收敛区间限制。\n4. 常用模板作为工具使用：e^x、sin x、cos x、1/(1-x)、1/(1+x)、ln(1+x)。\n5. 后半讲用已知级数做运算：替换变量、逐项求导、逐项积分、级数乘法。\n\n## 格式规则\n- 直接展开不能只背结果；要展示中心点处导数值如何进入系数。\n- 替换题把模板里的变量整体替换，例如 sin(x^2) 是把 x 整体换成 x^2。\n- 逐项求导/积分后要更新幂次、系数和常数项，并重新考虑收敛区间。\n- 级数乘法按系数卷积 c_n=sum a_k b_{n-k} 找前几项，保留到题目指定阶数即可。\n\n## 例题/题型规则\n- e^x 和 cos x 的 Maclaurin 展开训练列导数表。\n- 1/(1-x)、1/(1+x)、ln(1+x) 训练把几何级数作为模板。\n- e^x cos x 训练级数乘法前几项，而不是无限展开后逐项硬乘。\n- sin(x^2) 训练整体替换变量；求半径时回到 Ratio Test。\n\n## 检查点\n中心 a 是否正确？是否列出了中心点导数值？这是直接展开还是套模板变形？替换是否替换了整个变量块？只要求前几项时是否截到正确阶数？收敛区间是否仍需检查？",
+      "sourceReferences": ["queue/MAT136/11_Taylor_series.pdf"]
+    }
+  ]
+}

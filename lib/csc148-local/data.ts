@@ -1,7 +1,9 @@
 import courseJson from '@/data/csc148/course.json';
+import memoriesJson from '@/data/csc148/memories.json';
 import problemBankJson from '@/data/csc148/problem-bank.json';
 import type {
   Csc148LocalDataset,
+  Csc148LocalMemory,
   Csc148LocalProblem,
   Csc148LocalSearchHit,
   Csc148LocalSection,
@@ -61,8 +63,16 @@ function scoreProblem(tokens: string[], problem: Csc148LocalProblem): number {
   ]);
 }
 
+function scoreMemory(tokens: string[], memory: Csc148LocalMemory): number {
+  return scoreFields(tokens, [
+    [memory.title, 8],
+    [memory.kind, 4],
+    [memory.text, 3],
+  ]);
+}
+
 export function getCsc148LocalDataset(): Csc148LocalDataset {
-  const courseData = courseJson as Omit<Csc148LocalDataset, 'problemBank' | 'sections'>;
+  const courseData = courseJson as Pick<Csc148LocalDataset, 'course' | 'notebooks'>;
   const problemBank = problemBankJson as Csc148LocalDataset['problemBank'];
   const sections = courseData.notebooks.flatMap((notebook) =>
     notebook.sections.map((section) => ({ ...section, notebook })),
@@ -73,6 +83,7 @@ export function getCsc148LocalDataset(): Csc148LocalDataset {
     notebooks: courseData.notebooks,
     problemBank,
     sections,
+    memories: memoriesJson.memories as Csc148LocalMemory[],
   };
 }
 
@@ -100,7 +111,16 @@ export function searchCsc148LocalDataset(query: string, limit = 12): Csc148Local
     }))
     .filter((hit) => hit.score > 0);
 
-  return [...sectionHits, ...problemHits]
+  const memoryHits: Csc148LocalSearchHit[] = dataset.memories
+    .map((memory) => ({
+      kind: 'memory' as const,
+      id: memory.id,
+      score: scoreMemory(tokens, memory),
+      memory,
+    }))
+    .filter((hit) => hit.score > 0);
+
+  return [...memoryHits, ...sectionHits, ...problemHits]
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
     .slice(0, limit);
 }

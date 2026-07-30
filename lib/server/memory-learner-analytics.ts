@@ -68,6 +68,17 @@ type AnalyticsTarget = {
   notebookId: string | null;
 };
 
+type LearnerAnalyticsMessageRow = {
+  id: string;
+  conversationId: string;
+  conversationTitle: string | null;
+  conversationKind: string;
+  notebookId: string | null;
+  notebookName: string | null;
+  plainText: string;
+  createdAt: Date | string;
+};
+
 function compact(input: string | null | undefined, maxChars: number): string {
   const text = String(input || '')
     .replace(/\s+/g, ' ')
@@ -107,14 +118,6 @@ async function startDateForScope(args: {
 
 function courseScopeId(target: AnalyticsTarget): string {
   return target.courseId || (target.targetType === 'course' ? target.targetId : '');
-}
-
-function conversationScopeWhere(target: AnalyticsTarget) {
-  if (target.targetType === 'notebook') {
-    return { notebookId: target.notebookId || target.targetId };
-  }
-  const courseId = courseScopeId(target);
-  return { OR: [{ courseId }, { notebook: { courseId } }] };
 }
 
 function problemScopeWhere(target: AnalyticsTarget) {
@@ -169,6 +172,95 @@ function activeNotebookCounts(
     .slice(0, 8);
 }
 
+async function learnerMessageRows(args: {
+  prisma: PrismaClient;
+  userId: string;
+  target: AnalyticsTarget;
+  since: Date | null;
+}): Promise<LearnerAnalyticsMessageRow[]> {
+  const courseId = args.target.targetType === 'course' ? courseScopeId(args.target) : null;
+  const notebookId =
+    args.target.targetType === 'notebook' ? args.target.notebookId || args.target.targetId : null;
+  return args.prisma.$queryRawUnsafe<LearnerAnalyticsMessageRow[]>(
+    `
+      SELECT history.*
+      FROM (
+        SELECT
+          message."id",
+          message."conversationId",
+          conversation."title" AS "conversationTitle",
+          'course'::text AS "conversationKind",
+          NULL::text AS "notebookId",
+          NULL::text AS "notebookName",
+          message."plainText",
+          message."createdAt"
+        FROM "CourseConversationMessage" AS message
+        INNER JOIN "CourseConversation" AS conversation
+          ON conversation."id" = message."conversationId"
+          AND conversation."ownerId" = message."ownerId"
+          AND conversation."courseId" = message."courseId"
+        WHERE message."ownerId" = $1
+          AND message."role" = 'user'
+          AND message."deletedAt" IS NULL
+          AND conversation."deletedAt" IS NULL
+          AND message."plainText" IS NOT NULL
+          AND length(trim(message."plainText")) > 0
+          AND ($2::timestamptz IS NULL OR message."createdAt" >= $2)
+          AND $4::text IS NULL
+          AND $3::text IS NOT NULL
+          AND conversation."courseId" = $3
+
+        UNION ALL
+
+        SELECT
+          message."id",
+          message."conversationId",
+          conversation."title" AS "conversationTitle",
+          conversation."kind"::text AS "conversationKind",
+          conversation."notebookId",
+          notebook."name" AS "notebookName",
+          message."plainText",
+          message."createdAt"
+        FROM "Message" AS message
+        INNER JOIN "Conversation" AS conversation
+          ON conversation."id" = message."conversationId"
+        LEFT JOIN "Notebook" AS notebook
+          ON notebook."id" = conversation."notebookId"
+        WHERE message."ownerId" = $1
+          AND message."role" = 'user'
+          AND message."plainText" IS NOT NULL
+          AND length(trim(message."plainText")) > 0
+          AND ($2::timestamptz IS NULL OR message."createdAt" >= $2)
+          AND conversation."kind" IN ('notebook', 'agent', 'system')
+          AND (
+            conversation."targetId" IS NULL
+            OR conversation."targetId" NOT LIKE 'learn:%'
+          )
+          AND (
+            ($4::text IS NOT NULL AND conversation."notebookId" = $4)
+            OR (
+              $4::text IS NULL
+              AND $3::text IS NOT NULL
+              AND (
+                conversation."courseId" = $3
+                OR (
+                  conversation."courseId" IS NULL
+                  AND notebook."courseId" = $3
+                )
+              )
+            )
+          )
+      ) AS history
+      ORDER BY history."createdAt" DESC, history."id" DESC
+      LIMIT 60
+    `,
+    args.userId,
+    args.since?.toISOString() || null,
+    courseId,
+    notebookId,
+  );
+}
+
 export async function buildLearnerAnalytics(args: {
   prisma: PrismaClient;
   userId: string;
@@ -191,32 +283,11 @@ export async function buildLearnerAnalytics(args: {
     timeScope,
   });
   const [messageRows, attemptRows, memoryRows] = await Promise.all([
-    args.prisma.message.findMany({
-      where: {
-        ownerId: args.userId,
-        role: 'user',
-        plainText: { not: null },
-        ...(since ? { createdAt: { gte: since } } : {}),
-        conversation: conversationScopeWhere(args.target),
-      },
-      select: {
-        id: true,
-        conversationId: true,
-        plainText: true,
-        createdAt: true,
-        conversation: {
-          select: {
-            title: true,
-            kind: true,
-            notebookId: true,
-            notebook: {
-              select: { name: true },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 60,
+    learnerMessageRows({
+      prisma: args.prisma,
+      userId: args.userId,
+      target: args.target,
+      since,
     }),
     args.prisma.notebookProblemAttempt.findMany({
       where: {
@@ -277,10 +348,10 @@ export async function buildLearnerAnalytics(args: {
     .map((row) => ({
       id: row.id,
       conversationId: row.conversationId,
-      conversationTitle: row.conversation.title,
-      conversationKind: String(row.conversation.kind),
-      notebookId: row.conversation.notebookId,
-      notebookName: row.conversation.notebook?.name || null,
+      conversationTitle: row.conversationTitle,
+      conversationKind: row.conversationKind,
+      notebookId: row.notebookId,
+      notebookName: row.notebookName,
       text: compact(row.plainText, 900),
       createdAt: iso(row.createdAt),
     }))

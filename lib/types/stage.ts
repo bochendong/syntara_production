@@ -62,6 +62,8 @@ export interface Stage {
   id: string;
   /** 所属课程 ID（IndexedDB Course） */
   courseId?: string;
+  /** 商城购买副本的来源笔记本，用于课堂内按需显示同步入口。 */
+  sourceNotebookId?: string;
   /** 笔记本头像，如 `/avatars/notebook-agents/xxx.avif` */
   avatarUrl?: string;
   name: string;

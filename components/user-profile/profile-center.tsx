@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight, Gauge, Palette, UserRound } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, Check, ChevronRight, Gauge, Palette, UserRound } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 import { cn } from '@/lib/utils';
@@ -9,6 +10,7 @@ import { UserAvatarWithFrame } from './user-avatar-with-frame';
 import { UserProfileCard } from './profile-card';
 import { ProfileUsageCard } from './profile-usage-card';
 import { NotificationCenterUsageCard } from './notification-center-usage-card';
+import { ProfileLearningUsageStats } from './profile-learning-usage-stats';
 
 type ProfileSection = 'account' | 'appearance' | 'usage';
 
@@ -35,8 +37,8 @@ const PROFILE_SECTIONS: Array<{
   },
   {
     id: 'usage',
-    label: '额度与用量',
-    description: 'Credits 与 Token',
+    label: '用量统计',
+    description: 'Credits、Token 与学习资产',
     Icon: Gauge,
     iconClassName: 'bg-[#34c759]',
   },
@@ -53,36 +55,51 @@ export function ProfileCenter() {
   const active = PROFILE_SECTIONS.find((item) => item.id === activeSection) || PROFILE_SECTIONS[0];
 
   return (
-    <div className="ipados-profile flex h-full min-h-[680px] w-full overflow-hidden rounded-[22px] border border-black/[0.08] bg-white shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
-      <aside className="w-[286px] shrink-0 border-r border-black/[0.09] bg-[#f2f2f7] px-4 py-5 max-md:w-[230px] max-sm:hidden">
-        <h1 className="px-2 text-2xl font-bold tracking-[-0.04em] text-slate-950">个人中心</h1>
+    <div className="flex h-full min-h-[680px] w-full overflow-hidden bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.06)] max-[860px]:flex-col">
+      <aside className="flex w-[280px] shrink-0 flex-col border-r border-slate-200 bg-slate-50 p-[22px] max-[860px]:w-full max-[860px]:border-b max-[860px]:border-r-0 max-[860px]:p-4">
+        <Link
+          href="/learn"
+          className="inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-[7px] text-xs font-semibold text-slate-950 hover:bg-slate-50"
+        >
+          <ArrowLeft className="size-4" />
+          返回主屏
+        </Link>
 
-        <div className="mt-4 rounded-[15px] bg-white p-3 shadow-sm ring-1 ring-black/[0.04]">
-          <div className="flex items-center gap-3">
+        <div className="mt-7 grid justify-items-center gap-2 text-center max-[860px]:mt-4">
+          <div className="grid place-items-center">
             <UserAvatarWithFrame
               src={avatar}
               frameId={avatarFrameId}
-              className="size-14 bg-slate-100"
+              className="size-[86px] bg-slate-100 shadow-[0_10px_28px_rgba(15,23,42,0.12)]"
               imgClassName=""
               role="img"
               aria-label={`${displayName}的头像`}
             />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[15px] font-semibold text-slate-950">{displayName}</p>
-              <p className="mt-0.5 truncate text-xs text-slate-500">{email || '本地学习账户'}</p>
-            </div>
           </div>
+          <strong className="max-w-full truncate text-lg font-bold text-slate-950">
+            {displayName}
+          </strong>
+          <small className="max-w-full truncate text-xs text-slate-500">
+            {email || '本地学习账户'}
+          </small>
         </div>
 
-        <nav className="mt-5 space-y-1" aria-label="个人中心分区">
+        <ProfileLearningUsageStats />
+
+        <nav
+          className="mt-5 grid gap-1.5 max-[860px]:mt-4 max-[860px]:grid-cols-3"
+          aria-label="个人中心分区"
+        >
           {PROFILE_SECTIONS.map(({ id, label, description, Icon, iconClassName }) => (
             <button
               key={id}
               type="button"
               onClick={() => setActiveSection(id)}
               className={cn(
-                'flex w-full items-center gap-3 rounded-[11px] px-2 py-2 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-blue-500',
-                activeSection === id ? 'bg-black/[0.08]' : 'hover:bg-black/[0.04]',
+                'flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2.5 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-sky-500',
+                activeSection === id
+                  ? 'border-sky-200 bg-white shadow-sm'
+                  : 'border-transparent hover:bg-white/70',
               )}
               aria-current={activeSection === id ? 'page' : undefined}
             >
@@ -95,8 +112,10 @@ export function ProfileCenter() {
                 <Icon className="size-4" strokeWidth={2} aria-hidden />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-slate-800">{label}</span>
-                <span className="block truncate text-[11px] text-slate-500">{description}</span>
+                <span className="block truncate text-xs font-semibold text-slate-800">{label}</span>
+                <span className="block truncate text-[10px] text-slate-500 max-[860px]:hidden">
+                  {description}
+                </span>
               </span>
               <ChevronRight className="size-4 shrink-0 text-slate-400" aria-hidden />
             </button>
@@ -104,43 +123,32 @@ export function ProfileCenter() {
         </nav>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto bg-[#f2f2f7]">
-        <div className="mx-auto w-full max-w-5xl px-5 pb-12 pt-7 sm:px-7 lg:px-10">
-          <div className="mb-5 hidden max-sm:block">
-            <h1 className="text-3xl font-bold tracking-[-0.04em] text-slate-950">个人中心</h1>
-            <div className="mt-3 flex gap-1 overflow-x-auto rounded-[12px] bg-black/[0.06] p-1">
-              {PROFILE_SECTIONS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveSection(item.id)}
-                  className={cn(
-                    'min-w-max rounded-[9px] px-3 py-1.5 text-xs font-semibold outline-none',
-                    activeSection === item.id
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-500',
-                  )}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <header className="mb-5">
-            <p className="text-xs font-semibold text-[#007aff]">{active.description}</p>
-            <h2 className="mt-1 text-3xl font-bold tracking-[-0.04em] text-slate-950 sm:text-4xl">
+      <main className="min-w-0 flex-1 overflow-y-auto bg-white">
+        <header className="sticky top-0 z-10 flex min-h-[78px] items-center justify-between border-b border-slate-200 bg-white/95 px-7 py-4 backdrop-blur">
+          <div>
+            <p className="text-[11px] font-bold text-slate-400">个人中心</p>
+            <h2 className="mt-0.5 text-2xl font-bold tracking-[-0.02em] text-slate-950">
               {active.label}
             </h2>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-[11px] bg-slate-900 px-3.5 py-2.5 text-xs font-bold text-white">
+            <Check className="size-[15px]" />
+            自动保存
+          </span>
+        </header>
+
+        <div className="mx-auto w-full max-w-4xl px-5 pb-12 pt-7 sm:px-7 lg:px-10">
+          <header className="mb-5">
+            <p className="text-xs font-semibold text-sky-600">{active.description}</p>
           </header>
 
           {activeSection === 'account' ? (
             <div className="space-y-5">
               <UserProfileCard
                 showAvatar={false}
-                className="rounded-[16px] border-0 bg-white shadow-sm ring-1 ring-black/[0.04] backdrop-blur-none"
+                className="rounded-xl border border-slate-200 bg-white shadow-sm backdrop-blur-none"
               />
-              <section className="overflow-hidden rounded-[16px] bg-white shadow-sm ring-1 ring-black/[0.04]">
+              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 {[
                   ['账户邮箱', email || '未绑定邮箱'],
                   ['资料同步', '当前设备'],
@@ -150,7 +158,7 @@ export function ProfileCenter() {
                     key={label}
                     className={cn(
                       'flex items-center justify-between gap-6 px-4 py-3.5 text-sm',
-                      index > 0 && 'border-t border-black/[0.07]',
+                      index > 0 && 'border-t border-slate-100',
                     )}
                   >
                     <span className="font-medium text-slate-800">{label}</span>
@@ -162,11 +170,11 @@ export function ProfileCenter() {
           ) : null}
 
           {activeSection === 'appearance' ? (
-            <ProfileUsageCard className="rounded-[16px] border-0 bg-white shadow-sm ring-1 ring-black/[0.04] backdrop-blur-none" />
+            <ProfileUsageCard className="rounded-xl border border-slate-200 bg-white shadow-sm backdrop-blur-none" />
           ) : null}
 
           {activeSection === 'usage' ? (
-            <NotificationCenterUsageCard className="rounded-[16px] border-0 bg-white shadow-sm ring-1 ring-black/[0.04] backdrop-blur-none" />
+            <NotificationCenterUsageCard className="rounded-xl border border-slate-200 bg-white shadow-sm backdrop-blur-none" />
           ) : null}
         </div>
       </main>

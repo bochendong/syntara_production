@@ -9,7 +9,7 @@ const learnPagePath = 'components/learn/learn-page-client.tsx';
 const learnRoutePath = 'app/learn/page.tsx';
 const shellPath = 'components/learn/learn-page-shell-skeleton.tsx';
 const sidebarPath = 'components/learn/learn-course-sidebar.tsx';
-const conversationApiPath = 'lib/utils/learn-conversation-api.ts';
+const conversationApiPath = 'features/learn-conversations/client/remote-conversation-api.ts';
 const learnerCourseApiPath = 'lib/utils/learner-course-api.ts';
 const studyMemoryRoutePath = 'app/api/study-memory/route.ts';
 const learnPage = fs.readFileSync(path.join(root, learnPagePath), 'utf8');
@@ -113,18 +113,23 @@ forbidPattern(
 );
 requirePattern(
   learnPage,
-  /requestedSessionDetailKey !== activeMessageStoreKey[\s\S]{0,600}loadRemoteLearnConversationOrThrow\(courseId,\s*sessionId,\s*localUserId,\s*\{[\s\S]{0,100}signal:\s*controller\.signal/,
-  'conversation detail must load only after an explicit selected-session request',
+  /if \(!activeCourseId \|\| activeCourseId !== urlCourseId \|\| !urlSessionId\) return;[\s\S]{0,240}const sessionId = urlSessionId[\s\S]{0,3500}loadRemoteLearnConversationOrThrow\(courseId,\s*sessionId,\s*localUserId,\s*\{[\s\S]{0,100}signal:\s*controller\.signal/,
+  'conversation detail must load only when the URL names a selected session',
 );
 requirePattern(
   learnPage,
-  /loadRemoteLearnConversationOrThrow\(courseId,\s*sessionId,\s*localUserId,[\s\S]{0,220}signal:\s*controller\.signal[\s\S]{0,6500}controller\.abort\(new DOMException\('会话已切换'/,
+  /selectedLocalSession\?\.remoteState === 'local-only'[\s\S]{0,100}selectedLocalSession\.currentRevision === 0[\s\S]{0,900}setRemoteConversationReadyKey\(detailKey\);[\s\S]{0,80}return;[\s\S]{0,120}const controller = new AbortController\(\)/,
+  'an explicitly registered local-only rev0 draft must become ready without a detail database read',
+);
+requirePattern(
+  learnPage,
+  /loadRemoteLearnConversationOrThrow\(courseId,\s*sessionId,\s*localUserId,[\s\S]{0,220}signal:\s*controller\.signal[\s\S]{0,12000}controller\.abort\(new DOMException\('会话已切换'/,
   'rapid session switches must abort obsolete queued conversation bodies',
 );
 requirePattern(
   learnPage,
-  /selectLearnSession[\s\S]{0,400}setRequestedSessionDetailKey\(`\$\{localUserId}:\$\{activeCourseId}:\$\{sessionId}`\)[\s\S]{0,160}router\.push\(learnSessionHref\(sessionId\)\)/,
-  'session clicks must explicitly request that session body before navigating',
+  /selectLearnSession[\s\S]{0,320}router\.push\(learnSessionHref\(sessionId\)\)/,
+  'session clicks must navigate through the canonical URL before loading the body',
 );
 requirePattern(
   learnPage,
@@ -138,13 +143,13 @@ forbidPattern(
 );
 requirePattern(
   learnPage,
-  /draftSessionId = useMemo\([\s\S]{0,160}makeLearnSessionId\([^)]*draftSessionGeneration[^)]*\)[\s\S]{0,160}activeSessionId = urlSessionId \|\| draftSessionId/,
+  /draftSessionId = useMemo\([\s\S]{0,160}makeLearnSessionId\(`\$\{localUserId}:\$\{urlCourseId}`\)[\s\S]{0,160}activeSessionId = urlSessionId \|\| draftSessionId/,
   'course entry must use a unique local draft instead of a remote default session',
 );
 requirePattern(
   learnPage,
-  /switchCourse[\s\S]{0,300}next\.set\('courseId',\s*courseId\);[\s\S]{0,100}next\.delete\('session'\)[\s\S]{0,160}setDraftSessionGeneration\(\(current\) => current \+ 1\)/,
-  'course switching must strip any prior session parameter and create a fresh draft',
+  /switchCourse[\s\S]{0,300}next\.set\('courseId',\s*courseId\);[\s\S]{0,100}next\.delete\('session'\)[\s\S]{0,500}!activeCourseId \|\|[\s\S]{0,100}activeCourseId !== urlCourseId \|\|[\s\S]{0,100}urlSessionId \|\|[\s\S]{0,100}showLearnHomeDashboard[\s\S]{0,260}registerLocalOnlyLearnSession\(\{[\s\S]{0,120}sessionId:\s*draftSessionId,[\s\S]{0,120}resetMessages:\s*true,[\s\S]{0,180}clearMessagesFromRead\(\);[\s\S]{0,100}router\.replace\(learnSessionHref\(draftSessionId\)/,
+  'course switching must strip any prior session parameter and canonicalize a fresh draft URL',
 );
 requirePattern(
   learnPage,
@@ -153,7 +158,7 @@ requirePattern(
 );
 requirePattern(
   learnPage,
-  /const requestCourseId = activeCourseId[\s\S]{0,700}listRemoteLearnSessionsPage\(requestCourseId,\s*\{[\s\S]{0,100}cursor,[\s\S]{0,80}limit:\s*5/,
+  /const requestCourseId = activeCourseId[\s\S]{0,1200}listRemoteLearnSessionsPage\(requestCourseId,\s*\{[\s\S]{0,100}cursor,[\s\S]{0,80}limit:\s*5/,
   'load-more must paginate session metadata five rows at a time',
 );
 requirePattern(
@@ -298,6 +303,16 @@ for (const label of ['题库', '笔记本']) {
     `the visible status model must include ${label}`,
   );
 }
+requirePattern(
+  surfaceStatusBlock,
+  /label:\s*'笔记本'[\s\S]{0,500}deferredWhenListIdle:\s*true/,
+  'an untouched notebook list must remain visibly deferred instead of pretending to load',
+);
+requirePattern(
+  learnPage,
+  /deferredWhenListIdle\?: boolean[\s\S]{0,1200}args\.deferredWhenListIdle[\s\S]{0,160}status:\s*'deferred',\s*statusLabel:\s*'按需加载'/,
+  'the deferred notebook state must use a non-loading status and an explicit on-demand label',
+);
 forbidPattern(
   surfaceStatusBlock,
   /key:\s*'sources'|label:\s*'(?:资料|原始讲义)'/,
@@ -305,8 +320,8 @@ forbidPattern(
 );
 requirePattern(
   learnPage,
-  /const firstResourceRoundReady = Boolean\([\s\S]{0,220}\[problemsLoadState,\s*notebooksLoadState\]\.every\([\s\S]{0,240}state\.status === 'ready' \|\| state\.status === 'empty'/,
-  'deferred course reads must unlock only after both problems and notebooks succeed',
+  /const firstResourceRoundReady = Boolean\([\s\S]{0,160}activeCourse && courseContentStateRevision\.startsWith\(`\$\{activeCourse\.id}:/,
+  'deferred course reads must unlock only after the lightweight course-content state resolves',
 );
 requirePattern(
   learnPage,
@@ -385,7 +400,7 @@ requirePattern(
 );
 requirePattern(
   conversationApi,
-  /loadRemoteLearnConversationOrThrow\([\s\S]{0,220}options:\s*\{\s*signal\?:\s*AbortSignal\s*\}[\s\S]{0,320}signal:\s*options\.signal/,
+  /loadRemoteLearnConversationOrThrow\([\s\S]{0,260}options:\s*\{[\s\S]{0,120}signal\?:\s*AbortSignal[\s\S]{0,320}signal:\s*options\.signal/,
   'conversation-body reads must accept latest-selection cancellation',
 );
 requirePattern(

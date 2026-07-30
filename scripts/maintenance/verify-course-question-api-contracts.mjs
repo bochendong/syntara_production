@@ -10,11 +10,22 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 
 const route = read('app/api/v1/courses/[id]/questions/route.ts');
 const contextBuilder = read('lib/chat/server-course-question-context.ts');
+const statelessChat = read('features/chat/server/stateless-chat.ts');
 const trustedTurn = read('features/chat/server/trusted-course-turn.ts');
+const trustedLearnHandoff = read('features/learn-core/server/trusted-answerer-handoff.ts');
+const learnTurnRoute = read('app/api/learn/turn/route.ts');
+const learnClientAdapters = read('features/learn-core/client-adapters.ts');
+const askCourseOrchestrator = read('lib/chat/ask-course-orchestrator.ts');
+const runCourseSideChatLoop = read('lib/chat/run-course-side-chat-loop.ts');
+const sourceUploadLibrary = read('features/memory/server/source-upload-library.ts');
+const boundedSourceRetrieval = read('features/memory/server/bounded-course-source-retrieval.ts');
 const answerContract = read('features/memory/domain/course-answer-contract.ts');
 const runStore = read('lib/server/course-question-run-store.ts');
 const runMigration = read('prisma/migrations/20260727040000_add_course_question_run/migration.sql');
 const conversationStore = read('lib/server/learn-conversation-store.ts');
+const conversationRepository = read(
+  'features/learn-conversations/server/course-conversation-repository.ts',
+);
 const studyMemoryStore = read('lib/server/study-memory-store.ts');
 const learnPage = read('components/learn/learn-page-client.tsx');
 const learnRoute = read('app/api/learn/conversations/route.ts');
@@ -66,14 +77,73 @@ for (const source of [contextBuilder, trustedTurn]) {
   assert.match(source, /findCourseAccessRole|hasCourseEnrollment/);
 }
 assert.match(contextBuilder, /listCourseSourceUploads\(/);
-assert.match(contextBuilder, /includeTextSections:\s*true/);
+assert.match(contextBuilder, /includeTextSections:\s*false/);
 assert.match(contextBuilder, /includeArtifacts:\s*false/);
+assert.match(contextBuilder, /retrieveBoundedCourseSourceSnippets\(/);
+assert.match(boundedSourceRetrieval, /FROM "KnowledgeChunk"/);
+assert.match(
+  boundedSourceRetrieval,
+  /WITH eligible_metadata AS MATERIALIZED[\s\S]*LIMIT \$5[\s\S]*substring\([\s\S]*FOR \$6[\s\S]*"cumulativeChars" <= \$8/,
+  'The non-indexed source fallback must shortlist metadata before projecting SQL-budgeted Markdown windows.',
+);
 assert.match(contextBuilder, /buildLayeredMemoryRecallContext\(/);
 assert.match(contextBuilder, /maxSources:\s*4/);
 assert.match(contextBuilder, /maxSourceTextChars:\s*9_000/);
 assert.match(
   contextBuilder,
-  /\.filter\(\(candidate\) => candidate\.score > 0\)/,
+  /loadCourseSources\(\{[\s\S]{0,300}verifiedAccess:\s*\{[\s\S]{0,120}ownerId:\s*course\.ownerId,[\s\S]{0,80}accessRole,/,
+  'The answerer context must reuse the access result already verified for this request.',
+);
+assert.match(contextBuilder, /const serverAnswererHandoff:[\s\S]*requiredBehavior:/);
+assert.match(contextBuilder, /mergeTrustedPlannerHandoff\([\s\S]*args\.trustedPlannerHandoff/);
+assert.match(
+  statelessChat,
+  /trustedAccess:\s*trusted\.courseAccess[\s\S]{0,900}attachTrustedServerCourseContext\(/,
+  'The chat route must carry verified access and attach prompt context without resolving the course twice.',
+);
+assert.equal(
+  statelessChat.match(/await resolveTrustedCourseTurn\(/g)?.length ?? 0,
+  1,
+  'The chat route must resolve the trusted course exactly once.',
+);
+assert.match(
+  route,
+  /const trustedAccess = await resolveTrustedCourseAccess\(\{[\s\S]{0,180}principal\.userId[\s\S]{0,120}courseId/,
+  'The public question route must resolve access from the authenticated principal.',
+);
+assert.match(
+  route,
+  /buildTrustedCourseQuestionContext\(\{[\s\S]{0,400}trustedAccess,/,
+  'The public question context builder must reuse the resolved access.',
+);
+assert.match(
+  route,
+  /resolveTrustedCourseTurn\(\{[\s\S]{0,300}trustedAccess,/,
+  'The public question turn must reuse the resolved access.',
+);
+assert.equal(
+  route.match(/await resolveTrustedCourseAccess\(/g)?.length ?? 0,
+  1,
+  'The public question route must perform exactly one explicit trusted-access resolution.',
+);
+assert.doesNotMatch(
+  route,
+  /findCourseAccessRole/,
+  'The public question route must not maintain a second access-resolution path.',
+);
+assert.match(
+  trustedTurn,
+  /args\.trustedAccess\.userId === userId[\s\S]{0,120}args\.trustedAccess\.course\.id === courseId/,
+  'A reused access result must remain bound to both the authenticated user and course.',
+);
+assert.match(
+  sourceUploadLibrary,
+  /verifiedAccess\?:[\s\S]{0,500}args\.verifiedAccess \?\? \(await requireReadableCourse\(args\)\)/,
+  'Source listing must accept only an internal verified-access shortcut and otherwise fail closed.',
+);
+assert.match(
+  contextBuilder,
+  /\.filter\(\s*\(candidate\) => candidate\.score > 0 && candidate\.rankedPages\.length > 0\s*\)/,
   'Zero-relevance course sources must not consume prompt tokens or appear as evidence.',
 );
 assert.match(
@@ -88,6 +158,36 @@ assert.doesNotMatch(
   trustedTurn,
   /\.\.\.args\.body\.courseContext|\.\.\.suppliedContext/,
   'The trusted turn must not merge an HTTP course context.',
+);
+assert.match(learnTurnRoute, /issueTrustedLearnAnswererHandoff\(\{/);
+assert.match(
+  trustedLearnHandoff,
+  /createHmac\('sha256'[\s\S]*timingSafeEqual[\s\S]*userId[\s\S]*courseId[\s\S]*questionDigest[\s\S]*expiresAt/,
+  'Learn-core handoffs must be signed and bound to user, course, question, and expiry.',
+);
+assert.match(
+  learnClientAdapters,
+  /trustedToken:\s*response\?\.trustedAnswererHandoffToken/,
+  'The browser adapter may carry only the opaque signed handoff capability.',
+);
+assert.match(
+  askCourseOrchestrator,
+  /trustedLearnAnswererHandoffToken:\s*options\.answererHandoff\?\.trustedToken/,
+);
+assert.match(runCourseSideChatLoop, /trustedLearnAnswererHandoffToken,/);
+assert.match(
+  statelessChat,
+  /const trustedPlannerHandoff = verifyTrustedLearnAnswererHandoff\(\{/,
+  'The chat server must verify the opaque handoff before adding planner constraints to trusted context.',
+);
+assert.match(
+  statelessChat,
+  /buildTrustedCourseQuestionContext\(\{[\s\S]{0,500}trustedPlannerHandoff,/,
+);
+assert.match(
+  statelessChat,
+  /stripTrustedLearnHandoffToken\(trustedBody\)/,
+  'The opaque transport token must not continue into model generation.',
 );
 
 assert.match(
@@ -120,12 +220,51 @@ assert.match(
   /\$transaction\(async \(transaction\)[\s\S]*pg_advisory_xact_lock\(hashtextextended\(\$1,\s*0\)\)[\s\S]*SELECT[\s\S]*INSERT INTO "StudyMemory"/,
   'Concurrent identical memory confirmations must serialize before SELECT-then-INSERT.',
 );
-assert.match(conversationStore, /requestPayloadHash !== args\.requestPayloadHash/);
+assert.match(conversationRepository, /message\.requestPayloadHash !== args\.requestPayloadHash/);
 assert.match(conversationStore, /assistantCreatedAt = new Date\(userCreatedAt\.getTime\(\) \+ 1\)/);
-assert.match(learnRoute, /orderBy:\s*\[\{ createdAt: 'asc' \}, \{ id: 'asc' \}\]/);
+assert.match(
+  conversationRepository,
+  /loadCourseQuestionHistory[\s\S]*"deletedAt" IS NULL[\s\S]*ORDER BY "sequence" DESC[\s\S]*LIMIT \$4/,
+  'Public question history must exclude tombstones before applying its bounded take.',
+);
+assert.match(
+  conversationRepository,
+  /loadCourseConversationSnapshot[\s\S]*ORDER BY m\."sequence" DESC[\s\S]*LIMIT \$5/,
+  'Conversation detail must read a bounded sequence window with lookahead.',
+);
+assert.match(
+  learnRoute,
+  /syncMode:\s*z\.literal\('patch'\)\.default\('patch'\)/,
+  'The public conversation API must accept incremental patches only.',
+);
+assert.match(
+  conversationRepository,
+  /patchCourseConversationMessages[\s\S]*"operation" = 'delete'[\s\S]*ON CONFLICT \("id"\) DO UPDATE/,
+  'Patch sync must persist explicitly named message tombstones idempotently.',
+);
+assert.match(
+  `${learnRoute}\n${conversationRepository}`,
+  /messageWindow:[\s\S]*hasMore[\s\S]*isComplete/,
+  'A bounded message response must identify whether its window is complete.',
+);
+assert.match(
+  learnRoute,
+  /appliedMessageIds[\s\S]{0,200}appliedDeletedMessageIds/,
+  'Patch responses must explicitly acknowledge accepted upserts and tombstones.',
+);
+assert.match(
+  learnRoute,
+  /serverDeletedMessageIds/,
+  'Patch responses must reject stale upserts for server-tombstoned messages.',
+);
 
-assert.match(learnRoute, /const DEFAULT_SESSION_PAGE_LIMIT = 5/);
+assert.match(conversationRepository, /DEFAULT_COURSE_CONVERSATION_PAGE_LIMIT = 5/);
 assert.match(learnPage, /activeSessionId = urlSessionId \|\| draftSessionId/);
+assert.doesNotMatch(
+  learnPage,
+  /requestedSessionDetailKey/,
+  'The URL session must be the only trigger for loading conversation detail.',
+);
 assert.match(
   learnPage,
   /if \(!hydrated \|\| !isLoggedIn\) return;[\s\S]{0,2500}enqueueInitialLearnBootRequest\(\{[\s\S]{0,300}listRemoteLearnSessionsPage\(courseId,\s*\{[\s\S]{0,120}limit:\s*5/,
@@ -134,19 +273,30 @@ assert.doesNotMatch(
   learnPage,
   /if \(!initialBootSettled\)[\s\S]{0,900}listRemoteLearnSessionsPage\(courseId/,
 );
+
+const conversationListRepositorySource = conversationRepository.slice(
+  conversationRepository.indexOf('export async function listCourseConversationPage('),
+  conversationRepository.indexOf('export async function loadCourseConversationSnapshot('),
+);
 assert.match(
-  learnRoute,
-  /WITH "courseAccess" AS \([\s\S]{0,700}CASE[\s\S]{0,700}"CourseEnrollment"[\s\S]{0,700}"CoursePurchase"[\s\S]{0,1200}LEFT JOIN LATERAL[\s\S]{0,1200}LIMIT \$3/,
+  conversationListRepositorySource,
+  /WITH "courseAccess" AS \([\s\S]*CASE[\s\S]*"CourseEnrollment"[\s\S]*"CoursePurchase"[\s\S]*LEFT JOIN LATERAL[\s\S]*LIMIT \$5/,
   'The five-name first page must resolve access and metadata in one pool lease.',
 );
 assert.match(
   learnRoute,
-  /const page = await listLearnConversationPageWithoutTransaction\([\s\S]{0,400}if \(!page\.accessRole\)/,
+  /const page = await listCourseConversationPage\([\s\S]{0,400}if \(!page\.accessRole\)/,
   'The combined metadata query must fail closed when the course is unreadable.',
+);
+assert.doesNotMatch(
+  `${learnRoute}\n${conversationStore}\n${conversationRepository}`,
+  /FROM "Conversation"|FROM "Message"|INSERT INTO "Conversation"|INSERT INTO "Message"/,
+  'Course question persistence must use only dedicated conversation tables.',
 );
 assert.match(
   learnPage,
-  /requestedSessionDetailKey !== activeMessageStoreKey[\s\S]{0,500}loadRemoteLearnConversationOrThrow/,
+  /if \(!activeCourseId \|\| activeCourseId !== urlCourseId \|\| !urlSessionId\) return;[\s\S]{0,2200}loadRemoteLearnConversationOrThrow/,
+  'A canonical URL session may trigger lazy detail only after the route and active course agree.',
 );
 assert.match(
   learnPage,
@@ -183,6 +333,8 @@ process.stdout.write(
       checked: [
         'public auth and required Idempotency-Key',
         'server-only course context and bounded evidence',
+        'single-pass trusted course access and answerer handoff',
+        'signed learn-core planner handoff transport',
         'layered learner-memory retrieval',
         'answer-contract enforcement',
         'durable generation claim and write-side lease fencing',

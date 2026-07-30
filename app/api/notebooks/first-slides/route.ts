@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/prisma';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
-import { findReadableNotebookId } from '@/lib/server/repositories/notebook-repository';
+import { listEnrolledCourseIds } from '@/lib/server/repositories/course-enrollment-repository';
 import type { Slide } from '@/lib/types/slides';
 
 type FirstSlideRow = {
@@ -21,6 +21,12 @@ type FirstSlidePreviewRow = {
 type CachedCoverSlideRow = {
   id: string;
   coverSlideJson: unknown;
+};
+
+type NotebookCoverAccessRow = CachedCoverSlideRow & {
+  ownerId: string;
+  courseId: string | null;
+  course: { ownerId: string } | null;
 };
 
 function parseNotebookIds(request: Request): string[] {
@@ -100,22 +106,48 @@ export async function GET(request: Request) {
     const ids = parseNotebookIds(request);
     if (ids.length === 0) return NextResponse.json({ slides: {} });
 
-    const readable = await Promise.all(
-      ids.map((id) => findReadableNotebookId(prisma, auth.userId, id)),
+    const notebookRows = (await prisma.notebook.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        ownerId: true,
+        courseId: true,
+        coverSlideJson: true,
+        course: {
+          select: {
+            ownerId: true,
+          },
+        },
+      },
+    })) as NotebookCoverAccessRow[];
+    const externalCourseIds = Array.from(
+      new Set(
+        notebookRows
+          .filter(
+            (notebook) =>
+              notebook.ownerId !== auth.userId && notebook.course?.ownerId !== auth.userId,
+          )
+          .map((notebook) => notebook.courseId)
+          .filter((courseId): courseId is string => Boolean(courseId)),
+      ),
     );
-    const readableIds = readable
-      .map((notebook) => notebook?.id)
-      .filter((id): id is string => Boolean(id));
+    const readableExternalCourseIds = await listEnrolledCourseIds(
+      prisma,
+      auth.userId,
+      externalCourseIds,
+    );
+    const readableRows = notebookRows.filter(
+      (notebook) =>
+        notebook.ownerId === auth.userId ||
+        notebook.course?.ownerId === auth.userId ||
+        Boolean(notebook.courseId && readableExternalCourseIds.has(notebook.courseId)),
+    );
+    const readableIds = readableRows.map((notebook) => notebook.id);
     if (readableIds.length === 0) return NextResponse.json({ slides: {} });
 
     if (preview) {
-      const cachedRows = (await prisma.notebook.findMany({
-        where: { id: { in: readableIds } },
-        select: { id: true, coverSlideJson: true },
-      })) as CachedCoverSlideRow[];
-
       const slides: Record<string, Slide> = {};
-      for (const row of cachedRows) {
+      for (const row of readableRows) {
         const slide = slidePreviewFromCachedCover(row);
         if (slide) slides[row.id] = slide;
       }

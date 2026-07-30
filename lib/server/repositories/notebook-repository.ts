@@ -17,18 +17,75 @@ export type UpdateOwnedNotebookData = Omit<
 >;
 
 export type ReplaceNotebookSceneData = Omit<Prisma.SceneCreateManyInput, 'notebookId'>;
+export type IncrementalNotebookSceneData = ReplaceNotebookSceneData & { id: string };
+
+export type NotebookSceneGenerationFence = {
+  courseId: string | null;
+  contentVersion: number;
+};
+
+export class NotebookSceneGenerationWriteError extends Error {
+  readonly code:
+    | 'NOTEBOOK_NOT_FOUND'
+    | 'NOTEBOOK_COURSE_MISMATCH'
+    | 'NOTEBOOK_CONTENT_VERSION_CONFLICT'
+    | 'NOTEBOOK_SCENE_ID_CONFLICT'
+    | 'NOTEBOOK_SCENE_COUNT_MISMATCH';
+  readonly currentContentVersion?: number;
+  readonly actualSceneCount?: number;
+
+  constructor(
+    code: NotebookSceneGenerationWriteError['code'],
+    options: { currentContentVersion?: number; actualSceneCount?: number } = {},
+  ) {
+    super(code);
+    this.name = 'NotebookSceneGenerationWriteError';
+    this.code = code;
+    this.currentContentVersion = options.currentContentVersion;
+    this.actualSceneCount = options.actualSceneCount;
+  }
+}
 
 export type ReplaceMarkdownNotebookSectionData = Omit<
   Prisma.MarkdownNotebookSectionCreateManyInput,
   'notebookId' | 'courseId'
 >;
 
+export const MARKDOWN_SECTION_LIST_DEFAULT_LIMIT = 20;
+export const MARKDOWN_SECTION_LIST_MAX_LIMIT = 50;
+export const MARKDOWN_SECTION_TITLE_MAX_CHARS = 200;
+export const MARKDOWN_SECTION_SUMMARY_MAX_CHARS = 400;
+
+export type MarkdownSectionPageCursor = {
+  order: number;
+  id: string;
+};
+
+export type MarkdownSectionListItem = {
+  id: string;
+  title: string;
+  order: number;
+  summary: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MarkdownSectionDetail = MarkdownSectionListItem & {
+  notebookId: string;
+  courseId: string | null;
+  markdown: string;
+};
+
 type ReplaceMarkdownNotebookSectionOptions = {
   preserveScenes?: boolean;
   notebookKind?: 'image' | 'markdown';
 };
 
-type NotebookSceneMetadataInput = Pick<ReplaceNotebookSceneData, 'content' | 'actions' | 'order'>;
+type NotebookSceneMetadataInput = {
+  content: unknown;
+  actions?: unknown;
+  order: number;
+};
 
 type NotebookSceneMetadataSummary = {
   sceneCount: number;
@@ -316,7 +373,6 @@ export function summarizeNotebookScenesForMetadata(
 export async function refreshCourseSummaryFields(db: DbClient, courseId: string) {
   const notebookAggregate = await db.notebook.aggregate({
     where: { courseId },
-    _count: { _all: true },
     _sum: {
       sceneCount: true,
       speechReadyCount: true,
@@ -340,7 +396,9 @@ export async function refreshCourseSummaryFields(db: DbClient, courseId: string)
   await db.course.updateMany({
     where: { id: courseId },
     data: {
-      notebookCount: notebookAggregate._count._all,
+      // Course.notebookCount has one authoritative runtime writer: the
+      // Notebook_sync_course_notebook_count database trigger. Re-applying an
+      // earlier aggregate here can overwrite a concurrent trigger increment.
       sceneCount: notebookAggregate._sum.sceneCount ?? 0,
       problemCount,
       publishedProblemCount,
@@ -378,6 +436,20 @@ const notebookListSelect = {
   updatedAt: true,
 } satisfies Prisma.NotebookSelect;
 
+const notebookLibraryListSelect = {
+  id: true,
+  courseId: true,
+  name: true,
+  tags: true,
+  notebookKind: true,
+  sceneCount: true,
+  sectionCount: true,
+  coverImagePath: true,
+  contentVersion: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.NotebookSelect;
+
 export function listOwnedNotebooks(db: DbClient, userId: string, courseId?: string) {
   return db.notebook.findMany({
     where: {
@@ -385,6 +457,17 @@ export function listOwnedNotebooks(db: DbClient, userId: string, courseId?: stri
       ...(courseId ? { courseId } : {}),
     },
     select: notebookListSelect,
+    orderBy: { updatedAt: 'desc' },
+  });
+}
+
+function listOwnedNotebookLibraryItems(db: DbClient, userId: string, courseId?: string) {
+  return db.notebook.findMany({
+    where: {
+      ownerId: userId,
+      ...(courseId ? { courseId } : {}),
+    },
+    select: notebookLibraryListSelect,
     orderBy: { updatedAt: 'desc' },
   });
 }
@@ -404,6 +487,27 @@ export async function listReadableNotebooks(db: DbClient, userId: string, course
   return db.notebook.findMany({
     where: { courseId },
     select: notebookListSelect,
+    orderBy: { updatedAt: 'desc' },
+  });
+}
+
+/**
+ * Course notebook popup projection. Covers and notebook bodies are fetched only
+ * after a user selects one item; the list response remains metadata-only.
+ */
+export async function listReadableNotebookLibraryItems(
+  db: DbClient,
+  userId: string,
+  courseId: string,
+) {
+  const ownedNotebooks = await listOwnedNotebookLibraryItems(db, userId, courseId);
+  if (ownedNotebooks.length > 0) return ownedNotebooks;
+
+  const accessRole = await findCourseAccessRole(db, userId, courseId);
+  if (!accessRole || accessRole === 'owner') return [];
+  return db.notebook.findMany({
+    where: { courseId },
+    select: notebookLibraryListSelect,
     orderBy: { updatedAt: 'desc' },
   });
 }
@@ -775,11 +879,130 @@ export function listNotebookScenes(db: DbClient, notebookId: string) {
   });
 }
 
+export async function findOwnedNotebookSceneGenerationFence(
+  db: DbClient,
+  userId: string,
+  notebookId: string,
+): Promise<NotebookSceneGenerationFence | null> {
+  return db.notebook.findFirst({
+    where: { id: notebookId, ownerId: userId },
+    select: { courseId: true, contentVersion: true },
+  });
+}
+
 export function listMarkdownNotebookSections(db: DbClient, notebookId: string) {
   return db.markdownNotebookSection.findMany({
     where: { notebookId },
     orderBy: { order: 'asc' },
   });
+}
+
+export function encodeMarkdownSectionPageCursor(cursor: MarkdownSectionPageCursor): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+export function decodeMarkdownSectionPageCursor(raw: string): MarkdownSectionPageCursor | null {
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as {
+      order?: unknown;
+      id?: unknown;
+    };
+    if (
+      !Number.isInteger(parsed.order) ||
+      Number(parsed.order) < 0 ||
+      typeof parsed.id !== 'string' ||
+      !parsed.id.trim()
+    ) {
+      return null;
+    }
+    return { order: Number(parsed.order), id: parsed.id };
+  } catch {
+    return null;
+  }
+}
+
+export async function listReadableMarkdownSectionPage(args: {
+  db: DbClient;
+  userId: string;
+  notebookId: string;
+  cursor?: MarkdownSectionPageCursor | null;
+  limit?: number;
+}): Promise<{
+  sections: MarkdownSectionListItem[];
+  hasMore: boolean;
+  nextCursor: string | null;
+} | null> {
+  const readable = await findReadableNotebookId(args.db, args.userId, args.notebookId);
+  if (!readable) return null;
+  const requestedLimit = Number.isFinite(args.limit) ? Math.trunc(args.limit ?? 0) : 0;
+  const limit = Math.max(
+    1,
+    Math.min(
+      requestedLimit || MARKDOWN_SECTION_LIST_DEFAULT_LIMIT,
+      MARKDOWN_SECTION_LIST_MAX_LIMIT,
+    ),
+  );
+  const cursorFilter = args.cursor
+    ? Prisma.sql`
+        AND (
+          section."order" > ${args.cursor.order}
+          OR (
+            section."order" = ${args.cursor.order}
+            AND section."id" > ${args.cursor.id}
+          )
+        )
+      `
+    : Prisma.empty;
+  const rows = await args.db.$queryRaw<MarkdownSectionListItem[]>(Prisma.sql`
+    SELECT
+      section."id",
+      LEFT(section."title", ${MARKDOWN_SECTION_TITLE_MAX_CHARS}::integer) AS "title",
+      section."order",
+      LEFT(section."summary", ${MARKDOWN_SECTION_SUMMARY_MAX_CHARS}::integer) AS "summary",
+      section."createdAt",
+      section."updatedAt"
+    FROM "MarkdownNotebookSection" AS section
+    WHERE section."notebookId" = ${args.notebookId}
+    ${cursorFilter}
+    ORDER BY section."order" ASC, section."id" ASC
+    LIMIT ${limit + 1}
+  `);
+  const hasMore = rows.length > limit;
+  const sections = hasMore ? rows.slice(0, limit) : rows;
+  const last = sections.at(-1);
+  return {
+    sections,
+    hasMore,
+    nextCursor:
+      hasMore && last ? encodeMarkdownSectionPageCursor({ order: last.order, id: last.id }) : null,
+  };
+}
+
+export async function findReadableMarkdownSectionDetail(args: {
+  db: DbClient;
+  userId: string;
+  notebookId: string;
+  sectionId: string;
+}): Promise<MarkdownSectionDetail | null> {
+  const readable = await findReadableNotebookId(args.db, args.userId, args.notebookId);
+  if (!readable) return null;
+  const rows = await args.db.$queryRaw<MarkdownSectionDetail[]>(Prisma.sql`
+    SELECT
+      section."id",
+      section."notebookId",
+      section."courseId",
+      LEFT(section."title", ${MARKDOWN_SECTION_TITLE_MAX_CHARS}::integer) AS "title",
+      section."order",
+      LEFT(section."summary", ${MARKDOWN_SECTION_SUMMARY_MAX_CHARS}::integer) AS "summary",
+      section."markdown",
+      section."createdAt",
+      section."updatedAt"
+    FROM "MarkdownNotebookSection" AS section
+    WHERE section."notebookId" = ${args.notebookId}
+      AND section."id" = ${args.sectionId}
+    LIMIT 1
+  `);
+  return rows[0] ?? null;
 }
 
 export async function replaceOwnedNotebookScenes(
@@ -821,6 +1044,202 @@ export async function replaceOwnedNotebookScenes(
   });
 
   return listNotebookScenes(db, notebookId);
+}
+
+function assertNotebookGenerationCourse(
+  actualCourseId: string | null,
+  expectedCourseId: string | null,
+) {
+  if (actualCourseId !== expectedCourseId) {
+    throw new NotebookSceneGenerationWriteError('NOTEBOOK_COURSE_MISMATCH');
+  }
+}
+
+/**
+ * Starts one fenced generation session. This is the only incremental-generation
+ * operation that clears the notebook. Page writes keep this returned version
+ * stable so retries can safely upsert the same deterministic scene ids.
+ */
+export async function beginOwnedNotebookSceneGeneration(
+  db: RootDbClient,
+  userId: string,
+  notebookId: string,
+  expectedCourseId: string | null,
+  expectedContentVersion: number,
+): Promise<NotebookSceneGenerationFence> {
+  return db.$transaction(async (tx) => {
+    const notebook = await tx.notebook.findFirst({
+      where: { id: notebookId, ownerId: userId },
+      select: { courseId: true, contentVersion: true },
+    });
+    if (!notebook) {
+      throw new NotebookSceneGenerationWriteError('NOTEBOOK_NOT_FOUND');
+    }
+    assertNotebookGenerationCourse(notebook.courseId, expectedCourseId);
+    if (notebook.contentVersion !== expectedContentVersion) {
+      throw new NotebookSceneGenerationWriteError('NOTEBOOK_CONTENT_VERSION_CONFLICT', {
+        currentContentVersion: notebook.contentVersion,
+      });
+    }
+
+    await tx.scene.deleteMany({ where: { notebookId } });
+    const updated = await tx.notebook.updateMany({
+      where: {
+        id: notebookId,
+        ownerId: userId,
+        courseId: expectedCourseId,
+        contentVersion: expectedContentVersion,
+      },
+      data: {
+        notebookKind: 'image',
+        sceneCount: 0,
+        speechReadyCount: 0,
+        speechTotalCount: 0,
+        speechStatus: 'no_speech',
+        coverSlideJson: Prisma.DbNull,
+        coverImagePath: null,
+        contentVersion: { increment: 1 },
+        updatedAt: new Date(),
+      },
+    });
+    if (updated.count !== 1) {
+      throw new NotebookSceneGenerationWriteError('NOTEBOOK_CONTENT_VERSION_CONFLICT');
+    }
+    return {
+      courseId: notebook.courseId,
+      contentVersion: expectedContentVersion + 1,
+    };
+  });
+}
+
+/**
+ * Idempotently writes a small generated-page batch. The notebook version does
+ * not change until finalization; a competing begin/replace invalidates the
+ * fence before any scene mutation can commit.
+ */
+export async function upsertOwnedNotebookGenerationScenes(
+  db: RootDbClient,
+  userId: string,
+  notebookId: string,
+  expectedCourseId: string | null,
+  expectedContentVersion: number,
+  scenes: IncrementalNotebookSceneData[],
+): Promise<NotebookSceneGenerationFence> {
+  return db.$transaction(async (tx) => {
+    const locked = await tx.notebook.updateMany({
+      where: {
+        id: notebookId,
+        ownerId: userId,
+        courseId: expectedCourseId,
+        contentVersion: expectedContentVersion,
+      },
+      data: { updatedAt: new Date() },
+    });
+    if (locked.count !== 1) {
+      throw new NotebookSceneGenerationWriteError('NOTEBOOK_CONTENT_VERSION_CONFLICT');
+    }
+
+    const sceneIds = scenes.map((scene) => scene.id).filter((id): id is string => Boolean(id));
+    const existingScenes = await tx.scene.findMany({
+      where: { id: { in: sceneIds } },
+      select: { id: true, notebookId: true },
+    });
+    if (existingScenes.some((scene) => scene.notebookId !== notebookId)) {
+      throw new NotebookSceneGenerationWriteError('NOTEBOOK_SCENE_ID_CONFLICT');
+    }
+
+    await Promise.all(
+      scenes.map((scene) =>
+        tx.scene.upsert({
+          where: { id: scene.id },
+          create: { ...scene, notebookId },
+          update: {
+            title: scene.title,
+            type: scene.type,
+            order: scene.order,
+            content: scene.content,
+            actions: scene.actions,
+            whiteboard: scene.whiteboard,
+          },
+        }),
+      ),
+    );
+    return { courseId: expectedCourseId, contentVersion: expectedContentVersion };
+  });
+}
+
+/**
+ * Performs the one O(N) metadata reconciliation after all O(1)-sized page
+ * writes. Any later content mutation invalidates the session fence.
+ */
+export async function finalizeOwnedNotebookSceneGeneration(
+  db: RootDbClient,
+  userId: string,
+  notebookId: string,
+  expectedCourseId: string | null,
+  expectedContentVersion: number,
+  expectedSceneCount: number,
+): Promise<NotebookSceneGenerationFence> {
+  return db.$transaction(async (tx) => {
+    const notebook = await tx.notebook.findFirst({
+      where: { id: notebookId, ownerId: userId },
+      select: {
+        courseId: true,
+        contentVersion: true,
+        sceneCount: true,
+      },
+    });
+    if (!notebook) {
+      throw new NotebookSceneGenerationWriteError('NOTEBOOK_NOT_FOUND');
+    }
+    assertNotebookGenerationCourse(notebook.courseId, expectedCourseId);
+    if (notebook.contentVersion !== expectedContentVersion) {
+      throw new NotebookSceneGenerationWriteError('NOTEBOOK_CONTENT_VERSION_CONFLICT', {
+        currentContentVersion: notebook.contentVersion,
+      });
+    }
+
+    const scenes = await tx.scene.findMany({
+      where: { notebookId },
+      select: { content: true, actions: true, order: true },
+      orderBy: { order: 'asc' },
+    });
+    if (scenes.length !== expectedSceneCount) {
+      throw new NotebookSceneGenerationWriteError('NOTEBOOK_SCENE_COUNT_MISMATCH', {
+        actualSceneCount: scenes.length,
+      });
+    }
+    const summary = summarizeNotebookScenesForMetadata(scenes);
+    const updated = await tx.notebook.updateMany({
+      where: {
+        id: notebookId,
+        ownerId: userId,
+        courseId: expectedCourseId,
+        contentVersion: expectedContentVersion,
+      },
+      data: {
+        notebookKind: 'image',
+        sceneCount: summary.sceneCount,
+        speechReadyCount: summary.speechReadyCount,
+        speechTotalCount: summary.speechTotalCount,
+        speechStatus: summary.speechStatus,
+        coverSlideJson: summary.coverSlideJson ?? Prisma.DbNull,
+        coverImagePath: summary.coverImagePath,
+        contentVersion: { increment: 1 },
+        updatedAt: new Date(),
+      },
+    });
+    if (updated.count !== 1) {
+      throw new NotebookSceneGenerationWriteError('NOTEBOOK_CONTENT_VERSION_CONFLICT');
+    }
+    if (notebook.courseId) {
+      await refreshCourseSummaryFields(tx, notebook.courseId);
+    }
+    return {
+      courseId: notebook.courseId,
+      contentVersion: expectedContentVersion + 1,
+    };
+  });
 }
 
 export async function replaceOwnedMarkdownNotebookSections(

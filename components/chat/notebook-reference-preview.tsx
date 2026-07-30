@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScenePreviewDialog } from '@/components/slide-renderer/components/scene-preview-dialog';
+import { SYNTARA_ACTION_DIALOG_CONTENT_CLASS } from '@/components/ui/syntara-dialog-style';
 import type { NotebookKnowledgeReference } from '@/lib/types/notebook-message';
 import type { Scene } from '@/lib/types/stage';
 import { cn } from '@/lib/utils';
@@ -68,7 +69,10 @@ export function NotebookReferencePreviewLi({
         <Dialog modal={false} open={previewOpen} onOpenChange={setPreviewOpen}>
           <DialogContent
             showOverlay={false}
-            className="w-[min(92vw,420px)] max-w-[420px] overflow-hidden p-4"
+            className={cn(
+              SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+              'w-[min(92vw,420px)] max-w-[420px] overflow-hidden p-4',
+            )}
           >
             <DialogHeader className="sr-only">
               <DialogTitle>

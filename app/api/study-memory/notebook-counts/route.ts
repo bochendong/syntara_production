@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
-import { findCourseAccessRole } from '@/lib/server/repositories/course-enrollment-repository';
+import { listEnrolledCourseIds } from '@/lib/server/repositories/course-enrollment-repository';
 
 function parseNotebookIds(request: Request): string[] {
   const url = new URL(request.url);
@@ -31,18 +31,39 @@ export async function GET(request: Request) {
 
     const notebooks = await prisma.notebook.findMany({
       where: { id: { in: ids } },
-      select: { id: true, ownerId: true, courseId: true },
+      select: {
+        id: true,
+        ownerId: true,
+        courseId: true,
+        course: {
+          select: {
+            ownerId: true,
+          },
+        },
+      },
     });
-    const readable = (
-      await Promise.all(
-        notebooks.map(async (notebook) => {
-          if (notebook.ownerId === auth.userId) return notebook;
-          if (!notebook.courseId) return null;
-          const accessRole = await findCourseAccessRole(prisma, auth.userId, notebook.courseId);
-          return accessRole ? notebook : null;
-        }),
-      )
-    ).filter((notebook): notebook is (typeof notebooks)[number] => Boolean(notebook));
+    const externalCourseIds = Array.from(
+      new Set(
+        notebooks
+          .filter(
+            (notebook) =>
+              notebook.ownerId !== auth.userId && notebook.course?.ownerId !== auth.userId,
+          )
+          .map((notebook) => notebook.courseId)
+          .filter((courseId): courseId is string => Boolean(courseId)),
+      ),
+    );
+    const readableExternalCourseIds = await listEnrolledCourseIds(
+      prisma,
+      auth.userId,
+      externalCourseIds,
+    );
+    const readable = notebooks.filter(
+      (notebook) =>
+        notebook.ownerId === auth.userId ||
+        notebook.course?.ownerId === auth.userId ||
+        Boolean(notebook.courseId && readableExternalCourseIds.has(notebook.courseId)),
+    );
     if (readable.length === 0) return NextResponse.json({ counts: {}, storage: 'database' });
 
     const readableIds = readable.map((notebook) => notebook.id);

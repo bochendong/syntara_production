@@ -1,0 +1,155 @@
+{
+  "id": "mock-lecture-substitution-differential",
+  "sourceMessageId": "message-mat136-substitution-assistant-local",
+  "title": "换元时为什么必须一起换 dx？",
+  "status": "ready",
+  "generatedBy": {
+    "imageProvider": "openai-image",
+    "imageModel": "gpt-image-2",
+    "ttsProvider": "openai-tts",
+    "ttsModel": "gpt-4o-mini-tts",
+    "ttsVoice": "marin"
+  },
+  "pages": [
+    {
+      "id": "substitution-differential-page-1",
+      "title": "换元时为什么必须一起换 dx？",
+      "imageUrl": "/mock-mini-lectures/mat136/substitution-differential/page-01.png",
+      "imageSha256": "ef12e0d2d5bd189a755ac649f2fc2529eb4f38ff3159c1173fb9049ee2b2cb75",
+      "imageBytes": 463702,
+      "width": 1000,
+      "height": 562.5,
+      "recoveryStatus": "passed",
+      "regions": [
+        {
+          "id": "native-mat136-substitution-differential-page-1-dx-carries-width",
+          "semanticId": "dx-carries-width",
+          "label": "dx 指明变量，也代表微小宽度",
+          "order": 1,
+          "role": "opening",
+          "color": "#38bdf8",
+          "bbox": [104.5, 114.3, 377.9, 254.8]
+        },
+        {
+          "id": "native-mat136-substitution-differential-page-1-chain-rule-bridge",
+          "semanticId": "chain-rule-bridge",
+          "label": "du = g′(x) dx 是换元桥梁",
+          "order": 2,
+          "role": "formula",
+          "color": "#34d399",
+          "bbox": [531.3, 116.2, 353.5, 252.9]
+        },
+        {
+          "id": "native-mat136-substitution-differential-page-1-worked-substitution",
+          "semanticId": "worked-substitution",
+          "label": "例题：把 2x dx 整体替换成 du",
+          "order": 3,
+          "role": "example",
+          "color": "#f59e0b",
+          "bbox": [107.4, 397.5, 776.4, 138.6]
+        }
+      ],
+      "actions": [
+        {
+          "id": "substitution-differential-spotlight-1",
+          "type": "spotlight",
+          "regionId": "native-mat136-substitution-differential-page-1-dx-carries-width",
+          "title": "dx 指明变量，也代表微小宽度",
+          "dimOpacity": 0.76
+        },
+        {
+          "id": "substitution-differential-speech-1-1",
+          "type": "speech",
+          "regionId": "native-mat136-substitution-differential-page-1-dx-carries-width",
+          "title": "dx 不是公式末尾的标点",
+          "text": "很多人把微分看成积分号后面的装饰，但它其实告诉你现在沿哪个变量累加，也代表每一小片在这个变量上的微小宽度。",
+          "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-01.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "1c93c176e93f70a3dfc8aee8fa971471253f7f21c02c13aabffcdf383077b376",
+          "audioBytes": 195456
+        },
+        {
+          "id": "substitution-differential-speech-1-2",
+          "type": "speech",
+          "regionId": "native-mat136-substitution-differential-page-1-dx-carries-width",
+          "title": "换元必须连宽度一起换",
+          "text": "当你把横轴从 x 换成 u，原来用 x 衡量的微小宽度也必须改写成 u 的宽度；否则函数换了变量，累加尺度却还留在旧变量里。",
+          "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-02.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "2fb1cbdafccb264cd5a5b3b1aee9a240188391982c20dfa5ed8e8b6bd47fdcdb",
+          "audioBytes": 243456
+        },
+        {
+          "id": "substitution-differential-spotlight-2",
+          "type": "spotlight",
+          "regionId": "native-mat136-substitution-differential-page-1-chain-rule-bridge",
+          "title": "du = g′(x) dx 是换元桥梁",
+          "dimOpacity": 0.76
+        },
+        {
+          "id": "substitution-differential-speech-2-1",
+          "type": "speech",
+          "regionId": "native-mat136-substitution-differential-page-1-chain-rule-bridge",
+          "title": "链式法则给出两个微分的关系",
+          "text": "设 u 等于 g 作用在 x 上。对两边求微分，链式法则告诉我们，u 的微分等于 g 的导数乘 x 的微分。",
+          "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-03.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "34d7b94be080a7fd1c5a6c5ec3c55b14a4303f6f4ef6b389dc6339838ee91277",
+          "audioBytes": 172032
+        },
+        {
+          "id": "substitution-differential-speech-2-2",
+          "type": "speech",
+          "regionId": "native-mat136-substitution-differential-page-1-chain-rule-bridge",
+          "title": "把它当作可替换的整体",
+          "text": "这个关系不是为了多写一行，而是告诉你原积分中哪一整块可以换成 du。换元时要同时替换内层函数和与它匹配的导数因子。",
+          "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-04.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "59499191666ad8903eb0974484fa3c3c8e857e2f85e2f44ddf03d186aeea7939",
+          "audioBytes": 233856
+        },
+        {
+          "id": "substitution-differential-spotlight-3",
+          "type": "spotlight",
+          "regionId": "native-mat136-substitution-differential-page-1-worked-substitution",
+          "title": "例题：把 2x dx 整体替换成 du",
+          "dimOpacity": 0.76
+        },
+        {
+          "id": "substitution-differential-speech-3-1",
+          "type": "speech",
+          "regionId": "native-mat136-substitution-differential-page-1-worked-substitution",
+          "title": "先认出内层函数与配套导数",
+          "text": "看这个典型积分，余弦里面是 x 的平方，外面刚好有二 x 乘 dx。于是令 u 等于 x 的平方，微分关系正好是 du 等于二 x 乘 dx。",
+          "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-05.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "6d13c94ae16e90c5e07175a6f267e7282c4ca10f9dbcb2cd6f72eb44b783f1dd",
+          "audioBytes": 289920
+        },
+        {
+          "id": "substitution-differential-speech-3-2",
+          "type": "speech",
+          "regionId": "native-mat136-substitution-differential-page-1-worked-substitution",
+          "title": "换元完成的检查标准",
+          "text": "接着把 x 的平方换成 u，把二 x 乘 dx 整体换成 du，积分就只剩余弦 u 对 u 的积分。若还混着 x 或 dx，就说明换元还没有完成。",
+          "audioUrl": "/mock-mini-lectures/mat136/substitution-differential/speech-06.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "8a71c3900cc6ec0e64ceca91530936c2e85806c6dfed7ef8b94a5917cc773e8f",
+          "audioBytes": 253824
+        }
+      ]
+    }
+  ]
+}

@@ -92,12 +92,14 @@
 
 import * as SpeechSDK from 'microsoft-cognitiveservices-speech-sdk';
 import type { MouthCue, SpeechVisemeCue } from '@/lib/types/action';
+import { proxyFetch } from '@/lib/server/proxy-fetch';
 import { normalizeAzureVisemesToMouthCues } from './mouth-cues';
 import { analyzeMouthCuesFromAudio } from './rhubarb-lip-sync';
 import type { TTSModelConfig } from './types';
 import { TTS_PROVIDERS } from './constants';
 
 const MOUTH_CUE_ANALYSIS_TIMEOUT_MS = 4000;
+export const OPENAI_TTS_MODEL_ID = 'gpt-4o-mini-tts';
 
 /**
  * Result of TTS generation
@@ -109,12 +111,17 @@ export interface TTSGenerationResult {
   mouthCues?: MouthCue[];
 }
 
+export type TTSGenerationOptions = {
+  analyzeMouthCues?: boolean;
+};
+
 /**
  * Generate speech using specified TTS provider
  */
 export async function generateTTS(
   config: TTSModelConfig,
   text: string,
+  options: TTSGenerationOptions = {},
 ): Promise<TTSGenerationResult> {
   const provider = TTS_PROVIDERS[config.providerId];
   if (!provider) {
@@ -157,7 +164,11 @@ export async function generateTTS(
       throw new Error(`Unsupported TTS provider: ${config.providerId}`);
   }
 
-  if (!result.mouthCues?.length && config.providerId !== 'azure-tts') {
+  if (
+    options.analyzeMouthCues !== false &&
+    !result.mouthCues?.length &&
+    config.providerId !== 'azure-tts'
+  ) {
     const analyzedMouthCues = await Promise.race([
       analyzeMouthCuesFromAudio(result.audio, result.format, text),
       new Promise<undefined>((resolve) =>
@@ -180,14 +191,14 @@ async function generateOpenAITTS(
   const baseUrl = config.baseUrl || TTS_PROVIDERS['openai-tts'].defaultBaseUrl;
 
   // Use gpt-4o-mini-tts for best quality and intelligent realtime applications
-  const response = await fetch(`${baseUrl}/audio/speech`, {
+  const response = await proxyFetch(`${baseUrl}/audio/speech`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json; charset=utf-8',
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini-tts',
+      model: OPENAI_TTS_MODEL_ID,
       input: text,
       voice: config.voice,
       speed: config.speed || 1.0,

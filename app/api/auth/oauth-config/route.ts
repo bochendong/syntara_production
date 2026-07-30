@@ -8,5 +8,6 @@ export async function GET() {
   const github = Boolean(
     process.env.GITHUB_CLIENT_ID?.trim() && process.env.GITHUB_CLIENT_SECRET?.trim(),
   );
-  return NextResponse.json({ google, github });
+  const demoAuth = process.env.SYNTARA_ALLOW_DEMO_AUTH?.trim() === '1';
+  return NextResponse.json({ google, github, demoAuth });
 }

@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.cargo/bin:$PATH"
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pnpm is required to build the shared Rust core from Xcode." >&2
+  exit 127
+fi
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec pnpm --dir "$script_dir/.." tauri ios xcode-script "$@"

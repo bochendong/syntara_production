@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -204,14 +204,13 @@ async function loadCourseWorkspaceCacheData(
 ): Promise<
   Pick<CourseWorkspaceCache, 'thumbnails' | 'memoryCounts' | 'problemCounts' | 'courseProblems'>
 > {
-  const [problems, nextMemoryCounts, nextThumbnails] = await Promise.all([
+  const [problems, nextMemoryCounts] = await Promise.all([
     listCourseProblemSummaries(courseId).catch(() => []),
     buildNotebookMemoryCounts(notebooks),
-    getFirstSlideByStages(notebooks.map((notebook) => notebook.id)).catch(() => ({})),
   ]);
 
   return {
-    thumbnails: nextThumbnails,
+    thumbnails: {},
     memoryCounts: nextMemoryCounts,
     problemCounts: countProblemsByNotebook(problems),
     courseProblems: problems,
@@ -605,6 +604,18 @@ export default function CourseDetailPageClient() {
   const [publishStartedAt, setPublishStartedAt] = useState<number | null>(null);
   const [publishElapsedSeconds, setPublishElapsedSeconds] = useState(0);
   const [storeVisibilityBusyId, setStoreVisibilityBusyId] = useState<string | null>(null);
+  const resolvedPreviewIdsRef = useRef(new Set<string>());
+  const inFlightPreviewIdsRef = useRef(new Set<string>());
+  const previewFailureCountsRef = useRef(new Map<string, number>());
+  const previewGenerationRef = useRef(0);
+  const [previewRetryVersion, setPreviewRetryVersion] = useState(0);
+  const resetNotebookPreviews = () => {
+    previewGenerationRef.current += 1;
+    resolvedPreviewIdsRef.current.clear();
+    inFlightPreviewIdsRef.current.clear();
+    previewFailureCountsRef.current.clear();
+    setPreviewRetryVersion((version) => version + 1);
+  };
   const isCourseOwner = course?.accessRole !== 'enrolled';
   const courseHasPurchasedNotebook = courseContainsPurchasedNotebook(notebooks);
   const coursePublishBlockReason = getCoursePublishBlockReasonFromFlags(
@@ -813,7 +824,7 @@ export default function CourseDetailPageClient() {
     let alive = true;
     (async () => {
       setLoading(true);
-      const c = await getCourse(id);
+      const [c, list] = await Promise.all([getCourse(id), listStagesByCourse(id)]);
       if (!alive) return;
       if (!c) {
         clearCourseWorkspaceCache(id);
@@ -827,7 +838,6 @@ export default function CourseDetailPageClient() {
         return;
       }
       setCourse(c);
-      const list = await listStagesByCourse(id);
       const notebookSignature = buildCourseNotebookSignature(list);
       const cachedWorkspace = readCourseWorkspaceCache(id, notebookSignature);
       if (!alive) return;
@@ -854,7 +864,6 @@ export default function CourseDetailPageClient() {
               .filter((x) => x.id !== id && x.accessRole !== 'enrolled')
               .map((x) => ({ id: x.id, name: x.name })),
           );
-          setThumbnails(freshWorkspaceData.thumbnails);
           setMemoryCounts(freshWorkspaceData.memoryCounts);
           setProblemCounts(freshWorkspaceData.problemCounts);
           setCourseProblems(freshWorkspaceData.courseProblems);
@@ -868,6 +877,11 @@ export default function CourseDetailPageClient() {
 
   useEffect(() => {
     setNotebookPage(0);
+    previewGenerationRef.current += 1;
+    resolvedPreviewIdsRef.current.clear();
+    inFlightPreviewIdsRef.current.clear();
+    previewFailureCountsRef.current.clear();
+    setPreviewRetryVersion(0);
   }, [id]);
 
   useEffect(() => {
@@ -875,6 +889,49 @@ export default function CourseDetailPageClient() {
       Math.min(page, Math.max(0, Math.ceil(sortedNotebooks.length / NOTEBOOKS_PER_PAGE) - 1)),
     );
   }, [sortedNotebooks.length]);
+
+  useEffect(() => {
+    if (loading || workspaceTab !== 'notebooks') return;
+    const missingPreviewIds = pagedNotebooks
+      .filter(
+        (notebook) =>
+          notebook.notebookKind !== 'markdown' &&
+          !thumbnails[notebook.id] &&
+          !resolvedPreviewIdsRef.current.has(notebook.id) &&
+          !inFlightPreviewIdsRef.current.has(notebook.id),
+      )
+      .map((notebook) => notebook.id);
+    if (missingPreviewIds.length === 0) return;
+
+    for (const notebookId of missingPreviewIds) {
+      inFlightPreviewIdsRef.current.add(notebookId);
+    }
+    const previewGeneration = previewGenerationRef.current;
+    void getFirstSlideByStages(missingPreviewIds)
+      .then((nextThumbnails) => {
+        if (previewGeneration !== previewGenerationRef.current) return;
+        for (const notebookId of missingPreviewIds) {
+          inFlightPreviewIdsRef.current.delete(notebookId);
+          resolvedPreviewIdsRef.current.add(notebookId);
+          previewFailureCountsRef.current.delete(notebookId);
+        }
+        if (Object.keys(nextThumbnails).length === 0) return;
+        setThumbnails((current) => ({ ...current, ...nextThumbnails }));
+      })
+      .catch(() => {
+        if (previewGeneration !== previewGenerationRef.current) return;
+        let shouldRetry = false;
+        for (const notebookId of missingPreviewIds) {
+          inFlightPreviewIdsRef.current.delete(notebookId);
+          const failureCount = (previewFailureCountsRef.current.get(notebookId) ?? 0) + 1;
+          previewFailureCountsRef.current.set(notebookId, failureCount);
+          if (failureCount < 3) shouldRetry = true;
+        }
+        if (shouldRetry) {
+          window.setTimeout(() => setPreviewRetryVersion((version) => version + 1), 1500);
+        }
+      });
+  }, [loading, pagedNotebooks, previewRetryVersion, thumbnails, workspaceTab]);
 
   useEffect(() => {
     setClassmatePage(0);
@@ -942,6 +999,7 @@ export default function CourseDetailPageClient() {
       const workspaceData = await loadCourseWorkspaceCacheData(id, list);
       writeCourseWorkspaceDataCache(id, list, workspaceData);
       setNotebooks(list);
+      resetNotebookPreviews();
       setThumbnails(workspaceData.thumbnails);
       setMemoryCounts(workspaceData.memoryCounts);
       setProblemCounts(workspaceData.problemCounts);
@@ -971,6 +1029,7 @@ export default function CourseDetailPageClient() {
       const workspaceData = await loadCourseWorkspaceCacheData(id, list);
       writeCourseWorkspaceDataCache(id, list, workspaceData);
       setNotebooks(list);
+      resetNotebookPreviews();
       setThumbnails(workspaceData.thumbnails);
       setMemoryCounts(workspaceData.memoryCounts);
       setProblemCounts(workspaceData.problemCounts);
@@ -1007,6 +1066,7 @@ export default function CourseDetailPageClient() {
         const workspaceData = await loadCourseWorkspaceCacheData(id, list);
         writeCourseWorkspaceDataCache(id, list, workspaceData);
         setNotebooks(list);
+        resetNotebookPreviews();
         setThumbnails(workspaceData.thumbnails);
         setMemoryCounts(workspaceData.memoryCounts);
         setProblemCounts(workspaceData.problemCounts);
@@ -1045,6 +1105,7 @@ export default function CourseDetailPageClient() {
         const workspaceData = await loadCourseWorkspaceCacheData(id, list);
         writeCourseWorkspaceDataCache(id, list, workspaceData);
         setNotebooks(list);
+        resetNotebookPreviews();
         setThumbnails(workspaceData.thumbnails);
         setMemoryCounts(workspaceData.memoryCounts);
         setProblemCounts(workspaceData.problemCounts);
@@ -1217,6 +1278,7 @@ export default function CourseDetailPageClient() {
       const workspaceData = await loadCourseWorkspaceCacheData(id, list);
       writeCourseWorkspaceDataCache(id, list, workspaceData);
       setNotebooks(list);
+      resetNotebookPreviews();
       setThumbnails(workspaceData.thumbnails);
       setMemoryCounts(workspaceData.memoryCounts);
       setProblemCounts(workspaceData.problemCounts);
@@ -1255,6 +1317,7 @@ export default function CourseDetailPageClient() {
     const workspaceData = await loadCourseWorkspaceCacheData(id, list);
     writeCourseWorkspaceDataCache(id, list, workspaceData);
     setNotebooks(list);
+    resetNotebookPreviews();
     setThumbnails(workspaceData.thumbnails);
     setMemoryCounts(workspaceData.memoryCounts);
     setProblemCounts(workspaceData.problemCounts);

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import type { UserContent } from 'ai';
 import { z } from 'zod';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { runWithRequestContext } from '@/lib/server/request-context';
@@ -8,7 +9,9 @@ import { callLLM } from '@/lib/ai/llm';
 
 export const runtime = 'nodejs';
 
-const MAX_SYLLABUS_PDF_BYTES = 20 * 1024 * 1024;
+const MAX_SYLLABUS_DOCUMENT_BYTES = 20 * 1024 * 1024;
+const MAX_SYLLABUS_IMAGE_BYTES = 12 * 1024 * 1024;
+const SUPPORTED_IMAGE_MEDIA_TYPES = new Set(['image/gif', 'image/jpeg', 'image/png', 'image/webp']);
 
 const syllabusEventKindSchema = z.enum([
   'assignment',
@@ -39,16 +42,41 @@ function isPdfFile(file: File) {
   return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 }
 
+function syllabusImageMediaType(file: File): string | null {
+  const mediaType = file.type.toLowerCase();
+  if (SUPPORTED_IMAGE_MEDIA_TYPES.has(mediaType)) return mediaType;
+  if (/\.jpe?g$/i.test(file.name)) return 'image/jpeg';
+  if (/\.png$/i.test(file.name)) return 'image/png';
+  if (/\.webp$/i.test(file.name)) return 'image/webp';
+  if (/\.gif$/i.test(file.name)) return 'image/gif';
+  return null;
+}
+
 function extractJsonObject(text: string): unknown {
-  return JSON.parse(text.trim());
+  const trimmed = text.trim();
+  const withoutFence = trimmed
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  try {
+    return JSON.parse(withoutFence);
+  } catch {
+    const start = withoutFence.indexOf('{');
+    const end = withoutFence.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      return JSON.parse(withoutFence.slice(start, end + 1));
+    }
+    throw new Error('AI 没有返回可解析的 syllabus 日历数据。');
+  }
 }
 
 function syllabusExtractionPrompt(args: {
   fileName: string;
+  fileKind: 'PDF' | 'image';
   courseName?: string;
   courseDescription?: string;
 }) {
-  return `Read the attached syllabus PDF directly as a file input. Extract all student-relevant dated calendar items into strict JSON.
+  return `Read the attached syllabus ${args.fileKind} directly. Extract all student-relevant dated calendar items into strict JSON.
 
 Context:
 - Course name: ${args.courseName || 'unknown'}
@@ -56,7 +84,8 @@ Context:
 - File name: ${args.fileName}
 
 Important rules:
-- Preserve the table structure. Do not read the PDF as a single flat paragraph.
+- Preserve the visual table structure. Do not read the document as a single flat paragraph.
+- The attachment may be one photographed or scanned syllabus page. Read all visible dates and associate them with the correct row, column, and event.
 - For weekly schedule tables, combine the week beginning date with each column day when a cell only implies the weekday.
 - If a cell contains an explicit date like "Tue 2 Jun", use that exact date.
 - If the PDF title or header gives a year/term, use that year. Do not default to the current year when the PDF has its own year.
@@ -96,26 +125,59 @@ export async function POST(request: NextRequest) {
     () =>
       safeRoute(async () => {
         const formData = await request.formData();
-        const file = formData.get('pdf');
+        const file = formData.get('file') || formData.get('pdf');
         if (!(file instanceof File)) {
-          return NextResponse.json({ error: '请上传 syllabus PDF 文件。' }, { status: 400 });
+          return NextResponse.json({ error: '请上传 syllabus 图片或 PDF 文件。' }, { status: 400 });
         }
-        if (!isPdfFile(file)) {
-          return NextResponse.json({ error: '当前 AI 解析入口只支持 PDF。' }, { status: 400 });
-        }
-        if (file.size > MAX_SYLLABUS_PDF_BYTES) {
+        const isPdf = isPdfFile(file);
+        const imageMediaType = syllabusImageMediaType(file);
+        if (!isPdf && !imageMediaType) {
           return NextResponse.json(
-            { error: 'PDF 文件太大，请上传 20MB 以内的 syllabus。' },
+            { error: '当前 AI 解析支持 PDF、PNG、JPG、WEBP 和 GIF。' },
+            { status: 400 },
+          );
+        }
+        const maxBytes = isPdf ? MAX_SYLLABUS_DOCUMENT_BYTES : MAX_SYLLABUS_IMAGE_BYTES;
+        if (file.size > maxBytes) {
+          return NextResponse.json(
+            {
+              error: isPdf
+                ? 'PDF 文件太大，请上传 20MB 以内的 syllabus。'
+                : '图片文件太大，请上传 12MB 以内的 syllabus 图片。',
+            },
             { status: 400 },
           );
         }
 
         const arrayBuffer = await file.arrayBuffer();
-        const pdfBuffer = Buffer.from(arrayBuffer);
+        const fileBuffer = Buffer.from(arrayBuffer);
         const { model, modelString } = await resolveOpenAIResponsesModelFromHeaders(request, {
           allowOpenAIModelOverride: true,
         });
         const modelId = modelString.replace(/^openai:/, '');
+        const content: UserContent = [
+          {
+            type: 'text',
+            text: syllabusExtractionPrompt({
+              fileName: file.name,
+              fileKind: isPdf ? 'PDF' : 'image',
+              courseName: String(formData.get('courseName') || ''),
+              courseDescription: String(formData.get('courseDescription') || ''),
+            }),
+          },
+          isPdf
+            ? {
+                type: 'file',
+                data: fileBuffer,
+                mediaType: 'application/pdf',
+                filename: file.name,
+              }
+            : {
+                type: 'image',
+                image: fileBuffer,
+                mediaType: imageMediaType || undefined,
+              },
+        ];
 
         const result = await callLLM(
           {
@@ -126,27 +188,12 @@ export async function POST(request: NextRequest) {
             messages: [
               {
                 role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: syllabusExtractionPrompt({
-                      fileName: file.name,
-                      courseName: String(formData.get('courseName') || ''),
-                      courseDescription: String(formData.get('courseDescription') || ''),
-                    }),
-                  },
-                  {
-                    type: 'file',
-                    data: pdfBuffer,
-                    mediaType: 'application/pdf',
-                    filename: file.name,
-                  },
-                ],
+                content,
               },
             ],
             maxRetries: 0,
           },
-          'syllabus-pdf-file-extraction',
+          'syllabus-file-extraction',
         );
 
         const parsed = syllabusParseSchema.parse(extractJsonObject(result.text));
@@ -158,7 +205,8 @@ export async function POST(request: NextRequest) {
         }));
         return NextResponse.json({
           success: true,
-          parser: 'openai-responses-input-file',
+          parser: isPdf ? 'openai-responses-input-file' : 'openai-responses-image',
+          sourceType: isPdf ? 'pdf' : 'image',
           modelId,
           courseTitle: parsed.courseTitle || null,
           events,
@@ -166,8 +214,8 @@ export async function POST(request: NextRequest) {
         });
       }),
     {
-      operationCode: 'syllabus_pdf_import',
-      chargeReason: 'AI 读取 syllabus PDF',
+      operationCode: 'syllabus_file_import',
+      chargeReason: 'AI 读取 syllabus 文件',
     },
   );
 }

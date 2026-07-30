@@ -1327,17 +1327,27 @@ export async function searchCourseKnowledge(args: {
         requestedLimit * 4,
       );
     const rows = embedding
-      ? await args.prisma.$transaction(async (tx) => {
-          const versions = await tx.$queryRawUnsafe<Array<{ extversion: string }>>(
-            `SELECT extversion FROM pg_extension WHERE extname = 'vector' LIMIT 1`,
-          );
-          if (pgvectorSupportsIterativeScan(versions[0]?.extversion)) {
-            // pgvector 0.8+ can keep scanning a filtered HNSW index until the
-            // selected course/notebook has enough candidates.
-            await tx.$executeRawUnsafe(`SET LOCAL hnsw.iterative_scan = 'strict_order'`);
-          }
-          return executeHybridQuery(tx);
-        })
+      ? await args.prisma.$transaction(
+          async (tx) => {
+            const versions = await tx.$queryRawUnsafe<Array<{ extversion: string }>>(
+              `SELECT extversion FROM pg_extension WHERE extname = 'vector' LIMIT 1`,
+            );
+            if (pgvectorSupportsIterativeScan(versions[0]?.extversion)) {
+              // pgvector 0.8+ can keep scanning a filtered HNSW index until the
+              // selected course/notebook has enough candidates.
+              await tx.$executeRawUnsafe(`SET LOCAL hnsw.iterative_scan = 'strict_order'`);
+            }
+            return executeHybridQuery(tx);
+          },
+          {
+            // A cold remote HNSW query can legitimately exceed Prisma's
+            // five-second interactive-transaction default. Keep the setting
+            // local to this query without turning a transient network delay
+            // into a false "index unavailable" fallback.
+            maxWait: 5_000,
+            timeout: 15_000,
+          },
+        )
       : await executeHybridQuery(args.prisma);
 
     const seenDocuments = new Set<string>();

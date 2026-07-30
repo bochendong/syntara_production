@@ -3,7 +3,6 @@
 import { useId, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  Calculator,
   Loader2,
   MessageCircle,
   MoreHorizontal,
@@ -18,7 +17,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -43,6 +41,8 @@ export type LearnCourseSidebarProps = {
   activeSessionId?: string | null;
   totalCount: number;
   loading?: boolean;
+  hasMore?: boolean;
+  error?: string | null;
   interactionDisabled?: boolean;
   className?: string;
   onShowAllCourses: () => void;
@@ -50,6 +50,7 @@ export type LearnCourseSidebarProps = {
   onSelectSession: (session: LearnCourseSidebarSession) => void;
   onDeleteSession: (session: LearnCourseSidebarSession) => void | Promise<void>;
   onShowAllSessions: () => void;
+  onRetry?: () => void;
   onCollapse?: () => void;
 };
 
@@ -86,11 +87,13 @@ function groupKeyForSession(
 }
 
 export function LearnCourseSidebar({
-  course,
+  course: _course,
   sessions,
   activeSessionId,
   totalCount,
   loading = false,
+  hasMore = false,
+  error,
   interactionDisabled = false,
   className,
   onShowAllCourses,
@@ -98,11 +101,18 @@ export function LearnCourseSidebar({
   onSelectSession,
   onDeleteSession,
   onShowAllSessions,
+  onRetry,
   onCollapse,
 }: LearnCourseSidebarProps) {
   const historyHeadingId = useId();
   const [groupingAnchor] = useState(Date.now);
-  const visibleSessions = sessions.slice(0, MAX_VISIBLE_SESSIONS);
+  const visibleSessions = useMemo(() => {
+    const recent = sessions.slice(0, MAX_VISIBLE_SESSIONS);
+    if (!activeSessionId || recent.some((session) => session.id === activeSessionId)) return recent;
+    const active = sessions.find((session) => session.id === activeSessionId);
+    if (!active) return recent;
+    return [...recent.slice(0, MAX_VISIBLE_SESSIONS - 1), active];
+  }, [activeSessionId, sessions]);
   const safeTotalCount = Math.max(totalCount, sessions.length);
   const groupedSessions = useMemo(() => {
     const todayStart = localDayStart(groupingAnchor);
@@ -140,53 +150,6 @@ export function LearnCourseSidebar({
         <span>所有课程</span>
       </button>
 
-      <div className="flex min-h-[68px] shrink-0 items-center gap-3 border-b border-slate-200/80 px-4 dark:border-white/10">
-        <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/[0.06] dark:text-slate-200 dark:ring-white/10">
-          <Calculator className="size-[18px]" strokeWidth={1.65} aria-hidden="true" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span
-            className="block truncate text-[14px] font-semibold leading-5 tracking-[-0.01em]"
-            title={course.name}
-          >
-            {course.name}
-          </span>
-          <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-400 dark:text-slate-500">
-            {course.code || '当前课程'}
-          </span>
-        </span>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              disabled={interactionDisabled}
-              className="rounded-full text-slate-500 hover:bg-white hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-white"
-              aria-label={`打开 ${course.name} 的会话栏操作`}
-            >
-              <MoreHorizontal className="size-4" aria-hidden="true" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44 rounded-[10px] p-1.5">
-            <DropdownMenuItem onSelect={onShowAllCourses} className="rounded-[8px] text-xs">
-              <ArrowLeft className="size-3.5" aria-hidden="true" />
-              返回所有课程
-            </DropdownMenuItem>
-            {onCollapse ? (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={onCollapse} className="rounded-[8px] text-xs">
-                  <PanelLeftClose className="size-3.5" aria-hidden="true" />
-                  收起会话历史
-                </DropdownMenuItem>
-              </>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
       <section className="shrink-0 px-3 pb-3 pt-4" aria-labelledby={historyHeadingId}>
         <div className="flex items-center justify-between gap-3 px-1">
           <div>
@@ -196,20 +159,35 @@ export function LearnCourseSidebar({
             >
               会话历史
             </h2>
-            <p className="mt-0.5 text-[11px] text-slate-400">只显示当前课程的对话</p>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={onShowAllSessions}
-            disabled={interactionDisabled || loading}
-            className="rounded-full text-slate-500 hover:bg-white hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-white"
-            aria-label="搜索全部会话"
-            title="搜索全部会话"
-          >
-            <Search className="size-4" strokeWidth={1.8} aria-hidden="true" />
-          </Button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={onShowAllSessions}
+              disabled={interactionDisabled || loading}
+              className="rounded-full text-slate-500 hover:bg-white hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-white"
+              aria-label="搜索全部会话"
+              title="搜索全部会话"
+            >
+              <Search className="size-4" strokeWidth={1.8} aria-hidden="true" />
+            </Button>
+            {onCollapse ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={onCollapse}
+                disabled={interactionDisabled}
+                className="rounded-full text-slate-500 hover:bg-white hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-white"
+                aria-label="收起会话历史"
+                title="收起会话历史"
+              >
+                <PanelLeftClose className="size-4" strokeWidth={1.8} aria-hidden="true" />
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         <Button
@@ -224,6 +202,20 @@ export function LearnCourseSidebar({
       </section>
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-4" aria-label="当前课程会话历史">
+        {error ? (
+          <div className="mb-2 rounded-[10px] border border-amber-200/80 bg-amber-50/80 px-2.5 py-2 text-[11px] leading-4 text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">
+            <p>云端会话列表暂时不可用，当前显示本机记录。</p>
+            {onRetry ? (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="mt-1 font-semibold underline underline-offset-2"
+              >
+                重新加载
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {loading ? (
           <div
             className="flex min-h-24 items-center justify-center gap-2 text-xs text-slate-400"
@@ -344,6 +336,7 @@ export function LearnCourseSidebar({
           <span>查看全部会话</span>
           <span className="ml-auto mr-2 font-medium tabular-nums text-slate-400">
             {safeTotalCount}
+            {hasMore ? '+' : ''}
           </span>
           <Search className="size-3.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
         </button>

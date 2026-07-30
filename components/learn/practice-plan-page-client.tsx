@@ -15,6 +15,15 @@ import {
   type PracticeAttemptStatus,
   type PracticePlan,
 } from '@/lib/learning/course-learner-state';
+import {
+  ensurePracticeSession,
+  practiceSessionIdForPlan,
+  recordPracticeSessionAttempt,
+  updatePracticeSessionAnswerDraft,
+  updatePracticeSessionCurrentProblem,
+  type PracticeSession,
+} from '@/lib/learning/practice-session';
+import type { NotebookProblemAttemptAnswer } from '@/lib/problem-bank';
 import { useAuthStore } from '@/lib/store/auth';
 import {
   loadRemoteLearnerCourseState,
@@ -46,12 +55,25 @@ function learnHref(courseId?: string) {
   return courseId ? `/learn?courseId=${encodeURIComponent(courseId)}` : '/learn';
 }
 
+function answersFromSession(
+  session: PracticeSession | null,
+): Record<string, NotebookProblemAttemptAnswer | null | undefined> {
+  if (!session) return {};
+  return Object.fromEntries(
+    Object.entries(session.problemStates).map(([problemId, state]) => [
+      problemId,
+      state.answer ?? null,
+    ]),
+  );
+}
+
 export function PracticePlanPageClient({ planId }: { planId: string }) {
   const router = useRouter();
   const authHydrated = usePersistHydrated(useAuthStore);
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const userId = useAuthStore((state) => state.userId);
   const [plan, setPlan] = useState<PracticePlan | null>(null);
+  const [session, setSession] = useState<PracticeSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,6 +96,7 @@ export function PracticePlanPageClient({ planId }: { planId: string }) {
       const loadedPlan = remotePlan || localPlan;
       if (!loadedPlan) {
         setPlan(null);
+        setSession(null);
         setLoading(false);
         return;
       }
@@ -83,7 +106,12 @@ export function PracticePlanPageClient({ planId }: { planId: string }) {
       if (!alive) return;
       if (remoteState) saveLearnerCourseState(remoteState);
 
+      const nextSession = ensurePracticeSession({
+        plan: loadedPlan,
+        userId: userId || 'anonymous',
+      });
       setPlan(loadedPlan);
+      setSession(nextSession);
       setLoading(false);
     })().catch((err) => {
       if (!alive) return;
@@ -94,11 +122,43 @@ export function PracticePlanPageClient({ planId }: { planId: string }) {
     return () => {
       alive = false;
     };
-  }, [authHydrated, isLoggedIn, planId, router]);
+  }, [authHydrated, isLoggedIn, planId, router, userId]);
 
   const planProblemIds = useMemo(
     () => Array.from(new Set(plan?.problemIds.filter(Boolean) ?? [])),
     [plan],
+  );
+
+  const initialPracticeAnswers = useMemo(() => answersFromSession(session), [session]);
+
+  const initialProblemId = useMemo(() => {
+    if (session?.currentProblemId && planProblemIds.includes(session.currentProblemId)) {
+      return session.currentProblemId;
+    }
+    return planProblemIds[0];
+  }, [planProblemIds, session?.currentProblemId]);
+
+  const handlePracticeProblemChange = useCallback(
+    (problemId: string) => {
+      const next = updatePracticeSessionCurrentProblem(
+        practiceSessionIdForPlan(planId),
+        problemId,
+      );
+      if (next) setSession(next);
+    },
+    [planId],
+  );
+
+  const handlePracticeAnswerDraftChange = useCallback(
+    (problemId: string, answer: NotebookProblemAttemptAnswer | null) => {
+      const next = updatePracticeSessionAnswerDraft(
+        practiceSessionIdForPlan(planId),
+        problemId,
+        answer,
+      );
+      if (next) setSession(next);
+    },
+    [planId],
   );
 
   const handlePracticeAttemptResolved = useCallback(
@@ -107,6 +167,14 @@ export function PracticePlanPageClient({ planId }: { planId: string }) {
       const status = practiceStatusFromAttempt(event.status);
       const title = event.problemTitle || event.problemId;
       const concepts = event.concepts.length > 0 ? event.concepts : [title];
+      const nextSession = recordPracticeSessionAttempt({
+        sessionId: practiceSessionIdForPlan(plan.id),
+        problemId: event.problemId,
+        status: event.status,
+        score: event.score,
+        feedback: event.feedback,
+      });
+      if (nextSession) setSession(nextSession);
       const nextState = recordPracticeAttemptResult({
         userId: userId || 'anonymous',
         courseId: plan.courseId,
@@ -172,11 +240,14 @@ export function PracticePlanPageClient({ planId }: { planId: string }) {
     <CourseProblemBankView
       key={plan.id}
       courseId={plan.courseId}
-      initialProblemId={planProblemIds[0]}
+      initialProblemId={initialProblemId}
       mode="practice"
       practiceBackLabel="课程聊天"
       practiceProblemIds={planProblemIds}
+      initialPracticeAnswers={initialPracticeAnswers}
       onPracticeBack={() => router.push(learnHref(plan.courseId))}
+      onPracticeProblemChange={handlePracticeProblemChange}
+      onPracticeAnswerDraftChange={handlePracticeAnswerDraftChange}
       onPracticeAttemptResolved={handlePracticeAttemptResolved}
     />
   );

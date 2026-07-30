@@ -186,10 +186,10 @@ export function LearningCalendarGrid({
                 </span>
               </div>
 
-              <div className="mt-1.5 space-y-1 overflow-hidden">
+              <div className="mt-1 space-y-0.5 overflow-hidden">
                 {visibleItems.map((item) => {
                   const itemClassName = cn(
-                    'flex h-5 w-full min-w-0 items-center gap-1.5 rounded-[5px] px-1.5 text-left text-[10px] font-semibold leading-none outline-none',
+                    'flex h-4 w-full min-w-0 items-center gap-1 rounded-[4px] px-1 text-left text-[8px] font-medium leading-none outline-none',
                     item.pillClassName,
                     item.event && onSelectEvent
                       ? 'cursor-pointer hover:brightness-[0.97] focus-visible:ring-2 focus-visible:ring-blue-500'
@@ -197,7 +197,7 @@ export function LearningCalendarGrid({
                   );
                   const content = (
                     <>
-                      <span className={cn('size-1.5 shrink-0 rounded-full', item.dotClassName)} />
+                      <span className={cn('size-1 shrink-0 rounded-full', item.dotClassName)} />
                       <span className="min-w-0 truncate">{item.title}</span>
                     </>
                   );
@@ -218,7 +218,7 @@ export function LearningCalendarGrid({
                   );
                 })}
                 {hiddenItemCount > 0 ? (
-                  <p className="truncate px-1.5 text-[10px] font-medium text-slate-400">
+                  <p className="truncate px-1 text-[8px] font-medium text-slate-400">
                     还有 {hiddenItemCount} 项
                   </p>
                 ) : null}

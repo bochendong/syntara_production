@@ -12,6 +12,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+  SYNTARA_DIALOG_HEADER_CLASS,
+} from '@/components/ui/syntara-dialog-style';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -172,14 +176,19 @@ export function LearnAllSessionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex max-h-[70vh] min-h-[360px] w-[calc(100vw-2rem)] max-w-[560px] flex-col gap-0 overflow-hidden rounded-[20px] border-0 bg-white p-0 shadow-[0_24px_80px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80 dark:bg-slate-950 dark:ring-white/10">
-        <DialogHeader className="shrink-0 border-b border-slate-200/80 px-5 pb-4 pt-5 pr-14 dark:border-white/10">
+      <DialogContent
+        className={cn(
+          SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+          'max-h-[70dvh] min-h-[360px] max-w-[480px] gap-0 p-0',
+        )}
+      >
+        <DialogHeader className={SYNTARA_DIALOG_HEADER_CLASS}>
           <div className="flex min-w-0 items-baseline gap-2">
             <DialogTitle className="truncate text-[18px] font-semibold tracking-[-0.02em] text-slate-950 dark:text-white">
               全部会话
             </DialogTitle>
             <span className="shrink-0 text-xs font-medium tabular-nums text-slate-400">
-              {safeTotalCount} 个会话
+              {hasMore ? `已加载 ${sessions.length}+ 条` : `${safeTotalCount} 个会话`}
             </span>
           </div>
           <DialogDescription className="sr-only">

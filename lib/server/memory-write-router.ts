@@ -341,9 +341,21 @@ async function assertFactScopeWritable(args: {
 
   const rows = await args.prisma.$queryRawUnsafe<Array<{ id: string }>>(
     `
-      SELECT "id"
-      FROM "Conversation"
-      WHERE "id" = $1 AND "ownerId" = $2
+      SELECT owned_conversation."id"
+      FROM (
+        SELECT "id"
+        FROM "CourseConversation"
+        WHERE "id" = $1
+          AND "ownerId" = $2
+          AND "deletedAt" IS NULL
+
+        UNION ALL
+
+        SELECT "id"
+        FROM "Conversation"
+        WHERE "id" = $1
+          AND "ownerId" = $2
+      ) AS owned_conversation
       LIMIT 1
     `,
     args.scopeId,
@@ -406,6 +418,7 @@ async function executeStudyMemoryWrite(args: {
   userId: string;
   candidate: MemoryWriteCandidate;
   decision: MemoryWriteDecision;
+  indexStudyMemory?: boolean;
 }): Promise<MemoryWriteResult> {
   const target = studyMemoryTarget(args.candidate);
   if (!target.targetType || !target.targetId) throw new Error('Study memory target is required');
@@ -442,6 +455,7 @@ async function executeStudyMemoryWrite(args: {
     sourceReferences:
       args.candidate.studyMemory?.sourceReferences ??
       compactSourceRef(args.candidate, args.decision),
+    index: args.indexStudyMemory,
   });
 
   return {
@@ -456,6 +470,7 @@ export async function routeMemoryWriteCandidate(args: {
   userId: string;
   candidate: MemoryWriteCandidate;
   dryRun?: boolean;
+  indexStudyMemory?: boolean;
 }): Promise<MemoryWriteResult> {
   const decision = planMemoryWrite(args.candidate);
   if (args.dryRun || decision.action === 'ignore' || decision.action === 'needs_confirmation') {
@@ -481,6 +496,7 @@ export async function routeMemoryWriteCandidate(args: {
         userId: args.userId,
         candidate: args.candidate,
         decision,
+        indexStudyMemory: args.indexStudyMemory,
       });
     }
     return { ...decision, executed: false };
@@ -500,6 +516,7 @@ export async function routeMemoryWriteCandidates(args: {
   userId: string;
   candidates: MemoryWriteCandidate[];
   dryRun?: boolean;
+  indexStudyMemory?: boolean;
 }): Promise<MemoryWriteResult[]> {
   const results: MemoryWriteResult[] = [];
   for (const candidate of args.candidates) {
@@ -509,6 +526,7 @@ export async function routeMemoryWriteCandidates(args: {
         userId: args.userId,
         candidate,
         dryRun: args.dryRun,
+        indexStudyMemory: args.indexStudyMemory,
       }),
     );
   }

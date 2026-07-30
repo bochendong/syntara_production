@@ -21,12 +21,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  SYNTARA_DIALOG_HEADER_CLASS,
+  SYNTARA_WORKSPACE_DIALOG_CONTENT_CLASS,
+  SYNTARA_WORKSPACE_DIALOG_OVERLAY_CLASS,
+} from '@/components/ui/syntara-dialog-style';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/lib/notifications/client-toast';
+import { cn } from '@/lib/utils';
 import { deleteCourseAndNotebooks } from '@/lib/utils/course-storage';
 import type { CourseRecord } from '@/lib/utils/database';
+
+type CourseSettingsTab = 'general' | 'danger';
 
 type CourseSettingsDialogProps = {
   course: CourseRecord | null;
@@ -34,6 +42,7 @@ type CourseSettingsDialogProps = {
   onOpenChange: (open: boolean) => void;
   onCourseUpdated: (course: CourseRecord) => void | Promise<void>;
   onCourseDeleted: (courseId: string) => void | Promise<void>;
+  initialTab?: CourseSettingsTab;
 };
 
 export function CourseSettingsDialog({
@@ -42,6 +51,7 @@ export function CourseSettingsDialog({
   onOpenChange,
   onCourseUpdated,
   onCourseDeleted,
+  initialTab = 'general',
 }: CourseSettingsDialogProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
@@ -82,11 +92,12 @@ export function CourseSettingsDialog({
         }}
       >
         <DialogContent
-          className="flex max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-3xl flex-col gap-0 overflow-hidden rounded-2xl border-border/80 bg-background p-0 shadow-2xl sm:max-h-[min(92dvh,820px)] sm:w-full sm:rounded-[24px]"
+          overlayClassName={SYNTARA_WORKSPACE_DIALOG_OVERLAY_CLASS}
+          className={cn(SYNTARA_WORKSPACE_DIALOG_CONTENT_CLASS, 'h-[min(820px,92dvh)] max-w-3xl')}
           showCloseButton
           data-testid="course-settings-dialog"
         >
-          <DialogHeader className="shrink-0 border-b border-border/70 px-5 py-4 pr-14 text-left sm:px-6 sm:py-5">
+          <DialogHeader className={cn(SYNTARA_DIALOG_HEADER_CLASS, 'sm:px-6 sm:py-5')}>
             <div className="flex items-center gap-3">
               <span className="grid size-10 shrink-0 place-items-center rounded-[14px] bg-slate-100 text-slate-600 dark:bg-white/8 dark:text-slate-200">
                 <Settings2 className="size-[18px]" strokeWidth={1.8} />
@@ -101,8 +112,8 @@ export function CourseSettingsDialog({
           </DialogHeader>
 
           <Tabs
-            key={`${course.id}:${open ? 'open' : 'closed'}`}
-            defaultValue="general"
+            key={`${course.id}:${open ? 'open' : 'closed'}:${initialTab}`}
+            defaultValue={initialTab}
             className="min-h-0 flex-1 gap-0"
           >
             <div className="shrink-0 border-b border-border/70 px-5 py-3 sm:px-6">

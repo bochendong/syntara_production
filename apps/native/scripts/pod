@@ -1,0 +1,17 @@
+#!/bin/sh
+
+if [ -x /opt/homebrew/bin/pod ]; then
+  exec /opt/homebrew/bin/pod "$@"
+fi
+
+if [ -x /usr/local/bin/pod ]; then
+  exec /usr/local/bin/pod "$@"
+fi
+
+user_pod=$(/usr/bin/ruby -e 'print File.join(Gem.user_dir, "bin", "pod")')
+if [ -x "$user_pod" ]; then
+  exec env RUBYOPT=-rlogger /usr/bin/ruby "$user_pod" "$@"
+fi
+
+echo "CocoaPods is required. Install it before running the iOS commands." >&2
+exit 127

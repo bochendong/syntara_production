@@ -237,24 +237,11 @@ export default function ClassroomDetailPage() {
       setSourceNotebookId(null);
       setShowMarkdownReader(false);
       setCurrentMarkdownSceneId(null);
-      const notebookMetaResponse = await backendFetch(
-        `/api/notebooks/${encodeURIComponent(classroomId)}`,
-        {
-          method: 'GET',
-        },
-      );
-      if (notebookMetaResponse.ok) {
-        const notebookMeta = (await notebookMetaResponse.json()) as {
-          notebook?: { sourceNotebookId?: string | null };
-        };
-        const nextSourceNotebookId = notebookMeta.notebook?.sourceNotebookId?.trim();
-        setSourceNotebookId(nextSourceNotebookId || null);
-      }
-
       setLoadingSubtitle('正在从服务器加载笔记本与页面…');
       await loadFromStorage(classroomId);
       {
         const loadedState = useStageStore.getState();
+        setSourceNotebookId(loadedState.stage?.sourceNotebookId?.trim() || null);
         const loadedOutlines = loadedState.outlines;
         const loadedScenes = loadedState.scenes;
         const loadedMarkdownScenes = loadedState.markdownScenes;

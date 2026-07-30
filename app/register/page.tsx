@@ -8,7 +8,7 @@ import { Bot, Github, Layers, Sparkles, WandSparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuthStore } from '@/lib/store/auth';
 
-type OauthConfig = { google: boolean; github: boolean };
+type OauthConfig = { google: boolean; github: boolean; demoAuth: boolean };
 
 const POST_LOGIN_HREF = '/learn';
 
@@ -38,7 +38,7 @@ export default function RegisterPage() {
         const j = (await r.json()) as OauthConfig;
         if (alive) setOauth(j);
       } catch {
-        if (alive) setOauth({ google: false, github: false });
+        if (alive) setOauth({ google: false, github: false, demoAuth: false });
       }
     })();
     return () => {
@@ -47,10 +47,16 @@ export default function RegisterPage() {
   }, []);
 
   useEffect(() => {
-    if (status !== 'loading' && status !== 'authenticated' && isLoggedIn && authMode === 'email') {
+    if (
+      oauth?.demoAuth &&
+      status !== 'loading' &&
+      status !== 'authenticated' &&
+      isLoggedIn &&
+      authMode === 'email'
+    ) {
       router.replace(POST_LOGIN_HREF);
     }
-  }, [authMode, isLoggedIn, router, status]);
+  }, [authMode, isLoggedIn, oauth?.demoAuth, router, status]);
 
   useEffect(() => {
     if (status !== 'authenticated' || !session?.user) return;
@@ -200,46 +206,51 @@ export default function RegisterPage() {
                   </div>
                 ) : null}
 
-                <form className="space-y-4" onSubmit={onSubmitLocal}>
-                  <div className="space-y-1.5">
-                    <label htmlFor="register-name" className="text-xs font-medium text-[#86868b]">
-                      昵称
-                    </label>
-                    <input
-                      id="register-name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="例如：Dongpo"
-                      autoComplete="nickname"
-                      className="apple-input h-11 w-full px-3.5 text-sm text-[#1d1d1f] placeholder-[#c7c7cc] outline-none dark:text-white dark:placeholder-[#48484a]"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label htmlFor="register-email" className="text-xs font-medium text-[#86868b]">
-                      邮箱
-                    </label>
-                    <input
-                      id="register-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                      className="apple-input h-11 w-full px-3.5 text-sm text-[#1d1d1f] placeholder-[#c7c7cc] outline-none dark:text-white dark:placeholder-[#48484a]"
-                    />
-                  </div>
-                  {error ? (
-                    <p className="rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-2 text-xs text-rose-600 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-200">
-                      {error}
-                    </p>
-                  ) : null}
-                  <button
-                    type="submit"
-                    className="apple-btn apple-btn-primary h-11 w-full rounded-xl text-sm"
-                  >
-                    创建账号并进入学习页
-                  </button>
-                </form>
+                {oauth?.demoAuth ? (
+                  <form className="space-y-4" onSubmit={onSubmitLocal}>
+                    <div className="space-y-1.5">
+                      <label htmlFor="register-name" className="text-xs font-medium text-[#86868b]">
+                        昵称
+                      </label>
+                      <input
+                        id="register-name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="例如：Dongpo"
+                        autoComplete="nickname"
+                        className="apple-input h-11 w-full px-3.5 text-sm text-[#1d1d1f] placeholder-[#c7c7cc] outline-none dark:text-white dark:placeholder-[#48484a]"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="register-email"
+                        className="text-xs font-medium text-[#86868b]"
+                      >
+                        邮箱
+                      </label>
+                      <input
+                        id="register-email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        autoComplete="email"
+                        className="apple-input h-11 w-full px-3.5 text-sm text-[#1d1d1f] placeholder-[#c7c7cc] outline-none dark:text-white dark:placeholder-[#48484a]"
+                      />
+                    </div>
+                    {error ? (
+                      <p className="rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-2 text-xs text-rose-600 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-200">
+                        {error}
+                      </p>
+                    ) : null}
+                    <button
+                      type="submit"
+                      className="apple-btn apple-btn-primary h-11 w-full rounded-xl text-sm"
+                    >
+                      创建账号并进入学习页
+                    </button>
+                  </form>
+                ) : null}
 
                 <div className="flex items-center justify-between text-xs text-[#86868b] dark:text-[#a1a1a6]">
                   <Link href="/" className="hover:text-[#1d1d1f] dark:hover:text-white">

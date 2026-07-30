@@ -76,6 +76,28 @@ function ensureValidLearnBackground(state: Partial<SettingsState>) {
   }
 }
 
+function clearUserCredentialOverrides(state: Partial<SettingsState>) {
+  const sections = [
+    state.providersConfig,
+    state.ttsProvidersConfig,
+    state.asrProvidersConfig,
+    state.pdfProvidersConfig,
+    state.imageProvidersConfig,
+    state.videoProvidersConfig,
+    state.webSearchProvidersConfig,
+  ];
+
+  for (const section of sections) {
+    if (!section) continue;
+    for (const config of Object.values(
+      section as Record<string, { apiKey?: string; baseUrl?: string }>,
+    )) {
+      config.apiKey = '';
+      config.baseUrl = '';
+    }
+  }
+}
+
 function migrateLegacyDefaultLive2DSelection(state: Partial<SettingsState>) {
   const usedLegacyDefault =
     state.live2dPresenterModelId === LEGACY_DEFAULT_LIVE2D_PRESENTER_MODEL_ID &&
@@ -854,6 +876,8 @@ export const useSettingsStore = create<SettingsState>()(
                   const builtInModels = PROVIDERS[key]?.models;
                   newProvidersConfig[key] = {
                     ...newProvidersConfig[key],
+                    apiKey: '',
+                    baseUrl: '',
                     models:
                       builtInModels && builtInModels.length > 0
                         ? builtInModels
@@ -911,6 +935,8 @@ export const useSettingsStore = create<SettingsState>()(
                 if (newTTSConfig[key]) {
                   newTTSConfig[key] = {
                     ...newTTSConfig[key],
+                    apiKey: '',
+                    baseUrl: '',
                     isServerConfigured: false,
                     serverBaseUrl: undefined,
                   };
@@ -934,6 +960,8 @@ export const useSettingsStore = create<SettingsState>()(
                 if (newASRConfig[key]) {
                   newASRConfig[key] = {
                     ...newASRConfig[key],
+                    apiKey: '',
+                    baseUrl: '',
                     isServerConfigured: false,
                     serverBaseUrl: undefined,
                   };
@@ -957,6 +985,8 @@ export const useSettingsStore = create<SettingsState>()(
                 if (newPDFConfig[key]) {
                   newPDFConfig[key] = {
                     ...newPDFConfig[key],
+                    apiKey: '',
+                    baseUrl: '',
                     isServerConfigured: false,
                     serverBaseUrl: undefined,
                   };
@@ -980,6 +1010,8 @@ export const useSettingsStore = create<SettingsState>()(
                 if (newImageConfig[key]) {
                   newImageConfig[key] = {
                     ...newImageConfig[key],
+                    apiKey: '',
+                    baseUrl: '',
                     isServerConfigured: false,
                     serverBaseUrl: undefined,
                   };
@@ -1003,6 +1035,8 @@ export const useSettingsStore = create<SettingsState>()(
                 if (newVideoConfig[key]) {
                   newVideoConfig[key] = {
                     ...newVideoConfig[key],
+                    apiKey: '',
+                    baseUrl: '',
                     isServerConfigured: false,
                     serverBaseUrl: undefined,
                   };
@@ -1026,6 +1060,8 @@ export const useSettingsStore = create<SettingsState>()(
               for (const key of Object.keys(newWebSearchConfig) as WebSearchProviderId[]) {
                 newWebSearchConfig[key] = {
                   ...newWebSearchConfig[key],
+                  apiKey: '',
+                  baseUrl: '',
                   isServerConfigured: false,
                   serverBaseUrl: undefined,
                 };
@@ -1157,7 +1193,7 @@ export const useSettingsStore = create<SettingsState>()(
     },
     {
       name: 'settings-storage',
-      version: 9,
+      version: 10,
       // Migrate persisted state
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<SettingsState>;
@@ -1300,6 +1336,12 @@ export const useSettingsStore = create<SettingsState>()(
           } as SettingsState['webSearchProvidersConfig'];
           delete stateRecord.webSearchApiKey;
           delete stateRecord.webSearchIsServerConfigured;
+        }
+
+        // v9 → v10: credentials are now platform-managed. Remove any API keys
+        // or endpoint overrides left in browser persistence by the former BYOK UI.
+        if (version < 10) {
+          clearUserCredentialOverrides(state);
         }
 
         ensureValidProviderSelections(state);

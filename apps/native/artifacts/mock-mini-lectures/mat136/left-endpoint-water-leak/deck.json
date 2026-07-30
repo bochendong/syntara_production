@@ -1,0 +1,155 @@
+{
+  "id": "mock-lecture-left-endpoint-water-leak",
+  "sourceMessageId": "message-mat136-water-leak-problem-assistant-local",
+  "title": "左端点为什么不取到 3？",
+  "status": "ready",
+  "generatedBy": {
+    "imageProvider": "openai-image",
+    "imageModel": "gpt-image-2",
+    "ttsProvider": "openai-tts",
+    "ttsModel": "gpt-4o-mini-tts",
+    "ttsVoice": "marin"
+  },
+  "pages": [
+    {
+      "id": "left-endpoint-water-leak-page-1",
+      "title": "左端点为什么不取到 3？",
+      "imageUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/page-01.png",
+      "imageSha256": "ec3d18fff99e81b67e80bf54f2bdb38f481c4ade56d1ac0a0cb5f74614325b9b",
+      "imageBytes": 608783,
+      "width": 1000,
+      "height": 562.5,
+      "recoveryStatus": "passed",
+      "regions": [
+        {
+          "id": "native-mat136-left-endpoint-water-leak-page-1-six-subintervals",
+          "semanticId": "six-subintervals",
+          "label": "六段区间与六个左端点",
+          "order": 1,
+          "role": "setup",
+          "color": "#38bdf8",
+          "bbox": [119.1, 51.8, 753, 180.6]
+        },
+        {
+          "id": "native-mat136-left-endpoint-water-leak-page-1-why-three-is-excluded",
+          "semanticId": "why-three-is-excluded",
+          "label": "3 是右端点，不是第七个左端点",
+          "order": 2,
+          "role": "pitfall",
+          "color": "#34d399",
+          "bbox": [103.5, 247.1, 325.2, 288.1]
+        },
+        {
+          "id": "native-mat136-left-endpoint-water-leak-page-1-rate-to-volume",
+          "semanticId": "rate-to-volume",
+          "label": "速率乘宽度才得到漏水量",
+          "order": 3,
+          "role": "formula",
+          "color": "#f59e0b",
+          "bbox": [453.1, 246.1, 445.3, 289.1]
+        }
+      ],
+      "actions": [
+        {
+          "id": "left-endpoint-water-leak-spotlight-1",
+          "type": "spotlight",
+          "regionId": "native-mat136-left-endpoint-water-leak-page-1-six-subintervals",
+          "title": "六段区间与六个左端点",
+          "dimOpacity": 0.76
+        },
+        {
+          "id": "left-endpoint-water-leak-speech-1-1",
+          "type": "speech",
+          "regionId": "native-mat136-left-endpoint-water-leak-page-1-six-subintervals",
+          "title": "先切区间，再选高度",
+          "text": "先别急着代函数。时间从零到三小时，一共分成六段，所以每一段的宽度是零点五小时；六个矩形必须一段对应一个高度。",
+          "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-01.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "f9f9bcba7a77db3016237f77692996557c5d2236a188fe330ad9f18acffaca23",
+          "audioBytes": 219264
+        },
+        {
+          "id": "left-endpoint-water-leak-speech-1-2",
+          "type": "speech",
+          "regionId": "native-mat136-left-endpoint-water-leak-page-1-six-subintervals",
+          "title": "左端点就是每段的起点",
+          "text": "左端点规则只取每一小段开始的位置，因此依次是零、零点五、一、一点五、二和二点五，正好六个点。",
+          "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-02.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "e6345493c33018ae6a334b3d1a482d1a7bee7b3f91c0597122736bcce200d090",
+          "audioBytes": 202368
+        },
+        {
+          "id": "left-endpoint-water-leak-spotlight-2",
+          "type": "spotlight",
+          "regionId": "native-mat136-left-endpoint-water-leak-page-1-why-three-is-excluded",
+          "title": "3 是右端点，不是第七个左端点",
+          "dimOpacity": 0.76
+        },
+        {
+          "id": "left-endpoint-water-leak-speech-2-1",
+          "type": "speech",
+          "regionId": "native-mat136-left-endpoint-water-leak-page-1-why-three-is-excluded",
+          "title": "看清最后一段的左右关系",
+          "text": "关键只在最后一段。最后一个小区间从二点五开始，到三结束；因此二点五是它的左端点，而三是它的右端点。",
+          "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-03.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "36b14508fe8ba298993fcd026611a854a33f65a293682c90bce687ba6c4ecd98",
+          "audioBytes": 188928
+        },
+        {
+          "id": "left-endpoint-water-leak-speech-2-2",
+          "type": "speech",
+          "regionId": "native-mat136-left-endpoint-water-leak-page-1-why-three-is-excluded",
+          "title": "加入 3 会破坏一段一个高度",
+          "text": "如果再把三加入取样点，就会出现七个高度，却只有六个小区间。三只有在右端点规则里才会被选中，不属于这次左端点和。",
+          "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-04.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "827a161bf5ee016c4237bd5a29ac9b4589d1832a25eadcce2b648b3e8cd12683",
+          "audioBytes": 217728
+        },
+        {
+          "id": "left-endpoint-water-leak-spotlight-3",
+          "type": "spotlight",
+          "regionId": "native-mat136-left-endpoint-water-leak-page-1-rate-to-volume",
+          "title": "速率乘宽度才得到漏水量",
+          "dimOpacity": 0.76
+        },
+        {
+          "id": "left-endpoint-water-leak-speech-3-1",
+          "type": "speech",
+          "regionId": "native-mat136-left-endpoint-water-leak-page-1-rate-to-volume",
+          "title": "写出六段左端点和",
+          "text": "现在把这六个左端点代入漏水速率函数，把六个函数值相加；这些函数值只是每个矩形的高度，也就是每小时漏多少升。",
+          "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-05.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "045581b2e998e6459884cf891c2a4e8af5da394152ca45ba4c184a1d8aff4275",
+          "audioBytes": 197760
+        },
+        {
+          "id": "left-endpoint-water-leak-speech-3-2",
+          "type": "speech",
+          "regionId": "native-mat136-left-endpoint-water-leak-page-1-rate-to-volume",
+          "title": "别漏掉零点五和单位",
+          "text": "最后一定要乘每段的时间宽度零点五小时。升每小时乘小时，才得到每段的漏水量；全部相加后的单位也才是升。",
+          "audioUrl": "/mock-mini-lectures/mat136/left-endpoint-water-leak/speech-06.mp3",
+          "audioProvider": "openai-tts",
+          "audioModel": "gpt-4o-mini-tts",
+          "audioVoice": "marin",
+          "audioSha256": "ac9f7208f33c21a3894436192ab7c549caa321790a8e3536ebf4e879b2870f9e",
+          "audioBytes": 193920
+        }
+      ]
+    }
+  ]
+}

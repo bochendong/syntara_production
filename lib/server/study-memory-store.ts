@@ -34,6 +34,16 @@ type RawStudyMemoryRow = Omit<StudyMemoryRecord, 'createdAt' | 'updatedAt'> & {
   updatedAt: Date | string;
 };
 
+type RawCourseStudyMemoryLayerRow = RawStudyMemoryRow & {
+  memoryLayer: 'course' | 'platform' | 'course_learner';
+};
+
+export type CourseStudyMemoryLayers = {
+  course: StudyMemoryRecord[];
+  platform: StudyMemoryRecord[];
+  courseLearner: StudyMemoryRecord[];
+};
+
 export const PLATFORM_STUDY_MEMORY_TARGET_ID = 'platform';
 export const DIRECT_COURSE_LEARNER_MEMORY_SOURCES = [
   'notebook_chat_memory_diagnosis',
@@ -57,8 +67,6 @@ export type ReadableStudyMemoryTarget = StudyMemoryTarget & {
   accessRole: CourseAccessRole;
 };
 
-let ensureStudyMemoryTablePromise: Promise<void> | null = null;
-
 function serializeRow(row: RawStudyMemoryRow): StudyMemoryRecord {
   return {
     ...row,
@@ -69,67 +77,6 @@ function serializeRow(row: RawStudyMemoryRow): StudyMemoryRecord {
 
 function createMemoryId(): string {
   return `memory_${randomUUID().replace(/-/g, '')}`;
-}
-
-export async function ensureStudyMemoryTable(prisma: PrismaClient): Promise<void> {
-  if (!ensureStudyMemoryTablePromise) {
-    ensureStudyMemoryTablePromise = (async () => {
-      await prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "StudyMemory" (
-          "id" TEXT PRIMARY KEY,
-          "ownerId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
-          "courseId" TEXT REFERENCES "Course"("id") ON DELETE CASCADE,
-          "notebookId" TEXT REFERENCES "Notebook"("id") ON DELETE CASCADE,
-          "targetType" TEXT NOT NULL,
-          "scope" TEXT NOT NULL,
-          "kind" TEXT NOT NULL DEFAULT 'manual',
-          "status" TEXT NOT NULL DEFAULT 'active',
-          "source" TEXT NOT NULL DEFAULT 'manual',
-          "title" TEXT NOT NULL,
-          "text" TEXT NOT NULL,
-          "reason" TEXT,
-          "question" TEXT,
-          "sourceReferences" JSONB,
-          "confidence" DOUBLE PRECISION DEFAULT 1,
-          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await prisma.$executeRawUnsafe(`
-        ALTER TABLE "StudyMemory"
-        ADD COLUMN IF NOT EXISTS "confidence" DOUBLE PRECISION DEFAULT 1
-      `);
-      await prisma.$executeRawUnsafe(`
-        CREATE INDEX IF NOT EXISTS "StudyMemory_owner_target_course_updated_idx"
-        ON "StudyMemory" ("ownerId", "targetType", "courseId", "updatedAt" DESC)
-      `);
-      await prisma.$executeRawUnsafe(`
-        CREATE INDEX IF NOT EXISTS "StudyMemory_owner_target_notebook_updated_idx"
-        ON "StudyMemory" ("ownerId", "targetType", "notebookId", "updatedAt" DESC)
-      `);
-      await prisma.$executeRawUnsafe(`
-        CREATE INDEX IF NOT EXISTS "StudyMemory_owner_target_platform_updated_idx"
-        ON "StudyMemory" ("ownerId", "targetType", "updatedAt" DESC)
-      `);
-      await prisma.$executeRawUnsafe(`
-        CREATE INDEX IF NOT EXISTS "StudyMemory_owner_scope_status_updated_idx"
-        ON "StudyMemory" ("ownerId", "scope", "status", "updatedAt" DESC)
-      `);
-      await prisma.$executeRawUnsafe(`
-        CREATE INDEX IF NOT EXISTS "StudyMemory_private_notebook_course_recall_idx"
-        ON "StudyMemory" ("ownerId", "courseId", "updatedAt" DESC)
-        WHERE
-          "targetType" = 'notebook'
-          AND "scope" = 'private'
-          AND "status" = 'active'
-          AND "source" IN ('notebook_chat_memory_diagnosis', 'problem_attempt_inference')
-      `);
-    })().catch((error) => {
-      ensureStudyMemoryTablePromise = null;
-      throw error;
-    });
-  }
-  return ensureStudyMemoryTablePromise;
 }
 
 export async function resolveOwnedStudyMemoryTarget(
@@ -324,7 +271,9 @@ export async function listStudyMemoriesForViewer(
   prisma: PrismaClient,
   userId: string | null | undefined,
   target: ReadableStudyMemoryTarget,
+  limit = 120,
 ): Promise<StudyMemoryRecord[]> {
+  const boundedLimit = Math.max(1, Math.min(120, Math.trunc(limit) || 120));
   let rows: RawStudyMemoryRow[];
   if (target.targetType === 'platform') {
     rows = await prisma.$queryRawUnsafe<RawStudyMemoryRow[]>(
@@ -339,10 +288,11 @@ export async function listStudyMemoriesForViewer(
           ORDER BY
             CASE WHEN "scope" = 'public' THEN 0 ELSE 1 END ASC,
             "updatedAt" DESC
-          LIMIT 120
+          LIMIT $3
         `,
       target.targetOwnerId,
       userId,
+      boundedLimit,
     );
   } else if (target.targetType === 'course') {
     rows = await prisma.$queryRawUnsafe<RawStudyMemoryRow[]>(
@@ -364,11 +314,12 @@ export async function listStudyMemoriesForViewer(
             END ASC,
             CASE WHEN "scope" = 'public' THEN 0 ELSE 1 END ASC,
             "updatedAt" DESC
-          LIMIT 120
+          LIMIT $4
         `,
       target.courseId,
       target.targetOwnerId,
       userId,
+      boundedLimit,
     );
   } else {
     rows = await prisma.$queryRawUnsafe<RawStudyMemoryRow[]>(
@@ -390,11 +341,12 @@ export async function listStudyMemoriesForViewer(
             END ASC,
             CASE WHEN "scope" = 'public' THEN 0 ELSE 1 END ASC,
             "updatedAt" DESC
-          LIMIT 120
+          LIMIT $4
         `,
       target.notebookId,
       target.targetOwnerId,
       userId,
+      boundedLimit,
     );
   }
   return rows.map(serializeRow);
@@ -419,7 +371,6 @@ export async function listRecentPrivateNotebookLearnerMemoriesForCourse(
   const normalizedCourseId = courseId.trim();
   if (!normalizedUserId || !normalizedCourseId) return [];
 
-  await ensureStudyMemoryTable(prisma);
   const boundedLimit = Math.max(1, Math.min(12, Math.trunc(limit) || 6));
   const rows = await prisma.$queryRawUnsafe<RawStudyMemoryRow[]>(
     `
@@ -443,6 +394,110 @@ export async function listRecentPrivateNotebookLearnerMemoriesForCourse(
   return rows.map(serializeRow);
 }
 
+/**
+ * Reads the three direct-memory layers needed by an ordinary course answer in
+ * one database round trip. Each branch keeps its own ORDER BY and hard LIMIT,
+ * so combining the reads cannot turn the answer path into an unbounded scan.
+ */
+export async function listCourseStudyMemoryLayersForViewer(
+  prisma: PrismaClient,
+  userId: string | null | undefined,
+  target: ReadableStudyMemoryTarget,
+  limits: {
+    course?: number;
+    platform?: number;
+    courseLearner?: number;
+  } = {},
+): Promise<CourseStudyMemoryLayers> {
+  if (target.targetType !== 'course' || !target.courseId) {
+    throw new Error('Course study-memory layers require a resolved course target.');
+  }
+  const courseLimit = Math.max(1, Math.min(12, Math.trunc(limits.course ?? 8) || 8));
+  const platformLimit = Math.max(1, Math.min(8, Math.trunc(limits.platform ?? 4) || 4));
+  const courseLearnerLimit = Math.max(1, Math.min(12, Math.trunc(limits.courseLearner ?? 6) || 6));
+  const viewerUserId = userId?.trim() || null;
+
+  const rows = await prisma.$queryRawUnsafe<RawCourseStudyMemoryLayerRow[]>(
+    `
+      (
+        SELECT ${STUDY_MEMORY_COLUMNS}, 'course'::text AS "memoryLayer"
+        FROM "StudyMemory"
+        WHERE
+          "targetType" = 'course'
+          AND "courseId" = $1
+          AND "status" = 'active'
+          AND (
+            ("ownerId" = $2 AND "scope" = 'public')
+            OR ($3::text IS NOT NULL AND "ownerId" = $3 AND "scope" = 'private')
+          )
+        ORDER BY
+          CASE
+            WHEN "kind" = 'course_teaching_control' THEN 0
+            WHEN "kind" = 'notebook_teaching_control' THEN 1
+            WHEN "source" = 'manual_teaching_control_memory' THEN 2
+            ELSE 3
+          END ASC,
+          CASE WHEN "scope" = 'public' THEN 0 ELSE 1 END ASC,
+          "updatedAt" DESC
+        LIMIT $4
+      )
+      UNION ALL
+      (
+        SELECT ${STUDY_MEMORY_COLUMNS}, 'platform'::text AS "memoryLayer"
+        FROM "StudyMemory"
+        WHERE
+          "targetType" = 'platform'
+          AND "status" = 'active'
+          AND (
+            ("ownerId" = $2 AND "scope" = 'public')
+            OR ($3::text IS NOT NULL AND "ownerId" = $3 AND "scope" = 'private')
+          )
+        ORDER BY
+          CASE WHEN "scope" = 'public' THEN 0 ELSE 1 END ASC,
+          "updatedAt" DESC
+        LIMIT $5
+      )
+      UNION ALL
+      (
+        SELECT ${STUDY_MEMORY_COLUMNS}, 'course_learner'::text AS "memoryLayer"
+        FROM "StudyMemory"
+        WHERE
+          $3::text IS NOT NULL
+          AND "ownerId" = $3
+          AND "courseId" = $1
+          AND "targetType" = 'notebook'
+          AND "scope" = 'private'
+          AND "status" = 'active'
+          AND "source" IN ($7, $8)
+        ORDER BY "updatedAt" DESC
+        LIMIT $6
+      )
+    `,
+    target.courseId,
+    target.targetOwnerId,
+    viewerUserId,
+    courseLimit,
+    platformLimit,
+    courseLearnerLimit,
+    DIRECT_COURSE_LEARNER_MEMORY_SOURCES[0],
+    DIRECT_COURSE_LEARNER_MEMORY_SOURCES[1],
+  );
+
+  const result: CourseStudyMemoryLayers = {
+    course: [],
+    platform: [],
+    courseLearner: [],
+  };
+  for (const row of rows) {
+    const { memoryLayer, ...memoryRow } = row;
+    const memory = serializeRow(memoryRow);
+    if (memoryLayer === 'course') result.course.push(memory);
+    else if (memoryLayer === 'platform') result.platform.push(memory);
+    else result.courseLearner.push(memory);
+  }
+  return result;
+}
+
 export async function createStudyMemory(args: {
   prisma: PrismaClient;
   userId: string;
@@ -456,8 +511,8 @@ export async function createStudyMemory(args: {
   reason?: string | null;
   question?: string | null;
   sourceReferences?: unknown;
+  index?: boolean;
 }): Promise<StudyMemoryRecord> {
-  await ensureStudyMemoryTable(args.prisma);
   const status = args.status ?? 'active';
   const dedupeFingerprint = JSON.stringify([
     args.userId,
@@ -546,13 +601,15 @@ export async function createStudyMemory(args: {
     );
     return serializeRow(rows[0]);
   });
-  try {
-    await indexStudyMemoryRecord(args.prisma, memory);
-  } catch (error) {
-    console.warn('[study-memory-store] failed to index memory', {
-      memoryId: memory.id,
-      error,
-    });
+  if (args.index !== false) {
+    try {
+      await indexStudyMemoryRecord(args.prisma, memory);
+    } catch (error) {
+      console.warn('[study-memory-store] failed to index memory', {
+        memoryId: memory.id,
+        error,
+      });
+    }
   }
   return memory;
 }
@@ -563,7 +620,6 @@ export async function updateStudyMemoryStatus(args: {
   memoryId: string;
   status: StudyMemoryStatusValue;
 }): Promise<StudyMemoryRecord | null> {
-  await ensureStudyMemoryTable(args.prisma);
   const rows = await args.prisma.$queryRawUnsafe<RawStudyMemoryRow[]>(
     `
       UPDATE "StudyMemory"
@@ -593,7 +649,6 @@ export async function deleteStudyMemory(args: {
   userId: string;
   memoryId: string;
 }): Promise<boolean> {
-  await ensureStudyMemoryTable(args.prisma);
   const rows = await args.prisma.$queryRawUnsafe<Array<{ id: string }>>(
     `
       DELETE FROM "StudyMemory"

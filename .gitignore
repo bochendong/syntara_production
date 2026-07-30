@@ -90,11 +90,12 @@ next-env.d.ts
 /temp
 /题库
 /public/generated-notebooks
-/public/live2d
 /public/liv2d_poster
 
 # docs
 /docs/*
+!/docs/architecture/
+!/docs/architecture/2026-07-30-ux-performance-audit.md
 !/docs/api/
 !/docs/api/**
 !/docs/course-settings-generation-effects.md

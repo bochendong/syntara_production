@@ -4,11 +4,11 @@ import type { Prisma } from '@/lib/server/generated-prisma';
 import { prisma } from '@/lib/server/prisma';
 import type { NotebookProblemSummary } from '@/lib/problem-bank';
 import {
-  listCourseProblemsByIdsForUser,
-  listCourseProblemsForUser,
-  listNotebookProblemsForUser,
+  listReviewProblemCandidatesForUser,
+  listReviewProblemDetailsByIdsForUser,
+  type ReviewProblemCandidate,
+  type ReviewProblemDetail,
 } from '@/features/problems/server/service';
-import { searchLearnProblemBankForPractice } from '@/lib/server/problem-bank-practice-search';
 import { createTeachingDecision } from '@/features/teaching-orchestrator/domain/evidence-ledger';
 import {
   resolveFixedReviewWorkflow,
@@ -109,11 +109,9 @@ type RecentConversationMessageRow = {
   id: string;
   role: string;
   plainText: string | null;
-  createdAt: Date;
-  conversation: {
-    id: string;
-    title: string | null;
-  };
+  createdAt: Date | string;
+  conversationId: string;
+  conversationTitle: string | null;
 };
 
 function compact(input: unknown, maxChars: number): string {
@@ -246,21 +244,32 @@ function shouldKeepPastScheduleEventsForQuery(query: string): boolean {
   );
 }
 
-function problemContentExcerpt(problem: NotebookProblemSummary): string {
+function problemContentExcerpt(problem: ReviewProblemDetail): string {
   const publicContent = problem.publicContent as Record<string, unknown>;
-  const grading = problem.grading as Record<string, unknown>;
   return compact(
     [
       typeof publicContent.stem === 'string' ? publicContent.stem : '',
       typeof publicContent.prompt === 'string' ? publicContent.prompt : '',
       typeof publicContent.stemTemplate === 'string' ? publicContent.stemTemplate : '',
       typeof publicContent.functionSignature === 'string' ? publicContent.functionSignature : '',
-      typeof grading.rubric === 'string' ? grading.rubric : '',
-      typeof grading.analysis === 'string' ? grading.analysis : '',
     ]
       .filter(Boolean)
       .join('\n\n') || JSON.stringify(problem.publicContent),
     700,
+  );
+}
+
+function problemCandidateExcerpt(problem: ReviewProblemCandidate): string {
+  return compact(
+    [
+      problem.notebookName ? `章节：${problem.notebookName}` : '',
+      `题型：${problem.type}`,
+      `难度：${problem.difficulty}`,
+      problem.tags.length > 0 ? `标签：${problem.tags.join('、')}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    500,
   );
 }
 
@@ -344,29 +353,42 @@ function scheduleEvidence(args: {
     }));
 }
 
-function problemBankEvidence(problems: NotebookProblemSummary[]): TeachingEvidence[] {
+function problemBankEvidence(args: {
+  problems: ReviewProblemCandidate[];
+  detailByProblemId?: ReadonlyMap<string, ReviewProblemDetail>;
+  preferredProblemIds?: ReadonlySet<string>;
+}): TeachingEvidence[] {
+  const { problems } = args;
   return problems
     .filter((problem) => problem.status !== 'archived')
-    .slice(0, 18)
-    .map((problem) => ({
-      id: evidenceId('problem', problem.id),
-      sourceType: 'problem_bank',
-      sourceId: problem.id,
-      title: problem.title,
-      excerpt: problemContentExcerpt(problem),
-      reason: problem.latestAttempt
-        ? `题库题目，最近一次状态是「${problemAttemptStatusLabel(problem.latestAttempt.status)}」。`
-        : '题库题目，尚未看到最近作答记录，可作为诊断或练习候选。',
-      confidence: problem.status === 'published' ? 0.9 : 0.65,
-      target: { type: 'problem', id: problem.id },
-      conceptTags: problem.tags,
-      metadata: {
-        difficulty: problem.difficulty,
-        type: problem.type,
-        status: problem.status,
-        latestAttempt: problem.latestAttempt,
-      },
-    }));
+    .slice(0, 24)
+    .map((problem) => {
+      const detail = args.detailByProblemId?.get(problem.id);
+      const retrievalMatched = args.preferredProblemIds?.has(problem.id) ?? false;
+      return {
+        id: evidenceId('problem', problem.id),
+        sourceType: 'problem_bank',
+        sourceId: problem.id,
+        title: problem.title,
+        excerpt: detail ? problemContentExcerpt(detail) : problemCandidateExcerpt(problem),
+        reason: retrievalMatched
+          ? '题库检索明确命中当前复习主题，并进入有上限的候选集合。'
+          : problem.latestAttempt
+            ? `题库题目，最近一次状态是「${problemAttemptStatusLabel(problem.latestAttempt.status)}」。`
+            : '题库题目，尚未看到最近作答记录，可作为诊断或练习候选。',
+        confidence: retrievalMatched ? 0.95 : problem.status === 'published' ? 0.9 : 0.65,
+        target: { type: 'problem', id: problem.id },
+        conceptTags: problem.tags,
+        metadata: {
+          difficulty: problem.difficulty,
+          type: problem.type,
+          status: problem.status,
+          latestAttempt: problem.latestAttempt,
+          detailLoaded: Boolean(detail),
+          retrievalMatched,
+        },
+      } satisfies TeachingEvidence;
+    });
 }
 
 async function recentAttemptEvidence(args: {
@@ -454,24 +476,75 @@ async function recentConversationEvidence(args: {
   targetType: 'course' | 'notebook';
   targetId: string;
 }): Promise<TeachingEvidence[]> {
-  const rows = (await prisma.message.findMany({
-    where: {
-      ownerId: args.userId,
-      role: { in: ['user', 'assistant'] },
-      plainText: { not: null },
-      conversation:
-        args.targetType === 'course' ? { courseId: args.targetId } : { notebookId: args.targetId },
-    },
-    select: {
-      id: true,
-      role: true,
-      plainText: true,
-      createdAt: true,
-      conversation: { select: { id: true, title: true } },
-    },
-    orderBy: [{ createdAt: 'desc' }],
-    take: 16,
-  })) as RecentConversationMessageRow[];
+  const rows = await prisma.$queryRawUnsafe<RecentConversationMessageRow[]>(
+    `
+      SELECT history.*
+      FROM (
+        SELECT
+          message."id",
+          message."role"::text AS "role",
+          message."plainText",
+          message."createdAt",
+          message."conversationId",
+          conversation."title" AS "conversationTitle"
+        FROM "CourseConversationMessage" AS message
+        INNER JOIN "CourseConversation" AS conversation
+          ON conversation."id" = message."conversationId"
+          AND conversation."ownerId" = message."ownerId"
+          AND conversation."courseId" = message."courseId"
+        WHERE message."ownerId" = $1
+          AND message."deletedAt" IS NULL
+          AND conversation."deletedAt" IS NULL
+          AND message."role" IN ('user', 'assistant')
+          AND message."plainText" IS NOT NULL
+          AND length(trim(message."plainText")) > 0
+          AND $2::text = 'course'
+          AND conversation."courseId" = $3
+
+        UNION ALL
+
+        SELECT
+          message."id",
+          message."role",
+          message."plainText",
+          message."createdAt",
+          message."conversationId",
+          conversation."title" AS "conversationTitle"
+        FROM "Message" AS message
+        INNER JOIN "Conversation" AS conversation
+          ON conversation."id" = message."conversationId"
+        LEFT JOIN "Notebook" AS notebook
+          ON notebook."id" = conversation."notebookId"
+        WHERE message."ownerId" = $1
+          AND message."role" IN ('user', 'assistant')
+          AND message."plainText" IS NOT NULL
+          AND length(trim(message."plainText")) > 0
+          AND conversation."kind" IN ('notebook', 'agent', 'system')
+          AND (
+            conversation."targetId" IS NULL
+            OR conversation."targetId" NOT LIKE 'learn:%'
+          )
+          AND (
+            ($2::text = 'notebook' AND conversation."notebookId" = $3)
+            OR (
+              $2::text = 'course'
+              AND (
+                conversation."courseId" = $3
+                OR (
+                  conversation."courseId" IS NULL
+                  AND notebook."courseId" = $3
+                )
+              )
+            )
+          )
+      ) AS history
+      ORDER BY history."createdAt" DESC, history."id" DESC
+      LIMIT 16
+    `,
+    args.userId,
+    args.targetType,
+    args.targetId,
+  );
 
   return rows
     .filter((row) => row.plainText?.trim())
@@ -479,15 +552,15 @@ async function recentConversationEvidence(args: {
       id: evidenceId('conversation', row.id),
       sourceType: 'conversation',
       sourceId: row.id,
-      title: row.conversation.title || (row.role === 'user' ? '最近提问' : '最近回答'),
+      title: row.conversationTitle || (row.role === 'user' ? '最近提问' : '最近回答'),
       excerpt: compact(`${row.role === 'user' ? '学生' : '助教'}：${row.plainText}`, 900),
       reason:
         row.role === 'user'
           ? '这是正式课程对话里最近的学生提问，可用于判断仍在追问或混淆的知识点。'
           : '这是正式课程对话里的最近回答，可用于避免复习计划重复或遗漏已讲内容。',
       confidence: row.role === 'user' ? 0.82 : 0.68,
-      target: { type: 'conversation', id: row.conversation.id },
-      occurredAt: row.createdAt.toISOString(),
+      target: { type: 'conversation', id: row.conversationId },
+      occurredAt: new Date(row.createdAt).toISOString(),
       conceptTags: [],
       metadata: { role: row.role },
     }));
@@ -495,7 +568,7 @@ async function recentConversationEvidence(args: {
 
 function attachConversationConceptTags(
   evidence: TeachingEvidence[],
-  problems: NotebookProblemSummary[],
+  problems: ReviewProblemCandidate[],
 ): TeachingEvidence[] {
   const courseTags = Array.from(new Set(problems.flatMap((problem) => problem.tags)));
   return evidence.map((item) => {
@@ -523,6 +596,22 @@ function explicitConceptsFromText(text: string): string[] {
   return concepts;
 }
 
+function candidateConceptSearchTerms(concepts: string[]): string[] {
+  const terms = new Set(concepts);
+  for (const concept of concepts) {
+    if (concept === '数学归纳法') {
+      terms.add('induction');
+      terms.add('ordinary induction');
+    }
+    if (concept === '强归纳法') terms.add('strong induction');
+    if (concept === '结构归纳法') {
+      terms.add('structural induction');
+      terms.add('recursive');
+    }
+  }
+  return [...terms].slice(0, 12);
+}
+
 function textMatchesConcept(text: string, concept: string): boolean {
   const normalized = text.normalize('NFKC').toLowerCase();
   if (normalized.includes(concept.toLowerCase())) return true;
@@ -538,9 +627,9 @@ function textMatchesConcept(text: string, concept: string): boolean {
   return false;
 }
 
-function problemMatchesConcept(problem: NotebookProblemSummary, concept: string): boolean {
+function problemMatchesConcept(problem: ReviewProblemCandidate, concept: string): boolean {
   return textMatchesConcept(
-    [problem.title, problem.notebookName, problem.tags.join(' '), problemContentExcerpt(problem)]
+    [problem.title, problem.notebookName, problem.tags.join(' '), problem.searchText]
       .filter(Boolean)
       .join('\n'),
     concept,
@@ -549,7 +638,7 @@ function problemMatchesConcept(problem: NotebookProblemSummary, concept: string)
 
 function scoreConcepts(args: {
   evidence: TeachingEvidence[];
-  problems: NotebookProblemSummary[];
+  problems: ReviewProblemCandidate[];
   query: string;
 }): ConceptScore[] {
   const scores = new Map<string, ConceptScore>();
@@ -620,25 +709,31 @@ function scoreConcepts(args: {
 
 function selectQuestions(args: {
   concepts: ConceptScore[];
-  problems: NotebookProblemSummary[];
+  problems: ReviewProblemCandidate[];
   questionCount: number;
   fallbackCourseId?: string;
+  preferredProblemIds?: string[];
 }): ReviewQuestionCandidate[] {
   const selected = new Map<string, ReviewQuestionCandidate>();
   const conceptSet = new Set(args.concepts.map((item) => item.concept));
   const priorityConcepts = args.concepts.filter((concept) => concept.score >= 20);
+  const preferredRankByProblemId = new Map(
+    (args.preferredProblemIds ?? []).map((problemId, index) => [problemId, index] as const),
+  );
   const ranked = [...args.problems]
     .filter((problem) => problem.status !== 'archived')
     .map((problem) => {
+      const preferredRank = preferredRankByProblemId.get(problem.id);
       const overlap = args.concepts
         .filter(
           (concept) =>
             problem.tags.some((tag) => conceptSet.has(tag) && tag === concept.concept) ||
-            problemMatchesConcept(problem, concept.concept),
+            problemMatchesConcept(problem, concept.concept) ||
+            (preferredRank != null && concept.score >= 20),
         )
         .map((concept) => concept.concept);
-      const priorityOverlap = priorityConcepts.filter((concept) =>
-        problemMatchesConcept(problem, concept.concept),
+      const priorityOverlap = priorityConcepts.filter(
+        (concept) => problemMatchesConcept(problem, concept.concept) || preferredRank != null,
       );
       const attempt = problem.latestAttempt;
       const attemptScore = !attempt ? 2 : attempt.status === 'passed' ? 0 : 5;
@@ -647,6 +742,7 @@ function selectQuestions(args: {
         overlap,
         priorityOverlap,
         rank:
+          (preferredRank == null ? 0 : 80 - Math.min(preferredRank, 12) * 2) +
           priorityOverlap.length * 30 +
           overlap.length * 8 +
           attemptScore +
@@ -669,7 +765,8 @@ function selectQuestions(args: {
         .filter(
           (concept) =>
             item.problem.tags.includes(concept.concept) ||
-            problemMatchesConcept(item.problem, concept.concept),
+            problemMatchesConcept(item.problem, concept.concept) ||
+            preferredRankByProblemId.has(item.problem.id),
         )
         .flatMap((concept) => [...concept.evidenceIds]),
     ];
@@ -820,28 +917,11 @@ export async function generateEvidenceBasedReviewPlan(args: {
   // full layered semantic recall duplicated those reads and could hold a small
   // Railway connection for three minutes.
   const explicitConcepts = explicitConceptsFromText(query);
-  const problems =
-    args.targetType === 'course' && explicitConcepts.length > 0
-      ? await (async () => {
-          const search = await searchLearnProblemBankForPractice({
-            prisma,
-            userId: args.userId,
-            courseId: args.targetId,
-            query,
-            requestedCount: Math.max(questionCount * 3, 12),
-          });
-          return listCourseProblemsByIdsForUser(
-            args.userId,
-            args.targetId,
-            search.matches.map((match) => match.problemId),
-            { skipMaintenance: true },
-          );
-        })()
-      : args.targetType === 'course'
-        ? await listCourseProblemsForUser(args.userId, args.targetId, {
-            skipMaintenance: true,
-          })
-        : await listNotebookProblemsForUser(args.userId, args.targetId);
+  const scheduleItems = scheduleEvidence({
+    scheduleEvents: args.scheduleEvents || [],
+    today,
+    query,
+  });
   const [attemptEvidenceItems, rawConversationItems] = await Promise.all([
     recentAttemptEvidence({
       userId: args.userId,
@@ -854,13 +934,74 @@ export async function generateEvidenceBasedReviewPlan(args: {
       targetId: args.targetId,
     }),
   ]);
-  const scheduleItems = scheduleEvidence({
-    scheduleEvents: args.scheduleEvents || [],
-    today,
-    query,
+  const priorityConcepts = Array.from(
+    new Set<string>([
+      ...explicitConcepts,
+      ...scheduleItems.flatMap((item) => item.conceptTags ?? []),
+      ...rawConversationItems.flatMap((item) =>
+        explicitConceptsFromText(`${item.title}\n${item.excerpt}`),
+      ),
+      ...attemptEvidenceItems.flatMap((item) => item.conceptTags ?? []),
+    ]),
+  ).slice(0, 12);
+  const priorityContextText = compact(
+    [
+      query,
+      ...scheduleItems.map((item) => `${item.title}\n${(item.conceptTags ?? []).join(' ')}`),
+      ...attemptEvidenceItems.map(
+        (item) => `${item.title}\n${(item.conceptTags ?? []).join(' ')}\n${item.excerpt}`,
+      ),
+      ...rawConversationItems.map(
+        (item) => `${item.title}\n${(item.conceptTags ?? []).join(' ')}\n${item.excerpt}`,
+      ),
+    ].join('\n\n'),
+    6000,
+  );
+  const candidatePriorityConcepts = candidateConceptSearchTerms(priorityConcepts);
+  const preferredProblemIds: string[] = [];
+  const problems = await listReviewProblemCandidatesForUser({
+    userId: args.userId,
+    targetType: args.targetType,
+    targetId: args.targetId,
+    priorityProblemIds: preferredProblemIds,
+    priorityConcepts: candidatePriorityConcepts,
+    priorityContextText,
   });
+  const preferredProblemIdSet = new Set(preferredProblemIds);
   const conversationItems = attachConversationConceptTags(rawConversationItems, problems);
-  const problemItems = problemBankEvidence(problems);
+  const candidateProblemItems = problemBankEvidence({
+    problems,
+    preferredProblemIds: preferredProblemIdSet,
+  });
+  const candidateEvidence = [
+    ...scheduleItems,
+    ...attemptEvidenceItems,
+    ...conversationItems,
+    ...candidateProblemItems,
+  ];
+
+  const concepts = scoreConcepts({ evidence: candidateEvidence, problems, query });
+  const questions = selectQuestions({
+    concepts,
+    problems,
+    questionCount,
+    fallbackCourseId: args.targetType === 'course' ? args.targetId : undefined,
+    preferredProblemIds,
+  });
+  const selectedProblemDetails = await listReviewProblemDetailsByIdsForUser({
+    userId: args.userId,
+    targetType: args.targetType,
+    targetId: args.targetId,
+    problemIds: questions.map((question) => question.problemId),
+  });
+  const detailByProblemId = new Map(
+    selectedProblemDetails.map((problem) => [problem.id, problem] as const),
+  );
+  const problemItems = problemBankEvidence({
+    problems,
+    detailByProblemId,
+    preferredProblemIds: preferredProblemIdSet,
+  });
   const evidence = [
     ...scheduleItems,
     ...attemptEvidenceItems,
@@ -868,13 +1009,6 @@ export async function generateEvidenceBasedReviewPlan(args: {
     ...problemItems,
   ];
 
-  const concepts = scoreConcepts({ evidence, problems, query });
-  const questions = selectQuestions({
-    concepts,
-    problems,
-    questionCount,
-    fallbackCourseId: args.targetType === 'course' ? args.targetId : undefined,
-  });
   const hasTemplateEvidence = evidence.some((item) => item.sourceType === 'template');
   const tasks = buildTasks({
     concepts,
@@ -944,8 +1078,8 @@ export async function generateEvidenceBasedReviewPlan(args: {
     },
     {
       toolId: 'search_problem_bank',
-      purpose: '读取可用于复习的题库候选',
-      inputSummary: `${problems.length} problems`,
+      purpose: '先读取有上限的轻量题库候选，再按选中 ID 读取公开详情',
+      inputSummary: `${problems.length} lean candidates / ${selectedProblemDetails.length} selected details`,
       outputEvidenceIds: problemItems.map((item) => item.id),
     },
     {

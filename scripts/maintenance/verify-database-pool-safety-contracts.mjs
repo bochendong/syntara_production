@@ -7,6 +7,7 @@ import process from 'node:process';
 const root = process.cwd();
 const sourcePaths = {
   conversationRoute: 'app/api/learn/conversations/route.ts',
+  conversationRepository: 'features/learn-conversations/server/course-conversation-repository.ts',
   learnConversationStore: 'lib/server/learn-conversation-store.ts',
   memoryFactStore: 'lib/server/memory-fact-store.ts',
   studyMemoryRoute: 'app/api/study-memory/route.ts',
@@ -47,11 +48,11 @@ function withoutComments(source) {
 }
 
 const conversationRoute = sources.conversationRoute;
-const replaceLearnMessages = sectionBetween(
-  conversationRoute,
-  'async function replaceLearnMessages(',
-  'async function loadMessages(',
-  'conversation message replacement',
+const patchLearnMessages = sectionBetween(
+  sources.conversationRepository,
+  'async function patchCourseConversationMessages(',
+  'export async function applyCourseConversationPatchInTransaction(',
+  'conversation message patch',
 );
 const retryableFactWriteError = sectionBetween(
   sources.memoryFactStore,
@@ -67,29 +68,34 @@ const studyMemoryGet = sectionBetween(
 );
 
 requirePattern(
-  replaceLearnMessages,
-  /jsonb_to_recordset\(\$1::jsonb\)[\s\S]*INSERT INTO "Message"[\s\S]*ON CONFLICT \("id"\) DO UPDATE/,
+  patchLearnMessages,
+  /jsonb_to_recordset\(\$1::jsonb\)[\s\S]*INSERT INTO "CourseConversationMessage"[\s\S]*ON CONFLICT \("id"\) DO UPDATE/,
   'conversation writes must batch message upserts through jsonb_to_recordset',
 );
 requirePattern(
-  replaceLearnMessages,
-  /"Message"\."conversationId" = EXCLUDED\."conversationId"[\s\S]*"Message"\."ownerId" = EXCLUDED\."ownerId"/,
+  patchLearnMessages,
+  /"CourseConversationMessage"\."conversationId" = EXCLUDED\."conversationId"[\s\S]*"CourseConversationMessage"\."ownerId" = EXCLUDED\."ownerId"[\s\S]*"CourseConversationMessage"\."courseId" = EXCLUDED\."courseId"/,
   'the bulk conversation upsert must preserve the owner and conversation collision fence',
 );
 requirePattern(
-  replaceLearnMessages,
-  /affectedRows !== messages\.length/,
+  patchLearnMessages,
+  /write_candidates AS \([\s\S]*"existingConversationId" IS NULL[\s\S]*"existingConversationId" = \$2[\s\S]*FROM write_candidates AS candidate/,
+  'foreign message ids must be excluded before target sequence constraints are evaluated',
+);
+requirePattern(
+  patchLearnMessages,
+  /const conflicting = rows\.find\([\s\S]*throw new CourseConversationRepositoryError\([\s\S]*'message_conflict'/,
   'the bulk conversation upsert must reject partial writes caused by id collisions',
 );
 forbidPattern(
-  replaceLearnMessages,
+  patchLearnMessages,
   /for\s*\(\s*const\s+message\s+of\s+messages\s*\)/,
-  'conversation replacement must not restore per-message write loops',
+  'conversation patch must not restore per-message write loops',
 );
 forbidPattern(
-  replaceLearnMessages,
-  /prisma\.message\.(?:updateMany|create)\s*\(/,
-  'conversation replacement must not issue one update/create request per message',
+  patchLearnMessages,
+  /courseConversationMessage\.(?:updateMany|create)\s*\(/,
+  'conversation patch must not issue one update/create request per message',
 );
 requirePattern(
   conversationRoute,
@@ -111,6 +117,16 @@ forbidPattern(
   conversationRoute,
   /\bALTER\s+TYPE\b/i,
   'the conversation route must not run ALTER TYPE at request time',
+);
+forbidPattern(
+  sources.conversationRepository,
+  /\b(?:CREATE\s+(?:TABLE|(?:UNIQUE\s+)?INDEX)|ALTER\s+(?:TABLE|TYPE)|DROP\s+TABLE)\b/i,
+  'the dedicated conversation repository must not execute schema DDL at request time',
+);
+forbidPattern(
+  `${conversationRoute}\n${sources.conversationRepository}`,
+  /(?:FROM|INTO|UPDATE|DELETE FROM) "Conversation"|(?:FROM|INTO|UPDATE|DELETE FROM) "Message"/,
+  'the course conversation route and repository must not access generic chat tables',
 );
 forbidPattern(
   conversationRoute,

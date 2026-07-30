@@ -455,6 +455,22 @@ function ChatHitList({
               {sectionPreview(hit.section.markdown)}
             </p>
           </button>
+        ) : hit.kind === 'memory' ? (
+          <article
+            key={`memory-${hit.id}`}
+            className="w-full rounded-lg border border-violet-200 bg-violet-50/40 p-4 text-left"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-950">
+                <Sparkles className="h-4 w-4 text-violet-600" />
+                {hit.memory.title}
+              </span>
+              <span className="text-xs font-medium text-violet-600">本地共有记忆</span>
+            </div>
+            <p className="mt-2 line-clamp-3 whitespace-pre-line text-sm leading-6 text-slate-600">
+              {sectionPreview(hit.memory.text)}
+            </p>
+          </article>
         ) : (
           <button
             key={`problem-${hit.id}`}

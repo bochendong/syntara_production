@@ -236,6 +236,50 @@ export type CourseProblemListSummary = {
   } | null;
 };
 
+export const REVIEW_PROBLEM_CANDIDATE_LIMIT = 24;
+export const REVIEW_PROBLEM_DETAIL_LIMIT = 20;
+
+export type ReviewProblemCandidate = {
+  id: string;
+  courseId: string | null;
+  notebookId: string | null;
+  notebookName?: string;
+  title: string;
+  type: NotebookProblemSummary['type'];
+  status: NotebookProblemSummary['status'];
+  tags: string[];
+  difficulty: NotebookProblemSummary['difficulty'];
+  searchText: string;
+  latestAttempt: NonNullable<NotebookProblemSummary['latestAttempt']> | null;
+};
+
+export type ReviewProblemDetail = {
+  id: string;
+  publicContent: NotebookProblemSummary['publicContent'];
+};
+
+type ReviewProblemCandidateRow = {
+  id: string;
+  courseId: string | null;
+  notebookId: string | null;
+  notebookName: string | null;
+  title: string;
+  type: string;
+  status: string;
+  tags: string[];
+  difficulty: string;
+  searchText: string | null;
+  latestAttemptId: string | null;
+  latestAttemptStatus: string | null;
+  latestAttemptScore: number | null;
+  latestAttemptCreatedAt: Date | null;
+};
+
+type ReviewProblemDetailRow = {
+  id: string;
+  publicContentJson: unknown;
+};
+
 const PUBLISH_PROBLEM_WRITE_BATCH_SIZE = 40;
 
 function mapAttemptRow(row: ProblemAttemptRow): NotebookProblemAttemptRecord {
@@ -1237,6 +1281,86 @@ async function loadCourseProblemsForUserFast(args: {
   );
 }
 
+function reviewProblemTargetAccessSql(args: {
+  userId: string;
+  targetType: 'course' | 'notebook';
+  targetId: string;
+}): Prisma.Sql {
+  return Prisma.sql`
+    (
+      (
+        CAST(${args.targetType} AS TEXT) = 'course'
+        AND c."id" = ${args.targetId}
+      )
+      OR (
+        CAST(${args.targetType} AS TEXT) = 'notebook'
+        AND p."notebookId" = ${args.targetId}
+      )
+    )
+    AND (
+      n."ownerId" = ${args.userId}
+      OR c."ownerId" = ${args.userId}
+      OR EXISTS (
+        SELECT 1
+        FROM "CourseEnrollment" AS enrollment
+        WHERE enrollment."courseId" = c."id"
+          AND enrollment."userId" = ${args.userId}
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM "CoursePurchase" AS purchase
+        WHERE purchase."sourceCourseId" = c."id"
+          AND purchase."buyerId" = ${args.userId}
+      )
+    )
+  `;
+}
+
+async function requireReviewProblemTargetAccess(args: {
+  userId: string;
+  targetType: 'course' | 'notebook';
+  targetId: string;
+}): Promise<void> {
+  if (args.targetType === 'course') {
+    await requireCourseReadAccess(args.userId, args.targetId);
+    return;
+  }
+  await requireNotebookReadAccess(args.userId, args.targetId);
+}
+
+function mapReviewProblemCandidate(row: ReviewProblemCandidateRow): ReviewProblemCandidate {
+  return {
+    id: row.id,
+    courseId: row.courseId,
+    notebookId: row.notebookId,
+    notebookName: row.notebookName ?? undefined,
+    title: row.title,
+    type: row.type as ReviewProblemCandidate['type'],
+    status: row.status as ReviewProblemCandidate['status'],
+    tags: row.tags ?? [],
+    difficulty: row.difficulty as ReviewProblemCandidate['difficulty'],
+    searchText: row.searchText ?? '',
+    latestAttempt:
+      row.latestAttemptId && row.latestAttemptStatus && row.latestAttemptCreatedAt
+        ? {
+            id: row.latestAttemptId,
+            status: row.latestAttemptStatus as NonNullable<
+              ReviewProblemCandidate['latestAttempt']
+            >['status'],
+            score: row.latestAttemptScore,
+            createdAt: row.latestAttemptCreatedAt.getTime(),
+          }
+        : null,
+  };
+}
+
+function mapReviewProblemDetail(row: ReviewProblemDetailRow): ReviewProblemDetail {
+  return {
+    id: row.id,
+    publicContent: notebookProblemPublicContentSchema.parse(row.publicContentJson),
+  };
+}
+
 export async function ensureLegacyProblemsBackfilled(
   userId: string,
   notebookId: string,
@@ -1403,6 +1527,196 @@ export async function listCourseProblemsByIdsForUser(
   return uniqueProblemIds
     .map((problemId) => byId.get(problemId))
     .filter((problem): problem is NotebookProblemSummaryForUser => Boolean(problem));
+}
+
+/**
+ * Bounded lean projection for evidence-led review planning.
+ *
+ * This query intentionally excludes every full JSON document and
+ * NotebookProblemSecret. It extracts at most 900 public stem characters solely
+ * for candidate ranking. The fixed cap covers the maximum 20-question plan plus
+ * four fallback candidates without making course size part of request cost.
+ */
+export async function listReviewProblemCandidatesForUser(args: {
+  userId: string;
+  targetType: 'course' | 'notebook';
+  targetId: string;
+  priorityProblemIds?: string[];
+  priorityConcepts?: string[];
+  priorityContextText?: string;
+  limit?: number;
+}): Promise<ReviewProblemCandidate[]> {
+  const requestedLimit = Number.isFinite(args.limit) ? Math.trunc(args.limit ?? 0) : 0;
+  const limit = Math.max(
+    1,
+    Math.min(requestedLimit || REVIEW_PROBLEM_CANDIDATE_LIMIT, REVIEW_PROBLEM_CANDIDATE_LIMIT),
+  );
+  const priorityProblemIds = Array.from(
+    new Set((args.priorityProblemIds ?? []).map((problemId) => problemId.trim()).filter(Boolean)),
+  ).slice(0, REVIEW_PROBLEM_CANDIDATE_LIMIT);
+  const priorityConcepts = Array.from(
+    new Set(
+      (args.priorityConcepts ?? [])
+        .map((concept) => concept.normalize('NFKC').trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ).slice(0, 12);
+  const priorityContextText = (args.priorityContextText ?? '')
+    .normalize('NFKC')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .slice(0, 6000);
+  const rows = await withCourseEnrollmentSchemaFallback(prismaDb, () =>
+    prismaDb.$queryRaw<ReviewProblemCandidateRow[]>(Prisma.sql`
+        WITH preferred AS (
+          SELECT item."value" AS "id", item."ordinality"
+          FROM jsonb_array_elements_text(
+            CAST(${JSON.stringify(priorityProblemIds)} AS JSONB)
+          ) WITH ORDINALITY AS item("value", "ordinality")
+        ),
+        focus AS (
+          SELECT item."value" AS "concept"
+          FROM jsonb_array_elements_text(
+            CAST(${JSON.stringify(priorityConcepts)} AS JSONB)
+          ) AS item("value")
+        )
+        SELECT
+          p."id",
+          c."id" AS "courseId",
+          p."notebookId",
+          n."name" AS "notebookName",
+          p."title",
+          p."type"::text AS "type",
+          p."status"::text AS "status",
+          p."tags",
+          p."difficulty"::text AS "difficulty",
+          public_search."searchText",
+          attempt."id" AS "latestAttemptId",
+          progress."status"::text AS "latestAttemptStatus",
+          progress."score" AS "latestAttemptScore",
+          COALESCE(progress."lastAttemptAt", attempt."createdAt") AS "latestAttemptCreatedAt"
+        FROM "NotebookProblem" AS p
+        LEFT JOIN "Notebook" AS n ON n."id" = p."notebookId"
+        LEFT JOIN "Course" AS c ON c."id" = COALESCE(p."courseId", n."courseId")
+        LEFT JOIN preferred ON preferred."id" = p."id"
+        LEFT JOIN LATERAL (
+          SELECT LEFT(
+            CONCAT_WS(
+              E'\n',
+              p."publicContentJson"->>'stem',
+              p."publicContentJson"->>'stemTemplate',
+              p."publicContentJson"#>>'{translations,zh-CN,stem}',
+              p."publicContentJson"#>>'{translations,en-US,stem}'
+            ),
+            900
+          ) AS "searchText"
+        ) AS public_search ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT COUNT(DISTINCT hit."signal")::integer AS "matchedConcepts"
+          FROM (
+            SELECT focus."concept" AS "signal"
+            FROM focus
+            WHERE
+              lower(p."title") LIKE '%' || focus."concept" || '%'
+              OR lower(COALESCE(n."name", '')) LIKE '%' || focus."concept" || '%'
+              OR lower(public_search."searchText") LIKE '%' || focus."concept" || '%'
+              OR EXISTS (
+                SELECT 1
+                FROM unnest(p."tags") AS problem_tag("value")
+                WHERE
+                  lower(problem_tag."value") = focus."concept"
+                  OR lower(problem_tag."value") LIKE '%' || focus."concept" || '%'
+                  OR focus."concept" LIKE '%' || lower(problem_tag."value") || '%'
+              )
+
+            UNION ALL
+
+            SELECT lower(problem_tag."value") AS "signal"
+            FROM unnest(p."tags") AS problem_tag("value")
+            WHERE char_length(problem_tag."value") >= 2
+              AND position(
+                lower(problem_tag."value")
+                IN ${priorityContextText}
+              ) > 0
+
+            UNION ALL
+
+            SELECT lower(p."title") AS "signal"
+            WHERE char_length(p."title") >= 4
+              AND position(lower(p."title") IN ${priorityContextText}) > 0
+
+            UNION ALL
+
+            SELECT lower(n."name") AS "signal"
+            WHERE n."name" IS NOT NULL
+              AND char_length(n."name") >= 4
+              AND position(lower(n."name") IN ${priorityContextText}) > 0
+          ) AS hit
+        ) AS relevance ON TRUE
+        LEFT JOIN "NotebookProblemProgress" AS progress
+          ON progress."problemId" = p."id"
+          AND progress."userId" = ${args.userId}
+        LEFT JOIN "NotebookProblemAttempt" AS attempt
+          ON attempt."id" = progress."latestAttemptId"
+        WHERE ${reviewProblemTargetAccessSql(args)}
+          AND p."status"::text <> 'archived'
+        ORDER BY
+          (preferred."id" IS NULL) ASC,
+          preferred."ordinality" ASC NULLS LAST,
+          relevance."matchedConcepts" DESC,
+          CASE progress."status"::text
+            WHEN 'failed' THEN 0
+            WHEN 'partial' THEN 1
+            WHEN 'pending' THEN 2
+            WHEN 'passed' THEN 4
+            ELSE 3
+          END ASC,
+          CASE p."status"::text WHEN 'published' THEN 0 ELSE 1 END ASC,
+          p."order" ASC,
+          p."createdAt" ASC,
+          p."id" ASC
+        LIMIT ${limit}
+      `),
+  );
+  if (rows.length === 0) {
+    await requireReviewProblemTargetAccess(args);
+  }
+  return rows.map(mapReviewProblemCandidate);
+}
+
+/**
+ * Fetches public question detail only for IDs selected from the lean review
+ * candidate set. Grading and secret-judge rows are never joined or returned.
+ */
+export async function listReviewProblemDetailsByIdsForUser(args: {
+  userId: string;
+  targetType: 'course' | 'notebook';
+  targetId: string;
+  problemIds: string[];
+}): Promise<ReviewProblemDetail[]> {
+  const problemIds = Array.from(
+    new Set(args.problemIds.map((problemId) => problemId.trim()).filter(Boolean)),
+  ).slice(0, REVIEW_PROBLEM_DETAIL_LIMIT);
+  if (problemIds.length === 0) return [];
+
+  const rows = await withCourseEnrollmentSchemaFallback(prismaDb, () =>
+    prismaDb.$queryRaw<ReviewProblemDetailRow[]>(Prisma.sql`
+        SELECT
+          p."id",
+          p."publicContentJson"
+        FROM "NotebookProblem" AS p
+        LEFT JOIN "Notebook" AS n ON n."id" = p."notebookId"
+        LEFT JOIN "Course" AS c ON c."id" = COALESCE(p."courseId", n."courseId")
+        WHERE p."id" IN (${Prisma.join(problemIds)})
+          AND ${reviewProblemTargetAccessSql(args)}
+        ORDER BY array_position(ARRAY[${Prisma.join(problemIds)}]::text[], p."id")
+      `),
+  );
+  if (rows.length === 0) {
+    await requireReviewProblemTargetAccess(args);
+  }
+  return rows.map(mapReviewProblemDetail);
 }
 
 export async function listCourseProblemSummariesForUser(
@@ -1816,13 +2130,110 @@ type CreateCourseProblemsFromDraftsArgs = {
   drafts: NotebookProblemImportDraft[];
   importBatchId?: string | null;
   importBatchLeaseToken?: string | null;
+  /**
+   * Source ingestion already has normalized drafts and only needs to compare
+   * their persisted dedupe keys. Other callers retain the legacy full-course
+   * repair path by default.
+   */
+  dedupeReadStrategy?: 'full_course_backfill' | 'indexed_input_keys';
+  /** Avoid reloading the complete problem bank when the caller only needs the write summary. */
+  returnProblems?: boolean;
 };
+
+const INDEXED_DEDUPE_INPUT_LIMIT = 5_000;
+const LEGACY_DEDUPE_FALLBACK_LIMIT = 128;
+
+async function loadIndexedCourseProblemDedupeStateTx(args: {
+  tx: Prisma.TransactionClient;
+  courseId: string;
+  notebookIds: string[];
+  drafts: NotebookProblemImportDraft[];
+}): Promise<Map<string, string>> {
+  await args.tx.$queryRawUnsafe(
+    'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))::text AS "locked"',
+    `course-problem-dedupe:${args.courseId}`,
+  );
+  const requestedKeys = Array.from(
+    new Set(args.drafts.map((draft) => courseProblemDedupeKey(draft))),
+  );
+  if (requestedKeys.length > INDEXED_DEDUPE_INPUT_LIMIT) {
+    throw new Error(
+      `Problem import contains ${requestedKeys.length} distinct dedupe keys; maximum is ${INDEXED_DEDUPE_INPUT_LIMIT}.`,
+    );
+  }
+  if (requestedKeys.length === 0) return new Map();
+
+  const indexedRows = await args.tx.notebookProblem.findMany({
+    where: {
+      dedupeKey: { in: requestedKeys },
+      OR: [
+        { courseId: args.courseId },
+        ...(args.notebookIds.length > 0
+          ? [{ courseId: null, notebookId: { in: args.notebookIds } }]
+          : []),
+      ],
+    },
+    select: { id: true, dedupeKey: true },
+    take: INDEXED_DEDUPE_INPUT_LIMIT,
+  });
+  const problemIdByKey = new Map<string, string>();
+  for (const row of indexedRows) {
+    if (row.dedupeKey && !problemIdByKey.has(row.dedupeKey)) {
+      problemIdByKey.set(row.dedupeKey, row.id);
+    }
+  }
+  if (problemIdByKey.size === requestedKeys.length) return problemIdByKey;
+
+  // A bounded compatibility bridge for pre-dedupeKey rows. Never materialize
+  // an unbounded course problem bank merely to compare a small upload.
+  const legacyRows = await args.tx.notebookProblem.findMany({
+    where: {
+      dedupeKey: null,
+      OR: [
+        { courseId: args.courseId },
+        ...(args.notebookIds.length > 0
+          ? [{ courseId: null, notebookId: { in: args.notebookIds } }]
+          : []),
+      ],
+    },
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      publicContentJson: true,
+    },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    take: LEGACY_DEDUPE_FALLBACK_LIMIT + 1,
+  });
+  if (legacyRows.length > LEGACY_DEDUPE_FALLBACK_LIMIT) {
+    throw new Error(
+      `Course has more than ${LEGACY_DEDUPE_FALLBACK_LIMIT} legacy problems without dedupe keys; run the problem dedupe maintenance task before importing.`,
+    );
+  }
+  const requestedKeySet = new Set(requestedKeys);
+  for (const row of legacyRows) {
+    const parsedContent = notebookProblemPublicContentSchema.safeParse(row.publicContentJson);
+    if (!parsedContent.success) continue;
+    const dedupeKey = courseProblemDedupeKey({
+      title: row.title,
+      type: row.type,
+      publicContent: parsedContent.data,
+    });
+    if (requestedKeySet.has(dedupeKey) && !problemIdByKey.has(dedupeKey)) {
+      problemIdByKey.set(dedupeKey, row.id);
+    }
+  }
+  return problemIdByKey;
+}
 
 async function createCourseProblemsFromDraftsInternal(
   args: CreateCourseProblemsFromDraftsArgs,
 ): Promise<CourseProblemDraftWriteResult> {
   await requireCourseOwnership(args.userId, args.courseId);
-  await ensureLegacyProblemsBackfilledForCourse(args.userId, args.courseId);
+  const dedupeReadStrategy = args.dedupeReadStrategy ?? 'full_course_backfill';
+  if (dedupeReadStrategy === 'full_course_backfill') {
+    await ensureLegacyProblemsBackfilledForCourse(args.userId, args.courseId);
+  }
 
   const notebooks = await listOwnedCourseNotebooks(args.userId, args.courseId);
   const allowedNotebookIds = new Set(notebooks.map((notebook) => notebook.id));
@@ -1839,7 +2250,15 @@ async function createCourseProblemsFromDraftsInternal(
   await prismaDb.$transaction(
     async (tx: Prisma.TransactionClient) => {
       await assertProblemImportBatchCommitLeaseTx(tx, args);
-      const existingProblemIdByKey = await ensureCourseProblemDedupeStateTx(tx, args.courseId);
+      const existingProblemIdByKey =
+        dedupeReadStrategy === 'indexed_input_keys'
+          ? await loadIndexedCourseProblemDedupeStateTx({
+              tx,
+              courseId: args.courseId,
+              notebookIds: allowedNotebookIdList,
+              drafts: args.drafts,
+            })
+          : await ensureCourseProblemDedupeStateTx(tx, args.courseId);
       const count = await tx.notebookProblem.count({
         where: problemNumberScopeWhere,
       });
@@ -1897,7 +2316,10 @@ async function createCourseProblemsFromDraftsInternal(
     },
   );
 
-  const problems = await listCourseProblemsForUser(args.userId, args.courseId);
+  const problems =
+    args.returnProblems === false
+      ? []
+      : await listCourseProblemsForUser(args.userId, args.courseId);
   return {
     problems,
     writeSummary: {

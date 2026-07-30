@@ -357,7 +357,6 @@ export async function listKnowledgeCache(args: {
   query: string;
   limit?: number;
 }): Promise<KnowledgeCacheEntry[]> {
-  await ensureKnowledgeCacheTable(args.prisma);
   const courseId = targetCourseId(args.target);
   const notebookId = targetNotebookId(args.target);
   const targetType = cacheTargetType(args.target);

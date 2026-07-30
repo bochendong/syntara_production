@@ -21,21 +21,21 @@ function requireDatabaseUrl(): string {
   if (process.env.NODE_ENV !== 'production' && /\.proxy\.rlwy\.net(?::\d+)?(?:\/|$)/i.test(u)) {
     const railwayUrl = new URL(u);
     if (!railwayUrl.searchParams.has('sslmode')) {
-      railwayUrl.searchParams.set('sslmode', 'prefer');
+      railwayUrl.searchParams.set('sslmode', 'require');
     }
     if (!railwayUrl.searchParams.has('connection_limit')) {
       // In Next.js development each route bundle can initialize its own pool.
       // A large per-client limit multiplies quickly during /learn's parallel
       // startup requests and overwhelms Railway's public TCP proxy. Three
       // connections still leave room for Prisma interactive transactions.
-      railwayUrl.searchParams.set('connection_limit', '3');
+      railwayUrl.searchParams.set('connection_limit', '1');
     }
     if (!railwayUrl.searchParams.has('pool_timeout')) {
       // The UI now keeps cached course content visible and retries locally, so
       // holding every route open for a full minute only exhausts the tiny
       // development pool and turns one flaky connection into a page-wide
       // outage. Fail acquisition quickly enough for the visible retry state.
-      railwayUrl.searchParams.set('pool_timeout', '12');
+      railwayUrl.searchParams.set('pool_timeout', '30');
     }
     if (!railwayUrl.searchParams.has('connect_timeout')) {
       railwayUrl.searchParams.set('connect_timeout', '15');

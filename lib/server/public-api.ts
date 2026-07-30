@@ -1,6 +1,12 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
+import {
+  nativePlatformApiAuthMode,
+  SHARED_NATIVE_PLATFORM_PRINCIPAL,
+} from '@/lib/server/native-platform-access';
+import { authenticateNativeDeviceRequest, NativeAuthError } from '@/lib/server/native-device-auth';
+
 export type PublicApiPrincipal = {
   userId: string;
   keyId: string;
@@ -17,6 +23,10 @@ export type PublicApiErrorCode =
   | 'request_in_progress'
   | 'confirmation_required'
   | 'ambiguous_target'
+  | 'auth_not_configured'
+  | 'rate_limited'
+  | 'expired_token'
+  | 'invalid_grant'
   | 'upstream_error'
   | 'generation_failed'
   | 'internal_error';
@@ -155,6 +165,34 @@ export function requirePublicApi(
     'unauthorized',
     'Provide a valid API key as Authorization: Bearer <token>.',
   );
+}
+
+/**
+ * Native apps use the platform's server-side OpenAI credentials during the
+ * shared test phase. Set SYNTARA_NATIVE_API_AUTH_MODE=bearer to restore the
+ * normal public API token requirement without changing any route code.
+ *
+ * Unknown values fail closed so a misspelled production setting cannot
+ * accidentally enable anonymous access.
+ */
+export async function requireNativePlatformApi(
+  request: NextRequest,
+  requestId: string,
+): Promise<PublicApiPrincipal | NextResponse> {
+  if (nativePlatformApiAuthMode() === 'shared-test') {
+    return SHARED_NATIVE_PLATFORM_PRINCIPAL;
+  }
+  if (nativePlatformApiAuthMode() === 'authenticated') {
+    try {
+      return await authenticateNativeDeviceRequest(request);
+    } catch (error) {
+      if (error instanceof NativeAuthError) {
+        return publicApiError(requestId, error.status, error.code, error.message);
+      }
+      return publicApiError(requestId, 503, 'auth_not_configured', 'Native login is unavailable.');
+    }
+  }
+  return requirePublicApi(request, requestId);
 }
 
 export async function normalizeUpstreamApiError(

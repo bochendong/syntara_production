@@ -12,6 +12,7 @@ import {
 import type {
   ChatMessageMetadata,
   CourseChatContext,
+  CourseChatEvidenceSummary,
   DirectorState,
   LearningAction,
   LearningActionKind,
@@ -34,11 +35,16 @@ export interface RunCourseSideChatParams {
   userProfile?: { nickname?: string; bio?: string };
   surface?: StatelessChatRequest['config']['surface'];
   courseContext?: CourseChatContext;
+  trustedLearnAnswererHandoffToken?: string;
   apiKey: string;
   baseUrl?: string;
   model: string;
   signal: AbortSignal;
   onMessages: (messages: UIMessage<ChatMessageMetadata>[]) => void;
+}
+
+export interface RunCourseSideChatResult {
+  courseEvidence: CourseChatEvidenceSummary[];
 }
 
 function cloneMessages(m: UIMessage<ChatMessageMetadata>[]) {
@@ -112,6 +118,7 @@ async function consumeOneResponse(
   initialProgressMessageId?: string | null,
 ): Promise<{
   cueUserReceived: boolean;
+  courseEvidence: CourseChatEvidenceSummary[];
   doneData: {
     totalAgents: number;
     agentHadContent?: boolean;
@@ -135,6 +142,7 @@ async function consumeOneResponse(
   let currentAgentName: string | null = null;
   let pendingProgressMessageId: string | null = initialProgressMessageId ?? null;
   let cueUserReceived = false;
+  let courseEvidence: CourseChatEvidenceSummary[] = [];
   const streamingStartedMessageIds = new Set<string>();
   let doneData: {
     totalAgents: number;
@@ -231,6 +239,10 @@ async function consumeOneResponse(
         }
 
         switch (event.type) {
+          case 'course_evidence': {
+            courseEvidence = event.data.items;
+            break;
+          }
           case 'thinking': {
             applyProgress(
               event.data.stage === 'director' ? 'director' : 'agent_loading',
@@ -379,7 +391,7 @@ async function consumeOneResponse(
     reader.releaseLock();
   }
 
-  return { cueUserReceived, doneData };
+  return { cueUserReceived, courseEvidence, doneData };
 }
 
 function summarizeChatPrompt(messages: UIMessage<ChatMessageMetadata>[]) {
@@ -392,7 +404,9 @@ function summarizeChatPrompt(messages: UIMessage<ChatMessageMetadata>[]) {
   return text || '正在生成聊天回复';
 }
 
-export async function runCourseSideChatLoop(params: RunCourseSideChatParams): Promise<void> {
+export async function runCourseSideChatLoop(
+  params: RunCourseSideChatParams,
+): Promise<RunCourseSideChatResult> {
   return runQueuedAiTask(
     {
       kind: 'chat-reply',
@@ -407,7 +421,7 @@ export async function runCourseSideChatLoop(params: RunCourseSideChatParams): Pr
 async function runCourseSideChatLoopUnqueued(
   params: RunCourseSideChatParams,
   taskId?: string,
-): Promise<void> {
+): Promise<RunCourseSideChatResult> {
   const {
     initialMessages,
     agentIds,
@@ -416,6 +430,7 @@ async function runCourseSideChatLoopUnqueued(
     userProfile,
     surface,
     courseContext,
+    trustedLearnAnswererHandoffToken,
     apiKey,
     baseUrl,
     model,
@@ -433,6 +448,7 @@ async function runCourseSideChatLoopUnqueued(
   let turnCount = 0;
   const working = cloneMessages(initialMessages);
   let consecutiveEmptyTurns = 0;
+  let courseEvidence: CourseChatEvidenceSummary[] = [];
 
   const addQueuedProgressMessage = () => {
     const progress = buildCourseReplyProgress({ phase: 'queued' });
@@ -494,6 +510,7 @@ async function runCourseSideChatLoopUnqueued(
           storeState,
           config,
           courseContext,
+          trustedLearnAnswererHandoffToken,
           userProfile,
           directorState,
           apiKey,
@@ -517,6 +534,9 @@ async function runCourseSideChatLoopUnqueued(
         queuedProgressMessageId,
       );
       cueUserReceived = consumed.cueUserReceived;
+      if (consumed.courseEvidence.length > 0) {
+        courseEvidence = consumed.courseEvidence;
+      }
       doneData = consumed.doneData;
     } catch (error) {
       if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
@@ -556,4 +576,6 @@ async function runCourseSideChatLoopUnqueued(
       consecutiveEmptyTurns = 0;
     }
   }
+
+  return { courseEvidence };
 }

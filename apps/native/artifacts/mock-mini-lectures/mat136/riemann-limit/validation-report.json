@@ -1,0 +1,123 @@
+{
+  "status": "passed",
+  "generatedAt": "2026-07-28T06:48:28.463Z",
+  "imageProvider": "openai-image",
+  "imageModel": "gpt-image-2",
+  "ttsProvider": "openai-tts",
+  "ttsModel": "gpt-4o-mini-tts",
+  "ttsVoice": "marin",
+  "markerRecovery": {
+    "status": "passed",
+    "findings": [],
+    "components": [
+      {
+        "componentId": "native-mat136-riemann-limit-page-1-finite-riemann-sums",
+        "markerColorHex": "#ff0000",
+        "bbox": [
+          101.6,
+          105.5,
+          469.7,
+          337.9
+        ],
+        "markerPoints": [
+          {
+            "x": 106.9,
+            "y": 111.3,
+            "corner": "top-left"
+          },
+          {
+            "x": 464.8,
+            "y": 111.3,
+            "corner": "top-right"
+          },
+          {
+            "x": 106.9,
+            "y": 333.5,
+            "corner": "bottom-left"
+          },
+          {
+            "x": 464.8,
+            "y": 333,
+            "corner": "bottom-right"
+          }
+        ],
+        "markerCount": 4
+      },
+      {
+        "componentId": "native-mat136-riemann-limit-page-1-mesh-goes-to-zero",
+        "markerColorHex": "#00ff00",
+        "bbox": [
+          523.4,
+          105.5,
+          897.5,
+          337.9
+        ],
+        "markerPoints": [
+          {
+            "x": 528.8,
+            "y": 111.3,
+            "corner": "top-left"
+          },
+          {
+            "x": 893.1,
+            "y": 111.3,
+            "corner": "top-right"
+          },
+          {
+            "x": 528.8,
+            "y": 333,
+            "corner": "bottom-left"
+          },
+          {
+            "x": 893.1,
+            "y": 333.5,
+            "corner": "bottom-right"
+          }
+        ],
+        "markerCount": 4
+      },
+      {
+        "componentId": "native-mat136-riemann-limit-page-1-integral-as-common-limit",
+        "markerColorHex": "#0048ff",
+        "bbox": [
+          101.6,
+          361.3,
+          897.5,
+          535.2
+        ],
+        "markerPoints": [
+          {
+            "x": 106.9,
+            "y": 367.2,
+            "corner": "top-left"
+          },
+          {
+            "x": 893.1,
+            "y": 367.2,
+            "corner": "top-right"
+          },
+          {
+            "x": 106.9,
+            "y": 530.8,
+            "corner": "bottom-left"
+          },
+          {
+            "x": 893.1,
+            "y": 530.8,
+            "corner": "bottom-right"
+          }
+        ],
+        "markerCount": 4
+      }
+    ]
+  },
+  "assertions": {
+    "sourceMarkerImagePresent": true,
+    "cleanImagePresent": true,
+    "recoveredRegionCount": 3,
+    "expectedRegionCount": 3,
+    "everyRegionHasFourMarkers": true,
+    "speechAssetCount": 6,
+    "everySpeechHasMp3": true
+  }
+}

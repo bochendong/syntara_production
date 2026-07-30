@@ -107,6 +107,7 @@ export async function routeLayeredMemoryWriteCandidates(args: {
   userId: string;
   candidates: MemoryWriteCandidate[];
   dryRun?: boolean;
+  indexStudyMemory?: boolean;
 }): Promise<LayeredMemoryWriteResult[]> {
   const results = await routeMemoryWriteCandidates(args);
   return results.map((result, index) => ({

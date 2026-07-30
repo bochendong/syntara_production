@@ -10,9 +10,29 @@ separate steps:
    tables, their relations, search indexes, and lightweight staleness triggers
    on searchable public business content.
 
-No migration backfills data or rewrites an existing business row. The
-staleness triggers only react to future content changes so incomplete
-projections fall back to live business-table reads.
+The historical baseline and course-source migrations do not rewrite business
+rows. A later, narrow repair migration backfills only the denormalized
+`Course.notebookCount` value so course-list reads can stay constant-size
+without returning stale legacy counts. The staleness triggers only react to
+future content changes so incomplete projections fall back to live
+business-table reads.
+
+The development database applied
+`20260730010000_repair_course_notebook_counts` on 2026-07-30. Treat its
+counter parity as a release gate and re-run it before deployment:
+
+```bash
+pnpm db:verify:course-notebook-counts
+```
+
+The verifier checks the completed migration row, the enabled Notebook trigger,
+all stored-vs-authoritative course counts, and an insert/delete trigger probe
+inside a transaction that is always rolled back.
+
+After this migration, the database trigger is the only runtime writer for
+`Course.notebookCount`. `refreshCourseSummaryFields` deliberately refreshes
+the other denormalized fields without rewriting this counter, so a stale
+aggregate cannot overwrite a concurrent trigger increment.
 
 ## Existing database
 
@@ -116,3 +136,31 @@ the switch. To roll the read path back without changing the schema, unset the
 variable or set it to `dual`; legacy rows remain intact. Rolling application
 code back is also safe because the migration does not remove or rewrite legacy
 data, and unused projection tables can remain in place.
+
+## Course conversation cutover
+
+`20260730020000_add_course_conversation_store` moves scoped `/learn`
+conversations out of the generic `Conversation` / `Message` tables and into
+`CourseConversation` / `CourseConversationMessage`.
+
+Run the read-only preflight immediately before deployment:
+
+```bash
+pnpm exec dotenv -e .env.local -- \
+  node scripts/maintenance/preflight-course-conversation-migration.mjs
+```
+
+The migration takes write locks on the legacy rows it copies, canonicalizes a
+duplicate session by client revision and activity time, remaps
+conversation-scoped facts/events and course-question runs, and verifies their
+owner/course/session identity before adding foreign keys. Unscoped legacy
+`learn:*` rows with no `courseId` are retained in the generic store and
+reported as a warning; the migration never guesses their course.
+
+This is a direct cutover, not a long-lived dual-write mode. Deploy the schema
+migration and the application reader/writer switch together. The copied legacy
+rows remain intact for forensic rollback, but runtime course conversation,
+AI-history, admin, memory-scope, and native-export reads use the dedicated
+store. Detail reads return the latest 30 messages plus a sequence cursor;
+`summary` is currently a nullable projection reserved for a later compaction
+worker.

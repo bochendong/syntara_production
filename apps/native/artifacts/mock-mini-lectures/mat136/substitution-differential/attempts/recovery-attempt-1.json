@@ -1,0 +1,105 @@
+{
+  "status": "passed",
+  "findings": [],
+  "components": [
+    {
+      "componentId": "native-mat136-substitution-differential-page-1-dx-carries-width",
+      "markerColorHex": "#ff0000",
+      "bbox": [
+        104.5,
+        114.3,
+        482.4,
+        369.1
+      ],
+      "markerPoints": [
+        {
+          "x": 110.4,
+          "y": 119.6,
+          "corner": "top-left"
+        },
+        {
+          "x": 478,
+          "y": 119.6,
+          "corner": "top-right"
+        },
+        {
+          "x": 109.9,
+          "y": 364.7,
+          "corner": "bottom-left"
+        },
+        {
+          "x": 478,
+          "y": 364.7,
+          "corner": "bottom-right"
+        }
+      ],
+      "markerCount": 4
+    },
+    {
+      "componentId": "native-mat136-substitution-differential-page-1-chain-rule-bridge",
+      "markerColorHex": "#00ff00",
+      "bbox": [
+        531.3,
+        116.2,
+        884.8,
+        369.1
+      ],
+      "markerPoints": [
+        {
+          "x": 536.6,
+          "y": 121.1,
+          "corner": "top-left"
+        },
+        {
+          "x": 880.4,
+          "y": 121.1,
+          "corner": "top-right"
+        },
+        {
+          "x": 536.6,
+          "y": 364.7,
+          "corner": "bottom-left"
+        },
+        {
+          "x": 879.9,
+          "y": 364.7,
+          "corner": "bottom-right"
+        }
+      ],
+      "markerCount": 4
+    },
+    {
+      "componentId": "native-mat136-substitution-differential-page-1-worked-substitution",
+      "markerColorHex": "#0048ff",
+      "bbox": [
+        107.4,
+        397.5,
+        883.8,
+        536.1
+      ],
+      "markerPoints": [
+        {
+          "x": 112.3,
+          "y": 402.8,
+          "corner": "top-left"
+        },
+        {
+          "x": 879.4,
+          "y": 402.8,
+          "corner": "top-right"
+        },
+        {
+          "x": 112.3,
+          "y": 531.7,
+          "corner": "bottom-left"
+        },
+        {
+          "x": 879.4,
+          "y": 531.7,
+          "corner": "bottom-right"
+        }
+      ],
+      "markerCount": 4
+    }
+  ]
+}

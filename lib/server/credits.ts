@@ -24,12 +24,10 @@ import {
 const log = createLogger('Credits');
 
 function isComputeCreditSpendingDisabledForTesting(): boolean {
-  if (process.env.SYNTARA_ENABLE_COMPUTE_CREDIT_SPENDING === 'true') return false;
-  return (
-    process.env.NODE_ENV !== 'production' ||
-    process.env.SYNTARA_DISABLE_COMPUTE_CREDIT_SPENDING === 'true' ||
-    process.env.SYNTARA_TEST_NO_CHARGE === 'true'
-  );
+  // The current product is in shared-key testing mode: authenticated learners
+  // may use the platform AI even when their legacy compute-credit balance is 0.
+  // Billing must be turned on deliberately when the product leaves testing.
+  return process.env.SYNTARA_ENABLE_COMPUTE_CREDIT_SPENDING !== 'true';
 }
 
 interface ChargeCreditsForUsdArgs {

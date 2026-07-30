@@ -5,7 +5,6 @@ import type {
   NotebookProblemRecord,
 } from '@/lib/problem-bank/schema';
 import {
-  ensureStudyMemoryTable,
   type StudyMemoryRecord,
   type StudyMemoryTargetType,
 } from '@/lib/server/study-memory-store';
@@ -840,7 +839,6 @@ export async function maybeWriteProblemAttemptMemorySignal(
     };
   }
 
-  await ensureStudyMemoryTable(args.prisma);
   const pattern = semanticProblemAttemptPattern(args.problem);
   const key = memoryKey(target, pattern);
   const stableId = deterministicMemoryId(args.userId, key);

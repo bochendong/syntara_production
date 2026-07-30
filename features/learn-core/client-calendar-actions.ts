@@ -10,14 +10,19 @@ export type SyllabusEventKind =
 
 export type SyllabusCalendarEvent = {
   id: string;
+  clientEventId?: string | null;
   courseId?: string;
   title: string;
   kind: SyllabusEventKind;
   date: string;
+  start?: string;
   sourceName: string;
   createdAt: number;
+  updatedAt?: number;
+  version?: number;
   origin?: 'syllabus' | 'ai_plan' | 'manual' | 'practice' | 'exam_prep';
   sourceRef?: { type: 'plan' | 'action' | 'syllabus' | 'manual'; id: string };
+  proposalId?: string | null;
   durationMinutes?: number;
   status?: 'planned' | 'done' | 'skipped';
   week?: string | null;

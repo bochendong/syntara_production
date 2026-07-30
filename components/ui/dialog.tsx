@@ -6,6 +6,10 @@ import { Dialog as DialogPrimitive } from 'radix-ui';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { XIcon } from 'lucide-react';
+import {
+  SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+  SYNTARA_DIALOG_OVERLAY_CLASS,
+} from '@/components/ui/syntara-dialog-style';
 
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
@@ -31,7 +35,8 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        'bg-black/10 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-[1400]',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 isolate z-[1400] duration-200',
+        SYNTARA_DIALOG_OVERLAY_CLASS,
         className,
       )}
       {...props}
@@ -44,18 +49,21 @@ function DialogContent({
   children,
   showCloseButton = true,
   showOverlay = true,
+  overlayClassName,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
   showOverlay?: boolean;
+  overlayClassName?: string;
 }) {
   return (
     <DialogPortal>
-      {showOverlay ? <DialogOverlay /> : null}
+      {showOverlay ? <DialogOverlay className={overlayClassName} /> : null}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'bg-background ring-foreground/10 grid max-w-3/4 gap-6 rounded-xl p-6 text-sm ring-1 fixed top-1/2 left-1/2 z-[1401] w-full -translate-x-1/2 -translate-y-1/2',
+          'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-1/2 left-1/2 z-[1401] -translate-x-1/2 -translate-y-1/2 text-sm duration-200 outline-none',
+          SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
           className,
         )}
         {...props}
@@ -63,9 +71,13 @@ function DialogContent({
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
-            <Button variant="ghost" className="absolute top-4 right-4" size="icon-sm">
+            <Button
+              variant="ghost"
+              className="absolute top-4 right-4 size-8 rounded-full border border-slate-900/8 bg-white/60 text-slate-500 shadow-sm backdrop-blur hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-white/6 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+              size="icon-sm"
+            >
               <XIcon />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">关闭</span>
             </Button>
           </DialogPrimitive.Close>
         )}

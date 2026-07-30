@@ -37,7 +37,7 @@ import { estimateOpenAIImageGenerationCost } from '@/lib/utils/openai-pricing';
 
 const log = createLogger('ImageGeneration API');
 
-export const maxDuration = 900;
+export const maxDuration = 300;
 
 function shouldSkipCreditChargeForTestRequest(req: NextRequest): boolean {
   const testRequested = req.headers.get('x-generation-test-no-charge') === 'true';

@@ -5,6 +5,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+  SYNTARA_DIALOG_HEADER_CLASS,
+} from '@/components/ui/syntara-dialog-style';
+import { cn } from '@/lib/utils';
 import { safeJsonStringify } from '@/lib/utils/safe-json';
 import { formatTs } from './chat-message-utils';
 import type { OrchestratorChildTaskView } from './chat-page-types';
@@ -18,8 +23,13 @@ export function OrchestratorChildTaskDialog({
 }) {
   return (
     <Dialog open={Boolean(task)} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[80dvh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
+      <DialogContent
+        className={cn(
+          SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+          'max-h-[80dvh] max-w-2xl overflow-y-auto',
+        )}
+      >
+        <DialogHeader className={SYNTARA_DIALOG_HEADER_CLASS}>
           <DialogTitle>{task?.title || '子任务详情'}</DialogTitle>
           <DialogDescription>
             查看该子任务的协议事件快照、路由信息与最新 payload。

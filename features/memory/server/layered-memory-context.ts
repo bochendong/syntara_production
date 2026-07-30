@@ -4,6 +4,7 @@ import {
   type MemoryRecallContext,
 } from '@/lib/server/study-memory-context';
 import type { MemorySearchIntent } from '@/lib/server/memory-search-intent';
+import type { ReadableStudyMemoryTarget } from '@/lib/server/study-memory-store';
 import {
   createLayeredMemoryReadPlan,
   DEFAULT_LAYERED_MEMORY_BUDGETS,
@@ -153,7 +154,8 @@ export async function buildLayeredMemoryRecallContext(args: {
   question: string;
   conversationId?: string | null;
   searchIntent?: MemorySearchIntent;
-  refreshKnowledgeCache?: boolean;
+  skipMarkdownSourceEvidence?: boolean;
+  resolvedTarget?: ReadableStudyMemoryTarget;
 }): Promise<LayeredMemoryRecallContext> {
   const context = await buildMemoryRecallContext(args);
   const readPlan = createLayeredMemoryReadPlan({
@@ -188,7 +190,7 @@ export async function buildLayeredNotebookStudyMemoryPromptContext(args: {
   question: string;
   conversationId?: string | null;
   searchIntent?: MemorySearchIntent;
-  refreshKnowledgeCache?: boolean;
+  skipMarkdownSourceEvidence?: boolean;
 }): Promise<LayeredMemoryRecallContext> {
   const notebookContext = await buildLayeredMemoryRecallContext({
     targetType: 'notebook',
@@ -197,7 +199,7 @@ export async function buildLayeredNotebookStudyMemoryPromptContext(args: {
     question: args.question,
     conversationId: args.conversationId,
     searchIntent: args.searchIntent,
-    refreshKnowledgeCache: args.refreshKnowledgeCache,
+    skipMarkdownSourceEvidence: args.skipMarkdownSourceEvidence,
   });
   if (hasLayeredMemoryEvidence(notebookContext) || !args.courseId) {
     return notebookContext;
@@ -210,7 +212,7 @@ export async function buildLayeredNotebookStudyMemoryPromptContext(args: {
     question: args.question,
     conversationId: args.conversationId,
     searchIntent: args.searchIntent,
-    refreshKnowledgeCache: args.refreshKnowledgeCache,
+    skipMarkdownSourceEvidence: args.skipMarkdownSourceEvidence,
   });
   return {
     ...courseContext,

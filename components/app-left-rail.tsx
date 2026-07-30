@@ -221,11 +221,9 @@ export function AppLeftRail({
 
       const gamificationResult = await backendJson<{
         success: true;
-        profile: {
-          affinityLevel: number;
-        };
+        affinityLevel: number;
         balances: CreditsBalances;
-      }>('/api/gamification/summary').then(
+      }>('/api/gamification/rail-summary').then(
         (value) => ({ status: 'fulfilled' as const, value }),
         () => ({ status: 'rejected' as const }),
       );
@@ -233,7 +231,7 @@ export function AppLeftRail({
       if (!shouldApply()) return;
 
       if (gamificationResult.status === 'fulfilled') {
-        setUserAffinityLevel(gamificationResult.value.profile.affinityLevel);
+        setUserAffinityLevel(gamificationResult.value.affinityLevel);
         setUserCreditBalances(gamificationResult.value.balances);
       } else {
         setUserAffinityLevel(null);

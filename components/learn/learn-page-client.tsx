@@ -1,19 +1,33 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type SetStateAction,
+} from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   ArrowLeft,
   Brain,
+  BookOpen,
   BookOpenCheck,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   CheckCircle2,
   Copy,
   Cpu,
+  Database,
+  Dices,
+  Eraser,
   FileText,
   LibraryBig,
   Loader2,
@@ -22,29 +36,30 @@ import {
   MessageSquarePlus,
   Minimize2,
   MoreHorizontal,
+  Pause,
   Play,
   Plus,
   RefreshCw,
+  Search,
   SendHorizontal,
   Settings2,
   ShoppingBag,
+  Sparkles,
   Square,
   Target,
   Trash2,
+  Upload,
   UploadCloud,
+  Volume2,
   X,
   type LucideIcon,
 } from 'lucide-react';
 import type { UIMessage } from 'ai';
 import { MessageResponse } from '@/components/ai-elements/message';
-import { CreateCourseDialog } from '@/components/courses/create-course-dialog';
-import { CourseSettingsDialog } from '@/components/courses/course-settings-dialog';
-import { CourseMaterialsPanel } from '@/components/courses/course-materials-panel';
 import {
   LEARN_HOME_PREVIEW_COURSES,
   LearnHomeDashboard,
 } from '@/components/learn/learn-home-dashboard';
-import { LearnAllSessionsDialog } from '@/components/learn/learn-all-sessions-dialog';
 import { LearnCourseSidebar } from '@/components/learn/learn-course-sidebar';
 import { LearnPageShellSkeleton } from '@/components/learn/learn-page-shell-skeleton';
 import {
@@ -58,10 +73,8 @@ import {
   buildSyllabusEventsByDay,
   LearningCalendarGrid,
 } from '@/components/learn/learning-calendar-grid';
-import {
-  CourseProblemBankView,
-  type CourseProblemPracticeHeaderState,
-} from '@/components/problem-bank/course-problem-bank-view';
+import { LearnWorkspaceDialog } from '@/components/learn/learn-workspace-dialog';
+import type { CourseProblemPracticeHeaderState } from '@/components/problem-bank/course-problem-bank-view';
 import type { CourseProblemPracticeAttemptResolvedEvent } from '@/components/problem-bank/use-course-problem-bank-controller';
 import { Button } from '@/components/ui/button';
 import { composerInputShellClassName } from '@/components/ui/composer-input-shell';
@@ -78,6 +91,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+  SYNTARA_DIALOG_HEADER_CLASS,
+  SYNTARA_WORKSPACE_DIALOG_CONTENT_CLASS,
+  SYNTARA_WORKSPACE_DIALOG_OVERLAY_CLASS,
+} from '@/components/ui/syntara-dialog-style';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -132,21 +151,31 @@ import {
   applyLearningCalendarDelete,
   applyLearningCalendarUpdate,
   learningActionCalendarEvents,
-  mergeSyllabusEvents,
-  readSyllabusEvents,
-  writeSyllabusEvents,
   type SyllabusCalendarEvent,
   type SyllabusEventKind,
 } from '@/features/learn-core/client-calendar-actions';
 import {
-  buildMiniLectureDeck,
+  makeLearningCalendarIdempotencyKey,
+  searchLearningCalendarEvents,
+  type LearningCalendarEventPatch,
+  type RemoteLearningCalendarEvent,
+} from '@/features/learning-calendar/client/calendar-api';
+import { useLearningCalendarRange } from '@/features/learning-calendar/client/use-learning-calendar-range';
+import {
   buildMiniLecturePrompt,
+  generatedManifestToMiniLectureDeck,
   MINI_LECTURE_CANVAS_HEIGHT,
   MINI_LECTURE_CANVAS_WIDTH,
+  type GeneratedMiniLectureManifest,
   type MiniLectureDeck,
   type MiniLecturePrompt,
   type MiniLectureRegion,
 } from '@/features/learn-core/client-mini-lecture';
+import {
+  compactMiniLectureDeckForPersistence,
+  readMiniLectureDeckLocally,
+  saveMiniLectureDeckLocally,
+} from '@/lib/utils/mini-lecture-storage';
 import {
   createCalendarAddActionFromArtifacts,
   latestLearnArtifactsForTurn,
@@ -170,6 +199,7 @@ import {
 import type {
   ChatMessageMetadata,
   CourseChatContext,
+  CourseChatEvidenceSummary,
   LearnActivityPlanTask,
   LearnAnswerEvidenceSource,
   LearnArtifact,
@@ -228,7 +258,11 @@ import {
 } from '@/lib/learning/practice-session';
 import type { NotebookProblemAttemptAnswer } from '@/lib/problem-bank';
 import type { ProviderId } from '@/lib/ai/providers';
-import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
+import {
+  COURSE_AVATAR_PRESET_URLS,
+  pickRandomCourseAvatarUrl,
+  resolveCourseAvatarDisplayUrl,
+} from '@/lib/constants/course-avatars';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/notifications/client-toast';
 import type { CourseRecord } from '@/lib/utils/database';
@@ -242,6 +276,7 @@ import {
 } from '@/lib/utils/notebook-problem-api';
 import {
   deleteCourseSourceUpload,
+  getCourseSourceUploadText,
   listCourseSourceUploads,
   retryCourseSourceIndex,
   type CourseSourceUploadRecord,
@@ -268,11 +303,37 @@ import {
   loadRemoteLearnConversationOrThrow,
   mergeRemoteLearnConversationMessages,
   syncRemoteLearnConversation,
-  type RemoteLearnConversationBaseSnapshot,
+  type RemoteLearnConversationSummary,
   type RemoteLearnChatSession,
   type RemoteLearnMessage,
+  type RemoteLearnMessagePage,
   type RemoteLearnMessagePayload,
-} from '@/lib/utils/learn-conversation-api';
+} from '@/features/learn-conversations/client/remote-conversation-api';
+import {
+  deleteLearnSessionMessageStorage,
+  deleteLearnSessionRemoteBase,
+  deletedLearnMessageIdsKey,
+  learnSessionIndexKey,
+  makeLearnSessionId,
+  mergeLearnSessions,
+  readDeletedLearnMessageIds,
+  readDeletedLearnSessionIds,
+  readLearnSessionComposerDraft,
+  readLearnSessionDirtyMessages,
+  readLearnSessionMessagesJson,
+  readLearnSessionRemoteBase,
+  readLearnSessions,
+  rememberDeletedLearnMessageId,
+  rememberDeletedLearnSessionId,
+  sortLearnSessionsForList,
+  writeDeletedLearnMessageIds,
+  writeLearnSessionComposerDraft,
+  writeLearnSessionDirtyMessages,
+  writeLearnSessionMessagesJson,
+  writeLearnSessionRemoteBase,
+  writeLearnSessions,
+  type LearnChatSession,
+} from '@/features/learn-conversations/client/local-session-cache';
 import {
   clearLearnChatMessageAttachments,
   clearLearnChatSessionAttachments,
@@ -286,7 +347,112 @@ import {
   type MemoryWriteCandidate,
   type MemoryWriteContentType,
 } from '@/lib/utils/memory-write-api';
-import { listStagesByCourseOrThrow, type StageListItem } from '@/lib/utils/stage-storage';
+import {
+  getFirstSlideByStages,
+  listStagesByCourseOrThrow,
+  type StageListItem,
+} from '@/lib/utils/stage-storage';
+
+function LearnDeferredPanelLoading({ label }: { label: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="grid h-full min-h-40 place-items-center text-sm text-muted-foreground"
+    >
+      <span className="inline-flex items-center gap-2">
+        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function LearnDeferredDialogLoading({ label }: { label: string }) {
+  return (
+    <Dialog open>
+      <DialogContent
+        className={cn(SYNTARA_ACTION_DIALOG_CONTENT_CLASS, 'max-w-sm gap-0 p-0')}
+        showCloseButton={false}
+      >
+        <LearnDeferredPanelLoading label={label} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const CourseProblemBankView = dynamic(
+  () =>
+    import('@/components/problem-bank/course-problem-bank-view').then(
+      (module) => module.CourseProblemBankView,
+    ),
+  {
+    loading: () => <LearnDeferredPanelLoading label="正在打开题库…" />,
+  },
+);
+
+const CourseMaterialsPanel = dynamic(
+  () =>
+    import('@/components/courses/course-materials-panel').then(
+      (module) => module.CourseMaterialsPanel,
+    ),
+  {
+    loading: () => <LearnDeferredPanelLoading label="正在打开课程文件…" />,
+  },
+);
+
+const CourseLearningProgressPanel = dynamic(
+  () =>
+    import('@/components/learn/course-learning-progress-panel').then(
+      (module) => module.CourseLearningProgressPanel,
+    ),
+  {
+    loading: () => <LearnDeferredPanelLoading label="正在加载学习进度…" />,
+  },
+);
+
+const DeferredCreateCourseDialog = dynamic(
+  () =>
+    import('@/components/courses/create-course-dialog').then((module) => module.CreateCourseDialog),
+  {
+    loading: () => <LearnDeferredDialogLoading label="正在打开新建课程…" />,
+  },
+);
+
+function CreateCourseDialog(props: ComponentProps<typeof DeferredCreateCourseDialog>) {
+  if (!props.open) return null;
+  return <DeferredCreateCourseDialog {...props} />;
+}
+
+const DeferredCourseSettingsDialog = dynamic(
+  () =>
+    import('@/components/courses/course-settings-dialog').then(
+      (module) => module.CourseSettingsDialog,
+    ),
+  {
+    loading: () => <LearnDeferredDialogLoading label="正在打开课程设置…" />,
+  },
+);
+
+function CourseSettingsDialog(props: ComponentProps<typeof DeferredCourseSettingsDialog>) {
+  if (!props.open) return null;
+  return <DeferredCourseSettingsDialog {...props} />;
+}
+
+const DeferredLearnAllSessionsDialog = dynamic(
+  () =>
+    import('@/components/learn/learn-all-sessions-dialog').then(
+      (module) => module.LearnAllSessionsDialog,
+    ),
+  {
+    loading: () => <LearnDeferredDialogLoading label="正在打开全部对话…" />,
+  },
+);
+
+function LearnAllSessionsDialog(props: ComponentProps<typeof DeferredLearnAllSessionsDialog>) {
+  if (!props.open) return null;
+  return <DeferredLearnAllSessionsDialog {...props} />;
+}
 
 type LearnMessage = {
   id: string;
@@ -326,7 +492,7 @@ type ResourceLoadState = {
 
 type CourseResourceKind = 'notebooks' | 'problems' | 'sources';
 
-type LearnSurfaceStatus = 'loading' | 'ready' | 'empty' | 'local' | 'error';
+type LearnSurfaceStatus = 'deferred' | 'loading' | 'ready' | 'empty' | 'local' | 'error';
 
 type LearnSurfaceStatusItem = {
   key: 'course' | 'conversation' | CourseResourceKind;
@@ -469,6 +635,48 @@ function resourceSurfaceStatus(
     status: 'loading',
     statusLabel: state.usingCachedData ? '刷新中' : '加载中',
   };
+}
+
+function resourceSurfaceStatusFromContentOrList(args: {
+  activeCourseId: string | null;
+  listState: ResourceLoadState;
+  content: { count: number } | null | undefined;
+  contentReady: boolean;
+  listHydrationWanted: boolean;
+  deferredWhenListIdle?: boolean;
+}): Pick<LearnSurfaceStatusItem, 'status' | 'statusLabel' | 'detail'> {
+  const listMatchesCourse =
+    Boolean(args.activeCourseId) && args.listState.courseId === args.activeCourseId;
+  if (args.listHydrationWanted && listMatchesCourse && args.listState.status !== 'idle') {
+    return resourceSurfaceStatus(args.listState, args.activeCourseId);
+  }
+  if (
+    listMatchesCourse &&
+    (args.listState.status === 'ready' || args.listState.status === 'empty')
+  ) {
+    return resourceSurfaceStatus(args.listState, args.activeCourseId);
+  }
+  if (listMatchesCourse && args.listState.status === 'error' && args.listState.usingCachedData) {
+    return resourceSurfaceStatus(args.listState, args.activeCourseId);
+  }
+  if (!args.contentReady || !args.content) {
+    if (args.deferredWhenListIdle) {
+      return { status: 'deferred', statusLabel: '按需加载' };
+    }
+    return { status: 'loading', statusLabel: '加载中' };
+  }
+  if (args.content.count > 0) return { status: 'ready', statusLabel: '已就绪' };
+  return { status: 'empty', statusLabel: '暂无' };
+}
+
+/** Prefer full-list status once hydrated; otherwise derive ready/empty from content-state. */
+function planningResourceStatusFromContentOrList(args: {
+  listState: ResourceLoadState;
+  contentCount: number | null;
+}): ResourceLoadStatus {
+  if (args.listState.status !== 'idle') return args.listState.status;
+  if (args.contentCount === null) return 'idle';
+  return args.contentCount > 0 ? 'ready' : 'empty';
 }
 
 function courseResourceQueueErrorNeedsCooldown(error: unknown): boolean {
@@ -852,7 +1060,7 @@ type LearnSourceUploadItem = {
   error?: string;
 };
 
-type SourceLibraryTile = {
+export type SourceLibraryTile = {
   id: string;
   courseId: string;
   tileKind: 'source' | 'notebook' | 'transient';
@@ -988,9 +1196,87 @@ function SourceLibraryGeneratedCover({
   );
 }
 
+/** Lightweight grid face: no cover image fetch; real cover loads only in detail view. */
+export function SourceLibraryListCardFace({ tile }: { tile: SourceLibraryTile }) {
+  if (tile.tileKind === 'notebook') {
+    return (
+      <div className="relative size-full text-left">
+        <span className="absolute inset-y-1 left-0 z-[3] flex w-[18px] flex-col items-center justify-evenly rounded-l-[10px] bg-[linear-gradient(90deg,#1e3a5f_0%,#2b4d78_55%,#243f63_100%)] shadow-[inset_-1px_0_0_rgba(255,255,255,0.18),inset_1px_0_0_rgba(0,0,0,0.18)]">
+          {[0, 1, 2].map((index) => (
+            <span
+              key={index}
+              className="size-2 rounded-full bg-[radial-gradient(circle_at_35%_30%,#f8fafc_0%,#94a3b8_45%,#475569_100%)] shadow-[0_0_0_1px_rgba(15,23,42,0.25),inset_0_1px_1px_rgba(255,255,255,0.55)]"
+            />
+          ))}
+        </span>
+        <span className="absolute bottom-2 right-0 top-2 z-[1] w-2.5 rounded-r-lg bg-[repeating-linear-gradient(180deg,#fff_0_2px,#e2e8f0_2px_3px)] shadow-[2px_0_0_#f1f5f9,4px_0_0_#e2e8f0,6px_0_8px_rgba(15,23,42,0.08)]" />
+        <span
+          className="absolute bottom-0 left-3.5 right-1.5 top-0 z-[2] grid grid-rows-[auto_1fr_auto_auto] gap-2.5 overflow-hidden rounded-r-[14px] border border-l-0 border-slate-400/35 px-3.5 pb-3.5 pl-4 pt-4 shadow-[0_12px_28px_rgba(15,23,42,0.12),inset_0_2px_0_rgba(255,255,255,0.70),-2px_0_6px_rgba(15,23,42,0.08)] transition group-hover:shadow-[0_18px_34px_rgba(15,23,42,0.16),inset_0_2px_0_rgba(255,255,255,0.70),-2px_0_6px_rgba(15,23,42,0.10)]"
+          style={{
+            background:
+              'linear-gradient(90deg,rgba(15,23,42,.06) 0 1px,transparent 1px 100%),linear-gradient(180deg,transparent 0,transparent 28px,rgba(148,163,184,.22) 28px,rgba(148,163,184,.22) 29px),repeating-linear-gradient(180deg,transparent 0 27px,rgba(148,163,184,.18) 27px 28px),linear-gradient(145deg,#f7fafc 0%,#eef4f8 48%,#e8eef4 100%)',
+          }}
+        >
+          <span className="w-fit rounded border border-blue-600/20 bg-white/70 px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.06em] text-slate-700">
+            {tile.typeLabel}
+          </span>
+          <strong className="line-clamp-4 text-sm font-bold leading-[1.4] tracking-[0.01em] text-slate-900">
+            {tile.title}
+          </strong>
+          <span className="grid gap-0.5 text-[11px] leading-[1.35] text-slate-500">
+            <span className="truncate">{tile.subtitle}</span>
+            <span className="truncate">{tile.dateLabel}</span>
+          </span>
+          <span className="inline-flex w-fit min-w-[4.25rem] items-center justify-center rounded-lg bg-blue-700 px-[11px] py-1.5 text-xs font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]">
+            打开
+          </span>
+        </span>
+      </div>
+    );
+  }
+
+  const Icon = tile.isProblemBank ? BookOpenCheck : FileText;
+  return (
+    <div className="relative flex size-full flex-col overflow-hidden bg-gradient-to-b from-slate-50 via-white to-sky-50/80 p-3 text-left dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-sky-400/80 via-sky-300/50 to-transparent" />
+      <div className="relative z-10 flex items-start justify-between gap-2">
+        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+          {tile.placeholderLabel}
+        </span>
+        <span className="grid size-7 place-items-center rounded-full bg-sky-50 text-sky-600 ring-1 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-200 dark:ring-sky-300/20">
+          <Icon className="size-3.5" strokeWidth={1.85} />
+        </span>
+      </div>
+      <div className="relative z-10 mt-auto space-y-2">
+        <div className="mx-auto grid size-12 place-items-center rounded-[14px] bg-white text-slate-500 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+          <Icon className="size-5" strokeWidth={1.75} />
+        </div>
+        <p className="text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+          {tile.typeLabel}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 type SourceLibraryTextState = {
   status: 'loading' | 'ready' | 'empty' | 'failed';
   text: string;
+  error?: string;
+};
+
+type NotebookMarkdownPageState = {
+  status: 'loading' | 'ready' | 'failed';
+  sections: NotebookMarkdownSectionListItem[];
+  hasMore: boolean;
+  nextCursor: string | null;
+  loadingMore?: boolean;
+  error?: string;
+};
+
+type NotebookImagePreviewState = {
+  status: 'loading' | 'ready' | 'empty' | 'failed';
+  imagePath: string | null;
   error?: string;
 };
 
@@ -1019,23 +1305,11 @@ const LEARN_CHAT_IMAGE_MAX_DIMENSION = 1280;
 const MAX_LEARN_SOURCE_TEXT_FILE_BYTES = 4 * 1024 * 1024;
 const MAX_LEARN_SOURCE_DOCUMENT_BYTES = 18 * 1024 * 1024;
 const MAX_SYLLABUS_TEXT_FILE_BYTES = 2 * 1024 * 1024;
-const MAX_SYLLABUS_PDF_FILE_BYTES = 12 * 1024 * 1024;
-const LEARN_SESSION_INDEX_PREFIX = 'syntara-learn-session-index:v1';
-const LEARN_SESSION_MESSAGES_PREFIX = 'syntara-learn-session-messages:v1';
-const LEARN_SESSION_TAB_MESSAGES_PREFIX = 'syntara-learn-session-tab-messages:v1';
-const LEARN_SESSION_REMOTE_BASE_PREFIX = 'syntara-learn-session-remote-base:v1';
-const LEARN_DELETED_SESSION_IDS_PREFIX = 'syntara-learn-deleted-session-ids:v1';
-const LEARN_DELETED_MESSAGE_IDS_PREFIX = 'syntara-learn-deleted-message-ids:v1';
+const MAX_SYLLABUS_DOCUMENT_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_SYLLABUS_IMAGE_FILE_BYTES = 12 * 1024 * 1024;
 const LEARN_LEFT_RAIL_COLLAPSED_STORAGE_KEY = 'syntara-learn-left-rail-collapsed';
 const LEARN_RIGHT_RAIL_COLLAPSED_STORAGE_KEY = 'syntara-learn-right-rail-collapsed';
 const LEARN_DELETED_PRACTICE_PLAN_IDS_PREFIX = 'syntara-learn-deleted-practice-plan-ids:v1';
-
-type LearnChatSession = {
-  id: string;
-  title: string;
-  createdAt: number;
-  updatedAt: number;
-};
 
 type LearnSessionListState = {
   courseId: string | null;
@@ -1047,7 +1321,13 @@ type LearnSessionListState = {
   error: string | null;
 };
 
-type LearnRightRailView = 'overview' | 'calendar';
+type LearnConversationMessagePageState = RemoteLearnMessagePage & {
+  key: string;
+  loading: boolean;
+  error: string | null;
+};
+
+type LearnRightRailView = 'overview' | 'library' | 'calendar' | 'settings';
 
 type TeachingReviewPlanEvidenceItem = {
   id: string;
@@ -1146,10 +1426,6 @@ type ParsedSyllabusFileEvent = {
   confidence?: number | null;
 };
 
-function makeLearnSessionId(_regenerationScope?: string) {
-  return `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
 function getInitialLearnRailCollapsed(storageKey: string): boolean {
   if (typeof window === 'undefined') return false;
   try {
@@ -1159,285 +1435,23 @@ function getInitialLearnRailCollapsed(storageKey: string): boolean {
   }
 }
 
-function learnSessionIndexKey(userId: string, courseId: string) {
-  return [
-    LEARN_SESSION_INDEX_PREFIX,
-    encodeURIComponent(userId),
-    encodeURIComponent(courseId),
-  ].join(':');
-}
-
-function learnSessionMessagesKey(userId: string, courseId: string, sessionId: string) {
-  return [
-    LEARN_SESSION_MESSAGES_PREFIX,
-    encodeURIComponent(userId),
-    encodeURIComponent(courseId),
-    encodeURIComponent(sessionId),
-  ].join(':');
-}
-
-function learnSessionTabMessagesKey(userId: string, courseId: string, sessionId: string) {
-  return [
-    LEARN_SESSION_TAB_MESSAGES_PREFIX,
-    encodeURIComponent(userId),
-    encodeURIComponent(courseId),
-    encodeURIComponent(sessionId),
-  ].join(':');
-}
-
-function deletedLearnMessageIdsKey(userId: string, courseId: string, sessionId: string) {
-  return [
-    LEARN_DELETED_MESSAGE_IDS_PREFIX,
-    encodeURIComponent(userId),
-    encodeURIComponent(courseId),
-    encodeURIComponent(sessionId),
-  ].join(':');
-}
-
-function learnSessionRemoteBaseKey(userId: string, courseId: string, sessionId: string) {
-  return [
-    LEARN_SESSION_REMOTE_BASE_PREFIX,
-    encodeURIComponent(userId),
-    encodeURIComponent(courseId),
-    encodeURIComponent(sessionId),
-  ].join(':');
-}
-
-function readLearnSessionRemoteBase(
-  userId: string,
-  courseId: string,
-  sessionId: string,
-): RemoteLearnConversationBaseSnapshot | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = sessionStorage.getItem(learnSessionRemoteBaseKey(userId, courseId, sessionId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<RemoteLearnConversationBaseSnapshot>;
-    if (
-      !Number.isSafeInteger(parsed.revision) ||
-      (parsed.revision ?? -1) < 0 ||
-      typeof parsed.title !== 'string' ||
-      !Array.isArray(parsed.messages)
-    ) {
-      return null;
-    }
-    const messages = parsed.messages.filter((message): message is RemoteLearnMessagePayload =>
-      Boolean(
-        message &&
-        typeof message.id === 'string' &&
-        (message.role === 'user' || message.role === 'assistant') &&
-        typeof message.text === 'string' &&
-        typeof message.createdAt === 'number',
-      ),
-    );
-    return {
-      revision: parsed.revision as number,
-      title: parsed.title,
-      messages: messages.slice(-120),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writeLearnSessionRemoteBase(
-  userId: string,
-  courseId: string,
-  sessionId: string,
-  snapshot: RemoteLearnConversationBaseSnapshot,
-) {
-  if (typeof window === 'undefined') return;
-  try {
-    sessionStorage.setItem(
-      learnSessionRemoteBaseKey(userId, courseId, sessionId),
-      JSON.stringify({ ...snapshot, messages: snapshot.messages.slice(-120) }),
-    );
-  } catch {
-    /* sessionStorage may be unavailable or full */
-  }
-}
-
-function deleteLearnSessionRemoteBase(userId: string, courseId: string, sessionId: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    sessionStorage.removeItem(learnSessionRemoteBaseKey(userId, courseId, sessionId));
-  } catch {
-    /* sessionStorage may be unavailable */
-  }
-}
-
-function readDeletedLearnMessageIds(
-  userId: string,
-  courseId: string,
-  sessionId: string,
-): Set<string> {
-  if (typeof window === 'undefined') return new Set();
-  try {
-    const raw = localStorage.getItem(deletedLearnMessageIdsKey(userId, courseId, sessionId));
-    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.map(String).filter(Boolean).slice(-240));
-  } catch {
-    return new Set();
-  }
-}
-
-function writeDeletedLearnMessageIds(
-  userId: string,
-  courseId: string,
-  sessionId: string,
-  ids: Set<string>,
-) {
-  if (typeof window === 'undefined') return;
-  const key = deletedLearnMessageIdsKey(userId, courseId, sessionId);
-  try {
-    if (ids.size === 0) {
-      localStorage.removeItem(key);
-      return;
-    }
-    localStorage.setItem(key, JSON.stringify(Array.from(ids).slice(-240)));
-  } catch {
-    /* localStorage may be unavailable */
-  }
-}
-
-function rememberDeletedLearnMessageId(
-  userId: string,
-  courseId: string,
-  sessionId: string,
-  messageId: string,
-) {
-  const ids = readDeletedLearnMessageIds(userId, courseId, sessionId);
-  ids.add(messageId);
-  writeDeletedLearnMessageIds(userId, courseId, sessionId, ids);
-}
-
-function clearDeletedLearnMessageIds(userId: string, courseId: string, sessionId: string) {
-  writeDeletedLearnMessageIds(userId, courseId, sessionId, new Set());
-}
-
-function deletedLearnSessionIdsKey(userId: string, courseId: string) {
-  return [
-    LEARN_DELETED_SESSION_IDS_PREFIX,
-    encodeURIComponent(userId),
-    encodeURIComponent(courseId),
-  ].join(':');
-}
-
-function readDeletedLearnSessionIds(userId: string, courseId: string): Set<string> {
-  if (typeof window === 'undefined') return new Set();
-  try {
-    const raw = localStorage.getItem(deletedLearnSessionIdsKey(userId, courseId));
-    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(
-      parsed
-        .map((item) => String(item))
-        .filter(Boolean)
-        .slice(-80),
-    );
-  } catch {
-    return new Set();
-  }
-}
-
-function writeDeletedLearnSessionIds(userId: string, courseId: string, ids: Set<string>) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(
-      deletedLearnSessionIdsKey(userId, courseId),
-      JSON.stringify(Array.from(ids)),
-    );
-  } catch {
-    /* localStorage may be unavailable */
-  }
-}
-
-function rememberDeletedLearnSessionId(userId: string, courseId: string, sessionId: string) {
-  const ids = readDeletedLearnSessionIds(userId, courseId);
-  ids.add(sessionId);
-  writeDeletedLearnSessionIds(userId, courseId, ids);
-}
-
-function filterDeletedLearnSessions(
-  userId: string,
-  courseId: string,
-  sessions: LearnChatSession[],
-): LearnChatSession[] {
-  const deletedIds = readDeletedLearnSessionIds(userId, courseId);
-  if (!deletedIds.size) return sessions;
-  return sessions.filter((session) => !deletedIds.has(session.id));
-}
-
-function sortLearnSessionsForList(
-  userId: string,
-  courseId: string,
-  sessions: LearnChatSession[],
-): LearnChatSession[] {
-  return [...sessions].sort((a, b) => {
-    const aIsBlankNew =
-      a.title === '新对话' && learnSessionIsBlank(readLearnSessionMessages(userId, courseId, a.id));
-    const bIsBlankNew =
-      b.title === '新对话' && learnSessionIsBlank(readLearnSessionMessages(userId, courseId, b.id));
-    if (aIsBlankNew !== bIsBlankNew) return aIsBlankNew ? -1 : 1;
-    return b.updatedAt - a.updatedAt;
-  });
-}
-
-function readLearnSessions(userId: string, courseId: string): LearnChatSession[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(learnSessionIndexKey(userId, courseId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Partial<LearnChatSession>[];
-    if (!Array.isArray(parsed)) return [];
-    const sessions = parsed.filter((item): item is LearnChatSession =>
-      Boolean(
-        item &&
-        typeof item.id === 'string' &&
-        typeof item.title === 'string' &&
-        typeof item.createdAt === 'number' &&
-        typeof item.updatedAt === 'number',
-      ),
-    );
-    return filterDeletedLearnSessions(
-      userId,
-      courseId,
-      sortLearnSessionsForList(userId, courseId, sessions),
-    );
-  } catch {
-    return [];
-  }
-}
-
-function writeLearnSessions(userId: string, courseId: string, sessions: LearnChatSession[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(
-      learnSessionIndexKey(userId, courseId),
-      JSON.stringify(
-        filterDeletedLearnSessions(
-          userId,
-          courseId,
-          sortLearnSessionsForList(userId, courseId, sessions),
-        ),
-      ),
-    );
-  } catch {
-    /* localStorage may be unavailable */
-  }
-}
-
 function pruneDuplicateBlankLearnSessions(
   userId: string,
   courseId: string,
   sessions: LearnChatSession[],
   preferredSessionId: string,
+  hasComposerAttachments?: (sessionId: string) => boolean,
 ): LearnChatSession[] {
   const blankSessionIds = new Set(
     sessions
       .filter((session) =>
-        learnSessionIsBlank(readLearnSessionMessages(userId, courseId, session.id)),
+        Boolean(
+          (session.messageCount === 0 ||
+            (session.messageCount === undefined && session.title === '新对话')) &&
+          learnSessionIsBlank(readLearnSessionMessages(userId, courseId, session.id)) &&
+          !readLearnSessionComposerDraft(userId, courseId, session.id).trim() &&
+          !hasComposerAttachments?.(session.id),
+        ),
       )
       .map((session) => session.id),
   );
@@ -1487,14 +1501,9 @@ function readLearnSessionMessages(
   courseId: string,
   sessionId: string,
 ): LearnMessage[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    return parseStoredLearnMessages(
-      localStorage.getItem(learnSessionMessagesKey(userId, courseId, sessionId)),
-    );
-  } catch {
-    return [];
-  }
+  return parseStoredLearnMessages(
+    readLearnSessionMessagesJson(userId, courseId, sessionId, 'local'),
+  );
 }
 
 function readLearnSessionTabMessages(
@@ -1502,13 +1511,8 @@ function readLearnSessionTabMessages(
   courseId: string,
   sessionId: string,
 ): LearnMessage[] | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = sessionStorage.getItem(learnSessionTabMessagesKey(userId, courseId, sessionId));
-    return raw === null ? null : parseStoredLearnMessages(raw);
-  } catch {
-    return null;
-  }
+  const raw = readLearnSessionMessagesJson(userId, courseId, sessionId, 'tab');
+  return raw === null ? null : parseStoredLearnMessages(raw);
 }
 
 function learnAttachmentReference(
@@ -1555,6 +1559,7 @@ function serializableLearnMessages(messages: LearnMessage[]) {
     .map(finalizeLearnMessagePublicTrace)
     .map((message) => ({
       ...message,
+      lectureDeck: compactMiniLectureDeckForPersistence(message.lectureDeck),
       attachments: message.attachments?.map(learnAttachmentReference),
     }))
     .slice(-120);
@@ -1566,15 +1571,13 @@ function writeLearnSessionMessages(
   sessionId: string,
   messages: LearnMessage[],
 ) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(
-      learnSessionMessagesKey(userId, courseId, sessionId),
-      JSON.stringify(serializableLearnMessages(messages)),
-    );
-  } catch {
-    /* localStorage may be unavailable */
-  }
+  writeLearnSessionMessagesJson(
+    userId,
+    courseId,
+    sessionId,
+    'local',
+    JSON.stringify(serializableLearnMessages(messages)),
+  );
 }
 
 function writeLearnSessionTabMessages(
@@ -1583,56 +1586,17 @@ function writeLearnSessionTabMessages(
   sessionId: string,
   messages: LearnMessage[],
 ) {
-  if (typeof window === 'undefined') return;
-  try {
-    sessionStorage.setItem(
-      learnSessionTabMessagesKey(userId, courseId, sessionId),
-      JSON.stringify(serializableLearnMessages(messages)),
-    );
-  } catch {
-    /* sessionStorage may be unavailable */
-  }
+  writeLearnSessionMessagesJson(
+    userId,
+    courseId,
+    sessionId,
+    'tab',
+    JSON.stringify(serializableLearnMessages(messages)),
+  );
 }
 
 function deleteLearnSessionMessages(userId: string, courseId: string, sessionId: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.removeItem(learnSessionMessagesKey(userId, courseId, sessionId));
-  } catch {
-    /* localStorage may be unavailable */
-  }
-  try {
-    sessionStorage.removeItem(learnSessionTabMessagesKey(userId, courseId, sessionId));
-  } catch {
-    /* sessionStorage may be unavailable */
-  }
-  clearDeletedLearnMessageIds(userId, courseId, sessionId);
-}
-
-function mergeLearnSessions(
-  userId: string,
-  courseId: string,
-  current: LearnChatSession[],
-  incoming: Array<LearnChatSession | RemoteLearnChatSession>,
-): LearnChatSession[] {
-  const deletedIds = readDeletedLearnSessionIds(userId, courseId);
-  const byId = new Map<string, LearnChatSession>();
-  for (const session of current) {
-    if (!deletedIds.has(session.id)) byId.set(session.id, session);
-  }
-  for (const session of incoming) {
-    if (deletedIds.has(session.id)) continue;
-    const existing = byId.get(session.id);
-    if (!existing || session.updatedAt >= existing.updatedAt) {
-      byId.set(session.id, {
-        id: session.id,
-        title: session.title || existing?.title || '新对话',
-        createdAt: session.createdAt || existing?.createdAt || Date.now(),
-        updatedAt: session.updatedAt || existing?.updatedAt || Date.now(),
-      });
-    }
-  }
-  return sortLearnSessionsForList(userId, courseId, Array.from(byId.values()));
+  deleteLearnSessionMessageStorage(userId, courseId, sessionId);
 }
 
 function remoteMessageToLearnMessage(message: RemoteLearnMessage): LearnMessage {
@@ -1660,6 +1624,18 @@ function remoteMessageToLearnMessage(message: RemoteLearnMessage): LearnMessage 
   });
 }
 
+function remoteLearnSessionToLocal(session: RemoteLearnChatSession): LearnChatSession {
+  return {
+    id: session.id,
+    title: session.title,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    messageCount: session.messageCount,
+    currentRevision: session.currentRevision,
+    remoteState: 'remote',
+  };
+}
+
 function learnMessageToRemotePayload(message: LearnMessage): RemoteLearnMessagePayload {
   const settledMessage = finalizeLearnMessagePublicTrace(message);
   return {
@@ -1671,7 +1647,7 @@ function learnMessageToRemotePayload(message: LearnMessage): RemoteLearnMessageP
     progressProposal: settledMessage.progressProposal,
     pendingAction: settledMessage.pendingAction,
     lecturePrompt: settledMessage.lecturePrompt,
-    lectureDeck: settledMessage.lectureDeck,
+    lectureDeck: compactMiniLectureDeckForPersistence(settledMessage.lectureDeck),
     learningActions: settledMessage.learningActions,
     artifacts: settledMessage.artifacts,
     publicTrace: settledMessage.publicTrace,
@@ -1688,37 +1664,61 @@ async function hydrateLearnMessageAttachments(args: {
   const objectUrls: string[] = [];
   const messages = await Promise.all(
     args.messages.map(async (message) => {
-      if (!message.attachments?.length) return message;
       let changed = false;
-      const attachments = await Promise.all(
-        message.attachments.map(async (attachment) => {
-          if (attachment.dataUrl && attachment.objectUrl) return attachment;
-          try {
-            const loaded = await readLearnChatAttachment({
-              id: attachment.id,
-              context: {
-                ownerId: args.ownerId,
-                courseId: args.courseId,
-                sessionId: args.sessionId,
-                messageId: message.id,
-              },
-            });
-            if (!loaded) return attachment;
-            const dataUrl = await learnChatAttachmentBlobToDataUrl(loaded.blob);
+      const attachments = message.attachments?.length
+        ? await Promise.all(
+            message.attachments.map(async (attachment) => {
+              if (attachment.dataUrl && attachment.objectUrl) return attachment;
+              try {
+                const loaded = await readLearnChatAttachment({
+                  id: attachment.id,
+                  context: {
+                    ownerId: args.ownerId,
+                    courseId: args.courseId,
+                    sessionId: args.sessionId,
+                    messageId: message.id,
+                  },
+                });
+                if (!loaded) return attachment;
+                const dataUrl = await learnChatAttachmentBlobToDataUrl(loaded.blob);
+                changed = true;
+                objectUrls.push(loaded.objectUrl);
+                return {
+                  ...attachment,
+                  ...loaded.attachment,
+                  dataUrl,
+                  objectUrl: loaded.objectUrl,
+                };
+              } catch {
+                return attachment;
+              }
+            }),
+          )
+        : message.attachments;
+      let lectureDeck = message.lectureDeck;
+      if (lectureDeck?.localAssetId) {
+        try {
+          const hydratedDeck = await readMiniLectureDeckLocally({
+            context: {
+              ownerId: args.ownerId,
+              courseId: args.courseId,
+              sessionId: args.sessionId,
+              messageId: message.id,
+            },
+            deck: lectureDeck,
+          });
+          if (hydratedDeck && hydratedDeck !== lectureDeck) {
+            lectureDeck = hydratedDeck;
             changed = true;
-            objectUrls.push(loaded.objectUrl);
-            return {
-              ...attachment,
-              ...loaded.attachment,
-              dataUrl,
-              objectUrl: loaded.objectUrl,
-            };
-          } catch {
-            return attachment;
+          } else if (!hydratedDeck) {
+            lectureDeck = undefined;
+            changed = true;
           }
-        }),
-      );
-      return changed ? { ...message, attachments } : message;
+        } catch {
+          // The generated lecture can be regenerated if its local asset was evicted.
+        }
+      }
+      return changed ? { ...message, attachments, lectureDeck } : message;
     }),
   );
   return { messages, objectUrls };
@@ -1746,6 +1746,19 @@ function mergeRemoteAuthoritativeLearnMessages(
   return Array.from(byId.values())
     .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
     .slice(-120);
+}
+
+function mergeOlderRemoteLearnMessages(
+  olderMessages: LearnMessage[],
+  currentMessages: LearnMessage[],
+): LearnMessage[] {
+  const byId = new Map(olderMessages.map((message) => [message.id, message]));
+  // Current messages may contain unsynced local edits, so they win over a
+  // read-only historical page when ids overlap.
+  for (const message of currentMessages) byId.set(message.id, message);
+  return Array.from(byId.values()).sort(
+    (left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id),
+  );
 }
 
 function copyableLearnMessageText(message: LearnMessage): string {
@@ -1811,6 +1824,14 @@ function isSyllabusPdfFile(file: File) {
   return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 }
 
+function isSyllabusImageFile(file: File) {
+  return (
+    ['image/gif', 'image/jpeg', 'image/png', 'image/webp'].includes(
+      (file.type || '').toLowerCase(),
+    ) || /\.(gif|jpe?g|png|webp)$/i.test(file.name)
+  );
+}
+
 function isPptxSourceFile(file: File) {
   const mime = (file.type || '').toLowerCase();
   return (
@@ -1861,7 +1882,7 @@ function pdfParseApiError(data: unknown, fallback: string) {
   return fallback;
 }
 
-async function parseSyllabusPdfWithOpenAI(
+async function parseSyllabusFileWithOpenAI(
   file: File,
   options: {
     courseName?: string;
@@ -1872,7 +1893,7 @@ async function parseSyllabusPdfWithOpenAI(
   warnings: string[];
 }> {
   const formData = new FormData();
-  formData.append('pdf', file);
+  formData.append('file', file);
   if (options.courseName) formData.append('courseName', options.courseName);
   if (options.courseDescription) formData.append('courseDescription', options.courseDescription);
 
@@ -2384,45 +2405,94 @@ function sourceLibraryTextFromBlocks(
     .trim();
 }
 
-type NotebookMarkdownPreview = {
-  markdownSections?: Array<{
-    id: string;
-    title: string;
-    order: number;
-    markdown: string;
-  }>;
+type NotebookMarkdownSectionListItem = {
+  id: string;
+  title: string;
+  order: number;
+  summary: string | null;
 };
 
-function sourceLibraryTextFromMarkdownPreviews(
-  previewResults: Array<{ notebook: NotebookMarkdownPreview } | null>,
-  textSectionIds: string[],
-) {
+type NotebookMarkdownSectionPage = {
+  sections: NotebookMarkdownSectionListItem[];
+  page: {
+    limit: number;
+    hasMore: boolean;
+    nextCursor: string | null;
+  };
+};
+
+type NotebookMarkdownSectionDetail = NotebookMarkdownSectionListItem & {
+  notebookId: string;
+  courseId: string | null;
+  markdown: string;
+};
+
+async function loadNotebookMarkdownSectionPage(notebookId: string, cursor?: string | null) {
+  const params = new URLSearchParams({ limit: '20' });
+  if (cursor) params.set('cursor', cursor);
+  return backendJson<NotebookMarkdownSectionPage>(
+    `/api/notebooks/${encodeURIComponent(notebookId)}/markdown-sections?${params.toString()}`,
+    { timeoutMs: 8_000 },
+  );
+}
+
+async function loadNotebookMarkdownSectionDetail(notebookId: string, sectionId: string) {
+  return backendJson<{ section: NotebookMarkdownSectionDetail }>(
+    `/api/notebooks/${encodeURIComponent(notebookId)}/markdown-sections/${encodeURIComponent(
+      sectionId,
+    )}`,
+    { timeoutMs: 8_000 },
+  );
+}
+
+async function loadBoundedNotebookMarkdownText(notebookIds: string[], textSectionIds: string[]) {
+  const boundedNotebookIds = Array.from(new Set(notebookIds)).slice(0, 4);
   const wantedSectionIds = new Set(textSectionIds);
-  return previewResults
-    .flatMap((previewResult) => {
-      const allMarkdownSections = (previewResult?.notebook.markdownSections || [])
-        .slice()
-        .sort((a, b) => a.order - b.order);
-      const matchedMarkdownSections =
-        wantedSectionIds.size > 0
-          ? allMarkdownSections.filter((section) => wantedSectionIds.has(section.id))
-          : allMarkdownSections;
-      const markdownSections =
-        matchedMarkdownSections.length > 0 ? matchedMarkdownSections : allMarkdownSections;
-      return markdownSections.map((section, index) => {
-        const title = section.title || `文本 ${index + 1}`;
-        return [`## ${title}`, section.markdown.trim()].filter(Boolean).join('\n\n');
-      });
+  const pages = await Promise.all(
+    boundedNotebookIds.map(async (notebookId) => ({
+      notebookId,
+      page: await loadNotebookMarkdownSectionPage(notebookId),
+    })),
+  );
+  const candidates = pages.flatMap(({ notebookId, page }) =>
+    page.sections.map((section) => ({ notebookId, section })),
+  );
+  const selectedCandidates = (
+    wantedSectionIds.size > 0
+      ? candidates.filter(({ section }) => wantedSectionIds.has(section.id))
+      : candidates
+  ).slice(0, 6);
+  const details = await Promise.all(
+    selectedCandidates.map(async ({ notebookId, section }) => ({
+      section,
+      detail: await loadNotebookMarkdownSectionDetail(notebookId, section.id),
+    })),
+  );
+  return details
+    .map(({ section, detail }, index) => {
+      const title = section.title || `文本 ${index + 1}`;
+      return [`## ${title}`, detail.section.markdown.trim()].filter(Boolean).join('\n\n');
     })
     .join('\n\n')
     .trim();
 }
 
-async function loadNotebookMarkdownPreview(notebookId: string) {
-  return backendJson<{ notebook: NotebookMarkdownPreview }>(
-    `/api/notebooks/${encodeURIComponent(notebookId)}?includeScenes=0&includeMarkdown=1`,
-    { timeoutMs: 8_000 },
-  );
+function firstSlidePreviewImage(slide: unknown): string | null {
+  if (!slide || typeof slide !== 'object' || Array.isArray(slide)) return null;
+  const elements = (slide as { elements?: unknown }).elements;
+  if (!Array.isArray(elements)) return null;
+  for (const element of elements) {
+    if (!element || typeof element !== 'object' || Array.isArray(element)) continue;
+    const record = element as { type?: unknown; src?: unknown };
+    const src = typeof record.src === 'string' ? record.src.trim() : '';
+    if (
+      record.type === 'image' &&
+      (src.startsWith('/') || src.startsWith('http://') || src.startsWith('https://'))
+    ) {
+      return src;
+    }
+  }
+  return null;
 }
 
 function sourceUploadStatusLabel(status: LearnSourceUploadStatus) {
@@ -2645,19 +2715,19 @@ function buildLearnModelOptions(
 }
 
 const courseMarkdownClassName = cn(
-  'w-full max-w-none select-text break-words text-[15px] leading-7 text-foreground',
+  'w-full max-w-none select-text break-words text-[12px] leading-[1.7] text-[#28251f] dark:text-slate-100',
   '[&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
-  '[&_p]:my-3',
+  '[&_p]:mb-2.5 [&_p]:mt-0',
   '[&_strong]:font-semibold [&_strong]:text-foreground',
-  '[&_h1]:mb-4 [&_h1]:mt-8 [&_h1]:text-[1.35rem] [&_h1]:font-semibold [&_h1]:leading-tight',
-  '[&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:border-b [&_h2]:border-border [&_h2]:pb-3 [&_h2]:text-lg [&_h2]:font-semibold',
-  '[&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-[1.05rem] [&_h3]:font-semibold',
-  '[&_ul]:my-4 [&_ol]:my-4 [&_ul]:space-y-1.5 [&_ol]:space-y-1.5 [&_ul]:pl-6 [&_ol]:pl-6',
-  '[&_li]:pl-1',
-  '[&_blockquote]:my-5 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground/25 [&_blockquote]:pl-4 [&_blockquote]:font-medium',
+  '[&_h1]:mb-[7px] [&_h1]:mt-[18px] [&_h1]:text-[15px] [&_h1]:font-semibold [&_h1]:leading-[1.35]',
+  '[&_h2]:mb-[7px] [&_h2]:mt-[18px] [&_h2]:text-[15px] [&_h2]:font-semibold [&_h2]:leading-[1.35]',
+  '[&_h3]:mb-[7px] [&_h3]:mt-[18px] [&_h3]:text-[13px] [&_h3]:font-semibold [&_h3]:leading-[1.35]',
+  '[&_ul]:mb-[11px] [&_ul]:mt-0 [&_ol]:mb-[11px] [&_ol]:mt-0 [&_ul]:pl-5 [&_ol]:pl-5',
+  '[&_li]:mb-1',
+  '[&_blockquote]:my-[11px] [&_blockquote]:rounded-r-[7px] [&_blockquote]:border-l-[3px] [&_blockquote]:border-[#c7a678] [&_blockquote]:bg-[#faf7f1] [&_blockquote]:px-2.5 [&_blockquote]:py-[7px] dark:[&_blockquote]:border-slate-600 dark:[&_blockquote]:bg-white/5',
   '[&_blockquote]:text-foreground [&_blockquote_p]:my-0',
-  '[&_hr]:my-8 [&_hr]:border-border',
-  '[&_code]:rounded-md [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em]',
+  '[&_hr]:my-3.5 [&_hr]:border-border',
+  '[&_code]:rounded-[4px] [&_code]:bg-[#f7f1e9] [&_code]:px-[0.32em] [&_code]:py-[0.1em] [&_code]:font-mono [&_code]:text-[0.9em] dark:[&_code]:bg-white/10',
   '[&_[data-streamdown=code-block]]:my-5 [&_[data-streamdown=code-block]]:max-w-full [&_[data-streamdown=code-block]]:overflow-hidden [&_[data-streamdown=code-block]]:rounded-lg [&_[data-streamdown=code-block]]:border [&_[data-streamdown=code-block]]:border-border [&_[data-streamdown=code-block]]:bg-muted/60',
   '[&_[data-streamdown=code-block-body]]:text-sm [&_[data-streamdown=code-block-body]]:leading-6',
   '[&_table]:my-5 [&_table]:block [&_table]:w-full [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:rounded-lg [&_table]:border [&_table]:border-border [&_table]:border-separate [&_table]:border-spacing-0',
@@ -2714,8 +2784,35 @@ function learnConversationSyncSignature(args: {
   key: string;
   title: string;
   messages: RemoteLearnMessagePayload[];
+  deletedMessageIds: string[];
 }) {
-  return JSON.stringify(args);
+  return JSON.stringify({
+    ...args,
+    deletedMessageIds: [...args.deletedMessageIds].sort(),
+  });
+}
+
+function remoteLearnMessagePayloadEqual(
+  left: RemoteLearnMessagePayload | undefined,
+  right: RemoteLearnMessagePayload,
+): boolean {
+  return Boolean(left) && JSON.stringify(left) === JSON.stringify(right);
+}
+
+function learnSessionScopedKey(userId: string, courseId: string, sessionId: string): string {
+  return [userId, courseId, sessionId].map(encodeURIComponent).join(':');
+}
+
+function excludePendingDeletedLearnSessions(
+  userId: string,
+  courseId: string,
+  sessions: LearnChatSession[],
+  pendingDeletedSessionKeys: ReadonlySet<string>,
+): LearnChatSession[] {
+  return sessions.filter(
+    (session) =>
+      !pendingDeletedSessionKeys.has(learnSessionScopedKey(userId, courseId, session.id)),
+  );
 }
 
 function normalizeLearnSessionTitle(text: string): string {
@@ -3174,6 +3271,8 @@ async function planLearnTurn(args: {
   recentActivities?: StatusCalendarActivity[];
   recentPlans: PracticePlan[];
   problems: CourseProblemClientSummary[];
+  /** When full problem list is deferred, content-state count keeps availability truthful. */
+  problemBankActiveCountHint?: number;
   sourceUploads: CourseSourceUploadRecord[];
   resourceStates?: {
     notebooks: ResourceLoadStatus;
@@ -3185,6 +3284,10 @@ async function planLearnTurn(args: {
   signal?: AbortSignal;
 }): Promise<LearnTurnClientResponse | null> {
   const activeProblems = args.problems.filter((problem) => problem.status !== 'archived');
+  const problemBankActiveCount = Math.max(
+    activeProblems.length,
+    Math.max(0, args.problemBankActiveCountHint ?? 0),
+  );
   try {
     return await backendJson<LearnTurnClientResponse>('/api/learn/turn', {
       method: 'POST',
@@ -3243,8 +3346,8 @@ async function planLearnTurn(args: {
           rawText: activity.event?.rawText,
         })),
         problemBank: {
-          available: activeProblems.length > 0,
-          activeCount: activeProblems.length,
+          available: problemBankActiveCount > 0,
+          activeCount: problemBankActiveCount,
           samples: activeProblems.slice(0, 8).map((problem) => ({
             id: problem.id,
             title: problem.title,
@@ -3254,7 +3357,7 @@ async function planLearnTurn(args: {
         },
         resourceStates: args.resourceStates ?? {
           notebooks: args.snapshot ? 'ready' : 'loading',
-          problems: activeProblems.length > 0 ? 'ready' : 'empty',
+          problems: problemBankActiveCount > 0 ? 'ready' : 'empty',
           sources: args.sourceUploads.length > 0 ? 'ready' : 'empty',
         },
         sourceUploads: args.sourceUploads.slice(0, 12).map((source) => ({
@@ -3761,6 +3864,22 @@ function localDayKey(value: number | Date): string {
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
   return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function calendarEventPatch(
+  before: SyllabusCalendarEvent,
+  after: SyllabusCalendarEvent,
+): LearningCalendarEventPatch {
+  const patch: LearningCalendarEventPatch = {};
+  if (before.title !== after.title) patch.title = after.title;
+  if (before.kind !== after.kind) patch.kind = after.kind;
+  if (before.date !== after.date) patch.date = after.date;
+  if (before.durationMinutes !== after.durationMinutes) {
+    patch.durationMinutes = after.durationMinutes ?? null;
+  }
+  if (before.status !== after.status) patch.status = after.status ?? null;
+  if (before.rawText !== after.rawText) patch.rawText = after.rawText ?? null;
+  return patch;
 }
 
 function uniquePlanStrings(values: Array<string | undefined | null>, limit = 12): string[] {
@@ -4735,6 +4854,44 @@ function answerEvidenceArtifactFromCourseContext(args: {
   };
 }
 
+function answerEvidenceArtifactFromServerSummaries(args: {
+  evidence: CourseChatEvidenceSummary[];
+  question: string;
+}): Extract<LearnArtifact, { kind: 'answer_evidence' }> | null {
+  if (!args.evidence.length) return null;
+  const sources: LearnAnswerEvidenceSource[] = args.evidence.map((item) => {
+    const sourceType: LearnAnswerEvidenceSource['sourceType'] =
+      item.origin === 'problem_bank' || item.sourceType === 'problem'
+        ? 'problem_bank'
+        : item.origin === 'course_source' ||
+            /(?:source|document|markdown|upload)/i.test(item.sourceType)
+          ? 'source'
+          : 'memory';
+    return {
+      sourceType,
+      id: item.id,
+      sourceId: item.sourceId,
+      notebookId: item.notebookId ?? null,
+      title: item.title,
+      previewText: item.excerpt,
+      score: item.score,
+      metadata: {
+        origin: item.origin,
+        sourceType: item.sourceType,
+        courseId: item.courseId,
+        ...(item.sourceHash ? { sourceHash: item.sourceHash } : {}),
+      },
+    };
+  });
+  return {
+    kind: 'answer_evidence',
+    id: makeClientId('answer-evidence'),
+    title: '本次回答证据',
+    usedFor: args.question.slice(0, 160),
+    sources: sources.slice(0, 16),
+  };
+}
+
 function practicePlanCalendarDraftItems(plan: PracticePlan): LearnCalendarDraftItem[] {
   if (isProblemSelectionPlan(plan)) return [];
   const concepts = plan.targetConcepts.length ? plan.targetConcepts : [plan.title];
@@ -4970,7 +5127,7 @@ function miniLectureRegionStyle(region: MiniLectureRegion) {
   };
 }
 
-function MiniLectureInviteCard({
+export function MiniLectureInviteCard({
   prompt,
   deck,
   generating,
@@ -4987,69 +5144,64 @@ function MiniLectureInviteCard({
 }) {
   if (!prompt && !deck) return null;
   return (
-    <div
-      className={cn(
-        learnAssistantActionCardWidthClassName,
-        'mt-3 flex flex-col gap-2 border-t border-slate-200/80 pt-3 text-sm dark:border-white/10',
-      )}
-    >
+    <div className={cn(learnAssistantActionCardWidthClassName, 'mt-3.5')}>
       <div
         className={cn(
-          learnHomeGlowCardBaseClassName,
-          'flex flex-col gap-2 rounded-[16px] px-3.5 py-3',
+          'relative grid grid-cols-[38px_minmax(130px,1fr)_auto] items-center gap-2.5 overflow-hidden rounded-[17px] border p-3 shadow-[0_14px_34px_rgba(14,116,144,0.10)]',
+          deck
+            ? 'border-sky-400/25 bg-[radial-gradient(circle_at_12%_0%,rgba(125,211,252,0.24),transparent_38%),linear-gradient(135deg,#fbfdff_0%,#effaff_54%,#effcf9_100%)]'
+            : 'border-dashed border-violet-600/25 bg-[radial-gradient(circle_at_9%_16%,rgba(167,139,250,0.16),transparent_32%),linear-gradient(135deg,#faf5ff_0%,#fff_56%,#f0f9ff_100%)]',
         )}
       >
-        <LearnHomeGlowLayers variant="lecture" />
-        <div className="relative flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-950 dark:text-slate-50">
-              需要生成课堂讲解吗？
-            </p>
-            <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
-              {deck
-                ? `已生成 ${deck.pages.length} 页迷你课堂，可以直接打开观看。`
-                : '我可以把这段讲解压成一两页图片课堂，配合移动遮罩和语音播放。'}
-            </p>
-          </div>
-          <span className="shrink-0 rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-[#2F8FC9] ring-1 ring-[#A9E7FF]/65 dark:bg-white/10 dark:text-[#A9E7FF] dark:ring-[#A9E7FF]/20">
-            {deck ? `${deck.pages.length} 页` : '1-2 页'}
-          </span>
-        </div>
-        <div className="relative flex flex-wrap gap-2">
-          {deck ? (
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 gap-2 rounded-full bg-[#103832] px-3 text-xs text-white hover:bg-[#15574d] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
-              onClick={() => onOpen(deck)}
-              disabled={disabled}
-            >
-              <Play className="size-3.5" />
-              进入课堂
-            </Button>
+        <span
+          className="z-[1] grid size-[38px] place-items-center rounded-xl bg-[#172033] text-white shadow-[0_8px_20px_rgba(15,23,42,0.20)]"
+          aria-hidden
+        >
+          {generating ? (
+            <Loader2 className="size-[18px] animate-spin" />
           ) : (
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 gap-2 rounded-full bg-[#103832] px-3 text-xs text-white hover:bg-[#15574d] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
-              onClick={onGenerate}
-              disabled={disabled || generating}
-            >
-              {generating ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <BookOpenCheck className="size-3.5" />
-              )}
-              {generating ? '生成中' : '生成课堂讲解'}
-            </Button>
+            <BookOpenCheck className="size-[18px]" strokeWidth={1.8} />
           )}
-        </div>
+        </span>
+        <span className="z-[1] flex min-w-0 flex-col gap-[3px]">
+          <strong className="truncate text-xs font-bold tracking-[-0.01em] text-[#172033]">
+            {generating
+              ? '正在生成课堂讲解'
+              : deck
+                ? deck.title || '课堂讲解已生成'
+                : '把这段回答变成课堂讲解'}
+          </strong>
+          <small className="truncate text-[9px] text-[#607086]">
+            {deck ? '图片、语音与动态聚焦均已准备好' : '生成图片式课件，恢复遮罩区域并配课堂语音'}
+          </small>
+        </span>
+        <span className="z-[1] self-start rounded-full border border-sky-400/20 bg-white/75 px-[7px] py-[3px] text-[8px] font-bold text-[#0878a4]">
+          {generating ? '处理中' : deck ? '已就绪' : '1–2 页'}
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          className="z-[1] col-[2/4] h-[30px] w-max gap-1.5 rounded-full bg-[#172033] px-3 text-[10px] font-semibold text-white shadow-[0_7px_16px_rgba(15,23,42,0.14)] hover:bg-[#273750]"
+          onClick={deck ? () => onOpen(deck) : onGenerate}
+          disabled={disabled || generating}
+        >
+          {generating ? (
+            <Loader2 className="size-[13px] animate-spin" />
+          ) : (
+            <Play className="size-[13px]" fill="currentColor" />
+          )}
+          {generating ? '生成中…' : deck ? '查看讲解' : '生成课堂讲解'}
+        </Button>
+        <span
+          className="pointer-events-none absolute -right-[30px] -top-11 size-[84px] rotate-[20deg] rounded-3xl border border-white/70"
+          aria-hidden
+        />
       </div>
     </div>
   );
 }
 
-function MiniLectureClassroomDialog({
+export function MiniLectureClassroomDialog({
   deck,
   open,
   onOpenChange,
@@ -5061,9 +5213,11 @@ function MiniLectureClassroomDialog({
   const [pageIndex, setPageIndex] = useState(0);
   const [actionIndex, setActionIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [activeRegionId, setActiveRegionId] = useState<string | null>(null);
   const [speechText, setSpeechText] = useState('');
   const timeoutRef = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const playbackRef = useRef(0);
 
   const page = deck?.pages[Math.max(0, Math.min(pageIndex, (deck?.pages.length || 1) - 1))] || null;
@@ -5077,8 +5231,10 @@ function MiniLectureClassroomDialog({
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
-    if (typeof window !== 'undefined') {
-      window.speechSynthesis?.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
     }
     setPlaying(false);
   }, []);
@@ -5131,40 +5287,42 @@ function MiniLectureClassroomDialog({
 
     timeoutRef.current = window.setTimeout(() => {
       if (playbackRef.current !== requestId) return;
+      if (action.elementId) setActiveRegionId(action.elementId);
       setSpeechText(action.text);
-      if (typeof window === 'undefined' || !window.speechSynthesis) {
+      if (!action.audioDataUrl) {
         timeoutRef.current = window.setTimeout(
           () => setActionIndex((current) => current + 1),
           Math.max(1400, Math.min(5200, action.text.length * 90)),
         );
         return;
       }
-
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(action.text);
-      utterance.lang = 'zh-CN';
-      utterance.rate = 1;
-      utterance.volume = 1;
-      const voices = window.speechSynthesis.getVoices();
-      const zhVoice = voices.find((voice) =>
-        /^zh|Chinese|Mandarin/i.test(voice.lang || voice.name),
-      );
-      if (zhVoice) utterance.voice = zhVoice;
-      utterance.onend = () => {
+      const audio = new Audio(action.audioDataUrl);
+      audio.playbackRate = playbackRate;
+      audioRef.current = audio;
+      audio.onended = () => {
         if (playbackRef.current !== requestId) return;
+        audioRef.current = null;
         setActionIndex((current) => current + 1);
       };
-      utterance.onerror = () => {
+      audio.onerror = () => {
         if (playbackRef.current !== requestId) return;
+        audioRef.current = null;
         setActionIndex((current) => current + 1);
       };
-      window.speechSynthesis.speak(utterance);
+      void audio.play().catch(() => {
+        if (playbackRef.current !== requestId) return;
+        audioRef.current = null;
+        setActionIndex((current) => current + 1);
+      });
     }, 0);
     return () => {
       if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
-      window.speechSynthesis.cancel();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
     };
-  }, [actionIndex, deck, page, pageIndex, playing]);
+  }, [actionIndex, deck, page, pageIndex, playbackRate, playing]);
 
   useEffect(() => () => stopPlayback(), [stopPlayback]);
 
@@ -5182,21 +5340,54 @@ function MiniLectureClassroomDialog({
   if (!deck || !page) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(860px,92dvh)] w-[calc(100vw-1rem)] max-w-5xl overflow-hidden rounded-[28px] border-slate-200/80 bg-slate-950 p-0 text-white shadow-2xl dark:border-white/10">
-        <DialogHeader className="border-b border-white/10 px-5 py-4 text-left">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <DialogTitle className="truncate text-base text-white">{deck.title}</DialogTitle>
-              <p className="mt-1 text-xs text-slate-400">
-                第 {pageIndex + 1}/{deck.pages.length} 页 · {page.regions.length} 个讲解区域
-              </p>
-            </div>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) stopPlayback();
+        onOpenChange(nextOpen);
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName={SYNTARA_WORKSPACE_DIALOG_OVERLAY_CLASS}
+        className={cn(
+          SYNTARA_WORKSPACE_DIALOG_CONTENT_CLASS,
+          'h-[min(820px,94dvh)] max-w-[1080px] border-slate-200 text-slate-900 min-[781px]:h-[min(720px,88dvh)]',
+        )}
+      >
+        <DialogHeader className="flex min-h-[70px] shrink-0 flex-row items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-3 text-left min-[781px]:min-h-[78px] min-[781px]:gap-[18px] min-[781px]:px-[18px] min-[781px]:py-[15px]">
+          <div className="min-w-0">
+            <DialogTitle className="max-w-[56vw] truncate text-sm font-semibold text-slate-900 min-[781px]:max-w-none min-[781px]:text-base">
+              {deck.title}
+            </DialogTitle>
+            <p className="mt-1 text-[9px] text-slate-500">
+              第 {pageIndex + 1}/{deck.pages.length} 页 · {page.regions.length} 个讲解片段
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <label className="inline-flex h-8 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-0 pl-[5px] pr-[5px] text-[9px] font-semibold text-slate-500 min-[521px]:pl-2.5">
+              <span className="hidden min-[521px]:inline">倍速</span>
+              <select
+                aria-label="讲解播放速度"
+                value={playbackRate}
+                onChange={(event) => {
+                  const nextRate = Number(event.target.value);
+                  setPlaybackRate(nextRate);
+                  if (audioRef.current) audioRef.current.playbackRate = nextRate;
+                }}
+                className="h-6 rounded-full border-0 bg-white py-0 pl-[7px] pr-5 text-[9px] font-semibold text-slate-900 outline-none"
+              >
+                {[0.75, 1, 1.25, 1.5, 2].map((rate) => (
+                  <option key={rate} value={rate}>
+                    {rate}×
+                  </option>
+                ))}
+              </select>
+            </label>
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              className="h-8 rounded-full border-white/15 bg-white/8 px-3 text-xs text-white hover:bg-white/15"
+              className="size-8 gap-[7px] rounded-full border border-slate-900 bg-slate-900 p-0 font-semibold text-white hover:bg-slate-700 min-[521px]:w-auto min-[521px]:px-[13px]"
               onClick={() => {
                 if (playing) {
                   stopPlayback();
@@ -5207,14 +5398,34 @@ function MiniLectureClassroomDialog({
                 setPlaying(true);
               }}
             >
-              {playing ? '暂停' : '播放'}
+              {playing ? (
+                <Pause className="size-3.5" fill="currentColor" />
+              ) : (
+                <Play className="size-3.5" fill="currentColor" />
+              )}
+              <span className="hidden text-[10px] min-[521px]:inline">
+                {playing ? '暂停讲解' : '播放讲解'}
+              </span>
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="size-8 rounded-full border-slate-200 bg-slate-50 text-slate-900 hover:bg-slate-100"
+              aria-label="关闭课堂讲解"
+              onClick={() => {
+                stopPlayback();
+                onOpenChange(false);
+              }}
+            >
+              <X className="size-[17px]" />
             </Button>
           </div>
         </DialogHeader>
 
-        <div className="grid min-h-0 gap-0 lg:grid-cols-[minmax(0,1fr)_260px]">
-          <div className="bg-black px-3 py-4 sm:px-5">
-            <div className="relative mx-auto aspect-video max-h-[68dvh] overflow-hidden rounded-[18px] border border-white/10 bg-white">
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(240px,1fr)_minmax(160px,36%)] min-[521px]:grid-rows-[minmax(280px,1fr)_minmax(180px,34%)] min-[781px]:grid-cols-[minmax(0,1fr)_250px] min-[781px]:grid-rows-none">
+          <div className="flex min-h-0 min-w-0 flex-col justify-center bg-slate-50 p-3 min-[781px]:p-5">
+            <div className="relative mx-auto aspect-video w-full max-h-[calc(88dvh-170px)] overflow-hidden rounded-[19px] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.10)]">
               <img
                 src={page.imageDataUrl}
                 alt={page.title}
@@ -5222,76 +5433,113 @@ function MiniLectureClassroomDialog({
               />
               {activeRegion ? (
                 <div
-                  className="pointer-events-none absolute rounded-[18px] border-2 transition-all duration-700 ease-out"
+                  className="pointer-events-none absolute rounded-[17px] border-2 transition-all duration-700 ease-out"
                   style={{
                     ...miniLectureRegionStyle(activeRegion),
                     borderColor: activeRegion.markerColorHex,
-                    boxShadow: `0 0 0 9999px rgba(2, 6, 23, 0.58), 0 0 34px ${activeRegion.markerColorHex}`,
+                    boxShadow: `0 0 0 9999px rgba(15,23,42,0.68), 0 0 24px ${activeRegion.markerColorHex}`,
                   }}
                 />
               ) : null}
             </div>
-          </div>
-
-          <aside className="flex min-h-0 flex-col border-t border-white/10 bg-slate-950/95 lg:border-l lg:border-t-0">
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                讲解节奏
-              </p>
-              <div className="mt-3 space-y-2">
-                {page.regions.map((region) => (
-                  <button
-                    key={region.id}
-                    type="button"
-                    className={cn(
-                      'w-full rounded-[14px] border px-3 py-2 text-left text-xs leading-5 transition',
-                      activeRegionId === region.id
-                        ? 'border-sky-300/70 bg-sky-400/15 text-sky-50'
-                        : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10',
-                    )}
-                    onClick={() => {
-                      stopPlayback();
-                      setActiveRegionId(region.id);
-                      setSpeechText(region.script);
-                    }}
-                  >
-                    <span className="block font-semibold">{region.label}</span>
-                    <span className="mt-0.5 line-clamp-2 block text-slate-400">
-                      {region.script}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              {speechText ? (
-                <div className="mt-4 rounded-[16px] border border-white/10 bg-white/5 px-3 py-3 text-xs leading-5 text-slate-200">
-                  {speechText}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex items-center justify-between gap-2 border-t border-white/10 px-4 py-3">
+            <div className="mt-3.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2.5">
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-8 rounded-full border-white/15 bg-white/8 px-3 text-xs text-white hover:bg-white/15 disabled:opacity-40"
+                className="h-auto w-max gap-1 rounded-full border-slate-200 bg-white px-[9px] py-[5px] text-[9px] text-slate-700 disabled:opacity-35"
                 onClick={() => jumpToPage(pageIndex - 1)}
                 disabled={!canPrev}
               >
-                <ChevronLeft className="size-3.5" />
+                <ChevronLeft className="size-[15px]" />
                 上一页
               </Button>
+              <span className="flex gap-[5px]">
+                {deck.pages.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={cn(
+                      'h-1 w-[18px] rounded-full bg-slate-300',
+                      index === pageIndex && 'bg-slate-900',
+                    )}
+                    aria-label={`第 ${index + 1} 页`}
+                    onClick={() => jumpToPage(index)}
+                  />
+                ))}
+              </span>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-8 rounded-full border-white/15 bg-white/8 px-3 text-xs text-white hover:bg-white/15 disabled:opacity-40"
+                className="h-auto w-max justify-self-end gap-1 rounded-full border-slate-200 bg-white px-[9px] py-[5px] text-[9px] text-slate-700 disabled:opacity-35"
                 onClick={() => jumpToPage(pageIndex + 1)}
                 disabled={!canNext}
               >
                 下一页
-                <ChevronRight className="size-3.5" />
+                <ChevronRight className="size-[15px]" />
               </Button>
+            </div>
+            <p className="mt-[9px] text-center text-[8px] leading-[1.4] text-slate-400">
+              语音由 OpenAI 人工智能生成，不是真人录音。
+            </p>
+          </div>
+
+          <aside className="flex min-h-0 flex-col border-t border-slate-200 bg-white min-[781px]:border-l min-[781px]:border-t-0">
+            <div className="flex items-center justify-between gap-2.5 border-b border-slate-200 px-3 py-2.5 text-[10px] font-semibold text-slate-900 min-[781px]:p-4">
+              <span className="inline-flex items-center gap-[7px]">
+                <Volume2 className="size-[15px]" />
+                讲解节奏
+              </span>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2 py-[5px] text-[8px] text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                onClick={() => {
+                  stopPlayback();
+                  setActiveRegionId(null);
+                  setSpeechText('');
+                }}
+              >
+                <Eraser className="size-[13px]" />
+                清除聚焦
+              </button>
+            </div>
+            <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto p-3 min-[781px]:flex min-[781px]:flex-col">
+              {page.regions.map((region) => (
+                <button
+                  key={region.id}
+                  type="button"
+                  className={cn(
+                    'relative grid grid-cols-[5px_minmax(0,1fr)] gap-x-[9px] gap-y-[5px] rounded-[13px] border border-slate-200 bg-slate-50 p-2.5 text-left text-slate-900',
+                    activeRegionId === region.id
+                      ? 'border-slate-400 bg-blue-50'
+                      : 'hover:bg-slate-100',
+                  )}
+                  onClick={() => {
+                    stopPlayback();
+                    setActiveRegionId(region.id);
+                    setSpeechText(region.script);
+                  }}
+                >
+                  <span
+                    className="row-span-2 h-full w-[5px] rounded-full"
+                    style={{ background: region.markerColorHex || '#94a3b8' }}
+                  />
+                  <strong className="text-[10px]">{region.label}</strong>
+                  <small className="line-clamp-2 text-[9px] leading-[1.55] text-slate-500">
+                    {region.script}
+                  </small>
+                </button>
+              ))}
+            </div>
+
+            <div className="hidden border-t border-slate-200 bg-slate-50 px-[15px] pb-4 pt-[13px] min-[781px]:block">
+              <span className="text-[8px] font-bold tracking-[0.1em] text-blue-600">
+                {playing ? '正在播放 OpenAI 语音' : speechText ? '当前讲解' : '准备就绪'}
+              </span>
+              <p className="mt-1.5 text-[9px] leading-[1.6] text-slate-700">
+                {speechText || '点击“播放讲解”，遮罩会跟随讲解内容移动。'}
+              </p>
             </div>
           </aside>
         </div>
@@ -5300,7 +5548,7 @@ function MiniLectureClassroomDialog({
   );
 }
 
-function PlanActionCard({
+export function PlanActionCard({
   plan,
   sessionSummary,
   problemsState,
@@ -5314,15 +5562,14 @@ function PlanActionCard({
   onStart: (plan: PracticePlan) => void;
 }) {
   const isQuizPlan = plan.mode === 'quiz';
-  const planGlowVariant = isQuizPlan ? 'quiz' : 'practice';
   const planIconClassName = isQuizPlan
-    ? 'border-[#A9E7FF]/70 bg-white/72 text-[#2F8FC9] dark:border-[#A9E7FF]/20 dark:bg-white/8 dark:text-[#A9E7FF]'
-    : 'border-[#A9F0DC]/70 bg-white/72 text-[#106453] dark:border-[#A9F0DC]/20 dark:bg-white/8 dark:text-[#A9F0DC]';
+    ? 'bg-sky-50 text-sky-700'
+    : 'bg-emerald-50 text-emerald-700';
   const planChipClassName = isQuizPlan
-    ? 'border-[#A9E7FF]/70 bg-white/58 text-[#2F8FC9] dark:border-[#A9E7FF]/22 dark:bg-white/6 dark:text-[#A9E7FF]'
-    : 'border-[#A9F0DC]/70 bg-white/58 text-[#106453] dark:border-[#A9F0DC]/22 dark:bg-white/6 dark:text-[#A9F0DC]';
+    ? 'border-sky-100 bg-sky-50 text-sky-700'
+    : 'border-emerald-100 bg-emerald-50 text-emerald-700';
   const planMetricPillClassName =
-    'inline-flex h-8 min-w-[76px] items-center justify-center gap-1.5 rounded-full bg-white/68 px-2.5 text-[11px] shadow-sm ring-1 ring-[#A9E7FF]/35 dark:bg-white/5 dark:ring-white/10';
+    'inline-flex items-center justify-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[8px] font-semibold text-slate-500';
   const isSelectionPlan = isProblemSelectionPlan(plan);
   const rationale = practicePlanDisplayRationale(plan).slice(0, 4);
   const gaps = plan.evidence?.gaps?.slice(0, 2) || [];
@@ -5359,25 +5606,23 @@ function PlanActionCard({
     <div
       className={cn(
         learnAssistantActionCardWidthClassName,
-        learnHomeGlowCardBaseClassName,
-        'mt-3 rounded-[18px]',
+        'mt-3 overflow-hidden rounded-[18px] border border-slate-400/20 bg-white shadow-[0_16px_36px_rgba(15,23,42,0.07)]',
       )}
     >
-      <LearnHomeGlowLayers variant={planGlowVariant} />
-      <div className="relative px-4 py-3.5">
+      <div className="px-3.5 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <span
               className={cn(
-                'mt-0.5 grid size-8 shrink-0 place-items-center rounded-[11px] border shadow-sm',
+                'grid size-7 shrink-0 place-items-center rounded-[9px]',
                 planIconClassName,
               )}
             >
-              <BookOpenCheck className="size-3.5" strokeWidth={1.9} />
+              <BookOpenCheck className="size-[15px]" strokeWidth={1.9} />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-foreground">{plan.title}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+              <p className="truncate text-xs font-bold text-slate-900">{plan.title}</p>
+              <p className="mt-[3px] text-[9px] text-slate-500">
                 {isSelectionPlan ? '题库选题' : plan.mode === 'quiz' ? '课程测验' : '刷题计划'} ·{' '}
                 {planMeta}
               </p>
@@ -5387,20 +5632,20 @@ function PlanActionCard({
             type="button"
             onClick={() => onStart(plan)}
             disabled={disabled || !hasQuestions}
-            className="h-8 shrink-0 gap-1.5 rounded-full bg-[#103832] px-3 text-xs text-white shadow-sm hover:bg-[#15574d] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+            className="h-[30px] shrink-0 gap-1.5 rounded-full bg-slate-900 px-3 text-[9px] font-bold text-white shadow-sm hover:bg-slate-700"
           >
-            <Play className="size-3.5" />
+            <Play className="size-3" />
             {actionLabel}
           </Button>
         </div>
 
-        <div className="mt-3 grid gap-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-          <div className="flex min-w-0 flex-wrap gap-1.5">
+        <div className="mt-2.5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="flex min-w-0 flex-wrap gap-1">
             {plan.targetConcepts.slice(0, 5).map((concept) => (
               <span
                 key={concept}
                 className={cn(
-                  'rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-5',
+                  'rounded-full border px-2 py-1 text-[8px] font-semibold',
                   planChipClassName,
                 )}
               >
@@ -5408,7 +5653,7 @@ function PlanActionCard({
               </span>
             ))}
           </div>
-          <div className="flex flex-wrap gap-1.5 text-center text-xs sm:justify-end">
+          <div className="flex flex-wrap gap-1 text-center sm:justify-end">
             <span className={planMetricPillClassName}>
               <strong className="text-foreground">{plan.difficultyMix.easy}</strong>
               <span className="text-muted-foreground">基础</span>
@@ -5425,10 +5670,8 @@ function PlanActionCard({
         </div>
 
         {questionLinks.length ? (
-          <div className="mt-3 space-y-1.5 border-t border-white/70 pt-3 dark:border-white/10">
-            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-              题库选题 · 点击题目直接作答
-            </p>
+          <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
+            <p className="text-[9px] font-bold text-slate-900">题库选题 · 点击题目直接作答</p>
             {questionLinks.map((question, index) => (
               <Link
                 key={question.problemId}
@@ -5437,27 +5680,23 @@ function PlanActionCard({
                 tabIndex={disabled ? -1 : undefined}
                 onClick={disabled ? (event) => event.preventDefault() : undefined}
                 className={cn(
-                  'group flex items-center gap-2 rounded-[12px] border border-white/70 bg-white/56 px-3 py-2 text-xs transition-colors hover:border-[#69CDB6]/70 hover:bg-white/80 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-[#69CDB6]/35 dark:hover:bg-white/[0.08]',
+                  'group flex items-center gap-2 rounded-[12px] border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-[9px] transition-colors hover:border-emerald-200 hover:bg-emerald-50/50',
                   disabled && 'pointer-events-none opacity-60',
                 )}
               >
-                <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#DDF7F0] text-[10px] font-semibold text-[#106453] dark:bg-[#69CDB6]/15 dark:text-[#A9F0DC]">
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-slate-900 text-[9px] font-bold text-white">
                   {index + 1}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium text-slate-800 dark:text-slate-100">
-                    {question.title}
-                  </span>
+                  <span className="block truncate font-bold text-slate-800">{question.title}</span>
                   {question.reason ? (
-                    <span className="mt-0.5 block truncate text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="mt-0.5 block truncate text-[8px] text-slate-500">
                       {question.reason}
                     </span>
                   ) : null}
                 </span>
-                <span className="shrink-0 text-[11px] font-medium text-[#106453] dark:text-[#A9F0DC]">
-                  做这道题
-                </span>
-                <ChevronRight className="size-3.5 shrink-0 text-[#106453] transition-transform group-hover:translate-x-0.5 dark:text-[#A9F0DC]" />
+                <span className="shrink-0 text-[8px] font-bold text-emerald-700">做这道题</span>
+                <ChevronRight className="size-3 shrink-0 text-emerald-700 transition-transform group-hover:translate-x-0.5" />
               </Link>
             ))}
           </div>
@@ -5741,7 +5980,7 @@ function memoryActionDetailRows(action: LearningAction): Array<{ label: string; 
   ].filter((row) => row.value);
 }
 
-function LearnLearningActionCards({
+export function LearnLearningActionCards({
   actions,
   disabled = false,
   onConfirm,
@@ -5759,116 +5998,138 @@ function LearnLearningActionCards({
 }) {
   if (!actions?.length) return null;
   return (
-    <div className="mt-3 space-y-2">
-      {actions.map((action) => {
-        const completed =
-          action.status === 'completed' ||
-          action.status === 'confirmed' ||
-          action.status === 'cancelled';
-        const requiresConfirmation = action.confirmation === 'required';
-        const memoryDetails = memoryActionDetailRows(action);
-        if (action.kind === 'review_mode.request_choice') {
-          const options = reviewModeChoiceOptions(action);
-          return (
-            <div
-              key={action.id}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900 dark:text-slate-100">
+    <section
+      className="mt-2.5 overflow-hidden rounded-[14px] border border-slate-400/20 bg-white/90"
+      aria-label="助教建议的下一步"
+    >
+      <header className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-2.5 py-2">
+        <span className="inline-flex items-center gap-1.5 text-[9px] font-bold text-violet-700">
+          <Sparkles className="size-3" />
+          建议的下一步
+        </span>
+        <small className="text-[8px] text-slate-400">执行前会明确确认</small>
+      </header>
+      <div className="divide-y divide-slate-100">
+        {actions.map((action) => {
+          const completed =
+            action.status === 'completed' ||
+            action.status === 'confirmed' ||
+            action.status === 'cancelled';
+          const requiresConfirmation = action.confirmation === 'required';
+          const memoryDetails = memoryActionDetailRows(action);
+          if (action.kind === 'review_mode.request_choice') {
+            const options = reviewModeChoiceOptions(action);
+            return (
+              <article
+                key={action.id}
+                className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2 px-2.5 py-[9px] sm:grid-cols-[28px_minmax(0,1fr)_auto]"
+              >
+                <span className="grid size-7 place-items-center rounded-[9px] bg-violet-50 text-violet-700">
+                  <Sparkles className="size-[15px]" />
+                </span>
+                <span className="grid min-w-0 gap-0.5">
+                  <strong className="truncate text-[9px] text-slate-700">
                     {learnActionTitle(action)}
-                  </p>
-                  <p className="mt-1 text-slate-500 dark:text-slate-400">
+                  </strong>
+                  <small className="truncate text-[8px] leading-[1.45] text-slate-500">
                     {action.summary || action.label}
-                  </p>
+                  </small>
+                </span>
+                <div className="col-[2/3] flex flex-wrap gap-1.5 sm:col-auto">
+                  {options.map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      size="sm"
+                      disabled={disabled || completed}
+                      className={cn(
+                        'h-7 rounded-full px-2.5 text-[8px] font-bold',
+                        option.value === 'both'
+                          ? 'bg-violet-600 text-white hover:bg-violet-700'
+                          : 'border border-violet-200 bg-white text-violet-700 hover:bg-violet-50',
+                      )}
+                      onClick={() => onReviewModeChoice?.(action, option)}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                  {requiresConfirmation && !completed ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 rounded-full px-2 text-[8px] text-slate-400"
+                      disabled={disabled}
+                      onClick={() => onCancel(action)}
+                    >
+                      取消
+                    </Button>
+                  ) : null}
                 </div>
-                {requiresConfirmation && !completed ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 shrink-0 rounded-[10px] px-3 text-xs"
-                    disabled={disabled}
-                    onClick={() => onCancel(action)}
-                  >
-                    取消
-                  </Button>
-                ) : null}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {options.map((option) => (
-                  <Button
-                    key={option.value}
-                    type="button"
-                    size="sm"
-                    variant={option.value === 'both' ? 'default' : 'outline'}
-                    disabled={disabled || completed}
-                    className="h-8 rounded-[10px] px-3 text-xs"
-                    onClick={() => onReviewModeChoice?.(action, option)}
-                  >
-                    {option.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div
-            key={action.id}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-slate-900 dark:text-slate-100">
+              </article>
+            );
+          }
+          return (
+            <article
+              key={action.id}
+              className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-start gap-2 px-2.5 py-[9px]"
+            >
+              <span className="grid size-7 place-items-center rounded-[9px] bg-violet-50 text-violet-700">
+                <Sparkles className="size-[15px]" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[9px] font-bold text-slate-700">
                   {learnActionTitle(action)}
                 </p>
                 {memoryDetails.length ? (
-                  <dl className="mt-2 space-y-1.5 text-slate-600 dark:text-slate-300">
+                  <dl className="mt-1.5 space-y-1 text-[8px] leading-[1.45] text-slate-600">
                     {memoryDetails.map((row) => (
-                      <div key={row.label} className="grid grid-cols-[3.5rem_1fr] gap-2">
-                        <dt className="font-medium text-slate-400 dark:text-slate-500">
-                          {row.label}
-                        </dt>
+                      <div key={row.label} className="grid grid-cols-[2.5rem_1fr] gap-1.5">
+                        <dt className="font-medium text-slate-400">{row.label}</dt>
                         <dd className="min-w-0 whitespace-pre-wrap break-words">{row.value}</dd>
                       </div>
                     ))}
                   </dl>
                 ) : (
-                  <p className="mt-1 line-clamp-2 text-slate-500 dark:text-slate-400">
+                  <p className="mt-0.5 truncate text-[8px] leading-[1.45] text-slate-500">
                     {action.summary || action.label}
                   </p>
                 )}
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={disabled || completed}
-                className={cn(
-                  'h-8 shrink-0 rounded-[10px] px-3 text-xs',
-                  requiresConfirmation ? '' : 'hidden',
-                )}
-                onClick={() => onCancel(action)}
-              >
-                取消
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={action.confirmation === 'none' ? 'outline' : 'default'}
-                disabled={disabled || completed}
-                className="h-8 shrink-0 rounded-[10px] px-3 text-xs"
-                onClick={() => onConfirm(action)}
-              >
-                {learnActionButtonLabel(action)}
-              </Button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={disabled || completed}
+                  className={cn(
+                    'h-7 shrink-0 rounded-full px-2 text-[8px] text-slate-400',
+                    requiresConfirmation ? '' : 'hidden',
+                  )}
+                  onClick={() => onCancel(action)}
+                >
+                  取消
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={disabled || completed}
+                  className={cn(
+                    'h-7 shrink-0 rounded-full px-2.5 text-[8px] font-bold',
+                    completed
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-violet-600 text-white hover:bg-violet-700',
+                  )}
+                  onClick={() => onConfirm(action)}
+                >
+                  {learnActionButtonLabel(action)}
+                </Button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -6044,7 +6305,7 @@ function answerEvidenceSourceLink(
       };
     }
     return {
-      href: `/course/${encodedCourseId}/resources?tab=problems`,
+      href: `/course/${encodedCourseId}/problem-bank`,
       external: false,
       label: '打开课程题库',
     };
@@ -6243,8 +6504,14 @@ function LearnArtifactCards({
                 open={openCalendarDraftId === artifact.id}
                 onOpenChange={(open) => setOpenCalendarDraftId(open ? artifact.id : null)}
               >
-                <DialogContent className="flex max-h-[min(720px,86dvh)] w-[calc(100vw-1rem)] max-w-2xl flex-col overflow-hidden rounded-[24px] border-border/80 bg-background p-0 shadow-2xl">
-                  <DialogHeader className="border-b border-border/70 px-5 py-4 text-left">
+                <DialogContent
+                  overlayClassName={SYNTARA_WORKSPACE_DIALOG_OVERLAY_CLASS}
+                  className={cn(
+                    SYNTARA_WORKSPACE_DIALOG_CONTENT_CLASS,
+                    'h-auto max-h-[min(720px,86dvh)] max-w-2xl',
+                  )}
+                >
+                  <DialogHeader className={SYNTARA_DIALOG_HEADER_CLASS}>
                     <DialogTitle className="flex items-center gap-2 text-base">
                       <span className="grid size-8 place-items-center rounded-[10px] bg-amber-50 text-amber-700 ring-1 ring-amber-100 dark:bg-amber-400/10 dark:text-amber-100 dark:ring-amber-300/15">
                         <CalendarDays className="size-4" />
@@ -6787,16 +7054,38 @@ export function LearnPageClient() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const sourceDocumentInputRef = useRef<HTMLInputElement>(null);
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const conversationScrollContainerRef = useRef<HTMLDivElement>(null);
   const syllabusInputRef = useRef<HTMLInputElement>(null);
   const sourceUploadPanelOpenRef = useRef(false);
   const platformMemoryStatusMockTimersRef = useRef<number[]>([]);
   const appliedPlatformMemoryStatusMockModeRef = useRef<PlatformMemoryStatusMockMode>('off');
   const lastSyncedConversationRef = useRef('');
+  const lastPersistedMessagesRef = useRef<{
+    key: string;
+    messages: LearnMessage[];
+  }>({ key: '', messages: [] });
   const activeMessageStoreKeyRef = useRef('');
   const activeMessagesRef = useRef<{ key: string; messages: LearnMessage[] } | null>(null);
+  const dirtyConversationMessagesRef = useRef(
+    new Map<string, Map<string, RemoteLearnMessagePayload>>(),
+  );
+  const pendingDeletedSessionKeysRef = useRef(new Set<string>());
+  const learnSessionsRef = useRef<LearnChatSession[]>([]);
+  const composerSessionKeyRef = useRef<{
+    key: string;
+    userId: string;
+    courseId: string;
+    sessionId: string;
+  } | null>(null);
+  const composerDraftRef = useRef('');
+  const composerAttachmentsRef = useRef<LearnImageAttachment[]>([]);
+  const composerAttachmentsBySessionRef = useRef(new Map<string, LearnImageAttachment[]>());
   const hydratedAttachmentUrlsRef = useRef(new Set<string>());
   const learningActionExecutionIdsRef = useRef(new Set<string>());
   const problemsLoadStateRef = useRef<ResourceLoadState>(emptyResourceLoadState());
+  const notebooksLoadStateRef = useRef<ResourceLoadState>(emptyResourceLoadState());
+  const problemsHydrationWantedRef = useRef(false);
+  const notebooksHydrationWantedRef = useRef(false);
   const sendRequestRef = useRef<{
     key: string;
     controller: AbortController;
@@ -6807,6 +7096,12 @@ export function LearnPageClient() {
     courseId: string;
     promise: Promise<CourseProblemClientSummary[]>;
   } | null>(null);
+  const notebookLoadPromiseRef = useRef<{
+    courseId: string;
+    promise: Promise<StageListItem[]>;
+  } | null>(null);
+  const problemHydrationAbortRef = useRef<AbortController | null>(null);
+  const notebookHydrationAbortRef = useRef<AbortController | null>(null);
   // A connection-limited deployment cannot safely absorb one independent
   // queue per surface. Every database-backed course read shares this tail, so
   // the initial metadata, resource hydration, and deferred reconciliation
@@ -6869,13 +7164,15 @@ export function LearnPageClient() {
     useState<ResourceLoadState>(emptyResourceLoadState);
   const [problemsLoadState, setProblemsLoadState] =
     useState<ResourceLoadState>(emptyResourceLoadState);
+  const [problemsHydrationWanted, setProblemsHydrationWanted] = useState(false);
+  const [notebooksHydrationWanted, setNotebooksHydrationWanted] = useState(false);
   const [sourcesLoadState, setSourcesLoadState] =
     useState<ResourceLoadState>(emptyResourceLoadState);
   const [resourceLoadAttempts, setResourceLoadAttempts] = useState<
     Record<CourseResourceKind, number>
   >({ notebooks: 0, problems: 0, sources: 0 });
   const [snapshot, setSnapshot] = useState<LearnerCourseSnapshot | null>(null);
-  const [, setProgressSelection] = useState('');
+  const [progressSelection, setProgressSelection] = useState('');
   const [recentPlanCandidates, setRecentPlans] = useState<PracticePlan[]>([]);
   const [practiceSessionCandidates, setPracticeSessions] = useState<PracticeSession[]>([]);
   const [practicePopupSessionId, setPracticePopupSessionId] = useState<string | null>(null);
@@ -6888,15 +7185,20 @@ export function LearnPageClient() {
     string | null
   >(null);
   const [practiceProblemHelpTabActive, setPracticeProblemHelpTabActive] = useState(false);
-  const [syllabusEventState, setSyllabusEventState] = useState<{
-    courseId: string | null;
-    events: SyllabusCalendarEvent[];
-  }>({ courseId: null, events: [] });
   const [syllabusImportMessage, setSyllabusImportMessage] = useState<string | null>(null);
   const [syllabusDialogOpen, setSyllabusDialogOpen] = useState(false);
   const [courseFilesDialogOpen, setCourseFilesDialogOpen] = useState(false);
   const [createCourseOpen, setCreateCourseOpen] = useState(false);
   const [courseSettingsOpen, setCourseSettingsOpen] = useState(false);
+  const [courseSettingsTab, setCourseSettingsTab] = useState<'general' | 'danger'>('general');
+  const [settingsDraftName, setSettingsDraftName] = useState('');
+  const [settingsDraftCode, setSettingsDraftCode] = useState('');
+  const [settingsDraftDescription, setSettingsDraftDescription] = useState('');
+  const [settingsDraftAvatarUrl, setSettingsDraftAvatarUrl] = useState('');
+  const [settingsAvatarPage, setSettingsAvatarPage] = useState(0);
+  const [settingsAvatarDialogOpen, setSettingsAvatarDialogOpen] = useState(false);
+  const [settingsAvatarPickerUrl, setSettingsAvatarPickerUrl] = useState('');
+  const [settingsSaving, setSettingsSaving] = useState(false);
   const [syllabusImportMode, setSyllabusImportMode] = useState<SyllabusImportMode>('file');
   const [syllabusCommitMode, setSyllabusCommitMode] = useState<SyllabusCommitMode>('merge');
   const [syllabusImportLoading, setSyllabusImportLoading] = useState(false);
@@ -6908,13 +7210,23 @@ export function LearnPageClient() {
   const [manualScheduleDate, setManualScheduleDate] = useState(() => localDayKey(new Date()));
   const [manualScheduleKind, setManualScheduleKind] = useState<SyllabusEventKind>('assignment');
   const [manualScheduleError, setManualScheduleError] = useState<string | null>(null);
-  const [messages, setMessagesState] = useState<LearnMessage[]>([]);
+  const [keyedMessagesState, setKeyedMessagesState] = useState<{
+    key: string;
+    messages: LearnMessage[];
+  }>({ key: '', messages: [] });
+  const messageStoreKey = keyedMessagesState.key;
+  const messages = keyedMessagesState.messages;
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<LearnImageAttachment[]>([]);
   const [sending, setSending] = useState(false);
   const [retryTurn, setRetryTurn] = useState<LearnRetryTurn | null>(null);
   const [sourceUploadingCourseId, setSourceUploadingCourseId] = useState<string | null>(null);
   const [sourceUploadPanelOpen, setSourceUploadPanelOpen] = useState(false);
+  const [notebookLibraryPanelOpen, setNotebookLibraryPanelOpen] = useState(false);
+  const [notebookLibraryQuery, setNotebookLibraryQuery] = useState('');
+  const [selectedNotebookLibraryTileId, setSelectedNotebookLibraryTileId] = useState<string | null>(
+    null,
+  );
   const [sourceUploadItems, setSourceUploadItems] = useState<LearnSourceUploadItem[]>([]);
   const [selectedSourceLibraryTileId, setSelectedSourceLibraryTileId] = useState<string | null>(
     null,
@@ -6927,6 +7239,18 @@ export function LearnPageClient() {
   const [sourceLibraryTextCache, setSourceLibraryTextCache] = useState<
     Record<string, SourceLibraryTextState>
   >({});
+  const [notebookMarkdownPageCache, setNotebookMarkdownPageCache] = useState<
+    Record<string, NotebookMarkdownPageState>
+  >({});
+  const [notebookMarkdownSectionCache, setNotebookMarkdownSectionCache] = useState<
+    Record<string, SourceLibraryTextState>
+  >({});
+  const [selectedNotebookSectionIds, setSelectedNotebookSectionIds] = useState<
+    Record<string, string>
+  >({});
+  const [notebookImagePreviewCache, setNotebookImagePreviewCache] = useState<
+    Record<string, NotebookImagePreviewState>
+  >({});
   const [courseSourceUploads, setCourseSourceUploads] = useState<CourseSourceUploadRecord[]>([]);
   const [completedSourceUploadBadge, setCompletedSourceUploadBadge] = useState<{
     courseId: string | null;
@@ -6937,6 +7261,7 @@ export function LearnPageClient() {
   const [publishableMemoryCount, setPublishableMemoryCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [learnSessions, setLearnSessions] = useState<LearnChatSession[]>([]);
+  learnSessionsRef.current = learnSessions;
   const [learnSessionListState, setLearnSessionListState] = useState<LearnSessionListState>({
     courseId: null,
     totalCount: 0,
@@ -6948,9 +7273,16 @@ export function LearnPageClient() {
   });
   const [allSessionsDialogOpen, setAllSessionsDialogOpen] = useState(false);
   const [deletingLearnSessionIds, setDeletingLearnSessionIds] = useState<string[]>([]);
-  const [messageStoreKey, setMessageStoreKey] = useState('');
+  const [pendingDeleteLearnSession, setPendingDeleteLearnSession] =
+    useState<LearnChatSession | null>(null);
   const [localConversationReadyKey, setLocalConversationReadyKey] = useState('');
   const [remoteConversationReadyKey, setRemoteConversationReadyKey] = useState('');
+  const [remoteConversationSummaryState, setRemoteConversationSummaryState] = useState<{
+    key: string;
+    summary: RemoteLearnConversationSummary;
+  } | null>(null);
+  const [remoteConversationMessagePageState, setRemoteConversationMessagePageState] =
+    useState<LearnConversationMessagePageState | null>(null);
   const [remoteConversationLoadError, setRemoteConversationLoadError] = useState<string | null>(
     null,
   );
@@ -6959,8 +7291,7 @@ export function LearnPageClient() {
   const [remoteConversationSyncError, setRemoteConversationSyncError] = useState<string | null>(
     null,
   );
-  const [requestedSessionDetailKey, setRequestedSessionDetailKey] = useState('');
-  const [draftSessionGeneration, setDraftSessionGeneration] = useState(0);
+  const [learnSessionListRefreshAttempt, setLearnSessionListRefreshAttempt] = useState(0);
   const [initialBootSettledKey, setInitialBootSettledKey] = useState('');
   const [courseContentWatchError, setCourseContentWatchError] = useState<{
     courseId: string;
@@ -6972,6 +7303,8 @@ export function LearnPageClient() {
   learnSessionListCourseIdRef.current = learnSessionListState.courseId;
 
   const retryCourseResource = useCallback((kind: CourseResourceKind) => {
+    if (kind === 'problems') setProblemsHydrationWanted(true);
+    if (kind === 'notebooks') setNotebooksHydrationWanted(true);
     setResourceLoadAttempts((current) => ({
       ...current,
       [kind]: current[kind] + 1,
@@ -7141,6 +7474,20 @@ export function LearnPageClient() {
     }
   }, []);
 
+  const replaceMessagesFromRead = useCallback(
+    (key: string, action: SetStateAction<LearnMessage[]>) => {
+      if (activeMessageStoreKeyRef.current !== key) return;
+      const current =
+        activeMessagesRef.current?.key === key ? activeMessagesRef.current.messages : [];
+      const next =
+        typeof action === 'function'
+          ? (action as (messages: LearnMessage[]) => LearnMessage[])(current)
+          : action;
+      activeMessagesRef.current = { key, messages: next };
+      setKeyedMessagesState({ key, messages: next });
+    },
+    [],
+  );
   const setMessages = useCallback((action: SetStateAction<LearnMessage[]>) => {
     const key = activeMessageStoreKeyRef.current;
     const current =
@@ -7149,8 +7496,31 @@ export function LearnPageClient() {
       typeof action === 'function'
         ? (action as (messages: LearnMessage[]) => LearnMessage[])(current)
         : action;
+    if (key) {
+      const currentById = new Map(current.map((message) => [message.id, message]));
+      const dirtyById =
+        dirtyConversationMessagesRef.current.get(key) ??
+        new Map<string, RemoteLearnMessagePayload>();
+      for (const message of next) {
+        if (message.transient) continue;
+        const payload = learnMessageToRemotePayload(message);
+        const previous = currentById.get(message.id);
+        if (
+          !previous ||
+          previous.transient ||
+          !remoteLearnMessagePayloadEqual(learnMessageToRemotePayload(previous), payload)
+        ) {
+          dirtyById.set(message.id, payload);
+        }
+      }
+      if (dirtyById.size > 0) dirtyConversationMessagesRef.current.set(key, dirtyById);
+    }
     activeMessagesRef.current = { key, messages: next };
-    setMessagesState(next);
+    setKeyedMessagesState({ key, messages: next });
+  }, []);
+  const clearMessagesFromRead = useCallback(() => {
+    activeMessagesRef.current = null;
+    setKeyedMessagesState({ key: '', messages: [] });
   }, []);
   const [leftRailCollapsed, setLeftRailCollapsed] = useState(() =>
     getInitialLearnRailCollapsed(LEARN_LEFT_RAIL_COLLAPSED_STORAGE_KEY),
@@ -7159,6 +7529,7 @@ export function LearnPageClient() {
     getInitialLearnRailCollapsed(LEARN_RIGHT_RAIL_COLLAPSED_STORAGE_KEY),
   );
   const [rightRailView, setRightRailView] = useState<LearnRightRailView>('overview');
+  const [courseLibrarySearchQuery, setCourseLibrarySearchQuery] = useState('');
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const [memoryActivityDialogOpen, setMemoryActivityDialogOpen] = useState(false);
   const [calendarReferenceDate, setCalendarReferenceDate] = useState(() => new Date());
@@ -7171,14 +7542,33 @@ export function LearnPageClient() {
   const hydrated = authHydrated && courseHydrated;
   const localUserId = userId || 'anonymous';
   const draftSessionId = useMemo(
-    () => makeLearnSessionId(`${draftSessionGeneration}:${localUserId}:${urlCourseId}`),
-    [draftSessionGeneration, localUserId, urlCourseId],
+    () => makeLearnSessionId(`${localUserId}:${urlCourseId}`),
+    [localUserId, urlCourseId],
   );
   const activeSessionId = urlSessionId || draftSessionId;
   const showLearnHomeDashboard = !urlCourseId && !urlSessionId && !debugNoCourses;
-  const activeMessageStoreKey = activeCourseId
-    ? `${localUserId}:${activeCourseId}:${activeSessionId}`
-    : '';
+  const activeMessageStoreKey =
+    activeCourseId && activeCourseId === urlCourseId
+      ? `${localUserId}:${activeCourseId}:${activeSessionId}`
+      : '';
+  const visibleMessages = useMemo(
+    () => (messageStoreKey === activeMessageStoreKey && activeMessageStoreKey ? messages : []),
+    [activeMessageStoreKey, messageStoreKey, messages],
+  );
+  const railLearnSessions = useMemo(() => {
+    const recent = learnSessions.slice(0, 5);
+    if (!activeSessionId || recent.some((session) => session.id === activeSessionId)) return recent;
+    const activeSession = learnSessions.find((session) => session.id === activeSessionId);
+    return activeSession ? [...recent.slice(0, 4), activeSession] : recent;
+  }, [activeSessionId, learnSessions]);
+  const remoteConversationSummary =
+    remoteConversationSummaryState?.key === activeMessageStoreKey
+      ? remoteConversationSummaryState.summary
+      : null;
+  const remoteConversationMessagePage =
+    remoteConversationMessagePageState?.key === activeMessageStoreKey
+      ? remoteConversationMessagePageState
+      : null;
   const activeCourseBootKey = activeCourseId ? `${localUserId}:${activeCourseId}` : '';
   activeCourseBootKeyRef.current = activeCourseBootKey;
   const conversationInteractive =
@@ -7199,6 +7589,73 @@ export function LearnPageClient() {
   );
   const completedSourceUploadBadgeCount =
     completedSourceUploadBadge.courseId === activeCourseId ? completedSourceUploadBadge.count : 0;
+
+  const updateComposerDraft = useCallback(
+    (value: string) => {
+      setDraft(value);
+      composerDraftRef.current = value;
+      if (activeCourseId) {
+        writeLearnSessionComposerDraft(localUserId, activeCourseId, activeSessionId, value);
+      }
+    },
+    [activeCourseId, activeSessionId, localUserId],
+  );
+
+  const updateComposerAttachments = useCallback(
+    (
+      action:
+        | LearnImageAttachment[]
+        | ((current: LearnImageAttachment[]) => LearnImageAttachment[]),
+    ) => {
+      setAttachments((current) => {
+        const next = typeof action === 'function' ? action(current) : action;
+        composerAttachmentsRef.current = next;
+        if (activeMessageStoreKey) {
+          composerAttachmentsBySessionRef.current.set(activeMessageStoreKey, next);
+        }
+        return next;
+      });
+    },
+    [activeMessageStoreKey],
+  );
+
+  useEffect(() => {
+    const previous = composerSessionKeyRef.current;
+    if (previous?.key === activeMessageStoreKey) return;
+
+    if (previous) {
+      writeLearnSessionComposerDraft(
+        previous.userId,
+        previous.courseId,
+        previous.sessionId,
+        composerDraftRef.current,
+      );
+      composerAttachmentsBySessionRef.current.set(previous.key, composerAttachmentsRef.current);
+    }
+
+    if (!activeCourseId || !activeMessageStoreKey) {
+      composerSessionKeyRef.current = null;
+      composerDraftRef.current = '';
+      composerAttachmentsRef.current = [];
+      setDraft('');
+      setAttachments([]);
+      return;
+    }
+
+    const nextDraft = readLearnSessionComposerDraft(localUserId, activeCourseId, activeSessionId);
+    const nextAttachments =
+      composerAttachmentsBySessionRef.current.get(activeMessageStoreKey) ?? [];
+    composerSessionKeyRef.current = {
+      key: activeMessageStoreKey,
+      userId: localUserId,
+      courseId: activeCourseId,
+      sessionId: activeSessionId,
+    };
+    composerDraftRef.current = nextDraft;
+    composerAttachmentsRef.current = nextAttachments;
+    setDraft(nextDraft);
+    setAttachments(nextAttachments);
+  }, [activeCourseId, activeMessageStoreKey, activeSessionId, localUserId]);
 
   useEffect(() => {
     activeMessageStoreKeyRef.current = activeMessageStoreKey;
@@ -7233,14 +7690,6 @@ export function LearnPageClient() {
   );
 
   useEffect(() => {
-    if (!messageStoreKey) return;
-    activeMessagesRef.current = {
-      key: messageStoreKey,
-      messages,
-    };
-  }, [messageStoreKey, messages]);
-
-  useEffect(() => {
     if (!activeCourseId) return;
     const refreshMatchingConversation = (detail: unknown) => {
       if (!detail || typeof detail !== 'object') return;
@@ -7248,9 +7697,18 @@ export function LearnPageClient() {
         courseId?: unknown;
         sessionId?: unknown;
         ownerScope?: unknown;
+        deletedMessageIds?: unknown;
       };
       if (change.ownerScope !== undefined && change.ownerScope !== localUserId) return;
-      if (change.courseId !== activeCourseId || change.sessionId !== activeSessionId) return;
+      if (change.courseId !== activeCourseId) return;
+      setLearnSessionListRefreshAttempt((current) => current + 1);
+      if (change.sessionId !== activeSessionId) return;
+      if (Array.isArray(change.deletedMessageIds)) {
+        const serverDeletedIds = new Set(change.deletedMessageIds.map(String).filter(Boolean));
+        if (serverDeletedIds.size > 0) {
+          setMessages((current) => current.filter((message) => !serverDeletedIds.has(message.id)));
+        }
+      }
       lastSyncedConversationRef.current = '';
       setRemoteConversationReadyKey('');
       setRemoteConversationLoadAttempt((current) => current + 1);
@@ -7259,6 +7717,21 @@ export function LearnPageClient() {
       refreshMatchingConversation((event as CustomEvent<unknown>).detail);
     };
     const handleStorage = (event: StorageEvent) => {
+      if (event.key === learnSessionIndexKey(localUserId, activeCourseId)) {
+        const nextSessions = excludePendingDeletedLearnSessions(
+          localUserId,
+          activeCourseId,
+          readLearnSessions(localUserId, activeCourseId),
+          pendingDeletedSessionKeysRef.current,
+        );
+        setLearnSessions(nextSessions);
+        setLearnSessionListState((current) =>
+          current.courseId === activeCourseId
+            ? { ...current, totalCount: Math.max(current.totalCount, nextSessions.length) }
+            : current,
+        );
+        return;
+      }
       if (event.key === deletedLearnMessageIdsKey(localUserId, activeCourseId, activeSessionId)) {
         const deletedIds = readDeletedLearnMessageIds(localUserId, activeCourseId, activeSessionId);
         if (deletedIds.size > 0) {
@@ -7284,6 +7757,15 @@ export function LearnPageClient() {
   useEffect(() => {
     problemsLoadStateRef.current = problemsLoadState;
   }, [problemsLoadState]);
+  useEffect(() => {
+    notebooksLoadStateRef.current = notebooksLoadState;
+  }, [notebooksLoadState]);
+  useEffect(() => {
+    problemsHydrationWantedRef.current = problemsHydrationWanted;
+  }, [problemsHydrationWanted]);
+  useEffect(() => {
+    notebooksHydrationWantedRef.current = notebooksHydrationWanted;
+  }, [notebooksHydrationWanted]);
 
   useEffect(() => {
     if (
@@ -7319,13 +7801,30 @@ export function LearnPageClient() {
       courseLoadError),
   );
   const firstResourceRoundReady = Boolean(
-    activeCourse &&
-    [problemsLoadState, notebooksLoadState].every(
-      (state) =>
-        state.courseId === activeCourse.id &&
-        (state.status === 'ready' || state.status === 'empty'),
-    ),
+    activeCourse && courseContentStateRevision.startsWith(`${activeCourse.id}:`),
   );
+  const calendarDemanded =
+    rightRailView === 'calendar' ||
+    calendarDialogOpen ||
+    syllabusDialogOpen ||
+    manualScheduleDialogOpen;
+  const {
+    events: remoteSyllabusEvents,
+    loading: calendarLoading,
+    mutating: calendarMutating,
+    error: calendarLoadError,
+    truncated: calendarEventsTruncated,
+    reload: reloadCalendarEvents,
+    createEvents: createCalendarEvents,
+    updateEvent: updateCalendarEvent,
+    deleteEvent: deleteCalendarEvent,
+    mergeLoadedEvents: mergeLoadedCalendarEvents,
+  } = useLearningCalendarRange({
+    referenceDate: calendarReferenceDate,
+    courseId: activeCourseId || undefined,
+    rangeMode: 'compact',
+    enabled: Boolean(activeCourseId && calendarDemanded),
+  });
 
   const recentPlans = useMemo(
     () => recentPlanCandidates.filter((plan) => plan.courseId === activeCourseId),
@@ -7337,12 +7836,10 @@ export function LearnPageClient() {
   );
   const syllabusEvents = useMemo(
     () =>
-      syllabusEventState.courseId === activeCourseId && activeCourse
-        ? syllabusEventState.events.filter((event) =>
-            syllabusEventBelongsToCourse(event, activeCourse),
-          )
+      activeCourse
+        ? remoteSyllabusEvents.filter((event) => syllabusEventBelongsToCourse(event, activeCourse))
         : [],
-    [activeCourse, activeCourseId, syllabusEventState],
+    [activeCourse, remoteSyllabusEvents],
   );
   const hasActiveCourse = Boolean(activeCourse);
   const activeLearnSessionListState =
@@ -7439,13 +7936,35 @@ export function LearnPageClient() {
     setSourceUploadDialogOpen(true);
   }, [setSourceUploadDialogOpen]);
 
+  const openProblemBankPanel = useCallback(() => {
+    if (!activeCourse) return;
+    router.push(`/course/${encodeURIComponent(activeCourse.id)}/problem-bank`);
+  }, [activeCourse, router]);
+
+  const openNotebookLibraryPanel = useCallback(() => {
+    if (!activeCourse) return;
+    setSelectedNotebookLibraryTileId(null);
+    setNotebookLibraryQuery('');
+    setNotebookLibraryPanelOpen(true);
+  }, [activeCourse]);
+
+  const openNotebookFromProgress = useCallback(
+    (notebook: StageListItem) => {
+      if (!activeCourse) return;
+      setNotebookLibraryQuery('');
+      setNotebookLibraryPanelOpen(true);
+      setSelectedNotebookLibraryTileId(`notebook-library-${notebook.id}`);
+    },
+    [activeCourse],
+  );
+
   const openMiniLectureDeck = useCallback((deck: MiniLectureDeck) => {
     setActiveMiniLectureDeck(deck);
     setMiniLectureOpen(true);
   }, []);
 
   const generateMiniLectureForMessage = useCallback(
-    (messageId: string) => {
+    async (messageId: string) => {
       const messageStoreKey = activeMessageStoreKeyRef.current;
       if (!messageStoreKey || localConversationReadyKey !== messageStoreKey) {
         toast.info('会话仍在本地恢复，请稍后再操作。');
@@ -7459,25 +7978,81 @@ export function LearnPageClient() {
       }
       const prompt = message.lecturePrompt;
       if (!prompt) return;
-      const deck = buildMiniLectureDeck(prompt);
       setGeneratingMiniLectureMessageId(messageId);
-      setMessages((current) =>
-        current.map((item) =>
-          item.id === messageId
-            ? {
-                ...item,
-                lectureDeck: deck,
-              }
-            : item,
-        ),
-      );
-      setActiveMiniLectureDeck(deck);
-      setMiniLectureOpen(true);
-      window.setTimeout(() => {
+      try {
+        const response = await backendJson<{
+          ok: true;
+          data: GeneratedMiniLectureManifest;
+        }>('/api/learn/mini-lectures', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(providerId === 'openai' && modelId ? { 'x-model': `openai:${modelId}` } : {}),
+          },
+          body: JSON.stringify({
+            course: activeCourse
+              ? {
+                  id: activeCourse.id,
+                  name: activeCourse.name,
+                  courseCode: activeCourse.courseCode || undefined,
+                  purpose: activeCourse.purpose,
+                }
+              : prompt.courseName,
+            message: {
+              id: messageId,
+              text: prompt.question,
+            },
+            answer: {
+              id: messageId,
+              title: prompt.title,
+              text: prompt.answer,
+            },
+            pageCount: prompt.answer.length > 520 ? 2 : 1,
+            language: activeCourse?.language === 'en-US' ? 'en-US' : 'zh-CN',
+            ttsVoice: 'marin',
+            idempotencyKey: `learn-${messageId}`,
+          }),
+          timeoutMs: 300_000,
+        });
+        const deck = generatedManifestToMiniLectureDeck(response.data, prompt);
+        await saveMiniLectureDeckLocally({
+          context: {
+            ownerId: localUserId,
+            courseId: activeCourse?.id || 'unknown-course',
+            sessionId: activeSessionId,
+            messageId,
+          },
+          deck,
+        });
+        setMessages((current) =>
+          current.map((item) =>
+            item.id === messageId
+              ? {
+                  ...item,
+                  lectureDeck: deck,
+                }
+              : item,
+          ),
+        );
+        setActiveMiniLectureDeck(deck);
+        setMiniLectureOpen(true);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : '图片课堂讲解生成失败，请重试。');
+      } finally {
         setGeneratingMiniLectureMessageId((current) => (current === messageId ? null : current));
-      }, 260);
+      }
     },
-    [localConversationReadyKey, messages, openMiniLectureDeck, setMessages],
+    [
+      activeCourse,
+      activeSessionId,
+      localConversationReadyKey,
+      localUserId,
+      messages,
+      modelId,
+      openMiniLectureDeck,
+      providerId,
+      setMessages,
+    ],
   );
 
   const updateSourceUploadItem = useCallback(
@@ -7768,36 +8343,6 @@ export function LearnPageClient() {
       );
     return upcoming.slice(0, 4);
   }, [isResearchCourse, practiceSessions, recentPlans, syllabusEvents]);
-  const learningSuggestionItems = useMemo(() => {
-    if (!snapshot) return ['先同步课程学习状态，再生成复习或刷题安排。'];
-
-    const items: string[] = [];
-    if (!snapshot.progressKnown) {
-      items.push('先更新学习进度，避免复习范围按全量课程展开。');
-    } else if (snapshot.progressLabel) {
-      items.push(`当前按「${snapshot.progressLabel}」继续推进。`);
-    }
-
-    if (snapshot.dueReviewCount > 0) {
-      items.push(`今天优先回顾 ${snapshot.dueReviewCount} 个到期内容。`);
-    }
-
-    if (snapshot.weakConcepts.length > 0) {
-      items.push(`重点补 ${snapshot.weakConcepts.slice(0, 2).join(' / ')}，再做对应题目。`);
-    } else if (snapshot.nextConcepts.length > 0) {
-      items.push(`下一步关注 ${snapshot.nextConcepts.slice(0, 2).join(' / ')}。`);
-    } else if (snapshot.progressPercent >= 70) {
-      items.push('用一组小测确认高频知识点是否稳定。');
-    } else {
-      items.push('先补齐当前单元概念，再安排一组短练习。');
-    }
-
-    if (statusCalendarActivities.length > 0) {
-      items.push('结合最近活动预留复习时间。');
-    }
-
-    return items.slice(0, 3);
-  }, [snapshot, statusCalendarActivities.length]);
   const plansByCalendarDay = useMemo(() => {
     const next = new Map<string, PracticePlan[]>();
     for (const plan of recentPlans) {
@@ -7882,12 +8427,10 @@ export function LearnPageClient() {
   useEffect(() => {
     setCourseSettingsOpen(false);
     if (!activeCourseId) {
-      setSyllabusEventState({ courseId: null, events: [] });
       return;
     }
     setError(null);
     setProgressSelection('');
-    setAttachments([]);
     setSyllabusImportMessage(null);
     setSyllabusDialogOpen(false);
     setSyllabusPlanDraft('');
@@ -7901,30 +8444,7 @@ export function LearnPageClient() {
     setManualScheduleDate(localDayKey(new Date()));
     setManualScheduleKind('assignment');
     setManualScheduleError(null);
-    setSyllabusEventState({
-      courseId: activeCourseId,
-      events: readSyllabusEvents(localUserId, activeCourseId),
-    });
-  }, [activeCourseId, localUserId]);
-
-  useEffect(() => {
-    if (!activeCourse || !activeCourseId || syllabusEventState.courseId !== activeCourseId) return;
-
-    const matchingEvents = syllabusEventState.events.filter((event) =>
-      syllabusEventBelongsToCourse(event, activeCourse),
-    );
-    const needsRepair =
-      matchingEvents.length !== syllabusEventState.events.length ||
-      matchingEvents.some((event) => event.courseId !== activeCourseId);
-    if (!needsRepair) return;
-
-    const repairedEvents = matchingEvents.map((event) => ({
-      ...event,
-      courseId: activeCourseId,
-    }));
-    writeSyllabusEvents(localUserId, activeCourseId, repairedEvents);
-    setSyllabusEventState({ courseId: activeCourseId, events: repairedEvents });
-  }, [activeCourse, activeCourseId, localUserId, syllabusEventState]);
+  }, [activeCourseId]);
 
   const learnSessionHref = useCallback(
     (sessionId: string) => {
@@ -7937,18 +8457,158 @@ export function LearnPageClient() {
     [activeCourseId, searchParams],
   );
 
+  const registerLocalOnlyLearnSession = useCallback(
+    (args: {
+      courseId: string;
+      sessionId: string;
+      title?: string;
+      messageCount?: number;
+      resetMessages?: boolean;
+    }): LearnChatSession => {
+      const now = Date.now();
+      const existingSessions = readLearnSessions(localUserId, args.courseId);
+      const existing = existingSessions.find((session) => session.id === args.sessionId);
+      if (args.resetMessages) {
+        deleteLearnSessionMessages(localUserId, args.courseId, args.sessionId);
+        writeLearnSessionComposerDraft(localUserId, args.courseId, args.sessionId, '');
+        composerAttachmentsBySessionRef.current.delete(
+          `${localUserId}:${args.courseId}:${args.sessionId}`,
+        );
+      }
+      const session: LearnChatSession = {
+        id: args.sessionId,
+        title: args.title ?? existing?.title ?? '新对话',
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: existing?.updatedAt ?? now,
+        messageCount: args.messageCount ?? (args.resetMessages ? 0 : (existing?.messageCount ?? 0)),
+        currentRevision: 0,
+        remoteState: 'local-only',
+      };
+      const nextSessions = sortLearnSessionsForList(localUserId, args.courseId, [
+        session,
+        ...existingSessions.filter((item) => item.id !== args.sessionId),
+      ]);
+      writeLearnSessions(localUserId, args.courseId, nextSessions);
+      writeLearnSessionRemoteBase(localUserId, args.courseId, args.sessionId, {
+        revision: 0,
+        title: session.title,
+        messages: [],
+        messageWindow: { hasMore: false, isComplete: true },
+      });
+      if (activeCourseIdRef.current === args.courseId) {
+        learnSessionsRef.current = nextSessions;
+        setLearnSessions(nextSessions);
+      }
+      return session;
+    },
+    [localUserId],
+  );
+
   const switchCourse = useCallback(
     (courseId: string) => {
       const next = new URLSearchParams(searchParams.toString());
       next.set('courseId', courseId);
       next.delete('session');
       setSourceUploadDialogOpen(false);
-      setRequestedSessionDetailKey('');
-      setDraftSessionGeneration((current) => current + 1);
-      setActiveCourseId(courseId);
       router.replace(`/learn?${next.toString()}`, { scroll: false });
     },
     [router, searchParams, setSourceUploadDialogOpen],
+  );
+
+  useEffect(() => {
+    if (
+      !activeCourseId ||
+      activeCourseId !== urlCourseId ||
+      urlSessionId ||
+      showLearnHomeDashboard
+    ) {
+      return;
+    }
+    registerLocalOnlyLearnSession({
+      courseId: activeCourseId,
+      sessionId: draftSessionId,
+      resetMessages: true,
+    });
+    clearMessagesFromRead();
+    router.replace(learnSessionHref(draftSessionId), { scroll: false });
+  }, [
+    activeCourseId,
+    clearMessagesFromRead,
+    draftSessionId,
+    learnSessionHref,
+    registerLocalOnlyLearnSession,
+    router,
+    showLearnHomeDashboard,
+    urlCourseId,
+    urlSessionId,
+  ]);
+
+  const replaceDeletedSessionWithFallback = useCallback(
+    (args: {
+      courseId: string;
+      deletedSessionId: string;
+      carriedMessages?: LearnMessage[];
+      recoveredSessionId?: string;
+    }) => {
+      const carriedMessages = args.carriedMessages ?? [];
+      const availableSessions = readLearnSessions(localUserId, args.courseId).filter(
+        (session) => session.id !== args.deletedSessionId,
+      );
+      const now = Date.now();
+      const fallbackSession =
+        carriedMessages.length > 0
+          ? ({
+              id: args.recoveredSessionId ?? makeLearnSessionId(),
+              title: learnSessionTitleFromMessages(carriedMessages, '已恢复的本地对话'),
+              createdAt: now,
+              updatedAt: learnSessionUpdatedAtFromMessages(carriedMessages) ?? now,
+              messageCount: carriedMessages.filter(learnMessageHasContent).length,
+              currentRevision: 0,
+              remoteState: 'local-only',
+            } satisfies LearnChatSession)
+          : (availableSessions[0] ??
+            ({
+              id: makeLearnSessionId(),
+              title: '新对话',
+              createdAt: now,
+              updatedAt: now,
+              messageCount: 0,
+              currentRevision: 0,
+              remoteState: 'local-only',
+            } satisfies LearnChatSession));
+      const nextSessions = sortLearnSessionsForList(localUserId, args.courseId, [
+        fallbackSession,
+        ...availableSessions.filter((session) => session.id !== fallbackSession.id),
+      ]);
+      if (carriedMessages.length > 0) {
+        writeLearnSessionMessages(localUserId, args.courseId, fallbackSession.id, carriedMessages);
+        writeLearnSessionTabMessages(
+          localUserId,
+          args.courseId,
+          fallbackSession.id,
+          carriedMessages,
+        );
+      } else if (fallbackSession.remoteState === 'local-only') {
+        deleteLearnSessionMessages(localUserId, args.courseId, fallbackSession.id);
+        writeLearnSessionComposerDraft(localUserId, args.courseId, fallbackSession.id, '');
+      }
+      if (fallbackSession.remoteState === 'local-only') {
+        writeLearnSessionRemoteBase(localUserId, args.courseId, fallbackSession.id, {
+          revision: 0,
+          title: fallbackSession.title,
+          messages: [],
+          messageWindow: { hasMore: false, isComplete: true },
+        });
+      }
+      writeLearnSessions(localUserId, args.courseId, nextSessions);
+      setLearnSessions(nextSessions);
+      clearMessagesFromRead();
+      setLocalConversationReadyKey('');
+      setRemoteConversationReadyKey('');
+      router.replace(learnSessionHref(fallbackSession.id), { scroll: false });
+      return fallbackSession;
+    },
+    [clearMessagesFromRead, learnSessionHref, localUserId, router],
   );
 
   const handleCourseCreated = useCallback(async (courseId: string) => {
@@ -7977,6 +8637,82 @@ export function LearnPageClient() {
     },
     [localUserId, setCurrentCourse],
   );
+
+  useEffect(() => {
+    if (!activeCourse) {
+      setSettingsDraftName('');
+      setSettingsDraftCode('');
+      setSettingsDraftDescription('');
+      setSettingsDraftAvatarUrl('');
+      setSettingsAvatarPage(0);
+      return;
+    }
+    setSettingsDraftName(activeCourse.name);
+    setSettingsDraftCode(activeCourse.courseCode ?? '');
+    setSettingsDraftDescription(activeCourse.description ?? '');
+    setSettingsDraftAvatarUrl(activeCourse.avatarUrl ?? '');
+    setSettingsAvatarPage(0);
+  }, [activeCourse]);
+
+  const settingsAvatarPageSize = 21;
+  const settingsAvatarPageCount = Math.max(
+    1,
+    Math.ceil(COURSE_AVATAR_PRESET_URLS.length / settingsAvatarPageSize),
+  );
+  const settingsAvatarUrlsOnPage = useMemo(() => {
+    const start = settingsAvatarPage * settingsAvatarPageSize;
+    return COURSE_AVATAR_PRESET_URLS.slice(start, start + settingsAvatarPageSize);
+  }, [settingsAvatarPage]);
+
+  const openSettingsAvatarDialog = useCallback(() => {
+    setSettingsAvatarPickerUrl(settingsDraftAvatarUrl);
+    setSettingsAvatarPage(0);
+    setSettingsAvatarDialogOpen(true);
+  }, [settingsDraftAvatarUrl]);
+
+  const confirmSettingsAvatarPicker = useCallback(() => {
+    setSettingsDraftAvatarUrl(settingsAvatarPickerUrl);
+    setSettingsAvatarDialogOpen(false);
+  }, [settingsAvatarPickerUrl]);
+
+  const saveInlineCourseSettings = useCallback(async () => {
+    if (!activeCourse || !activeCourseIsOwner || settingsSaving) return;
+    const trimmedName = settingsDraftName.trim();
+    if (!trimmedName) {
+      toast.error('请填写课程名称');
+      return;
+    }
+    setSettingsSaving(true);
+    try {
+      const updatedCourse = await updateCourse(activeCourse.id, {
+        name: trimmedName,
+        description: settingsDraftDescription.trim(),
+        language: activeCourse.language,
+        tags: activeCourse.tags,
+        purpose: activeCourse.purpose,
+        university: activeCourse.university,
+        courseCode: settingsDraftCode.trim() || undefined,
+        avatarUrl: settingsDraftAvatarUrl.trim() || activeCourse.avatarUrl,
+        listedInCourseStore: activeCourse.listedInCourseStore,
+        coursePriceCents: activeCourse.coursePriceCents ?? 0,
+      });
+      handleCourseSettingsUpdated(updatedCourse);
+      toast.success('课程信息已保存');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '保存课程信息失败');
+    } finally {
+      setSettingsSaving(false);
+    }
+  }, [
+    activeCourse,
+    activeCourseIsOwner,
+    handleCourseSettingsUpdated,
+    settingsDraftAvatarUrl,
+    settingsDraftCode,
+    settingsDraftDescription,
+    settingsDraftName,
+    settingsSaving,
+  ]);
 
   const handleCourseSettingsDeleted = useCallback(
     (courseId: string) => {
@@ -8050,10 +8786,10 @@ export function LearnPageClient() {
   }, []);
 
   useEffect(() => {
+    if (activeCourseId && activeCourseId !== urlCourseId) return;
     if (!activeCourseId) {
       setLearnSessions([]);
-      setMessages([]);
-      setMessageStoreKey('');
+      clearMessagesFromRead();
       setLocalConversationReadyKey('');
       setRemoteConversationReadyKey('');
       setInitialBootSettledKey('');
@@ -8061,61 +8797,32 @@ export function LearnPageClient() {
       setRemoteConversationSyncError(null);
       return;
     }
-    const redirectDeletedSession = (
-      availableSessions: LearnChatSession[],
-      carriedMessages: LearnMessage[] = [],
-      recoveredSessionId?: string,
-    ) => {
-      const now = Date.now();
-      const fallbackSession =
-        carriedMessages.length > 0
-          ? ({
-              id: recoveredSessionId ?? makeLearnSessionId(),
-              title: learnSessionTitleFromMessages(carriedMessages, '已恢复的本地对话'),
-              createdAt: now,
-              updatedAt: learnSessionUpdatedAtFromMessages(carriedMessages) ?? now,
-            } satisfies LearnChatSession)
-          : (availableSessions[0] ??
-            ({
-              id: makeLearnSessionId(),
-              title: '新对话',
-              createdAt: now,
-              updatedAt: now,
-            } satisfies LearnChatSession));
-      const nextSessions = sortLearnSessionsForList(localUserId, activeCourseId, [
-        fallbackSession,
-        ...availableSessions.filter((session) => session.id !== fallbackSession.id),
-      ]);
-      if (carriedMessages.length > 0) {
-        writeLearnSessionMessages(localUserId, activeCourseId, fallbackSession.id, carriedMessages);
-        writeLearnSessionTabMessages(
-          localUserId,
-          activeCourseId,
-          fallbackSession.id,
-          carriedMessages,
-        );
-      }
-      writeLearnSessions(localUserId, activeCourseId, nextSessions);
-      setLearnSessions(nextSessions);
-      setMessageStoreKey('');
-      setLocalConversationReadyKey('');
-      setRemoteConversationReadyKey('');
-      setMessages(
-        carriedMessages.length > 0
-          ? carriedMessages
-          : readLearnSessionMessages(localUserId, activeCourseId, fallbackSession.id),
-      );
-      router.replace(learnSessionHref(fallbackSession.id), { scroll: false });
-    };
     const locallyDeletedSessionIds = readDeletedLearnSessionIds(localUserId, activeCourseId);
     if (locallyDeletedSessionIds.has(activeSessionId)) {
-      redirectDeletedSession(readLearnSessions(localUserId, activeCourseId));
+      replaceDeletedSessionWithFallback({
+        courseId: activeCourseId,
+        deletedSessionId: activeSessionId,
+      });
       return;
     }
     let alive = true;
     const hydrationRequestKeys = new Set<string>();
     const now = Date.now();
     const nextStoreKey = `${localUserId}:${activeCourseId}:${activeSessionId}`;
+    const persistedDirtyMessages = readLearnSessionDirtyMessages(
+      localUserId,
+      activeCourseId,
+      activeSessionId,
+    );
+    if (persistedDirtyMessages.length > 0) {
+      const dirtyById =
+        dirtyConversationMessagesRef.current.get(nextStoreKey) ??
+        new Map<string, RemoteLearnMessagePayload>();
+      for (const message of persistedDirtyMessages) {
+        if (!dirtyById.has(message.id)) dirtyById.set(message.id, message);
+      }
+      dirtyConversationMessagesRef.current.set(nextStoreKey, dirtyById);
+    }
     const hydrateRestoredAttachments = (candidateMessages: LearnMessage[]) => {
       const pendingMessages = candidateMessages.filter((message) => {
         const hasUnhydratedAttachment = message.attachments?.some(
@@ -8146,7 +8853,7 @@ export function LearnPageClient() {
         const hydratedById = new Map(
           hydrated.messages.map((message) => [message.id, message.attachments]),
         );
-        setMessages((current) =>
+        replaceMessagesFromRead(nextStoreKey, (current) =>
           current.map((message) => {
             const hydratedAttachments = hydratedById.get(message.id);
             return hydratedAttachments ? { ...message, attachments: hydratedAttachments } : message;
@@ -8158,7 +8865,24 @@ export function LearnPageClient() {
     setRemoteConversationReadyKey('');
     setRemoteConversationLoadError(null);
     setRemoteConversationSyncError(null);
-    const existing = readLearnSessions(localUserId, activeCourseId);
+    let existing = readLearnSessions(localUserId, activeCourseId);
+    const canonicalDraftSession = existing.find((session) => session.id === activeSessionId);
+    if (
+      activeSessionId === draftSessionId &&
+      canonicalDraftSession?.remoteState !== 'local-only' &&
+      canonicalDraftSession?.remoteState !== 'remote'
+    ) {
+      // Older builds could pair this component-generated canonical key with
+      // the previous conversation body. Its identity is known locally, so
+      // repair that one key without guessing from title or message count.
+      registerLocalOnlyLearnSession({
+        courseId: activeCourseId,
+        sessionId: activeSessionId,
+        resetMessages: true,
+      });
+      clearMessagesFromRead();
+      existing = readLearnSessions(localUserId, activeCourseId);
+    }
     const byId = new Map<string, LearnChatSession>();
     for (const session of existing) byId.set(session.id, session);
     if (urlSessionId) {
@@ -8171,6 +8895,10 @@ export function LearnPageClient() {
             : '新对话',
         createdAt: currentSession?.createdAt ?? now,
         updatedAt: currentSession?.updatedAt ?? now,
+        messageCount: currentSession?.messageCount ?? 0,
+        currentRevision:
+          currentSession?.currentRevision ?? (activeSessionId === draftSessionId ? 0 : undefined),
+        remoteState: currentSession?.remoteState,
       });
     }
     const nextSessions = pruneDuplicateBlankLearnSessions(
@@ -8178,6 +8906,12 @@ export function LearnPageClient() {
       activeCourseId,
       sortLearnSessionsForList(localUserId, activeCourseId, Array.from(byId.values())),
       activeSessionId,
+      (sessionId) =>
+        Boolean(
+          composerAttachmentsBySessionRef.current.get(
+            `${localUserId}:${activeCourseId}:${sessionId}`,
+          )?.length,
+        ),
     ).slice(0, 5);
     if (learnSessionListCourseIdRef.current !== activeCourseId) {
       setLearnSessions(nextSessions);
@@ -8191,7 +8925,6 @@ export function LearnPageClient() {
         error: null,
       });
     }
-    setMessageStoreKey(nextStoreKey);
     const readCurrentTabMessages = () => {
       const inMemory = activeMessagesRef.current;
       if (inMemory?.key === nextStoreKey) return inMemory.messages;
@@ -8201,16 +8934,16 @@ export function LearnPageClient() {
       );
     };
     const localMessages = readCurrentTabMessages();
-    setMessages(localMessages);
+    replaceMessagesFromRead(nextStoreKey, localMessages);
     setLocalConversationReadyKey(nextStoreKey);
     hydrateRestoredAttachments(localMessages);
 
     if (!urlSessionId) {
-      setRequestedSessionDetailKey('');
       lastSyncedConversationRef.current = learnConversationSyncSignature({
         key: nextStoreKey,
         title: '新对话',
         messages: [],
+        deletedMessageIds: [],
       });
       setRemoteConversationReadyKey(nextStoreKey);
     }
@@ -8221,14 +8954,19 @@ export function LearnPageClient() {
   }, [
     activeCourseId,
     activeSessionId,
-    learnSessionHref,
+    clearMessagesFromRead,
+    draftSessionId,
     localUserId,
-    router,
+    registerLocalOnlyLearnSession,
+    replaceDeletedSessionWithFallback,
+    replaceMessagesFromRead,
     setMessages,
+    urlCourseId,
     urlSessionId,
   ]);
 
   useEffect(() => {
+    if (activeCourseId && activeCourseId !== urlCourseId) return;
     if (!activeCourseId || !activeCourseBootKey) {
       setInitialBootSettledKey('');
       return;
@@ -8237,11 +8975,12 @@ export function LearnPageClient() {
     let alive = true;
     const courseId = activeCourseId;
     const controller = new AbortController();
-    const cachedSessions = sortLearnSessionsForList(
+    const cachedSessions = excludePendingDeletedLearnSessions(
       localUserId,
       courseId,
-      readLearnSessions(localUserId, courseId),
-    ).slice(0, 5);
+      sortLearnSessionsForList(localUserId, courseId, readLearnSessions(localUserId, courseId)),
+      pendingDeletedSessionKeysRef.current,
+    );
     setLearnSessions(cachedSessions);
     setLearnSessionListState({
       courseId,
@@ -8276,14 +9015,28 @@ export function LearnPageClient() {
     })
       .then((remoteSessions) => {
         if (!alive || activeCourseIdRef.current !== courseId) return;
-        const mergedSessions = mergeLearnSessions(
+        if (remoteSessions.storage !== 'database') {
+          throw new Error('云端会话列表暂时不可用，当前显示本机记录。');
+        }
+        const latestCachedSessions = readLearnSessions(localUserId, courseId);
+        const mergedSessions = excludePendingDeletedLearnSessions(
           localUserId,
           courseId,
-          cachedSessions,
-          remoteSessions.sessions,
+          mergeLearnSessions(
+            localUserId,
+            courseId,
+            mergeLearnSessions(
+              localUserId,
+              courseId,
+              latestCachedSessions,
+              learnSessionsRef.current,
+            ),
+            remoteSessions.sessions.map(remoteLearnSessionToLocal),
+          ),
+          pendingDeletedSessionKeysRef.current,
         );
         writeLearnSessions(localUserId, courseId, mergedSessions);
-        setLearnSessions(mergedSessions.slice(0, 5));
+        setLearnSessions(mergedSessions);
         setLearnSessionListState({
           courseId,
           totalCount: Math.max(remoteSessions.totalCount, mergedSessions.length),
@@ -8326,7 +9079,9 @@ export function LearnPageClient() {
     enqueueInitialLearnBootRequest,
     hydrated,
     isLoggedIn,
+    learnSessionListRefreshAttempt,
     localUserId,
+    urlCourseId,
   ]);
 
   useEffect(() => {
@@ -8347,17 +9102,45 @@ export function LearnPageClient() {
   ]);
 
   useEffect(() => {
-    if (!activeCourseId || !urlSessionId || requestedSessionDetailKey !== activeMessageStoreKey) {
-      return;
-    }
+    if (!activeCourseId || activeCourseId !== urlCourseId || !urlSessionId) return;
     let alive = true;
     const courseId = activeCourseId;
     const sessionId = urlSessionId;
     const detailKey = activeMessageStoreKey;
-    const controller = new AbortController();
     setRemoteConversationReadyKey('');
+    setRemoteConversationSummaryState(null);
+    setRemoteConversationMessagePageState(null);
     setRemoteConversationLoadError(null);
 
+    const selectedLocalSession = readLearnSessions(localUserId, courseId).find(
+      (session) => session.id === sessionId,
+    );
+    // Only an explicit marker written before client-side navigation can bypass
+    // detail. An arbitrary/copied URL has no marker and must still verify the
+    // server even when its title or cached message count looks blank.
+    if (
+      selectedLocalSession?.remoteState === 'local-only' &&
+      selectedLocalSession.currentRevision === 0
+    ) {
+      writeLearnSessionRemoteBase(localUserId, courseId, sessionId, {
+        revision: 0,
+        title: selectedLocalSession.title,
+        messages: [],
+        messageWindow: { hasMore: false, isComplete: true },
+      });
+      setRemoteConversationMessagePageState({
+        key: detailKey,
+        hasMore: false,
+        nextCursor: null,
+        limit: 30,
+        loading: false,
+        error: null,
+      });
+      setRemoteConversationReadyKey(detailKey);
+      return;
+    }
+
+    const controller = new AbortController();
     void loadRemoteLearnConversationOrThrow(courseId, sessionId, localUserId, {
       signal: controller.signal,
     })
@@ -8373,14 +9156,118 @@ export function LearnPageClient() {
           rememberDeletedLearnSessionId(localUserId, courseId, sessionId);
           deleteLearnSessionMessages(localUserId, courseId, sessionId);
           deleteLearnSessionRemoteBase(localUserId, courseId, sessionId);
-          setMessages([]);
-          setRemoteConversationLoadError('这条会话已在其他位置删除。');
+          setLearnSessions((current) => current.filter((session) => session.id !== sessionId));
+          replaceDeletedSessionWithFallback({
+            courseId,
+            deletedSessionId: sessionId,
+          });
+          toast.info('这条会话已在其他位置删除，已为你打开下一条会话。');
+          return;
+        }
+        if (
+          remoteConversation.storage === 'database' &&
+          remoteConversation.session === null &&
+          remoteRevision === 0
+        ) {
+          const dirtyById =
+            dirtyConversationMessagesRef.current.get(detailKey) ??
+            new Map(
+              readLearnSessionDirtyMessages(localUserId, courseId, sessionId).map((message) => [
+                message.id,
+                message,
+              ]),
+            );
+          if (dirtyById.size > 0) {
+            dirtyConversationMessagesRef.current.set(detailKey, dirtyById);
+          }
+          const currentMessages =
+            activeMessagesRef.current?.key === detailKey ? activeMessagesRef.current.messages : [];
+          const currentById = new Map(currentMessages.map((message) => [message.id, message]));
+          const retainedDirtyMessages = Array.from(dirtyById.values())
+            .map((payload) => {
+              const currentMessage = currentById.get(payload.id);
+              return currentMessage &&
+                remoteLearnMessagePayloadEqual(learnMessageToRemotePayload(currentMessage), payload)
+                ? currentMessage
+                : remoteMessageToLearnMessage(payload);
+            })
+            .sort(
+              (left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id),
+            );
+          if (retainedDirtyMessages.length === 0) {
+            // A revision-zero miss proves the server has no body. Clean cached
+            // messages under this key came from an old key-pairing bug and must
+            // not be promoted into writes.
+            deleteLearnSessionMessages(localUserId, courseId, sessionId);
+            dirtyConversationMessagesRef.current.delete(detailKey);
+          } else {
+            writeLearnSessionMessages(localUserId, courseId, sessionId, retainedDirtyMessages);
+            writeLearnSessionTabMessages(localUserId, courseId, sessionId, retainedDirtyMessages);
+          }
+          replaceMessagesFromRead(detailKey, retainedDirtyMessages);
+          writeLearnSessionRemoteBase(localUserId, courseId, sessionId, {
+            revision: 0,
+            title: learnSessionTitleFromMessages(retainedDirtyMessages, '新对话'),
+            messages: [],
+            messageWindow: { hasMore: false, isComplete: true },
+          });
+          setRemoteConversationMessagePageState({
+            key: detailKey,
+            hasMore: false,
+            nextCursor: null,
+            limit: 30,
+            loading: false,
+            error: null,
+          });
+          setLearnSessions((current) => {
+            const currentSession = current.find((session) => session.id === sessionId);
+            const now = Date.now();
+            const verifiedLocalSession: LearnChatSession = {
+              id: sessionId,
+              title: learnSessionTitleFromMessages(
+                retainedDirtyMessages,
+                currentSession?.title ?? '新对话',
+              ),
+              createdAt: currentSession?.createdAt ?? now,
+              updatedAt: currentSession?.updatedAt ?? now,
+              messageCount: retainedDirtyMessages.filter(learnMessageHasContent).length,
+              currentRevision: 0,
+              remoteState: 'local-only',
+            };
+            const nextSessions = sortLearnSessionsForList(localUserId, courseId, [
+              verifiedLocalSession,
+              ...current.filter((session) => session.id !== sessionId),
+            ]);
+            writeLearnSessions(localUserId, courseId, nextSessions);
+            return nextSessions;
+          });
+          setRemoteConversationReadyKey(detailKey);
+          setRemoteConversationLoadError(null);
           return;
         }
         if (remoteConversation.storage !== 'database' || !remoteConversation.session) {
           setRemoteConversationLoadError('远端会话暂时不可用，当前保留本地内容。');
           return;
         }
+        setRemoteConversationSummaryState(
+          remoteConversation.summary
+            ? {
+                key: detailKey,
+                summary: remoteConversation.summary,
+              }
+            : null,
+        );
+        setRemoteConversationMessagePageState({
+          key: detailKey,
+          hasMore:
+            remoteConversation.messagePage?.hasMore ??
+            remoteConversation.messageWindow?.hasMore ??
+            false,
+          nextCursor: remoteConversation.messagePage?.nextCursor ?? null,
+          limit: remoteConversation.messagePage?.limit ?? 30,
+          loading: false,
+          error: null,
+        });
 
         const localMessages =
           readLearnSessionTabMessages(localUserId, courseId, sessionId) ??
@@ -8388,38 +9275,74 @@ export function LearnPageClient() {
         const latestLocalMessages = localMessages.filter((message) => !message.transient);
         const remoteMessages = remoteConversation.messages.map(remoteMessageToLearnMessage);
         const remotePayloads = remoteMessages.map(learnMessageToRemotePayload);
+        const dirtyById = dirtyConversationMessagesRef.current.get(detailKey);
+        if (dirtyById) {
+          const remoteById = new Map(remotePayloads.map((message) => [message.id, message]));
+          for (const [messageId, dirtyMessage] of dirtyById) {
+            if (remoteLearnMessagePayloadEqual(remoteById.get(messageId), dirtyMessage)) {
+              dirtyById.delete(messageId);
+            }
+          }
+          if (dirtyById.size === 0) dirtyConversationMessagesRef.current.delete(detailKey);
+          writeLearnSessionDirtyMessages(
+            localUserId,
+            courseId,
+            sessionId,
+            Array.from(dirtyById.values()),
+          );
+        }
         const persistedRemoteBase = readLearnSessionRemoteBase(localUserId, courseId, sessionId);
         const validRemoteBase =
           persistedRemoteBase && persistedRemoteBase.revision <= remoteRevision
             ? persistedRemoteBase
             : null;
-        let mergedMessages = validRemoteBase
-          ? mergeRemoteAndLocalLearnMessages(
-              validRemoteBase.messages,
-              remoteMessages,
-              latestLocalMessages,
-            )
-          : mergeRemoteAuthoritativeLearnMessages(remoteMessages, latestLocalMessages);
+        const canInferRemoteDeletions =
+          validRemoteBase?.messageWindow?.isComplete === true &&
+          remoteConversation.messageWindow?.isComplete === true;
+        let mergedMessages =
+          canInferRemoteDeletions && validRemoteBase
+            ? mergeRemoteAndLocalLearnMessages(
+                validRemoteBase.messages,
+                remoteMessages,
+                latestLocalMessages,
+              )
+            : mergeRemoteAuthoritativeLearnMessages(remoteMessages, latestLocalMessages);
+        const pendingDirtyMessages = Array.from(dirtyById?.values() ?? []).map(
+          remoteMessageToLearnMessage,
+        );
+        if (pendingDirtyMessages.length > 0) {
+          // The server owns every clean overlapping id, while an explicit
+          // local dirty operation must remain visible until that exact payload
+          // is acknowledged.
+          mergedMessages = mergeOlderRemoteLearnMessages(mergedMessages, pendingDirtyMessages);
+        }
         const deletedMessageIds = readDeletedLearnMessageIds(localUserId, courseId, sessionId);
-        mergedMessages = mergedMessages.filter((message) => !deletedMessageIds.has(message.id));
+        const serverDeletedMessageIds = new Set(remoteConversation.deletedMessageIds ?? []);
+        mergedMessages = mergedMessages.filter(
+          (message) =>
+            !deletedMessageIds.has(message.id) && !serverDeletedMessageIds.has(message.id),
+        );
         writeLearnSessionRemoteBase(localUserId, courseId, sessionId, {
           revision: remoteRevision,
           title: remoteConversation.session.title,
           messages: remotePayloads,
+          messageWindow: remoteConversation.messageWindow,
         });
         writeLearnSessionMessages(localUserId, courseId, sessionId, mergedMessages);
         writeLearnSessionTabMessages(localUserId, courseId, sessionId, mergedMessages);
         const acceptedRemoteSnapshot =
           JSON.stringify(mergedMessages.map(learnMessageToRemotePayload)) ===
           JSON.stringify(remotePayloads);
-        lastSyncedConversationRef.current = acceptedRemoteSnapshot
-          ? learnConversationSyncSignature({
-              key: detailKey,
-              title: remoteConversation.session.title,
-              messages: remotePayloads,
-            })
-          : '';
-        setMessages(mergedMessages);
+        lastSyncedConversationRef.current =
+          acceptedRemoteSnapshot && deletedMessageIds.size === 0
+            ? learnConversationSyncSignature({
+                key: detailKey,
+                title: remoteConversation.session.title,
+                messages: remotePayloads,
+                deletedMessageIds: [],
+              })
+            : '';
+        replaceMessagesFromRead(detailKey, mergedMessages);
         const hydratedMessages = await hydrateLearnMessageAttachments({
           messages: mergedMessages,
           ownerId: localUserId,
@@ -8435,17 +9358,19 @@ export function LearnPageClient() {
         for (const objectUrl of hydratedMessages.objectUrls) {
           hydratedAttachmentUrlsRef.current.add(objectUrl);
         }
-        setMessages(hydratedMessages.messages);
-        setLearnSessions((current) =>
-          mergeLearnSessions(localUserId, courseId, current, [remoteConversation.session!]).slice(
-            0,
-            5,
-          ),
-        );
+        replaceMessagesFromRead(detailKey, hydratedMessages.messages);
+        setLearnSessions((current) => {
+          const nextSessions = mergeLearnSessions(localUserId, courseId, current, [
+            remoteLearnSessionToLocal(remoteConversation.session!),
+          ]);
+          writeLearnSessions(localUserId, courseId, nextSessions);
+          return nextSessions;
+        });
         setRemoteConversationReadyKey(detailKey);
       })
       .catch((detailError) => {
         if (!alive || activeMessageStoreKeyRef.current !== detailKey) return;
+        setRemoteConversationMessagePageState(null);
         setRemoteConversationLoadError(
           detailError instanceof Error ? detailError.message : '远端会话加载失败',
         );
@@ -8460,8 +9385,9 @@ export function LearnPageClient() {
     activeMessageStoreKey,
     localUserId,
     remoteConversationLoadAttempt,
-    requestedSessionDetailKey,
-    setMessages,
+    replaceDeletedSessionWithFallback,
+    replaceMessagesFromRead,
+    urlCourseId,
     urlSessionId,
   ]);
 
@@ -8469,57 +9395,130 @@ export function LearnPageClient() {
     if (!activeCourseId) return;
     if (messageStoreKey !== activeMessageStoreKey) return;
     const persistentMessages = messages.filter((message) => !message.transient);
+    const persistedMarker = lastPersistedMessagesRef.current;
+    const persistentStateChanged =
+      persistedMarker.key !== activeMessageStoreKey ||
+      persistedMarker.messages.length !== persistentMessages.length ||
+      !persistedMarker.messages.every((message, index) => message === persistentMessages[index]);
     if (!urlSessionId && persistentMessages.length === 0) return;
-    writeLearnSessionMessages(localUserId, activeCourseId, activeSessionId, persistentMessages);
-    writeLearnSessionTabMessages(localUserId, activeCourseId, activeSessionId, persistentMessages);
-    const syncTitle = learnSessionTitleFromMessages(persistentMessages, '新对话');
-    setLearnSessions((current) => {
-      const now = Date.now();
-      const latestMessageUpdatedAt = learnSessionUpdatedAtFromMessages(persistentMessages);
-      const byId = new Map<string, LearnChatSession>();
-      for (const session of current) byId.set(session.id, session);
-      const currentSession = byId.get(activeSessionId);
-      const fallbackTitle =
-        currentSession?.title &&
-        currentSession.title !== '默认学习会话' &&
-        !/^新会话\s+\d+$/.test(currentSession.title)
-          ? currentSession.title
-          : '新对话';
-      byId.set(activeSessionId, {
-        id: activeSessionId,
-        title: learnSessionTitleFromMessages(persistentMessages, fallbackTitle),
-        createdAt: currentSession?.createdAt ?? now,
-        updatedAt: latestMessageUpdatedAt ?? currentSession?.updatedAt ?? now,
-      });
-      const nextSessions = pruneDuplicateBlankLearnSessions(
+    const cachedCurrentSession = readLearnSessions(localUserId, activeCourseId).find(
+      (session) => session.id === activeSessionId,
+    );
+    const cachedTitle = cachedCurrentSession?.title?.trim() || '';
+    const syncTitle =
+      cachedTitle &&
+      cachedTitle !== '新对话' &&
+      cachedTitle !== '默认学习会话' &&
+      !/^新会话\s+\d+$/.test(cachedTitle)
+        ? cachedTitle
+        : learnSessionTitleFromMessages(persistentMessages, '新对话');
+    if (persistentStateChanged) {
+      lastPersistedMessagesRef.current = {
+        key: activeMessageStoreKey,
+        messages: persistentMessages,
+      };
+      writeLearnSessionMessages(localUserId, activeCourseId, activeSessionId, persistentMessages);
+      writeLearnSessionTabMessages(
         localUserId,
         activeCourseId,
-        sortLearnSessionsForList(localUserId, activeCourseId, Array.from(byId.values())),
         activeSessionId,
+        persistentMessages,
       );
-      writeLearnSessions(localUserId, activeCourseId, nextSessions);
-      return nextSessions.slice(0, 5);
-    });
+      setLearnSessions((current) => {
+        const now = Date.now();
+        const latestMessageUpdatedAt = learnSessionUpdatedAtFromMessages(persistentMessages);
+        const byId = new Map<string, LearnChatSession>();
+        for (const session of current) byId.set(session.id, session);
+        const currentSession = byId.get(activeSessionId);
+        const fallbackTitle =
+          currentSession?.title &&
+          currentSession.title !== '默认学习会话' &&
+          !/^新会话\s+\d+$/.test(currentSession.title)
+            ? currentSession.title
+            : '新对话';
+        byId.set(activeSessionId, {
+          id: activeSessionId,
+          title: learnSessionTitleFromMessages(persistentMessages, fallbackTitle),
+          createdAt: currentSession?.createdAt ?? now,
+          updatedAt: latestMessageUpdatedAt ?? currentSession?.updatedAt ?? now,
+          messageCount: Math.max(
+            currentSession?.messageCount ?? 0,
+            persistentMessages.filter(learnMessageHasContent).length,
+          ),
+          currentRevision: currentSession?.currentRevision,
+          remoteState: currentSession?.remoteState,
+        });
+        const nextSessions = pruneDuplicateBlankLearnSessions(
+          localUserId,
+          activeCourseId,
+          sortLearnSessionsForList(localUserId, activeCourseId, Array.from(byId.values())),
+          activeSessionId,
+          (sessionId) =>
+            Boolean(
+              composerAttachmentsBySessionRef.current.get(
+                `${localUserId}:${activeCourseId}:${sessionId}`,
+              )?.length,
+            ),
+        );
+        writeLearnSessions(localUserId, activeCourseId, nextSessions);
+        return nextSessions;
+      });
+    }
+    const dirtyById = dirtyConversationMessagesRef.current.get(activeMessageStoreKey);
+    const dirtyMessages = dirtyById ? Array.from(dirtyById.values()) : [];
+    writeLearnSessionDirtyMessages(localUserId, activeCourseId, activeSessionId, dirtyMessages);
     if (remoteConversationReadyKey !== activeMessageStoreKey) return;
     if (!initialBootSettled) return;
 
-    const payload = persistentMessages.map(learnMessageToRemotePayload);
+    const deletedMessageIds = Array.from(
+      readDeletedLearnMessageIds(localUserId, activeCourseId, activeSessionId),
+    ).sort();
+    if (dirtyMessages.length === 0 && deletedMessageIds.length === 0) return;
     const syncSignature = learnConversationSyncSignature({
       key: activeMessageStoreKey,
       title: syncTitle,
-      messages: payload,
+      messages: dirtyMessages,
+      deletedMessageIds,
     });
     if (lastSyncedConversationRef.current === syncSignature) return;
     lastSyncedConversationRef.current = syncSignature;
+    setRemoteConversationSummaryState((current) =>
+      current?.key === activeMessageStoreKey ? null : current,
+    );
     setRemoteConversationSyncError(null);
     void syncRemoteLearnConversation({
       courseId: activeCourseId,
       sessionId: activeSessionId,
       title: syncTitle,
-      messages: payload,
+      messages: dirtyMessages,
+      dirtyMessages,
+      deletedMessageIds,
       ownerScope: localUserId,
     }).then((ok) => {
       if (ok) {
+        const submittedDeletedMessageIdSet = new Set(deletedMessageIds);
+        const currentDirtyById = dirtyConversationMessagesRef.current.get(activeMessageStoreKey);
+        if (currentDirtyById) {
+          for (const submittedMessage of dirtyMessages) {
+            if (
+              remoteLearnMessagePayloadEqual(
+                currentDirtyById.get(submittedMessage.id),
+                submittedMessage,
+              )
+            ) {
+              currentDirtyById.delete(submittedMessage.id);
+            }
+          }
+          if (currentDirtyById.size === 0) {
+            dirtyConversationMessagesRef.current.delete(activeMessageStoreKey);
+          }
+          writeLearnSessionDirtyMessages(
+            localUserId,
+            activeCourseId,
+            activeSessionId,
+            Array.from(currentDirtyById.values()),
+          );
+        }
         const acceptedBase = getRemoteLearnConversationBaseSnapshot(
           activeCourseId,
           activeSessionId,
@@ -8527,19 +9526,34 @@ export function LearnPageClient() {
         );
         if (acceptedBase) {
           writeLearnSessionRemoteBase(localUserId, activeCourseId, activeSessionId, acceptedBase);
-          const acceptedMessageIds = new Set(acceptedBase.messages.map((message) => message.id));
+          setLearnSessions((current) => {
+            const nextSessions = current.map((session) =>
+              session.id === activeSessionId
+                ? {
+                    ...session,
+                    currentRevision: acceptedBase.revision,
+                    remoteState: 'remote' as const,
+                  }
+                : session,
+            );
+            writeLearnSessions(localUserId, activeCourseId, nextSessions);
+            return nextSessions;
+          });
           const pendingDeletedMessageIds = readDeletedLearnMessageIds(
             localUserId,
             activeCourseId,
             activeSessionId,
           );
+          const remainingDeletedMessageIds = new Set(
+            Array.from(pendingDeletedMessageIds).filter(
+              (id) => !submittedDeletedMessageIdSet.has(id),
+            ),
+          );
           writeDeletedLearnMessageIds(
             localUserId,
             activeCourseId,
             activeSessionId,
-            new Set(
-              Array.from(pendingDeletedMessageIds).filter((id) => acceptedMessageIds.has(id)),
-            ),
+            remainingDeletedMessageIds,
           );
         }
         if (activeMessageStoreKeyRef.current === activeMessageStoreKey) {
@@ -8751,10 +9765,17 @@ export function LearnPageClient() {
       setNotebooks([]);
       setProblems([]);
       setSnapshot(null);
+      setProblemsHydrationWanted(false);
+      setNotebooksHydrationWanted(false);
       setNotebooksLoadState(emptyResourceLoadState());
       setProblemsLoadState(emptyResourceLoadState());
       setSourcesLoadState(emptyResourceLoadState());
+      problemHydrationAbortRef.current?.abort();
+      notebookHydrationAbortRef.current?.abort();
+      problemHydrationAbortRef.current = null;
+      notebookHydrationAbortRef.current = null;
       problemLoadPromiseRef.current = null;
+      notebookLoadPromiseRef.current = null;
       return;
     }
     if (!isProvisionalCourseShell(activeCourse) || isUsefulCourseShellName(activeCourse.name)) {
@@ -8776,11 +9797,19 @@ export function LearnPageClient() {
     setCourseSourceUploads(cachedSources);
     setNotebooks(cachedNotebooks);
     setProblems(cachedProblems);
+    setProblemsHydrationWanted(false);
+    setNotebooksHydrationWanted(false);
+    // Chat page only needs lightweight content-state for status. Full lists stay
+    // deferred until practice / publish / explicit hydration asks for them.
     setNotebooksLoadState(
-      loadingResourceLoadState({ courseId, usingCachedData: Boolean(cachedAssets?.notebooks) }),
+      cachedAssets?.notebooks
+        ? settledResourceLoadState({ courseId, itemCount: cachedNotebooks.length })
+        : emptyResourceLoadState(),
     );
     setProblemsLoadState(
-      loadingResourceLoadState({ courseId, usingCachedData: Boolean(cachedAssets?.problems) }),
+      cachedAssets?.problems
+        ? settledResourceLoadState({ courseId, itemCount: cachedProblems.length })
+        : emptyResourceLoadState(),
     );
     setSourcesLoadState(
       cachedAssets?.sourceUploads
@@ -8838,157 +9867,239 @@ export function LearnPageClient() {
     };
   }, [activeCourse, enqueueDeferredLearnDataRequest, firstResourceRoundReady, userId]);
 
-  useEffect(() => {
-    if (!activeCourse || !activeCourseCanLoadResources) return;
-    const courseId = activeCourse.id;
-    const cachedProblems = courseAssetCacheRef.current.get(courseId)?.problems;
-    const controller = new AbortController();
-    let alive = true;
-    setProblems(cachedProblems ?? []);
-    setProblemsLoadState(
-      loadingResourceLoadState({ courseId, usingCachedData: Boolean(cachedProblems) }),
-    );
+  const hydrateCourseProblems = useCallback(
+    async (courseId: string): Promise<CourseProblemClientSummary[]> => {
+      if (problemLoadPromiseRef.current?.courseId === courseId) {
+        return problemLoadPromiseRef.current.promise;
+      }
+      const cachedProblems = courseAssetCacheRef.current.get(courseId)?.problems;
+      const controller = new AbortController();
+      problemHydrationAbortRef.current?.abort();
+      problemHydrationAbortRef.current = controller;
+      setProblems(cachedProblems ?? []);
+      setProblemsLoadState(
+        loadingResourceLoadState({ courseId, usingCachedData: Boolean(cachedProblems) }),
+      );
 
-    const loadPromise = enqueueCourseResourceRequest({
-      courseId,
-      kind: 'problems',
-      signal: controller.signal,
-      request: () =>
-        listCourseProblemSummaries(courseId, {
-          lean: true,
-          signal: controller.signal,
-          timeoutMs: COURSE_RESOURCE_TIMEOUT_MS,
-        }),
-    });
-    problemLoadPromiseRef.current = { courseId, promise: loadPromise };
-    void loadPromise
-      .then((nextProblems) => {
-        if (!alive) return;
-        courseAssetCacheRef.current.set(courseId, {
-          ...(courseAssetCacheRef.current.get(courseId) ?? {}),
-          problems: nextProblems,
-        });
-        clearCourseContentRepairRetry(courseId, 'problems');
-        setProblems(nextProblems);
-        setProblemsLoadState(
-          settledResourceLoadState({ courseId, itemCount: nextProblems.length }),
-        );
-        const currentNotebooks = courseAssetCacheRef.current.get(courseId)?.notebooks ?? [];
-        const currentState = loadLearnerCourseState({
-          userId: userId || 'anonymous',
-          courseId,
-        });
-        const nextSnapshot = summarizeLearnerCourseState({
-          state: currentState,
-          notebooks: currentNotebooks,
-          problems: nextProblems,
-        });
-        setSnapshot(nextSnapshot);
-        setProgressSelection(progressSelectionFromSnapshot(nextSnapshot));
-      })
-      .catch((err) => {
-        if (!alive || controller.signal.aborted) return;
-        setProblemsLoadState(
-          failedResourceLoadState({
-            courseId,
-            error: err,
-            usingCachedData: Boolean(cachedProblems),
+      const loadPromise = enqueueCourseResourceRequest({
+        courseId,
+        kind: 'problems',
+        signal: controller.signal,
+        request: () =>
+          listCourseProblemSummaries(courseId, {
+            lean: true,
+            signal: controller.signal,
+            timeoutMs: COURSE_RESOURCE_TIMEOUT_MS,
           }),
-        );
-        scheduleCourseContentRepairRetry(courseId, 'problems');
       })
-      .finally(() => {
-        if (problemLoadPromiseRef.current?.promise === loadPromise) {
-          problemLoadPromiseRef.current = null;
-        }
-      });
+        .then((nextProblems) => {
+          if (controller.signal.aborted || activeCourseIdRef.current !== courseId) {
+            return nextProblems;
+          }
+          courseAssetCacheRef.current.set(courseId, {
+            ...(courseAssetCacheRef.current.get(courseId) ?? {}),
+            problems: nextProblems,
+          });
+          clearCourseContentRepairRetry(courseId, 'problems');
+          setProblems(nextProblems);
+          setProblemsLoadState(
+            settledResourceLoadState({ courseId, itemCount: nextProblems.length }),
+          );
+          const currentNotebooks = courseAssetCacheRef.current.get(courseId)?.notebooks ?? [];
+          const currentState = loadLearnerCourseState({
+            userId: userId || 'anonymous',
+            courseId,
+          });
+          const nextSnapshot = summarizeLearnerCourseState({
+            state: currentState,
+            notebooks: currentNotebooks,
+            problems: nextProblems,
+          });
+          setSnapshot(nextSnapshot);
+          setProgressSelection(progressSelectionFromSnapshot(nextSnapshot));
+          return nextProblems;
+        })
+        .catch((err) => {
+          if (controller.signal.aborted || activeCourseIdRef.current !== courseId) {
+            throw err;
+          }
+          setProblemsLoadState(
+            failedResourceLoadState({
+              courseId,
+              error: err,
+              usingCachedData: Boolean(cachedProblems),
+            }),
+          );
+          scheduleCourseContentRepairRetry(courseId, 'problems');
+          throw err;
+        })
+        .finally(() => {
+          if (problemLoadPromiseRef.current?.promise === loadPromise) {
+            problemLoadPromiseRef.current = null;
+          }
+        });
 
-    return () => {
-      alive = false;
-      controller.abort(new DOMException('课程已切换', 'AbortError'));
-    };
+      problemLoadPromiseRef.current = { courseId, promise: loadPromise };
+      return loadPromise;
+    },
+    [
+      clearCourseContentRepairRetry,
+      enqueueCourseResourceRequest,
+      scheduleCourseContentRepairRetry,
+      userId,
+    ],
+  );
+
+  const hydrateCourseNotebooks = useCallback(
+    async (courseId: string): Promise<StageListItem[]> => {
+      if (notebookLoadPromiseRef.current?.courseId === courseId) {
+        return notebookLoadPromiseRef.current.promise;
+      }
+      const cachedNotebooks = courseAssetCacheRef.current.get(courseId)?.notebooks;
+      const controller = new AbortController();
+      notebookHydrationAbortRef.current?.abort();
+      notebookHydrationAbortRef.current = controller;
+      setNotebooks(cachedNotebooks ?? []);
+      setNotebooksLoadState(
+        loadingResourceLoadState({ courseId, usingCachedData: Boolean(cachedNotebooks) }),
+      );
+
+      const loadPromise = enqueueCourseResourceRequest({
+        courseId,
+        kind: 'notebooks',
+        signal: controller.signal,
+        request: () =>
+          listStagesByCourseOrThrow(courseId, {
+            signal: controller.signal,
+            timeoutMs: COURSE_RESOURCE_TIMEOUT_MS,
+          }),
+      })
+        .then((nextNotebooks) => {
+          if (controller.signal.aborted || activeCourseIdRef.current !== courseId) {
+            return nextNotebooks;
+          }
+          courseAssetCacheRef.current.set(courseId, {
+            ...(courseAssetCacheRef.current.get(courseId) ?? {}),
+            notebooks: nextNotebooks,
+          });
+          clearCourseContentRepairRetry(courseId, 'notebooks');
+          setNotebooks(nextNotebooks);
+          setNotebooksLoadState(
+            settledResourceLoadState({ courseId, itemCount: nextNotebooks.length }),
+          );
+
+          const currentProblems = courseAssetCacheRef.current.get(courseId)?.problems ?? [];
+          const course = courses.find((item) => item.id === courseId) ?? activeCourse;
+          if (course) {
+            const seeded = seedLearnerCourseStateFromCourse({
+              userId: userId || 'anonymous',
+              course,
+              notebooks: nextNotebooks,
+              problems: currentProblems,
+            });
+            const nextSnapshot = summarizeLearnerCourseState({
+              state: seeded,
+              notebooks: nextNotebooks,
+              problems: currentProblems,
+            });
+            setSnapshot(nextSnapshot);
+            setProgressSelection(progressSelectionFromSnapshot(nextSnapshot));
+          }
+          return nextNotebooks;
+        })
+        .catch((err) => {
+          if (controller.signal.aborted || activeCourseIdRef.current !== courseId) {
+            throw err;
+          }
+          setNotebooksLoadState(
+            failedResourceLoadState({
+              courseId,
+              error: err,
+              usingCachedData: Boolean(cachedNotebooks),
+            }),
+          );
+          scheduleCourseContentRepairRetry(courseId, 'notebooks');
+          throw err;
+        })
+        .finally(() => {
+          if (notebookLoadPromiseRef.current?.promise === loadPromise) {
+            notebookLoadPromiseRef.current = null;
+          }
+        });
+
+      notebookLoadPromiseRef.current = { courseId, promise: loadPromise };
+      return loadPromise;
+    },
+    [
+      activeCourse,
+      clearCourseContentRepairRetry,
+      courses,
+      enqueueCourseResourceRequest,
+      scheduleCourseContentRepairRetry,
+      userId,
+    ],
+  );
+
+  const ensureProblemsLoaded = useCallback(async (): Promise<CourseProblemClientSummary[]> => {
+    if (!activeCourse || !activeCourseCanLoadResources) return problems;
+    const courseId = activeCourse.id;
+    setProblemsHydrationWanted(true);
+    const state = problemsLoadStateRef.current;
+    if (
+      state.courseId === courseId &&
+      (state.status === 'ready' || state.status === 'empty') &&
+      !problemLoadPromiseRef.current
+    ) {
+      return courseAssetCacheRef.current.get(courseId)?.problems ?? problems;
+    }
+    try {
+      return await hydrateCourseProblems(courseId);
+    } catch {
+      return courseAssetCacheRef.current.get(courseId)?.problems ?? problems;
+    }
+  }, [activeCourse, activeCourseCanLoadResources, hydrateCourseProblems, problems]);
+
+  const ensureNotebooksLoaded = useCallback(async (): Promise<StageListItem[]> => {
+    if (!activeCourse || !activeCourseCanLoadResources) return notebooks;
+    const courseId = activeCourse.id;
+    setNotebooksHydrationWanted(true);
+    const state = notebooksLoadStateRef.current;
+    if (
+      state.courseId === courseId &&
+      (state.status === 'ready' || state.status === 'empty') &&
+      !notebookLoadPromiseRef.current
+    ) {
+      return courseAssetCacheRef.current.get(courseId)?.notebooks ?? notebooks;
+    }
+    try {
+      return await hydrateCourseNotebooks(courseId);
+    } catch {
+      return courseAssetCacheRef.current.get(courseId)?.notebooks ?? notebooks;
+    }
+  }, [activeCourse, activeCourseCanLoadResources, hydrateCourseNotebooks, notebooks]);
+
+  useEffect(() => {
+    if (!activeCourse || !activeCourseCanLoadResources || !problemsHydrationWanted) return;
+    if (resourceLoadAttempts.problems === 0) return;
+    void hydrateCourseProblems(activeCourse.id).catch(() => undefined);
   }, [
     activeCourse,
     activeCourseCanLoadResources,
-    clearCourseContentRepairRetry,
-    enqueueCourseResourceRequest,
+    hydrateCourseProblems,
+    problemsHydrationWanted,
     resourceLoadAttempts.problems,
-    scheduleCourseContentRepairRetry,
-    userId,
   ]);
 
   useEffect(() => {
-    if (!activeCourse || !activeCourseCanLoadResources) return;
-    const courseId = activeCourse.id;
-    const cachedNotebooks = courseAssetCacheRef.current.get(courseId)?.notebooks;
-    const controller = new AbortController();
-    let alive = true;
-    setNotebooks(cachedNotebooks ?? []);
-    setNotebooksLoadState(
-      loadingResourceLoadState({ courseId, usingCachedData: Boolean(cachedNotebooks) }),
-    );
-
-    void enqueueCourseResourceRequest({
-      courseId,
-      kind: 'notebooks',
-      signal: controller.signal,
-      request: () =>
-        listStagesByCourseOrThrow(courseId, {
-          signal: controller.signal,
-          timeoutMs: COURSE_RESOURCE_TIMEOUT_MS,
-        }),
-    })
-      .then((nextNotebooks) => {
-        if (!alive) return;
-        courseAssetCacheRef.current.set(courseId, {
-          ...(courseAssetCacheRef.current.get(courseId) ?? {}),
-          notebooks: nextNotebooks,
-        });
-        clearCourseContentRepairRetry(courseId, 'notebooks');
-        setNotebooks(nextNotebooks);
-        setNotebooksLoadState(
-          settledResourceLoadState({ courseId, itemCount: nextNotebooks.length }),
-        );
-
-        const currentProblems = courseAssetCacheRef.current.get(courseId)?.problems ?? [];
-        const seeded = seedLearnerCourseStateFromCourse({
-          userId: userId || 'anonymous',
-          course: activeCourse,
-          notebooks: nextNotebooks,
-          problems: currentProblems,
-        });
-        const nextSnapshot = summarizeLearnerCourseState({
-          state: seeded,
-          notebooks: nextNotebooks,
-          problems: currentProblems,
-        });
-        setSnapshot(nextSnapshot);
-        setProgressSelection(progressSelectionFromSnapshot(nextSnapshot));
-      })
-      .catch((err) => {
-        if (!alive || controller.signal.aborted) return;
-        setNotebooksLoadState(
-          failedResourceLoadState({
-            courseId,
-            error: err,
-            usingCachedData: Boolean(cachedNotebooks),
-          }),
-        );
-        scheduleCourseContentRepairRetry(courseId, 'notebooks');
-      });
-
-    return () => {
-      alive = false;
-      controller.abort(new DOMException('课程已切换', 'AbortError'));
-    };
+    if (!activeCourse || !activeCourseCanLoadResources || !notebooksHydrationWanted) return;
+    if (resourceLoadAttempts.notebooks === 0) return;
+    void hydrateCourseNotebooks(activeCourse.id).catch(() => undefined);
   }, [
     activeCourse,
     activeCourseCanLoadResources,
-    clearCourseContentRepairRetry,
-    enqueueCourseResourceRequest,
+    hydrateCourseNotebooks,
+    notebooksHydrationWanted,
     resourceLoadAttempts.notebooks,
-    scheduleCourseContentRepairRetry,
-    userId,
   ]);
 
   useEffect(() => {
@@ -9031,6 +10142,29 @@ export function LearnPageClient() {
   ]);
 
   useEffect(() => {
+    if (!publishDialogOpen || !activeCourse || !activeCourseCanLoadResources) return;
+    void ensureNotebooksLoaded();
+    void ensureProblemsLoaded();
+  }, [
+    activeCourse,
+    activeCourseCanLoadResources,
+    ensureNotebooksLoaded,
+    ensureProblemsLoaded,
+    publishDialogOpen,
+  ]);
+
+  useEffect(() => {
+    if (!sourceUploadPanelOpen || !activeCourse || !activeCourseCanLoadResources) return;
+    // Source library also lists notebooks not backed by an upload.
+    void ensureNotebooksLoaded();
+  }, [activeCourse, activeCourseCanLoadResources, ensureNotebooksLoaded, sourceUploadPanelOpen]);
+
+  useEffect(() => {
+    if (!notebookLibraryPanelOpen || !activeCourse || !activeCourseCanLoadResources) return;
+    void ensureNotebooksLoaded();
+  }, [activeCourse, activeCourseCanLoadResources, ensureNotebooksLoaded, notebookLibraryPanelOpen]);
+
+  useEffect(() => {
     if (!activeCourse || !activeCourseCanLoadResources || !sourceUploadPanelOpen) return;
     const courseId = activeCourse.id;
     const cachedSources = courseAssetCacheRef.current
@@ -9049,7 +10183,9 @@ export function LearnPageClient() {
       signal: controller.signal,
       request: () =>
         listCourseSourceUploads(courseId, {
-          includeText: sourceUploadPanelOpen,
+          // The popup grid only needs catalog metadata. Notebook/source text is
+          // fetched by the selected-tile effect after the user opens one item.
+          includeText: false,
           includeArtifacts: false,
           signal: controller.signal,
           timeoutMs: COURSE_SOURCE_TIMEOUT_MS,
@@ -9094,7 +10230,7 @@ export function LearnPageClient() {
   ]);
 
   useEffect(() => {
-    if (!activeCourse?.id || !activeCourseCanLoadResources || !firstResourceRoundReady) {
+    if (!activeCourse?.id || !activeCourseCanLoadResources) {
       setCourseContentWatchError(null);
       setCourseContentStateRevision('');
       return;
@@ -9150,10 +10286,16 @@ export function LearnPageClient() {
       );
       nextAllowedPollAt = Date.now() + COURSE_CONTENT_STATE_HOT_POLL_MS;
       const changedKinds: CourseResourceKind[] = [];
-      if (previousState.notebooks.revision !== nextState.notebooks.revision) {
+      if (
+        notebooksHydrationWantedRef.current &&
+        previousState.notebooks.revision !== nextState.notebooks.revision
+      ) {
         changedKinds.push('notebooks');
       }
-      if (previousState.problems.revision !== nextState.problems.revision) {
+      if (
+        problemsHydrationWantedRef.current &&
+        previousState.problems.revision !== nextState.problems.revision
+      ) {
         changedKinds.push('problems');
       }
       if (
@@ -9298,7 +10440,6 @@ export function LearnPageClient() {
     activeCourseCanLoadResources,
     courseContentWatchAttempt,
     enqueueDeferredLearnDataRequest,
-    firstResourceRoundReady,
     localUserId,
   ]);
 
@@ -9740,13 +10881,15 @@ export function LearnPageClient() {
         const prepared = await Promise.all(
           files.slice(0, remainingSlots).map((file) => prepareLearnImageAttachment(file)),
         );
-        setAttachments((current) => [...current, ...prepared].slice(0, MAX_LEARN_CHAT_IMAGES));
+        updateComposerAttachments((current) =>
+          [...current, ...prepared].slice(0, MAX_LEARN_CHAT_IMAGES),
+        );
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : '图片添加失败');
       }
     },
-    [attachments.length],
+    [attachments.length, updateComposerAttachments],
   );
 
   const handleLearnUploadFiles = useCallback(
@@ -9966,38 +11109,97 @@ export function LearnPageClient() {
   );
 
   const commitSyllabusEvents = useCallback(
-    (
+    async (
       incomingEvents: SyllabusCalendarEvent[],
       message: string,
       activityLabel: string,
       mode: SyllabusCommitMode,
     ) => {
       if (!activeCourseId || !incomingEvents.length) return;
-      const nextEvents =
-        mode === 'replace'
-          ? incomingEvents
-              .slice()
-              .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title))
-          : mergeSyllabusEvents(syllabusEvents, incomingEvents);
-      writeSyllabusEvents(localUserId, activeCourseId, nextEvents);
-      setSyllabusEventState({ courseId: activeCourseId, events: nextEvents });
-      setSyllabusImportMessage(message);
-      setSyllabusDialogOpen(false);
-      setSyllabusDraftEvents([]);
-      setSyllabusDraftSourceName('');
-      setSyllabusImportLoading(false);
-      setRightRailView('calendar');
+      setSyllabusImportLoading(true);
+      setSyllabusImportMessage(null);
+      try {
+        let currentEvents = syllabusEvents;
+        if (mode === 'replace') {
+          currentEvents = await reloadCalendarEvents();
+          for (const event of currentEvents) {
+            await deleteCalendarEvent(event, {
+              idempotencyKey: makeLearningCalendarIdempotencyKey(
+                'course-calendar-replace-delete',
+                `${activeCourseId}-${event.id}-${event.version}`,
+              ),
+            });
+          }
+        }
 
-      const today = localDayKey(new Date());
-      const focusEvent =
-        incomingEvents
-          .slice()
-          .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title))
-          .find((event) => event.date >= today) || incomingEvents[0];
-      setCalendarReferenceDate(new Date(`${focusEvent.date}T12:00:00`));
-      announceSyllabusScheduleUpdated(activeCourseId, activityLabel);
+        const existingKeys = new Set(
+          currentEvents.map(
+            (event) =>
+              `${event.date}:${event.kind}:${event.title.trim().toLocaleLowerCase('zh-CN')}`,
+          ),
+        );
+        const eventsToCreate = incomingEvents
+          .filter(
+            (event) =>
+              mode === 'replace' ||
+              !existingKeys.has(
+                `${event.date}:${event.kind}:${event.title.trim().toLocaleLowerCase('zh-CN')}`,
+              ),
+          )
+          .map((event) => ({
+            ...event,
+            courseId: activeCourseId,
+            origin: event.origin || ('syllabus' as const),
+            sourceRef:
+              event.sourceRef ||
+              ({
+                type: 'syllabus' as const,
+                id: event.sourceName || 'course-syllabus',
+              } satisfies NonNullable<SyllabusCalendarEvent['sourceRef']>),
+          }));
+        if (eventsToCreate.length) {
+          await createCalendarEvents(eventsToCreate, {
+            idempotencyKey: makeLearningCalendarIdempotencyKey(
+              'course-calendar-syllabus',
+              `${activeCourseId}-${eventsToCreate.map((event) => event.id).join('-')}`,
+            ),
+          });
+        }
+
+        setSyllabusImportMessage(
+          eventsToCreate.length ? message : '这些事项已经存在于课程日历中，没有重复写入。',
+        );
+        setSyllabusDialogOpen(false);
+        setSyllabusDraftEvents([]);
+        setSyllabusDraftSourceName('');
+        setRightRailView('calendar');
+
+        const today = localDayKey(new Date());
+        const focusEvent =
+          incomingEvents
+            .slice()
+            .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title))
+            .find((event) => event.date >= today) || incomingEvents[0];
+        setCalendarReferenceDate(new Date(`${focusEvent.date}T12:00:00`));
+        announceSyllabusScheduleUpdated(activeCourseId, activityLabel);
+      } catch (commitError) {
+        setSyllabusImportMessage(
+          commitError instanceof Error
+            ? `课程日历保存失败：${commitError.message}`
+            : '课程日历保存失败，请稍后重试。',
+        );
+        void reloadCalendarEvents().catch(() => undefined);
+      } finally {
+        setSyllabusImportLoading(false);
+      }
     },
-    [activeCourseId, localUserId, syllabusEvents],
+    [
+      activeCourseId,
+      createCalendarEvents,
+      deleteCalendarEvent,
+      reloadCalendarEvents,
+      syllabusEvents,
+    ],
   );
 
   const openManualScheduleDialog = useCallback(() => {
@@ -10008,7 +11210,46 @@ export function LearnPageClient() {
     setManualScheduleDialogOpen(true);
   }, []);
 
-  const confirmManualScheduleEvent = useCallback(() => {
+  const clearLearningCalendar = useCallback(async () => {
+    if (!activeCourseId) return;
+    if (!syllabusEvents.length) {
+      toast.success('日历里暂时没有可清空的日程。');
+      return;
+    }
+    const confirmed = window.confirm(
+      `确定清空当前课程日历中的 ${syllabusEvents.length} 项日程吗？此操作无法撤销。`,
+    );
+    if (!confirmed) return;
+    setSyllabusImportMessage('正在清空课程日历…');
+    try {
+      for (const event of syllabusEvents) {
+        await deleteCalendarEvent(event, {
+          idempotencyKey: makeLearningCalendarIdempotencyKey(
+            'course-calendar-clear',
+            `${activeCourseId}-${event.id}-${event.version}`,
+          ),
+        });
+      }
+      setSyllabusImportMessage('已清空当前加载范围内的课程日历。');
+      toast.success('已清空课程日历');
+    } catch (clearError) {
+      setSyllabusImportMessage(
+        clearError instanceof Error
+          ? `日历仅完成了部分清理：${clearError.message}`
+          : '清空日历失败，请重试。',
+      );
+      void reloadCalendarEvents().catch(() => undefined);
+      toast.error('清空日历没有完整完成，请重试。');
+    }
+  }, [activeCourseId, deleteCalendarEvent, reloadCalendarEvents, syllabusEvents]);
+
+  const openSyllabusUploadDialog = useCallback(() => {
+    setSyllabusImportMode('file');
+    setSyllabusImportMessage(null);
+    setSyllabusDialogOpen(true);
+  }, []);
+
+  const confirmManualScheduleEvent = useCallback(async () => {
     if (!activeCourseId) return;
     const title = manualScheduleTitle.trim();
     if (!title) {
@@ -10022,31 +11263,44 @@ export function LearnPageClient() {
 
     const event: SyllabusCalendarEvent = {
       id: makeClientId('syllabus-event'),
+      courseId: activeCourseId,
       title,
       kind: manualScheduleKind,
       date: manualScheduleDate,
       sourceName: '手动添加',
+      origin: 'manual',
+      sourceRef: { type: 'manual', id: activeCourseId },
+      status: 'planned',
       createdAt: Date.now(),
     };
-    const nextEvents = mergeSyllabusEvents(syllabusEvents, [event]);
-    writeSyllabusEvents(localUserId, activeCourseId, nextEvents);
-    setSyllabusEventState({ courseId: activeCourseId, events: nextEvents });
-    setSyllabusImportMessage(`已添加日程「${title}」。`);
-    setCalendarReferenceDate(new Date(`${manualScheduleDate}T12:00:00`));
-    setRightRailView('calendar');
-    setManualScheduleDialogOpen(false);
-    setManualScheduleTitle('');
-    setManualScheduleDate(localDayKey(new Date()));
-    setManualScheduleKind('assignment');
     setManualScheduleError(null);
-    announceSyllabusScheduleUpdated(activeCourseId, `${title}，${manualScheduleDate}`);
+    try {
+      await createCalendarEvents([event], {
+        idempotencyKey: makeLearningCalendarIdempotencyKey(
+          'course-calendar-manual',
+          `${activeCourseId}-${event.id}`,
+        ),
+      });
+      setSyllabusImportMessage(`已添加日程「${title}」。`);
+      setCalendarReferenceDate(new Date(`${manualScheduleDate}T12:00:00`));
+      setRightRailView('calendar');
+      setManualScheduleDialogOpen(false);
+      setManualScheduleTitle('');
+      setManualScheduleDate(localDayKey(new Date()));
+      setManualScheduleKind('assignment');
+      setManualScheduleError(null);
+      announceSyllabusScheduleUpdated(activeCourseId, `${title}，${manualScheduleDate}`);
+    } catch (createError) {
+      setManualScheduleError(
+        createError instanceof Error ? createError.message : '日程保存失败，请稍后重试。',
+      );
+    }
   }, [
     activeCourseId,
-    localUserId,
+    createCalendarEvents,
     manualScheduleDate,
     manualScheduleKind,
     manualScheduleTitle,
-    syllabusEvents,
   ]);
 
   const openPracticePlan = useCallback(
@@ -10057,9 +11311,10 @@ export function LearnPageClient() {
       }
       const session = ensurePracticeSession({ plan, userId: localUserId });
       syncPracticeSessionState(session);
-      setPracticePopupSessionId(session.id);
+      // Use the dedicated practice page (full problem solver), not the learn sidebar popup.
+      router.push(`/practice/${encodeURIComponent(plan.id)}`);
     },
-    [localUserId, syncPracticeSessionState],
+    [localUserId, router, syncPracticeSessionState],
   );
 
   const openPracticeSession = useCallback(
@@ -10071,9 +11326,9 @@ export function LearnPageClient() {
         return;
       }
       syncPracticeSessionState(session);
-      setPracticePopupSessionId(session.id);
+      router.push(`/practice/${encodeURIComponent(session.planId)}`);
     },
-    [refreshPracticeSessions, syncPracticeSessionState],
+    [refreshPracticeSessions, router, syncPracticeSessionState],
   );
 
   const handlePracticePopupOpenChange = useCallback(
@@ -10237,6 +11492,8 @@ export function LearnPageClient() {
         title: helpTitle,
         createdAt: now,
         updatedAt: now,
+        messageCount: initialMessages.filter(learnMessageHasContent).length,
+        currentRevision: 0,
       };
 
       writeLearnSessionMessages(localUserId, activeCourse.id, helpSessionId, initialMessages);
@@ -10321,6 +11578,11 @@ export function LearnPageClient() {
             result.answer ||
             '这道题暂时没有生成讲解，请稍后再试。',
         );
+        const lecturePrompt = buildMiniLecturePrompt({
+          question: userText,
+          answer,
+          course: activeCourse,
+        });
         const finalMessages: LearnMessage[] = [
           userMessage,
           {
@@ -10328,6 +11590,7 @@ export function LearnPageClient() {
             role: 'assistant',
             text: answer,
             createdAt: Date.now(),
+            lecturePrompt,
           },
         ];
         writeLearnSessionMessages(localUserId, activeCourse.id, helpSessionId, finalMessages);
@@ -10457,7 +11720,7 @@ export function LearnPageClient() {
   );
 
   const removeStatusCalendarActivity = useCallback(
-    (activity: StatusCalendarActivity) => {
+    async (activity: StatusCalendarActivity) => {
       if (!activeCourseId) return;
 
       if (activity.source === 'plan') {
@@ -10482,16 +11745,34 @@ export function LearnPageClient() {
         return;
       }
 
-      const nextEvents = syllabusEvents.filter((event) => event.id !== activity.sourceId);
-      writeSyllabusEvents(localUserId, activeCourseId, nextEvents);
-      setSyllabusEventState({ courseId: activeCourseId, events: nextEvents });
-      if (syllabusDraftEvents.some((event) => event.id === activity.sourceId)) {
-        setSyllabusDraftEvents((current) =>
-          current.filter((event) => event.id !== activity.sourceId),
+      const event = syllabusEvents.find((candidate) => candidate.id === activity.sourceId);
+      if (!event) return;
+      try {
+        await deleteCalendarEvent(event, {
+          idempotencyKey: makeLearningCalendarIdempotencyKey(
+            'course-calendar-activity-delete',
+            `${activeCourseId}-${event.id}-${event.version}`,
+          ),
+        });
+        if (syllabusDraftEvents.some((candidate) => candidate.id === activity.sourceId)) {
+          setSyllabusDraftEvents((current) =>
+            current.filter((candidate) => candidate.id !== activity.sourceId),
+          );
+        }
+      } catch (deleteError) {
+        toast.error(
+          deleteError instanceof Error ? deleteError.message : '日历活动删除失败，请稍后重试。',
         );
       }
     },
-    [activeCourseId, localUserId, practicePopupSessionId, syllabusDraftEvents, syllabusEvents],
+    [
+      activeCourseId,
+      deleteCalendarEvent,
+      localUserId,
+      practicePopupSessionId,
+      syllabusDraftEvents,
+      syllabusEvents,
+    ],
   );
 
   const startStatusCalendarActivity = useCallback(
@@ -10566,6 +11847,7 @@ export function LearnPageClient() {
         ]
           .filter(Boolean)
           .join('\n');
+        const activityContentState = courseContentStateRef.current.get(activeCourse.id);
         const learnTurn = await planLearnTurn({
           question: activityQuestion,
           messages,
@@ -10575,10 +11857,18 @@ export function LearnPageClient() {
           recentActivities: statusCalendarActivities,
           recentPlans,
           problems,
+          problemBankActiveCountHint:
+            problemsLoadState.status === 'idle' ? activityContentState?.problems.count : undefined,
           sourceUploads: activeCourseSourceUploads,
           resourceStates: {
-            notebooks: notebooksLoadState.status,
-            problems: problemsLoadState.status,
+            notebooks: planningResourceStatusFromContentOrList({
+              listState: notebooksLoadState,
+              contentCount: activityContentState ? activityContentState.notebooks.count : null,
+            }),
+            problems: planningResourceStatusFromContentOrList({
+              listState: problemsLoadState,
+              contentCount: activityContentState ? activityContentState.problems.count : null,
+            }),
             sources: sourcesLoadState.status,
           },
           providerId,
@@ -10650,11 +11940,11 @@ export function LearnPageClient() {
       messages,
       modelId,
       notebooks,
-      notebooksLoadState.status,
+      notebooksLoadState,
       openPracticePlan,
       openPracticeSession,
       problems,
-      problemsLoadState.status,
+      problemsLoadState,
       providerId,
       recentPlans,
       refreshLearnerSnapshot,
@@ -10672,13 +11962,21 @@ export function LearnPageClient() {
       const file = fileList?.[0];
       if (!file) return;
       const isPdfFile = isSyllabusPdfFile(file);
-      const maxSize = isPdfFile ? MAX_SYLLABUS_PDF_FILE_BYTES : MAX_SYLLABUS_TEXT_FILE_BYTES;
+      const isImageFile = isSyllabusImageFile(file);
+      const isAiFile = isPdfFile || isImageFile;
+      const maxSize = isPdfFile
+        ? MAX_SYLLABUS_DOCUMENT_FILE_BYTES
+        : isImageFile
+          ? MAX_SYLLABUS_IMAGE_FILE_BYTES
+          : MAX_SYLLABUS_TEXT_FILE_BYTES;
       if (file.size > maxSize) {
         setSyllabusDraftEvents([]);
         setSyllabusImportMessage(
           isPdfFile
-            ? 'PDF 文件太大，请上传 12MB 以内的 syllabus。'
-            : 'Syllabus 文件太大，请先导出为较短的文本或 Markdown。',
+            ? 'PDF 文件太大，请上传 20MB 以内的 syllabus。'
+            : isImageFile
+              ? '图片文件太大，请上传 12MB 以内的 syllabus 图片。'
+              : 'Syllabus 文件太大，请先导出为较短的文本或 Markdown。',
         );
         return;
       }
@@ -10686,12 +11984,14 @@ export function LearnPageClient() {
         setSyllabusImportLoading(true);
         setSyllabusDraftEvents([]);
         setSyllabusDraftSourceName(file.name);
-        setSyllabusImportMessage(isPdfFile ? '正在用 AI 读取 syllabus PDF...' : null);
+        setSyllabusImportMessage(
+          isAiFile ? `正在用 AI 读取 syllabus ${isPdfFile ? 'PDF' : '图片'}...` : null,
+        );
         let parsedEvents: SyllabusCalendarEvent[];
         let parseWarnings: string[] = [];
-        if (isPdfFile) {
+        if (isAiFile) {
           try {
-            const parsed = await parseSyllabusPdfWithOpenAI(file, {
+            const parsed = await parseSyllabusFileWithOpenAI(file, {
               courseName: activeCourse?.name,
               courseDescription: activeCourse?.description,
             });
@@ -10710,7 +12010,7 @@ export function LearnPageClient() {
             }));
           } catch (error) {
             const message = error instanceof Error ? error.message : '未知错误';
-            throw new Error(`AI 读取 syllabus PDF 失败：${message}`);
+            throw new Error(`AI 读取 syllabus ${isPdfFile ? 'PDF' : '图片'}失败：${message}`);
           }
         } else {
           const text = await readSyllabusFileText(file, {
@@ -10783,14 +12083,14 @@ export function LearnPageClient() {
     ]);
   }, [syllabusDraftSourceName]);
 
-  const confirmSyllabusDraftEvents = useCallback(() => {
+  const confirmSyllabusDraftEvents = useCallback(async () => {
     if (!validSyllabusDraftEvents.length) {
       setSyllabusImportMessage('请至少保留一个标题和日期都有效的事项。');
       return;
     }
     const sourceLabel = syllabusDraftSourceName || 'syllabus';
     const modeLabel = syllabusCommitMode === 'replace' ? '已更新' : '已添加';
-    commitSyllabusEvents(
+    await commitSyllabusEvents(
       validSyllabusDraftEvents.map((event) => ({
         ...event,
         sourceName: event.sourceName || sourceLabel,
@@ -10803,119 +12103,170 @@ export function LearnPageClient() {
     setSyllabusPlanDraft('');
   }, [commitSyllabusEvents, syllabusCommitMode, syllabusDraftSourceName, validSyllabusDraftEvents]);
 
-  const removeAttachment = useCallback((id: string) => {
-    setAttachments((current) => current.filter((attachment) => attachment.id !== id));
-  }, []);
+  const removeAttachment = useCallback(
+    (id: string) => {
+      updateComposerAttachments((current) => current.filter((attachment) => attachment.id !== id));
+    },
+    [updateComposerAttachments],
+  );
 
   const selectLearnSession = useCallback(
     (sessionId: string) => {
       if (!activeCourseId || sending) return;
-      setRequestedSessionDetailKey(`${localUserId}:${activeCourseId}:${sessionId}`);
+      if (sessionId === activeSessionId) return;
       router.push(learnSessionHref(sessionId));
     },
-    [activeCourseId, learnSessionHref, localUserId, router, sending],
+    [activeCourseId, activeSessionId, learnSessionHref, router, sending],
   );
 
   const createNewLearnSession = useCallback(() => {
     if (!activeCourseId) return;
-    if (!urlSessionId && learnSessionIsBlank(messages)) return;
+    if (learnSessionIsBlank(visibleMessages) && !draft.trim() && attachments.length === 0) return;
+    const nextSessionId = makeLearnSessionId();
+    registerLocalOnlyLearnSession({
+      courseId: activeCourseId,
+      sessionId: nextSessionId,
+      resetMessages: true,
+    });
+    clearMessagesFromRead();
     const next = new URLSearchParams(searchParams.toString());
     next.set('courseId', activeCourseId);
-    next.delete('session');
-    setRequestedSessionDetailKey('');
-    setDraftSessionGeneration((current) => current + 1);
+    next.set('session', nextSessionId);
     router.push(`/learn?${next.toString()}`);
-  }, [activeCourseId, messages, router, searchParams, urlSessionId]);
+  }, [
+    activeCourseId,
+    attachments.length,
+    clearMessagesFromRead,
+    draft,
+    registerLocalOnlyLearnSession,
+    router,
+    searchParams,
+    visibleMessages,
+  ]);
 
   const deleteLearnSession = useCallback(
     async (session: LearnChatSession) => {
       if (!activeCourseId) return;
       const deleteCourseId = activeCourseId;
-      const deleteStoreKey = activeMessageStoreKeyRef.current;
       const deleteWasActiveSession = session.id === activeSessionId;
-
       const sessionMessages = deleteWasActiveSession
-        ? messages
+        ? visibleMessages
         : readLearnSessionMessages(localUserId, deleteCourseId, session.id);
       if (learnSessions.length <= 1 && learnSessionIsBlank(sessionMessages)) return;
+      const localOnlyDraft = session.remoteState === 'local-only' && session.currentRevision === 0;
 
+      const previousSessions = readLearnSessions(localUserId, deleteCourseId);
+      const optimisticRemaining = previousSessions.filter((item) => item.id !== session.id);
+      const pendingDeleteKey = learnSessionScopedKey(localUserId, deleteCourseId, session.id);
+      pendingDeletedSessionKeysRef.current.add(pendingDeleteKey);
+      writeLearnSessions(localUserId, deleteCourseId, optimisticRemaining);
       setDeletingLearnSessionIds((current) =>
         current.includes(session.id) ? current : [...current, session.id],
       );
-      setSending(true);
+      setPendingDeleteLearnSession(null);
+      setLearnSessions((current) => current.filter((item) => item.id !== session.id));
+      setLearnSessionListState((current) =>
+        current.courseId === deleteCourseId
+          ? {
+              ...current,
+              totalCount: localOnlyDraft
+                ? Math.max(
+                    optimisticRemaining.length,
+                    current.totalCount > previousSessions.length
+                      ? current.totalCount
+                      : current.totalCount - 1,
+                  )
+                : Math.max(0, current.totalCount - 1),
+            }
+          : current,
+      );
+      if (deleteWasActiveSession) {
+        replaceDeletedSessionWithFallback({
+          courseId: deleteCourseId,
+          deletedSessionId: session.id,
+        });
+      }
+
       try {
-        const remoteDeleted = await deleteRemoteLearnConversation(
-          deleteCourseId,
-          session.id,
-          localUserId,
-        );
-        if (!remoteDeleted) {
-          toast.error('远端会话没有删除成功，本地记录已保留。请重试。');
-          return;
+        if (!localOnlyDraft) {
+          const remoteDeleted = await deleteRemoteLearnConversation(
+            deleteCourseId,
+            session.id,
+            localUserId,
+          );
+          if (!remoteDeleted) {
+            const restoredSessions = mergeLearnSessions(
+              localUserId,
+              deleteCourseId,
+              readLearnSessions(localUserId, deleteCourseId),
+              previousSessions,
+            );
+            writeLearnSessions(localUserId, deleteCourseId, restoredSessions);
+            if (activeCourseIdRef.current === deleteCourseId) {
+              setLearnSessions(restoredSessions);
+              setLearnSessionListState((current) =>
+                current.courseId === deleteCourseId
+                  ? {
+                      ...current,
+                      totalCount: Math.max(current.totalCount + 1, restoredSessions.length),
+                    }
+                  : current,
+              );
+            }
+            toast.error('远端会话没有删除成功，列表已经恢复。请重试。');
+            return;
+          }
         }
 
-        const remainingSessions = readLearnSessions(localUserId, deleteCourseId).filter(
-          (item) => item.id !== session.id,
-        );
-        const now = Date.now();
-        const fallbackSession =
-          remainingSessions[0] ??
-          ({
-            id: makeLearnSessionId(),
-            title: '新对话',
-            createdAt: now,
-            updatedAt: now,
-          } satisfies LearnChatSession);
-        const nextSessions = sortLearnSessionsForList(
-          localUserId,
-          deleteCourseId,
-          remainingSessions.length ? remainingSessions : [fallbackSession],
-        );
-
         rememberDeletedLearnSessionId(localUserId, deleteCourseId, session.id);
+        dirtyConversationMessagesRef.current.delete(
+          `${localUserId}:${deleteCourseId}:${session.id}`,
+        );
         deleteLearnSessionMessages(localUserId, deleteCourseId, session.id);
+        writeLearnSessionComposerDraft(localUserId, deleteCourseId, session.id, '');
+        composerAttachmentsBySessionRef.current.delete(
+          `${localUserId}:${deleteCourseId}:${session.id}`,
+        );
         void clearLearnChatSessionAttachments({
           ownerId: localUserId,
           courseId: deleteCourseId,
           sessionId: session.id,
         }).catch(() => undefined);
         deleteLearnSessionRemoteBase(localUserId, deleteCourseId, session.id);
-        writeLearnSessions(localUserId, deleteCourseId, nextSessions);
-        if (activeMessageStoreKeyRef.current !== deleteStoreKey) return;
-        setLearnSessions(nextSessions);
-        setLearnSessionListState((current) =>
-          current.courseId === deleteCourseId
-            ? {
-                ...current,
-                totalCount: Math.max(nextSessions.length, current.totalCount - 1),
-              }
-            : current,
-        );
-
-        if (deleteWasActiveSession) {
-          setMessages(readLearnSessionMessages(localUserId, deleteCourseId, fallbackSession.id));
-          setRemoteConversationReadyKey('');
-          router.push(learnSessionHref(fallbackSession.id));
-        }
-
-        toast.success('会话已删除。');
+        toast.success(localOnlyDraft ? '本地草稿已删除。' : '会话已删除。');
       } catch (deleteError) {
         console.error('[learn] failed to delete session', deleteError);
-        toast.error('删除会话失败，请稍后再试。');
+        const restoredSessions = mergeLearnSessions(
+          localUserId,
+          deleteCourseId,
+          readLearnSessions(localUserId, deleteCourseId),
+          previousSessions,
+        );
+        writeLearnSessions(localUserId, deleteCourseId, restoredSessions);
+        if (activeCourseIdRef.current === deleteCourseId) {
+          setLearnSessions(restoredSessions);
+          setLearnSessionListState((current) =>
+            current.courseId === deleteCourseId
+              ? {
+                  ...current,
+                  totalCount: Math.max(current.totalCount + 1, restoredSessions.length),
+                }
+              : current,
+          );
+        }
+        toast.error('删除会话失败，列表已经恢复。请稍后再试。');
       } finally {
+        pendingDeletedSessionKeysRef.current.delete(pendingDeleteKey);
         setDeletingLearnSessionIds((current) => current.filter((id) => id !== session.id));
-        setSending(false);
       }
     },
     [
       activeCourseId,
       activeSessionId,
-      learnSessionHref,
       learnSessions,
       localUserId,
-      messages,
-      router,
-      setMessages,
+      replaceDeletedSessionWithFallback,
+      visibleMessages,
     ],
   );
 
@@ -10923,7 +12274,12 @@ export function LearnPageClient() {
     if (!activeCourseId) return;
     const requestCourseId = activeCourseId;
     if (learnSessionListState.courseId !== requestCourseId) return;
-    if (learnSessionListState.loadingMore || !learnSessionListState.hasMore) return;
+    if (learnSessionListState.loadingMore) return;
+    if (learnSessionListState.error && !learnSessionListState.hasMore) {
+      setLearnSessionListRefreshAttempt((current) => current + 1);
+      return;
+    }
+    if (!learnSessionListState.hasMore) return;
     const cursor = learnSessionListState.nextCursor;
     if (!cursor) {
       setLearnSessionListState((current) =>
@@ -10961,20 +12317,27 @@ export function LearnPageClient() {
       return;
     }
 
-    setLearnSessions((current) => {
-      const merged = mergeLearnSessions(localUserId, requestCourseId, current, page.sessions);
-      writeLearnSessions(localUserId, requestCourseId, merged);
-      return merged;
-    });
+    const mergedSessions = excludePendingDeletedLearnSessions(
+      localUserId,
+      requestCourseId,
+      mergeLearnSessions(
+        localUserId,
+        requestCourseId,
+        learnSessionsRef.current,
+        page.sessions.map(remoteLearnSessionToLocal),
+      ),
+      pendingDeletedSessionKeysRef.current,
+    );
+    writeLearnSessions(localUserId, requestCourseId, mergedSessions);
+    learnSessionsRef.current = mergedSessions;
+    setLearnSessions(mergedSessions);
     setLearnSessionListState((current) =>
       current.courseId === requestCourseId
         ? {
             ...current,
-            // The server intentionally returns a lower bound instead of
-            // running COUNT(*). Grow that bound as each metadata-only page is
-            // appended so the sidebar never claims that only five sessions
-            // exist after the user has already loaded more names.
-            totalCount: Math.max(page.totalCount, current.totalCount + page.sessions.length),
+            // totalCount is exact server metadata; merged length also covers
+            // unsynced local drafts without inflating overlap between pages.
+            totalCount: Math.max(page.totalCount, mergedSessions.length),
             hasMore: page.hasMore,
             nextCursor: page.nextCursor,
             loadingMore: false,
@@ -10983,6 +12346,146 @@ export function LearnPageClient() {
         : current,
     );
   }, [activeCourseId, learnSessionListState, localUserId]);
+
+  const loadOlderLearnMessages = useCallback(async () => {
+    if (!activeCourseId || activeCourseId !== urlCourseId || !urlSessionId) return;
+    const detailKey = activeMessageStoreKey;
+    const pageState = remoteConversationMessagePage;
+    if (!detailKey || !pageState || pageState.loading || !pageState.hasMore) return;
+    const cursor = pageState.nextCursor;
+    if (!cursor) {
+      setRemoteConversationMessagePageState((current) =>
+        current?.key === detailKey
+          ? { ...current, error: '更早消息的游标不可用，请重新打开这条会话。' }
+          : current,
+      );
+      return;
+    }
+
+    setRemoteConversationMessagePageState((current) =>
+      current?.key === detailKey ? { ...current, loading: true, error: null } : current,
+    );
+    try {
+      const remoteConversation = await loadRemoteLearnConversationOrThrow(
+        activeCourseId,
+        urlSessionId,
+        localUserId,
+        {
+          before: cursor,
+          messageLimit: pageState.limit,
+          preserveLocalBaseline: true,
+        },
+      );
+      if (activeMessageStoreKeyRef.current !== detailKey) return;
+      if (remoteConversation.storage !== 'database' || !remoteConversation.session) {
+        throw new Error('更早消息暂时不可用，请稍后重试。');
+      }
+
+      const deletedMessageIds = readDeletedLearnMessageIds(
+        localUserId,
+        activeCourseId,
+        urlSessionId,
+      );
+      const serverDeletedMessageIds = new Set(remoteConversation.deletedMessageIds ?? []);
+      const olderMessages = remoteConversation.messages
+        .map(remoteMessageToLearnMessage)
+        .filter(
+          (message) =>
+            !deletedMessageIds.has(message.id) && !serverDeletedMessageIds.has(message.id),
+        );
+      const scrollContainer = conversationScrollContainerRef.current;
+      const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
+      replaceMessagesFromRead(detailKey, (current) =>
+        mergeOlderRemoteLearnMessages(olderMessages, current),
+      );
+      window.requestAnimationFrame(() => {
+        const currentScrollContainer = conversationScrollContainerRef.current;
+        if (
+          !scrollContainer ||
+          currentScrollContainer !== scrollContainer ||
+          activeMessageStoreKeyRef.current !== detailKey
+        ) {
+          return;
+        }
+        currentScrollContainer.scrollTop +=
+          currentScrollContainer.scrollHeight - previousScrollHeight;
+      });
+
+      if (remoteConversation.summary) {
+        setRemoteConversationSummaryState({
+          key: detailKey,
+          summary: remoteConversation.summary,
+        });
+      }
+      setRemoteConversationMessagePageState({
+        key: detailKey,
+        hasMore:
+          remoteConversation.messagePage?.hasMore ??
+          remoteConversation.messageWindow?.hasMore ??
+          false,
+        nextCursor: remoteConversation.messagePage?.nextCursor ?? null,
+        limit: remoteConversation.messagePage?.limit ?? pageState.limit,
+        loading: false,
+        error: null,
+      });
+      const remoteBase = getRemoteLearnConversationBaseSnapshot(
+        activeCourseId,
+        urlSessionId,
+        localUserId,
+      );
+      if (remoteBase) {
+        writeLearnSessionRemoteBase(localUserId, activeCourseId, urlSessionId, remoteBase);
+      }
+      setLearnSessions((current) => {
+        const nextSessions = mergeLearnSessions(localUserId, activeCourseId, current, [
+          remoteLearnSessionToLocal(remoteConversation.session!),
+        ]);
+        writeLearnSessions(localUserId, activeCourseId, nextSessions);
+        return nextSessions;
+      });
+
+      if (olderMessages.length > 0) {
+        void hydrateLearnMessageAttachments({
+          messages: olderMessages,
+          ownerId: localUserId,
+          courseId: activeCourseId,
+          sessionId: urlSessionId,
+        }).then((hydrated) => {
+          if (activeMessageStoreKeyRef.current !== detailKey) {
+            revokeLearnChatAttachmentUrls(hydrated.objectUrls.map((objectUrl) => ({ objectUrl })));
+            return;
+          }
+          for (const objectUrl of hydrated.objectUrls) {
+            hydratedAttachmentUrlsRef.current.add(objectUrl);
+          }
+          const hydratedById = new Map(hydrated.messages.map((message) => [message.id, message]));
+          replaceMessagesFromRead(detailKey, (current) =>
+            current.map((message) => hydratedById.get(message.id) ?? message),
+          );
+        });
+      }
+    } catch (loadError) {
+      if (activeMessageStoreKeyRef.current !== detailKey) return;
+      setRemoteConversationMessagePageState((current) =>
+        current?.key === detailKey
+          ? {
+              ...current,
+              loading: false,
+              error:
+                loadError instanceof Error ? loadError.message : '更早消息暂时不可用，请稍后重试。',
+            }
+          : current,
+      );
+    }
+  }, [
+    activeCourseId,
+    activeMessageStoreKey,
+    localUserId,
+    remoteConversationMessagePage,
+    replaceMessagesFromRead,
+    urlCourseId,
+    urlSessionId,
+  ]);
 
   const addAssistantPlan = useCallback(
     (plan: PracticePlan, textOverride?: string, extraArtifacts: LearnArtifact[] = []) => {
@@ -11258,17 +12761,39 @@ export function LearnPageClient() {
 
       try {
         if (action.kind === 'calendar.search') {
+          const query = payloadString(action.payload?.query) || actionSummary(action);
+          const searchResult = await searchLearningCalendarEvents({
+            courseId: activeCourseId,
+            query,
+            referenceDate: calendarReferenceDate,
+          });
+          if (!actionStillBelongsToVisibleSession()) return;
+          mergeLoadedCalendarEvents(searchResult.events);
           setRightRailCollapsed(false);
           setRightRailView('calendar');
           setCalendarDialogOpen(true);
+          if (searchResult.events[0]) {
+            setCalendarReferenceDate(new Date(`${searchResult.events[0].date}T12:00:00`));
+          }
+          setSyllabusImportMessage(
+            searchResult.events.length
+              ? `日历查询「${query}」命中 ${searchResult.events.length} 项。`
+              : `日历查询「${query}」没有命中事项。`,
+          );
           markLearningActionStatus(
             action.id,
             'completed',
             actionResult(action, {
               status: 'completed',
-              summary: '已打开学习日历供用户查看。',
-              input: { payload: action.payload || {} },
-              output: { openedView: 'calendar' },
+              summary: `已查询远端学习日历，命中 ${searchResult.events.length} 项。`,
+              input: { query },
+              output: {
+                openedView: 'calendar',
+                matchedCount: searchResult.events.length,
+                scannedCount: searchResult.scannedCount,
+                eventIds: searchResult.events.map((event) => event.id),
+                truncated: searchResult.truncated,
+              },
             }),
           );
           return;
@@ -11456,25 +12981,37 @@ export function LearnPageClient() {
         }
 
         if (action.kind === 'calendar.propose_add') {
-          const events = learningActionCalendarEvents(action);
-          const nextEvents = mergeSyllabusEvents(syllabusEvents, events);
-          writeSyllabusEvents(localUserId, activeCourseId, nextEvents);
-          setSyllabusEventState({ courseId: activeCourseId, events: nextEvents });
-          setSyllabusImportMessage(`已添加 ${events.length} 个 AI 学习日程。`);
+          const events = learningActionCalendarEvents(action).map((event, index) => {
+            const clientEventId = `learning-action-${action.id}-${index}`.slice(0, 200);
+            return {
+              ...event,
+              id: clientEventId,
+              clientEventId,
+              courseId: activeCourseId,
+            };
+          });
+          const createdEvents = await createCalendarEvents(events, {
+            idempotencyKey: makeLearningCalendarIdempotencyKey(
+              'ai-calendar-add',
+              `${activeCourseId}-${action.id}`,
+            ),
+          });
+          if (!actionStillBelongsToVisibleSession()) return;
+          setSyllabusImportMessage(`已同步 ${createdEvents.length} 个 AI 学习日程。`);
           setRightRailCollapsed(false);
           setRightRailView('calendar');
-          setCalendarReferenceDate(new Date(`${events[0].date}T12:00:00`));
-          announceSyllabusScheduleUpdated(activeCourseId, events[0].title);
+          setCalendarReferenceDate(new Date(`${createdEvents[0].date}T12:00:00`));
+          announceSyllabusScheduleUpdated(activeCourseId, createdEvents[0].title);
           markLearningActionStatus(
             action.id,
             'completed',
             actionResult(action, {
               status: 'completed',
-              summary: `已加入 ${events.length} 个学习日历事项。`,
+              summary: `已加入 ${createdEvents.length} 个学习日历事项。`,
               input: { payload: action.payload || {} },
               output: {
-                eventIds: events.map((event) => event.id),
-                eventCount: events.length,
+                eventIds: createdEvents.map((event) => event.id),
+                eventCount: createdEvents.length,
               },
             }),
           );
@@ -11483,7 +13020,9 @@ export function LearnPageClient() {
         }
 
         if (action.kind === 'calendar.propose_update') {
-          const updateResult = applyLearningCalendarUpdate({ events: syllabusEvents, action });
+          const currentEvents = await reloadCalendarEvents();
+          if (!actionStillBelongsToVisibleSession()) return;
+          const updateResult = applyLearningCalendarUpdate({ events: currentEvents, action });
           if (!updateResult) {
             setRightRailCollapsed(false);
             setRightRailView('calendar');
@@ -11501,24 +13040,56 @@ export function LearnPageClient() {
             toast.error('这个日历修改没有命中唯一事项，请在日历里选择后再改。');
             return;
           }
-          writeSyllabusEvents(localUserId, activeCourseId, updateResult.events);
-          setSyllabusEventState({ courseId: activeCourseId, events: updateResult.events });
-          setSyllabusImportMessage('已记录 AI 建议的日历调整，请在学习日历中检查。');
+          const currentById = new Map(currentEvents.map((event) => [event.id, event]));
+          const changedEvents = updateResult.events
+            .map((event) => {
+              const previous = currentById.get(event.id);
+              if (!previous) return null;
+              const patch = calendarEventPatch(previous, event);
+              return Object.keys(patch).length ? { previous, patch } : null;
+            })
+            .filter(
+              (
+                item,
+              ): item is {
+                previous: RemoteLearningCalendarEvent;
+                patch: LearningCalendarEventPatch;
+              } => Boolean(item),
+            );
+          if (!changedEvents.length) {
+            throw new Error('日历事项已经是目标状态，没有可提交的远端修改。');
+          }
+          const updatedEvents: RemoteLearningCalendarEvent[] = [];
+          for (const item of changedEvents) {
+            updatedEvents.push(
+              await updateCalendarEvent(item.previous, item.patch, {
+                idempotencyKey: makeLearningCalendarIdempotencyKey(
+                  'ai-calendar-update',
+                  `${activeCourseId}-${action.id}-${item.previous.id}-${item.previous.version}`,
+                ),
+              }),
+            );
+          }
+          if (!actionStillBelongsToVisibleSession()) return;
+          const focusEvent =
+            updatedEvents.find((event) => event.id === updateResult.updated.id) || updatedEvents[0];
+          setSyllabusImportMessage('AI 建议的日历调整已同步，请在学习日历中检查。');
           setRightRailCollapsed(false);
           setRightRailView('calendar');
-          setCalendarReferenceDate(new Date(`${updateResult.updated.date}T12:00:00`));
-          announceSyllabusScheduleUpdated(activeCourseId, updateResult.updated.title);
+          setCalendarReferenceDate(new Date(`${focusEvent.date}T12:00:00`));
+          announceSyllabusScheduleUpdated(activeCourseId, focusEvent.title);
           markLearningActionStatus(
             action.id,
             'completed',
             actionResult(action, {
               status: 'completed',
-              summary: `已调整日历事项：${updateResult.updated.title}`,
+              summary: `已调整 ${updatedEvents.length} 个日历事项。`,
               input: { payload: action.payload || {} },
               output: {
-                eventId: updateResult.updated.id,
-                title: updateResult.updated.title,
-                date: updateResult.updated.date,
+                eventId: focusEvent.id,
+                eventIds: updatedEvents.map((event) => event.id),
+                title: focusEvent.title,
+                date: focusEvent.date,
               },
             }),
           );
@@ -11527,7 +13098,9 @@ export function LearnPageClient() {
         }
 
         if (action.kind === 'calendar.propose_delete') {
-          const deleteResult = applyLearningCalendarDelete({ events: syllabusEvents, action });
+          const currentEvents = await reloadCalendarEvents();
+          if (!actionStillBelongsToVisibleSession()) return;
+          const deleteResult = applyLearningCalendarDelete({ events: currentEvents, action });
           if (!deleteResult) {
             setRightRailCollapsed(false);
             setRightRailView('calendar');
@@ -11545,8 +13118,17 @@ export function LearnPageClient() {
             toast.error('这个删除操作没有命中唯一事项，请在日历里手动确认。');
             return;
           }
-          writeSyllabusEvents(localUserId, activeCourseId, deleteResult.events);
-          setSyllabusEventState({ courseId: activeCourseId, events: deleteResult.events });
+          for (const event of deleteResult.deletedEvents) {
+            const remoteEvent = currentEvents.find((candidate) => candidate.id === event.id);
+            if (!remoteEvent) throw new Error(`找不到待删除的远端日历事项：${event.id}`);
+            await deleteCalendarEvent(remoteEvent, {
+              idempotencyKey: makeLearningCalendarIdempotencyKey(
+                'ai-calendar-delete',
+                `${activeCourseId}-${action.id}-${remoteEvent.id}-${remoteEvent.version}`,
+              ),
+            });
+          }
+          if (!actionStillBelongsToVisibleSession()) return;
           setRightRailCollapsed(false);
           setRightRailView('calendar');
           const deletedCount = deleteResult.deletedEvents.length;
@@ -11601,7 +13183,22 @@ export function LearnPageClient() {
         }
 
         if (action.kind === 'practice.propose_generation') {
-          const activeProblemCount = problems.filter(
+          let selectionProblems = problems;
+          let selectionProblemsState = problemsLoadState;
+          try {
+            selectionProblems = await ensureProblemsLoaded();
+            selectionProblemsState = settledResourceLoadState({
+              courseId: activeCourse.id,
+              itemCount: selectionProblems.length,
+            });
+          } catch (resourceError) {
+            selectionProblemsState = failedResourceLoadState({
+              courseId: activeCourse.id,
+              error: resourceError,
+              usingCachedData: selectionProblems.length > 0,
+            });
+          }
+          const activeProblemCount = selectionProblems.filter(
             (problem) => problem.status !== 'archived',
           ).length;
           const actionPayloadData = actionPayload(action);
@@ -11609,11 +13206,11 @@ export function LearnPageClient() {
           // Historical actions may still request generated/self-generated sources.
           // Their execution contract is now selection-only: never create replacement questions.
           if (
-            problemsLoadState.status === 'idle' ||
-            problemsLoadState.status === 'loading' ||
-            (problemsLoadState.status === 'error' && activeProblemCount === 0)
+            selectionProblemsState.status === 'idle' ||
+            selectionProblemsState.status === 'loading' ||
+            (selectionProblemsState.status === 'error' && activeProblemCount === 0)
           ) {
-            const reason = problemsLoadState.error || '题库仍在加载';
+            const reason = selectionProblemsState.error || '题库仍在加载';
             setMessages((current) => [
               ...current,
               {
@@ -11674,6 +13271,7 @@ export function LearnPageClient() {
                 typeof actionPayloadData.count === 'number' ? actionPayloadData.count : undefined,
               preferredConcepts: learningActionPreferredConcepts(action),
               stateOverride: currentState,
+              problemsOverride: selectionProblems,
             });
             if (selectedPlan) {
               addAssistantPlan(selectedPlan);
@@ -11947,37 +13545,7 @@ export function LearnPageClient() {
             );
           }
           const shadowStateNeedsSync = shadowUpdate.change !== 'none';
-          const remoteShadowStateSynced = shadowStateNeedsSync
-            ? await saveRemoteLearnerCourseState(nextState)
-            : true;
-          if (!actionStillBelongsToVisibleSession()) return;
-          if (!remoteShadowStateSynced) {
-            markLearningActionStatus(
-              action.id,
-              'failed',
-              actionResult(action, {
-                status: 'failed',
-                summary: `长期记忆已写入，但学习状态镜像同步失败：${concept}`,
-                input: { payload: action.payload || {} },
-                output: {
-                  concept,
-                  memoryType,
-                  shadowChange: shadowUpdate.change,
-                  shadowStateUpdated: shadowUpdate.changed,
-                  remoteShadowStateSynced: false,
-                  durableMemorySynced: true,
-                  durableMemoryId,
-                },
-                error: '远端学习状态镜像没有完成同步。',
-              }),
-            );
-            toast.warning('长期记忆已写入，但学习状态镜像同步失败；可以重试这项操作。');
-            return;
-          }
-
-          markLearningActionStatus(
-            action.id,
-            'completed',
+          const completionResult = (remoteShadowStateSynced: boolean | 'pending') =>
             actionResult(action, {
               status: 'completed',
               summary: `已更新学习记忆：${concept}`,
@@ -11993,9 +13561,35 @@ export function LearnPageClient() {
                 weakPointId: shadowUpdate.weakPointId,
                 conceptMastery: shadowUpdate.conceptMastery,
               },
-            }),
+            });
+
+          // The canonical StudyMemory write is the success boundary. The
+          // learner-state fact is a derived shadow projection and must not keep
+          // the confirmation action spinning or turn a successful memory write
+          // into a false failure.
+          const shadowSyncPromise = shadowStateNeedsSync
+            ? saveRemoteLearnerCourseState(nextState)
+            : Promise.resolve(true);
+          markLearningActionStatus(
+            action.id,
+            'completed',
+            completionResult(shadowStateNeedsSync ? 'pending' : true),
           );
           toast.success('已更新学习记忆。');
+
+          if (shadowStateNeedsSync) {
+            void shadowSyncPromise.then((remoteShadowStateSynced) => {
+              if (!actionStillBelongsToVisibleSession()) return;
+              markLearningActionStatus(
+                action.id,
+                'completed',
+                completionResult(remoteShadowStateSynced),
+              );
+              if (!remoteShadowStateSynced) {
+                toast.warning('长期记忆已保存；学习状态镜像暂未同步，不影响本次记忆。');
+              }
+            });
+          }
           return;
         }
       } catch (error) {
@@ -12022,12 +13616,17 @@ export function LearnPageClient() {
       actionResult,
       addAssistantPlan,
       buildSelectedProblemPracticePlan,
+      calendarReferenceDate,
+      createCalendarEvents,
+      deleteCalendarEvent,
+      ensureProblemsLoaded,
       imageGenerationEnabled,
       imageModelId,
       imageProviderId,
       imageProvidersConfig,
       localUserId,
       markLearningActionStatus,
+      mergeLoadedCalendarEvents,
       messages,
       setMessages,
       modelId,
@@ -12036,10 +13635,11 @@ export function LearnPageClient() {
       problems,
       problemsLoadState,
       providerId,
+      reloadCalendarEvents,
       localConversationReadyKey,
       startStatusCalendarActivity,
       statusCalendarActivities,
-      syllabusEvents,
+      updateCalendarEvent,
       webSearchProviderId,
       webSearchProvidersConfig,
     ],
@@ -12152,17 +13752,32 @@ export function LearnPageClient() {
       if (!pendingStoreKey) return;
       setSending(true);
       if (action.kind === 'practice_plan') {
+        let pendingProblems = problems;
+        let pendingProblemsState = problemsLoadState;
+        try {
+          pendingProblems = await ensureProblemsLoaded();
+          pendingProblemsState = settledResourceLoadState({
+            courseId: activeCourse.id,
+            itemCount: pendingProblems.length,
+          });
+        } catch (resourceError) {
+          pendingProblemsState = failedResourceLoadState({
+            courseId: activeCourse.id,
+            error: resourceError,
+            usingCachedData: pendingProblems.length > 0,
+          });
+        }
         if (
-          problemsLoadState.status === 'idle' ||
-          problemsLoadState.status === 'loading' ||
-          (problemsLoadState.status === 'error' && problems.length === 0)
+          pendingProblemsState.status === 'idle' ||
+          pendingProblemsState.status === 'loading' ||
+          (pendingProblemsState.status === 'error' && pendingProblems.length === 0)
         ) {
           setMessages((current) => [
             ...current,
             {
               id: makeClientId('assistant-problem-resource-unresolved'),
               role: 'assistant',
-              text: `题库状态尚未确认${problemsLoadState.error ? `：${problemsLoadState.error}` : ''}。资源加载完成前，我不会生成“无题库”结论。请先重试题库加载。`,
+              text: `题库状态尚未确认${pendingProblemsState.error ? `：${pendingProblemsState.error}` : ''}。资源加载完成前，我不会生成“无题库”结论。请先重试题库加载。`,
               createdAt: Date.now(),
             },
           ]);
@@ -12200,6 +13815,7 @@ export function LearnPageClient() {
         action.kind === 'preview_plan' ? 'assistant-preview-plan' : 'assistant-review-plan';
 
       try {
+        const pendingContentState = courseContentStateRef.current.get(activeCourse.id);
         const learnTurn = await planLearnTurn({
           question: action.prompt,
           messages,
@@ -12209,10 +13825,18 @@ export function LearnPageClient() {
           recentActivities: statusCalendarActivities,
           recentPlans,
           problems,
+          problemBankActiveCountHint:
+            problemsLoadState.status === 'idle' ? pendingContentState?.problems.count : undefined,
           sourceUploads: activeCourseSourceUploads,
           resourceStates: {
-            notebooks: notebooksLoadState.status,
-            problems: problemsLoadState.status,
+            notebooks: planningResourceStatusFromContentOrList({
+              listState: notebooksLoadState,
+              contentCount: pendingContentState ? pendingContentState.notebooks.count : null,
+            }),
+            problems: planningResourceStatusFromContentOrList({
+              listState: problemsLoadState,
+              contentCount: pendingContentState ? pendingContentState.problems.count : null,
+            }),
             sources: sourcesLoadState.status,
           },
           providerId,
@@ -12277,9 +13901,10 @@ export function LearnPageClient() {
       addAssistantPlan,
       buildEvidenceBasedPlan,
       activeCourseSourceUploads,
+      ensureProblemsLoaded,
       messages,
       modelId,
-      notebooksLoadState.status,
+      notebooksLoadState,
       problems,
       problemsLoadState,
       providerId,
@@ -12467,8 +14092,8 @@ export function LearnPageClient() {
         attachments: outgoingAttachments,
         createdAt: Date.now(),
       };
-      setDraft('');
-      setAttachments([]);
+      updateComposerDraft('');
+      updateComposerAttachments([]);
       setError(null);
       setRetryTurn(null);
       setSending(true);
@@ -12509,26 +14134,21 @@ export function LearnPageClient() {
 
       let turnProblems = problems;
       let turnProblemsState = problemsLoadState;
+      const turnContentState = courseContentStateRef.current.get(turnCourseId);
       if (explicitPracticeTarget(questionText)) {
-        const pendingProblemLoad = problemLoadPromiseRef.current;
-        if (
-          (turnProblemsState.status === 'idle' || turnProblemsState.status === 'loading') &&
-          pendingProblemLoad?.courseId === turnCourseId
-        ) {
-          try {
-            turnProblems = await pendingProblemLoad.promise;
-            turnProblemsState = settledResourceLoadState({
-              courseId: turnCourseId,
-              itemCount: turnProblems.length,
-            });
-          } catch (resourceError) {
-            if (!canCommitTurn()) return;
-            turnProblemsState = failedResourceLoadState({
-              courseId: turnCourseId,
-              error: resourceError,
-              usingCachedData: turnProblems.length > 0,
-            });
-          }
+        try {
+          turnProblems = await ensureProblemsLoaded();
+          turnProblemsState = settledResourceLoadState({
+            courseId: turnCourseId,
+            itemCount: turnProblems.length,
+          });
+        } catch (resourceError) {
+          if (!canCommitTurn()) return;
+          turnProblemsState = failedResourceLoadState({
+            courseId: turnCourseId,
+            error: resourceError,
+            usingCachedData: turnProblems.length > 0,
+          });
         }
         if (!canCommitTurn()) return;
         const problemTruthUnavailable =
@@ -12561,6 +14181,12 @@ export function LearnPageClient() {
           finishTurn();
           return;
         }
+      } else if (turnContentState) {
+        // Non-practice turns only need lightweight availability from content-state.
+        turnProblemsState = settledResourceLoadState({
+          courseId: turnCourseId,
+          itemCount: turnContentState.problems.count,
+        });
       }
 
       const questionState = recordLearnerQuestion({
@@ -12581,6 +14207,9 @@ export function LearnPageClient() {
 
       let learnTurn: LearnTurnClientResponse | null = null;
       try {
+        const listProblemsSettled =
+          problemsLoadStateRef.current.status === 'ready' ||
+          problemsLoadStateRef.current.status === 'empty';
         learnTurn = await planLearnTurn({
           question: questionText,
           messages: [...messages, userMessage],
@@ -12591,9 +14220,16 @@ export function LearnPageClient() {
           recentActivities: statusCalendarActivities,
           recentPlans,
           problems: turnProblems,
+          problemBankActiveCountHint:
+            turnProblems.some((problem) => problem.status !== 'archived') || listProblemsSettled
+              ? undefined
+              : turnContentState?.problems.count,
           sourceUploads: activeCourseSourceUploads,
           resourceStates: {
-            notebooks: notebooksLoadState.status,
+            notebooks: planningResourceStatusFromContentOrList({
+              listState: notebooksLoadState,
+              contentCount: turnContentState ? turnContentState.notebooks.count : null,
+            }),
             problems: turnProblemsState.status,
             sources: sourcesLoadState.status,
           },
@@ -12639,40 +14275,63 @@ export function LearnPageClient() {
         .map(normalizeLearnArtifact)
         .filter((artifact): artifact is LearnArtifact => Boolean(artifact));
       const learnTurnPlanningDecision = planningDecisionFromLearnTurn(learnTurn, questionText);
-      const latestProblemState = problemsLoadStateRef.current;
       const completedProblemSearch =
         learnTurnPlanningDecision?.problemBankSearch?.source === 'problem_bank_full_text';
-      if (
-        learnTurnPlanningDecision?.intent.kind === 'practice_plan' &&
-        (latestProblemState.status === 'idle' ||
+      if (learnTurnPlanningDecision?.intent.kind === 'practice_plan' && !completedProblemSearch) {
+        let latestProblemState = problemsLoadStateRef.current;
+        if (
+          latestProblemState.status === 'idle' ||
           latestProblemState.status === 'loading' ||
-          latestProblemState.status === 'error') &&
-        !completedProblemSearch
-      ) {
-        const reason = latestProblemState.error || '题库仍在加载';
-        const resourceMessage: LearnMessage = {
-          id: makeClientId('assistant-problem-resource-unresolved'),
-          role: 'assistant',
-          text: `这次请求需要核对题库，但题库状态还没有完成：${reason}。我已停止生成“无题库”或“没有匹配题”的结论，请重试题库加载后再试。`,
-          createdAt: Date.now(),
-          publicTrace: publicTraceForBlockedQuestion(
-            questionText,
-            makePublicTraceStep(
-              'problem-bank-resource-unresolved',
-              '题库状态尚未确认',
-              reason,
-              undefined,
-              'blocked',
+          latestProblemState.status === 'error'
+        ) {
+          try {
+            turnProblems = await ensureProblemsLoaded();
+            if (!canCommitTurn()) return;
+            latestProblemState = settledResourceLoadState({
+              courseId: turnCourseId,
+              itemCount: turnProblems.length,
+            });
+            turnProblemsState = latestProblemState;
+          } catch (resourceError) {
+            if (!canCommitTurn()) return;
+            latestProblemState = failedResourceLoadState({
+              courseId: turnCourseId,
+              error: resourceError,
+              usingCachedData: turnProblems.length > 0,
+            });
+            turnProblemsState = latestProblemState;
+          }
+        }
+        if (
+          latestProblemState.status === 'idle' ||
+          latestProblemState.status === 'loading' ||
+          (latestProblemState.status === 'error' && turnProblems.length === 0)
+        ) {
+          const reason = latestProblemState.error || '题库仍在加载';
+          const resourceMessage: LearnMessage = {
+            id: makeClientId('assistant-problem-resource-unresolved'),
+            role: 'assistant',
+            text: `这次请求需要核对题库，但题库状态还没有完成：${reason}。我已停止生成“无题库”或“没有匹配题”的结论，请重试题库加载后再试。`,
+            createdAt: Date.now(),
+            publicTrace: publicTraceForBlockedQuestion(
+              questionText,
+              makePublicTraceStep(
+                'problem-bank-resource-unresolved',
+                '题库状态尚未确认',
+                reason,
+                undefined,
+                'blocked',
+              ),
             ),
-          ),
-        };
-        setMessages((current) =>
-          pendingWorkflowMessageId
-            ? replaceLearnMessage(current, pendingWorkflowMessageId, resourceMessage)
-            : [...current, resourceMessage],
-        );
-        finishTurn();
-        return;
+          };
+          setMessages((current) =>
+            pendingWorkflowMessageId
+              ? replaceLearnMessage(current, pendingWorkflowMessageId, resourceMessage)
+              : [...current, resourceMessage],
+          );
+          finishTurn();
+          return;
+        }
       }
       const answererHandoff = answererHandoffFromLearnTurn(learnTurn);
       const proposalActions = filterLearningActionsForQuestion(
@@ -12822,6 +14481,7 @@ export function LearnPageClient() {
             preferredConcepts: planningDecision.focusTopics,
             stateOverride: questionState,
             problemBankSearch: planningDecision.problemBankSearch,
+            problemsOverride: turnProblems,
           });
           if (selectedPlan) {
             if (pendingWorkflowMessageId) {
@@ -12995,10 +14655,20 @@ export function LearnPageClient() {
           questionText,
         );
         const answer = neutralizeUnconfirmedMemoryWriteClaim(rawAnswer, learningActions);
-        const evidenceArtifact = answerEvidenceArtifactFromCourseContext({
-          courseContext: result.courseContext,
+        const lecturePrompt = buildMiniLecturePrompt({
           question: questionText,
+          answer,
+          course: activeCourse,
         });
+        const evidenceArtifact =
+          answerEvidenceArtifactFromServerSummaries({
+            evidence: result.courseEvidence,
+            question: questionText,
+          }) ||
+          answerEvidenceArtifactFromCourseContext({
+            courseContext: result.courseContext,
+            question: questionText,
+          });
         const artifacts = [
           ...(evidenceArtifact ? [evidenceArtifact] : []),
           ...deferredAnswerArtifacts,
@@ -13008,6 +14678,7 @@ export function LearnPageClient() {
           role: 'assistant',
           text: answer,
           createdAt: Date.now(),
+          lecturePrompt,
           learningActions: learningActions.length ? learningActions : undefined,
           artifacts: artifacts.length ? artifacts : undefined,
           publicTrace: finalizePublicTraceSteps(
@@ -13066,6 +14737,7 @@ export function LearnPageClient() {
       activeCourseSourceUploads,
       draft,
       handleLearningActionConfirm,
+      ensureProblemsLoaded,
       localUserId,
       messages,
       messageStoreKey,
@@ -13085,6 +14757,8 @@ export function LearnPageClient() {
       sourceUploading,
       sourcesLoadState.status,
       syllabusEvents,
+      updateComposerAttachments,
+      updateComposerDraft,
       userId,
       userName,
     ],
@@ -13202,13 +14876,97 @@ export function LearnPageClient() {
       ),
     [activeCourseId, sourceLibraryTiles, transientSourceUploadTiles],
   );
+
+  const notebookLibraryTiles = useMemo<SourceLibraryTile[]>(() => {
+    return notebooks
+      .filter((notebook) => (notebook.courseId || activeCourseId) === activeCourseId)
+      .map((notebook) => {
+        const isMarkdown = (notebook.notebookKind ?? 'image') === 'markdown';
+        const sectionCount = notebook.sectionCount || 0;
+        return {
+          id: `notebook-library-${notebook.id}`,
+          courseId: notebook.courseId || activeCourseId || '',
+          tileKind: 'notebook' as const,
+          title: notebook.name,
+          subtitle: `${sectionCount} 章节`,
+          dateLabel: formatLibraryItemDate(notebook.updatedAt),
+          coverImagePath: notebook.coverImagePath || null,
+          placeholderLabel: 'NOTEBOOK',
+          typeLabel: isMarkdown ? 'Markdown' : '讲义',
+          updatedAt: notebook.updatedAt || 0,
+          isProblemBank: false,
+          status: null,
+          error: null,
+          sourceHash: null,
+          textNotebookIds: isMarkdown ? [notebook.id] : [],
+          textSectionIds: [],
+          textBlocks: [],
+        };
+      })
+      .sort(
+        (left, right) =>
+          right.updatedAt - left.updatedAt || left.title.localeCompare(right.title, 'zh-CN'),
+      );
+  }, [activeCourseId, notebooks]);
+
+  const filteredNotebookLibraryTiles = useMemo(() => {
+    const query = notebookLibraryQuery.trim().toLowerCase();
+    if (!query) return notebookLibraryTiles;
+    const terms = query.split(/\s+/).filter(Boolean);
+    return notebookLibraryTiles.filter((tile) => {
+      const haystack = [tile.title, tile.typeLabel, tile.subtitle].join('\n').toLowerCase();
+      return terms.every((term) => haystack.includes(term));
+    });
+  }, [notebookLibraryQuery, notebookLibraryTiles]);
+
+  const selectedNotebookLibraryTile = useMemo(
+    () => notebookLibraryTiles.find((tile) => tile.id === selectedNotebookLibraryTileId) ?? null,
+    [notebookLibraryTiles, selectedNotebookLibraryTileId],
+  );
+  const selectedNotebookLibraryId = selectedNotebookLibraryTile?.id.startsWith('notebook-library-')
+    ? selectedNotebookLibraryTile.id.slice('notebook-library-'.length)
+    : null;
+  const selectedNotebookLibraryIsMarkdown = selectedNotebookLibraryTile?.typeLabel === 'Markdown';
+  const selectedNotebookMarkdownPageState = selectedNotebookLibraryId
+    ? notebookMarkdownPageCache[selectedNotebookLibraryId]
+    : undefined;
+  const selectedNotebookSectionId = selectedNotebookLibraryId
+    ? selectedNotebookSectionIds[selectedNotebookLibraryId] ||
+      selectedNotebookMarkdownPageState?.sections[0]?.id ||
+      null
+    : null;
+  const selectedNotebookLibraryTextState =
+    selectedNotebookLibraryId && selectedNotebookSectionId
+      ? notebookMarkdownSectionCache[`${selectedNotebookLibraryId}:${selectedNotebookSectionId}`]
+      : undefined;
+  const selectedNotebookLibraryText = selectedNotebookLibraryTextState?.text.trim() || '';
+  const selectedNotebookLibraryHasText = selectedNotebookLibraryText.length > 0;
+  const selectedNotebookLibraryTextLoading =
+    selectedNotebookLibraryTextState?.status === 'loading' ||
+    (Boolean(selectedNotebookLibraryTile && selectedNotebookLibraryIsMarkdown) &&
+      (selectedNotebookMarkdownPageState?.status === 'loading' ||
+        !selectedNotebookMarkdownPageState ||
+        (Boolean(selectedNotebookSectionId) && !selectedNotebookLibraryTextState)));
+  const selectedNotebookImagePreviewState = selectedNotebookLibraryId
+    ? notebookImagePreviewCache[selectedNotebookLibraryId]
+    : undefined;
+  const selectedNotebookImagePath =
+    selectedNotebookLibraryTile?.coverImagePath ||
+    selectedNotebookImagePreviewState?.imagePath ||
+    null;
   const sourceLibraryResourceEntries: Array<{
     kind: CourseResourceKind;
     label: string;
     state: ResourceLoadState;
   }> = [
-    { kind: 'notebooks', label: '笔记本', state: notebooksLoadState },
     { kind: 'sources', label: '原始讲义', state: sourcesLoadState },
+    ...(notebooksHydrationWanted ||
+    notebooksLoadState.status === 'loading' ||
+    notebooksLoadState.status === 'ready' ||
+    notebooksLoadState.status === 'empty' ||
+    notebooksLoadState.status === 'error'
+      ? [{ kind: 'notebooks' as const, label: '笔记本', state: notebooksLoadState }]
+      : []),
   ];
   const sourceLibraryPendingEntries = sourceLibraryResourceEntries.filter(
     ({ state }) => state.status === 'idle' || state.status === 'loading',
@@ -13241,44 +14999,270 @@ export function LearnPageClient() {
   const selectedSourceLibraryTextState = selectedSourceLibraryTile
     ? sourceLibraryTextCache[selectedSourceLibraryTile.id]
     : undefined;
-  const selectedSourceLibraryTextCacheStatus = selectedSourceLibraryTextState?.status;
 
-  useEffect(() => {
-    if (!selectedSourceLibraryTile || selectedSourceLibraryTile.textNotebookIds.length === 0)
-      return;
-    if (selectedSourceLibraryTile.textBlocks.length > 0) return;
-    if (selectedSourceLibraryTextCacheStatus && selectedSourceLibraryTextCacheStatus !== 'failed') {
-      return;
-    }
-
-    let alive = true;
-    setSourceLibraryTextCache((current) => ({
-      ...current,
-      [selectedSourceLibraryTile.id]: { status: 'loading', text: '' },
-    }));
-    void Promise.all(
-      selectedSourceLibraryTile.textNotebookIds.map((notebookId) =>
-        loadNotebookMarkdownPreview(notebookId).catch(() => null),
-      ),
-    ).then((previewResults) => {
-      if (!alive) return;
-      const text = sourceLibraryTextFromMarkdownPreviews(
-        previewResults,
-        selectedSourceLibraryTile.textSectionIds,
-      );
+  const loadSourceLibraryTileText = useCallback((tile: SourceLibraryTile) => {
+    const canLoadSourceText = Boolean(tile.tileKind === 'source' && tile.sourceHash);
+    const canLoadNotebookText = tile.textNotebookIds.length > 0;
+    if (!canLoadSourceText && !canLoadNotebookText) {
       setSourceLibraryTextCache((current) => ({
         ...current,
-        [selectedSourceLibraryTile.id]: {
-          status: text ? 'ready' : 'empty',
-          text,
-        },
+        [tile.id]: { status: 'empty', text: '' },
       }));
-    });
+      return;
+    }
+    setSourceLibraryTextCache((current) => ({
+      ...current,
+      [tile.id]: { status: 'loading', text: '' },
+    }));
+    const textRequest =
+      canLoadSourceText && tile.sourceHash
+        ? getCourseSourceUploadText({
+            courseId: tile.courseId,
+            sourceHash: tile.sourceHash,
+          }).then((source) => sourceLibraryTextFromBlocks(source.textSections))
+        : loadBoundedNotebookMarkdownText(tile.textNotebookIds, tile.textSectionIds);
 
-    return () => {
-      alive = false;
-    };
-  }, [selectedSourceLibraryTextCacheStatus, selectedSourceLibraryTile]);
+    void textRequest
+      .then((text) => {
+        setSourceLibraryTextCache((current) => ({
+          ...current,
+          [tile.id]: {
+            status: text ? 'ready' : 'empty',
+            text,
+          },
+        }));
+      })
+      .catch((error) => {
+        setSourceLibraryTextCache((current) => ({
+          ...current,
+          [tile.id]: {
+            status: 'failed',
+            text: '',
+            error: error instanceof Error ? error.message : '文本读取失败',
+          },
+        }));
+      });
+  }, []);
+
+  const loadNotebookMarkdownPageForPopup = useCallback(
+    async (notebookId: string, loadMore = false, force = false) => {
+      const current = notebookMarkdownPageCache[notebookId];
+      if (
+        (!loadMore &&
+          (current?.status === 'ready' ||
+            current?.status === 'loading' ||
+            (!force && current?.status === 'failed'))) ||
+        (loadMore && (!current?.hasMore || !current.nextCursor || current.loadingMore))
+      ) {
+        return;
+      }
+      setNotebookMarkdownPageCache((cache) => ({
+        ...cache,
+        [notebookId]: loadMore
+          ? { ...current, status: current?.status || 'loading', loadingMore: true }
+          : {
+              status: 'loading',
+              sections: current?.sections || [],
+              hasMore: current?.hasMore || false,
+              nextCursor: current?.nextCursor || null,
+            },
+      }));
+      try {
+        const result = await loadNotebookMarkdownSectionPage(
+          notebookId,
+          loadMore ? current?.nextCursor : null,
+        );
+        const sections = loadMore
+          ? Array.from(
+              new Map(
+                [...(current?.sections || []), ...result.sections].map((section) => [
+                  section.id,
+                  section,
+                ]),
+              ).values(),
+            )
+          : result.sections;
+        setNotebookMarkdownPageCache((cache) => ({
+          ...cache,
+          [notebookId]: {
+            status: 'ready',
+            sections,
+            hasMore: result.page.hasMore,
+            nextCursor: result.page.nextCursor,
+          },
+        }));
+        if (sections[0]) {
+          setSelectedNotebookSectionIds((selected) =>
+            selected[notebookId] ? selected : { ...selected, [notebookId]: sections[0].id },
+          );
+        }
+      } catch (error) {
+        setNotebookMarkdownPageCache((cache) => ({
+          ...cache,
+          [notebookId]: {
+            status: 'failed',
+            sections: current?.sections || [],
+            hasMore: current?.hasMore || false,
+            nextCursor: current?.nextCursor || null,
+            error: error instanceof Error ? error.message : '章节列表读取失败',
+          },
+        }));
+      }
+    },
+    [notebookMarkdownPageCache],
+  );
+
+  const loadNotebookMarkdownSectionForPopup = useCallback(
+    async (notebookId: string, sectionId: string, force = false) => {
+      const cacheKey = `${notebookId}:${sectionId}`;
+      const current = notebookMarkdownSectionCache[cacheKey];
+      if (
+        current?.status === 'ready' ||
+        current?.status === 'loading' ||
+        (!force && current?.status === 'failed')
+      ) {
+        return;
+      }
+      setNotebookMarkdownSectionCache((cache) => ({
+        ...cache,
+        [cacheKey]: { status: 'loading', text: '' },
+      }));
+      try {
+        const result = await loadNotebookMarkdownSectionDetail(notebookId, sectionId);
+        const text = result.section.markdown.trim();
+        setNotebookMarkdownSectionCache((cache) => ({
+          ...cache,
+          [cacheKey]: { status: text ? 'ready' : 'empty', text },
+        }));
+      } catch (error) {
+        setNotebookMarkdownSectionCache((cache) => ({
+          ...cache,
+          [cacheKey]: {
+            status: 'failed',
+            text: '',
+            error: error instanceof Error ? error.message : '章节正文读取失败',
+          },
+        }));
+      }
+    },
+    [notebookMarkdownSectionCache],
+  );
+
+  const loadNotebookImagePreviewForPopup = useCallback(
+    async (notebookId: string, coverImagePath: string | null) => {
+      const current = notebookImagePreviewCache[notebookId];
+      if (
+        current?.status === 'ready' ||
+        current?.status === 'loading' ||
+        current?.status === 'failed'
+      ) {
+        return;
+      }
+      if (coverImagePath) {
+        setNotebookImagePreviewCache((cache) => ({
+          ...cache,
+          [notebookId]: { status: 'ready', imagePath: coverImagePath },
+        }));
+        return;
+      }
+      setNotebookImagePreviewCache((cache) => ({
+        ...cache,
+        [notebookId]: { status: 'loading', imagePath: null },
+      }));
+      try {
+        const slides = await getFirstSlideByStages([notebookId]);
+        const imagePath = firstSlidePreviewImage(slides[notebookId]);
+        setNotebookImagePreviewCache((cache) => ({
+          ...cache,
+          [notebookId]: {
+            status: imagePath ? 'ready' : 'empty',
+            imagePath,
+          },
+        }));
+      } catch (error) {
+        setNotebookImagePreviewCache((cache) => ({
+          ...cache,
+          [notebookId]: {
+            status: 'failed',
+            imagePath: null,
+            error: error instanceof Error ? error.message : '封面预览读取失败',
+          },
+        }));
+      }
+    },
+    [notebookImagePreviewCache],
+  );
+
+  useEffect(() => {
+    if (!notebookLibraryPanelOpen || !selectedNotebookLibraryTile || !selectedNotebookLibraryId) {
+      return;
+    }
+    if (selectedNotebookLibraryIsMarkdown) {
+      void loadNotebookMarkdownPageForPopup(selectedNotebookLibraryId);
+      return;
+    }
+    void loadNotebookImagePreviewForPopup(
+      selectedNotebookLibraryId,
+      selectedNotebookLibraryTile.coverImagePath,
+    );
+  }, [
+    loadNotebookImagePreviewForPopup,
+    loadNotebookMarkdownPageForPopup,
+    notebookLibraryPanelOpen,
+    selectedNotebookLibraryId,
+    selectedNotebookLibraryIsMarkdown,
+    selectedNotebookLibraryTile,
+  ]);
+
+  useEffect(() => {
+    if (
+      !notebookLibraryPanelOpen ||
+      !selectedNotebookLibraryIsMarkdown ||
+      !selectedNotebookLibraryId ||
+      !selectedNotebookSectionId
+    ) {
+      return;
+    }
+    void loadNotebookMarkdownSectionForPopup(selectedNotebookLibraryId, selectedNotebookSectionId);
+  }, [
+    loadNotebookMarkdownSectionForPopup,
+    notebookLibraryPanelOpen,
+    selectedNotebookLibraryId,
+    selectedNotebookLibraryIsMarkdown,
+    selectedNotebookSectionId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !selectedSourceLibraryTileId?.startsWith('notebook-') ||
+      selectedSourceLibraryTile ||
+      sourcesLoadState.status === 'idle' ||
+      sourcesLoadState.status === 'loading'
+    ) {
+      return;
+    }
+    const notebookId = selectedSourceLibraryTileId.slice('notebook-'.length);
+    const replacement = allSourceLibraryTiles.find(
+      (tile) => tile.tileKind === 'source' && tile.textNotebookIds.includes(notebookId),
+    );
+    if (!replacement) return;
+    setSelectedSourceLibraryTileId(replacement.id);
+    const preloadedText = sourceLibraryTextFromBlocks(replacement.textBlocks);
+    if (preloadedText) {
+      setSourceLibraryTextCache((current) => ({
+        ...current,
+        [replacement.id]: { status: 'ready', text: preloadedText },
+      }));
+    } else {
+      loadSourceLibraryTileText(replacement);
+    }
+  }, [
+    allSourceLibraryTiles,
+    loadSourceLibraryTileText,
+    selectedSourceLibraryTile,
+    selectedSourceLibraryTileId,
+    sourcesLoadState.status,
+  ]);
 
   const selectedSourceLibraryHasImage = Boolean(selectedSourceLibraryTile?.coverImagePath);
   const selectedSourceLibraryPreloadedText = selectedSourceLibraryTile
@@ -13294,7 +15278,9 @@ export function LearnPageClient() {
     selectedSourceLibraryTextState?.status === 'failed';
   const selectedSourceLibraryTextLoading =
     selectedSourceLibraryTextState?.status === 'loading' ||
-    (Boolean(selectedSourceLibraryTile?.textNotebookIds.length) &&
+    (Boolean(
+      selectedSourceLibraryTile?.sourceHash || selectedSourceLibraryTile?.textNotebookIds.length,
+    ) &&
       !selectedSourceLibraryTile?.textBlocks.length &&
       !selectedSourceLibraryTextState);
   const showSourceLibraryViewSwitch = selectedSourceLibraryHasImage && selectedSourceLibraryHasText;
@@ -13491,24 +15477,38 @@ export function LearnPageClient() {
             status: 'loading',
             statusLabel: '云同步中',
           };
+  const activeCourseContentState =
+    activeCourse?.id && courseContentStateRevision.startsWith(`${activeCourse.id}:`)
+      ? courseContentStateRef.current.get(activeCourse.id)
+      : null;
+  const contentStateReady = Boolean(activeCourseContentState);
   const learnSurfaceStatusItems: LearnSurfaceStatusItem[] = [
     courseSurfaceStatus,
     conversationSurfaceStatus,
     {
       key: 'problems',
       label: '题库',
-      ...resourceSurfaceStatus(problemsLoadState, activeCourseId),
+      ...resourceSurfaceStatusFromContentOrList({
+        activeCourseId,
+        listState: problemsLoadState,
+        content: activeCourseContentState?.problems,
+        contentReady: contentStateReady,
+        listHydrationWanted: problemsHydrationWanted,
+      }),
     },
     {
       key: 'notebooks',
       label: '笔记本',
-      ...resourceSurfaceStatus(notebooksLoadState, activeCourseId),
+      ...resourceSurfaceStatusFromContentOrList({
+        activeCourseId,
+        listState: notebooksLoadState,
+        content: activeCourseContentState?.notebooks,
+        contentReady: contentStateReady,
+        listHydrationWanted: notebooksHydrationWanted,
+        deferredWhenListIdle: true,
+      }),
     },
   ];
-  const activeCourseContentState =
-    activeCourse?.id && courseContentStateRevision.startsWith(`${activeCourse.id}:`)
-      ? courseContentStateRef.current.get(activeCourse.id)
-      : null;
   const activeCourseSourceHealthNotice = courseSourceHealthNotice(
     activeCourseContentState?.sources,
   );
@@ -13609,9 +15609,9 @@ export function LearnPageClient() {
   }
 
   const rightRailCardClassName =
-    'rounded-[20px] border border-slate-200/80 bg-white/[0.92] shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-slate-950/[0.88]';
+    'rounded-[13px] border border-slate-200/80 bg-white/[0.94] shadow-[0_5px_16px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-950/[0.88]';
   const rightRailRowClassName =
-    'rounded-[14px] border border-slate-200/70 bg-white/65 px-3 py-2 dark:border-white/[0.08] dark:bg-white/5';
+    'rounded-[10px] border border-slate-200/70 bg-white px-3 py-2 dark:border-white/[0.08] dark:bg-white/5';
   const rightRailSectionTitleClassName =
     'text-[13px] font-semibold leading-5 text-slate-700 dark:text-slate-200';
   const rightRailSectionIconClassName = 'size-3.5 text-slate-400 dark:text-slate-500';
@@ -13642,16 +15642,44 @@ export function LearnPageClient() {
         </Button>
       </div>
 
+      {calendarLoading && !syllabusEvents.length ? (
+        <p className="mt-3 flex items-center gap-2 rounded-[12px] bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 dark:bg-sky-400/10 dark:text-sky-100">
+          <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+          正在加载课程日历…
+        </p>
+      ) : null}
+      {calendarLoadError ? (
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-[12px] bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-400/10 dark:text-rose-100">
+          <span className="min-w-0 truncate">{calendarLoadError}</span>
+          <button
+            type="button"
+            className="inline-flex shrink-0 items-center gap-1 font-semibold"
+            onClick={() => void reloadCalendarEvents().catch(() => undefined)}
+          >
+            <RefreshCw className="size-3" aria-hidden="true" />
+            重试
+          </button>
+        </div>
+      ) : null}
+      {calendarEventsTruncated ? (
+        <p className="mt-3 rounded-[12px] bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-400/10 dark:text-amber-100">
+          当前窗口事项超过 120 项，建议缩小查询范围。
+        </p>
+      ) : null}
+
       <button
         type="button"
-        className="mt-3 block w-full rounded-[12px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="mt-3 block w-full rounded-[16px] border border-slate-200/80 bg-white p-3 text-left shadow-sm transition hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         onClick={() => setCalendarDialogOpen(true)}
         aria-label="打开大日历"
         title="打开大日历"
       >
         <div className="grid grid-cols-7 gap-1 text-center">
           {calendarWeekdays.map((day) => (
-            <span key={day} className="text-[10px] font-medium text-muted-foreground">
+            <span
+              key={day}
+              className="mb-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500"
+            >
               {day}
             </span>
           ))}
@@ -13659,10 +15687,12 @@ export function LearnPageClient() {
             <div
               key={day.key}
               className={cn(
-                'relative flex aspect-square items-center justify-center rounded-[10px] text-[11px] font-medium transition',
-                day.inMonth ? 'text-foreground' : 'text-muted-foreground/35',
-                day.isToday ? 'bg-red-500 text-white' : 'bg-muted/45',
-                (day.planCount || day.syllabusCount) && !day.isToday ? 'ring-1 ring-border' : null,
+                'relative grid aspect-square place-items-center rounded-full text-[11px] font-semibold',
+                day.inMonth ? 'text-slate-700' : 'text-slate-300',
+                day.isToday ? 'bg-[#ff3b30] text-white' : null,
+                (day.planCount || day.syllabusCount) && !day.isToday
+                  ? 'ring-1 ring-slate-200'
+                  : null,
               )}
               title={[
                 day.planCount ? `${day.planCount} 个学习计划` : '',
@@ -13675,7 +15705,7 @@ export function LearnPageClient() {
             >
               {day.day}
               {day.planCount || day.syllabusCount ? (
-                <span className="absolute bottom-1 flex items-center gap-0.5">
+                <span className="absolute bottom-0.5 flex items-center gap-0.5">
                   {day.planCount ? (
                     <span
                       className={cn(
@@ -13705,7 +15735,11 @@ export function LearnPageClient() {
     >
       <DialogContent
         showCloseButton={false}
-        className="flex h-[min(900px,92dvh)] w-[calc(100vw-1rem)] max-w-[1380px] flex-col gap-0 overflow-hidden rounded-[28px] border-border/80 bg-[#f5f5f5] p-0 shadow-2xl dark:bg-slate-950"
+        overlayClassName={SYNTARA_WORKSPACE_DIALOG_OVERLAY_CLASS}
+        className={cn(
+          SYNTARA_WORKSPACE_DIALOG_CONTENT_CLASS,
+          'h-[min(860px,92dvh)] max-w-[1320px] bg-[#f5f5f5] dark:bg-slate-950',
+        )}
       >
         <DialogHeader className="relative shrink-0 border-b border-border/80 bg-background/95 px-4 py-3 text-left backdrop-blur">
           <div className="flex min-w-0 items-center gap-3">
@@ -13853,294 +15887,301 @@ export function LearnPageClient() {
   );
 
   const syllabusImportDialog = (
-    <Dialog open={syllabusDialogOpen} onOpenChange={setSyllabusDialogOpen}>
-      <DialogContent className="h-[min(760px,86dvh)] w-[calc(100vw-1rem)] max-w-[1180px] overflow-hidden rounded-[28px] border-border/80 bg-background p-0 shadow-2xl sm:h-[min(780px,86dvh)]">
-        <div className="flex h-full min-h-0 flex-col">
-          <DialogHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
-            <DialogTitle className="text-base">添加课程日程</DialogTitle>
-            <DialogDescription className="text-xs leading-5 text-muted-foreground">
-              先读取 syllabus，再检查、修改或移除事项；确认后才会写入日历。
-            </DialogDescription>
-          </DialogHeader>
-          <input
-            ref={syllabusInputRef}
-            type="file"
-            accept=".pdf,.txt,.md,.csv,.json,application/pdf,text/*"
-            className="hidden"
-            onChange={(event) => {
-              void handleSyllabusFile(event.currentTarget.files);
-              event.currentTarget.value = '';
-            }}
-          />
+    <LearnWorkspaceDialog
+      open={syllabusDialogOpen}
+      onOpenChange={setSyllabusDialogOpen}
+      title="添加课程日程"
+      description="先读取 syllabus，再检查、修改或移除事项；确认后才会写入日历。"
+    >
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="shrink-0 border-b border-border px-5 py-4 text-left">
+          <h2 className="text-base font-semibold text-foreground">添加课程日程</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            先读取 syllabus，再检查、修改或移除事项；确认后才会写入日历。
+          </p>
+        </div>
+        <input
+          ref={syllabusInputRef}
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.md,.csv,.json,application/pdf,image/png,image/jpeg,image/webp,image/gif,text/*"
+          className="hidden"
+          onChange={(event) => {
+            void handleSyllabusFile(event.currentTarget.files);
+            event.currentTarget.value = '';
+          }}
+        />
 
-          <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[360px_1fr]">
-            <aside className="min-h-0 border-b border-border/70 bg-muted/25 p-4 lg:border-b-0 lg:border-r">
-              <div className="grid grid-cols-2 rounded-full bg-muted p-1 text-sm font-medium">
-                {[
-                  { value: 'file' as const, label: '上传文件' },
-                  { value: 'plan' as const, label: '描述计划' },
-                ].map((item) => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => setSyllabusImportMode(item.value)}
-                    className={cn(
-                      'h-9 rounded-full transition',
-                      syllabusImportMode === item.value
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground',
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-
-              {syllabusImportMessage ? (
-                <p
+        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[360px_1fr]">
+          <aside className="min-h-0 border-b border-border/70 bg-muted/25 p-4 lg:border-b-0 lg:border-r">
+            <div className="grid grid-cols-2 rounded-full bg-muted p-1 text-sm font-medium">
+              {[
+                { value: 'file' as const, label: '上传文件' },
+                { value: 'plan' as const, label: '描述计划' },
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setSyllabusImportMode(item.value)}
                   className={cn(
-                    rightRailRowClassName,
-                    'mt-4 text-xs leading-5 text-muted-foreground',
+                    'h-9 rounded-full transition',
+                    syllabusImportMode === item.value
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
-                  {syllabusImportMessage}
-                </p>
-              ) : null}
+                  {item.label}
+                </button>
+              ))}
+            </div>
 
-              {syllabusImportMode === 'file' ? (
-                <section className="mt-4 rounded-[18px] border border-border/70 bg-background p-4">
-                  <div className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground">
-                    {syllabusImportLoading ? (
-                      <Loader2 className="size-5 animate-spin" strokeWidth={1.8} />
-                    ) : (
-                      <FileText className="size-5" strokeWidth={1.8} />
-                    )}
-                  </div>
-                  <p className="mt-3 text-sm font-semibold text-foreground">
-                    {syllabusImportLoading ? '正在读取 syllabus' : '上传 syllabus 文件'}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    PDF 会优先让 AI 直接读取文件内容；识别完成后会先显示预览。
-                  </p>
-                  <Button
-                    type="button"
-                    className="mt-4 h-9 rounded-full px-4 text-sm"
-                    onClick={() => syllabusInputRef.current?.click()}
-                    disabled={syllabusImportLoading}
-                  >
-                    {syllabusImportLoading ? '读取中...' : '选择文件'}
-                  </Button>
-                </section>
-              ) : (
-                <section className="mt-4 rounded-[18px] border border-border/70 bg-background p-4">
-                  <div className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground">
-                    <CalendarDays className="size-5" strokeWidth={1.8} />
-                  </div>
-                  <p className="mt-3 text-sm font-semibold text-foreground">描述你的学习计划</p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    没有 syllabus 文件时，可以先描述节奏，我会生成可确认的模拟日程。
-                  </p>
-                  <Textarea
-                    value={syllabusPlanDraft}
-                    onChange={(event) => setSyllabusPlanDraft(event.target.value)}
-                    placeholder="例如：我想 8 周学完，每周学习 3 次，有一次期中和一次期末。"
-                    className="mt-4 min-h-32 resize-none rounded-[16px] border-border bg-muted/30 text-sm shadow-none focus-visible:ring-1"
-                  />
-                  <Button
-                    type="button"
-                    className="mt-4 h-9 rounded-full px-4 text-sm"
-                    onClick={handleSimulateSyllabus}
-                    disabled={!activeCourse}
-                  >
-                    生成预览
-                  </Button>
-                </section>
-              )}
-
-              <div
+            {syllabusImportMessage ? (
+              <p
                 className={cn(
                   rightRailRowClassName,
                   'mt-4 text-xs leading-5 text-muted-foreground',
                 )}
               >
-                {syllabusCommitMode === 'replace'
-                  ? '确认后会替换当前已保存的 syllabus 日程。'
-                  : '确认后会和当前已保存的 syllabus 日程合并。'}
-              </div>
-            </aside>
+                {syllabusImportMessage}
+              </p>
+            ) : null}
 
-            <section className="flex min-h-0 flex-col bg-background">
-              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 px-5 py-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">确认添加</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {syllabusDraftEvents.length
-                      ? `${syllabusDraftEvents.length} 个待确认事项`
-                      : '上传或生成后，这里会显示可编辑的日程预览'}
-                  </p>
+            {syllabusImportMode === 'file' ? (
+              <section className="mt-4 rounded-[18px] border border-border/70 bg-background p-4">
+                <div className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground">
+                  {syllabusImportLoading ? (
+                    <Loader2 className="size-5 animate-spin" strokeWidth={1.8} />
+                  ) : (
+                    <FileText className="size-5" strokeWidth={1.8} />
+                  )}
                 </div>
+                <p className="mt-3 text-sm font-semibold text-foreground">
+                  {syllabusImportLoading ? '正在读取 syllabus' : '上传 syllabus 文件'}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  支持 syllabus 图片、扫描件、PDF 与文本；AI 识别后会先显示可编辑预览。
+                </p>
+                <Button
+                  type="button"
+                  className="mt-4 h-9 rounded-full px-4 text-sm"
+                  onClick={() => syllabusInputRef.current?.click()}
+                  disabled={syllabusImportLoading}
+                >
+                  {syllabusImportLoading ? '读取中...' : '选择文件'}
+                </Button>
+              </section>
+            ) : (
+              <section className="mt-4 rounded-[18px] border border-border/70 bg-background p-4">
+                <div className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground">
+                  <CalendarDays className="size-5" strokeWidth={1.8} />
+                </div>
+                <p className="mt-3 text-sm font-semibold text-foreground">描述你的学习计划</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  没有 syllabus 文件时，可以先描述节奏，我会生成可确认的模拟日程。
+                </p>
+                <Textarea
+                  value={syllabusPlanDraft}
+                  onChange={(event) => setSyllabusPlanDraft(event.target.value)}
+                  placeholder="例如：我想 8 周学完，每周学习 3 次，有一次期中和一次期末。"
+                  className="mt-4 min-h-32 resize-none rounded-[16px] border-border bg-muted/30 text-sm shadow-none focus-visible:ring-1"
+                />
+                <Button
+                  type="button"
+                  className="mt-4 h-9 rounded-full px-4 text-sm"
+                  onClick={handleSimulateSyllabus}
+                  disabled={!activeCourse}
+                >
+                  生成预览
+                </Button>
+              </section>
+            )}
+
+            <div
+              className={cn(rightRailRowClassName, 'mt-4 text-xs leading-5 text-muted-foreground')}
+            >
+              {syllabusCommitMode === 'replace'
+                ? '确认后会替换当前已保存的 syllabus 日程。'
+                : '确认后会和当前已保存的 syllabus 日程合并。'}
+            </div>
+          </aside>
+
+          <section className="flex min-h-0 flex-col bg-background">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">确认添加</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {syllabusDraftEvents.length
+                    ? `${syllabusDraftEvents.length} 个待确认事项`
+                    : '上传或生成后，这里会显示可编辑的日程预览'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 rounded-full px-3 text-xs"
+                onClick={addSyllabusDraftEvent}
+                disabled={syllabusImportLoading}
+              >
+                添加事项
+              </Button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              {syllabusImportLoading ? (
+                <div className="grid h-full place-items-center rounded-[22px] border border-dashed border-border bg-muted/20 text-center">
+                  <div>
+                    <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
+                    <p className="mt-3 text-sm font-medium text-foreground">正在读取文件</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      读取完成后会显示可编辑的 syllabus 事项。
+                    </p>
+                  </div>
+                </div>
+              ) : syllabusDraftEvents.length ? (
+                <div className="space-y-3">
+                  {syllabusDraftEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="rounded-[18px] border border-border/70 bg-background p-3 shadow-sm"
+                    >
+                      <div className="grid gap-2 lg:grid-cols-[140px_130px_1fr_32px]">
+                        <input
+                          type="date"
+                          value={event.date}
+                          onChange={(changeEvent) =>
+                            updateSyllabusDraftEvent(event.id, {
+                              date: changeEvent.currentTarget.value,
+                            })
+                          }
+                          className="h-9 rounded-full border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+                        />
+                        <select
+                          value={event.kind}
+                          onChange={(changeEvent) =>
+                            updateSyllabusDraftEvent(event.id, {
+                              kind: changeEvent.currentTarget.value as SyllabusEventKind,
+                            })
+                          }
+                          className="h-9 rounded-full border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+                        >
+                          {manualScheduleKindOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          value={event.title}
+                          onChange={(changeEvent) =>
+                            updateSyllabusDraftEvent(event.id, {
+                              title: changeEvent.currentTarget.value,
+                            })
+                          }
+                          placeholder="事项标题"
+                          className="h-9 min-w-0 rounded-full border border-border bg-muted/30 px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-9 rounded-full text-muted-foreground hover:text-destructive"
+                          onClick={() => removeSyllabusDraftEvent(event.id)}
+                          aria-label="移除事项"
+                          title="移除事项"
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+                        {event.week ? (
+                          <span className="rounded-full bg-muted px-2 py-0.5">{event.week}</span>
+                        ) : null}
+                        {event.sourceColumn ? (
+                          <span className="rounded-full bg-muted px-2 py-0.5">
+                            {event.sourceColumn}
+                          </span>
+                        ) : null}
+                        {event.confidence != null ? (
+                          <span className="rounded-full bg-muted px-2 py-0.5">
+                            置信度 {Math.round(event.confidence * 100)}%
+                          </span>
+                        ) : null}
+                        {event.rawText ? (
+                          <span className="min-w-0 truncate rounded-full bg-muted px-2 py-0.5">
+                            {event.rawText}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid h-full place-items-center rounded-[22px] border border-dashed border-border bg-muted/20 text-center">
+                  <div>
+                    <UploadCloud className="mx-auto size-7 text-muted-foreground" />
+                    <p className="mt-3 text-sm font-medium text-foreground">还没有待确认的事项</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      选择 syllabus 文件，或描述学习计划生成预览。
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/70 px-5 py-4">
+              <p className="min-w-0 text-xs text-muted-foreground">
+                {validSyllabusDraftEvents.length
+                  ? `${validSyllabusDraftEvents.length} 个有效事项会被写入日历`
+                  : '确认前请至少保留一个有效事项'}
+              </p>
+              <div className="flex shrink-0 gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
-                  className="h-8 shrink-0 rounded-full px-3 text-xs"
-                  onClick={addSyllabusDraftEvent}
-                  disabled={syllabusImportLoading}
+                  className="h-9 rounded-full px-4 text-sm"
+                  onClick={() => setSyllabusDialogOpen(false)}
                 >
-                  添加事项
+                  取消
+                </Button>
+                <Button
+                  type="button"
+                  className="h-9 rounded-full px-4 text-sm"
+                  onClick={() => void confirmSyllabusDraftEvents()}
+                  disabled={
+                    syllabusImportLoading || calendarMutating || !validSyllabusDraftEvents.length
+                  }
+                >
+                  {syllabusImportLoading || calendarMutating
+                    ? '同步中…'
+                    : syllabusCommitMode === 'replace'
+                      ? '确认保存'
+                      : '确认添加'}
                 </Button>
               </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto p-5">
-                {syllabusImportLoading ? (
-                  <div className="grid h-full place-items-center rounded-[22px] border border-dashed border-border bg-muted/20 text-center">
-                    <div>
-                      <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                      <p className="mt-3 text-sm font-medium text-foreground">正在读取文件</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        读取完成后会显示可编辑的 syllabus 事项。
-                      </p>
-                    </div>
-                  </div>
-                ) : syllabusDraftEvents.length ? (
-                  <div className="space-y-3">
-                    {syllabusDraftEvents.map((event) => (
-                      <div
-                        key={event.id}
-                        className="rounded-[18px] border border-border/70 bg-background p-3 shadow-sm"
-                      >
-                        <div className="grid gap-2 lg:grid-cols-[140px_130px_1fr_32px]">
-                          <input
-                            type="date"
-                            value={event.date}
-                            onChange={(changeEvent) =>
-                              updateSyllabusDraftEvent(event.id, {
-                                date: changeEvent.currentTarget.value,
-                              })
-                            }
-                            className="h-9 rounded-full border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-                          />
-                          <select
-                            value={event.kind}
-                            onChange={(changeEvent) =>
-                              updateSyllabusDraftEvent(event.id, {
-                                kind: changeEvent.currentTarget.value as SyllabusEventKind,
-                              })
-                            }
-                            className="h-9 rounded-full border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-                          >
-                            {manualScheduleKindOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            value={event.title}
-                            onChange={(changeEvent) =>
-                              updateSyllabusDraftEvent(event.id, {
-                                title: changeEvent.currentTarget.value,
-                              })
-                            }
-                            placeholder="事项标题"
-                            className="h-9 min-w-0 rounded-full border border-border bg-muted/30 px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="size-9 rounded-full text-muted-foreground hover:text-destructive"
-                            onClick={() => removeSyllabusDraftEvent(event.id)}
-                            aria-label="移除事项"
-                            title="移除事项"
-                          >
-                            <X className="size-4" />
-                          </Button>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
-                          {event.week ? (
-                            <span className="rounded-full bg-muted px-2 py-0.5">{event.week}</span>
-                          ) : null}
-                          {event.sourceColumn ? (
-                            <span className="rounded-full bg-muted px-2 py-0.5">
-                              {event.sourceColumn}
-                            </span>
-                          ) : null}
-                          {event.confidence != null ? (
-                            <span className="rounded-full bg-muted px-2 py-0.5">
-                              置信度 {Math.round(event.confidence * 100)}%
-                            </span>
-                          ) : null}
-                          {event.rawText ? (
-                            <span className="min-w-0 truncate rounded-full bg-muted px-2 py-0.5">
-                              {event.rawText}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="grid h-full place-items-center rounded-[22px] border border-dashed border-border bg-muted/20 text-center">
-                    <div>
-                      <UploadCloud className="mx-auto size-7 text-muted-foreground" />
-                      <p className="mt-3 text-sm font-medium text-foreground">还没有待确认的事项</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        选择 syllabus 文件，或描述学习计划生成预览。
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/70 px-5 py-4">
-                <p className="min-w-0 text-xs text-muted-foreground">
-                  {validSyllabusDraftEvents.length
-                    ? `${validSyllabusDraftEvents.length} 个有效事项会被写入日历`
-                    : '确认前请至少保留一个有效事项'}
-                </p>
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 rounded-full px-4 text-sm"
-                    onClick={() => setSyllabusDialogOpen(false)}
-                  >
-                    取消
-                  </Button>
-                  <Button
-                    type="button"
-                    className="h-9 rounded-full px-4 text-sm"
-                    onClick={confirmSyllabusDraftEvents}
-                    disabled={syllabusImportLoading || !validSyllabusDraftEvents.length}
-                  >
-                    {syllabusCommitMode === 'replace' ? '确认保存' : '确认添加'}
-                  </Button>
-                </div>
-              </div>
-            </section>
-          </div>
+            </div>
+          </section>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </LearnWorkspaceDialog>
   );
 
   const manualScheduleDialog = (
     <Dialog
       open={manualScheduleDialogOpen}
       onOpenChange={(open) => {
+        if (calendarMutating) return;
         setManualScheduleDialogOpen(open);
         if (!open) setManualScheduleError(null);
       }}
     >
-      <DialogContent className="w-[calc(100vw-1rem)] max-w-md rounded-[24px] border-border/80 bg-background p-0 shadow-2xl">
+      <DialogContent className={cn(SYNTARA_ACTION_DIALOG_CONTENT_CLASS, 'max-w-[480px] p-0')}>
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            confirmManualScheduleEvent();
+            void confirmManualScheduleEvent();
           }}
         >
-          <DialogHeader className="border-b border-border px-5 py-4 text-left">
+          <DialogHeader className={SYNTARA_DIALOG_HEADER_CLASS}>
             <DialogTitle className="text-base">添加日程</DialogTitle>
             <DialogDescription className="text-xs leading-5 text-muted-foreground">
               {isResearchCourse
@@ -14208,11 +16249,16 @@ export function LearnPageClient() {
               variant="outline"
               className="h-9 rounded-full px-4 text-sm"
               onClick={() => setManualScheduleDialogOpen(false)}
+              disabled={calendarMutating}
             >
               取消
             </Button>
-            <Button type="submit" className="h-9 rounded-full px-4 text-sm">
-              添加
+            <Button
+              type="submit"
+              className="h-9 rounded-full px-4 text-sm"
+              disabled={calendarMutating}
+            >
+              {calendarMutating ? '同步中…' : '添加'}
             </Button>
           </div>
         </form>
@@ -14222,8 +16268,14 @@ export function LearnPageClient() {
 
   const courseFilesDialog = (
     <Dialog open={courseFilesDialogOpen} onOpenChange={setCourseFilesDialogOpen}>
-      <DialogContent className="max-h-[min(760px,86dvh)] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto rounded-[28px] border-border/80 bg-background p-0 shadow-2xl">
-        <DialogHeader className="border-b border-border px-5 py-4 text-left">
+      <DialogContent
+        overlayClassName={SYNTARA_WORKSPACE_DIALOG_OVERLAY_CLASS}
+        className={cn(
+          SYNTARA_WORKSPACE_DIALOG_CONTENT_CLASS,
+          'h-auto max-h-[min(760px,86dvh)] max-w-3xl overflow-y-auto',
+        )}
+      >
+        <DialogHeader className={SYNTARA_DIALOG_HEADER_CLASS}>
           <DialogTitle className="text-base">上传文件</DialogTitle>
           <p className="text-xs leading-5 text-muted-foreground">管理这门课里你上传过的文件。</p>
         </DialogHeader>
@@ -14241,397 +16293,400 @@ export function LearnPageClient() {
   );
 
   const sourceUploadStatusDialog = (
-    <Dialog open={sourceUploadPanelOpen} onOpenChange={setSourceUploadDialogOpen}>
-      <DialogContent
-        showCloseButton={!selectedSourceLibraryTile}
-        className="flex h-[min(760px,86dvh)] w-[calc(100vw-1rem)] max-w-[1180px] flex-col overflow-hidden rounded-[28px] border-border/80 bg-background p-0 shadow-2xl sm:h-[min(780px,86dvh)]"
-      >
-        <DialogHeader className="sr-only">
-          <DialogTitle>原始讲义库</DialogTitle>
-          <DialogDescription>
-            浏览课程文件和整理好的正文；第一个位置用于上传新的课程文件。
-          </DialogDescription>
-        </DialogHeader>
-        <input
-          ref={sourceDocumentInputRef}
-          type="file"
-          accept=".pdf,.pptx,.docx,.txt,.md,.markdown,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
-          multiple
-          className="hidden"
-          onChange={(event) => {
-            void handleLearnUploadFiles(event.currentTarget.files);
-            event.currentTarget.value = '';
-          }}
-        />
-        <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-slate-950">
-          {selectedSourceLibraryTile ? (
-            <div className="shrink-0 border-b border-slate-200/70 bg-gradient-to-b from-slate-50 to-white px-5 py-4 dark:border-white/10 dark:from-slate-900 dark:to-slate-950 sm:px-6">
-              <div className="flex items-start gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedSourceLibraryTileId(null);
-                    setSourceLibraryDetailView('image');
-                    setSourceLibraryImageExpanded(false);
-                  }}
-                  className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
-                  aria-label="返回原始讲义库"
-                >
-                  <ChevronLeft className="size-4" strokeWidth={1.9} />
-                </button>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-                    <span className="rounded-full bg-sky-100 px-2.5 py-1 text-sky-700 dark:bg-sky-400/15 dark:text-sky-100">
-                      {selectedSourceLibraryTile.typeLabel}
+    <LearnWorkspaceDialog
+      open={sourceUploadPanelOpen}
+      onOpenChange={setSourceUploadDialogOpen}
+      title="原始讲义库"
+      description="浏览课程文件和整理好的正文；第一个位置用于上传新的课程文件。"
+      showCloseButton={!selectedSourceLibraryTile}
+    >
+      <input
+        ref={sourceDocumentInputRef}
+        type="file"
+        accept=".pdf,.pptx,.docx,.txt,.md,.markdown,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
+        multiple
+        className="hidden"
+        onChange={(event) => {
+          void handleLearnUploadFiles(event.currentTarget.files);
+          event.currentTarget.value = '';
+        }}
+      />
+      <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-slate-950">
+        {selectedSourceLibraryTile ? (
+          <div className="shrink-0 border-b border-slate-200/70 bg-gradient-to-b from-slate-50 to-white px-5 py-4 dark:border-white/10 dark:from-slate-900 dark:to-slate-950 sm:px-6">
+            <div className="flex items-start gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSourceLibraryTileId(null);
+                  setSourceLibraryDetailView('image');
+                  setSourceLibraryImageExpanded(false);
+                }}
+                className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
+                aria-label="返回原始讲义库"
+              >
+                <ChevronLeft className="size-4" strokeWidth={1.9} />
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+                  <span className="rounded-full bg-sky-100 px-2.5 py-1 text-sky-700 dark:bg-sky-400/15 dark:text-sky-100">
+                    {selectedSourceLibraryTile.typeLabel}
+                  </span>
+                  {selectedSourceLibraryTile.dateLabel ? (
+                    <span className="text-slate-400 dark:text-slate-500">
+                      {selectedSourceLibraryTile.dateLabel}
                     </span>
-                    {selectedSourceLibraryTile.dateLabel ? (
-                      <span className="text-slate-400 dark:text-slate-500">
-                        {selectedSourceLibraryTile.dateLabel}
-                      </span>
-                    ) : null}
-                    {selectedSourceLibraryTile.status ? (
-                      <span
+                  ) : null}
+                  {selectedSourceLibraryTile.status ? (
+                    <span
+                      className={cn(
+                        'rounded-full px-2.5 py-1',
+                        sourceUploadStatusIsProcessing(selectedSourceLibraryTile.status)
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-100'
+                          : 'bg-rose-100 text-rose-700 dark:bg-rose-400/15 dark:text-rose-100',
+                      )}
+                    >
+                      {sourceUploadStatusLabel(selectedSourceLibraryTile.status)}
+                    </span>
+                  ) : null}
+                </div>
+                <h2 className="mt-2 truncate text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
+                  {selectedSourceLibraryTile.title}
+                </h2>
+                <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                  {selectedSourceLibraryTile.subtitle}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {showSourceLibraryViewSwitch ? (
+                  <div className="hidden items-center rounded-xl bg-slate-100 p-1 text-xs font-semibold text-slate-500 dark:bg-white/10 dark:text-slate-300 sm:inline-flex">
+                    {(['text', 'image'] as const).map((view) => (
+                      <button
+                        key={view}
+                        type="button"
+                        onClick={() => {
+                          setSourceLibraryDetailView(view);
+                          if (view === 'text') setSourceLibraryImageExpanded(false);
+                        }}
                         className={cn(
-                          'rounded-full px-2.5 py-1',
-                          sourceUploadStatusIsProcessing(selectedSourceLibraryTile.status)
-                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-100'
-                            : 'bg-rose-100 text-rose-700 dark:bg-rose-400/15 dark:text-rose-100',
+                          'rounded-lg px-3 py-1.5 transition',
+                          effectiveSourceLibraryDetailView === view
+                            ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-white'
+                            : 'hover:text-slate-900 dark:hover:text-white',
                         )}
                       >
-                        {sourceUploadStatusLabel(selectedSourceLibraryTile.status)}
-                      </span>
-                    ) : null}
+                        {view === 'text' ? '文本' : '图片'}
+                      </button>
+                    ))}
                   </div>
-                  <h2 className="mt-2 truncate text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
-                    {selectedSourceLibraryTile.title}
-                  </h2>
-                  <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
-                    {selectedSourceLibraryTile.subtitle}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {showSourceLibraryViewSwitch ? (
-                    <div className="hidden items-center rounded-xl bg-slate-100 p-1 text-xs font-semibold text-slate-500 dark:bg-white/10 dark:text-slate-300 sm:inline-flex">
-                      {(['text', 'image'] as const).map((view) => (
-                        <button
-                          key={view}
-                          type="button"
-                          onClick={() => {
-                            setSourceLibraryDetailView(view);
-                            if (view === 'text') setSourceLibraryImageExpanded(false);
-                          }}
-                          className={cn(
-                            'rounded-lg px-3 py-1.5 transition',
-                            effectiveSourceLibraryDetailView === view
-                              ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-white'
-                              : 'hover:text-slate-900 dark:hover:text-white',
-                          )}
-                        >
-                          {view === 'text' ? '文本' : '图片'}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => setSourceUploadDialogOpen(false)}
-                    className="inline-flex size-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 dark:hover:bg-white/10 dark:hover:text-white"
-                    aria-label="关闭原始讲义库"
-                  >
-                    <X className="size-4" strokeWidth={1.9} />
-                  </button>
-                  {selectedSourceLibraryTile.sourceHash && activeCourseIsOwner ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void handleDeleteSourceLibraryTile(selectedSourceLibraryTile)}
-                      disabled={deletingSourceHashes.includes(selectedSourceLibraryTile.sourceHash)}
-                      className="h-9 rounded-full border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600 shadow-sm hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-300/20 dark:bg-white/5 dark:text-rose-200 dark:hover:bg-rose-400/10"
-                    >
-                      {deletingSourceHashes.includes(selectedSourceLibraryTile.sourceHash) ? (
-                        <Loader2 className="mr-1.5 size-3.5 animate-spin" strokeWidth={1.8} />
-                      ) : (
-                        <Trash2 className="mr-1.5 size-3.5" strokeWidth={1.8} />
-                      )}
-                      删除原始讲义
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-              {showSourceLibraryViewSwitch ? (
-                <div className="mt-4 inline-flex items-center rounded-xl bg-slate-100 p-1 text-xs font-semibold text-slate-500 dark:bg-white/10 dark:text-slate-300 sm:hidden">
-                  {(['text', 'image'] as const).map((view) => (
-                    <button
-                      key={view}
-                      type="button"
-                      onClick={() => {
-                        setSourceLibraryDetailView(view);
-                        if (view === 'text') setSourceLibraryImageExpanded(false);
-                      }}
-                      className={cn(
-                        'rounded-lg px-4 py-1.5 transition',
-                        effectiveSourceLibraryDetailView === view
-                          ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-white'
-                          : 'hover:text-slate-900 dark:hover:text-white',
-                      )}
-                    >
-                      {view === 'text' ? '文本' : '图片'}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-slate-200/70 px-6 py-4 dark:border-white/10">
-              <div className="min-w-0">
-                <h2 className="truncate text-base font-semibold text-slate-950 dark:text-white">
-                  原始讲义库
-                </h2>
-                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{sourceLibraryStatusText}</span>
-                  {sourceUploading ? (
-                    <span className="inline-flex items-center gap-1 text-sky-700 dark:text-sky-100">
-                      <Loader2 className="size-3 animate-spin" />
-                      入库中
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-              <div className="inline-flex items-center rounded-xl bg-slate-100 p-1 text-xs font-semibold text-slate-500 dark:bg-white/10 dark:text-slate-300">
-                <span className="rounded-lg bg-white px-4 py-1.5 text-slate-900 shadow-sm dark:bg-slate-950 dark:text-white">
-                  Date
-                </span>
-                <span className="px-4 py-1.5">Name</span>
-                <span className="px-4 py-1.5">Type</span>
-              </div>
-              <div className="flex min-w-0 justify-end">
-                {activeSourceUploadItems.some(
-                  (item) => !sourceUploadStatusIsProcessing(item.status),
-                ) ? (
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setSourceUploadDialogOpen(false)}
+                  className="inline-flex size-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 dark:hover:bg-white/10 dark:hover:text-white"
+                  aria-label="关闭原始讲义库"
+                >
+                  <X className="size-4" strokeWidth={1.9} />
+                </button>
+                {selectedSourceLibraryTile.sourceHash && activeCourseIsOwner ? (
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="h-8 rounded-full px-3 text-xs"
-                    onClick={() =>
-                      setSourceUploadItems((items) =>
-                        items.filter(
-                          (item) =>
-                            item.courseId !== activeCourseId ||
-                            sourceUploadStatusIsProcessing(item.status),
-                        ),
-                      )
-                    }
+                    onClick={() => void handleDeleteSourceLibraryTile(selectedSourceLibraryTile)}
+                    disabled={deletingSourceHashes.includes(selectedSourceLibraryTile.sourceHash)}
+                    className="h-9 rounded-full border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600 shadow-sm hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-300/20 dark:bg-white/5 dark:text-rose-200 dark:hover:bg-rose-400/10"
                   >
-                    清空完成项
+                    {deletingSourceHashes.includes(selectedSourceLibraryTile.sourceHash) ? (
+                      <Loader2 className="mr-1.5 size-3.5 animate-spin" strokeWidth={1.8} />
+                    ) : (
+                      <Trash2 className="mr-1.5 size-3.5" strokeWidth={1.8} />
+                    )}
+                    删除原始讲义
                   </Button>
                 ) : null}
               </div>
             </div>
-          )}
-
-          {selectedSourceLibraryTile ? (
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-10 pt-6">
-              <div className="flex justify-center">
-                {effectiveSourceLibraryDetailView === 'text' ? (
-                  <div className="w-full max-w-[760px] px-6 py-6">
-                    {selectedSourceLibraryHasText ? (
-                      <MessageResponse className="text-[15px] leading-8 text-slate-800 dark:text-slate-100 [&_a]:text-blue-600 [&_a]:underline-offset-4 hover:[&_a]:underline dark:[&_a]:text-blue-300">
-                        {selectedSourceLibraryText}
-                      </MessageResponse>
-                    ) : (
-                      <div className="grid min-h-64 place-items-center text-center text-sm text-slate-500 dark:text-slate-400">
-                        <div className="max-w-sm">
-                          <FileText className="mx-auto size-7 text-slate-300" strokeWidth={1.7} />
-                          <p className="mt-3 font-medium text-slate-700 dark:text-slate-200">
-                            {selectedSourceLibraryTextLoading
-                              ? '正在读取文本'
-                              : selectedSourceLibraryTextState?.status === 'failed'
-                                ? '文本读取失败'
-                                : '没有可预览的文本'}
-                          </p>
-                          <p className="mt-1 text-xs leading-5">
-                            {selectedSourceLibraryTextLoading
-                              ? '正在加载这本笔记的正文内容。'
-                              : selectedSourceLibraryTextState?.error ||
-                                '这份原始讲义暂时没有整理出的正文文本。'}
-                          </p>
-                        </div>
-                      </div>
+            {showSourceLibraryViewSwitch ? (
+              <div className="mt-4 inline-flex items-center rounded-xl bg-slate-100 p-1 text-xs font-semibold text-slate-500 dark:bg-white/10 dark:text-slate-300 sm:hidden">
+                {(['text', 'image'] as const).map((view) => (
+                  <button
+                    key={view}
+                    type="button"
+                    onClick={() => {
+                      setSourceLibraryDetailView(view);
+                      if (view === 'text') setSourceLibraryImageExpanded(false);
+                    }}
+                    className={cn(
+                      'rounded-lg px-4 py-1.5 transition',
+                      effectiveSourceLibraryDetailView === view
+                        ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-white'
+                        : 'hover:text-slate-900 dark:hover:text-white',
                     )}
-                  </div>
-                ) : selectedSourceLibraryTile.coverImagePath ? (
-                  <div
-                    className="relative w-full transition-[max-width] duration-200 ease-out"
-                    style={{ maxWidth: sourceLibraryImageExpanded ? 1080 : 760 }}
                   >
-                    <img
-                      src={selectedSourceLibraryTile.coverImagePath}
-                      alt=""
-                      className="w-full rounded-[18px] border border-slate-200 bg-white shadow-[0_20px_48px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-slate-900"
-                      loading="lazy"
-                    />
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => setSourceLibraryImageExpanded((expanded) => !expanded)}
-                          className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-full border border-white/80 bg-white/85 text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.18)] backdrop-blur transition hover:bg-white hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 dark:border-white/15 dark:bg-slate-950/78 dark:text-slate-100 dark:hover:bg-slate-900"
-                          aria-label={sourceLibraryImageExpanded ? '缩小图片' : '放大图片'}
-                        >
-                          {sourceLibraryImageExpanded ? (
-                            <Minimize2 className="size-4" strokeWidth={1.9} />
-                          ) : (
-                            <Maximize2 className="size-4" strokeWidth={1.9} />
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left" className="font-medium">
-                        {sourceLibraryImageExpanded ? '缩小图片' : '放大图片'}
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                ) : (
-                  <div className="aspect-[0.707] w-full max-w-[760px] overflow-hidden rounded-[18px] border border-slate-200 shadow-[0_20px_48px_rgba(15,23,42,0.16)] dark:border-white/10">
-                    <SourceLibraryGeneratedCover tile={selectedSourceLibraryTile} size="detail" />
-                  </div>
-                )}
+                    {view === 'text' ? '文本' : '图片'}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-4 dark:border-white/10">
+            <div className="min-w-0">
+              <h2 className="truncate text-base font-semibold text-slate-950 dark:text-white">
+                原始讲义库
+              </h2>
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{sourceLibraryStatusText}</span>
+                {sourceUploading ? (
+                  <span className="inline-flex items-center gap-1 text-sky-700 dark:text-sky-100">
+                    <Loader2 className="size-3 animate-spin" />
+                    入库中
+                  </span>
+                ) : null}
               </div>
             </div>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-7">
-              <div className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {sourceLibraryPendingEntries.length > 0 || sourceLibraryFailedEntries.length > 0 ? (
-                  <div
-                    role={sourceLibraryFailedEntries.length > 0 ? 'alert' : 'status'}
-                    aria-live="polite"
-                    className={cn(
-                      'col-span-full rounded-2xl border px-4 py-3 text-left text-xs leading-5',
-                      sourceLibraryFailedEntries.length > 0
-                        ? 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100'
-                        : 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-300/20 dark:bg-sky-400/10 dark:text-sky-100',
-                    )}
-                  >
-                    {sourceLibraryPendingEntries.length > 0 ? (
-                      <p className="inline-flex items-center gap-2 font-medium">
-                        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                        正在加载
-                        {sourceLibraryPendingEntries.map(({ label }) => label).join('、')}
-                        ；完成前不会把原始讲义库判定为空。
-                      </p>
-                    ) : null}
-                    {sourceLibraryFailedEntries.map(({ kind, label, state }) => (
-                      <div
-                        key={kind}
-                        className="mt-1 flex flex-wrap items-start justify-between gap-2 first:mt-0"
-                      >
-                        <p className="min-w-0 flex-1">
-                          <span className="font-semibold">{label}加载失败：</span>
-                          {state.error || '服务端没有返回错误原因'}
-                          {state.usingCachedData ? '（当前保留缓存内容）' : ''}
-                        </p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 rounded-full border-current/30 bg-transparent px-2.5 text-[11px] hover:bg-white/60 dark:hover:bg-white/10"
-                          onClick={() => retryCourseResource(kind)}
-                        >
-                          <RefreshCw className="mr-1 size-3" aria-hidden="true" />
-                          重试
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                {activeCourseIsOwner ? (
-                  <div className="min-w-0 text-center">
-                    <button
-                      type="button"
-                      disabled={sourceUploading}
-                      onClick={() => sourceDocumentInputRef.current?.click()}
-                      className="group mx-auto flex aspect-[0.707] w-full max-w-[142px] items-center justify-center rounded-[16px] border-2 border-dashed border-sky-300 bg-white text-sky-600 transition hover:border-sky-400 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-300/40 dark:bg-white/[0.03] dark:text-sky-200 dark:hover:bg-sky-400/10"
-                      aria-label="上传文件"
-                    >
-                      {sourceUploading ? (
-                        <Loader2 className="size-7 animate-spin" strokeWidth={1.8} />
-                      ) : (
-                        <Plus
-                          className="size-8 transition group-hover:scale-110"
-                          strokeWidth={1.8}
-                        />
-                      )}
-                    </button>
-                    <p className="mt-3 truncate text-sm font-semibold text-sky-600 dark:text-sky-200">
-                      上传文件
-                    </p>
-                  </div>
-                ) : null}
+            <div className="flex min-w-0 shrink-0 justify-end">
+              {activeSourceUploadItems.some(
+                (item) => !sourceUploadStatusIsProcessing(item.status),
+              ) ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 rounded-full px-3 text-xs"
+                  onClick={() =>
+                    setSourceUploadItems((items) =>
+                      items.filter(
+                        (item) =>
+                          item.courseId !== activeCourseId ||
+                          sourceUploadStatusIsProcessing(item.status),
+                      ),
+                    )
+                  }
+                >
+                  清空完成项
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        )}
 
-                {allSourceLibraryTiles.map((tile) => {
-                  const status = tile.status;
-                  const deletingSource = tile.sourceHash
-                    ? deletingSourceHashes.includes(tile.sourceHash)
-                    : false;
-                  const reindexingSource = tile.sourceHash
-                    ? reindexingSourceHashes.includes(tile.sourceHash)
-                    : false;
-                  const openTile = () => {
-                    const preloadedText = sourceLibraryTextFromBlocks(tile.textBlocks);
-                    if (preloadedText) {
-                      setSourceLibraryTextCache((current) => ({
-                        ...current,
-                        [tile.id]: { status: 'ready', text: preloadedText },
-                      }));
-                    } else {
-                      setSourceLibraryTextCache((current) => ({
-                        ...current,
-                        [tile.id]: { status: 'empty', text: '' },
-                      }));
-                    }
-                    setSourceLibraryDetailView(
-                      preloadedText || !tile.coverImagePath ? 'text' : 'image',
-                    );
-                    setSourceLibraryImageExpanded(false);
-                    setSelectedSourceLibraryTileId(tile.id);
-                  };
-                  return (
-                    <div key={tile.id} className="min-w-0 text-center">
-                      <div className="relative mx-auto w-full max-w-[142px]">
-                        <button
-                          type="button"
-                          aria-label={`查看 ${tile.title}`}
-                          onClick={openTile}
-                          disabled={deletingSource}
-                          className="group block w-full focus-visible:outline-none disabled:cursor-wait disabled:opacity-55"
-                        >
-                          <span className="relative block aspect-[0.707] w-full overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.12)] transition group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_30px_rgba(15,23,42,0.16)] group-focus-visible:ring-2 group-focus-visible:ring-sky-300 dark:border-white/10 dark:bg-slate-900">
-                            {tile.coverImagePath ? (
-                              <img
-                                src={tile.coverImagePath}
-                                alt=""
-                                className="size-full object-cover"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <SourceLibraryGeneratedCover tile={tile} />
-                            )}
-                            {status ? (
-                              <span
-                                className={cn(
-                                  'absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold shadow-sm backdrop-blur',
-                                  sourceUploadStatusIsProcessing(status)
-                                    ? 'bg-sky-100/90 text-sky-700 dark:bg-sky-400/20 dark:text-sky-100'
-                                    : 'bg-rose-100/90 text-rose-700 dark:bg-rose-400/20 dark:text-rose-100',
-                                )}
-                              >
-                                {sourceUploadStatusLabel(status)}
-                              </span>
-                            ) : null}
-                          </span>
-                        </button>
+        {selectedSourceLibraryTile ? (
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-10 pt-6">
+            <div className="flex justify-center">
+              {effectiveSourceLibraryDetailView === 'text' ? (
+                <div className="w-full max-w-[760px] px-6 py-6">
+                  {selectedSourceLibraryHasText ? (
+                    <MessageResponse className="text-[15px] leading-8 text-slate-800 dark:text-slate-100 [&_a]:text-blue-600 [&_a]:underline-offset-4 hover:[&_a]:underline dark:[&_a]:text-blue-300">
+                      {selectedSourceLibraryText}
+                    </MessageResponse>
+                  ) : (
+                    <div className="grid min-h-64 place-items-center text-center text-sm text-slate-500 dark:text-slate-400">
+                      <div className="max-w-sm">
+                        <FileText className="mx-auto size-7 text-slate-300" strokeWidth={1.7} />
+                        <p className="mt-3 font-medium text-slate-700 dark:text-slate-200">
+                          {selectedSourceLibraryTextLoading
+                            ? '正在读取文本'
+                            : selectedSourceLibraryTextState?.status === 'failed'
+                              ? '文本读取失败'
+                              : '没有可预览的文本'}
+                        </p>
+                        <p className="mt-1 text-xs leading-5">
+                          {selectedSourceLibraryTextLoading
+                            ? '正在加载这本笔记的正文内容。'
+                            : selectedSourceLibraryTextState?.error ||
+                              '这份原始讲义暂时没有整理出的正文文本。'}
+                        </p>
+                        {selectedSourceLibraryTextState?.status === 'failed' ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-4 h-8 rounded-full px-3 text-xs"
+                            onClick={() => loadSourceLibraryTileText(selectedSourceLibraryTile)}
+                          >
+                            <RefreshCw className="mr-1.5 size-3.5" aria-hidden="true" />
+                            重试读取
+                          </Button>
+                        ) : null}
                       </div>
+                    </div>
+                  )}
+                </div>
+              ) : selectedSourceLibraryTile.coverImagePath ? (
+                <div
+                  className="relative w-full transition-[max-width] duration-200 ease-out"
+                  style={{ maxWidth: sourceLibraryImageExpanded ? 1080 : 760 }}
+                >
+                  <img
+                    src={selectedSourceLibraryTile.coverImagePath}
+                    alt=""
+                    className="w-full rounded-[18px] border border-slate-200 bg-white shadow-[0_20px_48px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-slate-900"
+                    loading="lazy"
+                  />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => setSourceLibraryImageExpanded((expanded) => !expanded)}
+                        className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-full border border-white/80 bg-white/85 text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.18)] backdrop-blur transition hover:bg-white hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 dark:border-white/15 dark:bg-slate-950/78 dark:text-slate-100 dark:hover:bg-slate-900"
+                        aria-label={sourceLibraryImageExpanded ? '缩小图片' : '放大图片'}
+                      >
+                        {sourceLibraryImageExpanded ? (
+                          <Minimize2 className="size-4" strokeWidth={1.9} />
+                        ) : (
+                          <Maximize2 className="size-4" strokeWidth={1.9} />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left" className="font-medium">
+                      {sourceLibraryImageExpanded ? '缩小图片' : '放大图片'}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              ) : (
+                <div className="aspect-[0.707] w-full max-w-[760px] overflow-hidden rounded-[18px] border border-slate-200 shadow-[0_20px_48px_rgba(15,23,42,0.16)] dark:border-white/10">
+                  <SourceLibraryGeneratedCover tile={selectedSourceLibraryTile} size="detail" />
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-7">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] content-start gap-x-10 gap-y-11">
+              {sourceLibraryPendingEntries.length > 0 || sourceLibraryFailedEntries.length > 0 ? (
+                <div
+                  role={sourceLibraryFailedEntries.length > 0 ? 'alert' : 'status'}
+                  aria-live="polite"
+                  className={cn(
+                    'col-span-full rounded-2xl border px-4 py-3 text-left text-xs leading-5',
+                    sourceLibraryFailedEntries.length > 0
+                      ? 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100'
+                      : 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-300/20 dark:bg-sky-400/10 dark:text-sky-100',
+                  )}
+                >
+                  {sourceLibraryPendingEntries.length > 0 ? (
+                    <p className="inline-flex items-center gap-2 font-medium">
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                      正在加载
+                      {sourceLibraryPendingEntries.map(({ label }) => label).join('、')}
+                      ；完成前不会把原始讲义库判定为空。
+                    </p>
+                  ) : null}
+                  {sourceLibraryFailedEntries.map(({ kind, label, state }) => (
+                    <div
+                      key={kind}
+                      className="mt-1 flex flex-wrap items-start justify-between gap-2 first:mt-0"
+                    >
+                      <p className="min-w-0 flex-1">
+                        <span className="font-semibold">{label}加载失败：</span>
+                        {state.error || '服务端没有返回错误原因'}
+                        {state.usingCachedData ? '（当前保留缓存内容）' : ''}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-full border-current/30 bg-transparent px-2.5 text-[11px] hover:bg-white/60 dark:hover:bg-white/10"
+                        onClick={() => retryCourseResource(kind)}
+                      >
+                        <RefreshCw className="mr-1 size-3" aria-hidden="true" />
+                        重试
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {activeCourseIsOwner ? (
+                <div className="min-w-0 text-center">
+                  <button
+                    type="button"
+                    disabled={sourceUploading}
+                    onClick={() => sourceDocumentInputRef.current?.click()}
+                    className="group mx-auto flex aspect-[0.707] w-full max-w-[142px] items-center justify-center rounded-[16px] border-2 border-dashed border-sky-300 bg-white text-sky-600 transition hover:border-sky-400 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-300/40 dark:bg-white/[0.03] dark:text-sky-200 dark:hover:bg-sky-400/10"
+                    aria-label="上传文件"
+                  >
+                    {sourceUploading ? (
+                      <Loader2 className="size-7 animate-spin" strokeWidth={1.8} />
+                    ) : (
+                      <Plus className="size-8 transition group-hover:scale-110" strokeWidth={1.8} />
+                    )}
+                  </button>
+                  <p className="mt-3 truncate text-sm font-semibold text-sky-600 dark:text-sky-200">
+                    上传文件
+                  </p>
+                </div>
+              ) : null}
+
+              {allSourceLibraryTiles.map((tile) => {
+                const status = tile.status;
+                const deletingSource = tile.sourceHash
+                  ? deletingSourceHashes.includes(tile.sourceHash)
+                  : false;
+                const reindexingSource = tile.sourceHash
+                  ? reindexingSourceHashes.includes(tile.sourceHash)
+                  : false;
+                const openTile = () => {
+                  const preloadedText = sourceLibraryTextFromBlocks(tile.textBlocks);
+                  if (preloadedText) {
+                    setSourceLibraryTextCache((current) => ({
+                      ...current,
+                      [tile.id]: { status: 'ready', text: preloadedText },
+                    }));
+                  } else {
+                    loadSourceLibraryTileText(tile);
+                  }
+                  setSourceLibraryDetailView(
+                    preloadedText || !tile.coverImagePath ? 'text' : 'image',
+                  );
+                  setSourceLibraryImageExpanded(false);
+                  setSelectedSourceLibraryTileId(tile.id);
+                };
+                return (
+                  <div key={tile.id} className="min-w-0 text-center">
+                    <div
+                      className={cn(
+                        'relative mx-auto w-full',
+                        tile.tileKind === 'notebook' ? 'max-w-[210px]' : 'max-w-[142px]',
+                      )}
+                    >
+                      <button
+                        type="button"
+                        aria-label={`查看 ${tile.title}`}
+                        onClick={openTile}
+                        disabled={deletingSource}
+                        className={cn(
+                          'group block w-full focus-visible:outline-none disabled:cursor-wait disabled:opacity-55',
+                          tile.tileKind === 'notebook' &&
+                            'transition duration-150 hover:-translate-y-1 hover:-rotate-[0.6deg]',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'relative block w-full transition group-focus-visible:ring-2 group-focus-visible:ring-sky-300',
+                            tile.tileKind === 'notebook'
+                              ? 'aspect-[3/4] min-h-[220px]'
+                              : 'aspect-[0.707] overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.12)] group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_30px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-slate-900',
+                          )}
+                        >
+                          <SourceLibraryListCardFace tile={tile} />
+                          {status ? (
+                            <span
+                              className={cn(
+                                'absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold shadow-sm backdrop-blur',
+                                sourceUploadStatusIsProcessing(status)
+                                  ? 'bg-sky-100/90 text-sky-700 dark:bg-sky-400/20 dark:text-sky-100'
+                                  : 'bg-rose-100/90 text-rose-700 dark:bg-rose-400/20 dark:text-rose-100',
+                              )}
+                            >
+                              {sourceUploadStatusLabel(status)}
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    </div>
+                    {tile.tileKind !== 'notebook' ? (
                       <button
                         type="button"
                         onClick={openTile}
@@ -14648,34 +16703,353 @@ export function LearnPageClient() {
                           {tile.subtitle}
                         </span>
                       </button>
-                      {tile.error ? (
-                        <span
-                          className="mt-1 block line-clamp-2 text-[11px] leading-4 text-rose-600 dark:text-rose-300"
-                          title={tile.error}
-                        >
-                          {tile.error}
-                        </span>
-                      ) : null}
-                      {status === 'index_failed' && tile.sourceHash && activeCourseIsOwner ? (
-                        <button
-                          type="button"
-                          onClick={() => void handleRetrySourceIndex(tile)}
-                          disabled={reindexingSource || deletingSource}
-                          className="mt-1.5 inline-flex h-7 items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 text-[11px] font-semibold text-sky-700 transition hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 disabled:cursor-wait disabled:opacity-60 dark:border-sky-300/20 dark:bg-sky-400/10 dark:text-sky-100"
-                        >
-                          {reindexingSource ? <Loader2 className="size-3 animate-spin" /> : null}
-                          重试索引
-                        </button>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
+                    ) : null}
+                    {tile.error ? (
+                      <span
+                        className="mt-1 block line-clamp-2 text-[11px] leading-4 text-rose-600 dark:text-rose-300"
+                        title={tile.error}
+                      >
+                        {tile.error}
+                      </span>
+                    ) : null}
+                    {status === 'index_failed' && tile.sourceHash && activeCourseIsOwner ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleRetrySourceIndex(tile)}
+                        disabled={reindexingSource || deletingSource}
+                        className="mt-1.5 inline-flex h-7 items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 text-[11px] font-semibold text-sky-700 transition hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 disabled:cursor-wait disabled:opacity-60 dark:border-sky-300/20 dark:bg-sky-400/10 dark:text-sky-100"
+                      >
+                        {reindexingSource ? <Loader2 className="size-3 animate-spin" /> : null}
+                        重试索引
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+          </div>
+        )}
+      </div>
+    </LearnWorkspaceDialog>
+  );
+
+  const notebookLibraryDialog = (
+    <LearnWorkspaceDialog
+      open={notebookLibraryPanelOpen}
+      onOpenChange={(open) => {
+        setNotebookLibraryPanelOpen(open);
+        if (!open) {
+          setSelectedNotebookLibraryTileId(null);
+          setNotebookLibraryQuery('');
+        }
+      }}
+      title="笔记本库"
+      description="在课程内按需浏览课程笔记本。"
+      showCloseButton={!selectedNotebookLibraryTile}
+    >
+      <div className="flex min-h-0 flex-1 flex-col bg-slate-50 dark:bg-slate-950">
+        <header className="shrink-0 border-b border-slate-200/80 bg-white px-5 py-4 dark:border-white/10 dark:bg-slate-950 sm:px-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedNotebookLibraryTile) {
+                  setSelectedNotebookLibraryTileId(null);
+                  return;
+                }
+                setNotebookLibraryPanelOpen(false);
+              }}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+            >
+              <ArrowLeft className="size-3.5" strokeWidth={1.9} />
+              {selectedNotebookLibraryTile ? '返回列表' : '返回课程'}
+            </button>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+              {activeCourse?.courseCode || activeCourse?.name || '课程'}
+            </span>
+            {!selectedNotebookLibraryTile ? (
+              <label className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50 px-3 text-slate-400 focus-within:border-sky-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-sky-100 dark:border-white/10 dark:bg-white/5 dark:focus-within:ring-sky-300/20">
+                <BookOpen className="size-3.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={notebookLibraryQuery}
+                  onChange={(event) => setNotebookLibraryQuery(event.target.value)}
+                  placeholder="搜索笔记本名称"
+                  className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-slate-400"
+                  autoComplete="off"
+                />
+              </label>
+            ) : null}
+            <span className="ml-auto text-xs font-semibold tabular-nums text-slate-500">
+              {selectedNotebookLibraryTile
+                ? selectedNotebookLibraryTile.typeLabel
+                : `${filteredNotebookLibraryTiles.length}/${notebookLibraryTiles.length}`}
+            </span>
+            {!selectedNotebookLibraryTile ? (
+              <button
+                type="button"
+                onClick={() => setNotebookLibraryPanelOpen(false)}
+                className="inline-flex size-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 dark:hover:bg-white/10 dark:hover:text-white"
+                aria-label="关闭笔记本库"
+              >
+                <X className="size-4" strokeWidth={1.9} />
+              </button>
+            ) : null}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
+              <BookOpen className="size-3.5" strokeWidth={1.8} />
+              笔记本库 · {notebookLibraryTiles.length} 本
+            </span>
+            <span>
+              {selectedNotebookLibraryTile
+                ? selectedNotebookLibraryTile.title
+                : '点开后在本机阅读器中查看'}
+            </span>
+          </div>
+        </header>
+
+        {selectedNotebookLibraryTile ? (
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+            <div className="mx-auto w-full max-w-[1040px]">
+              <div className="mb-5 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+                <span className="rounded-full bg-sky-100 px-2.5 py-1 text-sky-700 dark:bg-sky-400/15 dark:text-sky-100">
+                  {selectedNotebookLibraryTile.typeLabel}
+                </span>
+                {selectedNotebookLibraryTile.dateLabel ? (
+                  <span className="text-slate-400">{selectedNotebookLibraryTile.dateLabel}</span>
+                ) : null}
+                <span className="text-slate-400">{selectedNotebookLibraryTile.subtitle}</span>
+              </div>
+              <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                {selectedNotebookLibraryTile.title}
+              </h2>
+              {selectedNotebookLibraryIsMarkdown ? (
+                <div className="mt-6 grid min-h-[420px] overflow-hidden rounded-[18px] border border-slate-200/80 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-slate-900 md:grid-cols-[240px_minmax(0,1fr)]">
+                  <aside className="border-b border-slate-200/80 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/[0.03] md:border-b-0 md:border-r">
+                    <p className="px-2 py-1 text-[11px] font-semibold text-slate-500">章节</p>
+                    <div className="mt-1 space-y-1">
+                      {(selectedNotebookMarkdownPageState?.sections || []).map((section) => (
+                        <button
+                          key={section.id}
+                          type="button"
+                          onClick={() => {
+                            if (!selectedNotebookLibraryId) return;
+                            setSelectedNotebookSectionIds((selected) => ({
+                              ...selected,
+                              [selectedNotebookLibraryId]: section.id,
+                            }));
+                          }}
+                          className={cn(
+                            'w-full rounded-[10px] px-3 py-2 text-left transition',
+                            selectedNotebookSectionId === section.id
+                              ? 'bg-white text-sky-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-sky-100 dark:ring-white/10'
+                              : 'text-slate-600 hover:bg-white/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white',
+                          )}
+                        >
+                          <span className="block truncate text-xs font-semibold">
+                            {section.title}
+                          </span>
+                          {section.summary ? (
+                            <span className="mt-1 block line-clamp-2 text-[10px] leading-4 text-slate-400">
+                              {section.summary}
+                            </span>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedNotebookMarkdownPageState?.status === 'loading' ? (
+                      <div className="flex items-center gap-2 px-3 py-4 text-xs text-slate-500">
+                        <Loader2 className="size-3.5 animate-spin" />
+                        加载章节…
+                      </div>
+                    ) : null}
+                    {selectedNotebookMarkdownPageState?.status === 'failed' ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-3 h-8 w-full rounded-full px-3 text-xs"
+                        onClick={() => {
+                          if (selectedNotebookLibraryId) {
+                            void loadNotebookMarkdownPageForPopup(
+                              selectedNotebookLibraryId,
+                              false,
+                              true,
+                            );
+                          }
+                        }}
+                      >
+                        <RefreshCw className="mr-1.5 size-3.5" aria-hidden="true" />
+                        重试章节列表
+                      </Button>
+                    ) : null}
+                    {selectedNotebookMarkdownPageState?.hasMore ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={selectedNotebookMarkdownPageState.loadingMore}
+                        className="mt-3 h-8 w-full rounded-full px-3 text-xs"
+                        onClick={() => {
+                          if (selectedNotebookLibraryId) {
+                            void loadNotebookMarkdownPageForPopup(selectedNotebookLibraryId, true);
+                          }
+                        }}
+                      >
+                        {selectedNotebookMarkdownPageState.loadingMore ? (
+                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                        ) : null}
+                        加载更多章节
+                      </Button>
+                    ) : null}
+                  </aside>
+                  <article className="min-w-0 px-6 py-6">
+                    {selectedNotebookLibraryHasText ? (
+                      <MessageResponse className="text-[15px] leading-8 text-slate-800 dark:text-slate-100 [&_a]:text-blue-600 [&_a]:underline-offset-4 hover:[&_a]:underline dark:[&_a]:text-blue-300">
+                        {selectedNotebookLibraryText}
+                      </MessageResponse>
+                    ) : (
+                      <div className="grid min-h-72 place-items-center text-center text-sm text-slate-500">
+                        <div className="max-w-sm">
+                          {selectedNotebookLibraryTextLoading ? (
+                            <Loader2 className="mx-auto size-6 animate-spin text-sky-500" />
+                          ) : (
+                            <FileText className="mx-auto size-7 text-slate-300" strokeWidth={1.7} />
+                          )}
+                          <p className="mt-3 font-medium text-slate-700 dark:text-slate-200">
+                            {selectedNotebookLibraryTextLoading
+                              ? '正在加载本节正文…'
+                              : selectedNotebookLibraryTextState?.status === 'failed'
+                                ? '章节打开失败'
+                                : selectedNotebookMarkdownPageState?.sections.length
+                                  ? '本节暂时没有正文'
+                                  : '这本笔记本还没有章节'}
+                          </p>
+                          <p className="mt-1 text-xs leading-5">
+                            {selectedNotebookLibraryTextState?.error ||
+                              selectedNotebookMarkdownPageState?.error ||
+                              '选择左侧章节后，正文才会按需加载。'}
+                          </p>
+                          {selectedNotebookLibraryTextState?.status === 'failed' &&
+                          selectedNotebookLibraryId &&
+                          selectedNotebookSectionId ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="mt-4 h-8 rounded-full px-3 text-xs"
+                              onClick={() =>
+                                void loadNotebookMarkdownSectionForPopup(
+                                  selectedNotebookLibraryId,
+                                  selectedNotebookSectionId,
+                                  true,
+                                )
+                              }
+                            >
+                              <RefreshCw className="mr-1.5 size-3.5" aria-hidden="true" />
+                              重试本节
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                </div>
+              ) : (
+                <div className="mt-6 rounded-[18px] border border-slate-200/80 bg-white px-6 py-6 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-slate-900">
+                  <div className="mx-auto max-w-[760px]">
+                    <div className="grid min-h-72 place-items-center overflow-hidden rounded-[16px] bg-slate-100 dark:bg-slate-950">
+                      {selectedNotebookImagePath ? (
+                        <img
+                          src={selectedNotebookImagePath}
+                          alt={`${selectedNotebookLibraryTile.title} 预览`}
+                          className="max-h-[520px] w-full object-contain"
+                          loading="lazy"
+                        />
+                      ) : selectedNotebookImagePreviewState?.status === 'loading' ? (
+                        <div className="text-center text-sm text-slate-500">
+                          <Loader2 className="mx-auto size-6 animate-spin text-sky-500" />
+                          <p className="mt-3">正在加载首张预览…</p>
+                        </div>
+                      ) : (
+                        <div className="max-w-sm text-center text-sm text-slate-500">
+                          <BookOpen className="mx-auto size-8 text-slate-300" strokeWidth={1.7} />
+                          <p className="mt-3 font-medium text-slate-700 dark:text-slate-200">
+                            这本讲义可以在阅读器中打开
+                          </p>
+                          <p className="mt-1 text-xs leading-5">
+                            {selectedNotebookImagePreviewState?.error ||
+                              '当前没有可用封面，进入阅读器后可查看完整讲义。'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-5 flex justify-end">
+                      <Button
+                        type="button"
+                        className="h-9 rounded-full bg-sky-600 px-4 text-xs text-white hover:bg-sky-700"
+                        onClick={() => {
+                          if (!selectedNotebookLibraryId) return;
+                          setNotebookLibraryPanelOpen(false);
+                          router.push(
+                            `/classroom/${encodeURIComponent(selectedNotebookLibraryId)}`,
+                          );
+                        }}
+                      >
+                        <BookOpen className="mr-1.5 size-3.5" aria-hidden="true" />
+                        进入阅读器
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 sm:px-10">
+            {notebooksLoadState.status === 'loading' && notebookLibraryTiles.length === 0 ? (
+              <div className="grid min-h-64 place-items-center text-sm text-slate-500">
+                <div className="inline-flex items-center gap-2">
+                  <Loader2 className="size-4 animate-spin" />
+                  正在加载笔记本库…
+                </div>
+              </div>
+            ) : filteredNotebookLibraryTiles.length === 0 ? (
+              <div className="grid min-h-64 place-items-center text-center text-sm text-slate-500">
+                <div className="max-w-sm">
+                  <CheckCircle2 className="mx-auto size-7 text-slate-300" strokeWidth={1.7} />
+                  <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">
+                    {notebookLibraryTiles.length ? '没有匹配的笔记本' : '还没有本地笔记本'}
+                  </p>
+                  <p className="mt-1 text-xs leading-5">
+                    {notebookLibraryTiles.length
+                      ? '换个关键词再试。'
+                      : '导入课程资料后，这里会出现笔记本。'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] content-start gap-x-10 gap-y-11">
+                {filteredNotebookLibraryTiles.map((tile) => (
+                  <button
+                    key={tile.id}
+                    type="button"
+                    aria-label={`打开 ${tile.title}`}
+                    onClick={() => {
+                      setSelectedNotebookLibraryTileId(tile.id);
+                    }}
+                    className="group relative mx-auto block aspect-[3/4] min-h-[220px] w-full max-w-[210px] text-left transition duration-150 hover:-translate-y-1 hover:-rotate-[0.6deg] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                  >
+                    <SourceLibraryListCardFace tile={tile} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </LearnWorkspaceDialog>
   );
 
   const recentActivityPanel = (
@@ -14716,7 +17090,8 @@ export function LearnPageClient() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => removeStatusCalendarActivity(activity)}
+                  onClick={() => void removeStatusCalendarActivity(activity)}
+                  disabled={calendarMutating}
                   className="grid size-6 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 focus-visible:bg-rose-50 focus-visible:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-100 dark:hover:bg-rose-400/10 dark:hover:text-rose-200 dark:focus-visible:bg-rose-400/10 dark:focus-visible:text-rose-200 dark:focus-visible:ring-rose-300/20"
                   aria-label={`删除日历活动：${activity.title}`}
                   title="删除"
@@ -14736,249 +17111,267 @@ export function LearnPageClient() {
   );
 
   const platformMemoryDialog = (
-    <Dialog open={memoryActivityDialogOpen} onOpenChange={setMemoryActivityDialogOpen}>
-      <DialogContent className="learn-memory-dialog-shell h-[min(760px,86dvh)] w-[calc(100vw-1rem)] max-w-[1180px] overflow-hidden rounded-[28px] border-0 bg-transparent p-0 shadow-none sm:h-[min(780px,86dvh)]">
-        <DialogHeader className="sr-only">
-          <DialogTitle>平台记忆动态</DialogTitle>
-          <DialogDescription>查看平台最近怎样更新对学生学习状态的理解。</DialogDescription>
-        </DialogHeader>
-
-        <div className="learn-memory-dialog-surface flex h-full min-h-0">
-          <aside className="learn-memory-sidebar hidden w-[282px] shrink-0 px-6 py-6 lg:flex lg:flex-col">
-            <p className="text-xs font-semibold tracking-normal text-slate-500">平台记忆</p>
-            <h2 className="mt-3 text-[32px] font-semibold leading-10 tracking-normal text-slate-950">
-              记忆动态
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              这里显示平台最近怎样理解你的资料、进度、偏好和薄弱点。
-            </p>
-            <div className="mt-6 grid gap-2 text-sm">
-              <div className="learn-memory-metric-row" data-tone="writing">
-                <span className="font-semibold">写入中</span>
-                <span className="tabular-nums">{activeMemoryActivities.length}</span>
-              </div>
-              <div className="learn-memory-metric-row" data-tone="completed">
-                <span className="font-semibold">刚完成</span>
-                <span className="tabular-nums">{completedMemoryActivities.length}</span>
-              </div>
+    <LearnWorkspaceDialog
+      open={memoryActivityDialogOpen}
+      onOpenChange={setMemoryActivityDialogOpen}
+      title="平台记忆动态"
+      description="查看平台最近怎样更新对学生学习状态的理解。"
+      contentClassName="learn-memory-dialog-shell border-0 bg-transparent shadow-none"
+    >
+      <div className="learn-memory-dialog-surface flex h-full min-h-0">
+        <aside className="learn-memory-sidebar hidden w-[282px] shrink-0 px-6 py-6 lg:flex lg:flex-col">
+          <p className="text-xs font-semibold tracking-normal text-slate-500">平台记忆</p>
+          <h2 className="mt-3 text-[32px] font-semibold leading-10 tracking-normal text-slate-950">
+            记忆动态
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            这里显示平台最近怎样理解你的资料、进度、偏好和薄弱点。
+          </p>
+          <div className="mt-6 grid gap-2 text-sm">
+            <div className="learn-memory-metric-row" data-tone="writing">
+              <span className="font-semibold">写入中</span>
+              <span className="tabular-nums">{activeMemoryActivities.length}</span>
             </div>
-
-            <div className="learn-memory-sphere-stage mt-auto" aria-hidden="true">
-              <div className="learn-memory-sphere-glow" />
-              {PLATFORM_MEMORY_SPHERES.map((sphere) => (
-                <span
-                  key={`${sphere.tone}-${sphere.className}`}
-                  className={cn('learn-memory-glass-sphere', sphere.className)}
-                  data-tone={sphere.tone}
-                />
-              ))}
-            </div>
-          </aside>
-
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="learn-memory-dialog-header flex shrink-0 items-start justify-between gap-4 px-7 py-6">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-slate-500 lg:hidden">平台记忆</p>
-                <h2 className="truncate text-2xl font-semibold tracking-normal text-slate-950 sm:text-3xl">
-                  最近写入
-                </h2>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  平台正在把新的学习线索整理成之后能用上的记忆。
-                </p>
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-7 pt-5">
-              {platformMemoryHistory.length ? (
-                <div className="learn-memory-list-surface">
-                  {platformMemoryHistory.map((record) => {
-                    const statusLabel = memoryActivityStatusLabel(record.status);
-                    const isRunning =
-                      record.status === 'running' ||
-                      record.status === 'queued' ||
-                      record.status === 'needs_attention';
-                    const isCompleted = record.status === 'completed';
-                    const tone = platformMemoryVisualTone(record);
-                    return (
-                      <div
-                        key={record.id}
-                        className="learn-memory-history-row grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
-                      >
-                        <div className="grid min-w-0 grid-cols-[22px_minmax(0,1fr)] gap-3">
-                          <span
-                            className="learn-memory-glass-bead mt-1"
-                            data-tone={tone}
-                            aria-hidden="true"
-                          />
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span
-                                className={cn(
-                                  'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold',
-                                  isRunning
-                                    ? 'bg-amber-100/75 text-amber-800 ring-1 ring-amber-200/70'
-                                    : isCompleted
-                                      ? 'bg-sky-100/75 text-sky-800 ring-1 ring-sky-200/70'
-                                      : 'bg-slate-100/80 text-slate-600 ring-1 ring-slate-200/70',
-                                )}
-                              >
-                                {statusLabel}
-                              </span>
-                              {record.chips.slice(0, 3).map((chip) => (
-                                <span
-                                  key={`${record.id}-${chip}`}
-                                  className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-slate-200/70"
-                                >
-                                  {platformMemoryChipLabel(chip)}
-                                </span>
-                              ))}
-                            </div>
-                            <p className="mt-2 text-sm font-semibold leading-5 text-slate-950">
-                              {memoryActivityStudentTitle(record.title, record.description)}
-                            </p>
-                            <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">
-                              {memoryActivityStudentDescription(record)}
-                            </p>
-                          </div>
-                        </div>
-                        <time className="text-xs font-medium tabular-nums text-slate-400 sm:pt-1">
-                          {formatMemoryActivityTime(record.updatedAt)}
-                        </time>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="learn-memory-empty-state grid h-full min-h-72 place-items-center text-center">
-                  <div className="max-w-sm px-6">
-                    <div className="learn-memory-empty-orbs mx-auto" aria-hidden="true">
-                      <span data-tone="progress" />
-                      <span data-tone="mastery" />
-                      <span data-tone="weakness" />
-                    </div>
-                    <p className="mt-4 text-sm font-semibold text-slate-950">还没有记忆动态</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      当你上传资料、确认学习进度或完成练习后，平台会在这里告诉你它学到了什么。
-                    </p>
-                  </div>
-                </div>
-              )}
+            <div className="learn-memory-metric-row" data-tone="completed">
+              <span className="font-semibold">刚完成</span>
+              <span className="tabular-nums">{completedMemoryActivities.length}</span>
             </div>
           </div>
+
+          <div className="learn-memory-sphere-stage mt-auto" aria-hidden="true">
+            <div className="learn-memory-sphere-glow" />
+            {PLATFORM_MEMORY_SPHERES.map((sphere) => (
+              <span
+                key={`${sphere.tone}-${sphere.className}`}
+                className={cn('learn-memory-glass-sphere', sphere.className)}
+                data-tone={sphere.tone}
+              />
+            ))}
+          </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="learn-memory-dialog-header flex shrink-0 items-start justify-between gap-4 px-7 py-6">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-slate-500 lg:hidden">平台记忆</p>
+              <h2 className="truncate text-2xl font-semibold tracking-normal text-slate-950 sm:text-3xl">
+                最近写入
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                平台正在把新的学习线索整理成之后能用上的记忆。
+              </p>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-7 pt-5">
+            {platformMemoryHistory.length ? (
+              <div className="learn-memory-list-surface">
+                {platformMemoryHistory.map((record) => {
+                  const statusLabel = memoryActivityStatusLabel(record.status);
+                  const isRunning =
+                    record.status === 'running' ||
+                    record.status === 'queued' ||
+                    record.status === 'needs_attention';
+                  const isCompleted = record.status === 'completed';
+                  const tone = platformMemoryVisualTone(record);
+                  return (
+                    <div
+                      key={record.id}
+                      className="learn-memory-history-row grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
+                    >
+                      <div className="grid min-w-0 grid-cols-[22px_minmax(0,1fr)] gap-3">
+                        <span
+                          className="learn-memory-glass-bead mt-1"
+                          data-tone={tone}
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={cn(
+                                'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold',
+                                isRunning
+                                  ? 'bg-amber-100/75 text-amber-800 ring-1 ring-amber-200/70'
+                                  : isCompleted
+                                    ? 'bg-sky-100/75 text-sky-800 ring-1 ring-sky-200/70'
+                                    : 'bg-slate-100/80 text-slate-600 ring-1 ring-slate-200/70',
+                              )}
+                            >
+                              {statusLabel}
+                            </span>
+                            {record.chips.slice(0, 3).map((chip) => (
+                              <span
+                                key={`${record.id}-${chip}`}
+                                className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-slate-200/70"
+                              >
+                                {platformMemoryChipLabel(chip)}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="mt-2 text-sm font-semibold leading-5 text-slate-950">
+                            {memoryActivityStudentTitle(record.title, record.description)}
+                          </p>
+                          <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">
+                            {memoryActivityStudentDescription(record)}
+                          </p>
+                        </div>
+                      </div>
+                      <time className="text-xs font-medium tabular-nums text-slate-400 sm:pt-1">
+                        {formatMemoryActivityTime(record.updatedAt)}
+                      </time>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="learn-memory-empty-state grid h-full min-h-72 place-items-center text-center">
+                <div className="max-w-sm px-6">
+                  <div className="learn-memory-empty-orbs mx-auto" aria-hidden="true">
+                    <span data-tone="progress" />
+                    <span data-tone="mastery" />
+                    <span data-tone="weakness" />
+                  </div>
+                  <p className="mt-4 text-sm font-semibold text-slate-950">还没有记忆动态</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    当你上传资料、确认学习进度或完成练习后，平台会在这里告诉你它学到了什么。
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </LearnWorkspaceDialog>
   );
 
   const largeCalendarDialog = (
-    <Dialog open={calendarDialogOpen} onOpenChange={setCalendarDialogOpen}>
-      <DialogContent className="h-[min(760px,86dvh)] w-[calc(100vw-1rem)] max-w-[1180px] overflow-hidden rounded-[28px] border-border/80 bg-background p-0 shadow-2xl sm:h-[min(780px,86dvh)]">
-        <DialogHeader className="sr-only">
-          <DialogTitle>学习日历</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex h-full min-h-0 bg-background">
-          <aside className="hidden w-[230px] shrink-0 border-r border-border/70 bg-muted/30 px-4 py-5 lg:flex lg:flex-col">
-            <div className="space-y-5">
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground">学习日历</p>
-                <div className="mt-3 space-y-2.5 text-sm">
-                  {[
-                    {
-                      label: '复习计划',
-                      count: recentPlans.length,
-                      dotClassName: 'bg-emerald-500',
-                    },
-                    {
-                      label: '作业',
-                      count: syllabusEvents.filter((event) => event.kind === 'assignment').length,
-                      dotClassName: 'bg-sky-500',
-                    },
-                    {
-                      label: '考试',
-                      count: syllabusEvents.filter((event) => event.kind === 'exam').length,
-                      dotClassName: 'bg-rose-500',
-                    },
-                    {
-                      label: '周进度',
-                      count: syllabusEvents.filter((event) => event.kind === 'progress').length,
-                      dotClassName: 'bg-amber-500',
-                    },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span
-                          className={cn(
-                            'grid size-4 shrink-0 place-items-center rounded-[5px]',
-                            item.dotClassName,
-                          )}
-                        >
-                          <span className="size-1.5 rounded-full bg-white" />
-                        </span>
-                        <span className="min-w-0 truncate font-medium text-foreground">
-                          {item.label}
-                        </span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{item.count}</span>
+    <LearnWorkspaceDialog
+      open={calendarDialogOpen}
+      onOpenChange={setCalendarDialogOpen}
+      title="学习日历"
+      description="查看复习计划、作业、考试和周进度。"
+    >
+      <div className="flex h-full min-h-0 bg-background">
+        <aside className="hidden w-[230px] shrink-0 border-r border-border/70 bg-muted/30 px-4 py-5 lg:flex lg:flex-col">
+          <div className="space-y-5">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground">学习日历</p>
+              <div className="mt-3 space-y-2.5 text-sm">
+                {[
+                  {
+                    label: '复习计划',
+                    count: recentPlans.length,
+                    dotClassName: 'bg-emerald-500',
+                  },
+                  {
+                    label: '作业',
+                    count: syllabusEvents.filter((event) => event.kind === 'assignment').length,
+                    dotClassName: 'bg-sky-500',
+                  },
+                  {
+                    label: '考试',
+                    count: syllabusEvents.filter((event) => event.kind === 'exam').length,
+                    dotClassName: 'bg-rose-500',
+                  },
+                  {
+                    label: '周进度',
+                    count: syllabusEvents.filter((event) => event.kind === 'progress').length,
+                    dotClassName: 'bg-amber-500',
+                  },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={cn(
+                          'grid size-4 shrink-0 place-items-center rounded-[5px]',
+                          item.dotClassName,
+                        )}
+                      >
+                        <span className="size-1.5 rounded-full bg-white" />
+                      </span>
+                      <span className="min-w-0 truncate font-medium text-foreground">
+                        {item.label}
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    <span className="text-xs text-muted-foreground">{item.count}</span>
+                  </div>
+                ))}
               </div>
             </div>
-          </aside>
-
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex shrink-0 items-center justify-between gap-4 px-5 pb-4 pt-5 sm:px-6">
-              <h2 className="truncate text-3xl font-semibold tracking-normal text-foreground sm:text-4xl">
-                {calendarMonthLabel}
-              </h2>
-              <div className="flex shrink-0 items-center gap-3 pr-8">
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={showCurrentCalendarMonth}
-                    className="rounded-full bg-muted px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    今天
-                  </button>
-                  <button
-                    type="button"
-                    onClick={showPreviousCalendarMonth}
-                    className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    aria-label="上一个月"
-                    title="上一个月"
-                  >
-                    <ChevronLeft className="size-4" strokeWidth={2} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={showNextCalendarMonth}
-                    className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    aria-label="下一个月"
-                    title="下一个月"
-                  >
-                    <ChevronRight className="size-4" strokeWidth={2} />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <LearningCalendarGrid
-              days={calendarDays}
-              plansByCalendarDay={plansByCalendarDay}
-              syllabusEventsByCalendarDay={syllabusEventsByCalendarDay}
-              isResearchCourse={isResearchCourse}
-            />
           </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex shrink-0 items-center justify-between gap-4 px-5 pb-4 pt-5 sm:px-6">
+            <h2 className="truncate text-3xl font-semibold tracking-normal text-foreground sm:text-4xl">
+              {calendarMonthLabel}
+            </h2>
+            <div className="flex shrink-0 items-center gap-3 pr-8">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={showCurrentCalendarMonth}
+                  className="rounded-full bg-muted px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  今天
+                </button>
+                <button
+                  type="button"
+                  onClick={showPreviousCalendarMonth}
+                  className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  aria-label="上一个月"
+                  title="上一个月"
+                >
+                  <ChevronLeft className="size-4" strokeWidth={2} />
+                </button>
+                <button
+                  type="button"
+                  onClick={showNextCalendarMonth}
+                  className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  aria-label="下一个月"
+                  title="下一个月"
+                >
+                  <ChevronRight className="size-4" strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {calendarLoading ? (
+            <p className="mx-5 mb-3 flex items-center gap-2 rounded-xl bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 sm:mx-6 dark:bg-sky-400/10 dark:text-sky-100">
+              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+              正在同步课程日历…
+            </p>
+          ) : null}
+          {calendarLoadError ? (
+            <div className="mx-5 mb-3 flex items-center justify-between gap-3 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700 sm:mx-6 dark:bg-rose-400/10 dark:text-rose-100">
+              <span className="min-w-0 truncate">{calendarLoadError}</span>
+              <button
+                type="button"
+                className="inline-flex shrink-0 items-center gap-1 font-semibold"
+                onClick={() => void reloadCalendarEvents().catch(() => undefined)}
+              >
+                <RefreshCw className="size-3" aria-hidden="true" />
+                重试
+              </button>
+            </div>
+          ) : null}
+
+          <LearningCalendarGrid
+            days={calendarDays}
+            plansByCalendarDay={plansByCalendarDay}
+            syllabusEventsByCalendarDay={syllabusEventsByCalendarDay}
+            isResearchCourse={isResearchCourse}
+          />
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </LearnWorkspaceDialog>
   );
 
   const coursePublishDialog = (
     <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
-      <DialogContent className="max-w-[520px] rounded-[24px] border-border/80 bg-background p-0 shadow-2xl">
-        <DialogHeader className="border-b border-border/70 px-5 py-4 text-left">
+      <DialogContent className={cn(SYNTARA_ACTION_DIALOG_CONTENT_CLASS, 'max-w-[520px] gap-0 p-0')}>
+        <DialogHeader className={SYNTARA_DIALOG_HEADER_CLASS}>
           <DialogTitle className="text-base">
             {activeCourse?.listedInCourseStore ? '更新课程发布' : '发布到课程商城'}
           </DialogTitle>
@@ -15063,17 +17456,12 @@ export function LearnPageClient() {
   const courseRailTools: CourseRailTool[] = activeCourse
     ? [
         {
-          label: '原始讲义',
-          description: '源文件与整理正文',
+          label: '资料库',
+          description: '讲义、题库与笔记本',
           Icon: LibraryBig,
-          onSelect: openSourceUploadPanel,
-        },
-        {
-          label: '题库',
-          description: '练习、筛选与检索',
-          Icon: BookOpenCheck,
           onSelect: () => {
-            router.push(`/course/${encodeURIComponent(activeCourse.id)}/resources?tab=problems`);
+            setRightRailView('library');
+            persistRightRailCollapsed(false);
           },
         },
         {
@@ -15082,16 +17470,15 @@ export function LearnPageClient() {
           Icon: CalendarDays,
           onSelect: () => setCalendarDialogOpen(true),
         },
-        ...(activeCourseIsOwner
-          ? [
-              {
-                label: '课程设置',
-                description: '名称、描述与删除',
-                Icon: Settings2,
-                onSelect: () => setCourseSettingsOpen(true),
-              },
-            ]
-          : []),
+        {
+          label: '设置',
+          description: activeCourseIsOwner ? '课程信息与本地资料' : '查看课程信息',
+          Icon: Settings2,
+          onSelect: () => {
+            setRightRailView('settings');
+            persistRightRailCollapsed(false);
+          },
+        },
       ]
     : [];
 
@@ -15144,7 +17531,7 @@ export function LearnPageClient() {
               if (sending) event.preventDefault();
             }}
             aria-disabled={sending}
-            className="mb-4 inline-flex h-9 w-fit items-center gap-2 rounded-[13px] bg-white/75 px-3 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-border/70 transition hover:text-slate-950 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
+            className="mb-4 inline-flex h-9 w-fit items-center gap-2 rounded-[9px] bg-transparent px-2 text-xs font-medium text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/8 dark:hover:text-white"
           >
             <ArrowLeft className="size-3.5" strokeWidth={1.8} />
             所有课程
@@ -15222,7 +17609,7 @@ export function LearnPageClient() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <MessageSquarePlus className={rightRailSectionIconClassName} strokeWidth={1.8} />
-                <p className="text-[17px] font-semibold leading-none text-slate-950 dark:text-slate-50">
+                <p className="text-[19px] font-semibold leading-none text-slate-950 dark:text-slate-50">
                   会话历史
                 </p>
               </div>
@@ -15243,10 +17630,9 @@ export function LearnPageClient() {
 
           <Button
             type="button"
-            variant="outline"
             onClick={hasActiveCourse ? createNewLearnSession : () => router.push('/learn')}
             disabled={sending}
-            className="mt-4 h-9 w-full justify-start rounded-[13px] bg-white/75 px-3 text-xs font-semibold shadow-sm dark:bg-white/5"
+            className="mt-4 h-[38px] w-full justify-center rounded-[11px] border border-slate-900 bg-slate-950 px-3 text-xs font-semibold text-white shadow-[0_7px_18px_rgba(15,23,42,0.14)] hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-950"
           >
             <MessageSquarePlus className="size-3.5" strokeWidth={1.8} />
             新对话
@@ -15262,19 +17648,19 @@ export function LearnPageClient() {
               </div>
             ) : null}
             {hasActiveCourse
-              ? learnSessions.slice(0, 5).map((session) => {
+              ? railLearnSessions.map((session) => {
                   const active = session.id === activeSessionId;
                   const deleting = deletingLearnSessionIds.includes(session.id);
                   const onlyBlankSession =
-                    learnSessions.length <= 1 && active && learnSessionIsBlank(messages);
+                    learnSessions.length <= 1 && active && learnSessionIsBlank(visibleMessages);
                   const deleteDisabled = deleting || onlyBlankSession || sending;
                   return (
                     <div
                       key={session.id}
                       className={cn(
-                        'group flex min-h-10 min-w-0 items-center gap-1 rounded-[14px] border pr-1 text-[12px] font-semibold leading-4 tracking-normal text-slate-700 transition hover:border-slate-200 hover:bg-white/80 dark:text-slate-100 dark:hover:bg-white/5',
+                        'group flex min-h-10 min-w-0 items-center gap-1 rounded-[10px] border pr-1 text-[12px] font-medium leading-4 tracking-normal text-slate-600 transition hover:border-slate-200 hover:bg-white/80 dark:text-slate-100 dark:hover:bg-white/5',
                         active
-                          ? 'border-slate-200/80 bg-white/75 shadow-sm dark:border-white/10 dark:bg-white/5'
+                          ? 'border-slate-200/80 bg-white shadow-[0_4px_14px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/5'
                           : 'border-transparent bg-transparent',
                       )}
                     >
@@ -15295,7 +17681,7 @@ export function LearnPageClient() {
                         onClick={(event) => {
                           event.preventDefault();
                           event.stopPropagation();
-                          void deleteLearnSession(session);
+                          setPendingDeleteLearnSession(session);
                         }}
                         disabled={deleteDisabled}
                         className={cn(
@@ -15350,15 +17736,18 @@ export function LearnPageClient() {
         activeSessionId={activeSessionId}
         totalCount={activeLearnSessionListState.totalCount}
         loading={activeLearnSessionListState.loading && learnSessions.length === 0}
+        hasMore={activeLearnSessionListState.hasMore}
+        error={activeLearnSessionListState.error}
         interactionDisabled={sending}
         onShowAllCourses={() => router.push('/learn')}
         onCreateSession={createNewLearnSession}
         onSelectSession={(session) => selectLearnSession(session.id)}
         onDeleteSession={(session) => {
           const target = learnSessions.find((item) => item.id === session.id);
-          if (target) void deleteLearnSession(target);
+          if (target) setPendingDeleteLearnSession(target);
         }}
         onShowAllSessions={() => setAllSessionsDialogOpen(true)}
+        onRetry={() => setLearnSessionListRefreshAttempt((current) => current + 1)}
         onCollapse={() => persistLeftRailCollapsed(true)}
       />
     ) : (
@@ -15377,20 +17766,13 @@ export function LearnPageClient() {
       },
     },
     {
-      key: 'materials',
-      label: '原始讲义',
+      key: 'library',
+      label: '资料库',
       Icon: LibraryBig,
-      active: false,
-      onSelect: openSourceUploadPanel,
-    },
-    {
-      key: 'problems',
-      label: '题库',
-      Icon: BookOpenCheck,
-      active: false,
+      active: rightRailView === 'library',
       onSelect: () => {
-        if (!activeCourse) return;
-        router.push(`/course/${encodeURIComponent(activeCourse.id)}/resources?tab=problems`);
+        setRightRailView('library');
+        persistRightRailCollapsed(false);
       },
     },
     {
@@ -15404,11 +17786,14 @@ export function LearnPageClient() {
       },
     },
     {
-      key: 'memory',
-      label: '记忆',
-      Icon: Brain,
-      active: false,
-      onSelect: () => setMemoryActivityDialogOpen(true),
+      key: 'settings',
+      label: '设置',
+      Icon: Settings2,
+      active: rightRailView === 'settings',
+      onSelect: () => {
+        setRightRailView('settings');
+        persistRightRailCollapsed(false);
+      },
     },
   ] as const;
 
@@ -15494,9 +17879,6 @@ export function LearnPageClient() {
               <p className="text-[15px] font-semibold tracking-[-0.01em] text-slate-950 dark:text-white">
                 课程工具
               </p>
-              <p className="mt-0.5 truncate text-[11px] text-slate-400">
-                {activeCourse?.courseCode || activeCourse?.name || '当前课程'}
-              </p>
             </div>
             <button
               type="button"
@@ -15510,7 +17892,7 @@ export function LearnPageClient() {
           </div>
 
           <nav
-            className="mt-4 grid grid-cols-5 gap-1 rounded-[18px] bg-slate-100/80 p-1.5 shadow-inner dark:bg-white/5"
+            className="mt-4 grid grid-cols-4 gap-[3px] rounded-[10px] bg-slate-100/80 p-[3px] dark:bg-white/5"
             aria-label="课程工具"
           >
             {courseToolButtons.map(({ key, label, Icon, active, onSelect }) => (
@@ -15519,9 +17901,9 @@ export function LearnPageClient() {
                 type="button"
                 onClick={onSelect}
                 className={cn(
-                  'flex min-w-0 flex-col items-center gap-1 rounded-[13px] px-1 py-2 text-[10px] font-medium text-slate-500 transition hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white',
+                  'flex min-w-0 flex-col items-center gap-[3px] rounded-[8px] px-1 py-[7px] text-[11px] font-medium text-slate-500 transition hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white',
                   active &&
-                    'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-950 dark:text-slate-50 dark:ring-white/10',
+                    'bg-white text-slate-950 shadow-[0_3px_10px_rgba(72,61,47,0.08)] dark:bg-slate-950 dark:text-slate-50',
                 )}
                 aria-pressed={active}
               >
@@ -15531,91 +17913,403 @@ export function LearnPageClient() {
             ))}
           </nav>
 
+          {rightRailView === 'library' ? (
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pb-6">
+              <label className="flex h-10 items-center gap-2 rounded-[12px] border border-slate-200/80 bg-white px-3 text-slate-400 shadow-[0_5px_16px_rgba(15,23,42,0.04)] focus-within:border-sky-300 focus-within:ring-2 focus-within:ring-sky-100 dark:border-white/10 dark:bg-white/5 dark:focus-within:ring-sky-300/20">
+                <Search className="size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={courseLibrarySearchQuery}
+                  onChange={(event) => setCourseLibrarySearchQuery(event.target.value)}
+                  placeholder="搜索笔记本、题目和学习资料"
+                  className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-slate-400"
+                  autoComplete="off"
+                />
+              </label>
+
+              <section className={cn(rightRailCardClassName, 'p-3')}>
+                <div className="flex items-center gap-2">
+                  <LibraryBig className="size-4 text-muted-foreground" strokeWidth={1.8} />
+                  <p className="text-sm font-semibold text-foreground">资料库</p>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  题库进入独立页面，笔记本在课程内弹窗中按需查看。
+                </p>
+                <div className="mt-3 space-y-2">
+                  <button
+                    type="button"
+                    onClick={openProblemBankPanel}
+                    className={cn(
+                      rightRailRowClassName,
+                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
+                    )}
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                      <BookOpenCheck className="size-4" strokeWidth={1.8} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-foreground">打开题库</span>
+                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                        独立题库页 · {resourceCountText(problemsLoadState, problems.length)} 题
+                      </span>
+                    </span>
+                    <ChevronRight
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                      strokeWidth={1.8}
+                    />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={openNotebookLibraryPanel}
+                    className={cn(
+                      rightRailRowClassName,
+                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
+                    )}
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                      <BookOpen className="size-4" strokeWidth={1.8} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-foreground">
+                        打开笔记本库
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                        课程内弹窗 · {resourceCountText(notebooksLoadState, notebooks.length)} 本
+                      </span>
+                    </span>
+                    <ChevronRight
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                      strokeWidth={1.8}
+                    />
+                  </button>
+                </div>
+              </section>
+
+              {activeCourseIsOwner ? (
+                <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
+                  <div className="flex items-center gap-2">
+                    <Upload className="size-4 text-muted-foreground" strokeWidth={1.8} />
+                    <p className="text-sm font-semibold text-foreground">上传资料</p>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    导入资料到当前课程的题库或笔记本库。
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    <button
+                      type="button"
+                      onClick={openProblemBankPanel}
+                      className={cn(
+                        rightRailRowClassName,
+                        'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
+                      )}
+                    >
+                      <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                        <Upload className="size-4" strokeWidth={1.8} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-semibold text-foreground">
+                          上传题目
+                        </span>
+                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                          打开题库导入题目
+                        </span>
+                      </span>
+                      <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openSourceUploadPanel}
+                      className={cn(
+                        rightRailRowClassName,
+                        'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
+                      )}
+                    >
+                      <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                        <FileText className="size-4" strokeWidth={1.8} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-semibold text-foreground">
+                          上传笔记
+                        </span>
+                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                          PDF / 图片 / TXT / Markdown
+                        </span>
+                      </span>
+                      <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          ) : null}
+
+          {rightRailView === 'settings' ? (
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pb-6">
+              {activeCourse ? (
+                <>
+                  <section className={cn(rightRailCardClassName, 'p-3')}>
+                    <div className="flex items-center gap-2">
+                      <Settings2 className="size-4 text-muted-foreground" strokeWidth={1.8} />
+                      <p className="text-sm font-semibold text-foreground">课程设置</p>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      {activeCourseIsOwner
+                        ? '直接修改后点击保存即可更新。'
+                        : '你可以查看课程信息；只有课程创作者可以修改。'}
+                    </p>
+
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <label className="text-[11px] font-medium text-muted-foreground">
+                          头像
+                        </label>
+                        <button
+                          type="button"
+                          onClick={activeCourseIsOwner ? openSettingsAvatarDialog : undefined}
+                          disabled={!activeCourseIsOwner}
+                          className={cn(
+                            rightRailRowClassName,
+                            'mt-1 flex w-full items-center gap-3 px-3 py-2.5 text-left transition',
+                            activeCourseIsOwner
+                              ? 'hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20'
+                              : 'cursor-default',
+                          )}
+                        >
+                          <img
+                            src={resolveCourseAvatarDisplayUrl(
+                              activeCourse.id,
+                              settingsDraftAvatarUrl,
+                            )}
+                            alt=""
+                            className="size-10 shrink-0 rounded-[12px] object-cover ring-1 ring-black/5 dark:ring-white/10"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-xs font-semibold text-foreground">
+                              {activeCourseIsOwner ? '更换头像' : '课程头像'}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                              {activeCourseIsOwner ? '在弹窗中选择课程头像' : '仅查看'}
+                            </span>
+                          </span>
+                          {activeCourseIsOwner ? (
+                            <ChevronRight
+                              className="size-3.5 shrink-0 text-muted-foreground"
+                              strokeWidth={1.8}
+                            />
+                          ) : null}
+                        </button>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-medium text-muted-foreground">
+                          课程名称
+                        </label>
+                        <input
+                          value={settingsDraftName}
+                          onChange={(event) => setSettingsDraftName(event.target.value)}
+                          className="mt-1 w-full rounded-[12px] border border-slate-200/80 bg-white px-3 py-2 text-xs outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100 dark:border-white/10 dark:bg-white/5 dark:focus:border-sky-300/40 dark:focus:ring-sky-300/20"
+                          placeholder="课程名称"
+                          maxLength={120}
+                          readOnly={!activeCourseIsOwner}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-muted-foreground">
+                          课程代码
+                        </label>
+                        <input
+                          value={settingsDraftCode}
+                          onChange={(event) => setSettingsDraftCode(event.target.value)}
+                          className="mt-1 w-full rounded-[12px] border border-slate-200/80 bg-white px-3 py-2 text-xs outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100 dark:border-white/10 dark:bg-white/5 dark:focus:border-sky-300/40 dark:focus:ring-sky-300/20"
+                          placeholder="例如 MAT 102"
+                          maxLength={40}
+                          readOnly={!activeCourseIsOwner}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-muted-foreground">
+                          描述
+                        </label>
+                        <Textarea
+                          value={settingsDraftDescription}
+                          onChange={(event) => setSettingsDraftDescription(event.target.value)}
+                          className="mt-1 min-h-[72px] resize-none rounded-[12px] border-slate-200/80 bg-white px-3 py-2 text-xs shadow-none focus-visible:border-sky-300 focus-visible:ring-sky-100 dark:border-white/10 dark:bg-white/5"
+                          placeholder="简要描述这门课"
+                          maxLength={500}
+                          readOnly={!activeCourseIsOwner}
+                        />
+                      </div>
+
+                      {activeCourseIsOwner ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-9 w-full rounded-[12px] text-xs"
+                          disabled={settingsSaving || !settingsDraftName.trim()}
+                          onClick={() => void saveInlineCourseSettings()}
+                        >
+                          {settingsSaving ? (
+                            <Loader2 className="size-3.5 animate-spin" strokeWidth={1.8} />
+                          ) : null}
+                          {settingsSaving ? '保存中…' : '保存'}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </section>
+
+                  <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
+                    <div className="flex items-center gap-2">
+                      <Database className="size-4 text-muted-foreground" strokeWidth={1.8} />
+                      <p className="text-sm font-semibold text-foreground">本地资料</p>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      <div
+                        className={cn(rightRailRowClassName, 'flex items-center justify-between')}
+                      >
+                        <span className="text-[11px] text-muted-foreground">数据源</span>
+                        <strong className="text-xs font-semibold text-foreground">
+                          网页与本机同步
+                        </strong>
+                      </div>
+                      <div
+                        className={cn(rightRailRowClassName, 'flex items-center justify-between')}
+                      >
+                        <span className="text-[11px] text-muted-foreground">笔记本</span>
+                        <strong className="text-xs font-semibold text-foreground">
+                          {resourceCountText(notebooksLoadState, notebooks.length)}
+                        </strong>
+                      </div>
+                      <div
+                        className={cn(rightRailRowClassName, 'flex items-center justify-between')}
+                      >
+                        <span className="text-[11px] text-muted-foreground">题目</span>
+                        <strong className="text-xs font-semibold text-foreground">
+                          {resourceCountText(problemsLoadState, problems.length)}
+                        </strong>
+                      </div>
+                    </div>
+                    {activeCourseIsOwner ? (
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 dark:border-white/10">
+                        <button
+                          type="button"
+                          onClick={() => setPublishDialogOpen(true)}
+                          className="rounded-[10px] border border-slate-200 bg-white px-2 py-2 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                        >
+                          {activeCourse.listedInCourseStore ? '更新发布' : '发布课程'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCourseSettingsTab('danger');
+                            setCourseSettingsOpen(true);
+                          }}
+                          className="rounded-[10px] border border-rose-100 bg-white px-2 py-2 text-[11px] font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-300/15 dark:bg-white/5 dark:text-rose-300"
+                        >
+                          删除课程
+                        </button>
+                      </div>
+                    ) : null}
+                  </section>
+                </>
+              ) : (
+                <section className={cn(rightRailCardClassName, 'p-3')}>
+                  <div className="flex items-center gap-2">
+                    <Settings2 className="size-4 text-muted-foreground" strokeWidth={1.8} />
+                    <p className="text-sm font-semibold text-foreground">课程设置</p>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    先选择一门课程后再查看设置。
+                  </p>
+                </section>
+              )}
+            </div>
+          ) : null}
+
           {rightRailView === 'calendar' ? (
             <div className="mt-4 min-h-0 flex-1 overflow-y-auto pb-6">
               {learningCalendarPanel}
 
               <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Play
-                      className="size-3.5 text-muted-foreground"
-                      fill="currentColor"
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="size-4 text-muted-foreground" strokeWidth={1.8} />
+                  <p className="text-sm font-semibold text-foreground">日历操作</p>
+                </div>
+                <div className="mt-3 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => void clearLearningCalendar()}
+                    disabled={calendarMutating}
+                    className={cn(
+                      rightRailRowClassName,
+                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
+                    )}
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                      <Trash2 className="size-4" strokeWidth={1.8} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-foreground">清空日历</span>
+                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                        移除当前课程的全部日程
+                      </span>
+                    </span>
+                    <ChevronRight
+                      className="size-3.5 shrink-0 text-muted-foreground"
                       strokeWidth={1.8}
                     />
-                    <p className="text-sm font-semibold text-foreground">接下来</p>
-                  </div>
-                  <span className="text-[11px] font-medium text-muted-foreground">
-                    {statusCalendarActivities.length
-                      ? `${statusCalendarActivities.length} 项`
-                      : '暂无安排'}
-                  </span>
-                </div>
+                  </button>
 
-                <div className="mt-3 space-y-1.5">
-                  {statusCalendarActivities.length ? (
-                    statusCalendarActivities.slice(0, 3).map((activity) => (
-                      <button
-                        key={activity.id}
-                        type="button"
-                        onClick={() => {
-                          void startStatusCalendarActivity(activity);
-                        }}
-                        className={cn(
-                          rightRailRowClassName,
-                          'flex w-full items-center gap-2 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
-                        )}
-                        aria-label={`${activity.actionLabel ?? '打开'}：${activity.title}`}
-                      >
-                        <span
-                          className={cn('size-1.5 shrink-0 rounded-full', activity.dotClassName)}
-                          aria-hidden="true"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-xs font-semibold text-foreground">
-                            {activity.title}
-                          </span>
-                          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                            {activity.meta}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
-                          {formatShortCalendarDate(activity.date)}
-                        </span>
-                      </button>
-                    ))
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={openManualScheduleDialog}
-                      className="flex w-full items-center gap-2 rounded-[14px] border border-dashed border-slate-200 bg-slate-50/60 px-3 py-3 text-left text-xs text-muted-foreground transition hover:border-slate-300 hover:bg-slate-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20"
-                    >
-                      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-                        <Plus className="size-3.5" strokeWidth={1.9} />
+                  <button
+                    type="button"
+                    onClick={openSyllabusUploadDialog}
+                    className={cn(
+                      rightRailRowClassName,
+                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
+                    )}
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                      <UploadCloud className="size-4" strokeWidth={1.8} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-foreground">
+                        {syllabusEvents.length > 0 ? '重新上传 syllabus' : '上传 syllabus'}
                       </span>
-                      添加第一项学习安排
-                    </button>
-                  )}
-                </div>
-              </section>
+                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                        {syllabusEvents.length > 0
+                          ? '从 syllabus 重新导入课程日程'
+                          : '从 syllabus 导入课程日程'}
+                      </span>
+                    </span>
+                    <ChevronRight
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                      strokeWidth={1.8}
+                    />
+                  </button>
 
-              <section className="mt-3 rounded-[20px] border border-sky-100 bg-gradient-to-br from-sky-50/90 via-white to-emerald-50/60 p-3.5 dark:border-sky-300/15 dark:from-sky-400/10 dark:via-white/5 dark:to-emerald-400/10">
-                <div className="flex items-center gap-2">
-                  <Target className="size-3.5 text-sky-600 dark:text-sky-300" strokeWidth={1.8} />
-                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">
-                    今日建议
-                  </p>
+                  <button
+                    type="button"
+                    onClick={openManualScheduleDialog}
+                    className={cn(
+                      rightRailRowClassName,
+                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
+                    )}
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                      <Plus className="size-4" strokeWidth={1.8} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-foreground">添加活动</span>
+                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                        手动添加一项学习日程
+                      </span>
+                    </span>
+                    <ChevronRight
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                      strokeWidth={1.8}
+                    />
+                  </button>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
-                  {learningSuggestionItems[0] || '先确定今天最重要的一项学习任务。'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setRightRailView('overview')}
-                  className="mt-2 text-[11px] font-semibold text-sky-700 transition hover:text-sky-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:text-sky-200 dark:hover:text-sky-100 dark:focus-visible:ring-sky-300/20"
-                >
-                  查看学习状态
-                </button>
               </section>
             </div>
           ) : null}
@@ -15623,155 +18317,59 @@ export function LearnPageClient() {
           {rightRailView === 'overview' ? (
             <div className="mt-4 min-h-0 flex-1 overflow-y-auto pb-6">
               <section className={cn(rightRailCardClassName, 'p-3')}>
-                <div className="flex items-center gap-2">
-                  <BookOpenCheck className="size-4 text-muted-foreground" strokeWidth={1.8} />
-                  <p className="text-sm font-semibold text-foreground">
-                    {isResearchCourse ? '研究进度' : '学习进度'}
-                  </p>
-                </div>
-                <div className="mt-3 text-xs">
-                  <div
-                    className={cn(rightRailRowClassName, 'flex items-center justify-between gap-2')}
-                  >
-                    <span className="text-muted-foreground">
-                      {isResearchCourse ? '当前阶段' : '当前进度'}
-                    </span>
-                    <span className="font-medium text-foreground">
-                      {snapshot?.progressLabel || '未确认'}
-                    </span>
-                  </div>
-                </div>
+                <CourseLearningProgressPanel
+                  notebooks={notebooks}
+                  selection={
+                    progressSelection ||
+                    progressSelectionFromSnapshot(snapshot) ||
+                    PROGRESS_SELECTION_NOT_STARTED
+                  }
+                  notStartedToken={PROGRESS_SELECTION_NOT_STARTED}
+                  completedAllToken={PROGRESS_SELECTION_COMPLETED_ALL}
+                  onProgressChange={(selection) => {
+                    updateLearningPosition(selection);
+                  }}
+                  onOpenNotebook={openNotebookFromProgress}
+                />
               </section>
 
-              <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
-                <div className="flex items-center gap-2">
-                  <LibraryBig className="size-4 text-muted-foreground" strokeWidth={1.8} />
-                  <p className="text-sm font-semibold text-foreground">课程资源</p>
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
-                  <button
-                    type="button"
-                    onClick={openSourceUploadPanel}
-                    className={cn(
-                      rightRailRowClassName,
-                      'px-2 py-2 transition hover:border-slate-300 hover:bg-white dark:hover:border-white/15 dark:hover:bg-white/10',
-                    )}
-                  >
-                    <p className="text-sm font-semibold text-foreground">
-                      {resourceCountText(sourcesLoadState, activeCourseSourceUploads.length)}
-                    </p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">原始讲义</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!activeCourse) return;
-                      router.push(
-                        `/course/${encodeURIComponent(activeCourse.id)}/resources?tab=problems`,
-                      );
-                    }}
-                    className={cn(
-                      rightRailRowClassName,
-                      'px-2 py-2 transition hover:border-slate-300 hover:bg-white dark:hover:border-white/15 dark:hover:bg-white/10',
-                    )}
-                  >
-                    <p className="text-sm font-semibold text-foreground">
-                      {resourceCountText(problemsLoadState, publishableProblemCount)}
-                    </p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">题目</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMemoryActivityDialogOpen(true)}
-                    className={cn(
-                      rightRailRowClassName,
-                      'px-2 py-2 transition hover:border-slate-300 hover:bg-white dark:hover:border-white/15 dark:hover:bg-white/10',
-                    )}
-                  >
-                    <p className="text-sm font-semibold text-foreground">
-                      {publishableMemoryCount ?? '—'}
-                    </p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">记忆</p>
-                  </button>
-                </div>
-              </section>
-
-              {activeCourse && activeCourseIsOwner ? (
+              {activeCourse ? (
                 <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Settings2 className="size-4 text-muted-foreground" strokeWidth={1.8} />
-                        <p className="text-sm font-semibold text-foreground">课程管理</p>
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                        {activeCourse.listedInCourseStore
-                          ? '课程已在商城展示，可继续更新设置和发布内容。'
-                          : '调整课程设置，准备好后再发布给其他同学。'}
-                      </p>
-                    </div>
-                    <span
-                      className={cn(
-                        'shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold',
-                        activeCourse.listedInCourseStore
-                          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-400/10 dark:text-emerald-100 dark:ring-emerald-300/20'
-                          : 'bg-slate-100 text-slate-500 ring-1 ring-slate-200/80 dark:bg-white/5 dark:text-slate-300 dark:ring-white/10',
-                      )}
-                    >
-                      {activeCourse.listedInCourseStore ? '已上架' : '未上架'}
-                    </span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-9 rounded-[12px] text-xs"
-                      onClick={() => setCourseSettingsOpen(true)}
-                    >
-                      <Settings2 className="size-3.5" strokeWidth={1.8} />
-                      课程设置
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-9 rounded-[12px] text-xs"
-                      variant={activeCourse.listedInCourseStore ? 'outline' : 'default'}
-                      onClick={() => setPublishDialogOpen(true)}
-                    >
-                      <ShoppingBag className="size-3.5" strokeWidth={1.8} />
-                      {activeCourse.listedInCourseStore ? '更新发布' : '发布课程'}
-                    </Button>
-                  </div>
-                  {coursePublishBlockReason ? (
-                    <p className="mt-2 text-[11px] leading-4 text-amber-700 dark:text-amber-200">
-                      {coursePublishBlockReason}
+                  <div className="flex items-center gap-2">
+                    <UploadCloud className="size-4 text-muted-foreground" strokeWidth={1.8} />
+                    <p className="text-sm font-semibold text-foreground">
+                      {syllabusEvents.length ? '重新上传时间表' : '上传时间表'}
                     </p>
-                  ) : null}
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    导入课程大纲后，日历会自动带上考试、作业等安排。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openSyllabusUploadDialog}
+                    className={cn(
+                      rightRailRowClassName,
+                      'mt-3 flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
+                    )}
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                      <FileText className="size-4" strokeWidth={1.8} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-foreground">
+                        {syllabusEvents.length ? '重新上传时间表' : '点击上传'}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                        图片 / PDF / 文本均可
+                      </span>
+                    </span>
+                    <ChevronRight
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                      strokeWidth={1.8}
+                    />
+                  </button>
                 </section>
               ) : null}
-
-              <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
-                <div className="flex items-center gap-2">
-                  <Target className="size-4 text-muted-foreground" strokeWidth={1.8} />
-                  <p className="text-sm font-semibold text-foreground">
-                    {isResearchCourse ? '研究建议' : '学习建议'}
-                  </p>
-                </div>
-                <div className="mt-3 space-y-1.5">
-                  {learningSuggestionItems.map((item, index) => (
-                    <div
-                      key={`${index}-${item}`}
-                      className={cn(rightRailRowClassName, 'flex gap-2 text-xs leading-5')}
-                    >
-                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-[10px] font-semibold text-muted-foreground">
-                        {index + 1}
-                      </span>
-                      <span className="min-w-0 text-foreground">{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
             </div>
           ) : null}
         </>
@@ -15804,12 +18402,11 @@ export function LearnPageClient() {
       <div
         className={cn(
           'learn-course-shell grid h-full min-h-0 overflow-hidden bg-slate-50 text-foreground transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] dark:bg-slate-950',
-          !leftRailCollapsed && 'lg:grid-cols-[248px_minmax(0,1fr)_64px]',
-          leftRailCollapsed && 'lg:grid-cols-[72px_minmax(0,1fr)_64px]',
-          !leftRailCollapsed && !rightRailCollapsed && 'xl:grid-cols-[256px_minmax(0,1fr)_304px]',
-          leftRailCollapsed && !rightRailCollapsed && 'xl:grid-cols-[72px_minmax(0,1fr)_304px]',
-          !leftRailCollapsed && rightRailCollapsed && 'xl:grid-cols-[256px_minmax(0,1fr)_72px]',
-          leftRailCollapsed && rightRailCollapsed && 'xl:grid-cols-[72px_minmax(0,1fr)_72px]',
+          // Fixed left/center/right proportions at every viewport size (lg+).
+          !leftRailCollapsed && !rightRailCollapsed && 'lg:grid-cols-[18%_minmax(0,1fr)_22%]',
+          leftRailCollapsed && !rightRailCollapsed && 'lg:grid-cols-[4.5rem_minmax(0,1fr)_22%]',
+          !leftRailCollapsed && rightRailCollapsed && 'lg:grid-cols-[18%_minmax(0,1fr)_4.5rem]',
+          leftRailCollapsed && rightRailCollapsed && 'lg:grid-cols-[4.5rem_minmax(0,1fr)_4.5rem]',
         )}
       >
         <aside className="hidden min-h-0 flex-col overflow-hidden border-r border-slate-200/80 bg-slate-50 lg:flex dark:border-white/10 dark:bg-slate-950">
@@ -15817,112 +18414,125 @@ export function LearnPageClient() {
         </aside>
 
         <main className="flex min-h-[70dvh] flex-col overflow-hidden bg-white lg:min-h-0 dark:bg-slate-950">
-          <header className="shrink-0 border-b border-slate-200/80 bg-white/95 px-5 py-3 dark:border-white/10 dark:bg-slate-950/95 sm:px-6 lg:px-8">
-            <div className="mx-auto flex w-full max-w-[56rem] items-center justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="min-w-0">
-                  <h1 className="truncate text-sm font-semibold leading-5 text-slate-950 dark:text-slate-50">
-                    {activeCourse?.name || '学习聊天'}
-                  </h1>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <p className="shrink-0 truncate text-[11px] font-medium leading-4 text-slate-400">
-                      {activeCourse?.courseCode ||
-                        (activeCourse ? '当前课程上下文' : '等待添加课程上下文')}
-                    </p>
-                    {hasCourseSyncError ? (
-                      <button
-                        type="button"
-                        onClick={retryFailedCourseContent}
-                        className={cn(
-                          'inline-flex h-6 min-w-0 items-center gap-1.5 rounded-[8px] border px-2 text-left text-[10px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
-                          courseSyncUsesLocalFallback
-                            ? 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15'
-                            : 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15',
-                        )}
-                        title={courseSyncErrorTitle}
-                      >
-                        <RefreshCw className="size-3 shrink-0" aria-hidden="true" />
-                        <span className="truncate">
-                          {courseSyncUsesLocalFallback
-                            ? '对话已暂存本机，点击重试同步'
-                            : '部分内容同步失败，点击重试'}
-                        </span>
-                      </button>
-                    ) : null}
-                    {activeCourseSourceHealthNotice ? (
-                      <button
-                        type="button"
-                        onClick={openSourceUploadPanel}
-                        className={cn(
-                          'inline-flex h-6 min-w-0 items-center gap-1.5 rounded-[8px] border px-2 text-left text-[10px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
-                          activeCourseSourceHealthNotice.tone === 'error'
-                            ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15'
-                            : 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15',
-                        )}
-                        title={activeCourseSourceHealthNotice.detail}
-                        aria-label={`${activeCourseSourceHealthNotice.label}，打开原始讲义库`}
-                        data-testid="learn-source-health-warning"
-                      >
-                        {activeCourseSourceHealthNotice.tone === 'error' ? (
-                          <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
-                        ) : (
-                          <Loader2
-                            className="size-3 shrink-0 animate-spin motion-reduce:animate-none"
-                            aria-hidden="true"
-                          />
-                        )}
-                        <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
-                      </button>
-                    ) : null}
-                  </div>
-                  {activeCourse ? (
-                    <div
-                      className="mt-1 flex min-w-0 flex-wrap items-center gap-1"
-                      role="status"
-                      aria-live="polite"
-                      aria-label={learnSurfaceStatusItems
-                        .map((item) => `${item.label}${item.statusLabel}`)
-                        .join('，')}
-                      data-testid="learn-surface-status"
-                    >
-                      {learnSurfaceStatusItems.map((item) => (
-                        <span
-                          key={item.key}
+          <header className="shrink-0 border-b border-slate-200/80 bg-white/95 px-6 py-3 dark:border-white/10 dark:bg-slate-950/95">
+            <div className="flex w-full items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                {activeCourse ? (
+                  <CourseAvatar course={activeCourse} className="size-10 rounded-[12px]" />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h1 className="min-w-0 truncate text-sm font-semibold leading-5 text-slate-950 dark:text-slate-50">
+                        {activeCourse?.name || '学习聊天'}
+                      </h1>
+                      <p className="shrink-0 truncate text-[11px] font-medium leading-4 text-slate-400">
+                        {activeCourse?.courseCode ||
+                          (activeCourse ? '当前课程上下文' : '等待添加课程上下文')}
+                      </p>
+                      {hasCourseSyncError ? (
+                        <button
+                          type="button"
+                          onClick={retryFailedCourseContent}
                           className={cn(
-                            'inline-flex h-5 min-w-0 items-center gap-1 rounded-full border px-1.5 text-[9px] font-semibold leading-none',
-                            item.status === 'loading' &&
-                              'border-slate-200/80 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300',
-                            item.status === 'ready' &&
-                              'border-emerald-200/80 bg-emerald-50/80 text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-400/10 dark:text-emerald-100',
-                            item.status === 'empty' &&
-                              'border-slate-200/80 bg-white text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300',
-                            item.status === 'local' &&
-                              'border-amber-200/80 bg-amber-50/80 text-amber-700 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100',
-                            item.status === 'error' &&
-                              'border-rose-200/80 bg-rose-50/80 text-rose-700 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100',
+                            'inline-flex h-6 min-w-0 items-center gap-1.5 rounded-[8px] border px-2 text-left text-[10px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
+                            courseSyncUsesLocalFallback
+                              ? 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15'
+                              : 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15',
                           )}
-                          title={
-                            item.detail
-                              ? `${item.label}：${item.statusLabel}\n${item.detail}`
-                              : `${item.label}：${item.statusLabel}`
-                          }
+                          title={courseSyncErrorTitle}
                         >
-                          {item.status === 'loading' ? (
+                          <RefreshCw className="size-3 shrink-0" aria-hidden="true" />
+                          <span className="truncate">
+                            {courseSyncUsesLocalFallback
+                              ? '对话已暂存本机，点击重试同步'
+                              : '部分内容同步失败，点击重试'}
+                          </span>
+                        </button>
+                      ) : null}
+                      {activeCourseSourceHealthNotice ? (
+                        <button
+                          type="button"
+                          onClick={openSourceUploadPanel}
+                          className={cn(
+                            'inline-flex h-6 min-w-0 items-center gap-1.5 rounded-[8px] border px-2 text-left text-[10px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
+                            activeCourseSourceHealthNotice.tone === 'error'
+                              ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15'
+                              : 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15',
+                          )}
+                          title={activeCourseSourceHealthNotice.detail}
+                          aria-label={`${activeCourseSourceHealthNotice.label}，打开原始讲义库`}
+                          data-testid="learn-source-health-warning"
+                        >
+                          {activeCourseSourceHealthNotice.tone === 'error' ? (
+                            <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                          ) : (
                             <Loader2
-                              className="size-2.5 shrink-0 animate-spin motion-reduce:animate-none"
+                              className="size-3 shrink-0 animate-spin motion-reduce:animate-none"
                               aria-hidden="true"
                             />
-                          ) : item.status === 'error' || item.status === 'local' ? (
-                            <AlertTriangle className="size-2.5 shrink-0" aria-hidden="true" />
-                          ) : (
-                            <CheckCircle2 className="size-2.5 shrink-0" aria-hidden="true" />
                           )}
-                          <span className="truncate">{item.label}</span>
-                          <span className="truncate opacity-75">{item.statusLabel}</span>
-                        </span>
-                      ))}
+                          <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
+                        </button>
+                      ) : null}
                     </div>
-                  ) : null}
+                    {activeCourse ? (
+                      <div
+                        className="mt-1 flex min-w-0 flex-wrap items-center gap-1"
+                        role="status"
+                        aria-live="polite"
+                        aria-label={learnSurfaceStatusItems
+                          .map((item) => `${item.label}${item.statusLabel}`)
+                          .join('，')}
+                        data-testid="learn-surface-status"
+                      >
+                        {learnSurfaceStatusItems.map((item) => (
+                          <span
+                            key={item.key}
+                            className={cn(
+                              'inline-flex h-5 min-w-0 items-center gap-1 rounded-full border px-1.5 text-[9px] font-semibold leading-none',
+                              item.status === 'loading' &&
+                                'border-slate-200/80 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300',
+                              item.status === 'deferred' &&
+                                'border-slate-200/80 bg-white text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300',
+                              item.status === 'ready' &&
+                                'border-emerald-200/80 bg-emerald-50/80 text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-400/10 dark:text-emerald-100',
+                              item.status === 'empty' &&
+                                'border-slate-200/80 bg-white text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300',
+                              item.status === 'local' &&
+                                'border-amber-200/80 bg-amber-50/80 text-amber-700 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100',
+                              item.status === 'error' &&
+                                'border-rose-200/80 bg-rose-50/80 text-rose-700 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100',
+                            )}
+                            title={
+                              item.detail
+                                ? `${item.label}：${item.statusLabel}\n${item.detail}`
+                                : `${item.label}：${item.statusLabel}`
+                            }
+                          >
+                            {item.status === 'loading' ? (
+                              <Loader2
+                                className="size-2.5 shrink-0 animate-spin motion-reduce:animate-none"
+                                aria-hidden="true"
+                              />
+                            ) : item.status === 'deferred' ? (
+                              <BookOpen
+                                className="size-2.5 shrink-0"
+                                strokeWidth={1.8}
+                                aria-hidden="true"
+                              />
+                            ) : item.status === 'error' || item.status === 'local' ? (
+                              <AlertTriangle className="size-2.5 shrink-0" aria-hidden="true" />
+                            ) : (
+                              <CheckCircle2 className="size-2.5 shrink-0" aria-hidden="true" />
+                            )}
+                            <span className="truncate">{item.label}</span>
+                            <span className="truncate opacity-75">{item.statusLabel}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
@@ -16030,9 +18640,55 @@ export function LearnPageClient() {
             </div>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto bg-white px-5 py-5 dark:bg-slate-950 sm:px-6 lg:px-8">
-            <div className="mx-auto flex min-h-full w-full max-w-[56rem] flex-col gap-4">
-              {messages.length === 0 && !sending ? (
+          <div
+            ref={conversationScrollContainerRef}
+            className="min-h-0 flex-1 overflow-y-auto bg-white px-6 py-5 dark:bg-slate-950"
+          >
+            <div className="flex min-h-full w-full flex-col gap-4">
+              {remoteConversationMessagePage?.hasMore || remoteConversationMessagePage?.error ? (
+                <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void loadOlderLearnMessages()}
+                    disabled={remoteConversationMessagePage.loading}
+                    className="h-8 rounded-full px-3 text-xs"
+                  >
+                    {remoteConversationMessagePage.loading ? (
+                      <Loader2
+                        className="size-3.5 animate-spin motion-reduce:animate-none"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <ChevronUp className="size-3.5" aria-hidden="true" />
+                    )}
+                    {remoteConversationMessagePage.loading
+                      ? '正在加载更早消息…'
+                      : remoteConversationMessagePage.error
+                        ? '重试加载更早消息'
+                        : '加载更早消息'}
+                  </Button>
+                  {remoteConversationMessagePage.error ? (
+                    <p
+                      className="text-center text-[11px] text-amber-700 dark:text-amber-200"
+                      role="status"
+                    >
+                      {remoteConversationMessagePage.error}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              {remoteConversationSummary?.text.trim() ? (
+                <section
+                  className="mx-auto w-full max-w-3xl rounded-[12px] border border-slate-200/80 bg-slate-50/80 px-4 py-3 text-xs leading-5 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300"
+                  aria-label="较早对话摘要"
+                >
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">较早对话摘要</p>
+                  <p className="mt-1 whitespace-pre-wrap">{remoteConversationSummary.text}</p>
+                </section>
+              ) : null}
+              {visibleMessages.length === 0 && !sending ? (
                 <div className="learn-empty-ambient relative isolate flex min-h-[420px] flex-1 items-center justify-center overflow-hidden">
                   <span className="learn-empty-spotlight learn-empty-spotlight-main" aria-hidden />
                   <span
@@ -16056,13 +18712,6 @@ export function LearnPageClient() {
                           <MessageSquarePlus className="size-6" strokeWidth={1.8} />
                         </div>
                       )}
-                      <span
-                        className={cn(
-                          'absolute -right-1 -top-1 size-3 rounded-full border-2 border-white shadow-sm dark:border-slate-950',
-                          !activeCourse || missingLearningSetup ? 'bg-amber-400' : 'bg-emerald-400',
-                        )}
-                        aria-hidden="true"
-                      />
                     </div>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
@@ -16108,7 +18757,7 @@ export function LearnPageClient() {
                                 router.push('/store/courses');
                                 return;
                               }
-                              setDraft(prompt);
+                              updateComposerDraft(prompt);
                               window.requestAnimationFrame(() => draftTextareaRef.current?.focus());
                             }}
                             className="h-8 rounded-full border-slate-200/80 bg-white/76 px-3 text-xs shadow-sm backdrop-blur-sm hover:bg-white dark:border-white/10 dark:bg-white/8 dark:hover:bg-white/12"
@@ -16121,7 +18770,7 @@ export function LearnPageClient() {
                   </div>
                 </div>
               ) : null}
-              {messages.map((message) => {
+              {visibleMessages.map((message) => {
                 const displayText =
                   message.role === 'assistant' &&
                   message.plan &&
@@ -16135,8 +18784,8 @@ export function LearnPageClient() {
                       <div
                         className={cn(
                           message.role === 'user'
-                            ? 'ml-auto max-w-[min(78%,680px)] rounded-[24px] bg-slate-950 px-4 py-2.5 text-sm leading-6 text-white shadow-[0_12px_28px_rgba(15,23,42,0.18)] dark:bg-white dark:text-black'
-                            : 'mr-auto flex w-full max-w-[56rem] items-start gap-3 py-2',
+                            ? 'ml-auto max-w-[82%] rounded-[15px_6px_15px_15px] bg-[#4d4a43] px-3 py-2.5 text-[12px] leading-[1.65] text-[#f8f5ee] shadow-[0_7px_20px_rgba(70,61,48,0.05)] dark:bg-slate-100 dark:text-slate-950'
+                            : 'mr-auto flex max-w-[82%] items-start gap-[9px]',
                         )}
                       >
                         {message.role === 'user' ? (
@@ -16174,14 +18823,14 @@ export function LearnPageClient() {
                             {activeCourse ? (
                               <CourseAvatar
                                 course={activeCourse}
-                                className="mt-1 size-8 rounded-[10px]"
+                                className="size-7 rounded-[9px]"
                               />
                             ) : (
-                              <div className="mt-1 grid size-8 shrink-0 place-items-center rounded-[10px] bg-sky-50 text-sky-700 ring-1 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-300/15">
+                              <div className="grid size-7 shrink-0 place-items-center rounded-[9px] bg-sky-50 text-sky-700 ring-1 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-300/15">
                                 <MessageSquarePlus className="size-4" strokeWidth={1.8} />
                               </div>
                             )}
-                            <div className="min-w-0 flex-1 select-text">
+                            <div className="min-w-0 flex-1 select-text rounded-[6px_15px_15px] border border-[#4d473e]/[0.08] bg-white px-3 py-2.5 shadow-[0_7px_20px_rgba(70,61,48,0.05)] dark:border-white/10 dark:bg-white/5">
                               {displayText ? (
                                 <MessageResponse className={courseMarkdownClassName} mode="static">
                                   {normalizeAssistantMarkdown(displayText)}
@@ -16303,8 +18952,8 @@ export function LearnPageClient() {
             </div>
           </div>
 
-          <footer className="shrink-0 border-t border-slate-100 bg-gradient-to-t from-white via-white to-white/85 px-5 pb-4 pt-3 dark:border-white/5 dark:from-slate-950 dark:via-slate-950 dark:to-slate-950/85 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-[56rem]">
+          <footer className="shrink-0 border-t border-slate-100 bg-gradient-to-t from-white via-white to-white/85 px-6 pb-4 pt-3 dark:border-white/5 dark:from-slate-950 dark:via-slate-950 dark:to-slate-950/85">
+            <div className="w-full">
               <div
                 className={cn(
                   composerInputShellClassName,
@@ -16390,7 +19039,7 @@ export function LearnPageClient() {
                     ref={draftTextareaRef}
                     rows={1}
                     value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
+                    onChange={(event) => updateComposerDraft(event.target.value)}
                     disabled={!conversationInteractive}
                     placeholder={
                       conversationFallbackActive
@@ -16496,10 +19145,160 @@ export function LearnPageClient() {
         onOpenChange={setCreateCourseOpen}
         onSuccess={handleCourseCreated}
       />
+      <Dialog open={settingsAvatarDialogOpen} onOpenChange={setSettingsAvatarDialogOpen}>
+        <DialogContent className={cn(SYNTARA_ACTION_DIALOG_CONTENT_CLASS, 'max-w-lg gap-0 p-0')}>
+          <DialogHeader className={SYNTARA_DIALOG_HEADER_CLASS}>
+            <DialogTitle className="text-base">更换课程头像</DialogTitle>
+            <DialogDescription className="text-xs leading-5 text-muted-foreground">
+              选择一张头像后确认；仍需在侧边栏点击保存才会写入课程。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 px-5 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <img
+                  src={resolveCourseAvatarDisplayUrl(
+                    activeCourse?.id,
+                    settingsAvatarPickerUrl || settingsDraftAvatarUrl,
+                  )}
+                  alt=""
+                  className="size-14 shrink-0 rounded-[16px] object-cover ring-1 ring-black/5 dark:ring-white/10"
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">预览</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {settingsAvatarPage + 1} / {settingsAvatarPageCount}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="size-8 rounded-full"
+                  onClick={() => setSettingsAvatarPickerUrl(pickRandomCourseAvatarUrl())}
+                  aria-label="随机头像"
+                >
+                  <Dices className="size-3.5" strokeWidth={1.8} />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="size-8 rounded-full"
+                  disabled={settingsAvatarPage <= 0}
+                  onClick={() => setSettingsAvatarPage((page) => Math.max(0, page - 1))}
+                  aria-label="上一页头像"
+                >
+                  <ChevronLeft className="size-3.5" strokeWidth={1.8} />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="size-8 rounded-full"
+                  disabled={settingsAvatarPage >= settingsAvatarPageCount - 1}
+                  onClick={() =>
+                    setSettingsAvatarPage((page) => Math.min(settingsAvatarPageCount - 1, page + 1))
+                  }
+                  aria-label="下一页头像"
+                >
+                  <ChevronRight className="size-3.5" strokeWidth={1.8} />
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {settingsAvatarUrlsOnPage.map((url) => {
+                const selected = settingsAvatarPickerUrl === url;
+                return (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => setSettingsAvatarPickerUrl(url)}
+                    className={cn(
+                      'overflow-hidden rounded-[12px] ring-1 transition',
+                      selected
+                        ? 'ring-sky-400 ring-offset-2 ring-offset-background'
+                        : 'ring-slate-200/80 hover:ring-slate-300 dark:ring-white/10',
+                    )}
+                    aria-label="选择课程头像"
+                    aria-pressed={selected}
+                  >
+                    <img src={url} alt="" className="aspect-square w-full object-cover" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t border-border/70 px-5 py-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 rounded-[12px] px-4 text-xs"
+              onClick={() => setSettingsAvatarDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              className="h-9 rounded-[12px] px-4 text-xs"
+              onClick={confirmSettingsAvatarPicker}
+            >
+              确认
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(pendingDeleteLearnSession)}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteLearnSession(null);
+        }}
+      >
+        <DialogContent
+          className={cn(SYNTARA_ACTION_DIALOG_CONTENT_CLASS, 'max-w-[430px] gap-0 p-0')}
+        >
+          <DialogHeader className={SYNTARA_DIALOG_HEADER_CLASS}>
+            <DialogTitle className="text-base">删除这条会话？</DialogTitle>
+            <DialogDescription className="leading-5">
+              “{pendingDeleteLearnSession?.title || '这条会话'}
+              ”会从本机移除；已经同步到云端的内容也会一并删除。此操作无法撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-end gap-2 border-t border-border/70 px-5 py-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 rounded-[12px] px-4 text-xs"
+              onClick={() => setPendingDeleteLearnSession(null)}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="h-9 rounded-[12px] px-4 text-xs"
+              onClick={() => {
+                const target = pendingDeleteLearnSession;
+                if (target) void deleteLearnSession(target);
+              }}
+            >
+              <Trash2 className="size-3.5" strokeWidth={1.9} />
+              删除会话
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <CourseSettingsDialog
         course={activeCourseIsOwner ? activeCourse : null}
         open={courseSettingsOpen}
-        onOpenChange={setCourseSettingsOpen}
+        onOpenChange={(open) => {
+          setCourseSettingsOpen(open);
+          if (!open) setCourseSettingsTab('general');
+        }}
+        initialTab={courseSettingsTab}
         onCourseUpdated={handleCourseSettingsUpdated}
         onCourseDeleted={handleCourseSettingsDeleted}
       />
@@ -16529,7 +19328,7 @@ export function LearnPageClient() {
         }}
         onDelete={(session) => {
           const target = learnSessions.find((item) => item.id === session.id);
-          if (target) void deleteLearnSession(target);
+          if (target) setPendingDeleteLearnSession(target);
         }}
         onLoadMore={loadMoreLearnSessions}
       />
@@ -16542,6 +19341,7 @@ export function LearnPageClient() {
       {syllabusImportDialog}
       {manualScheduleDialog}
       {sourceUploadStatusDialog}
+      {notebookLibraryDialog}
       {courseFilesDialog}
       {platformMemoryDialog}
       {largeCalendarDialog}

@@ -6,11 +6,15 @@ import { resolveModel } from '@/lib/server/resolve-model';
 import { runWithRequestContext } from '@/lib/server/request-context';
 import { buildTrustedCourseQuestionContext } from '@/lib/chat/server-course-question-context';
 import {
+  attachTrustedServerCourseContext,
   latestTrustedCourseUserText,
   resolveTrustedCourseTurn,
   runTrustedCourseTurn,
   TrustedCourseTurnError,
 } from '@/features/chat/server/trusted-course-turn';
+import { shouldUseDirectCourseAnswerFastPath } from '@/features/learn-core/server/decision-chain';
+import { verifyTrustedLearnAnswererHandoff } from '@/features/learn-core/server/trusted-answerer-handoff';
+import { inferMemorySearchIntent } from '@/lib/server/memory-search-intent';
 
 const log = createLogger('Chat API');
 const HEARTBEAT_INTERVAL_MS = 15_000;
@@ -31,6 +35,12 @@ function validateStatelessChatRequest(body: StatelessChatRequest) {
   }
 
   return null;
+}
+
+function stripTrustedLearnHandoffToken(body: StatelessChatRequest): StatelessChatRequest {
+  const sanitized = { ...body };
+  delete sanitized.trustedLearnAnswererHandoffToken;
+  return sanitized;
 }
 
 export async function handleStatelessChatRequest(req: NextRequest) {
@@ -101,23 +111,47 @@ export async function handleStatelessChatRequest(req: NextRequest) {
                   'Authenticated course context is required.',
                 );
               }
+              const latestQuestion = latestTrustedCourseUserText(body);
+              const directAnswerFastPath = shouldUseDirectCourseAnswerFastPath({
+                question: latestQuestion,
+                courseId: trusted.courseId,
+              });
+              const trustedPlannerHandoff = verifyTrustedLearnAnswererHandoff({
+                token: body.trustedLearnAnswererHandoffToken,
+                userId: trusted.authenticatedUserId,
+                courseId: trusted.courseId,
+                question: latestQuestion,
+              });
               const serverContext = await buildTrustedCourseQuestionContext({
                 userId: trusted.authenticatedUserId,
                 courseId: trusted.courseId,
-                question: latestTrustedCourseUserText(body),
+                question: latestQuestion,
+                searchIntent: directAnswerFastPath
+                  ? inferMemorySearchIntent(latestQuestion, 'course')
+                  : undefined,
+                trustedAccess: trusted.courseAccess,
+                trustedPlannerHandoff,
                 model: languageModel,
               });
-              trustedBody = (
-                await resolveTrustedCourseTurn({
-                  body,
-                  authenticatedUserId: trusted.authenticatedUserId,
-                  serverCourseContext: serverContext.courseContext,
-                })
-              ).body;
+              await writer.write(
+                encoder.encode(
+                  `data: ${JSON.stringify({
+                    type: 'course_evidence',
+                    data: {
+                      courseId: trusted.courseId,
+                      items: serverContext.evidence,
+                    },
+                  } satisfies StatelessEvent)}\n\n`,
+                ),
+              );
+              trustedBody = attachTrustedServerCourseContext({
+                resolved: trusted,
+                serverCourseContext: serverContext.courseContext,
+              });
             }
 
             await runTrustedCourseTurn({
-              body: trustedBody,
+              body: stripTrustedLearnHandoffToken(trustedBody),
               signal,
               languageModel,
               onEvent: async (event) => {

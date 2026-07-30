@@ -2,6 +2,14 @@ import { createLogger } from '@/lib/logger';
 import { getPrismaOrNull } from '@/lib/server/prisma-safe';
 
 const log = createLogger('SystemLLMConfig');
+const RUNTIME_CONFIG_CACHE_TTL_MS = 30_000;
+
+let runtimeConfigCache:
+  | {
+      expiresAt: number;
+      promise: Promise<SystemLLMRuntimeConfig>;
+    }
+  | undefined;
 
 function configuredDefaultOpenAIModel(): string {
   const configured = process.env.DEFAULT_MODEL?.trim();
@@ -40,7 +48,7 @@ function maskApiKey(value: string): string {
   return `${trimmed.slice(0, 4)}••••${trimmed.slice(-4)}`;
 }
 
-export async function getSystemLLMRuntimeConfig(): Promise<SystemLLMRuntimeConfig> {
+async function loadSystemLLMRuntimeConfig(): Promise<SystemLLMRuntimeConfig> {
   const prisma = getPrismaOrNull();
   const preferDbInDev = process.env.NODE_ENV === 'development';
   if (prisma) {
@@ -72,6 +80,32 @@ export async function getSystemLLMRuntimeConfig(): Promise<SystemLLMRuntimeConfi
     apiKey: process.env.OPENAI_API_KEY?.trim() || '',
     source: 'environment',
   };
+}
+
+/**
+ * Model resolution and embedding retrieval often happen several times during
+ * one answer. The system credential is global, so a short process-local TTL
+ * avoids repeating the same configuration query on every provider call.
+ */
+export async function getSystemLLMRuntimeConfig(): Promise<SystemLLMRuntimeConfig> {
+  const now = Date.now();
+  if (runtimeConfigCache && runtimeConfigCache.expiresAt > now) {
+    return runtimeConfigCache.promise;
+  }
+
+  const promise = loadSystemLLMRuntimeConfig().catch((error) => {
+    runtimeConfigCache = undefined;
+    throw error;
+  });
+  runtimeConfigCache = {
+    expiresAt: now + RUNTIME_CONFIG_CACHE_TTL_MS,
+    promise,
+  };
+  return promise;
+}
+
+export function invalidateSystemLLMRuntimeConfigCache(): void {
+  runtimeConfigCache = undefined;
 }
 
 export async function getSystemLLMConfigView(): Promise<SystemLLMConfigView> {
@@ -141,5 +175,6 @@ export async function updateSystemLLMConfig(input: {
     },
   });
 
+  invalidateSystemLLMRuntimeConfigCache();
   return getSystemLLMConfigView();
 }

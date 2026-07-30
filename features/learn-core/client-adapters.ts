@@ -63,6 +63,8 @@ export type LearnAnswererHandoff = {
     problems: LearnAnswererResourceStatus;
     sources: LearnAnswererResourceStatus;
   };
+  /** Opaque server-signed capability for carrying this handoff into /api/chat. */
+  trustedToken?: string;
 };
 
 function answererResourceStatus(
@@ -82,6 +84,7 @@ export type LearnTurnClientResponse = {
   artifacts?: LearnArtifact[];
   reason?: string;
   confidence?: number;
+  trustedAnswererHandoffToken?: string;
   trace?: Partial<LearnTrace> & {
     handoffs?: Array<
       Partial<Omit<LearnHandoffPacket, 'evidence'>> & {
@@ -169,5 +172,6 @@ export function answererHandoffFromLearnTurn(
           sources: answererResourceStatus(handoff.resourceStates.sources),
         }
       : undefined,
+    trustedToken: response?.trustedAnswererHandoffToken?.trim() || undefined,
   };
 }

@@ -89,11 +89,22 @@ export type Csc148LocalProblemBank = {
   problems: Csc148LocalProblem[];
 };
 
+export type Csc148LocalMemory = {
+  id: string;
+  notebookId: string | null;
+  targetType: string;
+  kind: string;
+  title: string;
+  text: string;
+  sourceReferences: string[];
+};
+
 export type Csc148LocalDataset = {
   course: Csc148LocalCourse;
   notebooks: Csc148LocalNotebook[];
   problemBank: Csc148LocalProblemBank;
   sections: Array<Csc148LocalSection & { notebook: Csc148LocalNotebook }>;
+  memories: Csc148LocalMemory[];
 };
 
 export type Csc148LocalSearchHit =
@@ -109,6 +120,12 @@ export type Csc148LocalSearchHit =
       id: string;
       score: number;
       problem: Csc148LocalProblem;
+    }
+  | {
+      kind: 'memory';
+      id: string;
+      score: number;
+      memory: Csc148LocalMemory;
     };
 
 export type Csc148LocalAgentDataFlowStep = {
@@ -133,5 +150,6 @@ export type Csc148LocalAgentRun = {
   hits: Csc148LocalSearchHit[];
   selectedSections: Extract<Csc148LocalSearchHit, { kind: 'section' }>[];
   selectedProblems: Extract<Csc148LocalSearchHit, { kind: 'problem' }>[];
+  selectedMemories: Extract<Csc148LocalSearchHit, { kind: 'memory' }>[];
   assistantReply: string;
 };

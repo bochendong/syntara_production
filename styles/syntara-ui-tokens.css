@@ -1,0 +1,25 @@
+:root {
+  --syntara-font-sans:
+    Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --syntara-color-canvas: #f8fafc;
+  --syntara-color-panel: #ffffff;
+  --syntara-color-text: #0f172a;
+  --syntara-color-text-secondary: #475569;
+  --syntara-color-text-muted: #64748b;
+  --syntara-color-border: rgb(15 23 42 / 8%);
+  --syntara-color-border-strong: rgb(15 23 42 / 12%);
+  --syntara-color-focus: rgb(56 189 248 / 52%);
+  --syntara-color-brand: #722ed1;
+  --syntara-color-accent: #0284c7;
+  --syntara-radius-control: 10px;
+  --syntara-radius-card: 16px;
+  --syntara-radius-panel: 22px;
+  --syntara-radius-dialog: 28px;
+  --syntara-shadow-card: 0 8px 24px rgb(15 23 42 / 8%);
+  --syntara-shadow-dialog: 0 28px 90px rgb(15 23 42 / 28%);
+  --syntara-dialog-width: 1180px;
+  --syntara-dialog-height: min(760px, 86dvh);
+  --syntara-dialog-height-sm: min(780px, 86dvh);
+  --syntara-motion-enter: 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}

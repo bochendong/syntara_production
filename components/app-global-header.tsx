@@ -8,8 +8,8 @@ import {
   GraduationCap,
   House,
   Languages,
+  LayoutDashboard,
   Moon,
-  MessagesSquare,
   Plus,
   Settings,
   ShoppingBag,
@@ -187,10 +187,10 @@ export function AppGlobalHeader({ showHomeControls = false }: { showHomeControls
   const courseId = routeCourseId || storedCourseId;
   const encodedCourseId = courseId ? encodeURIComponent(courseId) : null;
   const courseHomeHref = encodedCourseId ? `/course/${encodedCourseId}` : '/my-courses';
-  const chatHref = learnCourseHref(courseId);
+  const dashboardHref = learnCourseHref(courseId);
   const createNotebookUrl = encodedCourseId ? createNotebookHref(courseId) : '/my-courses';
   const storeHref = encodedCourseId ? '/store' : '/store/courses';
-  const chatActive =
+  const dashboardActive =
     pathname === '/learn' ||
     Boolean(pathname?.startsWith('/learn/')) ||
     pathname === '/chat' ||
@@ -260,10 +260,10 @@ export function AppGlobalHeader({ showHomeControls = false }: { showHomeControls
 
       <nav className="ml-auto flex min-w-0 items-center justify-end gap-1">
         <HeaderLink
-          href={chatHref}
-          active={chatActive}
-          icon={MessagesSquare}
-          label="聊天"
+          href={dashboardHref}
+          active={dashboardActive}
+          icon={LayoutDashboard}
+          label="Dashboard"
         />
         <HeaderLink href={storeHref} active={storeActive} icon={ShoppingBag} label="商城" />
         {showHomeControls ? <HomeHeaderControls /> : null}

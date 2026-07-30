@@ -275,6 +275,30 @@ export default function PlatformTestsPage() {
           </div>
         </header>
 
+        <section className="overflow-hidden rounded-3xl border border-violet-200 bg-[linear-gradient(135deg,#ffffff_0%,#f5f3ff_58%,#eef2ff_100%)] shadow-sm">
+          <div className="grid gap-6 px-6 py-7 lg:grid-cols-[1fr_auto] lg:items-center lg:px-8">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-violet-700">
+                <Sparkles className="size-4" />
+                新增交互 Mock
+              </div>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
+                MAT136 · 有依据的三天复习计划
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                模拟用户提出复习目标后，AI
+                如何引用考试日程、历史错题和学习记忆排计划；日程可添加或撤销，题目可在弹窗里作答并回写完成状态。
+              </p>
+            </div>
+            <Button asChild className="w-fit rounded-full bg-slate-950 px-5 text-white">
+              <Link href="/test/mat136-review-plan-chat">
+                打开 Mock 对话
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </div>
+        </section>
+
         <StageMap />
 
         <section aria-labelledby="phase-one-capability-title">

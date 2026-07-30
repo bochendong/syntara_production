@@ -30,6 +30,41 @@ export type DecideTeachingTurnOptions = {
   }) => Promise<LearnProblemBankSearchResult>;
 };
 
+const DIRECT_ANSWER_WORKFLOW_PATTERN =
+  /(?:日历|calendar|日程|schedule|加入.{0,8}(?:计划|日历|日程)|(?:做|给|来|制定|创建|生成|安排|修改|删除|同步).{0,12}(?:复习|预习|学习|练习|计划|日程)|(?:找|选|推荐|生成|出|给|来|做).{0,8}(?:练习题|题目|题库|小测|quiz|practice set)|(?:临时|迷你|生成|做).{0,8}(?:小课堂|课堂|课件|幻灯|ppt|图片|图像)|(?:联网|网络|web).{0,6}(?:搜索|查询)|(?:记住|保存|写入|更新|修改|纠正)|(?:开始|打开).{0,8}(?:活动|任务)|\b(?:plan|workflow|calendar|schedule)\b|\bhow\s+should\s+i\s+(?:review|study|practice|prepare)\b|\b(?:create|make|build|design|draft|prepare|give\s+me)\b.{0,32}\b(?:review|revision|study|practice|preview)\b)/iu;
+const DIRECT_ANSWER_CONTEXT_ONLY_PATTERN =
+  /^(?:好|好的|可以|确认|是的|不是|继续|继续吧|然后呢|按这个|就这样|同意|取消|yes|no|ok|okay|continue|go on)[\s,.!?，。！？]*$/iu;
+const DIRECT_ANSWER_LEARNER_STATE_PATTERN =
+  /(?:我|学生|我的历史|学习历史).{0,14}(?:学到哪|学习进度|掌握|薄弱|弱点|错题|问过什么|学习情况|会什么|不会什么)|(?:最近|历史|过往)?.{0,8}错题.{0,16}(?:分析|总结|薄弱|弱点|原因|规律)|(?:薄弱|弱点).{0,16}(?:错题|历史|学习情况)|(?:what do i know|my progress|my weaknesses|learning status|analy[sz]e.{0,24}(?:mistakes|weaknesses)|recent mistakes)/iu;
+const DIRECT_ANSWER_PROOF_PATTERN =
+  /(?:证明|证法|证明思路|怎么证|如何证)|\b(?:prove|proof|proof\s+(?:idea|strategy)|demonstrate\s+that)\b/iu;
+const DIRECT_ANSWER_QUESTION_PATTERN =
+  /(?:讲解|解释|说明|为什么|怎么|如何|什么是|定义|证明|推导|解答|求解|分析|比较|区别|关系|原理|总结|概括|复述|explain|why|how|what is|define|prove|derive|solve|compare|summarize|walk\s*through)/iu;
+
+/**
+ * High-confidence fast path for ordinary teaching questions.
+ *
+ * Stateful workflows and learner-state audits keep the semantic router. Plain
+ * explanations can go straight to the trusted course answerer, which already
+ * performs source retrieval and emits confirmation-gated learning actions.
+ */
+export function shouldUseDirectCourseAnswerFastPath(
+  input: Pick<LearnTurnInput, 'question' | 'courseId'>,
+): boolean {
+  const question = input.question.normalize('NFKC').replace(/\s+/g, ' ').trim();
+  if (!input.courseId || !question || DIRECT_ANSWER_CONTEXT_ONLY_PATTERN.test(question)) {
+    return false;
+  }
+  if (
+    DIRECT_ANSWER_WORKFLOW_PATTERN.test(question) ||
+    DIRECT_ANSWER_LEARNER_STATE_PATTERN.test(question) ||
+    DIRECT_ANSWER_PROOF_PATTERN.test(question)
+  ) {
+    return false;
+  }
+  return DIRECT_ANSWER_QUESTION_PATTERN.test(question);
+}
+
 async function emitValidationError(
   ctx: LearnRunContext,
   message: string,
@@ -1142,6 +1177,65 @@ async function routeWithSemanticRouter(
     userEvidence,
   });
   if (fixedWorkflowDecision) return fixedWorkflowDecision;
+
+  if (shouldUseDirectCourseAnswerFastPath(reviewModeResolvedInput)) {
+    const tool = await recorder.toolStart({
+      toolId: 'answer_course_question',
+      purpose: 'Route a high-confidence teaching question directly to the course answerer.',
+      inputSummary: compactTraceValue({
+        question: reviewModeResolvedInput.question,
+        courseId: reviewModeResolvedInput.courseId,
+      }),
+    });
+    await recorder.toolEnd(tool, {
+      outputSummary: 'Skipped semantic workflow planning for an ordinary course answer.',
+      evidenceIds: [userEvidence.id],
+      metadata: {
+        selectedToolIds: ['search_memory', 'search_course_materials', 'answer_course_question'],
+        routingMode: 'deterministic_direct_answer',
+      },
+    });
+    await recorder.step({
+      kind: 'model_routing',
+      label: 'Direct course answer',
+      reasonSummary:
+        'The learner asked an ordinary teaching question with no planning or mutation workflow.',
+      evidence: [userEvidence],
+      outputSummary:
+        'Continue to the trusted course answerer without a semantic-router model call.',
+      confidence: 0.99,
+      metadata: {
+        selectedToolIds: ['search_memory', 'search_course_materials', 'answer_course_question'],
+        routingMode: 'deterministic_direct_answer',
+      },
+    });
+    await recorder.handoff({
+      from: 'learn_core',
+      to: 'course_answerer',
+      intent: 'course_answer',
+      reasonSummary:
+        'This is a direct teaching question; answer from trusted course evidence and memory.',
+      evidence: [userEvidence],
+      requiredBehavior: [
+        'Answer the learner question directly.',
+        'Use trusted course materials and retrieved evidence when available.',
+        'Explain reasoning, one useful example or check, and a likely misconception when relevant.',
+      ],
+      forbiddenBehavior: [
+        'Do not turn an ordinary explanation into a calendar, plan, practice, classroom, image, or memory-write workflow unless the learner explicitly asks.',
+        'Do not invent course-source claims or problem-bank items.',
+      ],
+      missingEvidence: [],
+      resourceStates: reviewModeResolvedInput.resourceStates,
+    });
+    const decision = createLearnTurnDecision({
+      answerMode: 'course_answer',
+      reason: 'High-confidence ordinary teaching question routed directly to the course answerer.',
+      confidence: 0.99,
+      trace: recorder.trace,
+    });
+    return recorder.finish(decision);
+  }
 
   const semanticRouterInput = reviewModeResolvedInput;
   const semanticRouterCtx =

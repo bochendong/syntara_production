@@ -6,116 +6,102 @@ import path from 'node:path';
 import process from 'node:process';
 
 const root = process.cwd();
-const routePath = 'app/api/learn/conversations/route.ts';
-const route = fs.readFileSync(path.join(root, routePath), 'utf8');
-const clientPath = 'components/learn/learn-page-client.tsx';
-const client = fs.readFileSync(path.join(root, clientPath), 'utf8');
+const route = fs.readFileSync(path.join(root, 'app/api/learn/conversations/route.ts'), 'utf8');
+const repository = fs.readFileSync(
+  path.join(root, 'features/learn-conversations/server/course-conversation-repository.ts'),
+  'utf8',
+);
+const learnPage = fs.readFileSync(
+  path.join(root, 'components/learn/learn-page-client.tsx'),
+  'utf8',
+);
 
-function sourceBetween(startPattern, endPattern) {
-  const start = route.search(startPattern);
+function sourceBetween(source, startPattern, endPattern) {
+  const start = source.search(startPattern);
   assert.notEqual(start, -1, `Missing start pattern: ${startPattern}`);
-  const remainder = route.slice(start);
+  const remainder = source.slice(start);
   const end = remainder.search(endPattern);
   assert.notEqual(end, -1, `Missing end pattern after ${startPattern}: ${endPattern}`);
   return remainder.slice(0, end);
 }
 
+assert.match(repository, /DEFAULT_COURSE_CONVERSATION_PAGE_LIMIT = 5/);
+assert.match(repository, /DEFAULT_COURSE_MESSAGE_PAGE_LIMIT = 30/);
+assert.match(route, /messagePageLimitSchema[\s\S]*MAX_COURSE_MESSAGE_PAGE_LIMIT/);
+assert.match(route, /decodeCourseMessagePageCursor\(rawBefore\)/);
+assert.match(route, /messagePage:\s*snapshot\.messagePage/);
+assert.match(route, /messageWindow:\s*snapshot\.messageWindow/);
+assert.match(route, /summary:\s*snapshot\.summary/);
+
 assert.match(
-  route,
-  /const DEFAULT_SESSION_PAGE_LIMIT = 5;/,
-  'The metadata endpoint must default to the five most recent conversations.',
+  repository,
+  /typeof parsed\.updatedAt !== 'string'[\s\S]{0,260}\^\\d\{4\}[\s\S]{0,160}\\\.\\d\{6\}\$/,
+  'The session cursor must preserve all six PostgreSQL fractional-second digits.',
 );
 assert.match(
-  route,
-  /z\.coerce\.number\(\)\.int\(\)\.min\(1\)\.max\(MAX_SESSION_PAGE_LIMIT\)/,
-  'The metadata page limit must remain bounded.',
-);
-assert.match(
-  route,
-  /updatedAt:\s*z[\s\S]{0,160}\^\\d\{4\}[\s\S]{0,160}\\\.\\d\{6\}\$/,
-  'The cursor schema must preserve all six PostgreSQL fractional-second digits.',
-);
-assert.match(
-  route,
+  repository,
   /to_char\("updatedAt", 'YYYY-MM-DD"T"HH24:MI:SS\.US'\) AS "cursorUpdatedAt"/,
-  'The list query must serialize updatedAt with PostgreSQL microsecond precision.',
-);
-assert.doesNotMatch(
-  route,
-  /to_char\("updatedAt", 'YYYY-MM-DD"T"HH24:MI:SS\.MS'\) AS "cursorUpdatedAt"/,
-  'Millisecond cursor serialization can skip rows that share a millisecond.',
 );
 assert.match(
-  route,
-  /\("updatedAt", "id"\) < \(CAST\(\$3 AS TIMESTAMP\), \$4\)/,
-  'The next page must compare the exact timestamp/id keyset represented by the cursor.',
+  repository,
+  /\("updatedAt", "id"\) < \(\$3::timestamp, \$4\)/,
+  'The session list must use exact timestamp/id keyset pagination.',
 );
-assert.match(
-  route,
-  /ORDER BY "updatedAt" DESC, "id" DESC[\s\S]{0,100}LIMIT \$5/,
-  'Cursor comparison and ordering must use the same updatedAt/id tuple.',
-);
-assert.match(
-  route,
-  /args\.limit \+ 1/,
-  'The list query must fetch one extra metadata row to determine hasMore.',
-);
-assert.match(
-  route,
-  /rows\.length > args\.limit[\s\S]{0,180}rows\.slice\(0, args\.limit\)/,
-  'The metadata response must trim the lookahead row from the visible page.',
-);
-assert.match(
-  route,
-  /encodeSessionPageCursor\(visibleRows\[visibleRows\.length - 1\]\)/,
-  'The next cursor must come from the last visible row, not the lookahead row.',
-);
+assert.match(repository, /ORDER BY "updatedAt" DESC, "id" DESC[\s\S]{0,80}LIMIT \$5/);
+assert.match(repository, /args\.limit \+ 1/);
+assert.match(repository, /conversations\.length > args\.limit/);
+assert.match(repository, /encodeCourseConversationPageCursor\(visible\[visible\.length - 1\]\)/);
 
 const listSource = sourceBetween(
-  /async function listLearnConversations\(/,
-  /async function upsertLearnConversation\(/,
+  repository,
+  /export async function listCourseConversationPage\(/,
+  /export async function loadCourseConversationSnapshot\(/,
 );
-assert.doesNotMatch(
-  listSource,
-  /FROM "Message"|prisma\.message|loadMessages\(/,
-  'Conversation metadata pagination must never read message bodies.',
-);
-assert.match(
-  listSource,
-  /SELECT[\s\S]*"id"[\s\S]*"title"[\s\S]*"targetId"[\s\S]*"updatedAt"/,
-  'Conversation pagination must return metadata fields.',
-);
-assert.doesNotMatch(
-  listSource,
-  /COUNT\s*\(/i,
-  'The five-name metadata path must use its lookahead row instead of reserving another pool connection for COUNT.',
+assert.match(listSource, /FROM "CourseConversation"/);
+assert.doesNotMatch(listSource, /CourseConversationMessage|FROM "Message"|prisma\.message/);
+assert.equal(
+  listSource.match(/\.\$queryRawUnsafe</g)?.length ?? 0,
+  1,
+  'Access, exact count, and the five-name page must share one PostgreSQL statement.',
 );
 assert.match(
   listSource,
-  /WITH "courseAccess" AS \([\s\S]*LEFT JOIN LATERAL/,
-  'Course access and conversation names must share one SQL round trip.',
+  /SELECT count\(\*\)::bigint[\s\S]{0,180}counted\."deletedAt" IS NULL/,
+  'The metadata statement must return an exact count of live conversations.',
 );
-assert.match(
-  listSource,
-  /access\."accessRole" IS NOT NULL/,
-  'The combined metadata query must never return conversation rows without course access.',
-);
+assert.match(listSource, /WITH "courseAccess" AS \([\s\S]*LEFT JOIN LATERAL/);
+assert.match(listSource, /access\."accessRole" IS NOT NULL/);
+assert.match(listSource, /"deletedAt" IS NULL/);
+assert.doesNotMatch(listSource, /FROM "Conversation"/);
 
-const getSource = sourceBetween(/export async function GET\(/, /export async function POST\(/);
+const detailSource = sourceBetween(
+  repository,
+  /export async function loadCourseConversationSnapshot\(/,
+  /async function lockCourseConversation\(/,
+);
+assert.equal(
+  detailSource.match(/\.\$queryRawUnsafe</g)?.length ?? 0,
+  1,
+  'Course conversation detail must use one PostgreSQL statement/snapshot.',
+);
+assert.match(detailSource, /m\."sequence" < \$4::bigint/);
+assert.match(detailSource, /ORDER BY m\."sequence" DESC[\s\S]{0,80}LIMIT \$5/);
+assert.match(detailSource, /MAX_RETURNED_COURSE_MESSAGE_TOMBSTONES/);
+assert.match(repository, /sequence <= BigInt\(0\) \|\| sequence > MAX_SAFE_REVISION/);
+assert.match(detailSource, /summaryFromRow\(conversation\)/);
+assert.match(detailSource, /encodeCourseMessagePageCursor/);
+assert.match(detailSource, /messages:\s*visible\.reverse\(\)/);
+assert.doesNotMatch(detailSource, /FROM "Conversation"|FROM "Message"/);
+
 assert.match(
-  getSource,
-  /const sessionId = searchParams\.get\('sessionId'\)\?\.trim\(\);[\s\S]*if \(sessionId\) \{[\s\S]*loadLearnConversationWithoutTransaction/,
-  'Conversation detail must require an explicit sessionId query parameter.',
+  route,
+  /if \(sessionId\) \{[\s\S]*loadCourseConversationSnapshot\([\s\S]*return NextResponse\.json\([\s\S]*const rawLimit = searchParams\.get\('limit'\)/,
+  'Detail must require an explicit sessionId and return before metadata listing.',
 );
 assert.match(
-  getSource,
-  /if \(sessionId\) \{[\s\S]*return NextResponse\.json\(\{ storage: 'database', \.\.\.snapshot \}\);[\s\S]*const rawLimit = searchParams\.get\('limit'\)/,
-  'The detail branch must return before the metadata-list branch.',
-);
-assert.match(
-  client,
-  /current\.totalCount \+ page\.sessions\.length/,
-  'Each Load more metadata page must grow the client-side count without requiring COUNT(*).',
+  learnPage,
+  /totalCount:\s*Math\.max\(page\.totalCount,\s*mergedSessions\.length\)/,
+  'Load-more must preserve the exact server count while including unsynced local drafts.',
 );
 
 const fixtures = [
@@ -127,9 +113,7 @@ const fixtures = [
 ];
 
 function compareDescending(left, right) {
-  if (left.updatedAt !== right.updatedAt) {
-    return left.updatedAt > right.updatedAt ? -1 : 1;
-  }
+  if (left.updatedAt !== right.updatedAt) return left.updatedAt > right.updatedAt ? -1 : 1;
   return left.id > right.id ? -1 : left.id < right.id ? 1 : 0;
 }
 
@@ -152,24 +136,21 @@ const pagedIds = [...firstPage, ...secondPage, ...thirdPage].map((row) => row.id
 assert.deepEqual(
   pagedIds,
   [...fixtures].sort(compareDescending).map((row) => row.id),
-  'Exact microsecond timestamp/id keyset pagination must not skip or repeat rows.',
 );
-assert.equal(new Set(pagedIds).size, fixtures.length, 'Pagination returned a duplicate row.');
+assert.equal(new Set(pagedIds).size, fixtures.length);
 
 process.stdout.write(
   `${JSON.stringify(
     {
       ok: true,
       checked: [
-        'bounded five-item metadata default',
-        'opaque timestamp/id cursor',
-        'PostgreSQL microsecond precision',
-        'stable keyset pages without gaps or duplicates',
-        'metadata list excludes message bodies',
-        'course access and names in one SQL round trip',
-        'lookahead pagination without an exact count query',
-        'client-side count growth after Load more',
-        'detail requires explicit sessionId',
+        'five-item dedicated metadata query',
+        'exact live total in the same metadata statement',
+        'single-statement thirty-message detail',
+        'opaque session and sequence cursors',
+        'microsecond keyset pages without gaps',
+        'summary plus messagePage with legacy messageWindow',
+        'no generic Conversation/Message reads',
       ],
     },
     null,

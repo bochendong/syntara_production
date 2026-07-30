@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
   collectTrustedCourseTurn,
+  resolveTrustedCourseAccess,
   resolveTrustedCourseTurn,
   trustedCourseAnswerContractText,
   TrustedCourseTurnError,
@@ -36,7 +37,6 @@ import {
   requirePublicApi,
 } from '@/lib/server/public-api';
 import { prisma } from '@/lib/server/prisma';
-import { findCourseAccessRole } from '@/lib/server/repositories/course-enrollment-repository';
 import { resolveModelFromHeaders } from '@/lib/server/resolve-model';
 import { withRequestContext } from '@/lib/server/request-context';
 import type {
@@ -398,8 +398,12 @@ export async function POST(
     return publicApiError(requestId, 404, 'not_found', 'Course not found.');
   }
 
-  const accessRole = await findCourseAccessRole(prisma, principal.userId, courseId);
-  if (!accessRole) {
+  const trustedAccess = await resolveTrustedCourseAccess({
+    userId: principal.userId,
+    courseId,
+    prisma,
+  });
+  if (!trustedAccess) {
     return publicApiError(requestId, 404, 'not_found', 'Course not found.');
   }
 
@@ -470,6 +474,7 @@ export async function POST(
           courseId,
           question: courseQuestionRetrievalQuery(input.question, history.messages),
           conversationId: history.session?.conversationId,
+          trustedAccess,
           model: resolvedModel.model,
           prisma,
         });
@@ -484,6 +489,7 @@ export async function POST(
           body: requestedBody,
           authenticatedUserId: principal.userId,
           serverCourseContext: trustedContext.courseContext,
+          trustedAccess,
         });
         const collected = await collectTrustedCourseTurn({
           body: trustedTurn.body,

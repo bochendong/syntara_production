@@ -4,7 +4,13 @@ import { nanoid } from 'nanoid';
 import { useSettingsStore } from '@/lib/store/settings';
 import { ensureLegacyCourseBucket, getCourse, LEGACY_COURSE_ID } from '@/lib/utils/course-storage';
 import { pickStableNotebookAgentAvatarUrl } from '@/lib/constants/notebook-agent-avatars';
-import { saveStageData } from '@/lib/utils/stage-storage';
+import {
+  beginIncrementalStageSceneGeneration,
+  finalizeIncrementalStageSceneGeneration,
+  saveStageData,
+  type IncrementalSceneGenerationFence,
+  upsertIncrementalStageScenes,
+} from '@/lib/utils/stage-storage';
 import {
   persistGeneratedAgentsForStage,
   useAgentRegistry,
@@ -1490,12 +1496,21 @@ export async function runNotebookGenerationTask(
       updatedAt: Date.now(),
     };
 
-    await saveStageData(stage.id, {
+    let incrementalSceneFence: IncrementalSceneGenerationFence | null = null;
+    const initialStageData = {
       stage,
       scenes: [],
       currentSceneId: null,
       chats: [],
-    });
+    };
+    if (generateSlides && slideGenerationRoute === 'image-ppt') {
+      incrementalSceneFence = await beginIncrementalStageSceneGeneration(
+        stage.id,
+        initialStageData,
+      );
+    } else {
+      await saveStageData(stage.id, initialStageData);
+    }
     input.onProgress?.({
       stage: 'notebook-ready',
       detail: generateSlides
@@ -1836,18 +1851,23 @@ export async function runNotebookGenerationTask(
           i += result.effectiveOutlines.length - 1;
           resetSceneContentQueue(i + 1);
         }
-        scenes.push(...result.scenes);
-        previousSpeeches = result.previousSpeeches;
         stage = {
           ...stage,
           updatedAt: Date.now(),
         };
-        await saveStageData(stage.id, {
-          stage,
-          scenes,
-          currentSceneId: scenes[0]?.id || null,
-          chats: [],
-        });
+        const nextScenes = [...scenes, ...result.scenes];
+        if (incrementalSceneFence) {
+          await upsertIncrementalStageScenes(stage.id, result.scenes, incrementalSceneFence);
+        } else {
+          await saveStageData(stage.id, {
+            stage,
+            scenes: nextScenes,
+            currentSceneId: nextScenes[0]?.id || null,
+            chats: [],
+          });
+        }
+        scenes.push(...result.scenes);
+        previousSpeeches = result.previousSpeeches;
         const generatedPageThumbnails = generatedPageThumbnailsFromScenes(result.scenes);
         if (generatedPageThumbnails.length > 0) {
           input.onProgress?.({
@@ -1881,19 +1901,21 @@ export async function runNotebookGenerationTask(
         };
         failedScenes.push(failure);
         stage = withPageGenerationFailure(stage, failure);
-        try {
-          await saveStageData(stage.id, {
-            stage,
-            scenes,
-            currentSceneId: scenes[0]?.id || null,
-            chats: [],
-          });
-        } catch (saveError) {
-          console.warn('[NotebookGeneration] Failed to persist page generation failure', {
-            outlineId: outline.id,
-            outlineTitle: outline.title,
-            error: errorMessage(saveError, '保存失败页面记录失败'),
-          });
+        if (!incrementalSceneFence) {
+          try {
+            await saveStageData(stage.id, {
+              stage,
+              scenes,
+              currentSceneId: scenes[0]?.id || null,
+              chats: [],
+            });
+          } catch (saveError) {
+            console.warn('[NotebookGeneration] Failed to persist page generation failure', {
+              outlineId: outline.id,
+              outlineTitle: outline.title,
+              error: errorMessage(saveError, '保存失败页面记录失败'),
+            });
+          }
         }
         input.onProgress?.({
           stage: 'scene',
@@ -1914,12 +1936,25 @@ export async function runNotebookGenerationTask(
       ...stage,
       updatedAt: Date.now(),
     };
-    await saveStageData(stage.id, {
-      stage,
-      scenes,
-      currentSceneId: scenes[0]?.id || null,
-      chats: [],
-    });
+    if (incrementalSceneFence) {
+      await finalizeIncrementalStageSceneGeneration(
+        stage.id,
+        {
+          stage,
+          scenes,
+          currentSceneId: scenes[0]?.id || null,
+          chats: [],
+        },
+        incrementalSceneFence,
+      );
+    } else {
+      await saveStageData(stage.id, {
+        stage,
+        scenes,
+        currentSceneId: scenes[0]?.id || null,
+        chats: [],
+      });
+    }
     writePersistedStageOutlines(stage.id, outlines);
     if (slideGenerationRoute === 'image-ppt' && failedScenes.length === 0) {
       persistFinalImageNotebookPublicMemory({ stage, outlines, scenes, language });

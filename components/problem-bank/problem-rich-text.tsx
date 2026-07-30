@@ -183,6 +183,16 @@ function renderCodeBlock(lines: string[], language: string): string {
   return `<pre class="not-prose problem-rich-code-block"><code${className}>${renderedCode}</code></pre>`;
 }
 
+function renderInlineFormatting(text: string): string {
+  return escapeHtml(text)
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
+    .replace(/~~([^~\n]+)~~/g, '<del>$1</del>')
+    .replace(/(^|[\s（(])\*([^*\n]+)\*(?=$|[\s，。！？；、,.!?)）])/g, '$1<em>$2</em>')
+    .replace(/(^|[\s（(])_([^_\n]+)_(?=$|[\s，。！？；、,.!?)）])/g, '$1<em>$2</em>')
+    .replace(/\n/g, '<br/>');
+}
+
 function renderInlineMarkdown(text: string): string {
   let html = '';
   let cursor = 0;
@@ -190,11 +200,11 @@ function renderInlineMarkdown(text: string): string {
   while (cursor < text.length) {
     const tickStart = text.indexOf('`', cursor);
     if (tickStart === -1) {
-      html += escapeHtml(text.slice(cursor)).replace(/\n/g, '<br/>');
+      html += renderInlineFormatting(text.slice(cursor));
       break;
     }
 
-    html += escapeHtml(text.slice(cursor, tickStart)).replace(/\n/g, '<br/>');
+    html += renderInlineFormatting(text.slice(cursor, tickStart));
     const codeStart = tickStart + 1;
     const tickEnd = text.indexOf('`', codeStart);
     if (tickEnd === -1) {
@@ -432,6 +442,15 @@ function renderHeading(line: string): string | null {
   return `<h${level}>${renderInlineMarkdown(match[2])}</h${level}>`;
 }
 
+function isHorizontalRule(line: string): boolean {
+  return /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line);
+}
+
+function renderBlockquote(lines: string[]): string {
+  const content = lines.map((line) => line.replace(/^\s*>\s?/, '')).join('\n');
+  return `<blockquote>${renderInlineMarkdown(content)}</blockquote>`;
+}
+
 function normalizeCasesRows(body: string): string {
   return body
     .replace(/\${1,2}/g, '')
@@ -597,6 +616,22 @@ function textToHtml(text: string): string {
       continue;
     }
 
+    if (isHorizontalRule(line)) {
+      blocks.push('<hr/>');
+      index += 1;
+      continue;
+    }
+
+    if (/^\s*>\s?/.test(line)) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && /^\s*>\s?/.test(lines[index])) {
+        quoteLines.push(lines[index]);
+        index += 1;
+      }
+      blocks.push(renderBlockquote(quoteLines));
+      continue;
+    }
+
     if (isPipeTableRow(line) && lines[index + 1] && isTableSeparator(lines[index + 1])) {
       const tableLines: string[] = [];
       while (index < lines.length && lines[index].trim() && isPipeTableRow(lines[index])) {
@@ -636,6 +671,8 @@ function textToHtml(text: string): string {
       !isBracketDisplayMathStart(lines[index]) &&
       !lines[index].includes('\\begin{cases}') &&
       !renderHeading(lines[index]) &&
+      !isHorizontalRule(lines[index]) &&
+      !/^\s*>\s?/.test(lines[index]) &&
       !(isPipeTableRow(lines[index]) && lines[index + 1] && isTableSeparator(lines[index + 1])) &&
       !/^\s*[-*]\s+/.test(lines[index]) &&
       !/^\s*\d+[\.)]\s+/.test(lines[index])

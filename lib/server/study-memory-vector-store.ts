@@ -76,8 +76,6 @@ export type StudyMemorySemanticMatch = {
   updatedAt: string;
 };
 
-let ensureVectorIndexPromise: Promise<boolean> | null = null;
-
 function normalizeText(input: string): string {
   return input
     .replace(/\r\n?/g, '\n')
@@ -159,70 +157,17 @@ function vectorLiteral(values: number[]): string {
   return `[${values.map((value) => (Number.isFinite(value) ? value : 0)).join(',')}]`;
 }
 
-export async function ensureStudyMemoryVectorIndex(prisma: PrismaClient): Promise<boolean> {
-  if (!ensureVectorIndexPromise) {
-    ensureVectorIndexPromise = (async () => {
-      try {
-        await prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS vector');
-        await prisma.$executeRawUnsafe(`
-          CREATE TABLE IF NOT EXISTS "StudyMemoryChunk" (
-            "id" TEXT PRIMARY KEY,
-            "memoryId" TEXT NOT NULL REFERENCES "StudyMemory"("id") ON DELETE CASCADE,
-            "ownerId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
-            "courseId" TEXT REFERENCES "Course"("id") ON DELETE CASCADE,
-            "notebookId" TEXT REFERENCES "Notebook"("id") ON DELETE CASCADE,
-            "targetType" TEXT NOT NULL,
-            "scope" TEXT NOT NULL,
-            "chunkIndex" INTEGER NOT NULL,
-            "chunkText" TEXT NOT NULL,
-            "contentHash" TEXT NOT NULL,
-            "embeddingModel" TEXT NOT NULL,
-            "embeddingDimensions" INTEGER NOT NULL,
-            "embedding" vector(${EMBEDDING_DIMENSIONS}) NOT NULL,
-            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
-        await prisma.$executeRawUnsafe(`
-          CREATE UNIQUE INDEX IF NOT EXISTS "StudyMemoryChunk_memory_chunk_model_idx"
-          ON "StudyMemoryChunk" ("memoryId", "chunkIndex", "embeddingModel", "embeddingDimensions")
-        `);
-        await prisma.$executeRawUnsafe(`
-          CREATE INDEX IF NOT EXISTS "StudyMemoryChunk_owner_scope_target_idx"
-          ON "StudyMemoryChunk" ("ownerId", "scope", "targetType", "courseId", "notebookId")
-        `);
-        await prisma.$executeRawUnsafe(`
-          CREATE INDEX IF NOT EXISTS "StudyMemoryChunk_embedding_hnsw_idx"
-          ON "StudyMemoryChunk" USING hnsw ("embedding" vector_cosine_ops)
-        `);
-        return true;
-      } catch (error) {
-        ensureVectorIndexPromise = null;
-        log.warn('Study memory vector index is unavailable:', error);
-        return false;
-      }
-    })();
-  }
-  return ensureVectorIndexPromise;
-}
-
 export async function indexStudyMemoryRecord(
   prisma: PrismaClient,
   memory: IndexableStudyMemoryRecord,
 ): Promise<{ indexed: boolean; chunks: number; reason?: string }> {
   if (memory.status === 'archived') {
-    const available = await ensureStudyMemoryVectorIndex(prisma);
-    if (available) {
-      await prisma.$executeRawUnsafe(
-        'DELETE FROM "StudyMemoryChunk" WHERE "memoryId" = $1',
-        memory.id,
-      );
-    }
+    await prisma.$executeRawUnsafe(
+      'DELETE FROM "StudyMemoryChunk" WHERE "memoryId" = $1',
+      memory.id,
+    );
     return { indexed: false, chunks: 0, reason: 'archived' };
   }
-
-  const available = await ensureStudyMemoryVectorIndex(prisma);
-  if (!available) return { indexed: false, chunks: 0, reason: 'vector_unavailable' };
 
   const chunks = splitMemoryText(memory);
   if (chunks.length === 0) return { indexed: false, chunks: 0, reason: 'empty' };
@@ -263,46 +208,73 @@ export async function indexStudyMemoryRecord(
   }
   const embeddings = embeddingResult.embeddings as number[][];
 
-  await prisma.$executeRawUnsafe(
-    `
-      DELETE FROM "StudyMemoryChunk"
-      WHERE "memoryId" = $1 AND "embeddingModel" = $2 AND "embeddingDimensions" = $3
-    `,
-    memory.id,
-    EMBEDDING_MODEL,
-    EMBEDDING_DIMENSIONS,
-  );
-
-  for (const chunk of chunks) {
-    const hash = chunkHashes[chunk.chunkIndex]?.contentHash || contentHash(chunk.text);
-    await prisma.$executeRawUnsafe(
+  const insertRows = chunks.map((chunk) => ({
+    id: `memory_chunk_${crypto.randomUUID().replace(/-/g, '')}`,
+    memoryId: memory.id,
+    ownerId: memory.ownerId,
+    courseId: memory.courseId,
+    notebookId: memory.notebookId,
+    targetType: memory.targetType,
+    scope: memory.scope,
+    chunkIndex: chunk.chunkIndex,
+    chunkText: chunk.text,
+    contentHash: chunkHashes[chunk.chunkIndex]?.contentHash || contentHash(chunk.text),
+    embeddingModel: EMBEDDING_MODEL,
+    embeddingDimensions: EMBEDDING_DIMENSIONS,
+    embedding: vectorLiteral(embeddings[chunk.chunkIndex] || []),
+  }));
+  await prisma.$transaction([
+    prisma.$executeRawUnsafe(
+      `
+        DELETE FROM "StudyMemoryChunk"
+        WHERE "memoryId" = $1 AND "embeddingModel" = $2 AND "embeddingDimensions" = $3
+      `,
+      memory.id,
+      EMBEDDING_MODEL,
+      EMBEDDING_DIMENSIONS,
+    ),
+    prisma.$executeRawUnsafe(
       `
         INSERT INTO "StudyMemoryChunk" (
           "id", "memoryId", "ownerId", "courseId", "notebookId",
           "targetType", "scope", "chunkIndex", "chunkText", "contentHash",
           "embeddingModel", "embeddingDimensions", "embedding", "createdAt", "updatedAt"
         )
-        VALUES (
-          $1, $2, $3, $4, $5,
-          $6, $7, $8, $9, $10,
-          $11, $12, $13::vector, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        SELECT
+          row."id",
+          row."memoryId",
+          row."ownerId",
+          row."courseId",
+          row."notebookId",
+          row."targetType",
+          row."scope",
+          row."chunkIndex",
+          row."chunkText",
+          row."contentHash",
+          row."embeddingModel",
+          row."embeddingDimensions",
+          row."embedding"::vector,
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        FROM jsonb_to_recordset($1::jsonb) AS row(
+          "id" text,
+          "memoryId" text,
+          "ownerId" text,
+          "courseId" text,
+          "notebookId" text,
+          "targetType" text,
+          "scope" text,
+          "chunkIndex" integer,
+          "chunkText" text,
+          "contentHash" text,
+          "embeddingModel" text,
+          "embeddingDimensions" integer,
+          "embedding" text
         )
       `,
-      `memory_chunk_${crypto.randomUUID().replace(/-/g, '')}`,
-      memory.id,
-      memory.ownerId,
-      memory.courseId,
-      memory.notebookId,
-      memory.targetType,
-      memory.scope,
-      chunk.chunkIndex,
-      chunk.text,
-      hash,
-      EMBEDDING_MODEL,
-      EMBEDDING_DIMENSIONS,
-      vectorLiteral(embeddings[chunk.chunkIndex] || []),
-    );
-  }
+      JSON.stringify(insertRows),
+    ),
+  ]);
 
   return { indexed: true, chunks: chunks.length };
 }
@@ -358,8 +330,6 @@ export async function semanticSearchStudyMemoryChunks(args: {
 }): Promise<StudyMemorySemanticMatch[]> {
   const query = normalizeText(args.query).slice(0, 1600);
   if (!query) return [];
-  const available = await ensureStudyMemoryVectorIndex(args.prisma);
-  if (!available) return [];
 
   const embedding = await createEmbedding(query, {
     model: EMBEDDING_MODEL,

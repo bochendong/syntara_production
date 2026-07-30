@@ -30,6 +30,11 @@ export interface SaveStageDataResult {
   remoteSynced: boolean;
 }
 
+export type IncrementalSceneGenerationFence = {
+  courseId: string | null;
+  contentVersion: number;
+};
+
 const SCENE_CONTENT_DIAGNOSTICS_KEY = '__generationDiagnostics';
 const IMAGE_NOTEBOOK_FOCUS_REPAIR_KEY = 'imageNotebookFocusRepair';
 
@@ -381,11 +386,17 @@ function loadMockCourseChatStageData(stageId: string): StageStoreData | null {
 }
 
 /** 生成流程使用客户端 nanoid 作为 id，首次保存前数据库中尚无该行，需先 POST 创建 */
-async function ensureNotebookRow(stageId: string, data: StageStoreData): Promise<void> {
-  const getResp = await backendFetch(`/api/notebooks/${encodeURIComponent(stageId)}`, {
-    method: 'GET',
-  });
-  if (getResp.ok) return;
+async function ensureNotebookRow(stageId: string, data: StageStoreData): Promise<NotebookApiRow> {
+  const getResp = await backendFetch(
+    `/api/notebooks/${encodeURIComponent(stageId)}?includeScenes=0`,
+    {
+      method: 'GET',
+    },
+  );
+  if (getResp.ok) {
+    const existing = (await getResp.json()) as { notebook: NotebookApiRow };
+    return existing.notebook;
+  }
 
   if (getResp.status !== 404) {
     const ct = getResp.headers.get('content-type') || '';
@@ -396,7 +407,7 @@ async function ensureNotebookRow(stageId: string, data: StageStoreData): Promise
     throw new Error(`请求失败: HTTP ${getResp.status}`);
   }
 
-  await backendJson<{ notebook: NotebookApiRow }>('/api/notebooks', {
+  const created = await backendJson<{ notebook: NotebookApiRow }>('/api/notebooks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -410,6 +421,7 @@ async function ensureNotebookRow(stageId: string, data: StageStoreData): Promise
       style: data.stage.style,
     }),
   });
+  return created.notebook;
 }
 
 function mapScene(stageId: string, row: SceneApiRow): Scene {
@@ -519,6 +531,136 @@ export async function saveStageData(
   }
 }
 
+/**
+ * Image-notebook generation persistence: create/update notebook metadata once,
+ * clear scenes once, then keep the returned version stable for bounded page
+ * upserts. Manual whole-notebook save remains on PUT via saveStageData.
+ */
+export async function beginIncrementalStageSceneGeneration(
+  stageId: string,
+  data: StageStoreData,
+): Promise<IncrementalSceneGenerationFence> {
+  await writeStageDraftSnapshot(
+    stageId,
+    {
+      stage: data.stage,
+      scenes: [],
+      currentSceneId: null,
+    },
+    false,
+  );
+  const existing = await ensureNotebookRow(stageId, data);
+  const expectedTags = data.stage.tags ?? [];
+  const metadataMatches =
+    existing.courseId === (data.stage.courseId ?? null) &&
+    existing.name === data.stage.name &&
+    existing.description === (data.stage.description ?? null) &&
+    existing.avatarUrl === (data.stage.avatarUrl ?? null) &&
+    existing.language === (data.stage.language ?? null) &&
+    existing.style === (data.stage.style ?? null) &&
+    existing.tags.length === expectedTags.length &&
+    existing.tags.every((tag, index) => tag === expectedTags[index]);
+  const metadata = metadataMatches
+    ? { notebook: existing }
+    : await backendJson<{ notebook: NotebookApiRow }>(
+        `/api/notebooks/${encodeURIComponent(stageId)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            courseId: data.stage.courseId ?? null,
+            name: data.stage.name,
+            description: data.stage.description,
+            tags: expectedTags,
+            avatarUrl: data.stage.avatarUrl,
+            language: data.stage.language,
+            style: data.stage.style,
+          }),
+        },
+      );
+  const contentVersion = metadata.notebook.contentVersion;
+  if (!Number.isSafeInteger(contentVersion) || !contentVersion || contentVersion < 1) {
+    throw new Error('Notebook content version is unavailable; generation cannot be fenced.');
+  }
+  return backendJson<IncrementalSceneGenerationFence>(
+    `/api/notebooks/${encodeURIComponent(stageId)}/scenes`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'begin',
+        expectedCourseId: metadata.notebook.courseId,
+        expectedContentVersion: contentVersion,
+      }),
+    },
+  );
+}
+
+export async function upsertIncrementalStageScenes(
+  stageId: string,
+  scenes: Scene[],
+  fence: IncrementalSceneGenerationFence,
+): Promise<void> {
+  const persistedScenes = sanitizeScenesForPersistence(scenes);
+  for (let offset = 0; offset < persistedScenes.length; offset += 8) {
+    const batch = persistedScenes.slice(offset, offset + 8);
+    await backendJson<IncrementalSceneGenerationFence & { writtenSceneIds: string[] }>(
+      `/api/notebooks/${encodeURIComponent(stageId)}/scenes`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'upsert',
+          expectedCourseId: fence.courseId,
+          expectedContentVersion: fence.contentVersion,
+          scenes: batch.map((scene, index) => ({
+            id: scene.id,
+            title: scene.title,
+            type: scene.type,
+            order: Number.isFinite(scene.order) ? scene.order : offset + index,
+            content: scene.content,
+            actions: scene.actions,
+            whiteboards: scene.whiteboards,
+            generationDiagnostics: scene.generationDiagnostics,
+          })),
+        }),
+      },
+    );
+  }
+}
+
+export async function finalizeIncrementalStageSceneGeneration(
+  stageId: string,
+  data: StageStoreData,
+  fence: IncrementalSceneGenerationFence,
+): Promise<IncrementalSceneGenerationFence> {
+  const sortedScenes = [...data.scenes].sort((a, b) => a.order - b.order);
+  const persistedScenes = sanitizeScenesForPersistence(sortedScenes);
+  const finalizedFence = await backendJson<IncrementalSceneGenerationFence>(
+    `/api/notebooks/${encodeURIComponent(stageId)}/scenes`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'finalize',
+        expectedCourseId: fence.courseId,
+        expectedContentVersion: fence.contentVersion,
+        expectedSceneCount: persistedScenes.length,
+      }),
+    },
+  );
+  await writeStageDraftSnapshot(
+    stageId,
+    {
+      stage: data.stage,
+      scenes: persistedScenes,
+      currentSceneId: data.currentSceneId,
+    },
+    true,
+  );
+  return finalizedFence;
+}
+
 /** 防止损坏的本地/服务端快照把 `scenes` 写成非数组，导致打开课堂页时 `scenes.map` 崩溃 */
 function normalizeStageStoreData(data: StageStoreData): StageStoreData {
   const scenes = Array.isArray(data.scenes)
@@ -593,6 +735,7 @@ async function loadStageDataInternal(
     const stage: Stage = {
       id: notebook.id,
       courseId: notebook.courseId || undefined,
+      sourceNotebookId: notebook.sourceNotebookId || undefined,
       avatarUrl: notebook.avatarUrl || undefined,
       name: notebook.name,
       description: notebook.description || undefined,
@@ -786,6 +929,7 @@ export async function loadStageMetadata(stageId: string): Promise<Stage | null> 
     return {
       id: notebook.id,
       courseId: notebook.courseId || undefined,
+      sourceNotebookId: notebook.sourceNotebookId || undefined,
       avatarUrl: notebook.avatarUrl || undefined,
       name: notebook.name,
       description: notebook.description || undefined,
@@ -929,7 +1073,7 @@ export async function listStagesByCourseOrThrow(
   if (isMockCourseChatId(courseId)) return getMockCourseChatStageList();
 
   const data = await backendJson<{ notebooks: NotebookApiRow[] }>(
-    `/api/notebooks?courseId=${encodeURIComponent(courseId)}`,
+    `/api/notebooks?courseId=${encodeURIComponent(courseId)}&summary=1`,
     {
       signal: options.signal,
       timeoutMs: options.timeoutMs ?? DEFAULT_STAGE_LIST_LOAD_TIMEOUT_MS,
@@ -956,36 +1100,11 @@ export async function getFirstSlideByStages(stageIds: string[]): Promise<Record<
   const uniqueStageIds = Array.from(new Set(stageIds.map((id) => id.trim()).filter(Boolean)));
   if (uniqueStageIds.length === 0) return {};
 
-  try {
-    const params = new URLSearchParams({ ids: uniqueStageIds.join(','), preview: '1' });
-    const data = await backendJson<{ slides: Record<string, Slide> }>(
-      `/api/notebooks/first-slides?${params.toString()}`,
-    );
-    return data.slides;
-  } catch {
-    // Fall back to the older per-notebook path if the batch endpoint is unavailable.
-  }
-
-  const result: Record<string, Slide> = {};
-  await Promise.all(
-    uniqueStageIds.map(async (stageId) => {
-      try {
-        const data = await backendJson<{ scenes: SceneApiRow[] }>(
-          `/api/notebooks/${encodeURIComponent(stageId)}/scenes`,
-        );
-        const firstSlide = data.scenes
-          .slice()
-          .sort((a, b) => a.order - b.order)
-          .find((s) => s.content?.type === 'slide');
-        if (firstSlide && firstSlide.content.type === 'slide') {
-          result[stageId] = structuredClone(firstSlide.content.canvas);
-        }
-      } catch {
-        // ignore single notebook thumbnail errors
-      }
-    }),
+  const params = new URLSearchParams({ ids: uniqueStageIds.join(','), preview: '1' });
+  const data = await backendJson<{ slides: Record<string, Slide> }>(
+    `/api/notebooks/first-slides?${params.toString()}`,
   );
-  return result;
+  return data.slides;
 }
 
 export async function stageExists(stageId: string): Promise<boolean> {

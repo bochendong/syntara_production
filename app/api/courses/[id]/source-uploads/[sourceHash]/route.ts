@@ -53,6 +53,127 @@ function stringArray(value: unknown): string[] {
     : [];
 }
 
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string; sourceHash: string }> },
+) {
+  return safeRoute(async () => {
+    const auth = await requireUserId({ ensureFallbackUser: false });
+    if ('response' in auth) return auth.response;
+    const { id, sourceHash: rawSourceHash } = await context.params;
+    const sourceHash = rawSourceHash.trim();
+    if (!sourceHash) {
+      return NextResponse.json({ error: 'Source upload not found' }, { status: 404 });
+    }
+
+    type SourceTextRow = {
+      sourceHash: string;
+      id: string | null;
+      notebookId: string | null;
+      title: string | null;
+      order: number | null;
+      markdown: string | null;
+    };
+    const rows = await prisma.$queryRaw<SourceTextRow[]>`
+      WITH readable_source AS (
+        SELECT
+          source."sourceHash" AS source_hash,
+          source."courseId" AS course_id,
+          course."ownerId" AS owner_id,
+          CASE
+            WHEN jsonb_typeof(source."metadataJson"->'sectionIds') = 'array'
+              THEN source."metadataJson"->'sectionIds'
+            ELSE '[]'::jsonb
+          END AS section_ids,
+          CASE
+            WHEN jsonb_typeof(source."metadataJson"->'notebookIds') = 'array'
+              THEN source."metadataJson"->'notebookIds'
+            ELSE '[]'::jsonb
+          END AS notebook_ids
+        FROM "CourseSource" source
+        INNER JOIN "Course" course ON course."id" = source."courseId"
+        WHERE source."courseId" = ${id}
+          AND source."sourceHash" = ${sourceHash}
+          AND (
+            course."ownerId" = ${auth.userId}
+            OR EXISTS (
+              SELECT 1
+              FROM "CourseEnrollment" enrollment
+              WHERE enrollment."courseId" = course."id"
+                AND enrollment."userId" = ${auth.userId}
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM "CoursePurchase" purchase
+              WHERE purchase."sourceCourseId" = course."id"
+                AND purchase."buyerId" = ${auth.userId}
+            )
+          )
+      )
+      SELECT
+        readable_source.source_hash AS "sourceHash",
+        section."id",
+        section."notebookId",
+        section."title",
+        section."order",
+        section."markdown"
+      FROM readable_source
+      LEFT JOIN "MarkdownNotebookSection" section
+        ON (
+          (
+            jsonb_array_length(readable_source.section_ids) > 0
+            AND section."id" IN (
+              SELECT jsonb_array_elements_text(readable_source.section_ids)
+            )
+          )
+          OR (
+            jsonb_array_length(readable_source.section_ids) = 0
+            AND section."notebookId" IN (
+              SELECT jsonb_array_elements_text(readable_source.notebook_ids)
+            )
+            AND (
+              section."sourceMeta"->>'sourceHash' = readable_source.source_hash
+              OR section."sourceMeta"->>'uploadSourceHash' = readable_source.source_hash
+            )
+          )
+        )
+      LEFT JOIN "Notebook" notebook
+        ON notebook."id" = section."notebookId"
+        AND notebook."ownerId" = readable_source.owner_id
+        AND notebook."courseId" = readable_source.course_id
+      WHERE section."id" IS NULL OR notebook."id" IS NOT NULL
+      ORDER BY section."order" ASC NULLS LAST, section."title" ASC NULLS LAST
+    `;
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'Source upload not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      source: {
+        courseId: id,
+        sourceHash,
+        textSections: rows.flatMap((row) =>
+          row.id &&
+          row.notebookId &&
+          row.title !== null &&
+          row.order !== null &&
+          row.markdown !== null
+            ? [
+                {
+                  id: row.id,
+                  notebookId: row.notebookId,
+                  title: row.title,
+                  order: row.order,
+                  markdown: row.markdown,
+                },
+              ]
+            : [],
+        ),
+      },
+    });
+  });
+}
+
 function safePathSegment(input: string, fallback: string): string {
   const value = input
     .normalize('NFKC')

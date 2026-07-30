@@ -90,7 +90,7 @@ export const LEARN_BACKGROUNDS = [
 
 export type LearnBackgroundId = (typeof LEARN_BACKGROUNDS)[number]['id'];
 
-export const DEFAULT_LEARN_BACKGROUND_ID: LearnBackgroundId = 'cloud-kingdom';
+export const DEFAULT_LEARN_BACKGROUND_ID: LearnBackgroundId = 'coral-waves';
 
 export function isLearnBackgroundId(value: unknown): value is LearnBackgroundId {
   return LEARN_BACKGROUNDS.some((background) => background.id === value);

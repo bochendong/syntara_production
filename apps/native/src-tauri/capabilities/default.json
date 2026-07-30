@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Local learning data available to the main Syntara window",
+  "windows": ["main"],
+  "platforms": ["macOS", "iOS"],
+  "permissions": ["core:default", "opener:default", "sql:default", "sql:allow-execute"]
+}

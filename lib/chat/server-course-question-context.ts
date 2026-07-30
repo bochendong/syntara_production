@@ -1,4 +1,9 @@
 import type { LanguageModel } from 'ai';
+import type { TrustedCourseAccess } from '@/features/chat/server/trusted-course-turn';
+import {
+  retrieveBoundedCourseSourceSnippets,
+  type BoundedCourseSourceSnippet,
+} from '@/features/memory/server/bounded-course-source-retrieval';
 import {
   buildLayeredMemoryRecallContext,
   type LayeredMemoryRecallContext,
@@ -16,9 +21,11 @@ import {
   type CourseAccessRole,
 } from '@/lib/server/repositories/course-enrollment-repository';
 import type {
+  CourseChatAnswererHandoff,
   CourseChatContext,
   CourseChatContextNotebook,
   CourseChatContextPage,
+  CourseChatEvidenceSummary,
   CourseChatLayeredMemoryContext,
   CourseChatResourceLoadState,
 } from '@/lib/types/chat';
@@ -45,17 +52,8 @@ export type TrustedCourseQuestionEvidenceOrigin =
  * this object without exposing full source records, ingestion artifacts, or
  * private memory rows.
  */
-export type TrustedCourseQuestionEvidenceSummary = {
-  id: string;
+export type TrustedCourseQuestionEvidenceSummary = CourseChatEvidenceSummary & {
   origin: TrustedCourseQuestionEvidenceOrigin;
-  sourceType: string;
-  sourceId: string;
-  title: string;
-  excerpt: string;
-  score: number;
-  courseId: string;
-  notebookId?: string;
-  sourceHash?: string;
 };
 
 export type TrustedCourseQuestionContextResult = {
@@ -77,9 +75,11 @@ export class TrustedCourseQuestionContextError extends Error {
 
 type SourcePageCandidate = {
   page: CourseChatContextPage;
-  notebookId: string;
+  notebookId: string | null;
   sourceHash: string;
   sourceTitle: string;
+  sourceType: 'course_source' | 'markdown_section';
+  sourceId: string;
   sourceOrder: number;
 };
 
@@ -167,8 +167,15 @@ function focusedDigest(input: string, tokens: string[]): string {
   return `${start > 0 ? '… ' : ''}${text.slice(start, end).trim()}${end < text.length ? ' …' : ''}`;
 }
 
-function sourceTextState(source: CourseSourceUploadRecord): CourseChatResourceLoadState {
-  const count = source.textSections.filter((section) => section.markdown.trim()).length;
+function sourceTextState(
+  source: CourseSourceUploadRecord,
+  retrievedSnippetCount = 0,
+): CourseChatResourceLoadState {
+  const count = Math.max(
+    source.stats.sectionCount,
+    source.textSections.filter((section) => section.markdown.trim()).length,
+    retrievedSnippetCount,
+  );
   if (count > 0) return { status: 'ready', itemCount: count };
   if (source.ingestStatus === 'processing') return { status: 'loading', itemCount: 0 };
   if (source.ingestStatus === 'error') {
@@ -184,6 +191,7 @@ function sourceTextState(source: CourseSourceUploadRecord): CourseChatResourceLo
 function overallSourceState(
   sources: CourseSourceUploadRecord[],
   loadFailed: boolean,
+  retrievedSnippetCount = 0,
 ): CourseChatResourceLoadState {
   if (loadFailed) {
     return {
@@ -192,10 +200,17 @@ function overallSourceState(
       error: '课程资料暂时无法读取。',
     };
   }
-  const sectionCount = sources.reduce(
-    (count, source) =>
-      count + source.textSections.filter((section) => section.markdown.trim()).length,
-    0,
+  const sectionCount = Math.max(
+    retrievedSnippetCount,
+    sources.reduce(
+      (count, source) =>
+        count +
+        Math.max(
+          source.stats.sectionCount,
+          source.textSections.filter((section) => section.markdown.trim()).length,
+        ),
+      0,
+    ),
   );
   if (sectionCount > 0) return { status: 'ready', itemCount: sectionCount };
   if (sources.some((source) => source.ingestStatus === 'processing')) {
@@ -231,36 +246,44 @@ function coursePurpose(value: string): 'research' | 'university' | 'daily' | und
 
 function buildSourceCandidates(
   sources: CourseSourceUploadRecord[],
+  snippets: BoundedCourseSourceSnippet[],
   tokens: string[],
 ): SourceCandidate[] {
+  const snippetsBySourceHash = new Map<string, BoundedCourseSourceSnippet[]>();
+  for (const snippet of snippets) {
+    const bucket = snippetsBySourceHash.get(snippet.sourceHash) || [];
+    bucket.push(snippet);
+    snippetsBySourceHash.set(snippet.sourceHash, bucket);
+  }
+
   return sources.map((source) => {
-    const notebookOrder = new Map(source.notebookIds.map((id, index) => [id, index]));
-    const sortedSections = source.textSections
-      .filter((section) => section.markdown.trim())
+    const sortedSections = (snippetsBySourceHash.get(source.sourceHash) || [])
       .slice()
       .sort(
         (left, right) =>
-          (notebookOrder.get(left.notebookId) ?? Number.MAX_SAFE_INTEGER) -
-            (notebookOrder.get(right.notebookId) ?? Number.MAX_SAFE_INTEGER) ||
+          right.score - left.score ||
           left.order - right.order ||
           left.title.localeCompare(right.title, 'zh-CN'),
       );
     const pages = sortedSections.map<SourcePageCandidate>((section, index) => {
       const title = section.title.trim() || '未命名章节';
-      const contentScore = scoreText(tokens, section.markdown);
+      const contentScore = scoreText(tokens, section.text);
       const titleScore = scoreText(tokens, title) * 2;
       return {
         page: {
           id: section.id,
           order: index + 1,
           title,
-          digest: focusedDigest(section.markdown, tokens),
-          sourceScore: titleScore + contentScore,
+          digest: focusedDigest(section.text, tokens),
+          sourceScore: section.score + titleScore + contentScore,
         },
         notebookId: section.notebookId,
         sourceHash: source.sourceHash,
-        sourceTitle: source.title.trim() || source.topic?.trim() || '未命名资料',
-        sourceOrder: index,
+        sourceTitle:
+          section.sourceTitle.trim() || source.title.trim() || source.topic?.trim() || '未命名资料',
+        sourceType: section.sourceType,
+        sourceId: section.sourceId,
+        sourceOrder: section.order,
       };
     });
     const rankedPages = pages
@@ -292,11 +315,12 @@ function buildSourceCandidates(
 
 function selectSourceContext(
   sources: CourseSourceUploadRecord[],
+  snippets: BoundedCourseSourceSnippet[],
   tokens: string[],
   courseId: string,
 ): SelectedSourceContext {
-  const selectedCandidates = buildSourceCandidates(sources, tokens)
-    .filter((candidate) => candidate.score > 0)
+  const selectedCandidates = buildSourceCandidates(sources, snippets, tokens)
+    .filter((candidate) => candidate.score > 0 && candidate.rankedPages.length > 0)
     .sort(
       (left, right) =>
         right.score - left.score ||
@@ -353,7 +377,7 @@ function selectSourceContext(
       tags,
       updatedAt: candidate.updatedAt || undefined,
       pages,
-      pagesState: sourceTextState(candidate.source),
+      pagesState: sourceTextState(candidate.source, candidate.rankedPages.length),
       sourceScore: candidate.score,
     };
   });
@@ -368,8 +392,8 @@ function selectSourceContext(
     .map<TrustedCourseQuestionEvidenceSummary>((selected) => ({
       id: `course-source:${selected.sourceHash}:${selected.page.id}`,
       origin: 'course_source',
-      sourceType: 'markdown_section',
-      sourceId: selected.page.id,
+      sourceType: selected.sourceType,
+      sourceId: selected.sourceId,
       title: `${selected.sourceTitle} · ${selected.page.title}`,
       excerpt: compactText(
         selected.page.digest,
@@ -377,7 +401,7 @@ function selectSourceContext(
       ),
       score: selected.page.sourceScore,
       courseId,
-      notebookId: selected.notebookId,
+      notebookId: selected.notebookId || undefined,
       sourceHash: selected.sourceHash,
     }));
 
@@ -476,30 +500,91 @@ function uniqueEvidence(
   });
 }
 
+function uniqueHandoffStrings(primary: string[], fallback: string[], maxItems = 16): string[] {
+  return Array.from(
+    new Set(
+      [...primary, ...fallback]
+        .map((item) => item.normalize('NFKC').replace(/\s+/g, ' ').trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, maxItems);
+}
+
+function mergeTrustedPlannerHandoff(
+  serverHandoff: CourseChatAnswererHandoff,
+  plannerHandoff: CourseChatAnswererHandoff | undefined,
+): CourseChatAnswererHandoff {
+  if (!plannerHandoff) return serverHandoff;
+
+  return {
+    runId: plannerHandoff.runId,
+    intent: plannerHandoff.intent,
+    reasonSummary: [plannerHandoff.reasonSummary, serverHandoff.reasonSummary]
+      .filter(Boolean)
+      .join(' ')
+      .slice(0, 1_500),
+    // Planner evidence can originate in the request/semantic classification.
+    // Only authenticated database retrieval is evidence for the answerer.
+    evidence: serverHandoff.evidence,
+    requiredBehavior: uniqueHandoffStrings(
+      plannerHandoff.requiredBehavior,
+      serverHandoff.requiredBehavior,
+    ),
+    forbiddenBehavior: uniqueHandoffStrings(
+      plannerHandoff.forbiddenBehavior,
+      serverHandoff.forbiddenBehavior,
+    ),
+    missingEvidence: uniqueHandoffStrings(
+      plannerHandoff.missingEvidence,
+      serverHandoff.missingEvidence,
+    ),
+    // Live server reads are authoritative for resource availability.
+    resourceStates: serverHandoff.resourceStates,
+  };
+}
+
 async function loadCourseSources(args: {
   prisma: PrismaClient;
   userId: string;
   courseId: string;
-}): Promise<{ sources: CourseSourceUploadRecord[]; failed: boolean }> {
+  query: string;
+  verifiedAccess: { ownerId: string; accessRole: CourseAccessRole };
+}): Promise<{
+  sources: CourseSourceUploadRecord[];
+  snippets: BoundedCourseSourceSnippet[];
+  failed: boolean;
+}> {
   try {
-    const records = await listCourseSourceUploads({
-      prisma: args.prisma,
-      userId: args.userId,
-      courseId: args.courseId,
-      includeTextSections: true,
-      includeArtifacts: false,
-    });
+    const [records, retrieval] = await Promise.all([
+      listCourseSourceUploads({
+        prisma: args.prisma,
+        userId: args.userId,
+        courseId: args.courseId,
+        verifiedAccess: args.verifiedAccess,
+        // The answer path starts with source metadata only. Prompt-sized text
+        // comes from the bounded KnowledgeChunk/fallback query below.
+        includeTextSections: false,
+        includeArtifacts: false,
+      }),
+      retrieveBoundedCourseSourceSnippets({
+        prisma: args.prisma,
+        ownerId: args.verifiedAccess.ownerId,
+        courseId: args.courseId,
+        query: args.query,
+      }).catch(() => null),
+    ]);
     return {
       sources: records.filter(
         (source) => source.allQuestionUpload !== true && source.kind !== 'problem_bank',
       ),
-      failed: false,
+      snippets: retrieval?.snippets || [],
+      failed: retrieval === null,
     };
   } catch (error) {
     if (error instanceof Error && error.message === 'Course not found') {
       throw new TrustedCourseQuestionContextError('COURSE_NOT_FOUND', 'Course not found');
     }
-    return { sources: [], failed: true };
+    return { sources: [], snippets: [], failed: true };
   }
 }
 
@@ -515,6 +600,9 @@ export async function buildTrustedCourseQuestionContext(args: {
   courseId: string;
   question: string;
   conversationId?: string | null;
+  searchIntent?: MemorySearchIntent;
+  trustedAccess?: TrustedCourseAccess;
+  trustedPlannerHandoff?: CourseChatAnswererHandoff;
   model: LanguageModel;
   prisma?: PrismaClient;
 }): Promise<TrustedCourseQuestionContextResult> {
@@ -529,35 +617,61 @@ export async function buildTrustedCourseQuestionContext(args: {
   }
 
   const prisma = args.prisma || defaultPrisma;
-  const [accessRole, course] = await Promise.all([
-    findCourseAccessRole(prisma, userId, courseId),
-    prisma.course.findUnique({
-      where: { id: courseId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        language: true,
-        purpose: true,
-        tags: true,
-        university: true,
-        courseCode: true,
-        notebookCount: true,
-        problemCount: true,
-      },
-    }),
-  ]);
+  if (
+    args.trustedAccess &&
+    (args.trustedAccess.userId !== userId || args.trustedAccess.course.id !== courseId)
+  ) {
+    throw new TrustedCourseQuestionContextError('COURSE_NOT_FOUND', 'Course not found');
+  }
+  const [accessRole, course] = args.trustedAccess
+    ? [args.trustedAccess.role, args.trustedAccess.course]
+    : await Promise.all([
+        findCourseAccessRole(prisma, userId, courseId),
+        prisma.course.findUnique({
+          where: { id: courseId },
+          select: {
+            id: true,
+            ownerId: true,
+            name: true,
+            description: true,
+            language: true,
+            purpose: true,
+            tags: true,
+            university: true,
+            courseCode: true,
+            notebookCount: true,
+            problemCount: true,
+          },
+        }),
+      ]);
   if (!accessRole || !course) {
     throw new TrustedCourseQuestionContextError('COURSE_NOT_FOUND', 'Course not found');
   }
 
-  const searchIntent = await planMemorySearchIntent({
-    query: question,
-    model: args.model,
-    targetType: 'course',
-  });
+  const searchIntent =
+    args.searchIntent ??
+    (await planMemorySearchIntent({
+      query: question,
+      model: args.model,
+      targetType: 'course',
+    }));
+  const sourceRetrievalQuery = compactText(
+    [question, searchIntent.rewrittenQuery, ...searchIntent.plan.searchQueries.slice(0, 3)].join(
+      ' ',
+    ),
+    MAX_RETRIEVAL_QUERY_CHARS,
+  );
   const [sourceLoad, layeredMemory] = await Promise.all([
-    loadCourseSources({ prisma, userId, courseId }),
+    loadCourseSources({
+      prisma,
+      userId,
+      courseId,
+      query: sourceRetrievalQuery,
+      verifiedAccess: {
+        ownerId: course.ownerId,
+        accessRole,
+      },
+    }),
     buildLayeredMemoryRecallContext({
       targetType: 'course',
       targetId: courseId,
@@ -565,19 +679,72 @@ export async function buildTrustedCourseQuestionContext(args: {
       question: searchIntent.rewrittenQuery || question,
       conversationId: args.conversationId?.trim() || null,
       searchIntent,
+      skipMarkdownSourceEvidence: true,
+      // Course access and ownership were already resolved above. Reuse that
+      // trusted server state instead of issuing a second course-access query
+      // inside the memory layer.
+      resolvedTarget: {
+        targetType: 'course',
+        targetId: courseId,
+        courseId,
+        notebookId: null,
+        targetOwnerId: course.ownerId,
+        accessRole,
+      },
     }),
   ]);
 
-  const tokens = queryTokens(
-    [question, searchIntent.rewrittenQuery, ...searchIntent.plan.searchQueries.slice(0, 3)].join(
-      ' ',
-    ),
+  const tokens = queryTokens(sourceRetrievalQuery);
+  const selectedSources = selectSourceContext(
+    sourceLoad.sources,
+    sourceLoad.snippets,
+    tokens,
+    courseId,
   );
-  const selectedSources = selectSourceContext(sourceLoad.sources, tokens, courseId);
   const evidence = uniqueEvidence([
     ...selectedSources.evidence,
     ...memoryEvidence(layeredMemory, courseId),
   ]).slice(0, TRUSTED_COURSE_QUESTION_CONTEXT_LIMITS.maxEvidenceItems);
+  const resourceStates = {
+    notebooks: countState(course.notebookCount),
+    problems: countState(course.problemCount),
+    sources: overallSourceState(sourceLoad.sources, sourceLoad.failed, sourceLoad.snippets.length),
+  };
+  const hasCourseSourceEvidence = evidence.some((item) => item.origin === 'course_source');
+  const serverAnswererHandoff: CourseChatAnswererHandoff = {
+    runId: `trusted-course-answer:${courseId}`,
+    intent: `course_answer:${searchIntent.kind}`,
+    reasonSummary:
+      'The server rebuilt the answer context from authenticated course sources and learner memory.',
+    evidence: evidence.slice(0, 8).map((item) => ({
+      sourceType: item.sourceType,
+      sourceId: item.sourceId,
+      title: item.title,
+      quoteOrSummary: item.excerpt,
+      supports: `Ground the answer in this ${item.origin.replaceAll('_', ' ')} evidence.`,
+      confidence: item.score,
+    })),
+    requiredBehavior: [
+      'Answer the learner question directly before offering optional next steps.',
+      'Use the supplied trusted evidence for course-specific claims and clearly distinguish explanation from source-grounded facts.',
+      'Explain the reasoning, include one useful example or check when relevant, and call out a likely misconception.',
+    ],
+    forbiddenBehavior: [
+      'Do not invent course-source claims, learner history, or problem-bank items.',
+      'Do not execute calendar, plan, practice, classroom, image, or memory mutations unless the learner explicitly requested that workflow and the application supplied a confirmation-gated action.',
+    ],
+    missingEvidence:
+      searchIntent.sourceGrounding.required && !hasCourseSourceEvidence
+        ? [
+            'The question requires original-source grounding, but no matching course-source excerpt was retrieved. State that limitation instead of fabricating a citation.',
+          ]
+        : [],
+    resourceStates: {
+      notebooks: resourceStates.notebooks.status,
+      problems: resourceStates.problems.status,
+      sources: resourceStates.sources.status,
+    },
+  };
 
   return {
     accessRole,
@@ -601,11 +768,11 @@ export async function buildTrustedCourseQuestionContext(args: {
         role: 'teacher',
       },
       notebooks: selectedSources.notebooks,
-      resourceStates: {
-        notebooks: countState(course.notebookCount),
-        problems: countState(course.problemCount),
-        sources: overallSourceState(sourceLoad.sources, sourceLoad.failed),
-      },
+      resourceStates,
+      answererHandoff: mergeTrustedPlannerHandoff(
+        serverAnswererHandoff,
+        args.trustedPlannerHandoff,
+      ),
       layeredMemory: toCourseLayeredMemory(layeredMemory),
     },
   };

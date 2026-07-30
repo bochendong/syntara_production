@@ -1092,11 +1092,17 @@ export async function listCourseSourceUploads(args: {
   prisma: PrismaClient;
   userId: string;
   courseId: string;
+  /** Server-verified access from the same request; never populate from client input. */
+  verifiedAccess?: { ownerId: string; accessRole: CourseAccessRole };
+  /**
+   * Heavy detail/admin projection. AI answer retrieval must keep this false and
+   * use the bounded KnowledgeChunk/source-section reader instead.
+   */
   includeTextSections?: boolean;
   includeArtifacts?: boolean;
   serializeDatabaseReads?: boolean;
 }): Promise<CourseSourceUploadRecord[]> {
-  const { ownerId, accessRole } = await requireReadableCourse(args);
+  const { ownerId, accessRole } = args.verifiedAccess ?? (await requireReadableCourse(args));
   const storedArgs = {
     prisma: args.prisma,
     ownerId,

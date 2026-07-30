@@ -1,0 +1,82 @@
+Use case: scientific-educational
+Asset type: 16:9 hand-drawn course notebook slide with recoverable component corner markers
+Primary request:
+Generate one MAT136 · 换元时为什么必须一起换 dx？ hand-drawn notebook slide.
+The slide should look like a normal classroom notebook page, except that each marker-tracked learning component has four tiny colored corner markers for software recovery.
+Slide title:
+“换元时为什么必须一起换 dx？”
+Student-visible style:
+- Style preset: hand-drawn-course-notebook.
+- Canvas: 16:9 full-bleed page; no centered card, outer frame, browser UI, or watermark.
+- Background: 全幅白色方格纸，淡灰网格触及四边.
+- Writing style: 自然但清楚的简体中文课堂手写体与标准数学公式.
+- Color mood: 黑色、石墨灰、浅暖灰；普通内容禁用 marker 纯色.
+- Palette direction: graphite notebook - #111111, #4b4b4b, #d6d3d1, #f5f5f4.
+- Content density: medium; keep all text large, sparse, and projector-readable.
+- Decorative elements: light; decorations are allowed only as unmarked support and must not receive corner markers.
+- User-selected art direction: 像大学微积分老师边讲边画的一页精致课堂笔记，而不是前端组件。.
+- Marker color reservation: 普通内容只用黑、灰和暖灰；纯色仅供四角 marker。
+- Do not use these pure colors in ordinary content: #ff0000, #00ff00, #0048ff, #00ffff, #ff00ff, #ffff00.
+- No photorealism, no UI chrome, no watermark.
+Notebook context:
+- Goal: 把换元理解为积分变量和微小宽度的共同转换，并在典型例题里完成整体替换。
+- Page 1 of 1.
+- Visible language: zh-CN.
+- Density policy:
+Length/density profile: 5 页以下 overview (4-5 pages).
+Teaching mode: Overview deck: frame the topic, show the route map, compare the core choices, and leave details for a longer notebook.
+Per-page density limits: 2-3 broad parent regions; no more than 4 keyPoints, 4 mustShow items, 2 formulas, and 3 worked/example steps per page.
+Complete worked-example limit for this length: at most 1.
+- One page should carry one big idea or one decision, not a compressed full lecture.
+- Prefer hook, route-map, comparison, method-choice, and summary pages.
+- Use at most one complete worked example; other examples should be tiny anchors or questions.
+- Do not include full derivations, long proof chains, dense checklists, or many boxed mini-sections.
+Layout:
+- Follow the layout slot listed for each learning component.
+- Top/header components should read first; bottom/question components should close the page.
+- Keep generous whitespace between components: at least 56 px between the header/title component and the middle component row, at least 32 px between neighboring middle components, and at least 40 px between learning components and decorative sketches.
+- Keep every marker-tracked component inside one simple logical rectangular area; do not make a component diagonal, staggered, or split across multiple distant clusters.
+- Do not split one component into multiple far-apart islands.
+- Decorative sketches are allowed, but decorations must not receive corner markers.
+- Do not draw any colored frame, border, bracket, or guide line around a component.
+Corner marker protocol:
+- There are exactly 3 marker-tracked learning components.
+- Each marker-tracked component must have exactly four tiny isolated colored square markers: one near the outer top-left corner, one near top-right, one near bottom-left, and one near bottom-right.
+- Place the four markers just outside the visual boundary of that component, as if they mark the component bounding box.
+- Markers should be close enough to tightly recover the component area, but not touching text, formulas, graph lines, arrows, or fills.
+- Leave at least 30 px of blank low-texture page background around every marker so it can be removed cleanly.
+- Markers are solid colored squares, about 16 px on a 1600×900 image.
+- Do not connect the markers with lines.
+- Do not draw colored rectangles or colored outlines.
+- The only pure-color marks in the entire image should be these 12 marker squares.
+- The pure marker colors are reserved only for markers: #ff0000, #00ff00, #0048ff, #00ffff, #ff00ff, #ffff00.
+Learning components and marker colors:
+1. dx 指明变量，也代表微小宽度
+   Marker color: pure red #ff0000
+   Layout slot: middle-left
+   Role: opening
+   Content: dx 不是装饰；积分是对 x 的微小宽度累加；换变量时宽度也必须转换
+   Formulas: ∫ f(x) dx
+   Diagram/visual: 画 x 轴上一个很窄的小条标为 dx，旁边画 u 轴上的对应小条标为 du，用黑色弯箭头连接两者。
+   Put four red corner markers around this whole component.
+
+2. du = g′(x) dx 是换元桥梁
+   Marker color: pure lime #00ff00
+   Layout slot: middle-right
+   Role: formula
+   Content: 设 u = g(x)；由链式法则得到 du = g′(x) dx；用这个关系替换原积分中的整块因子
+   Formulas: u = g(x)；du = g′(x) dx
+   Diagram/visual: 画从 u 等于 g(x) 到 du 等于 g 撇 x 乘 dx 的两步推导，用普通黑色箭头和简洁手写注释“链式法则”。
+   Put four lime corner markers around this whole component.
+
+3. 例题：把 2x dx 整体替换成 du
+   Marker color: pure blue #0048ff
+   Layout slot: bottom-full
+   Role: example
+   Content: 令 u = x²；则 du = 2x dx；原积分变为 ∫ cos(u) du；换元后只剩 u 与 du
+   Formulas: ∫ 2x cos(x²) dx；u = x²,  du = 2x dx；∫ cos(u) du
+   Diagram/visual: 画一个三步演算流程：原积分、圈出 x 平方与二 x dx 两块、换成只含 u 和 du 的积分。公式必须清晰正确。
+   Put four blue corner markers around this whole component.
+Validation target:
+The output is valid only if it contains exactly 12 isolated colored square markers: 4 red, 4 lime, 4 blue.
+No colored connecting lines, no colored borders, no missing corner markers, and no extra pure-color marker-like squares.

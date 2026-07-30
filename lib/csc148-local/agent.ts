@@ -81,9 +81,21 @@ function formatProblemEvidence(
     .join('\n');
 }
 
+function formatMemoryEvidence(
+  hit: Extract<Csc148LocalSearchHit, { kind: 'memory' }>,
+  index: number,
+) {
+  return [
+    `共有记忆 ${index + 1}: ${hit.memory.title}`,
+    `score=${hit.score}; target=${hit.memory.targetType}; kind=${hit.memory.kind}`,
+    `contract=${trimEvidence(hit.memory.text, 720)}`,
+  ].join('\n');
+}
+
 function buildPromptParts(args: {
   userMessage: string;
   normalizedQuery: string;
+  memoryEvidence: string;
   sectionEvidence: string;
   problemEvidence: string;
 }): Csc148LocalAgentPromptPart[] {
@@ -108,6 +120,11 @@ function buildPromptParts(args: {
       role: 'user',
       title: '用户问题',
       content: args.userMessage,
+    },
+    {
+      role: 'developer',
+      title: '命中的本地共有记忆',
+      content: args.memoryEvidence || '没有命中共有记忆。',
     },
     {
       role: 'developer',
@@ -168,12 +185,19 @@ export function buildCsc148LocalAgentRun(userMessage: string): Csc148LocalAgentR
       (hit): hit is Extract<Csc148LocalSearchHit, { kind: 'problem' }> => hit.kind === 'problem',
     )
     .slice(0, 6);
+  const selectedMemories = hits
+    .filter(
+      (hit): hit is Extract<Csc148LocalSearchHit, { kind: 'memory' }> => hit.kind === 'memory',
+    )
+    .slice(0, 3);
 
+  const memoryEvidence = selectedMemories.map(formatMemoryEvidence).join('\n\n---\n\n');
   const sectionEvidence = selectedSections.map(formatSectionEvidence).join('\n\n---\n\n');
   const problemEvidence = selectedProblems.map(formatProblemEvidence).join('\n\n---\n\n');
   const promptParts = buildPromptParts({
     userMessage,
     normalizedQuery,
+    memoryEvidence,
     sectionEvidence,
     problemEvidence,
   });
@@ -200,15 +224,16 @@ export function buildCsc148LocalAgentRun(userMessage: string): Csc148LocalAgentR
       id: 'load-local-data',
       label: '3. 读取本地课程包',
       input: 'data/csc148/course.json + data/csc148/problem-bank.json',
-      output: `${dataset.course.notebookCount} notebooks / ${dataset.course.sectionCount} sections / ${dataset.problemBank.stats.total} problems`,
+      output: `${dataset.course.notebookCount} notebooks / ${dataset.course.sectionCount} sections / ${dataset.memories.length} memories / ${dataset.problemBank.stats.total} problems`,
       detail: '只读取 repo 本地 JSON，不访问 Prisma、IndexedDB、远端 API 或 LLM。',
     },
     {
       id: 'retrieve',
       label: '4. 本地检索',
       input: normalizedQuery,
-      output: `${hits.length} hits: ${selectedSections.length} sections + ${selectedProblems.length} problems selected`,
-      detail: '按 title、summary、section、tags、question、explanation、templateCode 加权打分。',
+      output: `${hits.length} hits: ${selectedMemories.length} memories + ${selectedSections.length} sections + ${selectedProblems.length} problems selected`,
+      detail:
+        '先检索本地共有记忆，再按 title、summary、tags、question 与 explanation 检索正文和题目。',
     },
     {
       id: 'assemble-prompt',
@@ -234,6 +259,7 @@ export function buildCsc148LocalAgentRun(userMessage: string): Csc148LocalAgentR
     hits,
     selectedSections,
     selectedProblems,
+    selectedMemories,
     assistantReply: buildAssistantReply({ selectedSections, selectedProblems }),
   };
 }

@@ -9,6 +9,7 @@ import {
   learnTurnRequestSchema,
 } from '@/features/learn-core';
 import { createRequestSemanticRouter } from '@/features/learn-core/server/semantic-router-runtime';
+import { issueTrustedLearnAnswererHandoff } from '@/features/learn-core/server/trusted-answerer-handoff';
 import { prisma } from '@/lib/server/prisma';
 import { searchLearnProblemBankForPractice } from '@/lib/server/problem-bank-practice-search';
 
@@ -41,7 +42,15 @@ export async function POST(request: NextRequest) {
             }),
         });
 
-        return NextResponse.json(learnTurnDecisionToResponse(parsed));
+        return NextResponse.json({
+          ...learnTurnDecisionToResponse(parsed),
+          trustedAnswererHandoffToken: issueTrustedLearnAnswererHandoff({
+            decision: parsed,
+            userId: auth.userId,
+            courseId: payload.data.courseId,
+            question: payload.data.question,
+          }),
+        });
       }),
     {
       operationCode: 'learn_turn_runtime',

@@ -12,17 +12,11 @@ export function ServerProvidersInit() {
   const pathname = usePathname();
   const fetchServerProviders = useSettingsStore((state) => state.fetchServerProviders);
   const isLocalMemoryTest = pathname?.startsWith('/test/memory-') === true;
-  const isLightweightRoute =
-    pathname === '/learn' ||
-    pathname === '/calendar' ||
-    pathname?.startsWith('/calendar/') ||
-    pathname === '/profile' ||
-    pathname?.startsWith('/profile/');
 
   useEffect(() => {
-    if (isLocalMemoryTest || isLightweightRoute) return;
+    if (isLocalMemoryTest) return;
     fetchServerProviders();
-  }, [fetchServerProviders, isLightweightRoute, isLocalMemoryTest]);
+  }, [fetchServerProviders, isLocalMemoryTest]);
 
   return null;
 }

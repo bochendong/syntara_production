@@ -21,7 +21,10 @@ function AuthSessionSync() {
         email: session.user.email?.trim().toLowerCase() ?? '',
         role: session.user.role ?? 'USER',
       });
-    } else if (status === 'unauthenticated' && authMode === 'oauth') {
+    } else if (
+      status === 'unauthenticated' &&
+      (authMode === 'oauth' || (authMode === 'email' && process.env.NODE_ENV === 'production'))
+    ) {
       logout();
     }
   }, [session, status, syncFromOAuth, logout, authMode]);

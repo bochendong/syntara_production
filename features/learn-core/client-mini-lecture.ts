@@ -33,6 +33,10 @@ export type MiniLectureAction =
       type: 'speech';
       title: string;
       text: string;
+      /** Region narrated by this segment; generated decks use it to keep the image mask in sync. */
+      elementId?: string;
+      /** Generated OpenAI MP3. Legacy decks may omit this field. */
+      audioDataUrl?: string;
     };
 
 export type MiniLecturePage = {
@@ -45,6 +49,8 @@ export type MiniLecturePage = {
 
 export type MiniLectureDeck = {
   id: string;
+  /** IndexedDB key for generated image/audio assets; safe metadata is synced remotely. */
+  localAssetId?: string;
   title: string;
   sourceQuestion: string;
   sourceAnswer: string;
@@ -53,9 +59,62 @@ export type MiniLectureDeck = {
     type: 'corner-square-markers';
     markerSizePx: number;
     markerCountPerComponent: 4;
-    recoveredFrom: 'client-mini-lecture';
+    recoveredFrom: 'client-mini-lecture' | 'openai-image2-marker-recovery';
+  };
+  generator?: {
+    image: { provider: string; model: string };
+    actions: { provider: string; model: string };
+    tts: { provider: string; model: string; voice: string };
   };
   createdAt: number;
+};
+
+export type GeneratedMiniLectureManifest = {
+  lectureId: string;
+  title: string;
+  createdAt: string;
+  source: {
+    messageId?: string;
+    answerId?: string;
+  };
+  generator: NonNullable<MiniLectureDeck['generator']>;
+  pages: Array<{
+    id: string;
+    title: string;
+    width: number;
+    height: number;
+    image: {
+      mimeType: string;
+      base64: string;
+    };
+    regions: Array<{
+      id: string;
+      label: string;
+      color: string;
+      /** Generated manifests use [left, top, width, height]. */
+      bbox: [number, number, number, number];
+    }>;
+    actions: Array<
+      | {
+          id: string;
+          type: 'spotlight';
+          regionId: string;
+          title: string;
+          dimOpacity: number;
+        }
+      | {
+          id: string;
+          type: 'speech';
+          regionId: string;
+          title: string;
+          text: string;
+          audio: {
+            mimeType: string;
+            base64: string;
+          };
+        }
+    >;
+  }>;
 };
 
 export const MINI_LECTURE_CANVAS_WIDTH = 1000;
@@ -235,12 +294,22 @@ function page(args: {
 function isMiniLectureCandidate(question: string, answer: string): boolean {
   if (answer.trim().length < 120) return false;
   if (
-    /(学到哪里|学习状态|当前状态|进度|复习计划|学习计划|刷题计划|小测|quiz|test)/i.test(question)
+    /(学到哪里|学习状态|当前状态|进度|复习计划|学习计划|刷题计划|小测|quiz|test|日程|安排|提醒|记忆里有什么)/i.test(
+      question,
+    )
   ) {
     return false;
   }
-  return /(讲解|解释|说明|为什么|怎么理解|怎么做|如何做|题目|这道题|证明|推导|公式|概念|知识点|错在哪|哪里错|step|explain|why|prove|problem)/i.test(
-    question,
+  const explanationSignal =
+    /(讲解|解释|说明|为什么|怎么理解|怎么做|如何做|是什么|什么是|定义|原理|区别|关系|含义|例子|举例|题目|这道题|解题|求解|计算|证明|推导|公式|定理|概念|知识点|错在哪|哪里错|step|explain|why|how|prove|problem)/i;
+  const problemSignal =
+    /(^|\s)(已知|若|设|求|解|证明|下列|选择题|填空题)|[=∫∑√∞]|\b(?:lim|sin|cos|tan|log)\b|\\(?:frac|sqrt|int|sum)\b/i;
+  const answerSignal =
+    /(核心思路|解题步骤|第一步|首先|因此|所以|定义是|关键在于|可以理解为|证明如下)/i;
+  return (
+    explanationSignal.test(question) ||
+    problemSignal.test(question) ||
+    (question.trim().length >= 18 && answerSignal.test(answer))
   );
 }
 
@@ -340,5 +409,81 @@ export function buildMiniLectureDeck(prompt: MiniLecturePrompt): MiniLectureDeck
       recoveredFrom: 'client-mini-lecture',
     },
     createdAt: Date.now(),
+  };
+}
+
+export function generatedManifestToMiniLectureDeck(
+  manifest: GeneratedMiniLectureManifest,
+  prompt: MiniLecturePrompt,
+): MiniLectureDeck {
+  return {
+    id: manifest.lectureId,
+    localAssetId: `mini-lecture:${manifest.lectureId}`,
+    title: manifest.title,
+    sourceQuestion: prompt.question,
+    sourceAnswer: prompt.answer,
+    pages: manifest.pages.map((page) => {
+      const scaleX = MINI_LECTURE_CANVAS_WIDTH / Math.max(1, page.width);
+      const scaleY = MINI_LECTURE_CANVAS_HEIGHT / Math.max(1, page.height);
+      const regions: MiniLectureRegion[] = page.regions.map((item) => {
+        const [left, top, width, height] = item.bbox;
+        const bbox: MiniLectureRegion['bbox'] = [
+          left * scaleX,
+          top * scaleY,
+          (left + width) * scaleX,
+          (top + height) * scaleY,
+        ];
+        return {
+          id: item.id,
+          label: item.label,
+          script: '',
+          markerColorHex: item.color,
+          bbox,
+          markerPoints: markerPoints(bbox),
+        };
+      });
+      const speechByRegion = new Map(
+        page.actions
+          .filter(
+            (action): action is Extract<(typeof page.actions)[number], { type: 'speech' }> =>
+              action.type === 'speech',
+          )
+          .map((action) => [action.regionId, action.text] as const),
+      );
+      for (const item of regions) item.script = speechByRegion.get(item.id) || item.label;
+      return {
+        id: page.id,
+        title: page.title,
+        imageDataUrl: `data:${page.image.mimeType || 'image/png'};base64,${page.image.base64}`,
+        regions,
+        actions: page.actions.map(
+          (action): MiniLectureAction =>
+            action.type === 'spotlight'
+              ? {
+                  id: action.id,
+                  type: 'spotlight',
+                  elementId: action.regionId,
+                  title: action.title,
+                  dimOpacity: action.dimOpacity,
+                }
+              : {
+                  id: action.id,
+                  type: 'speech',
+                  title: action.title,
+                  text: action.text,
+                  elementId: action.regionId,
+                  audioDataUrl: `data:${action.audio.mimeType || 'audio/mpeg'};base64,${action.audio.base64}`,
+                },
+        ),
+      };
+    }),
+    markerProtocol: {
+      type: 'corner-square-markers',
+      markerSizePx: MARKER_SIZE,
+      markerCountPerComponent: 4,
+      recoveredFrom: 'openai-image2-marker-recovery',
+    },
+    generator: manifest.generator,
+    createdAt: Date.parse(manifest.createdAt) || Date.now(),
   };
 }

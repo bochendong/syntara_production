@@ -5,7 +5,7 @@ import { Output } from 'ai';
 import type { LanguageModel, UserModelMessage } from 'ai';
 import { z } from 'zod';
 import { Prisma, type PrismaClient } from '@/lib/server/generated-prisma';
-import type { NotebookProblemImportDraft, NotebookProblemPublicContent } from '@/lib/problem-bank';
+import type { NotebookProblemImportDraft } from '@/lib/problem-bank';
 import {
   claimProblemImportBatchCommit,
   createProblemImportBatch,
@@ -23,10 +23,7 @@ import {
   courseProblemDedupeKey,
   fullProblemFingerprint,
 } from '@/features/problems/domain/problem-dedupe';
-import {
-  createCourseProblemsFromDraftsWithSummary,
-  ensureLegacyProblemsBackfilledForCourse,
-} from '@/features/problems/server/service';
+import { createCourseProblemsFromDraftsWithSummary } from '@/features/problems/server/service';
 import {
   planSourceMemoryIngestion,
   type SourceIngestionInput,
@@ -177,8 +174,7 @@ export type SourceUploadIngestionResult = {
 type ExistingProblemFingerprint = {
   id: string;
   title: string;
-  fingerprint: string;
-  contentFingerprint: string | null;
+  dedupeKey: string;
 };
 
 type ProblemDuplicateMatch = {
@@ -230,9 +226,13 @@ type IngestCourseSourceUploadArgs = {
   requireNotebookCover?: boolean;
 };
 
-const MAX_SOURCE_TEXT_CHARS = 180_000;
+// Keep the persistence boundary aligned with the server upload contract. The
+// learn UI deliberately accepts smaller files, but a valid 220k-character API
+// upload must not be silently truncated again during ingestion.
+const MAX_SOURCE_TEXT_CHARS = 220_000;
 const MAX_PROBLEM_EXTRACTION_CHARS = 70_000;
 const MAX_MARKDOWN_SECTION_CHARS = 220_000;
+const MAX_PROBLEM_DEDUPE_INPUT_KEYS = 5_000;
 const SOURCE_COVER_WIDTH = 1024;
 const SOURCE_COVER_HEIGHT = 1448;
 const SOURCE_COVER_PUBLIC_PREFIX = '/generated-source-covers';
@@ -611,27 +611,32 @@ async function appendMarkdownSections(args: {
   }>;
 }): Promise<Array<{ id: string; title: string; summary: string | null }>> {
   if (args.sections.length === 0) return [];
-  const existingSections = await args.prisma.markdownNotebookSection.findMany({
-    where: { notebookId: args.notebookId },
-    select: { id: true, title: true, summary: true, sourceMeta: true },
-    orderBy: { order: 'asc' },
-  });
-  const existingSourceSections = existingSections.filter((section) => {
-    const meta = asRecord(section.sourceMeta);
-    return meta?.sourceHash === args.sourceHash;
-  });
-  if (existingSourceSections.length > 0) {
-    return existingSourceSections.map(({ id, title, summary }) => ({ id, title, summary }));
-  }
-  const maxOrder = await args.prisma.markdownNotebookSection.aggregate({
-    where: { notebookId: args.notebookId },
-    _max: { order: true },
-  });
-  const startOrder = (maxOrder._max.order ?? -1) + 1;
-  const sections: Array<{ id: string; title: string; summary: string | null }> = [];
-  for (const [index, section] of args.sections.entries()) {
-    const created = await args.prisma.markdownNotebookSection.create({
-      data: {
+  const sections = await args.prisma.$transaction(async (tx) => {
+    await tx.$queryRawUnsafe(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))::text AS "locked"',
+      `source-markdown-sections:${args.notebookId}`,
+    );
+    const existingSourceSections = await tx.markdownNotebookSection.findMany({
+      where: {
+        notebookId: args.notebookId,
+        sourceMeta: {
+          path: ['sourceHash'],
+          equals: args.sourceHash,
+        },
+      },
+      select: { id: true, title: true, summary: true, order: true },
+      orderBy: { order: 'asc' },
+    });
+    if (existingSourceSections.length > 0) {
+      return existingSourceSections.map(({ id, title, summary }) => ({ id, title, summary }));
+    }
+    const maxOrder = await tx.markdownNotebookSection.aggregate({
+      where: { notebookId: args.notebookId },
+      _max: { order: true },
+    });
+    const startOrder = (maxOrder._max.order ?? -1) + 1;
+    const created = await tx.markdownNotebookSection.createManyAndReturn({
+      data: args.sections.map((section, index) => ({
         notebookId: args.notebookId,
         courseId: args.courseId,
         title: cleanTitle(section.title, '上传资料'),
@@ -639,22 +644,24 @@ async function appendMarkdownSections(args: {
         markdown: section.markdown,
         summary: section.summary,
         sourceMeta: toPrismaNullableJson(section.sourceMeta),
-      },
-      select: { id: true, title: true, summary: true },
+      })),
+      select: { id: true, title: true, summary: true, order: true },
     });
-    sections.push(created);
-  }
-  const sectionCount = await args.prisma.markdownNotebookSection.count({
-    where: { notebookId: args.notebookId },
-  });
-  await args.prisma.notebook.update({
-    where: { id: args.notebookId },
-    data: {
-      notebookKind: 'markdown',
-      sectionCount,
-      contentVersion: { increment: 1 },
-      updatedAt: new Date(),
-    },
+    const sectionCount = await tx.markdownNotebookSection.count({
+      where: { notebookId: args.notebookId },
+    });
+    await tx.notebook.update({
+      where: { id: args.notebookId },
+      data: {
+        notebookKind: 'markdown',
+        sectionCount,
+        contentVersion: { increment: 1 },
+        updatedAt: new Date(),
+      },
+    });
+    return created
+      .sort((left, right) => left.order - right.order)
+      .map(({ id, title, summary }) => ({ id, title, summary }));
   });
   await refreshCourseSummaryFields(args.prisma, args.courseId);
   return sections;
@@ -1141,41 +1148,30 @@ async function generateNotebookCoverForSource(args: {
 async function loadExistingProblemFingerprints(args: {
   prisma: PrismaClient;
   courseId: string;
+  drafts: NotebookProblemImportDraft[];
 }): Promise<ExistingProblemFingerprint[]> {
+  const dedupeKeys = Array.from(new Set(args.drafts.map((draft) => courseProblemDedupeKey(draft))));
+  if (dedupeKeys.length > MAX_PROBLEM_DEDUPE_INPUT_KEYS) {
+    throw new Error(
+      `Source upload contains too many distinct problems (${dedupeKeys.length}); maximum is ${MAX_PROBLEM_DEDUPE_INPUT_KEYS}.`,
+    );
+  }
+  if (dedupeKeys.length === 0) return [];
   const rows = await args.prisma.notebookProblem.findMany({
     where: {
+      dedupeKey: { in: dedupeKeys },
       OR: [{ courseId: args.courseId }, { courseId: null, notebook: { courseId: args.courseId } }],
     },
     select: {
       id: true,
       title: true,
-      type: true,
-      publicContentJson: true,
+      dedupeKey: true,
     },
-    orderBy: { id: 'asc' },
+    take: MAX_PROBLEM_DEDUPE_INPUT_KEYS,
   });
   return rows
-    .map((row) => {
-      const publicContent = row.publicContentJson as NotebookProblemPublicContent;
-      try {
-        return {
-          id: row.id,
-          title: row.title,
-          fingerprint: fullProblemFingerprint({
-            title: row.title,
-            type: row.type,
-            publicContent,
-          }),
-          contentFingerprint: contentOnlyProblemFingerprint({
-            type: row.type,
-            publicContent,
-          }),
-        };
-      } catch {
-        return null;
-      }
-    })
-    .filter((item): item is ExistingProblemFingerprint => Boolean(item));
+    .filter((row): row is typeof row & { dedupeKey: string } => Boolean(row.dedupeKey))
+    .map(({ id, title, dedupeKey }) => ({ id, title, dedupeKey }));
 }
 
 function dedupeDrafts(args: {
@@ -1188,17 +1184,10 @@ function dedupeDrafts(args: {
   duplicates: ProblemDuplicateMatch[];
   reusedProblemIds: string[];
 } {
-  const existingByFingerprint = new Map<string, ExistingProblemFingerprint>();
-  const existingByContentFingerprint = new Map<string, ExistingProblemFingerprint>();
+  const existingByDedupeKey = new Map<string, ExistingProblemFingerprint>();
   for (const existing of args.existing) {
-    if (!existingByFingerprint.has(existing.fingerprint)) {
-      existingByFingerprint.set(existing.fingerprint, existing);
-    }
-    if (
-      existing.contentFingerprint &&
-      !existingByContentFingerprint.has(existing.contentFingerprint)
-    ) {
-      existingByContentFingerprint.set(existing.contentFingerprint, existing);
+    if (!existingByDedupeKey.has(existing.dedupeKey)) {
+      existingByDedupeKey.set(existing.dedupeKey, existing);
     }
   }
   const seenFingerprints = new Set<string>();
@@ -1210,6 +1199,7 @@ function dedupeDrafts(args: {
   for (const draft of args.drafts) {
     const fingerprint = fullProblemFingerprint(draft);
     const contentFingerprint = contentOnlyProblemFingerprint(draft);
+    const dedupeKey = courseProblemDedupeKey(draft);
     const sameUploadMatch =
       seenFingerprints.has(fingerprint) ||
       (contentFingerprint !== null && seenContentFingerprints.has(contentFingerprint));
@@ -1225,18 +1215,14 @@ function dedupeDrafts(args: {
     seenFingerprints.add(fingerprint);
     if (contentFingerprint) seenContentFingerprints.add(contentFingerprint);
 
-    const existingByFullMatch = existingByFingerprint.get(fingerprint) ?? null;
-    const existingByContentMatch = contentFingerprint
-      ? (existingByContentFingerprint.get(contentFingerprint) ?? null)
-      : null;
-    const existingMatch = existingByFullMatch ?? existingByContentMatch;
+    const existingMatch = existingByDedupeKey.get(dedupeKey) ?? null;
     if (existingMatch) {
       reusedProblemIds.add(existingMatch.id);
       duplicates.push({
         title: draft.title,
         reason: 'existing_course',
         existingProblemId: existingMatch.id,
-        matchedBy: existingByFullMatch ? 'title_and_content' : 'content_only',
+        matchedBy: dedupeKey.includes(':content:') ? 'content_only' : 'title_and_content',
       });
       continue;
     }
@@ -1247,7 +1233,7 @@ function dedupeDrafts(args: {
         uploadSourceHash: args.sourceHash,
         uploadSourceTitle: args.sourceTitle,
         dedupeFingerprint: fingerprint,
-        courseDedupeKey: courseProblemDedupeKey(draft),
+        courseDedupeKey: dedupeKey,
       },
     });
   }
@@ -4521,10 +4507,6 @@ export async function ingestCourseSourceUpload(
     audience: 'creator',
   });
 
-  if (!problemReuseOnlyPlan) {
-    await ensureLegacyProblemsBackfilledForCourse(args.userId, args.courseId);
-  }
-
   const problemSignals = problemSignalCount(processedText);
   const preliminaryDocumentType = classifySourceDocumentType({
     sourceTitle: args.sourceTitle,
@@ -4550,7 +4532,11 @@ export async function ingestCourseSourceUpload(
 
   const existingFingerprints =
     !problemReuseOnlyPlan && problemExtraction.drafts.length
-      ? await loadExistingProblemFingerprints({ prisma: args.prisma, courseId: args.courseId })
+      ? await loadExistingProblemFingerprints({
+          prisma: args.prisma,
+          courseId: args.courseId,
+          drafts: problemExtraction.drafts,
+        })
       : [];
   const deduped = problemReuseOnlyPlan
     ? {
@@ -4681,6 +4667,8 @@ export async function ingestCourseSourceUpload(
       drafts: uniqueSourceTaggedDrafts,
       importBatchId,
       importBatchLeaseToken,
+      dedupeReadStrategy: 'indexed_input_keys',
+      returnProblems: false,
     });
     insertedProblemIds = [...writeResult.writeSummary.insertedProblemIds].sort();
     insertedProblemCount = insertedProblemIds.length;
@@ -4899,17 +4887,6 @@ export async function ingestCourseSourceUpload(
           sourcePacket,
         })
       : null;
-  const memoryResults = await routeLayeredMemoryWriteCandidates({
-    prisma: args.prisma,
-    userId: args.userId,
-    candidates: [
-      ...templateCandidates,
-      ...(courseSummaryCandidate ? [courseSummaryCandidate] : []),
-      ...(notebookSummaryCandidate ? [notebookSummaryCandidate] : []),
-      ...(dailyPrivateCandidate ? [dailyPrivateCandidate] : []),
-    ],
-  });
-
   const graphValue = buildKnowledgeGraphValue({
     courseId: args.courseId,
     courseCode: course.courseCode,
@@ -4931,55 +4908,67 @@ export async function ingestCourseSourceUpload(
     sections: notebook?.sections,
     notebookCover,
   });
-  const knowledgeGraphFactId = await writeKnowledgeGraphFact({
-    prisma: args.prisma,
-    userId: args.userId,
-    courseId: args.courseId,
-    sourceHash,
-    value: graphValue,
-  });
-
-  await refreshKnowledgeCache({
-    prisma: args.prisma,
-    ownerId: args.userId,
-    target: {
-      targetType: 'course',
-      targetId: args.courseId,
+  const memoryCandidates = [
+    ...templateCandidates,
+    ...(courseSummaryCandidate ? [courseSummaryCandidate] : []),
+    ...(notebookSummaryCandidate ? [notebookSummaryCandidate] : []),
+    ...(dailyPrivateCandidate ? [dailyPrivateCandidate] : []),
+  ];
+  const [memoryResults, knowledgeGraphFactId] = await Promise.all([
+    routeLayeredMemoryWriteCandidates({
+      prisma: args.prisma,
+      userId: args.userId,
+      candidates: memoryCandidates,
+    }),
+    writeKnowledgeGraphFact({
+      prisma: args.prisma,
+      userId: args.userId,
       courseId: args.courseId,
-      notebookId: null,
-      targetOwnerId: args.userId,
-      accessRole: 'owner',
-    },
-    query: topic,
-    entries: [
-      {
-        sourceType: notebook?.sectionId ? 'markdown_section' : 'problem_bank',
-        sourceId: notebook?.sectionId || `source:${sourceHash}`,
-        title: args.sourceTitle,
-        previewText: compact(processedText, 1200),
-        metadata: {
-          sourceHash,
-          rawFileHash: args.rawFileHash ?? null,
-          openaiFileId: args.openaiFileId ?? null,
-          sourceKind,
-          documentType: sourcePacket.classification.documentType,
-          usageProfile: sourcePacket.classification.usageProfile,
-          usageProfileConfidence: sourcePacket.classification.usageProfileConfidence,
-          classificationConfidence: sourcePacket.classification.confidence,
-          topic,
-          notebookId: notebook?.id ?? null,
-          coverImagePath: notebookCover?.imagePath ?? null,
-          coverStatus: notebookCover?.status ?? null,
-          sectionId: notebook?.sectionId ?? null,
-          sectionIds: notebook?.sections.map((section) => section.id) ?? [],
-          problemIds: associatedProblemIds,
-          reusedProblemIds,
-          problemReuseOnlyContract: problemReuseOnlyPlan?.contract ?? null,
-        },
-        score: 24,
+      sourceHash,
+      value: graphValue,
+    }),
+    refreshKnowledgeCache({
+      prisma: args.prisma,
+      ownerId: args.userId,
+      target: {
+        targetType: 'course',
+        targetId: args.courseId,
+        courseId: args.courseId,
+        notebookId: null,
+        targetOwnerId: args.userId,
+        accessRole: 'owner',
       },
-    ],
-  });
+      query: topic,
+      entries: [
+        {
+          sourceType: notebook?.sectionId ? 'markdown_section' : 'problem_bank',
+          sourceId: notebook?.sectionId || `source:${sourceHash}`,
+          title: args.sourceTitle,
+          previewText: compact(processedText, 1200),
+          metadata: {
+            sourceHash,
+            rawFileHash: args.rawFileHash ?? null,
+            openaiFileId: args.openaiFileId ?? null,
+            sourceKind,
+            documentType: sourcePacket.classification.documentType,
+            usageProfile: sourcePacket.classification.usageProfile,
+            usageProfileConfidence: sourcePacket.classification.usageProfileConfidence,
+            classificationConfidence: sourcePacket.classification.confidence,
+            topic,
+            notebookId: notebook?.id ?? null,
+            coverImagePath: notebookCover?.imagePath ?? null,
+            coverStatus: notebookCover?.status ?? null,
+            sectionId: notebook?.sectionId ?? null,
+            sectionIds: notebook?.sections.map((section) => section.id) ?? [],
+            problemIds: associatedProblemIds,
+            reusedProblemIds,
+            problemReuseOnlyContract: problemReuseOnlyPlan?.contract ?? null,
+          },
+          score: 24,
+        },
+      ],
+    }),
+  ]);
 
   const graph = graphValue as { nodes: unknown[]; edges: unknown[] };
   const writtenMemoryCount = memoryResults.filter(

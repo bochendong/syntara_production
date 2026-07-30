@@ -14,8 +14,6 @@ import {
   Ellipsis,
   ExternalLink,
   FileUp,
-  Gauge,
-  Globe2,
   ImagePlus,
   Loader2,
   Maximize2,
@@ -70,7 +68,6 @@ import {
   AnswerPreviewPanel,
   AttemptHistoryPanel,
   ChoiceAnswerPreviewPanel,
-  FilterRuleRow,
   FormulaReferencePanel,
   PROBLEM_BANK_EMERALD_ACTION_BUTTON_CLASS,
   PROBLEM_BANK_EMERALD_OUTLINE_BUTTON_CLASS,
@@ -80,8 +77,6 @@ import {
   ProblemDraftPreviewPanel,
   ProblemMetaChip,
   answerComposerPlaceholder,
-  difficultyDotClassName,
-  difficultyDots,
   difficultyLabel,
   difficultyTextClassName,
   formatProblemNumber,
@@ -95,7 +90,6 @@ import {
   typeLabel,
   weakTopicBarClass,
   type AnswerPanelTab,
-  type PracticeFilter,
   type ProblemInfoTab,
 } from '@/components/problem-bank/course-problem-bank-helpers';
 import {
@@ -905,15 +899,11 @@ export function CourseProblemBankView({
     navigateToPracticeProblem,
     nextPracticeIsChapterJump,
     nextPracticeTarget,
-    notebookFilter,
-    notebookFilterOptions,
     notebooks,
     pageEndIndex,
     pageStartIndex,
     paginatedProblems,
     photoAnswers,
-    practiceFilter,
-    practiceFilterOptions,
     practiceNavigationProblemCount,
     previousPracticeIsChapterJump,
     previousPracticeTarget,
@@ -952,8 +942,6 @@ export function CourseProblemBankView({
     setImportOpen,
     setMoveDialogOpen,
     setMoveNotebookId,
-    setNotebookFilter,
-    setPracticeFilter,
     setProblemLanguage,
     setProblemPage,
     setSearchQuery,
@@ -1006,7 +994,14 @@ export function CourseProblemBankView({
       };
     }
     return { text: textAnswers[selectedProblem.id] ?? '' };
-  }, [blankAnswers, choiceAnswers, codeAnswers, selectedProblem, selectedProblemContent, textAnswers]);
+  }, [
+    blankAnswers,
+    choiceAnswers,
+    codeAnswers,
+    selectedProblem,
+    selectedProblemContent,
+    textAnswers,
+  ]);
   const latestPracticeDraftSignatureRef = useRef('');
 
   useEffect(() => {
@@ -1334,34 +1329,6 @@ export function CourseProblemBankView({
         };
     }
   };
-  const practiceTabUnderlineClassName = (tab: PracticePanelTab) => {
-    switch (tab) {
-      case 'description':
-        return 'after:bg-sky-500';
-      case 'formula':
-        return 'after:bg-indigo-500';
-      case 'edit':
-        return 'after:bg-violet-500';
-      case 'testcase':
-      case 'answer':
-        return 'after:bg-emerald-500';
-      case 'secret':
-        return 'after:bg-amber-500';
-      case 'code':
-        return 'after:bg-cyan-500';
-      case 'output':
-      case 'history':
-        return 'after:bg-slate-500';
-      case 'preview':
-        return 'after:bg-blue-500';
-      case AI_HELP_PRACTICE_TAB:
-        return 'after:bg-sky-500';
-      case 'solution':
-        return 'after:bg-fuchsia-500';
-      default:
-        return 'after:bg-slate-400';
-    }
-  };
   const handlePracticePaneTabSelect = (pane: PracticePaneId, tab: PracticePanelTab) => {
     if (!visiblePracticePanelTabs.has(tab)) return;
     setPracticePaneActive((prev) => ({ ...prev, [pane]: tab }));
@@ -1416,20 +1383,17 @@ export function CourseProblemBankView({
     };
   const practicePaneHeaderClassName = (pane: PracticePaneId) =>
     cn(
-      'flex min-h-11 shrink-0 items-center gap-3 overflow-x-auto border-b border-slate-200 px-3 sm:gap-4 sm:px-4 dark:border-slate-800',
+      'flex min-h-11 shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-200 px-3.5 dark:border-slate-800',
       visibleDraggingPracticeTab &&
         !visiblePracticePaneTabs[pane].includes(visibleDraggingPracticeTab) &&
         'bg-sky-50/70 dark:bg-sky-500/10',
     );
   const practiceTabClassName = (tab: PracticePanelTab, active: boolean) =>
     cn(
-      'relative flex h-full cursor-grab items-center gap-2 whitespace-nowrap text-sm font-semibold transition active:cursor-grabbing',
+      'inline-flex h-8 cursor-grab items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-semibold transition active:cursor-grabbing',
       active
-        ? cn(
-            'text-slate-950 dark:text-white after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full',
-            practiceTabUnderlineClassName(tab),
-          )
-        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100',
+        ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-100 dark:bg-sky-500/10 dark:text-sky-200 dark:ring-sky-500/20'
+        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-100',
     );
   const renderPracticePaneHeader = (pane: PracticePaneId) => {
     const activeTab = visiblePracticePaneActive[pane];
@@ -1985,10 +1949,10 @@ export function CourseProblemBankView({
     tab === AI_HELP_PRACTICE_TAB
       ? renderPracticeAiHelpPaneContent()
       : isProblemInfoPracticeTab(tab)
-      ? renderProblemInfoPaneContent(tab)
-      : isCodePracticeTab(tab)
-        ? renderCodePracticePaneContent(tab)
-        : renderAnswerPaneContent(tab);
+        ? renderProblemInfoPaneContent(tab)
+        : isCodePracticeTab(tab)
+          ? renderCodePracticePaneContent(tab)
+          : renderAnswerPaneContent(tab);
 
   return (
     <div
@@ -1999,19 +1963,19 @@ export function CourseProblemBankView({
               'gap-2 bg-[#f5f5f5] p-2 dark:bg-slate-950',
               practiceHeaderPlacement === 'external' && 'pt-1',
             )
-          : 'gap-2 p-2 sm:gap-3 sm:p-3',
+          : 'gap-2 bg-[#f5f5f5] p-2.5 dark:bg-slate-950',
       )}
     >
       {!isPracticeMode ? (
         <>
           <div className="order-1 flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/92 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/55">
-            <div className="border-b border-slate-200 px-3 py-3 dark:border-slate-800 sm:px-4 sm:py-2">
-              <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-3">
+            <div className="grid gap-2.5 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                 <span className="min-w-0 truncate text-sm font-semibold text-sky-600 dark:text-sky-300">
                   {courseName || (locale === 'zh-CN' ? '课程空间' : 'Course workspace')}
                 </span>
 
-                <label className="relative w-full md:ml-auto md:w-[320px] md:max-w-[45%] md:shrink-0">
+                <label className="relative flex min-w-[180px] max-w-[320px] flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     value={searchQuery}
@@ -2021,11 +1985,11 @@ export function CourseProblemBankView({
                         ? '搜索题号、题目、知识点、来源'
                         : 'Search numbers, problems, topics, sources'
                     }
-                    className="h-9 pl-9"
+                    className="h-9 rounded-lg border-slate-200 bg-white pl-9 text-[13px] shadow-none"
                   />
                 </label>
 
-                <div className="flex w-full shrink-0 items-center justify-between gap-2 md:w-auto md:justify-start">
+                <div className="flex w-full flex-wrap items-center gap-1.5 lg:w-auto lg:shrink-0">
                   {courseHasTranslations ? (
                     <ProblemLanguageToggle
                       value={problemLanguage}
@@ -2036,105 +2000,78 @@ export function CourseProblemBankView({
                   <span className="text-xs font-medium text-slate-400">
                     {filteredProblems.length}/{problems.length}
                   </span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-9 gap-2 border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                      >
-                        <SlidersHorizontal className="h-4 w-4 text-sky-600 dark:text-sky-300" />
-                        {locale === 'zh-CN' ? '筛选' : 'Filters'}
-                        {activeBankFilterCount > 0 ? (
-                          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-sky-600 px-1.5 text-[11px] font-bold text-white dark:bg-sky-400 dark:text-slate-950">
-                            {activeBankFilterCount}
-                          </span>
-                        ) : null}
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      sideOffset={8}
-                      className="w-[620px] max-w-[calc(100vw-1.5rem)] p-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                            {locale === 'zh-CN' ? '筛选题目' : 'Filter problems'}
-                          </p>
-                          <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                            {filteredProblems.length}/{problems.length}
-                          </p>
-                        </div>
-                        {activeBankFilterCount > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPracticeFilter('all');
-                              setTypeFilter('all');
-                              setDifficultyFilter('all');
-                              setNotebookFilter('all');
-                              setStatusFilter('all');
-                            }}
-                            className="rounded-full px-2 py-1 text-[11px] font-semibold text-sky-700 transition hover:bg-sky-50 dark:text-sky-200 dark:hover:bg-sky-500/10"
-                          >
-                            {locale === 'zh-CN' ? '清空' : 'Clear'}
-                          </button>
-                        ) : null}
-                      </div>
-
-                      <div className="mt-3 space-y-2">
-                        <FilterRuleRow
-                          icon={CheckSquare}
-                          label={locale === 'zh-CN' ? '练习状态' : 'Status'}
-                          value={practiceFilter}
-                          options={practiceFilterOptions}
-                          locale={locale}
-                          onChange={(value) => setPracticeFilter(value as PracticeFilter)}
-                          onClear={() => setPracticeFilter('all')}
-                        />
-                        <FilterRuleRow
-                          icon={Gauge}
-                          label={locale === 'zh-CN' ? '难度' : 'Difficulty'}
-                          value={difficultyFilter}
-                          options={difficultyFilterOptions}
-                          locale={locale}
-                          onChange={(value) =>
-                            setDifficultyFilter(value as typeof difficultyFilter)
-                          }
-                          onClear={() => setDifficultyFilter('all')}
-                        />
-                        <FilterRuleRow
-                          icon={BookOpen}
-                          label={locale === 'zh-CN' ? '笔记本' : 'Notebook'}
-                          value={notebookFilter}
-                          options={notebookFilterOptions}
-                          locale={locale}
-                          onChange={setNotebookFilter}
-                          onClear={() => setNotebookFilter('all')}
-                        />
-                        <FilterRuleRow
-                          icon={Type}
-                          label={locale === 'zh-CN' ? '题型' : 'Type'}
-                          value={typeFilter}
-                          options={typeFilterOptions}
-                          locale={locale}
-                          onChange={(value) => setTypeFilter(value as typeof typeFilter)}
-                          onClear={() => setTypeFilter('all')}
-                        />
-                        <FilterRuleRow
-                          icon={Globe2}
-                          label={locale === 'zh-CN' ? '发布状态' : 'Publish state'}
-                          value={statusFilter}
-                          options={statusFilterOptions}
-                          locale={locale}
-                          onChange={(value) => setStatusFilter(value as typeof statusFilter)}
-                          onClear={() => setStatusFilter('all')}
-                        />
-                      </div>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-sky-600 dark:text-sky-300" />
+                  {activeBankFilterCount > 0 ? (
+                    <span className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-sky-600 px-1 text-[10px] font-bold text-white dark:bg-sky-400 dark:text-slate-950">
+                      {activeBankFilterCount}
+                    </span>
+                  ) : null}
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+                    className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  >
+                    {statusFilterOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={typeFilter}
+                    onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}
+                    className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  >
+                    {typeFilterOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                        {option.count == null ? '' : ` · ${option.count}`}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={difficultyFilter}
+                    onChange={(event) =>
+                      setDifficultyFilter(event.target.value as typeof difficultyFilter)
+                    }
+                    className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  >
+                    {difficultyFilterOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                        {option.count == null ? '' : ` · ${option.count}`}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+                <Button
+                  type="button"
+                  disabled={filteredProblems.length === 0}
+                  onClick={() => {
+                    const firstProblem = filteredProblems[0];
+                    if (firstProblem) navigateToPracticeProblem(firstProblem);
+                  }}
+                  className={cn(
+                    'h-9 gap-1.5 rounded-lg px-3.5 text-[13px] font-semibold shadow-none',
+                    PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
+                  )}
+                >
+                  <Play className="h-[15px] w-[15px]" />
+                  {locale === 'zh-CN' ? '开始练习' : 'Start practice'}
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1.5">
+                  <BookOpen className="h-3.5 w-3.5" />
+                  {locale === 'zh-CN'
+                    ? `当前筛选 ${filteredProblems.length} 题`
+                    : `${filteredProblems.length} filtered problems`}
+                </span>
+                <span>
+                  {locale === 'zh-CN'
+                    ? `第 ${currentProblemPage}/${problemPageCount} 页 · 每页 10 题`
+                    : `Page ${currentProblemPage}/${problemPageCount} · 10 per page`}
+                </span>
               </div>
               {canEditProblems ? (
                 <div className="mt-3 grid grid-cols-2 gap-2 xl:hidden">
@@ -2346,30 +2283,22 @@ export function CourseProblemBankView({
                     </div>
                   </div>
 
-                  <div className="hidden min-w-[820px] lg:block">
+                  <div className="hidden min-w-[680px] lg:block">
                     <div
                       className={cn(
                         PROBLEM_BANK_LIST_GRID_CLASS,
-                        'border-b border-slate-200 bg-slate-50/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400',
+                        'sticky top-0 z-[1] items-center border-b border-slate-200 bg-slate-50/90 px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-500 dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-400',
                       )}
                     >
-                      <span>{locale === 'zh-CN' ? '题号' : 'No.'}</span>
-                      <span>{locale === 'zh-CN' ? '状态' : 'State'}</span>
-                      <span>{locale === 'zh-CN' ? '题目' : 'Problem'}</span>
-                      <span>{locale === 'zh-CN' ? '来源' : 'Source'}</span>
-                      <span>{locale === 'zh-CN' ? '题型' : 'Type'}</span>
+                      <span>#</span>
                       <span>{locale === 'zh-CN' ? '难度' : 'Level'}</span>
-                      <span>{locale === 'zh-CN' ? '最近得分' : 'Score'}</span>
-                      <span>{locale === 'zh-CN' ? '操作' : 'Action'}</span>
+                      <span>{locale === 'zh-CN' ? '题目' : 'Problem'}</span>
+                      <span>{locale === 'zh-CN' ? '题型' : 'Type'}</span>
+                      <span>{locale === 'zh-CN' ? '状态' : 'State'}</span>
+                      <span />
                     </div>
                     {paginatedProblems.map((problem) => {
                       const selected = selectedProblemId === problem.id;
-                      const typeVisual = problemTypeVisual(problem.type);
-                      const ProblemTypeIcon = typeVisual.Icon;
-                      const localizedContent = getLocalizedProblemContent(
-                        problem.publicContent,
-                        problemLanguage,
-                      );
                       const localizedTitle = getLocalizedProblemTitle(problem, problemLanguage);
                       return (
                         <div
@@ -2385,87 +2314,50 @@ export function CourseProblemBankView({
                           }}
                           className={cn(
                             PROBLEM_BANK_LIST_GRID_CLASS,
-                            'items-center border-b border-slate-100 px-4 py-3 text-sm transition dark:border-slate-800/80',
+                            'items-center border-b border-slate-100 px-4 py-2.5 text-sm transition dark:border-slate-800/80',
                             selected
                               ? 'bg-sky-50/80 dark:bg-sky-500/10'
                               : 'bg-white hover:bg-slate-50/80 dark:bg-slate-950/25 dark:hover:bg-slate-900/50',
                           )}
                         >
                           <div>
-                            <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                              {formatProblemNumber(problem)}
-                            </span>
-                          </div>
-                          <div>
-                            <span
-                              className={cn(
-                                'inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold',
-                                practiceStateClassName(problem),
-                              )}
-                            >
-                              {practiceStateLabel(problem, locale)}
-                            </span>
-                          </div>
-                          <div className="min-w-0 pr-4">
-                            <ProblemTitleText
-                              content={localizedTitle}
-                              className="line-clamp-1 font-semibold text-slate-950 dark:text-white"
-                            />
-                            <p className="mt-1 min-w-0 truncate text-xs text-slate-500 dark:text-slate-400">
-                              <ProblemTitleText
-                                content={renderProblemContentStem(localizedContent)}
-                                className="font-normal"
-                                forceInlineMath
-                              />
-                            </p>
-                          </div>
-                          <div className="min-w-0 pr-2 text-xs text-slate-500 dark:text-slate-400">
-                            <span className="line-clamp-2">
-                              {problem.notebookName ||
-                                (locale === 'zh-CN' ? '未归类' : 'Unassigned')}
-                            </span>
-                          </div>
-                          <div className="min-w-0 pr-2">
-                            <span
-                              className={cn(
-                                'inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold',
-                                typeVisual.className,
-                              )}
-                            >
-                              <ProblemTypeIcon className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate">{typeLabel(problem.type, locale)}</span>
+                            <span className="grid size-7 place-items-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                              {pageStartIndex + paginatedProblems.indexOf(problem) + 1}
                             </span>
                           </div>
                           <div title={difficultyLabel(problem.difficulty, locale)}>
-                            <div className="flex items-center gap-1">
-                              {difficultyDots(problem).map((active, index) => (
-                                <span
-                                  key={index}
-                                  className={cn(
-                                    'size-1.5 rounded-full',
-                                    difficultyDotClassName(problem.difficulty, active),
-                                  )}
-                                />
-                              ))}
-                            </div>
-                            <div
+                            <span
                               className={cn(
-                                'mt-0.5 text-[10px] font-semibold',
-                                difficultyTextClassName(problem.difficulty),
+                                'block size-1.5 rounded-full bg-[#c09a68]',
+                                problem.difficulty === 'easy' && 'bg-[#7aa17d]',
+                                problem.difficulty === 'hard' && 'bg-[#b96f66]',
                               )}
-                            >
-                              {difficultyLabel(problem.difficulty, locale)}
-                            </div>
+                            />
                           </div>
-                          <div className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                            {latestScoreLabel(problem, locale)}
+                          <div className="min-w-0">
+                            <ProblemTitleText
+                              content={localizedTitle}
+                              className="line-clamp-1 text-sm font-semibold text-slate-950 dark:text-white"
+                            />
+                            <p className="mt-[3px] min-w-0 truncate text-xs text-slate-400">
+                              {problem.tags?.length
+                                ? problem.tags.slice(0, 3).join(' · ')
+                                : problem.notebookName ||
+                                  (locale === 'zh-CN' ? '未标注标签' : 'No tags')}
+                            </p>
+                          </div>
+                          <div className="min-w-0 truncate text-xs text-slate-500 dark:text-slate-400">
+                            {typeLabel(problem.type, locale)}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            {problem.status}
                           </div>
                           <div className="flex items-center gap-1.5">
                             <Button
                               type="button"
                               size="sm"
                               className={cn(
-                                'h-8 px-2.5 text-xs',
+                                'h-[30px] rounded-lg px-2.5 text-xs font-semibold shadow-none',
                                 PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
                               )}
                               onClick={(event) => {
@@ -2503,43 +2395,36 @@ export function CourseProblemBankView({
                         </div>
                       );
                     })}
-                    <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-400">
-                      <span>
+                    <div className="flex items-center justify-center gap-3 border-t border-slate-200 bg-white px-4 pb-4 pt-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-400">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-[34px] gap-1 rounded-lg px-3 text-xs font-semibold shadow-none"
+                        disabled={currentProblemPage <= 1}
+                        onClick={() => setProblemPage((current) => Math.max(1, current - 1))}
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                        {locale === 'zh-CN' ? '上一页' : 'Prev'}
+                      </Button>
+                      <span className="min-w-[7rem] text-center font-semibold text-slate-500 dark:text-slate-300">
                         {locale === 'zh-CN'
-                          ? `显示 ${pageStartIndex + 1}-${pageEndIndex} / ${filteredProblems.length} 道`
-                          : `Showing ${pageStartIndex + 1}-${pageEndIndex} of ${filteredProblems.length}`}
+                          ? `${pageStartIndex + 1}-${pageEndIndex} / ${filteredProblems.length}`
+                          : `${pageStartIndex + 1}-${pageEndIndex} / ${filteredProblems.length}`}
                       </span>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 px-2 text-xs"
-                          disabled={currentProblemPage <= 1}
-                          onClick={() => setProblemPage((current) => Math.max(1, current - 1))}
-                        >
-                          <ChevronLeft className="h-3.5 w-3.5" />
-                          {locale === 'zh-CN' ? '上一页' : 'Prev'}
-                        </Button>
-                        <span className="min-w-[5rem] text-center font-medium text-slate-600 dark:text-slate-300">
-                          {locale === 'zh-CN'
-                            ? `${currentProblemPage} / ${problemPageCount} 页`
-                            : `Page ${currentProblemPage} / ${problemPageCount}`}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 px-2 text-xs"
-                          disabled={currentProblemPage >= problemPageCount}
-                          onClick={() =>
-                            setProblemPage((current) => Math.min(problemPageCount, current + 1))
-                          }
-                        >
-                          {locale === 'zh-CN' ? '下一页' : 'Next'}
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-[34px] gap-1 rounded-lg px-3 text-xs font-semibold shadow-none"
+                        disabled={currentProblemPage >= problemPageCount}
+                        onClick={() =>
+                          setProblemPage((current) => Math.min(problemPageCount, current + 1))
+                        }
+                      >
+                        {locale === 'zh-CN' ? '下一页' : 'Next'}
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
                 </>
@@ -2547,7 +2432,7 @@ export function CourseProblemBankView({
             </div>
           </div>
 
-          <aside className="order-2 hidden h-full w-[270px] shrink-0 flex-col gap-3 overflow-hidden xl:flex">
+          <aside className="hidden">
             <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60">
               <div className="flex items-center gap-1.5">
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -2737,186 +2622,200 @@ export function CourseProblemBankView({
           ) : (
             <>
               {practiceHeaderPlacement === 'internal' ? (
-                <div className="mb-2 flex min-h-11 shrink-0 flex-col gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 shadow-sm shadow-slate-950/[0.03] sm:flex-row sm:items-center sm:justify-between sm:px-3 dark:border-slate-800 dark:bg-slate-950">
-                <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 shrink-0 rounded-md px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900"
-                    onClick={() => {
-                      if (onPracticeBack) {
-                        onPracticeBack();
-                        return;
-                      }
-                      router.push(`/course/${encodeURIComponent(courseId)}`);
-                    }}
-                  >
-                    <ChevronLeft className="mr-1 h-4 w-4" />
-                    {practiceBackLabel ?? (locale === 'zh-CN' ? '课程空间' : 'Course')}
-                  </Button>
-                  <span className="hidden rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500 sm:inline-flex dark:bg-slate-900 dark:text-slate-400">
-                    {isReviewPracticeMode && reviewPracticeIndex >= 0
-                      ? `${reviewPracticeIndex + 1}/${reviewPracticeProblems.length}`
-                      : currentNotebookProblemPosition > 0
-                        ? `${currentNotebookProblemPosition}/${practiceNavigationProblemCount}`
-                        : locale === 'zh-CN'
-                          ? '未归类'
-                          : 'Unassigned'}
-                  </span>
-                  {selectedProblemNotebookLabel ? (
-                    <span
-                      className="flex min-w-0 max-w-full items-center gap-1.5 rounded bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100 sm:max-w-[min(18rem,42vw)] dark:bg-sky-500/10 dark:text-sky-200 dark:ring-sky-500/20"
-                      title={selectedProblemNotebookLabel}
-                    >
-                      <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{selectedProblemNotebookLabel}</span>
-                    </span>
-                  ) : null}
-                  <span
-                    className={cn(
-                      'hidden shrink-0 rounded px-2 py-1 text-[11px] font-semibold md:inline-flex',
-                      difficultyTextClassName(selectedProblem.difficulty),
-                    )}
-                  >
-                    {difficultyLabel(selectedProblem.difficulty, locale)}
-                  </span>
-                </div>
-
-                <div className="flex shrink-0 flex-wrap items-center justify-between gap-1.5 sm:justify-end">
-                  <>
+                <div className="mb-2 flex min-h-11 shrink-0 flex-col gap-2 rounded-[10px] border border-slate-200 bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-950">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-8 rounded-md px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900"
-                      disabled={!headerPreviousPracticeTarget}
+                      className="h-9 shrink-0 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-none hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                       onClick={() => {
-                        if (!headerPreviousPracticeTarget) return;
-                        handlePracticeTargetChange(headerPreviousPracticeTarget);
+                        if (onPracticeBack) {
+                          onPracticeBack();
+                          return;
+                        }
+                        router.push(`/course/${encodeURIComponent(courseId)}`);
                       }}
-                      title={
-                        headerPreviousPracticeTarget
-                          ? headerPreviousPracticeTarget.title
-                          : locale === 'zh-CN'
-                            ? '没有上一题'
-                            : 'No previous problem'
-                      }
                     >
                       <ChevronLeft className="mr-1 h-4 w-4" />
-                      {!isReviewPracticeMode && previousPracticeIsChapterJump
-                        ? locale === 'zh-CN'
-                          ? '上一章'
-                          : 'Prev chapter'
-                        : locale === 'zh-CN'
-                          ? '上一题'
-                          : 'Prev'}
+                      {practiceBackLabel ?? (locale === 'zh-CN' ? '课程空间' : 'Course')}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 rounded-md px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900"
-                      disabled={!headerNextPracticeTarget}
-                      onClick={() => {
-                        if (!headerNextPracticeTarget) return;
-                        handlePracticeTargetChange(headerNextPracticeTarget);
-                      }}
-                      title={
-                        headerNextPracticeTarget
-                          ? headerNextPracticeTarget.title
+                    <span className="inline-flex h-6 items-center rounded-full bg-slate-100 px-2 text-[11px] font-semibold text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                      {isReviewPracticeMode && reviewPracticeIndex >= 0
+                        ? `${reviewPracticeIndex + 1}/${reviewPracticeProblems.length}`
+                        : currentNotebookProblemPosition > 0
+                          ? `${currentNotebookProblemPosition}/${practiceNavigationProblemCount}`
                           : locale === 'zh-CN'
-                            ? '没有下一题'
-                            : 'No next problem'
-                      }
+                            ? '未归类'
+                            : 'Unassigned'}
+                    </span>
+                    <span className="inline-flex h-6 shrink-0 items-center rounded-full bg-sky-50 px-2 text-[11px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-100 dark:bg-sky-500/10 dark:text-sky-200 dark:ring-sky-500/20">
+                      {typeLabel(selectedProblem.type, locale)}
+                    </span>
+                    <strong
+                      className="min-w-[120px] flex-1 truncate text-sm font-semibold text-slate-950 dark:text-white"
+                      title={selectedProblemTitle}
                     >
-                      {!isReviewPracticeMode && nextPracticeIsChapterJump
-                        ? locale === 'zh-CN'
-                          ? '下一章'
-                          : 'Next chapter'
-                        : locale === 'zh-CN'
-                          ? '下一题'
-                          : 'Next'}
-                      <ChevronRight className="ml-1 h-4 w-4" />
-                    </Button>
-                    <ProblemAiHelpButton
-                      courseId={courseId}
-                      problem={selectedProblem}
-                      problemTitle={selectedProblemTitle}
-                      problemContent={selectedProblemContent}
-                      notebook={selectedProblemNotebook}
-                      notebookLabel={selectedProblemNotebookLabel}
-                      locale={locale}
-                      currentAnswer={selectedProblemCurrentAnswer}
-                      latestAttempt={selectedProblemLatestDetailedAttempt}
-                    />
-                    {canEditProblems || selectedProblem.notebookId ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
-                            aria-label={locale === 'zh-CN' ? '更多操作' : 'More actions'}
-                          >
-                            <Ellipsis className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
-                          {canEditProblems ? (
-                            <DropdownMenuItem onClick={() => setMoveDialogOpen(true)}>
-                              <ArrowRightLeft className="h-4 w-4" />
-                              {locale === 'zh-CN' ? '移动到其他笔记本' : 'Move to notebook'}
-                            </DropdownMenuItem>
-                          ) : null}
-                          {selectedProblem.notebookId ? (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                router.push(`/classroom/${selectedProblem.notebookId}`)
-                              }
+                      <ProblemTitleText content={selectedProblemTitle} />
+                    </strong>
+                    <span className="hidden text-[11px] font-semibold text-slate-400 lg:inline">
+                      {difficultyLabel(selectedProblem.difficulty, locale)}
+                    </span>
+                  </div>
+
+                  <div className="flex shrink-0 flex-wrap items-center justify-between gap-1.5 sm:justify-end">
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 rounded-md px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900"
+                        disabled={!headerPreviousPracticeTarget}
+                        onClick={() => {
+                          if (!headerPreviousPracticeTarget) return;
+                          handlePracticeTargetChange(headerPreviousPracticeTarget);
+                        }}
+                        title={
+                          headerPreviousPracticeTarget
+                            ? headerPreviousPracticeTarget.title
+                            : locale === 'zh-CN'
+                              ? '没有上一题'
+                              : 'No previous problem'
+                        }
+                      >
+                        <ChevronLeft className="mr-1 h-4 w-4" />
+                        {!isReviewPracticeMode && previousPracticeIsChapterJump
+                          ? locale === 'zh-CN'
+                            ? '上一章'
+                            : 'Prev chapter'
+                          : locale === 'zh-CN'
+                            ? '上一题'
+                            : 'Prev'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 rounded-md px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900"
+                        disabled={!headerNextPracticeTarget}
+                        onClick={() => {
+                          if (!headerNextPracticeTarget) return;
+                          handlePracticeTargetChange(headerNextPracticeTarget);
+                        }}
+                        title={
+                          headerNextPracticeTarget
+                            ? headerNextPracticeTarget.title
+                            : locale === 'zh-CN'
+                              ? '没有下一题'
+                              : 'No next problem'
+                        }
+                      >
+                        {!isReviewPracticeMode && nextPracticeIsChapterJump
+                          ? locale === 'zh-CN'
+                            ? '下一章'
+                            : 'Next chapter'
+                          : locale === 'zh-CN'
+                            ? '下一题'
+                            : 'Next'}
+                        <ChevronRight className="ml-1 h-4 w-4" />
+                      </Button>
+                      <ProblemAiHelpButton
+                        courseId={courseId}
+                        problem={selectedProblem}
+                        problemTitle={selectedProblemTitle}
+                        problemContent={selectedProblemContent}
+                        notebook={selectedProblemNotebook}
+                        notebookLabel={selectedProblemNotebookLabel}
+                        locale={locale}
+                        currentAnswer={selectedProblemCurrentAnswer}
+                        latestAttempt={selectedProblemLatestDetailedAttempt}
+                      />
+                      {canEditProblems || selectedProblem.notebookId ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
+                              aria-label={locale === 'zh-CN' ? '更多操作' : 'More actions'}
                             >
-                              <ExternalLink className="h-4 w-4" />
-                              {locale === 'zh-CN' ? '打开对应笔记本' : 'Open notebook'}
-                            </DropdownMenuItem>
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                              <Ellipsis className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            {canEditProblems ? (
+                              <DropdownMenuItem onClick={() => setMoveDialogOpen(true)}>
+                                <ArrowRightLeft className="h-4 w-4" />
+                                {locale === 'zh-CN' ? '移动到其他笔记本' : 'Move to notebook'}
+                              </DropdownMenuItem>
+                            ) : null}
+                            {selectedProblem.notebookId ? (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  router.push(`/classroom/${selectedProblem.notebookId}`)
+                                }
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                {locale === 'zh-CN' ? '打开对应笔记本' : 'Open notebook'}
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
+                    </>
+                    {canEditProblems ? (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="h-8 rounded-md px-2 text-xs font-semibold"
+                        title={locale === 'zh-CN' ? '删除题目' : 'Delete problem'}
+                        aria-label={locale === 'zh-CN' ? '删除题目' : 'Delete problem'}
+                        disabled={deletingProblem}
+                        onClick={() => {
+                          void handleDeleteProblem();
+                        }}
+                      >
+                        {deletingProblem ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                        <span className="hidden sm:inline">
+                          {locale === 'zh-CN' ? '删除题目' : 'Delete'}
+                        </span>
+                      </Button>
                     ) : null}
-                  </>
-                  {canEditProblems ? (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="h-8 rounded-md px-2 text-xs font-semibold"
-                      title={locale === 'zh-CN' ? '删除题目' : 'Delete problem'}
-                      aria-label={locale === 'zh-CN' ? '删除题目' : 'Delete problem'}
-                      disabled={deletingProblem}
-                      onClick={() => {
-                        void handleDeleteProblem();
-                      }}
-                    >
-                      {deletingProblem ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                      <span className="hidden sm:inline">
-                        {locale === 'zh-CN' ? '删除题目' : 'Delete'}
-                      </span>
-                    </Button>
-                  ) : null}
-                </div>
+                  </div>
                 </div>
               ) : null}
 
-              <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_minmax(24rem,1fr)] lg:overflow-hidden">
-                <section className="flex min-h-[min(34rem,72dvh)] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white lg:min-h-0 dark:border-slate-800 dark:bg-slate-950">
+              {practiceHeaderPlacement === 'internal' ? (
+                <div className="mb-2 h-[3px] shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-500 to-sky-500"
+                    style={{
+                      width: `${
+                        practiceNavigationProblemCount > 0
+                          ? Math.round(
+                              ((Math.max(1, currentNotebookProblemPosition) || 1) /
+                                practiceNavigationProblemCount) *
+                                100,
+                            )
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              ) : null}
+
+              <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto min-[981px]:grid-cols-[minmax(0,1fr)_minmax(22rem,1fr)] min-[981px]:overflow-hidden">
+                <section className="flex min-h-[min(34rem,72dvh)] flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white min-[981px]:min-h-0 dark:border-slate-800 dark:bg-slate-950">
                   {renderPracticePaneHeader('left')}
                   {renderPracticePaneContent(visiblePracticePaneActive.left)}
                 </section>
 
-                <section className="flex min-h-[min(34rem,72dvh)] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white lg:min-h-0 dark:border-slate-800 dark:bg-slate-950">
+                <section className="flex min-h-[min(34rem,72dvh)] flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white min-[981px]:min-h-0 dark:border-slate-800 dark:bg-slate-950">
                   {renderPracticePaneHeader('right')}
                   {renderPracticePaneContent(visiblePracticePaneActive.right)}
                 </section>

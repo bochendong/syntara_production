@@ -66,6 +66,30 @@ type StudentMessageRow = {
   createdAt: Date | string;
 };
 
+type ProblemAttemptProjectionRow = {
+  problemId: string;
+  attemptStatus: string | null;
+  attemptScore: number | null;
+  attemptedCount: number | bigint | null;
+  passedCount: number | bigint | null;
+  lastAttemptAt: Date | string | null;
+  latestAnswerText: string | null;
+  latestResultText: string | null;
+};
+
+// Raw-table lookup is only a compatibility fallback while a course knowledge
+// index is unavailable. Keep both the number of inspected rows and the text
+// projected back to Node bounded; the indexed path above remains the normal
+// retrieval path.
+const RAW_FALLBACK_SCAN_LIMIT = 96;
+const MARKDOWN_FALLBACK_CHARS = 12_000;
+const PROBLEM_FALLBACK_CHARS = 10_000;
+const MESSAGE_FALLBACK_CHARS = 4_000;
+
+function fallbackCandidateLimit(limit: number): number {
+  return Math.min(40, Math.max(16, limit * 4));
+}
+
 function normalize(input: string): string {
   return input.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 }
@@ -495,6 +519,53 @@ function dedupeEvidence(packets: MemoryEvidencePacket[]): MemoryEvidencePacket[]
   return result;
 }
 
+async function attachProblemAttemptDetails(args: {
+  prisma: PrismaClient;
+  userId: string;
+  packets: MemoryEvidencePacket[];
+}): Promise<MemoryEvidencePacket[]> {
+  const problemIds = unique(args.packets.map((packet) => packet.sourceId)).slice(0, 24);
+  if (!args.userId || problemIds.length === 0) return args.packets;
+
+  const rows = await args.prisma.$queryRawUnsafe<ProblemAttemptProjectionRow[]>(
+    `
+      SELECT
+        progress."problemId",
+        progress."status"::text AS "attemptStatus",
+        progress."score" AS "attemptScore",
+        COALESCE(progress."attemptedCount", 0)::int AS "attemptedCount",
+        COALESCE(progress."passedCount", 0)::int AS "passedCount",
+        progress."lastAttemptAt" AS "lastAttemptAt",
+        LEFT(latest."answerJson"::text, 2000) AS "latestAnswerText",
+        LEFT(latest."resultJson"::text, 2000) AS "latestResultText"
+      FROM "NotebookProblemProgress" progress
+      LEFT JOIN "NotebookProblemAttempt" latest
+        ON latest."id" = progress."latestAttemptId"
+      WHERE progress."userId" = $1
+        AND progress."problemId" = ANY($2::text[])
+    `,
+    args.userId,
+    problemIds,
+  );
+  const byProblemId = new Map(rows.map((row) => [row.problemId, row] as const));
+  return args.packets.map((packet) => {
+    const row = byProblemId.get(packet.sourceId);
+    return {
+      ...packet,
+      metadata: {
+        ...packet.metadata,
+        attemptStatus: row?.attemptStatus ?? null,
+        attemptScore: row?.attemptScore ?? null,
+        attemptedCount: Number(row?.attemptedCount ?? 0),
+        passedCount: Number(row?.passedCount ?? 0),
+        lastAttemptAt: metadataDate(row?.lastAttemptAt ?? null),
+        latestAnswerText: row?.latestAnswerText ?? null,
+        latestResultText: row?.latestResultText ?? null,
+      },
+    };
+  });
+}
+
 export async function searchMarkdownSourceEvidence(args: {
   prisma: PrismaClient;
   query: string;
@@ -504,6 +575,7 @@ export async function searchMarkdownSourceEvidence(args: {
 }): Promise<MemoryEvidencePacket[]> {
   const terms = queryTerms(args.query);
   if (terms.length === 0 || (!args.notebookId && !args.courseId)) return [];
+  const limit = Math.max(1, Math.min(args.limit ?? 5, 16));
 
   if (args.courseId) {
     const indexed = await searchCourseKnowledge({
@@ -512,7 +584,7 @@ export async function searchMarkdownSourceEvidence(args: {
       courseId: args.courseId,
       notebookId: args.notebookId,
       documentTypes: ['course_source', 'markdown_section'],
-      limit: args.limit,
+      limit,
     });
     if (indexed.available && indexed.matches.length > 0) {
       return indexed.matches.map((match) => ({
@@ -537,35 +609,105 @@ export async function searchMarkdownSourceEvidence(args: {
     }
   }
 
+  const candidateLimit = fallbackCandidateLimit(limit);
   const rows = await args.prisma.$queryRawUnsafe<MarkdownSectionRow[]>(
     `
+      WITH scoped AS (
+        SELECT
+          s."id",
+          COALESCE(s."courseId", n."courseId") AS "courseId",
+          s."notebookId",
+          n."name" AS "notebookName",
+          s."title",
+          s."order",
+          s."markdown",
+          s."summary",
+          s."updatedAt",
+          CASE
+            WHEN $1::text IS NOT NULL AND s."notebookId" = $1 THEN 1
+            ELSE 0
+          END AS "sameNotebook"
+        FROM "MarkdownNotebookSection" s
+        INNER JOIN "Notebook" n ON n."id" = s."notebookId"
+        WHERE ($1::text IS NULL OR s."notebookId" = $1)
+          AND (
+            $2::text IS NULL
+            OR s."courseId" = $2
+            OR (s."courseId" IS NULL AND n."courseId" = $2)
+          )
+          AND ($1::text IS NOT NULL OR $2::text IS NOT NULL)
+        ORDER BY "sameNotebook" DESC, s."updatedAt" DESC, s."order" ASC
+        LIMIT $4
+      ),
+      ranked AS (
+        SELECT
+          scoped.*,
+          lexical."score",
+          CASE
+            WHEN lexical."firstMarkdownHit" IS NULL
+              THEN LEFT(scoped."markdown", $6::integer)
+            ELSE SUBSTRING(
+              scoped."markdown"
+              FROM GREATEST(1, lexical."firstMarkdownHit" - 2500)
+              FOR $6::integer
+            )
+          END AS "boundedMarkdown"
+        FROM scoped
+        CROSS JOIN LATERAL (
+          SELECT
+            COALESCE(
+              SUM(
+                CASE WHEN strpos(lower(scoped."title"), term.value) > 0 THEN 12 ELSE 0 END
+                + CASE
+                    WHEN strpos(lower(COALESCE(scoped."notebookName", '')), term.value) > 0
+                      THEN 5
+                    ELSE 0
+                  END
+                + CASE
+                    WHEN strpos(lower(COALESCE(scoped."summary", '')), term.value) > 0
+                      THEN 2
+                    ELSE 0
+                  END
+                + CASE
+                    WHEN strpos(lower(scoped."markdown"), term.value) > 0
+                      THEN 5
+                    ELSE 0
+                  END
+              ),
+              0
+            )::float AS "score",
+            MIN(NULLIF(strpos(lower(scoped."markdown"), term.value), 0))
+              AS "firstMarkdownHit"
+          FROM jsonb_array_elements_text($3::jsonb) AS term(value)
+        ) lexical
+      )
       SELECT
-        s."id",
-        COALESCE(s."courseId", n."courseId") AS "courseId",
-        s."notebookId",
-        n."name" AS "notebookName",
-        s."title",
-        s."order",
-        s."markdown",
-        s."summary",
-        s."updatedAt"
-      FROM "MarkdownNotebookSection" s
-      INNER JOIN "Notebook" n ON n."id" = s."notebookId"
-      WHERE ($1::text IS NULL OR s."notebookId" = $1)
-        AND (
-          $2::text IS NULL
-          OR s."courseId" = $2
-          OR (s."courseId" IS NULL AND n."courseId" = $2)
-        )
-        AND ($1::text IS NOT NULL OR $2::text IS NOT NULL)
-      ORDER BY s."order" ASC, s."updatedAt" DESC
-      LIMIT 500
+        ranked."id",
+        ranked."courseId",
+        ranked."notebookId",
+        ranked."notebookName",
+        ranked."title",
+        ranked."order",
+        ranked."boundedMarkdown" AS "markdown",
+        LEFT(ranked."summary", 1200) AS "summary",
+        ranked."updatedAt"
+      FROM ranked
+      WHERE ranked."score" > 0
+      ORDER BY
+        ranked."sameNotebook" DESC,
+        ranked."score" DESC,
+        ranked."order" ASC,
+        ranked."updatedAt" DESC
+      LIMIT $5
     `,
     args.notebookId || null,
     args.courseId || null,
+    JSON.stringify(terms.slice(0, 24)),
+    RAW_FALLBACK_SCAN_LIMIT,
+    candidateLimit,
+    MARKDOWN_FALLBACK_CHARS,
   );
 
-  const limit = Math.max(1, Math.min(args.limit ?? 5, 16));
   const anchors = specificAnchorTerms(terms);
   const scored = rows
     .map((row, index) => {
@@ -633,6 +775,7 @@ export async function searchProblemSourceEvidence(args: {
   courseId?: string | null;
   viewerUserId?: string | null;
   progressFilter?: MemorySearchProgressFilter | null;
+  includeAttemptDetails?: boolean;
   limit?: number;
 }): Promise<MemoryEvidencePacket[]> {
   const terms = queryTerms(args.query);
@@ -651,7 +794,7 @@ export async function searchProblemSourceEvidence(args: {
       limit,
     });
     if (indexed.available && indexed.matches.length > 0) {
-      return indexed.matches.map((match) => ({
+      const packets = indexed.matches.map((match) => ({
         id: `problem:${match.sourceEntityId}`,
         sourceType: 'problem' as const,
         title: match.title,
@@ -669,58 +812,140 @@ export async function searchProblemSourceEvidence(args: {
           updatedAt: match.updatedAt,
         },
       }));
+      return args.includeAttemptDetails && args.viewerUserId
+        ? attachProblemAttemptDetails({
+            prisma: args.prisma,
+            userId: args.viewerUserId,
+            packets,
+          })
+        : packets;
     }
   }
 
+  const candidateLimit = fallbackCandidateLimit(limit);
   const rows = await args.prisma.$queryRawUnsafe<ProblemEvidenceRow[]>(
     `
+      WITH scoped AS (
+        SELECT
+          p."id",
+          COALESCE(p."courseId", n."courseId") AS "courseId",
+          p."notebookId",
+          n."name" AS "notebookName",
+          p."title",
+          p."type"::text AS "type",
+          p."status"::text AS "status",
+          p."tags",
+          p."difficulty"::text AS "difficulty",
+          p."publicContentJson"::text AS "fullPublicText",
+          progress."status"::text AS "attemptStatus",
+          progress."score" AS "attemptScore",
+          COALESCE(progress."attemptedCount", 0)::int AS "attemptedCount",
+          COALESCE(progress."passedCount", 0)::int AS "passedCount",
+          progress."lastAttemptAt" AS "lastAttemptAt",
+          LEFT(latest."answerJson"::text, 2000) AS "latestAnswerText",
+          LEFT(latest."resultJson"::text, 2000) AS "latestResultText",
+          p."updatedAt",
+          CASE
+            WHEN $1::text IS NOT NULL AND p."notebookId" = $1 THEN 1
+            ELSE 0
+          END AS "sameNotebook"
+        FROM "NotebookProblem" p
+        LEFT JOIN "Notebook" n ON n."id" = p."notebookId"
+        LEFT JOIN "NotebookProblemProgress" progress
+          ON progress."problemId" = p."id"
+          AND ($3::text IS NOT NULL AND progress."userId" = $3)
+        LEFT JOIN "NotebookProblemAttempt" latest
+          ON latest."id" = progress."latestAttemptId"
+        WHERE p."status" <> 'archived'
+          AND ($1::text IS NULL OR p."notebookId" = $1)
+          AND (
+            $2::text IS NULL
+            OR p."courseId" = $2
+            OR (p."courseId" IS NULL AND n."courseId" = $2)
+          )
+          AND ($1::text IS NOT NULL OR $2::text IS NOT NULL)
+          AND (
+            $4::text IS NULL
+            OR ($4::text = 'unattempted' AND COALESCE(progress."attemptedCount", 0) = 0)
+            OR ($4::text = 'attempted' AND COALESCE(progress."attemptedCount", 0) > 0)
+            OR (
+              $4::text = 'wrong_or_partial'
+              AND progress."status"::text IN ('failed', 'partial')
+            )
+          )
+        ORDER BY
+          "sameNotebook" DESC,
+          COALESCE(progress."lastAttemptAt", p."updatedAt") DESC,
+          p."updatedAt" DESC
+        LIMIT $6
+      ),
+      ranked AS (
+        SELECT
+          scoped.*,
+          lexical."score",
+          LEFT(scoped."fullPublicText", $8::integer) AS "publicText"
+        FROM scoped
+        CROSS JOIN LATERAL (
+          SELECT
+            COALESCE(
+              SUM(
+                CASE WHEN strpos(lower(scoped."title"), term.value) > 0 THEN 12 ELSE 0 END
+                + CASE
+                    WHEN strpos(lower(COALESCE(scoped."notebookName", '')), term.value) > 0
+                      THEN 5
+                    ELSE 0
+                  END
+                + CASE
+                    WHEN strpos(lower(array_to_string(scoped."tags", ' ')), term.value) > 0
+                      THEN 14
+                    ELSE 0
+                  END
+                + CASE
+                    WHEN strpos(lower(scoped."fullPublicText"), term.value) > 0
+                      THEN 5
+                    ELSE 0
+                  END
+              ),
+              0
+            )::float AS "score"
+          FROM jsonb_array_elements_text($5::jsonb) AS term(value)
+        ) lexical
+      )
       SELECT
-        p."id",
-        COALESCE(p."courseId", n."courseId") AS "courseId",
-        p."notebookId",
-        n."name" AS "notebookName",
-        p."title",
-        p."type"::text AS "type",
-        p."status"::text AS "status",
-        p."tags",
-        p."difficulty"::text AS "difficulty",
-        p."publicContentJson"::text AS "publicText",
-        progress."status"::text AS "attemptStatus",
-        progress."score" AS "attemptScore",
-        COALESCE(progress."attemptedCount", 0)::int AS "attemptedCount",
-        COALESCE(progress."passedCount", 0)::int AS "passedCount",
-        progress."lastAttemptAt" AS "lastAttemptAt",
-        latest."answerJson"::text AS "latestAnswerText",
-        latest."resultJson"::text AS "latestResultText",
-        p."updatedAt"
-      FROM "NotebookProblem" p
-      LEFT JOIN "Notebook" n ON n."id" = p."notebookId"
-      LEFT JOIN "NotebookProblemProgress" progress
-        ON progress."problemId" = p."id"
-        AND ($3::text IS NOT NULL AND progress."userId" = $3)
-      LEFT JOIN "NotebookProblemAttempt" latest
-        ON latest."id" = progress."latestAttemptId"
-      WHERE p."status" <> 'archived'
-        AND ($1::text IS NULL OR p."notebookId" = $1)
-        AND (
-          $2::text IS NULL
-          OR p."courseId" = $2
-          OR (p."courseId" IS NULL AND n."courseId" = $2)
-        )
-        AND ($1::text IS NOT NULL OR $2::text IS NOT NULL)
-        AND (
-          $4::text IS NULL
-          OR ($4::text = 'unattempted' AND COALESCE(progress."attemptedCount", 0) = 0)
-          OR ($4::text = 'attempted' AND COALESCE(progress."attemptedCount", 0) > 0)
-          OR ($4::text = 'wrong_or_partial' AND progress."status"::text IN ('failed', 'partial'))
-        )
-      ORDER BY COALESCE(progress."lastAttemptAt", p."updatedAt") DESC, p."updatedAt" DESC
-      LIMIT 500
+        ranked."id",
+        ranked."courseId",
+        ranked."notebookId",
+        ranked."notebookName",
+        ranked."title",
+        ranked."type",
+        ranked."status",
+        ranked."tags",
+        ranked."difficulty",
+        ranked."publicText",
+        ranked."attemptStatus",
+        ranked."attemptScore",
+        ranked."attemptedCount",
+        ranked."passedCount",
+        ranked."lastAttemptAt",
+        ranked."latestAnswerText",
+        ranked."latestResultText",
+        ranked."updatedAt"
+      FROM ranked
+      WHERE $5::jsonb = '[]'::jsonb OR ranked."score" > 0
+      ORDER BY
+        ranked."sameNotebook" DESC,
+        ranked."score" DESC,
+        COALESCE(ranked."lastAttemptAt", ranked."updatedAt") DESC
+      LIMIT $7
     `,
     args.notebookId || null,
     args.courseId || null,
     args.viewerUserId || null,
     args.progressFilter || null,
+    JSON.stringify(terms.slice(0, 24)),
+    RAW_FALLBACK_SCAN_LIMIT,
+    candidateLimit,
+    PROBLEM_FALLBACK_CHARS,
   );
 
   const anchors = specificAnchorTerms(terms);
@@ -795,42 +1020,133 @@ export async function searchStudentMessageEvidence(args: {
 }): Promise<MemoryEvidencePacket[]> {
   const terms = queryTerms(args.query);
   if (terms.length === 0 || (!args.notebookId && !args.courseId)) return [];
+  const limit = Math.max(1, Math.min(args.limit ?? 5, 16));
+  const candidateLimit = fallbackCandidateLimit(limit);
 
   const rows = await args.prisma.$queryRawUnsafe<StudentMessageRow[]>(
     `
+      WITH recent_history AS (
+        SELECT
+          message."id",
+          message."conversationId",
+          conversation."title" AS "conversationTitle",
+          conversation."courseId",
+          NULL::text AS "notebookId",
+          NULL::text AS "notebookName",
+          message."role"::text AS "role",
+          LEFT(message."plainText", $5::integer) AS "plainText",
+          message."createdAt"
+        FROM "CourseConversationMessage" AS message
+        INNER JOIN "CourseConversation" AS conversation
+          ON conversation."id" = message."conversationId"
+          AND conversation."ownerId" = message."ownerId"
+          AND conversation."courseId" = message."courseId"
+        WHERE message."ownerId" = $1
+          AND message."deletedAt" IS NULL
+          AND conversation."deletedAt" IS NULL
+          AND message."role" IN ('user', 'assistant')
+          AND message."plainText" IS NOT NULL
+          AND length(trim(message."plainText")) > 0
+          AND $2::text IS NULL
+          AND $3::text IS NOT NULL
+          AND conversation."courseId" = $3
+
+        UNION ALL
+
+        SELECT
+          message."id",
+          message."conversationId",
+          conversation."title" AS "conversationTitle",
+          COALESCE(conversation."courseId", notebook."courseId") AS "courseId",
+          conversation."notebookId",
+          notebook."name" AS "notebookName",
+          message."role",
+          LEFT(message."plainText", $5::integer) AS "plainText",
+          message."createdAt"
+        FROM "Message" AS message
+        INNER JOIN "Conversation" AS conversation
+          ON conversation."id" = message."conversationId"
+        LEFT JOIN "Notebook" AS notebook
+          ON notebook."id" = conversation."notebookId"
+        WHERE message."ownerId" = $1
+          AND message."role" IN ('user', 'assistant')
+          AND message."plainText" IS NOT NULL
+          AND length(trim(message."plainText")) > 0
+          AND conversation."kind" IN ('notebook', 'agent', 'system')
+          AND ($2::text IS NULL OR conversation."notebookId" = $2)
+          AND (
+            $3::text IS NULL
+            OR conversation."courseId" = $3
+            OR (conversation."courseId" IS NULL AND notebook."courseId" = $3)
+          )
+          AND ($2::text IS NOT NULL OR $3::text IS NOT NULL)
+          AND (
+            conversation."targetId" IS NULL
+            OR conversation."targetId" NOT LIKE 'learn:%'
+          )
+        ORDER BY "createdAt" DESC, "id" DESC
+        LIMIT $6
+      ),
+      ranked AS (
+        SELECT
+          recent_history.*,
+          lexical."score"
+        FROM recent_history
+        CROSS JOIN LATERAL (
+          SELECT
+            COALESCE(
+              SUM(
+                CASE
+                  WHEN strpos(
+                    lower(COALESCE(recent_history."conversationTitle", '')),
+                    term.value
+                  ) > 0
+                    THEN 12
+                  ELSE 0
+                END
+                + CASE
+                    WHEN strpos(
+                      lower(COALESCE(recent_history."notebookName", '')),
+                      term.value
+                    ) > 0
+                      THEN 5
+                    ELSE 0
+                  END
+                + CASE
+                    WHEN strpos(lower(recent_history."plainText"), term.value) > 0
+                      THEN 5
+                    ELSE 0
+                  END
+              ),
+              0
+            )::float AS "score"
+          FROM jsonb_array_elements_text($4::jsonb) AS term(value)
+        ) lexical
+      )
       SELECT
-        m."id",
-        m."conversationId",
-        c."title" AS "conversationTitle",
-        COALESCE(c."courseId", n."courseId") AS "courseId",
-        c."notebookId",
-        n."name" AS "notebookName",
-        m."role",
-        m."plainText",
-        m."createdAt"
-      FROM "Message" m
-      INNER JOIN "Conversation" c ON c."id" = m."conversationId"
-      LEFT JOIN "Notebook" n ON n."id" = c."notebookId"
-      WHERE m."ownerId" = $1
-        AND m."role" IN ('user', 'assistant')
-        AND m."plainText" IS NOT NULL
-        AND length(trim(m."plainText")) > 0
-        AND ($2::text IS NULL OR c."notebookId" = $2)
-        AND (
-          $3::text IS NULL
-          OR c."courseId" = $3
-          OR (c."courseId" IS NULL AND n."courseId" = $3)
-        )
-        AND ($2::text IS NOT NULL OR $3::text IS NOT NULL)
-      ORDER BY m."createdAt" DESC
-      LIMIT 300
+        ranked."id",
+        ranked."conversationId",
+        ranked."conversationTitle",
+        ranked."courseId",
+        ranked."notebookId",
+        ranked."notebookName",
+        ranked."role",
+        ranked."plainText",
+        ranked."createdAt"
+      FROM ranked
+      WHERE ranked."score" > 0
+      ORDER BY ranked."score" DESC, ranked."createdAt" DESC, ranked."id" DESC
+      LIMIT $7
     `,
     args.userId,
     args.notebookId || null,
     args.courseId || null,
+    JSON.stringify(terms.slice(0, 24)),
+    MESSAGE_FALLBACK_CHARS,
+    RAW_FALLBACK_SCAN_LIMIT,
+    candidateLimit,
   );
 
-  const limit = Math.max(1, Math.min(args.limit ?? 5, 16));
   const anchors = specificAnchorTerms(terms);
   const scored = rows
     .map((row, index) => ({
@@ -886,17 +1202,21 @@ export async function searchProblemAttemptEvidence(args: {
   notebookId?: string | null;
   courseId?: string | null;
   progressFilter?: MemorySearchProgressFilter | null;
+  baseMatches?: MemoryEvidencePacket[];
   limit?: number;
 }): Promise<MemoryEvidencePacket[]> {
-  const baseMatches = await searchProblemSourceEvidence({
-    prisma: args.prisma,
-    query: args.query,
-    notebookId: args.notebookId,
-    courseId: args.courseId,
-    viewerUserId: args.userId,
-    progressFilter: args.progressFilter || 'attempted',
-    limit: Math.max(args.limit ?? 5, 8),
-  });
+  const baseMatches =
+    args.baseMatches ??
+    (await searchProblemSourceEvidence({
+      prisma: args.prisma,
+      query: args.query,
+      notebookId: args.notebookId,
+      courseId: args.courseId,
+      viewerUserId: args.userId,
+      progressFilter: args.progressFilter || 'attempted',
+      includeAttemptDetails: true,
+      limit: Math.max(args.limit ?? 5, 8),
+    }));
 
   return baseMatches
     .filter((packet) => Number(packet.metadata.attemptedCount || 0) > 0)

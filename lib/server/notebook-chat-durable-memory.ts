@@ -8,10 +8,7 @@ import type {
 } from '@/lib/types/notebook-message';
 import { createLogger } from '@/lib/logger';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
-import {
-  ensureStudyMemoryTable,
-  resolveReadableStudyMemoryTarget,
-} from '@/lib/server/study-memory-store';
+import { resolveReadableStudyMemoryTarget } from '@/lib/server/study-memory-store';
 import { indexStudyMemoryRecord } from '@/lib/server/study-memory-vector-store';
 
 const log = createLogger('NotebookChatDurableMemory');
@@ -269,7 +266,6 @@ export async function upsertNotebookChatDurableMemory(args: {
     return { status: 'skipped', storage: 'database', reason: 'missing_literal_student_evidence' };
   }
 
-  await ensureStudyMemoryTable(args.prisma);
   const readableTarget = await resolveReadableStudyMemoryTarget(
     args.prisma,
     args.userId,

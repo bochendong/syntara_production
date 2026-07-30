@@ -9,6 +9,7 @@ import {
   createOwnedNotebook,
   findNotebookOwner,
   findReadableNotebook,
+  listReadableNotebookLibraryItems,
   listReadableNotebooks,
   replaceOwnedMarkdownNotebookSections,
   updateOwnedNotebook,
@@ -48,8 +49,12 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get('courseId')?.trim();
+    const summary = searchParams.get('summary') === '1';
 
-    const notebooks = await listReadableNotebooks(prisma, userId, courseId);
+    const notebooks =
+      summary && courseId
+        ? await listReadableNotebookLibraryItems(prisma, userId, courseId)
+        : await listReadableNotebooks(prisma, userId, courseId);
     return NextResponse.json({ notebooks });
   });
 }

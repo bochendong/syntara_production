@@ -1,8 +1,18 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -11,6 +21,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+  SYNTARA_DIALOG_HEADER_CLASS,
+} from '@/components/ui/syntara-dialog-style';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -25,14 +39,12 @@ import {
   buildSyllabusEventsByDay,
   LearningCalendarGrid,
 } from '@/components/learn/learning-calendar-grid';
-import {
-  readSyllabusEvents,
-  writeSyllabusEvents,
-  type SyllabusCalendarEvent,
-  type SyllabusEventKind,
+import type {
+  SyllabusCalendarEvent,
+  SyllabusEventKind,
 } from '@/features/learn-core/client-calendar-actions';
-import { useAuthStore } from '@/lib/store/auth';
-import { useCurrentCourseStore } from '@/lib/store/current-course';
+import { makeLearningCalendarIdempotencyKey } from '@/features/learning-calendar/client/calendar-api';
+import { useLearningCalendarRange } from '@/features/learning-calendar/client/use-learning-calendar-range';
 import { cn } from '@/lib/utils';
 
 const EVENT_KINDS: Array<{
@@ -133,44 +145,39 @@ function previewEvents(referenceDate: Date): SyllabusCalendarEvent[] {
 
 export function LearningCalendarPage() {
   const searchParams = useSearchParams();
-  const userId = useAuthStore((state) => state.userId) || 'local-user';
-  const courseId = useCurrentCourseStore((state) => state.id) || 'personal';
-  const courseName = useCurrentCourseStore((state) => state.name) || '我的学习';
   const preview =
     process.env.NODE_ENV !== 'production' && searchParams.get('previewCalendar') === '1';
 
-  return (
-    <LearningCalendarSurface
-      key={`${userId}:${courseId}:${preview ? 'preview' : 'saved'}`}
-      userId={userId}
-      courseId={courseId}
-      courseName={courseName}
-      preview={preview}
-    />
-  );
+  return <LearningCalendarSurface key={preview ? 'preview' : 'saved'} preview={preview} />;
 }
 
-function LearningCalendarSurface({
-  userId,
-  courseId,
-  courseName,
-  preview,
-}: {
-  userId: string;
-  courseId: string;
-  courseName: string;
-  preview: boolean;
-}) {
+function LearningCalendarSurface({ preview }: { preview: boolean }) {
   const [referenceDate, setReferenceDate] = useState(() => new Date());
-  const [events, setEvents] = useState<SyllabusCalendarEvent[]>(() => {
-    const stored = readSyllabusEvents(userId, courseId);
-    return preview && stored.length === 0 ? previewEvents(new Date()) : stored;
-  });
+  const [previewSeed] = useState<SyllabusCalendarEvent[]>(() =>
+    preview ? previewEvents(new Date()) : [],
+  );
   const [enabledKinds, setEnabledKinds] = useState<SyllabusEventKind[]>(
     EVENT_KINDS.map((item) => item.value),
   );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState<EventDraft>(() => newDraft());
+  const [saving, setSaving] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const {
+    events,
+    loading,
+    error: loadError,
+    truncated,
+    reload,
+    createEvents,
+    updateEvent,
+    deleteEvent,
+  } = useLearningCalendarRange({
+    referenceDate,
+    rangeMode: 'month',
+    enabled: !preview,
+    previewEvents: preview ? previewSeed : undefined,
+  });
 
   const visibleEvents = useMemo(
     () => events.filter((event) => enabledKinds.includes(event.kind)),
@@ -197,20 +204,14 @@ function LearningCalendarSurface({
     return visibleEvents.filter((event) => event.date.startsWith(prefix)).slice(0, 8);
   }, [referenceDate, visibleEvents]);
 
-  const saveEvents = (next: SyllabusCalendarEvent[]) => {
-    const sorted = [...next].sort(
-      (a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, 'zh-CN'),
-    );
-    setEvents(sorted);
-    if (!preview) writeSyllabusEvents(userId, courseId, sorted);
-  };
-
   const openCreate = () => {
+    setMutationError(null);
     setDraft(newDraft(referenceDate));
     setDialogOpen(true);
   };
 
   const openEdit = (event: SyllabusCalendarEvent) => {
+    setMutationError(null);
     setDraft({
       id: event.id,
       title: event.title,
@@ -221,72 +222,114 @@ function LearningCalendarSurface({
     setDialogOpen(true);
   };
 
-  const commitDraft = () => {
+  const commitDraft = async () => {
     const title = draft.title.trim();
     if (!title || !draft.date) return;
     const duration = Number(draft.durationMinutes);
     const existing = draft.id ? events.find((event) => event.id === draft.id) : null;
-    const event: SyllabusCalendarEvent = {
-      id: existing?.id || makeEventId(),
-      title,
-      date: draft.date,
-      kind: draft.kind,
-      sourceName: existing?.sourceName || courseName,
-      origin: existing?.origin || 'manual',
-      sourceRef: existing?.sourceRef || { type: 'manual', id: courseId },
-      durationMinutes: Number.isFinite(duration) ? Math.max(5, Math.round(duration)) : 45,
-      status: existing?.status || 'planned',
-      createdAt: existing?.createdAt || Date.now(),
-    };
-    saveEvents(
-      existing
-        ? events.map((item) => (item.id === existing.id ? event : item))
-        : [...events, event],
-    );
-    setDialogOpen(false);
+    const durationMinutes = Number.isFinite(duration) ? Math.max(5, Math.round(duration)) : 45;
+    setSaving(true);
+    setMutationError(null);
+    try {
+      if (existing) {
+        await updateEvent(
+          existing,
+          {
+            title,
+            date: draft.date,
+            kind: draft.kind,
+            durationMinutes,
+          },
+          {
+            idempotencyKey: makeLearningCalendarIdempotencyKey(
+              'account-calendar-edit',
+              `${existing.id}-${existing.version}`,
+            ),
+          },
+        );
+      } else {
+        const clientEventId = makeEventId();
+        await createEvents(
+          [
+            {
+              id: clientEventId,
+              clientEventId,
+              title,
+              date: draft.date,
+              kind: draft.kind,
+              sourceName: '我的学习',
+              origin: 'manual',
+              sourceRef: { type: 'manual', id: 'account-calendar' },
+              durationMinutes,
+              status: 'planned',
+              createdAt: Date.now(),
+            },
+          ],
+          {
+            idempotencyKey: makeLearningCalendarIdempotencyKey(
+              'account-calendar-create',
+              clientEventId,
+            ),
+          },
+        );
+      }
+      setDialogOpen(false);
+    } catch (saveError) {
+      setMutationError(
+        saveError instanceof Error ? saveError.message : '保存失败，请检查网络后重试。',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const deleteDraft = () => {
+  const deleteDraft = async () => {
     if (!draft.id) return;
-    saveEvents(events.filter((event) => event.id !== draft.id));
-    setDialogOpen(false);
+    const existing = events.find((event) => event.id === draft.id);
+    if (!existing) return;
+    setSaving(true);
+    setMutationError(null);
+    try {
+      await deleteEvent(existing, {
+        idempotencyKey: makeLearningCalendarIdempotencyKey(
+          'account-calendar-delete',
+          `${existing.id}-${existing.version}`,
+        ),
+      });
+      setDialogOpen(false);
+    } catch (deleteError) {
+      setMutationError(
+        deleteError instanceof Error ? deleteError.message : '删除失败，请检查网络后重试。',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div className="ipados-calendar flex h-full min-h-[680px] w-full overflow-hidden rounded-[22px] border border-black/[0.08] bg-white shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
-      <aside className="flex w-[258px] shrink-0 flex-col border-r border-black/[0.09] bg-[#f2f2f7] p-4 max-lg:w-[220px] max-md:hidden">
-        <div className="flex items-center justify-between px-1">
-          <div>
-            <p className="text-[13px] font-semibold text-slate-500">学习空间</p>
-            <h1 className="mt-0.5 text-2xl font-bold tracking-[-0.03em] text-slate-950">日历</h1>
-          </div>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="grid size-9 place-items-center rounded-full bg-[#007aff] text-white shadow-sm outline-none transition hover:bg-[#006ee6] focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-            aria-label="新建日历事项"
-          >
-            <Plus className="size-5" strokeWidth={2.4} aria-hidden />
-          </button>
+    <div className="flex h-full min-h-[680px] w-full overflow-hidden bg-white text-slate-950 shadow-[0_0_0_1px_rgba(15,23,42,0.06)] max-[860px]:flex-col">
+      <aside className="flex w-[230px] shrink-0 flex-col gap-[18px] border-r border-slate-200 bg-slate-50 px-4 py-[18px] max-[860px]:w-full max-[860px]:gap-3 max-[860px]:border-b max-[860px]:border-r-0 max-[860px]:p-3.5">
+        <Link
+          href="/learn"
+          className="inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-[7px] text-xs font-semibold text-slate-950 hover:bg-slate-50"
+        >
+          <ArrowLeft className="size-4" />
+          返回主屏
+        </Link>
+
+        <div className="grid gap-1">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
+            <CalendarDays className="size-3.5" />
+            全局日历
+          </span>
+          <strong className="text-lg font-bold text-slate-950">全部课程安排</strong>
+          <small className="text-xs leading-[1.45] text-slate-500">
+            汇总当前账号的课程学习日程。
+          </small>
         </div>
 
-        <div className="mt-5 rounded-[13px] bg-white/90 p-2 shadow-sm ring-1 ring-black/[0.04]">
-          <div className="flex items-center gap-2 rounded-[10px] px-2 py-2">
-            <span className="grid size-8 place-items-center rounded-[8px] bg-[#ff3b30] text-white">
-              <CalendarDays className="size-4" strokeWidth={2} aria-hidden />
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">{courseName}</p>
-              <p className="truncate text-[11px] text-slate-500">当前课程日历</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
-          <p className="px-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-            日历分类
-          </p>
-          <div className="mt-2 space-y-0.5">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="grid gap-2.5 max-[860px]:grid-cols-4">
             {EVENT_KINDS.map((item) => {
               const enabled = enabledKinds.includes(item.value);
               return (
@@ -300,18 +343,15 @@ function LearningCalendarSurface({
                         : [...current, item.value],
                     )
                   }
-                  className="flex w-full items-center justify-between rounded-[9px] px-2 py-2 text-left outline-none hover:bg-black/[0.04] focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className={cn(
+                    'grid w-full grid-cols-[14px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg text-left text-[13px] font-semibold text-slate-950 outline-none focus-visible:ring-2 focus-visible:ring-sky-500',
+                    !enabled && 'opacity-40',
+                  )}
                   aria-pressed={enabled}
                 >
-                  <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                    <span
-                      className={cn('grid size-4 place-items-center rounded-[5px]', item.color)}
-                    >
-                      {enabled ? <Check className="size-3 text-white" strokeWidth={3} /> : null}
-                    </span>
-                    {item.label}
-                  </span>
-                  <span className="text-xs tabular-nums text-slate-400">
+                  <span className={cn('size-2.5 rounded-full', item.color)} />
+                  <span className="truncate">{item.label}</span>
+                  <span className="text-xs font-semibold tabular-nums text-slate-500">
                     {events.filter((event) => event.kind === item.value).length}
                   </span>
                 </button>
@@ -319,10 +359,10 @@ function LearningCalendarSurface({
             })}
           </div>
 
-          <p className="mt-6 px-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+          <p className="mt-6 px-1 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400 max-[860px]:hidden">
             本月事项
           </p>
-          <div className="mt-2 space-y-1">
+          <div className="mt-2 space-y-1 max-[860px]:hidden">
             {monthEvents.map((event) => (
               <button
                 key={event.id}
@@ -339,13 +379,18 @@ function LearningCalendarSurface({
             ) : null}
           </div>
         </div>
+        <p className="text-xs text-slate-400">{events.length} 项课程安排</p>
+        {truncated ? (
+          <p className="text-[11px] leading-4 text-amber-600">
+            当前范围事项较多，仅显示前 120 项。
+          </p>
+        ) : null}
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col bg-white">
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/[0.06] px-3 py-4 sm:gap-4 sm:px-6">
+        <div className="flex shrink-0 items-center justify-between gap-4 px-6 pb-4 pt-5 max-sm:px-3">
           <div className="min-w-0 max-sm:max-w-[160px]">
-            <p className="truncate text-xs font-semibold text-[#ff3b30]">{courseName}</p>
-            <h2 className="truncate text-[28px] font-bold tracking-[-0.04em] text-slate-950 sm:text-4xl">
+            <h2 className="truncate text-[clamp(28px,3vw,36px)] font-semibold tracking-[-0.02em] text-slate-950">
               {monthLabel}
             </h2>
           </div>
@@ -353,12 +398,12 @@ function LearningCalendarSurface({
             <Button
               type="button"
               variant="secondary"
-              className="h-9 rounded-full bg-[#f2f2f7] px-3 text-sm font-semibold shadow-none sm:px-4"
+              className="h-9 rounded-full bg-slate-100 px-4 text-[13px] font-semibold shadow-none hover:bg-slate-200"
               onClick={() => setReferenceDate(new Date())}
             >
               今天
             </Button>
-            <div className="flex rounded-full bg-[#f2f2f7] p-0.5">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() =>
@@ -366,7 +411,7 @@ function LearningCalendarSurface({
                     (current) => new Date(current.getFullYear(), current.getMonth() - 1, 1),
                   )
                 }
-                className="grid size-8 place-items-center rounded-full text-slate-600 outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="grid size-9 place-items-center rounded-full bg-slate-100 text-slate-500 outline-none hover:bg-slate-200 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-sky-500"
                 aria-label="上一个月"
               >
                 <ChevronLeft className="size-4" aria-hidden />
@@ -378,7 +423,7 @@ function LearningCalendarSurface({
                     (current) => new Date(current.getFullYear(), current.getMonth() + 1, 1),
                   )
                 }
-                className="grid size-8 place-items-center rounded-full text-slate-600 outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="grid size-9 place-items-center rounded-full bg-slate-100 text-slate-500 outline-none hover:bg-slate-200 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-sky-500"
                 aria-label="下一个月"
               >
                 <ChevronRight className="size-4" aria-hidden />
@@ -387,7 +432,7 @@ function LearningCalendarSurface({
             <button
               type="button"
               onClick={openCreate}
-              className="flex size-9 items-center justify-center gap-1.5 rounded-full bg-[#007aff] text-sm font-semibold text-white outline-none hover:bg-[#006ee6] focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:w-auto sm:px-4"
+              className="flex size-9 items-center justify-center gap-1.5 rounded-full bg-sky-600 text-sm font-semibold text-white outline-none hover:bg-sky-700 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 sm:w-auto sm:px-4"
               aria-label="新建"
             >
               <Plus className="size-4" aria-hidden />
@@ -395,6 +440,28 @@ function LearningCalendarSurface({
             </button>
           </div>
         </div>
+
+        {loading ? (
+          <div className="mx-6 mb-3 flex items-center gap-2 rounded-xl bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 max-sm:mx-3">
+            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            正在加载这个月的账号日历…
+          </div>
+        ) : null}
+        {loadError ? (
+          <div className="mx-6 mb-3 flex items-center justify-between gap-3 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700 max-sm:mx-3">
+            <span className="min-w-0 truncate">{loadError}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 shrink-0 gap-1 px-2 text-rose-700 hover:bg-rose-100 hover:text-rose-800"
+              onClick={() => void reload().catch(() => undefined)}
+            >
+              <RefreshCw className="size-3.5" aria-hidden />
+              重试
+            </Button>
+          </div>
+        ) : null}
 
         <LearningCalendarGrid
           days={calendarDays}
@@ -405,13 +472,20 @@ function LearningCalendarSurface({
         />
       </main>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-[460px] gap-0 overflow-hidden rounded-[24px] border-black/[0.08] bg-[#f2f2f7] p-0 shadow-2xl">
-          <DialogHeader className="border-b border-black/[0.07] bg-white/85 px-6 py-5 text-left">
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (!saving) setDialogOpen(open);
+        }}
+      >
+        <DialogContent
+          className={cn(SYNTARA_ACTION_DIALOG_CONTENT_CLASS, 'max-w-[460px] gap-0 p-0')}
+        >
+          <DialogHeader className={cn(SYNTARA_DIALOG_HEADER_CLASS, 'bg-white/72 px-6 py-5')}>
             <DialogTitle className="text-xl font-bold tracking-[-0.02em]">
               {draft.id ? '编辑事项' : '新建事项'}
             </DialogTitle>
-            <DialogDescription>更改会保存在当前课程的学习日历中。</DialogDescription>
+            <DialogDescription>更改会同步到当前账号的全局学习日历。</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 p-5">
             <div className="rounded-[14px] bg-white p-4 shadow-sm ring-1 ring-black/[0.04]">
@@ -475,6 +549,11 @@ function LearningCalendarSurface({
                 </Select>
               </div>
             </div>
+            {mutationError ? (
+              <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700">
+                {mutationError}
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center justify-between border-t border-black/[0.07] bg-white/70 px-5 py-4">
             {draft.id ? (
@@ -482,7 +561,8 @@ function LearningCalendarSurface({
                 type="button"
                 variant="ghost"
                 className="text-[#ff3b30] hover:bg-rose-50 hover:text-[#ff3b30]"
-                onClick={deleteDraft}
+                onClick={() => void deleteDraft()}
+                disabled={saving}
               >
                 <Trash2 className="size-4" aria-hidden />
                 删除
@@ -491,16 +571,22 @@ function LearningCalendarSurface({
               <span />
             )}
             <div className="flex gap-2">
-              <Button type="button" variant="secondary" onClick={() => setDialogOpen(false)}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setDialogOpen(false)}
+                disabled={saving}
+              >
                 取消
               </Button>
               <Button
                 type="button"
                 className="bg-[#007aff] hover:bg-[#006ee6]"
-                onClick={commitDraft}
-                disabled={!draft.title.trim() || !draft.date}
+                onClick={() => void commitDraft()}
+                disabled={saving || !draft.title.trim() || !draft.date}
               >
-                保存
+                {saving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+                {saving ? '保存中…' : '保存'}
               </Button>
             </div>
           </div>

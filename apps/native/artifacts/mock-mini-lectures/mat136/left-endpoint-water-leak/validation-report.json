@@ -1,0 +1,123 @@
+{
+  "status": "passed",
+  "generatedAt": "2026-07-28T07:00:35.050Z",
+  "imageProvider": "openai-image",
+  "imageModel": "gpt-image-2",
+  "ttsProvider": "openai-tts",
+  "ttsModel": "gpt-4o-mini-tts",
+  "ttsVoice": "marin",
+  "markerRecovery": {
+    "status": "passed",
+    "findings": [],
+    "components": [
+      {
+        "componentId": "native-mat136-left-endpoint-water-leak-page-1-six-subintervals",
+        "markerColorHex": "#ff0000",
+        "bbox": [
+          119.1,
+          51.8,
+          872.1,
+          232.4
+        ],
+        "markerPoints": [
+          {
+            "x": 124,
+            "y": 57.1,
+            "corner": "top-left"
+          },
+          {
+            "x": 867.7,
+            "y": 57.1,
+            "corner": "top-right"
+          },
+          {
+            "x": 124,
+            "y": 228,
+            "corner": "bottom-left"
+          },
+          {
+            "x": 867.7,
+            "y": 228,
+            "corner": "bottom-right"
+          }
+        ],
+        "markerCount": 4
+      },
+      {
+        "componentId": "native-mat136-left-endpoint-water-leak-page-1-why-three-is-excluded",
+        "markerColorHex": "#00ff00",
+        "bbox": [
+          103.5,
+          247.1,
+          428.7,
+          535.2
+        ],
+        "markerPoints": [
+          {
+            "x": 108.4,
+            "y": 252,
+            "corner": "top-left"
+          },
+          {
+            "x": 424.3,
+            "y": 252,
+            "corner": "top-right"
+          },
+          {
+            "x": 108.9,
+            "y": 531.3,
+            "corner": "bottom-left"
+          },
+          {
+            "x": 423.8,
+            "y": 531.3,
+            "corner": "bottom-right"
+          }
+        ],
+        "markerCount": 4
+      },
+      {
+        "componentId": "native-mat136-left-endpoint-water-leak-page-1-rate-to-volume",
+        "markerColorHex": "#0048ff",
+        "bbox": [
+          453.1,
+          246.1,
+          898.4,
+          535.2
+        ],
+        "markerPoints": [
+          {
+            "x": 459,
+            "y": 251.5,
+            "corner": "top-left"
+          },
+          {
+            "x": 894,
+            "y": 251.5,
+            "corner": "top-right"
+          },
+          {
+            "x": 458.5,
+            "y": 531.3,
+            "corner": "bottom-left"
+          },
+          {
+            "x": 893.6,
+            "y": 531.3,
+            "corner": "bottom-right"
+          }
+        ],
+        "markerCount": 4
+      }
+    ]
+  },
+  "assertions": {
+    "sourceMarkerImagePresent": true,
+    "cleanImagePresent": true,
+    "recoveredRegionCount": 3,
+    "expectedRegionCount": 3,
+    "everyRegionHasFourMarkers": true,
+    "speechAssetCount": 6,
+    "everySpeechHasMp3": true
+  }
+}

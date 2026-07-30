@@ -595,6 +595,24 @@ export interface CourseChatContextNotebook {
   sourceScore: number;
 }
 
+/**
+ * Compact, browser-safe evidence selected by the authenticated course-answer
+ * context loader. This is intentionally smaller than CourseChatContext: the
+ * browser needs citations for the answer UI, not the full model prompt.
+ */
+export interface CourseChatEvidenceSummary {
+  id: string;
+  origin: 'course_source' | 'layered_memory' | 'problem_bank';
+  sourceType: string;
+  sourceId: string;
+  title: string;
+  excerpt: string;
+  score: number;
+  courseId: string;
+  notebookId?: string;
+  sourceHash?: string;
+}
+
 export interface CourseChatLayeredMemoryContext {
   storage?: 'database' | 'unavailable' | string;
   prompt?: string;
@@ -688,6 +706,8 @@ export interface CourseChatAnswererHandoff {
     problems: CourseChatResourceLoadStatus;
     sources: CourseChatResourceLoadStatus;
   };
+  /** Opaque server-signed transport value; never render it into model prompts. */
+  trustedToken?: string;
 }
 
 export interface CourseChatServerCoursePackContext {
@@ -832,6 +852,11 @@ export interface StatelessChatRequest {
   directorState?: DirectorState;
   /** Course-level context for the standalone /chat learning surface. */
   courseContext?: CourseChatContext;
+  /**
+   * Opaque learn-core handoff signed by /api/learn/turn. The chat server must
+   * verify it against the authenticated user, course, question, and expiry.
+   */
+  trustedLearnAnswererHandoffToken?: string;
   /** User profile for personalization */
   userProfile?: {
     nickname?: string;
@@ -886,6 +911,13 @@ export type StatelessEvent =
   | {
       type: 'thinking';
       data: { stage: 'director' | 'agent_loading'; agentId?: string };
+    }
+  | {
+      type: 'course_evidence';
+      data: {
+        courseId: string;
+        items: CourseChatEvidenceSummary[];
+      };
     }
   | { type: 'cue_user'; data: { fromAgentId?: string; prompt?: string } }
   | {
