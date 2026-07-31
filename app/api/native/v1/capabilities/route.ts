@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
       providerCredentials: 'server-only',
     },
     models: [
-      { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', recommended: true },
-      { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
+      { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', recommended: true },
+      { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
       { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' },
     ],
     capabilities: {

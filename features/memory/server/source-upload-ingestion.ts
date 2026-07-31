@@ -45,12 +45,7 @@ import type { MemoryWriteCandidate } from '@/lib/server/memory-write-router';
 import { callLLM } from '@/lib/ai/llm';
 import { generateImage, IMAGE_PROVIDERS } from '@/lib/media/image-providers';
 import { normalizeRequestedImageDimensions } from '@/lib/media/image-result-normalization';
-import { compositeStudyCoverBuffer } from '@/lib/media/study-cover-overlay';
-import type {
-  ImageGenerationResult,
-  ImageProviderId,
-  StudyCoverOverlaySpec,
-} from '@/lib/media/types';
+import type { ImageGenerationResult, ImageProviderId } from '@/lib/media/types';
 import {
   getServerImageProviders,
   resolveImageApiKey,
@@ -711,80 +706,67 @@ function resolveSourceCoverImageProvider(): {
   return null;
 }
 
-function sourceCoverComposition(args: {
+function sourceCheatSheetComposition(args: {
   course: CourseForSourceCover | null;
   sourceTitle: string;
   topic: string;
   sourcePacket: SourcePacket;
   courseLabelOverride?: string | null;
   focusLabelsOverride?: string[];
-}): { prompt: string; coverSpec: StudyCoverOverlaySpec } {
+}): { prompt: string } {
   const usageProfile = args.sourcePacket.classification.usageProfile;
   const cheatSheet = args.sourcePacket.cheatSheet;
-  const profileLabels =
-    usageProfile === 'research'
-      ? { route: '研究路线', side: '核心概念', footer: '证据边界' }
-      : usageProfile === 'daily_use'
-        ? { route: '信息路线', side: '关键信息', footer: '下一步' }
-        : { route: '方法路线', side: '关键边界', footer: '复习提醒' };
   const requestedFocus = (args.focusLabelsOverride || [])
     .map((item) => item.trim())
     .filter(Boolean);
-  const sourceMethodLabels = (cheatSheet?.methods || [])
-    .map((method) => method.name.trim())
-    .filter(Boolean);
-  const routeItems = Array.from(
-    new Set(
-      (requestedFocus.length ? requestedFocus : sourceMethodLabels).map((item) => item.trim()),
-    ),
-  ).slice(0, 3);
-  const courseLabel = args.courseLabelOverride?.trim() || '';
-  const footerText =
-    usageProfile === 'research'
-      ? '先分清研究主张、方法、证据与适用边界。'
-      : usageProfile === 'daily_use'
-        ? '先确认关键信息，再安排下一步动作。'
-        : '先检查适用条件，再选择方法，最后写出结论边界。';
-  const coverSpec: StudyCoverOverlaySpec = {
+  const courseLabel = args.courseLabelOverride?.trim() || args.course?.courseCode?.trim() || '';
+  const content = {
     title: args.topic.trim(),
-    courseLabel,
-    routeTitle: profileLabels.route,
-    routeItems,
-    sideTitle: profileLabels.side,
-    sideItems: [],
-    footerTitle: profileLabels.footer,
-    footerText,
+    subtitle: courseLabel || args.sourceTitle.trim(),
+    usageProfile,
+    definition: cheatSheet?.definition || '',
+    methods: (cheatSheet?.methods || []).slice(0, 4),
+    keyPoints: (cheatSheet?.keyPoints || []).slice(0, 6),
+    learningSteps: (cheatSheet?.learningSteps || []).slice(0, 6),
+    keywords: (cheatSheet?.keywords || []).slice(0, 10),
+    requestedFocus,
+    sourceSections: args.sourcePacket.notebookSections.slice(0, 5).map((section) => ({
+      title: section.title,
+      summary: section.summary,
+    })),
   };
   const prompt = [
-    '生成一张 A4 竖版课程笔记本封面的低对比度背景，比例接近 1:1.414。',
-    '这只是封面底图，不是完整 Cheat Sheet。标题、最多三个方法卡片、方法索引和黄色复习提醒会由确定性排版层统一叠加。',
-    '保留大面积干净白纸和清晰留白；只使用很淡的课程相关线稿、手写符号轮廓或少量柔和荧光笔痕迹作为背景装饰。',
-    '不要自行排版标题、正文、列表、表格、信息卡片或可读段落，不要填满页面；视觉信息必须克制，不能与后续排版层争抢注意力。',
-    '不得生成乱码、伪汉字、无关公式、写实照片、品牌 logo 或水印。',
-    '严格忠于下方主题，只把它当作背景视觉线索，不要把这些内容直接写在图中。',
+    'Use case: scientific-educational.',
+    'Asset type: final A4 portrait study Cheat Sheet image used directly as a notebook cover; there is no later typography or deterministic overlay.',
+    `Primary request: create a polished, dense-but-readable one-page Cheat Sheet for “${args.sourceTitle.trim()}”. It must look like an excellent student's visual study note, not a sparse book cover and not an app dashboard.`,
     '',
-    '背景视觉线索：',
-    JSON.stringify(
-      {
-        title: coverSpec.title,
-        courseLabel: coverSpec.courseLabel || null,
-        methodLabels: routeItems,
-        keywords: (cheatSheet?.keywords || []).slice(0, 6),
-      },
-      null,
-      2,
-    ),
+    'Build one coherent page with these content regions when the supplied material supports them:',
+    '1. 核心定义 / Core definition: the central definition or thesis.',
+    '2. 方法怎么选 / Method choice: method panels with trigger, rule, and boundary.',
+    '3. 要点对照 / Key comparison: compact distinctions among the main ideas.',
+    '4. 学习或解题步骤 / Workflow: a numbered reusable sequence.',
+    '5. 提交前检查 / Checklist: short checks derived from method boundaries and key points.',
+    '6. 检索词 / Keywords: concise source-grounded terms near the bottom.',
+    '',
+    'Visual style: refined handwritten study note mixed with crisp textbook typography; warm ivory paper; black and dark navy ink; restrained pastel yellow, sage green, powder blue, and pale lavender highlighter blocks; small source-relevant diagrams and arrows.',
+    'Composition: A4 portrait, strong hierarchy, balanced dense layout, readable at full size, no huge empty areas. Put the title at top, the main methods or concepts in the upper-middle, workflow and comparisons in the middle, and checklist plus keywords near the bottom.',
+    'Content rules: use only the supplied source-grounded content. Preserve mathematical notation and technical terms. Do not invent facts, theorems, people, dates, course metadata, or claims. If a content region lacks evidence, merge it with a supported region instead of fabricating content.',
+    "Text rules: render all visible text legibly in the source material's primary language. Prefer short exact phrases from the structured content. No pseudo-Chinese, gibberish, placeholder copy, logo, watermark, or decorative unrelated formulas.",
+    'Avoid: sparse cover, giant decorative title with an empty page, generic “资料总览” cards, UI chrome, photorealistic scene, black background, or advertising poster.',
+    '',
+    'Source-grounded page content:',
+    JSON.stringify(content, null, 2),
   ].join('\n');
-  return { prompt, coverSpec };
+  return { prompt };
 }
 
-function sourceCoverCompositionFromInputs(
-  args: Parameters<typeof sourceCoverComposition>[0] & {
+function sourceCheatSheetCompositionFromInputs(
+  args: Parameters<typeof sourceCheatSheetComposition>[0] & {
     coverTitle?: string | null;
     coverCourseLabel?: string | null;
     coverFocus?: string | null;
   },
-): ReturnType<typeof sourceCoverComposition> & { topic: string } {
+): ReturnType<typeof sourceCheatSheetComposition> & { topic: string } {
   const topic = args.coverTitle?.trim() || args.topic;
   const focusLabels = String(args.coverFocus || '')
     .split(/[\n,，;；]+/)
@@ -792,7 +774,7 @@ function sourceCoverCompositionFromInputs(
     .filter(Boolean);
   return {
     topic,
-    ...sourceCoverComposition({
+    ...sourceCheatSheetComposition({
       course: args.course,
       sourceTitle: args.sourceTitle,
       topic,
@@ -801,10 +783,6 @@ function sourceCoverCompositionFromInputs(
       focusLabelsOverride: focusLabels,
     }),
   };
-}
-
-export function sourceCoverPrompt(args: Parameters<typeof sourceCoverComposition>[0]): string {
-  return sourceCoverComposition(args).prompt;
 }
 
 export type SourceCoverPromptPreview = {
@@ -820,12 +798,11 @@ export type SourceCoverPromptPreview = {
     topic: string;
   };
   prompt: string;
-  coverSpec: StudyCoverOverlaySpec;
   summary: string;
   sections: Array<{ title: string; summary: string }>;
 };
 
-export async function prepareSourceCoverPrompt(args: {
+export async function prepareCheatSheetPrompt(args: {
   sourceTitle: string;
   sourceKind: SourceUploadKind;
   sourceFileMime?: string | null;
@@ -912,7 +889,7 @@ export async function prepareSourceCoverPrompt(args: {
     templateTitles: [],
   });
   sourcePacket = { ...sourcePacket, structuredNotes };
-  const coverComposition = sourceCoverCompositionFromInputs({
+  const coverComposition = sourceCheatSheetCompositionFromInputs({
     course: null,
     sourceTitle: args.sourceTitle,
     topic,
@@ -934,7 +911,6 @@ export async function prepareSourceCoverPrompt(args: {
       topic: coverComposition.topic,
     },
     prompt: coverComposition.prompt,
-    coverSpec: coverComposition.coverSpec,
     summary: structuredNotes.notebookKnowledge.summary,
     sections: sections.map(({ title, summary }) => ({ title, summary: summary || '' })),
   };
@@ -1044,7 +1020,7 @@ async function generateNotebookCoverForSource(args: {
     };
   }
 
-  const coverComposition = sourceCoverCompositionFromInputs({
+  const coverComposition = sourceCheatSheetCompositionFromInputs({
     course: args.course,
     sourceTitle: args.sourceTitle,
     topic: args.topic,
@@ -1067,10 +1043,10 @@ async function generateNotebookCoverForSource(args: {
       {
         prompt,
         negativePrompt:
-          '密集文字、可读段落、表格、信息卡片、乱码、伪汉字、无意义文字、无关公式、写实照片、广告海报、黑色背景、logo、水印',
+          '乱码、伪汉字、无意义文字、无关公式、写实照片、广告海报、黑色背景、logo、水印、稀疏封面、巨大留白、UI界面',
         width: SOURCE_COVER_WIDTH,
         height: SOURCE_COVER_HEIGHT,
-        style: 'minimal A4 portrait study cover background with generous whitespace',
+        style: 'detailed A4 portrait study cheat sheet',
         quality: 'medium',
       },
     );
@@ -1081,13 +1057,9 @@ async function generateNotebookCoverForSource(args: {
       proxyFetch as typeof fetch,
     );
     const rendered = await imageResultBuffer(normalizedImage);
-    const composedBuffer = await compositeStudyCoverBuffer({
-      source: rendered.buffer,
-      spec: coverComposition.coverSpec,
-      width: SOURCE_COVER_WIDTH,
-      height: SOURCE_COVER_HEIGHT,
-    });
-    const metadata = await (await import('sharp')).default(composedBuffer).metadata();
+    const sharp = (await import('sharp')).default;
+    const outputBuffer = await sharp(rendered.buffer).png().toBuffer();
+    const metadata = await sharp(outputBuffer).metadata();
     if (metadata.width !== SOURCE_COVER_WIDTH || metadata.height !== SOURCE_COVER_HEIGHT) {
       throw new Error(
         `封面尺寸归一化失败：期望 ${SOURCE_COVER_WIDTH}x${SOURCE_COVER_HEIGHT}，实际 ${metadata.width || 'unknown'}x${metadata.height || 'unknown'}。`,
@@ -1099,7 +1071,7 @@ async function generateNotebookCoverForSource(args: {
     const fileName = `${hashSegment}.png`;
     const outputDir = path.join(SOURCE_COVER_PUBLIC_ROOT, courseSegment, notebookSegment);
     await fs.mkdir(outputDir, { recursive: true });
-    await fs.writeFile(path.join(outputDir, fileName), composedBuffer);
+    await fs.writeFile(path.join(outputDir, fileName), outputBuffer);
     const imagePath = `${SOURCE_COVER_PUBLIC_PREFIX}/${courseSegment}/${notebookSegment}/${fileName}`;
 
     await args.prisma.notebook.updateMany({
@@ -1843,7 +1815,7 @@ function synthesisSectionPlan(profile: SourceUsageProfile): string {
     return '一页摘要、关键信息、待办/决定/风险、时间线与上下文、原文索引与追踪';
   }
   if (profile === 'university_course') {
-    return '课程位置与学习目标、核心概念与先修关系、课堂讲解脉络、例题/作业/考试接口、复习清单与易错点';
+    return '从学习目标和主线进入，按知识依赖解释核心概念与方法；源材料含有代表性例题、证明、代码或推导时完整走读，并在适合的位置解释选法、步骤、结果、易错点和检查方法；最后形成复习与迁移入口。章节数量和篇幅由资料本身决定';
   }
   return '资料总览、背景与问题、方法框架、实验与结论、局限与证据边界';
 }
@@ -2145,9 +2117,11 @@ async function synthesizeSourcePacketWithModel(args: {
   const routeRequirements =
     usageProfile === 'university_course'
       ? [
-          '- 课程型笔记的首要目标是让学生快速定位“定义是什么、为什么这样做、看到什么特征选什么方法、答案怎么写”。',
+          '- 课程型笔记既要便于检索，也必须是一份学生可以从头阅读、跟着学习和用于复习解题的完整 Markdown 讲义。',
+          '- 先建立本讲要解决的问题、学习目标和教学主线，再按知识依赖推进；不要按 PDF 页码机械切分。',
           '- definitions 必须给出原文支持的完整定义、条件和记号，不能只给一句模糊摘要。',
-          '- 不要罗列全部题目。representativeProblems 只选择能代表不同方法、触发条件或边界的题型，并解释为什么值得保留。',
+          '- 不要罗列全部题目。源材料中存在值得教学的例题、证明、代码或推导时，选择能代表不同方法、触发条件或边界的内容完整走读；不要为了满足数量虚构案例。',
+          '- 完整走读应根据材料自然包含问题或目标、方法选择、关键步骤、结果，以及适用时的易错点、验算或迁移提示。',
           '- problemSolving.guidingIdea 写做题的核心想法；methodSelection 写如何从题目特征选择方法；solutionFormat 写学生落笔时的步骤与格式。三者不能互相替代。',
           '- noteDesign 明确什么应进入好笔记、什么应省略，以及学生查定义、选法和复习时分别如何使用。',
         ]
@@ -2190,8 +2164,9 @@ async function synthesizeSourcePacketWithModel(args: {
     '',
     `要求：`,
     `- 输出语言：${outputLanguage}。本平台默认中文；除专有名词外，不要整段英文。`,
-    `- sections 按资料实际知识结构组织，数量和篇幅应与原文内容相称；可参考但不要机械照抄：${sectionPlan}。`,
+    `- sections 按资料实际知识结构和教学递进自然组织，不设固定数量或长度门槛；可参考但不要机械照抄：${sectionPlan}。`,
     '- 每个 markdown 必须是已经重写好的学生笔记，不是原文摘抄、OCR 清洗结果或页面索引。',
+    '- 每个 section 完成一个清楚的教学动作；讲清为什么、什么时候使用、如何执行，而不只是列定义或结论。',
     '- 数学公式必须重建为 $...$ 或 $$...$$ LaTeX；看不清的公式标注“原式需回看对应页”，禁止输出破碎 OCR 字符。',
     '- 每节使用清晰的二三级标题、短段落和必要列表；只在确实需要比较时使用表格。',
     '- section.title 由页面单独渲染，因此 markdown 正文不得再写同名一级标题；直接从讲解正文或 ## 小标题开始。',
@@ -2262,8 +2237,8 @@ async function synthesizeSourcePacketWithModel(args: {
               : 'Read the original source and create a concise retrieval-and-action notebook containing only necessary information, actions, timing, and lookup anchors. Return the provided structured output.',
         ...(messages ? { messages } : { prompt }),
         output: structuredOutput,
-        maxOutputTokens: 14_000,
-        maxRetries: 0,
+        maxOutputTokens: 24_000,
+        maxRetries: 2,
       },
       'course-source-upload-synthesis',
       undefined,

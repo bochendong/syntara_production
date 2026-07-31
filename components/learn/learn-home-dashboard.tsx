@@ -378,7 +378,7 @@ function CourseIconContent({ course, active }: { course: CourseRecord; active?: 
     <>
       <span
         className={cn(
-          'relative grid size-[clamp(64px,min(5.4vw,8vh),96px)] shrink-0 place-items-center rounded-[22px] text-white transition-[transform,filter] duration-200 group-hover:-translate-y-0.5 group-hover:brightness-[1.04] group-focus-visible:-translate-y-0.5',
+          'learn-app-home__icon-art relative grid size-[clamp(72px,min(6.2vw,11vh),104px)] shrink-0 place-items-center rounded-[22px] text-white transition-[transform,filter] duration-200 group-hover:-translate-y-0.5 group-hover:brightness-[1.04] group-focus-visible:-translate-y-0.5',
           active && 'ring-2 ring-white ring-offset-2 ring-offset-transparent',
         )}
       >
@@ -387,7 +387,7 @@ function CourseIconContent({ course, active }: { course: CourseRecord; active?: 
             src={avatarUrl}
             alt=""
             fill
-            sizes="96px"
+            sizes="104px"
             className="object-cover"
             loading="eager"
             unoptimized
@@ -395,7 +395,10 @@ function CourseIconContent({ course, active }: { course: CourseRecord; active?: 
           />
         </span>
       </span>
-      <span className="mt-2.5 block max-w-full truncate text-[15px] font-medium leading-5 tracking-[-0.02em] text-white [text-shadow:0_1px_6px_rgba(29,44,104,0.5)]">
+      <span
+        title={course.name}
+        className="learn-app-home__icon-label mt-2 line-clamp-2 max-w-full px-0.5 text-[clamp(11px,1.1vw,15px)] font-semibold leading-5 tracking-[-0.02em] text-white [text-shadow:0_1px_6px_rgba(29,44,104,0.5)]"
+      >
         {course.name}
       </span>
     </>
@@ -468,10 +471,10 @@ function SystemAppIconContent({
     <>
       <span
         className={cn(
-          'relative grid shrink-0 place-items-center overflow-hidden text-white transition-[transform,filter] duration-200 group-hover:-translate-y-0.5 group-hover:brightness-[1.04]',
+          'learn-app-home__icon-art relative grid shrink-0 place-items-center overflow-hidden text-white transition-[transform,filter] duration-200 group-hover:-translate-y-0.5 group-hover:brightness-[1.04]',
           compact
             ? 'size-[clamp(52px,min(4.6vw,7vh),74px)] rounded-[20px]'
-            : 'size-[clamp(64px,min(5.4vw,8vh),96px)] rounded-[22px]',
+            : 'size-[clamp(72px,min(6.2vw,11vh),104px)] rounded-[22px]',
         )}
         style={{
           background: app.background,
@@ -498,9 +501,12 @@ function SystemAppIconContent({
       </span>
       {showLabel ? (
         <span
+          title={app.label}
           className={cn(
-            'block max-w-full truncate font-medium tracking-[-0.02em] text-white [text-shadow:0_1px_6px_rgba(29,44,104,0.5)]',
-            compact ? 'mt-1.5 text-[12px] leading-4' : 'mt-2.5 text-[15px] leading-5',
+            'learn-app-home__icon-label block max-w-full px-0.5 font-semibold tracking-[-0.02em] text-white [text-shadow:0_1px_6px_rgba(29,44,104,0.5)]',
+            compact
+              ? 'mt-1.5 truncate text-[12px] leading-4'
+              : 'mt-2 line-clamp-2 text-[clamp(11px,1.1vw,15px)] leading-5',
           )}
         >
           {app.label}
@@ -526,9 +532,10 @@ function DockSystemAppIcon({
       title={app.label}
       aria-label={app.label}
       data-dock-system-app={app.action}
-      className="group touch-manipulation rounded-[20px] outline-none transition-transform duration-200 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent active:translate-y-0 active:scale-[0.97]"
+      className="group flex touch-manipulation flex-col items-center rounded-[22px] outline-none transition-transform duration-200 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent active:translate-y-0 active:scale-[0.97]"
     >
-      <SystemAppIconContent app={app} compact iconSrcOverride={iconSrcOverride} />
+      {/* Same logo size as course grid apps — not the compact dock variant. */}
+      <SystemAppIconContent app={app} iconSrcOverride={iconSrcOverride} />
     </button>
   );
 }
@@ -815,10 +822,10 @@ export function LearnHomeDashboard({
       {coursesLoading && courses.length === 0 ? <LearnHomeLoadingState /> : null}
 
       {coursesLoading && courses.length === 0 ? null : (
-        <div className="learn-app-home__shell relative z-10 mx-auto flex h-full w-full max-w-[1320px] flex-col px-5 pb-[2vh] pt-[1.5vh] sm:px-8 lg:max-w-none lg:w-[min(92vw,1680px)] lg:px-[clamp(1rem,2vw,2.75rem)]">
+        <div className="learn-app-home__shell relative z-10 mx-auto h-full w-full max-w-[1320px] px-5 pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] pt-[1.5vh] sm:px-8 lg:max-w-none lg:w-[min(92vw,1680px)] lg:px-[clamp(1rem,2vw,2.75rem)] lg:pb-[max(10px,env(safe-area-inset-bottom,0px))] lg:pt-[clamp(28px,4.5vh,52px)]">
           {courseLoadError ? (
             <div
-              className="mb-2 flex shrink-0 items-center justify-between gap-3 rounded-[16px] border border-white/40 bg-slate-950/58 px-4 py-2.5 text-sm text-white shadow-lg backdrop-blur-xl"
+              className="mb-2 flex shrink-0 items-center justify-between gap-3 rounded-[16px] border border-white/40 bg-slate-950/58 px-4 py-2.5 text-sm text-white shadow-lg backdrop-blur-xl lg:absolute lg:left-[clamp(1rem,2vw,2.75rem)] lg:right-[clamp(1rem,2vw,2.75rem)] lg:top-[clamp(8px,1.2vh,16px)] lg:z-20 lg:mb-0"
               role="alert"
             >
               <span className="min-w-0 truncate">
@@ -836,15 +843,15 @@ export function LearnHomeDashboard({
             </div>
           ) : coursesLoading ? (
             <div
-              className="mb-2 flex shrink-0 items-center gap-2 rounded-[16px] border border-white/30 bg-slate-950/38 px-4 py-2.5 text-sm text-white shadow-lg backdrop-blur-xl"
+              className="mb-2 flex shrink-0 items-center gap-2 rounded-[16px] border border-white/30 bg-slate-950/38 px-4 py-2.5 text-sm text-white shadow-lg backdrop-blur-xl lg:absolute lg:left-[clamp(1rem,2vw,2.75rem)] lg:right-[clamp(1rem,2vw,2.75rem)] lg:top-[clamp(8px,1.2vh,16px)] lg:z-20 lg:mb-0"
               role="status"
             >
               <Loader2 className="size-4 animate-spin" aria-hidden />
               正在连接课程数据库并恢复课程列表…
             </div>
           ) : null}
-          <div className="learn-app-home__stage min-h-0 flex-[1_1_auto] overflow-y-auto px-1 pb-[1vh] pt-[1vh] [scrollbar-width:none] lg:h-[72%] lg:flex-none lg:overflow-hidden [&::-webkit-scrollbar]:hidden">
-            <div className="learn-app-home__grid grid h-full min-h-0 w-full grid-cols-3 gap-x-5 gap-y-5 sm:gap-x-6 lg:grid-cols-none lg:h-full lg:max-h-full lg:min-h-0">
+          <div className="learn-app-home__stage min-h-0 overflow-hidden px-1 lg:overflow-hidden">
+            <div className="learn-app-home__grid grid h-full min-h-0 w-full grid-cols-3 content-start gap-x-5 gap-y-5 overflow-hidden sm:gap-x-6 lg:grid-cols-none lg:content-stretch lg:gap-y-[clamp(0.8vh,1.25vh,1.6vh)]">
               <article className="learn-app-home__widget learn-app-home__widget--schedule col-span-3 flex min-h-[200px] w-full flex-col rounded-[26px] border border-white/28 p-4 shadow-[0_20px_52px_rgba(28,43,114,0.14)] backdrop-blur-2xl sm:col-span-3 lg:col-auto lg:h-full lg:min-h-0">
                 <button
                   type="button"
@@ -989,7 +996,7 @@ export function LearnHomeDashboard({
           </div>
 
           <nav
-            className="mb-[11vh] flex h-[3vh] shrink-0 items-center justify-center gap-2 lg:mb-[12vh]"
+            className="learn-app-home__pagination mt-4 flex shrink-0 items-center justify-center gap-2 lg:mt-0"
             aria-label="主屏分页"
           >
             {visiblePages.map((pageNumber) => (
@@ -1010,7 +1017,7 @@ export function LearnHomeDashboard({
           </nav>
 
           <nav
-            className="learn-app-home__dock fixed bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-start gap-2 rounded-[30px] border border-white/30 bg-white/24 px-3 py-2 shadow-[0_18px_46px_rgba(25,35,94,0.28)] backdrop-blur-2xl max-sm:left-[calc(50%+8px)] lg:absolute"
+            className="learn-app-home__dock fixed bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-start gap-2 rounded-[30px] border border-white/30 bg-white/24 px-3 py-2 shadow-[0_18px_46px_rgba(25,35,94,0.28)] backdrop-blur-2xl max-sm:left-[calc(50%+8px)] lg:static lg:bottom-auto lg:left-auto lg:z-auto lg:translate-x-0 lg:justify-self-center"
             aria-label="系统应用 Dock"
           >
             {DOCK_SYSTEM_APPS.map((app) => (

@@ -23,10 +23,8 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResult,
   ImageProviderId,
-  StudyCoverOverlaySpec,
 } from '@/lib/media/types';
 import { normalizeRequestedImageDimensions } from '@/lib/media/image-result-normalization';
-import { compositeStudyCoverResult } from '@/lib/media/study-cover-overlay';
 import { createLogger } from '@/lib/logger';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { assertUserHasCredits, chargeCreditsForImageGeneration } from '@/lib/server/credits';
@@ -164,7 +162,6 @@ export async function POST(request: NextRequest) {
   return runWithRequestContext(request, '/api/generate/image', async () => {
     try {
       const body = (await request.json()) as ImageGenerationOptions & {
-        coverOverlay?: StudyCoverOverlaySpec;
         notebookContext?: {
           id?: string;
           name?: string;
@@ -241,9 +238,7 @@ export async function POST(request: NextRequest) {
         proxyFetch as typeof fetch,
       );
       const inlineResult = await materializeImageResultInline(normalizedResult);
-      const result = body.coverOverlay
-        ? await compositeStudyCoverResult(inlineResult, body.coverOverlay)
-        : inlineResult;
+      const result = inlineResult;
       const resolvedModelId = result.usage?.modelId || clientModel || 'gpt-image-2';
       const costEstimate = createImageCostEstimate(providerId, resolvedModelId, result);
 

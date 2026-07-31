@@ -28,13 +28,13 @@ function requireBefore(relativePath, earlier, later, message) {
 
 requireMatch(
   '.env.example',
-  /^DEFAULT_MODEL=gpt-5\.6-sol$/m,
-  'DEFAULT_MODEL must use GPT-5.6 Sol.',
+  /^DEFAULT_MODEL=gpt-5\.6-terra$/m,
+  'DEFAULT_MODEL must use GPT-5.6 Terra.',
 );
 requireMatch(
   '.env.example',
-  /^OPENAI_MODELS=gpt-5\.6-sol,gpt-5\.6-terra,gpt-5\.6-luna$/m,
-  'OPENAI_MODELS must expose the GPT-5.6 family in role order.',
+  /^OPENAI_MODELS=gpt-5\.6-terra,gpt-5\.6-sol,gpt-5\.6-luna$/m,
+  'OPENAI_MODELS must expose Terra first as the default, then Sol and Luna.',
 );
 requireMatch(
   '.env.example',
@@ -64,18 +64,18 @@ for (const model of ['sol', 'terra', 'luna']) {
 
 requireMatch(
   'lib/server/system-llm-config.ts',
-  /if \(!configured\) return 'gpt-5\.6-sol';/,
-  'server LLM fallback must use GPT-5.6 Sol.',
+  /if \(!configured\) return 'gpt-5\.6-terra';/,
+  'server LLM fallback must use GPT-5.6 Terra.',
 );
 requireMatch(
   'prisma/schema.prisma',
-  /model SystemLLMConfig \{[\s\S]*?modelId\s+String\s+@default\("gpt-5\.6-sol"\)/,
+  /model SystemLLMConfig \{[\s\S]*?modelId\s+String\s+@default\("gpt-5\.6-terra"\)/,
   'new system LLM rows must not fall back to the legacy GPT-4o mini default.',
 );
 requireMatch(
-  'prisma/migrations/20260727030000_update_system_llm_default/migration.sql',
-  /ALTER COLUMN "modelId" SET DEFAULT 'gpt-5\.6-sol'/,
-  'the database default migration must follow the current flagship model.',
+  'prisma/migrations/20260731010000_update_system_llm_default_to_terra/migration.sql',
+  /ALTER COLUMN "modelId" SET DEFAULT 'gpt-5\.6-terra'/,
+  'the database default migration must follow the current balanced model.',
 );
 requireMatch(
   'lib/ai/server-model.ts',
@@ -84,8 +84,8 @@ requireMatch(
 );
 requireMatch(
   'lib/store/settings.ts',
-  /const DEFAULT_OPENAI_MODEL_ID = 'gpt-5\.6-sol';/,
-  'client text default must use GPT-5.6 Sol.',
+  /const DEFAULT_OPENAI_MODEL_ID = 'gpt-5\.6-terra';/,
+  'client text default must use GPT-5.6 Terra.',
 );
 requireMatch(
   'lib/store/settings.ts',
@@ -99,7 +99,7 @@ requireMatch(
 );
 requireMatch(
   'lib/store/settings.ts',
-  /version: 9,/,
+  /version: 11,/,
   'persisted settings migration version must include the generation-default upgrade.',
 );
 requireMatch(
@@ -150,7 +150,7 @@ for (const relativePath of [
 ]) {
   requireMatch(
     relativePath,
-    /(?:DEFAULT_MODEL|configured)[\s\S]{0,180}'(?:openai:)?gpt-5\.6-sol'/,
+    /(?:DEFAULT_MODEL|configured)[\s\S]{0,180}'(?:openai:)?gpt-5\.6-terra'/,
     'active API/learning harness fallback must follow the current base model.',
   );
 }
@@ -159,10 +159,10 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      textDefault: 'gpt-5.6-sol',
+      textDefault: 'gpt-5.6-terra',
       balancedNotebookModel: 'gpt-5.6-terra',
       imageDefault: 'gpt-image-2',
-      persistedSettingsMigration: 9,
+      persistedSettingsMigration: 11,
     },
     null,
     2,

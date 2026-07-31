@@ -865,22 +865,31 @@
 }
 
 @media (min-width: 1024px) {
-  /* Learn home shell: ~92% viewport width, capped for ultra-wide. */
+  /*
+   * Home shell (matches native iPad model):
+   * - row 1 (4fr): stage = 6×4 grid (widgets left, 4×4 icon slots right)
+   * - row 2 (auto): page dots
+   * - row 3 (1fr): dock — one app-row weight
+   * Overflow goes to page 2, never a stage scrollbar.
+   */
   .learn-app-home__shell {
+    display: grid !important;
+    grid-template-rows: minmax(0, 4fr) auto minmax(0, 1fr);
     width: min(92vw, 1680px);
     max-width: none;
+    height: 100%;
+    min-height: 0;
     padding-inline: clamp(1rem, 2vw, 2.75rem);
-    padding-top: clamp(0.8vh, 1.5vh, 2vh);
-    padding-bottom: clamp(1vh, 2vh, 2.5vh);
+    padding-top: clamp(28px, 4.5vh, 52px);
+    padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
   }
 
-  /*
-   * Grid fills ~72% of shell height (dock + pagination take the rest).
-   * Columns: left widgets ~36% (2 tracks), course icons ~64% (4 tracks).
-   */
   .learn-app-home__stage {
-    height: 72%;
-    flex: none;
+    grid-row: 1;
+    flex: unset;
+    height: 100% !important;
+    max-height: 100%;
+    min-height: 0;
     overflow: hidden;
   }
 
@@ -892,6 +901,7 @@
     height: 100%;
     min-height: 0;
     max-height: 100%;
+    align-content: stretch;
   }
 
   .learn-app-home__widget {
@@ -913,14 +923,65 @@
   .learn-app-home__grid-item {
     grid-column: var(--learn-home-grid-column);
     grid-row: var(--learn-home-grid-row);
-    align-self: center;
-    justify-self: center;
+    align-self: stretch;
+    justify-self: stretch;
     width: 100%;
     max-width: 100%;
+    height: 100%;
+    min-height: 0;
+    justify-content: center;
+  }
+
+  /* Keep dnd-kit helper nodes from stealing grid tracks. */
+  .learn-app-home__grid > div {
+    display: contents;
+  }
+
+  .learn-app-home__grid-item .learn-app-home__icon-art {
+    width: clamp(72px, min(6.2vw, 11vh), 104px) !important;
+    height: clamp(72px, min(6.2vw, 11vh), 104px) !important;
+  }
+
+  .learn-app-home__grid-item .learn-app-home__icon-label {
+    margin-top: 6px;
+    font-size: clamp(11px, 1.05vw, 14px);
+    line-height: 1.25;
+  }
+
+  .learn-app-home__pagination {
+    grid-row: 2;
+    align-self: center;
+    margin: 0;
+    height: auto;
+    min-height: 28px;
   }
 
   .learn-app-home__dock {
-    bottom: 1.5vh;
+    position: relative !important;
+    grid-row: 3;
+    bottom: auto !important;
+    left: auto !important;
+    z-index: 1;
+    align-self: center;
+    justify-self: center;
+    transform: none !important;
+    max-width: 100%;
+    gap: clamp(6px, 0.9vw, 14px);
+    padding: 8px 14px;
+  }
+
+  /* Dock logos match course grid icon size. */
+  .learn-app-home__dock .learn-app-home__icon-art {
+    width: clamp(72px, min(6.2vw, 11vh), 104px) !important;
+    height: clamp(72px, min(6.2vw, 11vh), 104px) !important;
+    border-radius: 22px;
+  }
+
+  .learn-app-home__dock .learn-app-home__icon-label {
+    margin-top: 6px;
+    max-width: 104px;
+    font-size: clamp(11px, 1.05vw, 14px);
+    line-height: 1.25;
   }
 }
 

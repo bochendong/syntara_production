@@ -8,7 +8,7 @@ const ROOT = process.cwd();
 const OUT_ROOT = path.join(ROOT, 'tmp', 'course-chat-services');
 const DEFAULT_BASE_URL = process.env.COURSE_CHAT_TEST_BASE_URL || 'http://localhost:3000';
 const DEFAULT_MODEL =
-  process.env.COURSE_CHAT_TEST_MODEL || process.env.DEFAULT_MODEL || 'openai:gpt-5.6-sol';
+  process.env.COURSE_CHAT_TEST_MODEL || process.env.DEFAULT_MODEL || 'openai:gpt-5.6-terra';
 
 const COURSE_ORCHESTRATOR_ID = 'course-orchestrator';
 const COURSE_ORCHESTRATOR_NAME = '课程总控Agent';

@@ -49,7 +49,7 @@ const HELP = `
 
 环境:
   OPENAI_API_KEY       必需；优先使用当前进程环境，其次读取 .env.local / .env。
-  DEFAULT_MODEL        可选；默认 gpt-5.6-sol，可写 openai:gpt-5.6-sol。
+  DEFAULT_MODEL        可选；默认 gpt-5.6-terra，可写 openai:gpt-5.6-terra。
   OPENAI_BASE_URL      可选；默认 https://api.openai.com/v1。
   HTTPS_PROXY/HTTP_PROXY（以及小写形式）
       可选；通过 undici ProxyAgent 发送请求。runner 不输出 key 或代理地址。
@@ -197,7 +197,7 @@ function loadSharedNormalizers() {
 }
 
 function normalizeModelId(value) {
-  const configured = value?.trim() || 'gpt-5.6-sol';
+  const configured = value?.trim() || 'gpt-5.6-terra';
   return configured.replace(/^(?:openai[:/])+/i, '');
 }
 

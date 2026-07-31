@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { POST as generateImage } from '@/app/api/generate/image/route';
 import { parseSourceUploadPayload } from '@/app/api/courses/[id]/source-ingest/route';
-import { prepareSourceCoverPrompt } from '@/features/memory/server/source-upload-ingestion';
+import { prepareCheatSheetPrompt } from '@/features/memory/server/source-upload-ingestion';
 import type { ImageGenerationCostEstimate, ImageGenerationResult } from '@/lib/media/types';
 import {
   normalizeUpstreamApiError,
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         chargeReason: '生成 Cheat Sheet 内容',
       },
       () =>
-        prepareSourceCoverPrompt({
+        prepareCheatSheetPrompt({
           sourceTitle: payload.sourceTitle,
           sourceKind: payload.sourceKind,
           sourceFileMime: payload.sourceFileMime,

@@ -386,7 +386,7 @@ function defaultProgrammingRepairModelString(): string {
   if (explicit) return explicit.includes(':') ? explicit : `openai:${explicit}`;
   const firstOpenAIModel = process.env.OPENAI_MODELS?.split(',')[0]?.trim();
   if (firstOpenAIModel) return `openai:${firstOpenAIModel}`;
-  return 'openai:gpt-5.6-sol';
+  return 'openai:gpt-5.6-terra';
 }
 
 class NotebookCourseContractValidationError extends Error {

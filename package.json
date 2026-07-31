@@ -20,6 +20,7 @@
     "notebooks:push-lesson": "node scripts/maintenance/push-lesson-to-online-db.mjs",
     "notebooks:repair-focus": "dotenv -e .env.local -- node scripts/maintenance/repair-image-notebook-focus-elements.mjs",
     "notebooks:import-cpsc107-markdown": "node scripts/maintenance/import-cpsc107-queue-markdown-notebooks.mjs",
+    "notebooks:rebuild-queue": "node scripts/maintenance/rebuild-queue-notebooks.mjs",
     "memory:inject-course": "node scripts/maintenance/inject-course-public-memory.mjs",
     "db:generate": "dotenv -e .env.local -- prisma generate",
     "db:migrate": "dotenv -e .env.local -- prisma migrate dev",

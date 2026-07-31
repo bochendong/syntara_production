@@ -18,17 +18,6 @@ const SOURCE_COVER_HEIGHT = 1448;
 const SOURCE_COVER_PUBLIC_PREFIX = '/generated-source-covers';
 const SOURCE_COVER_PUBLIC_ROOT = path.join(process.cwd(), 'public', 'generated-source-covers');
 
-const coverOverlaySchema = z.object({
-  title: z.string().trim().min(1).max(160),
-  courseLabel: z.string().trim().max(80).default(''),
-  routeTitle: z.string().trim().min(1).max(80),
-  routeItems: z.array(z.string().trim().min(1).max(80)).max(3),
-  sideTitle: z.string().trim().min(1).max(80),
-  sideItems: z.array(z.string().trim().min(1).max(120)).max(4),
-  footerTitle: z.string().trim().min(1).max(80),
-  footerText: z.string().trim().min(1).max(320),
-});
-
 const updateCoverSchema = z.object({
   notebookId: z.string().trim().min(1).max(80),
   imageDataUrl: z
@@ -38,7 +27,6 @@ const updateCoverSchema = z.object({
   providerId: z.literal('openai-image'),
   model: z.literal('gpt-image-2'),
   prompt: z.string().trim().min(1).max(20_000),
-  coverSpec: coverOverlaySchema,
 });
 
 function jsonRecord(value: unknown): Record<string, unknown> {
@@ -219,7 +207,6 @@ function sourceCoverSlideJson(args: {
   topic: string | null;
   imagePath: string;
   promptHash: string;
-  coverSpec: z.infer<typeof coverOverlaySchema>;
 }): Record<string, unknown> {
   const previous = jsonRecord(args.previous);
   const previousSourceCover = jsonRecord(previous.sourceCover);
@@ -250,7 +237,6 @@ function sourceCoverSlideJson(args: {
       providerId: 'openai-image',
       model: 'gpt-image-2',
       promptHash: args.promptHash,
-      coverSpec: args.coverSpec,
       generatedAt: new Date().toISOString(),
     },
     elements: [
@@ -479,7 +465,6 @@ export async function PATCH(
             coverProviderId: payload.data.providerId,
             coverModel: payload.data.model,
             coverPromptHash: promptHash,
-            coverSpec: payload.data.coverSpec,
             coverUpdatedAt: generatedAt,
           };
           const nextCoverSlide = sourceCoverSlideJson({
@@ -489,7 +474,6 @@ export async function PATCH(
             topic: currentSource.topic,
             imagePath,
             promptHash,
-            coverSpec: payload.data.coverSpec,
           });
 
           const sourceUpdate = await tx.courseSource.updateMany({
@@ -601,7 +585,6 @@ export async function PATCH(
       sourceHash,
       notebookId: notebook.id,
       cover,
-      coverSpec: payload.data.coverSpec,
       memoryFactUpdated,
       image: {
         path: imagePath,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   Bell,
   CalendarDays,
@@ -28,35 +28,19 @@ import { HaruLive2D } from './HaruLive2D';
 import { GlobalCalendarApp } from './GlobalCalendarApp';
 import { ProfileCenterApp } from './ProfileCenterApp';
 
-const iconsPerPage = 16;
 const UPCOMING_SCHEDULE_LIMIT = 5;
+const HOME_GRID_ROWS = 4;
 
-/** iPad-style home grid: apps occupy columns 3–6 across 4 equal rows. */
-const HOME_ICON_GRID_POSITIONS = [
-  { column: 3, row: 1 },
-  { column: 4, row: 1 },
-  { column: 5, row: 1 },
-  { column: 6, row: 1 },
-  { column: 3, row: 2 },
-  { column: 4, row: 2 },
-  { column: 5, row: 2 },
-  { column: 6, row: 2 },
-  { column: 3, row: 3 },
-  { column: 4, row: 3 },
-  { column: 5, row: 3 },
-  { column: 6, row: 3 },
-  { column: 3, row: 4 },
-  { column: 4, row: 4 },
-  { column: 5, row: 4 },
-  { column: 6, row: 4 },
-] as const;
+function resolveHomeAppColumns(width: number): number {
+  if (width >= 1_080) return 4;
+  if (width >= 820) return 3;
+  return 2;
+}
 
-function homeIconGridStyle(index: number): CSSProperties | undefined {
-  const position = HOME_ICON_GRID_POSITIONS[index];
-  if (!position) return undefined;
+function homeIconGridStyle(index: number, appColumns: number): CSSProperties {
   return {
-    gridColumn: position.column,
-    gridRow: position.row,
+    gridColumn: 3 + (index % appColumns),
+    gridRow: Math.floor(index / appColumns) + 1,
   };
 }
 
@@ -149,6 +133,8 @@ export function LearnHome({
   const [activeDockApp, setActiveDockApp] = useState<DockAppId | null>(null);
   const [allSchedules, setAllSchedules] = useState<HomeScheduleItem[]>([]);
   const [avatarRevision, setAvatarRevision] = useState(0);
+  const [appColumns, setAppColumns] = useState(4);
+  const stageRef = useRef<HTMLDivElement>(null);
   const homeItems = useMemo(
     () => [
       { id: 'new-course', kind: 'create' as const },
@@ -156,6 +142,7 @@ export function LearnHome({
     ],
     [courses],
   );
+  const iconsPerPage = appColumns * HOME_GRID_ROWS;
   const pageCount = Math.max(1, Math.ceil(homeItems.length / iconsPerPage));
   const currentPage = Math.min(page, pageCount - 1);
   const visibleItems = homeItems.slice(
@@ -219,6 +206,25 @@ export function LearnHome({
     return () => window.removeEventListener('syntara-native-course-avatar-changed', refreshAvatars);
   }, []);
 
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const updateColumns = (width: number) => {
+      setAppColumns((current) => {
+        const next = resolveHomeAppColumns(width);
+        return current === next ? current : next;
+      });
+    };
+    updateColumns(stage.getBoundingClientRect().width);
+
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) updateColumns(entry.contentRect.width);
+    });
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <section className="native-learn-home" aria-label="学习应用主页">
       {activeDockApp === 'calendar' ? (
@@ -251,6 +257,12 @@ export function LearnHome({
         />
       ) : null}
 
+      <img
+        className="native-learn-background-fill"
+        src={cloudKingdomBackgroundUrl}
+        alt=""
+        aria-hidden
+      />
       <img className="native-learn-background" src={cloudKingdomBackgroundUrl} alt="" aria-hidden />
       <span className="native-learn-wash" aria-hidden />
       <span className="native-learn-bloom native-learn-bloom-a" aria-hidden />
@@ -258,7 +270,11 @@ export function LearnHome({
       <span className="native-learn-bloom native-learn-bloom-c" aria-hidden />
 
       <div className="native-learn-shell">
-        <div className="native-learn-stage">
+        <div
+          ref={stageRef}
+          className="native-learn-stage"
+          style={{ '--home-app-columns': appColumns } as CSSProperties}
+        >
           <article className="native-learn-widget native-learn-schedule">
             <button
               type="button"
@@ -332,7 +348,7 @@ export function LearnHome({
 
           <div className="native-learn-icons" aria-label="课程与学习应用">
             {visibleItems.map((item, index) => {
-              const gridStyle = homeIconGridStyle(index);
+              const gridStyle = homeIconGridStyle(index, appColumns);
               if (item.kind === 'create') {
                 return (
                   <button
@@ -382,6 +398,7 @@ export function LearnHome({
           {pageCount > 1 ? (
             <button
               type="button"
+              className="native-learn-page-arrow"
               onClick={() => setPage(Math.max(0, currentPage - 1))}
               disabled={currentPage === 0}
               aria-label="上一页"
@@ -393,7 +410,11 @@ export function LearnHome({
             <button
               type="button"
               key={index}
-              className={index === currentPage ? 'native-learn-page-active' : ''}
+              className={
+                index === currentPage
+                  ? 'native-learn-page-dot native-learn-page-active'
+                  : 'native-learn-page-dot'
+              }
               onClick={() => setPage(index)}
               aria-label={`第 ${index + 1} 页`}
               aria-current={index === currentPage ? 'page' : undefined}
@@ -402,6 +423,7 @@ export function LearnHome({
           {pageCount > 1 ? (
             <button
               type="button"
+              className="native-learn-page-arrow"
               onClick={() => setPage(Math.min(pageCount - 1, currentPage + 1))}
               disabled={currentPage === pageCount - 1}
               aria-label="下一页"

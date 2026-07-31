@@ -1,4 +1,3 @@
-import type { StudyCoverOverlaySpec } from '@/lib/media/types';
 import type { NotebookProblemGrading, NotebookProblemPublicContent } from '@/lib/problem-bank';
 
 export type CorePlatformScenarioId =
@@ -235,7 +234,6 @@ export type PlatformFlowOutput =
       title: string;
       summary: string;
       imagePrompt: string;
-      coverSpec?: StudyCoverOverlaySpec;
       imageUrl?: string;
       width?: number;
       height?: number;

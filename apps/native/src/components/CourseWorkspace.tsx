@@ -477,7 +477,7 @@ function readStoredAiModel(): SupportedAiModel {
   const stored = window.localStorage.getItem(AI_MODEL_STORAGE_KEY);
   return supportedAiModels.some(({ id }) => id === stored)
     ? (stored as SupportedAiModel)
-    : 'gpt-5.6-sol';
+    : 'gpt-5.6-terra';
 }
 
 function errorMessage(cause: unknown): string {
@@ -1366,7 +1366,7 @@ export function CourseWorkspace({
   const [aiSettings, setAiSettings] = useState<AiSettings>({
     configured: false,
     credentialSource: null,
-    defaultModel: 'gpt-5.6-sol',
+    defaultModel: 'gpt-5.6-terra',
   });
   const [platformAiAccess, setPlatformAiAccess] = useState<PlatformAiAccess>({
     status: 'checking',

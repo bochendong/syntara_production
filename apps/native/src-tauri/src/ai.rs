@@ -6,7 +6,7 @@ use crate::platform_api::{
     execute_teaching_turn, platform_configuration, post_json, PlatformJsonRequest, DEFAULT_TIMEOUT,
 };
 
-const DEFAULT_MODEL: &str = "gpt-5.6-sol";
+const DEFAULT_MODEL: &str = "gpt-5.6-terra";
 const MAX_SYLLABUS_FILE_BYTES: usize = 20 * 1024 * 1024;
 const MAX_SYLLABUS_IMAGE_BYTES: usize = 12 * 1024 * 1024;
 
