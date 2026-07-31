@@ -37,108 +37,84 @@
         "kind": "path",
         "summary": "集合题的核心是元素归属；逻辑题的核心是真值判定。两者都依赖清晰的条件翻译。",
         "markdown": "本讲有两条相互关联的主线：\n\n1. **集合语言**：先能说清“哪些对象属于一个集合”，再学习并、交、差、补和笛卡尔积，最后用“任取元素”的方法证明包含关系与集合相等。\n2. **逻辑语言**：先判断一句话能否判定真假，再用 $\\land$、$\\lor$、$\\neg$ 组合命题，并借助真值表验证逻辑等价。\n\n建议按下列顺序复习：\n\n- 写集合时，先确定对象类型与限制条件；\n- 做集合运算时，始终把“元素 $x$ 是否属于结果集合”翻译成条件；\n- 证明 $A\\subseteq B$ 时，从“任取 $x\\in A$”开始；\n- 证明 $A=B$ 时，必须分别证明 $A\\subseteq B$ 与 $B\\subseteq A$；\n- 做逻辑题时，先确定每个原子命题的真值，再按括号与联结词逐步计算。",
-        "sourceRefs": [
-          "PDF 第1页 Introduction；第3–10页"
-        ]
+        "sourceRefs": ["PDF 第1页 Introduction；第3–10页"]
       },
       {
         "title": "集合、元素与集合构造式",
         "kind": "concept",
         "summary": "集合不计顺序和重复；构造式的关键是明确对象范围与筛选条件。",
         "markdown": "### 1. 什么是集合\n\n集合是由**确定的、互不重复的对象**组成的无序集合。对象称为集合的元素。空集记为 $\\varnothing$，其中没有任何元素。\n\n- $a\\in S$：$a$ 是 $S$ 的元素；\n- $a\\notin S$：$a$ 不是 $S$ 的元素。\n\n“确定的”意味着：对于任一对象，都能无歧义地判断它是否属于该集合。元素的排列顺序和重复次数不影响集合：\n\n$$\\{1,2,2,3,3,3\\}=\\{3,1,2\\}=\\{1,2,3\\}.$$\n\n但要特别分清**元素**与**由元素组成的集合**。例如\n\n$$C=\\{\\{1,2\\},\\{3\\}\\}$$\n\n有两个元素，即 $\\{1,2\\}$ 和 $\\{3\\}$；其中 $1\\notin C$，但 $\\{1,2\\}\\in C$。\n\n### 2. 集合构造式\n\n当集合很大或无限时，使用\n\n$$\\{a: a\\text{ 满足性质 }P\\}$$\n\n表示“所有满足性质 $P$ 的 $a$ 所构成的集合”。冒号也常写作竖线。例如：\n\n$$\\{1,2,3,\\ldots\\}=\\{a:a\\text{ 是正的整数}\\}.$$\n\n本讲常用数集：\n\n$$\\mathbb N=\\{0,1,2,3,\\ldots\\},\\qquad \\mathbb Z=\\{\\ldots,-2,-1,0,1,2,\\ldots\\},$$\n\n$$\\mathbb Q=\\left\\{\\frac ab:a,b\\in\\mathbb Z,\\ b\\ne0\\right\\},\\qquad \\mathbb R=\\text{实数集},$$\n\n$$\\mathbb Z^+=\\{1,2,3,\\ldots\\},\\qquad \\mathbb Z^*=\\{0,1,2,3,\\ldots\\}.$$\n\n> 本课程用 $\\mathbb Z^+$ 与 $\\mathbb Z^*$ 区分正整数和非负整数，从而避免 $0$ 是否属于自然数的约定差异。",
-        "sourceRefs": [
-          "PDF 第1–2页 Definition 1；Set Builder Notation"
-        ]
+        "sourceRefs": ["PDF 第1–2页 Definition 1；Set Builder Notation"]
       },
       {
         "title": "例题：展开有限集合",
         "kind": "example",
         "summary": "有限构造式：枚举允许的变量取值，代入计算，最后按集合规则去重。",
         "markdown": "**题目**\n\n将下列集合的元素全部写出：\n\n$$S=\\{z:z=x+y,\\ x\\in\\{1,2\\}\\text{ 且 }y\\in\\{5,7\\}\\}.$$\n\n**方法选择**\n\n$x$ 与 $y$ 的可选值都很少，适合逐一枚举所有有序选择 $(x,y)$，计算对应的 $z$，最后删除重复元素。\n\n**主要步骤**\n\n- 当 $x=1$ 时：$z=1+5=6$ 或 $z=1+7=8$；\n- 当 $x=2$ 时：$z=2+5=7$ 或 $z=2+7=9$。\n\n因此\n\n$$S=\\{6,7,8,9\\}.$$\n\n**结果**\n\n$$\\boxed{S=\\{6,7,8,9\\}}$$\n\n**易错点与验算**\n\n- 不要把 $(x,y)$ 写成集合元素；题目定义的元素是和 $z=x+y$。\n- 若不同的 $(x,y)$ 产生相同的 $z$，结果中仍只保留一次，因为集合不重复。\n- 验算时，检查每个列出的数能否写成一个允许的 $x+y$。",
-        "sourceRefs": [
-          "PDF 第2页 Exercise 3"
-        ]
+        "sourceRefs": ["PDF 第2页 Exercise 3"]
       },
       {
         "title": "集合运算的元素语言",
         "kind": "concept",
         "summary": "并对应“或”，交对应“且”，差对应“在前者而不在后者”；补集必须先指定全集；笛卡尔积的元素是有序对。",
         "markdown": "设 $S,T$ 为集合。\n\n### 1. 并、交、差\n\n$$S\\cup T=\\{x:x\\in S\\lor x\\in T\\}$$\n\n并集收集属于 $S$ **或**属于 $T$ 的所有元素；这里的“或”是包含性的，即同时属于两者也算。\n\n$$S\\cap T=\\{x:x\\in S\\land x\\in T\\}$$\n\n交集收集同时属于两个集合的元素。\n\n$$S\\setminus T=\\{x:x\\in S\\land x\\notin T\\}$$\n\n差集保留 $S$ 中不属于 $T$ 的元素。注意差集有方向，一般 $S\\setminus T\\ne T\\setminus S$。\n\n### 2. 补集依赖全集\n\n若全集（讨论范围）为 $U$，且 $A\\subseteq U$，则 $A$ 在 $U$ 中的补集为\n\n$$A^c=\\{x\\in U:x\\notin A\\}.$$\n\n同一个集合在不同全集下补集可能不同。因此看到 $A^c$ 时，先问：**全集 $U$ 是什么？**\n\n例如在 $U=\\mathbb R$ 中，若 $P=\\{x:x>0\\}$，则\n\n$$P^c=\\{x:x\\le0\\}.$$\n\n### 3. 笛卡尔积\n\n$$A\\times B=\\{(a,b):a\\in A,\\ b\\in B\\}.$$\n\n这里的元素是**有序对**。一般而言，$(a,b)\\ne(b,a)$，所以通常 $A\\times B\\ne B\\times A$。\n\n若 $S=\\{a,b\\}$、$T=\\{1,2,3\\}$，则\n\n$$S\\times T=\\{(a,1),(a,2),(a,3),(b,1),(b,2),(b,3)\\}.$$\n\n特别地，只要有一个因子为空集，就没有任何有序对：\n\n$$A\\times\\varnothing=\\varnothing.$$",
-        "sourceRefs": [
-          "PDF 第3页 Definition 4；第4页 Definition 7、Definition 9；第5页"
-        ]
+        "sourceRefs": ["PDF 第3页 Definition 4；第4页 Definition 7、Definition 9；第5页"]
       },
       {
         "title": "例题：并、交、差与补集",
         "kind": "example",
         "summary": "面对无限集合，先翻译成性质，再用性质求运算结果，比逐项罗列更可靠。",
         "markdown": "**题目**\n\n设\n\n$$T=\\{\\ldots,-6,-4,-2,0,2,4,6,\\ldots\\},\\qquad S=\\{0,1,2,3,4,\\ldots\\}.$$\n\n写出 $S,T$ 的集合构造式，并求 $S\\cup T$。进一步在全集 $U=\\mathbb Z$ 中求 $S\\cap T$、$S\\setminus T$、$T\\setminus S$、$S^c$ 与 $T^c$。\n\n**方法选择**\n\n先识别两个集合的共同性质，再根据“属于哪个集合”的条件处理每一种运算。不要仅凭数轴直觉遗漏边界值 $0$。\n\n**主要步骤**\n\n1. $T$ 是全体偶整数，$S$ 是全体非负整数：\n\n   $$T=\\{a:a\\text{ 是偶整数}\\},\\qquad S=\\{a:a\\text{ 是整数且 }a\\ge0\\}.$$\n\n2. 并集包含所有非负整数以及所有负偶整数：\n\n   $$S\\cup T=\\{\\ldots,-6,-4,-2,0,1,2,3,4,\\ldots\\}.$$\n\n   等价地，\n\n   $$S\\cup T=\\{a:a\\text{ 是偶整数，或 }a\\ge0\\}.$$\n\n3. 同时非负且为偶数，得到\n\n   $$S\\cap T=\\{0,2,4,6,\\ldots\\}.$$\n\n4. 在 $S$ 中但不在 $T$，即非负奇整数：\n\n   $$S\\setminus T=\\{1,3,5,\\ldots\\}.$$\n\n5. 在 $T$ 中但不在 $S$，即负偶整数：\n\n   $$T\\setminus S=\\{\\ldots,-6,-4,-2\\}.$$\n\n6. 由于 $U=\\mathbb Z$，\n\n   $$S^c=\\{\\ldots,-3,-2,-1\\},$$\n\n   $$T^c=\\{\\ldots,-3,-1,1,3,5,\\ldots\\}.$$\n\n**结果**\n\n以上每个集合均由“整数性”“奇偶性”和“是否非负”三个条件决定。\n\n**易错点与验算**\n\n- $0\\in S\\cap T$，不能遗漏。\n- $T^c$ 是整数中的奇数，不是实数中的奇数；这是因为全集固定为 $\\mathbb Z$。\n- $S\\setminus T$ 与 $T\\setminus S$ 分别为非负奇数和负偶数，方向不能交换。",
-        "sourceRefs": [
-          "PDF 第4页 Example 5、Exercise 6、Exercise 8"
-        ]
+        "sourceRefs": ["PDF 第4页 Example 5、Exercise 6、Exercise 8"]
       },
       {
         "title": "包含关系与双包含证明法",
         "kind": "method",
         "summary": "证明包含用“任取元素”；证明相等必须完成两个方向的包含证明。",
         "markdown": "### 1. 子集\n\n$$S\\subseteq T$$\n\n表示 $S$ 的每一个元素也属于 $T$。注意：$\\subseteq$ 比较的是“元素是否全部包含”，而 $\\in$ 表示“某对象是否为元素”。\n\n例如，$\\{a,b,c\\}\\subseteq\\{a,b,c,1,2\\}$；但 $\\{a,b,c\\}\\not\\subseteq\\{a,b,1,2\\}$，因为 $c$ 不属于右侧集合。\n\n### 2. 如何证明子集\n\n要证明 $A\\subseteq B$，使用以下模板：\n\n1. 任取 $x\\in A$；\n2. 根据 $x\\in A$ 得到 $x$ 满足的条件；\n3. 推出 $x$ 也满足 $B$ 的定义条件，即 $x\\in B$；\n4. 因为 $x$ 是任意的，所以 $A\\subseteq B$。\n\n例如，对任意集合 $A,B$，有 $A\\subseteq A\\cup B$：任取 $x\\in A$，则 $x$ 满足“属于 $A$ 或属于 $B$”，故 $x\\in A\\cup B$。\n\n### 3. 如何证明集合相等\n\n两个集合相等当且仅当它们有完全相同的元素。证明上使用**双包含**：\n\n$$A=B\\quad\\Longleftrightarrow\\quad A\\subseteq B\\text{ 且 }B\\subseteq A.$$\n\n因此，不能只证明一个方向。例如 $A\\cap B\\subseteq A$ 总是正确，但这通常不足以推出 $A\\cap B=A$。",
-        "sourceRefs": [
-          "PDF 第5页 Definition 11、Example 12；第6页"
-        ]
+        "sourceRefs": ["PDF 第5页 Definition 11、Example 12；第6页"]
       },
       {
         "title": "例题：集合相等的双包含证明",
         "kind": "example",
         "summary": "同余形式的集合相等，通常靠代数改写参数，并严格完成双向包含。",
         "markdown": "**题目**\n\n设\n\n$$A=\\{n\\in\\mathbb Z^*:n=4k+1\\text{ 对某个 }k\\in\\mathbb Z\\},$$\n\n$$B=\\{n\\in\\mathbb Z^*:n=4k-3\\text{ 对某个 }k\\in\\mathbb Z\\}.$$\n\n证明 $A=B$。\n\n**方法选择**\n\n题目要求证明集合相等，因此使用双包含法。关键是通过改写参数 $k$，把一种形式转化成另一种形式。\n\n**主要步骤**\n\n### 证明 $A\\subseteq B$\n\n任取 $n\\in A$。则对某个 $k\\in\\mathbb Z$，\n\n$$n=4k+1.$$\n\n改写为\n\n$$n=4(k+1)-3.$$\n\n因为 $k+1\\in\\mathbb Z$，所以 $n$ 满足 $B$ 的定义，故 $n\\in B$。于是 $A\\subseteq B$。\n\n### 证明 $B\\subseteq A$\n\n任取 $n\\in B$。则对某个 $k\\in\\mathbb Z$，\n\n$$n=4k-3.$$\n\n改写为\n\n$$n=4(k-1)+1.$$\n\n因为 $k-1\\in\\mathbb Z$，所以 $n\\in A$。于是 $B\\subseteq A$。\n\n由两个包含关系可得\n\n$$\\boxed{A=B}.$$\n\n**易错点与验算**\n\n- 两个式子中的 $k$ 不必是同一个整数；改写后应理解为存在一个新的整数参数。\n- 只做 $A\\subseteq B$ 不能结束证明。\n- 参数替换后要说明新参数仍在 $\\mathbb Z$ 中。",
-        "sourceRefs": [
-          "PDF 第6页 Example 14"
-        ]
+        "sourceRefs": ["PDF 第6页 Example 14"]
       },
       {
         "title": "命题与谓词：先判断能否定真伪",
         "kind": "concept",
         "summary": "命题有确定真值；谓词需给变量赋值后才有真值；问句和指令通常两者皆非。",
         "markdown": "### 1. 命题\n\n命题是一个能够无歧义地判定为真或假的陈述句。命题不要求是真的；它只需具有确定的真值。\n\n例如，$2+2=5$ 是假命题。\n\n### 2. 谓词\n\n谓词含有尚未指定的变量，因此暂时不能判定真或假。若\n\n$$P(x):\\ x\\text{ 有绿头发},$$\n\n则未给出 $x$ 的具体取值时，$P(x)$ 是谓词；一旦给定具体对象，$P(\\text{某人})$ 就成为命题。\n\n数学中，$x^2+y^2=1$ 在没有给定 $x,y$ 时是谓词；而“存在整数解满足某方程”则是命题，因为它已经是在作一个可判真假的断言。\n\n### 3. 非命题也非谓词\n\n命令、提问等通常既不是命题也不是谓词，例如“令 $x=\\pi$”和“现在几点？”都不具有真值。\n\n### 判断流程\n\n面对一句话，依次问：\n\n1. 它是否是在陈述某件事，而不是命令或问题？\n2. 在当前信息下，能否判断真或假？若能，它是命题。\n3. 若不能是因为含有未指定变量，而指定变量后可判断真或假，它是谓词。\n4. 否则，它既不是命题也不是谓词。",
-        "sourceRefs": [
-          "PDF 第6页 Definition 16；第7页 Propositional Logic、Exercise 17–18"
-        ]
+        "sourceRefs": ["PDF 第6页 Definition 16；第7页 Propositional Logic、Exercise 17–18"]
       },
       {
         "title": "合取、析取、否定与真值表",
         "kind": "method",
         "summary": "$\\land$ 要全真，$\\lor$ 要至少一真，$\\neg$ 翻转真值；复杂表达式按子表达式逐栏计算。",
         "markdown": "设 $P,Q$ 是命题（或谓词在固定变量取值后得到的命题）。\n\n| 联结词 | 含义 | 为真条件 |\n|---|---|---|\n| $P\\land Q$ | $P$ 且 $Q$ | 两者都真 |\n| $P\\lor Q$ | $P$ 或 $Q$ | 至少一个为真 |\n| $\\neg P$ | 非 $P$ | $P$ 为假 |\n\n对应真值表为：\n\n| $P$ | $Q$ | $P\\land Q$ | $P\\lor Q$ | $\\neg P$ |\n|---|---|---|---|---|\n| T | T | T | T | F |\n| T | F | F | T | F |\n| F | T | F | T | T |\n| F | F | F | F | T |\n\n其中 $\\lor$ 是数学中的包含性“或”：$P,Q$ 都真时，$P\\lor Q$ 仍为真。\n\n### 构造复杂真值表的方法\n\n对表达式 $(\\neg P\\lor Q)\\land R$：\n\n1. 先列出 $P,Q,R$ 的全部 $2^3=8$ 种真值组合；\n2. 单列计算 $\\neg P$；\n3. 再计算 $\\neg P\\lor Q$；\n4. 最后与 $R$ 做 $\\land$。\n\n每个中间子表达式单独列一栏，可以避免把运算顺序弄乱。",
-        "sourceRefs": [
-          "PDF 第8页 Definition 19、Table 1；第9页 Exercise 23"
-        ]
+        "sourceRefs": ["PDF 第8页 Definition 19、Table 1；第9页 Exercise 23"]
       },
       {
         "title": "例题：真值表与逻辑等价",
         "kind": "example",
         "summary": "逻辑等价不是“看起来相像”，而是所有真值输入下输出完全一致。",
         "markdown": "**题目**\n\n证明\n\n$$\\neg(P\\land Q)\\equiv\\neg P\\lor\\neg Q.$$\n\n**方法选择**\n\n要证明两个逻辑表达式等价，只需证明它们在每一组输入真值下的输出完全相同，因此使用真值表。\n\n**主要步骤**\n\n| $P$ | $Q$ | $P\\land Q$ | $\\neg(P\\land Q)$ | $\\neg P$ | $\\neg Q$ | $\\neg P\\lor\\neg Q$ |\n|---|---|---|---|---|---|---|\n| T | T | T | F | F | F | F |\n| T | F | F | T | F | T | T |\n| F | T | F | T | T | F | T |\n| F | F | F | T | T | T | T |\n\n比较最后两列：每一行的真值完全相同。\n\n**结果**\n\n$$\\boxed{\\neg(P\\land Q)\\equiv\\neg P\\lor\\neg Q}$$\n\n这说明：“并非 $P$ 和 $Q$ 同时成立”等价于“$P$ 不成立或 $Q$ 不成立”。\n\n**易错点与验算**\n\n- $\\neg(P\\land Q)$ 不是 $\\neg P\\land\\neg Q$。\n- 否定整个括号时，应先算括号内部，或依据真值表逐行比较。\n- 对 $P=\\mathrm T,Q=\\mathrm F$ 验算：左侧为 $\\neg\\mathrm F=\\mathrm T$；右侧为 $\\mathrm F\\lor\\mathrm T=\\mathrm T$。",
-        "sourceRefs": [
-          "PDF 第9页 Proposition 21 及其证明"
-        ]
+        "sourceRefs": ["PDF 第9页 Proposition 21 及其证明"]
       },
       {
         "title": "易错点与自检",
         "kind": "mistake",
         "summary": "最可靠的纠错方式是回到定义：元素归属、全集范围、双包含与逐行真值。",
         "markdown": "### 集合部分\n\n1. **把重复当成多个元素**：$\\{1,1,2\\}=\\{1,2\\}$。\n2. **混淆 $\\in$ 与 $\\subseteq$**：\n   - $1\\in\\{1,2\\}$；\n   - $\\{1\\}\\subseteq\\{1,2\\}$。\n3. **忽略嵌套集合**：若 $C=\\{\\{1,2\\},\\{3\\}\\}$，则 $\\{3\\}\\in C$，但一般 $3\\notin C$。\n4. **把差集当成对称操作**：$A\\setminus B$ 表示“从 $A$ 删除 $B$ 中出现的元素”。\n5. **未指定全集就写补集**：$A^c$ 的含义依赖 $U$。\n6. **忘记有序对的顺序**：$(a,1)$ 与 $(1,a)$ 通常不同；因此通常 $A\\times B\\ne B\\times A$。\n7. **只证明单向包含就声称集合相等**：$A=B$ 必须同时有 $A\\subseteq B$ 和 $B\\subseteq A$。\n\n### 逻辑部分\n\n1. **把含变量的句子直接当命题**：未指定变量时，$x^2>\\pi$ 是谓词。\n2. **误解“或”**：$P\\lor Q$ 在 $P,Q$ 都真时也为真。\n3. **丢失括号的否定范围**：$\\neg(P\\land Q)$ 否定的是整个合取式。\n4. **复杂真值表跳步**：应为每个中间表达式设置列，尤其是带 $\\neg$ 与括号的表达式。\n\n### 最后检查\n\n- 集合答案：逐个抽查边界元素（如 $0$）和容易混淆的元素；\n- 子集证明：检查是否从任意 $x\\in A$ 出发；\n- 等式证明：检查两个方向是否齐全；\n- 真值表：检查行数是否为 $2^n$，其中 $n$ 是原子命题数。",
-        "sourceRefs": [
-          "PDF 第1–10页"
-        ]
+        "sourceRefs": ["PDF 第1–10页"]
       },
       {
         "title": "自测与总结",
         "kind": "practice",
         "summary": "本讲把集合运算与逻辑运算统一为“条件的精确表达与检验”。",
         "markdown": "### 自测题\n\n1. 列出集合\n\n   $$\\{x\\in\\mathbb Z^+:3<x^2\\le80\\}.$$\n\n2. 设 $S=\\{1,2,3\\}$，写出\n\n   $$\\mathcal P(S)=\\{A:A\\subseteq S\\}.$$\n\n3. 设 $U$ 为全集，$A,B,C\\subseteq U$。用“任取元素”的方法证明\n\n   $$A\\setminus B=A\\cap B^c.$$\n\n4. 对三个命题 $P,Q,R$，构造\n\n   $$(P\\land Q)\\lor R$$\n\n   的真值表。\n\n5. 猜想并用真值表验证：\n\n   $$\\neg(P\\lor Q)\\equiv\\neg P\\land\\neg Q.$$\n\n### 复习清单\n\n完成本讲后，应能不看资料完成：\n\n- 用 $\\{x:\\cdots\\}$ 把文字条件写成集合；\n- 在列举法与构造式之间转换；\n- 根据定义计算 $\\cup,\\cap,\\setminus,{}^c,\\times$；\n- 解释为什么补集必须指定全集；\n- 用任取元素法证明 $A\\subseteq B$；\n- 用双包含证明 $A=B$；\n- 区分命题、谓词和非命题；\n- 写出 $\\land,\\lor,\\neg$ 的真值，并通过真值表判断逻辑等价。",
-        "sourceRefs": [
-          "PDF 第9页 Exercise 22–23；第10页 Exercises 1、3–5"
-        ]
+        "sourceRefs": ["PDF 第9页 Exercise 22–23；第10页 Exercises 1、3–5"]
       }
     ]
   },

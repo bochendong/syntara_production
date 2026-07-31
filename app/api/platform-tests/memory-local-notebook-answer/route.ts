@@ -8,8 +8,14 @@ import { proxyFetch } from '@/lib/server/proxy-fetch';
 export const runtime = 'nodejs';
 
 const notebookSchema = z.object({
-  id: z.string().trim().regex(/^notebook:[a-z0-9_-]{1,100}$/i),
-  sourceCaseId: z.string().trim().regex(/^[a-z0-9_-]{1,100}$/i),
+  id: z
+    .string()
+    .trim()
+    .regex(/^notebook:[a-z0-9_-]{1,100}$/i),
+  sourceCaseId: z
+    .string()
+    .trim()
+    .regex(/^[a-z0-9_-]{1,100}$/i),
   title: z.string().trim().min(1).max(300),
   filename: z.string().trim().min(1).max(300),
   content: z.string().trim().min(1).max(60_000),
@@ -19,7 +25,10 @@ const notebookSchema = z.object({
 const requestSchema = z
   .object({
     action: z.literal('answer_from_notebook_memory'),
-    caseId: z.string().trim().regex(/^[a-z0-9_-]{1,100}$/i),
+    caseId: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9_-]{1,100}$/i),
     question: z.string().trim().min(1).max(12_000),
     notebooks: z.array(notebookSchema).min(1).max(8),
   })
@@ -46,17 +55,14 @@ function resolveEnvironmentModel(request: NextRequest): string {
   return match?.[1] || configuredDefault;
 }
 
-function formatNotebookMemory(
-  notebooks: z.infer<typeof requestSchema>['notebooks'],
-): string {
+function formatNotebookMemory(notebooks: z.infer<typeof requestSchema>['notebooks']): string {
   return notebooks
-    .map(
-      (notebook) =>
-        [
-          `<notebook id="${notebook.id}" title="${notebook.title}" filename="${notebook.filename}">`,
-          notebook.content,
-          '</notebook>',
-        ].join('\n'),
+    .map((notebook) =>
+      [
+        `<notebook id="${notebook.id}" title="${notebook.title}" filename="${notebook.filename}">`,
+        notebook.content,
+        '</notebook>',
+      ].join('\n'),
     )
     .join('\n\n');
 }
@@ -118,12 +124,9 @@ export async function POST(request: NextRequest) {
         'partially_supported 表示笔记本只能支持问题的一部分，并在 missingKnowledge 中写清缺口。',
         'rememberedRules 只能概括对应笔记本中确实出现、且会影响回答的规则。',
       ].join('\n'),
-      prompt: [
-        '## 用户问题',
-        input.question,
-        '## 可检索的本地笔记本记忆',
-        notebookMemory,
-      ].join('\n\n'),
+      prompt: ['## 用户问题', input.question, '## 可检索的本地笔记本记忆', notebookMemory].join(
+        '\n\n',
+      ),
       output: Output.object({ schema: retrievalSchema }),
       maxOutputTokens: 4_000,
       maxRetries: 0,

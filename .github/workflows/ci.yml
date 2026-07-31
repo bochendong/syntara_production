@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
@@ -27,10 +29,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Prettier
-        run: pnpm check
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: pnpm check:changed -- "$CI_BASE_SHA"
 
       - name: ESLint
-        run: pnpm lint
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: pnpm lint:changed -- "$CI_BASE_SHA"
 
       - name: TypeScript
-        run: npx tsc --noEmit
+        run: node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit

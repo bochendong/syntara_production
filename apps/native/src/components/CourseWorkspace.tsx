@@ -65,10 +65,7 @@ import {
   type NativePlatformCapabilities,
 } from '../data/platform-api-client';
 import { miniLectureManifestToPersistence } from '../data/mini-lecture-persistence';
-import {
-  getLocalRepository,
-  type SaveCourseLearningStateInput,
-} from '../data/repository';
+import { getLocalRepository, type SaveCourseLearningStateInput } from '../data/repository';
 import {
   courseScopedEventId,
   reviewPlanEventId,
