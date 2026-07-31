@@ -631,6 +631,8 @@ Course:
 
 Learner signals:
 - progress: ${learner?.progressLabel || 'unknown'} (${learner?.progressPercent ?? 0}%)
+- readable notebooks: ${learner?.completedNotebookIds?.join(', ') || (learner?.progressKnown ? 'none' : 'unscoped')}
+- future notebooks excluded from evidence: ${learner?.futureNotebookNames?.join(' | ') || 'none attached'}
 - weak concepts: ${learner?.weakConcepts?.join(', ') || 'none attached'}
 - next concepts: ${learner?.nextConcepts?.join(', ') || 'none attached'}
 - recent questions: ${learner?.recentQuestions?.slice(0, 5).join(' | ') || 'none attached'}

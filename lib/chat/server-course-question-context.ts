@@ -16,6 +16,7 @@ import { COURSE_ORCHESTRATOR_ID, COURSE_ORCHESTRATOR_NAME } from '@/lib/constant
 import type { PrismaClient } from '@/lib/server/generated-prisma';
 import { planMemorySearchIntent, type MemorySearchIntent } from '@/lib/server/memory-search-intent';
 import { prisma as defaultPrisma } from '@/lib/server/prisma';
+import { loadTrustedCourseLearningProgress } from '@/lib/server/course-learning-progress';
 import {
   findCourseAccessRole,
   type CourseAccessRole,
@@ -318,8 +319,13 @@ function selectSourceContext(
   snippets: BoundedCourseSourceSnippet[],
   tokens: string[],
   courseId: string,
+  allowedNotebookIds: string[] | null,
 ): SelectedSourceContext {
-  const selectedCandidates = buildSourceCandidates(sources, snippets, tokens)
+  const allowed = allowedNotebookIds === null ? null : new Set(allowedNotebookIds);
+  const scopedSnippets = snippets.filter(
+    (snippet) => !snippet.notebookId || allowed === null || allowed.has(snippet.notebookId),
+  );
+  const selectedCandidates = buildSourceCandidates(sources, scopedSnippets, tokens)
     .filter((candidate) => candidate.score > 0 && candidate.rankedPages.length > 0)
     .sort(
       (left, right) =>
@@ -661,6 +667,12 @@ export async function buildTrustedCourseQuestionContext(args: {
     ),
     MAX_RETRIEVAL_QUERY_CHARS,
   );
+  const trustedProgress = await loadTrustedCourseLearningProgress({
+    prisma,
+    userId,
+    courseId,
+    totalProblemCount: course.problemCount,
+  });
   const [sourceLoad, layeredMemory] = await Promise.all([
     loadCourseSources({
       prisma,
@@ -691,6 +703,9 @@ export async function buildTrustedCourseQuestionContext(args: {
         targetOwnerId: course.ownerId,
         accessRole,
       },
+      notebookScope: {
+        allowedNotebookIds: trustedProgress.allowedNotebookIds,
+      },
     }),
   ]);
 
@@ -700,6 +715,7 @@ export async function buildTrustedCourseQuestionContext(args: {
     sourceLoad.snippets,
     tokens,
     courseId,
+    trustedProgress.allowedNotebookIds,
   );
   const evidence = uniqueEvidence([
     ...selectedSources.evidence,
@@ -726,6 +742,9 @@ export async function buildTrustedCourseQuestionContext(args: {
     })),
     requiredBehavior: [
       'Answer the learner question directly before offering optional next steps.',
+      trustedProgress.learner.progressKnown
+        ? 'Use the student-confirmed learning checkpoint when choosing explanation depth, examples, and next steps. Notebook-derived evidence after that checkpoint is excluded from this turn.'
+        : 'The student has not confirmed a learning checkpoint. Do not invent progress or mastery.',
       'Use the supplied trusted evidence for course-specific claims and clearly distinguish explanation from source-grounded facts.',
       'Explain the reasoning, include one useful example or check when relevant, and call out a likely misconception.',
     ],
@@ -761,6 +780,7 @@ export async function buildTrustedCourseQuestionContext(args: {
         university: course.university || undefined,
         courseCode: course.courseCode || undefined,
       },
+      learner: trustedProgress.learner,
       target: {
         kind: 'orchestrator',
         id: COURSE_ORCHESTRATOR_ID,
