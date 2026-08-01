@@ -160,30 +160,6 @@ export interface ImageGenerationOptions {
   quality?: 'low' | 'medium' | 'high' | 'auto';
 }
 
-export type StudyCoverOverlaySpec = {
-  title: string;
-  courseLabel?: string;
-  routeTitle: string;
-  routeItems: string[];
-  sideTitle?: string;
-  sideItems?: string[];
-  footerTitle: string;
-  footerText: string;
-  definition?: string;
-  methods?: Array<{
-    name: string;
-    trigger: string;
-    rule: string;
-    boundary: string;
-  }>;
-  keyPoints?: Array<{
-    title: string;
-    detail: string;
-  }>;
-  learningSteps?: string[];
-  keywords?: string[];
-};
-
 /**
  * Image Generation Result
  *

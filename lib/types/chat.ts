@@ -750,7 +750,11 @@ export interface CourseChatContext {
     progressKnown?: boolean;
     progressLabel?: string;
     progressPercent: number;
+    currentNotebookId?: string;
     currentNotebookName?: string;
+    completedNotebookIds?: string[];
+    futureNotebookIds?: string[];
+    futureNotebookNames?: string[];
     attemptedProblemCount: number;
     totalProblemCount: number;
     dueReviewCount: number;

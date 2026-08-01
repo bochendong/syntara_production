@@ -1,6 +1,7 @@
 import {
   buildMemoryRecallContext,
   type MemoryContextTargetType,
+  type MemoryNotebookScope,
   type MemoryRecallContext,
 } from '@/lib/server/study-memory-context';
 import type { MemorySearchIntent } from '@/lib/server/memory-search-intent';
@@ -156,6 +157,7 @@ export async function buildLayeredMemoryRecallContext(args: {
   searchIntent?: MemorySearchIntent;
   skipMarkdownSourceEvidence?: boolean;
   resolvedTarget?: ReadableStudyMemoryTarget;
+  notebookScope?: MemoryNotebookScope;
 }): Promise<LayeredMemoryRecallContext> {
   const context = await buildMemoryRecallContext(args);
   const readPlan = createLayeredMemoryReadPlan({

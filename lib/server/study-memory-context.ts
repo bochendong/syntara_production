@@ -57,6 +57,11 @@ type MemorySection = {
 
 export type MemoryContextTargetType = Extract<StudyMemoryTargetType, 'course' | 'notebook'>;
 
+export type MemoryNotebookScope = {
+  /** Null means progress is unknown and notebook recall remains unscoped. */
+  allowedNotebookIds: string[] | null;
+};
+
 export type MemoryRecallScope = {
   requestedMode: MemorySearchScopeMode;
   effectiveMode: Exclude<MemorySearchScopeMode, 'auto_expand'>;
@@ -799,6 +804,7 @@ async function buildRecallPass(args: {
   recallQuery: string;
   sourceEvidenceQuery: string;
   skipMarkdownSourceEvidence?: boolean;
+  notebookScope?: MemoryNotebookScope;
 }): Promise<MemoryRecallPass> {
   const shouldSearchSemanticMemory = args.searchIntent.knowledgeTypes.some(
     (type) => type === 'study_memory' || type === 'knowledge_sources',
@@ -978,6 +984,12 @@ async function buildRecallPass(args: {
       learnerAnalyticsPromise,
     ]);
   const [markdownEvidence, problemEvidence, studentMessages] = evidenceResults;
+  const allowedNotebookIds =
+    args.notebookScope?.allowedNotebookIds == null
+      ? null
+      : new Set(args.notebookScope.allowedNotebookIds);
+  const notebookAllowed = (notebookId: string | null | undefined) =>
+    !notebookId || allowedNotebookIds === null || allowedNotebookIds.has(notebookId);
   const directCourse =
     args.recallTarget.targetType === 'course'
       ? directLayers.target.slice(0, 8)
@@ -985,14 +997,18 @@ async function buildRecallPass(args: {
   const directTarget =
     args.recallTarget.targetType === 'course' ? [] : directLayers.target.slice(0, 8);
   const directPlatform = directLayers.platform.slice(0, 4);
-  const directCourseLearner = directLayers.courseLearner.slice(0, 6);
+  const directCourseLearner = directLayers.courseLearner
+    .filter((memory) => notebookAllowed(memory.notebookId))
+    .slice(0, 6);
   const directMemories = uniqueById([
     ...directPlatform,
     ...directCourse,
     ...directTarget,
     ...directCourseLearner,
   ]);
-  const semanticMemories = semanticResult.memories;
+  const semanticMemories = semanticResult.memories.filter((memory) =>
+    notebookAllowed(memory.notebookId),
+  );
   const vectorUsed = semanticResult.vectorUsed;
 
   const attemptEvidence = shouldSearchLearnerHistory
@@ -1007,15 +1023,19 @@ async function buildRecallPass(args: {
         limit: 5,
       })
     : [];
+  const scopedProblemEvidence = problemEvidence.filter((packet) =>
+    notebookAllowed(packet.notebookId),
+  );
   const knowledgeMatches: MemoryKnowledgeMatch[] = shouldSearchProblemBank
-    ? problemEvidence.slice(0, 6).map(problemEvidenceToKnowledgeMatch)
+    ? scopedProblemEvidence.slice(0, 6).map(problemEvidenceToKnowledgeMatch)
     : [];
   const sourceEvidence = mergeEvidencePackets(
-    markdownEvidence,
-    shouldSearchProblemEvidence ? problemEvidence : [],
-    studentMessages,
-    attemptEvidence,
+    markdownEvidence.filter((packet) => notebookAllowed(packet.notebookId)),
+    shouldSearchProblemEvidence ? scopedProblemEvidence : [],
+    studentMessages.filter((packet) => notebookAllowed(packet.notebookId)),
+    attemptEvidence.filter((packet) => notebookAllowed(packet.notebookId)),
   ).slice(0, args.searchIntent.sourceGrounding.required ? 16 : 12);
+  const scopedKnowledgeCache = knowledgeCache.filter((entry) => notebookAllowed(entry.notebookId));
 
   return {
     recallTarget: args.recallTarget,
@@ -1025,7 +1045,7 @@ async function buildRecallPass(args: {
     directCourseLearner,
     directMemories,
     semanticMemories,
-    knowledgeCache,
+    knowledgeCache: scopedKnowledgeCache,
     knowledgeMatches,
     sourceEvidence,
     learnerAnalytics,
@@ -1034,7 +1054,7 @@ async function buildRecallPass(args: {
     evidenceCount: evidenceCount({
       directMemories,
       semanticMemories,
-      knowledgeCache,
+      knowledgeCache: scopedKnowledgeCache,
       knowledgeMatches,
       sourceEvidence,
       learnerAnalytics,
@@ -1159,6 +1179,7 @@ export async function buildMemoryRecallContext(args: {
   searchIntent?: MemorySearchIntent;
   skipMarkdownSourceEvidence?: boolean;
   resolvedTarget?: ReadableStudyMemoryTarget;
+  notebookScope?: MemoryNotebookScope;
 }): Promise<MemoryRecallContext> {
   const prisma = getOptionalPrisma();
   if (!prisma) return emptyContext('unavailable');
@@ -1219,6 +1240,7 @@ export async function buildMemoryRecallContext(args: {
           recallQuery,
           sourceEvidenceQuery,
           skipMarkdownSourceEvidence: args.skipMarkdownSourceEvidence,
+          notebookScope: args.notebookScope,
         })
       : Promise.resolve<MemoryRecallPass | null>(null);
     const recallPassPromise = buildRecallPass({
@@ -1230,6 +1252,7 @@ export async function buildMemoryRecallContext(args: {
       recallQuery,
       sourceEvidenceQuery,
       skipMarkdownSourceEvidence: args.skipMarkdownSourceEvidence,
+      notebookScope: args.notebookScope,
     });
     const [factResolution, localPass, recallPass] = await Promise.all([
       factStatePromise,

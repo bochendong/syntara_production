@@ -39,11 +39,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { askCourseOrchestrator } from '@/lib/chat/ask-course-orchestrator';
 import { scoreCourseChatText, tokenizeCourseChatQuery } from '@/lib/chat/course-chat-context';
 import { COURSE_ORCHESTRATOR_ID, COURSE_ORCHESTRATOR_NAME } from '@/lib/constants/course-chat';
-import type {
-  ImageGenerationCostEstimate,
-  ImageGenerationResult,
-  StudyCoverOverlaySpec,
-} from '@/lib/media/types';
+import type { ImageGenerationCostEstimate, ImageGenerationResult } from '@/lib/media/types';
 import {
   answererHandoffFromLearnTurn,
   type LearnTurnClientResponse,
@@ -534,7 +530,6 @@ type SourceCoverPromptResponse = {
       topic: string;
     };
     prompt: string;
-    coverSpec: StudyCoverOverlaySpec;
     summary: string;
     sections: Array<{ title: string; summary: string }>;
   };
@@ -1540,7 +1535,6 @@ function PlatformFlowTestWorkspaceContent({
           .filter(Boolean)
           .join(' '),
         prompt: preview.prompt,
-        coverSpec: preview.coverSpec,
         sections: preview.sections.map((section) => section.title),
       };
 
@@ -1585,7 +1579,6 @@ function PlatformFlowTestWorkspaceContent({
           title: promptData.title,
           summary: `${promptData.summary.replace(/(?:\s*图片已通过正式图片接口生成。)+$/g, '')} 图片已通过正式图片接口生成。`,
           imagePrompt: promptData.prompt,
-          coverSpec: promptData.coverSpec,
           imageUrl,
           width: imageResponse.result.width || 1024,
           height: imageResponse.result.height || 1448,

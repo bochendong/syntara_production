@@ -80,11 +80,7 @@ import type {
   NotebookStudyGuide,
   PlatformFlowOutput,
 } from '@/features/qa/test-center/workspace/types';
-import type {
-  ImageGenerationCostEstimate,
-  ImageGenerationResult,
-  StudyCoverOverlaySpec,
-} from '@/lib/media/types';
+import type { ImageGenerationCostEstimate, ImageGenerationResult } from '@/lib/media/types';
 import { useSettingsStore } from '@/lib/store/settings';
 import { backendJson } from '@/lib/utils/backend-api';
 
@@ -140,7 +136,6 @@ type SourceCoverPromptResponse = {
     };
     classification: { documentType: string; usageProfile: string; topic: string };
     prompt: string;
-    coverSpec: StudyCoverOverlaySpec;
     summary: string;
     sections: Array<{ title: string; summary: string }>;
   };
@@ -1563,12 +1558,11 @@ export function MemoryLifecycleTestWorkspace({ activeScenarioId }: { activeScena
             body: JSON.stringify({
               prompt: coverPreview.prompt,
               negativePrompt:
-                '密集文字、可读段落、表格、信息卡片、乱码、伪汉字、无意义文字、无关公式、写实照片、广告海报、黑色背景、logo、水印',
+                '乱码、伪汉字、无意义文字、无关公式、写实照片、广告海报、黑色背景、logo、水印、稀疏封面、巨大留白、UI界面',
               width: 1024,
               height: 1448,
-              style: 'minimal A4 portrait study cover background with generous whitespace',
+              style: 'detailed A4 portrait Chinese study cheat sheet',
               quality: 'medium',
-              coverOverlay: coverPreview.coverSpec,
             }),
           });
           const imageUrl = imageResultUrl(imageResponse.result);
@@ -1578,7 +1572,6 @@ export function MemoryLifecycleTestWorkspace({ activeScenarioId }: { activeScena
             title: coverPreview.classification.topic || selectedSourceCase.title,
             summary: `${coverPreview.summary} 图片已通过第一阶段正式图片接口生成。`,
             imagePrompt: coverPreview.prompt,
-            coverSpec: coverPreview.coverSpec,
             imageUrl,
             width: imageResponse.result.width || 1024,
             height: imageResponse.result.height || 1448,

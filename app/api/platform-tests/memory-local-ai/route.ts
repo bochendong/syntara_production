@@ -56,7 +56,7 @@ function buildGeneratedMemoryTaskSchema(
 }
 
 function resolveEnvironmentModel(request: NextRequest): string {
-  const configuredDefault = process.env.DEFAULT_MODEL?.trim() || 'gpt-5.6-sol';
+  const configuredDefault = process.env.DEFAULT_MODEL?.trim() || 'gpt-5.6-terra';
   const requested = request.headers.get('x-model')?.trim();
   if (!requested) return configuredDefault;
 

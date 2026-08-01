@@ -19,7 +19,7 @@ import {
   computeSourceUploadHash,
   ingestCourseSourceUpload,
   prepareCourseSourceProblemReuseOnlyPlan,
-  prepareSourceCoverPrompt,
+  prepareCheatSheetPrompt,
   prepareSourceMarkdownNotebook,
   type SourceProblemReuseOnlyPlan,
   type SourceUploadIngestionResult,
@@ -1034,7 +1034,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       allowOpenAIModelOverride: true,
     }).catch(() => null);
     if (payload.outputMode === 'cover_prompt') {
-      const preview = await prepareSourceCoverPrompt({
+      const preview = await prepareCheatSheetPrompt({
         sourceTitle: payload.sourceTitle,
         sourceKind: payload.sourceKind,
         sourceFileMime: payload.sourceFileMime,

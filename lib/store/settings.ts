@@ -31,15 +31,15 @@ import {
 
 const log = createLogger('Settings');
 const LEGACY_DEFAULT_LIVE2D_PRESENTER_MODEL_ID: Live2DPresenterModelId = 'mark';
-const LEGACY_DEFAULT_OPENAI_MODEL_ID = 'gpt-4o-mini';
-const DEFAULT_OPENAI_MODEL_ID = 'gpt-5.6-sol';
+const LEGACY_DEFAULT_OPENAI_MODEL_IDS = new Set(['gpt-4o-mini', 'gpt-5.6-sol']);
+const DEFAULT_OPENAI_MODEL_ID = 'gpt-5.6-terra';
 const LEGACY_DEFAULT_IMAGE_PROVIDER_ID: ImageProviderId = 'seedream';
 const LEGACY_DEFAULT_IMAGE_MODEL_ID = 'doubao-seedream-5-0-260128';
 const DEFAULT_IMAGE_PROVIDER_ID: ImageProviderId = 'openai-image';
 const DEFAULT_IMAGE_MODEL_ID = 'gpt-image-2';
 
 function migrateLegacyDefaultGenerationModels(state: Partial<SettingsState>) {
-  if (state.providerId === 'openai' && state.modelId === LEGACY_DEFAULT_OPENAI_MODEL_ID) {
+  if (state.providerId === 'openai' && LEGACY_DEFAULT_OPENAI_MODEL_IDS.has(state.modelId || '')) {
     state.modelId = DEFAULT_OPENAI_MODEL_ID;
   }
   if (
@@ -1193,7 +1193,7 @@ export const useSettingsStore = create<SettingsState>()(
     },
     {
       name: 'settings-storage',
-      version: 10,
+      version: 11,
       // Migrate persisted state
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<SettingsState>;
@@ -1226,6 +1226,12 @@ export const useSettingsStore = create<SettingsState>()(
         // v8 → v9: move only the exact former defaults to the new OpenAI
         // generation defaults. Explicit custom/provider choices stay untouched.
         if (version < 9) {
+          migrateLegacyDefaultGenerationModels(state);
+        }
+
+        // v10 -> v11: move the former Sol default to Terra. Custom model
+        // selections and non-OpenAI providers remain untouched.
+        if (version < 11) {
           migrateLegacyDefaultGenerationModels(state);
         }
 

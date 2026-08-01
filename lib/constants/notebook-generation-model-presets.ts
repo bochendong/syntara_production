@@ -17,7 +17,7 @@ export const NOTEBOOK_MODEL_PRESET_MINI = 'gpt-5.6-terra';
 export const NOTEBOOK_MODEL_RECOMMENDED_BY_STAGE: Record<NotebookGenerationModelStage, string> = {
   metadata: NOTEBOOK_MODEL_PRESET_MINI,
   agents: NOTEBOOK_MODEL_PRESET_MINI,
-  outlines: NOTEBOOK_MODEL_PRESET_FULL,
-  content: NOTEBOOK_MODEL_PRESET_FULL,
+  outlines: NOTEBOOK_MODEL_PRESET_MINI,
+  content: NOTEBOOK_MODEL_PRESET_MINI,
   actions: NOTEBOOK_MODEL_PRESET_MINI,
 };

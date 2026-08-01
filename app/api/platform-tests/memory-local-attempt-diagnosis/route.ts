@@ -62,7 +62,7 @@ const generatedSchema = z.object({
 });
 
 function resolveEnvironmentModel(request: NextRequest): string {
-  const configuredDefault = process.env.DEFAULT_MODEL?.trim() || 'gpt-5.6-sol';
+  const configuredDefault = process.env.DEFAULT_MODEL?.trim() || 'gpt-5.6-terra';
   const requested = request.headers.get('x-model')?.trim();
   if (!requested) return configuredDefault;
   const match = requested.match(/^(?:openai[:/])?([a-z0-9][a-z0-9._-]{0,100})$/i);

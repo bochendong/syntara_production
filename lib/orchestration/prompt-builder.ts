@@ -376,6 +376,14 @@ function formatCourseChatContext(courseContext?: CourseChatContext): string {
         learner.currentNotebookName
           ? `Current learning position: ${learner.currentNotebookName}`
           : '',
+        learner.completedNotebookIds?.length
+          ? `Student-confirmed readable notebook IDs: ${learner.completedNotebookIds.join(', ')}`
+          : learner.progressKnown
+            ? 'Student-confirmed readable notebook IDs: none'
+            : '',
+        learner.futureNotebookNames?.length
+          ? `Not yet learned; do not use as teaching evidence: ${learner.futureNotebookNames.join(', ')}`
+          : '',
         `Problems attempted: ${learner.attemptedProblemCount}/${learner.totalProblemCount}`,
         `Due review items: ${learner.dueReviewCount}`,
         learner.weakConcepts.length ? `Weak concepts: ${learner.weakConcepts.join(', ')}` : '',

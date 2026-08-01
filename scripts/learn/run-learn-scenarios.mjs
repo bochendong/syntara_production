@@ -8,7 +8,7 @@ const ROOT = process.cwd();
 const DEFAULT_BASE_URL = process.env.LEARN_TEST_BASE_URL || 'http://localhost:3000';
 const DEFAULT_OUT_ROOT = path.join(ROOT, 'tmp', 'learn-scenario-runs');
 const DEFAULT_MODEL =
-  process.env.LEARN_TEST_MODEL || process.env.DEFAULT_MODEL || 'openai:gpt-5.6-sol';
+  process.env.LEARN_TEST_MODEL || process.env.DEFAULT_MODEL || 'openai:gpt-5.6-terra';
 
 function timestampSlug() {
   return new Date().toISOString().replace(/[:.]/g, '-');

@@ -64,6 +64,7 @@ type CourseLearningProgressPanelProps = {
   completedAllToken: string;
   onProgressChange: (selection: string) => void;
   onOpenNotebook?: (notebook: StageListItem) => void;
+  loading?: boolean;
   className?: string;
 };
 
@@ -74,6 +75,7 @@ export function CourseLearningProgressPanel({
   completedAllToken,
   onProgressChange,
   onOpenNotebook,
+  loading = false,
   className,
 }: CourseLearningProgressPanelProps) {
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -204,7 +206,12 @@ export function CourseLearningProgressPanel({
         </span>
       </div>
 
-      {notebookCount === 0 ? (
+      {loading && notebookCount === 0 ? (
+        <div className="mt-3 space-y-2" aria-label="正在加载课程笔记本目录">
+          <div className="h-3 w-4/5 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
+          <div className="h-3 w-3/5 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
+        </div>
+      ) : notebookCount === 0 ? (
         <p className="mt-3 text-xs leading-5 text-muted-foreground">
           还没有上传笔记本。上传后会出现在这里，方便拖动进度。
         </p>

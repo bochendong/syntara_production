@@ -7,8 +7,8 @@ import {
 } from './platform-api-client';
 
 export const supportedAiModels = [
+  { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', detail: '默认 · 速度与成本平衡' },
   { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', detail: '质量优先' },
-  { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', detail: '速度与成本平衡' },
   { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna', detail: '低延迟' },
 ] as const;
 
@@ -89,7 +89,7 @@ interface ParseSyllabusInput {
 const defaultSettings: AiSettings = {
   configured: false,
   credentialSource: null,
-  defaultModel: 'gpt-5.6-sol',
+  defaultModel: 'gpt-5.6-terra',
 };
 
 function isTauriRuntime(): boolean {

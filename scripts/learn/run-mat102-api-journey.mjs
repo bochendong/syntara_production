@@ -15,7 +15,7 @@ const ORCHESTRATOR_ID = 'course-orchestrator';
 const ORCHESTRATOR_NAME = '课程总控Agent';
 const DEFAULT_BASE_URL = process.env.MAT102_TEST_BASE_URL || 'http://localhost:3000';
 const DEFAULT_MODEL =
-  process.env.MAT102_TEST_MODEL || process.env.DEFAULT_MODEL || 'openai:gpt-5.6-sol';
+  process.env.MAT102_TEST_MODEL || process.env.DEFAULT_MODEL || 'openai:gpt-5.6-terra';
 const PUBLIC_API_KEY = process.env.SYNTARA_PUBLIC_API_KEY || '';
 const RUN_STAMP = new Date().toISOString().replace(/[:.]/g, '-');
 

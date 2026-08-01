@@ -13,9 +13,9 @@ let runtimeConfigCache:
 
 function configuredDefaultOpenAIModel(): string {
   const configured = process.env.DEFAULT_MODEL?.trim();
-  if (!configured) return 'gpt-5.6-sol';
+  if (!configured) return 'gpt-5.6-terra';
   if (configured.startsWith('openai:')) return configured.slice('openai:'.length);
-  return configured.includes(':') ? 'gpt-5.6-sol' : configured;
+  return configured.includes(':') ? 'gpt-5.6-terra' : configured;
 }
 
 export const DEFAULT_OPENAI_MODEL = configuredDefaultOpenAIModel();

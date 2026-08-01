@@ -77,6 +77,8 @@ next-env.d.ts
 !/data/csc148/**
 !/data/platform-tests/
 !/data/platform-tests/**
+!/data/queue-notebooks-v2/
+!/data/queue-notebooks-v2/**
 /logs
 /OpenMAIC-org
 /outputs

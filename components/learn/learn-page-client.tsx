@@ -3773,7 +3773,9 @@ function buildLearnerChatContext(args: {
     progressKnown: args.snapshot.progressKnown,
     progressLabel: args.snapshot.progressLabel,
     progressPercent: args.snapshot.progressPercent,
+    currentNotebookId: args.snapshot.currentNotebook?.id,
     currentNotebookName: args.snapshot.currentNotebook?.name,
+    completedNotebookIds: args.state.completedNotebookIds,
     attemptedProblemCount: args.snapshot.attemptedProblemCount,
     totalProblemCount: args.snapshot.totalProblemCount,
     dueReviewCount: args.snapshot.dueReviewCount,
@@ -7107,6 +7109,10 @@ export function LearnPageClient() {
   // the initial metadata, resource hydration, and deferred reconciliation
   // phases never occupy more than one server connection from this tab.
   const learnDatabaseQueueTailRef = useRef<Promise<void>>(Promise.resolve());
+  const progressSavePromiseRef = useRef<{
+    courseId: string;
+    promise: Promise<boolean>;
+  } | null>(null);
   const courseAssetCacheRef = useRef(new Map<string, CourseAssetCacheEntry>());
   const courseContentStateRef = useRef(new Map<string, CourseContentState>());
   const courseContentRepairRef = useRef(new Map<string, string>());
@@ -10112,7 +10118,22 @@ export function LearnPageClient() {
     })
       .then((remoteState) => {
         if (!alive || activeCourseIdRef.current !== courseId) return;
-        if (remoteState) saveLearnerCourseState(remoteState);
+        const localState = loadLearnerCourseState({
+          userId: userId || 'anonymous',
+          courseId,
+        });
+        if (
+          remoteState &&
+          (localState.progressCheckpoint?.source !== 'student' ||
+            remoteState.updatedAt >= localState.updatedAt)
+        ) {
+          saveLearnerCourseState(remoteState);
+        } else if (localState.progressCheckpoint?.source === 'student') {
+          progressSavePromiseRef.current = {
+            courseId,
+            promise: saveRemoteLearnerCourseState(localState),
+          };
+        }
         const mergedState = seedLearnerCourseStateFromCourse({
           userId: userId || 'anonymous',
           course: activeCourse,
@@ -10163,6 +10184,11 @@ export function LearnPageClient() {
     if (!notebookLibraryPanelOpen || !activeCourse || !activeCourseCanLoadResources) return;
     void ensureNotebooksLoaded();
   }, [activeCourse, activeCourseCanLoadResources, ensureNotebooksLoaded, notebookLibraryPanelOpen]);
+
+  useEffect(() => {
+    if (rightRailView !== 'overview' || !activeCourse || !activeCourseCanLoadResources) return;
+    void ensureNotebooksLoaded();
+  }, [activeCourse, activeCourseCanLoadResources, ensureNotebooksLoaded, rightRailView]);
 
   useEffect(() => {
     if (!activeCourse || !activeCourseCanLoadResources || !sourceUploadPanelOpen) return;
@@ -10741,7 +10767,13 @@ export function LearnPageClient() {
       const label = progressLabelForSelection(selection, notebooks);
       setSnapshot(nextSnapshot);
       setProgressSelection(progressSelectionFromSnapshot(nextSnapshot));
-      void saveRemoteLearnerCourseState(nextState);
+      const savePromise = saveRemoteLearnerCourseState(nextState);
+      progressSavePromiseRef.current = { courseId: activeCourse.id, promise: savePromise };
+      void savePromise.then((saved) => {
+        if (!saved && activeCourseIdRef.current === activeCourse.id) {
+          setError('学习进度已保存在当前浏览器，但同步到账号失败；发送问题前请重试。');
+        }
+      });
       announceLearningMemoryUpdated(activeCourse.id, label);
       return { state: nextState, snapshot: nextSnapshot, label };
     },
@@ -14133,8 +14165,27 @@ export function LearnPageClient() {
       }
 
       let turnProblems = problems;
+      let turnNotebooks = notebooks;
       let turnProblemsState = problemsLoadState;
       const turnContentState = courseContentStateRef.current.get(turnCourseId);
+      if ((turnContentState?.notebooks.count || 0) > 0) {
+        turnNotebooks = await ensureNotebooksLoaded();
+        if (!canCommitTurn()) return;
+        if (turnNotebooks.length === 0) {
+          setError('课程笔记本目录尚未加载完成，已停止本次回答，避免 AI 丢失学习范围。请重试。');
+          finishTurn();
+          return;
+        }
+      }
+      const progressSave = progressSavePromiseRef.current;
+      const progressSaved =
+        !progressSave || progressSave.courseId !== turnCourseId ? true : await progressSave.promise;
+      if (!canCommitTurn()) return;
+      if (!progressSaved) {
+        setError('学习进度尚未同步到账号，已停止本次回答，避免 AI 使用旧进度。请重试。');
+        finishTurn();
+        return;
+      }
       if (explicitPracticeTarget(questionText)) {
         try {
           turnProblems = await ensureProblemsLoaded();
@@ -14198,7 +14249,7 @@ export function LearnPageClient() {
       });
       const questionSnapshot = summarizeLearnerCourseState({
         state: questionState,
-        notebooks,
+        notebooks: turnNotebooks,
         problems: turnProblems,
       });
       setSnapshot(questionSnapshot);
@@ -14527,7 +14578,7 @@ export function LearnPageClient() {
               : buildNoCourseProblemBankAnswer({
                   course: activeCourse,
                   questionText: planningPrompt,
-                  notebooks,
+                  notebooks: turnNotebooks,
                   notebooksLoadState,
                 }),
             createdAt: Date.now(),
@@ -14738,6 +14789,7 @@ export function LearnPageClient() {
       draft,
       handleLearningActionConfirm,
       ensureProblemsLoaded,
+      ensureNotebooksLoaded,
       localUserId,
       messages,
       messageStoreKey,
@@ -18319,6 +18371,12 @@ export function LearnPageClient() {
               <section className={cn(rightRailCardClassName, 'p-3')}>
                 <CourseLearningProgressPanel
                   notebooks={notebooks}
+                  loading={
+                    notebooks.length === 0 &&
+                    notebooksLoadState.status !== 'empty' &&
+                    (notebooksLoadState.status === 'loading' ||
+                      (activeCourseContentState?.notebooks.count || 0) > 0)
+                  }
                   selection={
                     progressSelection ||
                     progressSelectionFromSnapshot(snapshot) ||

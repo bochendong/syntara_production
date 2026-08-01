@@ -51,7 +51,7 @@ export function SystemLLMPanel() {
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">Provider: {provider?.name || providerId}</Badge>
-            <Badge variant="secondary">Model: {modelId || 'gpt-5.6-sol'}</Badge>
+            <Badge variant="secondary">Model: {modelId || 'gpt-5.6-terra'}</Badge>
             <Badge variant="outline" className="gap-1">
               <ShieldCheck className="h-3.5 w-3.5" />
               系统托管

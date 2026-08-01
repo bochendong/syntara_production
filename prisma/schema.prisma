@@ -869,7 +869,7 @@ model AgentEnvelope {
 model SystemLLMConfig {
   id         String   @id @default("default")
   providerId String   @default("openai")
-  modelId    String   @default("gpt-5.6-sol")
+  modelId    String   @default("gpt-5.6-terra")
   apiKey     String   @db.Text
   baseUrl    String?
   createdAt  DateTime @default(now())

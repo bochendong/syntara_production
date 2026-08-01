@@ -14,8 +14,8 @@ const detailRoute = fs.readFileSync(
 
 const checks = [
   {
-    name: 'overview no longer auto-hydrates the notebook list',
-    pass: !/rightRailView !== 'overview'[\s\S]{0,240}ensureNotebooksLoaded\(\)/.test(client),
+    name: 'overview hydrates notebook metadata for the learning-progress control',
+    pass: /rightRailView !== 'overview'[\s\S]{0,240}ensureNotebooksLoaded\(\)/.test(client),
   },
   {
     name: 'course UI describes notebooks as an in-course popup, not a removed page',
