@@ -1,0 +1,85 @@
+name: Deploy Production
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  vercel:
+    name: Deploy Vercel
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_eNxElDgJsweQUNuESI6majDN
+      VERCEL_PROJECT_ID: prj_EExPAT88VCiR2Z7bO6qleEpIgOAg
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Verify Vercel credentials
+        run: test -n "$VERCEL_TOKEN" || { echo "Missing GitHub secret VERCEL_TOKEN"; exit 1; }
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel production configuration
+        run: vercel pull --yes --environment=production
+
+      - name: Build for Vercel
+        run: vercel build --prod
+
+      - name: Deploy to Vercel production
+        run: vercel deploy --prebuilt --prod
+
+  railway:
+    name: Deploy Railway
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+      RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
+      RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_SERVICE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify Railway credentials
+        run: |
+          test -n "$RAILWAY_TOKEN" || { echo "Missing GitHub secret RAILWAY_TOKEN"; exit 1; }
+          test -n "$RAILWAY_PROJECT_ID" || { echo "Missing GitHub variable RAILWAY_PROJECT_ID"; exit 1; }
+          test -n "$RAILWAY_ENVIRONMENT_ID" || { echo "Missing GitHub variable RAILWAY_ENVIRONMENT_ID"; exit 1; }
+          test -n "$RAILWAY_SERVICE_ID" || { echo "Missing GitHub variable RAILWAY_SERVICE_ID"; exit 1; }
+
+      - name: Deploy to Railway production
+        run: >-
+          npx --yes @railway/cli@latest up --ci
+          --project "$RAILWAY_PROJECT_ID"
+          --environment "$RAILWAY_ENVIRONMENT_ID"
+          --service "$RAILWAY_SERVICE_ID"
