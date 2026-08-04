@@ -82,21 +82,7 @@ export async function GET(
         INNER JOIN "Course" course ON course."id" = source."courseId"
         WHERE source."courseId" = ${id}
           AND source."sourceHash" = ${sourceHash}
-          AND (
-            course."ownerId" = ${auth.userId}
-            OR EXISTS (
-              SELECT 1
-              FROM "CourseEnrollment" enrollment
-              WHERE enrollment."courseId" = course."id"
-                AND enrollment."userId" = ${auth.userId}
-            )
-            OR EXISTS (
-              SELECT 1
-              FROM "CoursePurchase" purchase
-              WHERE purchase."sourceCourseId" = course."id"
-                AND purchase."buyerId" = ${auth.userId}
-            )
-          )
+          AND course."ownerId" = ${auth.userId}
       )
       SELECT
         readable_source.source_hash AS "sourceHash",

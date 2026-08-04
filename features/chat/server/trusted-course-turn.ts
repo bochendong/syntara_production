@@ -304,7 +304,8 @@ export async function resolveTrustedCourseTurn(args: {
 }): Promise<ResolvedTrustedCourseTurn> {
   const isCourseChat =
     args.body.config.surface === 'course-chat' ||
-    args.body.config.surface === 'teacher-course-chat';
+    args.body.config.surface === 'teacher-course-chat' ||
+    args.body.config.surface === 'student-course-chat';
   if (!isCourseChat) {
     return {
       body: args.body,
@@ -364,6 +365,13 @@ export async function resolveTrustedCourseTurn(args: {
       'unauthorized',
       403,
       'Teacher course chat requires verified course owner access.',
+    );
+  }
+  if (args.body.config.surface === 'student-course-chat' && trustedAccess.role !== 'enrolled') {
+    throw new TrustedCourseTurnError(
+      'unauthorized',
+      403,
+      'Student course chat requires verified enrollment access.',
     );
   }
 

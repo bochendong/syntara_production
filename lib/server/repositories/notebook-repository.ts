@@ -1,7 +1,10 @@
 import { Prisma } from '@/lib/server/generated-prisma';
 import { summarizeSpeechScriptReadinessFromScenes } from '@/lib/audio/speech-readiness-summary';
 import type { DbClient, RootDbClient } from '@/lib/server/repositories/types';
-import { findCourseAccessRole } from '@/lib/server/repositories/course-enrollment-repository';
+import {
+  canReadCourseNotebook,
+  resolveCourseNotebookAccess,
+} from '@/lib/server/repositories/course-enrollment-repository';
 import type { Action } from '@/lib/types/action';
 import { notebookProblemPublicContentSchema } from '@/lib/problem-bank';
 import { courseProblemDedupeKey } from '@/features/problems/domain/problem-dedupe';
@@ -481,13 +484,17 @@ export async function listReadableNotebooks(db: DbClient, userId: string, course
   const ownedNotebooks = await listOwnedNotebooks(db, userId, courseId);
   if (ownedNotebooks.length > 0) return ownedNotebooks;
 
-  const accessRole = await findCourseAccessRole(db, userId, courseId);
-  if (!accessRole) return [];
-  if (accessRole === 'owner') return [];
-  return db.notebook.findMany({
+  const access = await resolveCourseNotebookAccess(db, userId, courseId);
+  if (!access || access.role === 'owner') return [];
+  const notebooks = await db.notebook.findMany({
     where: { courseId },
     select: notebookListSelect,
-    orderBy: { updatedAt: 'desc' },
+    orderBy: { createdAt: 'asc' },
+  });
+  const byId = new Map(notebooks.map((notebook) => [notebook.id, notebook]));
+  return access.allowedNotebookIds.flatMap((id) => {
+    const notebook = byId.get(id);
+    return notebook ? [notebook] : [];
   });
 }
 
@@ -503,12 +510,17 @@ export async function listReadableNotebookLibraryItems(
   const ownedNotebooks = await listOwnedNotebookLibraryItems(db, userId, courseId);
   if (ownedNotebooks.length > 0) return ownedNotebooks;
 
-  const accessRole = await findCourseAccessRole(db, userId, courseId);
-  if (!accessRole || accessRole === 'owner') return [];
-  return db.notebook.findMany({
+  const access = await resolveCourseNotebookAccess(db, userId, courseId);
+  if (!access || access.role === 'owner') return [];
+  const notebooks = await db.notebook.findMany({
     where: { courseId },
     select: notebookLibraryListSelect,
-    orderBy: { updatedAt: 'desc' },
+    orderBy: { createdAt: 'asc' },
+  });
+  const byId = new Map(notebooks.map((notebook) => [notebook.id, notebook]));
+  return access.allowedNotebookIds.flatMap((id) => {
+    const notebook = byId.get(id);
+    return notebook ? [notebook] : [];
   });
 }
 
@@ -540,9 +552,9 @@ export async function listReadableNotebooksWithSpeechActions(
   courseId?: string,
 ) {
   if (!courseId) return listOwnedNotebooksWithSpeechActions(db, userId);
-  const accessRole = await findCourseAccessRole(db, userId, courseId);
-  if (!accessRole) return [];
-  return db.notebook.findMany({
+  const access = await resolveCourseNotebookAccess(db, userId, courseId);
+  if (!access) return [];
+  const notebooks = await db.notebook.findMany({
     where: { courseId },
     include: {
       _count: {
@@ -552,7 +564,13 @@ export async function listReadableNotebooksWithSpeechActions(
         select: { actions: true },
       },
     },
-    orderBy: { updatedAt: 'desc' },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (access.role === 'owner') return notebooks;
+  const byId = new Map(notebooks.map((notebook) => [notebook.id, notebook]));
+  return access.allowedNotebookIds.flatMap((id) => {
+    const notebook = byId.get(id);
+    return notebook ? [notebook] : [];
   });
 }
 
@@ -581,8 +599,9 @@ export async function findReadableNotebook(db: DbClient, userId: string, noteboo
   if (!notebook) return null;
   if (notebook.ownerId === userId) return notebook;
   if (!notebook.courseId) return null;
-  const accessRole = await findCourseAccessRole(db, userId, notebook.courseId);
-  return accessRole ? notebook : null;
+  return (await canReadCourseNotebook(db, userId, notebook.courseId, notebook.id))
+    ? notebook
+    : null;
 }
 
 export async function findReadableNotebookWithMarkdownSections(
@@ -601,8 +620,9 @@ export async function findReadableNotebookWithMarkdownSections(
   if (!notebook) return null;
   if (notebook.ownerId === userId) return notebook;
   if (!notebook.courseId) return null;
-  const accessRole = await findCourseAccessRole(db, userId, notebook.courseId);
-  return accessRole ? notebook : null;
+  return (await canReadCourseNotebook(db, userId, notebook.courseId, notebook.id))
+    ? notebook
+    : null;
 }
 
 export async function findReadableNotebookWithScenes(
@@ -625,8 +645,9 @@ export async function findReadableNotebookWithScenes(
   if (!notebook) return null;
   if (notebook.ownerId === userId) return notebook;
   if (!notebook.courseId) return null;
-  const accessRole = await findCourseAccessRole(db, userId, notebook.courseId);
-  return accessRole ? notebook : null;
+  return (await canReadCourseNotebook(db, userId, notebook.courseId, notebook.id))
+    ? notebook
+    : null;
 }
 
 export function findOwnedNotebookForStoreUpdate(db: DbClient, userId: string, notebookId: string) {
@@ -651,8 +672,9 @@ export async function findReadableNotebookId(db: DbClient, userId: string, noteb
   if (!notebook) return null;
   if (notebook.ownerId === userId) return { id: notebook.id };
   if (!notebook.courseId) return null;
-  const accessRole = await findCourseAccessRole(db, userId, notebook.courseId);
-  return accessRole ? { id: notebook.id } : null;
+  return (await canReadCourseNotebook(db, userId, notebook.courseId, notebook.id))
+    ? { id: notebook.id }
+    : null;
 }
 
 export async function createOwnedNotebook(

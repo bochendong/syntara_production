@@ -19,9 +19,11 @@ import { AdminCreditsSection } from '@/components/admin/admin-credits-section';
 import { AdminSiteProvidersSection } from '@/components/admin/admin-site-providers-section';
 import { AdminCoursesSection } from '@/components/admin/admin-courses-section';
 import { AdminTeachersSection } from '@/components/admin/admin-teachers-section';
+import { AdminStudentsSection } from '@/components/admin/admin-students-section';
 
 const SECTIONS = [
   { id: 'llm', label: '语言模型', icon: Bot },
+  { id: 'students', label: '学生管理', icon: Users },
   { id: 'teachers', label: '老师管理', icon: Users },
   { id: 'credits', label: '积分管理', icon: Coins },
   { id: 'courses', label: '课程管理', icon: BookOpen },
@@ -105,6 +107,9 @@ export function AdminConsole() {
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
             {section === 'llm' ? <AdminLLMSection key={refreshKey} /> : null}
             {section === 'teachers' ? <AdminTeachersSection key={refreshKey} /> : null}
+            {section === 'students' ? (
+              <AdminStudentsSection key={refreshKey} refreshKey={refreshKey} />
+            ) : null}
             {section === 'credits' ? <AdminCreditsSection key={refreshKey} /> : null}
             {section === 'courses' ? <AdminCoursesSection key={refreshKey} /> : null}
             {section === 'image' ? (

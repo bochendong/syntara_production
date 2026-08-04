@@ -17,7 +17,7 @@ interface AuthState {
     userId: string;
     name: string;
     email: string;
-    role?: 'USER' | 'TEACHER' | 'ADMIN';
+    role?: 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN';
   }) => void;
   logout: () => void;
 }

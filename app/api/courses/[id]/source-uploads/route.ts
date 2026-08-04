@@ -56,6 +56,15 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
     const { id } = await context.params;
+    const ownedCourse = await prisma.course.findFirst({
+      where: { id, ownerId: auth.userId },
+      select: { id: true },
+    });
+    if (!ownedCourse) {
+      // Students consume the generated notebook projection, never the teacher's
+      // uploaded source catalog or extracted source text.
+      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
     const url = new URL(request.url);
     const includeTextSections = url.searchParams.get('includeText') !== '0';
     const includeArtifacts = url.searchParams.get('includeArtifacts') !== '0';
@@ -70,15 +79,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       );
     }
     const deferKnowledgeSync = deferKnowledgeSyncParam === '1';
-    if (deferKnowledgeSync) {
-      const ownedCourse = await prisma.course.findFirst({
-        where: { id, ownerId: auth.userId },
-        select: { id: true },
-      });
-      if (!ownedCourse) {
-        return NextResponse.json({ error: 'Course not found' }, { status: 404 });
-      }
-    }
 
     const uploads = await listCourseSourceUploads({
       prisma,

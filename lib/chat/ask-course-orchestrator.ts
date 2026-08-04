@@ -23,7 +23,7 @@ export type AskCourseOrchestratorOptions = {
   learnerContext?: CourseChatContext['learner'];
   answererHandoff?: CourseChatContext['answererHandoff'];
   userProfile?: { nickname?: string; bio?: string };
-  surface?: 'course-chat' | 'teacher-course-chat';
+  surface?: 'course-chat' | 'teacher-course-chat' | 'student-course-chat';
   signal?: AbortSignal;
   onMessages?: (messages: UIMessage<ChatMessageMetadata>[]) => void;
 };

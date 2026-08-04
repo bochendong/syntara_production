@@ -20,7 +20,13 @@ const HOME_ROUTE_PREFETCH_TARGETS = [
   '/settings',
 ] as const;
 
-export function LearnHomePageClient({ preview = false }: { preview?: boolean }) {
+export function LearnHomePageClient({
+  preview = false,
+  forceStudentPortal = false,
+}: {
+  preview?: boolean;
+  forceStudentPortal?: boolean;
+}) {
   const router = useRouter();
   const signOut = useAuthSignOut();
   const authHydrated = usePersistHydrated(useAuthStore);
@@ -52,11 +58,11 @@ export function LearnHomePageClient({ preview = false }: { preview?: boolean }) 
 
   useEffect(() => {
     if (preview || !authHydrated) return;
-    if (!isLoggedIn) {
+    if (!isLoggedIn && !forceStudentPortal) {
       router.replace('/login');
       return;
     }
-    if (role !== 'STUDENT') {
+    if (role !== 'STUDENT' && !forceStudentPortal) {
       router.replace('/teacher');
       return;
     }
@@ -69,7 +75,20 @@ export function LearnHomePageClient({ preview = false }: { preview?: boolean }) 
     return () => {
       alive = false;
     };
-  }, [authHydrated, isLoggedIn, loadCourses, preview, role, router]);
+  }, [authHydrated, forceStudentPortal, isLoggedIn, loadCourses, preview, role, router]);
+
+  useEffect(() => {
+    if (preview || (!isLoggedIn && !forceStudentPortal)) return;
+    const refresh = () => void loadCourses({ silent: true }).catch(() => undefined);
+    const timer = window.setInterval(refresh, 15_000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [forceStudentPortal, isLoggedIn, loadCourses, preview]);
 
   useEffect(() => {
     if (preview) return;
@@ -95,9 +114,11 @@ export function LearnHomePageClient({ preview = false }: { preview?: boolean }) 
       if (course) {
         setCurrentCourse({ id: course.id, name: course.name, avatarUrl: course.avatarUrl });
       }
-      router.push(`/learn?courseId=${encodeURIComponent(courseId)}`);
+      router.push(
+        `/student/courses/${encodeURIComponent(courseId)}${forceStudentPortal ? '?preview=1' : ''}`,
+      );
     },
-    [courses, router, setCurrentCourse],
+    [courses, forceStudentPortal, router, setCurrentCourse],
   );
 
   return (

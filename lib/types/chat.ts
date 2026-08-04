@@ -843,7 +843,7 @@ export interface StatelessChatRequest {
   config: {
     agentIds: string[];
     sessionType?: 'qa' | 'discussion';
-    surface?: 'classroom' | 'course-chat' | 'teacher-course-chat';
+    surface?: 'classroom' | 'course-chat' | 'teacher-course-chat' | 'student-course-chat';
     /** Discussion topic (for agent-initiated discussions) */
     discussionTopic?: string;
     /** Discussion prompt (for agent-initiated discussions) */

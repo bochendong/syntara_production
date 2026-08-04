@@ -1,6 +1,6 @@
-import { redirect } from 'next/navigation';
+import { StudentCoursePageClient } from '@/components/student/student-course-page-client';
 
 export default async function StudentCoursePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  redirect(`/learn?courseId=${encodeURIComponent(id)}`);
+  return <StudentCoursePageClient courseId={id} />;
 }

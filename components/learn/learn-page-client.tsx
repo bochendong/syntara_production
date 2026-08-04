@@ -502,7 +502,7 @@ type CourseResourceKind = 'notebooks' | 'problems' | 'sources';
 type LearnSurfaceStatus = 'deferred' | 'loading' | 'ready' | 'empty' | 'local' | 'error';
 
 type LearnSurfaceStatusItem = {
-  key: 'course' | 'conversation' | 'teacher-agent' | CourseResourceKind;
+  key: 'course' | 'conversation' | 'teacher-agent' | 'student-agent' | CourseResourceKind;
   label: string;
   status: LearnSurfaceStatus;
   statusLabel: string;
@@ -1292,17 +1292,11 @@ type NotebookImagePreviewState = {
 
 type SourceLibraryDetailView = 'image' | 'text';
 
-const learningQuickPrompts = [
-  '我现在学到哪里了？',
-  '帮我安排今天复习',
-  '给我开一个小测',
-  '我最近哪里最薄弱？',
-];
-const researchQuickPrompts = [
-  '帮我梳理今天的研究任务',
-  '把下一步实验拆清楚',
-  '整理这篇论文的贡献',
-  '制定一下研究计划',
+const studentCourseQuickPrompts = [
+  '当前向我开放了几本笔记本？',
+  '总结一下已开放笔记本的重点',
+  '根据课程笔记解释一个核心概念',
+  '查看我这周的学习日历',
 ];
 const teacherQuickPrompts = [
   '这门课现在有几个笔记本？',
@@ -7649,10 +7643,12 @@ export function LearnPageClient() {
   const localUserId = userId || 'anonymous';
   const canManageCourseContent = portalRole === 'TEACHER' || portalRole === 'ADMIN';
   const teacherChatMode = searchParams.get('from') === 'teacher';
-  const isTeacherCourseChat = canManageCourseContent || teacherChatMode;
-  // Student course-tools rail only. Hide for teachers/admins, before auth
-  // hydrates (avoid TEACHER flash), and when opened from the teacher portal.
-  const showRightRail = authHydrated && !isTeacherCourseChat && portalRole === 'STUDENT';
+  const studentPreviewMode = searchParams.get('asStudent') === '1';
+  const isTeacherCourseChat = !studentPreviewMode && (canManageCourseContent || teacherChatMode);
+  const isStudentCourseChat = !isTeacherCourseChat;
+  // Student resources now live in the dedicated course App. Keeping the chat
+  // surface rail-free prevents the legacy problem/source tools from loading.
+  const showRightRail = false;
   const draftSessionId = useMemo(
     () => makeLearnSessionId(`${localUserId}:${urlCourseId}`),
     [localUserId, urlCourseId],
@@ -8017,11 +8013,7 @@ export function LearnPageClient() {
   useEffect(() => {
     refreshPracticeSessions();
   }, [refreshPracticeSessions]);
-  const activeQuickPrompts = isTeacherCourseChat
-    ? teacherQuickPrompts
-    : isResearchCourse
-      ? researchQuickPrompts
-      : learningQuickPrompts;
+  const activeQuickPrompts = isTeacherCourseChat ? teacherQuickPrompts : studentCourseQuickPrompts;
   const manualScheduleKindOptions = isResearchCourse
     ? RESEARCH_EVENT_KIND_OPTIONS
     : SYLLABUS_EVENT_KIND_OPTIONS;
@@ -14314,7 +14306,7 @@ export function LearnPageClient() {
         }
       }
 
-      if (isTeacherCourseChat) {
+      if (isTeacherCourseChat || isStudentCourseChat) {
         const answererConversation = learnMessagesForCourseAnswerer(messages);
         const historicalAnswererMessageIds = new Set(
           answererConversation.map((message) => message.id),
@@ -14335,7 +14327,7 @@ export function LearnPageClient() {
             attachments: preparedAttachments.attachments,
             orchestratorAvatarUrl: activeCourse.avatarUrl,
             userProfile: { nickname: userName },
-            surface: 'teacher-course-chat',
+            surface: isTeacherCourseChat ? 'teacher-course-chat' : 'student-course-chat',
             signal: controller.signal,
             onMessages: (nextMessages) => {
               if (!canCommitTurn()) return;
@@ -15078,6 +15070,7 @@ export function LearnPageClient() {
       handleLearningActionConfirm,
       ensureProblemsLoaded,
       isTeacherCourseChat,
+      isStudentCourseChat,
       ensureNotebooksLoaded,
       localUserId,
       messages,
@@ -15835,35 +15828,26 @@ export function LearnPageClient() {
       deferredWhenListIdle: true,
     }),
   };
-  const learnSurfaceStatusItems: LearnSurfaceStatusItem[] = isTeacherCourseChat
-    ? [
-        courseSurfaceStatus,
-        conversationSurfaceStatus,
-        notebookSurfaceStatus,
-        {
+  const learnSurfaceStatusItems: LearnSurfaceStatusItem[] = [
+    courseSurfaceStatus,
+    conversationSurfaceStatus,
+    notebookSurfaceStatus,
+    isTeacherCourseChat
+      ? {
           key: 'teacher-agent',
           label: '智能体',
           status: 'ready',
           statusLabel: '教师只读模式',
           detail: '只读取笔记本和 Hard Rule，不读取题库，也不写入学生学习状态。',
+        }
+      : {
+          key: 'student-agent',
+          label: '智能体',
+          status: 'ready',
+          statusLabel: '课程助理已就绪',
+          detail: '只读取当前进度开放的笔记本和 Hard Rule；日历变更必须经你确认。',
         },
-      ]
-    : [
-        courseSurfaceStatus,
-        conversationSurfaceStatus,
-        {
-          key: 'problems',
-          label: '题库',
-          ...resourceSurfaceStatusFromContentOrList({
-            activeCourseId,
-            listState: problemsLoadState,
-            content: activeCourseContentState?.problems,
-            contentReady: contentStateReady,
-            listHydrationWanted: problemsHydrationWanted,
-          }),
-        },
-        notebookSurfaceStatus,
-      ];
+  ];
   const activeCourseSourceHealthNotice = courseSourceHealthNotice(
     activeCourseContentState?.sources,
   );
@@ -15871,10 +15855,7 @@ export function LearnPageClient() {
     courseContentWatchError && courseContentWatchError.courseId === activeCourse?.id
       ? courseContentWatchError.message
       : null;
-  const resourceErrorItems = [
-    { label: '题库', state: problemsLoadState },
-    { label: '笔记本', state: notebooksLoadState },
-  ].filter(
+  const resourceErrorItems = [{ label: '笔记本', state: notebooksLoadState }].filter(
     (item): item is { label: string; state: ResourceLoadState & { error: string } } =>
       item.state.status === 'error' && Boolean(item.state.error),
   );
@@ -15907,9 +15888,7 @@ export function LearnPageClient() {
     } else if (remoteConversationSyncError) {
       setRemoteConversationSyncAttempt((current) => current + 1);
     }
-    if (problemsLoadState.status === 'error') retryCourseResource('problems');
     if (notebooksLoadState.status === 'error') retryCourseResource('notebooks');
-    if (sourcesLoadState.status === 'error') retryCourseResource('sources');
     if (activeCourseContentWatchError) {
       setCourseContentWatchAttempt((current) => current + 1);
     }
@@ -19094,9 +19073,7 @@ export function LearnPageClient() {
                           (activeCourse
                             ? isTeacherCourseChat
                               ? 'Teacher assistant'
-                              : isResearchCourse
-                                ? 'Research'
-                                : 'Learning'
+                              : 'Student assistant'
                             : 'General chat')}
                       </p>
                       <p className="mt-1 text-lg font-semibold tracking-normal text-slate-950 dark:text-slate-50">
@@ -19104,22 +19081,14 @@ export function LearnPageClient() {
                           ? '添加课程后开始聊天'
                           : isTeacherCourseChat
                             ? '想核对哪份课程资料？'
-                            : isResearchCourse
-                              ? '今天想推进什么？'
-                              : '今天想从哪里开始？'}
+                            : '想查哪一本课程笔记？'}
                       </p>
                       <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
                         {!activeCourse
                           ? '添加课程后，我会把聊天、复习、题库和记忆都绑定到对应课程。'
                           : isTeacherCourseChat
                             ? '回答前会先核对笔记本正文与 Hard Rule，不读取题库，也不会改写学生学习状态。'
-                            : isResearchCourse
-                              ? `围绕 ${activeCourse.courseCode || activeCourse.name} 继续推进研究。`
-                              : missingLearningSetup
-                                ? '补齐 syllabus 和学习进度后，今天的安排会更准。'
-                                : snapshot?.progressKnown && snapshot.progressLabel
-                                  ? `当前进度：${snapshot.progressLabel}`
-                                  : `围绕 ${activeCourse.courseCode || activeCourse.name} 继续推进。`}
+                            : '回答前会核对已开放的笔记本与 Hard Rule；不加载题库，也不记录薄弱点。日历变更会先请你确认。'}
                       </p>
                     </div>
                     <div className="flex flex-wrap justify-center gap-2" aria-label="快捷入口">

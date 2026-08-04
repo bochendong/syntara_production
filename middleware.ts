@@ -17,11 +17,17 @@ export function middleware(request: NextRequest) {
   const isAllowedPath =
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
+    pathname === '/login' ||
+    pathname === '/learn' ||
+    pathname.startsWith('/student/') ||
+    pathname === '/student' ||
+    pathname === '/calendar' ||
+    pathname.startsWith('/calendar/') ||
+    pathname.startsWith('/classroom/') ||
     pathname === '/teacher' ||
     pathname.startsWith('/teacher/') ||
     pathname === '/admin' ||
-    pathname.startsWith('/admin/') ||
-    (pathname === '/learn' && request.nextUrl.searchParams.get('from') === 'teacher');
+    pathname.startsWith('/admin/');
   if (isStaticAsset || isAllowedPath) return NextResponse.next();
 
   const url = request.nextUrl.clone();

@@ -57,6 +57,7 @@ enum AgentEnvelopeType {
 
 enum UserRole {
   USER
+  STUDENT
   TEACHER
   ADMIN
 }
@@ -1276,12 +1277,13 @@ model CoursePurchase {
 }
 
 model CourseEnrollment {
-  id         String   @id @default(cuid())
-  userId     String
-  courseId   String
-  priceCents Int      @default(0)
-  joinedAt   DateTime @default(now())
-  createdAt  DateTime @default(now())
+  id                  String   @id @default(cuid())
+  userId              String
+  courseId            String
+  priceCents          Int      @default(0)
+  notebookAccessLimit Int?
+  joinedAt            DateTime @default(now())
+  createdAt           DateTime @default(now())
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)

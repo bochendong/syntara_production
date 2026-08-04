@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { Prisma } from '@/lib/server/generated-prisma';
+import { orderCourseNotebooks } from '@/lib/learning/course-notebook-order';
 import type { DbClient } from '@/lib/server/repositories/types';
 
 export type CourseAccessRole = 'owner' | 'enrolled';
@@ -9,13 +10,29 @@ export type CourseEnrollmentRow = {
   userId: string;
   courseId: string;
   priceCents: number;
+  notebookAccessLimit: number | null;
   joinedAt: Date;
   createdAt: Date;
 };
 
+export type CourseNotebookAccess = {
+  role: CourseAccessRole;
+  notebookAccessLimit: number | null;
+  orderedNotebookIds: string[];
+  allowedNotebookIds: string[];
+};
+
+function persistedLearningOrder(value: unknown): number | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const learningOrder = (value as Record<string, unknown>).learningOrder;
+  return typeof learningOrder === 'number' && Number.isInteger(learningOrder) && learningOrder >= 0
+    ? learningOrder
+    : undefined;
+}
+
 let ensureCourseEnrollmentTablePromise: Promise<void> | null = null;
 
-function isMissingCourseEnrollmentTableError(error: unknown): boolean {
+function isCourseEnrollmentSchemaUnavailableError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const record = error as {
     code?: unknown;
@@ -29,8 +46,11 @@ function isMissingCourseEnrollmentTableError(error: unknown): boolean {
     .join(' ');
   return (
     code === 'P2021' ||
+    code === 'P2022' ||
     databaseCode === '42P01' ||
-    (/CourseEnrollment/i.test(message) && /does not exist|not exist|missing/i.test(message))
+    databaseCode === '42703' ||
+    (/(CourseEnrollment|notebookAccessLimit)/i.test(message) &&
+      /does not exist|not exist|missing|unknown column/i.test(message))
   );
 }
 
@@ -41,7 +61,7 @@ export async function withCourseEnrollmentSchemaFallback<T>(
   try {
     return await read();
   } catch (error) {
-    if (!isMissingCourseEnrollmentTableError(error)) throw error;
+    if (!isCourseEnrollmentSchemaUnavailableError(error)) throw error;
     await ensureCourseEnrollmentTable(db);
     return read();
   }
@@ -55,11 +75,15 @@ export async function ensureCourseEnrollmentTable(db: DbClient): Promise<void> {
         "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
         "courseId" TEXT NOT NULL REFERENCES "Course"("id") ON DELETE CASCADE,
         "priceCents" INTEGER NOT NULL DEFAULT 0,
+        "notebookAccessLimit" INTEGER,
         "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT "CourseEnrollment_userId_courseId_key" UNIQUE ("userId", "courseId")
       )
     `);
+    await db.$executeRawUnsafe(
+      'ALTER TABLE "CourseEnrollment" ADD COLUMN IF NOT EXISTS "notebookAccessLimit" INTEGER',
+    );
     await db.$executeRawUnsafe(
       'CREATE INDEX IF NOT EXISTS "CourseEnrollment_userId_joinedAt_idx" ON "CourseEnrollment"("userId", "joinedAt" DESC)',
     );
@@ -84,7 +108,7 @@ export async function findCourseEnrollment(
     db,
     () =>
       db.$queryRaw<CourseEnrollmentRow[]>`
-      SELECT "id", "userId", "courseId", "priceCents", "joinedAt", "createdAt"
+      SELECT "id", "userId", "courseId", "priceCents", "notebookAccessLimit", "joinedAt", "createdAt"
       FROM "CourseEnrollment"
       WHERE "userId" = ${userId} AND "courseId" = ${courseId}
       LIMIT 1
@@ -158,6 +182,80 @@ export async function findCourseAccessRole(
   return (await hasCourseEnrollment(db, userId, courseId)) ? 'enrolled' : null;
 }
 
+export async function resolveCourseNotebookAccess(
+  db: DbClient,
+  userId: string,
+  courseId: string,
+): Promise<CourseNotebookAccess | null> {
+  const course = await db.course.findUnique({
+    where: { id: courseId },
+    select: { ownerId: true },
+  });
+  if (!course) return null;
+
+  const notebooks = orderCourseNotebooks(
+    (
+      await db.notebook.findMany({
+        where: { courseId, removedAt: null },
+        select: { id: true, name: true, createdAt: true, coverSlideJson: true },
+      })
+    ).map((notebook) => ({
+      id: notebook.id,
+      name: notebook.name,
+      createdAt: notebook.createdAt.getTime(),
+      learningOrder: persistedLearningOrder(notebook.coverSlideJson),
+    })),
+  );
+  const orderedNotebookIds = notebooks.map((notebook) => notebook.id);
+  if (course.ownerId === userId) {
+    return {
+      role: 'owner',
+      notebookAccessLimit: null,
+      orderedNotebookIds,
+      allowedNotebookIds: orderedNotebookIds,
+    };
+  }
+
+  const enrollment = await findCourseEnrollment(db, userId, courseId);
+  if (!enrollment) {
+    const legacyPurchase = await db.coursePurchase.findFirst({
+      where: { buyerId: userId, sourceCourseId: courseId },
+      select: { id: true },
+    });
+    if (!legacyPurchase) return null;
+    return {
+      role: 'enrolled',
+      notebookAccessLimit: null,
+      orderedNotebookIds,
+      allowedNotebookIds: orderedNotebookIds,
+    };
+  }
+
+  const notebookAccessLimit =
+    enrollment.notebookAccessLimit === null
+      ? null
+      : Math.max(0, Math.floor(enrollment.notebookAccessLimit));
+  return {
+    role: 'enrolled',
+    notebookAccessLimit,
+    orderedNotebookIds,
+    allowedNotebookIds:
+      notebookAccessLimit === null
+        ? orderedNotebookIds
+        : orderedNotebookIds.slice(0, notebookAccessLimit),
+  };
+}
+
+export async function canReadCourseNotebook(
+  db: DbClient,
+  userId: string,
+  courseId: string,
+  notebookId: string,
+): Promise<boolean> {
+  const access = await resolveCourseNotebookAccess(db, userId, courseId);
+  return Boolean(access?.allowedNotebookIds.includes(notebookId));
+}
+
 export async function requireCourseReadAccess(
   db: DbClient,
   userId: string,
@@ -174,6 +272,7 @@ export async function createCourseEnrollment(
     userId: string;
     courseId: string;
     priceCents: number;
+    notebookAccessLimit?: number | null;
   },
 ): Promise<CourseEnrollmentRow> {
   await ensureCourseEnrollmentTable(db);
@@ -184,6 +283,7 @@ export async function createCourseEnrollment(
       "userId",
       "courseId",
       "priceCents",
+      "notebookAccessLimit",
       "joinedAt",
       "createdAt"
     )
@@ -192,12 +292,13 @@ export async function createCourseEnrollment(
       ${args.userId},
       ${args.courseId},
       ${args.priceCents},
+      ${args.notebookAccessLimit ?? null},
       CURRENT_TIMESTAMP,
       CURRENT_TIMESTAMP
     )
     ON CONFLICT ("userId", "courseId") DO UPDATE SET
       "priceCents" = "CourseEnrollment"."priceCents"
-    RETURNING "id", "userId", "courseId", "priceCents", "joinedAt", "createdAt"
+    RETURNING "id", "userId", "courseId", "priceCents", "notebookAccessLimit", "joinedAt", "createdAt"
   `;
   return rows[0];
 }
@@ -210,7 +311,7 @@ export async function listCourseEnrollmentsForUser(
     db,
     () =>
       db.$queryRaw<CourseEnrollmentRow[]>`
-      SELECT "id", "userId", "courseId", "priceCents", "joinedAt", "createdAt"
+      SELECT "id", "userId", "courseId", "priceCents", "notebookAccessLimit", "joinedAt", "createdAt"
       FROM "CourseEnrollment"
       WHERE "userId" = ${userId}
       ORDER BY "joinedAt" DESC

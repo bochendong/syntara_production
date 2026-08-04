@@ -547,12 +547,13 @@ async function runCourseSideChatLoopUnqueued(
   } = params;
 
   const settingsState = useSettingsStore.getState();
-  const teacherCourseSingleTurn = surface === 'teacher-course-chat';
-  const defaultMaxTurns = teacherCourseSingleTurn || agentIds.length <= 1 ? 1 : 10;
-  // The teacher-course server already runs its notebook tools inside one
+  const notebookAgentSingleTurn =
+    surface === 'teacher-course-chat' || surface === 'student-course-chat';
+  const defaultMaxTurns = notebookAgentSingleTurn || agentIds.length <= 1 ? 1 : 10;
+  // The course notebook server already runs its tools inside one
   // ToolLoopAgent request. Re-entering the outer director loop repeats the
   // same user question and can create up to ten near-duplicate replies.
-  const maxTurns = teacherCourseSingleTurn
+  const maxTurns = notebookAgentSingleTurn
     ? 1
     : settingsState.maxTurns
       ? parseInt(settingsState.maxTurns, 10) || defaultMaxTurns

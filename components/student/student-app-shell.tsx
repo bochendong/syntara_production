@@ -13,6 +13,8 @@ export function StudentAppShell({
   Icon,
   accentClassName,
   testId,
+  homeHref = '/learn',
+  previewMode = false,
   children,
 }: {
   title: string;
@@ -21,6 +23,8 @@ export function StudentAppShell({
   Icon: LucideIcon;
   accentClassName: string;
   testId: string;
+  homeHref?: string;
+  previewMode?: boolean;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -31,7 +35,7 @@ export function StudentAppShell({
       className="min-h-full bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.09),transparent_28%),linear-gradient(180deg,#f8fafc,#eef2f7)] p-3 text-slate-950 dark:bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.12),transparent_30%),linear-gradient(180deg,#07111f,#020617)] dark:text-white sm:p-4"
     >
       <div className="mx-auto flex min-h-[calc(100dvh-24px)] w-full max-w-7xl flex-col gap-4 sm:min-h-[calc(100dvh-32px)]">
-        <StudentPortalHeader compact />
+        <StudentPortalHeader compact homeHref={homeHref} previewMode={previewMode} />
 
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/92 shadow-[0_24px_70px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.055]">
           <header className="flex flex-col gap-4 border-b border-slate-200/80 px-5 py-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -55,7 +59,7 @@ export function StudentAppShell({
               type="button"
               variant="outline"
               className="w-fit shrink-0 rounded-xl"
-              onClick={() => router.push('/learn')}
+              onClick={() => router.push(homeHref)}
             >
               <ArrowLeft className="mr-1.5 size-4" />
               返回学生桌面

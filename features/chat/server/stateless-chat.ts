@@ -15,7 +15,10 @@ import {
 import { shouldUseDirectCourseAnswerFastPath } from '@/features/learn-core/server/decision-chain';
 import { verifyTrustedLearnAnswererHandoff } from '@/features/learn-core/server/trusted-answerer-handoff';
 import { inferMemorySearchIntent } from '@/lib/server/memory-search-intent';
-import { runTeacherCourseTurn } from '@/features/chat/server/teacher-course-agent';
+import {
+  runStudentCourseTurn,
+  runTeacherCourseTurn,
+} from '@/features/chat/server/teacher-course-agent';
 import {
   COURSE_DATABASE_UNAVAILABLE_MESSAGE,
   isDatabaseUnavailableError,
@@ -119,6 +122,28 @@ export async function handleStatelessChatRequest(req: NextRequest) {
                 );
               }
               await runTeacherCourseTurn({
+                body: stripTrustedLearnHandoffToken(body),
+                signal,
+                languageModel,
+                modelString,
+                providerId,
+                access: trusted.courseAccess,
+                onEvent: async (event) => {
+                  if (signal.aborted) return;
+                  await writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+                },
+              });
+              return;
+            }
+            if (body.config.surface === 'student-course-chat') {
+              if (!trusted.courseAccess || trusted.courseAccess.role !== 'enrolled') {
+                throw new TrustedCourseTurnError(
+                  'unauthorized',
+                  403,
+                  'Student course chat requires verified enrollment access.',
+                );
+              }
+              await runStudentCourseTurn({
                 body: stripTrustedLearnHandoffToken(body),
                 signal,
                 languageModel,

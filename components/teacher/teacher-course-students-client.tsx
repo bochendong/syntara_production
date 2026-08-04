@@ -12,7 +12,6 @@ import {
   StudioList,
   StudioListItem,
   StudioPagination,
-  StudioStatusBadge,
 } from '@/components/teacher/studio-list';
 import { academicTermLabel, type AcademicTerm } from '@/lib/teacher/online-course-studio';
 import { backendJson } from '@/lib/utils/backend-api';
@@ -23,6 +22,7 @@ type TeacherCourseSummary = {
   name: string;
   academicYear: number | null;
   term: AcademicTerm | null;
+  notebookCount: number;
 };
 
 type CourseStudentRosterItem = {
@@ -30,6 +30,7 @@ type CourseStudentRosterItem = {
   name: string;
   email: string;
   avatarUrl?: string;
+  notebookAccessLimit: number | null;
   grantedAt: number;
 };
 
@@ -51,6 +52,7 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState(0);
+  const [savingProgressUserId, setSavingProgressUserId] = useState<string | null>(null);
   const loadingRef = useRef(false);
 
   useEffect(() => {
@@ -117,6 +119,30 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
     safePage * STUDENT_PAGE_SIZE,
   );
 
+  const updateNotebookAccessLimit = useCallback(
+    async (student: CourseStudentRosterItem, notebookAccessLimit: number | null) => {
+      setSavingProgressUserId(student.userId);
+      try {
+        await backendJson(`/api/teacher/courses/${encodeURIComponent(courseId)}/students`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userId: student.userId, notebookAccessLimit }),
+        });
+        setStudents((current) =>
+          current.map((item) =>
+            item.userId === student.userId ? { ...item, notebookAccessLimit } : item,
+          ),
+        );
+        setError('');
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : '进度限制保存失败');
+      } finally {
+        setSavingProgressUserId(null);
+      }
+    },
+    [courseId],
+  );
+
   if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId) return null;
 
   if (loading && !course) {
@@ -152,7 +178,7 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
       testId="teacher-course-students-app"
       title={`${course.code} · 学生管理`}
       eyebrow={`${course.academicYear ?? '—'} ${course.term ? academicTermLabel(course.term) : '—'} · COURSE STUDENTS`}
-      description="查看这门课的学生身份、联系方式与访问资格。名单由学校同步，页面会自动更新。"
+      description="查看管理员分配到这门课的学生，并控制每位学生可访问的笔记本进度。页面会自动更新。"
       Icon={Users}
       accentClassName="bg-gradient-to-br from-emerald-400 via-emerald-600 to-teal-900"
       backHref={`/teacher/courses/${courseId}`}
@@ -174,7 +200,7 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
           <StudentSummaryCard
             icon={<School className="size-4" />}
             label="名单来源"
-            value="学校同步"
+            value="管理员数据库"
           />
           <StudentSummaryCard
             icon={
@@ -223,17 +249,17 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
           <div className="p-4 sm:p-5">
             {visibleStudents.length ? (
               <StudioList>
-                <div className="hidden grid-cols-[minmax(0,1.25fr)_minmax(150px,0.7fr)_minmax(150px,0.75fr)_130px_150px] gap-4 bg-slate-50/80 px-5 py-3 text-xs font-semibold text-slate-500 dark:bg-white/[0.035] lg:grid">
+                <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(150px,0.75fr)_minmax(140px,0.65fr)_minmax(150px,0.7fr)_130px] gap-4 bg-slate-50/80 px-5 py-3 text-xs font-semibold text-slate-500 dark:bg-white/[0.035] lg:grid">
                   <span>学生</span>
                   <span>邮箱</span>
                   <span>账户 ID</span>
-                  <span>课程权限</span>
+                  <span>笔记本进度限制</span>
                   <span>加入时间</span>
                 </div>
                 {visibleStudents.map((student) => (
                   <StudioListItem
                     key={student.userId}
-                    className="grid gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(150px,0.7fr)_minmax(150px,0.75fr)_130px_150px] lg:items-center lg:gap-4"
+                    className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(150px,0.75fr)_minmax(140px,0.65fr)_minmax(150px,0.7fr)_130px] lg:items-center lg:gap-4"
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <Avatar size="lg" className="ring-1 ring-slate-200 dark:ring-white/10">
@@ -261,10 +287,32 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
                     <span className="truncate text-sm text-slate-500 dark:text-slate-400">
                       {student.userId}
                     </span>
-                    <StudioStatusBadge tone="emerald" className="w-fit rounded-full text-xs">
-                      <ShieldCheck className="size-3" />
-                      可查看课程
-                    </StudioStatusBadge>
+                    <label className="flex items-center gap-2 text-xs text-slate-500">
+                      <ShieldCheck className="size-3.5 shrink-0 text-emerald-600" />
+                      <select
+                        aria-label={`${student.name} 的笔记本进度限制`}
+                        value={
+                          student.notebookAccessLimit === null
+                            ? 'all'
+                            : String(student.notebookAccessLimit)
+                        }
+                        disabled={savingProgressUserId === student.userId}
+                        onChange={(event) =>
+                          void updateNotebookAccessLimit(
+                            student,
+                            event.target.value === 'all' ? null : Number(event.target.value),
+                          )
+                        }
+                        className="h-9 min-w-32 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+                      >
+                        <option value="all">全部开放</option>
+                        {Array.from({ length: course.notebookCount + 1 }, (_, index) => (
+                          <option key={index} value={index}>
+                            前 {index} 本
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <span className="text-xs tabular-nums text-slate-400">
                       {new Date(student.grantedAt).toLocaleString('zh-CN')}
                     </span>
@@ -273,7 +321,7 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
               </StudioList>
             ) : (
               <div className="grid min-h-64 place-items-center text-center text-sm text-slate-500 dark:text-slate-400">
-                {query ? '没有找到匹配的学生。' : '学校尚未同步可查看本课程的学生。'}
+                {query ? '没有找到匹配的学生。' : '管理员尚未给这门课分配学生。'}
               </div>
             )}
           </div>

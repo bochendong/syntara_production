@@ -98,6 +98,49 @@ function buildProviders() {
         },
       }),
     );
+    providers.push(
+      CredentialsProvider({
+        id: 'student-credentials',
+        name: 'Student account',
+        credentials: {
+          email: { label: 'Email', type: 'email' },
+          password: { label: 'Password', type: 'password' },
+        },
+        async authorize(credentials) {
+          const email = credentials?.email?.trim().toLowerCase() || '';
+          const password = credentials?.password || '';
+          if (!email || !password) return null;
+          const user = await prisma.user.findUnique({
+            where: { email },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              image: true,
+              role: true,
+              isActive: true,
+              passwordHash: true,
+            },
+          });
+          if (
+            !user?.isActive ||
+            (user.role !== 'STUDENT' && user.role !== 'USER') ||
+            !user.passwordHash ||
+            !(await verifyPassword(password, user.passwordHash))
+          ) {
+            return null;
+          }
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+            role: user.role,
+            isActive: user.isActive,
+          };
+        },
+      }),
+    );
   }
 
   const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
@@ -152,14 +195,19 @@ export const authOptions: NextAuthOptions = {
       const accountUser = user as { role?: string; isActive?: boolean };
       return (
         accountUser.isActive !== false &&
-        (accountUser.role === 'TEACHER' || accountUser.role === 'ADMIN')
+        (accountUser.role === 'USER' ||
+          accountUser.role === 'STUDENT' ||
+          accountUser.role === 'TEACHER' ||
+          accountUser.role === 'ADMIN')
       );
     },
     async jwt({ token, user }) {
       if (user) {
         const accountUser = user as { role?: string; isActive?: boolean };
         token.role =
-          accountUser.role === 'ADMIN' || accountUser.role === 'TEACHER'
+          accountUser.role === 'ADMIN' ||
+          accountUser.role === 'TEACHER' ||
+          accountUser.role === 'STUDENT'
             ? accountUser.role
             : 'USER';
         token.isActive = accountUser.isActive !== false;
@@ -183,12 +231,15 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         if (user) {
           session.user.id = user.id;
-          session.user.role = (user as { role?: 'USER' | 'TEACHER' | 'ADMIN' }).role || 'USER';
+          session.user.role =
+            (user as { role?: 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN' }).role || 'USER';
           session.user.isActive = (user as { isActive?: boolean }).isActive !== false;
         } else if (token?.sub) {
           session.user.id = token.sub;
           session.user.role =
-            token.role === 'TEACHER' || token.role === 'ADMIN' ? token.role : 'USER';
+            token.role === 'TEACHER' || token.role === 'ADMIN' || token.role === 'STUDENT'
+              ? token.role
+              : 'USER';
           session.user.isActive = token.isActive !== false;
         }
       }
