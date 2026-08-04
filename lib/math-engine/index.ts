@@ -828,8 +828,53 @@ function wrapBacktickMath(text: string): string {
   });
 }
 
+function wrapBareLatexEnvironmentsOutsideDollarMath(text: string): string {
+  let output = '';
+  let fragmentStart = 0;
+  let index = 0;
+
+  while (index < text.length) {
+    const dollarMathSpan = copyDollarMathSpan(text, index);
+    if (!dollarMathSpan) {
+      index += 1;
+      continue;
+    }
+
+    output += wrapBareLatexEnvironments(text.slice(fragmentStart, index));
+    output += dollarMathSpan.span;
+    index = dollarMathSpan.nextIndex;
+    fragmentStart = index;
+  }
+
+  output += wrapBareLatexEnvironments(text.slice(fragmentStart));
+  return output;
+}
+
+function normalizeExplicitMarkdownMathDelimiters(text: string): string {
+  // Collapse only doubled delimiter escapes here. Formula commands and matrix
+  // row separators are normalized later, inside normalizeMathSource, where
+  // complete LaTeX environments can be protected safely.
+  const normalized = text.replace(/\\\\(?=[()[\]])/g, '\\');
+  const withDisplayMath = normalized.replace(
+    /\\\[([\s\S]*?)\\\]/g,
+    (_match, expression: string) => `$$\n${normalizeLegacyLatexSource(expression)}\n$$`,
+  );
+  const withInlineMath = withDisplayMath.replace(
+    /\\\(([\s\S]*?)\\\)/g,
+    (_match, expression: string) => `$${normalizeLegacyLatexSource(expression)}$`,
+  );
+
+  // A model occasionally emits a matrix or cases environment without any
+  // Markdown math delimiter. KaTeX already supports these environments; wrap
+  // only the complete environment so normal prose and code stay untouched.
+  return wrapBareLatexEnvironmentsOutsideDollarMath(withInlineMath);
+}
+
 export function normalizeLooseMathDelimiters(text: string): string {
-  return wrapBacktickMath(wrapParenMath(wrapDoubleParenMath(wrapSquareBracketMath(text))));
+  const explicitMath = normalizeExplicitMarkdownMathDelimiters(text);
+  return wrapBacktickMath(
+    wrapParenMath(wrapDoubleParenMath(wrapSquareBracketMath(explicitMath))),
+  );
 }
 
 function isComplexMath(latex: string): boolean {

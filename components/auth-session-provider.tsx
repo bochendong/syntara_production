@@ -3,17 +3,17 @@
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { SessionProvider, useSession } from 'next-auth/react';
-import { usePathname } from 'next/navigation';
+import { usePersistHydrated } from '@/lib/hooks/use-persist-hydrated';
 import { useAuthStore } from '@/lib/store/auth';
 
 function AuthSessionSync() {
   const { data: session, status } = useSession();
+  const authHydrated = usePersistHydrated(useAuthStore);
   const syncFromOAuth = useAuthStore((s) => s.syncFromOAuth);
   const logout = useAuthStore((s) => s.logout);
-  const authMode = useAuthStore((s) => s.authMode);
 
   useEffect(() => {
-    if (status === 'loading') return;
+    if (!authHydrated || status === 'loading') return;
     if (session?.user?.id) {
       syncFromOAuth({
         userId: session.user.id,
@@ -21,23 +21,15 @@ function AuthSessionSync() {
         email: session.user.email?.trim().toLowerCase() ?? '',
         role: session.user.role ?? 'USER',
       });
-    } else if (
-      status === 'unauthenticated' &&
-      (authMode === 'oauth' || (authMode === 'email' && process.env.NODE_ENV === 'production'))
-    ) {
+    } else if (status === 'unauthenticated') {
       logout();
     }
-  }, [session, status, syncFromOAuth, logout, authMode]);
+  }, [authHydrated, session, status, syncFromOAuth, logout]);
 
   return null;
 }
 
 export function AuthSessionProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  if (pathname?.startsWith('/test/memory-')) {
-    return <>{children}</>;
-  }
-
   return (
     <SessionProvider>
       <AuthSessionSync />

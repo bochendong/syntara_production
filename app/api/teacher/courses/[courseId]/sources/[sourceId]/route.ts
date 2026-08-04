@@ -1,0 +1,52 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+import { prisma } from '@/lib/server/prisma';
+import { safeRoute } from '@/lib/server/json-error-response';
+import { requireTeacher } from '@/lib/server/teacher-auth';
+
+const updateSchema = z.object({ action: z.enum(['remove', 'restore']) });
+
+async function ownedSource(userId: string, courseId: string, sourceId: string) {
+  return prisma.courseSource.findFirst({
+    where: { id: sourceId, courseId, ownerId: userId },
+    select: { id: true },
+  });
+}
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ courseId: string; sourceId: string }> },
+) {
+  return safeRoute(async () => {
+    const teacher = await requireTeacher();
+    if ('response' in teacher) return teacher.response;
+    const { courseId, sourceId } = await context.params;
+    if (!(await ownedSource(teacher.userId, courseId, sourceId))) {
+      return NextResponse.json({ error: 'Source not found' }, { status: 404 });
+    }
+    const payload = updateSchema.safeParse(await request.json().catch(() => null));
+    if (!payload.success) return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    await prisma.courseSource.update({
+      where: { id: sourceId },
+      data: { removedAt: payload.data.action === 'remove' ? new Date() : null },
+    });
+    return NextResponse.json({ ok: true });
+  });
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ courseId: string; sourceId: string }> },
+) {
+  return safeRoute(async () => {
+    const teacher = await requireTeacher();
+    if ('response' in teacher) return teacher.response;
+    const { courseId, sourceId } = await context.params;
+    if (!(await ownedSource(teacher.userId, courseId, sourceId))) {
+      return NextResponse.json({ error: 'Source not found' }, { status: 404 });
+    }
+    await prisma.courseSource.delete({ where: { id: sourceId } });
+    return NextResponse.json({ ok: true });
+  });
+}

@@ -37,6 +37,7 @@ import {
   Minimize2,
   MoreHorizontal,
   Pause,
+  Paperclip,
   Play,
   Plus,
   RefreshCw,
@@ -116,6 +117,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePersistHydrated } from '@/lib/hooks/use-persist-hydrated';
+import { normalizeLooseMathDelimiters } from '@/lib/math-engine';
 import { useAuthStore } from '@/lib/store/auth';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
 import { useSettingsStore } from '@/lib/store/settings';
@@ -132,6 +134,10 @@ import {
   askCourseOrchestrator,
   type CourseChatImageAttachment,
 } from '@/lib/chat/ask-course-orchestrator';
+import {
+  cleanupCourseChatAttachments,
+  prepareCourseChatAttachmentsForModel,
+} from '@/lib/chat/ephemeral-course-chat-attachments';
 import { buildProblemExplainPrompt } from '@/lib/chat/problem-explain-prompt';
 import {
   answererHandoffFromLearnTurn,
@@ -228,6 +234,7 @@ import {
   type PracticePlan,
   type PracticePlanMode,
 } from '@/lib/learning/course-learner-state';
+import { orderCourseNotebooks } from '@/lib/learning/course-notebook-order';
 import {
   applyConfirmedMemoryToLearnerCourseState,
   type ConfirmedLearnerMemoryType,
@@ -495,7 +502,7 @@ type CourseResourceKind = 'notebooks' | 'problems' | 'sources';
 type LearnSurfaceStatus = 'deferred' | 'loading' | 'ready' | 'empty' | 'local' | 'error';
 
 type LearnSurfaceStatusItem = {
-  key: 'course' | 'conversation' | CourseResourceKind;
+  key: 'course' | 'conversation' | 'teacher-agent' | CourseResourceKind;
   label: string;
   status: LearnSurfaceStatus;
   statusLabel: string;
@@ -933,7 +940,10 @@ function resourceCountText(state: ResourceLoadState, count: number): number | st
   return state.status === 'ready' || state.status === 'empty' ? count : '—';
 }
 
-type LearnImageAttachment = Omit<CourseChatImageAttachment, 'dataUrl'> & {
+type LearnImageAttachment = Omit<
+  CourseChatImageAttachment,
+  'dataUrl' | 'modelUrl' | 'textContent'
+> & {
   dataUrl?: string;
   objectUrl?: string;
   width?: number;
@@ -1294,13 +1304,21 @@ const researchQuickPrompts = [
   '整理这篇论文的贡献',
   '制定一下研究计划',
 ];
+const teacherQuickPrompts = [
+  '这门课现在有几个笔记本？',
+  '总结一下 Python 基础讲义的章节',
+  '当前课程有哪些 Hard Rule？',
+  '根据课程笔记解释条件控制',
+];
 const calendarWeekdays = ['日', '一', '二', '三', '四', '五', '六'];
 
 const PROGRESS_SELECTION_NOT_STARTED = '__not_started__';
 const PROGRESS_SELECTION_COMPLETED_ALL = '__completed_all__';
 const MODEL_VALUE_SEPARATOR = '\u001e';
-const MAX_LEARN_CHAT_IMAGES = 4;
+const MAX_LEARN_CHAT_ATTACHMENTS = 6;
 const MAX_LEARN_CHAT_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_LEARN_CHAT_PDF_BYTES = 4 * 1024 * 1024;
+const MAX_LEARN_CHAT_TEXT_BYTES = 1024 * 1024;
 const LEARN_CHAT_IMAGE_MAX_DIMENSION = 1280;
 const MAX_LEARN_SOURCE_TEXT_FILE_BYTES = 4 * 1024 * 1024;
 const MAX_LEARN_SOURCE_DOCUMENT_BYTES = 18 * 1024 * 1024;
@@ -1533,10 +1551,10 @@ function normalizeLearnAttachmentReference(
 ): LearnImageAttachment | null {
   const id = attachment.id?.trim();
   const mimeType = attachment.mimeType?.trim();
-  if (!id || !mimeType?.startsWith('image/')) return null;
+  if (!id || !mimeType || !isSupportedLearnChatAttachmentMime(mimeType)) return null;
   return {
     id,
-    name: attachment.name?.trim() || '图片',
+    name: attachment.name?.trim() || '附件',
     mimeType,
     size:
       typeof attachment.size === 'number' && Number.isFinite(attachment.size)
@@ -2618,10 +2636,45 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.onload = () =>
       typeof reader.result === 'string'
         ? resolve(reader.result)
-        : reject(new Error('图片读取失败'));
-    reader.onerror = () => reject(reader.error ?? new Error('图片读取失败'));
+        : reject(new Error('附件读取失败'));
+    reader.onerror = () => reject(reader.error ?? new Error('附件读取失败'));
     reader.readAsDataURL(file);
   });
+}
+
+function normalizedLearnChatAttachmentMime(file: Pick<File, 'name' | 'type'>): string {
+  const declared = file.type.trim().toLowerCase();
+  if (declared) return declared;
+  const extension = file.name.split('.').pop()?.trim().toLowerCase();
+  if (extension === 'pdf') return 'application/pdf';
+  if (extension === 'json') return 'application/json';
+  if (extension === 'xml') return 'application/xml';
+  if (extension === 'md' || extension === 'markdown') return 'text/markdown';
+  if (extension === 'csv') return 'text/csv';
+  if (extension === 'txt') return 'text/plain';
+  return 'application/octet-stream';
+}
+
+function isSupportedLearnChatAttachmentMime(mimeType: string): boolean {
+  const normalized = mimeType.trim().toLowerCase();
+  return (
+    normalized.startsWith('image/') ||
+    normalized.startsWith('text/') ||
+    normalized === 'application/pdf' ||
+    normalized === 'application/json' ||
+    normalized === 'application/xml'
+  );
+}
+
+function learnChatAttachmentTypeLabel(attachment: Pick<LearnImageAttachment, 'mimeType'>): string {
+  const mimeType = attachment.mimeType.toLowerCase();
+  if (mimeType === 'application/pdf') return 'PDF';
+  if (mimeType.startsWith('image/')) return '图片';
+  if (mimeType === 'application/json') return 'JSON';
+  if (mimeType === 'application/xml') return 'XML';
+  if (mimeType === 'text/markdown') return 'Markdown';
+  if (mimeType === 'text/csv') return 'CSV';
+  return '文本';
 }
 
 function loadImageElement(src: string): Promise<HTMLImageElement> {
@@ -2677,6 +2730,32 @@ async function prepareLearnImageAttachment(file: File): Promise<LearnImageAttach
     objectUrl: dataUrl,
     width,
     height,
+  };
+}
+
+async function prepareLearnChatAttachment(file: File): Promise<LearnImageAttachment> {
+  const mimeType = normalizedLearnChatAttachmentMime(file);
+  if (mimeType.startsWith('image/')) {
+    return prepareLearnImageAttachment(
+      file.type === mimeType ? file : new File([file], file.name, { type: mimeType }),
+    );
+  }
+  if (!isSupportedLearnChatAttachmentMime(mimeType)) {
+    throw new Error(`${file.name} 暂不支持。聊天附件支持图片、PDF、Markdown 和文本文件。`);
+  }
+  const maxBytes =
+    mimeType === 'application/pdf' ? MAX_LEARN_CHAT_PDF_BYTES : MAX_LEARN_CHAT_TEXT_BYTES;
+  if (file.size > maxBytes) {
+    throw new Error(`${file.name} 不能超过 ${compactBytes(maxBytes)}。`);
+  }
+  const dataUrl = await readFileAsDataUrl(file);
+  return {
+    id: makeClientId('learn-file'),
+    name: file.name.trim() || '附件',
+    mimeType,
+    size: file.size,
+    dataUrl,
+    objectUrl: dataUrl,
   };
 }
 
@@ -2879,24 +2958,10 @@ function progressSelectionFromSnapshot(snapshot: LearnerCourseSnapshot | null): 
   return snapshot.progressNotebookId || snapshot.currentNotebook?.id || '';
 }
 
-function notebookCourseOrder(notebook: Pick<StageListItem, 'id' | 'name' | 'createdAt'>): number {
-  const candidates = [notebook.name, notebook.id];
-  for (const candidate of candidates) {
-    const match = candidate.match(/(?:^|[-_\s])0?(\d{1,2})(?:\s*[-–—_:]|[-_\s]|$)/);
-    if (match) return Number(match[1]);
-  }
-  return Number.MAX_SAFE_INTEGER;
-}
-
-function orderedCourseNotebooks<T extends Pick<StageListItem, 'id' | 'name' | 'createdAt'>>(
-  notebooks: T[],
-): T[] {
-  return notebooks.slice().sort((a, b) => {
-    const orderA = notebookCourseOrder(a);
-    const orderB = notebookCourseOrder(b);
-    if (orderA !== orderB) return orderA - orderB;
-    return a.createdAt - b.createdAt || a.name.localeCompare(b.name);
-  });
+function orderedCourseNotebooks<
+  T extends Pick<StageListItem, 'id' | 'name' | 'createdAt' | 'learningOrder'>,
+>(notebooks: T[]): T[] {
+  return orderCourseNotebooks(notebooks);
 }
 
 function progressLabelForSelection(selection: string, notebooks: StageListItem[]): string {
@@ -2954,7 +3019,7 @@ function learnMessagesForCourseAnswerer(
                 attachment,
               ): attachment is LearnImageAttachment & {
                 dataUrl: string;
-              } => Boolean(attachment.dataUrl),
+              } => attachment.mimeType.startsWith('image/') && Boolean(attachment.dataUrl),
             )
             .slice(0, 4)
             .map((attachment) => ({
@@ -3014,6 +3079,7 @@ function publicTraceFromCourseAnswererMessages(
           ? progressMessage?.metadata?.statusText || '正在处理这一步。'
           : '这一步已完成。'),
       status: step.status === 'complete' ? 'done' : 'waiting',
+      evidence: step.evidence,
     }));
 }
 
@@ -3080,7 +3146,7 @@ function normalizeLearnChatMarkdownSegment(text: string): string {
     .split(/(`[^`\n]*`)/g)
     .map((part) => {
       if (part.startsWith('`')) return part.replace(/\[blocked\]/gi, '');
-      return sanitizeLearnChatMarkdownText(part);
+      return normalizeLooseMathDelimiters(sanitizeLearnChatMarkdownText(part));
     })
     .join('');
 }
@@ -3459,6 +3525,32 @@ function pendingPublicTraceForQuestion(question: string): LearnPublicTraceStep[]
   ];
 }
 
+function pendingTeacherPublicTrace(): LearnPublicTraceStep[] {
+  return [
+    makePublicTraceStep(
+      'teacher-access',
+      '确认教师权限',
+      '由服务端确认当前账号是这门课的 owner。',
+      undefined,
+      'waiting',
+    ),
+    makePublicTraceStep(
+      'teacher-inventory',
+      '读取课程资料',
+      '等待服务端返回真实的笔记本、学生和 Hard Rule 数量。',
+      undefined,
+      'waiting',
+    ),
+    makePublicTraceStep(
+      'teacher-evidence',
+      '查阅笔记本依据',
+      '智能体会根据问题选择目录、检索或具体笔记本正文。',
+      undefined,
+      'waiting',
+    ),
+  ];
+}
+
 function finalizePublicTraceSteps(
   steps?: LearnPublicTraceStep[],
 ): LearnPublicTraceStep[] | undefined {
@@ -3745,9 +3837,11 @@ function practiceSessionPlanMeta(plan: PracticePlan, summary?: PracticeSessionSu
 function buildLearnerChatContext(args: {
   snapshot: LearnerCourseSnapshot;
   state: LearnerCourseState;
+  notebooks: StageListItem[];
   plans: PracticePlan[];
   syllabusEvents?: SyllabusCalendarEvent[];
 }): NonNullable<CourseChatContext['learner']> {
+  const orderedNotebooks = orderCourseNotebooks(args.notebooks);
   const today = localDayKey(new Date());
   const sortedSyllabusEvents = (args.syllabusEvents || [])
     .slice()
@@ -3775,6 +3869,8 @@ function buildLearnerChatContext(args: {
     progressPercent: args.snapshot.progressPercent,
     currentNotebookId: args.snapshot.currentNotebook?.id,
     currentNotebookName: args.snapshot.currentNotebook?.name,
+    courseNotebookIds: orderedNotebooks.map((notebook) => notebook.id),
+    courseNotebookNames: orderedNotebooks.map((notebook) => notebook.name),
     completedNotebookIds: args.state.completedNotebookIds,
     attemptedProblemCount: args.snapshot.attemptedProblemCount,
     totalProblemCount: args.snapshot.totalProblemCount,
@@ -6757,56 +6853,57 @@ function LearnPublicTraceCard({
 }) {
   const displaySteps = transient ? steps : finalizePublicTraceSteps(steps);
   if (!displaySteps?.length) return null;
+  const blockedStep = displaySteps.find((step) => step.status === 'blocked');
+  const activeStep =
+    blockedStep ||
+    displaySteps.find((step) => step.status === 'waiting') ||
+    displaySteps[displaySteps.length - 1];
+  const completedCount = displaySteps.filter((step) => step.status === 'done').length;
   return (
-    <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-xs shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="grid size-6 shrink-0 place-items-center rounded-[8px] bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-white/10 dark:text-slate-100 dark:ring-white/10">
-          <Brain className="size-3.5" strokeWidth={1.9} />
-        </span>
-        <p className="font-semibold text-slate-900 dark:text-slate-100">本次工作流</p>
+    <div
+      className={cn(
+        'mb-2 flex items-start gap-2 rounded-[10px] border px-2.5 py-2 text-xs',
+        blockedStep
+          ? 'border-amber-200 bg-amber-50/70 dark:border-amber-300/15 dark:bg-amber-400/[0.07]'
+          : 'border-sky-100 bg-sky-50/55 dark:border-sky-300/10 dark:bg-sky-400/[0.05]',
+      )}
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        className={cn(
+          'mt-0.5 grid size-5 shrink-0 place-items-center rounded-full',
+          blockedStep
+            ? 'bg-amber-100 text-amber-700 dark:bg-amber-400/10 dark:text-amber-100'
+            : 'bg-white text-sky-700 shadow-sm ring-1 ring-sky-100 dark:bg-white/10 dark:text-sky-100 dark:ring-sky-300/10',
+        )}
+      >
+        {blockedStep ? (
+          <AlertTriangle className="size-3" strokeWidth={1.9} />
+        ) : (
+          <Loader2 className="size-3 animate-spin motion-reduce:animate-none" strokeWidth={1.9} />
+        )}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate font-semibold text-slate-900 dark:text-slate-100">
+            {activeStep.title}
+          </p>
+          {!blockedStep && completedCount > 0 ? (
+            <span className="shrink-0 text-[10px] text-emerald-700 dark:text-emerald-200">
+              {completedCount} 项已完成
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-0.5 line-clamp-2 leading-4 text-slate-600 dark:text-slate-300">
+          {activeStep.detail}
+        </p>
+        {activeStep.evidence?.length ? (
+          <p className="mt-1 truncate text-[10px] text-slate-500 dark:text-slate-400">
+            {activeStep.evidence.slice(0, 3).join(' · ')}
+          </p>
+        ) : null}
       </div>
-      <ol className="space-y-2">
-        {displaySteps.map((step) => (
-          <li key={step.id} className="flex gap-2">
-            <span
-              className={cn(
-                'mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-bold ring-1',
-                step.status === 'done' &&
-                  'bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-400/10 dark:text-emerald-100 dark:ring-emerald-300/15',
-                step.status === 'waiting' &&
-                  'bg-sky-50 text-sky-700 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-300/15',
-                step.status === 'blocked' &&
-                  'bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-400/10 dark:text-amber-100 dark:ring-amber-300/15',
-              )}
-            >
-              {step.status === 'waiting' ? (
-                <Loader2 className="size-3 animate-spin" strokeWidth={1.9} />
-              ) : step.status === 'blocked' ? (
-                <AlertTriangle className="size-3" strokeWidth={1.9} />
-              ) : (
-                <CheckCircle2 className="size-3" strokeWidth={1.9} />
-              )}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-slate-900 dark:text-slate-100">
-                {step.title}
-              </span>
-              <span className="mt-0.5 block leading-5 text-slate-600 dark:text-slate-300">
-                {step.detail}
-              </span>
-              {step.evidence?.length ? (
-                <span className="mt-1 block space-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                  {step.evidence.map((item) => (
-                    <span key={`${step.id}-${item}`} className="block">
-                      {item}
-                    </span>
-                  ))}
-                </span>
-              ) : null}
-            </span>
-          </li>
-        ))}
-      </ol>
     </div>
   );
 }
@@ -7057,6 +7154,7 @@ export function LearnPageClient() {
   const sourceDocumentInputRef = useRef<HTMLInputElement>(null);
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null);
   const conversationScrollContainerRef = useRef<HTMLDivElement>(null);
+  const conversationShouldStickToBottomRef = useRef(true);
   const syllabusInputRef = useRef<HTMLInputElement>(null);
   const sourceUploadPanelOpenRef = useRef(false);
   const platformMemoryStatusMockTimersRef = useRef<number[]>([]);
@@ -7126,11 +7224,13 @@ export function LearnPageClient() {
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const userId = useAuthStore((state) => state.userId);
   const userName = useAuthStore((state) => state.name);
+  const portalRole = useAuthStore((state) => state.role);
   const storedCourseId = useCurrentCourseStore((state) => state.id);
   const storedCourseName = useCurrentCourseStore((state) => state.name);
   const storedCourseAvatarUrl = useCurrentCourseStore((state) => state.avatarUrl);
   const setCurrentCourse = useCurrentCourseStore((state) => state.setCurrentCourse);
   const clearCurrentCourse = useCurrentCourseStore((state) => state.clearCurrentCourse);
+
   const providerId = useSettingsStore((state) => state.providerId);
   const modelId = useSettingsStore((state) => state.modelId);
   const providersConfig = useSettingsStore((state) => state.providersConfig);
@@ -7547,6 +7647,12 @@ export function LearnPageClient() {
 
   const hydrated = authHydrated && courseHydrated;
   const localUserId = userId || 'anonymous';
+  const canManageCourseContent = portalRole === 'TEACHER' || portalRole === 'ADMIN';
+  const teacherChatMode = searchParams.get('from') === 'teacher';
+  const isTeacherCourseChat = canManageCourseContent || teacherChatMode;
+  // Student course-tools rail only. Hide for teachers/admins, before auth
+  // hydrates (avoid TEACHER flash), and when opened from the teacher portal.
+  const showRightRail = authHydrated && !isTeacherCourseChat && portalRole === 'STUDENT';
   const draftSessionId = useMemo(
     () => makeLearnSessionId(`${localUserId}:${urlCourseId}`),
     [localUserId, urlCourseId],
@@ -7561,6 +7667,23 @@ export function LearnPageClient() {
     () => (messageStoreKey === activeMessageStoreKey && activeMessageStoreKey ? messages : []),
     [activeMessageStoreKey, messageStoreKey, messages],
   );
+  const handleConversationScroll = useCallback(() => {
+    const container = conversationScrollContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    conversationShouldStickToBottomRef.current = distanceFromBottom < 120;
+  }, []);
+  useEffect(() => {
+    const container = conversationScrollContainerRef.current;
+    if (!container || !conversationShouldStickToBottomRef.current) return;
+    const frameId = window.requestAnimationFrame(() => {
+      const current = conversationScrollContainerRef.current;
+      if (!current || !conversationShouldStickToBottomRef.current) return;
+      current.scrollTop = current.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [sending, visibleMessages]);
   const railLearnSessions = useMemo(() => {
     const recent = learnSessions.slice(0, 5);
     if (!activeSessionId || recent.some((session) => session.id === activeSessionId)) return recent;
@@ -7709,6 +7832,7 @@ export function LearnPageClient() {
       if (change.courseId !== activeCourseId) return;
       setLearnSessionListRefreshAttempt((current) => current + 1);
       if (change.sessionId !== activeSessionId) return;
+      if (sendRequestRef.current?.key === activeMessageStoreKeyRef.current) return;
       if (Array.isArray(change.deletedMessageIds)) {
         const serverDeletedIds = new Set(change.deletedMessageIds.map(String).filter(Boolean));
         if (serverDeletedIds.size > 0) {
@@ -7860,7 +7984,7 @@ export function LearnPageClient() {
           loadingMore: false,
           error: null,
         };
-  const activeCourseIsOwner = activeCourse?.accessRole !== 'enrolled';
+  const activeCourseIsOwner = canManageCourseContent && activeCourse?.accessRole !== 'enrolled';
   const isResearchCourse = activeCourse?.purpose === 'research';
   const coursePublishBlockReason = activeCourse
     ? getCoursePublishBlockReason(activeCourse, notebooks)
@@ -7893,7 +8017,11 @@ export function LearnPageClient() {
   useEffect(() => {
     refreshPracticeSessions();
   }, [refreshPracticeSessions]);
-  const activeQuickPrompts = isResearchCourse ? researchQuickPrompts : learningQuickPrompts;
+  const activeQuickPrompts = isTeacherCourseChat
+    ? teacherQuickPrompts
+    : isResearchCourse
+      ? researchQuickPrompts
+      : learningQuickPrompts;
   const manualScheduleKindOptions = isResearchCourse
     ? RESEARCH_EVENT_KIND_OPTIONS
     : SYLLABUS_EVENT_KIND_OPTIONS;
@@ -8079,6 +8207,7 @@ export function LearnPageClient() {
   );
 
   const handleUploadButtonClick = useCallback(() => {
+    if (!canManageCourseContent) return;
     if (!activeCourse) {
       setError('先添加或选择一门课程，再上传原始讲义。');
       return;
@@ -8095,8 +8224,9 @@ export function LearnPageClient() {
       openSourceUploadPanel();
       return;
     }
-    imageInputRef.current?.click();
+    sourceDocumentInputRef.current?.click();
   }, [
+    canManageCourseContent,
     completedSourceUploadBadgeCount,
     activeCourse,
     activeSourceUploadItems.length,
@@ -9284,10 +9414,12 @@ export function LearnPageClient() {
         const dirtyById = dirtyConversationMessagesRef.current.get(detailKey);
         if (dirtyById) {
           const remoteById = new Map(remotePayloads.map((message) => [message.id, message]));
-          for (const [messageId, dirtyMessage] of dirtyById) {
-            if (remoteLearnMessagePayloadEqual(remoteById.get(messageId), dirtyMessage)) {
-              dirtyById.delete(messageId);
-            }
+          for (const messageId of dirtyById.keys()) {
+            // Message ids are immutable turn identities. Once an id exists in
+            // the database, the server copy is authoritative during hydration.
+            // This lets stale tabs converge instead of endlessly overwriting
+            // different cached metadata for the same visible message.
+            if (remoteById.has(messageId)) dirtyById.delete(messageId);
           }
           if (dirtyById.size === 0) dirtyConversationMessagesRef.current.delete(detailKey);
           writeLearnSessionDirtyMessages(
@@ -9372,6 +9504,7 @@ export function LearnPageClient() {
           writeLearnSessions(localUserId, courseId, nextSessions);
           return nextSessions;
         });
+        setRemoteConversationLoadError(null);
         setRemoteConversationReadyKey(detailKey);
       })
       .catch((detailError) => {
@@ -9475,6 +9608,10 @@ export function LearnPageClient() {
     writeLearnSessionDirtyMessages(localUserId, activeCourseId, activeSessionId, dirtyMessages);
     if (remoteConversationReadyKey !== activeMessageStoreKey) return;
     if (!initialBootSettled) return;
+    // A streaming turn may update the assistant message dozens of times per
+    // second. Persist the completed turn once instead of competing with the SSE
+    // reader and repeatedly reconciling the same conversation revision.
+    if (sending) return;
 
     const deletedMessageIds = Array.from(
       readDeletedLearnMessageIds(localUserId, activeCourseId, activeSessionId),
@@ -9586,6 +9723,7 @@ export function LearnPageClient() {
     messages,
     remoteConversationReadyKey,
     remoteConversationSyncAttempt,
+    sending,
     urlSessionId,
   ]);
 
@@ -9732,6 +9870,7 @@ export function LearnPageClient() {
     localUserId,
     previewLearnHome,
     router,
+    setCurrentCourse,
     urlCourseId,
   ]);
 
@@ -10900,47 +11039,49 @@ export function LearnPageClient() {
     [setModel],
   );
 
-  const handleImageFiles = useCallback(
+  const handleChatAttachmentFiles = useCallback(
     async (fileList: FileList | File[] | null) => {
-      const files = Array.from(fileList || []).filter((file) => file.type.startsWith('image/'));
+      const files = Array.from(fileList || []);
       if (!files.length) return;
-      const remainingSlots = Math.max(0, MAX_LEARN_CHAT_IMAGES - attachments.length);
+      const remainingSlots = Math.max(0, MAX_LEARN_CHAT_ATTACHMENTS - attachments.length);
       if (remainingSlots <= 0) {
-        setError(`最多添加 ${MAX_LEARN_CHAT_IMAGES} 张图片。`);
+        setError(`一次最多添加 ${MAX_LEARN_CHAT_ATTACHMENTS} 个聊天附件。`);
         return;
       }
-      try {
-        const prepared = await Promise.all(
-          files.slice(0, remainingSlots).map((file) => prepareLearnImageAttachment(file)),
-        );
-        updateComposerAttachments((current) =>
-          [...current, ...prepared].slice(0, MAX_LEARN_CHAT_IMAGES),
-        );
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '图片添加失败');
+      const prepared: LearnImageAttachment[] = [];
+      let firstError: string | null = null;
+      for (const file of files.slice(0, remainingSlots)) {
+        try {
+          prepared.push(await prepareLearnChatAttachment(file));
+        } catch (error) {
+          firstError ||= error instanceof Error ? error.message : `${file.name} 添加失败`;
+        }
       }
+      if (prepared.length) {
+        updateComposerAttachments((current) =>
+          [...current, ...prepared].slice(0, MAX_LEARN_CHAT_ATTACHMENTS),
+        );
+      }
+      if (!firstError && files.length > remainingSlots) {
+        firstError = `一次最多添加 ${MAX_LEARN_CHAT_ATTACHMENTS} 个聊天附件，已保留前 ${remainingSlots} 个。`;
+      }
+      setError(firstError);
     },
     [attachments.length, updateComposerAttachments],
   );
 
   const handleLearnUploadFiles = useCallback(
     async (fileList: FileList | null) => {
+      if (!canManageCourseContent) return;
       const files = Array.from(fileList || []);
       if (!files.length) return;
 
-      const imageFiles = files.filter((file) => file.type.startsWith('image/'));
       const sourceFiles = files.filter(isLearnSourceDocumentFile);
-      const unsupportedFiles = files.filter(
-        (file) => !file.type.startsWith('image/') && !isLearnSourceDocumentFile(file),
-      );
+      const unsupportedFiles = files.filter((file) => !isLearnSourceDocumentFile(file));
 
-      if (imageFiles.length) {
-        await handleImageFiles(imageFiles);
-      }
       if (unsupportedFiles.length) {
         setError(
-          `暂不支持 ${unsupportedFiles[0].name}，请上传图片、PDF、PPTX、DOCX、Markdown 或文本文件。`,
+          `暂不支持 ${unsupportedFiles[0].name}，课程资料支持 PDF、PPTX、DOCX、Markdown 或文本文件。`,
         );
       }
       if (!sourceFiles.length) return;
@@ -11127,7 +11268,7 @@ export function LearnPageClient() {
       activeCourse,
       activeCourseSourceUploads,
       activeSourceUploadItems,
-      handleImageFiles,
+      canManageCourseContent,
       markCourseContentMutation,
       modelId,
       openSourceUploadPanel,
@@ -11276,10 +11417,11 @@ export function LearnPageClient() {
   }, [activeCourseId, deleteCalendarEvent, reloadCalendarEvents, syllabusEvents]);
 
   const openSyllabusUploadDialog = useCallback(() => {
+    if (!canManageCourseContent) return;
     setSyllabusImportMode('file');
     setSyllabusImportMessage(null);
     setSyllabusDialogOpen(true);
-  }, []);
+  }, [canManageCourseContent]);
 
   const confirmManualScheduleEvent = useCallback(async () => {
     if (!activeCourseId) return;
@@ -11600,6 +11742,7 @@ export function LearnPageClient() {
           learnerContext: buildLearnerChatContext({
             snapshot: questionSnapshot,
             state: questionState,
+            notebooks,
             plans: recentPlans,
             syllabusEvents,
           }),
@@ -11990,6 +12133,7 @@ export function LearnPageClient() {
 
   const handleSyllabusFile = useCallback(
     async (fileList: FileList | null) => {
+      if (!canManageCourseContent) return;
       if (!activeCourseId) return;
       const file = fileList?.[0];
       if (!file) return;
@@ -12071,6 +12215,7 @@ export function LearnPageClient() {
       activeCourse?.description,
       activeCourse?.name,
       activeCourseId,
+      canManageCourseContent,
       pdfProviderConfig,
       pdfProviderId,
     ],
@@ -14045,6 +14190,9 @@ export function LearnPageClient() {
       const text = (textOverride ?? draft).trim();
       const outgoingAttachments = attachmentOverride ?? attachments;
       const hasAttachments = outgoingAttachments.length > 0;
+      const hasImageAttachments = outgoingAttachments.some((attachment) =>
+        attachment.mimeType.startsWith('image/'),
+      );
       if (
         (!text && !hasAttachments) ||
         !activeCourse ||
@@ -14063,7 +14211,7 @@ export function LearnPageClient() {
         setError('会话仍在本地恢复，请稍后再发送。');
         return;
       }
-      if (hasAttachments && selectedKnownNoVision) {
+      if (hasImageAttachments && selectedKnownNoVision) {
         setError('当前模型不支持图片，请先切换到带视觉能力的模型。');
         return;
       }
@@ -14081,10 +14229,10 @@ export function LearnPageClient() {
           : [],
       );
       if (outgoingAttachmentPayloads.length !== outgoingAttachments.length) {
-        setError('有图片内容尚未恢复，请重新选择图片后再发送。');
+        setError('有附件内容尚未从当前浏览器恢复，请重新选择附件后再发送。');
         return;
       }
-      const questionText = text || '请看我上传的图片，结合课程内容帮我分析。';
+      const questionText = text || '请阅读我上传的附件，结合课程内容帮我分析。';
       const turnCourseId = activeCourse.id;
       const controller = new AbortController();
       let didTimeout = false;
@@ -14113,7 +14261,9 @@ export function LearnPageClient() {
             role: 'assistant',
             text: '',
             createdAt: Date.now(),
-            publicTrace: pendingPublicTraceForQuestion(questionText),
+            publicTrace: isTeacherCourseChat
+              ? pendingTeacherPublicTrace()
+              : pendingPublicTraceForQuestion(questionText),
             transient: true,
           }
         : null;
@@ -14160,8 +14310,138 @@ export function LearnPageClient() {
               result.reason instanceof Error ? result.reason.message : String(result.reason),
             ),
           );
-          setError('图片可用于当前回答，但浏览器未能保存附件；刷新后可能需要重新上传。');
+          setError('附件可用于当前回答，但浏览器未能保存副本；刷新后可能需要重新上传。');
         }
+      }
+
+      if (isTeacherCourseChat) {
+        const answererConversation = learnMessagesForCourseAnswerer(messages);
+        const historicalAnswererMessageIds = new Set(
+          answererConversation.map((message) => message.id),
+        );
+        let latestTeacherPublicTrace: LearnPublicTraceStep[] | undefined;
+        let ephemeralCleanupTokens: string[] = [];
+        try {
+          const preparedAttachments = await prepareCourseChatAttachmentsForModel(
+            outgoingAttachmentPayloads,
+            { signal: controller.signal },
+          );
+          ephemeralCleanupTokens = preparedAttachments.cleanupTokens;
+          const result = await askCourseOrchestrator({
+            courseId: activeCourse.id,
+            courseName: activeCourse.name,
+            question: questionText,
+            conversation: answererConversation,
+            attachments: preparedAttachments.attachments,
+            orchestratorAvatarUrl: activeCourse.avatarUrl,
+            userProfile: { nickname: userName },
+            surface: 'teacher-course-chat',
+            signal: controller.signal,
+            onMessages: (nextMessages) => {
+              if (!canCommitTurn()) return;
+              const streamedAnswer = streamedCourseAnswerFromMessages(
+                nextMessages,
+                historicalAnswererMessageIds,
+              );
+              if (!streamedAnswer) return;
+              if (streamedAnswer.publicTrace?.length) {
+                latestTeacherPublicTrace = streamedAnswer.publicTrace;
+              }
+              setMessages((current) => {
+                const existing = current.find((message) => message.id === pendingWorkflowMessageId);
+                if (!existing) return current;
+                return replaceLearnMessage(current, pendingWorkflowMessageId, {
+                  id: pendingWorkflowMessageId,
+                  role: 'assistant',
+                  text: streamedAnswer.text || existing.text,
+                  createdAt: existing.createdAt,
+                  publicTrace:
+                    streamedAnswer.publicTrace || latestTeacherPublicTrace || existing.publicTrace,
+                  transient: true,
+                });
+              });
+            },
+          });
+          if (!canCommitTurn()) return;
+          if (controller.signal.aborted) {
+            throw controller.signal.reason instanceof Error
+              ? controller.signal.reason
+              : new DOMException('教师课程回复已中止', 'AbortError');
+          }
+          const currentTurnAnswer = streamedCourseAnswerFromMessages(
+            result.messages,
+            historicalAnswererMessageIds,
+          );
+          if (!currentTurnAnswer?.text.trim()) {
+            throw new Error('教师课程助理没有返回新的内容');
+          }
+          const answerMessage: LearnMessage = {
+            id: pendingWorkflowMessageId,
+            role: 'assistant',
+            text: normalizeCourseAssistantAnswer(currentTurnAnswer.text),
+            createdAt: Date.now(),
+            publicTrace: finalizePublicTraceSteps(
+              currentTurnAnswer.publicTrace || latestTeacherPublicTrace,
+            ),
+          };
+          setMessages((current) =>
+            replaceLearnMessage(current, pendingWorkflowMessageId, answerMessage),
+          );
+          setRetryTurn(null);
+        } catch (error) {
+          if (!canCommitTurn()) return;
+          const stoppedByUser = turnRequest.stoppedByUser;
+          const errorText = error instanceof Error ? error.message : '教师课程回复失败';
+          const databaseUnavailable =
+            /课程数据库暂时不可用|数据库连接暂时繁忙|无法可靠读取已持久化的课程资料/.test(
+              errorText,
+            );
+          const partialAnswer =
+            activeMessagesRef.current?.key === turnStoreKey
+              ? activeMessagesRef.current.messages
+                  .find((message) => message.id === pendingWorkflowMessageId)
+                  ?.text.trim() || ''
+              : '';
+          const interruptionNotice = stoppedByUser
+            ? '已停止继续生成。上方是停止前已经收到的内容。'
+            : didTimeout
+              ? `回复在 ${Math.round(LEARN_TURN_TIMEOUT_MS / 1000)} 秒内没有完成。上方是超时前已经收到的内容，可点击重新发送继续。`
+              : databaseUnavailable
+                ? '课程数据库暂时不可用，本次回复没有完成，请稍后重试。'
+                : `${errorText}。请稍后重试或换一个模型。`;
+          const errorMessage: LearnMessage = {
+            id: pendingWorkflowMessageId,
+            role: 'assistant',
+            text: partialAnswer
+              ? `${partialAnswer}\n\n> ${interruptionNotice}`
+              : interruptionNotice,
+            createdAt: Date.now(),
+            publicTrace: publicTraceForBlockedQuestion(
+              questionText,
+              makePublicTraceStep(
+                'teacher-answer-blocked',
+                stoppedByUser ? '已由你停止' : '教师课程回复没有完成',
+                stoppedByUser
+                  ? '回答流已取消，已经传输的内容会保留在当前对话中。'
+                  : databaseUnavailable
+                    ? '课程资料库当前不可连接。本次没有读取旧缓存或生成未经课程资料核对的回答。'
+                    : didTimeout
+                      ? '回答超时中断，已经传输的内容会保留在当前对话中。'
+                      : '课程权限、资料工具或模型回复链路未能成功完成。',
+                undefined,
+                'blocked',
+              ),
+            ),
+          };
+          setRetryTurn({ text: questionText, attachments: outgoingAttachments });
+          setMessages((current) =>
+            replaceLearnMessage(current, pendingWorkflowMessageId, errorMessage),
+          );
+        } finally {
+          await cleanupCourseChatAttachments(ephemeralCleanupTokens);
+          finishTurn();
+        }
+        return;
       }
 
       let turnProblems = problems;
@@ -14244,7 +14524,7 @@ export function LearnPageClient() {
         userId: userId || 'anonymous',
         courseId: activeCourse.id,
         text: hasAttachments
-          ? `${questionText}\n[学生上传了 ${outgoingAttachments.length} 张图片]`
+          ? `${questionText}\n[学生上传了 ${outgoingAttachments.length} 个临时附件]`
           : questionText,
       });
       const questionSnapshot = summarizeLearnerCourseState({
@@ -14638,19 +14918,26 @@ export function LearnPageClient() {
         problemCount: turnProblems.length,
       });
       let latestAnswererPublicTrace: LearnPublicTraceStep[] | undefined;
+      let ephemeralCleanupTokens: string[] = [];
 
       try {
+        const preparedAttachments = await prepareCourseChatAttachmentsForModel(
+          outgoingAttachmentPayloads,
+          { signal: controller.signal },
+        );
+        ephemeralCleanupTokens = preparedAttachments.cleanupTokens;
         const result = await askCourseOrchestrator({
           courseId: activeCourse.id,
           courseName: activeCourse.name,
           question: questionText,
           conversation: answererConversation,
-          attachments: outgoingAttachmentPayloads,
+          attachments: preparedAttachments.attachments,
           orchestratorAvatarUrl: activeCourse.avatarUrl,
           answererHandoff,
           learnerContext: buildLearnerChatContext({
             snapshot: questionSnapshot,
             state: questionState,
+            notebooks,
             plans: recentPlans,
             syllabusEvents,
           }),
@@ -14775,6 +15062,7 @@ export function LearnPageClient() {
           replaceLearnMessage(current, pendingWorkflowMessageId, errorMessage),
         );
       } finally {
+        await cleanupCourseChatAttachments(ephemeralCleanupTokens);
         finishTurn();
       }
     },
@@ -14789,6 +15077,7 @@ export function LearnPageClient() {
       draft,
       handleLearningActionConfirm,
       ensureProblemsLoaded,
+      isTeacherCourseChat,
       ensureNotebooksLoaded,
       localUserId,
       messages,
@@ -15506,14 +15795,14 @@ export function LearnPageClient() {
         key: 'conversation',
         label: '对话',
         status: 'loading',
-        statusLabel: '本地恢复中',
+        statusLabel: '会话加载中',
       }
     : remoteConversationError
       ? {
           key: 'conversation',
           label: '对话',
-          status: 'local',
-          statusLabel: '本机可用',
+          status: 'error',
+          statusLabel: '同步异常',
           detail: remoteConversationError,
         }
       : remoteConversationReadyKey === activeMessageStoreKey
@@ -15534,33 +15823,47 @@ export function LearnPageClient() {
       ? courseContentStateRef.current.get(activeCourse.id)
       : null;
   const contentStateReady = Boolean(activeCourseContentState);
-  const learnSurfaceStatusItems: LearnSurfaceStatusItem[] = [
-    courseSurfaceStatus,
-    conversationSurfaceStatus,
-    {
-      key: 'problems',
-      label: '题库',
-      ...resourceSurfaceStatusFromContentOrList({
-        activeCourseId,
-        listState: problemsLoadState,
-        content: activeCourseContentState?.problems,
-        contentReady: contentStateReady,
-        listHydrationWanted: problemsHydrationWanted,
-      }),
-    },
-    {
-      key: 'notebooks',
-      label: '笔记本',
-      ...resourceSurfaceStatusFromContentOrList({
-        activeCourseId,
-        listState: notebooksLoadState,
-        content: activeCourseContentState?.notebooks,
-        contentReady: contentStateReady,
-        listHydrationWanted: notebooksHydrationWanted,
-        deferredWhenListIdle: true,
-      }),
-    },
-  ];
+  const notebookSurfaceStatus: LearnSurfaceStatusItem = {
+    key: 'notebooks',
+    label: '笔记本',
+    ...resourceSurfaceStatusFromContentOrList({
+      activeCourseId,
+      listState: notebooksLoadState,
+      content: activeCourseContentState?.notebooks,
+      contentReady: contentStateReady,
+      listHydrationWanted: notebooksHydrationWanted,
+      deferredWhenListIdle: true,
+    }),
+  };
+  const learnSurfaceStatusItems: LearnSurfaceStatusItem[] = isTeacherCourseChat
+    ? [
+        courseSurfaceStatus,
+        conversationSurfaceStatus,
+        notebookSurfaceStatus,
+        {
+          key: 'teacher-agent',
+          label: '智能体',
+          status: 'ready',
+          statusLabel: '教师只读模式',
+          detail: '只读取笔记本和 Hard Rule，不读取题库，也不写入学生学习状态。',
+        },
+      ]
+    : [
+        courseSurfaceStatus,
+        conversationSurfaceStatus,
+        {
+          key: 'problems',
+          label: '题库',
+          ...resourceSurfaceStatusFromContentOrList({
+            activeCourseId,
+            listState: problemsLoadState,
+            content: activeCourseContentState?.problems,
+            contentReady: contentStateReady,
+            listHydrationWanted: problemsHydrationWanted,
+          }),
+        },
+        notebookSurfaceStatus,
+      ];
   const activeCourseSourceHealthNotice = courseSourceHealthNotice(
     activeCourseContentState?.sources,
   );
@@ -15938,7 +16241,7 @@ export function LearnPageClient() {
     </Dialog>
   );
 
-  const syllabusImportDialog = (
+  const syllabusImportDialog = canManageCourseContent ? (
     <LearnWorkspaceDialog
       open={syllabusDialogOpen}
       onOpenChange={setSyllabusDialogOpen}
@@ -16215,7 +16518,7 @@ export function LearnPageClient() {
         </div>
       </div>
     </LearnWorkspaceDialog>
-  );
+  ) : null;
 
   const manualScheduleDialog = (
     <Dialog
@@ -16318,7 +16621,7 @@ export function LearnPageClient() {
     </Dialog>
   );
 
-  const courseFilesDialog = (
+  const courseFilesDialog = canManageCourseContent ? (
     <Dialog open={courseFilesDialogOpen} onOpenChange={setCourseFilesDialogOpen}>
       <DialogContent
         overlayClassName={SYNTARA_WORKSPACE_DIALOG_OVERLAY_CLASS}
@@ -16342,27 +16645,20 @@ export function LearnPageClient() {
         </div>
       </DialogContent>
     </Dialog>
-  );
+  ) : null;
 
   const sourceUploadStatusDialog = (
     <LearnWorkspaceDialog
       open={sourceUploadPanelOpen}
       onOpenChange={setSourceUploadDialogOpen}
       title="原始讲义库"
-      description="浏览课程文件和整理好的正文；第一个位置用于上传新的课程文件。"
+      description={
+        canManageCourseContent
+          ? '浏览课程文件和整理好的正文；第一个位置用于上传新的课程文件。'
+          : '浏览老师提供的课程文件和整理好的正文。'
+      }
       showCloseButton={!selectedSourceLibraryTile}
     >
-      <input
-        ref={sourceDocumentInputRef}
-        type="file"
-        accept=".pdf,.pptx,.docx,.txt,.md,.markdown,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
-        multiple
-        className="hidden"
-        onChange={(event) => {
-          void handleLearnUploadFiles(event.currentTarget.files);
-          event.currentTarget.value = '';
-        }}
-      />
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-slate-950">
         {selectedSourceLibraryTile ? (
           <div className="shrink-0 border-b border-slate-200/70 bg-gradient-to-b from-slate-50 to-white px-5 py-4 dark:border-white/10 dark:from-slate-900 dark:to-slate-950 sm:px-6">
@@ -18312,32 +18608,34 @@ export function LearnPageClient() {
                     />
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={openSyllabusUploadDialog}
-                    className={cn(
-                      rightRailRowClassName,
-                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
-                    )}
-                  >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
-                      <UploadCloud className="size-4" strokeWidth={1.8} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-semibold text-foreground">
-                        {syllabusEvents.length > 0 ? '重新上传 syllabus' : '上传 syllabus'}
+                  {canManageCourseContent ? (
+                    <button
+                      type="button"
+                      onClick={openSyllabusUploadDialog}
+                      className={cn(
+                        rightRailRowClassName,
+                        'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
+                      )}
+                    >
+                      <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                        <UploadCloud className="size-4" strokeWidth={1.8} />
                       </span>
-                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                        {syllabusEvents.length > 0
-                          ? '从 syllabus 重新导入课程日程'
-                          : '从 syllabus 导入课程日程'}
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-semibold text-foreground">
+                          {syllabusEvents.length > 0 ? '重新上传 syllabus' : '上传 syllabus'}
+                        </span>
+                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                          {syllabusEvents.length > 0
+                            ? '从 syllabus 重新导入课程日程'
+                            : '从 syllabus 导入课程日程'}
+                        </span>
                       </span>
-                    </span>
-                    <ChevronRight
-                      className="size-3.5 shrink-0 text-muted-foreground"
-                      strokeWidth={1.8}
-                    />
-                  </button>
+                      <ChevronRight
+                        className="size-3.5 shrink-0 text-muted-foreground"
+                        strokeWidth={1.8}
+                      />
+                    </button>
+                  ) : null}
 
                   <button
                     type="button"
@@ -18391,7 +18689,7 @@ export function LearnPageClient() {
                 />
               </section>
 
-              {activeCourse ? (
+              {activeCourse && canManageCourseContent ? (
                 <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
                   <div className="flex items-center gap-2">
                     <UploadCloud className="size-4 text-muted-foreground" strokeWidth={1.8} />
@@ -18443,6 +18741,7 @@ export function LearnPageClient() {
           activeCourseId={activeCourseId}
           onCreateCourse={() => setCreateCourseOpen(true)}
           onOpenCalendar={() => setCalendarDialogOpen(true)}
+          onOpenUsage={() => router.push('/student/usage')}
           onOpenCourse={switchCourse}
         />
         <CreateCourseDialog
@@ -18461,10 +18760,25 @@ export function LearnPageClient() {
         className={cn(
           'learn-course-shell grid h-full min-h-0 overflow-hidden bg-slate-50 text-foreground transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] dark:bg-slate-950',
           // Fixed left/center/right proportions at every viewport size (lg+).
-          !leftRailCollapsed && !rightRailCollapsed && 'lg:grid-cols-[18%_minmax(0,1fr)_22%]',
-          leftRailCollapsed && !rightRailCollapsed && 'lg:grid-cols-[4.5rem_minmax(0,1fr)_22%]',
-          !leftRailCollapsed && rightRailCollapsed && 'lg:grid-cols-[18%_minmax(0,1fr)_4.5rem]',
-          leftRailCollapsed && rightRailCollapsed && 'lg:grid-cols-[4.5rem_minmax(0,1fr)_4.5rem]',
+          // Teachers don't use the student course-tools right rail.
+          showRightRail &&
+            !leftRailCollapsed &&
+            !rightRailCollapsed &&
+            'lg:grid-cols-[18%_minmax(0,1fr)_22%]',
+          showRightRail &&
+            leftRailCollapsed &&
+            !rightRailCollapsed &&
+            'lg:grid-cols-[4.5rem_minmax(0,1fr)_22%]',
+          showRightRail &&
+            !leftRailCollapsed &&
+            rightRailCollapsed &&
+            'lg:grid-cols-[18%_minmax(0,1fr)_4.5rem]',
+          showRightRail &&
+            leftRailCollapsed &&
+            rightRailCollapsed &&
+            'lg:grid-cols-[4.5rem_minmax(0,1fr)_4.5rem]',
+          !showRightRail && !leftRailCollapsed && 'lg:grid-cols-[18%_minmax(0,1fr)]',
+          !showRightRail && leftRailCollapsed && 'lg:grid-cols-[4.5rem_minmax(0,1fr)]',
         )}
       >
         <aside className="hidden min-h-0 flex-col overflow-hidden border-r border-slate-200/80 bg-slate-50 lg:flex dark:border-white/10 dark:bg-slate-950">
@@ -18503,7 +18817,7 @@ export function LearnPageClient() {
                           <RefreshCw className="size-3 shrink-0" aria-hidden="true" />
                           <span className="truncate">
                             {courseSyncUsesLocalFallback
-                              ? '对话已暂存本机，点击重试同步'
+                              ? '对话同步异常，点击重试'
                               : '部分内容同步失败，点击重试'}
                           </span>
                         </button>
@@ -18656,42 +18970,44 @@ export function LearnPageClient() {
                       </DropdownMenuContent>
                     </DropdownMenu>
 
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          onClick={() => setMemoryActivityDialogOpen(true)}
-                          className="learn-memory-orb-button size-9 rounded-full border-transparent p-0 text-white shadow-sm hover:text-white focus-visible:ring-sky-200"
-                          data-memory-state={platformMemoryState}
-                          aria-label={platformMemoryButtonLabel}
-                        >
-                          <span className="learn-memory-orb-core" aria-hidden="true">
-                            <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-a" />
-                            <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-b" />
-                            <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-c" />
-                            <span className="learn-memory-orb-star" />
-                          </span>
-                          {platformMemoryBadgeCount > 0 ? (
-                            <span
-                              className={cn(
-                                'absolute -right-1.5 -top-1.5 z-20 grid min-w-5 place-items-center rounded-full border border-white px-1 text-[10px] font-bold leading-5 shadow-sm dark:border-slate-950',
-                                platformMemoryState === 'writing'
-                                  ? 'bg-amber-400 text-amber-950'
-                                  : 'bg-sky-500 text-white',
-                              )}
-                              aria-hidden="true"
-                            >
-                              {platformMemoryBadgeCount > 9 ? '9+' : platformMemoryBadgeCount}
+                    {!isTeacherCourseChat ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => setMemoryActivityDialogOpen(true)}
+                            className="learn-memory-orb-button size-9 rounded-full border-transparent p-0 text-white shadow-sm hover:text-white focus-visible:ring-sky-200"
+                            data-memory-state={platformMemoryState}
+                            aria-label={platformMemoryButtonLabel}
+                          >
+                            <span className="learn-memory-orb-core" aria-hidden="true">
+                              <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-a" />
+                              <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-b" />
+                              <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-c" />
+                              <span className="learn-memory-orb-star" />
                             </span>
-                          ) : null}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" align="end" className="font-medium">
-                        {platformMemoryTooltip}
-                      </TooltipContent>
-                    </Tooltip>
+                            {platformMemoryBadgeCount > 0 ? (
+                              <span
+                                className={cn(
+                                  'absolute -right-1.5 -top-1.5 z-20 grid min-w-5 place-items-center rounded-full border border-white px-1 text-[10px] font-bold leading-5 shadow-sm dark:border-slate-950',
+                                  platformMemoryState === 'writing'
+                                    ? 'bg-amber-400 text-amber-950'
+                                    : 'bg-sky-500 text-white',
+                                )}
+                                aria-hidden="true"
+                              >
+                                {platformMemoryBadgeCount > 9 ? '9+' : platformMemoryBadgeCount}
+                              </span>
+                            ) : null}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" align="end" className="font-medium">
+                          {platformMemoryTooltip}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : null}
                   </>
                 ) : null}
               </div>
@@ -18700,6 +19016,7 @@ export function LearnPageClient() {
 
           <div
             ref={conversationScrollContainerRef}
+            onScroll={handleConversationScroll}
             className="min-h-0 flex-1 overflow-y-auto bg-white px-6 py-5 dark:bg-slate-950"
           >
             <div className="flex min-h-full w-full flex-col gap-4">
@@ -18775,28 +19092,34 @@ export function LearnPageClient() {
                       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                         {activeCourse?.courseCode ||
                           (activeCourse
-                            ? isResearchCourse
-                              ? 'Research'
-                              : 'Learning'
+                            ? isTeacherCourseChat
+                              ? 'Teacher assistant'
+                              : isResearchCourse
+                                ? 'Research'
+                                : 'Learning'
                             : 'General chat')}
                       </p>
                       <p className="mt-1 text-lg font-semibold tracking-normal text-slate-950 dark:text-slate-50">
                         {!activeCourse
                           ? '添加课程后开始聊天'
-                          : isResearchCourse
-                            ? '今天想推进什么？'
-                            : '今天想从哪里开始？'}
+                          : isTeacherCourseChat
+                            ? '想核对哪份课程资料？'
+                            : isResearchCourse
+                              ? '今天想推进什么？'
+                              : '今天想从哪里开始？'}
                       </p>
                       <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
                         {!activeCourse
                           ? '添加课程后，我会把聊天、复习、题库和记忆都绑定到对应课程。'
-                          : isResearchCourse
-                            ? `围绕 ${activeCourse.courseCode || activeCourse.name} 继续推进研究。`
-                            : missingLearningSetup
-                              ? '补齐 syllabus 和学习进度后，今天的安排会更准。'
-                              : snapshot?.progressKnown && snapshot.progressLabel
-                                ? `当前进度：${snapshot.progressLabel}`
-                                : `围绕 ${activeCourse.courseCode || activeCourse.name} 继续推进。`}
+                          : isTeacherCourseChat
+                            ? '回答前会先核对笔记本正文与 Hard Rule，不读取题库，也不会改写学生学习状态。'
+                            : isResearchCourse
+                              ? `围绕 ${activeCourse.courseCode || activeCourse.name} 继续推进研究。`
+                              : missingLearningSetup
+                                ? '补齐 syllabus 和学习进度后，今天的安排会更准。'
+                                : snapshot?.progressKnown && snapshot.progressLabel
+                                  ? `当前进度：${snapshot.progressLabel}`
+                                  : `围绕 ${activeCourse.courseCode || activeCourse.name} 继续推进。`}
                       </p>
                     </div>
                     <div className="flex flex-wrap justify-center gap-2" aria-label="快捷入口">
@@ -18851,6 +19174,7 @@ export function LearnPageClient() {
                             {message.attachments?.length ? (
                               <div className="mb-2 grid max-w-full grid-cols-2 gap-2">
                                 {message.attachments.map((attachment) =>
+                                  attachment.mimeType.startsWith('image/') &&
                                   attachment.objectUrl ? (
                                     <img
                                       key={attachment.id}
@@ -18858,16 +19182,40 @@ export function LearnPageClient() {
                                       alt={attachment.name}
                                       className="max-h-40 w-full rounded-lg border border-white/15 object-cover"
                                     />
+                                  ) : attachment.objectUrl ? (
+                                    <div
+                                      key={attachment.id}
+                                      className="flex min-h-16 min-w-0 items-center gap-2.5 rounded-xl border border-white/15 bg-white/10 px-3 py-2.5"
+                                    >
+                                      <span
+                                        className={cn(
+                                          'grid size-9 shrink-0 place-items-center rounded-lg bg-white/10',
+                                          attachment.mimeType === 'application/pdf'
+                                            ? 'text-rose-300'
+                                            : 'text-white/70',
+                                        )}
+                                      >
+                                        <FileText className="size-5" />
+                                      </span>
+                                      <span className="min-w-0 text-left">
+                                        <span className="block truncate text-xs font-medium text-white">
+                                          {attachment.name}
+                                        </span>
+                                        <span className="mt-0.5 block text-[10px] text-white/55">
+                                          {learnChatAttachmentTypeLabel(attachment)} · 仅当前设备
+                                        </span>
+                                      </span>
+                                    </div>
                                   ) : (
                                     <div
                                       key={attachment.id}
                                       className="flex min-h-24 flex-col items-center justify-center gap-1 rounded-lg border border-white/15 bg-white/10 px-3 text-center text-xs text-white/75"
-                                      title="图片原件只保存在上传设备；当前浏览器未找到本地副本。"
+                                      title="附件原件只保存在上传设备；当前浏览器未找到本地副本。"
                                     >
                                       <FileText className="size-5" />
                                       <span className="max-w-full truncate">{attachment.name}</span>
                                       <span className="text-[10px] text-white/55">
-                                        当前设备未找到原图
+                                        当前设备未找到附件
                                       </span>
                                     </div>
                                   ),
@@ -18889,8 +19237,17 @@ export function LearnPageClient() {
                               </div>
                             )}
                             <div className="min-w-0 flex-1 select-text rounded-[6px_15px_15px] border border-[#4d473e]/[0.08] bg-white px-3 py-2.5 shadow-[0_7px_20px_rgba(70,61,48,0.05)] dark:border-white/10 dark:bg-white/5">
+                              {shouldDisplayPublicTrace(message) ? (
+                                <LearnPublicTraceCard
+                                  steps={message.publicTrace}
+                                  transient={message.transient}
+                                />
+                              ) : null}
                               {displayText ? (
-                                <MessageResponse className={courseMarkdownClassName} mode="static">
+                                <MessageResponse
+                                  className={courseMarkdownClassName}
+                                  mode={message.transient ? 'streaming' : 'static'}
+                                >
                                   {normalizeAssistantMarkdown(displayText)}
                                 </MessageResponse>
                               ) : null}
@@ -18913,12 +19270,6 @@ export function LearnPageClient() {
                                   disabled={!conversationInteractive}
                                   isResearchCourse={isResearchCourse}
                                   onConfirmCalendarAction={handleLearningActionConfirm}
-                                />
-                              ) : null}
-                              {shouldDisplayPublicTrace(message) ? (
-                                <LearnPublicTraceCard
-                                  steps={message.publicTrace}
-                                  transient={message.transient}
                                 />
                               ) : null}
                               {message.progressProposal ? (
@@ -19021,78 +19372,128 @@ export function LearnPageClient() {
                 <input
                   ref={imageInputRef}
                   type="file"
-                  accept="image/*,.pdf,.pptx,.docx,.txt,.md,.markdown,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
+                  accept="image/*,.pdf,.txt,.md,.markdown,.csv,.json,.xml,application/pdf,application/json,application/xml,text/*"
                   multiple
                   className="hidden"
                   onChange={(event) => {
-                    void handleLearnUploadFiles(event.currentTarget.files);
+                    void handleChatAttachmentFiles(event.currentTarget.files);
                     event.currentTarget.value = '';
                   }}
                 />
+                {canManageCourseContent ? (
+                  <input
+                    ref={sourceDocumentInputRef}
+                    type="file"
+                    accept=".pdf,.pptx,.docx,.txt,.md,.markdown,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
+                    multiple
+                    className="hidden"
+                    onChange={(event) => {
+                      void handleLearnUploadFiles(event.currentTarget.files);
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                ) : null}
                 {attachments.length > 0 ? (
-                  <div className="mb-2 grid grid-cols-2 gap-2 px-1 pb-2 sm:grid-cols-4">
+                  <div className="mb-2 flex gap-2 overflow-x-auto px-1 pb-2">
                     {attachments.map((attachment) => (
                       <div
                         key={attachment.id}
-                        className="group relative overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5"
+                        className="group relative flex h-[74px] min-w-[240px] basis-[calc(50%-0.25rem)] items-center gap-3 rounded-[18px] border border-slate-200 bg-white px-3.5 pr-10 shadow-[0_3px_12px_rgba(15,23,42,0.035)] dark:border-white/10 dark:bg-white/5"
                       >
-                        {attachment.objectUrl ? (
+                        {attachment.mimeType.startsWith('image/') && attachment.objectUrl ? (
                           <img
                             src={attachment.objectUrl}
                             alt={attachment.name}
-                            className="h-20 w-full object-cover"
+                            className="size-11 shrink-0 rounded-[10px] border border-slate-200 object-cover dark:border-white/10"
                           />
                         ) : (
-                          <div className="grid h-20 place-items-center text-xs text-slate-500">
-                            图片待恢复
-                          </div>
+                          <span
+                            className={cn(
+                              'grid size-11 shrink-0 place-items-center rounded-[11px] bg-slate-50 dark:bg-white/5',
+                              attachment.mimeType === 'application/pdf'
+                                ? 'text-rose-500'
+                                : 'text-slate-500 dark:text-slate-300',
+                            )}
+                          >
+                            <FileText className="size-6" strokeWidth={1.8} />
+                          </span>
                         )}
+                        <span className="min-w-0 text-left">
+                          <span className="block truncate text-sm font-semibold text-slate-950 dark:text-white">
+                            {attachment.name}
+                          </span>
+                          <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                            {learnChatAttachmentTypeLabel(attachment)} · 仅本次聊天
+                          </span>
+                        </span>
                         <button
                           type="button"
                           onClick={() => removeAttachment(attachment.id)}
-                          className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/65 text-white opacity-90 transition hover:bg-black"
-                          title="移除图片"
-                          aria-label={`移除图片 ${attachment.name}`}
+                          className="absolute right-2 top-2 grid size-6 place-items-center rounded-full text-slate-400 opacity-80 transition hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white"
+                          title="移除附件"
+                          aria-label={`移除附件 ${attachment.name}`}
                         >
                           <X className="size-3.5" />
                         </button>
-                        <div className="absolute inset-x-0 bottom-0 bg-black/60 px-2 py-1 text-[11px] text-white">
-                          <p className="truncate">{attachment.name}</p>
-                        </div>
                       </div>
                     ))}
                   </div>
                 ) : null}
                 <div className="flex min-h-10 items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleUploadButtonClick}
-                    disabled={sending && !sourceUploading && activeSourceUploadItems.length === 0}
-                    title={
-                      activeSourceUploadItems.length > 0 || completedSourceUploadBadgeCount > 0
-                        ? '查看原始讲义入库状态'
-                        : '上传图片或原始讲义'
-                    }
-                    aria-label={
-                      activeSourceUploadItems.length > 0 || completedSourceUploadBadgeCount > 0
-                        ? '查看原始讲义入库状态'
-                        : '上传图片或原始讲义'
-                    }
-                    className="relative size-9 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
-                  >
-                    {sourceUploading ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
+                  {canManageCourseContent ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={!conversationInteractive}
+                          title="添加内容"
+                          aria-label="添加内容"
+                          className="relative size-9 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
+                        >
+                          {sourceUploading ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <Plus className="size-4" />
+                          )}
+                          <SourceUploadBadge
+                            uploading={sourceUploading}
+                            completedCount={completedSourceUploadBadgeCount}
+                            compact
+                          />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56">
+                        <DropdownMenuItem onSelect={() => imageInputRef.current?.click()}>
+                          <Paperclip className="size-4" />
+                          添加到本次聊天
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={handleUploadButtonClick}>
+                          <UploadCloud className="size-4" />
+                          {sourceUploading ||
+                          activeSourceUploadItems.length > 0 ||
+                          completedSourceUploadBadgeCount > 0
+                            ? '查看课程资料入库状态'
+                            : '上传为课程资料'}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => imageInputRef.current?.click()}
+                      disabled={!conversationInteractive}
+                      title="添加聊天附件"
+                      aria-label="添加聊天附件"
+                      className="relative size-9 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
+                    >
                       <Plus className="size-4" />
-                    )}
-                    <SourceUploadBadge
-                      uploading={sourceUploading}
-                      completedCount={completedSourceUploadBadgeCount}
-                      compact
-                    />
-                  </Button>
+                    </Button>
+                  )}
                   <Textarea
                     ref={draftTextareaRef}
                     rows={1}
@@ -19101,11 +19502,13 @@ export function LearnPageClient() {
                     disabled={!conversationInteractive}
                     placeholder={
                       conversationFallbackActive
-                        ? '远端暂未同步，消息会先安全保存在本机…'
+                        ? '云端同步暂时异常，恢复后会自动同步…'
                         : !conversationInteractive
-                          ? '正在恢复本地会话…'
+                          ? '正在加载课程会话…'
                           : activeCourse
-                            ? `问 ${activeCourse.courseCode || activeCourse.name} 一个问题`
+                            ? isTeacherCourseChat
+                              ? `询问 ${activeCourse.courseCode || activeCourse.name} 的课程资料`
+                              : `问 ${activeCourse.courseCode || activeCourse.name} 一个问题`
                             : '添加课程后开始提问'
                     }
                     className="max-h-32 min-h-9 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-0 py-1.5 text-sm leading-6 shadow-none [field-sizing:fixed] focus-visible:ring-0"
@@ -19144,7 +19547,10 @@ export function LearnPageClient() {
                             !activeCourse ||
                             !conversationInteractive ||
                             sourceUploading ||
-                            (attachments.length > 0 && selectedKnownNoVision)
+                            (attachments.some((attachment) =>
+                              attachment.mimeType.startsWith('image/'),
+                            ) &&
+                              selectedKnownNoVision)
                       }
                       className={cn(
                         'size-9 rounded-full text-white shadow-[0_10px_22px_rgba(15,23,42,0.18)] disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:disabled:bg-white/10 dark:disabled:text-white/35',
@@ -19169,10 +19575,11 @@ export function LearnPageClient() {
                     aria-live="polite"
                     className="mt-2 px-1 text-[11px] leading-5 text-amber-700 dark:text-amber-200"
                   >
-                    远端会话暂时不可用；你可以继续提问，本地消息会保留。恢复后可点击页头重试同步。
+                    云端会话同步暂时异常；系统会自动重试，也可以点击页头立即重试。
                   </p>
                 ) : null}
-                {attachments.length > 0 && selectedKnownNoVision ? (
+                {attachments.some((attachment) => attachment.mimeType.startsWith('image/')) &&
+                selectedKnownNoVision ? (
                   <p className="mt-2 px-1 text-xs text-destructive">当前模型不支持图片</p>
                 ) : null}
               </div>
@@ -19193,10 +19600,12 @@ export function LearnPageClient() {
           </footer>
         </main>
 
-        <aside className="hidden min-h-0 flex-col overflow-hidden border-l border-border/70 bg-background lg:flex">
-          <div className="flex min-h-0 flex-1 xl:hidden">{compactCourseToolsPanel}</div>
-          <div className="hidden min-h-0 flex-1 xl:flex">{courseContextPanel}</div>
-        </aside>
+        {showRightRail ? (
+          <aside className="hidden min-h-0 flex-col overflow-hidden border-l border-border/70 bg-background lg:flex">
+            <div className="flex min-h-0 flex-1 xl:hidden">{compactCourseToolsPanel}</div>
+            <div className="hidden min-h-0 flex-1 xl:flex">{courseContextPanel}</div>
+          </aside>
+        ) : null}
       </div>
       <CreateCourseDialog
         open={createCourseOpen}

@@ -23,6 +23,7 @@ export type AskCourseOrchestratorOptions = {
   learnerContext?: CourseChatContext['learner'];
   answererHandoff?: CourseChatContext['answererHandoff'];
   userProfile?: { nickname?: string; bio?: string };
+  surface?: 'course-chat' | 'teacher-course-chat';
   signal?: AbortSignal;
   onMessages?: (messages: UIMessage<ChatMessageMetadata>[]) => void;
 };
@@ -32,7 +33,12 @@ export type CourseChatImageAttachment = {
   name: string;
   mimeType: string;
   size: number;
-  dataUrl: string;
+  /** Browser-local bytes used for images and before a PDF is staged for the model. */
+  dataUrl?: string;
+  /** Short-lived OpenAI file id. This is never persisted into conversation storage. */
+  modelUrl?: string;
+  /** Text-like attachments are injected as bounded text instead of a provider file part. */
+  textContent?: string;
 };
 
 export type AskCourseOrchestratorResult = {
@@ -62,15 +68,31 @@ function buildUserMessage(
   attachments: CourseChatImageAttachment[] = [],
 ): UIMessage<ChatMessageMetadata> {
   const now = Date.now();
-  const parts = [
+  const parts: UIMessage<ChatMessageMetadata>['parts'] = [
     { type: 'text' as const, text: question },
-    ...attachments.map((attachment) => ({
+  ];
+  for (const attachment of attachments) {
+    if (attachment.textContent) {
+      const safeName = attachment.name
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+      parts.push({
+        type: 'text' as const,
+        text: `\n\n<chat_attachment name="${safeName}" untrusted="true">\n${attachment.textContent}\n</chat_attachment>`,
+      });
+      continue;
+    }
+    const modelUrl = attachment.modelUrl || attachment.dataUrl;
+    if (!modelUrl) continue;
+    parts.push({
       type: 'file' as const,
-      url: attachment.dataUrl,
+      url: modelUrl,
       mediaType: attachment.mimeType,
       filename: attachment.name,
-    })),
-  ] as UIMessage<ChatMessageMetadata>['parts'];
+    });
+  }
   return {
     id: `course-question-${now}-${Math.random().toString(36).slice(2, 8)}`,
     role: 'user',
@@ -149,7 +171,7 @@ export async function askCourseOrchestrator(
       whiteboardOpen: false,
     }),
     userProfile: options.userProfile,
-    surface: 'course-chat',
+    surface: options.surface ?? 'course-chat',
     courseContext,
     trustedLearnAnswererHandoffToken: options.answererHandoff?.trustedToken,
     apiKey: modelConfig.apiKey,

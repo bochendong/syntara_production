@@ -2,8 +2,8 @@ import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import {
-  estimateOpenAITextUsageRetailCostCredits,
-  estimateOpenAITextUsageRetailCostUsd,
+  estimateTrackedModelUsageRetailCostCredits,
+  estimateTrackedModelUsageRetailCostUsd,
 } from '@/lib/utils/openai-pricing';
 
 export async function GET() {
@@ -42,14 +42,14 @@ export async function GET() {
     ]);
 
     const mappedRows = rows.map((row: (typeof rows)[number]) => {
-      const estimatedCostUsd = estimateOpenAITextUsageRetailCostUsd({
+      const estimatedCostUsd = estimateTrackedModelUsageRetailCostUsd({
         providerId: row.providerId,
         modelId: row.modelId,
         modelString: row.modelString,
         inputTokens: row.inputTokens,
         outputTokens: row.outputTokens,
       });
-      const estimatedCostCredits = estimateOpenAITextUsageRetailCostCredits({
+      const estimatedCostCredits = estimateTrackedModelUsageRetailCostCredits({
         providerId: row.providerId,
         modelId: row.modelId,
         modelString: row.modelString,

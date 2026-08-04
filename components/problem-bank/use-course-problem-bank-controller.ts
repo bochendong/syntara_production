@@ -322,10 +322,15 @@ export function useCourseProblemBankController({
         return;
       }
 
-      const [course, courseProblems] = await Promise.all([
-        getCourse(courseId),
-        listCourseProblems(courseId, { lean: true, timeoutMs: 45_000 }),
-      ]);
+      const course = await getCourse(courseId);
+      // Course.problemCount is maintained by every problem mutation. Avoid a
+      // second PostgreSQL round-trip for courses with no published problems; on the
+      // single-connection development pool that otherwise queues behind the
+      // course read and can hit the 45-second UI timeout.
+      const courseProblems =
+        course?.problemCount === 0
+          ? []
+          : await listCourseProblems(courseId, { lean: true, timeoutMs: 45_000 });
       setCourseName(course?.name || '');
       setCourseAccessRole(course?.accessRole);
       setProblems(courseProblems);

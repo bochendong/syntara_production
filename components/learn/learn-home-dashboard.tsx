@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import {
   useEffect,
+  useCallback,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -31,7 +32,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CalendarDays, ChevronRight, Loader2, Plus } from 'lucide-react';
+import { CalendarDays, ChevronRight, Loader2 } from 'lucide-react';
 import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
 import { useSettingsStore } from '@/lib/store/settings';
 import { LearnBackgroundVisual } from '@/components/learn/learn-background-visual';
@@ -47,9 +48,8 @@ import type { CourseRecord } from '@/lib/utils/database';
 import { cn } from '@/lib/utils';
 import { LearnHomeDockAppLayer, type LearnDockApp } from '@/components/learn/learn-home-dock-apps';
 
-const HOME_ICONS_PER_PAGE = 16;
-const LEARN_HOME_ICON_ORDER_STORAGE_KEY = 'syntara:learn-home-icon-order:v1';
-const LEARN_HOME_ICON_ORDER_EVENT = 'syntara:learn-home-icon-order-change';
+const STUDENT_HOME_ICONS_PER_PAGE = 20;
+const TEACHER_HOME_ICONS_PER_PAGE = 28;
 const SORTABLE_TRANSITION = {
   duration: 180,
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
@@ -137,6 +137,7 @@ type IconComponent = ComponentType<{
 }>;
 
 type LearnHomeDashboardProps = {
+  variant?: 'student' | 'teacher';
   courses: CourseRecord[];
   activeCourseId: string | null;
   coursesLoading?: boolean;
@@ -144,10 +145,22 @@ type LearnHomeDashboardProps = {
   onCreateCourse: () => void;
   onOpenCalendar: () => void;
   onOpenCourse: (courseId: string) => void;
+  onOpenPastCourses?: () => void;
+  onOpenUsage?: () => void;
+  onSignOut?: () => void | Promise<void>;
   onRetryCourseLoad?: () => void;
 };
 
-type SystemAppAction = 'calendar' | 'profile' | 'store' | 'settings' | 'create' | 'notifications';
+type SystemAppAction =
+  | 'calendar'
+  | 'profile'
+  | 'store'
+  | 'settings'
+  | 'create'
+  | 'past_courses'
+  | 'usage'
+  | 'sign_out'
+  | 'notifications';
 
 type SystemApp = {
   label: string;
@@ -188,24 +201,13 @@ function localDateKey(date: Date): string {
   ).padStart(2, '0')}`;
 }
 
-const HOME_ICON_GRID_POSITIONS: HomeGridPosition[] = [
-  { column: 3, row: 1 },
-  { column: 4, row: 1 },
-  { column: 5, row: 1 },
-  { column: 6, row: 1 },
-  { column: 3, row: 2 },
-  { column: 4, row: 2 },
-  { column: 5, row: 2 },
-  { column: 6, row: 2 },
-  { column: 3, row: 3 },
-  { column: 4, row: 3 },
-  { column: 5, row: 3 },
-  { column: 6, row: 3 },
-  { column: 3, row: 4 },
-  { column: 4, row: 4 },
-  { column: 5, row: 4 },
-  { column: 6, row: 4 },
-];
+function homeIconGridPosition(index: number, variant: 'student' | 'teacher'): HomeGridPosition {
+  const columns = variant === 'teacher' ? 7 : 5;
+  return {
+    column: (variant === 'teacher' ? 1 : 3) + (index % columns),
+    row: 1 + Math.floor(index / columns),
+  };
+}
 
 function homeGridStyle(position?: HomeGridPosition): CSSProperties | undefined {
   if (!position) return undefined;
@@ -234,41 +236,45 @@ const SYSTEM_APPS: SystemApp[] = [
     iconSrc: '/learn/system-apps/store.svg',
     action: 'store',
   },
+];
+
+const HOME_GRID_SYSTEM_APPS: SystemApp[] = [
   {
-    label: '设置',
-    secondary: 'Settings',
-    iconSrc: '/learn/system-apps/settings.svg',
-    action: 'settings',
+    label: '用量统计',
+    secondary: 'AI usage',
+    iconSrc: '/learn/system-apps/用量统计.svg',
+    action: 'usage',
   },
+  ...SYSTEM_APPS,
   {
-    label: '通知中心',
-    secondary: 'Notifications',
-    iconSrc: '/learn/system-apps/notifications.svg',
-    action: 'notifications',
-  },
-  {
-    label: '新建课程',
-    secondary: 'New course',
-    Icon: Plus,
-    background: 'linear-gradient(145deg, #a06cf7 0%, #713fe8 100%)',
-    action: 'create',
+    label: '退出学生端',
+    secondary: 'Sign out',
+    iconSrc: '/learn/system-apps/退出.svg',
+    action: 'sign_out',
   },
 ];
 
-const DOCK_SYSTEM_APPS = SYSTEM_APPS.filter((app) => app.action !== 'create').sort(
-  (left, right) => {
-    const dockOrder: SystemAppAction[] = [
-      'calendar',
-      'profile',
-      'notifications',
-      'store',
-      'settings',
-    ];
-    return dockOrder.indexOf(left.action) - dockOrder.indexOf(right.action);
+const TEACHER_HOME_GRID_SYSTEM_APPS: SystemApp[] = [
+  {
+    label: '往届课程',
+    secondary: 'Past courses',
+    iconSrc: '/learn/system-apps/往届课程.svg',
+    action: 'past_courses',
   },
-);
-
-const HOME_GRID_SYSTEM_APPS = SYSTEM_APPS.filter((app) => app.action === 'create');
+  {
+    label: '用量统计',
+    secondary: 'AI usage',
+    iconSrc: '/learn/system-apps/用量统计.svg',
+    action: 'usage',
+  },
+  ...SYSTEM_APPS.filter((app) => app.action !== 'store' && app.action !== 'create'),
+  {
+    label: '退出教师端',
+    secondary: 'Sign out',
+    iconSrc: '/learn/system-apps/退出.svg',
+    action: 'sign_out',
+  },
+];
 
 function mergeStoredOrder<T>(items: T[], storedIds: string[], getId: (item: T) => string): T[] {
   const itemById = new Map(items.map((item) => [getId(item), item]));
@@ -281,34 +287,28 @@ function mergeStoredOrder<T>(items: T[], storedIds: string[], getId: (item: T) =
   return [...ordered, ...itemById.values()];
 }
 
-function subscribeToIconOrder(onStoreChange: () => void): () => void {
+function subscribeToIconOrder(
+  storageKey: string,
+  eventName: string,
+  onStoreChange: () => void,
+): () => void {
   const handleStorage = (event: StorageEvent) => {
-    if (event.key === LEARN_HOME_ICON_ORDER_STORAGE_KEY) onStoreChange();
+    if (event.key === storageKey) onStoreChange();
   };
   window.addEventListener('storage', handleStorage);
-  window.addEventListener(LEARN_HOME_ICON_ORDER_EVENT, onStoreChange);
+  window.addEventListener(eventName, onStoreChange);
   return () => {
     window.removeEventListener('storage', handleStorage);
-    window.removeEventListener(LEARN_HOME_ICON_ORDER_EVENT, onStoreChange);
+    window.removeEventListener(eventName, onStoreChange);
   };
 }
 
-function readIconOrderSnapshot(): string {
+function readIconOrderSnapshot(storageKey: string): string {
   try {
-    return localStorage.getItem(LEARN_HOME_ICON_ORDER_STORAGE_KEY) || '';
+    return localStorage.getItem(storageKey) || '';
   } catch {
     return '';
   }
-}
-
-function interleaveIds(first: string[], second: string[]): string[] {
-  const merged: string[] = [];
-  const length = Math.max(first.length, second.length);
-  for (let index = 0; index < length; index += 1) {
-    if (first[index]) merged.push(first[index]);
-    if (second[index]) merged.push(second[index]);
-  }
-  return merged;
 }
 
 function parseIconOrderSnapshot(snapshot: string): string[] {
@@ -330,14 +330,10 @@ function parseIconOrderSnapshot(snapshot: string): string[] {
           .filter((id): id is string => typeof id === 'string')
           .map((action) => systemAppSortableId(action as SystemAppAction))
       : [];
-    return interleaveIds(legacySystemApps, legacyCourses);
+    return [...legacySystemApps, ...legacyCourses];
   } catch {
     return [];
   }
-}
-
-function safePageCount(length: number): number {
-  return Math.max(1, Math.ceil(length / HOME_ICONS_PER_PAGE));
 }
 
 function courseSortableId(courseId: string): string {
@@ -349,24 +345,33 @@ function systemAppSortableId(action: SystemAppAction): string {
 }
 
 function buildHomeIconItems(courses: CourseRecord[], systemApps: SystemApp[]): HomeIconItem[] {
-  const appItems: HomeIconItem[] = systemApps.map((app) => ({
-    id: systemAppSortableId(app.action),
-    kind: 'system',
-    app,
-  }));
+  const appItems: HomeIconItem[] = systemApps
+    .filter((app) => app.action !== 'sign_out')
+    .map((app) => ({
+      id: systemAppSortableId(app.action),
+      kind: 'system',
+      app,
+    }));
+  const signOutItems: HomeIconItem[] = systemApps
+    .filter((app) => app.action === 'sign_out')
+    .map((app) => ({
+      id: systemAppSortableId(app.action),
+      kind: 'system',
+      app,
+    }));
   const courseItems: HomeIconItem[] = courses.map((course) => ({
     id: courseSortableId(course.id),
     kind: 'course',
     course,
   }));
-  const byId = new Map([...appItems, ...courseItems].map((item) => [item.id, item]));
-  return interleaveIds(
-    appItems.map((item) => item.id),
-    courseItems.map((item) => item.id),
-  ).flatMap((id) => {
-    const item = byId.get(id);
-    return item ? [item] : [];
-  });
+  return [...appItems, ...courseItems, ...signOutItems];
+}
+
+function pinSignOutAppLast(items: HomeIconItem[]): HomeIconItem[] {
+  return [
+    ...items.filter((item) => item.id !== systemAppSortableId('sign_out')),
+    ...items.filter((item) => item.id === systemAppSortableId('sign_out')),
+  ];
 }
 
 const HOME_ICON_BUTTON_CLASS_NAME =
@@ -382,7 +387,7 @@ function CourseIconContent({ course, active }: { course: CourseRecord; active?: 
           active && 'ring-2 ring-white ring-offset-2 ring-offset-transparent',
         )}
       >
-        <span className="relative size-full overflow-hidden rounded-[22px] shadow-[0_14px_30px_rgba(31,46,108,0.24)]">
+        <span className="relative size-[78%] overflow-hidden rounded-[20%] shadow-[0_14px_30px_rgba(31,46,108,0.24)]">
           <Image
             src={avatarUrl}
             alt=""
@@ -516,30 +521,6 @@ function SystemAppIconContent({
   );
 }
 
-function DockSystemAppIcon({
-  app,
-  onRun,
-  iconSrcOverride,
-}: {
-  app: SystemApp;
-  onRun: () => void;
-  iconSrcOverride?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onRun}
-      title={app.label}
-      aria-label={app.label}
-      data-dock-system-app={app.action}
-      className="group flex touch-manipulation flex-col items-center rounded-[22px] outline-none transition-transform duration-200 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent active:translate-y-0 active:scale-[0.97]"
-    >
-      {/* Same logo size as course grid apps — not the compact dock variant. */}
-      <SystemAppIconContent app={app} iconSrcOverride={iconSrcOverride} />
-    </button>
-  );
-}
-
 function SortableSystemAppIcon({
   app,
   gridPosition,
@@ -665,6 +646,7 @@ function LearnHomeLoadingState() {
 }
 
 export function LearnHomeDashboard({
+  variant = 'student',
   courses,
   activeCourseId,
   coursesLoading,
@@ -672,9 +654,14 @@ export function LearnHomeDashboard({
   onCreateCourse,
   onOpenCalendar,
   onOpenCourse,
+  onOpenPastCourses,
+  onOpenUsage,
+  onSignOut,
   onRetryCourseLoad,
 }: LearnHomeDashboardProps) {
   const userId = useAuthStore((state) => state.userId) || 'anonymous';
+  const iconOrderStorageKey = `syntara:${variant}-home-icon-order:${userId}:${variant === 'student' ? 'v3' : 'v2'}`;
+  const iconOrderEventName = `syntara:${variant}-home-icon-order-change:${userId}`;
   const learnBackgroundId = useSettingsStore((state) => state.learnBackgroundId);
   const [now, setNow] = useState<Date | null>(null);
   const [page, setPage] = useState(1);
@@ -696,24 +683,39 @@ export function LearnHomeDashboard({
     const timer = window.setTimeout(() => setNow(new Date()), 0);
     return () => window.clearTimeout(timer);
   }, []);
+  const subscribeIconOrder = useCallback(
+    (onStoreChange: () => void) =>
+      subscribeToIconOrder(iconOrderStorageKey, iconOrderEventName, onStoreChange),
+    [iconOrderEventName, iconOrderStorageKey],
+  );
+  const readCurrentIconOrder = useCallback(
+    () => readIconOrderSnapshot(iconOrderStorageKey),
+    [iconOrderStorageKey],
+  );
   const iconOrderSnapshot = useSyncExternalStore(
-    subscribeToIconOrder,
-    readIconOrderSnapshot,
+    subscribeIconOrder,
+    readCurrentIconOrder,
     () => '',
   );
   const homeIconOrder = useMemo(
     () => parseIconOrderSnapshot(iconOrderSnapshot),
     [iconOrderSnapshot],
   );
+  const homeGridSystemApps =
+    variant === 'teacher' ? TEACHER_HOME_GRID_SYSTEM_APPS : HOME_GRID_SYSTEM_APPS;
   const orderedHomeIcons = useMemo(
     () =>
-      mergeStoredOrder(
-        buildHomeIconItems(courses, HOME_GRID_SYSTEM_APPS),
-        homeIconOrder,
-        (item) => item.id,
+      pinSignOutAppLast(
+        mergeStoredOrder(
+          buildHomeIconItems(courses, homeGridSystemApps),
+          homeIconOrder,
+          (item) => item.id,
+        ),
       ),
-    [courses, homeIconOrder],
+    [courses, homeGridSystemApps, homeIconOrder],
   );
+  const iconsPerPage =
+    variant === 'teacher' ? TEACHER_HOME_ICONS_PER_PAGE : STUDENT_HOME_ICONS_PER_PAGE;
   const courseCalendarIds = useMemo(() => courses.map((course) => course.id), [courses]);
   const syllabusEventsSnapshot = useSyncExternalStore(
     subscribeToSyllabusEventChanges,
@@ -721,11 +723,11 @@ export function LearnHomeDashboard({
     () => '[]',
   );
 
-  const pageCount = safePageCount(orderedHomeIcons.length);
+  const pageCount = Math.max(1, Math.ceil(orderedHomeIcons.length / iconsPerPage));
   const currentPage = Math.min(page, pageCount);
   const visibleHomeIcons = orderedHomeIcons.slice(
-    (currentPage - 1) * HOME_ICONS_PER_PAGE,
-    currentPage * HOME_ICONS_PER_PAGE,
+    (currentPage - 1) * iconsPerPage,
+    currentPage * iconsPerPage,
   );
   const visiblePages = Array.from({ length: Math.min(3, pageCount) }, (_, index) => {
     if (pageCount <= 3) return index + 1;
@@ -758,8 +760,8 @@ export function LearnHomeDashboard({
     : null;
   const persistIconOrder = (nextOrder: string[]) => {
     try {
-      localStorage.setItem(LEARN_HOME_ICON_ORDER_STORAGE_KEY, JSON.stringify({ items: nextOrder }));
-      window.dispatchEvent(new Event(LEARN_HOME_ICON_ORDER_EVENT));
+      localStorage.setItem(iconOrderStorageKey, JSON.stringify({ items: nextOrder }));
+      window.dispatchEvent(new Event(iconOrderEventName));
     } catch {
       // Dragging should continue to work even when localStorage is unavailable.
     }
@@ -802,16 +804,40 @@ export function LearnHomeDashboard({
       onCreateCourse();
       return;
     }
+    if (action === 'past_courses') {
+      onOpenPastCourses?.();
+      return;
+    }
+    if (action === 'usage') {
+      onOpenUsage?.();
+      return;
+    }
+    if (action === 'sign_out') {
+      void onSignOut?.();
+      return;
+    }
     if (action === 'notifications') {
       setActiveDockApp('notifications');
     }
   };
 
+  if (activeDockApp) {
+    return (
+      <section className="learn-app-home relative isolate h-full min-h-0 overflow-hidden">
+        <LearnHomeDockAppLayer
+          app={activeDockApp}
+          courses={courses}
+          onClose={() => setActiveDockApp(null)}
+        />
+      </section>
+    );
+  }
+
   return (
     <section
       data-learn-home-dashboard
       className="learn-app-home relative isolate h-full min-h-0 overflow-hidden text-white"
-      aria-label="学习应用主页"
+      aria-label={variant === 'teacher' ? '教师课程桌面' : '学习应用主页'}
     >
       <LearnBackgroundVisual backgroundId={learnBackgroundId} className="absolute inset-0" />
       <div className="learn-app-home__wash absolute inset-0" aria-hidden="true" />
@@ -822,7 +848,7 @@ export function LearnHomeDashboard({
       {coursesLoading && courses.length === 0 ? <LearnHomeLoadingState /> : null}
 
       {coursesLoading && courses.length === 0 ? null : (
-        <div className="learn-app-home__shell relative z-10 mx-auto h-full w-full max-w-[1320px] px-5 pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] pt-[1.5vh] sm:px-8 lg:max-w-none lg:w-[min(92vw,1680px)] lg:px-[clamp(1rem,2vw,2.75rem)] lg:pb-[max(10px,env(safe-area-inset-bottom,0px))] lg:pt-[clamp(28px,4.5vh,52px)]">
+        <div className="learn-app-home__shell relative z-10 mx-auto h-full w-full max-w-[1320px] px-5 pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-[1.5vh] sm:px-8 lg:max-w-none lg:w-[min(94vw,1760px)] lg:px-[clamp(1rem,2vw,2.75rem)] lg:pb-[max(10px,env(safe-area-inset-bottom,0px))] lg:pt-[clamp(24px,3.5vh,44px)]">
           {courseLoadError ? (
             <div
               className="mb-2 flex shrink-0 items-center justify-between gap-3 rounded-[16px] border border-white/40 bg-slate-950/58 px-4 py-2.5 text-sm text-white shadow-lg backdrop-blur-xl lg:absolute lg:left-[clamp(1rem,2vw,2.75rem)] lg:right-[clamp(1rem,2vw,2.75rem)] lg:top-[clamp(8px,1.2vh,16px)] lg:z-20 lg:mb-0"
@@ -851,96 +877,105 @@ export function LearnHomeDashboard({
             </div>
           ) : null}
           <div className="learn-app-home__stage min-h-0 overflow-hidden px-1 lg:overflow-hidden">
-            <div className="learn-app-home__grid grid h-full min-h-0 w-full grid-cols-3 content-start gap-x-5 gap-y-5 overflow-hidden sm:gap-x-6 lg:grid-cols-none lg:content-stretch lg:gap-y-[clamp(0.8vh,1.25vh,1.6vh)]">
-              <article className="learn-app-home__widget learn-app-home__widget--schedule col-span-3 flex min-h-[200px] w-full flex-col rounded-[26px] border border-white/28 p-4 shadow-[0_20px_52px_rgba(28,43,114,0.14)] backdrop-blur-2xl sm:col-span-3 lg:col-auto lg:h-full lg:min-h-0">
-                <button
-                  type="button"
-                  onClick={onOpenCalendar}
-                  className="flex w-full shrink-0 items-center justify-between rounded-xl px-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-white/80"
-                >
-                  <span className="flex items-center gap-2 text-[17px] font-medium">
-                    <CalendarDays className="size-[19px]" strokeWidth={2} aria-hidden />
-                    本周课程
-                  </span>
-                  <ChevronRight className="size-5 text-white/80" strokeWidth={2.1} aria-hidden />
-                </button>
-                <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {upcomingCourseEvents.map(({ course, event }) => {
-                    const eventDate = new Date(`${event.date}T12:00:00`);
-                    const kindMeta = CALENDAR_EVENT_KIND_META[event.kind];
-                    return (
+            <div
+              className={cn(
+                'learn-app-home__grid grid h-full min-h-0 w-full grid-cols-3 content-start gap-x-5 gap-y-5 overflow-hidden sm:gap-x-6 lg:grid-cols-none lg:content-stretch lg:gap-y-[clamp(0.8vh,1.25vh,1.6vh)]',
+                variant === 'teacher' && 'learn-app-home__grid--teacher',
+              )}
+            >
+              {variant === 'student' ? (
+                <article className="learn-app-home__widget learn-app-home__widget--schedule col-span-3 flex min-h-[200px] w-full flex-col rounded-[26px] border border-white/28 p-4 shadow-[0_20px_52px_rgba(28,43,114,0.14)] backdrop-blur-2xl sm:col-span-3 lg:col-auto lg:h-full lg:min-h-0">
+                  <button
+                    type="button"
+                    onClick={onOpenCalendar}
+                    className="flex w-full shrink-0 items-center justify-between rounded-xl px-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                  >
+                    <span className="flex items-center gap-2 text-[17px] font-medium">
+                      <CalendarDays className="size-[19px]" strokeWidth={2} aria-hidden />
+                      本周课程
+                    </span>
+                    <ChevronRight className="size-5 text-white/80" strokeWidth={2.1} aria-hidden />
+                  </button>
+                  <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {upcomingCourseEvents.map(({ course, event }) => {
+                      const eventDate = new Date(`${event.date}T12:00:00`);
+                      const kindMeta = CALENDAR_EVENT_KIND_META[event.kind];
+                      return (
+                        <button
+                          key={`${course.id}:${event.id}`}
+                          type="button"
+                          onClick={() => onOpenCourse(course.id)}
+                          aria-label={`${course.name}：${event.title}，${event.date}`}
+                          className="flex w-full items-center gap-3 rounded-[16px] border border-white/18 bg-white/27 px-3 py-2 text-left outline-none transition hover:bg-white/35 focus-visible:ring-2 focus-visible:ring-white/85"
+                        >
+                          <span className="grid w-10 shrink-0 place-items-center rounded-[11px] bg-white/75 py-1 text-center shadow-sm">
+                            <span className="text-[10px] font-semibold leading-3 text-[#ff3b30]">
+                              {eventDate.getMonth() + 1}月
+                            </span>
+                            <span className="text-[20px] font-semibold leading-5 text-slate-900">
+                              {eventDate.getDate()}
+                            </span>
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[14px] font-medium text-slate-900/82">
+                              {course.name}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[11px] text-slate-700/58">
+                              {kindMeta.label} · {event.title}
+                            </span>
+                          </span>
+                          <span
+                            className={cn('size-2 rounded-full', kindMeta.dotClassName)}
+                            aria-hidden
+                          />
+                        </button>
+                      );
+                    })}
+                    {upcomingCourseEvents.length === 0 ? (
                       <button
-                        key={`${course.id}:${event.id}`}
                         type="button"
-                        onClick={() => onOpenCourse(course.id)}
-                        aria-label={`${course.name}：${event.title}，${event.date}`}
-                        className="flex w-full items-center gap-3 rounded-[16px] border border-white/18 bg-white/27 px-3 py-2 text-left outline-none transition hover:bg-white/35 focus-visible:ring-2 focus-visible:ring-white/85"
+                        onClick={onOpenCalendar}
+                        className="flex h-full min-h-[120px] w-full flex-col items-center justify-center rounded-[16px] border border-dashed border-white/28 bg-white/16 px-4 text-center outline-none transition hover:bg-white/24 focus-visible:ring-2 focus-visible:ring-white/85 lg:min-h-0"
                       >
-                        <span className="grid w-10 shrink-0 place-items-center rounded-[11px] bg-white/75 py-1 text-center shadow-sm">
-                          <span className="text-[10px] font-semibold leading-3 text-[#ff3b30]">
-                            {eventDate.getMonth() + 1}月
-                          </span>
-                          <span className="text-[20px] font-semibold leading-5 text-slate-900">
-                            {eventDate.getDate()}
-                          </span>
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[14px] font-medium text-slate-900/82">
-                            {course.name}
-                          </span>
-                          <span className="mt-0.5 block truncate text-[11px] text-slate-700/58">
-                            {kindMeta.label} · {event.title}
-                          </span>
-                        </span>
-                        <span
-                          className={cn('size-2 rounded-full', kindMeta.dotClassName)}
+                        <CalendarDays
+                          className="size-7 text-white/72"
+                          strokeWidth={1.7}
                           aria-hidden
                         />
+                        <span className="mt-2 text-sm font-medium text-white/90">
+                          暂无近期课程日程
+                        </span>
+                        <span className="mt-1 text-xs text-white/65">打开日历添加学习安排</span>
                       </button>
-                    );
-                  })}
-                  {upcomingCourseEvents.length === 0 ? (
-                    <button
-                      type="button"
-                      onClick={onOpenCalendar}
-                      className="flex h-full min-h-[120px] w-full flex-col items-center justify-center rounded-[16px] border border-dashed border-white/28 bg-white/16 px-4 text-center outline-none transition hover:bg-white/24 focus-visible:ring-2 focus-visible:ring-white/85 lg:min-h-0"
-                    >
-                      <CalendarDays
-                        className="size-7 text-white/72"
-                        strokeWidth={1.7}
-                        aria-hidden
-                      />
-                      <span className="mt-2 text-sm font-medium text-white/90">
-                        暂无近期课程日程
-                      </span>
-                      <span className="mt-1 text-xs text-white/65">打开日历添加学习安排</span>
-                    </button>
-                  ) : null}
-                </div>
-              </article>
+                    ) : null}
+                  </div>
+                </article>
+              ) : null}
 
-              <article
-                className="learn-app-home__widget learn-app-home__widget--haru relative col-span-3 min-h-[220px] w-full overflow-hidden rounded-[26px] border border-white/28 shadow-[0_20px_52px_rgba(28,43,114,0.14)] backdrop-blur-2xl sm:col-span-3 lg:col-auto lg:h-full lg:min-h-0"
-                aria-label="Haru Live2D 动态展示"
-              >
-                <div className="absolute inset-x-0 -bottom-20 top-9 -translate-y-7">
-                  <HaruLive2D
-                    layout="card"
-                    cardFraming="half"
-                    speaking={false}
-                    cadence="idle"
-                    modelIdOverride="haru"
-                    showBadge={false}
-                    showStatusDot={false}
-                    className="h-full min-h-0 w-full"
-                  />
-                </div>
-                <div className="relative z-10 flex items-center justify-end px-4 pt-4 [text-shadow:0_1px_6px_rgba(20,42,105,0.45)]">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/72">
-                    Live2D
-                  </span>
-                </div>
-              </article>
+              {variant === 'student' ? (
+                <article
+                  className="learn-app-home__widget learn-app-home__widget--haru relative col-span-3 min-h-[220px] w-full overflow-hidden rounded-[26px] border border-white/28 shadow-[0_20px_52px_rgba(28,43,114,0.14)] backdrop-blur-2xl sm:col-span-3 lg:col-auto lg:h-full lg:min-h-0"
+                  aria-label="Haru Live2D 动态展示"
+                >
+                  <div className="absolute inset-x-0 -bottom-20 top-9 -translate-y-7">
+                    <HaruLive2D
+                      layout="card"
+                      cardFraming="half"
+                      speaking={false}
+                      cadence="idle"
+                      modelIdOverride="haru"
+                      showBadge={false}
+                      showStatusDot={false}
+                      className="h-full min-h-0 w-full"
+                    />
+                  </div>
+                  <div className="relative z-10 flex items-center justify-end px-4 pt-4 [text-shadow:0_1px_6px_rgba(20,42,105,0.45)]">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/72">
+                      Live2D
+                    </span>
+                  </div>
+                </article>
+              ) : null}
               <DndContext
                 id="learn-home-icons-dnd"
                 sensors={dragSensors}
@@ -954,7 +989,7 @@ export function LearnHomeDashboard({
                   strategy={rectSortingStrategy}
                 >
                   {visibleHomeIcons.map((item, index) => {
-                    const gridPosition = HOME_ICON_GRID_POSITIONS[index];
+                    const gridPosition = homeIconGridPosition(index, variant);
                     if (item.kind === 'system') {
                       return (
                         <SortableSystemAppIcon
@@ -1015,26 +1050,8 @@ export function LearnHomeDashboard({
               />
             ))}
           </nav>
-
-          <nav
-            className="learn-app-home__dock fixed bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-start gap-2 rounded-[30px] border border-white/30 bg-white/24 px-3 py-2 shadow-[0_18px_46px_rgba(25,35,94,0.28)] backdrop-blur-2xl max-sm:left-[calc(50%+8px)] lg:static lg:bottom-auto lg:left-auto lg:z-auto lg:translate-x-0 lg:justify-self-center"
-            aria-label="系统应用 Dock"
-          >
-            {DOCK_SYSTEM_APPS.map((app) => (
-              <DockSystemAppIcon
-                key={app.action}
-                app={app}
-                onRun={() => runSystemAction(app.action)}
-              />
-            ))}
-          </nav>
         </div>
       )}
-      <LearnHomeDockAppLayer
-        app={activeDockApp}
-        courses={courses}
-        onClose={() => setActiveDockApp(null)}
-      />
     </section>
   );
 }

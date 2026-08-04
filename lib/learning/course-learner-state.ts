@@ -1,6 +1,7 @@
 import type { CourseRecord } from '@/lib/utils/database';
 import type { CourseProblemClientSummary } from '@/lib/utils/notebook-problem-api';
 import type { StageListItem } from '@/lib/utils/stage-storage';
+import { orderCourseNotebooks } from '@/lib/learning/course-notebook-order';
 
 const LEARNER_STATE_KEY_PREFIX = 'syntara:learner-course-state:v1';
 const PRACTICE_PLAN_KEY_PREFIX = 'syntara:practice-plan:v1';
@@ -358,6 +359,7 @@ export function seedLearnerCourseStateFromCourse(args: {
   notebooks: StageListItem[];
   problems: CourseProblemClientSummary[];
 }): LearnerCourseState {
+  const notebooks = orderCourseNotebooks(args.notebooks);
   const state = loadLearnerCourseState({ userId: args.userId, courseId: args.course.id });
   const attemptedProblems = args.problems
     .map((problem) => {
@@ -392,7 +394,7 @@ export function seedLearnerCourseStateFromCourse(args: {
     progressConfirmed && state.progressCheckpoint?.kind !== 'not_started';
   const currentNotebook =
     shouldKeepCurrentNotebook && state.currentNotebookId
-      ? args.notebooks.find((notebook) => notebook.id === state.currentNotebookId)
+      ? notebooks.find((notebook) => notebook.id === state.currentNotebookId)
       : undefined;
   const completedNotebookIds =
     progressConfirmed && state.progressCheckpoint?.kind !== 'not_started'
@@ -400,7 +402,7 @@ export function seedLearnerCourseStateFromCourse(args: {
       : [];
   const conceptSeeds = uniqueStrings([
     ...args.problems.flatMap((problem) => problem.tags),
-    ...args.notebooks.flatMap((notebook) => notebook.tags || []),
+    ...notebooks.flatMap((notebook) => notebook.tags || []),
     ...args.course.tags,
     args.course.courseCode,
   ]);
@@ -462,25 +464,26 @@ export function summarizeLearnerCourseState(args: {
   notebooks: StageListItem[];
   problems: CourseProblemClientSummary[];
 }): LearnerCourseSnapshot {
+  const notebooks = orderCourseNotebooks(args.notebooks);
   const checkpoint = args.state.progressCheckpoint;
   const progressKnown = checkpoint?.source === 'student';
   const checkpointNotebook =
     progressKnown && checkpoint.kind === 'notebook' && checkpoint.notebookId
-      ? args.notebooks.find((notebook) => notebook.id === checkpoint.notebookId)
+      ? notebooks.find((notebook) => notebook.id === checkpoint.notebookId)
       : undefined;
   const completedAllNotebook =
     progressKnown && checkpoint?.kind === 'completed_all'
-      ? args.notebooks[args.notebooks.length - 1]
+      ? notebooks[notebooks.length - 1]
       : undefined;
   const currentNotebook = checkpointNotebook || completedAllNotebook;
   const completedNotebookCount = progressKnown
     ? checkpoint?.kind === 'completed_all'
-      ? args.notebooks.length
+      ? notebooks.length
       : checkpoint?.kind === 'notebook'
         ? args.state.completedNotebookIds.length
         : 0
     : 0;
-  const totalNotebookCount = args.notebooks.length;
+  const totalNotebookCount = notebooks.length;
   const attemptedProblemIds = new Set([
     ...args.state.recentProblemAttempts.map((item) => item.problemId),
     ...args.problems
@@ -609,19 +612,20 @@ function applyProgressCheckpointToState(args: {
   notebookId?: string;
 }): LearnerCourseState {
   const state = args.state;
+  const notebooks = orderCourseNotebooks(args.notebooks);
   const timestamp = now();
-  const courseNotebookIds = new Set(args.notebooks.map((notebook) => notebook.id));
+  const courseNotebookIds = new Set(notebooks.map((notebook) => notebook.id));
   const notebookIndex =
     args.kind === 'notebook' && args.notebookId
-      ? args.notebooks.findIndex((notebook) => notebook.id === args.notebookId)
+      ? notebooks.findIndex((notebook) => notebook.id === args.notebookId)
       : -1;
-  const selectedNotebook = notebookIndex >= 0 ? args.notebooks[notebookIndex] : undefined;
-  const lastNotebook = args.notebooks[args.notebooks.length - 1];
+  const selectedNotebook = notebookIndex >= 0 ? notebooks[notebookIndex] : undefined;
+  const lastNotebook = notebooks[notebooks.length - 1];
   const completedNotebookIds =
     args.kind === 'completed_all'
-      ? args.notebooks.map((notebook) => notebook.id)
+      ? notebooks.map((notebook) => notebook.id)
       : selectedNotebook
-        ? args.notebooks.slice(0, notebookIndex).map((notebook) => notebook.id)
+        ? notebooks.slice(0, notebookIndex).map((notebook) => notebook.id)
         : [];
   const currentNotebook =
     args.kind === 'completed_all' ? lastNotebook : selectedNotebook ? selectedNotebook : undefined;

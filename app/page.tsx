@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-
-import LoginPage from '@/app/login/page';
+import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
   title: '登录 Syntara',
@@ -8,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return <LoginPage />;
+  return redirect('/teacher/login');
 }

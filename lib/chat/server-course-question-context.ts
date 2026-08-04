@@ -17,6 +17,7 @@ import type { PrismaClient } from '@/lib/server/generated-prisma';
 import { planMemorySearchIntent, type MemorySearchIntent } from '@/lib/server/memory-search-intent';
 import { prisma as defaultPrisma } from '@/lib/server/prisma';
 import { loadTrustedCourseLearningProgress } from '@/lib/server/course-learning-progress';
+import { listCourseHardRulesForPrompt } from '@/lib/server/course-hard-rules';
 import {
   findCourseAccessRole,
   type CourseAccessRole,
@@ -673,7 +674,7 @@ export async function buildTrustedCourseQuestionContext(args: {
     courseId,
     totalProblemCount: course.problemCount,
   });
-  const [sourceLoad, layeredMemory] = await Promise.all([
+  const [sourceLoad, layeredMemory, hardRules] = await Promise.all([
     loadCourseSources({
       prisma,
       userId,
@@ -706,6 +707,11 @@ export async function buildTrustedCourseQuestionContext(args: {
       notebookScope: {
         allowedNotebookIds: trustedProgress.allowedNotebookIds,
       },
+    }),
+    listCourseHardRulesForPrompt({
+      prisma,
+      courseId,
+      ownerId: course.ownerId,
     }),
   ]);
 
@@ -788,6 +794,7 @@ export async function buildTrustedCourseQuestionContext(args: {
         role: 'teacher',
       },
       notebooks: selectedSources.notebooks,
+      hardRules,
       resourceStates,
       answererHandoff: mergeTrustedPlannerHandoff(
         serverAnswererHandoff,

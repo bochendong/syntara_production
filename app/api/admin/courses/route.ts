@@ -1,7 +1,22 @@
 import type { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
+import { pickRandomCourseAvatarUrl } from '@/lib/constants/course-avatars';
+
+const createAdminCourseSchema = z.object({
+  ownerId: z.string().trim().min(1).max(160),
+  courseCode: z.string().trim().min(1).max(60),
+  academicYear: z.number().int().min(2020).max(2100),
+  academicTerm: z.enum(['winter', 'summer', 'fall']),
+});
+
+const ACADEMIC_TERM_LABEL = {
+  winter: 'Winter',
+  summer: 'Summer',
+  fall: 'Fall',
+} as const;
 
 function normalizeSearch(raw: string | null): string {
   return raw?.trim() || '';
@@ -53,6 +68,8 @@ export async function GET(request: Request) {
           purpose: true,
           university: true,
           courseCode: true,
+          academicYear: true,
+          academicTerm: true,
           avatarUrl: true,
           listedInCourseStore: true,
           coursePriceCents: true,
@@ -101,6 +118,8 @@ export async function GET(request: Request) {
         purpose: course.purpose,
         university: course.university,
         courseCode: course.courseCode,
+        academicYear: course.academicYear,
+        academicTerm: course.academicTerm,
         avatarUrl: course.avatarUrl,
         listedInCourseStore: course.listedInCourseStore,
         coursePriceCents: course.coursePriceCents,
@@ -118,6 +137,42 @@ export async function GET(request: Request) {
         counts: course._count,
       })),
     });
+  } catch (error) {
+    return apiError('INTERNAL_ERROR', 500, error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function POST(request: Request) {
+  const admin = await requireAdmin();
+  if ('response' in admin) return admin.response;
+  const prisma = getOptionalPrisma();
+  if (!prisma) return apiError('INTERNAL_ERROR', 503, '数据库不可用，无法创建课程');
+  const parsed = createAdminCourseSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return apiError('INVALID_REQUEST', 400, '请指定老师并填写课程代码和学期');
+  }
+  const teacher = await prisma.user.findFirst({
+    where: { id: parsed.data.ownerId, role: 'TEACHER', isActive: true },
+    select: { id: true },
+  });
+  if (!teacher) return apiError('INVALID_REQUEST', 400, '指定的老师不存在或已停用');
+  try {
+    const courseCode = parsed.data.courseCode.toUpperCase();
+    const termLabel = ACADEMIC_TERM_LABEL[parsed.data.academicTerm];
+    const course = await prisma.course.create({
+      data: {
+        ownerId: teacher.id,
+        courseCode,
+        academicYear: parsed.data.academicYear,
+        academicTerm: parsed.data.academicTerm,
+        name: `${courseCode} · ${parsed.data.academicYear} ${termLabel}`,
+        language: 'zh-CN',
+        purpose: 'university',
+        tags: [String(parsed.data.academicYear), termLabel],
+        avatarUrl: pickRandomCourseAvatarUrl(),
+      },
+    });
+    return apiSuccess({ course }, 201);
   } catch (error) {
     return apiError('INTERNAL_ERROR', 500, error instanceof Error ? error.message : String(error));
   }

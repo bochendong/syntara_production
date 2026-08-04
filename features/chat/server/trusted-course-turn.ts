@@ -31,7 +31,7 @@ export type TrustedCourseTurnErrorCode =
 export class TrustedCourseTurnError extends Error {
   constructor(
     readonly code: TrustedCourseTurnErrorCode,
-    readonly status: 400 | 401 | 404 | 422,
+    readonly status: 400 | 401 | 403 | 404 | 422,
     message: string,
     readonly validationFailures: string[] = [],
   ) {
@@ -173,6 +173,7 @@ function trustedCourseContext(args: {
     learner: serverCourseContext?.learner,
     target: serverCourseContext?.target ?? fixedCourseTarget(),
     notebooks: serverCourseContext?.notebooks ?? [],
+    hardRules: serverCourseContext?.hardRules ?? [],
     resourceStates: serverCourseContext?.resourceStates,
     layeredMemory: serverCourseContext?.layeredMemory,
     answererHandoff: serverCourseContext?.answererHandoff,
@@ -206,6 +207,7 @@ export function attachTrustedServerCourseContext(args: {
       learner: args.serverCourseContext.learner,
       target: args.serverCourseContext.target,
       notebooks: args.serverCourseContext.notebooks,
+      hardRules: args.serverCourseContext.hardRules,
       resourceStates: args.serverCourseContext.resourceStates,
       layeredMemory: args.serverCourseContext.layeredMemory,
       answererHandoff: args.serverCourseContext.answererHandoff,
@@ -228,6 +230,7 @@ function trustedDevelopmentMockContext(serverCourseContext?: CourseChatContext):
     learner: serverCourseContext?.learner,
     target: serverCourseContext?.target ?? fixedCourseTarget(),
     notebooks: serverCourseContext?.notebooks ?? [],
+    hardRules: serverCourseContext?.hardRules ?? [],
     resourceStates: serverCourseContext?.resourceStates,
     layeredMemory: serverCourseContext?.layeredMemory,
     answererHandoff: serverCourseContext?.answererHandoff,
@@ -299,7 +302,10 @@ export async function resolveTrustedCourseTurn(args: {
   serverCourseContext?: CourseChatContext;
   trustedAccess?: TrustedCourseAccess;
 }): Promise<ResolvedTrustedCourseTurn> {
-  if (args.body.config.surface !== 'course-chat') {
+  const isCourseChat =
+    args.body.config.surface === 'course-chat' ||
+    args.body.config.surface === 'teacher-course-chat';
+  if (!isCourseChat) {
     return {
       body: args.body,
       contextSource: 'not_course_chat',
@@ -323,6 +329,13 @@ export async function resolveTrustedCourseTurn(args: {
   }
 
   if (courseId === MOCK_COURSE_CHAT_ID && process.env.NODE_ENV !== 'production') {
+    if (args.body.config.surface === 'teacher-course-chat') {
+      throw new TrustedCourseTurnError(
+        'unauthorized',
+        403,
+        'Teacher course chat requires verified course owner access.',
+      );
+    }
     return {
       body: {
         ...args.body,
@@ -345,6 +358,13 @@ export async function resolveTrustedCourseTurn(args: {
         : await resolveTrustedCourseAccess({ userId, courseId });
   if (!trustedAccess) {
     throw new TrustedCourseTurnError('course_not_found', 404, 'Course not found.');
+  }
+  if (args.body.config.surface === 'teacher-course-chat' && trustedAccess.role !== 'owner') {
+    throw new TrustedCourseTurnError(
+      'unauthorized',
+      403,
+      'Teacher course chat requires verified course owner access.',
+    );
   }
 
   return {

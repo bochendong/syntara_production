@@ -800,6 +800,12 @@ export type SourceCoverPromptPreview = {
   prompt: string;
   summary: string;
   sections: Array<{ title: string; summary: string }>;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cachedInputTokens: number;
+    totalTokens: number;
+  };
 };
 
 export async function prepareCheatSheetPrompt(args: {
@@ -819,6 +825,7 @@ export async function prepareCheatSheetPrompt(args: {
   coverFocus?: string | null;
   model?: LanguageModel;
   modelProviderId?: string | null;
+  usageSource?: string;
 }): Promise<SourceCoverPromptPreview> {
   const rawText = args.text.trim();
   if (!rawText) throw new Error('Uploaded source text is empty');
@@ -857,6 +864,7 @@ export async function prepareCheatSheetPrompt(args: {
   const synthesis = await synthesizeSourceCheatSheetWithModel({
     model: args.model,
     modelProviderId: args.modelProviderId,
+    usageSource: args.usageSource,
     sourceTitle: args.sourceTitle,
     sourceKind: args.sourceKind,
     sourceFileMime: args.sourceFileMime,
@@ -913,6 +921,7 @@ export async function prepareCheatSheetPrompt(args: {
     prompt: coverComposition.prompt,
     summary: structuredNotes.notebookKnowledge.summary,
     sections: sections.map(({ title, summary }) => ({ title, summary: summary || '' })),
+    usage: synthesis.usage,
   };
 }
 
@@ -1891,9 +1900,11 @@ async function synthesizeSourceCheatSheetWithModel(args: {
   openaiFileId?: string | null;
   text: string;
   language: 'zh-CN' | 'en-US';
+  usageSource?: string;
 }): Promise<{
   cheatSheet: SourceCheatSheet | null;
   inputMode: SourceUploadIngestionResult['source']['aiSynthesisInput'];
+  usage: SourceCoverPromptPreview['usage'];
 }> {
   if (!args.model) throw new Error('Cheat Sheet generation requires a configured AI model.');
   const useOpenAIFileInput = Boolean(
@@ -1969,13 +1980,21 @@ async function synthesizeSourceCheatSheetWithModel(args: {
       maxOutputTokens: 2600,
       maxRetries: 0,
     },
-    'course-source-cheat-sheet-synthesis',
+    args.usageSource || 'course-source-cheat-sheet-synthesis',
     undefined,
     { enabled: false },
   );
   return {
     cheatSheet: normalizeSynthesizedCheatSheet(result.output),
     inputMode,
+    usage: {
+      inputTokens: Math.max(0, result.usage.inputTokens ?? 0),
+      outputTokens: Math.max(0, result.usage.outputTokens ?? 0),
+      cachedInputTokens: Math.max(0, result.usage.cachedInputTokens ?? 0),
+      totalTokens:
+        Math.max(0, result.usage.totalTokens ?? 0) ||
+        Math.max(0, result.usage.inputTokens ?? 0) + Math.max(0, result.usage.outputTokens ?? 0),
+    },
   };
 }
 

@@ -28,6 +28,7 @@ import { normalizeRequestedImageDimensions } from '@/lib/media/image-result-norm
 import { createLogger } from '@/lib/logger';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { assertUserHasCredits, chargeCreditsForImageGeneration } from '@/lib/server/credits';
+import { recordLLMUsage } from '@/lib/server/llm-usage';
 import { getRequestContext, runWithRequestContext } from '@/lib/server/request-context';
 import { proxyFetch } from '@/lib/server/proxy-fetch';
 import { validateUrlForSSRF } from '@/lib/server/ssrf-guard';
@@ -241,6 +242,10 @@ export async function POST(request: NextRequest) {
       const result = inlineResult;
       const resolvedModelId = result.usage?.modelId || clientModel || 'gpt-image-2';
       const costEstimate = createImageCostEstimate(providerId, resolvedModelId, result);
+      const inputTokens = Math.max(0, Math.round(result.usage?.inputTokens || 0));
+      const outputTokens = Math.max(0, Math.round(result.usage?.outputTokens || 0));
+      const totalTokens =
+        Math.max(0, Math.round(result.usage?.totalTokens || 0)) || inputTokens + outputTokens;
 
       if (providerId === 'openai-image' && !skipCreditCharge) {
         await chargeCreditsForImageGeneration({
@@ -263,6 +268,32 @@ export async function POST(request: NextRequest) {
           chargeReason: '生成笔记本媒体图片',
           serviceLabel: 'OpenAI Image API',
           usage: result.usage,
+        });
+      }
+
+      if (totalTokens > 0) {
+        await recordLLMUsage({
+          userId: getRequestContext()?.userId,
+          userEmail: getRequestContext()?.userEmail,
+          userName: getRequestContext()?.userName,
+          route: '/api/generate/image',
+          source: request.headers.get('x-usage-source')?.trim() || 'image-generation',
+          providerId,
+          modelId: resolvedModelId,
+          modelString: `${providerId}:${resolvedModelId}`,
+          inputTokens,
+          outputTokens,
+          totalTokens,
+          notebookId: body.notebookContext?.id,
+          notebookName: body.notebookContext?.name,
+          courseId: body.notebookContext?.courseId,
+          courseName: body.notebookContext?.courseName,
+          operationCode: 'media_image_generation',
+          chargeReason: '生成图片',
+          serviceLabel: 'Image API',
+          // Image generation has already been charged above using the image-specific
+          // pricing table. This write only makes it visible in usage statistics.
+          skipCreditCharge: true,
         });
       }
 

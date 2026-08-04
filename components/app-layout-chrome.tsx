@@ -126,6 +126,10 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const isLogin = pathname === '/login' || pathname?.startsWith('/login/');
+  const isTeacherLogin =
+    pathname === '/teacher/login' || Boolean(pathname?.startsWith('/teacher/login/'));
+  const isTeacherPortal = pathname === '/teacher' || Boolean(pathname?.startsWith('/teacher/'));
+  const isStudentPortal = pathname === '/student' || Boolean(pathname?.startsWith('/student/'));
   const isRegister = pathname === '/register' || pathname?.startsWith('/register/');
   const isLanding = pathname === '/';
   const isClassroom = pathname?.startsWith('/classroom/');
@@ -197,8 +201,24 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
     );
   };
 
-  if (isLogin || isRegister || isLanding) {
+  if (isLogin || isTeacherLogin || isRegister || isLanding) {
     return withStudyCompanion(<>{children}</>);
+  }
+
+  if (isTeacherPortal) {
+    return (
+      <MainShellNoRail balancedInset edgeToEdge>
+        {children}
+      </MainShellNoRail>
+    );
+  }
+
+  if (isStudentPortal) {
+    return (
+      <MainShellNoRail balancedInset edgeToEdge>
+        {children}
+      </MainShellNoRail>
+    );
   }
 
   if (isReviewPage) {

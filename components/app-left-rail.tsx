@@ -110,6 +110,8 @@ export function AppLeftRail({
   const nickname = useUserProfileStore((s) => s.nickname);
   const authName = useAuthStore((s) => s.name);
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const portalRole = useAuthStore((s) => s.role);
+  const canManageCourseContent = portalRole === 'TEACHER' || portalRole === 'ADMIN';
   const signOutAndRedirect = useAuthSignOut();
 
   const courseId = useCurrentCourseStore((s) => s.id);
@@ -522,9 +524,7 @@ export function AppLeftRail({
                           </Link>
                         )}
                       </TooltipTrigger>
-                      <TooltipContent side="right">
-                        {railTooltip}
-                      </TooltipContent>
+                      <TooltipContent side="right">{railTooltip}</TooltipContent>
                     </Tooltip>
                     <div className="min-w-0 flex-1">
                       <p
@@ -621,9 +621,7 @@ export function AppLeftRail({
                         </Link>
                       )}
                     </TooltipTrigger>
-                    <TooltipContent side="right">
-                      {railTooltip}
-                    </TooltipContent>
+                    <TooltipContent side="right">{railTooltip}</TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -795,23 +793,25 @@ export function AppLeftRail({
               <div className={cn('shrink-0', railDividers.t)}>
                 {!collapsed ? (
                   <div className="px-3 py-3">
-                    <button
-                      type="button"
-                      onClick={openCreateCourseDialog}
-                      className={cn(
-                        'mb-2 flex h-9 w-full items-center justify-center gap-2 rounded-[12px] border text-xs font-semibold transition-colors',
-                        newCourseActive
-                          ? onLightRail
-                            ? 'border-sky-300/70 bg-sky-50 text-sky-700 shadow-[inset_0_0_0_1px_rgba(56,189,248,0.2)]'
-                            : 'border-sky-300/35 bg-sky-400/14 text-sky-100'
-                          : onLightRail
-                            ? 'border-slate-200/80 bg-white/55 text-slate-700 hover:border-sky-200 hover:bg-sky-50 hover:text-slate-950'
-                            : 'border-white/10 bg-white/[0.065] text-zinc-200 hover:border-white/18 hover:bg-white/[0.1] hover:text-white',
-                      )}
-                    >
-                      <Plus className="size-4" strokeWidth={1.9} />
-                      <span>新建课程</span>
-                    </button>
+                    {canManageCourseContent ? (
+                      <button
+                        type="button"
+                        onClick={openCreateCourseDialog}
+                        className={cn(
+                          'mb-2 flex h-9 w-full items-center justify-center gap-2 rounded-[12px] border text-xs font-semibold transition-colors',
+                          newCourseActive
+                            ? onLightRail
+                              ? 'border-sky-300/70 bg-sky-50 text-sky-700 shadow-[inset_0_0_0_1px_rgba(56,189,248,0.2)]'
+                              : 'border-sky-300/35 bg-sky-400/14 text-sky-100'
+                            : onLightRail
+                              ? 'border-slate-200/80 bg-white/55 text-slate-700 hover:border-sky-200 hover:bg-sky-50 hover:text-slate-950'
+                              : 'border-white/10 bg-white/[0.065] text-zinc-200 hover:border-white/18 hover:bg-white/[0.1] hover:text-white',
+                        )}
+                      >
+                        <Plus className="size-4" strokeWidth={1.9} />
+                        <span>新建课程</span>
+                      </button>
+                    ) : null}
                     <div
                       className={cn(
                         'ml-auto flex w-fit items-center gap-0.5 rounded-full border p-1 backdrop-blur-md',
@@ -908,26 +908,28 @@ export function AppLeftRail({
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2 px-2 py-3">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={openCreateCourseDialog}
-                          className={cn(
-                            'flex size-10 items-center justify-center rounded-[10px] shadow-none',
-                            newCourseActive
-                              ? onLightRail
-                                ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-200'
-                                : 'bg-sky-400/14 text-sky-100 ring-1 ring-sky-300/25'
-                              : railIconPadBtn,
-                          )}
-                          aria-label="新建课程"
-                        >
-                          <Plus className="size-[18px]" strokeWidth={1.9} />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">新建课程</TooltipContent>
-                    </Tooltip>
+                    {canManageCourseContent ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={openCreateCourseDialog}
+                            className={cn(
+                              'flex size-10 items-center justify-center rounded-[10px] shadow-none',
+                              newCourseActive
+                                ? onLightRail
+                                  ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-200'
+                                  : 'bg-sky-400/14 text-sky-100 ring-1 ring-sky-300/25'
+                                : railIconPadBtn,
+                            )}
+                            aria-label="新建课程"
+                          >
+                            <Plus className="size-[18px]" strokeWidth={1.9} />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">新建课程</TooltipContent>
+                      </Tooltip>
+                    ) : null}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Link
@@ -1019,11 +1021,13 @@ export function AppLeftRail({
           </div>
         </div>
       </aside>
-      <CreateCourseDialog
-        open={createCourseOpen}
-        onOpenChange={setCreateCourseOpen}
-        onSuccess={() => router.refresh()}
-      />
+      {canManageCourseContent ? (
+        <CreateCourseDialog
+          open={createCourseOpen}
+          onOpenChange={setCreateCourseOpen}
+          onSuccess={() => router.refresh()}
+        />
+      ) : null}
     </>
   );
 }

@@ -17,6 +17,8 @@ export interface PublicReplyProgressStep {
   id: string;
   label: string;
   description?: string;
+  /** Concrete, user-safe facts observed while completing this step. */
+  evidence?: string[];
   status: PublicReplyProgressStepStatus;
 }
 
@@ -735,6 +737,11 @@ export interface CourseChatServerCoursePackContext {
   };
 }
 
+export interface CourseChatHardRule {
+  id: string;
+  content: string;
+}
+
 export interface CourseChatContext {
   course: {
     id: string;
@@ -752,6 +759,9 @@ export interface CourseChatContext {
     progressPercent: number;
     currentNotebookId?: string;
     currentNotebookName?: string;
+    /** Full instructor-defined notebook sequence for curriculum-aware planning. */
+    courseNotebookIds?: string[];
+    courseNotebookNames?: string[];
     completedNotebookIds?: string[];
     futureNotebookIds?: string[];
     futureNotebookNames?: string[];
@@ -801,6 +811,8 @@ export interface CourseChatContext {
     role?: string;
   };
   notebooks: CourseChatContextNotebook[];
+  /** Teacher-authored, server-resolved instructions that the course agent must follow. */
+  hardRules?: CourseChatHardRule[];
   resourceStates?: {
     notebooks: CourseChatResourceLoadState;
     problems: CourseChatResourceLoadState;
@@ -831,7 +843,7 @@ export interface StatelessChatRequest {
   config: {
     agentIds: string[];
     sessionType?: 'qa' | 'discussion';
-    surface?: 'classroom' | 'course-chat';
+    surface?: 'classroom' | 'course-chat' | 'teacher-course-chat';
     /** Discussion topic (for agent-initiated discussions) */
     discussionTopic?: string;
     /** Discussion prompt (for agent-initiated discussions) */
@@ -921,6 +933,18 @@ export type StatelessEvent =
       data: {
         courseId: string;
         items: CourseChatEvidenceSummary[];
+      };
+    }
+  | {
+      /**
+       * User-safe progress produced from real server work. This is operational
+       * telemetry only and must never contain hidden model reasoning.
+       */
+      type: 'public_progress';
+      data: {
+        line: string;
+        steps: PublicReplyProgressStep[];
+        agentName?: string;
       };
     }
   | { type: 'cue_user'; data: { fromAgentId?: string; prompt?: string } }

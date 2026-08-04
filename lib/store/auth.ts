@@ -3,31 +3,23 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type AuthMode = 'none' | 'email' | 'oauth';
+export type PortalRole = 'STUDENT' | 'TEACHER' | 'ADMIN';
 
 interface AuthState {
   isLoggedIn: boolean;
   userId: string;
+  username: string;
   name: string;
   email: string;
-  role: 'USER' | 'ADMIN';
-  /** oauth：NextAuth 会话；email：邮箱登录（不验证邮箱所有权） */
-  authMode: AuthMode;
-  login: (payload: { name: string; email: string }) => void;
+  role: PortalRole;
+  attributes: Record<string, string | number | boolean>;
   syncFromOAuth: (payload: {
     userId: string;
     name: string;
     email: string;
-    role?: 'USER' | 'ADMIN';
+    role?: 'USER' | 'TEACHER' | 'ADMIN';
   }) => void;
   logout: () => void;
-}
-
-function buildUserId(email: string): string {
-  const normalized = email.trim().toLowerCase();
-  if (!normalized) return 'user-anonymous';
-  const safe = normalized.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  return `user-${safe || 'anonymous'}`;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -35,80 +27,60 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       isLoggedIn: false,
       userId: '',
+      username: '',
       name: '',
       email: '',
-      role: 'USER',
-      authMode: 'none',
-      login: ({ name, email }) =>
-        set({
-          isLoggedIn: true,
-          userId: buildUserId(email),
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          role: 'USER',
-          authMode: 'email',
-        }),
+      role: 'STUDENT',
+      attributes: {},
       syncFromOAuth: ({ userId, name, email, role }) =>
         set({
           isLoggedIn: true,
           userId: userId.trim(),
+          username: '',
           name: name.trim(),
           email: email.trim().toLowerCase(),
-          role: role ?? 'USER',
-          authMode: 'oauth',
+          role: role === 'ADMIN' ? 'ADMIN' : role === 'TEACHER' ? 'TEACHER' : 'STUDENT',
+          attributes: {},
         }),
       logout: () =>
         set({
           isLoggedIn: false,
           userId: '',
+          username: '',
           name: '',
           email: '',
-          role: 'USER',
-          authMode: 'none',
+          role: 'STUDENT',
+          attributes: {},
         }),
     }),
     {
       name: 'synatra-auth',
-      version: 1,
-      migrate: (persisted, fromVersion) => {
+      version: 3,
+      migrate: (persisted) => {
         const p = (persisted ?? {}) as Partial<AuthState>;
-        const rawAuthMode =
-          typeof (persisted as { authMode?: unknown } | null | undefined)?.authMode === 'string'
-            ? (persisted as { authMode?: string }).authMode
-            : undefined;
-        const migratedAuthMode: AuthMode =
-          rawAuthMode === 'oauth'
-            ? 'oauth'
-            : rawAuthMode === 'email' || rawAuthMode === 'local'
-              ? 'email'
-              : 'none';
-        const normalizedAuthMode: AuthMode = p.isLoggedIn
-          ? migratedAuthMode === 'none'
-            ? 'email'
-            : migratedAuthMode
-          : 'none';
-        if (fromVersion === 0) {
-          return {
-            isLoggedIn: p.isLoggedIn ?? false,
-            userId: p.userId ?? '',
-            name: p.name ?? '',
-            email: p.email ?? '',
-            role: p.role ?? 'USER',
-            authMode: normalizedAuthMode,
-          };
-        }
         return {
-          ...(persisted as AuthState),
-          authMode: normalizedAuthMode,
+          isLoggedIn: false,
+          userId: p.userId ?? '',
+          username: p.username ?? '',
+          name: p.name ?? '',
+          email: p.email ?? '',
+          role:
+            (p.role as string | undefined) === 'ADMIN'
+              ? 'ADMIN'
+              : (p.role as string | undefined) === 'TEACHER'
+                ? 'TEACHER'
+                : 'STUDENT',
+          attributes: p.attributes ?? {},
         };
       },
       partialize: (s) => ({
         isLoggedIn: s.isLoggedIn,
         userId: s.userId,
+        username: s.username,
         name: s.name,
         email: s.email,
         role: s.role,
-        authMode: s.authMode,
+        attributes: s.attributes,
       }),
     },
   ),

@@ -9,27 +9,14 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { BookOpen } from 'lucide-react';
+import { orderCourseNotebooks } from '@/lib/learning/course-notebook-order';
 import { cn } from '@/lib/utils';
 import type { StageListItem } from '@/lib/utils/stage-storage';
 
-function notebookCourseOrder(notebook: Pick<StageListItem, 'id' | 'name' | 'createdAt'>): number {
-  const candidates = [notebook.name, notebook.id];
-  for (const candidate of candidates) {
-    const match = candidate.match(/(?:^|[-_\s])0?(\d{1,2})(?:\s*[-–—_:]|[-_\s]|$)/);
-    if (match) return Number(match[1]);
-  }
-  return Number.MAX_SAFE_INTEGER;
-}
-
 export function orderCourseNotebooksForProgress<
-  T extends Pick<StageListItem, 'id' | 'name' | 'createdAt'>,
+  T extends Pick<StageListItem, 'id' | 'name' | 'createdAt' | 'learningOrder'>,
 >(notebooks: T[]): T[] {
-  return notebooks.slice().sort((a, b) => {
-    const orderA = notebookCourseOrder(a);
-    const orderB = notebookCourseOrder(b);
-    if (orderA !== orderB) return orderA - orderB;
-    return a.createdAt - b.createdAt || a.name.localeCompare(b.name);
-  });
+  return orderCourseNotebooks(notebooks);
 }
 
 export function completedCountFromProgressSelection(

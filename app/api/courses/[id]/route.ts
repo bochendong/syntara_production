@@ -38,6 +38,8 @@ type CourseDetailRow = {
   purpose: 'research' | 'university' | 'daily';
   university: string | null;
   courseCode: string | null;
+  academicYear: number | null;
+  academicTerm: 'winter' | 'summer' | 'fall' | null;
   avatarUrl: string | null;
   listedInCourseStore: boolean;
   coursePriceCents: number;

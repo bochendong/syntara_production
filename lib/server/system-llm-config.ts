@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logger';
 import { getPrismaOrNull } from '@/lib/server/prisma-safe';
+import { decryptSystemSecret, encryptSystemSecret } from '@/lib/server/system-secret-crypto';
 
 const log = createLogger('SystemLLMConfig');
 const RUNTIME_CONFIG_CACHE_TTL_MS = 30_000;
@@ -55,11 +56,12 @@ async function loadSystemLLMRuntimeConfig(): Promise<SystemLLMRuntimeConfig> {
     try {
       const row = await prisma.systemLLMConfig.findUnique({ where: { id: 'default' } });
       if (row?.apiKey?.trim()) {
+        const apiKey = decryptSystemSecret(row.apiKey);
         return {
           providerId: 'openai',
           modelId: row.modelId?.trim() || DEFAULT_OPENAI_MODEL,
           baseUrl: row.baseUrl?.trim() || DEFAULT_OPENAI_BASE_URL,
-          apiKey: row.apiKey.trim(),
+          apiKey,
           source: 'database',
         };
       }
@@ -146,10 +148,10 @@ export async function updateSystemLLMConfig(input: {
 
   const existing = await prisma.systemLLMConfig.findUnique({ where: { id: 'default' } });
   const trimmedNewKey = input.apiKey?.trim() ?? '';
-  let apiKey = trimmedNewKey;
-  if (!apiKey) {
+  let storedApiKey = trimmedNewKey ? encryptSystemSecret(trimmedNewKey) : '';
+  if (!storedApiKey) {
     if (existing?.apiKey?.trim()) {
-      apiKey = existing.apiKey.trim();
+      storedApiKey = existing.apiKey.trim();
     } else {
       throw new Error('首次保存必须填写 OpenAI API Key。');
     }
@@ -164,13 +166,13 @@ export async function updateSystemLLMConfig(input: {
       id: 'default',
       providerId: 'openai',
       modelId,
-      apiKey,
+      apiKey: storedApiKey,
       baseUrl,
     },
     update: {
       providerId: 'openai',
       modelId,
-      apiKey,
+      apiKey: storedApiKey,
       baseUrl,
     },
   });

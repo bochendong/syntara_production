@@ -7,7 +7,6 @@ import {
   BookOpen,
   Bug,
   Coins,
-  Cpu,
   LifeBuoy,
   LibraryBig,
   ListChecks,
@@ -20,6 +19,7 @@ import {
   Workflow,
 } from 'lucide-react';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
+import { useAuthStore } from '@/lib/store/auth';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { isDashboardRoute } from '@/lib/utils/dashboard-routes';
@@ -157,6 +157,8 @@ export function AppCoreNavList({
 }: AppCoreNavListProps) {
   const pathname = usePathname();
   const courseId = useCurrentCourseStore((s) => s.id);
+  const portalRole = useAuthStore((s) => s.role);
+  const canManageCourseContent = portalRole === 'TEACHER' || portalRole === 'ADMIN';
 
   const inCourseContext = Boolean(courseId);
   const isChatPage = pathname === '/chat' || pathname?.startsWith('/chat/');
@@ -188,7 +190,11 @@ export function AppCoreNavList({
   const topUpActive = pathname === '/top-up' || pathname?.startsWith('/top-up/');
   const creditsMarketActive =
     pathname === '/credits-market' || pathname?.startsWith('/credits-market/');
-  const creatorActive = pathname === '/creator' || pathname?.startsWith('/creator/');
+  const creatorActive =
+    pathname === '/creator' ||
+    pathname?.startsWith('/creator/') ||
+    pathname === '/teacher' ||
+    pathname?.startsWith('/teacher/');
   const profileActive = pathname === '/profile' || pathname?.startsWith('/profile/');
   const settingsActive = pathname === '/settings' || pathname?.startsWith('/settings/');
 
@@ -217,14 +223,18 @@ export function AppCoreNavList({
           icon: MessageCircle,
           active: learnActive,
         },
-        {
-          key: 'creator',
-          href: '/creator',
-          label: '创作者',
-          tooltip: '创作者工作台',
-          icon: Cpu,
-          active: creatorActive,
-        },
+        ...(canManageCourseContent
+          ? [
+              {
+                key: 'creator',
+                href: '/teacher',
+                label: '教师工作台',
+                tooltip: '教师课程工作台',
+                icon: BookOpen,
+                active: creatorActive,
+              },
+            ]
+          : []),
         {
           key: 'live2d',
           href: '/live2d',

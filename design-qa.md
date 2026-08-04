@@ -116,3 +116,173 @@
 2. Final — removed the outer background, border, inset padding, and frame shadow; avatar fills the App-icon footprint while badge and interactions remain intact. No remaining P0/P1/P2.
 
 final result: passed
+
+# 教师 AI 队列紧凑列表 Design QA — 2026-08-02
+
+## Evidence
+
+- Source visual truth: `browser-comment://Comment-1`（用户在当前任务中标注的 `1470 × 685` 页面截图）。
+- Browser-rendered implementation: `/private/tmp/syntara-ai-queue-compact-1470x685.png`。
+- Responsive implementation: `/private/tmp/syntara-ai-queue-compact-673x837.png`。
+- Implementation URL: `http://localhost:3000/teacher/courses/local-csc108-2026-summer`，AI 队列页签。
+- Source and desktop implementation are both evaluated at `1470 × 685` CSS px and `devicePixelRatio = 1`；无需密度归一化。
+- Combined comparison input: 当前任务中的用户标注截图与浏览器渲染截图在同一视觉验收轮次中对照；重点区域即完整的四行 AI 队列列表，无需额外裁切。
+
+## Findings
+
+- No actionable P0/P1/P2 differences remain for the requested density change.
+- 完成态队列项从源图约 `110px` 降至实测 `52–53px`，达到“约一半高度”的目标。
+- 文件标题、三个类型标签、当前阶段、百分比、进度条、完成状态、持久化状态和更新时间仍完整可见；删除的只是重复阶段文案与多余层级。
+- `1470px` 桌面宽度和 `673px` 窄屏均无横向溢出。窄屏采用两行布局，队列项为 `86–87px`，避免三段内容纵向堆叠回原高度。
+
+## Required fidelity surfaces
+
+- Fonts and typography: 沿用教师工作台现有字体、字重和状态色；主标题收为 14px，标签与时间使用 10–11px，长课程名继续截断。
+- Spacing and layout rhythm: 桌面改为单行三段网格，图标缩为 32px，纵向 padding 为 10px；四行节奏一致，边框和圆角保持不变。
+- Colors and visual tokens: 继续使用既有 emerald、indigo、rose、sky 语义状态色，没有引入新色板。
+- Image quality and asset fidelity: 本区域没有位图资产；继续使用项目现有图标组件，没有用文本或 CSS 图形替代。
+- Copy and content: 保留所有任务、处理阶段、进度、持久化和更新时间信息；移除左侧重复的“思维导图 · 思维导图已完成”等冗余描述。
+
+## Interaction and runtime evidence
+
+- `1470 × 685` 实测四项高度为 `53 / 53 / 53 / 52px`；页面与队列区域均无横向溢出。
+- `673 × 837` 实测四项高度为 `87 / 87 / 87 / 86px`；页面无横向溢出。
+- 最终浏览器日志为 0 error；focused ESLint、TypeScript typecheck、Prettier 和 `git diff --check` 均通过。
+
+## Comparison history
+
+1. Initial — P2: 每项约 110px，阶段和完成信息重复，右侧状态与时间分层，纵向空间浪费明显。
+2. Pass 1 — 桌面项降至约 71px，但仍没有完全达到用户要求的“一半高度”。
+3. Final — 标签与标题合并为同一行，状态和时间合并，桌面项稳定在 52–53px；增加窄屏两行布局，无剩余 P0/P1/P2。
+
+## Open Questions
+
+- None.
+
+final result: passed
+
+# 教师课程工作台窄屏 Design QA — 2026-08-02
+
+## Evidence
+
+- Source visual truth: `/var/folders/fy/p355vwwd683668y784t68b2c0000gn/T/codex-clipboard-683bddf6-549a-4c59-9d71-1d0b34ffb2af.png`
+- Implementation URL: `http://localhost:3000/teacher/courses/local-csc108-2026-summer`
+- Source pixels: `1345 × 1674`（Retina 2x）；implementation viewport: `673 × 837` CSS px。
+- State: 笔记本库，2 本笔记本、2 条课程顺序、2 名学生、3 个已移除项目。
+
+## Findings
+
+- 修复了窄屏仍提前进入桌面双栏的问题：课程顺序与笔记本区现在到 `lg` 才横向并排。
+- 修复了 2×4 强制等分网格把笔记本卡片压扁、裁切正文与按钮的问题：窄屏卡片采用固定 220px 高度的一列/两列自适应网格，空槽仅在 `xl` 桌面布局显示。
+- 标题、操作按钮、页签间距在窄屏下已收紧；页签保留横向滚动能力，不会压缩或截断页面宽度。
+- `673px` 宽度实测页面 `scrollWidth` 与 `innerWidth` 均为 `673px`，无横向溢出；两张笔记本卡片均完整为 `220 × 220px`。
+- No actionable P0/P1/P2 differences remain for this scoped responsive fix.
+
+## Interaction and runtime evidence
+
+- 在 `673 × 837` 视口实点切换“学生名单 · 2”并返回“笔记本库”，两个页签均正常工作。
+- 学生页切换后仍无横向溢出。
+- 最终浏览器日志检查为 0 error、0 warning。
+- Prettier、focused ESLint 与 TypeScript typecheck 均通过。
+
+## Comparison history
+
+1. Initial — P1: 固定 2×4 网格在窄屏可用高度内压缩卡片，卡片正文和操作按钮被裁切；桌面双栏断点也过早触发。
+2. Pass 1 — 改为窄屏一列/两列、220px 自适应行高，并隐藏无意义的空槽；卡片内容恢复完整。
+3. Final — 收紧窄屏标题、按钮和页签尺度，实测 673px 无横向溢出、两卡完整、页签交互正常。
+
+## Open Questions
+
+- None.
+
+final result: passed
+
+# 用量统计设计验收
+
+## Evidence
+
+- Source visual truth: `/Users/dongpochen/Desktop/截屏2026-08-01 下午7.35.26.png`
+- Browser-rendered implementation, overview: `/private/tmp/syntara-usage-top.png`
+- Browser-rendered implementation, chart and recent-usage table: `/private/tmp/syntara-usage-table.png`
+- Combined comparison input: `/private/tmp/syntara-usage-comparison.png`
+- Implementation URL: `http://localhost:3000/teacher/usage`
+- Browser viewport: 1230 x 685 CSS px in the Codex in-app browser.
+- Source pixels: 2274 x 1588. Implementation pixels: 1230 x 685 per capture. The comparison normalizes both columns to 900 px wide: source 900 x 628; each implementation capture 900 x 501. This removes density and frame-width differences while preserving component proportions.
+- State: authenticated teacher; two real local usage events; chart grouped by course; recent-event list populated.
+
+## Full-view comparison evidence
+
+The combined input shows the source and implementation together. The implementation preserves the source hierarchy and visual language: a large bordered white usage surface, title and period copy, upper-right grouping control, cumulative green area chart, horizontal grid lines, rotated dates, legend, dashed current-day marker, export action, and a bordered usage table. The existing teacher shell and four summary cards are intentional product-context additions.
+
+## Focused-region comparison evidence
+
+The second implementation capture focuses on the lower chart boundary, legend, export control, table header, and rows. It confirms aligned numeric columns, readable secondary metadata, restrained dividers, consistent rounded surfaces, and no clipping inside the horizontal table viewport. The first implementation capture separately verifies the app header, summary grid, chart title, selector, axis treatment, and current-day marker.
+
+## Primary interactions tested
+
+- Loaded `/teacher/usage` with persisted teacher authentication.
+- Switched chart grouping from model to course and verified the selected state and chart redraw.
+- Verified the recent-usage table renders indexed records and that the export button is enabled only when records exist.
+- Verified the chart tooltip, legend, axes, and current-day marker render from the daily aggregate data.
+
+## Console errors checked
+
+After the chart-container fix, switching from model to course produced no new browser console errors. TypeScript, focused ESLint, Prettier, and `git diff --check` also pass.
+
+## Findings
+
+- No actionable P0, P1, or P2 fidelity, usability, responsiveness, accessibility, icon, asset, or content findings remain.
+- Residual test gap: the local teacher currently has two usage events, so the ten-row visual density was verified structurally and through the indexed query limit rather than with ten populated rows.
+
+## Open Questions
+
+- None. Localization, the teacher shell, and the summary cards are intentional differences from the reference rather than fidelity defects.
+
+## Implementation Checklist
+
+- [x] Match the reference chart/table hierarchy within the existing teacher design system.
+- [x] Keep the recent-event query limited to ten indexed rows.
+- [x] Read totals and chart data from incremental aggregates instead of summing all raw events in the UI.
+- [x] Verify model/course grouping and chart redraw in the in-app browser.
+
+## Comparison history
+
+- Initial P1 behavior finding: changing the chart grouping conditionally removed the ECharts host node while the library was disposing its canvas, causing a React `removeChild` exception and a full-page crash.
+- Fix made: keep the chart host node mounted across loading and empty states, update its opacity, and render loading/empty overlays above the stable host.
+- Post-fix evidence: `/private/tmp/syntara-usage-top.png` and `/private/tmp/syntara-usage-table.png`; the grouping control was switched to course and browser logs since the interaction timestamp contained no errors.
+
+## Follow-up Polish
+
+- None required for this scope.
+
+final result: passed
+
+# 课程聊天多附件输入框 Design QA — 2026-08-04
+
+## Evidence
+
+- Source visual truth: `/Users/dongpochen/Desktop/截屏2026-08-03 下午10.16.05.png`。
+- Production URL: `https://www.chatai.ca/learn?courseId=cmsd1ytyh0001l504dlqghfwo&from=teacher`。
+- Production DOM evidence: authenticated MAT 102 teacher-chat page exposes a multi-select transient attachment input for image, PDF, text, Markdown, CSV, JSON, and XML, plus a separate multi-select course-source input.
+- Static verification: focused ESLint, TypeScript typecheck, Prettier, `git diff --check`, and a full production build passed.
+
+## Implemented fidelity surfaces
+
+- Composer keeps the existing Syntara visual tokens while matching the source hierarchy: horizontally scrollable attachment cards above the text row, compact file icon/name/type presentation, left-side add control, model selector, and circular send action.
+- Two PDF cards fit side by side on desktop; additional files continue in the horizontal rail instead of increasing the composer height.
+- File removal is available per card, and long names truncate without changing card height.
+- Teacher upload actions are separated into “添加到本次聊天” and “上传为课程资料”, so ephemeral files cannot be confused with persisted course content.
+
+## Data and interaction contract
+
+- The browser stores transient attachment bytes in IndexedDB. Remote conversation persistence keeps attachment metadata only.
+- PDF files are staged through OpenAI Files only for the active request, deleted after completion, and protected by a one-hour API-side expiration fallback.
+- Text-like files are decoded in the browser and bounded before prompt injection; images continue through the existing vision path.
+- Up to six attachments can be composed in one turn. Current per-file limits are PDF 4 MB, text-like 1 MB, and image 8 MB.
+
+## Remaining visual verification
+
+- The Chrome control extension repeatedly timed out and reset while opening the native file chooser. Because of that external blocker, the production DOM and deployment were verified, but a final production screenshot containing two selected PDF cards and an actual model reply could not be captured in this run.
+- No visual-pass claim is made for that unexecuted browser state. It should be rechecked manually or after browser control recovers.
+
+final result: implementation and deployment passed; production file-selection screenshot pending

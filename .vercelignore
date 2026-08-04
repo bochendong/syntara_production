@@ -1,0 +1,34 @@
+# Local build and dependency caches
+.next
+**/.next
+node_modules
+**/node_modules
+.turbo
+.vercel
+
+# Native desktop workspace is not part of the Next.js deployment
+apps/native
+
+# Local-only generated data and processing artifacts
+.data
+artifacts
+output
+outputs
+queue
+题库
+logs
+db-backups
+OpenMAIC-org
+tmp
+temp
+coverage
+public/generated-notebooks
+public/liv2d_poster
+
+# Machine-local files and secrets
+.git
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.DS_Store

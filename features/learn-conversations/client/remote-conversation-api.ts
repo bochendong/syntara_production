@@ -806,6 +806,8 @@ export async function syncRemoteLearnConversation(args: {
 
       for (const batch of batches) {
         let batchAccepted = false;
+        const alreadyAppliedMessageIds = new Set<string>();
+        const alreadyAppliedDeletedMessageIds = new Set<string>();
 
         for (let attempt = 0; attempt < MAX_CONVERSATION_SYNC_ATTEMPTS; attempt += 1) {
           if (deletedConversationKeys.has(key)) {
@@ -825,10 +827,14 @@ export async function syncRemoteLearnConversation(args: {
             conversationServerDeletedMessageIds.get(key) ?? new Set<string>();
           const requestBatch = {
             messages: batch.messages.filter(
-              (message) => !knownServerDeletedMessageIds.has(message.id),
+              (message) =>
+                !knownServerDeletedMessageIds.has(message.id) &&
+                !alreadyAppliedMessageIds.has(message.id),
             ),
             deletedMessageIds: batch.deletedMessageIds.filter(
-              (messageId) => !knownServerDeletedMessageIds.has(messageId),
+              (messageId) =>
+                !knownServerDeletedMessageIds.has(messageId) &&
+                !alreadyAppliedDeletedMessageIds.has(messageId),
             ),
           };
           if (requestBatch.messages.length === 0 && requestBatch.deletedMessageIds.length === 0) {
@@ -943,6 +949,32 @@ export async function syncRemoteLearnConversation(args: {
             if (remote.storage !== 'database') {
               conversationSyncErrors.set(key, '会话存储当前不可用，无法读取冲突后的最新版本。');
               return false;
+            }
+
+            // Another tab or device may have already committed this exact
+            // patch before our optimistic revision arrived. Treat identical
+            // remote messages and confirmed tombstones as an idempotent
+            // success instead of writing them again and causing a revision
+            // ping-pong between clients.
+            const remoteById = new Map(remote.messages.map((message) => [message.id, message]));
+            const remoteDeletedIds = new Set(remote.deletedMessageIds ?? []);
+            for (const message of requestBatch.messages) {
+              if (!jsonValueEqual(remoteById.get(message.id), message)) continue;
+              alreadyAppliedMessageIds.add(message.id);
+              acceptedDelta.messages.push(message);
+            }
+            for (const messageId of requestBatch.deletedMessageIds) {
+              if (!remoteDeletedIds.has(messageId)) continue;
+              alreadyAppliedDeletedMessageIds.add(messageId);
+              acceptedDelta.deletedMessageIds.push(messageId);
+            }
+            if (
+              alreadyAppliedMessageIds.size === batch.messages.length &&
+              alreadyAppliedDeletedMessageIds.size === batch.deletedMessageIds.length
+            ) {
+              acceptedRevision = remoteRevision;
+              batchAccepted = true;
+              break;
             }
 
             // Only title retains three-way merge semantics. Message upserts and

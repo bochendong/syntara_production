@@ -59,6 +59,10 @@ function cloneMessages(m: UIMessage<ChatMessageMetadata>[]) {
             payload: action.payload ? { ...action.payload } : undefined,
             evidence: action.evidence?.map((item) => ({ ...item })),
           })),
+          publicProgressSteps: msg.metadata.publicProgressSteps?.map((step) => ({
+            ...step,
+            evidence: step.evidence ? [...step.evidence] : undefined,
+          })),
         }
       : undefined,
   })) as UIMessage<ChatMessageMetadata>[];
@@ -144,6 +148,7 @@ async function consumeOneResponse(
   let cueUserReceived = false;
   let courseEvidence: CourseChatEvidenceSummary[] = [];
   const streamingStartedMessageIds = new Set<string>();
+  let pendingTextPublishTimer: ReturnType<typeof setTimeout> | null = null;
   let doneData: {
     totalAgents: number;
     agentHadContent?: boolean;
@@ -158,6 +163,26 @@ async function consumeOneResponse(
       .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
       .map((part) => part.text)
       .join('');
+
+  // Model providers can emit several tiny deltas in the same frame. Publishing
+  // every one of them forces the page to rebuild the full Markdown tree and can
+  // also wake persistence effects hundreds of times per answer. Keep the text
+  // genuinely streaming, but cap React updates to roughly one per frame.
+  const publishTextUpdate = () => {
+    if (pendingTextPublishTimer !== null) return;
+    pendingTextPublishTimer = setTimeout(() => {
+      pendingTextPublishTimer = null;
+      onMessages(cloneMessages(working));
+    }, 32);
+  };
+
+  const flushTextUpdate = () => {
+    if (pendingTextPublishTimer !== null) {
+      clearTimeout(pendingTextPublishTimer);
+      pendingTextPublishTimer = null;
+    }
+    onMessages(cloneMessages(working));
+  };
 
   const applyProgress = (
     phase: CourseReplyProgressPhase,
@@ -213,8 +238,61 @@ async function consumeOneResponse(
       updateQueuedAiTask(taskId, { description: detail.line });
     }
     dispatchCourseReplyProgress(detail);
-    if (changedMessage) onMessages(cloneMessages(working));
+    if (changedMessage) flushTextUpdate();
     return resolvedTargetId;
+  };
+
+  const applyPublicProgress = (data: {
+    line: string;
+    steps: NonNullable<ChatMessageMetadata['publicProgressSteps']>;
+    agentName?: string;
+  }) => {
+    let resolvedTargetId = currentMessageId || pendingProgressMessageId;
+    let changedMessage = false;
+    if (!resolvedTargetId) {
+      resolvedTargetId = `assistant-progress-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      pendingProgressMessageId = resolvedTargetId;
+      working.push({
+        id: resolvedTargetId,
+        role: 'assistant',
+        parts: [{ type: 'text', text: '' }],
+        metadata: {
+          senderName: data.agentName?.trim() || '课程助理',
+          originalRole: 'agent',
+          createdAt: Date.now(),
+          streaming: true,
+          progressOnly: true,
+          statusText: data.line,
+          publicProgressSteps: data.steps,
+        },
+      });
+      changedMessage = true;
+    } else {
+      const message = working.find((item) => item.id === resolvedTargetId);
+      if (message) {
+        message.metadata = {
+          ...message.metadata,
+          senderName: message.metadata?.senderName || data.agentName?.trim() || '课程助理',
+          originalRole: message.metadata?.originalRole || 'agent',
+          createdAt: message.metadata?.createdAt || Date.now(),
+          streaming: true,
+          statusText: data.line,
+          publicProgressSteps: data.steps,
+        };
+        changedMessage = true;
+      }
+    }
+    const detail = {
+      messageId: resolvedTargetId || undefined,
+      phase: 'agent_loading' as const,
+      agentName: data.agentName,
+      line: data.line,
+      steps: data.steps,
+      updatedAt: Date.now(),
+    };
+    if (taskId) updateQueuedAiTask(taskId, { description: data.line });
+    dispatchCourseReplyProgress(detail);
+    if (changedMessage) flushTextUpdate();
   };
 
   try {
@@ -249,6 +327,10 @@ async function consumeOneResponse(
               currentMessageId ?? pendingProgressMessageId,
               currentAgentName,
             );
+            break;
+          }
+          case 'public_progress': {
+            applyPublicProgress(event.data);
             break;
           }
           case 'agent_start': {
@@ -289,7 +371,7 @@ async function consumeOneResponse(
             }
             if (taskId) updateQueuedAiTask(taskId, { description: progress.line });
             dispatchCourseReplyProgress(progress);
-            onMessages(cloneMessages(working));
+            flushTextUpdate();
             break;
           }
           case 'text_delta': {
@@ -299,11 +381,32 @@ async function consumeOneResponse(
             if (!msg) break;
             if (!streamingStartedMessageIds.has(targetId)) {
               streamingStartedMessageIds.add(targetId);
-              const progress = buildCourseReplyProgress({
-                phase: 'streaming',
-                messageId: targetId,
-                agentName: msg.metadata?.senderName || currentAgentName,
-              });
+              const existingSteps = msg.metadata?.publicProgressSteps;
+              const teacherSteps = existingSteps?.some((step) => step.id.startsWith('teacher-'))
+                ? existingSteps.map((step) => ({
+                    ...step,
+                    status:
+                      step.id === 'teacher-answer'
+                        ? ('active' as const)
+                        : step.status === 'pending' || step.status === 'active'
+                          ? ('complete' as const)
+                          : step.status,
+                  }))
+                : null;
+              const progress = teacherSteps
+                ? {
+                    messageId: targetId,
+                    phase: 'streaming' as const,
+                    agentName: msg.metadata?.senderName || currentAgentName || undefined,
+                    line: '已经核对课程依据，正在输出回复。',
+                    steps: teacherSteps,
+                    updatedAt: Date.now(),
+                  }
+                : buildCourseReplyProgress({
+                    phase: 'streaming',
+                    messageId: targetId,
+                    agentName: msg.metadata?.senderName || currentAgentName,
+                  });
               msg.metadata = {
                 ...msg.metadata,
                 streaming: true,
@@ -322,7 +425,7 @@ async function consumeOneResponse(
                 part.text = (part.text || '') + event.data.content;
               }
             }
-            onMessages(cloneMessages(working));
+            publishTextUpdate();
             break;
           }
           case 'action': {
@@ -336,7 +439,7 @@ async function consumeOneResponse(
               ...msg.metadata,
               learningActions: [...(msg.metadata?.learningActions || []), learningAction],
             };
-            onMessages(cloneMessages(working));
+            flushTextUpdate();
             break;
           }
           case 'agent_end': {
@@ -348,7 +451,7 @@ async function consumeOneResponse(
                 statusText: undefined,
                 publicProgressSteps: undefined,
               };
-              onMessages(cloneMessages(working));
+              flushTextUpdate();
             }
             currentMessageId = null;
             currentAgentName = null;
@@ -369,7 +472,7 @@ async function consumeOneResponse(
               if (pendingIndex >= 0 && !messageText(working[pendingIndex]).trim()) {
                 working.splice(pendingIndex, 1);
                 pendingProgressMessageId = null;
-                onMessages(cloneMessages(working));
+                flushTextUpdate();
               }
             }
             applyProgress('completed', currentMessageId, currentAgentName, {
@@ -387,6 +490,11 @@ async function consumeOneResponse(
       }
     }
   } finally {
+    if (pendingTextPublishTimer !== null) {
+      clearTimeout(pendingTextPublishTimer);
+      pendingTextPublishTimer = null;
+      onMessages(cloneMessages(working));
+    }
     signal.removeEventListener('abort', cancelReader);
     reader.releaseLock();
   }
@@ -439,10 +547,16 @@ async function runCourseSideChatLoopUnqueued(
   } = params;
 
   const settingsState = useSettingsStore.getState();
-  const defaultMaxTurns = agentIds.length <= 1 ? 1 : 10;
-  const maxTurns = settingsState.maxTurns
-    ? parseInt(settingsState.maxTurns, 10) || defaultMaxTurns
-    : defaultMaxTurns;
+  const teacherCourseSingleTurn = surface === 'teacher-course-chat';
+  const defaultMaxTurns = teacherCourseSingleTurn || agentIds.length <= 1 ? 1 : 10;
+  // The teacher-course server already runs its notebook tools inside one
+  // ToolLoopAgent request. Re-entering the outer director loop repeats the
+  // same user question and can create up to ten near-duplicate replies.
+  const maxTurns = teacherCourseSingleTurn
+    ? 1
+    : settingsState.maxTurns
+      ? parseInt(settingsState.maxTurns, 10) || defaultMaxTurns
+      : defaultMaxTurns;
 
   let directorState: DirectorState | undefined;
   let turnCount = 0;
@@ -522,7 +636,20 @@ async function runCourseSideChatLoopUnqueued(
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`API error: ${response.status} - ${errorText}`);
+        let publicMessage = errorText.trim();
+        try {
+          const payload = JSON.parse(errorText) as { error?: unknown; message?: unknown };
+          const candidate =
+            typeof payload.error === 'string'
+              ? payload.error
+              : typeof payload.message === 'string'
+                ? payload.message
+                : '';
+          if (candidate.trim()) publicMessage = candidate.trim();
+        } catch {
+          /* Preserve plain-text upstream errors. */
+        }
+        throw new Error(publicMessage || `课程聊天请求失败（HTTP ${response.status}）`);
       }
 
       const consumed = await consumeOneResponse(

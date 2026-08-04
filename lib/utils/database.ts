@@ -38,6 +38,7 @@ export interface Snapshot {
 
 /** 课程容器：其下可包含多个笔记本（原 Stage 一条记录 = 一个笔记本） */
 export type CoursePurpose = 'research' | 'university' | 'daily';
+export type AcademicTerm = 'winter' | 'summer' | 'fall';
 
 export interface CourseRecord {
   id: string;
@@ -49,6 +50,8 @@ export interface CourseRecord {
   /** 用途为大学课程时可选 */
   university?: string;
   courseCode?: string;
+  academicYear?: number;
+  academicTerm?: AcademicTerm;
   /** 课程头像，如 `/avatars/notebook-agents/xxx.avif` */
   avatarUrl?: string;
   /** 是否在课程商城对其他人可见（仅服务端课程） */
@@ -70,6 +73,379 @@ export interface CourseRecord {
   speechStatus?: 'no_speech' | 'ready' | 'pending';
   createdAt: number;
   updatedAt: number;
+}
+
+export type LocalSchoolRole = 'student' | 'teacher';
+export type AcademicCourseStatus = 'active' | 'archived';
+export type CourseContentType = 'notebook' | 'problem_bank' | 'source';
+export type CourseSourceCategory =
+  | 'school_teacher_notes'
+  | 'crash_course_teacher_notes'
+  | 'problem_bank';
+
+export interface LocalNotebookSectionRecord {
+  id: string;
+  title: string;
+  summary?: string;
+  markdown: string;
+  order: number;
+  sourcePages: number[];
+}
+
+export interface LocalNotebookQualityCheck {
+  id: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface LocalNotebookGenerationRecord {
+  providerId: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+  sourcePageCount: number;
+  qualityScore: number;
+  qualityChecks: LocalNotebookQualityCheck[];
+  generatedAt: number;
+}
+
+export interface LocalMindMapRecord {
+  imageUrl: string;
+  width: number;
+  height: number;
+  mimeType: string;
+  sourceId: string;
+  providerId?: string;
+  model?: string;
+  generatedAt: number;
+}
+
+/** Browser-local account used by the web-only school portal during local testing. */
+export interface LocalSchoolAccountRecord {
+  id: string;
+  username: string;
+  passwordDigest: string;
+  displayName: string;
+  role: LocalSchoolRole;
+  email?: string;
+  phone?: string;
+  avatarUrl?: string;
+  attributes: Record<string, string | number | boolean>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** One delivery of a course, e.g. CSC108 · 2026 Winter. */
+export interface AcademicCourseRecord {
+  id: string;
+  /**
+   * Legacy creator attribution. Institution-synced course management authority
+   * comes from currentInstructorId + InstructorAssignmentRecord instead.
+   */
+  ownerId: string;
+  currentInstructorId?: string;
+  /** Stable identifier supplied by the education institution. */
+  institutionCourseId?: string;
+  institutionId?: string;
+  syncSource?: 'institution' | 'local';
+  lastSyncedAt?: number;
+  code: string;
+  name: string;
+  description?: string;
+  academicYear: number;
+  term: AcademicTerm;
+  status: AcademicCourseStatus;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CourseAccessRecord {
+  /** `${userId}:${courseId}` */
+  id: string;
+  userId: string;
+  courseId: string;
+  role: LocalSchoolRole;
+  /** Institution roster sync is the authority for production course access. */
+  source?: 'institution' | 'local';
+  externalEnrollmentId?: string;
+  /** Institution-supplied student profile snapshot for teacher roster display. */
+  studentName?: string;
+  studentPhone?: string;
+  studentAvatarUrl?: string;
+  /** Students only receive the AI course surface when this is not false. */
+  aiEnabled?: boolean;
+  status: 'active' | 'revoked';
+  grantedAt: number;
+  updatedAt: number;
+}
+
+/** One institution-authoritative interval in which a teacher manages a course offering. */
+export interface InstructorAssignmentRecord {
+  id: string;
+  courseId: string;
+  teacherId: string;
+  source: 'institution';
+  startedAt: number;
+  endedAt?: number;
+  observedAt: number;
+  createdAt: number;
+}
+
+/** A content asset exists once and can be referenced by many course deliveries. */
+export interface CourseContentAssetRecord {
+  id: string;
+  ownerId: string;
+  originCourseId: string;
+  type: CourseContentType;
+  title: string;
+  description?: string;
+  sourceCategory?: CourseSourceCategory;
+  sourceFileId?: string;
+  knowledgeRecordId?: string;
+  notebookSections?: LocalNotebookSectionRecord[];
+  generation?: LocalNotebookGenerationRecord;
+  mindMap?: LocalMindMapRecord;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Immutable snapshot pinned by a course content item. */
+export interface CourseContentAssetVersionRecord {
+  id: string;
+  assetId: string;
+  version: number;
+  title: string;
+  description?: string;
+  sourceCategory?: CourseSourceCategory;
+  sourceFileId?: string;
+  createdByTeacherId: string;
+  createdAt: number;
+}
+
+export type CourseContentItemMode = 'uploaded' | 'migrated' | 'generated';
+export type CourseContentItemStatus = 'active' | 'hidden' | 'superseded';
+
+/**
+ * Course-scoped content item. Migration reuses an immutable asset version while
+ * upload creates a new logical asset; neither action is deduplicated by content.
+ */
+export interface CourseContentReferenceRecord {
+  id: string;
+  courseId: string;
+  assetId: string;
+  assetVersionId?: string;
+  mode?: CourseContentItemMode;
+  status?: CourseContentItemStatus;
+  createdByTeacherId?: string;
+  inheritedFromCourseId?: string;
+  migrationBatchId?: string;
+  replacesReferenceId?: string;
+  hiddenAt?: number;
+  hiddenByTeacherId?: string;
+  hiddenReason?: string;
+  /** Zero-based teaching order for notebooks within this course. */
+  learningOrder?: number;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export type CourseContentEventAction =
+  | 'teacher_assigned'
+  | 'teacher_unassigned'
+  | 'uploaded'
+  | 'migrated'
+  | 'generated'
+  | 'hidden'
+  | 'restored'
+  | 'permanently_deleted'
+  | 'reordered'
+  | 'superseded';
+
+/** Append-only handoff and course-content audit event. */
+export interface CourseContentEventRecord {
+  id: string;
+  courseId: string;
+  referenceId?: string;
+  actorTeacherId?: string;
+  actorType: 'teacher' | 'institution_sync' | 'system';
+  action: CourseContentEventAction;
+  metadata: Record<string, unknown>;
+  createdAt: number;
+}
+
+export interface LocalSourceFileRecord {
+  id: string;
+  ownerId: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  blob?: Blob;
+  createdAt: number;
+}
+
+export interface LocalCourseKnowledgeRecord {
+  id: string;
+  courseId: string;
+  sourceFileId: string;
+  title: string;
+  text: string;
+  summary: string;
+  sourcePageCount?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type LocalKnowledgeQueueStatus = 'queued' | 'running' | 'completed' | 'failed';
+export type LocalKnowledgeQueueStage =
+  | 'queued'
+  | 'extracting'
+  | 'writing_knowledge'
+  | 'generating_notebook'
+  | 'creating_notebook_reference'
+  | 'generating_mind_map'
+  | 'persisting_mind_map'
+  | 'completed'
+  | 'failed';
+
+export interface LocalKnowledgeQueueJobRecord {
+  id: string;
+  kind?: 'knowledge_notebook' | 'mind_map';
+  courseId: string;
+  sourceFileId: string;
+  sourceAssetId: string;
+  notebookId?: string;
+  requestedBy: string;
+  status: LocalKnowledgeQueueStatus;
+  stage: LocalKnowledgeQueueStage;
+  progress: number;
+  attemptCount: number;
+  errorReason?: string;
+  createdAt: number;
+  startedAt?: number;
+  completedAt?: number;
+  updatedAt: number;
+}
+
+export interface LocalUsageEventRecord {
+  id: string;
+  teacherId: string;
+  courseId: string;
+  courseCode: string;
+  courseTitle: string;
+  jobId: string;
+  sourceFileId: string;
+  sourceFileName: string;
+  operation: 'pdf_notebook_generation';
+  providerId: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+  qualityScore: number;
+  createdAt: number;
+}
+
+/** Incremental daily bucket used by the usage chart instead of scanning raw events. */
+export interface LocalUsageDailyRollupRecord {
+  /** `${teacherId}:${utcDate}:${model}:${courseId}` */
+  id: string;
+  teacherId: string;
+  utcDate: string;
+  model: string;
+  providerId: string;
+  courseId: string;
+  courseCode: string;
+  jobCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+  updatedAt: number;
+}
+
+/** One row per teacher for constant-cost usage summary cards. */
+export interface LocalUsageTeacherTotalRecord {
+  teacherId: string;
+  jobCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+  firstEventAt: number;
+  lastEventAt: number;
+  updatedAt: number;
+}
+
+export type LocalAiUsageOperation =
+  | 'pdf_notebook_generation'
+  | 'mind_map_generation'
+  | 'course_chat'
+  | 'practice_help'
+  | 'review_plan'
+  | 'mini_lecture';
+
+/** Role-neutral AI usage audit row shared by the student and teacher portals. */
+export interface LocalAiUsageEventRecord {
+  id: string;
+  userId: string;
+  role: LocalSchoolRole;
+  courseId: string;
+  courseCode: string;
+  courseTitle: string;
+  operation: LocalAiUsageOperation;
+  activityLabel: string;
+  providerId: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+  qualityScore?: number;
+  sourceFileName?: string;
+  createdAt: number;
+}
+
+/** Incremental per-day bucket; charts read only their bounded date range. */
+export interface LocalAiUsageDailyRollupRecord {
+  /** `${userId}:${utcDate}:${model}:${courseId}:${operation}` */
+  id: string;
+  userId: string;
+  role: LocalSchoolRole;
+  utcDate: string;
+  model: string;
+  providerId: string;
+  courseId: string;
+  courseCode: string;
+  operation: LocalAiUsageOperation;
+  activityLabel: string;
+  callCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+  updatedAt: number;
+}
+
+/** One constant-cost total row per local user. */
+export interface LocalAiUsageTotalRecord {
+  userId: string;
+  role: LocalSchoolRole;
+  callCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+  firstEventAt: number;
+  lastEventAt: number;
+  updatedAt: number;
+}
+
+export function localUsageUtcDateKey(timestamp: number): string {
+  return new Date(timestamp).toISOString().slice(0, 10);
 }
 
 /** 课程商城「社区」列表项（含创作者与笔记本数量） */
@@ -263,7 +639,7 @@ export function mediaFileKey(stageId: string, elementId: string): string {
 // ==================== Database Definition ====================
 
 const DATABASE_NAME = 'Synatra-Database';
-const _DATABASE_VERSION = 9;
+const _DATABASE_VERSION = 19;
 
 /**
  * Synatra Database Instance
@@ -283,6 +659,23 @@ class SynatraDatabase extends Dexie {
   generatedAgents!: EntityTable<GeneratedAgentRecord, 'id'>;
   contactConversations!: EntityTable<ContactConversationRecord, 'id'>;
   agentTasks!: EntityTable<AgentTaskRecord, 'id'>;
+  localSchoolAccounts!: EntityTable<LocalSchoolAccountRecord, 'id'>;
+  academicCourses!: EntityTable<AcademicCourseRecord, 'id'>;
+  courseAccess!: EntityTable<CourseAccessRecord, 'id'>;
+  instructorAssignments!: EntityTable<InstructorAssignmentRecord, 'id'>;
+  courseContentAssets!: EntityTable<CourseContentAssetRecord, 'id'>;
+  courseContentAssetVersions!: EntityTable<CourseContentAssetVersionRecord, 'id'>;
+  courseContentReferences!: EntityTable<CourseContentReferenceRecord, 'id'>;
+  courseContentEvents!: EntityTable<CourseContentEventRecord, 'id'>;
+  localSourceFiles!: EntityTable<LocalSourceFileRecord, 'id'>;
+  localCourseKnowledge!: EntityTable<LocalCourseKnowledgeRecord, 'id'>;
+  localKnowledgeQueue!: EntityTable<LocalKnowledgeQueueJobRecord, 'id'>;
+  localUsageEvents!: EntityTable<LocalUsageEventRecord, 'id'>;
+  localUsageDailyRollups!: EntityTable<LocalUsageDailyRollupRecord, 'id'>;
+  localUsageTeacherTotals!: EntityTable<LocalUsageTeacherTotalRecord, 'teacherId'>;
+  localAiUsageEvents!: EntityTable<LocalAiUsageEventRecord, 'id'>;
+  localAiUsageDailyRollups!: EntityTable<LocalAiUsageDailyRollupRecord, 'id'>;
+  localAiUsageTotals!: EntityTable<LocalAiUsageTotalRecord, 'userId'>;
 
   constructor() {
     super(DATABASE_NAME);
@@ -500,6 +893,453 @@ class SynatraDatabase extends Dexie {
       agentTasks:
         'id, courseId, parentTaskId, status, contactKind, contactId, updatedAt, [courseId+status], [contactKind+contactId], [courseId+updatedAt], [parentTaskId+updatedAt]',
     });
+
+    // Version 14: web-only local school portal (roles, term courses, shared content, queue)
+    this.version(14).stores({
+      courses: 'id, updatedAt',
+      stages: 'id, updatedAt, courseId',
+      scenes: 'id, stageId, order, [stageId+order]',
+      audioFiles: 'id, createdAt',
+      imageFiles: 'id, createdAt',
+      snapshots: '++id',
+      chatSessions: 'id, stageId, [stageId+createdAt]',
+      playbackState: 'stageId',
+      stageOutlines: 'stageId',
+      mediaFiles: 'id, stageId, [stageId+type]',
+      generatedAgents: 'id, stageId',
+      contactConversations:
+        'id, courseId, kind, targetId, updatedAt, [kind+targetId], [courseId+kind], [courseId+updatedAt]',
+      agentTasks:
+        'id, courseId, parentTaskId, status, contactKind, contactId, updatedAt, [courseId+status], [contactKind+contactId], [courseId+updatedAt], [parentTaskId+updatedAt]',
+      localSchoolAccounts: 'id, &username, role, updatedAt, [role+username]',
+      academicCourses:
+        'id, ownerId, code, academicYear, term, status, updatedAt, [ownerId+updatedAt], [code+academicYear+term]',
+      courseAccess:
+        'id, userId, courseId, role, status, updatedAt, [userId+status], [courseId+status]',
+      courseContentAssets: 'id, ownerId, originCourseId, type, updatedAt, [originCourseId+type]',
+      courseContentReferences:
+        'id, courseId, assetId, inheritedFromCourseId, [courseId+createdAt], [assetId+courseId]',
+      localSourceFiles: 'id, ownerId, createdAt',
+      localCourseKnowledge: 'id, courseId, sourceFileId, updatedAt, [courseId+updatedAt]',
+      localKnowledgeQueue:
+        'id, courseId, sourceFileId, sourceAssetId, status, updatedAt, [courseId+updatedAt], [status+createdAt]',
+    });
+
+    // Version 15: generated markdown notebooks and browser-local LLM usage ledger.
+    this.version(15).stores({
+      courses: 'id, updatedAt',
+      stages: 'id, updatedAt, courseId',
+      scenes: 'id, stageId, order, [stageId+order]',
+      audioFiles: 'id, createdAt',
+      imageFiles: 'id, createdAt',
+      snapshots: '++id',
+      chatSessions: 'id, stageId, [stageId+createdAt]',
+      playbackState: 'stageId',
+      stageOutlines: 'stageId',
+      mediaFiles: 'id, stageId, [stageId+type]',
+      generatedAgents: 'id, stageId',
+      contactConversations:
+        'id, courseId, kind, targetId, updatedAt, [kind+targetId], [courseId+kind], [courseId+updatedAt]',
+      agentTasks:
+        'id, courseId, parentTaskId, status, contactKind, contactId, updatedAt, [courseId+status], [contactKind+contactId], [courseId+updatedAt], [parentTaskId+updatedAt]',
+      localSchoolAccounts: 'id, &username, role, updatedAt, [role+username]',
+      academicCourses:
+        'id, ownerId, code, academicYear, term, status, updatedAt, [ownerId+updatedAt], [code+academicYear+term]',
+      courseAccess:
+        'id, userId, courseId, role, status, updatedAt, [userId+status], [courseId+status]',
+      courseContentAssets: 'id, ownerId, originCourseId, type, updatedAt, [originCourseId+type]',
+      courseContentReferences:
+        'id, courseId, assetId, inheritedFromCourseId, [courseId+createdAt], [assetId+courseId]',
+      localSourceFiles: 'id, ownerId, createdAt',
+      localCourseKnowledge: 'id, courseId, sourceFileId, updatedAt, [courseId+updatedAt]',
+      localKnowledgeQueue:
+        'id, courseId, sourceFileId, sourceAssetId, status, updatedAt, [courseId+updatedAt], [status+createdAt]',
+      localUsageEvents:
+        'id, teacherId, courseId, jobId, operation, createdAt, [teacherId+createdAt], [courseId+createdAt]',
+    });
+
+    // Version 16: pre-aggregated usage buckets and constant-cost teacher totals.
+    this.version(16)
+      .stores({
+        courses: 'id, updatedAt',
+        stages: 'id, updatedAt, courseId',
+        scenes: 'id, stageId, order, [stageId+order]',
+        audioFiles: 'id, createdAt',
+        imageFiles: 'id, createdAt',
+        snapshots: '++id',
+        chatSessions: 'id, stageId, [stageId+createdAt]',
+        playbackState: 'stageId',
+        stageOutlines: 'stageId',
+        mediaFiles: 'id, stageId, [stageId+type]',
+        generatedAgents: 'id, stageId',
+        contactConversations:
+          'id, courseId, kind, targetId, updatedAt, [kind+targetId], [courseId+kind], [courseId+updatedAt]',
+        agentTasks:
+          'id, courseId, parentTaskId, status, contactKind, contactId, updatedAt, [courseId+status], [contactKind+contactId], [courseId+updatedAt], [parentTaskId+updatedAt]',
+        localSchoolAccounts: 'id, &username, role, updatedAt, [role+username]',
+        academicCourses:
+          'id, ownerId, code, academicYear, term, status, updatedAt, [ownerId+updatedAt], [code+academicYear+term]',
+        courseAccess:
+          'id, userId, courseId, role, status, updatedAt, [userId+status], [courseId+status]',
+        courseContentAssets: 'id, ownerId, originCourseId, type, updatedAt, [originCourseId+type]',
+        courseContentReferences:
+          'id, courseId, assetId, inheritedFromCourseId, [courseId+createdAt], [assetId+courseId]',
+        localSourceFiles: 'id, ownerId, createdAt',
+        localCourseKnowledge: 'id, courseId, sourceFileId, updatedAt, [courseId+updatedAt]',
+        localKnowledgeQueue:
+          'id, courseId, sourceFileId, sourceAssetId, status, updatedAt, [courseId+updatedAt], [status+createdAt]',
+        localUsageEvents:
+          'id, teacherId, courseId, jobId, operation, createdAt, [teacherId+createdAt], [courseId+createdAt]',
+        localUsageDailyRollups:
+          'id, teacherId, utcDate, model, courseId, updatedAt, [teacherId+utcDate], [teacherId+model+utcDate], [teacherId+courseId+utcDate]',
+        localUsageTeacherTotals: 'teacherId, updatedAt, lastEventAt',
+      })
+      .upgrade(async (tx) => {
+        const events: LocalUsageEventRecord[] = await tx.table('localUsageEvents').toArray();
+        const dailyById = new Map<string, LocalUsageDailyRollupRecord>();
+        const totalsByTeacher = new Map<string, LocalUsageTeacherTotalRecord>();
+
+        for (const event of events) {
+          const utcDate = localUsageUtcDateKey(event.createdAt);
+          const dailyId = `${event.teacherId}:${utcDate}:${event.model}:${event.courseId}`;
+          const daily = dailyById.get(dailyId) ?? {
+            id: dailyId,
+            teacherId: event.teacherId,
+            utcDate,
+            model: event.model,
+            providerId: event.providerId,
+            courseId: event.courseId,
+            courseCode: event.courseCode,
+            jobCount: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            cachedInputTokens: 0,
+            totalTokens: 0,
+            updatedAt: event.createdAt,
+          };
+          daily.jobCount += 1;
+          daily.inputTokens += event.inputTokens;
+          daily.outputTokens += event.outputTokens;
+          daily.cachedInputTokens += event.cachedInputTokens;
+          daily.totalTokens += event.totalTokens;
+          daily.updatedAt = Math.max(daily.updatedAt, event.createdAt);
+          dailyById.set(dailyId, daily);
+
+          const total = totalsByTeacher.get(event.teacherId) ?? {
+            teacherId: event.teacherId,
+            jobCount: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            cachedInputTokens: 0,
+            totalTokens: 0,
+            firstEventAt: event.createdAt,
+            lastEventAt: event.createdAt,
+            updatedAt: event.createdAt,
+          };
+          total.jobCount += 1;
+          total.inputTokens += event.inputTokens;
+          total.outputTokens += event.outputTokens;
+          total.cachedInputTokens += event.cachedInputTokens;
+          total.totalTokens += event.totalTokens;
+          total.firstEventAt = Math.min(total.firstEventAt, event.createdAt);
+          total.lastEventAt = Math.max(total.lastEventAt, event.createdAt);
+          total.updatedAt = Math.max(total.updatedAt, event.createdAt);
+          totalsByTeacher.set(event.teacherId, total);
+        }
+
+        if (dailyById.size > 0) {
+          await tx.table('localUsageDailyRollups').bulkPut(Array.from(dailyById.values()));
+        }
+        if (totalsByTeacher.size > 0) {
+          await tx.table('localUsageTeacherTotals').bulkPut(Array.from(totalsByTeacher.values()));
+        }
+      });
+
+    // Version 17: role-neutral usage ledger used by both student and teacher apps.
+    this.version(17)
+      .stores({
+        courses: 'id, updatedAt',
+        stages: 'id, updatedAt, courseId',
+        scenes: 'id, stageId, order, [stageId+order]',
+        audioFiles: 'id, createdAt',
+        imageFiles: 'id, createdAt',
+        snapshots: '++id',
+        chatSessions: 'id, stageId, [stageId+createdAt]',
+        playbackState: 'stageId',
+        stageOutlines: 'stageId',
+        mediaFiles: 'id, stageId, [stageId+type]',
+        generatedAgents: 'id, stageId',
+        contactConversations:
+          'id, courseId, kind, targetId, updatedAt, [kind+targetId], [courseId+kind], [courseId+updatedAt]',
+        agentTasks:
+          'id, courseId, parentTaskId, status, contactKind, contactId, updatedAt, [courseId+status], [contactKind+contactId], [courseId+updatedAt], [parentTaskId+updatedAt]',
+        localSchoolAccounts: 'id, &username, role, updatedAt, [role+username]',
+        academicCourses:
+          'id, ownerId, code, academicYear, term, status, updatedAt, [ownerId+updatedAt], [code+academicYear+term]',
+        courseAccess:
+          'id, userId, courseId, role, status, updatedAt, [userId+status], [courseId+status]',
+        courseContentAssets: 'id, ownerId, originCourseId, type, updatedAt, [originCourseId+type]',
+        courseContentReferences:
+          'id, courseId, assetId, inheritedFromCourseId, [courseId+createdAt], [assetId+courseId]',
+        localSourceFiles: 'id, ownerId, createdAt',
+        localCourseKnowledge: 'id, courseId, sourceFileId, updatedAt, [courseId+updatedAt]',
+        localKnowledgeQueue:
+          'id, courseId, sourceFileId, sourceAssetId, status, updatedAt, [courseId+updatedAt], [status+createdAt]',
+        localUsageEvents:
+          'id, teacherId, courseId, jobId, operation, createdAt, [teacherId+createdAt], [courseId+createdAt]',
+        localUsageDailyRollups:
+          'id, teacherId, utcDate, model, courseId, updatedAt, [teacherId+utcDate], [teacherId+model+utcDate], [teacherId+courseId+utcDate]',
+        localUsageTeacherTotals: 'teacherId, updatedAt, lastEventAt',
+        localAiUsageEvents:
+          'id, userId, role, courseId, operation, createdAt, [userId+createdAt], [userId+courseId+createdAt]',
+        localAiUsageDailyRollups:
+          'id, userId, role, utcDate, model, courseId, operation, updatedAt, [userId+utcDate], [userId+model+utcDate], [userId+courseId+utcDate], [userId+operation+utcDate]',
+        localAiUsageTotals: 'userId, role, updatedAt, lastEventAt',
+      })
+      .upgrade(async (tx) => {
+        const legacyEvents: LocalUsageEventRecord[] = await tx.table('localUsageEvents').toArray();
+        const events: LocalAiUsageEventRecord[] = legacyEvents.map((event) => ({
+          id: event.id,
+          userId: event.teacherId,
+          role: 'teacher',
+          courseId: event.courseId,
+          courseCode: event.courseCode,
+          courseTitle: event.courseTitle,
+          operation: event.operation,
+          activityLabel: 'PDF 笔记生成',
+          providerId: event.providerId,
+          model: event.model,
+          inputTokens: event.inputTokens,
+          outputTokens: event.outputTokens,
+          cachedInputTokens: event.cachedInputTokens,
+          totalTokens: event.totalTokens,
+          qualityScore: event.qualityScore,
+          sourceFileName: event.sourceFileName,
+          createdAt: event.createdAt,
+        }));
+        const dailyById = new Map<string, LocalAiUsageDailyRollupRecord>();
+        const totalsByUser = new Map<string, LocalAiUsageTotalRecord>();
+
+        for (const event of events) {
+          const utcDate = localUsageUtcDateKey(event.createdAt);
+          const dailyId = `${event.userId}:${utcDate}:${event.model}:${event.courseId}:${event.operation}`;
+          const daily = dailyById.get(dailyId) ?? {
+            id: dailyId,
+            userId: event.userId,
+            role: event.role,
+            utcDate,
+            model: event.model,
+            providerId: event.providerId,
+            courseId: event.courseId,
+            courseCode: event.courseCode,
+            operation: event.operation,
+            activityLabel: event.activityLabel,
+            callCount: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            cachedInputTokens: 0,
+            totalTokens: 0,
+            updatedAt: event.createdAt,
+          };
+          daily.callCount += 1;
+          daily.inputTokens += event.inputTokens;
+          daily.outputTokens += event.outputTokens;
+          daily.cachedInputTokens += event.cachedInputTokens;
+          daily.totalTokens += event.totalTokens;
+          daily.updatedAt = Math.max(daily.updatedAt, event.createdAt);
+          dailyById.set(dailyId, daily);
+
+          const total = totalsByUser.get(event.userId) ?? {
+            userId: event.userId,
+            role: event.role,
+            callCount: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            cachedInputTokens: 0,
+            totalTokens: 0,
+            firstEventAt: event.createdAt,
+            lastEventAt: event.createdAt,
+            updatedAt: event.createdAt,
+          };
+          total.callCount += 1;
+          total.inputTokens += event.inputTokens;
+          total.outputTokens += event.outputTokens;
+          total.cachedInputTokens += event.cachedInputTokens;
+          total.totalTokens += event.totalTokens;
+          total.firstEventAt = Math.min(total.firstEventAt, event.createdAt);
+          total.lastEventAt = Math.max(total.lastEventAt, event.createdAt);
+          total.updatedAt = Math.max(total.updatedAt, event.createdAt);
+          totalsByUser.set(event.userId, total);
+        }
+
+        if (events.length > 0) await tx.table('localAiUsageEvents').bulkPut(events);
+        if (dailyById.size > 0) {
+          await tx.table('localAiUsageDailyRollups').bulkPut(Array.from(dailyById.values()));
+        }
+        if (totalsByUser.size > 0) {
+          await tx.table('localAiUsageTotals').bulkPut(Array.from(totalsByUser.values()));
+        }
+      });
+
+    // Version 18: institution-owned course offerings, teacher handoff history,
+    // immutable content versions, and course-scoped soft deletion.
+    this.version(18)
+      .stores({
+        courses: 'id, updatedAt',
+        stages: 'id, updatedAt, courseId',
+        scenes: 'id, stageId, order, [stageId+order]',
+        audioFiles: 'id, createdAt',
+        imageFiles: 'id, createdAt',
+        snapshots: '++id',
+        chatSessions: 'id, stageId, [stageId+createdAt]',
+        playbackState: 'stageId',
+        stageOutlines: 'stageId',
+        mediaFiles: 'id, stageId, [stageId+type]',
+        generatedAgents: 'id, stageId',
+        contactConversations:
+          'id, courseId, kind, targetId, updatedAt, [kind+targetId], [courseId+kind], [courseId+updatedAt]',
+        agentTasks:
+          'id, courseId, parentTaskId, status, contactKind, contactId, updatedAt, [courseId+status], [contactKind+contactId], [courseId+updatedAt], [parentTaskId+updatedAt]',
+        localSchoolAccounts: 'id, &username, role, updatedAt, [role+username]',
+        academicCourses:
+          'id, currentInstructorId, code, academicYear, term, status, updatedAt, [currentInstructorId+updatedAt], [code+academicYear+term]',
+        courseAccess:
+          'id, userId, courseId, role, status, updatedAt, [userId+status], [courseId+status]',
+        instructorAssignments:
+          'id, courseId, teacherId, endedAt, observedAt, [courseId+endedAt], [teacherId+startedAt]',
+        courseContentAssets: 'id, ownerId, originCourseId, type, updatedAt, [originCourseId+type]',
+        courseContentAssetVersions:
+          'id, assetId, version, createdAt, [assetId+version], createdByTeacherId',
+        courseContentReferences:
+          'id, courseId, assetId, status, mode, inheritedFromCourseId, [courseId+status], [courseId+createdAt], [assetId+courseId]',
+        courseContentEvents: 'id, courseId, referenceId, action, createdAt, [courseId+createdAt]',
+        localSourceFiles: 'id, ownerId, createdAt',
+        localCourseKnowledge: 'id, courseId, sourceFileId, updatedAt, [courseId+updatedAt]',
+        localKnowledgeQueue:
+          'id, courseId, sourceFileId, sourceAssetId, status, updatedAt, [courseId+updatedAt], [status+createdAt]',
+        localUsageEvents:
+          'id, teacherId, courseId, jobId, operation, createdAt, [teacherId+createdAt], [courseId+createdAt]',
+        localUsageDailyRollups:
+          'id, teacherId, utcDate, model, courseId, updatedAt, [teacherId+utcDate], [teacherId+model+utcDate], [teacherId+courseId+utcDate]',
+        localUsageTeacherTotals: 'teacherId, updatedAt, lastEventAt',
+        localAiUsageEvents:
+          'id, userId, role, courseId, operation, createdAt, [userId+createdAt], [userId+courseId+createdAt]',
+        localAiUsageDailyRollups:
+          'id, userId, role, utcDate, model, courseId, operation, updatedAt, [userId+utcDate], [userId+model+utcDate], [userId+courseId+utcDate], [userId+operation+utcDate]',
+        localAiUsageTotals: 'userId, role, updatedAt, lastEventAt',
+      })
+      .upgrade(async (tx) => {
+        const courses: AcademicCourseRecord[] = await tx.table('academicCourses').toArray();
+        const accesses: CourseAccessRecord[] = await tx.table('courseAccess').toArray();
+        const assets: CourseContentAssetRecord[] = await tx.table('courseContentAssets').toArray();
+        const references: CourseContentReferenceRecord[] = await tx
+          .table('courseContentReferences')
+          .toArray();
+        const assetById = new Map(assets.map((asset) => [asset.id, asset] as const));
+
+        for (const course of courses) {
+          const activeTeachers = accesses
+            .filter(
+              (access) =>
+                access.courseId === course.id &&
+                access.role === 'teacher' &&
+                access.source === 'institution' &&
+                access.status === 'active',
+            )
+            .sort((left, right) => right.updatedAt - left.updatedAt);
+          const current = activeTeachers[0];
+          await tx.table('academicCourses').update(course.id, {
+            currentInstructorId: current?.userId,
+          });
+          for (const stale of activeTeachers.slice(1)) {
+            await tx.table('courseAccess').update(stale.id, {
+              status: 'revoked',
+              updatedAt: current?.updatedAt ?? stale.updatedAt,
+            });
+          }
+        }
+
+        const currentTeacherByCourse = new Map<string, string>();
+        for (const course of courses) {
+          const currentTeacher = accesses
+            .filter(
+              (access) =>
+                access.courseId === course.id &&
+                access.role === 'teacher' &&
+                access.source === 'institution' &&
+                access.status === 'active',
+            )
+            .sort((left, right) => right.updatedAt - left.updatedAt)[0];
+          if (currentTeacher) currentTeacherByCourse.set(course.id, currentTeacher.userId);
+        }
+
+        const assignments: InstructorAssignmentRecord[] = accesses
+          .filter((access) => access.role === 'teacher' && access.source === 'institution')
+          .map((access) => {
+            const isCurrent = currentTeacherByCourse.get(access.courseId) === access.userId;
+            return {
+              id: `assignment:${access.id}:${access.grantedAt}`,
+              courseId: access.courseId,
+              teacherId: access.userId,
+              source: 'institution',
+              startedAt: access.grantedAt,
+              ...(isCurrent ? {} : { endedAt: access.updatedAt }),
+              observedAt: access.updatedAt,
+              createdAt: access.grantedAt,
+            };
+          });
+        if (assignments.length > 0) {
+          await tx.table('instructorAssignments').bulkPut(assignments);
+        }
+
+        const versions: CourseContentAssetVersionRecord[] = assets.map((asset) => ({
+          id: `asset-version:${asset.id}:1`,
+          assetId: asset.id,
+          version: 1,
+          title: asset.title,
+          description: asset.description,
+          sourceCategory: asset.sourceCategory,
+          sourceFileId: asset.sourceFileId,
+          createdByTeacherId: asset.ownerId,
+          createdAt: asset.createdAt,
+        }));
+        if (versions.length > 0) {
+          await tx.table('courseContentAssetVersions').bulkPut(versions);
+        }
+
+        for (const reference of references) {
+          const asset = assetById.get(reference.assetId);
+          await tx.table('courseContentReferences').update(reference.id, {
+            assetVersionId: `asset-version:${reference.assetId}:1`,
+            mode: reference.inheritedFromCourseId ? 'migrated' : 'uploaded',
+            status: 'active',
+            createdByTeacherId: asset?.ownerId,
+            updatedAt: reference.createdAt,
+          });
+        }
+      });
+
+    // Version 19: the school portal is server-backed. Remove its obsolete
+    // browser-local course, roster, content, queue, and usage tables.
+    this.version(19).stores({
+      localSchoolAccounts: null,
+      academicCourses: null,
+      courseAccess: null,
+      instructorAssignments: null,
+      courseContentAssets: null,
+      courseContentAssetVersions: null,
+      courseContentReferences: null,
+      courseContentEvents: null,
+      localSourceFiles: null,
+      localCourseKnowledge: null,
+      localKnowledgeQueue: null,
+      localUsageEvents: null,
+      localUsageDailyRollups: null,
+      localUsageTeacherTotals: null,
+      localAiUsageEvents: null,
+      localAiUsageDailyRollups: null,
+      localAiUsageTotals: null,
+    });
   }
 }
 
@@ -586,23 +1426,9 @@ export async function getScenesByStageId(stageId: string): Promise<SceneRecord[]
  * Delete a course and all its related data
  */
 export async function deleteStageWithRelatedData(stageId: string): Promise<void> {
-  const headers: Record<string, string> = {};
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem('synatra-auth');
-      if (raw) {
-        const parsed = JSON.parse(raw) as { state?: { userId?: string } };
-        const uid = parsed?.state?.userId?.trim();
-        if (uid) headers['x-user-id'] = uid;
-      }
-    } catch {
-      // ignore parse failures
-    }
-  }
   const resp = await fetch(`/api/notebooks/${encodeURIComponent(stageId)}`, {
     method: 'DELETE',
     credentials: 'include',
-    headers,
   });
   if (!resp.ok) {
     const data = await resp.json().catch(() => ({ error: '删除失败' }));

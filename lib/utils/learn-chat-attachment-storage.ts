@@ -88,15 +88,12 @@ function normalizeReference(
   blob?: Blob,
 ): LearnChatAttachmentReference {
   const mimeType = requiredText(attachment.mimeType || blob?.type || '', 'MIME type');
-  if (!mimeType.toLowerCase().startsWith('image/')) {
-    throw new Error('Learn chat attachment must be an image.');
-  }
   const suppliedSize = attachment.size;
   const size =
     Number.isFinite(suppliedSize) && suppliedSize >= 0 ? suppliedSize : (blob?.size ?? 0);
   return {
     id: requiredText(attachment.id, 'id'),
-    name: attachment.name.trim() || '图片',
+    name: attachment.name.trim() || '附件',
     mimeType,
     size,
     width: normalizePositiveDimension(attachment.width),
@@ -127,8 +124,8 @@ function referenceFromRecord(record: StoredChatAttachmentBlob): LearnChatAttachm
   return normalizeReference(
     {
       id: record.id,
-      name: record.name || '图片',
-      mimeType: record.mimeType || record.blob.type || 'image/png',
+      name: record.name || '附件',
+      mimeType: record.mimeType || record.blob.type || 'application/octet-stream',
       size:
         Number.isFinite(record.size) && record.size !== undefined ? record.size : record.blob.size,
       width: record.width,
@@ -181,10 +178,6 @@ export function learnChatAttachmentDataUrlToBlob(dataUrl: string): Blob {
   const payload = dataUrl.slice(separator + 1);
   const headerParts = header.split(';');
   const mimeType = headerParts[0] || 'application/octet-stream';
-  if (!mimeType.toLowerCase().startsWith('image/')) {
-    throw new Error('Learn chat attachment data URL must contain an image.');
-  }
-
   if (headerParts.includes('base64')) {
     if (typeof atob !== 'function') {
       throw new Error('Base64 decoding is unavailable in this browser context.');
@@ -201,17 +194,12 @@ export function learnChatAttachmentDataUrlToBlob(dataUrl: string): Blob {
 }
 
 /**
- * Recreate a transport-only data URL when a restored image must be sent to a model again.
+ * Recreate a transport-only data URL when a restored attachment must be sent to a model again.
  * Callers must keep the result in memory and exclude it from conversation persistence payloads.
  */
 export function learnChatAttachmentBlobToDataUrl(blob: Blob): Promise<string> {
-  if (
-    typeof Blob === 'undefined' ||
-    !(blob instanceof Blob) ||
-    blob.size <= 0 ||
-    !blob.type.toLowerCase().startsWith('image/')
-  ) {
-    return Promise.reject(new Error('Learn chat attachment must be a non-empty image Blob.'));
+  if (typeof Blob === 'undefined' || !(blob instanceof Blob) || blob.size <= 0) {
+    return Promise.reject(new Error('Learn chat attachment must be a non-empty Blob.'));
   }
   if (typeof FileReader === 'undefined') {
     return Promise.reject(new Error('FileReader is unavailable in this browser context.'));
@@ -222,16 +210,16 @@ export function learnChatAttachmentBlobToDataUrl(blob: Blob): Promise<string> {
     reader.onload = () =>
       typeof reader.result === 'string'
         ? resolve(reader.result)
-        : reject(new Error('Failed to encode learn chat attachment image.'));
+        : reject(new Error('Failed to encode learn chat attachment.'));
     reader.onerror = () =>
-      reject(reader.error || new Error('Failed to encode learn chat attachment image.'));
+      reject(reader.error || new Error('Failed to encode learn chat attachment.'));
     reader.onabort = () => reject(new Error('Learn chat attachment encoding was aborted.'));
     reader.readAsDataURL(blob);
   });
 }
 
 /**
- * Save binary image content under its remote-safe attachment id.
+ * Save binary attachment content under its remote-safe attachment id.
  * Only the returned reference should be included in PostgreSQL conversation JSON.
  */
 export async function saveLearnChatAttachment(args: {

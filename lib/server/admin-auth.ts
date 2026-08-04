@@ -15,7 +15,11 @@ export interface AdminIdentity {
 export const ADMIN_SESSION_COOKIE = 'synatra-admin-session';
 
 function buildFallbackUserId(email: string): string {
-  const safe = email.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const safe = email
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
   return `admin-${safe || 'anonymous'}`;
 }
 
@@ -175,17 +179,20 @@ async function resolveIdentity(): Promise<AdminIdentity | null> {
   const session = await requireServerSession();
   const sessionUserId = session?.user?.id?.trim();
   if (sessionUserId) {
-    const resolvedUserId = (await ensureUserForApi({
-      userId: sessionUserId,
-      email: session?.user?.email,
-      name: session?.user?.name,
-    })) || sessionUserId;
+    const resolvedUserId =
+      (await ensureUserForApi({
+        userId: sessionUserId,
+        email: session?.user?.email,
+        name: session?.user?.name,
+      })) || sessionUserId;
     return {
       userId: resolvedUserId,
       email: session?.user?.email?.trim().toLowerCase() || undefined,
       name: session?.user?.name?.trim() || undefined,
     };
   }
+
+  if (process.env.NODE_ENV === 'production') return null;
 
   const h = await headers();
   const userId = h.get('x-user-id')?.trim();

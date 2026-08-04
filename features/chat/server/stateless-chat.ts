@@ -15,6 +15,11 @@ import {
 import { shouldUseDirectCourseAnswerFastPath } from '@/features/learn-core/server/decision-chain';
 import { verifyTrustedLearnAnswererHandoff } from '@/features/learn-core/server/trusted-answerer-handoff';
 import { inferMemorySearchIntent } from '@/lib/server/memory-search-intent';
+import { runTeacherCourseTurn } from '@/features/chat/server/teacher-course-agent';
+import {
+  COURSE_DATABASE_UNAVAILABLE_MESSAGE,
+  isDatabaseUnavailableError,
+} from '@/lib/server/json-error-response';
 
 const log = createLogger('Chat API');
 const HEARTBEAT_INTERVAL_MS = 15_000;
@@ -45,23 +50,29 @@ function stripTrustedLearnHandoffToken(body: StatelessChatRequest): StatelessCha
 
 export async function handleStatelessChatRequest(req: NextRequest) {
   const encoder = new TextEncoder();
-
   try {
-    const requestedBody: StatelessChatRequest = await req.json();
-    const validationError = validateStatelessChatRequest(requestedBody);
+    const parsedBody = (await req.json()) as StatelessChatRequest | null;
+    if (!parsedBody || typeof parsedBody !== 'object') {
+      return apiError('INVALID_REQUEST', 400, 'Request body must be a JSON object');
+    }
+    const validationError = validateStatelessChatRequest(parsedBody);
     if (validationError) return validationError;
 
-    const { model: languageModel, modelString } = await resolveModel(
+    const {
+      model: languageModel,
+      modelString,
+      providerId,
+    } = await resolveModel(
       {
-        modelString: requestedBody.model,
-        apiKey: requestedBody.apiKey,
-        baseUrl: requestedBody.baseUrl,
-        providerType: requestedBody.providerType,
-        requiresApiKey: requestedBody.requiresApiKey,
+        modelString: parsedBody.model,
+        apiKey: parsedBody.apiKey,
+        baseUrl: parsedBody.baseUrl,
+        providerType: parsedBody.providerType,
+        requiresApiKey: parsedBody.requiresApiKey,
       },
       { allowOpenAIModelOverride: true },
     );
-    const trusted = await resolveTrustedCourseTurn({ body: requestedBody });
+    const trusted = await resolveTrustedCourseTurn({ body: parsedBody });
     const body = trusted.body;
 
     log.info(`Processing request [model=${modelString}]`);
@@ -99,6 +110,29 @@ export async function handleStatelessChatRequest(req: NextRequest) {
           req,
           '/api/chat',
           async () => {
+            if (body.config.surface === 'teacher-course-chat') {
+              if (!trusted.courseAccess || trusted.courseAccess.role !== 'owner') {
+                throw new TrustedCourseTurnError(
+                  'unauthorized',
+                  403,
+                  'Teacher course chat requires verified course owner access.',
+                );
+              }
+              await runTeacherCourseTurn({
+                body: stripTrustedLearnHandoffToken(body),
+                signal,
+                languageModel,
+                modelString,
+                providerId,
+                access: trusted.courseAccess,
+                onEvent: async (event) => {
+                  if (signal.aborted) return;
+                  await writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+                },
+              });
+              return;
+            }
+
             let trustedBody = body;
             if (
               body.config.surface === 'course-chat' &&
@@ -187,10 +221,15 @@ export async function handleStatelessChatRequest(req: NextRequest) {
         log.error('Stream error:', error);
 
         try {
+          const publicMessage = isDatabaseUnavailableError(error)
+            ? COURSE_DATABASE_UNAVAILABLE_MESSAGE
+            : error instanceof Error
+              ? error.message
+              : String(error);
           const errorEvent: StatelessEvent = {
             type: 'error',
             data: {
-              message: error instanceof Error ? error.message : String(error),
+              message: publicMessage,
             },
           };
           await writer.write(encoder.encode(`data: ${JSON.stringify(errorEvent)}\n\n`));
@@ -210,6 +249,9 @@ export async function handleStatelessChatRequest(req: NextRequest) {
     });
   } catch (error) {
     log.error('Error:', error);
+    if (isDatabaseUnavailableError(error)) {
+      return apiError('INTERNAL_ERROR', 503, COURSE_DATABASE_UNAVAILABLE_MESSAGE);
+    }
     if (error instanceof TrustedCourseTurnError) {
       return apiError(
         error.code === 'missing_course_id' ? 'MISSING_REQUIRED_FIELD' : 'INVALID_REQUEST',

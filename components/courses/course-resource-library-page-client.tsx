@@ -67,6 +67,7 @@ import { getCourseOrThrow } from '@/lib/utils/course-storage';
 import type { CourseRecord } from '@/lib/utils/database';
 import {
   deleteCourseSourceUpload,
+  getCourseSourceUploadText,
   listCourseSourceUploads,
   retryCourseSourceIndex,
   type CourseSourceUploadRecord,
@@ -3924,6 +3925,12 @@ export function CourseResourceLibraryPageClient({
   const [expandedSourceTextHashes, setExpandedSourceTextHashes] = useState<Set<string>>(
     () => new Set(),
   );
+  const [loadedSourceTextHashes, setLoadedSourceTextHashes] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [loadingSourceTextHashes, setLoadingSourceTextHashes] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [memoryVersion, setMemoryVersion] = useState(0);
   const searchRequestIdRef = useRef(0);
   const resourceCourseIdRef = useRef(courseId);
@@ -3943,6 +3950,9 @@ export function CourseResourceLibraryPageClient({
     setSelectedSearchItemId(null);
     setSelectedMemoryItemId(null);
     setSelectedKnowledgeNodeId(null);
+    setExpandedSourceTextHashes(new Set());
+    setLoadedSourceTextHashes(new Set());
+    setLoadingSourceTextHashes(new Set());
   }, [courseId]);
 
   useEffect(() => {
@@ -4016,7 +4026,7 @@ export function CourseResourceLibraryPageClient({
     setSourceLoadStatus('loading');
     setSourceLoadError(null);
     void listCourseSourceUploads(courseId, {
-      includeText: true,
+      includeText: false,
       includeArtifacts: false,
       signal: controller.signal,
       timeoutMs: 60_000,
@@ -4418,6 +4428,43 @@ export function CourseResourceLibraryPageClient({
       }
     },
     [courseId, locale, reindexingSourceHash],
+  );
+
+  const handleSourceTextToggle = useCallback(
+    async (upload: CourseSourceUploadRecord, open: boolean) => {
+      setExpandedSourceTextHashes((current) => {
+        const next = new Set(current);
+        if (open) next.add(upload.sourceHash);
+        else next.delete(upload.sourceHash);
+        return next;
+      });
+      if (!open || loadedSourceTextHashes.has(upload.sourceHash)) return;
+
+      setLoadingSourceTextHashes((current) => new Set(current).add(upload.sourceHash));
+      try {
+        const detail = await getCourseSourceUploadText({
+          courseId,
+          sourceHash: upload.sourceHash,
+        });
+        setSourceUploads((current) =>
+          current.map((item) =>
+            item.sourceHash === upload.sourceHash
+              ? { ...item, textSections: detail.textSections }
+              : item,
+          ),
+        );
+        setLoadedSourceTextHashes((current) => new Set(current).add(upload.sourceHash));
+      } catch (textError) {
+        toast.error(textError instanceof Error ? textError.message : '资料正文读取失败');
+      } finally {
+        setLoadingSourceTextHashes((current) => {
+          const next = new Set(current);
+          next.delete(upload.sourceHash);
+          return next;
+        });
+      }
+    },
+    [courseId, loadedSourceTextHashes],
   );
 
   const bankStats = useMemo(() => {
@@ -6012,13 +6059,7 @@ export function CourseResourceLibraryPageClient({
                 <details
                   className="group mt-3 overflow-hidden rounded-xl border border-sky-200/80 bg-sky-50/65 text-xs open:bg-white dark:border-sky-400/20 dark:bg-sky-500/[0.08] dark:open:bg-white/[0.045]"
                   onToggle={(event) => {
-                    const open = event.currentTarget.open;
-                    setExpandedSourceTextHashes((current) => {
-                      const next = new Set(current);
-                      if (open) next.add(upload.sourceHash);
-                      else next.delete(upload.sourceHash);
-                      return next;
-                    });
+                    void handleSourceTextToggle(upload, event.currentTarget.open);
                   }}
                 >
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 font-semibold text-sky-800 marker:content-none dark:text-sky-100">
@@ -6027,11 +6068,21 @@ export function CourseResourceLibraryPageClient({
                       资料文本
                     </span>
                     <span className="shrink-0 text-[11px] font-medium text-sky-600/80 dark:text-sky-200/75">
-                      {textSections.length} 节 · 点击展开
+                      {loadingSourceTextHashes.has(upload.sourceHash)
+                        ? '正在载入正文…'
+                        : loadedSourceTextHashes.has(upload.sourceHash)
+                          ? `${textSections.length} 节`
+                          : '点击后载入正文'}
                     </span>
                   </summary>
                   <div className="space-y-2 border-t border-sky-100 p-2.5 dark:border-sky-400/15">
-                    {expandedSourceTextHashes.has(upload.sourceHash) && textSections.length > 0 ? (
+                    {loadingSourceTextHashes.has(upload.sourceHash) ? (
+                      <p className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs leading-5 text-slate-500 dark:border-white/10 dark:text-slate-300">
+                        <Loader2 className="size-3.5 animate-spin" />
+                        正在按需读取资料正文…
+                      </p>
+                    ) : expandedSourceTextHashes.has(upload.sourceHash) &&
+                      textSections.length > 0 ? (
                       textSections.map((section, index) => (
                         <section
                           key={section.id}

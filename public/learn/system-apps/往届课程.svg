@@ -1,0 +1,75 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+
+<defs>
+  <linearGradient id="tileBg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#FFFFFF"/>
+    <stop offset="58%" stop-color="#FBFCFF"/>
+    <stop offset="100%" stop-color="#F1F4FB"/>
+  </linearGradient>
+  <linearGradient id="tileHighlight" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+    <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+  </linearGradient>
+  <filter id="tileShadow" x="-25%" y="-25%" width="150%" height="160%">
+    <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#667085" flood-opacity="0.20"/>
+  </filter>
+  <filter id="softShadow" x="-35%" y="-35%" width="170%" height="180%">
+    <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#52608F" flood-opacity="0.25"/>
+  </filter>
+  <filter id="innerGlow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="10" result="blur"/>
+  </filter>
+</defs>
+
+
+<g transform="translate(256 256) scale(0.9090909091) translate(-256 -256)"><rect x="36" y="36" width="440" height="440" rx="92" fill="url(#tileBg)" filter="url(#tileShadow)"/>
+<path d="M128 64H384C427 64 448 86 448 128V206          C395 177 319 160 256 160C193 160 117 177 64 206V128          C64 86 86 64 128 64Z" fill="url(#tileHighlight)" opacity="0.68"/>
+
+<g filter="url(#softShadow)">
+  <!-- back binder -->
+  <path d="M242 146C242 131 254 120 269 120H360C379 120 394 135 394 154V363            C394 380 381 394 364 394H275C257 394 242 379 242 361Z" fill="url(#bookBack)"/>
+  <path d="M261 146C261 135 270 126 281 126H356C370 126 381 137 381 151V359            C381 371 371 381 359 381H282C270 381 261 372 261 360Z" fill="#FFFFFF" opacity="0.24"/>
+
+  <!-- middle binder -->
+  <path d="M196 158C196 143 208 132 223 132H328C347 132 362 147 362 166V374            C362 391 349 405 332 405H229C211 405 196 390 196 372Z" fill="url(#bookMid)"/>
+  <path d="M213 159C213 148 222 139 233 139H323C337 139 348 150 348 164V369            C348 381 338 391 326 391H234C222 391 213 382 213 370Z" fill="url(#pageGlow)" opacity="0.26"/>
+
+  <!-- front book -->
+  <path d="M145 172C145 154 159 140 177 140H292C312 140 328 156 328 176V383            C328 402 313 417 294 417H179C160 417 145 402 145 383Z" fill="url(#bookFront)"/>
+  <path d="M160 173C160 163 168 155 178 155H287C301 155 312 166 312 180V376            C312 390 301 401 287 401H178C168 401 160 393 160 383Z" fill="#FFFFFF" opacity="0.10"/>
+
+  <!-- spine -->
+  <rect x="145" y="172" width="34" height="245" rx="17" fill="#214ABF" opacity="0.40"/>
+
+  <!-- title plate -->
+  <rect x="188" y="226" width="92" height="42" rx="11" fill="#D7E6FF" opacity="0.88"/>
+  <rect x="199" y="237" width="70" height="20" rx="7" fill="#FFFFFF" opacity="0.32"/>
+
+  <!-- bookmark -->
+  <path d="M218 400V452L240 439L262 452V400Z" fill="#5D8FF8"/>
+  <path d="M218 400H262V414H218Z" fill="#9CC1FF" opacity="0.72"/>
+
+  <!-- soft highlight -->
+  <path d="M172 168H286C298 168 307 177 307 189V205            C268 188 218 188 166 205V176C166 172 168 169 172 168Z" fill="#FFFFFF" opacity="0.28"/>
+</g>
+</g><defs>
+  <linearGradient id="bookBack" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#C7B7FF"/>
+    <stop offset="100%" stop-color="#7B5CE8"/>
+  </linearGradient>
+  <linearGradient id="bookMid" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#7FD5FF"/>
+    <stop offset="100%" stop-color="#5D79F6"/>
+  </linearGradient>
+  <linearGradient id="bookFront" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#68A8FF"/>
+    <stop offset="100%" stop-color="#315BD9"/>
+  </linearGradient>
+  <linearGradient id="pageGlow" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#FFFFFF"/>
+    <stop offset="100%" stop-color="#DDE6FF"/>
+  </linearGradient>
+</defs>
+
+</svg>

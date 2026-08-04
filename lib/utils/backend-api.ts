@@ -5,14 +5,6 @@ import {
   notifyCreditsBalancesChanged,
 } from '@/lib/utils/credits-balance-events';
 
-type PersistedAuthState = {
-  state?: {
-    userId?: string;
-    email?: string;
-    name?: string;
-  };
-};
-
 export type BackendRequestInit = RequestInit & {
   /** Optional per-request timeout. Omit (or pass 0) to leave the request unbounded. */
   timeoutMs?: number;
@@ -22,7 +14,11 @@ export type BackendLoadOptions = Pick<BackendRequestInit, 'signal' | 'timeoutMs'
 
 export type BackendApiErrorKind = 'http' | 'timeout' | 'aborted' | 'network' | 'invalid_response';
 
-const DATABASE_READ_CONCURRENCY = 2;
+// Railway's public proxy is intentionally used with a small Prisma pool in
+// local development. Keep browser database reads aligned with that capacity so
+// several course tabs do not occupy the whole pool at once.
+const DATABASE_READ_CONCURRENCY = 1;
+const DATABASE_READ_LOCK_NAME = 'syntara:database-read';
 const DATABASE_READ_PREFIXES = [
   '/api/courses',
   '/api/notebooks',
@@ -31,6 +27,10 @@ const DATABASE_READ_PREFIXES = [
   '/api/memory',
   '/api/study-memory',
 ] as const;
+
+type BrowserLockManager = {
+  request<T>(name: string, callback: () => Promise<T>): Promise<T>;
+};
 
 type QueuedDatabaseRead = {
   path: string;
@@ -85,6 +85,12 @@ function shouldQueueDatabaseRead(path: string, init?: BackendRequestInit): boole
   return DATABASE_READ_PREFIXES.some(
     (prefix) => normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`),
   );
+}
+
+async function withCrossTabDatabaseReadLock<T>(run: () => Promise<T>): Promise<T> {
+  const lockManager = (globalThis.navigator as Navigator & { locks?: BrowserLockManager }).locks;
+  if (!lockManager) return run();
+  return lockManager.request(DATABASE_READ_LOCK_NAME, run);
 }
 
 function databaseReadPriority(path: string): QueuedDatabaseRead['priority'] {
@@ -276,10 +282,30 @@ function backendMessageFromPayload(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null;
   const record = payload as Record<string, unknown>;
   for (const candidate of [record.error, record.message]) {
-    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    if (typeof candidate === 'string' && candidate.trim()) {
+      const message = candidate.trim();
+      if (
+        /Invalid [`'"]?prisma\.|P1001|P1017|P2024|connection pool|Can't reach database|Server has closed the connection/i.test(
+          message,
+        )
+      ) {
+        return '数据库连接暂时繁忙，页面会自动重试；本地资料仍可继续查看。';
+      }
+      return message;
+    }
     if (candidate && typeof candidate === 'object') {
       const nestedMessage = (candidate as Record<string, unknown>).message;
-      if (typeof nestedMessage === 'string' && nestedMessage.trim()) return nestedMessage.trim();
+      if (typeof nestedMessage === 'string' && nestedMessage.trim()) {
+        const message = nestedMessage.trim();
+        if (
+          /Invalid [`'"]?prisma\.|P1001|P1017|P2024|connection pool|Can't reach database|Server has closed the connection/i.test(
+            message,
+          )
+        ) {
+          return '数据库连接暂时繁忙，页面会自动重试；本地资料仍可继续查看。';
+        }
+        return message;
+      }
     }
   }
   return null;
@@ -340,38 +366,12 @@ function extractBalancesFromResponse(data: unknown): CreditsBalances | undefined
   return maybeRecord.balances || maybeRecord.summary?.balances;
 }
 
-function readAuthFromPersistedStore(): { userId: string; email: string; name: string } {
-  if (typeof window === 'undefined') return { userId: '', email: '', name: '' };
-  try {
-    const raw = localStorage.getItem('synatra-auth');
-    if (!raw) return { userId: '', email: '', name: '' };
-    const parsed = JSON.parse(raw) as PersistedAuthState;
-    return {
-      userId: parsed?.state?.userId?.trim() || '',
-      email: parsed?.state?.email?.trim().toLowerCase() || '',
-      name: parsed?.state?.name?.trim() || '',
-    };
-  } catch {
-    return { userId: '', email: '', name: '' };
-  }
-}
-
 async function performBackendFetch(
   path: string,
   init: BackendRequestInit | undefined,
   context: RequestAbortContext,
 ): Promise<Response> {
   const headers = new Headers(init?.headers || {});
-  const auth = readAuthFromPersistedStore();
-  if (auth.userId && !headers.has('x-user-id')) {
-    headers.set('x-user-id', auth.userId);
-  }
-  if (auth.email && !headers.has('x-user-email')) {
-    headers.set('x-user-email', auth.email);
-  }
-  if (auth.name && !headers.has('x-user-name')) {
-    headers.set('x-user-name', auth.name);
-  }
   const { timeoutMs: _timeoutMs, signal: _callerSignal, ...fetchInit } = init || {};
   try {
     return await fetch(path, {
@@ -389,7 +389,7 @@ export async function backendFetch(path: string, init?: BackendRequestInit): Pro
   const context = createRequestAbortContext(init);
   try {
     return await withDatabaseReadSlot(path, init, context, async () => {
-      return await performBackendFetch(path, init, context);
+      return await withCrossTabDatabaseReadLock(() => performBackendFetch(path, init, context));
     });
   } finally {
     context.cleanup();
@@ -400,7 +400,9 @@ export async function backendJson<T>(path: string, init?: BackendRequestInit): P
   const context = createRequestAbortContext(init);
   try {
     return await withDatabaseReadSlot(path, init, context, async () => {
-      const resp = await performBackendFetch(path, init, context);
+      const resp = await withCrossTabDatabaseReadLock(() =>
+        performBackendFetch(path, init, context),
+      );
       if (!resp.ok) {
         let backendMessage: string | null = null;
         let details: unknown = null;

@@ -178,6 +178,8 @@ export function AppGlobalHeader({ showHomeControls = false }: { showHomeControls
   const pathname = usePathname();
   const routeCourseId = useMemo(() => courseIdFromPathname(pathname), [pathname]);
   const authName = useAuthStore((state) => state.name);
+  const portalRole = useAuthStore((state) => state.role);
+  const canManageCourseContent = portalRole === 'TEACHER' || portalRole === 'ADMIN';
   const storedCourseId = useCurrentCourseStore((state) => state.id);
   const courseName = useCurrentCourseStore((state) => state.name);
   const setCurrentCourse = useCurrentCourseStore((state) => state.setCurrentCourse);
@@ -282,7 +284,9 @@ export function AppGlobalHeader({ showHomeControls = false }: { showHomeControls
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" sideOffset={8} className="w-48">
-            <MoreMenuLink href={createNotebookUrl} icon={Plus} label="新建笔记本" />
+            {canManageCourseContent ? (
+              <MoreMenuLink href={createNotebookUrl} icon={Plus} label="新建笔记本" />
+            ) : null}
             <MoreMenuLink href="/my-courses" icon={GraduationCap} label="所有课程" />
             <DropdownMenuSeparator />
             <MoreMenuLink href="/settings" icon={Settings} label="设置" />

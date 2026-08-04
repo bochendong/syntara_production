@@ -6,6 +6,7 @@ import {
   CalendarClock,
   Database,
   Loader2,
+  Plus,
   RefreshCw,
   Search,
   Store,
@@ -27,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { backendJson } from '@/lib/utils/backend-api';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +40,8 @@ type AdminCourseRow = {
   purpose: string;
   university: string | null;
   courseCode: string | null;
+  academicYear: number | null;
+  academicTerm: AcademicTerm | null;
   avatarUrl: string | null;
   listedInCourseStore: boolean;
   coursePriceCents: number;
@@ -69,6 +73,36 @@ type AdminCourseRow = {
   };
 };
 
+type AcademicTerm = 'winter' | 'summer' | 'fall';
+
+const ACADEMIC_TERM_LABEL: Record<AcademicTerm, string> = {
+  winter: 'Winter',
+  summer: 'Summer',
+  fall: 'Fall',
+};
+
+function currentSemesterValue() {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const term: AcademicTerm = month <= 4 ? 'winter' : month <= 8 ? 'summer' : 'fall';
+  return `${now.getFullYear()}:${term}`;
+}
+
+function buildSemesterOptions() {
+  const currentYear = new Date().getFullYear();
+  const terms = Object.keys(ACADEMIC_TERM_LABEL) as AcademicTerm[];
+  return Array.from({ length: 5 }, (_, index) => currentYear - 1 + index).flatMap((year) =>
+    terms.map((term) => ({
+      value: `${year}:${term}`,
+      label: `${year} ${ACADEMIC_TERM_LABEL[term]}`,
+    })),
+  );
+}
+
+function isAcademicTerm(value: string): value is AcademicTerm {
+  return value === 'winter' || value === 'summer' || value === 'fall';
+}
+
 type AdminCoursesResponse = {
   success: true;
   totalCount: number;
@@ -86,6 +120,13 @@ type DeleteCourseResponse = {
       name: string | null;
     };
   };
+};
+
+type TeacherOption = {
+  id: string;
+  email: string;
+  name: string;
+  isActive: boolean;
 };
 
 function formatDateTime(date: string | null) {
@@ -137,6 +178,12 @@ export function AdminCoursesSection() {
   const [courseToDelete, setCourseToDelete] = useState<AdminCourseRow | null>(null);
   const [confirmCourseName, setConfirmCourseName] = useState('');
   const [refreshTick, setRefreshTick] = useState(0);
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [newOwnerId, setNewOwnerId] = useState('');
+  const [newCourseCode, setNewCourseCode] = useState('');
+  const [newSemester, setNewSemester] = useState(currentSemesterValue);
+  const semesterOptions = useMemo(buildSemesterOptions, []);
 
   const listedCount = useMemo(
     () => courses.filter((course) => course.listedInCourseStore).length,
@@ -176,6 +223,49 @@ export function AdminCoursesSection() {
   useEffect(() => {
     void loadCourses();
   }, [loadCourses, refreshTick]);
+
+  useEffect(() => {
+    void backendJson<{ teachers: TeacherOption[] }>('/api/admin/teachers')
+      .then((payload) => {
+        const activeTeachers = payload.teachers.filter((teacher) => teacher.isActive);
+        setTeachers(activeTeachers);
+        setNewOwnerId((current) => current || activeTeachers[0]?.id || '');
+      })
+      .catch(() => setTeachers([]));
+  }, [refreshTick]);
+
+  const createCourse = async () => {
+    const [academicYearRaw, academicTerm] = newSemester.split(':');
+    const academicYear = Number.parseInt(academicYearRaw || '', 10);
+    if (
+      !newOwnerId ||
+      !newCourseCode.trim() ||
+      !Number.isInteger(academicYear) ||
+      !isAcademicTerm(academicTerm || '')
+    ) {
+      return;
+    }
+    setCreating(true);
+    try {
+      await backendJson('/api/admin/courses', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ownerId: newOwnerId,
+          courseCode: newCourseCode,
+          academicYear,
+          academicTerm,
+        }),
+      });
+      setNewCourseCode('');
+      toast.success('课程已创建并分配给老师');
+      setRefreshTick((current) => current + 1);
+    } catch (createError) {
+      toast.error(createError instanceof Error ? createError.message : '课程创建失败');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const handleSearch = () => {
     setAppliedQuery(query.trim());
@@ -217,6 +307,73 @@ export function AdminCoursesSection() {
 
   return (
     <div className="space-y-5">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Plus className="size-4" />
+            创建并分配课程
+          </CardTitle>
+          <CardDescription>
+            课程只能由管理员创建；老师登录后只会看到分配给自己的课程。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="admin-course-owner">所属老师</Label>
+            <select
+              id="admin-course-owner"
+              value={newOwnerId}
+              onChange={(event) => setNewOwnerId(event.target.value)}
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            >
+              <option value="">选择老师</option>
+              {teachers.map((teacher) => (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.name || teacher.email} · {teacher.email}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="admin-new-course-code">课程代码</Label>
+            <Input
+              id="admin-new-course-code"
+              value={newCourseCode}
+              onChange={(event) => setNewCourseCode(event.target.value)}
+              placeholder="CSC108"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="admin-new-course-semester">学期</Label>
+            <select
+              id="admin-new-course-semester"
+              value={newSemester}
+              onChange={(event) => setNewSemester(event.target.value)}
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            >
+              {semesterOptions.map((semester) => (
+                <option key={semester.value} value={semester.value}>
+                  {semester.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-3">
+            <Button
+              type="button"
+              disabled={creating || !newOwnerId || !newCourseCode.trim() || !newSemester}
+              onClick={() => void createCourse()}
+            >
+              {creating ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 size-4" />
+              )}
+              创建课程
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

@@ -314,7 +314,7 @@
   }
 }
 
-/* Learn Dock 系统应用：按 apps/native 的全屏应用与弹窗结构在 Web 本地复刻。 */
+/* Learn 系统应用：按 apps/native 的全屏 App 结构在 Web 本地复刻。 */
 .learn-dock-profile-app {
   position: absolute;
   z-index: 60;
@@ -612,82 +612,6 @@
   background: #e2e8f0;
 }
 
-.learn-dock-dialog-layer {
-  position: absolute;
-  z-index: 80;
-  inset: 0;
-  display: grid;
-  padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
-    max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
-  place-items: center;
-}
-
-.learn-dock-dialog-backdrop {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: rgb(15 23 42 / 28%);
-  backdrop-filter: blur(7px);
-}
-
-.learn-dock-action-dialog {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  width: min(500px, 100%);
-  max-height: min(620px, 88vh);
-  min-height: 0;
-  flex-direction: column;
-  gap: 16px;
-  padding: 20px;
-  border: 1px solid rgb(255 255 255 / 78%);
-  border-radius: 22px;
-  color: #0f172a;
-  background: rgb(248 250 252 / 96%);
-  box-shadow: 0 28px 90px rgb(15 23 42 / 25%);
-  backdrop-filter: blur(32px) saturate(1.15);
-  animation: parity-dialog-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.learn-dock-action-dialog > header,
-.learn-dock-action-dialog > footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.learn-dock-action-dialog > header span,
-.learn-dock-action-dialog > footer > span {
-  color: #94a3b8;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.learn-dock-action-dialog h2 {
-  margin: 3px 0 0;
-  color: #0f172a;
-  font-size: 20px;
-}
-
-.learn-dock-round-button {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  place-items: center;
-  border: 0;
-  border-radius: 999px;
-  color: #64748b;
-  background: #fff;
-  box-shadow: inset 0 0 0 1px #e2e8f0;
-  cursor: pointer;
-}
-
 .learn-dock-system-content {
   display: grid;
   min-height: 170px;
@@ -788,22 +712,6 @@
   font-size: 10px;
 }
 
-.learn-dock-action-dialog > footer {
-  padding-top: 4px;
-}
-
-.learn-dock-secondary-button {
-  min-width: 92px;
-  padding: 9px 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  color: #334155;
-  background: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
 @media (max-width: 860px) {
   .learn-dock-profile-shell {
     grid-template-columns: 1fr;
@@ -823,20 +731,6 @@
 
   .learn-dock-profile-avatar-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 600px) {
-  .learn-dock-dialog-layer {
-    align-items: end;
-    padding: 0;
-  }
-
-  .learn-dock-action-dialog {
-    width: 100%;
-    max-height: 82vh;
-    padding-bottom: max(20px, env(safe-area-inset-bottom));
-    border-radius: 22px 22px 0 0;
   }
 }
 
@@ -867,15 +761,14 @@
 @media (min-width: 1024px) {
   /*
    * Home shell (matches native iPad model):
-   * - row 1 (4fr): stage = 6×4 grid (widgets left, 4×4 icon slots right)
+   * - row 1: stage = 7×4 grid (widgets left, 5×4 mixed app slots right)
    * - row 2 (auto): page dots
-   * - row 3 (1fr): dock — one app-row weight
-   * Overflow goes to page 2, never a stage scrollbar.
+   * System tools and courses share one sortable desktop; there is no Dock.
    */
   .learn-app-home__shell {
     display: grid !important;
-    grid-template-rows: minmax(0, 4fr) auto minmax(0, 1fr);
-    width: min(92vw, 1680px);
+    grid-template-rows: minmax(0, 1fr) auto;
+    width: min(94vw, 1760px);
     max-width: none;
     height: 100%;
     min-height: 0;
@@ -894,7 +787,7 @@
   }
 
   .learn-app-home__grid {
-    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.25fr) repeat(4, minmax(0, 1fr)) !important;
+    grid-template-columns: minmax(0, 1.18fr) minmax(0, 1.18fr) repeat(5, minmax(0, 1fr)) !important;
     grid-template-rows: repeat(4, minmax(0, 1fr)) !important;
     gap: clamp(0.8vh, 1.25vh, 1.6vh) clamp(1vw, 1.35vw, 1.75vw);
     width: 100%;
@@ -902,6 +795,10 @@
     min-height: 0;
     max-height: 100%;
     align-content: stretch;
+  }
+
+  .learn-app-home__grid--teacher {
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
   }
 
   .learn-app-home__widget {
@@ -954,34 +851,6 @@
     margin: 0;
     height: auto;
     min-height: 28px;
-  }
-
-  .learn-app-home__dock {
-    position: relative !important;
-    grid-row: 3;
-    bottom: auto !important;
-    left: auto !important;
-    z-index: 1;
-    align-self: center;
-    justify-self: center;
-    transform: none !important;
-    max-width: 100%;
-    gap: clamp(6px, 0.9vw, 14px);
-    padding: 8px 14px;
-  }
-
-  /* Dock logos match course grid icon size. */
-  .learn-app-home__dock .learn-app-home__icon-art {
-    width: clamp(72px, min(6.2vw, 11vh), 104px) !important;
-    height: clamp(72px, min(6.2vw, 11vh), 104px) !important;
-    border-radius: 22px;
-  }
-
-  .learn-app-home__dock .learn-app-home__icon-label {
-    margin-top: 6px;
-    max-width: 104px;
-    font-size: clamp(11px, 1.05vw, 14px);
-    line-height: 1.25;
   }
 }
 

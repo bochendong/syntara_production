@@ -835,6 +835,9 @@ export function CourseProblemBankView({
   onPracticeAttemptResolved,
   onPracticeHeaderStateChange,
   practiceAiHelp,
+  showStartPractice = true,
+  showCourseTitle = true,
+  showChromeBackground = true,
 }: {
   courseId: string;
   initialNotebookId?: string;
@@ -854,6 +857,9 @@ export function CourseProblemBankView({
   onPracticeAttemptResolved?: (event: CourseProblemPracticeAttemptResolvedEvent) => void;
   onPracticeHeaderStateChange?: (state: CourseProblemPracticeHeaderState | null) => void;
   practiceAiHelp?: PracticeAiHelpController;
+  showStartPractice?: boolean;
+  showCourseTitle?: boolean;
+  showChromeBackground?: boolean;
 }) {
   const view = useCourseProblemBankController({
     courseId,
@@ -1957,23 +1963,26 @@ export function CourseProblemBankView({
   return (
     <div
       className={cn(
-        'flex h-full min-h-0 w-full',
-        isPracticeMode
+        'flex h-full min-h-0 w-full gap-2',
+        showChromeBackground
           ? cn(
-              'gap-2 bg-[#f5f5f5] p-2 dark:bg-slate-950',
-              practiceHeaderPlacement === 'external' && 'pt-1',
+              'bg-[#f5f5f5] dark:bg-slate-950',
+              isPracticeMode ? 'p-2' : 'p-2.5',
+              isPracticeMode && practiceHeaderPlacement === 'external' && 'pt-1',
             )
-          : 'gap-2 bg-[#f5f5f5] p-2.5 dark:bg-slate-950',
+          : 'bg-transparent p-0',
       )}
     >
       {!isPracticeMode ? (
         <>
-          <div className="order-1 flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/92 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/55">
+          <div className="order-1 flex h-full min-h-0 min-w-0 flex-1 flex-col self-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white/92 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/55">
             <div className="grid gap-2.5 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
               <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-                <span className="min-w-0 truncate text-sm font-semibold text-sky-600 dark:text-sky-300">
-                  {courseName || (locale === 'zh-CN' ? '课程空间' : 'Course workspace')}
-                </span>
+                {showCourseTitle ? (
+                  <span className="min-w-0 truncate text-sm font-semibold text-sky-600 dark:text-sky-300">
+                    {courseName || (locale === 'zh-CN' ? '课程空间' : 'Course workspace')}
+                  </span>
+                ) : null}
 
                 <label className="relative flex min-w-[180px] max-w-[320px] flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -2044,21 +2053,23 @@ export function CourseProblemBankView({
                     ))}
                   </select>
                 </div>
-                <Button
-                  type="button"
-                  disabled={filteredProblems.length === 0}
-                  onClick={() => {
-                    const firstProblem = filteredProblems[0];
-                    if (firstProblem) navigateToPracticeProblem(firstProblem);
-                  }}
-                  className={cn(
-                    'h-9 gap-1.5 rounded-lg px-3.5 text-[13px] font-semibold shadow-none',
-                    PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
-                  )}
-                >
-                  <Play className="h-[15px] w-[15px]" />
-                  {locale === 'zh-CN' ? '开始练习' : 'Start practice'}
-                </Button>
+                {showStartPractice ? (
+                  <Button
+                    type="button"
+                    disabled={filteredProblems.length === 0}
+                    onClick={() => {
+                      const firstProblem = filteredProblems[0];
+                      if (firstProblem) navigateToPracticeProblem(firstProblem);
+                    }}
+                    className={cn(
+                      'h-9 gap-1.5 rounded-lg px-3.5 text-[13px] font-semibold shadow-none',
+                      PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
+                    )}
+                  >
+                    <Play className="h-[15px] w-[15px]" />
+                    {locale === 'zh-CN' ? '开始练习' : 'Start practice'}
+                  </Button>
+                ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
                 <span className="inline-flex items-center gap-1.5">
@@ -2101,14 +2112,14 @@ export function CourseProblemBankView({
               ) : null}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div className="flex min-h-0 flex-1 flex-col overflow-auto">
               {loading ? (
-                <div className="flex items-center justify-center py-16 text-sm text-slate-500">
+                <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-slate-500">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   {locale === 'zh-CN' ? '正在加载课程题库...' : 'Loading course problem bank...'}
                 </div>
               ) : filteredProblems.length === 0 ? (
-                <div className="m-4 rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                <div className="m-4 grid min-h-0 flex-1 place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
                   {locale === 'zh-CN' ? '当前筛选下没有题目。' : 'No problems match this filter.'}
                 </div>
               ) : (

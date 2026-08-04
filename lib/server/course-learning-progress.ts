@@ -8,6 +8,7 @@ type ProgressNotebook = {
   id: string;
   name: string;
   createdAt: Date;
+  learningOrder?: number;
 };
 
 export type TrustedCourseLearningProgress = {
@@ -24,8 +25,21 @@ function notebookCourseOrder(notebook: Pick<ProgressNotebook, 'id' | 'name'>): n
   return Number.MAX_SAFE_INTEGER;
 }
 
+function persistedLearningOrder(value: unknown): number | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const learningOrder = (value as Record<string, unknown>).learningOrder;
+  return typeof learningOrder === 'number' && Number.isInteger(learningOrder) && learningOrder >= 0
+    ? learningOrder
+    : undefined;
+}
+
 function orderNotebooks(notebooks: ProgressNotebook[]): ProgressNotebook[] {
   return notebooks.slice().sort((a, b) => {
+    if (a.learningOrder !== undefined || b.learningOrder !== undefined) {
+      if (a.learningOrder === undefined) return 1;
+      if (b.learningOrder === undefined) return -1;
+      if (a.learningOrder !== b.learningOrder) return a.learningOrder - b.learningOrder;
+    }
     const orderA = notebookCourseOrder(a);
     const orderB = notebookCourseOrder(b);
     if (orderA !== orderB) return orderA - orderB;
@@ -33,10 +47,12 @@ function orderNotebooks(notebooks: ProgressNotebook[]): ProgressNotebook[] {
   });
 }
 
-function emptyLearner(): NonNullable<CourseChatContext['learner']> {
+function emptyLearner(notebooks: ProgressNotebook[]): NonNullable<CourseChatContext['learner']> {
   return {
     progressKnown: false,
     progressPercent: 0,
+    courseNotebookIds: notebooks.map((notebook) => notebook.id),
+    courseNotebookNames: notebooks.map((notebook) => notebook.name),
     attemptedProblemCount: 0,
     totalProblemCount: 0,
     dueReviewCount: 0,
@@ -81,18 +97,25 @@ export async function loadTrustedCourseLearningProgress(args: {
     }),
     args.prisma.notebook.findMany({
       where: { courseId: args.courseId },
-      select: { id: true, name: true, createdAt: true },
+      select: { id: true, name: true, createdAt: true, coverSlideJson: true },
     }),
   ]);
-  const notebooks = orderNotebooks(rawNotebooks);
+  const notebooks = orderNotebooks(
+    rawNotebooks.map((notebook) => ({
+      id: notebook.id,
+      name: notebook.name,
+      createdAt: notebook.createdAt,
+      learningOrder: persistedLearningOrder(notebook.coverSlideJson),
+    })),
+  );
   if (!fact || !isLearnerCourseState(fact.valueJson, args.courseId)) {
-    return { learner: emptyLearner(), allowedNotebookIds: null, futureNotebookIds: [] };
+    return { learner: emptyLearner(notebooks), allowedNotebookIds: null, futureNotebookIds: [] };
   }
 
   const state = fact.valueJson;
   const boundary = progressBoundary(state, notebooks);
   if (boundary === null) {
-    return { learner: emptyLearner(), allowedNotebookIds: null, futureNotebookIds: [] };
+    return { learner: emptyLearner(notebooks), allowedNotebookIds: null, futureNotebookIds: [] };
   }
   const allowed = notebooks.slice(0, boundary);
   const future = notebooks.slice(boundary);
@@ -106,6 +129,8 @@ export async function loadTrustedCourseLearningProgress(args: {
       progressLabel: checkpoint?.label,
       progressPercent:
         notebooks.length > 0 ? Math.round((allowed.length / notebooks.length) * 100) : 0,
+      courseNotebookIds: notebooks.map((notebook) => notebook.id),
+      courseNotebookNames: notebooks.map((notebook) => notebook.name),
       currentNotebookId: currentNotebook?.id,
       currentNotebookName: currentNotebook?.name,
       completedNotebookIds: allowed.map((notebook) => notebook.id),

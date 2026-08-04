@@ -10,9 +10,10 @@ import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { BaseMessage, HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { ChatResult } from '@langchain/core/outputs';
-import type { ImagePart, LanguageModel, ModelMessage, TextPart, UserContent } from 'ai';
+import type { FilePart, ImagePart, LanguageModel, ModelMessage, TextPart, UserContent } from 'ai';
 
 import { callLLM, streamLLM } from '@/lib/ai/llm';
+import { normalizeModelImageContent } from '@/lib/orchestration/model-image-content';
 import type { ThinkingConfig } from '@/lib/types/provider';
 import { createLogger } from '@/lib/logger';
 
@@ -35,6 +36,7 @@ function langChainContentToText(content: BaseMessage['content']): string {
       if (!record) return '';
       if (record.type === 'text' && typeof record.text === 'string') return record.text;
       if (record.type === 'image' || record.type === 'image_url') return '[Image attachment]';
+      if (record.type === 'file') return '[File attachment]';
       return '';
     })
     .filter(Boolean)
@@ -56,7 +58,7 @@ function langChainContentToUserContent(content: BaseMessage['content']): UserCon
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return String(content ?? '');
 
-  const parts: Array<TextPart | ImagePart> = [];
+  const parts: Array<TextPart | ImagePart | FilePart> = [];
   for (const block of content) {
     const record = contentBlockRecord(block);
     if (!record) continue;
@@ -73,7 +75,21 @@ function langChainContentToUserContent(content: BaseMessage['content']): UserCon
         (typeof record.mediaType === 'string' && record.mediaType) ||
         (typeof record.mime_type === 'string' && record.mime_type) ||
         mediaTypeFromDataUrl(image);
-      parts.push({ type: 'image', image, mediaType });
+      parts.push({ type: 'image', image: normalizeModelImageContent(image), mediaType });
+      continue;
+    }
+
+    if (record.type === 'file' && typeof record.data === 'string') {
+      const mediaType =
+        (typeof record.mediaType === 'string' && record.mediaType) ||
+        (typeof record.mime_type === 'string' && record.mime_type);
+      if (!mediaType) continue;
+      parts.push({
+        type: 'file',
+        data: record.data,
+        mediaType,
+        filename: typeof record.filename === 'string' ? record.filename : undefined,
+      });
     }
   }
 

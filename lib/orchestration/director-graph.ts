@@ -54,6 +54,14 @@ function toLangChainHumanContent(content: ConvertedMessageContent) {
         mime_type: part.mediaType,
       };
     }
+    if (part.type === 'file' && typeof part.data === 'string') {
+      return {
+        type: 'file',
+        data: part.data,
+        filename: part.filename,
+        mime_type: part.mediaType,
+      };
+    }
     return { type: 'text', text: '[Image attachment]' };
   });
 }
@@ -611,6 +619,11 @@ function buildPlainTextFallbackPrompt(
         'Regenerate from the original student request. Do not mention the repair pass or reproduce the invalid draft.',
       ].join('\n')
     : 'No repair pass is active.';
+  const hardRules =
+    courseContext?.hardRules
+      ?.filter((rule) => rule.content.trim())
+      .map((rule, index) => `${index + 1}. ${rule.content.trim()}`)
+      .join('\n') || 'No teacher-authored Hard Rules are configured for this course.';
 
   return `You are ${agentConfig.name}, a course tutor.
 Answer the student's latest message directly in ${responseLanguage}.
@@ -623,6 +636,10 @@ Calculus terminology guardrail: translate "improper integral" as "反常积分 (
 For problem-bank selection, choose only from the attached problem-bank matches below. If none are attached, say no available problem-bank match is attached for this turn. If you create new practice yourself, label it as self-generated practice and do not call it problem-bank content.
 For exact numbers, source tables, benchmark data, formulas, or quotes, ground the answer in source evidence. Preserve table rows/columns when that is necessary to avoid losing values, and clearly say when attached evidence is missing or incomplete.
 
+Teacher-authored Course Hard Rules (MANDATORY):
+You MUST follow every listed rule unless it conflicts with a higher-priority platform safety requirement.
+${hardRules}
+
 Course:
 - name: ${course?.name || 'current course'}
 - id: ${course?.id || 'unknown'}
@@ -631,6 +648,7 @@ Course:
 
 Learner signals:
 - progress: ${learner?.progressLabel || 'unknown'} (${learner?.progressPercent ?? 0}%)
+- instructor-defined course sequence: ${learner?.courseNotebookNames?.map((name, index) => `${index + 1}. ${name}`).join(' | ') || 'none attached'}
 - readable notebooks: ${learner?.completedNotebookIds?.join(', ') || (learner?.progressKnown ? 'none' : 'unscoped')}
 - future notebooks excluded from evidence: ${learner?.futureNotebookNames?.join(' | ') || 'none attached'}
 - weak concepts: ${learner?.weakConcepts?.join(', ') || 'none attached'}

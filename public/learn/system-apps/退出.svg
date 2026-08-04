@@ -1,0 +1,58 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+
+<defs>
+  <linearGradient id="tileBg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#FFFFFF"/>
+    <stop offset="58%" stop-color="#FBFCFF"/>
+    <stop offset="100%" stop-color="#F1F4FB"/>
+  </linearGradient>
+  <linearGradient id="tileHighlight" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+    <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+  </linearGradient>
+  <filter id="tileShadow" x="-25%" y="-25%" width="150%" height="160%">
+    <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#667085" flood-opacity="0.20"/>
+  </filter>
+  <filter id="softShadow" x="-35%" y="-35%" width="170%" height="180%">
+    <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#52608F" flood-opacity="0.25"/>
+  </filter>
+  <filter id="innerGlow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="10" result="blur"/>
+  </filter>
+</defs>
+
+
+<g transform="translate(256 256) scale(0.9090909091) translate(-256 -256)"><rect x="36" y="36" width="440" height="440" rx="92" fill="url(#tileBg)" filter="url(#tileShadow)"/>
+<path d="M128 64H384C427 64 448 86 448 128V206          C395 177 319 160 256 160C193 160 117 177 64 206V128          C64 86 86 64 128 64Z" fill="url(#tileHighlight)" opacity="0.68"/>
+
+<g filter="url(#softShadow)">
+  <!-- door frame -->
+  <path d="M151 168C151 140 173 118 201 118H300            C328 118 350 140 350 168V215            C350 229 339 240 325 240            C311 240 300 229 300 215V180            C300 172 294 166 286 166H213            C205 166 199 172 199 180V351            C199 359 205 365 213 365H286            C294 365 300 359 300 351V318            C300 304 311 293 325 293            C339 293 350 304 350 318V363            C350 391 328 413 300 413H201            C173 413 151 391 151 363Z" fill="url(#frame)"/>
+
+  <!-- inner cutout highlight -->
+  <path d="M176 171C176 154 189 141 206 141H295            C308 141 319 152 319 165V208" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" opacity="0.56"/>
+
+  <!-- arrow -->
+  <g filter="url(#arrowShadow)">
+    <path d="M276 235H357L334 212              C325 203 325 189 334 180              C343 171 357 171 366 180              L432 246              C442 256 442 272 432 282              L366 348              C357 357 343 357 334 348              C325 339 325 325 334 316              L357 293H276              C260 293 247 280 247 264              C247 248 260 235 276 235Z" fill="url(#arrow)"/>
+    <path d="M283 245H382" stroke="#FFC7C2" stroke-width="10" stroke-linecap="round" opacity="0.45"/>
+  </g>
+</g>
+</g><defs>
+  <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#D8DDEA"/>
+    <stop offset="58%" stop-color="#AEB6C8"/>
+    <stop offset="100%" stop-color="#F1F3F8"/>
+  </linearGradient>
+  <linearGradient id="arrow" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#FF8D86"/>
+    <stop offset="52%" stop-color="#FF625F"/>
+    <stop offset="100%" stop-color="#FF3F49"/>
+  </linearGradient>
+  <filter id="arrowShadow" x="-40%" y="-50%" width="180%" height="200%">
+    <feDropShadow dx="0" dy="10" stdDeviation="11" flood-color="#FF5A5F" flood-opacity="0.34"/>
+  </filter>
+</defs>
+
+</svg>

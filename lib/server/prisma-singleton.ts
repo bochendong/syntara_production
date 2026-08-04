@@ -28,7 +28,7 @@ function requireDatabaseUrl(): string {
       // A large per-client limit multiplies quickly during /learn's parallel
       // startup requests and overwhelms Railway's public TCP proxy. Three
       // connections still leave room for Prisma interactive transactions.
-      railwayUrl.searchParams.set('connection_limit', '1');
+      railwayUrl.searchParams.set('connection_limit', '3');
     }
     if (!railwayUrl.searchParams.has('pool_timeout')) {
       // The UI now keeps cached course content visible and retries locally, so

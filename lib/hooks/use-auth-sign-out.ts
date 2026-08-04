@@ -9,10 +9,11 @@ import { useAuthStore } from '@/lib/store/auth';
 export function useAuthSignOut() {
   const router = useRouter();
   const logout = useAuthStore((s) => s.logout);
+  const role = useAuthStore((s) => s.role);
 
   return useCallback(async () => {
     await signOut({ redirect: false });
     logout();
-    router.push('/login');
-  }, [logout, router]);
+    router.push(role === 'TEACHER' ? '/teacher/login' : '/login');
+  }, [logout, role, router]);
 }

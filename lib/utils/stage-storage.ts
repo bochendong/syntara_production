@@ -91,6 +91,8 @@ export interface StageListItem {
   id: string;
   courseId?: string;
   name: string;
+  /** Zero-based teaching order saved by the course instructor. */
+  learningOrder?: number;
   description?: string;
   tags?: string[];
   avatarUrl?: string;

@@ -14,7 +14,6 @@ import {
   Settings2,
   ShoppingBag,
   UserRound,
-  X,
 } from 'lucide-react';
 import { USER_AVATAR_PRESET_URLS } from '@/lib/constants/user-avatars';
 import { useAuthStore } from '@/lib/store/auth';
@@ -268,7 +267,7 @@ const APP_LABELS: Record<Exclude<LearnDockApp, 'profile'>, string> = {
   settings: '设置',
 };
 
-function LearnHomeSystemDialog({
+function LearnHomeSystemApp({
   app,
   courses,
   onClose,
@@ -280,117 +279,97 @@ function LearnHomeSystemDialog({
   const router = useRouter();
   const totals = baseTotals(courses);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
   return (
-    <div className="learn-dock-dialog-layer">
-      <button
-        type="button"
-        className="learn-dock-dialog-backdrop"
-        onClick={onClose}
-        aria-label={`关闭${APP_LABELS[app]}`}
-      />
-      <section
-        className="learn-dock-action-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="learn-dock-system-title"
-      >
-        <header>
-          <div>
-            <span>本机系统应用</span>
-            <h2 id="learn-dock-system-title">{APP_LABELS[app]}</h2>
+    <section className="learn-dock-profile-app" aria-label={APP_LABELS[app]}>
+      <div className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 dark:border-white/10 dark:bg-slate-950 sm:px-7">
+          <div className="flex min-w-0 items-center gap-3">
+            <button type="button" className="learn-dock-back-button" onClick={onClose}>
+              <ArrowLeft size={16} />
+              返回主屏
+            </button>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                SYSTEM APP
+              </span>
+              <h1 className="truncate text-xl font-semibold text-slate-950 dark:text-white sm:text-2xl">
+                {APP_LABELS[app]}
+              </h1>
+            </div>
           </div>
-          <button
-            type="button"
-            className="learn-dock-round-button"
-            onClick={onClose}
-            aria-label="关闭"
-          >
-            <X size={17} />
-          </button>
         </header>
 
-        {app === 'notifications' ? (
-          <div className="learn-dock-system-content">
-            <div className="learn-dock-system-summary">
-              <Bell size={20} />
-              <div>
-                <strong>本机通知中心</strong>
-                <small>资料导入、课程更新和课程日程会在这里汇总。</small>
+        <main className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-8">
+          <div className="mx-auto w-full max-w-5xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5 sm:p-7">
+            {app === 'notifications' ? (
+              <div className="learn-dock-system-content">
+                <div className="learn-dock-system-summary">
+                  <Bell size={20} />
+                  <div>
+                    <strong>本机通知中心</strong>
+                    <small>资料导入、课程更新和课程日程会在这里汇总。</small>
+                  </div>
+                </div>
+                <article className="learn-dock-system-note">
+                  <Database size={16} />
+                  <div>
+                    <strong>学习资料已就绪</strong>
+                    <small>
+                      当前可读取 {totals.courses} 门课程、{totals.problems} 道题和{' '}
+                      {totals.notebooks} 个笔记本。
+                    </small>
+                  </div>
+                </article>
               </div>
-            </div>
-            <article className="learn-dock-system-note">
-              <Database size={16} />
-              <div>
-                <strong>学习资料已就绪</strong>
-                <small>
-                  当前可读取 {totals.courses} 门课程、{totals.problems} 道题和 {totals.notebooks}{' '}
-                  个笔记本。
-                </small>
-              </div>
-            </article>
-          </div>
-        ) : null}
+            ) : null}
 
-        {app === 'store' ? (
-          <div className="learn-dock-system-content">
-            <div className="learn-dock-system-summary">
-              <ShoppingBag size={20} />
-              <div>
-                <strong>课程商城</strong>
-                <small>浏览并添加适合你的课程包。</small>
+            {app === 'store' ? (
+              <div className="learn-dock-system-content">
+                <div className="learn-dock-system-summary">
+                  <ShoppingBag size={20} />
+                  <div>
+                    <strong>课程商城</strong>
+                    <small>浏览并添加适合你的课程包。</small>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="learn-dock-system-primary"
+                  onClick={() => router.push('/store/courses')}
+                >
+                  <ExternalLink size={17} />
+                  浏览课程商城
+                </button>
               </div>
-            </div>
-            <button
-              type="button"
-              className="learn-dock-system-primary"
-              onClick={() => router.push('/store/courses')}
-            >
-              <ExternalLink size={17} />
-              浏览课程商城
-            </button>
-          </div>
-        ) : null}
+            ) : null}
 
-        {app === 'settings' ? (
-          <div className="learn-dock-system-content">
-            <div className="learn-dock-system-summary">
-              <Settings2 size={20} />
-              <div>
-                <strong>本地优先</strong>
-                <small>课程、题库、笔记本和会话优先从当前设备读取。</small>
+            {app === 'settings' ? (
+              <div className="learn-dock-system-content">
+                <div className="learn-dock-system-summary">
+                  <Settings2 size={20} />
+                  <div>
+                    <strong>本地优先</strong>
+                    <small>课程、题库、笔记本和会话优先从当前设备读取。</small>
+                  </div>
+                </div>
+                <div className="learn-dock-system-settings">
+                  <span>
+                    <Library size={16} />
+                    <small>数据源</small>
+                    <strong>网页与本机同步</strong>
+                  </span>
+                  <span>
+                    <Database size={16} />
+                    <small>课程内容</small>
+                    <strong>{totals.problems} 道题</strong>
+                  </span>
+                </div>
               </div>
-            </div>
-            <div className="learn-dock-system-settings">
-              <span>
-                <Library size={16} />
-                <small>数据源</small>
-                <strong>网页与本机同步</strong>
-              </span>
-              <span>
-                <Database size={16} />
-                <small>课程内容</small>
-                <strong>{totals.problems} 道题</strong>
-              </span>
-            </div>
+            ) : null}
           </div>
-        ) : null}
-
-        <footer>
-          <span>与 App 使用同一套界面</span>
-          <button type="button" className="learn-dock-secondary-button" onClick={onClose}>
-            完成
-          </button>
-        </footer>
-      </section>
-    </div>
+        </main>
+      </div>
+    </section>
   );
 }
 
@@ -407,7 +386,7 @@ export function LearnHomeDockAppLayer({
     return <LearnHomeProfileApp courses={courses} onBack={onClose} />;
   }
   if (app) {
-    return <LearnHomeSystemDialog app={app} courses={courses} onClose={onClose} />;
+    return <LearnHomeSystemApp app={app} courses={courses} onClose={onClose} />;
   }
   return null;
 }

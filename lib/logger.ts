@@ -1,4 +1,5 @@
 import { safeJsonStringify } from '@/lib/utils/safe-json';
+import { redactInlineDataUrls } from '@/lib/utils/log-redaction';
 
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 } as const;
 type LogLevel = keyof typeof LOG_LEVELS;
@@ -15,15 +16,17 @@ function isJsonFormat(): boolean {
 function formatLine(level: LogLevel, tag: string, args: unknown[]): string {
   const timestamp = new Date().toISOString();
   const upperLevel = level.toUpperCase();
-  const msg = args
-    .map((a) =>
-      a instanceof Error
-        ? (a.stack ?? a.message)
-        : typeof a === 'string'
-          ? a
-          : safeJsonStringify(a, { maxChars: 20_000, maxDepth: 5 }),
-    )
-    .join(' ');
+  const msg = redactInlineDataUrls(
+    args
+      .map((a) =>
+        a instanceof Error
+          ? (a.stack ?? a.message)
+          : typeof a === 'string'
+            ? a
+            : safeJsonStringify(a, { maxChars: 20_000, maxDepth: 5 }),
+      )
+      .join(' '),
+  );
 
   if (isJsonFormat()) {
     return JSON.stringify({ timestamp, level: upperLevel, tag, message: msg });

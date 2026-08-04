@@ -2,8 +2,8 @@ import { apiSuccess } from '@/lib/server/api-response';
 import { requireUserId } from '@/lib/server/api-auth';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import {
-  estimateOpenAITextUsageRetailCostCredits,
-  estimateOpenAITextUsageRetailCostUsd,
+  estimateTrackedModelUsageRetailCostCredits,
+  estimateTrackedModelUsageRetailCostUsd,
 } from '@/lib/utils/openai-pricing';
 
 const DEFAULT_RECORDS_PAGE_SIZE = 8;
@@ -137,14 +137,14 @@ function buildSpendChart(args: {
   const totalByModel = new Map<string, { usd: number; credits: number }>();
 
   for (const row of args.rows) {
-    const estimatedCostUsd = estimateOpenAITextUsageRetailCostUsd({
+    const estimatedCostUsd = estimateTrackedModelUsageRetailCostUsd({
       providerId: row.providerId,
       modelId: row.modelId,
       modelString: row.modelString,
       inputTokens: row.inputTokens,
       outputTokens: row.outputTokens,
     });
-    const estimatedCostCredits = estimateOpenAITextUsageRetailCostCredits({
+    const estimatedCostCredits = estimateTrackedModelUsageRetailCostCredits({
       providerId: row.providerId,
       modelId: row.modelId,
       modelString: row.modelString,
@@ -165,7 +165,8 @@ function buildSpendChart(args: {
     currentTotal.credits += estimatedCostCredits;
     totalByModel.set(row.modelString, currentTotal);
 
-    const byDay = spendByModelByDay.get(row.modelString) ?? new Map<string, { usd: number; credits: number }>();
+    const byDay =
+      spendByModelByDay.get(row.modelString) ?? new Map<string, { usd: number; credits: number }>();
     const currentDay = byDay.get(dayKey) ?? { usd: 0, credits: 0 };
     currentDay.usd += estimatedCostUsd;
     currentDay.credits += estimatedCostCredits;
@@ -189,23 +190,27 @@ function buildSpendChart(args: {
       modelString: seriesName === 'other' ? '其他模型' : seriesName,
       estimatedCostUsd:
         seriesName === 'other'
-          ? otherModels.reduce((sum, modelString) => sum + (totalByModel.get(modelString)?.usd ?? 0), 0)
-          : totalByModel.get(seriesName)?.usd ?? 0,
+          ? otherModels.reduce(
+              (sum, modelString) => sum + (totalByModel.get(modelString)?.usd ?? 0),
+              0,
+            )
+          : (totalByModel.get(seriesName)?.usd ?? 0),
       estimatedCostCredits:
         seriesName === 'other'
           ? otherModels.reduce(
               (sum, modelString) => sum + (totalByModel.get(modelString)?.credits ?? 0),
               0,
             )
-          : totalByModel.get(seriesName)?.credits ?? 0,
+          : (totalByModel.get(seriesName)?.credits ?? 0),
       cumulativeEstimatedCostUsd: dates.map(({ date }) => {
         const nextValue =
           seriesName === 'other'
             ? otherModels.reduce(
-                (sum, modelString) => sum + (spendByModelByDay.get(modelString)?.get(date)?.usd ?? 0),
+                (sum, modelString) =>
+                  sum + (spendByModelByDay.get(modelString)?.get(date)?.usd ?? 0),
                 0,
               )
-            : spendByModelByDay.get(seriesName)?.get(date)?.usd ?? 0;
+            : (spendByModelByDay.get(seriesName)?.get(date)?.usd ?? 0);
         cumulativeEstimatedCostUsd += nextValue;
         return Number(cumulativeEstimatedCostUsd.toFixed(6));
       }),
@@ -217,7 +222,7 @@ function buildSpendChart(args: {
                   sum + (spendByModelByDay.get(modelString)?.get(date)?.credits ?? 0),
                 0,
               )
-            : spendByModelByDay.get(seriesName)?.get(date)?.credits ?? 0;
+            : (spendByModelByDay.get(seriesName)?.get(date)?.credits ?? 0);
         cumulativeEstimatedCostCredits += nextValue;
         return Math.round(cumulativeEstimatedCostCredits);
       }),
@@ -250,14 +255,14 @@ function mapUsageRow(row: {
   totalTokens: number;
   createdAt: Date;
 }): UsageRecordRow {
-  const estimatedCostUsd = estimateOpenAITextUsageRetailCostUsd({
+  const estimatedCostUsd = estimateTrackedModelUsageRetailCostUsd({
     providerId: row.providerId,
     modelId: row.modelId,
     modelString: row.modelString,
     inputTokens: row.inputTokens,
     outputTokens: row.outputTokens,
   });
-  const estimatedCostCredits = estimateOpenAITextUsageRetailCostCredits({
+  const estimatedCostCredits = estimateTrackedModelUsageRetailCostCredits({
     providerId: row.providerId,
     modelId: row.modelId,
     modelString: row.modelString,
@@ -287,7 +292,10 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const pageRaw = parseInt(url.searchParams.get('page') || '1', 10);
-  const pageSizeRaw = parseInt(url.searchParams.get('pageSize') || String(DEFAULT_RECORDS_PAGE_SIZE), 10);
+  const pageSizeRaw = parseInt(
+    url.searchParams.get('pageSize') || String(DEFAULT_RECORDS_PAGE_SIZE),
+    10,
+  );
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1;
   const pageSize = Math.min(
     MAX_RECORDS_PAGE_SIZE,
@@ -385,12 +393,12 @@ export async function GET(request: Request) {
         inputTokens,
         outputTokens,
         totalTokens: g._sum.totalTokens ?? 0,
-        estimatedCostUsd: estimateOpenAITextUsageRetailCostUsd({
+        estimatedCostUsd: estimateTrackedModelUsageRetailCostUsd({
           modelString: g.modelString,
           inputTokens,
           outputTokens,
         }),
-        estimatedCostCredits: estimateOpenAITextUsageRetailCostCredits({
+        estimatedCostCredits: estimateTrackedModelUsageRetailCostCredits({
           modelString: g.modelString,
           inputTokens,
           outputTokens,
@@ -404,7 +412,10 @@ export async function GET(request: Request) {
       return b.requestCount - a.requestCount;
     });
 
-  const estimatedCostUsd = modelBreakdown.reduce((sum, row) => sum + (row.estimatedCostUsd ?? 0), 0);
+  const estimatedCostUsd = modelBreakdown.reduce(
+    (sum, row) => sum + (row.estimatedCostUsd ?? 0),
+    0,
+  );
   const estimatedCostCredits = modelBreakdown.reduce(
     (sum, row) => sum + (row.estimatedCostCredits ?? 0),
     0,

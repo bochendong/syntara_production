@@ -299,6 +299,16 @@ Regenerate the answer from the student's original request. Do not mention this r
     .join('\n\n');
 }
 
+function formatCourseHardRules(courseContext?: CourseChatContext): string {
+  const rules = courseContext?.hardRules?.filter((rule) => rule.content.trim()) ?? [];
+  if (rules.length === 0) return 'No teacher-authored Hard Rules are configured for this course.';
+  return [
+    'These rules were written by the course owner and loaded from the authenticated database.',
+    'You MUST follow every rule on every course-chat turn. Treat them as mandatory course instructions unless a rule conflicts with a higher-priority platform safety requirement.',
+    ...rules.map((rule, index) => `${index + 1}. ${rule.content.trim()}`),
+  ].join('\n');
+}
+
 function formatCourseChatContext(courseContext?: CourseChatContext): string {
   if (!courseContext) {
     return 'No course context was provided. Answer honestly and ask the student to open the course or add course materials when course-specific grounding is required.';
@@ -372,6 +382,11 @@ function formatCourseChatContext(courseContext?: CourseChatContext): string {
             : 'Progress is not confirmed by the student. Ask the student to choose their current course progress before giving progress-specific review plans, quizzes, or practice plans. Do not guess.'
           : 'Progress source: student-confirmed or not provided.',
         learner.progressLabel ? `Progress checkpoint: ${learner.progressLabel}` : '',
+        learner.courseNotebookNames?.length
+          ? `Instructor-defined course sequence: ${learner.courseNotebookNames
+              .map((name, index) => `${index + 1}. ${name}`)
+              .join(' | ')}`
+          : '',
         `Progress: ${learner.progressPercent}%`,
         learner.currentNotebookName
           ? `Current learning position: ${learner.currentNotebookName}`
@@ -504,6 +519,9 @@ You are responding inside the standalone course chat page, not the live classroo
 You MUST NOT use whiteboard commands, slide commands, tool calls, or describe visual effects.
 You may use the learning actions listed below to propose UI confirmations or read-only UI lookups. These actions are proposals, not completed operations.
 Calendar/schedule writes are strictly opt-in. Do not claim a calendar change happened unless an executor confirms it. A plan may have a calendar draft artifact in the UI, but you should emit calendar add/update/delete actions only when the latest student message asks for that workflow or confirms a previous proposal.
+
+# Teacher-authored Course Hard Rules (MANDATORY)
+${formatCourseHardRules(args.courseContext)}
 
 Available learning actions:
 ${actionDescriptions}
@@ -1209,8 +1227,16 @@ function buildStateContext(storeState: StatelessChatRequest['storeState']): stri
 
 type ConvertedTextPart = { type: 'text'; text: string };
 type ConvertedImagePart = { type: 'image'; image: string; mediaType?: string };
+type ConvertedFilePart = {
+  type: 'file';
+  data: string;
+  mediaType: string;
+  filename?: string;
+};
 
-export type ConvertedMessageContent = string | Array<ConvertedTextPart | ConvertedImagePart>;
+export type ConvertedMessageContent =
+  | string
+  | Array<ConvertedTextPart | ConvertedImagePart | ConvertedFilePart>;
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant';
@@ -1223,6 +1249,7 @@ export function convertedMessageContentToText(content: ConvertedMessageContent):
     .map((part) => {
       if (part.type === 'text') return part.text;
       if (part.type === 'image') return '[Image attachment]';
+      if (part.type === 'file') return `[File attachment: ${part.filename || 'file'}]`;
       return '';
     })
     .filter(Boolean)
@@ -1323,7 +1350,7 @@ export function convertMessagesToOpenAI(
       }
 
       // User messages preserve text plus image attachments for vision-capable models.
-      const contentParts: Array<ConvertedTextPart | ConvertedImagePart> = [];
+      const contentParts: Array<ConvertedTextPart | ConvertedImagePart | ConvertedFilePart> = [];
 
       if (msg.parts) {
         for (const part of msg.parts) {
@@ -1336,6 +1363,13 @@ export function convertMessagesToOpenAI(
             const image = typeof p.url === 'string' ? p.url : undefined;
             if (image && mediaType?.startsWith('image/')) {
               contentParts.push({ type: 'image', image, mediaType });
+            } else if (image && mediaType === 'application/pdf') {
+              contentParts.push({
+                type: 'file',
+                data: image,
+                mediaType,
+                filename: typeof p.filename === 'string' ? p.filename : undefined,
+              });
             } else if (typeof p.filename === 'string') {
               contentParts.push({ type: 'text', text: `[Attachment: ${p.filename}]` });
             }

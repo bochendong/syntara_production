@@ -14,6 +14,12 @@ enum CoursePurpose {
   daily
 }
 
+enum CourseAcademicTerm {
+  winter
+  summer
+  fall
+}
+
 enum NotebookKind {
   image
   markdown
@@ -51,6 +57,7 @@ enum AgentEnvelopeType {
 
 enum UserRole {
   USER
+  TEACHER
   ADMIN
 }
 
@@ -176,6 +183,8 @@ model User {
   emailVerified          DateTime?
   image                  String?
   role                   UserRole  @default(USER)
+  isActive               Boolean   @default(true)
+  passwordHash           String?
   creditsBalance         Int       @default(0)
   computeCreditsBalance  Int       @default(0)
   purchaseCreditsBalance Int       @default(0)
@@ -198,6 +207,7 @@ model User {
   creditTransactions      CreditTransaction[]
   coursePurchases         CoursePurchase[]
   courseEnrollments       CourseEnrollment[]
+  courseHardRules         CourseHardRule[]
   notebookPurchases       NotebookPurchase[]
   courseReviews           CourseReview[]
   notebookReviews         NotebookReview[]
@@ -225,6 +235,8 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([role, isActive, updatedAt(sort: Desc)])
 }
 
 model Account {
@@ -310,29 +322,31 @@ model NativeDeviceSession {
 }
 
 model Course {
-  id                    String        @id @default(cuid())
+  id                    String              @id @default(cuid())
   ownerId               String
   name                  String
   description           String?
-  language              String        @default("zh-CN")
+  language              String              @default("zh-CN")
   tags                  String[]
-  purpose               CoursePurpose @default(daily)
+  purpose               CoursePurpose       @default(daily)
   university            String?
   courseCode            String?
+  academicYear          Int?
+  academicTerm          CourseAcademicTerm?
   avatarUrl             String?
   /**
    * 开启后出现在「课程商城」社区列表
    */
-  listedInCourseStore   Boolean       @default(false)
-  coursePriceCents      Int           @default(0)
+  listedInCourseStore   Boolean             @default(false)
+  coursePriceCents      Int                 @default(0)
   storePublishedAt      DateTime?
   sourceCourseId        String?
-  notebookCount         Int           @default(0)
-  sceneCount            Int           @default(0)
-  problemCount          Int           @default(0)
-  publishedProblemCount Int           @default(0)
-  speechReadyCount      Int           @default(0)
-  speechTotalCount      Int           @default(0)
+  notebookCount         Int                 @default(0)
+  sceneCount            Int                 @default(0)
+  problemCount          Int                 @default(0)
+  publishedProblemCount Int                 @default(0)
+  speechReadyCount      Int                 @default(0)
+  speechTotalCount      Int                 @default(0)
 
   owner                  User                      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   notebooks              Notebook[]
@@ -355,12 +369,31 @@ model Course {
   knowledgeDocuments     KnowledgeDocument[]
   knowledgeChunks        KnowledgeChunk[]
   learningCalendarEvents LearningCalendarEvent[]
+  hardRules              CourseHardRule[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([ownerId, updatedAt(sort: Desc)])
+  @@index([ownerId, academicYear, academicTerm])
   @@index([listedInCourseStore, updatedAt(sort: Desc)])
+}
+
+model CourseHardRule {
+  id       String @id @default(cuid())
+  courseId String
+  ownerId  String
+  content  String @db.Text
+  position Int    @default(0)
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  owner  User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId, position, createdAt])
+  @@index([ownerId, updatedAt(sort: Desc)])
 }
 
 model Notebook {
@@ -387,6 +420,9 @@ model Notebook {
   speechStatus          String       @default("no_speech")
   coverSlideJson        Json?
   coverImagePath        String?
+  mindMapData           Bytes?
+  mindMapMime           String?
+  removedAt             DateTime?
   contentVersion        Int          @default(1)
 
   owner              User                      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -412,6 +448,7 @@ model Notebook {
 
   @@index([ownerId, updatedAt(sort: Desc)])
   @@index([courseId, updatedAt(sort: Desc)])
+  @@index([courseId, removedAt, updatedAt(sort: Desc)])
   @@index([courseId, contentVersion])
   @@index([listedInNotebookStore, updatedAt(sort: Desc)])
 }
@@ -831,6 +868,9 @@ model AgentTask {
   targetAgentId String?
   taskType      String
   status        AgentTaskStatus @default(queued)
+  stage         String          @default("queued")
+  progress      Int             @default(0)
+  attemptCount  Int             @default(0)
   request       Json?
   result        Json?
   error         String?
@@ -1016,6 +1056,10 @@ model CourseSource {
   title                String
   kind                 String    @default("upload")
   fileMime             String?
+  fileData             Bytes?
+  fileSize             Int       @default(0)
+  sourceCategory       String?
+  removedAt            DateTime?
   usageProfile         String?
   topic                String?
   storageKey           String?
@@ -1048,6 +1092,7 @@ model CourseSource {
   @@index([ingestStatus, ingestLeaseExpiresAt], map: "CourseSource_ingest_status_lease_idx")
   @@index([courseId, ingestStatus, indexStatus, updatedAt(sort: Desc)], map: "CourseSource_course_status_updated_idx")
   @@index([courseId, kind, updatedAt(sort: Desc)], map: "CourseSource_course_kind_updated_idx")
+  @@index([courseId, removedAt, updatedAt(sort: Desc)], map: "CourseSource_course_removed_updated_idx")
   @@index([storageKey], map: "CourseSource_storage_key_idx")
   @@index([openaiFileId], map: "CourseSource_openai_file_idx")
 }

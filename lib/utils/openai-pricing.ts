@@ -224,6 +224,48 @@ export function estimateOpenAIImageGenerationRetailCostCredits(
   return creditsFromUsd(usd, 'ceil');
 }
 
+type TrackedModelUsage = {
+  providerId?: string | null;
+  modelId?: string | null;
+  modelString?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  cachedInputTokens?: number | null;
+};
+
+function isTrackedImageUsage(usage: TrackedModelUsage): boolean {
+  return (
+    usage.providerId?.trim().toLowerCase() === 'openai-image' ||
+    usage.modelString?.trim().toLowerCase().startsWith('openai-image:') === true
+  );
+}
+
+/** Estimate a persisted usage row using the correct text or image pricing table. */
+export function estimateTrackedModelUsageRetailCostUsd(usage: TrackedModelUsage): number | null {
+  if (isTrackedImageUsage(usage)) {
+    return estimateOpenAIImageGenerationRetailCostUsd({
+      modelId: usage.modelId,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    });
+  }
+  return estimateOpenAITextUsageRetailCostUsd(usage);
+}
+
+/** Convert a persisted text or image usage row into compute credits. */
+export function estimateTrackedModelUsageRetailCostCredits(
+  usage: TrackedModelUsage,
+): number | null {
+  if (isTrackedImageUsage(usage)) {
+    return estimateOpenAIImageGenerationRetailCostCredits({
+      modelId: usage.modelId,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    });
+  }
+  return estimateOpenAITextUsageRetailCostCredits(usage);
+}
+
 export function estimateOpenAIImageGenerationCost(usage: OpenAIImageUsage | null | undefined): {
   baseUsd: number;
   retailUsd: number;

@@ -4,9 +4,11 @@ import type { NextAuthOptions } from 'next-auth';
 import { getServerSession } from 'next-auth';
 import GitHubProvider from 'next-auth/providers/github';
 import GoogleProvider from 'next-auth/providers/google';
+import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { isDatabaseAvailable, getOptionalPrisma } from '@/lib/server/prisma-safe';
+import { verifyPassword } from '@/lib/server/password-hash';
 
 function oauthHttpOptions() {
   const proxyUrl = process.env.HTTPS_PROXY?.trim() || process.env.HTTP_PROXY?.trim();
@@ -50,6 +52,53 @@ function resolveAuthSecret() {
 
 function buildProviders() {
   const providers = [];
+
+  const prisma = getOptionalPrisma();
+  if (prisma) {
+    providers.push(
+      CredentialsProvider({
+        id: 'teacher-credentials',
+        name: 'Teacher account',
+        credentials: {
+          email: { label: 'Email', type: 'email' },
+          password: { label: 'Password', type: 'password' },
+        },
+        async authorize(credentials) {
+          const email = credentials?.email?.trim().toLowerCase() || '';
+          const password = credentials?.password || '';
+          if (!email || !password) return null;
+          const user = await prisma.user.findUnique({
+            where: { email },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              image: true,
+              role: true,
+              isActive: true,
+              passwordHash: true,
+            },
+          });
+          if (
+            !user?.isActive ||
+            (user.role !== 'TEACHER' && user.role !== 'ADMIN') ||
+            !user.passwordHash ||
+            !(await verifyPassword(password, user.passwordHash))
+          ) {
+            return null;
+          }
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+            role: user.role,
+            isActive: user.isActive,
+          };
+        },
+      }),
+    );
+  }
 
   const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
@@ -96,17 +145,51 @@ export const authOptions: NextAuthOptions = {
   secret: resolveAuthSecret(),
   providers: buildProviders(),
   session: {
-    strategy: isDatabaseAvailable() ? 'database' : 'jwt',
+    strategy: 'jwt',
   },
   callbacks: {
+    async signIn({ user }) {
+      const accountUser = user as { role?: string; isActive?: boolean };
+      return (
+        accountUser.isActive !== false &&
+        (accountUser.role === 'TEACHER' || accountUser.role === 'ADMIN')
+      );
+    },
+    async jwt({ token, user }) {
+      if (user) {
+        const accountUser = user as { role?: string; isActive?: boolean };
+        token.role =
+          accountUser.role === 'ADMIN' || accountUser.role === 'TEACHER'
+            ? accountUser.role
+            : 'USER';
+        token.isActive = accountUser.isActive !== false;
+        return token;
+      }
+      if (token.sub && prismaClient) {
+        try {
+          const current = await prismaClient.user.findUnique({
+            where: { id: token.sub },
+            select: { role: true, isActive: true },
+          });
+          token.role = current?.role || 'USER';
+          token.isActive = current?.isActive === true;
+        } catch {
+          token.isActive = false;
+        }
+      }
+      return token;
+    },
     async session({ session, user, token }) {
       if (session.user) {
         if (user) {
           session.user.id = user.id;
-          session.user.role = (user as { role?: 'USER' | 'ADMIN' }).role || 'USER';
+          session.user.role = (user as { role?: 'USER' | 'TEACHER' | 'ADMIN' }).role || 'USER';
+          session.user.isActive = (user as { isActive?: boolean }).isActive !== false;
         } else if (token?.sub) {
           session.user.id = token.sub;
-          session.user.role = 'USER';
+          session.user.role =
+            token.role === 'TEACHER' || token.role === 'ADMIN' ? token.role : 'USER';
+          session.user.isActive = token.isActive !== false;
         }
       }
       return session;
@@ -117,7 +200,7 @@ export const authOptions: NextAuthOptions = {
 export async function requireServerSession() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user?.id || session.user.isActive === false) {
       return null;
     }
     return session;

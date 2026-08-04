@@ -7,8 +7,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { backendJson } from '@/lib/utils/backend-api';
 import { formatCreditsLabel, formatUsdLabel } from '@/lib/utils/credits';
-import type { SiteProviderStatusResponse, SiteProviderAdminRow } from '@/lib/types/admin-site-providers';
+import type {
+  SiteProviderStatusResponse,
+  SiteProviderAdminRow,
+} from '@/lib/types/admin-site-providers';
 import { PROVIDERS } from '@/lib/ai/providers';
+import { AdminGlobalLlmConfigCard } from '@/components/admin/admin-global-llm-config-card';
 
 type LLMUsageResponse = {
   summary: {
@@ -67,12 +71,16 @@ export function AdminLLMSection() {
     setUsageError(null);
     try {
       try {
-        const providerResp = await backendJson<SiteProviderStatusResponse>('/api/admin/site-provider-status');
+        const providerResp = await backendJson<SiteProviderStatusResponse>(
+          '/api/admin/site-provider-status',
+        );
         setProviderPayload(providerResp);
       } catch (providerLoadError) {
         setProviderPayload(null);
         setProviderError(
-          providerLoadError instanceof Error ? providerLoadError.message : String(providerLoadError),
+          providerLoadError instanceof Error
+            ? providerLoadError.message
+            : String(providerLoadError),
         );
       }
       try {
@@ -117,6 +125,7 @@ export function AdminLLMSection() {
 
   return (
     <div className="space-y-6">
+      <AdminGlobalLlmConfigCard />
       {providerError ? (
         <Alert variant="destructive">
           <AlertTitle>配置加载失败</AlertTitle>
@@ -172,7 +181,9 @@ export function AdminLLMSection() {
                           <span className="text-muted-foreground">未配置</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 break-all font-mono text-xs">{row.baseUrl || '—'}</td>
+                      <td className="px-3 py-2 break-all font-mono text-xs">
+                        {row.baseUrl || '—'}
+                      </td>
                       <td className="px-3 py-2 font-mono text-xs">
                         {row.models?.length ? (
                           <div className="flex flex-wrap gap-1">
@@ -210,7 +221,8 @@ export function AdminLLMSection() {
           </div>
           <p className="text-xs text-muted-foreground">
             修改 <code className="rounded bg-muted px-1">server-providers.yml</code> 或对应{' '}
-            <code className="rounded bg-muted px-1">.env.local</code> 后，请重启 Next 进程使配置生效。
+            <code className="rounded bg-muted px-1">.env.local</code> 后，请重启 Next
+            进程使配置生效。
           </p>
         </CardContent>
       </Card>
@@ -221,7 +233,9 @@ export function AdminLLMSection() {
             <BarChart3 className="h-4 w-4" />
             用量汇总
           </CardTitle>
-          <CardDescription>按 OpenAI GPT 公开价上浮 50% 估算用户侧扣费，方便对账和观察毛利空间。</CardDescription>
+          <CardDescription>
+            按 OpenAI GPT 公开价上浮 50% 估算用户侧扣费，方便对账和观察毛利空间。
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <div className="rounded-lg border bg-background/70 p-3">
@@ -244,7 +258,9 @@ export function AdminLLMSection() {
           </div>
           <div className="rounded-lg border bg-background/70 p-3">
             <div className="text-xs text-muted-foreground">总 Tokens</div>
-            <div className="mt-1 text-xl font-semibold">{formatNumber(usage?.summary.totalTokens || 0)}</div>
+            <div className="mt-1 text-xl font-semibold">
+              {formatNumber(usage?.summary.totalTokens || 0)}
+            </div>
           </div>
           <div className="rounded-lg border bg-background/70 p-3">
             <div className="text-xs text-muted-foreground">预估用户扣费</div>
@@ -288,8 +304,12 @@ export function AdminLLMSection() {
                       {new Date(row.createdAt).toLocaleString('zh-CN')}
                     </td>
                     <td className="px-3 py-2">
-                      <div className="font-medium">{row.userName || row.userEmail || row.userId || '匿名'}</div>
-                      <div className="text-xs text-muted-foreground">{row.userEmail || row.userId || '-'}</div>
+                      <div className="font-medium">
+                        {row.userName || row.userEmail || row.userId || '匿名'}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {row.userEmail || row.userId || '-'}
+                      </div>
                     </td>
                     <td className="px-3 py-2">{row.route}</td>
                     <td className="px-3 py-2 font-mono text-xs">{row.modelString}</td>

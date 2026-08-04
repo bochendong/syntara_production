@@ -1,63 +1,54 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   LEARN_HOME_PREVIEW_COURSES,
   LearnHomeDashboard,
 } from '@/components/learn/learn-home-dashboard';
-import {
-  readLearnCourseListCache,
-  writeLearnCourseListCache,
-} from '@/components/learn/learn-course-list-cache';
 import { usePersistHydrated } from '@/lib/hooks/use-persist-hydrated';
+import { useAuthSignOut } from '@/lib/hooks/use-auth-sign-out';
 import { useAuthStore } from '@/lib/store/auth';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
 import { listCoursesOrThrow } from '@/lib/utils/course-storage';
 import type { CourseRecord } from '@/lib/utils/database';
 
-const CreateCourseDialog = dynamic(
-  () => import('@/components/courses/create-course-dialog').then((mod) => mod.CreateCourseDialog),
-  { ssr: false },
-);
-
-const HOME_ROUTE_PREFETCH_TARGETS = ['/calendar', '/profile', '/settings'] as const;
+const HOME_ROUTE_PREFETCH_TARGETS = [
+  '/student/usage',
+  '/calendar',
+  '/profile',
+  '/settings',
+] as const;
 
 export function LearnHomePageClient({ preview = false }: { preview?: boolean }) {
   const router = useRouter();
+  const signOut = useAuthSignOut();
   const authHydrated = usePersistHydrated(useAuthStore);
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
-  const userId = useAuthStore((state) => state.userId);
+  const role = useAuthStore((state) => state.role);
   const setCurrentCourse = useCurrentCourseStore((state) => state.setCurrentCourse);
-  const localUserId = userId || 'anonymous';
   const [courses, setCourses] = useState<CourseRecord[]>(preview ? LEARN_HOME_PREVIEW_COURSES : []);
   const [coursesLoading, setCoursesLoading] = useState(!preview);
   const [courseLoadError, setCourseLoadError] = useState<string | null>(null);
-  const [createCourseOpen, setCreateCourseOpen] = useState(false);
 
-  const loadCourses = useCallback(
-    async (options: { silent?: boolean } = {}) => {
+  const loadCourses = useCallback(async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      setCoursesLoading(true);
+      setCourseLoadError(null);
+    }
+    try {
+      const items = await listCoursesOrThrow();
+      setCourses(items);
+      return items;
+    } catch (error) {
       if (!options.silent) {
-        setCoursesLoading(true);
-        setCourseLoadError(null);
+        setCourseLoadError(error instanceof Error ? error.message : '课程加载失败');
       }
-      try {
-        const items = await listCoursesOrThrow();
-        writeLearnCourseListCache(localUserId, items);
-        setCourses(items);
-        return items;
-      } catch (error) {
-        if (!options.silent) {
-          setCourseLoadError(error instanceof Error ? error.message : '课程加载失败');
-        }
-        throw error;
-      } finally {
-        if (!options.silent) setCoursesLoading(false);
-      }
-    },
-    [localUserId],
-  );
+      throw error;
+    } finally {
+      if (!options.silent) setCoursesLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (preview || !authHydrated) return;
@@ -65,18 +56,12 @@ export function LearnHomePageClient({ preview = false }: { preview?: boolean }) 
       router.replace('/login');
       return;
     }
-
-    let alive = true;
-    const cachedCourses = readLearnCourseListCache(localUserId, { allowStale: true });
-    if (cachedCourses?.length) {
-      setCourses(cachedCourses);
-      setCoursesLoading(false);
-      void loadCourses({ silent: true }).catch(() => {});
-      return () => {
-        alive = false;
-      };
+    if (role !== 'STUDENT') {
+      router.replace('/teacher');
+      return;
     }
 
+    let alive = true;
     void loadCourses().catch(() => {
       if (!alive) return;
     });
@@ -84,7 +69,7 @@ export function LearnHomePageClient({ preview = false }: { preview?: boolean }) 
     return () => {
       alive = false;
     };
-  }, [authHydrated, isLoggedIn, loadCourses, localUserId, preview, router]);
+  }, [authHydrated, isLoggedIn, loadCourses, preview, role, router]);
 
   useEffect(() => {
     if (preview) return;
@@ -104,10 +89,6 @@ export function LearnHomePageClient({ preview = false }: { preview?: boolean }) 
     return () => window.clearTimeout(timerId);
   }, [preview, router]);
 
-  const refreshCourses = useCallback(async () => {
-    await loadCourses();
-  }, [loadCourses]);
-
   const openCourse = useCallback(
     (courseId: string) => {
       const course = courses.find((item) => item.id === courseId);
@@ -120,24 +101,17 @@ export function LearnHomePageClient({ preview = false }: { preview?: boolean }) 
   );
 
   return (
-    <>
-      <LearnHomeDashboard
-        courses={preview ? LEARN_HOME_PREVIEW_COURSES : courses}
-        activeCourseId={null}
-        coursesLoading={coursesLoading}
-        courseLoadError={courseLoadError}
-        onCreateCourse={() => setCreateCourseOpen(true)}
-        onOpenCalendar={() => router.push('/calendar')}
-        onOpenCourse={openCourse}
-        onRetryCourseLoad={() => void loadCourses().catch(() => {})}
-      />
-      {createCourseOpen ? (
-        <CreateCourseDialog
-          open
-          onOpenChange={setCreateCourseOpen}
-          onSuccess={() => void refreshCourses().catch(() => {})}
-        />
-      ) : null}
-    </>
+    <LearnHomeDashboard
+      courses={preview ? LEARN_HOME_PREVIEW_COURSES : courses}
+      activeCourseId={null}
+      coursesLoading={coursesLoading}
+      courseLoadError={courseLoadError}
+      onCreateCourse={() => {}}
+      onOpenCalendar={() => router.push('/calendar')}
+      onOpenUsage={() => router.push('/student/usage')}
+      onOpenCourse={openCourse}
+      onSignOut={signOut}
+      onRetryCourseLoad={() => void loadCourses().catch(() => {})}
+    />
   );
 }

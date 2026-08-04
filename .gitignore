@@ -83,6 +83,7 @@ next-env.d.ts
 /OpenMAIC-org
 /outputs
 /db-backups
+/.data
 /queue/*
 !/queue/CSC148/
 !/queue/CSC148/**

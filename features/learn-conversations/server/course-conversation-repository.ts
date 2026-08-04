@@ -770,19 +770,23 @@ async function mutateConversationRevision(
         )
         SELECT
           $1, $2, $3, $4, $5,
-          COALESCE($7::bigint, 1),
+          GREATEST(COALESCE($7::bigint, 1), COALESCE($6::bigint, 0) + 1),
           0, 0, 0,
           CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-        WHERE COALESCE($6::bigint, 0) = 0
         ON CONFLICT ("ownerId", "courseId", "sessionId") DO UPDATE
         SET
           "title" = EXCLUDED."title",
-          "revision" = COALESCE($7::bigint, "CourseConversation"."revision" + 1),
+          -- Message synchronization is an id-based patch protected by the
+          -- advisory transaction lock above. Merge concurrent device patches
+          -- in arrival order and advance the server revision instead of
+          -- rejecting a harmlessly stale base revision and creating a retry
+          -- livelock between tabs.
+          "revision" = GREATEST(
+            COALESCE($7::bigint, "CourseConversation"."revision" + 1),
+            "CourseConversation"."revision" + 1
+          ),
           "updatedAt" = CURRENT_TIMESTAMP
         WHERE "CourseConversation"."deletedAt" IS NULL
-          AND $6::bigint IS NOT NULL
-          AND "CourseConversation"."revision" = $6::bigint
-          AND ($7::bigint IS NULL OR $7::bigint > "CourseConversation"."revision")
         RETURNING *, TRUE AS "accepted"
       )
       SELECT * FROM attempted

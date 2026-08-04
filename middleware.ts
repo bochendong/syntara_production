@@ -3,15 +3,33 @@ import { NextResponse, type NextRequest } from 'next/server';
 const CLASSROOM_TASK_HISTORY_PATH = /^\/classroom\/([^/]+)\/tasks(?:\/.*)?$/;
 
 export function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
   const match = request.nextUrl.pathname.match(CLASSROOM_TASK_HISTORY_PATH);
-  if (!match?.[1]) return NextResponse.next();
+  if (match?.[1]) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/classroom/${match[1]}`;
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
+  if (process.env.TEACHER_ONLY_LAUNCH !== 'true') return NextResponse.next();
+  const isStaticAsset = pathname.includes('.');
+  const isAllowedPath =
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/_next/') ||
+    pathname === '/teacher' ||
+    pathname.startsWith('/teacher/') ||
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/') ||
+    (pathname === '/learn' && request.nextUrl.searchParams.get('from') === 'teacher');
+  if (isStaticAsset || isAllowedPath) return NextResponse.next();
 
   const url = request.nextUrl.clone();
-  url.pathname = `/classroom/${match[1]}`;
+  url.pathname = pathname === '/' ? '/teacher/login' : '/teacher';
   url.search = '';
   return NextResponse.redirect(url);
 }
 
 export const config = {
-  matcher: ['/classroom/:id/tasks/:path*'],
+  matcher: ['/((?!_next/static|_next/image).*)'],
 };
