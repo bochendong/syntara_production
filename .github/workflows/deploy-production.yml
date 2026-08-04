@@ -18,7 +18,11 @@ jobs:
   vercel:
     name: Deploy Vercel
     needs: railway
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      always() &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') &&
+      (needs.railway.result == 'success' ||
+        (github.event_name == 'workflow_run' && contains(github.event.workflow_run.head_commit.message, '[railway-deployed]')))
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -54,7 +58,9 @@ jobs:
 
   railway:
     name: Deploy Railway
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') &&
+      !(github.event_name == 'workflow_run' && contains(github.event.workflow_run.head_commit.message, '[railway-deployed]'))
     runs-on: ubuntu-latest
     environment: production
     env:
