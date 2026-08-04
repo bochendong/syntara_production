@@ -872,9 +872,7 @@ function normalizeExplicitMarkdownMathDelimiters(text: string): string {
 
 export function normalizeLooseMathDelimiters(text: string): string {
   const explicitMath = normalizeExplicitMarkdownMathDelimiters(text);
-  return wrapBacktickMath(
-    wrapParenMath(wrapDoubleParenMath(wrapSquareBracketMath(explicitMath))),
-  );
+  return wrapBacktickMath(wrapParenMath(wrapDoubleParenMath(wrapSquareBracketMath(explicitMath))));
 }
 
 function isComplexMath(latex: string): boolean {

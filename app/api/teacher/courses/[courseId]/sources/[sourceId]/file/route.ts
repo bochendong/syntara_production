@@ -24,15 +24,13 @@ export async function GET(
       },
     });
     if (!source) return NextResponse.json({ error: 'Source file not found' }, { status: 404 });
-    const data = source.fileData ||
-      (source.extractedText ? Buffer.from(source.extractedText, 'utf8') : null);
+    const data =
+      source.fileData || (source.extractedText ? Buffer.from(source.extractedText, 'utf8') : null);
     if (!data) return NextResponse.json({ error: 'Source file not found' }, { status: 404 });
     return new Response(data, {
       headers: {
         'content-type':
-          source.fileData && source.fileMime
-            ? source.fileMime
-            : 'text/markdown; charset=utf-8',
+          source.fileData && source.fileMime ? source.fileMime : 'text/markdown; charset=utf-8',
         'content-length': String(data.byteLength),
         'content-disposition': `inline; filename*=UTF-8''${encodeURIComponent(source.title)}`,
         'cache-control': 'private, no-store',

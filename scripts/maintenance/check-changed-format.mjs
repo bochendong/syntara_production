@@ -16,10 +16,12 @@ const requestedBase = process.argv
   .find((argument) => argument !== '--')
   ?.trim();
 const base = commitExists(requestedBase) ? requestedBase : 'HEAD^';
-const files = execFileSync('git', ['diff', '--name-only', '--diff-filter=ACMR', `${base}...HEAD`], {
-  encoding: 'utf8',
-})
-  .split('\n')
+const files = execFileSync(
+  'git',
+  ['diff', '--name-only', '--diff-filter=ACMR', '-z', `${base}...HEAD`],
+  { encoding: 'utf8' },
+)
+  .split('\0')
   .map((file) => file.trim())
   .filter(Boolean);
 

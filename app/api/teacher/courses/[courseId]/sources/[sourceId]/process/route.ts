@@ -85,7 +85,10 @@ async function runSourceProcessing(args: {
     // PostgreSQL text columns reject NUL bytes. Some PDF text extractors keep
     // them as U+0000, so normalize before either prompting the model or
     // persisting the extracted source text.
-    const text = extracted.text.replace(/\u0000/g, '').trim().slice(0, 90_000);
+    const text = extracted.text
+      .replace(/\u0000/g, '')
+      .trim()
+      .slice(0, 90_000);
     if (text.length < 400) throw new Error('源文件提取文字不足，无法生成课程笔记本');
 
     await prisma.courseSource.update({
@@ -158,10 +161,7 @@ export async function POST(
       select: { status: true, stage: true, progress: true },
     });
     if (existingTask?.status === 'queued' || existingTask?.status === 'running') {
-      return NextResponse.json(
-        { ok: true, taskId, notebookId, ...existingTask },
-        { status: 202 },
-      );
+      return NextResponse.json({ ok: true, taskId, notebookId, ...existingTask }, { status: 202 });
     }
 
     const requestPayload = toPrismaJson({

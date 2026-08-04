@@ -20,10 +20,7 @@ function jsonRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-export async function PUT(
-  request: Request,
-  context: { params: Promise<{ courseId: string }> },
-) {
+export async function PUT(request: Request, context: { params: Promise<{ courseId: string }> }) {
   return safeRoute(async () => {
     const teacher = await requireTeacher();
     if ('response' in teacher) return teacher.response;
