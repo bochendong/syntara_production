@@ -122,12 +122,18 @@ export function StudentOnlineLoginPage() {
               {busy ? '正在登录…' : '进入学生桌面'}
             </button>
           </form>
-          <p className="mt-5 text-center text-xs text-slate-500">
-            老师请前往{' '}
-            <a href="/teacher/login" className="text-sky-300">
-              教师登录
-            </a>
-          </p>
+          <div className="my-5 flex items-center gap-3 text-[11px] text-slate-500" aria-hidden>
+            <span className="h-px flex-1 bg-white/10" />
+            或
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+          <a
+            href="/teacher/login"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[.06] text-sm font-semibold text-slate-100 transition hover:border-sky-300/40 hover:bg-sky-300/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+          >
+            <GraduationCap className="size-4" />
+            我是老师，进入教师登录
+          </a>
         </section>
       </main>
     </div>

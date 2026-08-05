@@ -31,7 +31,7 @@ export function middleware(request: NextRequest) {
   if (isStaticAsset || isAllowedPath) return NextResponse.next();
 
   const url = request.nextUrl.clone();
-  url.pathname = pathname === '/' ? '/teacher/login' : '/teacher';
+  url.pathname = pathname === '/' ? '/login' : '/teacher';
   url.search = '';
   return NextResponse.redirect(url);
 }
