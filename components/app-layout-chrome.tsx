@@ -18,14 +18,6 @@ const ChatRightRail = dynamic(
   () => import('@/components/chat-right-rail').then((mod) => mod.ChatRightRail),
   { ssr: false },
 );
-const Live2DStudyCompanionLauncher = dynamic(
-  () =>
-    import('@/components/live2d-study-companion-launcher').then(
-      (mod) => mod.Live2DStudyCompanionLauncher,
-    ),
-  { ssr: false },
-);
-
 /** 侧栏 inset left-4 / right-4 各 16px；左侧导航略宽，右侧聊天栏保持紧凑。 */
 const SIDEBAR_GAP = 12;
 const LEFT_RAIL_EXPANDED_WIDTH = 280;
@@ -72,17 +64,6 @@ function isTestSurface(pathname: string | null): boolean {
     pathname === '/generation-quality' ||
     pathname === '/generation-tests' ||
     /^\/[^/]+-test(?:\/|$)/.test(pathname)
-  );
-}
-
-function shouldHideStudyCompanion(pathname: string | null): boolean {
-  return (
-    pathname === '/' ||
-    pathname === '/learn' ||
-    Boolean(pathname?.startsWith('/learn/')) ||
-    pathname === '/live2d' ||
-    Boolean(pathname?.startsWith('/live2d/')) ||
-    isTestSurface(pathname)
   );
 }
 
@@ -162,7 +143,6 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
     !searchParams.has('sessionId') &&
     !searchParams.has('debugNoCourses');
   const isCreatorV2 = pathname === '/creator' || Boolean(pathname?.startsWith('/creator/'));
-  const hideStudyCompanion = shouldHideStudyCompanion(pathname) || isLearnHome;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed);
   const [chatRightCollapsed, setChatRightCollapsed] = useState(getInitialChatRightCollapsed);
 
@@ -188,21 +168,8 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   const isChatPage = pathname === '/chat';
   const hasRightRail = isChatPage;
   const hasGlobalHeader = false;
-  const withStudyCompanion = (content: ReactNode) => {
-    if (hideStudyCompanion) return <>{content}</>;
-
-    return (
-      <>
-        {content}
-        <Suspense fallback={null}>
-          <Live2DStudyCompanionLauncher />
-        </Suspense>
-      </>
-    );
-  };
-
   if (isLogin || isTeacherLogin || isRegister || isLanding) {
-    return withStudyCompanion(<>{children}</>);
+    return <>{children}</>;
   }
 
   if (isTeacherPortal) {
@@ -226,23 +193,23 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   }
 
   if (isLearnV2) {
-    return withStudyCompanion(
+    return (
       <MainShellNoRail balancedInset edgeToEdge={isLearnHome}>
         {children}
-      </MainShellNoRail>,
+      </MainShellNoRail>
     );
   }
 
   if (isCreatorV2) {
-    return withStudyCompanion(<MainShellNoRail balancedInset>{children}</MainShellNoRail>);
+    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
   }
 
   if (isStore) {
-    return withStudyCompanion(<MainShellNoRail balancedInset>{children}</MainShellNoRail>);
+    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
   }
 
   if (isTestPage) {
-    return withStudyCompanion(<MainShellNoRail balancedInset>{children}</MainShellNoRail>);
+    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
   }
 
   if (isCsc148LocalPage) {
@@ -250,42 +217,42 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   }
 
   if (isNotebookCreatePage) {
-    return withStudyCompanion(<MainShellNoRail balancedInset>{children}</MainShellNoRail>);
+    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
   }
 
   if (isCourseHome) {
-    return withStudyCompanion(<MainShellNoRail balancedInset>{children}</MainShellNoRail>);
+    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
   }
 
   if (isCourseProblemDetail) {
-    return withStudyCompanion(<MainShellNoRail balancedInset>{children}</MainShellNoRail>);
+    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
   }
 
   if (isCourseProblemBank) {
-    return withStudyCompanion(<MainShellNoRail balancedInset>{children}</MainShellNoRail>);
+    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
   }
 
   if (isCourseMemory) {
-    return withStudyCompanion(<MainShellNoRail balancedInset>{children}</MainShellNoRail>);
+    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
   }
 
   if (isCourseResources) {
-    return withStudyCompanion(<MainShellNoRail balancedInset>{children}</MainShellNoRail>);
+    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
   }
 
   if (isProfile || isSettings || isCalendar) {
-    return withStudyCompanion(<MainShellNoRail balancedInset>{children}</MainShellNoRail>);
+    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
   }
 
   if (isAdmin) {
-    return withStudyCompanion(<MainShellNoRail>{children}</MainShellNoRail>);
+    return <MainShellNoRail>{children}</MainShellNoRail>;
   }
 
   if (isClassroom) {
-    return withStudyCompanion(<MainShellNoRail>{children}</MainShellNoRail>);
+    return <MainShellNoRail>{children}</MainShellNoRail>;
   }
 
-  return withStudyCompanion(
+  return (
     <>
       <AppLeftRail
         collapsed={sidebarCollapsed}
@@ -312,7 +279,7 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
           />
         </Suspense>
       ) : null}
-    </>,
+    </>
   );
 }
 
