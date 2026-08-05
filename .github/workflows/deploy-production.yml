@@ -57,41 +57,82 @@ jobs:
             exit 1
           fi
 
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-
-      - name: Link Vercel project
-        run: |
-          mkdir -p .vercel
-          printf '{"orgId":"%s","projectId":"%s"}\n' \
-            "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
-
-      - name: Pull Vercel production configuration
+      - name: Deploy to Vercel production
         shell: bash
+        env:
+          DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
-          set +e
-          output="$(vercel pull --yes --environment=production \
-            --scope bochendongs-projects \
-            --token "$VERCEL_TOKEN" 2>&1)"
-          status=$?
-          printf '%s\n' "$output"
-          if [ "$status" -ne 0 ]; then
-            message="$(printf '%s\n' "$output" | tail -n 8 | tr '\n' ' ' | sed 's/%/%25/g')"
-            echo "::error title=Vercel pull failed::$message"
-            exit "$status"
+          request_file="$(mktemp)"
+          response_file="$(mktemp)"
+          jq -n \
+            --arg project "$VERCEL_PROJECT_ID" \
+            --arg sha "$DEPLOY_SHA" \
+            '{
+              name: "open-maic",
+              project: $project,
+              target: "production",
+              gitSource: {
+                type: "github",
+                org: "bochendong",
+                repo: "syntara_production",
+                ref: "main",
+                sha: $sha
+              }
+            }' > "$request_file"
+
+          create_status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Content-Type: application/json' \
+            --data-binary "@$request_file" \
+            "https://api.vercel.com/v13/deployments?teamId=$VERCEL_ORG_ID&forceNew=1")"
+          if [ "$create_status" != "200" ] && [ "$create_status" != "201" ]; then
+            message="$(jq -r '.error.message // "Unknown Vercel deployment error"' "$response_file")"
+            echo "::error title=Vercel deployment rejected::$message (HTTP $create_status)"
+            exit 1
           fi
 
-      - name: Build for Vercel
-        run: >-
-          vercel build --prod
-          --scope bochendongs-projects
-          --token "$VERCEL_TOKEN"
+          deployment_id="$(jq -r '.id // empty' "$response_file")"
+          deployment_url="$(jq -r '.url // empty' "$response_file")"
+          test -n "$deployment_id" || { echo "Vercel response did not include a deployment ID"; exit 1; }
+          echo "Created Vercel deployment $deployment_id at https://$deployment_url"
 
-      - name: Deploy to Vercel production
-        run: >-
-          vercel deploy --prebuilt --prod
-          --scope bochendongs-projects
-          --token "$VERCEL_TOKEN"
+          for attempt in $(seq 1 120); do
+            state_status="$(curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v13/deployments/$deployment_id?teamId=$VERCEL_ORG_ID")"
+            if [ "$state_status" != "200" ]; then
+              message="$(jq -r '.error.message // "Unknown Vercel status error"' "$response_file")"
+              echo "::error title=Vercel status check failed::$message (HTTP $state_status)"
+              exit 1
+            fi
+            ready_state="$(jq -r '.readyState // .state // "UNKNOWN"' "$response_file")"
+            echo "Vercel deployment state: $ready_state"
+            case "$ready_state" in
+              READY)
+                {
+                  echo "### Vercel production deployment"
+                  echo "- URL: https://$deployment_url"
+                  echo "- Commit: $DEPLOY_SHA"
+                  echo "- State: READY"
+                } >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+              ERROR | CANCELED)
+                message="$(jq -r '.errorMessage // .error.message // "Deployment failed"' "$response_file")"
+                echo "::error title=Vercel deployment failed::$message"
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+
+          echo "::error title=Vercel deployment timed out::Deployment did not reach READY within 20 minutes"
+          exit 1
 
   railway:
     name: Deploy Railway
