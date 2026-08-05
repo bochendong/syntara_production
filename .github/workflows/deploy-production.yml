@@ -42,7 +42,20 @@ jobs:
           cache: pnpm
 
       - name: Verify Vercel credentials
-        run: test -n "$VERCEL_TOKEN" || { echo "Missing GitHub secret VERCEL_TOKEN"; exit 1; }
+        shell: bash
+        run: |
+          test -n "$VERCEL_TOKEN" || { echo "Missing GitHub secret VERCEL_TOKEN"; exit 1; }
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
+          if [ "$status" != "200" ]; then
+            message="$(jq -r '.error.message // "Unknown Vercel API error"' "$response_file")"
+            echo "::error title=Vercel credentials rejected::$message (HTTP $status)"
+            exit 1
+          fi
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
