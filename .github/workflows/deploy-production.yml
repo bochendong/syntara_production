@@ -60,14 +60,29 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
+      - name: Link Vercel project
+        run: |
+          mkdir -p .vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' \
+            "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+
       - name: Pull Vercel production configuration
-        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+        run: >-
+          vercel pull --yes --environment=production
+          --scope bochendongs-projects
+          --token "$VERCEL_TOKEN"
 
       - name: Build for Vercel
-        run: vercel build --prod --token "$VERCEL_TOKEN"
+        run: >-
+          vercel build --prod
+          --scope bochendongs-projects
+          --token "$VERCEL_TOKEN"
 
       - name: Deploy to Vercel production
-        run: vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+        run: >-
+          vercel deploy --prebuilt --prod
+          --scope bochendongs-projects
+          --token "$VERCEL_TOKEN"
 
   railway:
     name: Deploy Railway
