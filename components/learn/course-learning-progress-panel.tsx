@@ -70,19 +70,21 @@ export function CourseLearningProgressPanel({
   const itemRefs = useRef<Array<HTMLLIElement | null>>([]);
   const [anchorPercents, setAnchorPercents] = useState<number[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [dragSelection, setDragSelection] = useState<string | null>(null);
 
   const orderedNotebooks = useMemo(() => orderCourseNotebooksForProgress(notebooks), [notebooks]);
   const notebookCount = orderedNotebooks.length;
 
+  const displayedSelection = dragSelection ?? selection;
   const completedNotebookCount = useMemo(
     () =>
       completedCountFromProgressSelection(
-        selection,
+        displayedSelection,
         orderedNotebooks,
         notStartedToken,
         completedAllToken,
       ),
-    [completedAllToken, notStartedToken, orderedNotebooks, selection],
+    [completedAllToken, displayedSelection, notStartedToken, orderedNotebooks],
   );
 
   const commitCount = useCallback(
@@ -149,30 +151,48 @@ export function CourseLearningProgressPanel({
     [notebookCount],
   );
 
-  const updateProgressFromClientY = useCallback(
+  const previewProgressFromClientY = useCallback(
     (clientY: number) => {
-      commitCount(snapCountFromClientY(clientY));
+      setDragSelection(
+        progressSelectionFromCompletedCount(
+          snapCountFromClientY(clientY),
+          orderedNotebooks,
+          notStartedToken,
+          completedAllToken,
+        ),
+      );
     },
-    [commitCount, snapCountFromClientY],
+    [completedAllToken, notStartedToken, orderedNotebooks, snapCountFromClientY],
   );
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
-    updateProgressFromClientY(event.clientY);
+    previewProgressFromClientY(event.clientY);
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!dragging && !event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    updateProgressFromClientY(event.clientY);
+    previewProgressFromClientY(event.clientY);
   };
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    const finalCount = snapCountFromClientY(event.clientY);
     setDragging(false);
+    setDragSelection(null);
+    commitCount(finalCount);
+  };
+
+  const handlePointerCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setDragging(false);
+    setDragSelection(null);
   };
 
   const progressPercent =
@@ -205,7 +225,7 @@ export function CourseLearningProgressPanel({
       ) : (
         <>
           <p className="mt-2 text-[11px] leading-5 text-slate-500">
-            AI 只读取蓝色进度点之前的笔记本内容与对应记忆。
+            进度只由你手动调整；AI 只读取蓝色进度点之前的笔记本内容与对应记忆。
           </p>
           <div className="mt-3 grid min-w-0 grid-cols-[14px_minmax(0,1fr)] items-stretch gap-2.5">
             <div
@@ -224,7 +244,7 @@ export function CourseLearningProgressPanel({
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
+              onPointerCancel={handlePointerCancel}
               onKeyDown={(event) => {
                 if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
                   event.preventDefault();

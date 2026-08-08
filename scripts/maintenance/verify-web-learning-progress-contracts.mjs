@@ -22,9 +22,29 @@ assert.match(
 assert.match(panel, /loading && notebookCount === 0/);
 assert.match(panel, /AI 只读取蓝色进度点之前的笔记本内容与对应记忆/);
 assert.match(
+  panel,
+  /previewProgressFromClientY[\s\S]{0,420}setDragSelection\(/,
+  'Dragging must preview progress locally instead of persisting on every pointer move.',
+);
+assert.match(
+  panel,
+  /handlePointerUp[\s\S]{0,420}commitCount\(finalCount\)/,
+  'The progress slider must commit once when the student releases the pointer.',
+);
+assert.match(
   client,
   /progressSavePromiseRef\.current = \{ courseId: activeCourse\.id, promise: savePromise \}[\s\S]{0,450}同步到账号失败/,
   'Progress changes must expose account-sync failures.',
+);
+assert.match(
+  client,
+  /savePromise\.then\(\(saved\) => \{[\s\S]{0,160}if \(saved\) \{[\s\S]{0,100}announceLearningMemoryUpdated/,
+  'The memory-ball update must only be announced after account memory persistence succeeds.',
+);
+assert.match(
+  client,
+  /activity\.layer !== 'study_memory' && activity\.layer !== 'structured_fact'/,
+  'The memory ball must exclude source indexing and other non-student activity layers.',
 );
 assert.match(
   client,

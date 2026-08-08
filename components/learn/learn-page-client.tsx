@@ -2112,11 +2112,9 @@ const PLATFORM_MEMORY_SPHERES: Array<{
   { tone: 'weakness', label: '薄弱点', className: 'learn-memory-sphere-md sphere-weakness' },
   { tone: 'mastery', label: '掌握', className: 'learn-memory-sphere-lg sphere-mastery' },
   { tone: 'schedule', label: '安排', className: 'learn-memory-sphere-sm sphere-schedule' },
-  { tone: 'source', label: '资料', className: 'learn-memory-sphere-md sphere-source' },
   { tone: 'preference', label: '偏好', className: 'learn-memory-sphere-sm sphere-preference' },
   { tone: 'next', label: '下一步', className: 'learn-memory-sphere-lg sphere-next' },
   { tone: 'writing', label: '写入中', className: 'learn-memory-sphere-xs sphere-writing' },
-  { tone: 'source', label: '索引', className: 'learn-memory-sphere-xs sphere-source-alt' },
   { tone: 'mastery', label: '稳定', className: 'learn-memory-sphere-sm sphere-mastery-alt' },
 ];
 
@@ -2142,7 +2140,7 @@ function platformMemoryVisualTone(record: { title: string; description: string; 
 
 function shouldShowPlatformMemoryRecord(record: TaskHistoryRecord) {
   if (record.source !== 'memory_activity') return false;
-  if (record.kind === 'none') return false;
+  if (record.kind !== 'study_memory' && record.kind !== 'structured_fact') return false;
   if (INTERNAL_MEMORY_PROCESS_PATTERN.test([record.title, record.description].join(' '))) {
     return false;
   }
@@ -2170,7 +2168,7 @@ function isPlatformMemoryStatusMockRecord(record: TaskHistoryRecord) {
 }
 
 function shouldCountPlatformMemoryActivity(activity: MemoryActivityRecord) {
-  if (activity.layer === 'none') return false;
+  if (activity.layer !== 'study_memory' && activity.layer !== 'structured_fact') return false;
   if (INTERNAL_MEMORY_PROCESS_PATTERN.test([activity.title, activity.description].join(' '))) {
     return false;
   }
@@ -3779,23 +3777,14 @@ function announceLearningMemoryUpdated(
   label: string,
   descriptionPrefix = '记忆已更新',
 ) {
-  const activityId = addMemoryActivity({
+  addMemoryActivity({
     courseId,
-    title: '学习进度写入中',
-    description: `学习进度：你现在定位在「${label}」。我会用它判断下一步该复习、预习还是练题。`,
-    status: 'writing_study_memory',
+    title: '学习进度已更新',
+    description: `学习进度：${label}。${descriptionPrefix}，之后我会按这个位置安排复习、预习和练习。`,
+    status: 'completed',
     layer: 'study_memory',
     chips: ['课程', '进度'],
   });
-  window.setTimeout(() => {
-    updateMemoryActivity(activityId, {
-      title: '学习进度已更新',
-      description: `学习进度：${label}。${descriptionPrefix}，之后我会按这个位置安排复习、预习和练习。`,
-      status: 'completed',
-      layer: 'study_memory',
-      chips: ['课程', '进度'],
-    });
-  }, 520);
 }
 
 function announceSyllabusScheduleUpdated(courseId: string, label: string) {
@@ -10933,11 +10922,12 @@ export function LearnPageClient() {
       const savePromise = saveRemoteLearnerCourseState(nextState);
       progressSavePromiseRef.current = { courseId: activeCourse.id, promise: savePromise };
       void savePromise.then((saved) => {
-        if (!saved && activeCourseIdRef.current === activeCourse.id) {
+        if (saved) {
+          announceLearningMemoryUpdated(activeCourse.id, label);
+        } else if (activeCourseIdRef.current === activeCourse.id) {
           setError('学习进度已保存在当前浏览器，但同步到账号失败；发送问题前请重试。');
         }
       });
-      announceLearningMemoryUpdated(activeCourse.id, label);
       return { state: nextState, snapshot: nextSnapshot, label };
     },
     [activeCourse, notebooks, problems, userId],
@@ -10983,8 +10973,13 @@ export function LearnPageClient() {
       const label = progressLabelForSelection(selection, notebooks);
       setSnapshot(nextSnapshot);
       setProgressSelection(progressSelectionFromSnapshot(nextSnapshot));
-      void saveRemoteLearnerCourseState(savedState);
-      announceLearningMemoryUpdated(activeCourse.id, label, '计划范围已记录');
+      void saveRemoteLearnerCourseState(savedState).then((saved) => {
+        if (saved) {
+          announceLearningMemoryUpdated(activeCourse.id, label, '计划范围已记录');
+        } else if (activeCourseIdRef.current === activeCourse.id) {
+          setError('计划范围已保存在当前浏览器，但同步到账号失败；请重试。');
+        }
+      });
       return { state: scopedState, snapshot: scopedSnapshot, label };
     },
     [activeCourse, notebooks, problems, userId],
@@ -17483,7 +17478,7 @@ export function LearnPageClient() {
       open={memoryActivityDialogOpen}
       onOpenChange={setMemoryActivityDialogOpen}
       title="平台记忆动态"
-      description="查看平台最近怎样更新对学生学习状态的理解。"
+      description="查看平台最近怎样更新对你的学习状态的理解。"
       contentClassName="learn-memory-dialog-shell border-0 bg-transparent shadow-none"
     >
       <div className="learn-memory-dialog-surface flex h-full min-h-0">
@@ -17493,7 +17488,7 @@ export function LearnPageClient() {
             记忆动态
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-500">
-            这里显示平台最近怎样理解你的资料、进度、偏好和薄弱点。
+            这里只显示与你本人相关的进度、偏好、掌握情况和薄弱点，不显示课程资料同步。
           </p>
           <div className="mt-6 grid gap-2 text-sm">
             <div className="learn-memory-metric-row" data-tone="writing">
@@ -17526,7 +17521,7 @@ export function LearnPageClient() {
                 最近写入
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                平台正在把新的学习线索整理成之后能用上的记忆。
+                只有与你本人相关的记忆写入后，平台才会在这里通知你。
               </p>
             </div>
           </div>
@@ -17601,7 +17596,7 @@ export function LearnPageClient() {
                   </div>
                   <p className="mt-4 text-sm font-semibold text-slate-950">还没有记忆动态</p>
                   <p className="mt-1 text-sm leading-6 text-slate-500">
-                    当你上传资料、确认学习进度或完成练习后，平台会在这里告诉你它学到了什么。
+                    当你确认学习进度，或平台写入你的偏好、掌握情况和薄弱点后，会在这里告诉你。
                   </p>
                 </div>
               </div>
