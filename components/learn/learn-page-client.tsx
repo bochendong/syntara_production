@@ -2444,12 +2444,19 @@ type NotebookMarkdownSectionDetail = NotebookMarkdownSectionListItem & {
   markdown: string;
 };
 
+type NotebookWithMarkdownSections = {
+  id: string;
+  markdownSections: NotebookMarkdownSectionDetail[];
+};
+
+const NOTEBOOK_MARKDOWN_REQUEST_TIMEOUT_MS = 30_000;
+
 async function loadNotebookMarkdownSectionPage(notebookId: string, cursor?: string | null) {
   const params = new URLSearchParams({ limit: '20' });
   if (cursor) params.set('cursor', cursor);
   return backendJson<NotebookMarkdownSectionPage>(
     `/api/notebooks/${encodeURIComponent(notebookId)}/markdown-sections?${params.toString()}`,
-    { timeoutMs: 8_000 },
+    { timeoutMs: NOTEBOOK_MARKDOWN_REQUEST_TIMEOUT_MS },
   );
 }
 
@@ -2458,37 +2465,38 @@ async function loadNotebookMarkdownSectionDetail(notebookId: string, sectionId: 
     `/api/notebooks/${encodeURIComponent(notebookId)}/markdown-sections/${encodeURIComponent(
       sectionId,
     )}`,
-    { timeoutMs: 8_000 },
+    { timeoutMs: NOTEBOOK_MARKDOWN_REQUEST_TIMEOUT_MS },
+  );
+}
+
+async function loadNotebookWithMarkdownSections(notebookId: string) {
+  return backendJson<{ notebook: NotebookWithMarkdownSections }>(
+    `/api/notebooks/${encodeURIComponent(notebookId)}?includeScenes=0&includeMarkdown=1`,
+    { timeoutMs: NOTEBOOK_MARKDOWN_REQUEST_TIMEOUT_MS },
   );
 }
 
 async function loadBoundedNotebookMarkdownText(notebookIds: string[], textSectionIds: string[]) {
   const boundedNotebookIds = Array.from(new Set(notebookIds)).slice(0, 4);
   const wantedSectionIds = new Set(textSectionIds);
-  const pages = await Promise.all(
+  const notebooks = await Promise.all(
     boundedNotebookIds.map(async (notebookId) => ({
       notebookId,
-      page: await loadNotebookMarkdownSectionPage(notebookId),
+      result: await loadNotebookWithMarkdownSections(notebookId),
     })),
   );
-  const candidates = pages.flatMap(({ notebookId, page }) =>
-    page.sections.map((section) => ({ notebookId, section })),
+  const candidates = notebooks.flatMap(({ result }) =>
+    result.notebook.markdownSections.map((section) => ({ section })),
   );
   const selectedCandidates = (
     wantedSectionIds.size > 0
       ? candidates.filter(({ section }) => wantedSectionIds.has(section.id))
       : candidates
   ).slice(0, 6);
-  const details = await Promise.all(
-    selectedCandidates.map(async ({ notebookId, section }) => ({
-      section,
-      detail: await loadNotebookMarkdownSectionDetail(notebookId, section.id),
-    })),
-  );
-  return details
-    .map(({ section, detail }, index) => {
+  return selectedCandidates
+    .map(({ section }, index) => {
       const title = section.title || `文本 ${index + 1}`;
-      return [`## ${title}`, detail.section.markdown.trim()].filter(Boolean).join('\n\n');
+      return [`## ${title}`, section.markdown.trim()].filter(Boolean).join('\n\n');
     })
     .join('\n\n')
     .trim();
