@@ -141,6 +141,11 @@ assert.match(
 );
 assert.match(
   learnPage,
+  /const activeCourseSourceHealthNotice = isTeacherCourseChat[\s\S]{0,180}\? courseSourceHealthNotice\(activeCourseContentState\?\.sources\)[\s\S]{0,80}: null/,
+  'Private teacher source-health warnings must not be shown on the student surface.',
+);
+assert.match(
+  learnPage,
   /activeCourseSourceHealthNotice \? \([\s\S]{0,400}onClick=\{openSourceUploadPanel\}[\s\S]{0,1800}data-testid="learn-source-health-warning"/,
   'An abnormal source aggregate must expose a small header warning that opens the lazy source panel.',
 );

@@ -15886,9 +15886,12 @@ export function LearnPageClient() {
           detail: '只读取当前进度开放的笔记本和 Hard Rule；日历变更必须经你确认。',
         },
   ];
-  const activeCourseSourceHealthNotice = courseSourceHealthNotice(
-    activeCourseContentState?.sources,
-  );
+  // Students consume the teacher-published notebook projection and cannot read
+  // or repair the teacher's private source catalog. Keep source-ingest/index
+  // health actionable by showing it only in the teacher course-chat surface.
+  const activeCourseSourceHealthNotice = isTeacherCourseChat
+    ? courseSourceHealthNotice(activeCourseContentState?.sources)
+    : null;
   const activeCourseContentWatchError =
     courseContentWatchError && courseContentWatchError.courseId === activeCourse?.id
       ? courseContentWatchError.message
