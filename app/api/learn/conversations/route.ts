@@ -40,6 +40,7 @@ type LearnMessageContent = {
   learningActions?: unknown;
   artifacts?: unknown;
   publicTrace?: unknown;
+  contextCompression?: unknown;
   attachments?: unknown;
 };
 
@@ -118,6 +119,19 @@ const learningActionSchema = z.object({
   evidence: z.array(learningActionEvidenceSchema).max(40).optional(),
 });
 
+const contextCompressionSchema = z.object({
+  version: z.literal(1),
+  mode: z.enum(['student', 'teacher']),
+  trigger: z.enum(['token_budget', 'message_count']),
+  summary: z.string().trim().min(1).max(12000),
+  compressedMessageCount: z.number().int().nonnegative().max(1_000_000),
+  retainedMessageCount: z.number().int().nonnegative().max(MAX_SYNCED_MESSAGES),
+  estimatedTokensBefore: z.number().int().nonnegative().max(10_000_000),
+  estimatedTokensAfter: z.number().int().nonnegative().max(10_000_000),
+  throughMessageId: z.string().trim().min(1).max(160),
+  createdAt: z.number().finite(),
+});
+
 const learnMessageSchema = z.object({
   id: z.string().trim().min(1).max(160),
   role: z.enum(['user', 'assistant']),
@@ -131,6 +145,7 @@ const learnMessageSchema = z.object({
   learningActions: z.array(learningActionSchema).max(MAX_SYNCED_LEARNING_ACTIONS).optional(),
   artifacts: z.unknown().optional(),
   publicTrace: z.unknown().optional(),
+  contextCompression: contextCompressionSchema.optional(),
   attachments: z
     .array(
       z.object({
@@ -182,6 +197,7 @@ function contentFromMessage(message: z.infer<typeof learnMessageSchema>): LearnM
     learningActions: message.learningActions ?? null,
     artifacts: message.artifacts ?? null,
     publicTrace: message.publicTrace ?? null,
+    contextCompression: message.contextCompression ?? null,
     attachments: message.attachments ?? [],
   };
 }
@@ -218,6 +234,7 @@ function messageFromRow(row: CourseConversationMessageRow) {
     learningActions: Array.isArray(content.learningActions) ? content.learningActions : undefined,
     artifacts: content.artifacts ?? undefined,
     publicTrace: content.publicTrace ?? undefined,
+    contextCompression: content.contextCompression ?? undefined,
     attachments: Array.isArray(content.attachments) ? content.attachments : undefined,
   };
 }

@@ -1,10 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Eye, GraduationCap, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Eye, GraduationCap, Loader2, Minus, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { backendJson } from '@/lib/utils/backend-api';
@@ -28,6 +37,11 @@ type StudentRow = {
   updatedAt: string;
 };
 
+type CourseDialogState = {
+  mode: 'add' | 'remove';
+  student: StudentRow;
+};
+
 function courseLabel(course: CourseOption) {
   return [course.courseCode || course.name, course.academicYear, course.academicTerm]
     .filter(Boolean)
@@ -43,6 +57,8 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [courseIds, setCourseIds] = useState<string[]>([]);
+  const [courseDialog, setCourseDialog] = useState<CourseDialogState | null>(null);
+  const [courseDialogSelection, setCourseDialogSelection] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,7 +107,11 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
     }
   };
 
-  const updateCourses = async (student: StudentRow, nextCourseIds: string[]) => {
+  const updateCourses = async (
+    student: StudentRow,
+    nextCourseIds: string[],
+    successMessage = '学生课程已更新',
+  ): Promise<boolean> => {
     setBusyId(student.id);
     try {
       await backendJson(`/api/admin/students/${encodeURIComponent(student.id)}`, {
@@ -100,11 +120,52 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
         body: JSON.stringify({ courseIds: nextCourseIds }),
       });
       await load();
-      toast.success('学生课程已更新');
+      toast.success(successMessage);
+      return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '课程更新失败');
+      return false;
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const openCourseDialog = (student: StudentRow, mode: CourseDialogState['mode']) => {
+    setCourseDialog({ student, mode });
+    setCourseDialogSelection([]);
+  };
+
+  const closeCourseDialog = () => {
+    if (courseDialog && busyId === courseDialog.student.id) return;
+    setCourseDialog(null);
+    setCourseDialogSelection([]);
+  };
+
+  const toggleCourseDialogSelection = (courseId: string, checked: boolean) => {
+    setCourseDialogSelection((current) =>
+      checked
+        ? Array.from(new Set([...current, courseId]))
+        : current.filter((id) => id !== courseId),
+    );
+  };
+
+  const confirmCourseDialog = async () => {
+    if (!courseDialog || courseDialogSelection.length === 0) return;
+    const assignedIds = courseDialog.student.courses.map((course) => course.id);
+    const nextCourseIds =
+      courseDialog.mode === 'add'
+        ? Array.from(new Set([...assignedIds, ...courseDialogSelection]))
+        : assignedIds.filter((courseId) => !courseDialogSelection.includes(courseId));
+    const updated = await updateCourses(
+      courseDialog.student,
+      nextCourseIds,
+      courseDialog.mode === 'add'
+        ? `已添加 ${courseDialogSelection.length} 门课程`
+        : `已移除 ${courseDialogSelection.length} 门课程`,
+    );
+    if (updated) {
+      setCourseDialog(null);
+      setCourseDialogSelection([]);
     }
   };
 
@@ -239,7 +300,6 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
             </div>
           ) : students.length ? (
             students.map((student) => {
-              const assignedIds = student.courses.map((course) => course.id);
               return (
                 <div key={student.id} className="rounded-2xl border p-4">
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -256,7 +316,10 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
                           {student.isActive ? '已启用' : '已停用'}
                         </Badge>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <p className="mt-3 text-xs font-medium text-muted-foreground">
+                        当前课程（{student.courses.length}）
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
                         {student.courses.length ? (
                           student.courses.map((course) => (
                             <Badge key={course.id} variant="outline">
@@ -264,7 +327,9 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
                             </Badge>
                           ))
                         ) : (
-                          <span className="text-xs text-muted-foreground">尚未分配课程</span>
+                          <span className="rounded-full border border-dashed px-3 py-1 text-xs text-muted-foreground">
+                            尚未分配课程
+                          </span>
                         )}
                       </div>
                     </div>
@@ -283,39 +348,33 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
                         进入学生页面
                       </Button>
                       <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openCourseDialog(student, 'add')}
+                        disabled={busyId === student.id || student.courses.length >= courses.length}
+                      >
+                        <Plus className="mr-2 size-4" />
+                        添加课程
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openCourseDialog(student, 'remove')}
+                        disabled={busyId === student.id || student.courses.length === 0}
+                      >
+                        <Minus className="mr-2 size-4" />
+                        删除课程
+                      </Button>
+                      <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => void removeStudent(student)}
                         disabled={busyId === student.id}
                       >
                         <Trash2 className="mr-2 size-4" />
-                        删除
+                        删除学生
                       </Button>
                     </div>
-                  </div>
-                  <div className="mt-4">
-                    <Label htmlFor={`courses-${student.id}`} className="text-xs">
-                      调整课程
-                    </Label>
-                    <select
-                      id={`courses-${student.id}`}
-                      multiple
-                      value={assignedIds}
-                      disabled={busyId === student.id}
-                      onChange={(event) =>
-                        void updateCourses(
-                          student,
-                          Array.from(event.currentTarget.selectedOptions, (option) => option.value),
-                        )
-                      }
-                      className="mt-1 min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    >
-                      {courses.map((course) => (
-                        <option key={course.id} value={course.id}>
-                          {courseLabel(course)}
-                        </option>
-                      ))}
-                    </select>
                   </div>
                 </div>
               );
@@ -327,6 +386,91 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={Boolean(courseDialog)}
+        onOpenChange={(open) => {
+          if (!open) closeCourseDialog();
+        }}
+      >
+        <DialogContent className="max-w-lg rounded-3xl p-0 sm:max-w-lg">
+          <DialogHeader className="border-b px-6 py-5 pr-14">
+            <DialogTitle>
+              {courseDialog?.mode === 'add' ? '添加学生课程' : '删除学生课程'}
+            </DialogTitle>
+            <DialogDescription>
+              {courseDialog?.mode === 'add'
+                ? `选择要分配给“${courseDialog.student.name || courseDialog.student.email}”的课程。`
+                : `选择要从“${courseDialog?.student.name || courseDialog?.student.email}”移除的课程；课程本身不会被删除。`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[min(52vh,420px)] space-y-2 overflow-y-auto px-6 py-5">
+            {courseDialog
+              ? (courseDialog.mode === 'add'
+                  ? courses.filter(
+                      (course) =>
+                        !courseDialog.student.courses.some(
+                          (assignedCourse) => assignedCourse.id === course.id,
+                        ),
+                    )
+                  : courseDialog.student.courses
+                ).map((course) => {
+                  const checked = courseDialogSelection.includes(course.id);
+                  return (
+                    <label
+                      key={course.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 transition hover:bg-muted/50"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(value) =>
+                          toggleCourseDialogSelection(course.id, value === true)
+                        }
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {courseLabel(course)}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                          {course.name}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })
+              : null}
+
+            {courseDialog &&
+            (courseDialog.mode === 'add'
+              ? courses.every((course) =>
+                  courseDialog.student.courses.some(
+                    (assignedCourse) => assignedCourse.id === course.id,
+                  ),
+                )
+              : courseDialog.student.courses.length === 0) ? (
+              <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                {courseDialog.mode === 'add' ? '没有其他可添加的课程' : '该学生目前没有课程'}
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter className="border-t bg-muted/20 px-6 py-4">
+            <Button variant="outline" onClick={closeCourseDialog} disabled={Boolean(busyId)}>
+              取消
+            </Button>
+            <Button
+              variant={courseDialog?.mode === 'remove' ? 'destructive' : 'default'}
+              onClick={() => void confirmCourseDialog()}
+              disabled={courseDialogSelection.length === 0 || Boolean(busyId)}
+            >
+              {busyId ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              {courseDialog?.mode === 'add' ? '确认添加' : '确认删除'}
+              {courseDialogSelection.length ? `（${courseDialogSelection.length}）` : ''}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

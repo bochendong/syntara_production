@@ -62,6 +62,7 @@ import {
   LearnHomeDashboard,
 } from '@/components/learn/learn-home-dashboard';
 import { LearnCourseSidebar } from '@/components/learn/learn-course-sidebar';
+import { ChatContextCompressionNotice } from '@/components/learn/chat-context-compression-notice';
 import { LearnPageShellSkeleton } from '@/components/learn/learn-page-shell-skeleton';
 import {
   readLearnCourseListCache,
@@ -203,6 +204,7 @@ import {
   dispatchCourseReplyProgress,
 } from '@/lib/chat/course-reply-progress';
 import type {
+  ChatContextCompression,
   ChatMessageMetadata,
   CourseChatContext,
   CourseChatEvidenceSummary,
@@ -475,6 +477,7 @@ type LearnMessage = {
   learningActions?: LearningAction[];
   artifacts?: LearnArtifact[];
   publicTrace?: LearnPublicTraceStep[];
+  contextCompression?: ChatContextCompression;
   transient?: boolean;
 };
 
@@ -1630,6 +1633,7 @@ function remoteMessageToLearnMessage(message: RemoteLearnMessage): LearnMessage 
     artifacts: message.artifacts == null ? undefined : (message.artifacts as LearnArtifact[]),
     publicTrace:
       message.publicTrace == null ? undefined : (message.publicTrace as LearnPublicTraceStep[]),
+    contextCompression: message.contextCompression,
     attachments: message.attachments
       ?.map(normalizeLearnAttachmentReference)
       .filter((attachment): attachment is LearnImageAttachment => Boolean(attachment)),
@@ -1663,6 +1667,7 @@ function learnMessageToRemotePayload(message: LearnMessage): RemoteLearnMessageP
     learningActions: settledMessage.learningActions,
     artifacts: settledMessage.artifacts,
     publicTrace: settledMessage.publicTrace,
+    contextCompression: settledMessage.contextCompression,
     attachments: settledMessage.attachments?.map(learnAttachmentReference),
   };
 }
@@ -2992,18 +2997,25 @@ function latestAssistantText(messages: UIMessage<ChatMessageMetadata>[]): string
 function learnMessagesForCourseAnswerer(
   messages: LearnMessage[],
 ): UIMessage<ChatMessageMetadata>[] {
-  const eligibleMessages = messages
-    .filter(
-      (message) =>
-        !message.transient &&
-        (Boolean(message.text.trim()) || Boolean(message.attachments?.length)),
-    )
-    .slice(-8);
-  const latestAttachmentMessageIndex = eligibleMessages.findLastIndex(
+  const eligibleMessages = messages.filter(
+    (message) =>
+      !message.transient && (Boolean(message.text.trim()) || Boolean(message.attachments?.length)),
+  );
+  const latestCompressionIndex = eligibleMessages.findLastIndex((message) =>
+    Boolean(message.contextCompression?.summary.trim()),
+  );
+  // Once a rolling summary exists, send its carrier plus only the verbatim
+  // tail. Before the first compression, allow enough history to reach the
+  // server-side budget trigger without growing request bodies indefinitely.
+  const contextualMessages =
+    latestCompressionIndex >= 0
+      ? eligibleMessages.slice(latestCompressionIndex)
+      : eligibleMessages.slice(-48);
+  const latestAttachmentMessageIndex = contextualMessages.findLastIndex(
     (message) => message.role === 'user' && Boolean(message.attachments?.length),
   );
 
-  return eligibleMessages.map((message, index) => {
+  return contextualMessages.map((message, index) => {
     const includeAttachmentContent = index === latestAttachmentMessageIndex;
     const attachmentParts =
       includeAttachmentContent && message.role === 'user'
@@ -3024,7 +3036,17 @@ function learnMessagesForCourseAnswerer(
             }))
         : [];
     const parts = [
-      ...(message.text.trim() ? [{ type: 'text' as const, text: message.text.slice(-6000) }] : []),
+      ...(message.text.trim()
+        ? [
+            {
+              type: 'text' as const,
+              text:
+                message.text.length <= 12_000
+                  ? message.text
+                  : `${message.text.slice(0, 6_000)}\n\n…（单条历史消息中间部分已省略）…\n\n${message.text.slice(-6_000)}`,
+            },
+          ]
+        : []),
       ...attachmentParts,
     ] as UIMessage<ChatMessageMetadata>['parts'];
 
@@ -3042,6 +3064,7 @@ function learnMessagesForCourseAnswerer(
           mimeType: attachment.mimeType,
           size: attachment.size,
         })),
+        contextCompression: message.contextCompression,
       },
     };
   });
@@ -3084,6 +3107,7 @@ function streamedCourseAnswerFromMessages(
   text: string;
   learningActions?: LearningAction[];
   publicTrace?: LearnPublicTraceStep[];
+  contextCompression?: ChatContextCompression;
 } | null {
   const assistantMessage = messages
     .slice()
@@ -3102,6 +3126,7 @@ function streamedCourseAnswerFromMessages(
       ...action,
     })),
     publicTrace,
+    contextCompression: assistantMessage?.metadata?.contextCompression,
   };
 }
 
@@ -14348,6 +14373,8 @@ export function LearnPageClient() {
                   createdAt: existing.createdAt,
                   publicTrace:
                     streamedAnswer.publicTrace || latestTeacherPublicTrace || existing.publicTrace,
+                  contextCompression:
+                    streamedAnswer.contextCompression || existing.contextCompression,
                   transient: true,
                 });
               });
@@ -14374,6 +14401,7 @@ export function LearnPageClient() {
             publicTrace: finalizePublicTraceSteps(
               currentTurnAnswer.publicTrace || latestTeacherPublicTrace,
             ),
+            contextCompression: currentTurnAnswer.contextCompression,
           };
           setMessages((current) =>
             replaceLearnMessage(current, pendingWorkflowMessageId, answerMessage),
@@ -14960,6 +14988,8 @@ export function LearnPageClient() {
                 text: streamedAnswer.text || existing.text,
                 createdAt: existing.createdAt,
                 publicTrace: publicTrace.length ? publicTrace : undefined,
+                contextCompression:
+                  streamedAnswer.contextCompression || existing.contextCompression,
                 transient: true,
               });
             });
@@ -15016,6 +15046,7 @@ export function LearnPageClient() {
               ...(currentTurnAnswer.publicTrace || latestAnswererPublicTrace || []),
             ].slice(0, 8),
           ),
+          contextCompression: currentTurnAnswer.contextCompression,
         };
         setMessages((current) =>
           replaceLearnMessage(current, pendingWorkflowMessageId, answerMessage),
@@ -19205,6 +19236,11 @@ export function LearnPageClient() {
                               </div>
                             )}
                             <div className="min-w-0 flex-1 select-text rounded-[6px_15px_15px] border border-[#4d473e]/[0.08] bg-white px-3 py-2.5 shadow-[0_7px_20px_rgba(70,61,48,0.05)] dark:border-white/10 dark:bg-white/5">
+                              {message.contextCompression ? (
+                                <ChatContextCompressionNotice
+                                  compression={message.contextCompression}
+                                />
+                              ) : null}
                               {shouldDisplayPublicTrace(message) ? (
                                 <LearnPublicTraceCard
                                   steps={message.publicTrace}

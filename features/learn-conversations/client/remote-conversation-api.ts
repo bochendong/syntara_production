@@ -1,5 +1,5 @@
 import { backendJson } from '@/lib/utils/backend-api';
-import type { LearningAction } from '@/lib/types/chat';
+import type { ChatContextCompression, LearningAction } from '@/lib/types/chat';
 
 // Browser transport and optimistic concurrency state for course conversations.
 // Keep this boundary independent from the /learn page controller so other
@@ -28,6 +28,7 @@ export type RemoteLearnMessage = {
   learningActions?: LearningAction[];
   artifacts?: unknown;
   publicTrace?: unknown;
+  contextCompression?: ChatContextCompression;
   attachments?: Array<{
     id?: string;
     name?: string;
@@ -103,6 +104,7 @@ export type RemoteLearnMessagePayload = {
   learningActions?: LearningAction[];
   artifacts?: unknown;
   publicTrace?: unknown;
+  contextCompression?: ChatContextCompression;
   attachments?: Array<{
     id?: string;
     name?: string;

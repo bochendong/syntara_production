@@ -22,6 +22,29 @@ export interface PublicReplyProgressStep {
   status: PublicReplyProgressStepStatus;
 }
 
+export type ChatContextCompressionTrigger = 'token_budget' | 'message_count';
+
+/**
+ * A user-visible rolling summary of older chat turns.
+ *
+ * The full transcript remains in conversation storage. This object only
+ * describes the smaller context sent to the model on later turns.
+ */
+export interface ChatContextCompression {
+  version: 1;
+  mode: 'student' | 'teacher';
+  trigger: ChatContextCompressionTrigger;
+  summary: string;
+  /** Total number of older messages represented by this rolling summary. */
+  compressedMessageCount: number;
+  /** Number of newest messages that continued to be sent verbatim. */
+  retainedMessageCount: number;
+  estimatedTokensBefore: number;
+  estimatedTokensAfter: number;
+  throughMessageId: string;
+  createdAt: number;
+}
+
 /**
  * Metadata attached to chat messages
  */
@@ -73,6 +96,8 @@ export interface ChatMessageMetadata {
   publicProgressSteps?: PublicReplyProgressStep[];
   statusText?: string;
   interrupted?: boolean;
+  /** Rolling conversation summary used for subsequent model context. */
+  contextCompression?: ChatContextCompression;
 }
 
 export interface CourseChatParticipant {
@@ -946,6 +971,11 @@ export type StatelessEvent =
         steps: PublicReplyProgressStep[];
         agentName?: string;
       };
+    }
+  | {
+      /** The server replaced older model context with a user-visible rolling summary. */
+      type: 'context_compression';
+      data: ChatContextCompression & { messageId: string };
     }
   | { type: 'cue_user'; data: { fromAgentId?: string; prompt?: string } }
   | {

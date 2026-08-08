@@ -63,6 +63,9 @@ function cloneMessages(m: UIMessage<ChatMessageMetadata>[]) {
             ...step,
             evidence: step.evidence ? [...step.evidence] : undefined,
           })),
+          contextCompression: msg.metadata.contextCompression
+            ? { ...msg.metadata.contextCompression }
+            : undefined,
         }
       : undefined,
   })) as UIMessage<ChatMessageMetadata>[];
@@ -331,6 +334,17 @@ async function consumeOneResponse(
           }
           case 'public_progress': {
             applyPublicProgress(event.data);
+            break;
+          }
+          case 'context_compression': {
+            const message = working.find((item) => item.id === event.data.messageId);
+            if (!message) break;
+            const { messageId: _messageId, ...contextCompression } = event.data;
+            message.metadata = {
+              ...message.metadata,
+              contextCompression,
+            };
+            flushTextUpdate();
             break;
           }
           case 'agent_start': {
