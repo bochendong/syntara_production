@@ -114,9 +114,9 @@ export function LearnHomePageClient({
       if (course) {
         setCurrentCourse({ id: course.id, name: course.name, avatarUrl: course.avatarUrl });
       }
-      router.push(
-        `/student/courses/${encodeURIComponent(courseId)}${forceStudentPortal ? '?preview=1' : ''}`,
-      );
+      const params = new URLSearchParams({ courseId });
+      if (forceStudentPortal) params.set('asStudent', '1');
+      router.push(`/learn?${params.toString()}`);
     },
     [courses, forceStudentPortal, router, setCurrentCourse],
   );

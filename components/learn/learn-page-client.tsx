@@ -7646,9 +7646,8 @@ export function LearnPageClient() {
   const studentPreviewMode = searchParams.get('asStudent') === '1';
   const isTeacherCourseChat = !studentPreviewMode && (canManageCourseContent || teacherChatMode);
   const isStudentCourseChat = !isTeacherCourseChat;
-  // Student resources now live in the dedicated course App. Keeping the chat
-  // surface rail-free prevents the legacy problem/source tools from loading.
-  const showRightRail = false;
+  // 学生在课程聊天内继续使用课程工具侧栏；教师聊天保持精简的双栏布局。
+  const showRightRail = isStudentCourseChat;
   const draftSessionId = useMemo(
     () => makeLearnSessionId(`${localUserId}:${urlCourseId}`),
     [localUserId, urlCourseId],
