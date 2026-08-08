@@ -48,6 +48,13 @@ for (const [name, source] of [
   );
 }
 
+assert.equal(
+  [...learnerAnalytics.matchAll(/message\."createdAt" >= \(\$2::timestamptz AT TIME ZONE 'UTC'\)/g)]
+    .length,
+  2,
+  'Both dedicated and legacy learner-history branches must compare like-for-like timestamp types.',
+);
+
 for (const [name, source] of [
   ['memory facts API', memoryFacts],
   ['memory write router', memoryWriteRouter],

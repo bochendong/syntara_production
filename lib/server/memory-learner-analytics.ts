@@ -205,7 +205,10 @@ async function learnerMessageRows(args: {
           AND conversation."deletedAt" IS NULL
           AND message."plainText" IS NOT NULL
           AND length(trim(message."plainText")) > 0
-          AND ($2::timestamptz IS NULL OR message."createdAt" >= $2)
+          AND (
+            $2::text IS NULL
+            OR message."createdAt" >= ($2::timestamptz AT TIME ZONE 'UTC')
+          )
           AND $4::text IS NULL
           AND $3::text IS NOT NULL
           AND conversation."courseId" = $3
@@ -230,7 +233,10 @@ async function learnerMessageRows(args: {
           AND message."role" = 'user'
           AND message."plainText" IS NOT NULL
           AND length(trim(message."plainText")) > 0
-          AND ($2::timestamptz IS NULL OR message."createdAt" >= $2)
+          AND (
+            $2::text IS NULL
+            OR message."createdAt" >= ($2::timestamptz AT TIME ZONE 'UTC')
+          )
           AND conversation."kind" IN ('notebook', 'agent', 'system')
           AND (
             conversation."targetId" IS NULL
