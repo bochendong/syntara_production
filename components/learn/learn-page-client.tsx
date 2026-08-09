@@ -17030,6 +17030,11 @@ export function LearnPageClient() {
       title="笔记本库"
       description="在课程内按需浏览课程笔记本。"
       showCloseButton={!selectedNotebookLibraryTile}
+      contentClassName={
+        isStudentCourseChat
+          ? 'h-[min(900px,94dvh)] max-w-[1480px] sm:h-[min(900px,94dvh)]'
+          : undefined
+      }
     >
       <div className="flex min-h-0 flex-1 flex-col bg-slate-50 dark:bg-slate-950">
         <header className="shrink-0 border-b border-slate-200/80 bg-white px-5 py-4 dark:border-white/10 dark:bg-slate-950 sm:px-6">
@@ -17534,6 +17539,11 @@ export function LearnPageClient() {
       onOpenChange={setCalendarDialogOpen}
       title="学习日历"
       description="查看复习计划、作业、考试和周进度。"
+      contentClassName={
+        isStudentCourseChat
+          ? 'h-[min(900px,94dvh)] max-w-[1480px] sm:h-[min(900px,94dvh)]'
+          : undefined
+      }
     >
       <div className="flex h-full min-h-0 bg-background">
         <aside className="hidden w-[230px] shrink-0 border-r border-border/70 bg-muted/30 px-4 py-5 lg:flex lg:flex-col">
