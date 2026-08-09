@@ -104,7 +104,7 @@ export async function generateTeacherCourseNotebook(args: {
               name: 'teacher_course_markdown_notebook',
               description: 'A source-faithful, student-facing Markdown course notebook.',
             }),
-            maxOutputTokens: 7_000,
+            maxOutputTokens: 30_000,
             maxRetries: 1,
           },
           'teacher-course-notebook-generation',
