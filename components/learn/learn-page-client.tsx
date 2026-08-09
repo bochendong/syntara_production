@@ -25,8 +25,6 @@ import {
   CheckCircle2,
   Copy,
   Cpu,
-  Database,
-  Dices,
   Eraser,
   FileText,
   LibraryBig,
@@ -41,15 +39,12 @@ import {
   Play,
   Plus,
   RefreshCw,
-  Search,
   SendHorizontal,
-  Settings2,
   ShoppingBag,
   Sparkles,
   Square,
   Target,
   Trash2,
-  Upload,
   UploadCloud,
   Volume2,
   X,
@@ -267,11 +262,7 @@ import {
 } from '@/lib/learning/practice-session';
 import type { NotebookProblemAttemptAnswer } from '@/lib/problem-bank';
 import type { ProviderId } from '@/lib/ai/providers';
-import {
-  COURSE_AVATAR_PRESET_URLS,
-  pickRandomCourseAvatarUrl,
-  resolveCourseAvatarDisplayUrl,
-} from '@/lib/constants/course-avatars';
+import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/notifications/client-toast';
 import type { CourseRecord } from '@/lib/utils/database';
@@ -1342,7 +1333,7 @@ type LearnConversationMessagePageState = RemoteLearnMessagePage & {
   error: string | null;
 };
 
-type LearnRightRailView = 'overview' | 'library' | 'calendar' | 'settings';
+type LearnRightRailView = 'overview' | 'calendar';
 
 type TeachingReviewPlanEvidenceItem = {
   id: string;
@@ -7345,14 +7336,6 @@ export function LearnPageClient() {
   const [createCourseOpen, setCreateCourseOpen] = useState(false);
   const [courseSettingsOpen, setCourseSettingsOpen] = useState(false);
   const [courseSettingsTab, setCourseSettingsTab] = useState<'general' | 'danger'>('general');
-  const [settingsDraftName, setSettingsDraftName] = useState('');
-  const [settingsDraftCode, setSettingsDraftCode] = useState('');
-  const [settingsDraftDescription, setSettingsDraftDescription] = useState('');
-  const [settingsDraftAvatarUrl, setSettingsDraftAvatarUrl] = useState('');
-  const [settingsAvatarPage, setSettingsAvatarPage] = useState(0);
-  const [settingsAvatarDialogOpen, setSettingsAvatarDialogOpen] = useState(false);
-  const [settingsAvatarPickerUrl, setSettingsAvatarPickerUrl] = useState('');
-  const [settingsSaving, setSettingsSaving] = useState(false);
   const [syllabusImportMode, setSyllabusImportMode] = useState<SyllabusImportMode>('file');
   const [syllabusCommitMode, setSyllabusCommitMode] = useState<SyllabusCommitMode>('merge');
   const [syllabusImportLoading, setSyllabusImportLoading] = useState(false);
@@ -7683,7 +7666,6 @@ export function LearnPageClient() {
     getInitialLearnRailCollapsed(LEARN_RIGHT_RAIL_COLLAPSED_STORAGE_KEY),
   );
   const [rightRailView, setRightRailView] = useState<LearnRightRailView>('overview');
-  const [courseLibrarySearchQuery, setCourseLibrarySearchQuery] = useState('');
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const [memoryActivityDialogOpen, setMemoryActivityDialogOpen] = useState(false);
   const [calendarReferenceDate, setCalendarReferenceDate] = useState(() => new Date());
@@ -8114,11 +8096,6 @@ export function LearnPageClient() {
   const openSourceUploadPanel = useCallback(() => {
     setSourceUploadDialogOpen(true);
   }, [setSourceUploadDialogOpen]);
-
-  const openProblemBankPanel = useCallback(() => {
-    if (!activeCourse) return;
-    router.push(`/course/${encodeURIComponent(activeCourse.id)}/problem-bank`);
-  }, [activeCourse, router]);
 
   const openNotebookLibraryPanel = useCallback(() => {
     if (!activeCourse) return;
@@ -8823,82 +8800,6 @@ export function LearnPageClient() {
     },
     [localUserId, setCurrentCourse],
   );
-
-  useEffect(() => {
-    if (!activeCourse) {
-      setSettingsDraftName('');
-      setSettingsDraftCode('');
-      setSettingsDraftDescription('');
-      setSettingsDraftAvatarUrl('');
-      setSettingsAvatarPage(0);
-      return;
-    }
-    setSettingsDraftName(activeCourse.name);
-    setSettingsDraftCode(activeCourse.courseCode ?? '');
-    setSettingsDraftDescription(activeCourse.description ?? '');
-    setSettingsDraftAvatarUrl(activeCourse.avatarUrl ?? '');
-    setSettingsAvatarPage(0);
-  }, [activeCourse]);
-
-  const settingsAvatarPageSize = 21;
-  const settingsAvatarPageCount = Math.max(
-    1,
-    Math.ceil(COURSE_AVATAR_PRESET_URLS.length / settingsAvatarPageSize),
-  );
-  const settingsAvatarUrlsOnPage = useMemo(() => {
-    const start = settingsAvatarPage * settingsAvatarPageSize;
-    return COURSE_AVATAR_PRESET_URLS.slice(start, start + settingsAvatarPageSize);
-  }, [settingsAvatarPage]);
-
-  const openSettingsAvatarDialog = useCallback(() => {
-    setSettingsAvatarPickerUrl(settingsDraftAvatarUrl);
-    setSettingsAvatarPage(0);
-    setSettingsAvatarDialogOpen(true);
-  }, [settingsDraftAvatarUrl]);
-
-  const confirmSettingsAvatarPicker = useCallback(() => {
-    setSettingsDraftAvatarUrl(settingsAvatarPickerUrl);
-    setSettingsAvatarDialogOpen(false);
-  }, [settingsAvatarPickerUrl]);
-
-  const saveInlineCourseSettings = useCallback(async () => {
-    if (!activeCourse || !activeCourseIsOwner || settingsSaving) return;
-    const trimmedName = settingsDraftName.trim();
-    if (!trimmedName) {
-      toast.error('请填写课程名称');
-      return;
-    }
-    setSettingsSaving(true);
-    try {
-      const updatedCourse = await updateCourse(activeCourse.id, {
-        name: trimmedName,
-        description: settingsDraftDescription.trim(),
-        language: activeCourse.language,
-        tags: activeCourse.tags,
-        purpose: activeCourse.purpose,
-        university: activeCourse.university,
-        courseCode: settingsDraftCode.trim() || undefined,
-        avatarUrl: settingsDraftAvatarUrl.trim() || activeCourse.avatarUrl,
-        listedInCourseStore: activeCourse.listedInCourseStore,
-        coursePriceCents: activeCourse.coursePriceCents ?? 0,
-      });
-      handleCourseSettingsUpdated(updatedCourse);
-      toast.success('课程信息已保存');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '保存课程信息失败');
-    } finally {
-      setSettingsSaving(false);
-    }
-  }, [
-    activeCourse,
-    activeCourseIsOwner,
-    handleCourseSettingsUpdated,
-    settingsDraftAvatarUrl,
-    settingsDraftCode,
-    settingsDraftDescription,
-    settingsDraftName,
-    settingsSaving,
-  ]);
 
   const handleCourseSettingsDeleted = useCallback(
     (courseId: string) => {
@@ -17857,27 +17758,15 @@ export function LearnPageClient() {
     ? [
         {
           label: '资料库',
-          description: '讲义、题库与笔记本',
+          description: '课程笔记本与学习资料',
           Icon: LibraryBig,
-          onSelect: () => {
-            setRightRailView('library');
-            persistRightRailCollapsed(false);
-          },
+          onSelect: openNotebookLibraryPanel,
         },
         {
           label: isResearchCourse ? '研究日历' : '学习日历',
           description: '计划与截止日期',
           Icon: CalendarDays,
           onSelect: () => setCalendarDialogOpen(true),
-        },
-        {
-          label: '设置',
-          description: activeCourseIsOwner ? '课程信息与本地资料' : '查看课程信息',
-          Icon: Settings2,
-          onSelect: () => {
-            setRightRailView('settings');
-            persistRightRailCollapsed(false);
-          },
         },
       ]
     : [];
@@ -18166,32 +18055,12 @@ export function LearnPageClient() {
       },
     },
     {
-      key: 'library',
-      label: '资料库',
-      Icon: LibraryBig,
-      active: rightRailView === 'library',
-      onSelect: () => {
-        setRightRailView('library');
-        persistRightRailCollapsed(false);
-      },
-    },
-    {
       key: 'calendar',
       label: '日历',
       Icon: CalendarDays,
       active: rightRailView === 'calendar',
       onSelect: () => {
         setRightRailView('calendar');
-        persistRightRailCollapsed(false);
-      },
-    },
-    {
-      key: 'settings',
-      label: '设置',
-      Icon: Settings2,
-      active: rightRailView === 'settings',
-      onSelect: () => {
-        setRightRailView('settings');
         persistRightRailCollapsed(false);
       },
     },
@@ -18204,7 +18073,7 @@ export function LearnPageClient() {
         title="课程工具"
         aria-hidden="true"
       >
-        <Settings2 className="size-4" strokeWidth={1.75} />
+        <Target className="size-4" strokeWidth={1.75} />
       </span>
       <nav
         className="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto"
@@ -18292,7 +18161,7 @@ export function LearnPageClient() {
           </div>
 
           <nav
-            className="mt-4 grid grid-cols-4 gap-[3px] rounded-[10px] bg-slate-100/80 p-[3px] dark:bg-white/5"
+            className="mt-4 grid grid-cols-2 gap-[3px] rounded-[10px] bg-slate-100/80 p-[3px] dark:bg-white/5"
             aria-label="课程工具"
           >
             {courseToolButtons.map(({ key, label, Icon, active, onSelect }) => (
@@ -18312,319 +18181,6 @@ export function LearnPageClient() {
               </button>
             ))}
           </nav>
-
-          {rightRailView === 'library' ? (
-            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pb-6">
-              <label className="flex h-10 items-center gap-2 rounded-[12px] border border-slate-200/80 bg-white px-3 text-slate-400 shadow-[0_5px_16px_rgba(15,23,42,0.04)] focus-within:border-sky-300 focus-within:ring-2 focus-within:ring-sky-100 dark:border-white/10 dark:bg-white/5 dark:focus-within:ring-sky-300/20">
-                <Search className="size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-                <input
-                  type="search"
-                  value={courseLibrarySearchQuery}
-                  onChange={(event) => setCourseLibrarySearchQuery(event.target.value)}
-                  placeholder="搜索笔记本、题目和学习资料"
-                  className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-slate-400"
-                  autoComplete="off"
-                />
-              </label>
-
-              <section className={cn(rightRailCardClassName, 'p-3')}>
-                <div className="flex items-center gap-2">
-                  <LibraryBig className="size-4 text-muted-foreground" strokeWidth={1.8} />
-                  <p className="text-sm font-semibold text-foreground">资料库</p>
-                </div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  题库进入独立页面，笔记本在课程内弹窗中按需查看。
-                </p>
-                <div className="mt-3 space-y-2">
-                  <button
-                    type="button"
-                    onClick={openProblemBankPanel}
-                    className={cn(
-                      rightRailRowClassName,
-                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
-                    )}
-                  >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
-                      <BookOpenCheck className="size-4" strokeWidth={1.8} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-semibold text-foreground">打开题库</span>
-                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                        独立题库页 · {resourceCountText(problemsLoadState, problems.length)} 题
-                      </span>
-                    </span>
-                    <ChevronRight
-                      className="size-3.5 shrink-0 text-muted-foreground"
-                      strokeWidth={1.8}
-                    />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={openNotebookLibraryPanel}
-                    className={cn(
-                      rightRailRowClassName,
-                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
-                    )}
-                  >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
-                      <BookOpen className="size-4" strokeWidth={1.8} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-semibold text-foreground">
-                        打开笔记本库
-                      </span>
-                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                        课程内弹窗 · {resourceCountText(notebooksLoadState, notebooks.length)} 本
-                      </span>
-                    </span>
-                    <ChevronRight
-                      className="size-3.5 shrink-0 text-muted-foreground"
-                      strokeWidth={1.8}
-                    />
-                  </button>
-                </div>
-              </section>
-
-              {activeCourseIsOwner ? (
-                <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
-                  <div className="flex items-center gap-2">
-                    <Upload className="size-4 text-muted-foreground" strokeWidth={1.8} />
-                    <p className="text-sm font-semibold text-foreground">上传资料</p>
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    导入资料到当前课程的题库或笔记本库。
-                  </p>
-                  <div className="mt-3 space-y-2">
-                    <button
-                      type="button"
-                      onClick={openProblemBankPanel}
-                      className={cn(
-                        rightRailRowClassName,
-                        'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
-                      )}
-                    >
-                      <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
-                        <Upload className="size-4" strokeWidth={1.8} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-xs font-semibold text-foreground">
-                          上传题目
-                        </span>
-                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                          打开题库导入题目
-                        </span>
-                      </span>
-                      <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={openSourceUploadPanel}
-                      className={cn(
-                        rightRailRowClassName,
-                        'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
-                      )}
-                    >
-                      <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
-                        <FileText className="size-4" strokeWidth={1.8} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-xs font-semibold text-foreground">
-                          上传笔记
-                        </span>
-                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                          PDF / 图片 / TXT / Markdown
-                        </span>
-                      </span>
-                      <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-                    </button>
-                  </div>
-                </section>
-              ) : null}
-            </div>
-          ) : null}
-
-          {rightRailView === 'settings' ? (
-            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pb-6">
-              {activeCourse ? (
-                <>
-                  <section className={cn(rightRailCardClassName, 'p-3')}>
-                    <div className="flex items-center gap-2">
-                      <Settings2 className="size-4 text-muted-foreground" strokeWidth={1.8} />
-                      <p className="text-sm font-semibold text-foreground">课程设置</p>
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      {activeCourseIsOwner
-                        ? '直接修改后点击保存即可更新。'
-                        : '你可以查看课程信息；只有课程创作者可以修改。'}
-                    </p>
-
-                    <div className="mt-3 space-y-3">
-                      <div>
-                        <label className="text-[11px] font-medium text-muted-foreground">
-                          头像
-                        </label>
-                        <button
-                          type="button"
-                          onClick={activeCourseIsOwner ? openSettingsAvatarDialog : undefined}
-                          disabled={!activeCourseIsOwner}
-                          className={cn(
-                            rightRailRowClassName,
-                            'mt-1 flex w-full items-center gap-3 px-3 py-2.5 text-left transition',
-                            activeCourseIsOwner
-                              ? 'hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20'
-                              : 'cursor-default',
-                          )}
-                        >
-                          <img
-                            src={resolveCourseAvatarDisplayUrl(
-                              activeCourse.id,
-                              settingsDraftAvatarUrl,
-                            )}
-                            alt=""
-                            className="size-10 shrink-0 rounded-[12px] object-cover ring-1 ring-black/5 dark:ring-white/10"
-                          />
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-xs font-semibold text-foreground">
-                              {activeCourseIsOwner ? '更换头像' : '课程头像'}
-                            </span>
-                            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                              {activeCourseIsOwner ? '在弹窗中选择课程头像' : '仅查看'}
-                            </span>
-                          </span>
-                          {activeCourseIsOwner ? (
-                            <ChevronRight
-                              className="size-3.5 shrink-0 text-muted-foreground"
-                              strokeWidth={1.8}
-                            />
-                          ) : null}
-                        </button>
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-medium text-muted-foreground">
-                          课程名称
-                        </label>
-                        <input
-                          value={settingsDraftName}
-                          onChange={(event) => setSettingsDraftName(event.target.value)}
-                          className="mt-1 w-full rounded-[12px] border border-slate-200/80 bg-white px-3 py-2 text-xs outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100 dark:border-white/10 dark:bg-white/5 dark:focus:border-sky-300/40 dark:focus:ring-sky-300/20"
-                          placeholder="课程名称"
-                          maxLength={120}
-                          readOnly={!activeCourseIsOwner}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-medium text-muted-foreground">
-                          课程代码
-                        </label>
-                        <input
-                          value={settingsDraftCode}
-                          onChange={(event) => setSettingsDraftCode(event.target.value)}
-                          className="mt-1 w-full rounded-[12px] border border-slate-200/80 bg-white px-3 py-2 text-xs outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100 dark:border-white/10 dark:bg-white/5 dark:focus:border-sky-300/40 dark:focus:ring-sky-300/20"
-                          placeholder="例如 MAT 102"
-                          maxLength={40}
-                          readOnly={!activeCourseIsOwner}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-medium text-muted-foreground">
-                          描述
-                        </label>
-                        <Textarea
-                          value={settingsDraftDescription}
-                          onChange={(event) => setSettingsDraftDescription(event.target.value)}
-                          className="mt-1 min-h-[72px] resize-none rounded-[12px] border-slate-200/80 bg-white px-3 py-2 text-xs shadow-none focus-visible:border-sky-300 focus-visible:ring-sky-100 dark:border-white/10 dark:bg-white/5"
-                          placeholder="简要描述这门课"
-                          maxLength={500}
-                          readOnly={!activeCourseIsOwner}
-                        />
-                      </div>
-
-                      {activeCourseIsOwner ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="h-9 w-full rounded-[12px] text-xs"
-                          disabled={settingsSaving || !settingsDraftName.trim()}
-                          onClick={() => void saveInlineCourseSettings()}
-                        >
-                          {settingsSaving ? (
-                            <Loader2 className="size-3.5 animate-spin" strokeWidth={1.8} />
-                          ) : null}
-                          {settingsSaving ? '保存中…' : '保存'}
-                        </Button>
-                      ) : null}
-                    </div>
-                  </section>
-
-                  <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
-                    <div className="flex items-center gap-2">
-                      <Database className="size-4 text-muted-foreground" strokeWidth={1.8} />
-                      <p className="text-sm font-semibold text-foreground">本地资料</p>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      <div
-                        className={cn(rightRailRowClassName, 'flex items-center justify-between')}
-                      >
-                        <span className="text-[11px] text-muted-foreground">数据源</span>
-                        <strong className="text-xs font-semibold text-foreground">
-                          网页与本机同步
-                        </strong>
-                      </div>
-                      <div
-                        className={cn(rightRailRowClassName, 'flex items-center justify-between')}
-                      >
-                        <span className="text-[11px] text-muted-foreground">笔记本</span>
-                        <strong className="text-xs font-semibold text-foreground">
-                          {resourceCountText(notebooksLoadState, notebooks.length)}
-                        </strong>
-                      </div>
-                      <div
-                        className={cn(rightRailRowClassName, 'flex items-center justify-between')}
-                      >
-                        <span className="text-[11px] text-muted-foreground">题目</span>
-                        <strong className="text-xs font-semibold text-foreground">
-                          {resourceCountText(problemsLoadState, problems.length)}
-                        </strong>
-                      </div>
-                    </div>
-                    {activeCourseIsOwner ? (
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 dark:border-white/10">
-                        <button
-                          type="button"
-                          onClick={() => setPublishDialogOpen(true)}
-                          className="rounded-[10px] border border-slate-200 bg-white px-2 py-2 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
-                        >
-                          {activeCourse.listedInCourseStore ? '更新发布' : '发布课程'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCourseSettingsTab('danger');
-                            setCourseSettingsOpen(true);
-                          }}
-                          className="rounded-[10px] border border-rose-100 bg-white px-2 py-2 text-[11px] font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-300/15 dark:bg-white/5 dark:text-rose-300"
-                        >
-                          删除课程
-                        </button>
-                      </div>
-                    ) : null}
-                  </section>
-                </>
-              ) : (
-                <section className={cn(rightRailCardClassName, 'p-3')}>
-                  <div className="flex items-center gap-2">
-                    <Settings2 className="size-4 text-muted-foreground" strokeWidth={1.8} />
-                    <p className="text-sm font-semibold text-foreground">课程设置</p>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    先选择一门课程后再查看设置。
-                  </p>
-                </section>
-              )}
-            </div>
-          ) : null}
 
           {rightRailView === 'calendar' ? (
             <div className="mt-4 min-h-0 flex-1 overflow-y-auto pb-6">
@@ -18739,6 +18295,38 @@ export function LearnPageClient() {
                   }}
                   onOpenNotebook={openNotebookFromProgress}
                 />
+              </section>
+
+              <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
+                <div className="flex items-center gap-2">
+                  <LibraryBig className="size-4 text-muted-foreground" strokeWidth={1.8} />
+                  <p className="text-sm font-semibold text-foreground">资料库</p>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  查看这门课已经开放的笔记本与学习资料。
+                </p>
+                <button
+                  type="button"
+                  onClick={openNotebookLibraryPanel}
+                  className={cn(
+                    rightRailRowClassName,
+                    'mt-3 flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
+                  )}
+                >
+                  <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                    <BookOpen className="size-4" strokeWidth={1.8} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-semibold text-foreground">打开资料库</span>
+                    <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                      {resourceCountText(notebooksLoadState, notebooks.length)} 本课程笔记
+                    </span>
+                  </span>
+                  <ChevronRight
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                    strokeWidth={1.8}
+                  />
+                </button>
               </section>
 
               {activeCourse && canManageCourseContent ? (
@@ -19664,112 +19252,6 @@ export function LearnPageClient() {
         onOpenChange={setCreateCourseOpen}
         onSuccess={handleCourseCreated}
       />
-      <Dialog open={settingsAvatarDialogOpen} onOpenChange={setSettingsAvatarDialogOpen}>
-        <DialogContent className={cn(SYNTARA_ACTION_DIALOG_CONTENT_CLASS, 'max-w-lg gap-0 p-0')}>
-          <DialogHeader className={SYNTARA_DIALOG_HEADER_CLASS}>
-            <DialogTitle className="text-base">更换课程头像</DialogTitle>
-            <DialogDescription className="text-xs leading-5 text-muted-foreground">
-              选择一张头像后确认；仍需在侧边栏点击保存才会写入课程。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 px-5 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <img
-                  src={resolveCourseAvatarDisplayUrl(
-                    activeCourse?.id,
-                    settingsAvatarPickerUrl || settingsDraftAvatarUrl,
-                  )}
-                  alt=""
-                  className="size-14 shrink-0 rounded-[16px] object-cover ring-1 ring-black/5 dark:ring-white/10"
-                />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">预览</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {settingsAvatarPage + 1} / {settingsAvatarPageCount}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  className="size-8 rounded-full"
-                  onClick={() => setSettingsAvatarPickerUrl(pickRandomCourseAvatarUrl())}
-                  aria-label="随机头像"
-                >
-                  <Dices className="size-3.5" strokeWidth={1.8} />
-                </Button>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  className="size-8 rounded-full"
-                  disabled={settingsAvatarPage <= 0}
-                  onClick={() => setSettingsAvatarPage((page) => Math.max(0, page - 1))}
-                  aria-label="上一页头像"
-                >
-                  <ChevronLeft className="size-3.5" strokeWidth={1.8} />
-                </Button>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  className="size-8 rounded-full"
-                  disabled={settingsAvatarPage >= settingsAvatarPageCount - 1}
-                  onClick={() =>
-                    setSettingsAvatarPage((page) => Math.min(settingsAvatarPageCount - 1, page + 1))
-                  }
-                  aria-label="下一页头像"
-                >
-                  <ChevronRight className="size-3.5" strokeWidth={1.8} />
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-7 gap-2">
-              {settingsAvatarUrlsOnPage.map((url) => {
-                const selected = settingsAvatarPickerUrl === url;
-                return (
-                  <button
-                    key={url}
-                    type="button"
-                    onClick={() => setSettingsAvatarPickerUrl(url)}
-                    className={cn(
-                      'overflow-hidden rounded-[12px] ring-1 transition',
-                      selected
-                        ? 'ring-sky-400 ring-offset-2 ring-offset-background'
-                        : 'ring-slate-200/80 hover:ring-slate-300 dark:ring-white/10',
-                    )}
-                    aria-label="选择课程头像"
-                    aria-pressed={selected}
-                  >
-                    <img src={url} alt="" className="aspect-square w-full object-cover" />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="flex items-center justify-end gap-2 border-t border-border/70 px-5 py-4">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-9 rounded-[12px] px-4 text-xs"
-              onClick={() => setSettingsAvatarDialogOpen(false)}
-            >
-              取消
-            </Button>
-            <Button
-              type="button"
-              className="h-9 rounded-[12px] px-4 text-xs"
-              onClick={confirmSettingsAvatarPicker}
-            >
-              确认
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
       <Dialog
         open={Boolean(pendingDeleteLearnSession)}
         onOpenChange={(open) => {
