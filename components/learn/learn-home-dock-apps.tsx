@@ -1,18 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Bell,
   Check,
   Database,
-  ExternalLink,
   GraduationCap,
   Library,
   Save,
   Settings2,
-  ShoppingBag,
   UserRound,
 } from 'lucide-react';
 import { USER_AVATAR_PRESET_URLS } from '@/lib/constants/user-avatars';
@@ -21,7 +18,7 @@ import { useUserProfileStore } from '@/lib/store/user-profile';
 import { listRemoteLearnSessionsPage } from '@/features/learn-conversations/client/remote-conversation-api';
 import type { CourseRecord } from '@/lib/utils/database';
 
-export type LearnDockApp = 'profile' | 'notifications' | 'store' | 'settings';
+export type LearnDockApp = 'profile' | 'notifications' | 'settings';
 
 type LearningTotals = {
   courses: number;
@@ -263,7 +260,6 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
 
 const APP_LABELS: Record<Exclude<LearnDockApp, 'profile'>, string> = {
   notifications: '通知中心',
-  store: '课程商城',
   settings: '设置',
 };
 
@@ -276,7 +272,6 @@ function LearnHomeSystemApp({
   courses: CourseRecord[];
   onClose: () => void;
 }) {
-  const router = useRouter();
   const totals = baseTotals(courses);
 
   return (
@@ -320,26 +315,6 @@ function LearnHomeSystemApp({
                     </small>
                   </div>
                 </article>
-              </div>
-            ) : null}
-
-            {app === 'store' ? (
-              <div className="learn-dock-system-content">
-                <div className="learn-dock-system-summary">
-                  <ShoppingBag size={20} />
-                  <div>
-                    <strong>课程商城</strong>
-                    <small>浏览并添加适合你的课程包。</small>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="learn-dock-system-primary"
-                  onClick={() => router.push('/store/courses')}
-                >
-                  <ExternalLink size={17} />
-                  浏览课程商城
-                </button>
               </div>
             ) : null}
 

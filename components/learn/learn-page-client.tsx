@@ -18730,30 +18730,24 @@ export function LearnPageClient() {
                       </p>
                     </div>
                     <div className="flex flex-wrap justify-center gap-2" aria-label="快捷入口">
-                      {(activeCourse ? activeQuickPrompts : ['添加一门课程', '去课程商城']).map(
-                        (prompt) => (
-                          <Button
-                            key={prompt}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              if (prompt === '添加一门课程') {
-                                setCreateCourseOpen(true);
-                                return;
-                              }
-                              if (prompt === '去课程商城') {
-                                router.push('/store/courses');
-                                return;
-                              }
-                              updateComposerDraft(prompt);
-                              window.requestAnimationFrame(() => draftTextareaRef.current?.focus());
-                            }}
-                            className="h-8 rounded-full border-slate-200/80 bg-white/76 px-3 text-xs shadow-sm backdrop-blur-sm hover:bg-white dark:border-white/10 dark:bg-white/8 dark:hover:bg-white/12"
-                          >
-                            {prompt}
-                          </Button>
-                        ),
-                      )}
+                      {(activeCourse ? activeQuickPrompts : ['添加一门课程']).map((prompt) => (
+                        <Button
+                          key={prompt}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (prompt === '添加一门课程') {
+                              setCreateCourseOpen(true);
+                              return;
+                            }
+                            updateComposerDraft(prompt);
+                            window.requestAnimationFrame(() => draftTextareaRef.current?.focus());
+                          }}
+                          className="h-8 rounded-full border-slate-200/80 bg-white/76 px-3 text-xs shadow-sm backdrop-blur-sm hover:bg-white dark:border-white/10 dark:bg-white/8 dark:hover:bg-white/12"
+                        >
+                          {prompt}
+                        </Button>
+                      ))}
                     </div>
                   </div>
                 </div>

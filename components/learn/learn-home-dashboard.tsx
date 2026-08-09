@@ -154,7 +154,6 @@ type LearnHomeDashboardProps = {
 type SystemAppAction =
   | 'calendar'
   | 'profile'
-  | 'store'
   | 'settings'
   | 'create'
   | 'past_courses'
@@ -230,12 +229,6 @@ const SYSTEM_APPS: SystemApp[] = [
     iconSrc: '/learn/system-apps/profile.svg',
     action: 'profile',
   },
-  {
-    label: '课程商城',
-    secondary: 'Store',
-    iconSrc: '/learn/system-apps/store.svg',
-    action: 'store',
-  },
 ];
 
 const HOME_GRID_SYSTEM_APPS: SystemApp[] = [
@@ -267,7 +260,7 @@ const TEACHER_HOME_GRID_SYSTEM_APPS: SystemApp[] = [
     iconSrc: '/learn/system-apps/用量统计.svg',
     action: 'usage',
   },
-  ...SYSTEM_APPS.filter((app) => app.action !== 'store' && app.action !== 'create'),
+  ...SYSTEM_APPS.filter((app) => app.action !== 'create'),
   {
     label: '退出教师端',
     secondary: 'Sign out',
@@ -790,10 +783,6 @@ export function LearnHomeDashboard({
     }
     if (action === 'profile') {
       setActiveDockApp('profile');
-      return;
-    }
-    if (action === 'store') {
-      setActiveDockApp('store');
       return;
     }
     if (action === 'settings') {
