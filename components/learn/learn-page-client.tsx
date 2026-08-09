@@ -33,6 +33,7 @@ import {
   MessageSquarePlus,
   Minimize2,
   MoreHorizontal,
+  Network,
   Pause,
   Paperclip,
   Play,
@@ -7312,6 +7313,9 @@ export function LearnPageClient() {
   const [sourceUploadPanelOpen, setSourceUploadPanelOpen] = useState(false);
   const [notebookLibraryPanelOpen, setNotebookLibraryPanelOpen] = useState(false);
   const [notebookLibraryQuery, setNotebookLibraryQuery] = useState('');
+  const [notebookLibraryDetailView, setNotebookLibraryDetailView] = useState<
+    'content' | 'mind-map'
+  >('content');
   const [selectedNotebookLibraryTileId, setSelectedNotebookLibraryTileId] = useState<string | null>(
     null,
   );
@@ -8045,6 +8049,7 @@ export function LearnPageClient() {
     if (!activeCourse) return;
     setSelectedNotebookLibraryTileId(null);
     setNotebookLibraryQuery('');
+    setNotebookLibraryDetailView('content');
     setNotebookLibraryPanelOpen(true);
   }, [activeCourse]);
 
@@ -8052,6 +8057,7 @@ export function LearnPageClient() {
     (notebook: StageListItem) => {
       if (!activeCourse) return;
       setNotebookLibraryQuery('');
+      setNotebookLibraryDetailView('content');
       setNotebookLibraryPanelOpen(true);
       setSelectedNotebookLibraryTileId(`notebook-library-${notebook.id}`);
     },
@@ -15213,6 +15219,10 @@ export function LearnPageClient() {
   const selectedNotebookLibraryId = selectedNotebookLibraryTile?.id.startsWith('notebook-library-')
     ? selectedNotebookLibraryTile.id.slice('notebook-library-'.length)
     : null;
+  const selectedNotebookLibraryRecord = selectedNotebookLibraryId
+    ? notebooks.find((notebook) => notebook.id === selectedNotebookLibraryId)
+    : null;
+  const selectedNotebookHasMindMap = Boolean(selectedNotebookLibraryRecord?.hasMindMap);
   const selectedNotebookLibraryIsMarkdown = selectedNotebookLibraryTile?.typeLabel === 'Markdown';
   const selectedNotebookMarkdownPageState = selectedNotebookLibraryId
     ? notebookMarkdownPageCache[selectedNotebookLibraryId]
@@ -17025,6 +17035,7 @@ export function LearnPageClient() {
         if (!open) {
           setSelectedNotebookLibraryTileId(null);
           setNotebookLibraryQuery('');
+          setNotebookLibraryDetailView('content');
         }
       }}
       title="笔记本库"
@@ -17044,6 +17055,7 @@ export function LearnPageClient() {
               onClick={() => {
                 if (selectedNotebookLibraryTile) {
                   setSelectedNotebookLibraryTileId(null);
+                  setNotebookLibraryDetailView('content');
                   return;
                 }
                 setNotebookLibraryPanelOpen(false);
@@ -17110,10 +17122,54 @@ export function LearnPageClient() {
                 ) : null}
                 <span className="text-slate-400">{selectedNotebookLibraryTile.subtitle}</span>
               </div>
-              <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                {selectedNotebookLibraryTile.title}
-              </h2>
-              {selectedNotebookLibraryIsMarkdown ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                  {selectedNotebookLibraryTile.title}
+                </h2>
+                {isStudentCourseChat && selectedNotebookHasMindMap ? (
+                  <div className="flex items-center rounded-full border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
+                    <button
+                      type="button"
+                      onClick={() => setNotebookLibraryDetailView('content')}
+                      className={cn(
+                        'h-8 rounded-full px-3 text-xs font-semibold transition',
+                        notebookLibraryDetailView === 'content'
+                          ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950'
+                          : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white',
+                      )}
+                    >
+                      <BookOpen className="mr-1.5 inline size-3.5" aria-hidden="true" />
+                      笔记内容
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNotebookLibraryDetailView('mind-map')}
+                      className={cn(
+                        'h-8 rounded-full px-3 text-xs font-semibold transition',
+                        notebookLibraryDetailView === 'mind-map'
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-700 dark:text-slate-300 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-100',
+                      )}
+                    >
+                      <Network className="mr-1.5 inline size-3.5" aria-hidden="true" />
+                      思维导图
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              {notebookLibraryDetailView === 'mind-map' &&
+              isStudentCourseChat &&
+              selectedNotebookHasMindMap &&
+              selectedNotebookLibraryId &&
+              activeCourseId ? (
+                <div className="mt-6 overflow-auto rounded-[18px] border border-slate-200/80 bg-slate-100 p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-slate-900">
+                  <img
+                    src={`/api/student/courses/${encodeURIComponent(activeCourseId)}/notebooks/${encodeURIComponent(selectedNotebookLibraryId)}/mind-map`}
+                    alt={`${selectedNotebookLibraryTile.title} 思维导图`}
+                    className="mx-auto h-auto max-h-[720px] max-w-full rounded-[14px] bg-white object-contain shadow-sm"
+                  />
+                </div>
+              ) : selectedNotebookLibraryIsMarkdown ? (
                 <div className="mt-6 grid min-h-[420px] overflow-hidden rounded-[18px] border border-slate-200/80 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-slate-900 md:grid-cols-[240px_minmax(0,1fr)]">
                   <aside className="border-b border-slate-200/80 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/[0.03] md:border-b-0 md:border-r">
                     <p className="px-2 py-1 text-[11px] font-semibold text-slate-500">章节</p>
@@ -17326,6 +17382,7 @@ export function LearnPageClient() {
                     type="button"
                     aria-label={`打开 ${tile.title}`}
                     onClick={() => {
+                      setNotebookLibraryDetailView('content');
                       setSelectedNotebookLibraryTileId(tile.id);
                     }}
                     className="group relative mx-auto block aspect-[3/4] min-h-[220px] w-full max-w-[210px] text-left transition duration-150 hover:-translate-y-1 hover:-rotate-[0.6deg] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"

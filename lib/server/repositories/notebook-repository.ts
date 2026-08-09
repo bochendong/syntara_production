@@ -448,6 +448,7 @@ const notebookLibraryListSelect = {
   sceneCount: true,
   sectionCount: true,
   coverImagePath: true,
+  mindMapMime: true,
   contentVersion: true,
   createdAt: true,
   updatedAt: true,

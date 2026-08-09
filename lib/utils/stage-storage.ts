@@ -103,6 +103,7 @@ export interface StageListItem {
   storePublishedAt?: number;
   sourceNotebookId?: string;
   coverImagePath?: string;
+  hasMindMap?: boolean;
   speechReadyCount?: number;
   speechTotalCount?: number;
   speechStatus?: 'no_speech' | 'ready' | 'pending';
@@ -128,6 +129,7 @@ type NotebookApiRow = {
   storePublishedAt?: string | null;
   sourceNotebookId?: string | null;
   coverImagePath?: string | null;
+  mindMapMime?: string | null;
   speechReadyCount?: number;
   speechTotalCount?: number;
   speechStatus?: 'no_speech' | 'ready' | 'pending';
@@ -198,6 +200,7 @@ function mapNotebook(row: NotebookApiRow): StageListItem {
     storePublishedAt: row.storePublishedAt ? Date.parse(row.storePublishedAt) : undefined,
     sourceNotebookId: row.sourceNotebookId || undefined,
     coverImagePath: row.coverImagePath || undefined,
+    hasMindMap: Boolean(row.mindMapMime),
     speechReadyCount: row.speechReadyCount ?? 0,
     speechTotalCount: row.speechTotalCount ?? 0,
     speechStatus: row.speechStatus ?? 'no_speech',
