@@ -112,6 +112,23 @@ assert.match(
   /for \(const event of deleteResult\.deletedEvents\)[\s\S]{0,800}await deleteCalendarEvent\([\s\S]{0,1000}markLearningActionStatus\(/,
   'AI calendar delete must wait for CAS writes before completion.',
 );
+const calendarOperationsBlock = sourceBlock(
+  learnPage,
+  '<p className="text-sm font-semibold text-foreground">日历操作</p>',
+  "{rightRailView === 'overview' ? (",
+);
+assert.match(calendarOperationsBlock, />上传日程</);
+assert.match(calendarOperationsBlock, /从 syllabus PDF 或图片批量导入/);
+assert.doesNotMatch(
+  calendarOperationsBlock,
+  /canManageCourseContent/,
+  'Student calendar operations must expose personal syllabus import.',
+);
+assert.match(
+  learnPage,
+  /title="上传日程"[\s\S]{0,240}上传 syllabus PDF 或图片/,
+  'Syllabus import must clearly present PDF/image batch calendar import.',
+);
 assert.doesNotMatch(learnPage, /readSyllabusEvents|writeSyllabusEvents|syllabusEventState/);
 
 assert.match(backendApi, /'\/api\/learn\/calendar'/);
@@ -131,6 +148,7 @@ process.stdout.write(
         'mutation success and rollback cache consistency without stale timestamp extension',
         'AI calendar search against remote events',
         'AI add, update, and delete completion after remote success',
+        'student-visible PDF/image syllabus batch import with editable confirmation',
         'no production calendar authority in localStorage',
       ],
     },

@@ -11387,11 +11387,10 @@ export function LearnPageClient() {
   }, [activeCourseId, deleteCalendarEvent, reloadCalendarEvents, syllabusEvents]);
 
   const openSyllabusUploadDialog = useCallback(() => {
-    if (!canManageCourseContent) return;
     setSyllabusImportMode('file');
     setSyllabusImportMessage(null);
     setSyllabusDialogOpen(true);
-  }, [canManageCourseContent]);
+  }, []);
 
   const confirmManualScheduleEvent = useCallback(async () => {
     if (!activeCourseId) return;
@@ -12102,7 +12101,6 @@ export function LearnPageClient() {
 
   const handleSyllabusFile = useCallback(
     async (fileList: FileList | null) => {
-      if (!canManageCourseContent) return;
       if (!activeCourseId) return;
       const file = fileList?.[0];
       if (!file) return;
@@ -12184,7 +12182,6 @@ export function LearnPageClient() {
       activeCourse?.description,
       activeCourse?.name,
       activeCourseId,
-      canManageCourseContent,
       pdfProviderConfig,
       pdfProviderId,
     ],
@@ -16213,24 +16210,25 @@ export function LearnPageClient() {
     </Dialog>
   );
 
-  const syllabusImportDialog = canManageCourseContent ? (
+  const syllabusImportDialog = (
     <LearnWorkspaceDialog
       open={syllabusDialogOpen}
       onOpenChange={setSyllabusDialogOpen}
-      title="添加课程日程"
-      description="先读取 syllabus，再检查、修改或移除事项；确认后才会写入日历。"
+      title="上传日程"
+      description="上传 syllabus PDF 或图片，检查识别结果后批量添加到你的学习日历。"
     >
       <div className="flex h-full min-h-0 flex-col">
         <div className="shrink-0 border-b border-border px-5 py-4 text-left">
-          <h2 className="text-base font-semibold text-foreground">添加课程日程</h2>
+          <h2 className="text-base font-semibold text-foreground">上传日程</h2>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            先读取 syllabus，再检查、修改或移除事项；确认后才会写入日历。
+            上传 syllabus PDF
+            或图片，检查、修改或移除识别出的事项；确认后才会批量写入你的个人学习日历。
           </p>
         </div>
         <input
           ref={syllabusInputRef}
           type="file"
-          accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.md,.csv,.json,application/pdf,image/png,image/jpeg,image/webp,image/gif,text/*"
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,application/pdf,image/png,image/jpeg,image/webp,image/gif"
           className="hidden"
           onChange={(event) => {
             void handleSyllabusFile(event.currentTarget.files);
@@ -16285,7 +16283,7 @@ export function LearnPageClient() {
                   {syllabusImportLoading ? '正在读取 syllabus' : '上传 syllabus 文件'}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  支持 syllabus 图片、扫描件、PDF 与文本；AI 识别后会先显示可编辑预览。
+                  支持 syllabus 图片、扫描件与 PDF；AI 识别后会先显示可编辑预览。
                 </p>
                 <Button
                   type="button"
@@ -16327,7 +16325,7 @@ export function LearnPageClient() {
             >
               {syllabusCommitMode === 'replace'
                 ? '确认后会替换当前已保存的 syllabus 日程。'
-                : '确认后会和当前已保存的 syllabus 日程合并。'}
+                : '确认后会和你当前的学习日历合并，不会修改课程资料。'}
             </div>
           </aside>
 
@@ -16490,7 +16488,7 @@ export function LearnPageClient() {
         </div>
       </div>
     </LearnWorkspaceDialog>
-  ) : null;
+  );
 
   const manualScheduleDialog = (
     <Dialog
@@ -18235,34 +18233,28 @@ export function LearnPageClient() {
                     />
                   </button>
 
-                  {canManageCourseContent ? (
-                    <button
-                      type="button"
-                      onClick={openSyllabusUploadDialog}
-                      className={cn(
-                        rightRailRowClassName,
-                        'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
-                      )}
-                    >
-                      <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
-                        <UploadCloud className="size-4" strokeWidth={1.8} />
+                  <button
+                    type="button"
+                    onClick={openSyllabusUploadDialog}
+                    className={cn(
+                      rightRailRowClassName,
+                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
+                    )}
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                      <UploadCloud className="size-4" strokeWidth={1.8} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-foreground">上传日程</span>
+                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                        从 syllabus PDF 或图片批量导入
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-xs font-semibold text-foreground">
-                          {syllabusEvents.length > 0 ? '重新上传 syllabus' : '上传 syllabus'}
-                        </span>
-                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                          {syllabusEvents.length > 0
-                            ? '从 syllabus 重新导入课程日程'
-                            : '从 syllabus 导入课程日程'}
-                        </span>
-                      </span>
-                      <ChevronRight
-                        className="size-3.5 shrink-0 text-muted-foreground"
-                        strokeWidth={1.8}
-                      />
-                    </button>
-                  ) : null}
+                    </span>
+                    <ChevronRight
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                      strokeWidth={1.8}
+                    />
+                  </button>
 
                   <button
                     type="button"
