@@ -238,6 +238,10 @@ import {
   type LearnerMemoryCorrectionMode,
 } from '@/lib/learning/confirmed-memory-shadow-state';
 import {
+  applyQuestionLearningFocus,
+  questionLearningFocusConcept,
+} from '@/lib/learning/question-learning-focus';
+import {
   normalizePracticeSelectionText,
   practicePlanTopicFocusLine,
   practiceProblemMatchScore,
@@ -3793,41 +3797,6 @@ function publicTraceFromLearnTurn(
   }
 
   return steps.slice(0, 8);
-}
-
-function announceLearningMemoryUpdated(
-  courseId: string,
-  label: string,
-  descriptionPrefix = '记忆已更新',
-) {
-  addMemoryActivity({
-    courseId,
-    title: '学习进度已更新',
-    description: `学习进度：${label}。${descriptionPrefix}，之后我会按这个位置安排复习、预习和练习。`,
-    status: 'completed',
-    layer: 'study_memory',
-    chips: ['课程', '进度'],
-  });
-}
-
-function announceSyllabusScheduleUpdated(courseId: string, label: string) {
-  const activityId = addMemoryActivity({
-    courseId,
-    title: '我正在整理课程安排',
-    description: `我会记住「${label}」，之后提醒复习和规划任务时会参考它。`,
-    status: 'writing_study_memory',
-    layer: 'study_memory',
-    chips: ['课程', '日程'],
-  });
-  window.setTimeout(() => {
-    updateMemoryActivity(activityId, {
-      title: '我已经记住这门课的安排',
-      description: `「${label}」已经放进学习日历，之后计划会避开临近任务和考试。`,
-      status: 'completed',
-      layer: 'study_memory',
-      chips: ['课程', '日程'],
-    });
-  }, 520);
 }
 
 function planIntro(plan: PracticePlan): string {
@@ -10840,6 +10809,55 @@ export function LearnPageClient() {
     });
   }, [activeCourse, notebooks, problems, userId]);
 
+  const recordQuestionLearningFocus = useCallback(
+    (concept: string) => {
+      if (!activeCourse || !concept) return;
+      const timestamp = Date.now();
+      const localUserId = userId || 'anonymous';
+      const currentState = loadLearnerCourseState({
+        userId: localUserId,
+        courseId: activeCourse.id,
+      });
+      const nextState = applyQuestionLearningFocus({
+        state: currentState,
+        concept,
+        timestamp,
+      });
+      saveLearnerCourseState(nextState);
+      setSnapshot(summarizeLearnerCourseState({ state: nextState, notebooks, problems }));
+
+      const activityId = addMemoryActivity({
+        courseId: activeCourse.id,
+        title: '正在理解你的学习关注点',
+        description: `你正在进一步理解「${concept}」，我会据此调整后续讲解和检查方式。`,
+        status: 'writing_study_memory',
+        layer: 'study_memory',
+        chips: ['课程', '学习关注点'],
+      });
+      void saveRemoteLearnerCourseState(nextState).then((saved) => {
+        if (saved) {
+          updateMemoryActivity(activityId, {
+            title: '已记录正在补强的知识点',
+            description: `正在补强：${concept}。这只是学习关注点，不会因为一次提问就直接标记为薄弱点。`,
+            status: 'completed',
+            layer: 'study_memory',
+            chips: ['课程', '学习关注点'],
+          });
+          return;
+        }
+        updateMemoryActivity(activityId, {
+          title: '学习关注点暂未同步',
+          description: `「${concept}」已保存在当前浏览器，但还没有同步到账号。`,
+          status: 'failed',
+          layer: 'study_memory',
+          chips: ['课程', '学习关注点', '同步失败'],
+          error: '学习关注点同步到账号失败',
+        });
+      });
+    },
+    [activeCourse, notebooks, problems, userId],
+  );
+
   const updateLearningPosition = useCallback(
     (selection: string) => {
       if (!activeCourse || !selection) return null;
@@ -10860,9 +10878,7 @@ export function LearnPageClient() {
       const savePromise = saveRemoteLearnerCourseState(nextState);
       progressSavePromiseRef.current = { courseId: activeCourse.id, promise: savePromise };
       void savePromise.then((saved) => {
-        if (saved) {
-          announceLearningMemoryUpdated(activeCourse.id, label);
-        } else if (activeCourseIdRef.current === activeCourse.id) {
+        if (!saved && activeCourseIdRef.current === activeCourse.id) {
           setError('学习进度已保存在当前浏览器，但同步到账号失败；发送问题前请重试。');
         }
       });
@@ -10912,9 +10928,7 @@ export function LearnPageClient() {
       setSnapshot(nextSnapshot);
       setProgressSelection(progressSelectionFromSnapshot(nextSnapshot));
       void saveRemoteLearnerCourseState(savedState).then((saved) => {
-        if (saved) {
-          announceLearningMemoryUpdated(activeCourse.id, label, '计划范围已记录');
-        } else if (activeCourseIdRef.current === activeCourse.id) {
+        if (!saved && activeCourseIdRef.current === activeCourse.id) {
           setError('计划范围已保存在当前浏览器，但同步到账号失败；请重试。');
         }
       });
@@ -11311,7 +11325,6 @@ export function LearnPageClient() {
             .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title))
             .find((event) => event.date >= today) || incomingEvents[0];
         setCalendarReferenceDate(new Date(`${focusEvent.date}T12:00:00`));
-        announceSyllabusScheduleUpdated(activeCourseId, activityLabel);
       } catch (commitError) {
         setSyllabusImportMessage(
           commitError instanceof Error
@@ -11420,7 +11433,6 @@ export function LearnPageClient() {
       setManualScheduleDate(localDayKey(new Date()));
       setManualScheduleKind('assignment');
       setManualScheduleError(null);
-      announceSyllabusScheduleUpdated(activeCourseId, `${title}，${manualScheduleDate}`);
     } catch (createError) {
       setManualScheduleError(
         createError instanceof Error ? createError.message : '日程保存失败，请稍后重试。',
@@ -13135,7 +13147,6 @@ export function LearnPageClient() {
           setRightRailCollapsed(false);
           setRightRailView('calendar');
           setCalendarReferenceDate(new Date(`${createdEvents[0].date}T12:00:00`));
-          announceSyllabusScheduleUpdated(activeCourseId, createdEvents[0].title);
           markLearningActionStatus(
             action.id,
             'completed',
@@ -13211,7 +13222,6 @@ export function LearnPageClient() {
           setRightRailCollapsed(false);
           setRightRailView('calendar');
           setCalendarReferenceDate(new Date(`${focusEvent.date}T12:00:00`));
-          announceSyllabusScheduleUpdated(activeCourseId, focusEvent.title);
           markLearningActionStatus(
             action.id,
             'completed',
@@ -14992,6 +15002,14 @@ export function LearnPageClient() {
         setMessages((current) =>
           replaceLearnMessage(current, pendingWorkflowMessageId, answerMessage),
         );
+        const learningFocusConcept = questionLearningFocusConcept({
+          question: questionText,
+          focusTopics: learnTurn?.planningDecision?.focusTopics || [],
+          answerMode: learnTurnAnswerMode,
+        });
+        if (isStudentCourseChat && learningFocusConcept) {
+          recordQuestionLearningFocus(learningFocusConcept);
+        }
         setRetryTurn(null);
         refreshLearnerSnapshot();
       } catch (err) {
@@ -15054,6 +15072,7 @@ export function LearnPageClient() {
       providerId,
       setMessages,
       refreshLearnerSnapshot,
+      recordQuestionLearningFocus,
       statusCalendarActivities,
       recentPlans,
       localConversationReadyKey,
@@ -17426,7 +17445,7 @@ export function LearnPageClient() {
             记忆动态
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-500">
-            这里只显示与你本人相关的进度、偏好、掌握情况和薄弱点，不显示课程资料同步。
+            这里只显示与你本人相关的学习关注点、偏好、掌握情况和薄弱点，不显示课程资料同步。
           </p>
           <div className="mt-6 grid gap-2 text-sm">
             <div className="learn-memory-metric-row" data-tone="writing">
@@ -17534,7 +17553,7 @@ export function LearnPageClient() {
                   </div>
                   <p className="mt-4 text-sm font-semibold text-slate-950">还没有记忆动态</p>
                   <p className="mt-1 text-sm leading-6 text-slate-500">
-                    当你确认学习进度，或平台写入你的偏好、掌握情况和薄弱点后，会在这里告诉你。
+                    当你围绕课程知识点提问，或平台写入你的偏好、掌握情况和薄弱点后，会在这里告诉你。
                   </p>
                 </div>
               </div>

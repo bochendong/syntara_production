@@ -557,6 +557,43 @@ check('confirmed durable writes keep auditable references and precede local shad
   );
 });
 
+check(
+  'web course questions write a low-risk learning focus instead of an automatic weakness',
+  () => {
+    const focusSource = fs.readFileSync(
+      path.join(root, 'lib/learning/question-learning-focus.ts'),
+      'utf8',
+    );
+    const learnSource = fs.readFileSync(
+      path.join(root, 'components/learn/learn-page-client.tsx'),
+      'utf8',
+    );
+    const promptSource = fs.readFileSync(
+      path.join(root, 'lib/orchestration/prompt-builder.ts'),
+      'utf8',
+    );
+
+    assert.match(focusSource, /args\.answerMode !== 'course_answer'/);
+    assert.match(focusSource, /MEMORY_READ_ONLY_PATTERN/);
+    assert.match(focusSource, /MEMORY_REJECTION_PATTERN/);
+    assert.match(focusSource, /status:[\s\S]{0,180}'learning'/);
+    assert.doesNotMatch(focusSource, /activeWeakPoints:/);
+    assert.match(
+      learnSource,
+      /questionLearningFocusConcept\([\s\S]{0,260}recordQuestionLearningFocus\(learningFocusConcept\)/,
+    );
+    assert.match(
+      learnSource,
+      /正在补强：\$\{concept\}[\s\S]{0,120}不会因为一次提问就直接标记为薄弱点/,
+    );
+    assert.doesNotMatch(learnSource, /announceSyllabusScheduleUpdated/);
+    assert.match(
+      promptSource,
+      /single substantive course question is evidence of a learning focus/,
+    );
+  },
+);
+
 console.log(
   JSON.stringify(
     {

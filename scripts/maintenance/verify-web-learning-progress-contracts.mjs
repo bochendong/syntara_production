@@ -36,10 +36,15 @@ assert.match(
   /progressSavePromiseRef\.current = \{ courseId: activeCourse\.id, promise: savePromise \}[\s\S]{0,450}同步到账号失败/,
   'Progress changes must expose account-sync failures.',
 );
+assert.doesNotMatch(
+  client,
+  /announceLearningMemoryUpdated/,
+  'Manually dragging learning progress must not manufacture a student-memory-ball notification.',
+);
 assert.match(
   client,
-  /savePromise\.then\(\(saved\) => \{[\s\S]{0,160}if \(saved\) \{[\s\S]{0,100}announceLearningMemoryUpdated/,
-  'The memory-ball update must only be announced after account memory persistence succeeds.',
+  /savePromise\.then\(\(saved\) => \{[\s\S]{0,180}!saved[\s\S]{0,180}同步到账号失败/,
+  'Manual progress must still report account-sync failures without notifying the memory ball.',
 );
 assert.match(
   client,
