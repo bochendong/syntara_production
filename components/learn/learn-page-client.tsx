@@ -2831,6 +2831,38 @@ function makeClientId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function miniLecturePromptForMessage(args: {
+  messages: LearnMessage[];
+  messageIndex: number;
+  course: { name: string } | null;
+}): MiniLecturePrompt | undefined {
+  const message = args.messages[args.messageIndex];
+  if (!message || message.role !== 'assistant' || message.transient || message.lectureDeck) {
+    return message?.lecturePrompt;
+  }
+  if (message.lecturePrompt) return message.lecturePrompt;
+  if (!args.course || !message.text.trim()) return undefined;
+
+  const question = args.messages
+    .slice(0, args.messageIndex)
+    .reverse()
+    .find((candidate) => candidate.role === 'user' && candidate.text.trim());
+  if (!question) return undefined;
+
+  const inferred = buildMiniLecturePrompt({
+    question: question.text,
+    answer: message.text,
+    course: args.course,
+  });
+  return inferred
+    ? {
+        ...inferred,
+        id: `mini-lecture-prompt-${message.id}`,
+        createdAt: message.createdAt,
+      }
+    : undefined;
+}
+
 function learnMessageHasContent(message: LearnMessage): boolean {
   return Boolean(
     message.text.trim() ||
@@ -8118,12 +8150,17 @@ export function LearnPageClient() {
         return;
       }
       const message = messages.find((item) => item.id === messageId);
-      if (!message?.lecturePrompt && !message?.lectureDeck) return;
+      if (!message) return;
       if (message.lectureDeck) {
         openMiniLectureDeck(message.lectureDeck);
         return;
       }
-      const prompt = message.lecturePrompt;
+      const messageIndex = messages.findIndex((item) => item.id === messageId);
+      const prompt = miniLecturePromptForMessage({
+        messages,
+        messageIndex,
+        course: activeCourse,
+      });
       if (!prompt) return;
       setGeneratingMiniLectureMessageId(messageId);
       try {
@@ -19156,13 +19193,18 @@ export function LearnPageClient() {
                   </div>
                 </div>
               ) : null}
-              {visibleMessages.map((message) => {
+              {visibleMessages.map((message, messageIndex) => {
                 const displayText =
                   message.role === 'assistant' &&
                   message.plan &&
                   isProblemSelectionPlan(message.plan)
                     ? selectedPracticeIntro(message.plan)
                     : repairStalePracticeSelectionMessageText(message.text);
+                const miniLecturePrompt = miniLecturePromptForMessage({
+                  messages: visibleMessages,
+                  messageIndex,
+                  course: activeCourse,
+                });
 
                 return (
                   <ContextMenu key={message.id}>
@@ -19299,9 +19341,9 @@ export function LearnPageClient() {
                                   onDismiss={() => dismissMessageProgressProposal(message.id)}
                                 />
                               ) : null}
-                              {message.lecturePrompt || message.lectureDeck ? (
+                              {miniLecturePrompt || message.lectureDeck ? (
                                 <MiniLectureInviteCard
-                                  prompt={message.lecturePrompt}
+                                  prompt={miniLecturePrompt}
                                   deck={message.lectureDeck}
                                   generating={generatingMiniLectureMessageId === message.id}
                                   disabled={!conversationInteractive}

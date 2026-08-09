@@ -53,6 +53,7 @@
     "test:markdown-section-progressive-api": "node scripts/maintenance/verify-markdown-section-progressive-api-contracts.mjs",
     "test:notebook-popup-progressive-cutover": "node scripts/maintenance/verify-notebook-popup-progressive-cutover.mjs",
     "test:web-learning-progress": "node scripts/maintenance/verify-web-learning-progress-contracts.mjs",
+    "test:learn-mini-lecture": "node scripts/maintenance/verify-learn-mini-lecture-contracts.mjs",
     "test:memory-write-latency": "node scripts/maintenance/verify-memory-write-latency-contracts.mjs",
     "test:calendar-server-contracts": "node scripts/maintenance/verify-learning-calendar-server-contracts.mjs",
     "test:course-lesson-plan": "node scripts/maintenance/verify-course-lesson-ingest-planner-contracts.mjs",
