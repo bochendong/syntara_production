@@ -630,6 +630,82 @@ async function validateMissingRouterFailure(decideTeachingTurn) {
   }
 }
 
+async function validateConfirmedCalendarAdd(decideTeachingTurn, require) {
+  const item = {
+    title: 'MAT 136 期末复习',
+    kind: 'progress',
+    date: '2026-08-17',
+    startTime: '19:00',
+    durationMinutes: 120,
+  };
+  const events = [];
+  const decision = await decideTeachingTurn(
+    baseInput('确认添加', {
+      recentActions: [
+        {
+          id: 'calendar-proposal-fixture',
+          kind: 'calendar.propose_add',
+          label: '确认加入日历',
+          summary: '确认后加入 MAT 136 期末复习日程。',
+          status: 'proposed',
+          confirmation: 'required',
+          payload: { items: [item] },
+        },
+      ],
+    }),
+    {
+      runId: 'contract-confirmed-calendar-add',
+      currentDate: '2026-08-09',
+      hooks: {
+        emit(event) {
+          events.push(JSON.parse(JSON.stringify(event)));
+        },
+      },
+    },
+  );
+  const directCall = decision.directCalls[0];
+  const actualItem = directCall?.payload?.items?.[0];
+  const failures = [];
+  if (decision.answerMode !== 'action_only') {
+    failures.push(`expected action_only, got ${decision.answerMode}`);
+  }
+  if (directCall?.kind !== 'calendar.propose_add') {
+    failures.push(`expected calendar.propose_add direct call, got ${directCall?.kind || 'none'}`);
+  }
+  if (decision.proposals.length !== 0) {
+    failures.push('confirmed calendar add must not emit another proposal');
+  }
+  if (JSON.stringify(actualItem) !== JSON.stringify(item)) {
+    failures.push('confirmed calendar add must preserve the exact pending item payload');
+  }
+  const { learningActionCalendarEvents } = require(
+    path.join(ROOT, 'features/learn-core/client-calendar-actions.ts'),
+  );
+  const executableEvents = learningActionCalendarEvents({
+    ...directCall,
+    id: 'confirmed-calendar-add-client-action',
+  });
+  if (executableEvents[0]?.start !== item.startTime) {
+    failures.push(
+      `confirmed calendar add must preserve start time ${item.startTime}, got ${executableEvents[0]?.start || 'none'}`,
+    );
+  }
+  if (events.filter((event) => event.type === 'turn_end').length !== 1) {
+    failures.push('confirmed calendar add must emit exactly one turn_end event');
+  }
+  return {
+    id: 'confirmed-calendar-add-executes-without-second-confirmation',
+    failures,
+    decision: {
+      answerMode: decision.answerMode,
+      directCalls: actionKinds(decision, 'directCalls'),
+      proposals: actionKinds(decision, 'proposals'),
+      payload: directCall?.payload || null,
+    },
+    hookTypes: events.map((event) => event.type),
+  };
+}
+
 async function validateShallowReviewPlanFailure(
   decideTeachingTurn,
   learnSemanticRouterOutputSchema,
@@ -2397,6 +2473,7 @@ async function main() {
     records.push({ id: 'ai-router-contract-registry', failures: contractFailures });
   }
   records.push(await validateMissingRouterFailure(decideTeachingTurn));
+  records.push(await validateConfirmedCalendarAdd(decideTeachingTurn, require));
   records.push(
     await validateShallowReviewPlanFailure(decideTeachingTurn, learnSemanticRouterOutputSchema),
   );

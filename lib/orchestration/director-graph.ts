@@ -469,6 +469,7 @@ function calendarTextMatchesActionFamily(userText: string, actionName: string): 
   if (actionName === 'calendar.propose_add') {
     return (
       mentionsCalendarSurface ||
+      (/(加入|添加|写入|同步|放进|放到|add)/i.test(text) && mentionsStudyPlanItem) ||
       /(加入|添加|写入|同步|放进|放到).{0,12}(日历|日程|calendar|schedule)/i.test(text)
     );
   }

@@ -1,4 +1,5 @@
 import type {
+  LearnAction,
   LearnHooks,
   LearnProblemBankSearchResult,
   LearnRunContext,
@@ -154,6 +155,24 @@ function validateSemanticRouterOutput(output: LearnSemanticRouterOutput) {
       throw new Error(
         'AI semantic router progress confirmation must use learner_progress.request_confirmation.',
       );
+    }
+  }
+
+  const allActions = [...output.directCalls, ...output.proposals];
+  const calendarAddActions = allActions.filter((action) => action.kind === 'calendar.propose_add');
+  const promisesCalendarAddConfirmation =
+    /(确认|同意|回复).{0,36}(添加|加入|写入).{0,24}(日历|日程)|(?:添加|加入|写入).{0,24}(日历|日程).{0,24}(确认|同意|回复)/i.test(
+      output.replyText,
+    );
+  if (promisesCalendarAddConfirmation && calendarAddActions.length === 0) {
+    throw new Error(
+      'AI semantic router must emit calendar.propose_add when replyText asks the learner to confirm a calendar addition.',
+    );
+  }
+  for (const action of calendarAddActions) {
+    const payload = readRecord(action.payload);
+    if (!Array.isArray(payload?.items) || payload.items.length === 0) {
+      throw new Error('AI semantic router calendar.propose_add must include at least one item.');
     }
   }
 }
@@ -385,6 +404,83 @@ async function maybeResolvePlanCalendarFollowup(args: {
       reason:
         'Resolved an explicit plan-to-calendar follow-up from the referenced artifact; no new review-mode decision was needed.',
       confidence: 0.99,
+      trace: args.recorder.trace,
+    }),
+  );
+}
+
+function confirmsPendingCalendarAdd(text: string) {
+  const normalized = text.normalize('NFKC').replace(/\s+/g, '').trim();
+  if (!normalized || normalized.length > 32) return false;
+  return /^(?:请)?(?:确认(?:添加|加入|写入|执行)?|同意(?:添加|加入|写入)?|按(?:这个|上述|该方案)(?:添加|加入|执行)|就按(?:这个|上述|该方案)(?:添加|加入|执行)?)[，。.!！]?$/i.test(
+    normalized,
+  );
+}
+
+function latestPendingCalendarAdd(input: LearnTurnInput): LearnAction | null {
+  for (const candidate of input.recentActions) {
+    const action = readRecord(candidate);
+    if (action?.kind !== 'calendar.propose_add') continue;
+    const status = payloadString(action.status);
+    if (status && status !== 'proposed' && status !== 'needs_confirmation') continue;
+    const payload = readRecord(action.payload);
+    if (!Array.isArray(payload?.items) || payload.items.length === 0) continue;
+    const items = payload.items.filter((item) => {
+      const record = readRecord(item);
+      return Boolean(record && payloadString(record.title) && payloadString(record.date));
+    });
+    if (items.length !== payload.items.length) continue;
+    return {
+      kind: 'calendar.propose_add',
+      label: payloadString(action.label) || '确认加入日历',
+      summary: payloadString(action.summary) || '按上一轮确认的方案加入学习日历。',
+      confirmation: 'required',
+      payload: {
+        ...payload,
+        items,
+      },
+    };
+  }
+  return null;
+}
+
+async function maybeResolveConfirmedCalendarAdd(args: {
+  ctx: LearnRunContext;
+  recorder: LearnTraceRecorder;
+  userEvidence: ReturnType<typeof questionEvidence>;
+}): Promise<LearnTurnDecision | null> {
+  if (!confirmsPendingCalendarAdd(args.ctx.input.question)) return null;
+  const action = latestPendingCalendarAdd(args.ctx.input);
+  if (!action) return null;
+  const itemCount = Array.isArray(action.payload?.items) ? action.payload.items.length : 0;
+
+  const tool = await args.recorder.toolStart({
+    toolId: 'propose_calendar_change',
+    purpose: 'Resolve the learner confirmation against the latest pending calendar addition.',
+    inputSummary: compactTraceValue({ question: args.ctx.input.question, itemCount }),
+  });
+  await args.recorder.toolEnd(tool, {
+    outputSummary: `Bound confirmation to ${itemCount} previously proposed calendar item(s).`,
+    evidenceIds: [args.userEvidence.id],
+  });
+  await args.recorder.step({
+    kind: 'propose_writeback',
+    label: 'Confirm pending calendar addition',
+    reasonSummary:
+      'The learner explicitly confirmed the latest pending calendar proposal, so execute that exact payload without asking again.',
+    evidence: [args.userEvidence],
+    outputSummary: `${itemCount} confirmed calendar item(s) are ready for the client executor.`,
+    confidence: 1,
+    metadata: { itemCount },
+  });
+
+  return args.recorder.finish(
+    createLearnTurnDecision({
+      answerMode: 'action_only',
+      replyText: '',
+      directCalls: [action],
+      reason: 'Executed the latest structured calendar proposal after explicit confirmation.',
+      confidence: 1,
       trace: args.recorder.trace,
     }),
   );
@@ -1155,6 +1251,13 @@ async function routeWithSemanticRouter(
           ...ctx,
           input: reviewModeResolvedInput,
         };
+
+  const confirmedCalendarDecision = await maybeResolveConfirmedCalendarAdd({
+    ctx: reviewModeResolvedCtx,
+    recorder,
+    userEvidence,
+  });
+  if (confirmedCalendarDecision) return confirmedCalendarDecision;
 
   const planCalendarDecision = await maybeResolvePlanCalendarFollowup({
     ctx: reviewModeResolvedCtx,

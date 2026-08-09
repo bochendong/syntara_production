@@ -163,6 +163,12 @@ function validDateKey(value: unknown): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? value.trim() : null;
 }
 
+function validStartTime(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim();
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(normalized) ? normalized : undefined;
+}
+
 export function mergeSyllabusEvents(
   existingEvents: SyllabusCalendarEvent[],
   incomingEvents: SyllabusCalendarEvent[],
@@ -195,6 +201,7 @@ export function learningActionCalendarEvents(action: LearningAction): SyllabusCa
         validDateKey(item.date) ||
         validDateKey(item.day) ||
         localDayKey(addCalendarDays(new Date(), index)),
+      start: validStartTime(item.start) || validStartTime(item.startTime),
       sourceName: 'AI 学习动作',
       origin: 'ai_plan',
       sourceRef: { type: 'action', id: action.id },
@@ -214,6 +221,7 @@ export function learningActionCalendarEvents(action: LearningAction): SyllabusCa
       title: actionSummary(action),
       kind: 'progress',
       date: validDateKey(payload.date) || localDayKey(new Date()),
+      start: validStartTime(payload.start) || validStartTime(payload.startTime),
       sourceName: 'AI 学习动作',
       origin: 'ai_plan',
       sourceRef: { type: 'action', id: action.id },

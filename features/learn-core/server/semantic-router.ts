@@ -312,6 +312,8 @@ export function buildLearnSemanticRouterPrompt(
     '- If the learner asks for current external facts, latest information, package/API/library status, or web evidence outside course materials, use action_only with a read-only web.search directCall.',
     '- If the learner asks to read calendar, memory, syllabus, sources, or recent activity state, use action_only with the appropriate read-only directCall or course_answer handoff when a prose answer is needed.',
     '- Calendar edits, memory writes, image generation, classroom generation, and legacy problem-bank selection actions are proposals unless the latest message clearly confirms a prior proposal.',
+    '- A dated review/study plan that the learner asks to add is a calendar workflow even when the latest message says "复习计划" instead of "日历". If replyText asks the learner to confirm adding it to the calendar, include exactly one calendar.propose_add proposal with the complete non-empty items array in the same turn; never emit a text-only confirmation request.',
+    '- When the latest message explicitly confirms the most recent pending calendar.propose_add action, reuse that exact structured payload as a directCall so the client executes it. Never ask for a second confirmation.',
     '- Durable memory writes store teaching-control signals: mastery, weakness, cause, correction, evidence, and next teaching move. Do not store raw transcript as the main memory.',
     '- If information is missing, route to the best useful next step and name missingEvidence in the handoff or reason. Do not invent a generic default branch.',
     '- The reason field is a concise audit explanation: entry type, selected resources, and why writes were or were not proposed. Do not reveal chain-of-thought.',
