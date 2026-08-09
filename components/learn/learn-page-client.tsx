@@ -24,7 +24,6 @@ import {
   ChevronUp,
   CheckCircle2,
   Copy,
-  Cpu,
   Eraser,
   FileText,
   LibraryBig,
@@ -103,13 +102,6 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePersistHydrated } from '@/lib/hooks/use-persist-hydrated';
@@ -2614,15 +2606,6 @@ function SourceUploadBadge({
 
 function modelOptionValue(providerId: ProviderId, modelId: string): string {
   return `${providerId}${MODEL_VALUE_SEPARATOR}${modelId}`;
-}
-
-function parseModelOptionValue(value: string): { providerId: ProviderId; modelId: string } | null {
-  const separatorIndex = value.indexOf(MODEL_VALUE_SEPARATOR);
-  if (separatorIndex < 0) return null;
-  return {
-    providerId: value.slice(0, separatorIndex) as ProviderId,
-    modelId: value.slice(separatorIndex + 1),
-  };
 }
 
 function compactBytes(bytes: number): string {
@@ -7250,7 +7233,6 @@ export function LearnPageClient() {
   const imageProviderId = useSettingsStore((state) => state.imageProviderId);
   const imageModelId = useSettingsStore((state) => state.imageModelId);
   const imageProvidersConfig = useSettingsStore((state) => state.imageProvidersConfig);
-  const setModel = useSettingsStore((state) => state.setModel);
   const fetchServerProviders = useSettingsStore((state) => state.fetchServerProviders);
   const memoryActivities = useMemoryActivityStore((state) => state.activities);
   const memoryHistoryRecords = useTaskHistoryStore((state) => state.records);
@@ -8034,13 +8016,6 @@ export function LearnPageClient() {
         vision: null,
       },
     [modelId, modelOptions, providerId, selectedModelValue],
-  );
-  const visibleModelOptions = useMemo(
-    () =>
-      modelOptions.some((option) => option.value === selectedModelValue)
-        ? modelOptions
-        : [selectedModel, ...modelOptions],
-    [modelOptions, selectedModel, selectedModelValue],
   );
   const selectedKnownNoVision = selectedModel.vision === false;
   const pdfProviderConfig = pdfProvidersConfig[pdfProviderId];
@@ -11000,15 +10975,6 @@ export function LearnPageClient() {
       // Clipboard can be unavailable in some browser permission states.
     }
   }, []);
-
-  const handleModelChange = useCallback(
-    (value: string) => {
-      const parsed = parseModelOptionValue(value);
-      if (!parsed) return;
-      setModel(parsed.providerId, parsed.modelId);
-    },
-    [setModel],
-  );
 
   const handleChatAttachmentFiles = useCallback(
     async (fileList: FileList | File[] | null) => {
@@ -18812,7 +18778,7 @@ export function LearnPageClient() {
                         className={cn(
                           message.role === 'user'
                             ? 'ml-auto max-w-[82%] rounded-[15px_6px_15px_15px] bg-[#4d4a43] px-3 py-2.5 text-[12px] leading-[1.65] text-[#f8f5ee] shadow-[0_7px_20px_rgba(70,61,48,0.05)] dark:bg-slate-100 dark:text-slate-950'
-                            : 'mr-auto flex max-w-[82%] items-start gap-[9px]',
+                            : 'flex w-full items-start gap-[9px]',
                         )}
                       >
                         {message.role === 'user' ? (
@@ -18882,7 +18848,7 @@ export function LearnPageClient() {
                                 <MessageSquarePlus className="size-4" strokeWidth={1.8} />
                               </div>
                             )}
-                            <div className="min-w-0 flex-1 select-text rounded-[6px_15px_15px] border border-[#4d473e]/[0.08] bg-white px-3 py-2.5 shadow-[0_7px_20px_rgba(70,61,48,0.05)] dark:border-white/10 dark:bg-white/5">
+                            <div className="min-w-0 w-full flex-1 select-text bg-transparent px-0 py-0.5">
                               {message.contextCompression ? (
                                 <ChatContextCompressionNotice
                                   compression={message.contextCompression}
@@ -19012,7 +18978,7 @@ export function LearnPageClient() {
             </div>
           </div>
 
-          <footer className="shrink-0 border-t border-slate-100 bg-gradient-to-t from-white via-white to-white/85 px-6 pb-4 pt-3 dark:border-white/5 dark:from-slate-950 dark:via-slate-950 dark:to-slate-950/85">
+          <footer className="shrink-0 bg-gradient-to-t from-white via-white to-white/85 px-6 pb-4 pt-3 dark:from-slate-950 dark:via-slate-950 dark:to-slate-950/85">
             <div className="w-full">
               <div
                 className={cn(
@@ -19165,28 +19131,6 @@ export function LearnPageClient() {
                     className="max-h-32 min-h-9 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-0 py-1.5 text-sm leading-6 shadow-none [field-sizing:fixed] focus-visible:ring-0"
                   />
                   <div className="flex shrink-0 items-center gap-1.5">
-                    <Select value={selectedModelValue} onValueChange={handleModelChange}>
-                      <SelectTrigger
-                        size="sm"
-                        className="h-8 w-10 rounded-full border-slate-200 bg-transparent px-0 text-[11px] shadow-none sm:w-[148px] sm:px-2 dark:border-white/10"
-                        aria-label="选择聊天模型"
-                      >
-                        <Cpu className="size-3.5 text-muted-foreground" />
-                        <span className="hidden min-w-0 truncate sm:block">
-                          {selectedModel.providerName} · {selectedModel.modelName}
-                        </span>
-                      </SelectTrigger>
-                      <SelectContent align="end" className="max-h-72 w-[300px]">
-                        <SelectGroup>
-                          {visibleModelOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.providerName} · {option.modelName}
-                              {option.vision === false ? ' · 无视觉' : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
                     <Button
                       type="button"
                       size="icon"
