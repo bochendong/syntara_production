@@ -17,6 +17,7 @@ export function middleware(request: NextRequest) {
   const isAllowedPath =
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
+    pathname === '/sso/callback' ||
     pathname === '/login' ||
     pathname === '/learn' ||
     pathname.startsWith('/student/') ||

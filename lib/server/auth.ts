@@ -213,6 +213,10 @@ export const authOptions: NextAuthOptions = {
         token.isActive = accountUser.isActive !== false;
         return token;
       }
+      if (token.authSource === 'speedup') {
+        token.isActive = true;
+        return token;
+      }
       if (token.sub && prismaClient) {
         try {
           const current = await prismaClient.user.findUnique({

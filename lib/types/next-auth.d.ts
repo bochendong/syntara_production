@@ -14,5 +14,6 @@ declare module 'next-auth/jwt' {
   interface JWT {
     role?: 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN';
     isActive?: boolean;
+    authSource?: 'speedup';
   }
 }
