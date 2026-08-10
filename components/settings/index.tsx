@@ -9,14 +9,14 @@ import { useI18n } from '@/lib/hooks/use-i18n';
 import type { SettingsSection } from '@/lib/types/settings';
 import {
   Settings,
-  FileText,
   Image as ImageIcon,
-  Search,
   Volume2,
   Mic,
   UserRound,
   ChevronRight,
   Wallpaper,
+  ArrowLeft,
+  Sparkles,
 } from 'lucide-react';
 import { SystemLLMPanel } from './system-llm-panel';
 import { useSettingsStore } from '@/lib/store/settings';
@@ -27,22 +27,14 @@ const settingsPanelLoading = () => (
   </div>
 );
 
-const loadGeneralSettings = () => import('./general-settings').then((mod) => mod.GeneralSettings);
-const loadPDFSettings = () => import('./pdf-settings').then((mod) => mod.PDFSettings);
 const loadImageSettings = () => import('./image-settings').then((mod) => mod.ImageSettings);
 const loadTTSSettings = () => import('./tts-settings').then((mod) => mod.TTSSettings);
 const loadASRSettings = () => import('./asr-settings').then((mod) => mod.ASRSettings);
-const loadWebSearchSettings = () =>
-  import('./web-search-settings').then((mod) => mod.WebSearchSettings);
 const loadLive2dPresenterSettingsPanel = () =>
   import('./live2d-presenter-settings-panel').then((mod) => mod.Live2dPresenterSettingsPanel);
 const loadLearnBackgroundSettings = () =>
   import('./learn-background-settings').then((mod) => mod.LearnBackgroundSettings);
 
-const GeneralSettings = dynamic(loadGeneralSettings, { loading: settingsPanelLoading });
-const PDFSettings = dynamic(loadPDFSettings, {
-  loading: settingsPanelLoading,
-});
 const ImageSettings = dynamic(loadImageSettings, {
   loading: settingsPanelLoading,
 });
@@ -52,7 +44,6 @@ const TTSSettings = dynamic(loadTTSSettings, {
 const ASRSettings = dynamic(loadASRSettings, {
   loading: settingsPanelLoading,
 });
-const WebSearchSettings = dynamic(loadWebSearchSettings, { loading: settingsPanelLoading });
 const Live2dPresenterSettingsPanel = dynamic(loadLive2dPresenterSettingsPanel, {
   loading: settingsPanelLoading,
 });
@@ -61,12 +52,9 @@ const LearnBackgroundSettings = dynamic(loadLearnBackgroundSettings, {
 });
 
 const PRELOADABLE_SETTINGS_SECTIONS: readonly SettingsSection[] = [
-  'general',
-  'pdf',
   'image',
   'tts',
   'asr',
-  'web-search',
   'live2d',
   'background',
 ];
@@ -86,8 +74,6 @@ export function SettingsDialog({
   embedded = false,
 }: SettingsDialogProps) {
   const { t } = useI18n();
-  const pdfProviderId = useSettingsStore((state) => state.pdfProviderId);
-  const webSearchProviderId = useSettingsStore((state) => state.webSearchProviderId);
   const imageProviderId = useSettingsStore((state) => state.imageProviderId);
   const ttsProviderId = useSettingsStore((state) => state.ttsProviderId);
   const asrProviderId = useSettingsStore((state) => state.asrProviderId);
@@ -96,12 +82,9 @@ export function SettingsDialog({
   const [activeSection, setActiveSection] = useState<SettingsSection>('providers');
   const preloadSection = useCallback((section: SettingsSection) => {
     const loaders: Partial<Record<SettingsSection, () => Promise<unknown>>> = {
-      general: loadGeneralSettings,
-      pdf: loadPDFSettings,
       image: loadImageSettings,
       tts: loadTTSSettings,
       asr: loadASRSettings,
-      'web-search': loadWebSearchSettings,
       live2d: loadLive2dPresenterSettingsPanel,
       background: loadLearnBackgroundSettings,
     };
@@ -151,7 +134,7 @@ export function SettingsDialog({
     },
     {
       id: 'live2d',
-      label: t('settings.live2dPresenter'),
+      label: '伴学角色',
       Icon: UserRound,
       iconClassName: 'bg-[#af52de]',
     },
@@ -167,28 +150,82 @@ export function SettingsDialog({
       Icon: Mic,
       iconClassName: 'bg-[#ff3b30]',
     },
-    {
-      id: 'pdf',
-      label: t('settings.pdfSettings'),
-      Icon: FileText,
-      iconClassName: 'bg-[#5856d6]',
-    },
-    {
-      id: 'web-search',
-      label: t('settings.webSearchSettings'),
-      Icon: Search,
-      iconClassName: 'bg-[#007aff]',
-    },
-    {
-      id: 'general',
-      label: t('settings.systemSettings'),
-      Icon: Settings,
-      iconClassName: 'bg-[#8e8e93]',
-    },
   ];
 
   const activeNavigationItem =
     navigationItems.find((item) => item.id === activeSection) || navigationItems[0];
+  const ActiveSectionIcon = activeNavigationItem.Icon;
+
+  const settingsPanel = (
+    <>
+      {activeSection === 'providers' && <SystemLLMPanel />}
+      {activeSection === 'image' && <ImageSettings selectedProviderId={imageProviderId} />}
+      {activeSection === 'background' && <LearnBackgroundSettings />}
+      {activeSection === 'live2d' && <Live2dPresenterSettingsPanel />}
+      {activeSection === 'tts' && <TTSSettings selectedProviderId={ttsProviderId} />}
+      {activeSection === 'asr' && <ASRSettings selectedProviderId={asrProviderId} />}
+    </>
+  );
+
+  const embeddedColumn = (
+    <div className="learn-dock-profile-shell learn-dock-settings-shell">
+      <aside className="learn-dock-profile-navigation">
+        <div className="learn-dock-profile-brand">
+          <span>
+            <Sparkles size={19} strokeWidth={2.2} />
+          </span>
+          <strong>Syntara</strong>
+        </div>
+        <nav aria-label={t('settings.title')}>
+          {navigationItems.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveSection(id)}
+              onMouseEnter={() => preloadSection(id)}
+              onFocus={() => preloadSection(id)}
+              data-active={activeSection === id ? 'true' : 'false'}
+              aria-current={activeSection === id ? 'page' : undefined}
+            >
+              <span>
+                <Icon size={17} strokeWidth={1.9} />
+              </span>
+              {label}
+              <ChevronRight size={14} strokeWidth={1.8} />
+            </button>
+          ))}
+        </nav>
+        <p className="learn-dock-profile-navigation-note">
+          设置管理模型、图像、学习背景、Live2D 和语音偏好，不包含个人公开资料。
+        </p>
+        <div className="learn-dock-profile-navigation-footer">
+          <button type="button" onClick={() => onOpenChange(false)}>
+            <ArrowLeft size={17} strokeWidth={1.9} />
+            返回主屏
+          </button>
+        </div>
+      </aside>
+
+      <div className="learn-dock-profile-main">
+        <div className="learn-dock-profile-content">
+          <div className="learn-dock-settings-card">
+            <div className="learn-dock-settings-heading">
+              <span>
+                <ActiveSectionIcon size={21} strokeWidth={1.9} />
+              </span>
+              <div>
+                <small>设置</small>
+                <h2>{activeNavigationItem.label}</h2>
+              </div>
+            </div>
+            <div className="learn-dock-settings-panel" style={{ overflow: 'visible' }}>
+              {settingsPanel}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const mainColumn = (
     <div
@@ -273,17 +310,7 @@ export function SettingsDialog({
         <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-5 sm:px-7 sm:py-6">
           <div className="mx-auto w-full max-w-6xl">
             <div className="ipados-settings-content overflow-hidden rounded-[16px] bg-white p-4 shadow-sm ring-1 ring-black/[0.04] sm:p-5">
-              {activeSection === 'providers' && <SystemLLMPanel />}
-              {activeSection === 'general' && <GeneralSettings />}
-              {activeSection === 'pdf' && <PDFSettings selectedProviderId={pdfProviderId} />}
-              {activeSection === 'web-search' && (
-                <WebSearchSettings selectedProviderId={webSearchProviderId} />
-              )}
-              {activeSection === 'image' && <ImageSettings selectedProviderId={imageProviderId} />}
-              {activeSection === 'background' && <LearnBackgroundSettings />}
-              {activeSection === 'live2d' && <Live2dPresenterSettingsPanel />}
-              {activeSection === 'tts' && <TTSSettings selectedProviderId={ttsProviderId} />}
-              {activeSection === 'asr' && <ASRSettings selectedProviderId={asrProviderId} />}
+              {settingsPanel}
             </div>
           </div>
         </div>
@@ -308,7 +335,7 @@ export function SettingsDialog({
         <>
           <h1 className="sr-only">{t('settings.title')}</h1>
           <p className="sr-only">{t('settings.description')}</p>
-          {mainColumn}
+          {embeddedColumn}
         </>
       ) : (
         <Dialog open={open} onOpenChange={onOpenChange}>

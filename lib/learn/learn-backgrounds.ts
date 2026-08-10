@@ -97,5 +97,8 @@ export function isLearnBackgroundId(value: unknown): value is LearnBackgroundId 
 }
 
 export function getLearnBackground(value: unknown): (typeof LEARN_BACKGROUNDS)[number] {
-  return LEARN_BACKGROUNDS.find((background) => background.id === value) || LEARN_BACKGROUNDS[0];
+  return (
+    LEARN_BACKGROUNDS.find((background) => background.id === value) ||
+    LEARN_BACKGROUNDS.find((background) => background.id === DEFAULT_LEARN_BACKGROUND_ID)!
+  );
 }

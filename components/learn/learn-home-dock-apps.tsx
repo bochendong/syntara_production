@@ -1,15 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Bell,
+  CalendarDays,
   Check,
   Database,
-  GraduationCap,
-  Library,
+  LogOut,
+  MoreHorizontal,
+  Pencil,
   Save,
   Settings2,
+  Sparkles,
   UserRound,
 } from 'lucide-react';
 import { USER_AVATAR_PRESET_URLS } from '@/lib/constants/user-avatars';
@@ -17,6 +22,18 @@ import { useAuthStore } from '@/lib/store/auth';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 import { listRemoteLearnSessionsPage } from '@/features/learn-conversations/client/remote-conversation-api';
 import type { CourseRecord } from '@/lib/utils/database';
+
+const EmbeddedSettingsDialog = dynamic(
+  () => import('@/components/settings').then((module) => module.SettingsDialog),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid h-full w-full place-items-center bg-[#f7f9fd] text-sm text-slate-500">
+        正在加载设置…
+      </div>
+    ),
+  },
+);
 
 export type LearnDockApp = 'profile' | 'notifications' | 'settings';
 
@@ -68,8 +85,11 @@ function useLearningTotals(courses: CourseRecord[]) {
 }
 
 function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onBack: () => void }) {
+  const router = useRouter();
   const authName = useAuthStore((state) => state.name);
   const email = useAuthStore((state) => state.email);
+  const role = useAuthStore((state) => state.role);
+  const logout = useAuthStore((state) => state.logout);
   const profileAvatar = useUserProfileStore((state) => state.avatar);
   const profileNickname = useUserProfileStore((state) => state.nickname);
   const profileBio = useUserProfileStore((state) => state.bio);
@@ -86,10 +106,11 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
       return '';
     }
   });
+  const [savedSchool, setSavedSchool] = useState(school);
   const [avatar, setSelectedAvatar] = useState(profileAvatar);
   const [avatarPage, setAvatarPage] = useState(0);
   const [savedFlash, setSavedFlash] = useState(false);
-  const avatarPageSize = 21;
+  const avatarPageSize = 10;
   const avatarPageCount = Math.max(1, Math.ceil(USER_AVATAR_PRESET_URLS.length / avatarPageSize));
   const avatarsOnPage = useMemo(
     () =>
@@ -104,7 +125,10 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
   const dirty =
     displayName !== (profileNickname || authName || '学习者') ||
     signature.trim() !== profileBio ||
-    avatar !== profileAvatar;
+    avatar !== profileAvatar ||
+    school.trim() !== savedSchool;
+
+  const roleLabel = role === 'TEACHER' ? '教师账户' : role === 'ADMIN' ? '管理员账户' : '学生账户';
 
   const saveProfile = () => {
     setNickname(displayName);
@@ -115,6 +139,7 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
     } catch {
       // Profile still saves through the persistent store when localStorage is restricted.
     }
+    setSavedSchool(school.trim());
     setSavedFlash(true);
     window.setTimeout(() => setSavedFlash(false), 1600);
   };
@@ -122,133 +147,191 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
   return (
     <section className="learn-dock-profile-app" aria-label="个人中心">
       <div className="learn-dock-profile-shell">
-        <aside className="learn-dock-profile-aside">
-          <button type="button" className="learn-dock-back-button" onClick={onBack}>
-            <ArrowLeft size={16} />
-            返回主屏
-          </button>
-
-          <div className="learn-dock-profile-hero">
-            {avatar ? (
-              <img src={avatar} alt="" className="learn-dock-profile-avatar" />
-            ) : (
-              <span className="learn-dock-profile-avatar is-empty">
-                <UserRound size={36} />
-              </span>
-            )}
-            <strong>{displayName}</strong>
-            <small>{signature.trim() || email || '还没有个性签名'}</small>
-            {school.trim() ? (
-              <span className="learn-dock-profile-school">
-                <GraduationCap size={14} />
-                {school.trim()}
-              </span>
-            ) : null}
+        <aside className="learn-dock-profile-navigation">
+          <div className="learn-dock-profile-brand">
+            <span>
+              <Sparkles size={19} strokeWidth={2.2} />
+            </span>
+            <strong>Syntara</strong>
           </div>
-
-          <div className="learn-dock-profile-stats" aria-label="学习用量统计">
-            {[
-              ['课程', totals.courses],
-              ['笔记本', totals.notebooks],
-              ['题目', totals.problems],
-              ['会话', totals.conversations],
-            ].map(([label, value]) => (
-              <span key={label}>
-                <strong>{Number(value).toLocaleString('zh-CN')}</strong>
-                <small>{label}</small>
+          <nav aria-label="个人中心导航">
+            <button type="button" data-active="true" aria-current="page">
+              <span>
+                <UserRound size={17} strokeWidth={1.9} />
               </span>
-            ))}
+              个人资料
+            </button>
+          </nav>
+          <p className="learn-dock-profile-navigation-note">
+            个人中心只管理头像、昵称、简介和学校；模型与界面偏好统一放在设置中。
+          </p>
+          <div className="learn-dock-profile-navigation-footer">
+            <button type="button" onClick={() => router.push('/settings')}>
+              <Settings2 size={17} strokeWidth={1.9} />
+              打开设置
+            </button>
+            <button type="button" onClick={onBack}>
+              <ArrowLeft size={17} strokeWidth={1.9} />
+              返回主屏
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                router.push('/login');
+              }}
+            >
+              <LogOut size={17} strokeWidth={1.9} />
+              退出登录
+            </button>
           </div>
         </aside>
 
         <div className="learn-dock-profile-main">
           <header className="learn-dock-profile-toolbar">
             <div>
-              <span>个人中心</span>
-              <h1>编辑资料</h1>
+              <h1>个人资料</h1>
+              <p>管理您的个人信息与资料</p>
             </div>
-            <button
-              type="button"
-              className="learn-dock-profile-save"
-              onClick={saveProfile}
-              disabled={!dirty && !savedFlash}
-            >
-              {savedFlash ? <Check size={15} /> : <Save size={15} />}
-              {savedFlash ? '已保存' : '保存'}
-            </button>
+            <span className="learn-dock-profile-role">{roleLabel}</span>
           </header>
 
-          <div className="learn-dock-profile-form">
-            <label className="learn-dock-profile-field">
-              <span>名字</span>
-              <input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="你的显示名称"
-                maxLength={40}
-              />
-            </label>
+          <div className="learn-dock-profile-content">
+            <div className="learn-dock-profile-card">
+              <aside className="learn-dock-profile-summary">
+                <div className="learn-dock-profile-portrait-wrap">
+                  {avatar ? (
+                    <img
+                      src={avatar}
+                      alt={`${displayName}的头像`}
+                      className="learn-dock-profile-avatar"
+                    />
+                  ) : (
+                    <span className="learn-dock-profile-avatar is-empty">
+                      <UserRound size={42} />
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      document
+                        .getElementById('profile-avatar-picker')
+                        ?.scrollIntoView({ behavior: 'smooth' })
+                    }
+                    aria-label="选择头像"
+                  >
+                    <Pencil size={15} strokeWidth={2} />
+                  </button>
+                </div>
+                <label className="learn-dock-profile-name">
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="你的显示名称"
+                    maxLength={40}
+                    aria-label="显示名称"
+                  />
+                  <Pencil size={14} strokeWidth={2} />
+                </label>
+                <p className="learn-dock-profile-email">{email || '本地学习账户'}</p>
+                <div className="learn-dock-profile-stats" aria-label="学习用量统计">
+                  {[
+                    ['课程', totals.courses],
+                    ['笔记本', totals.notebooks],
+                    ['会话', totals.conversations],
+                  ].map(([label, value]) => (
+                    <span key={label}>
+                      <strong>{Number(value).toLocaleString('zh-CN')}</strong>
+                      <small>{label}</small>
+                    </span>
+                  ))}
+                </div>
+                <div className="learn-dock-profile-account-card">
+                  <CalendarDays size={18} strokeWidth={1.9} />
+                  <span>
+                    <small>账户身份</small>
+                    <strong>{roleLabel}</strong>
+                  </span>
+                </div>
+              </aside>
 
-            <label className="learn-dock-profile-field">
-              <span>签名</span>
-              <textarea
-                rows={3}
-                value={signature}
-                onChange={(event) => setSignature(event.target.value)}
-                placeholder="一句话介绍自己"
-                maxLength={160}
-              />
-            </label>
+              <div className="learn-dock-profile-form">
+                <label className="learn-dock-profile-field">
+                  <span>
+                    <strong>个人简介</strong>
+                    <small>{signature.length} / 160</small>
+                  </span>
+                  <span className="learn-dock-profile-input-wrap is-textarea">
+                    <textarea
+                      rows={3}
+                      value={signature}
+                      onChange={(event) => setSignature(event.target.value)}
+                      placeholder="一句话介绍自己…"
+                      maxLength={160}
+                    />
+                    <Pencil size={15} strokeWidth={1.9} />
+                  </span>
+                </label>
 
-            <label className="learn-dock-profile-field">
-              <span>学校</span>
-              <input
-                value={school}
-                onChange={(event) => setSchool(event.target.value)}
-                placeholder="例如：University of Toronto"
-                maxLength={80}
-              />
-            </label>
+                <label className="learn-dock-profile-field">
+                  <span>
+                    <strong>学校</strong>
+                  </span>
+                  <span className="learn-dock-profile-input-wrap">
+                    <input
+                      value={school}
+                      onChange={(event) => setSchool(event.target.value)}
+                      placeholder="例如：University of Toronto"
+                      maxLength={80}
+                    />
+                    <Pencil size={15} strokeWidth={1.9} />
+                  </span>
+                </label>
 
-            <div className="learn-dock-profile-avatar-block">
-              <div className="learn-dock-profile-avatar-heading">
-                <span>个人头像</span>
-                <small>
-                  {avatarPage + 1} / {avatarPageCount}
-                </small>
-              </div>
-              <div className="learn-dock-profile-avatar-grid">
-                {avatarsOnPage.map((url) => {
-                  const selected = avatar === url;
-                  return (
+                <div className="learn-dock-profile-avatar-block" id="profile-avatar-picker">
+                  <div className="learn-dock-profile-avatar-heading">
+                    <span>头像选择</span>
+                    <small>点击头像进行选择</small>
+                  </div>
+                  <div className="learn-dock-profile-avatar-grid">
+                    {avatarsOnPage.map((url) => {
+                      const selected = avatar === url;
+                      return (
+                        <button
+                          type="button"
+                          key={url}
+                          className={`learn-dock-profile-avatar-option${selected ? ' is-selected' : ''}`}
+                          onClick={() => setSelectedAvatar(url)}
+                          aria-label="选择头像"
+                          aria-pressed={selected}
+                        >
+                          <img src={url} alt="" draggable={false} />
+                          {selected ? <Check size={15} strokeWidth={2.2} /> : null}
+                        </button>
+                      );
+                    })}
                     <button
                       type="button"
-                      key={url}
-                      className={`learn-dock-profile-avatar-option${selected ? ' is-selected' : ''}`}
-                      onClick={() => setSelectedAvatar(url)}
-                      aria-label="选择头像"
-                      aria-pressed={selected}
+                      className="learn-dock-profile-avatar-more"
+                      onClick={() => setAvatarPage((value) => (value + 1) % avatarPageCount)}
                     >
-                      <img src={url} alt="" draggable={false} />
+                      <MoreHorizontal size={21} strokeWidth={1.8} />
+                      <span>更多</span>
                     </button>
-                  );
-                })}
-              </div>
-              <div className="learn-dock-profile-avatar-pager">
-                <button
-                  type="button"
-                  disabled={avatarPage <= 0}
-                  onClick={() => setAvatarPage((value) => Math.max(0, value - 1))}
-                >
-                  上一页
-                </button>
-                <button
-                  type="button"
-                  disabled={avatarPage >= avatarPageCount - 1}
-                  onClick={() => setAvatarPage((value) => Math.min(avatarPageCount - 1, value + 1))}
-                >
-                  下一页
-                </button>
+                  </div>
+                </div>
+
+                <div className="learn-dock-profile-actions">
+                  <button
+                    type="button"
+                    className="learn-dock-profile-save"
+                    onClick={saveProfile}
+                    disabled={!dirty && !savedFlash}
+                  >
+                    {savedFlash ? <Check size={15} /> : <Save size={15} />}
+                    {savedFlash ? '已保存' : '保存修改'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -258,9 +341,8 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
   );
 }
 
-const APP_LABELS: Record<Exclude<LearnDockApp, 'profile'>, string> = {
+const APP_LABELS: Record<'notifications', string> = {
   notifications: '通知中心',
-  settings: '设置',
 };
 
 function LearnHomeSystemApp({
@@ -268,7 +350,7 @@ function LearnHomeSystemApp({
   courses,
   onClose,
 }: {
-  app: Exclude<LearnDockApp, 'profile'>;
+  app: 'notifications';
   courses: CourseRecord[];
   onClose: () => void;
 }) {
@@ -317,30 +399,6 @@ function LearnHomeSystemApp({
                 </article>
               </div>
             ) : null}
-
-            {app === 'settings' ? (
-              <div className="learn-dock-system-content">
-                <div className="learn-dock-system-summary">
-                  <Settings2 size={20} />
-                  <div>
-                    <strong>本地优先</strong>
-                    <small>课程、题库、笔记本和会话优先从当前设备读取。</small>
-                  </div>
-                </div>
-                <div className="learn-dock-system-settings">
-                  <span>
-                    <Library size={16} />
-                    <small>数据源</small>
-                    <strong>网页与本机同步</strong>
-                  </span>
-                  <span>
-                    <Database size={16} />
-                    <small>课程内容</small>
-                    <strong>{totals.problems} 道题</strong>
-                  </span>
-                </div>
-              </div>
-            ) : null}
           </div>
         </main>
       </div>
@@ -359,6 +417,13 @@ export function LearnHomeDockAppLayer({
 }) {
   if (app === 'profile') {
     return <LearnHomeProfileApp courses={courses} onBack={onClose} />;
+  }
+  if (app === 'settings') {
+    return (
+      <section className="learn-dock-profile-app" aria-label="设置">
+        <EmbeddedSettingsDialog embedded open onOpenChange={(open) => !open && onClose()} />
+      </section>
+    );
   }
   if (app) {
     return <LearnHomeSystemApp app={app} courses={courses} onClose={onClose} />;

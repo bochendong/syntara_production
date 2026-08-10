@@ -229,6 +229,12 @@ const SYSTEM_APPS: SystemApp[] = [
     iconSrc: '/learn/system-apps/profile.svg',
     action: 'profile',
   },
+  {
+    label: '设置',
+    secondary: 'Settings',
+    iconSrc: '/learn/system-apps/settings.svg',
+    action: 'settings',
+  },
 ];
 
 const HOME_GRID_SYSTEM_APPS: SystemApp[] = [
@@ -653,7 +659,7 @@ export function LearnHomeDashboard({
   onRetryCourseLoad,
 }: LearnHomeDashboardProps) {
   const userId = useAuthStore((state) => state.userId) || 'anonymous';
-  const iconOrderStorageKey = `syntara:${variant}-home-icon-order:${userId}:${variant === 'student' ? 'v3' : 'v2'}`;
+  const iconOrderStorageKey = `syntara:${variant}-home-icon-order:${userId}:${variant === 'student' ? 'v4' : 'v3'}`;
   const iconOrderEventName = `syntara:${variant}-home-icon-order-change:${userId}`;
   const learnBackgroundId = useSettingsStore((state) => state.learnBackgroundId);
   const [now, setNow] = useState<Date | null>(null);

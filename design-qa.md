@@ -117,6 +117,31 @@
 
 final result: passed
 
+# Settings Background Adaptive Height — 2026-08-10
+
+## Evidence
+
+- Source visual truth: `browser-comment://Comment-4` at `1470 × 837` CSS pixels.
+- Implementation screenshots: `/private/tmp/settings-background-adaptive-top-final-1470x837.png` and `/private/tmp/settings-background-adaptive-height-final-1470x1186.png`.
+- State: `/settings?section=background`, light theme.
+
+## Findings
+
+- The original three-column background cards and their original image dimensions are preserved.
+- The Settings shell and content card now grow with the complete gallery instead of constraining the gallery to the viewport height.
+- Scrolling belongs to the outer page shell; the background component and settings card do not create independent scroll regions.
+- Coral Flow remains the configured default, and invalid or missing background IDs now resolve to that same default rather than the first gallery item.
+
+## Interaction and runtime evidence
+
+- All nine background selection buttons remain interactive and preserve selected-state feedback.
+- The adaptive card measured `1128px` client height and `1128px` scroll height; its panel measured `1031px` for both values.
+- The outer application page is the sole scroll owner for the complete settings surface.
+- Browser console check returned zero errors.
+- Focused ESLint, TypeScript typecheck, Prettier, and `git diff --check` pass.
+
+final result: passed
+
 # 教师 AI 队列紧凑列表 Design QA — 2026-08-02
 
 ## Evidence
@@ -286,3 +311,109 @@ final result: passed
 - No visual-pass claim is made for that unexecuted browser state. It should be rechecked manually or after browser control recovers.
 
 final result: implementation and deployment passed; production file-selection screenshot pending
+
+# Web Personal Center Redesign Design QA — 2026-08-10
+
+## Evidence
+
+- Source visual truth: `/Users/dongpochen/Downloads/ChatGPT Image 2026年8月10日 01_09_03.png`.
+- Implementation screenshot: `/private/tmp/profile-implementation-final-1600.png`.
+- Full-view comparison evidence: `/private/tmp/profile-comparison-final.png`.
+- Viewport: `1600 × 1000` CSS pixels, device scale factor 1.
+- State: web student home preview → Personal Center → light theme.
+
+## Findings
+
+- The 270px sidebar, lavender canvas, 805px desktop content card, 642px identity panel, two-column form, five-plus-six avatar composition, and bottom save action align with the supplied visual hierarchy.
+- Teacher and student home dashboards share the same profile component; the account label adapts to the authenticated role.
+- Remaining visible content differences are local account data (name, email, usage counts, and role), not layout defects.
+- No actionable P0/P1/P2 differences remain.
+
+## Interaction and runtime evidence
+
+- Biography edits update the character count and enable Save.
+- School participates in dirty-state detection and persistence.
+- Avatar selection updates the selected state; More switches to the next avatar page.
+- Unsaved QA edits were cleared by reload.
+- Final browser console check returned zero errors.
+- Focused ESLint, TypeScript typecheck, Prettier, and `git diff --check` pass.
+
+## Comparison history
+
+1. Pass 1 — P2: sidebar was too narrow, the main card was too short, the identity panel stretched too far, and avatar rows did not match the source rhythm.
+2. Final — aligned desktop proportions, constrained the identity panel, matched the reference form inset and avatar rows, removed redundant pager controls, and anchored Save to the card bottom.
+
+final result: passed
+
+# Personal Center and Settings Information Architecture — 2026-08-10
+
+## Evidence
+
+- Source visual truth: `/Users/dongpochen/Downloads/ChatGPT Image 2026年8月10日 01_09_03.png`.
+- Personal Center screenshot: `/private/tmp/profile-unified-final-1600.png`.
+- Settings screenshot: `/private/tmp/settings-unified-final-1600.png`.
+- Full-view comparison evidence: `/private/tmp/profile-settings-unified-comparison.png`.
+- Viewport: `1600 × 1000` CSS pixels, device scale factor 1.
+- State: student web home preview → Settings and Personal Center → light theme.
+- Focused comparison was not required because sidebar labels, headers, cards, and primary controls remain legible in the native-size full-view evidence.
+
+## Findings
+
+- Personal Center now contains only identity and profile data: avatar, display name, biography, school, role, and learning totals.
+- Model, image, background, Live2D, and speech controls now live under Settings.
+- Settings and Personal Center share the same 270px navigation shell, lavender canvas, white content card, spacing, radius, icon treatment, and selected-state styling.
+- The Settings App is present in both student and teacher home system-app collections; the icon-order storage version was advanced so existing users receive the new App in the visible default order.
+- No actionable P0/P1/P2 differences remain.
+
+## Interaction and runtime evidence
+
+- Student home exposes an enabled `设置；可拖动排序` App.
+- Opening Settings renders the real language-model controls rather than the previous summary placeholder.
+- Learning Background and Live2D sections were opened successfully, then Return Home restored the home screen.
+- Personal Center exposes a single profile navigation item plus explicit Open Settings, Return Home, and Sign Out actions.
+- Browser console check returned zero errors.
+- Focused ESLint, TypeScript typecheck, Prettier, and `git diff --check` pass.
+
+## Comparison history
+
+1. Initial — P1: preference destinations were mixed into Personal Center, while the student home omitted the Settings App and the Settings surface used a separate visual language.
+2. Final — separated profile identity from application preferences, added Settings to both home variants, rendered the real settings panels, and reused the Personal Center shell and tokens.
+
+final result: passed
+
+# Settings Navigation and Static Companion Posters — 2026-08-10
+
+## Evidence
+
+- Source visual truth: `browser-comment://Comment-1`, `browser-comment://Comment-2`, and `browser-comment://Comment-3` at `1470 × 837` CSS pixels.
+- Implementation screenshot: `/private/tmp/settings-companion-posters-compact-final-1470x837.png`.
+- Viewport: `1470 × 837` CSS pixels, device scale factor 1.
+- State: `/settings?section=live2d`, light theme, Haru selected.
+- Full-view comparison evidence: the two labeled browser-comment screenshots in the current task and the final native-size implementation screenshot.
+- Focused comparison was not required because the complete header region, navigation, role cards, and poster assets are legible in the full-view evidence.
+
+## Findings
+
+- The top Settings header selected in both browser comments is removed; the active settings card now begins directly below the page inset.
+- System Settings, File Parsing, and Web Search are absent from the settings navigation and cannot be selected through the section query allowlist.
+- The section is named Companion Role in Chinese, matching its learning-companion purpose rather than a classroom-presenter label.
+- Five local `1254 × 1254` poster assets are arranged in one compact desktop row with smaller card spacing and two-line descriptions.
+- The settings content no longer creates an internal scrolling region; the page owns vertical overflow when it is needed.
+- The character selector creates zero Live2D canvases; Live2D is only instantiated later in the actual companion or classroom surface.
+- No actionable P0/P1/P2 differences remain.
+
+## Interaction and runtime evidence
+
+- Navigation counts for System Settings, File Parsing, and Web Search are all zero.
+- Header selector `header.learn-dock-profile-toolbar` count is zero.
+- Five poster images loaded successfully in a five-column desktop grid and the selected-state card remains functional.
+- The panel computed without its former `ipados-settings-content` overflow behavior.
+- Browser console check returned zero errors.
+- Focused ESLint, TypeScript typecheck, Prettier, and `git diff --check` pass.
+
+## Comparison history
+
+1. Initial — P1: three unwanted settings remained visible; the top header duplicated the active-card heading; several poster URLs were broken; hover/selection instantiated Live2D previews.
+2. Final — removed the three sections and top header, renamed the section to Companion Role in Chinese, switched all five models to existing local poster assets, removed the preview runtime path and internal scroll container, and compacted the desktop selector into one row.
+
+final result: passed

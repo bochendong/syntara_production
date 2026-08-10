@@ -6,16 +6,13 @@ import { SettingsDialog } from '@/components/settings';
 import type { SettingsSection } from '@/lib/types/settings';
 
 const SECTION_KEYS = new Set<string>([
-  'general',
   'providers',
   'agents',
   'tts',
   'asr',
-  'pdf',
   'image',
   'background',
   'live2d',
-  'web-search',
 ]);
 
 function SettingsPageInner() {
@@ -30,7 +27,7 @@ function SettingsPageInner() {
   }, [sectionParam]);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[22px] border border-black/[0.08] bg-[#f2f2f7] shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+    <div className="flex min-h-full w-full flex-col overflow-visible rounded-[22px] border border-black/[0.08] bg-[#f2f2f7] shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
       <SettingsDialog
         embedded
         open
