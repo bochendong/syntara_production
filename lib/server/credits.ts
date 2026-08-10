@@ -20,6 +20,7 @@ import {
   estimateWebSearchRetailCostUsd,
   OPENAI_RETAIL_MARKUP_MULTIPLIER,
 } from '@/lib/utils/openai-pricing';
+import { assertCloudUsageAllowed, recordCloudUsageCost } from '@/lib/server/cloud-usage-limits';
 
 const log = createLogger('Credits');
 
@@ -60,16 +61,6 @@ async function chargeCreditsForUsdCost(args: ChargeCreditsForUsdArgs): Promise<{
   nextBalance: number;
 } | null> {
   const userId = args.userId?.trim();
-  if (!userId) return null;
-  if (isComputeCreditSpendingDisabledForTesting()) {
-    log.info('Skipped compute credit charge in test mode', {
-      userId,
-      route: args.route ?? null,
-      source: args.source ?? null,
-      referenceType: args.referenceType,
-    });
-    return null;
-  }
 
   const usdCost =
     typeof args.usdCost === 'number' && !Number.isNaN(args.usdCost) ? Math.max(0, args.usdCost) : 0;
@@ -80,6 +71,32 @@ async function chargeCreditsForUsdCost(args: ChargeCreditsForUsdArgs): Promise<{
       ? Math.max(0, Math.round(args.requestedCreditsCostOverride))
       : creditsFromUsd(usdCost, 'ceil');
   if (requestedCreditsCost <= 0) return null;
+
+  if (args.referenceType === 'web_search') {
+    await recordCloudUsageCost({
+      userId,
+      route: args.route,
+      source: args.source ?? 'web-search',
+      estimatedCostUsd: usdCost,
+      requestCount:
+        typeof args.metadata?.callCount === 'number' && Number.isFinite(args.metadata.callCount)
+          ? args.metadata.callCount
+          : 1,
+      metadata: args.metadata,
+    });
+  }
+
+  if (!userId) return null;
+
+  if (isComputeCreditSpendingDisabledForTesting()) {
+    log.info('Skipped compute credit charge in test mode', {
+      userId,
+      route: args.route ?? null,
+      source: args.source ?? null,
+      referenceType: args.referenceType,
+    });
+    return null;
+  }
 
   const prisma = getOptionalPrisma();
   if (!prisma) return null;
@@ -144,6 +161,7 @@ export async function assertUserHasCredits(
   accountType: CreditAccountType = 'COMPUTE',
 ): Promise<void> {
   const normalizedUserId = userId?.trim();
+  await assertCloudUsageAllowed(normalizedUserId);
   if (!normalizedUserId) return;
   if (accountType === 'COMPUTE' && isComputeCreditSpendingDisabledForTesting()) return;
 

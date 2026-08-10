@@ -52,6 +52,14 @@ const OPENAI_FILE_INPUT_READY_TIMEOUT_MS = 15_000;
 const OPENAI_FILE_INPUT_MIN_AGE_MS = 4_000;
 const log = createLogger('CourseSourceIngest');
 
+function sanitizeSourceText(value: string): string {
+  return value
+    .replace(/\u0000/g, '')
+    .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/\uFFFD/g, '')
+    .trim();
+}
+
 const sourceUploadSchema = z.object({
   sourceTitle: z.string().trim().min(1).max(240),
   sourceKind: z
@@ -68,7 +76,10 @@ const sourceUploadSchema = z.object({
   ingestIntent: z.enum(['standard', 'maintenance_pilot_reuse_only']).default('standard'),
   expectedReusableProblemCount: z.number().int().min(1).max(5000).optional(),
   outputMode: z.enum(['ingest', 'cover_prompt', 'notebook_content']).default('ingest'),
-  text: z.string().trim().min(1).max(MAX_SOURCE_TEXT_CHARS),
+  text: z.preprocess(
+    (value) => (typeof value === 'string' ? sanitizeSourceText(value) : value),
+    z.string().trim().min(1).max(MAX_SOURCE_TEXT_CHARS),
+  ),
 });
 
 export type NormalizedSourceUploadPayload = {
@@ -723,7 +734,7 @@ async function parseMultipartSourceUpload(
     textChars: extracted.text.length,
     durationMs: Date.now() - extractionStartedAt,
   });
-  const text = extracted.text.trim();
+  const text = sanitizeSourceText(extracted.text);
   if (!text) {
     return NextResponse.json(
       { error: 'Uploaded source file was parsed, but no usable text was extracted' },

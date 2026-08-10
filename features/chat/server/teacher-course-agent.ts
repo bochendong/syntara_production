@@ -1004,7 +1004,7 @@ async function runCourseNotebookAgentTurn(
     instructions: courseAgentInstructions({ access: args.access, inventory, mode: args.mode }),
     tools,
     stopWhen: stepCountIs(4),
-    maxOutputTokens: 2_400,
+    maxOutputTokens: 10_000,
     prepareStep: ({ stepNumber }) =>
       stepNumber === 0 && shouldRequireEvidenceTool(latestUserText(args.body))
         ? { toolChoice: 'required' as const }

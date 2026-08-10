@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Loader2, LogIn, ShieldCheck } from 'lucide-react';
+import { GraduationCap, Loader2, LogIn, ShieldCheck } from 'lucide-react';
 import { SyntaraMark } from '@/components/brand/syntara-mark';
 import { useAuthStore } from '@/lib/store/auth';
 
@@ -121,6 +121,18 @@ export function TeacherOnlineLoginPage() {
           <p className="mt-5 text-center text-xs text-slate-500">
             忘记密码请联系管理员在后台重置。
           </p>
+          <div className="my-5 flex items-center gap-3 text-[11px] text-slate-500" aria-hidden>
+            <span className="h-px flex-1 bg-white/10" />
+            或
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+          <a
+            href="/login"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[.06] text-sm font-semibold text-slate-100 transition hover:border-emerald-300/40 hover:bg-emerald-300/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60"
+          >
+            <GraduationCap className="size-4" />
+            我是学生，返回学生登录
+          </a>
         </section>
       </main>
     </div>

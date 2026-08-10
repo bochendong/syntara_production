@@ -11,6 +11,7 @@ import {
   publicApiSuccess,
   requirePublicApi,
 } from '@/lib/server/public-api';
+import { markInternalRequestHeaders } from '@/lib/server/internal-request';
 import { withRequestContext } from '@/lib/server/request-context';
 import { resolveOpenAIResponsesModelFromHeaders } from '@/lib/server/resolve-model';
 
@@ -93,15 +94,18 @@ export async function POST(request: NextRequest) {
         }),
     );
 
-    const imageRequest = new NextRequest(new URL('/api/generate/image', request.url), {
-      method: 'POST',
-      headers: {
+    const imageHeaders = markInternalRequestHeaders(
+      new Headers({
         'content-type': 'application/json',
         'x-image-provider': 'openai-image',
         'x-image-model': 'gpt-image-2',
         'x-user-id': principal.userId,
         'x-request-id': requestId,
-      },
+      }),
+    );
+    const imageRequest = new NextRequest(new URL('/api/generate/image', request.url), {
+      method: 'POST',
+      headers: imageHeaders,
       body: JSON.stringify({
         prompt: preview.prompt,
         negativePrompt:

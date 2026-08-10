@@ -8,6 +8,7 @@ import {
   publicApiSuccess,
   requirePublicApi,
 } from '@/lib/server/public-api';
+import { markInternalRequestHeaders } from '@/lib/server/internal-request';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
     headers.set('x-user-id', principal.userId);
     headers.set('x-request-id', requestId);
     headers.delete('authorization');
+    markInternalRequestHeaders(headers);
     const internalRequest = new NextRequest(request.url, {
       method: 'POST',
       headers,

@@ -6,6 +6,7 @@ import {
   BookOpen,
   Bot,
   Coins,
+  Gauge,
   Image as ImageIcon,
   Volume2,
   Search,
@@ -20,11 +21,13 @@ import { AdminSiteProvidersSection } from '@/components/admin/admin-site-provide
 import { AdminCoursesSection } from '@/components/admin/admin-courses-section';
 import { AdminTeachersSection } from '@/components/admin/admin-teachers-section';
 import { AdminStudentsSection } from '@/components/admin/admin-students-section';
+import { AdminUsageLimitsSection } from '@/components/admin/admin-usage-limits-section';
 
 const SECTIONS = [
   { id: 'llm', label: '语言模型', icon: Bot },
   { id: 'students', label: '学生管理', icon: Users },
   { id: 'teachers', label: '老师管理', icon: Users },
+  { id: 'usage-limits', label: '云端限额', icon: Gauge },
   { id: 'credits', label: '积分管理', icon: Coins },
   { id: 'courses', label: '课程管理', icon: BookOpen },
   { id: 'image', label: '图像生成', icon: ImageIcon },
@@ -107,6 +110,7 @@ export function AdminConsole() {
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
             {section === 'llm' ? <AdminLLMSection key={refreshKey} /> : null}
             {section === 'teachers' ? <AdminTeachersSection key={refreshKey} /> : null}
+            {section === 'usage-limits' ? <AdminUsageLimitsSection key={refreshKey} /> : null}
             {section === 'students' ? (
               <AdminStudentsSection key={refreshKey} refreshKey={refreshKey} />
             ) : null}

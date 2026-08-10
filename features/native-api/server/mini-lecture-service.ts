@@ -22,6 +22,10 @@ import {
   type TTSGenerationResult,
 } from '@/lib/audio/tts-providers';
 import { verbalizeNarrationText } from '@/lib/audio/spoken-text';
+import {
+  isTrustedInternalHeaders,
+  markInternalRequestHeaders,
+} from '@/lib/server/internal-request';
 import { resolveTTSApiKey, resolveTTSBaseUrl } from '@/lib/server/provider-config';
 import { resolveModelFromHeadersForNotebookStage } from '@/lib/server/resolve-model';
 import { POST as generateNotebookPageContentRoute } from '@/features/ppt-generation/server/notebook-page-content-route';
@@ -532,20 +536,26 @@ export function buildNativeMiniLectureOutlines(args: {
 
 function forwardHeaders(context: NativeMiniLectureRequestContext): Headers {
   const headers = new Headers();
+  const trusted = isTrustedInternalHeaders(context.headers);
   headers.set('Content-Type', 'application/json');
-  for (const name of [
-    'authorization',
-    'cookie',
-    'x-user-id',
-    'x-user-email',
-    'x-user-name',
-    'x-request-id',
-    'x-notebook-generation-session-id',
-    'x-notebook-generation-task-id',
-  ]) {
+  const forwardedNames = trusted
+    ? [
+        'authorization',
+        'cookie',
+        'x-user-id',
+        'x-user-email',
+        'x-user-name',
+        'x-request-id',
+        'x-notebook-generation-session-id',
+        'x-notebook-generation-task-id',
+      ]
+    : ['authorization', 'cookie', 'x-request-id'];
+
+  for (const name of forwardedNames) {
     const value = context.headers.get(name);
     if (value) headers.set(name, value);
   }
+  if (trusted) markInternalRequestHeaders(headers);
   return headers;
 }
 
@@ -1087,7 +1097,7 @@ function makeIdempotencyCacheKey(
   idempotencyKey: string,
 ): string {
   const identity =
-    context.headers.get('x-user-id')?.trim() ||
+    (isTrustedInternalHeaders(context.headers) ? context.headers.get('x-user-id')?.trim() : '') ||
     context.headers.get('authorization')?.trim() ||
     context.headers.get('cookie')?.trim() ||
     `anonymous:${new URL(context.requestUrl).origin}`;

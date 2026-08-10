@@ -9,6 +9,7 @@ import {
   NativeMiniLectureServiceError,
 } from '@/features/native-api/server/mini-lecture-service';
 import { requireUserId } from '@/lib/server/api-auth';
+import { markInternalRequestHeaders } from '@/lib/server/internal-request';
 import { withRequestContext } from '@/lib/server/request-context';
 
 export const runtime = 'nodejs';
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   try {
     const serviceHeaders = new Headers(request.headers);
     serviceHeaders.set('x-user-id', auth.userId);
+    markInternalRequestHeaders(serviceHeaders);
     const result = await withRequestContext(
       {
         userId: auth.userId,
