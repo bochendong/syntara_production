@@ -18,7 +18,8 @@ const MODE_META = {
     title: '学生登录',
     subtitle: '使用管理员分配的学生邮箱和密码',
     heroTitle: '课程、AI 笔记本与学习日历，在所有设备上保持同步。',
-    heroDescription: '登录后会自动显示管理员分配的课程；老师更新的笔记本和思维导图会从共享数据库自动同步。',
+    heroDescription:
+      '登录后会自动显示管理员分配的课程；老师更新的笔记本和思维导图会从共享数据库自动同步。',
     accentText: 'text-emerald-300',
     icon: GraduationCap,
     button: '进入学生桌面',
@@ -30,7 +31,8 @@ const MODE_META = {
     title: '教师登录',
     subtitle: '使用管理员分配的教师邮箱和密码',
     heroTitle: '课程资料、AI 队列与学生管理，统一在线同步。',
-    heroDescription: '账号由管理员创建。课程和生成内容统一保存到线上数据库，在不同浏览器与设备之间保持一致。',
+    heroDescription:
+      '账号由管理员创建。课程和生成内容统一保存到线上数据库，在不同浏览器与设备之间保持一致。',
     accentText: 'text-sky-300',
     icon: ShieldCheck,
     button: '进入教师工作台',
@@ -113,11 +115,14 @@ export function StudentOnlineLoginPage() {
         return;
       }
 
-      const result = await signIn(mode === 'teacher' ? 'teacher-credentials' : 'student-credentials', {
-        email: email.trim().toLowerCase(),
-        password,
-        redirect: false,
-      });
+      const result = await signIn(
+        mode === 'teacher' ? 'teacher-credentials' : 'student-credentials',
+        {
+          email: email.trim().toLowerCase(),
+          password,
+          redirect: false,
+        },
+      );
       if (!result?.ok) throw new Error('邮箱或密码错误，或账号已停用。');
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : '登录失败');
@@ -159,9 +164,7 @@ export function StudentOnlineLoginPage() {
           <h1 className="mt-4 text-5xl font-semibold leading-tight tracking-[-.05em]">
             {meta.heroTitle}
           </h1>
-          <p className="mt-6 max-w-xl text-sm leading-7 text-slate-300">
-            {meta.heroDescription}
-          </p>
+          <p className="mt-6 max-w-xl text-sm leading-7 text-slate-300">{meta.heroDescription}</p>
         </section>
         <section className="rounded-[28px] border border-white/10 bg-white/[.08] p-7 shadow-2xl backdrop-blur-2xl">
           <div className="mb-6 grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-white/[.04] p-1">
@@ -182,7 +185,9 @@ export function StudentOnlineLoginPage() {
           </div>
 
           <div className="text-center">
-            <span className={`mx-auto grid size-12 place-items-center rounded-2xl bg-white/10 ${meta.accentText} ring-1 ring-white/15`}>
+            <span
+              className={`mx-auto grid size-12 place-items-center rounded-2xl bg-white/10 ${meta.accentText} ring-1 ring-white/15`}
+            >
               <ModeIcon className="size-5" />
             </span>
             <h2 className="mt-4 text-3xl font-semibold">{meta.title}</h2>

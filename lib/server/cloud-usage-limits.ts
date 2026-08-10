@@ -56,7 +56,9 @@ type CostLogAggregateRow = {
   requestCount: number | null;
 };
 
-function toNullableNumber(value: Prisma.Decimal | number | string | null | undefined): number | null {
+function toNullableNumber(
+  value: Prisma.Decimal | number | string | null | undefined,
+): number | null {
   if (value == null) return null;
   const parsed =
     typeof value === 'number'
@@ -131,9 +133,7 @@ function assertWithinLimit(args: {
   }
 }
 
-export async function getCloudUsageGlobalLimit(
-  db: DbClient,
-): Promise<CloudUsageGlobalLimit> {
+export async function getCloudUsageGlobalLimit(db: DbClient): Promise<CloudUsageGlobalLimit> {
   const rows = await db.$queryRaw<LimitRow[]>(
     Prisma.sql`
       SELECT "enabled", "monthlyCostLimitUsd", "monthlyRequestLimit", "periodTimezone", "updatedBy", "updatedAt"

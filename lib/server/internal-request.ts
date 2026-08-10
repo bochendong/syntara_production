@@ -4,9 +4,7 @@ export const INTERNAL_REQUEST_SECRET_HEADER = 'x-syntara-internal-secret';
 
 export function getInternalRequestSecret(): string {
   return (
-    process.env.SYNTARA_INTERNAL_REQUEST_SECRET?.trim() ||
-    process.env.NEXTAUTH_SECRET?.trim() ||
-    ''
+    process.env.SYNTARA_INTERNAL_REQUEST_SECRET?.trim() || process.env.NEXTAUTH_SECRET?.trim() || ''
   );
 }
 

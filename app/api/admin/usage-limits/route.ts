@@ -50,25 +50,26 @@ export async function GET(request: Request) {
     ]);
 
     const bulkRoles: UserRole[] = ['STUDENT', 'TEACHER'];
-    const userRows = listRole === 'STUDENT' || listRole === 'TEACHER' || listRole === 'ALL'
-      ? await prisma.user.findMany({
-          where:
-            listRole === 'STUDENT' || listRole === 'TEACHER'
-              ? { role: listRole, isActive: true }
-              : { role: { in: bulkRoles }, isActive: true },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            role: true,
-            createdAt: true,
-          },
-          orderBy: [{ role: 'asc' }, { updatedAt: 'desc' }],
-          take: 500,
-        })
-      : query
-      ? await prisma.$queryRaw<UserSearchRow[]>(
-          Prisma.sql`
+    const userRows =
+      listRole === 'STUDENT' || listRole === 'TEACHER' || listRole === 'ALL'
+        ? await prisma.user.findMany({
+            where:
+              listRole === 'STUDENT' || listRole === 'TEACHER'
+                ? { role: listRole, isActive: true }
+                : { role: { in: bulkRoles }, isActive: true },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              role: true,
+              createdAt: true,
+            },
+            orderBy: [{ role: 'asc' }, { updatedAt: 'desc' }],
+            take: 500,
+          })
+        : query
+          ? await prisma.$queryRaw<UserSearchRow[]>(
+              Prisma.sql`
             SELECT id, email, name, role::text AS role, "createdAt"
             FROM "User"
             WHERE LOWER(COALESCE(email, '')) LIKE ${`%${query}%`}
@@ -76,8 +77,8 @@ export async function GET(request: Request) {
             ORDER BY "updatedAt" DESC
             LIMIT 20
           `,
-        )
-      : [];
+            )
+          : [];
 
     const users = await Promise.all(
       userRows.map(async (user) => {
@@ -217,9 +218,7 @@ export async function PUT(request: Request) {
       const selectedUserIds = Array.isArray(body.userIds)
         ? Array.from(
             new Set(
-              body.userIds
-                .map((id) => (typeof id === 'string' ? id.trim() : ''))
-                .filter(Boolean),
+              body.userIds.map((id) => (typeof id === 'string' ? id.trim() : '')).filter(Boolean),
             ),
           )
         : [];
@@ -227,8 +226,8 @@ export async function PUT(request: Request) {
         selectedUserIds.length > 0
           ? { id: { in: selectedUserIds }, role: { in: bulkRoles }, isActive: true }
           : targetRole === 'STUDENT' || targetRole === 'TEACHER'
-          ? { role: targetRole, isActive: true }
-          : { role: { in: bulkRoles }, isActive: true };
+            ? { role: targetRole, isActive: true }
+            : { role: { in: bulkRoles }, isActive: true };
       const users = await prisma.user.findMany({
         where,
         select: { id: true },

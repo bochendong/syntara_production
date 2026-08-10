@@ -209,21 +209,18 @@ export function AdminUsageLimitsSection() {
 
     setSavingUser(true);
     try {
-      const response = await backendJson<SaveUserResponse>(
-        '/api/admin/usage-limits',
-        {
-          method: 'PUT',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            scope: 'user',
-            userId: editingUser.id,
-            disabled: userDisabled,
-            monthlyCostLimitUsd: userCost,
-            monthlyRequestLimit: userRequests,
-            note: userNote,
-          }),
-        },
-      );
+      const response = await backendJson<SaveUserResponse>('/api/admin/usage-limits', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'user',
+          userId: editingUser.id,
+          disabled: userDisabled,
+          monthlyCostLimitUsd: userCost,
+          monthlyRequestLimit: userRequests,
+          note: userNote,
+        }),
+      });
       const updateUser = (user: UsageLimitUser) =>
         user.id === response.user.id
           ? { ...user, limit: response.user.limit, usage: response.user.usage }
@@ -246,8 +243,7 @@ export function AdminUsageLimitsSection() {
       return;
     }
 
-    const targetLabel =
-      bulkTargetRole === 'STUDENT' ? '学生列表' : '老师列表';
+    const targetLabel = bulkTargetRole === 'STUDENT' ? '学生列表' : '老师列表';
     const confirmed = window.confirm(
       `确认批量覆盖${targetLabel}中已勾选的 ${selectedBulkUserIds.length} 个账号吗？`,
     );
@@ -278,9 +274,7 @@ export function AdminUsageLimitsSection() {
             limit: {
               userId: user.id,
               monthlyCostLimitUsd: bulkCost.trim() ? Number.parseFloat(bulkCost) : null,
-              monthlyRequestLimit: bulkRequests.trim()
-                ? Number.parseInt(bulkRequests, 10)
-                : null,
+              monthlyRequestLimit: bulkRequests.trim() ? Number.parseInt(bulkRequests, 10) : null,
               disabled: bulkDisabled,
               note: bulkNote.trim() || null,
               updatedBy: null,
@@ -385,7 +379,9 @@ export function AdminUsageLimitsSection() {
               <Label>启用全站拦截</Label>
               <div className="flex h-10 items-center gap-2">
                 <Switch checked={globalEnabled} onCheckedChange={setGlobalEnabled} />
-                <span className="text-sm text-muted-foreground">{globalEnabled ? '已启用' : '未启用'}</span>
+                <span className="text-sm text-muted-foreground">
+                  {globalEnabled ? '已启用' : '未启用'}
+                </span>
               </div>
             </div>
             <div className="space-y-2">
@@ -409,7 +405,11 @@ export function AdminUsageLimitsSection() {
               />
             </div>
             <Button type="button" onClick={saveGlobal} disabled={savingGlobal}>
-              {savingGlobal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              {savingGlobal ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
               保存
             </Button>
           </div>
@@ -486,7 +486,8 @@ export function AdminUsageLimitsSection() {
               <div>
                 <p className="text-sm font-medium">账号列表</p>
                 <p className="text-xs text-muted-foreground">
-                  已选择 {selectedBulkUserIds.length} 个账号，当前显示 {filteredBulkUsers.length} / {bulkUsers.length}
+                  已选择 {selectedBulkUserIds.length} 个账号，当前显示 {filteredBulkUsers.length} /{' '}
+                  {bulkUsers.length}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
@@ -570,9 +571,7 @@ export function AdminUsageLimitsSection() {
             <div className="space-y-2">
               <Label>这组用户 API 状态</Label>
               <div className="flex h-10 items-center justify-between rounded-md border bg-background px-3">
-                <span className="text-sm font-medium">
-                  {bulkDisabled ? '暂停' : '调用'}
-                </span>
+                <span className="text-sm font-medium">{bulkDisabled ? '暂停' : '调用'}</span>
                 <Switch
                   checked={!bulkDisabled}
                   onCheckedChange={(checked) => setBulkDisabled(!checked)}
@@ -593,7 +592,11 @@ export function AdminUsageLimitsSection() {
               onClick={saveBulkUsers}
               disabled={savingBulk || loadingBulkUsers || selectedBulkUserIds.length === 0}
             >
-              {savingBulk ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              {savingBulk ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
               批量保存
             </Button>
           </div>
@@ -641,9 +644,7 @@ export function AdminUsageLimitsSection() {
                 <div className="space-y-2">
                   <Label>该用户 API 状态</Label>
                   <div className="flex h-10 items-center justify-between rounded-md border bg-background px-3">
-                    <span className="text-sm font-medium">
-                      {userDisabled ? '暂停' : '调用'}
-                    </span>
+                    <span className="text-sm font-medium">{userDisabled ? '暂停' : '调用'}</span>
                     <Switch
                       checked={!userDisabled}
                       onCheckedChange={(checked) => setUserDisabled(!checked)}
