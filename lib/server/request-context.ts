@@ -4,6 +4,7 @@ import { createLogger } from '@/lib/logger';
 import { requireServerSession } from '@/lib/server/auth';
 import { ensureUserForApi } from '@/lib/server/ensure-user';
 import { requireResolvedUser } from '@/lib/server/admin-auth';
+import { isTrustedInternalRequest } from '@/lib/server/internal-request';
 
 export interface RequestLLMContext {
   userId?: string;
@@ -55,7 +56,9 @@ export async function runWithRequestContext<T>(
   let authSource: 'header' | 'session' | 'fallback' | 'none' = 'none';
   let user = null as { id?: string; email?: string; name?: string } | null;
 
-  const headerUserId = req.headers.get('x-user-id')?.trim();
+  const headerUserId = isTrustedInternalRequest(req)
+    ? req.headers.get('x-user-id')?.trim()
+    : undefined;
   if (headerUserId) {
     const headerUserEmail = req.headers.get('x-user-email')?.trim() || undefined;
     const headerUserName = req.headers.get('x-user-name')?.trim() || undefined;

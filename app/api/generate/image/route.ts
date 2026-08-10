@@ -27,6 +27,7 @@ import type {
 import { normalizeRequestedImageDimensions } from '@/lib/media/image-result-normalization';
 import { createLogger } from '@/lib/logger';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
+import { recordCloudUsageCost } from '@/lib/server/cloud-usage-limits';
 import { assertUserHasCredits, chargeCreditsForImageGeneration } from '@/lib/server/credits';
 import { recordLLMUsage } from '@/lib/server/llm-usage';
 import { getRequestContext, runWithRequestContext } from '@/lib/server/request-context';
@@ -220,7 +221,7 @@ export async function POST(request: NextRequest) {
 
       const skipCreditCharge = shouldSkipCreditChargeForTestRequest(request);
 
-      if (providerId === 'openai-image' && !skipCreditCharge) {
+      if (!skipCreditCharge) {
         await assertUserHasCredits(getRequestContext()?.userId);
       }
 
@@ -294,6 +295,19 @@ export async function POST(request: NextRequest) {
           // Image generation has already been charged above using the image-specific
           // pricing table. This write only makes it visible in usage statistics.
           skipCreditCharge: true,
+        });
+      } else if (!skipCreditCharge) {
+        await recordCloudUsageCost({
+          userId: getRequestContext()?.userId,
+          route: '/api/generate/image',
+          source: request.headers.get('x-usage-source')?.trim() || 'image-generation',
+          estimatedCostUsd: costEstimate?.retailUsd ?? 0,
+          requestCount: 1,
+          metadata: {
+            providerId,
+            modelId: resolvedModelId,
+            hasUsage: Boolean(result.usage),
+          },
         });
       }
 

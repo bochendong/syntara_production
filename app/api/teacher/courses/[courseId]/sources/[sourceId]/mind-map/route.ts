@@ -9,6 +9,7 @@ import {
 } from '@/features/memory/server/source-upload-ingestion';
 import { createLogger } from '@/lib/logger';
 import type { ImageGenerationResult } from '@/lib/media/types';
+import { markInternalRequestHeaders } from '@/lib/server/internal-request';
 import { prisma } from '@/lib/server/prisma';
 import { toPrismaJson } from '@/lib/server/prisma-json';
 import { withRequestContext } from '@/lib/server/request-context';
@@ -133,15 +134,18 @@ async function runMindMapGeneration(args: {
       where: { id: args.taskId },
       data: { stage: 'generating_image', progress: 60 },
     });
-    const imageRequest = new NextRequest(new URL('/api/generate/image', args.requestUrl), {
-      method: 'POST',
-      headers: {
+    const imageHeaders = markInternalRequestHeaders(
+      new Headers({
         'content-type': 'application/json',
         'x-image-provider': 'openai-image',
         'x-image-model': 'gpt-image-2',
         'x-user-id': args.ownerId,
         'x-usage-source': 'teacher-mind-map-image',
-      },
+      }),
+    );
+    const imageRequest = new NextRequest(new URL('/api/generate/image', args.requestUrl), {
+      method: 'POST',
+      headers: imageHeaders,
       body: JSON.stringify({
         prompt: `${preview.prompt}\n\n额外要求：把内容组织成清晰的思维导图，以中心主题向外分支；用连线和层级节点表达概念关系，保持简体中文可读。`,
         negativePrompt:

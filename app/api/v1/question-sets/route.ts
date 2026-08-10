@@ -9,6 +9,7 @@ import {
   publicApiSuccess,
   requirePublicApi,
 } from '@/lib/server/public-api';
+import { markInternalRequestHeaders } from '@/lib/server/internal-request';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -45,13 +46,16 @@ export async function POST(request: NextRequest) {
       );
     }
     const input = parsed.data;
-    const internalRequest = new NextRequest(request.url, {
-      method: 'POST',
-      headers: {
+    const internalHeaders = markInternalRequestHeaders(
+      new Headers({
         'content-type': 'application/json',
         'x-user-id': principal.userId,
         'x-request-id': requestId,
-      },
+      }),
+    );
+    const internalRequest = new NextRequest(request.url, {
+      method: 'POST',
+      headers: internalHeaders,
       body: JSON.stringify({
         courseCode: input.course_code,
         sourceCase: input.source_case,

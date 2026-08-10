@@ -18,6 +18,10 @@ import {
 } from '@/lib/generation/slide-generation-route';
 import type { ImageGenerationResult } from '@/lib/media/types';
 import { API_ERROR_CODES, apiError, apiSuccess } from '@/lib/server/api-response';
+import {
+  isTrustedInternalRequest,
+  markInternalRequestHeaders,
+} from '@/lib/server/internal-request';
 import type { ImageMapping, PdfImage, SceneOutline } from '@/lib/types/generation';
 import type { Scene, SceneGenerationDiagnostics, Stage } from '@/lib/types/stage';
 import { readApiErrorMessage } from '@/lib/create/api-errors';
@@ -66,6 +70,7 @@ function forwardJsonHeaders(req: NextRequest): Headers {
 
 function imageGenerationHeaders(req: NextRequest): Headers {
   const headers = new Headers();
+  const trusted = isTrustedInternalRequest(req);
   headers.set('Content-Type', 'application/json');
   headers.set('x-image-provider', NOTEBOOK_IMAGE2_PROVIDER_ID);
   headers.set('x-image-model', NOTEBOOK_IMAGE2_MODEL_ID);
@@ -75,17 +80,26 @@ function imageGenerationHeaders(req: NextRequest): Headers {
   );
   headers.set('x-base-url', req.headers.get('x-image-base-url') || '');
 
-  for (const name of [
-    'x-user-id',
-    'x-user-email',
-    'x-user-name',
-    'x-notebook-generation-session-id',
-    'x-notebook-generation-task-id',
-    'x-generation-test-no-charge',
-  ]) {
+  const forwardedNames = trusted
+    ? [
+        'x-user-id',
+        'x-user-email',
+        'x-user-name',
+        'x-notebook-generation-session-id',
+        'x-notebook-generation-task-id',
+        'x-generation-test-no-charge',
+      ]
+    : [
+        'x-notebook-generation-session-id',
+        'x-notebook-generation-task-id',
+        'x-generation-test-no-charge',
+      ];
+
+  for (const name of forwardedNames) {
     const value = req.headers.get(name);
     if (value) headers.set(name, value);
   }
+  if (trusted) markInternalRequestHeaders(headers);
   return headers;
 }
 

@@ -4,6 +4,7 @@ import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { requireServerSession } from '@/lib/server/auth';
 import { ensureUserForApi } from '@/lib/server/ensure-user';
+import { isTrustedInternalHeaders } from '@/lib/server/internal-request';
 import { getOptionalPrisma, isDatabaseConfigured } from '@/lib/server/prisma-safe';
 
 export interface AdminIdentity {
@@ -195,6 +196,8 @@ async function resolveIdentity(): Promise<AdminIdentity | null> {
   if (process.env.NODE_ENV === 'production') return null;
 
   const h = await headers();
+  if (!isTrustedInternalHeaders(h)) return null;
+
   const userId = h.get('x-user-id')?.trim();
   if (!userId) return null;
 
