@@ -235,6 +235,11 @@ model User {
   courseQuestionRuns      CourseQuestionRun[]
   learningCalendarEvents  LearningCalendarEvent[]
   calendarMutations       LearningCalendarMutation[]
+  forumPosts              CourseForumPost[]          @relation("CourseForumPostAuthor")
+  forumAnswers            CourseForumAnswer[]        @relation("CourseForumAnswerAuthor")
+  acceptedForumAnswers    CourseForumAnswer[]        @relation("CourseForumAnswerAcceptedBy")
+  forumComments           CourseForumComment[]       @relation("CourseForumCommentAuthor")
+  forumAttachments        CourseForumAttachment[]    @relation("CourseForumAttachmentUploader")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -373,6 +378,7 @@ model Course {
   knowledgeChunks        KnowledgeChunk[]
   learningCalendarEvents LearningCalendarEvent[]
   hardRules              CourseHardRule[]
+  forumPosts             CourseForumPost[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1293,6 +1299,85 @@ model CourseEnrollment {
   @@unique([userId, courseId])
   @@index([userId, joinedAt(sort: Desc)])
   @@index([courseId, joinedAt(sort: Desc)])
+}
+
+model CourseForumPost {
+  id           String    @id @default(cuid())
+  courseId     String
+  authorId     String
+  title        String    @db.VarChar(200)
+  bodyMarkdown String    @db.Text
+  resolvedAt   DateTime?
+
+  course      Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  author      User                    @relation("CourseForumPostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  answers     CourseForumAnswer[]
+  comments    CourseForumComment[]
+  attachments CourseForumAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId, resolvedAt, updatedAt(sort: Desc)])
+  @@index([authorId, createdAt(sort: Desc)])
+}
+
+model CourseForumAnswer {
+  id           String    @id @default(cuid())
+  postId       String
+  authorId     String
+  bodyMarkdown String    @db.Text
+  acceptedAt   DateTime?
+  acceptedById String?
+
+  post        CourseForumPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author      User                    @relation("CourseForumAnswerAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  acceptedBy  User?                   @relation("CourseForumAnswerAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+  attachments CourseForumAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId, acceptedAt, createdAt])
+  @@index([authorId, createdAt(sort: Desc)])
+}
+
+model CourseForumComment {
+  id       String @id @default(cuid())
+  postId   String
+  authorId String
+  body     String @db.VarChar(2000)
+
+  post   CourseForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User            @relation("CourseForumCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId, createdAt])
+  @@index([authorId, createdAt(sort: Desc)])
+}
+
+model CourseForumAttachment {
+  id         String  @id @default(cuid())
+  postId     String?
+  answerId   String?
+  uploaderId String
+  fileName   String  @db.VarChar(255)
+  mimeType   String  @db.VarChar(100)
+  byteSize   Int
+  contentSha String  @db.VarChar(64)
+  data       Bytes
+
+  post     CourseForumPost?   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  answer   CourseForumAnswer? @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  uploader User               @relation("CourseForumAttachmentUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([postId, createdAt])
+  @@index([answerId, createdAt])
+  @@index([uploaderId, createdAt(sort: Desc)])
 }
 
 model LearningCalendarEvent {

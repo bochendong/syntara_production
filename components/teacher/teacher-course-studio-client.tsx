@@ -22,6 +22,7 @@ import {
   ListOrdered,
   Loader2,
   MessageCircleMore,
+  MessagesSquare,
   Network,
   Plus,
   RefreshCw,
@@ -71,7 +72,7 @@ import {
   type TeacherStudioSourcePreview,
   type TeacherStudioTask,
 } from '@/lib/teacher/online-course-studio';
-import { backendFetch } from '@/lib/utils/backend-api';
+import { backendFetch, backendJson } from '@/lib/utils/backend-api';
 
 type StudioTab = 'notebooks' | 'problem_banks' | 'hard_rules' | 'sources' | 'queue' | 'removed';
 type ResourceLibraryKind = 'notebook' | 'problem_bank';
@@ -189,6 +190,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
   const [tab, setTab] = useState<StudioTab>('sources');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [unresolvedForumCount, setUnresolvedForumCount] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [processingSourceIds, setProcessingSourceIds] = useState<Set<string>>(() => new Set());
   const [mindMapSourceAssetId, setMindMapSourceAssetId] = useState('');
@@ -318,6 +320,22 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
       )
       .finally(() => setLoading(false));
   }, [hydrated, isLoggedIn, loadStudio, role, router]);
+
+  useEffect(() => {
+    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId) return;
+    let cancelled = false;
+    void backendJson<{ unresolvedCount: number }>(
+      `/api/course-forum/${encodeURIComponent(courseId)}/summary`,
+      { timeoutMs: 12_000 },
+    )
+      .then((result) => {
+        if (!cancelled) setUnresolvedForumCount(Math.max(0, result.unresolvedCount || 0));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, hydrated, isLoggedIn, role, teacherId]);
 
   useEffect(() => {
     if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId) return;
@@ -953,6 +971,20 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
               >
                 <Users className="mr-1.5 size-4" />
                 学生管理
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="relative h-10 rounded-xl border-slate-200 bg-white px-3 text-sm font-semibold shadow-none hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-violet-400/10 sm:h-11 sm:px-4"
+                onClick={() => router.push(`/course/${encodeURIComponent(courseId)}/forum`)}
+              >
+                <MessagesSquare className="mr-1.5 size-4" />
+                课程论坛
+                <span
+                  className={`ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-4 text-white ${unresolvedForumCount > 0 ? 'bg-rose-500' : 'bg-slate-400'}`}
+                >
+                  {unresolvedForumCount > 99 ? '99+' : unresolvedForumCount}
+                </span>
               </Button>
               <Button
                 type="button"

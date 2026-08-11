@@ -7,9 +7,9 @@ builder = "NIXPACKS"
 buildCommand = "pnpm install && pnpm run build"
 
 [deploy]
-# Run the schema push after the image is built and before the new app starts.
-# `pnpm run build` already runs `prisma generate`, so avoid generating again here.
-preDeployCommand = "npx prisma db push --skip-generate"
+# Apply only committed Prisma migrations before the new app starts. Railway runs
+# this command inside the service network with the configured DATABASE_URL.
+preDeployCommand = "npx prisma migrate deploy"
 # Use Node directly: Nixpacks runtime image may not have `pnpm` on PATH (catatonit: failed to exec pid1).
 startCommand = "node node_modules/next/dist/bin/next start"
 restartPolicyType = "ON_FAILURE"

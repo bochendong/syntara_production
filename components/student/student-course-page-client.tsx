@@ -11,6 +11,7 @@ import {
   Loader2,
   LockKeyhole,
   MessageCircle,
+  MessagesSquare,
   Network,
   X,
 } from 'lucide-react';
@@ -61,6 +62,7 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
   const [payload, setPayload] = useState<StudentCoursePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [unresolvedForumCount, setUnresolvedForumCount] = useState(0);
   const [mindMapNotebook, setMindMapNotebook] = useState<
     StudentCoursePayload['notebooks'][number] | null
   >(null);
@@ -94,6 +96,21 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
     };
   }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void backendJson<{ unresolvedCount: number }>(
+      `/api/course-forum/${encodeURIComponent(courseId)}/summary`,
+      { timeoutMs: 12_000 },
+    )
+      .then((result) => {
+        if (!cancelled) setUnresolvedForumCount(Math.max(0, result.unresolvedCount || 0));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId]);
+
   if (loading && !payload) {
     return (
       <div className="grid min-h-dvh place-items-center bg-slate-50 text-sm text-slate-500">
@@ -124,6 +141,7 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
   const previewMode = payload.previewedByAdmin || requestedPreview;
   const homeHref = previewMode ? '/student?preview=1' : '/learn';
   const chatHref = `/learn?courseId=${encodeURIComponent(courseId)}${previewMode ? '&asStudent=1' : ''}`;
+  const forumHref = `/course/${encodeURIComponent(courseId)}/forum`;
   const term = payload.course.term ? TERM_LABEL[payload.course.term] : null;
 
   return (
@@ -150,7 +168,7 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
           </div>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <button
             type="button"
             onClick={() => router.push(chatHref)}
@@ -162,6 +180,24 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
             <span>
               <strong className="block text-sm">课程聊天</strong>
               <small className="text-slate-500">只依据已开放笔记本回答</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push(forumHref)}
+            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-violet-300 hover:shadow-sm"
+          >
+            <span className="relative grid size-10 place-items-center rounded-xl bg-violet-50 text-violet-700">
+              <MessagesSquare className="size-5" />
+              <span
+                className={`absolute -top-2 -right-2 grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-4 text-white ring-2 ring-white ${unresolvedForumCount > 0 ? 'bg-rose-500' : 'bg-slate-400'}`}
+              >
+                {unresolvedForumCount > 99 ? '99+' : unresolvedForumCount}
+              </span>
+            </span>
+            <span>
+              <strong className="block text-sm">课程论坛</strong>
+              <small className="text-slate-500">{unresolvedForumCount} 个问题未解决</small>
             </span>
           </button>
           <button

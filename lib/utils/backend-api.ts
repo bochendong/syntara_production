@@ -21,6 +21,7 @@ const DATABASE_READ_CONCURRENCY = 1;
 const DATABASE_READ_LOCK_NAME = 'syntara:database-read';
 const DATABASE_READ_PREFIXES = [
   '/api/courses',
+  '/api/course-forum',
   '/api/notebooks',
   '/api/learn/calendar',
   '/api/learn/conversations',
