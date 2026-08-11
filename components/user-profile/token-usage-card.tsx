@@ -27,7 +27,7 @@ type UsageRecordRow = {
   createdAt: string;
 };
 
-type ProfileUsageResponse = {
+export type ProfileUsageResponse = {
   success: true;
   databaseEnabled: boolean;
   summary: {
@@ -76,6 +76,116 @@ type ProfileUsageResponse = {
   };
 };
 
+const LOCAL_DEMO_USAGE: ProfileUsageResponse = {
+  success: true,
+  databaseEnabled: true,
+  summary: {
+    totalCalls: 186,
+    totalInputTokens: 428_600,
+    totalOutputTokens: 96_420,
+    totalTokens: 525_020,
+    estimatedCostUsd: 8.74,
+    estimatedCostCredits: 874,
+  },
+  spendChart: {
+    periodLabel: '最近 7 天 · 本地预览',
+    startDate: '2026-08-05',
+    endDate: '2026-08-11',
+    dates: [
+      { date: '2026-08-05', label: '8/5' },
+      { date: '2026-08-06', label: '8/6' },
+      { date: '2026-08-07', label: '8/7' },
+      { date: '2026-08-08', label: '8/8' },
+      { date: '2026-08-09', label: '8/9' },
+      { date: '2026-08-10', label: '8/10' },
+      { date: '2026-08-11', label: '8/11' },
+    ],
+    series: [
+      {
+        modelString: 'openai:gpt-5.6-luna',
+        estimatedCostUsd: 5.62,
+        estimatedCostCredits: 562,
+        cumulativeEstimatedCostUsd: [0.45, 1.08, 1.86, 2.74, 3.51, 4.48, 5.62],
+        cumulativeEstimatedCostCredits: [45, 108, 186, 274, 351, 448, 562],
+      },
+      {
+        modelString: 'openai:gpt-5.6-terra',
+        estimatedCostUsd: 3.12,
+        estimatedCostCredits: 312,
+        cumulativeEstimatedCostUsd: [0.18, 0.52, 0.91, 1.36, 1.82, 2.41, 3.12],
+        cumulativeEstimatedCostCredits: [18, 52, 91, 136, 182, 241, 312],
+      },
+    ],
+    totalEstimatedCostUsd: 8.74,
+    totalEstimatedCostCredits: 874,
+  },
+  modelBreakdown: [
+    {
+      modelString: 'openai:gpt-5.6-luna',
+      requestCount: 142,
+      inputTokens: 311_400,
+      outputTokens: 71_220,
+      totalTokens: 382_620,
+      estimatedCostUsd: 5.62,
+      estimatedCostCredits: 562,
+    },
+    {
+      modelString: 'openai:gpt-5.6-terra',
+      requestCount: 44,
+      inputTokens: 117_200,
+      outputTokens: 25_200,
+      totalTokens: 142_400,
+      estimatedCostUsd: 3.12,
+      estimatedCostCredits: 312,
+    },
+  ],
+  usageRecords: [
+    {
+      id: 'local-demo-usage-1',
+      route: '/api/learn/chat',
+      source: '课程问答',
+      providerId: 'openai',
+      modelId: 'gpt-5.6-luna',
+      modelString: 'openai:gpt-5.6-luna',
+      inputTokens: 8_420,
+      outputTokens: 1_860,
+      totalTokens: 10_280,
+      estimatedCostUsd: 0.21,
+      estimatedCostCredits: 21,
+      createdAt: '2026-08-11T08:45:00.000Z',
+    },
+    {
+      id: 'local-demo-usage-2',
+      route: '/api/notebooks/generate',
+      source: '整理笔记本',
+      providerId: 'openai',
+      modelId: 'gpt-5.6-terra',
+      modelString: 'openai:gpt-5.6-terra',
+      inputTokens: 14_860,
+      outputTokens: 3_240,
+      totalTokens: 18_100,
+      estimatedCostUsd: 0.39,
+      estimatedCostCredits: 39,
+      createdAt: '2026-08-11T06:20:00.000Z',
+    },
+  ],
+  latestRecord: {
+    id: 'local-demo-usage-1',
+    route: '/api/learn/chat',
+    source: '课程问答',
+    providerId: 'openai',
+    modelId: 'gpt-5.6-luna',
+    modelString: 'openai:gpt-5.6-luna',
+    inputTokens: 8_420,
+    outputTokens: 1_860,
+    totalTokens: 10_280,
+    estimatedCostUsd: 0.21,
+    estimatedCostCredits: 21,
+    createdAt: '2026-08-11T08:45:00.000Z',
+  },
+  pagination: { page: 1, pageSize: 8, totalCount: 2, totalPages: 1 },
+};
+
 function formatNumber(value: number) {
   return new Intl.NumberFormat('zh-CN').format(value);
 }
@@ -97,13 +207,7 @@ function formatPercent(value: number) {
 
 type TokenCardVariant = 'card' | 'tab';
 
-function RefreshTokenButton({
-  loading,
-  onClick,
-}: {
-  loading: boolean;
-  onClick: () => void;
-}) {
+function RefreshTokenButton({ loading, onClick }: { loading: boolean; onClick: () => void }) {
   return (
     <Button
       type="button"
@@ -119,9 +223,17 @@ function RefreshTokenButton({
   );
 }
 
-export function TokenUsageAccountPanel({ variant = 'card' }: { variant?: TokenCardVariant }) {
+export function TokenUsageAccountPanel({
+  variant = 'card',
+  localDemo = false,
+}: {
+  variant?: TokenCardVariant;
+  localDemo?: boolean;
+}) {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
-  const [usage, setUsage] = useState<ProfileUsageResponse | null>(null);
+  const [usage, setUsage] = useState<ProfileUsageResponse | null>(() =>
+    localDemo ? LOCAL_DEMO_USAGE : null,
+  );
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageError, setUsageError] = useState<string | null>(null);
   const [recordsPage, setRecordsPage] = useState(1);
@@ -133,23 +245,34 @@ export function TokenUsageAccountPanel({ variant = 'card' }: { variant?: TokenCa
   });
   const totalEstimatedCostUsd = usage?.summary.estimatedCostUsd ?? 0;
 
-  const loadUsage = useCallback(async (page: number) => {
-    setUsageLoading(true);
-    setUsageError(null);
-    try {
-      const qs = new URLSearchParams({
-        page: String(page),
-        pageSize: String(USAGE_RECORDS_PAGE_SIZE),
-      });
-      const response = await backendJson<ProfileUsageResponse>(`/api/profile/llm-usage?${qs.toString()}`);
-      setUsage(response);
-      setRecordsPage(response.pagination.page);
-    } catch (error) {
-      setUsageError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setUsageLoading(false);
-    }
-  }, []);
+  const loadUsage = useCallback(
+    async (page: number) => {
+      if (localDemo) {
+        setUsage(LOCAL_DEMO_USAGE);
+        setRecordsPage(1);
+        setUsageError(null);
+        return;
+      }
+      setUsageLoading(true);
+      setUsageError(null);
+      try {
+        const qs = new URLSearchParams({
+          page: String(page),
+          pageSize: String(USAGE_RECORDS_PAGE_SIZE),
+        });
+        const response = await backendJson<ProfileUsageResponse>(
+          `/api/profile/llm-usage?${qs.toString()}`,
+        );
+        setUsage(response);
+        setRecordsPage(response.pagination.page);
+      } catch (error) {
+        setUsageError(error instanceof Error ? error.message : String(error));
+      } finally {
+        setUsageLoading(false);
+      }
+    },
+    [localDemo],
+  );
 
   useEffect(() => {
     void loadUsage(1);
@@ -157,98 +280,106 @@ export function TokenUsageAccountPanel({ variant = 'card' }: { variant?: TokenCa
 
   const body = (
     <div className={variant === 'card' ? 'mt-4 space-y-3' : 'space-y-3'}>
-        {!isLoggedIn ? (
-          <div className="rounded-xl border border-dashed border-muted-foreground/25 bg-background/50 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
-            登录后可以查看你自己的 token 用量趋势；本地体验模式下如已填写账号，也会按当前用户 ID
-            统计。
-          </div>
-        ) : null}
+      {!isLoggedIn ? (
+        <div className="rounded-xl border border-dashed border-muted-foreground/25 bg-background/50 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
+          登录后可以查看你自己的 token 用量趋势；本地体验模式下如已填写账号，也会按当前用户 ID
+          统计。
+        </div>
+      ) : null}
 
-        {usageError ? (
-          <div className="rounded-xl border border-amber-200/60 bg-amber-50/80 px-3 py-3 text-xs leading-relaxed text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
-            {usageError}
-          </div>
-        ) : null}
+      {usageError ? (
+        <div className="rounded-xl border border-amber-200/60 bg-amber-50/80 px-3 py-3 text-xs leading-relaxed text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
+          {usageError}
+        </div>
+      ) : null}
 
-        {usage && !usage.databaseEnabled ? (
-          <div className="rounded-xl border border-dashed border-muted-foreground/25 bg-background/50 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
-            当前环境未配置数据库，LLM 用量不会持久记录，所以这里暂时没有趋势数据。
-          </div>
-        ) : null}
+      {usage && !usage.databaseEnabled ? (
+        <div className="rounded-xl border border-dashed border-muted-foreground/25 bg-background/50 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
+          当前环境未配置数据库，LLM 用量不会持久记录，所以这里暂时没有趋势数据。
+        </div>
+      ) : null}
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl border bg-background/60 p-3">
-            <div className="text-[11px] text-muted-foreground">总调用次数</div>
-            <div className="mt-1 text-lg font-semibold">{formatNumber(usage?.summary.totalCalls ?? 0)}</div>
-          </div>
-          <div className="rounded-xl border bg-background/60 p-3">
-            <div className="text-[11px] text-muted-foreground">总 Tokens</div>
-            <div className="mt-1 text-lg font-semibold">{formatNumber(usage?.summary.totalTokens ?? 0)}</div>
-          </div>
-          <div className="rounded-xl border bg-background/60 p-3">
-            <div className="text-[11px] text-muted-foreground">输入 Tokens</div>
-            <div className="mt-1 text-lg font-semibold">{formatNumber(usage?.summary.totalInputTokens ?? 0)}</div>
-          </div>
-          <div className="rounded-xl border bg-background/60 p-3">
-            <div className="text-[11px] text-muted-foreground">输出 Tokens</div>
-            <div className="mt-1 text-lg font-semibold">{formatNumber(usage?.summary.totalOutputTokens ?? 0)}</div>
-          </div>
-          <div className="rounded-xl border bg-background/60 p-3">
-            <div className="text-[11px] text-muted-foreground">预估扣费美元</div>
-            <div className="mt-1 text-lg font-semibold">
-              {formatUsdLabel(usage?.summary.estimatedCostUsd ?? 0)}
-            </div>
-          </div>
-          <div className="rounded-xl border bg-background/60 p-3">
-            <div className="text-[11px] text-muted-foreground">对应积分</div>
-            <div className="mt-1 text-lg font-semibold">
-              {formatCreditsLabel(usage?.summary.estimatedCostCredits ?? 0)}
-            </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl border bg-background/60 p-3">
+          <div className="text-[11px] text-muted-foreground">总调用次数</div>
+          <div className="mt-1 text-lg font-semibold">
+            {formatNumber(usage?.summary.totalCalls ?? 0)}
           </div>
         </div>
-
         <div className="rounded-xl border bg-background/60 p-3">
-          <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-            <Sparkles className="size-3.5" />
-            最近一次使用
+          <div className="text-[11px] text-muted-foreground">总 Tokens</div>
+          <div className="mt-1 text-lg font-semibold">
+            {formatNumber(usage?.summary.totalTokens ?? 0)}
           </div>
-          <p className="mt-1 text-sm font-medium text-foreground">
-            {usage?.latestRecord?.modelString || '暂无记录'}
+        </div>
+        <div className="rounded-xl border bg-background/60 p-3">
+          <div className="text-[11px] text-muted-foreground">输入 Tokens</div>
+          <div className="mt-1 text-lg font-semibold">
+            {formatNumber(usage?.summary.totalInputTokens ?? 0)}
+          </div>
+        </div>
+        <div className="rounded-xl border bg-background/60 p-3">
+          <div className="text-[11px] text-muted-foreground">输出 Tokens</div>
+          <div className="mt-1 text-lg font-semibold">
+            {formatNumber(usage?.summary.totalOutputTokens ?? 0)}
+          </div>
+        </div>
+        <div className="rounded-xl border bg-background/60 p-3">
+          <div className="text-[11px] text-muted-foreground">预估扣费美元</div>
+          <div className="mt-1 text-lg font-semibold">
+            {formatUsdLabel(usage?.summary.estimatedCostUsd ?? 0)}
+          </div>
+        </div>
+        <div className="rounded-xl border bg-background/60 p-3">
+          <div className="text-[11px] text-muted-foreground">对应积分</div>
+          <div className="mt-1 text-lg font-semibold">
+            {formatCreditsLabel(usage?.summary.estimatedCostCredits ?? 0)}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border bg-background/60 p-3">
+        <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+          <Sparkles className="size-3.5" />
+          最近一次使用
+        </div>
+        <p className="mt-1 text-sm font-medium text-foreground">
+          {usage?.latestRecord?.modelString || '暂无记录'}
+        </p>
+      </div>
+
+      <TokenUsageSpendChart data={usage?.spendChart} />
+
+      <Separator />
+
+      <div className="space-y-2">
+        <div>
+          <p className="text-sm font-semibold text-foreground">按模型花费明细</p>
+          <p className="text-xs text-muted-foreground">
+            现在会按模型展示调用次数、token、美元和积分，方便直接看出哪种模型最花钱
           </p>
         </div>
-
-        <TokenUsageSpendChart data={usage?.spendChart} />
-
-        <Separator />
-
-        <div className="space-y-2">
-          <div>
-            <p className="text-sm font-semibold text-foreground">按模型花费明细</p>
-            <p className="text-xs text-muted-foreground">
-              现在会按模型展示调用次数、token、美元和积分，方便直接看出哪种模型最花钱
-            </p>
-          </div>
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="min-w-full text-left text-xs">
-              <thead className="bg-muted/40 text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">模型</th>
-                  <th className="px-3 py-2 font-medium">次数</th>
-                  <th className="px-3 py-2 font-medium">输入</th>
-                  <th className="px-3 py-2 font-medium">输出</th>
-                  <th className="px-3 py-2 font-medium">总 Tokens</th>
-                  <th className="px-3 py-2 font-medium">花费占比</th>
-                  <th className="px-3 py-2 font-medium">美元</th>
-                  <th className="px-3 py-2 font-medium">积分</th>
-                </tr>
-              </thead>
-              <tbody>
-                {modelRows.map((row) => {
-                  const share =
-                    totalEstimatedCostUsd > 0 && row.estimatedCostUsd != null
-                      ? (row.estimatedCostUsd / totalEstimatedCostUsd) * 100
-                      : 0;
-                  return (
+        <div className="overflow-x-auto rounded-xl border">
+          <table className="min-w-full text-left text-xs">
+            <thead className="bg-muted/40 text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">模型</th>
+                <th className="px-3 py-2 font-medium">次数</th>
+                <th className="px-3 py-2 font-medium">输入</th>
+                <th className="px-3 py-2 font-medium">输出</th>
+                <th className="px-3 py-2 font-medium">总 Tokens</th>
+                <th className="px-3 py-2 font-medium">花费占比</th>
+                <th className="px-3 py-2 font-medium">美元</th>
+                <th className="px-3 py-2 font-medium">积分</th>
+              </tr>
+            </thead>
+            <tbody>
+              {modelRows.map((row) => {
+                const share =
+                  totalEstimatedCostUsd > 0 && row.estimatedCostUsd != null
+                    ? (row.estimatedCostUsd / totalEstimatedCostUsd) * 100
+                    : 0;
+                return (
                   <tr key={row.modelString} className="border-t">
                     <td className="px-3 py-2 font-mono">{row.modelString}</td>
                     <td className="px-3 py-2">{formatNumber(row.requestCount)}</td>
@@ -277,113 +408,113 @@ export function TokenUsageAccountPanel({ variant = 'card' }: { variant?: TokenCa
                         : '—'}
                     </td>
                   </tr>
-                  );
-                })}
-                {modelRows.length === 0 ? (
-                  <tr>
-                    <td className="px-3 py-5 text-center text-muted-foreground" colSpan={8}>
-                      暂无模型用量记录
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <p className="text-sm font-semibold text-foreground">每次使用记录</p>
-              <p className="text-xs text-muted-foreground">
-                逐条记录每次调用用了什么模型，以及对应 token 明细
-                {usage?.databaseEnabled
-                  ? `，共 ${usage.pagination.totalCount} 条${usage.pagination.totalPages > 1 ? '，使用右侧按钮翻页。' : '。'}`
-                  : '。'}
-              </p>
-            </div>
-            {usage?.databaseEnabled && usage.pagination.totalPages > 1 ? (
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-8 w-8 p-0"
-                  disabled={usageLoading || recordsPage <= 1}
-                  onClick={() => void loadUsage(recordsPage - 1)}
-                  aria-label="上一页"
-                >
-                  <ChevronLeft className="size-4" />
-                </Button>
-                <span className="min-w-[7.5rem] text-center text-[11px] text-muted-foreground tabular-nums">
-                  {usage.pagination.totalCount === 0
-                    ? '—'
-                    : `第 ${usage.pagination.page} / ${usage.pagination.totalPages} 页`}
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-8 w-8 p-0"
-                  disabled={usageLoading || recordsPage >= usage.pagination.totalPages}
-                  onClick={() => void loadUsage(recordsPage + 1)}
-                  aria-label="下一页"
-                >
-                  <ChevronRight className="size-4" />
-                </Button>
-              </div>
-            ) : null}
-          </div>
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="min-w-full text-left text-xs">
-              <thead className="bg-muted/40 text-muted-foreground">
+                );
+              })}
+              {modelRows.length === 0 ? (
                 <tr>
-                  <th className="px-3 py-2 font-medium">时间</th>
-                  <th className="px-3 py-2 font-medium">模型</th>
-                  <th className="px-3 py-2 font-medium">来源</th>
-                  <th className="px-3 py-2 font-medium">输入</th>
-                  <th className="px-3 py-2 font-medium">输出</th>
-                  <th className="px-3 py-2 font-medium">总 Tokens</th>
-                  <th className="px-3 py-2 font-medium">美元</th>
-                  <th className="px-3 py-2 font-medium">积分</th>
+                  <td className="px-3 py-5 text-center text-muted-foreground" colSpan={8}>
+                    暂无模型用量记录
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {(usage?.usageRecords ?? []).map((row) => (
-                  <tr key={row.id} className="border-t align-top">
-                    <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(row.createdAt)}</td>
-                    <td className="px-3 py-2 font-mono text-[11px]">{row.modelString}</td>
-                    <td className="px-3 py-2">
-                      <div className="space-y-1">
-                        <div className="font-medium text-foreground">{row.source}</div>
-                        <div className="font-mono text-[11px] text-muted-foreground">{row.route}</div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">{formatNumber(row.inputTokens)}</td>
-                    <td className="px-3 py-2">{formatNumber(row.outputTokens)}</td>
-                    <td className="px-3 py-2 font-medium">{formatNumber(row.totalTokens)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {row.estimatedCostUsd != null ? formatUsdLabel(row.estimatedCostUsd) : '—'}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {row.estimatedCostCredits != null
-                        ? formatCreditsLabel(row.estimatedCostCredits)
-                        : '—'}
-                    </td>
-                  </tr>
-                ))}
-                {(usage?.usageRecords?.length ?? 0) === 0 ? (
-                  <tr>
-                    <td className="px-3 py-5 text-center text-muted-foreground" colSpan={8}>
-                      暂无使用记录
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+              ) : null}
+            </tbody>
+          </table>
         </div>
       </div>
+
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-foreground">每次使用记录</p>
+            <p className="text-xs text-muted-foreground">
+              逐条记录每次调用用了什么模型，以及对应 token 明细
+              {usage?.databaseEnabled
+                ? `，共 ${usage.pagination.totalCount} 条${usage.pagination.totalPages > 1 ? '，使用右侧按钮翻页。' : '。'}`
+                : '。'}
+            </p>
+          </div>
+          {usage?.databaseEnabled && usage.pagination.totalPages > 1 ? (
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 w-8 p-0"
+                disabled={usageLoading || recordsPage <= 1}
+                onClick={() => void loadUsage(recordsPage - 1)}
+                aria-label="上一页"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="min-w-[7.5rem] text-center text-[11px] text-muted-foreground tabular-nums">
+                {usage.pagination.totalCount === 0
+                  ? '—'
+                  : `第 ${usage.pagination.page} / ${usage.pagination.totalPages} 页`}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 w-8 p-0"
+                disabled={usageLoading || recordsPage >= usage.pagination.totalPages}
+                onClick={() => void loadUsage(recordsPage + 1)}
+                aria-label="下一页"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          ) : null}
+        </div>
+        <div className="overflow-x-auto rounded-xl border">
+          <table className="min-w-full text-left text-xs">
+            <thead className="bg-muted/40 text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">时间</th>
+                <th className="px-3 py-2 font-medium">模型</th>
+                <th className="px-3 py-2 font-medium">来源</th>
+                <th className="px-3 py-2 font-medium">输入</th>
+                <th className="px-3 py-2 font-medium">输出</th>
+                <th className="px-3 py-2 font-medium">总 Tokens</th>
+                <th className="px-3 py-2 font-medium">美元</th>
+                <th className="px-3 py-2 font-medium">积分</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(usage?.usageRecords ?? []).map((row) => (
+                <tr key={row.id} className="border-t align-top">
+                  <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(row.createdAt)}</td>
+                  <td className="px-3 py-2 font-mono text-[11px]">{row.modelString}</td>
+                  <td className="px-3 py-2">
+                    <div className="space-y-1">
+                      <div className="font-medium text-foreground">{row.source}</div>
+                      <div className="font-mono text-[11px] text-muted-foreground">{row.route}</div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">{formatNumber(row.inputTokens)}</td>
+                  <td className="px-3 py-2">{formatNumber(row.outputTokens)}</td>
+                  <td className="px-3 py-2 font-medium">{formatNumber(row.totalTokens)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {row.estimatedCostUsd != null ? formatUsdLabel(row.estimatedCostUsd) : '—'}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {row.estimatedCostCredits != null
+                      ? formatCreditsLabel(row.estimatedCostCredits)
+                      : '—'}
+                  </td>
+                </tr>
+              ))}
+              {(usage?.usageRecords?.length ?? 0) === 0 ? (
+                <tr>
+                  <td className="px-3 py-5 text-center text-muted-foreground" colSpan={8}>
+                    暂无使用记录
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 
   if (variant === 'tab') {

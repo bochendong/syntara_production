@@ -28,13 +28,13 @@ function requireBefore(relativePath, earlier, later, message) {
 
 requireMatch(
   '.env.example',
-  /^DEFAULT_MODEL=gpt-5\.6-terra$/m,
-  'DEFAULT_MODEL must use GPT-5.6 Terra.',
+  /^DEFAULT_MODEL=gpt-5\.6-luna$/m,
+  'DEFAULT_MODEL must use GPT-5.6 Luna for everyday teacher/student language tasks.',
 );
 requireMatch(
   '.env.example',
-  /^OPENAI_MODELS=gpt-5\.6-terra,gpt-5\.6-sol,gpt-5\.6-luna$/m,
-  'OPENAI_MODELS must expose Terra first as the default, then Sol and Luna.',
+  /^OPENAI_MODELS=gpt-5\.6-luna,gpt-5\.6-terra,gpt-5\.6-sol$/m,
+  'OPENAI_MODELS must expose Luna first, followed by Terra and Sol.',
 );
 requireMatch(
   '.env.example',
@@ -64,18 +64,18 @@ for (const model of ['sol', 'terra', 'luna']) {
 
 requireMatch(
   'lib/server/system-llm-config.ts',
-  /if \(!configured\) return 'gpt-5\.6-terra';/,
-  'server LLM fallback must use GPT-5.6 Terra.',
+  /if \(!configured\) return 'gpt-5\.6-luna';/,
+  'server LLM fallback must use GPT-5.6 Luna.',
 );
 requireMatch(
   'prisma/schema.prisma',
-  /model SystemLLMConfig \{[\s\S]*?modelId\s+String\s+@default\("gpt-5\.6-terra"\)/,
+  /model SystemLLMConfig \{[\s\S]*?modelId\s+String\s+@default\("gpt-5\.6-luna"\)/,
   'new system LLM rows must not fall back to the legacy GPT-4o mini default.',
 );
 requireMatch(
-  'prisma/migrations/20260731010000_update_system_llm_default_to_terra/migration.sql',
-  /ALTER COLUMN "modelId" SET DEFAULT 'gpt-5\.6-terra'/,
-  'the database default migration must follow the current balanced model.',
+  'prisma/migrations/20260811090000_update_system_llm_default_to_luna/migration.sql',
+  /ALTER COLUMN "modelId" SET DEFAULT 'gpt-5\.6-luna'/,
+  'the database default migration must follow the current everyday language model.',
 );
 requireMatch(
   'lib/ai/server-model.ts',
@@ -84,8 +84,8 @@ requireMatch(
 );
 requireMatch(
   'lib/store/settings.ts',
-  /const DEFAULT_OPENAI_MODEL_ID = 'gpt-5\.6-terra';/,
-  'client text default must use GPT-5.6 Terra.',
+  /const DEFAULT_OPENAI_MODEL_ID = 'gpt-5\.6-luna';/,
+  'client text default must use GPT-5.6 Luna.',
 );
 requireMatch(
   'lib/store/settings.ts',
@@ -99,7 +99,7 @@ requireMatch(
 );
 requireMatch(
   'lib/store/settings.ts',
-  /version: 11,/,
+  /version: 13,/,
   'persisted settings migration version must include the generation-default upgrade.',
 );
 requireMatch(
@@ -140,6 +140,12 @@ requireMatch(
   'cost-sensitive notebook stages must use Terra.',
 );
 
+requireMatch(
+  'components/settings/system-llm-panel.tsx',
+  /日常语言模型[\s\S]*?gpt-5\.6-luna[\s\S]*?笔记本整理模型/,
+  'shared teacher/student settings must expose independent Luna language and Terra notebook controls.',
+);
+
 for (const relativePath of [
   'scripts/learn/run-learn-scenarios.mjs',
   'scripts/learn/run-learn-initial-cases.mjs',
@@ -159,10 +165,10 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      textDefault: 'gpt-5.6-terra',
+      textDefault: 'gpt-5.6-luna',
       balancedNotebookModel: 'gpt-5.6-terra',
       imageDefault: 'gpt-image-2',
-      persistedSettingsMigration: 11,
+      persistedSettingsMigration: 13,
     },
     null,
     2,

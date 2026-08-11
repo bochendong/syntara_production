@@ -31,8 +31,8 @@ import {
 
 const log = createLogger('Settings');
 const LEGACY_DEFAULT_LIVE2D_PRESENTER_MODEL_ID: Live2DPresenterModelId = 'mark';
-const LEGACY_DEFAULT_OPENAI_MODEL_IDS = new Set(['gpt-4o-mini', 'gpt-5.6-sol']);
-const DEFAULT_OPENAI_MODEL_ID = 'gpt-5.6-terra';
+const LEGACY_DEFAULT_OPENAI_MODEL_IDS = new Set(['gpt-4o-mini', 'gpt-5.6-sol', 'gpt-5.6-terra']);
+const DEFAULT_OPENAI_MODEL_ID = 'gpt-5.6-luna';
 const LEGACY_DEFAULT_IMAGE_PROVIDER_ID: ImageProviderId = 'seedream';
 const LEGACY_DEFAULT_IMAGE_MODEL_ID = 'doubao-seedream-5-0-260128';
 const DEFAULT_IMAGE_PROVIDER_ID: ImageProviderId = 'openai-image';
@@ -1146,10 +1146,13 @@ export const useSettingsStore = create<SettingsState>()(
               }
 
               const openaiConfig = newProvidersConfig.openai;
-              const fixedModelId =
-                openaiConfig?.serverModels?.[0] ||
-                PROVIDERS.openai.models[0]?.id ||
-                DEFAULT_OPENAI_MODEL_ID;
+              const allowedOpenAIModels = openaiConfig?.serverModels || [];
+              const selectedModelIsAllowed = allowedOpenAIModels.includes(state.modelId);
+              const fixedModelId = selectedModelIsAllowed
+                ? state.modelId
+                : allowedOpenAIModels.includes(DEFAULT_OPENAI_MODEL_ID)
+                  ? DEFAULT_OPENAI_MODEL_ID
+                  : allowedOpenAIModels[0] || DEFAULT_OPENAI_MODEL_ID;
 
               return {
                 providersConfig: newProvidersConfig,
@@ -1193,7 +1196,7 @@ export const useSettingsStore = create<SettingsState>()(
     },
     {
       name: 'settings-storage',
-      version: 11,
+      version: 13,
       // Migrate persisted state
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<SettingsState>;
@@ -1219,7 +1222,9 @@ export const useSettingsStore = create<SettingsState>()(
         }
         ensureValidLive2DSelections(state);
 
-        if (version < 8 || !isLearnBackgroundId(state.learnBackgroundId)) {
+        // v12 -> v13: dynamic learning backgrounds were removed. Any persisted
+        // dynamic id now fails validation and moves to the default static image.
+        if (version < 13 || !isLearnBackgroundId(state.learnBackgroundId)) {
           state.learnBackgroundId = DEFAULT_LEARN_BACKGROUND_ID;
         }
 
@@ -1232,6 +1237,12 @@ export const useSettingsStore = create<SettingsState>()(
         // v10 -> v11: move the former Sol default to Terra. Custom model
         // selections and non-OpenAI providers remain untouched.
         if (version < 11) {
+          migrateLegacyDefaultGenerationModels(state);
+        }
+
+        // v11 -> v12: everyday teacher/student language work now defaults to
+        // Luna. Notebook generation retains its independent Terra preset.
+        if (version < 12) {
           migrateLegacyDefaultGenerationModels(state);
         }
 

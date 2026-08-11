@@ -50,11 +50,40 @@ function resolveAuthSecret() {
   return createHash('sha256').update(`syntara-local-nextauth:${localSeed}`).digest('hex');
 }
 
+type LocalDemoRole = 'STUDENT' | 'TEACHER';
+
+function isLocalDemoAuthEnabled(request: { headers?: Record<string, unknown> }): boolean {
+  if (
+    process.env.NODE_ENV === 'production' ||
+    process.env.SYNTARA_ALLOW_DEMO_AUTH?.trim() !== '1'
+  ) {
+    return false;
+  }
+
+  const rawHost = request.headers?.['x-forwarded-host'] ?? request.headers?.host;
+  const host = (Array.isArray(rawHost) ? rawHost[0] : rawHost)?.toString().split(',')[0].trim();
+  return /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(host || '');
+}
+
+function localDemoUser(email: string, role: LocalDemoRole) {
+  const idSuffix = createHash('sha256').update(`${role}:${email}`).digest('hex').slice(0, 16);
+  const emailName = email.split('@')[0]?.trim();
+  return {
+    id: `local-demo-${role.toLowerCase()}-${idSuffix}`,
+    email,
+    name: emailName || (role === 'TEACHER' ? '本地老师' : '本地学生'),
+    image: null,
+    role,
+    isActive: true,
+    authSource: 'local-demo' as const,
+  };
+}
+
 function buildProviders() {
   const providers = [];
 
   const prisma = getOptionalPrisma();
-  if (prisma) {
+  if (prisma || process.env.SYNTARA_ALLOW_DEMO_AUTH?.trim() === '1') {
     providers.push(
       CredentialsProvider({
         id: 'teacher-credentials',
@@ -63,11 +92,12 @@ function buildProviders() {
           email: { label: 'Email', type: 'email' },
           password: { label: 'Password', type: 'password' },
         },
-        async authorize(credentials) {
+        async authorize(credentials, request) {
           const email = credentials?.email?.trim().toLowerCase() || '';
           const password = credentials?.password || '';
           if (!email || !password) return null;
-          const user = await prisma.user.findUnique({
+          if (isLocalDemoAuthEnabled(request)) return localDemoUser(email, 'TEACHER');
+          const user = await prisma?.user.findUnique({
             where: { email },
             select: {
               id: true,
@@ -106,11 +136,12 @@ function buildProviders() {
           email: { label: 'Email', type: 'email' },
           password: { label: 'Password', type: 'password' },
         },
-        async authorize(credentials) {
+        async authorize(credentials, request) {
           const email = credentials?.email?.trim().toLowerCase() || '';
           const password = credentials?.password || '';
           if (!email || !password) return null;
-          const user = await prisma.user.findUnique({
+          if (isLocalDemoAuthEnabled(request)) return localDemoUser(email, 'STUDENT');
+          const user = await prisma?.user.findUnique({
             where: { email },
             select: {
               id: true,
@@ -203,7 +234,11 @@ export const authOptions: NextAuthOptions = {
     },
     async jwt({ token, user }) {
       if (user) {
-        const accountUser = user as { role?: string; isActive?: boolean };
+        const accountUser = user as {
+          role?: string;
+          isActive?: boolean;
+          authSource?: 'local-demo';
+        };
         token.role =
           accountUser.role === 'ADMIN' ||
           accountUser.role === 'TEACHER' ||
@@ -211,9 +246,10 @@ export const authOptions: NextAuthOptions = {
             ? accountUser.role
             : 'USER';
         token.isActive = accountUser.isActive !== false;
+        if (accountUser.authSource === 'local-demo') token.authSource = 'local-demo';
         return token;
       }
-      if (token.authSource === 'speedup') {
+      if (token.authSource === 'speedup' || token.authSource === 'local-demo') {
         token.isActive = true;
         return token;
       }

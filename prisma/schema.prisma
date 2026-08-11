@@ -240,6 +240,7 @@ model User {
   acceptedForumAnswers    CourseForumAnswer[]        @relation("CourseForumAnswerAcceptedBy")
   forumComments           CourseForumComment[]       @relation("CourseForumCommentAuthor")
   forumAttachments        CourseForumAttachment[]    @relation("CourseForumAttachmentUploader")
+  externalCourseBindings  ExternalCourseBinding[]    @relation("ExternalCourseBindingActivator")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -379,6 +380,7 @@ model Course {
   learningCalendarEvents LearningCalendarEvent[]
   hardRules              CourseHardRule[]
   forumPosts             CourseForumPost[]
+  externalBinding        ExternalCourseBinding?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -918,7 +920,7 @@ model AgentEnvelope {
 model SystemLLMConfig {
   id         String   @id @default("default")
   providerId String   @default("openai")
-  modelId    String   @default("gpt-5.6-terra")
+  modelId    String   @default("gpt-5.6-luna")
   apiKey     String   @db.Text
   baseUrl    String?
   createdAt  DateTime @default(now())
@@ -1299,6 +1301,26 @@ model CourseEnrollment {
   @@unique([userId, courseId])
   @@index([userId, joinedAt(sort: Desc)])
   @@index([courseId, joinedAt(sort: Desc)])
+}
+
+model ExternalCourseBinding {
+  id                 String   @id @default(cuid())
+  provider           String   @db.VarChar(40)
+  externalCourseId   String   @db.VarChar(120)
+  courseId           String   @unique
+  activatedById      String
+  externalCourseName String   @db.VarChar(240)
+  externalCourseCode String?  @db.VarChar(120)
+  termName           String?  @db.VarChar(160)
+  universityAbbrs    String?  @db.VarChar(160)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  course      Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  activatedBy User   @relation("ExternalCourseBindingActivator", fields: [activatedById], references: [id], onDelete: Cascade)
+
+  @@unique([provider, externalCourseId])
+  @@index([activatedById, updatedAt(sort: Desc)])
 }
 
 model CourseForumPost {

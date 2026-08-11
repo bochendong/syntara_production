@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { BarChart3 } from 'lucide-react';
 import { TeacherAppShell } from '@/components/teacher/teacher-app-shell';
 import { TokenUsageAccountPanel } from '@/components/user-profile/token-usage-card';
+import { isLocalDemoUserId } from '@/lib/auth/local-demo';
 
 export function TeacherUsageAppClient() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export function TeacherUsageAppClient() {
   const role =
     session?.user?.role === 'TEACHER' || session?.user?.role === 'ADMIN' ? 'TEACHER' : 'STUDENT';
   const teacherId = session?.user?.id || '';
+  const localDemo = isLocalDemoUserId(teacherId);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -33,7 +35,7 @@ export function TeacherUsageAppClient() {
       accentClassName="bg-gradient-to-br from-violet-400 via-violet-600 to-violet-900"
     >
       <div className="p-4 sm:p-6">
-        <TokenUsageAccountPanel variant="tab" />
+        <TokenUsageAccountPanel variant="tab" localDemo={localDemo} />
       </div>
     </TeacherAppShell>
   );

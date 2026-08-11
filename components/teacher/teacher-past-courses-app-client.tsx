@@ -35,6 +35,12 @@ import {
   type AcademicTermSummary,
   type CourseContentItem,
 } from '@/lib/teacher/online-course-archive';
+import { isLocalDemoUserId } from '@/lib/auth/local-demo';
+import {
+  LOCAL_DEMO_CURRENT_COURSE_SUMMARIES,
+  LOCAL_DEMO_PAST_COURSES,
+  LOCAL_DEMO_PAST_TERMS,
+} from '@/lib/teacher/local-demo-fixtures';
 
 type CourseContentType = CourseContentItem['type'];
 
@@ -46,6 +52,25 @@ const CONTENT_TYPE_META: Record<CourseContentType, { label: string; Icon: typeof
   source: { label: '源文件', Icon: FileText },
 };
 
+function localDemoCourseContent(course: AcademicCourseSummary): CourseContentItem[] {
+  const items: Array<{ type: CourseContentType; title: string; description: string }> = [
+    { type: 'notebook', title: `${course.code} 核心讲义`, description: '6 个章节 · Markdown' },
+    { type: 'problem_bank', title: `${course.code} 练习题库`, description: '42 道题目' },
+    { type: 'source', title: `${course.code} 课程大纲.pdf`, description: '教师源文件' },
+  ];
+  return items.map((item, index) => ({
+    id: `demo-content-${course.id}-${index + 1}`,
+    ...item,
+    createdAt: course.createdAt + index,
+    updatedAt: course.updatedAt + index,
+    reference: {
+      id: `demo-reference-${course.id}-${index + 1}`,
+      courseId: course.id,
+      assetId: `demo-asset-${course.id}-${index + 1}`,
+    },
+  }));
+}
+
 export function TeacherPastCoursesAppClient() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
@@ -54,6 +79,7 @@ export function TeacherPastCoursesAppClient() {
   const role =
     session?.user?.role === 'TEACHER' || session?.user?.role === 'ADMIN' ? 'TEACHER' : 'STUDENT';
   const teacherId = session?.user?.id || '';
+  const localDemo = isLocalDemoUserId(teacherId);
   const [currentCourses, setCurrentCourses] = useState<AcademicCourseSummary[]>([]);
   const [pastTerms, setPastTerms] = useState<AcademicTermSummary[]>([]);
   const [selectedTermKey, setSelectedTermKey] = useState('');
@@ -76,14 +102,27 @@ export function TeacherPastCoursesAppClient() {
 
   const loadCurrentCourses = useCallback(async () => {
     if (!teacherId) return;
+    if (localDemo) {
+      setCurrentCourses(LOCAL_DEMO_CURRENT_COURSE_SUMMARIES);
+      return;
+    }
     setCurrentCourses(await listTeacherCurrentCourses({ teacherId }));
-  }, [teacherId]);
+  }, [localDemo, teacherId]);
 
   const loadPastTerms = useCallback(async () => {
     if (!teacherId) return;
     setTermsLoading(true);
     setPastError('');
     try {
+      if (localDemo) {
+        setPastTerms(LOCAL_DEMO_PAST_TERMS);
+        setSelectedTermKey((current) =>
+          LOCAL_DEMO_PAST_TERMS.some((term) => term.key === current)
+            ? current
+            : (LOCAL_DEMO_PAST_TERMS[0]?.key ?? ''),
+        );
+        return;
+      }
       const terms = await listTeacherPastTerms({ teacherId });
       setPastTerms(terms);
       setSelectedTermKey((current) =>
@@ -98,7 +137,7 @@ export function TeacherPastCoursesAppClient() {
     } finally {
       setTermsLoading(false);
     }
-  }, [teacherId]);
+  }, [localDemo, teacherId]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -124,6 +163,21 @@ export function TeacherPastCoursesAppClient() {
     let cancelled = false;
     setPastLoading(true);
     setPastError('');
+    if (localDemo) {
+      const normalizedQuery = appliedPastQuery.trim().toLowerCase();
+      const matching = LOCAL_DEMO_PAST_COURSES.filter(
+        (course) =>
+          course.academicYear === selectedTerm.academicYear &&
+          course.term === selectedTerm.term &&
+          (!normalizedQuery ||
+            `${course.code} ${course.name}`.toLowerCase().includes(normalizedQuery)),
+      );
+      const start = (pastPage - 1) * PAST_COURSE_PAGE_SIZE;
+      setPastCourses(matching.slice(start, start + PAST_COURSE_PAGE_SIZE));
+      setPastTotal(matching.length);
+      setPastLoading(false);
+      return;
+    }
     void listTeacherPastCoursesPage({
       teacherId,
       academicYear: selectedTerm.academicYear,
@@ -147,7 +201,7 @@ export function TeacherPastCoursesAppClient() {
     return () => {
       cancelled = true;
     };
-  }, [appliedPastQuery, hydrated, isLoggedIn, pastPage, role, selectedTerm, teacherId]);
+  }, [appliedPastQuery, hydrated, isLoggedIn, localDemo, pastPage, role, selectedTerm, teacherId]);
 
   const pastPageCount = Math.max(1, Math.ceil(pastTotal / PAST_COURSE_PAGE_SIZE));
   const migrationTargetCourses = useMemo(
@@ -176,6 +230,13 @@ export function TeacherPastCoursesAppClient() {
     setMigrationLoading(true);
     const matchingTarget = currentCourses.find((candidate) => candidate.code === course.code);
     setMigrationTargetCourseId(matchingTarget?.id ?? '');
+    if (localDemo) {
+      const items = localDemoCourseContent(course);
+      setMigrationContent(items);
+      setSelectedReferenceIds(new Set(items.map((item) => item.reference.id)));
+      setMigrationLoading(false);
+      return;
+    }
     try {
       const items = await listCourseContent(course.id);
       setMigrationContent(items);
@@ -208,6 +269,15 @@ export function TeacherPastCoursesAppClient() {
     if (!teacherId || !migrationSource || !migrationTargetCourseId) return;
     setMigrationSubmitting(true);
     setMigrationError('');
+    if (localDemo) {
+      const target = currentCourses.find((course) => course.id === migrationTargetCourseId);
+      setPastNotice(
+        `本地预览：已模拟向 ${target?.code ?? '当学期课程'} 建立 ${selectedReferenceIds.size} 个内容引用。`,
+      );
+      closeMigration(true);
+      setMigrationSubmitting(false);
+      return;
+    }
     try {
       const result = await migrateCourseContentReferences({
         teacherId,

@@ -73,6 +73,11 @@ import {
   type TeacherStudioTask,
 } from '@/lib/teacher/online-course-studio';
 import { backendFetch, backendJson } from '@/lib/utils/backend-api';
+import { isLocalDemoUserId } from '@/lib/auth/local-demo';
+import {
+  getLocalDemoCourseHardRules,
+  getLocalDemoTeacherStudio,
+} from '@/lib/teacher/local-demo-fixtures';
 
 type StudioTab = 'notebooks' | 'problem_banks' | 'hard_rules' | 'sources' | 'queue' | 'removed';
 type ResourceLibraryKind = 'notebook' | 'problem_bank';
@@ -176,6 +181,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
   const role =
     session?.user?.role === 'TEACHER' || session?.user?.role === 'ADMIN' ? 'TEACHER' : 'STUDENT';
   const teacherId = session?.user?.id || '';
+  const localDemo = isLocalDemoUserId(teacherId);
   const [course, setCourse] = useState<TeacherStudioCourse | null>(null);
   const [content, setContent] = useState<CourseContentItem[]>([]);
   const [removedContent, setRemovedContent] = useState<CourseContentItem[]>([]);
@@ -228,17 +234,27 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
 
   const loadStudio = useCallback(async () => {
     if (!teacherId) return;
-    const snapshot = await loadOnlineTeacherStudio({ teacherId, courseId });
+    const snapshot = localDemo
+      ? getLocalDemoTeacherStudio(courseId, teacherId)
+      : await loadOnlineTeacherStudio({ teacherId, courseId });
     setCourse(snapshot.course);
     setContent(snapshot.content);
     setRemovedContent(snapshot.removedContent);
     setJobs(snapshot.tasks);
     setPersistenceTasks(snapshot.tasks);
-  }, [courseId, teacherId]);
+  }, [courseId, localDemo, teacherId]);
 
   const loadHardRules = useCallback(
     async (showError = false) => {
       if (!teacherId || hardRuleRefreshRef.current) return;
+      if (localDemo) {
+        const rules = getLocalDemoCourseHardRules(courseId, teacherId);
+        setHardRules(rules);
+        setHardRuleDrafts(Object.fromEntries(rules.map((rule) => [rule.id, rule.content])));
+        setHardRulesLoaded(true);
+        hardRulesLoadedRef.current = true;
+        return;
+      }
       hardRuleRefreshRef.current = true;
       setHardRulesLoading(true);
       try {
@@ -267,7 +283,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
         hardRuleRefreshRef.current = false;
       }
     },
-    [courseId, teacherId],
+    [courseId, localDemo, teacherId],
   );
 
   const hasUnsavedHardRuleChanges = useMemo(
@@ -280,6 +296,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
 
   const refreshPersistenceTasks = useCallback(async () => {
     if (!teacherId || persistenceRefreshRef.current) return;
+    if (localDemo) return;
     persistenceRefreshRef.current = true;
     try {
       const snapshot = await loadOnlineTeacherStudio({ teacherId, courseId });
@@ -290,10 +307,11 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
     } finally {
       persistenceRefreshRef.current = false;
     }
-  }, [courseId, teacherId]);
+  }, [courseId, localDemo, teacherId]);
 
   const refreshSharedCourseContent = useCallback(async () => {
     if (!teacherId || sharedContentRefreshRef.current) return;
+    if (localDemo) return;
     sharedContentRefreshRef.current = true;
     try {
       await loadStudio();
@@ -305,7 +323,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
     } finally {
       sharedContentRefreshRef.current = false;
     }
-  }, [courseId, loadStudio, teacherId]);
+  }, [loadStudio, localDemo, teacherId]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -322,7 +340,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
   }, [hydrated, isLoggedIn, loadStudio, role, router]);
 
   useEffect(() => {
-    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId) return;
+    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || localDemo) return;
     let cancelled = false;
     void backendJson<{ unresolvedCount: number }>(
       `/api/course-forum/${encodeURIComponent(courseId)}/summary`,
@@ -335,15 +353,15 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [courseId, hydrated, isLoggedIn, role, teacherId]);
+  }, [courseId, hydrated, isLoggedIn, localDemo, role, teacherId]);
 
   useEffect(() => {
-    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId) return;
+    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || localDemo) return;
     void refreshPersistenceTasks();
-  }, [hydrated, isLoggedIn, refreshPersistenceTasks, role, teacherId]);
+  }, [hydrated, isLoggedIn, localDemo, refreshPersistenceTasks, role, teacherId]);
 
   useEffect(() => {
-    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId) return;
+    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || localDemo) return;
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') void refreshSharedCourseContent();
     };
@@ -356,7 +374,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [hydrated, isLoggedIn, refreshSharedCourseContent, role, teacherId]);
+  }, [hydrated, isLoggedIn, localDemo, refreshSharedCourseContent, role, teacherId]);
 
   useEffect(() => {
     if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || tab !== 'hard_rules') {
@@ -385,7 +403,14 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
   );
 
   useEffect(() => {
-    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || !hasActivePersistenceTask) {
+    if (
+      !hydrated ||
+      !isLoggedIn ||
+      role !== 'TEACHER' ||
+      !teacherId ||
+      localDemo ||
+      !hasActivePersistenceTask
+    ) {
       return;
     }
     const refreshWhenVisible = () => {
@@ -398,7 +423,15 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [hasActivePersistenceTask, hydrated, isLoggedIn, refreshSharedCourseContent, role, teacherId]);
+  }, [
+    hasActivePersistenceTask,
+    hydrated,
+    isLoggedIn,
+    localDemo,
+    refreshSharedCourseContent,
+    role,
+    teacherId,
+  ]);
 
   const sources = useMemo(() => content.filter((item) => item.type === 'source'), [content]);
   const resources = useMemo(() => content.filter((item) => item.type !== 'source'), [content]);
@@ -997,6 +1030,14 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
             </div>
           </div>
         </section>
+
+        {localDemo ? (
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-100">
+            <Database className="mt-0.5 size-4 shrink-0" />
+            本地预览模式：课程与用量数据来自演示夹具，可直接调整和检查教师
+            UI；上传、删除等真实写入仍需数据库恢复后验证。
+          </div>
+        ) : null}
 
         {error ? (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">

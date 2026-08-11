@@ -196,7 +196,7 @@ export function SettingsDialog({
           ))}
         </nav>
         <p className="learn-dock-profile-navigation-note">
-          设置管理模型、图像、学习背景、Live2D 和语音偏好，不包含个人公开资料。
+          设置管理日常语言、笔记本整理、图像、学习背景、Live2D 和语音偏好，不包含个人公开资料。
         </p>
         <div className="learn-dock-profile-navigation-footer">
           <button type="button" onClick={() => onOpenChange(false)}>

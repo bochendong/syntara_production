@@ -190,7 +190,7 @@ export function ImageSettings({ selectedProviderId }: ImageSettingsProps) {
               系统图像生成
             </CardTitle>
             <CardDescription>
-              图像模型来源于管理员配置。你可以在管理员开放的 Provider 和模型范围内切换，API Key 由系统统一托管。
+              图像生成默认使用 GPT Image 2。你可以在管理员开放的 Provider 和模型范围内切换，API Key 由系统统一托管。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

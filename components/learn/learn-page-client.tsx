@@ -56,6 +56,7 @@ import {
   LEARN_HOME_PREVIEW_COURSES,
   LearnHomeDashboard,
 } from '@/components/learn/learn-home-dashboard';
+import { LearnBackgroundVisual } from '@/components/learn/learn-background-visual';
 import { LearnCourseSidebar } from '@/components/learn/learn-course-sidebar';
 import { ChatContextCompressionNotice } from '@/components/learn/chat-context-compression-notice';
 import { LearnPageShellSkeleton } from '@/components/learn/learn-page-shell-skeleton';
@@ -7225,6 +7226,7 @@ export function LearnPageClient() {
 
   const providerId = useSettingsStore((state) => state.providerId);
   const modelId = useSettingsStore((state) => state.modelId);
+  const learnBackgroundId = useSettingsStore((state) => state.learnBackgroundId);
   const providersConfig = useSettingsStore((state) => state.providersConfig);
   const pdfProviderId = useSettingsStore((state) => state.pdfProviderId);
   const pdfProvidersConfig = useSettingsStore((state) => state.pdfProvidersConfig);
@@ -18441,8 +18443,9 @@ export function LearnPageClient() {
   return (
     <>
       <div
+        data-learn-background-shell={learnBackgroundId}
         className={cn(
-          'learn-course-shell grid h-full min-h-0 overflow-hidden bg-slate-50 text-foreground transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] dark:bg-slate-950',
+          'learn-course-shell relative isolate grid h-full min-h-0 overflow-hidden text-foreground transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]',
           // Fixed left/center/right proportions at every viewport size (lg+).
           // Teachers don't use the student course-tools right rail.
           showRightRail &&
@@ -18465,12 +18468,21 @@ export function LearnPageClient() {
           !showRightRail && leftRailCollapsed && 'lg:grid-cols-[4.5rem_minmax(0,1fr)]',
         )}
       >
-        <aside className="hidden min-h-0 flex-col overflow-hidden border-r border-slate-200/80 bg-slate-50 lg:flex dark:border-white/10 dark:bg-slate-950">
+        <LearnBackgroundVisual
+          backgroundId={learnBackgroundId}
+          className="pointer-events-none absolute inset-0 z-0"
+        />
+        <div
+          className="pointer-events-none absolute inset-0 z-[1] bg-white/28 backdrop-blur-[2px] dark:bg-slate-950/42"
+          aria-hidden="true"
+        />
+
+        <aside className="relative z-10 hidden min-h-0 flex-col overflow-hidden border-r border-slate-200/80 bg-slate-50/90 backdrop-blur-xl lg:flex dark:border-white/10 dark:bg-slate-950/90">
           {sessionsPanel}
         </aside>
 
-        <main className="flex min-h-[70dvh] flex-col overflow-hidden bg-white lg:min-h-0 dark:bg-slate-950">
-          <header className="shrink-0 border-b border-slate-200/80 bg-white/95 px-6 py-3 dark:border-white/10 dark:bg-slate-950/95">
+        <main className="relative z-10 flex min-h-[70dvh] flex-col overflow-hidden bg-white/[0.86] backdrop-blur-xl lg:min-h-0 dark:bg-slate-950/[0.86]">
+          <header className="shrink-0 border-b border-slate-200/80 bg-white/80 px-6 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/80">
             <div className="flex w-full items-center justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 {activeCourse ? (
@@ -18701,7 +18713,7 @@ export function LearnPageClient() {
           <div
             ref={conversationScrollContainerRef}
             onScroll={handleConversationScroll}
-            className="min-h-0 flex-1 overflow-y-auto bg-white px-6 py-5 dark:bg-slate-950"
+            className="min-h-0 flex-1 overflow-y-auto bg-white/62 px-6 py-5 dark:bg-slate-950/62"
           >
             <div className="flex min-h-full w-full flex-col gap-4">
               {remoteConversationMessagePage?.hasMore || remoteConversationMessagePage?.error ? (
@@ -19039,7 +19051,7 @@ export function LearnPageClient() {
             </div>
           </div>
 
-          <footer className="shrink-0 bg-gradient-to-t from-white via-white to-white/85 px-6 pb-4 pt-3 dark:from-slate-950 dark:via-slate-950 dark:to-slate-950/85">
+          <footer className="shrink-0 bg-gradient-to-t from-white/95 via-white/92 to-white/72 px-6 pb-4 pt-3 backdrop-blur-xl dark:from-slate-950/95 dark:via-slate-950/92 dark:to-slate-950/72">
             <div className="w-full">
               <div
                 className={cn(
@@ -19257,7 +19269,7 @@ export function LearnPageClient() {
         </main>
 
         {showRightRail ? (
-          <aside className="hidden min-h-0 flex-col overflow-hidden border-l border-border/70 bg-background lg:flex">
+          <aside className="relative z-10 hidden min-h-0 flex-col overflow-hidden border-l border-border/70 bg-background/90 backdrop-blur-xl lg:flex">
             <div className="flex min-h-0 flex-1 xl:hidden">{compactCourseToolsPanel}</div>
             <div className="hidden min-h-0 flex-1 xl:flex">{courseContextPanel}</div>
           </aside>

@@ -4,34 +4,12 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import {
   useEffect,
-  useCallback,
   useMemo,
   useState,
   useSyncExternalStore,
   type ComponentType,
   type CSSProperties,
-  type ReactNode,
 } from 'react';
-import {
-  closestCenter,
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  rectSortingStrategy,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { CalendarDays, ChevronRight, Loader2 } from 'lucide-react';
 import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
 import { useSettingsStore } from '@/lib/store/settings';
@@ -50,14 +28,6 @@ import { LearnHomeDockAppLayer, type LearnDockApp } from '@/components/learn/lea
 
 const STUDENT_HOME_ICONS_PER_PAGE = 20;
 const TEACHER_HOME_ICONS_PER_PAGE = 28;
-const SORTABLE_TRANSITION = {
-  duration: 180,
-  easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-};
-const DROP_ANIMATION = {
-  duration: 220,
-  easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
-};
 
 const HaruLive2D = dynamic(
   () =>
@@ -238,13 +208,13 @@ const SYSTEM_APPS: SystemApp[] = [
 ];
 
 const HOME_GRID_SYSTEM_APPS: SystemApp[] = [
+  ...SYSTEM_APPS,
   {
     label: '用量统计',
     secondary: 'AI usage',
     iconSrc: '/learn/system-apps/用量统计.svg',
     action: 'usage',
   },
-  ...SYSTEM_APPS,
   {
     label: '退出学生端',
     secondary: 'Sign out',
@@ -254,19 +224,19 @@ const HOME_GRID_SYSTEM_APPS: SystemApp[] = [
 ];
 
 const TEACHER_HOME_GRID_SYSTEM_APPS: SystemApp[] = [
-  {
-    label: '往届课程',
-    secondary: 'Past courses',
-    iconSrc: '/learn/system-apps/往届课程.svg',
-    action: 'past_courses',
-  },
+  ...SYSTEM_APPS,
   {
     label: '用量统计',
     secondary: 'AI usage',
     iconSrc: '/learn/system-apps/用量统计.svg',
     action: 'usage',
   },
-  ...SYSTEM_APPS.filter((app) => app.action !== 'create'),
+  {
+    label: '往届课程',
+    secondary: 'Past courses',
+    iconSrc: '/learn/system-apps/往届课程.svg',
+    action: 'past_courses',
+  },
   {
     label: '退出教师端',
     secondary: 'Sign out',
@@ -275,71 +245,11 @@ const TEACHER_HOME_GRID_SYSTEM_APPS: SystemApp[] = [
   },
 ];
 
-function mergeStoredOrder<T>(items: T[], storedIds: string[], getId: (item: T) => string): T[] {
-  const itemById = new Map(items.map((item) => [getId(item), item]));
-  const ordered = storedIds.flatMap((id) => {
-    const item = itemById.get(id);
-    if (!item) return [];
-    itemById.delete(id);
-    return [item];
-  });
-  return [...ordered, ...itemById.values()];
-}
-
-function subscribeToIconOrder(
-  storageKey: string,
-  eventName: string,
-  onStoreChange: () => void,
-): () => void {
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key === storageKey) onStoreChange();
-  };
-  window.addEventListener('storage', handleStorage);
-  window.addEventListener(eventName, onStoreChange);
-  return () => {
-    window.removeEventListener('storage', handleStorage);
-    window.removeEventListener(eventName, onStoreChange);
-  };
-}
-
-function readIconOrderSnapshot(storageKey: string): string {
-  try {
-    return localStorage.getItem(storageKey) || '';
-  } catch {
-    return '';
-  }
-}
-
-function parseIconOrderSnapshot(snapshot: string): string[] {
-  try {
-    const stored = JSON.parse(snapshot || '{}') as {
-      items?: unknown;
-      courses?: unknown;
-      systemApps?: unknown;
-    };
-    if (Array.isArray(stored.items)) {
-      return stored.items.filter((id): id is string => typeof id === 'string');
-    }
-
-    const legacyCourses = Array.isArray(stored.courses)
-      ? stored.courses.filter((id): id is string => typeof id === 'string').map(courseSortableId)
-      : [];
-    const legacySystemApps = Array.isArray(stored.systemApps)
-      ? stored.systemApps
-          .filter((id): id is string => typeof id === 'string')
-          .map((action) => systemAppSortableId(action as SystemAppAction))
-      : [];
-    return [...legacySystemApps, ...legacyCourses];
-  } catch {
-    return [];
-  }
-}
-
-function courseSortableId(courseId: string): string {
+function courseHomeIconId(courseId: string): string {
   return `course:${courseId}`;
 }
 
-function systemAppSortableId(action: SystemAppAction): string {
+function systemAppHomeIconId(action: SystemAppAction): string {
   return `system:${action}`;
 }
 
@@ -347,30 +257,23 @@ function buildHomeIconItems(courses: CourseRecord[], systemApps: SystemApp[]): H
   const appItems: HomeIconItem[] = systemApps
     .filter((app) => app.action !== 'sign_out')
     .map((app) => ({
-      id: systemAppSortableId(app.action),
+      id: systemAppHomeIconId(app.action),
       kind: 'system',
       app,
     }));
   const signOutItems: HomeIconItem[] = systemApps
     .filter((app) => app.action === 'sign_out')
     .map((app) => ({
-      id: systemAppSortableId(app.action),
+      id: systemAppHomeIconId(app.action),
       kind: 'system',
       app,
     }));
   const courseItems: HomeIconItem[] = courses.map((course) => ({
-    id: courseSortableId(course.id),
+    id: courseHomeIconId(course.id),
     kind: 'course',
     course,
   }));
   return [...appItems, ...courseItems, ...signOutItems];
-}
-
-function pinSignOutAppLast(items: HomeIconItem[]): HomeIconItem[] {
-  return [
-    ...items.filter((item) => item.id !== systemAppSortableId('sign_out')),
-    ...items.filter((item) => item.id === systemAppSortableId('sign_out')),
-  ];
 }
 
 const HOME_ICON_BUTTON_CLASS_NAME =
@@ -409,7 +312,7 @@ function CourseIconContent({ course, active }: { course: CourseRecord; active?: 
   );
 }
 
-function SortableCourseIcon({
+function CourseIcon({
   course,
   active,
   gridPosition,
@@ -420,38 +323,15 @@ function SortableCourseIcon({
   gridPosition?: HomeGridPosition;
   onOpen: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: courseSortableId(course.id),
-    transition: SORTABLE_TRANSITION,
-  });
-  const style: CSSProperties = {
-    ...homeGridStyle(gridPosition),
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.16 : 1,
-    zIndex: isDragging ? 1 : undefined,
-    willChange: 'transform',
-  };
-
   return (
     <button
-      ref={setNodeRef}
       type="button"
-      style={style}
-      {...attributes}
-      {...listeners}
-      onClick={() => {
-        if (!isDragging) onOpen();
-      }}
+      style={homeGridStyle(gridPosition)}
+      onClick={onOpen}
       data-home-icon-group="course"
       data-home-icon-id={course.id}
-      data-drag-state={isDragging ? 'source' : 'idle'}
-      className={cn(
-        HOME_ICON_BUTTON_CLASS_NAME,
-        'learn-app-home__grid-item',
-        isDragging ? 'cursor-grabbing' : 'cursor-grab',
-      )}
-      aria-label={`打开课程 ${course.name}；可拖动排序`}
+      className={cn(HOME_ICON_BUTTON_CLASS_NAME, 'learn-app-home__grid-item')}
+      aria-label={`打开课程 ${course.name}`}
     >
       <CourseIconContent course={course} active={active} />
     </button>
@@ -520,7 +400,7 @@ function SystemAppIconContent({
   );
 }
 
-function SortableSystemAppIcon({
+function SystemAppIcon({
   app,
   gridPosition,
   onRun,
@@ -529,55 +409,18 @@ function SortableSystemAppIcon({
   gridPosition?: HomeGridPosition;
   onRun: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: systemAppSortableId(app.action),
-    transition: SORTABLE_TRANSITION,
-  });
-  const style: CSSProperties = {
-    ...homeGridStyle(gridPosition),
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.16 : 1,
-    zIndex: isDragging ? 1 : undefined,
-    willChange: 'transform',
-  };
-
   return (
     <button
-      ref={setNodeRef}
       type="button"
-      style={style}
-      {...attributes}
-      {...listeners}
-      onClick={() => {
-        if (!isDragging) onRun();
-      }}
+      style={homeGridStyle(gridPosition)}
+      onClick={onRun}
       data-home-icon-group="system"
       data-home-icon-id={app.action}
-      data-drag-state={isDragging ? 'source' : 'idle'}
-      className={cn(
-        HOME_ICON_BUTTON_CLASS_NAME,
-        'learn-app-home__grid-item',
-        isDragging ? 'cursor-grabbing' : 'cursor-grab',
-      )}
-      aria-label={`${app.label}；可拖动排序`}
+      className={cn(HOME_ICON_BUTTON_CLASS_NAME, 'learn-app-home__grid-item')}
+      aria-label={app.label}
     >
       <SystemAppIconContent app={app} />
     </button>
-  );
-}
-
-function LiftedIcon({ children }: { children: ReactNode }) {
-  return (
-    <div
-      aria-hidden
-      className={cn(
-        HOME_ICON_BUTTON_CLASS_NAME,
-        'pointer-events-none cursor-grabbing scale-[1.06] opacity-[0.97] drop-shadow-[0_24px_28px_rgba(26,39,90,0.25)]',
-      )}
-    >
-      {children}
-    </div>
   );
 }
 
@@ -659,59 +502,20 @@ export function LearnHomeDashboard({
   onRetryCourseLoad,
 }: LearnHomeDashboardProps) {
   const userId = useAuthStore((state) => state.userId) || 'anonymous';
-  const iconOrderStorageKey = `syntara:${variant}-home-icon-order:${userId}:${variant === 'student' ? 'v4' : 'v3'}`;
-  const iconOrderEventName = `syntara:${variant}-home-icon-order-change:${userId}`;
   const learnBackgroundId = useSettingsStore((state) => state.learnBackgroundId);
   const [now, setNow] = useState<Date | null>(null);
   const [page, setPage] = useState(1);
-  const [draggedHomeIconId, setDraggedHomeIconId] = useState<string | null>(null);
   const [activeDockApp, setActiveDockApp] = useState<LearnDockApp | null>(null);
-  const dragSensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: { distance: 6 },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 180, tolerance: 8 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => setNow(new Date()), 0);
     return () => window.clearTimeout(timer);
   }, []);
-  const subscribeIconOrder = useCallback(
-    (onStoreChange: () => void) =>
-      subscribeToIconOrder(iconOrderStorageKey, iconOrderEventName, onStoreChange),
-    [iconOrderEventName, iconOrderStorageKey],
-  );
-  const readCurrentIconOrder = useCallback(
-    () => readIconOrderSnapshot(iconOrderStorageKey),
-    [iconOrderStorageKey],
-  );
-  const iconOrderSnapshot = useSyncExternalStore(
-    subscribeIconOrder,
-    readCurrentIconOrder,
-    () => '',
-  );
-  const homeIconOrder = useMemo(
-    () => parseIconOrderSnapshot(iconOrderSnapshot),
-    [iconOrderSnapshot],
-  );
   const homeGridSystemApps =
     variant === 'teacher' ? TEACHER_HOME_GRID_SYSTEM_APPS : HOME_GRID_SYSTEM_APPS;
   const orderedHomeIcons = useMemo(
-    () =>
-      pinSignOutAppLast(
-        mergeStoredOrder(
-          buildHomeIconItems(courses, homeGridSystemApps),
-          homeIconOrder,
-          (item) => item.id,
-        ),
-      ),
-    [courses, homeGridSystemApps, homeIconOrder],
+    () => buildHomeIconItems(courses, homeGridSystemApps),
+    [courses, homeGridSystemApps],
   );
   const iconsPerPage =
     variant === 'teacher' ? TEACHER_HOME_ICONS_PER_PAGE : STUDENT_HOME_ICONS_PER_PAGE;
@@ -754,34 +558,6 @@ export function LearnHomeDashboard({
       )
       .slice(0, 3);
   }, [courses, syllabusEventsSnapshot, todayDateKey, userId]);
-  const draggedHomeIcon = draggedHomeIconId
-    ? orderedHomeIcons.find((item) => item.id === draggedHomeIconId) || null
-    : null;
-  const persistIconOrder = (nextOrder: string[]) => {
-    try {
-      localStorage.setItem(iconOrderStorageKey, JSON.stringify({ items: nextOrder }));
-      window.dispatchEvent(new Event(iconOrderEventName));
-    } catch {
-      // Dragging should continue to work even when localStorage is unavailable.
-    }
-  };
-
-  const startHomeIconDrag = ({ active }: DragStartEvent) => {
-    setDraggedHomeIconId(String(active.id));
-  };
-
-  const finishHomeIconDrag = ({ active, over }: DragEndEvent) => {
-    setDraggedHomeIconId(null);
-    if (!over || active.id === over.id) return;
-    const sourceId = String(active.id);
-    const targetId = String(over.id);
-    const orderedIds = orderedHomeIcons.map((item) => item.id);
-    const sourceIndex = orderedIds.indexOf(sourceId);
-    const targetIndex = orderedIds.indexOf(targetId);
-    if (sourceIndex < 0 || targetIndex < 0) return;
-    persistIconOrder(arrayMove(orderedIds, sourceIndex, targetIndex));
-  };
-
   const runSystemAction = (action: SystemAppAction) => {
     if (action === 'calendar') {
       onOpenCalendar();
@@ -971,57 +747,29 @@ export function LearnHomeDashboard({
                   </div>
                 </article>
               ) : null}
-              <DndContext
-                id="learn-home-icons-dnd"
-                sensors={dragSensors}
-                collisionDetection={closestCenter}
-                onDragStart={startHomeIconDrag}
-                onDragCancel={() => setDraggedHomeIconId(null)}
-                onDragEnd={finishHomeIconDrag}
-              >
-                <SortableContext
-                  items={visibleHomeIcons.map((item) => item.id)}
-                  strategy={rectSortingStrategy}
-                >
-                  {visibleHomeIcons.map((item, index) => {
-                    const gridPosition = homeIconGridPosition(index, variant);
-                    if (item.kind === 'system') {
-                      return (
-                        <SortableSystemAppIcon
-                          key={item.id}
-                          app={item.app}
-                          gridPosition={gridPosition}
-                          onRun={() => runSystemAction(item.app.action)}
-                        />
-                      );
-                    }
+              {visibleHomeIcons.map((item, index) => {
+                const gridPosition = homeIconGridPosition(index, variant);
+                if (item.kind === 'system') {
+                  return (
+                    <SystemAppIcon
+                      key={item.id}
+                      app={item.app}
+                      gridPosition={gridPosition}
+                      onRun={() => runSystemAction(item.app.action)}
+                    />
+                  );
+                }
 
-                    return (
-                      <SortableCourseIcon
-                        key={item.id}
-                        course={item.course}
-                        gridPosition={gridPosition}
-                        active={item.course.id === activeCourseId}
-                        onOpen={() => onOpenCourse(item.course.id)}
-                      />
-                    );
-                  })}
-                </SortableContext>
-                <DragOverlay adjustScale={false} dropAnimation={DROP_ANIMATION} zIndex={60}>
-                  {draggedHomeIcon ? (
-                    <LiftedIcon>
-                      {draggedHomeIcon.kind === 'system' ? (
-                        <SystemAppIconContent app={draggedHomeIcon.app} />
-                      ) : (
-                        <CourseIconContent
-                          course={draggedHomeIcon.course}
-                          active={draggedHomeIcon.course.id === activeCourseId}
-                        />
-                      )}
-                    </LiftedIcon>
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
+                return (
+                  <CourseIcon
+                    key={item.id}
+                    course={item.course}
+                    gridPosition={gridPosition}
+                    active={item.course.id === activeCourseId}
+                    onOpen={() => onOpenCourse(item.course.id)}
+                  />
+                );
+              })}
             </div>
           </div>
 

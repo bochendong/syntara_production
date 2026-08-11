@@ -7,6 +7,8 @@ import { LearnHomeDashboard } from '@/components/learn/learn-home-dashboard';
 import { useAuthSignOut } from '@/lib/hooks/use-auth-sign-out';
 import type { CourseRecord } from '@/lib/utils/database';
 import { backendJson } from '@/lib/utils/backend-api';
+import { isLocalDemoUserId } from '@/lib/auth/local-demo';
+import { LOCAL_DEMO_TEACHER_HOME_COURSES } from '@/lib/teacher/local-demo-fixtures';
 
 export function TeacherDashboardClient() {
   const router = useRouter();
@@ -17,12 +19,19 @@ export function TeacherDashboardClient() {
   const role =
     session?.user?.role === 'TEACHER' || session?.user?.role === 'ADMIN' ? 'TEACHER' : 'STUDENT';
   const teacherId = session?.user?.id || '';
+  const localDemo = isLocalDemoUserId(teacherId);
   const [homeCourses, setHomeCourses] = useState<CourseRecord[]>([]);
   const [homeLoading, setHomeLoading] = useState(true);
   const [homeError, setHomeError] = useState('');
 
   const loadHomeCourses = useCallback(async () => {
     if (!teacherId) return;
+    if (localDemo) {
+      setHomeCourses(LOCAL_DEMO_TEACHER_HOME_COURSES);
+      setHomeError('');
+      setHomeLoading(false);
+      return;
+    }
     setHomeLoading(true);
     setHomeError('');
     try {
@@ -33,7 +42,7 @@ export function TeacherDashboardClient() {
     } finally {
       setHomeLoading(false);
     }
-  }, [teacherId]);
+  }, [localDemo, teacherId]);
 
   useEffect(() => {
     if (!hydrated) return;

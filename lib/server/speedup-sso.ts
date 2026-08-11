@@ -9,6 +9,14 @@ type JsonRecord = Record<string, unknown>;
 
 export type SpeedupUserRole = 'STUDENT' | 'TEACHER';
 
+export type SpeedupCourse = {
+  id: string;
+  name: string;
+  code: string | null;
+  termName: string | null;
+  universityAbbrs: string | null;
+};
+
 export type SpeedupVerifiedIdentity = {
   accessToken: string;
   expiresIn: number;
@@ -17,13 +25,7 @@ export type SpeedupVerifiedIdentity = {
   role: SpeedupUserRole;
   studentId: string | null;
   teacherId: string | null;
-  course: {
-    id: string;
-    name: string;
-    code: string | null;
-    termName: string | null;
-    universityAbbrs: string | null;
-  };
+  course: SpeedupCourse;
 };
 
 export class SpeedupSsoError extends Error {
@@ -136,11 +138,22 @@ function resolveRole(exchange: JsonRecord): SpeedupUserRole {
   throw new SpeedupSsoError(403, '当前 Speedup 账号类型不支持进入 AI 课程。');
 }
 
-async function verifyCourseAccess(
+function speedupCourseFromRecord(course: JsonRecord): SpeedupCourse | null {
+  const id = stringValue(course, 'CourseId', 'courseId');
+  if (!id) return null;
+  return {
+    id,
+    name: stringValue(course, 'CourseName', 'courseName') || `课程 ${id}`,
+    code: stringValue(course, 'CourseCode', 'courseCode'),
+    termName: stringValue(course, 'TermName', 'termName'),
+    universityAbbrs: stringValue(course, 'UniversityAbbrs', 'universityAbbrs'),
+  };
+}
+
+async function fetchSpeedupCourses(
   accessToken: string,
   role: SpeedupUserRole,
-  requestedCourseId: string,
-): Promise<SpeedupVerifiedIdentity['course']> {
+): Promise<SpeedupCourse[]> {
   const endpoint =
     role === 'TEACHER' ? 'PartnerCourse/TeacherCourses' : 'PartnerCourse/StudentCourses';
   const courseAccessUrl = speedupUrl(endpoint);
@@ -164,20 +177,47 @@ async function verifyCourseAccess(
     throw new SpeedupSsoError(502, 'Speedup 课程权限验证失败，请稍后重试。');
   }
 
-  const matchedCourse = payload
+  return payload
     .map(asRecord)
-    .find((course) => course && stringValue(course, 'CourseId', 'courseId') === requestedCourseId);
+    .filter((course): course is JsonRecord => course !== null)
+    .map(speedupCourseFromRecord)
+    .filter((course): course is SpeedupCourse => course !== null);
+}
+
+async function verifyCourseAccess(
+  accessToken: string,
+  role: SpeedupUserRole,
+  requestedCourseId: string,
+): Promise<SpeedupCourse> {
+  const matchedCourse = (await fetchSpeedupCourses(accessToken, role)).find(
+    (course) => course.id === requestedCourseId,
+  );
   if (!matchedCourse) {
     throw new SpeedupSsoError(403, '当前账号没有该课程的访问权限。');
   }
+  return matchedCourse;
+}
 
-  return {
-    id: requestedCourseId,
-    name: stringValue(matchedCourse, 'CourseName', 'courseName') || `课程 ${requestedCourseId}`,
-    code: stringValue(matchedCourse, 'CourseCode', 'courseCode'),
-    termName: stringValue(matchedCourse, 'TermName', 'termName'),
-    universityAbbrs: stringValue(matchedCourse, 'UniversityAbbrs', 'universityAbbrs'),
-  };
+export async function listSpeedupCoursesForUser(
+  userId: string,
+  role: SpeedupUserRole,
+): Promise<SpeedupCourse[]> {
+  const prisma = getOptionalPrisma();
+  if (!prisma) {
+    throw new SpeedupSsoError(503, 'AI 课程数据库尚未配置，请联系管理员。');
+  }
+  const account = await prisma.account.findFirst({
+    where: { userId, provider: SPEEDUP_PROVIDER },
+    select: { access_token: true, expires_at: true },
+  });
+  if (!account?.access_token) {
+    throw new SpeedupSsoError(403, '请先从 Speedup 进入 AI 课程，再管理本学期课程。');
+  }
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (account.expires_at && account.expires_at <= nowSeconds) {
+    throw new SpeedupSsoError(401, 'Speedup 登录已过期，请返回 Speedup 后重新进入 AI 课程。');
+  }
+  return fetchSpeedupCourses(account.access_token, role);
 }
 
 export async function verifySpeedupCallback(
@@ -216,6 +256,7 @@ export async function verifySpeedupCallback(
 export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity): Promise<{
   sessionToken: string;
   maxAge: number;
+  userId: string;
 }> {
   const prisma = getOptionalPrisma();
   const allowStatelessSession = process.env.SPEEDUP_SSO_ALLOW_STATELESS === 'true';
@@ -298,5 +339,5 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
     },
   });
 
-  return { sessionToken, maxAge: identity.expiresIn };
+  return { sessionToken, maxAge: identity.expiresIn, userId: user.id };
 }

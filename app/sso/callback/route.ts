@@ -4,6 +4,7 @@ import {
   SpeedupSsoError,
   verifySpeedupCallback,
 } from '@/lib/server/speedup-sso';
+import { enrollSpeedupStudentCourse } from '@/lib/server/speedup-course-provisioning';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -80,9 +81,15 @@ export async function GET(request: Request): Promise<NextResponse> {
   try {
     const identity = await verifySpeedupCallback(code, courseId);
     const session = await createSpeedupUserSession(identity);
-    const destination = new URL('/learn', requestUrl.origin);
-    destination.searchParams.set('speedupCourseId', identity.course.id);
-    destination.searchParams.set('speedupCourseName', identity.course.name);
+    let destination: URL;
+    if (identity.role === 'TEACHER') {
+      destination = new URL('/teacher/speedup-courses', requestUrl.origin);
+      destination.searchParams.set('requestedCourseId', identity.course.id);
+    } else {
+      const localCourseId = await enrollSpeedupStudentCourse(session.userId, identity.course.id);
+      destination = new URL('/learn', requestUrl.origin);
+      destination.searchParams.set('courseId', localCourseId);
+    }
 
     const response = NextResponse.redirect(destination, 303);
     for (const [header, value] of Object.entries(CALLBACK_SECURITY_HEADERS)) {
