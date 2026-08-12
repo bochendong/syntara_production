@@ -25,6 +25,7 @@ export function middleware(request: NextRequest) {
     pathname === '/calendar' ||
     pathname.startsWith('/calendar/') ||
     pathname.startsWith('/classroom/') ||
+    pathname.startsWith('/course/') ||
     pathname === '/teacher' ||
     pathname.startsWith('/teacher/') ||
     pathname === '/admin' ||
