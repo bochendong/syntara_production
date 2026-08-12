@@ -122,6 +122,7 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   const isTestPage = isTestSurface(pathname);
   const isCsc148LocalPage = pathname === '/csc148' || Boolean(pathname?.startsWith('/csc148/'));
   const isCourseHome = pathname != null && /^\/course\/[^/]+\/?$/.test(pathname);
+  const isCourseForum = pathname != null && /^\/course\/[^/]+\/forum(?:\/|$)/.test(pathname);
   const isCourseProblemDetail =
     pathname != null && /^\/course\/[^/]+\/problem-bank\/[^/]+\/?$/.test(pathname);
   const isCourseProblemBank =
@@ -222,6 +223,10 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
 
   if (isCourseHome) {
     return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
+  }
+
+  if (isCourseForum) {
+    return <MainShellNoRail edgeToEdge>{children}</MainShellNoRail>;
   }
 
   if (isCourseProblemDetail) {
