@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/prisma';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { requireTeacher } from '@/lib/server/teacher-auth';
+import { hasTeacherCourseAccess } from '@/lib/server/external-course-access';
 
 export const runtime = 'nodejs';
 
@@ -14,6 +15,9 @@ export async function GET(
     const teacher = await requireTeacher();
     if ('response' in teacher) return teacher.response;
     const { courseId, sourceId } = await context.params;
+    if (!(await hasTeacherCourseAccess(prisma, teacher.userId, courseId))) {
+      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
     const source = await prisma.courseSource.findFirst({
       where: { id: sourceId, courseId, ownerId: teacher.userId },
       select: {

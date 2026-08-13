@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/server/prisma';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { requireTeacher } from '@/lib/server/teacher-auth';
+import { hasTeacherCourseAccess } from '@/lib/server/external-course-access';
 
 const updateSchema = z.object({ action: z.enum(['remove', 'restore']) });
 
@@ -22,6 +23,9 @@ export async function PATCH(
     const teacher = await requireTeacher();
     if ('response' in teacher) return teacher.response;
     const { courseId, sourceId } = await context.params;
+    if (!(await hasTeacherCourseAccess(prisma, teacher.userId, courseId))) {
+      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
     if (!(await ownedSource(teacher.userId, courseId, sourceId))) {
       return NextResponse.json({ error: 'Source not found' }, { status: 404 });
     }
@@ -43,6 +47,9 @@ export async function DELETE(
     const teacher = await requireTeacher();
     if ('response' in teacher) return teacher.response;
     const { courseId, sourceId } = await context.params;
+    if (!(await hasTeacherCourseAccess(prisma, teacher.userId, courseId))) {
+      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
     if (!(await ownedSource(teacher.userId, courseId, sourceId))) {
       return NextResponse.json({ error: 'Source not found' }, { status: 404 });
     }

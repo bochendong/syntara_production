@@ -8,6 +8,7 @@ import { safeRoute } from '@/lib/server/json-error-response';
 import { toPrismaJson } from '@/lib/server/prisma-json';
 import { requireTeacher } from '@/lib/server/teacher-auth';
 import { generateTeacherCourseNotebook } from '@/lib/server/teacher-course-notebook-generation';
+import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -140,7 +141,7 @@ export async function POST(
     const { courseId, sourceId } = await context.params;
     const [course, source] = await Promise.all([
       prisma.course.findFirst({
-        where: { id: courseId, ownerId: teacher.userId },
+        where: { id: courseId, ...teacherCourseAccessWhere(teacher.userId) },
         select: { id: true, name: true, courseCode: true },
       }),
       prisma.courseSource.findFirst({

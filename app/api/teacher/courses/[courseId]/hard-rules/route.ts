@@ -5,6 +5,7 @@ import { COURSE_HARD_RULE_LIMIT, COURSE_HARD_RULE_MAX_CHARS } from '@/lib/server
 import { safeRoute } from '@/lib/server/json-error-response';
 import { prisma } from '@/lib/server/prisma';
 import { requireTeacher } from '@/lib/server/teacher-auth';
+import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 
 export const runtime = 'nodejs';
 
@@ -16,7 +17,7 @@ async function requireOwnedCourse(courseId: string) {
   const teacher = await requireTeacher();
   if ('response' in teacher) return teacher;
   const course = await prisma.course.findFirst({
-    where: { id: courseId, ownerId: teacher.userId },
+    where: { id: courseId, ...teacherCourseAccessWhere(teacher.userId) },
     select: { id: true, ownerId: true },
   });
   if (!course) {

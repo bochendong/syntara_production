@@ -15,6 +15,7 @@ import { toPrismaJson } from '@/lib/server/prisma-json';
 import { withRequestContext } from '@/lib/server/request-context';
 import { resolveOpenAIResponsesModelFromHeaders } from '@/lib/server/resolve-model';
 import { requireTeacher } from '@/lib/server/teacher-auth';
+import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -259,7 +260,7 @@ export async function POST(
     const payload = requestSchema.parse(await request.json());
     const [course, source, notebook] = await Promise.all([
       prisma.course.findFirst({
-        where: { id: courseId, ownerId: teacher.userId },
+        where: { id: courseId, ...teacherCourseAccessWhere(teacher.userId) },
         select: { id: true, name: true, courseCode: true },
       }),
       prisma.courseSource.findFirst({

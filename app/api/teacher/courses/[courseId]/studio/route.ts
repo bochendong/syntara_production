@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/prisma';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { requireTeacher } from '@/lib/server/teacher-auth';
+import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 
 const MIND_MAP_TASK_STALE_MS = 6 * 60 * 1000;
 const STALE_MIND_MAP_ERROR = '任务超过服务器执行时限，已自动结束，请重新生成。';
@@ -61,7 +62,7 @@ export async function GET(_request: Request, context: { params: Promise<{ course
     if ('response' in teacher) return teacher.response;
     const { courseId } = await context.params;
     const course = await prisma.course.findFirst({
-      where: { id: courseId, ownerId: teacher.userId },
+      where: { id: courseId, ...teacherCourseAccessWhere(teacher.userId) },
       select: {
         id: true,
         name: true,

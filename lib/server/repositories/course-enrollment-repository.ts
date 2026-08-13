@@ -108,9 +108,21 @@ export async function findCourseEnrollment(
     db,
     () =>
       db.$queryRaw<CourseEnrollmentRow[]>`
-      SELECT "id", "userId", "courseId", "priceCents", "notebookAccessLimit", "joinedAt", "createdAt"
-      FROM "CourseEnrollment"
-      WHERE "userId" = ${userId} AND "courseId" = ${courseId}
+      SELECT e."id", e."userId", e."courseId", e."priceCents", e."notebookAccessLimit", e."joinedAt", e."createdAt"
+      FROM "CourseEnrollment" e
+      LEFT JOIN "ExternalCourseBinding" b ON b."courseId" = e."courseId"
+      WHERE e."userId" = ${userId} AND e."courseId" = ${courseId}
+        AND (
+          b."id" IS NULL
+          OR EXISTS (
+            SELECT 1
+            FROM "ExternalCourseMembership" m
+            WHERE m."bindingId" = b."id"
+              AND m."userId" = ${userId}
+              AND m."role" = 'STUDENT'::"ExternalCourseMemberRole"
+              AND m."active" = true
+          )
+        )
       LIMIT 1
     `,
   );
@@ -144,10 +156,21 @@ export async function listEnrolledCourseIds(
     withCourseEnrollmentSchemaFallback(db, () =>
       db.$queryRaw<Array<{ courseId: string }>>(
         Prisma.sql`
-          SELECT "courseId"
-          FROM "CourseEnrollment"
-          WHERE "userId" = ${userId}
-            AND "courseId" IN (${Prisma.join(uniqueCourseIds)})
+          SELECT e."courseId"
+          FROM "CourseEnrollment" e
+          LEFT JOIN "ExternalCourseBinding" b ON b."courseId" = e."courseId"
+          WHERE e."userId" = ${userId}
+            AND e."courseId" IN (${Prisma.join(uniqueCourseIds)})
+            AND (
+              b."id" IS NULL
+              OR EXISTS (
+                SELECT 1 FROM "ExternalCourseMembership" m
+                WHERE m."bindingId" = b."id"
+                  AND m."userId" = ${userId}
+                  AND m."role" = 'STUDENT'::"ExternalCourseMemberRole"
+                  AND m."active" = true
+              )
+            )
         `,
       ),
     ),
@@ -175,10 +198,29 @@ export async function findCourseAccessRole(
 ): Promise<CourseAccessRole | null> {
   const course = await db.course.findUnique({
     where: { id: courseId },
-    select: { ownerId: true },
+    select: {
+      ownerId: true,
+      externalBinding: {
+        select: {
+          memberships: {
+            where: { userId, active: true },
+            select: { role: true },
+          },
+        },
+      },
+    },
   });
   if (!course) return null;
-  if (course.ownerId === userId) return 'owner';
+  if (course.externalBinding) {
+    if (course.externalBinding.memberships.some((membership) => membership.role === 'TEACHER')) {
+      return 'owner';
+    }
+    if (!course.externalBinding.memberships.some((membership) => membership.role === 'STUDENT')) {
+      return null;
+    }
+  } else if (course.ownerId === userId) {
+    return 'owner';
+  }
   return (await hasCourseEnrollment(db, userId, courseId)) ? 'enrolled' : null;
 }
 
@@ -187,11 +229,8 @@ export async function resolveCourseNotebookAccess(
   userId: string,
   courseId: string,
 ): Promise<CourseNotebookAccess | null> {
-  const course = await db.course.findUnique({
-    where: { id: courseId },
-    select: { ownerId: true },
-  });
-  if (!course) return null;
+  const accessRole = await findCourseAccessRole(db, userId, courseId);
+  if (!accessRole) return null;
 
   const notebooks = orderCourseNotebooks(
     (
@@ -207,7 +246,7 @@ export async function resolveCourseNotebookAccess(
     })),
   );
   const orderedNotebookIds = notebooks.map((notebook) => notebook.id);
-  if (course.ownerId === userId) {
+  if (accessRole === 'owner') {
     return {
       role: 'owner',
       notebookAccessLimit: null,
@@ -311,10 +350,21 @@ export async function listCourseEnrollmentsForUser(
     db,
     () =>
       db.$queryRaw<CourseEnrollmentRow[]>`
-      SELECT "id", "userId", "courseId", "priceCents", "notebookAccessLimit", "joinedAt", "createdAt"
-      FROM "CourseEnrollment"
-      WHERE "userId" = ${userId}
-      ORDER BY "joinedAt" DESC
+      SELECT e."id", e."userId", e."courseId", e."priceCents", e."notebookAccessLimit", e."joinedAt", e."createdAt"
+      FROM "CourseEnrollment" e
+      LEFT JOIN "ExternalCourseBinding" b ON b."courseId" = e."courseId"
+      WHERE e."userId" = ${userId}
+        AND (
+          b."id" IS NULL
+          OR EXISTS (
+            SELECT 1 FROM "ExternalCourseMembership" m
+            WHERE m."bindingId" = b."id"
+              AND m."userId" = ${userId}
+              AND m."role" = 'STUDENT'::"ExternalCourseMemberRole"
+              AND m."active" = true
+          )
+        )
+      ORDER BY e."joinedAt" DESC
     `,
   );
 }

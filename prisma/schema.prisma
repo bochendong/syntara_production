@@ -62,6 +62,11 @@ enum UserRole {
   ADMIN
 }
 
+enum ExternalCourseMemberRole {
+  TEACHER
+  STUDENT
+}
+
 enum NativeDeviceAuthorizationStatus {
   pending
   approved
@@ -196,51 +201,52 @@ model User {
   nativeDeviceAuthorizations NativeDeviceAuthorization[]
   nativeDeviceSessions       NativeDeviceSession[]
 
-  courses                 Course[]
-  notebooks               Notebook[]
-  conversations           Conversation[]
-  messages                Message[]
-  courseConversations     CourseConversation[]
-  agentTasks              AgentTask[]
-  agentEnvelopes          AgentEnvelope[]
-  llmUsageLogs            LLMUsageLog[]
-  llmPromptLogs           LLMPromptLog[]
-  creditTransactions      CreditTransaction[]
-  cloudUsageLimit         CloudUsageUserLimit?
-  cloudUsageCostLogs      CloudUsageCostLog[]
-  coursePurchases         CoursePurchase[]
-  courseEnrollments       CourseEnrollment[]
-  courseHardRules         CourseHardRule[]
-  notebookPurchases       NotebookPurchase[]
-  courseReviews           CourseReview[]
-  notebookReviews         NotebookReview[]
-  notebookProblemAttempts NotebookProblemAttempt[]
-  notebookProblemProgress NotebookProblemProgress[]
-  topUpOrders             TopUpOrder[]
-  engagementProfile       UserEngagementProfile?
-  learningActionLogs      LearningActionLog[]
-  characterProgress       UserCharacterProgress[]
-  missionProgress         UserMissionProgress[]
-  testResults             TestResult[]
-  studyMemories           StudyMemory[]
-  studyMemoryChunks       StudyMemoryChunk[]
-  memoryFacts             MemoryFact[]
-  memoryFactEvents        MemoryFactEvent[]
-  knowledgeCacheEntries   MemoryKnowledgeCache[]
-  courseSources           CourseSource[]
-  knowledgeDocuments      KnowledgeDocument[]
-  knowledgeChunks         KnowledgeChunk[]
-  speechAudios            UserSpeechAudio[]
-  problemImportBatches    ProblemImportBatch[]
-  courseQuestionRuns      CourseQuestionRun[]
-  learningCalendarEvents  LearningCalendarEvent[]
-  calendarMutations       LearningCalendarMutation[]
-  forumPosts              CourseForumPost[]          @relation("CourseForumPostAuthor")
-  forumAnswers            CourseForumAnswer[]        @relation("CourseForumAnswerAuthor")
-  acceptedForumAnswers    CourseForumAnswer[]        @relation("CourseForumAnswerAcceptedBy")
-  forumComments           CourseForumComment[]       @relation("CourseForumCommentAuthor")
-  forumAttachments        CourseForumAttachment[]    @relation("CourseForumAttachmentUploader")
-  externalCourseBindings  ExternalCourseBinding[]    @relation("ExternalCourseBindingActivator")
+  courses                   Course[]
+  notebooks                 Notebook[]
+  conversations             Conversation[]
+  messages                  Message[]
+  courseConversations       CourseConversation[]
+  agentTasks                AgentTask[]
+  agentEnvelopes            AgentEnvelope[]
+  llmUsageLogs              LLMUsageLog[]
+  llmPromptLogs             LLMPromptLog[]
+  creditTransactions        CreditTransaction[]
+  cloudUsageLimit           CloudUsageUserLimit?
+  cloudUsageCostLogs        CloudUsageCostLog[]
+  coursePurchases           CoursePurchase[]
+  courseEnrollments         CourseEnrollment[]
+  courseHardRules           CourseHardRule[]
+  notebookPurchases         NotebookPurchase[]
+  courseReviews             CourseReview[]
+  notebookReviews           NotebookReview[]
+  notebookProblemAttempts   NotebookProblemAttempt[]
+  notebookProblemProgress   NotebookProblemProgress[]
+  topUpOrders               TopUpOrder[]
+  engagementProfile         UserEngagementProfile?
+  learningActionLogs        LearningActionLog[]
+  characterProgress         UserCharacterProgress[]
+  missionProgress           UserMissionProgress[]
+  testResults               TestResult[]
+  studyMemories             StudyMemory[]
+  studyMemoryChunks         StudyMemoryChunk[]
+  memoryFacts               MemoryFact[]
+  memoryFactEvents          MemoryFactEvent[]
+  knowledgeCacheEntries     MemoryKnowledgeCache[]
+  courseSources             CourseSource[]
+  knowledgeDocuments        KnowledgeDocument[]
+  knowledgeChunks           KnowledgeChunk[]
+  speechAudios              UserSpeechAudio[]
+  problemImportBatches      ProblemImportBatch[]
+  courseQuestionRuns        CourseQuestionRun[]
+  learningCalendarEvents    LearningCalendarEvent[]
+  calendarMutations         LearningCalendarMutation[]
+  forumPosts                CourseForumPost[]          @relation("CourseForumPostAuthor")
+  forumAnswers              CourseForumAnswer[]        @relation("CourseForumAnswerAuthor")
+  acceptedForumAnswers      CourseForumAnswer[]        @relation("CourseForumAnswerAcceptedBy")
+  forumComments             CourseForumComment[]       @relation("CourseForumCommentAuthor")
+  forumAttachments          CourseForumAttachment[]    @relation("CourseForumAttachmentUploader")
+  externalCourseBindings    ExternalCourseBinding[]    @relation("ExternalCourseBindingActivator")
+  externalCourseMemberships ExternalCourseMembership[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1306,6 +1312,7 @@ model CourseEnrollment {
 model ExternalCourseBinding {
   id                 String   @id @default(cuid())
   provider           String   @db.VarChar(40)
+  campusCode         String   @default("UNKNOWN") @db.VarChar(120)
   externalCourseId   String   @db.VarChar(120)
   courseId           String   @unique
   activatedById      String
@@ -1316,11 +1323,31 @@ model ExternalCourseBinding {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  course      Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  activatedBy User   @relation("ExternalCourseBindingActivator", fields: [activatedById], references: [id], onDelete: Cascade)
+  course      Course                     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  activatedBy User                       @relation("ExternalCourseBindingActivator", fields: [activatedById], references: [id], onDelete: Cascade)
+  memberships ExternalCourseMembership[]
 
-  @@unique([provider, externalCourseId])
+  @@unique([provider, campusCode, externalCourseId])
   @@index([activatedById, updatedAt(sort: Desc)])
+}
+
+model ExternalCourseMembership {
+  id             String                   @id @default(cuid())
+  bindingId      String
+  userId         String
+  role           ExternalCourseMemberRole
+  active         Boolean                  @default(true)
+  lastVerifiedAt DateTime                 @default(now())
+  revokedAt      DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  binding ExternalCourseBinding @relation(fields: [bindingId], references: [id], onDelete: Cascade)
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([bindingId, userId, role])
+  @@index([userId, role, active, updatedAt(sort: Desc)])
+  @@index([bindingId, role, active])
 }
 
 model CourseForumPost {

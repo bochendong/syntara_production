@@ -4,6 +4,7 @@ import { safeRoute } from '@/lib/server/json-error-response';
 import { prisma } from '@/lib/server/prisma';
 import {
   type CourseAccessRole,
+  findCourseAccessRole,
   withCourseEnrollmentSchemaFallback,
 } from '@/lib/server/repositories/course-enrollment-repository';
 
@@ -106,27 +107,16 @@ async function readCourseContentState(
   userId: string,
   courseId: string,
 ): Promise<CourseContentStateSnapshot | null> {
-  // Access and resource revisions intentionally share one SQL round-trip. The
-  // watcher is frequent and must not spend two scarce remote-pool leases just
-  // to learn that the same course has not changed.
+  const accessRole = await findCourseAccessRole(prisma, userId, courseId);
+  if (!accessRole) return null;
+  // Resolve Speedup-backed access before reading revisions so a stale watcher
+  // cannot continue polling a course after the external membership is revoked.
   const rows = await withCourseEnrollmentSchemaFallback(
     prisma,
     () =>
       prisma.$queryRaw<CourseContentStateRow[]>`
       SELECT
-        CASE
-          WHEN course."ownerId" = ${userId} THEN 'owner'
-          WHEN EXISTS (
-            SELECT 1
-            FROM "CourseEnrollment"
-            WHERE "userId" = ${userId} AND "courseId" = ${courseId}
-          ) OR EXISTS (
-            SELECT 1
-            FROM "CoursePurchase"
-            WHERE "buyerId" = ${userId} AND "sourceCourseId" = ${courseId}
-          ) THEN 'enrolled'
-          ELSE NULL
-        END AS "accessRole",
+        ${accessRole}::text AS "accessRole",
         (
           SELECT COUNT(*)::bigint
           FROM "Notebook"

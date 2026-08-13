@@ -7,11 +7,117 @@ import {
 
 const SPEEDUP_PROVIDER = 'speedup';
 
+type SpeedupMembershipRole = 'TEACHER' | 'STUDENT';
+
+function speedupCourseKey(course: Pick<SpeedupCourse, 'campusCode' | 'id'>): string {
+  return `${course.campusCode}:${course.id}`;
+}
+
 export type SpeedupTeacherCourseOption = SpeedupCourse & {
   isActivated: boolean;
   ownedByCurrentTeacher: boolean;
   localCourseId: string | null;
 };
+
+export async function syncSpeedupCourseMemberships(
+  userId: string,
+  role: SpeedupMembershipRole,
+  courses: SpeedupCourse[],
+) {
+  const uniqueCourses = Array.from(
+    new Map(courses.map((course) => [speedupCourseKey(course), course] as const)).values(),
+  );
+  const bindings = uniqueCourses.length
+    ? await prisma.externalCourseBinding.findMany({
+        where: {
+          provider: SPEEDUP_PROVIDER,
+          OR: uniqueCourses.map((course) => ({
+            campusCode: course.campusCode,
+            externalCourseId: course.id,
+          })),
+        },
+        select: {
+          id: true,
+          courseId: true,
+          campusCode: true,
+          externalCourseId: true,
+          course: { select: { ownerId: true } },
+        },
+      })
+    : [];
+  const verifiedAt = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.externalCourseMembership.updateMany({
+      where: {
+        userId,
+        role,
+        active: true,
+        binding: { provider: SPEEDUP_PROVIDER },
+      },
+      data: { active: false, revokedAt: verifiedAt, lastVerifiedAt: verifiedAt },
+    });
+    for (const binding of bindings) {
+      if (role === 'TEACHER' && binding.course.ownerId !== userId) {
+        const previousOwnerId = binding.course.ownerId;
+        await Promise.all([
+          tx.course.update({ where: { id: binding.courseId }, data: { ownerId: userId } }),
+          tx.courseHardRule.updateMany({
+            where: { courseId: binding.courseId, ownerId: previousOwnerId },
+            data: { ownerId: userId },
+          }),
+          tx.notebook.updateMany({
+            where: { courseId: binding.courseId, ownerId: previousOwnerId },
+            data: { ownerId: userId },
+          }),
+          tx.problemImportBatch.updateMany({
+            where: { courseId: binding.courseId, ownerId: previousOwnerId },
+            data: { ownerId: userId },
+          }),
+          tx.courseSource.updateMany({
+            where: { courseId: binding.courseId, ownerId: previousOwnerId },
+            data: { ownerId: userId },
+          }),
+          tx.knowledgeDocument.updateMany({
+            where: { courseId: binding.courseId, ownerId: previousOwnerId },
+            data: { ownerId: userId },
+          }),
+          tx.knowledgeChunk.updateMany({
+            where: { courseId: binding.courseId, ownerId: previousOwnerId },
+            data: { ownerId: userId },
+          }),
+          tx.studyMemory.updateMany({
+            where: { courseId: binding.courseId, ownerId: previousOwnerId },
+            data: { ownerId: userId },
+          }),
+          tx.studyMemoryChunk.updateMany({
+            where: { courseId: binding.courseId, ownerId: previousOwnerId },
+            data: { ownerId: userId },
+          }),
+          tx.memoryKnowledgeCache.updateMany({
+            where: { courseId: binding.courseId, ownerId: previousOwnerId },
+            data: { ownerId: userId },
+          }),
+        ]);
+      }
+      await tx.externalCourseMembership.upsert({
+        where: {
+          bindingId_userId_role: { bindingId: binding.id, userId, role },
+        },
+        update: { active: true, revokedAt: null, lastVerifiedAt: verifiedAt },
+        create: {
+          bindingId: binding.id,
+          userId,
+          role,
+          active: true,
+          lastVerifiedAt: verifiedAt,
+        },
+      });
+    }
+  });
+
+  return bindings;
+}
 
 function parseAcademicPeriod(termName: string | null): {
   academicYear: number | null;
@@ -31,15 +137,19 @@ function parseAcademicPeriod(termName: string | null): {
 }
 
 function courseDescription(course: SpeedupCourse): string {
-  return [course.termName, course.universityAbbrs, 'Speedup AI 课程']
-    .filter((value): value is string => Boolean(value))
-    .join(' · ');
+  return Array.from(
+    new Set(
+      [course.termName, course.universityAbbrs, 'Speedup AI 课程'].filter(
+        (value): value is string => Boolean(value),
+      ),
+    ),
+  ).join(' · ');
 }
 
 function courseTags(course: SpeedupCourse): string[] {
   return Array.from(
     new Set(
-      [course.code, course.termName, course.universityAbbrs, 'Speedup']
+      [course.code, course.termName, course.campusCode, course.universityAbbrs, 'Speedup']
         .filter((value): value is string => Boolean(value))
         .map((value) => value.trim())
         .filter(Boolean),
@@ -53,26 +163,43 @@ export async function listSpeedupTeacherCourseOptions(
   // Integration contract: TeacherCourses already returns only this term's
   // courses that are eligible for AI activation.
   const courses = await listSpeedupCoursesForUser(teacherId, 'TEACHER');
+  await syncSpeedupCourseMemberships(teacherId, 'TEACHER', courses);
   const bindings = courses.length
     ? await prisma.externalCourseBinding.findMany({
         where: {
           provider: SPEEDUP_PROVIDER,
-          externalCourseId: { in: courses.map((course) => course.id) },
+          OR: courses.map((course) => ({
+            campusCode: course.campusCode,
+            externalCourseId: course.id,
+          })),
         },
         select: {
           externalCourseId: true,
+          campusCode: true,
           courseId: true,
-          course: { select: { ownerId: true } },
+          memberships: {
+            where: { userId: teacherId, role: 'TEACHER', active: true },
+            select: { id: true },
+          },
         },
       })
     : [];
   const bindingByExternalId = new Map(
-    bindings.map((binding) => [binding.externalCourseId, binding] as const),
+    bindings.map(
+      (binding) =>
+        [
+          speedupCourseKey({
+            id: binding.externalCourseId,
+            campusCode: binding.campusCode,
+          }),
+          binding,
+        ] as const,
+    ),
   );
 
   return courses.map((course) => {
-    const binding = bindingByExternalId.get(course.id);
-    const ownedByCurrentTeacher = binding?.course.ownerId === teacherId;
+    const binding = bindingByExternalId.get(speedupCourseKey(course));
+    const ownedByCurrentTeacher = Boolean(binding?.memberships.length);
     return {
       ...course,
       isActivated: Boolean(binding),
@@ -85,20 +212,37 @@ export async function listSpeedupTeacherCourseOptions(
 export async function activateSpeedupTeacherCourses(
   teacherId: string,
   externalCourseIds: string[],
-): Promise<Array<{ externalCourseId: string; localCourseId: string; created: boolean }>> {
-  const availableCourses = await listSpeedupCoursesForUser(teacherId, 'TEACHER');
-  const availableById = new Map(availableCourses.map((course) => [course.id, course] as const));
-  const requestedCourses = externalCourseIds.map((externalCourseId) => {
-    const course = availableById.get(externalCourseId);
-    if (!course) {
-      throw new SpeedupSsoError(403, '所选课程不在本学期可开通的 Speedup 课程中。');
-    }
-    return course;
-  });
+  verifiedCourses?: SpeedupCourse[],
+): Promise<
+  Array<{
+    externalCourseId: string;
+    campusCode: string;
+    localCourseId: string;
+    created: boolean;
+  }>
+> {
+  const availableCourses =
+    verifiedCourses ?? (await listSpeedupCoursesForUser(teacherId, 'TEACHER'));
+  await syncSpeedupCourseMemberships(teacherId, 'TEACHER', availableCourses);
+  const requestedIdSet = new Set(externalCourseIds);
+  const requestedCourses = verifiedCourses
+    ? availableCourses.filter((course) => requestedIdSet.has(course.id))
+    : externalCourseIds.map((externalCourseId) => {
+        const matches = availableCourses.filter((course) => course.id === externalCourseId);
+        if (matches.length > 1) {
+          throw new SpeedupSsoError(502, 'Speedup 课程数据包含重复的 CourseId。');
+        }
+        const course = matches[0];
+        if (!course) {
+          throw new SpeedupSsoError(403, '所选课程不在本学期可开通的 Speedup 课程中。');
+        }
+        return course;
+      });
 
   return prisma.$transaction(async (tx) => {
     const activated: Array<{
       externalCourseId: string;
+      campusCode: string;
       localCourseId: string;
       created: boolean;
     }> = [];
@@ -106,20 +250,15 @@ export async function activateSpeedupTeacherCourses(
     for (const externalCourse of requestedCourses) {
       const existing = await tx.externalCourseBinding.findUnique({
         where: {
-          provider_externalCourseId: {
+          provider_campusCode_externalCourseId: {
             provider: SPEEDUP_PROVIDER,
+            campusCode: externalCourse.campusCode,
             externalCourseId: externalCourse.id,
           },
         },
         include: { course: { select: { ownerId: true } } },
       });
       if (existing) {
-        if (existing.course.ownerId !== teacherId) {
-          throw new SpeedupSsoError(
-            409,
-            `课程“${externalCourse.name}”已经由另一位教师开通，请联系管理员处理课程归属。`,
-          );
-        }
         await tx.externalCourseBinding.update({
           where: { id: existing.id },
           data: {
@@ -129,8 +268,24 @@ export async function activateSpeedupTeacherCourses(
             universityAbbrs: externalCourse.universityAbbrs,
           },
         });
+        await tx.externalCourseMembership.upsert({
+          where: {
+            bindingId_userId_role: {
+              bindingId: existing.id,
+              userId: teacherId,
+              role: 'TEACHER',
+            },
+          },
+          update: { active: true, revokedAt: null, lastVerifiedAt: new Date() },
+          create: {
+            bindingId: existing.id,
+            userId: teacherId,
+            role: 'TEACHER',
+          },
+        });
         activated.push({
           externalCourseId: externalCourse.id,
+          campusCode: externalCourse.campusCode,
           localCourseId: existing.courseId,
           created: false,
         });
@@ -146,7 +301,7 @@ export async function activateSpeedupTeacherCourses(
           language: 'zh-CN',
           tags: courseTags(externalCourse),
           purpose: 'university',
-          university: externalCourse.universityAbbrs,
+          university: externalCourse.universityAbbrs || externalCourse.campusCode,
           courseCode: externalCourse.code,
           academicYear: period.academicYear,
           academicTerm: period.academicTerm,
@@ -156,6 +311,7 @@ export async function activateSpeedupTeacherCourses(
       await tx.externalCourseBinding.create({
         data: {
           provider: SPEEDUP_PROVIDER,
+          campusCode: externalCourse.campusCode,
           externalCourseId: externalCourse.id,
           courseId: localCourse.id,
           activatedById: teacherId,
@@ -163,10 +319,14 @@ export async function activateSpeedupTeacherCourses(
           externalCourseCode: externalCourse.code,
           termName: externalCourse.termName,
           universityAbbrs: externalCourse.universityAbbrs,
+          memberships: {
+            create: { userId: teacherId, role: 'TEACHER' },
+          },
         },
       });
       activated.push({
         externalCourseId: externalCourse.id,
+        campusCode: externalCourse.campusCode,
         localCourseId: localCourse.id,
         created: true,
       });
@@ -179,23 +339,23 @@ export async function activateSpeedupTeacherCourses(
 export async function enrollSpeedupStudentCourse(
   studentId: string,
   externalCourseId: string,
+  courses: SpeedupCourse[],
+  requestedCampusCode?: string,
 ): Promise<string> {
-  const binding = await prisma.externalCourseBinding.findUnique({
-    where: {
-      provider_externalCourseId: {
-        provider: SPEEDUP_PROVIDER,
-        externalCourseId,
-      },
-    },
-    select: { courseId: true },
-  });
+  const bindings = await syncSpeedupCourseMemberships(studentId, 'STUDENT', courses);
+  if (bindings.length > 0) {
+    await prisma.courseEnrollment.createMany({
+      data: bindings.map((binding) => ({ userId: studentId, courseId: binding.courseId })),
+      skipDuplicates: true,
+    });
+  }
+  const binding = bindings.find(
+    (candidate) =>
+      candidate.externalCourseId === externalCourseId &&
+      (!requestedCampusCode || candidate.campusCode === requestedCampusCode),
+  );
   if (!binding) {
     throw new SpeedupSsoError(409, '这门 AI 课程尚未由老师开通，请联系任课老师后重试。');
   }
-  await prisma.courseEnrollment.upsert({
-    where: { userId_courseId: { userId: studentId, courseId: binding.courseId } },
-    update: {},
-    create: { userId: studentId, courseId: binding.courseId },
-  });
   return binding.courseId;
 }

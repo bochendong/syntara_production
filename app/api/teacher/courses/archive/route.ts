@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { prisma } from '@/lib/server/prisma';
 import { requireTeacher } from '@/lib/server/teacher-auth';
+import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 
 function currentAcademicPeriod(date = new Date()) {
   const month = date.getMonth() + 1;
@@ -17,7 +18,11 @@ export async function GET() {
     const teacher = await requireTeacher();
     if ('response' in teacher) return teacher.response;
     const rows = await prisma.course.findMany({
-      where: { ownerId: teacher.userId, academicYear: { not: null }, academicTerm: { not: null } },
+      where: {
+        ...teacherCourseAccessWhere(teacher.userId),
+        academicYear: { not: null },
+        academicTerm: { not: null },
+      },
       orderBy: [{ academicYear: 'desc' }, { academicTerm: 'desc' }, { courseCode: 'asc' }],
       select: {
         id: true,

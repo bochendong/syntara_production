@@ -4,6 +4,7 @@ import {
   listCourseEnrollmentsForUser,
   withCourseEnrollmentSchemaFallback,
 } from '@/lib/server/repositories/course-enrollment-repository';
+import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 
 export type CreateOwnedCourseData = Omit<
   Prisma.CourseUncheckedCreateInput,
@@ -17,20 +18,20 @@ export type UpdateOwnedCourseData = Omit<
 
 export function findOwnedCourse(db: DbClient, userId: string, courseId: string) {
   return db.course.findFirst({
-    where: { id: courseId, ownerId: userId },
+    where: { id: courseId, ...teacherCourseAccessWhere(userId) },
   });
 }
 
 export function listOwnedCourses(db: DbClient, userId: string) {
   return db.course.findMany({
-    where: { ownerId: userId },
+    where: teacherCourseAccessWhere(userId),
     orderBy: { updatedAt: 'desc' },
   });
 }
 
 export function listOwnedCoursesWithCloneSourceOwner(db: DbClient, userId: string) {
   return db.course.findMany({
-    where: { ownerId: userId },
+    where: teacherCourseAccessWhere(userId),
     orderBy: { updatedAt: 'desc' },
     include: {
       clonePurchase: {
@@ -77,15 +78,39 @@ export function listAccessibleCoursesForUser(
       "JoinedCourse" AS (
         SELECT "courseId", MAX("joinedAt") AS "joinedAt"
         FROM (
-          SELECT "courseId", "joinedAt"
-          FROM "CourseEnrollment"
-          WHERE "userId" = (SELECT "id" FROM "ResolvedUser")
+          SELECT "enrollment"."courseId", "enrollment"."joinedAt"
+          FROM "CourseEnrollment" AS "enrollment"
+          LEFT JOIN "ExternalCourseBinding" AS "enrollmentBinding"
+            ON "enrollmentBinding"."courseId" = "enrollment"."courseId"
+          WHERE "enrollment"."userId" = (SELECT "id" FROM "ResolvedUser")
+            AND (
+              "enrollmentBinding"."id" IS NULL
+              OR EXISTS (
+                SELECT 1 FROM "ExternalCourseMembership" AS "studentMembership"
+                WHERE "studentMembership"."bindingId" = "enrollmentBinding"."id"
+                  AND "studentMembership"."userId" = (SELECT "id" FROM "ResolvedUser")
+                  AND "studentMembership"."role" = 'STUDENT'::"ExternalCourseMemberRole"
+                  AND "studentMembership"."active" = true
+              )
+            )
 
           UNION ALL
 
-          SELECT "sourceCourseId" AS "courseId", "createdAt" AS "joinedAt"
-          FROM "CoursePurchase"
-          WHERE "buyerId" = (SELECT "id" FROM "ResolvedUser")
+          SELECT "purchase"."sourceCourseId" AS "courseId", "purchase"."createdAt" AS "joinedAt"
+          FROM "CoursePurchase" AS "purchase"
+          LEFT JOIN "ExternalCourseBinding" AS "purchaseBinding"
+            ON "purchaseBinding"."courseId" = "purchase"."sourceCourseId"
+          WHERE "purchase"."buyerId" = (SELECT "id" FROM "ResolvedUser")
+            AND (
+              "purchaseBinding"."id" IS NULL
+              OR EXISTS (
+                SELECT 1 FROM "ExternalCourseMembership" AS "studentMembership"
+                WHERE "studentMembership"."bindingId" = "purchaseBinding"."id"
+                  AND "studentMembership"."userId" = (SELECT "id" FROM "ResolvedUser")
+                  AND "studentMembership"."role" = 'STUDENT'::"ExternalCourseMemberRole"
+                  AND "studentMembership"."active" = true
+              )
+            )
         ) AS "JoinedSource"
         GROUP BY "courseId"
       ),
@@ -131,7 +156,21 @@ export function listAccessibleCoursesForUser(
           ON "sourceCourse"."id" = "clonePurchase"."sourceCourseId"
         LEFT JOIN "User" AS "sourceOwner"
           ON "sourceOwner"."id" = "sourceCourse"."ownerId"
-        WHERE "course"."ownerId" = (SELECT "id" FROM "ResolvedUser")
+        LEFT JOIN "ExternalCourseBinding" AS "ownerBinding"
+          ON "ownerBinding"."courseId" = "course"."id"
+        WHERE (
+          (
+            "ownerBinding"."id" IS NULL
+            AND "course"."ownerId" = (SELECT "id" FROM "ResolvedUser")
+          )
+          OR EXISTS (
+            SELECT 1 FROM "ExternalCourseMembership" AS "teacherMembership"
+            WHERE "teacherMembership"."bindingId" = "ownerBinding"."id"
+              AND "teacherMembership"."userId" = (SELECT "id" FROM "ResolvedUser")
+              AND "teacherMembership"."role" = 'TEACHER'::"ExternalCourseMemberRole"
+              AND "teacherMembership"."active" = true
+          )
+        )
 
         UNION ALL
 
@@ -169,7 +208,21 @@ export function listAccessibleCoursesForUser(
         FROM "JoinedCourse" AS "joined"
         INNER JOIN "Course" AS "course" ON "course"."id" = "joined"."courseId"
         INNER JOIN "User" AS "owner" ON "owner"."id" = "course"."ownerId"
-        WHERE "course"."ownerId" <> (SELECT "id" FROM "ResolvedUser")
+        LEFT JOIN "ExternalCourseBinding" AS "joinedBinding"
+          ON "joinedBinding"."courseId" = "course"."id"
+        WHERE NOT (
+          (
+            "joinedBinding"."id" IS NULL
+            AND "course"."ownerId" = (SELECT "id" FROM "ResolvedUser")
+          )
+          OR EXISTS (
+            SELECT 1 FROM "ExternalCourseMembership" AS "teacherMembership"
+            WHERE "teacherMembership"."bindingId" = "joinedBinding"."id"
+              AND "teacherMembership"."userId" = (SELECT "id" FROM "ResolvedUser")
+              AND "teacherMembership"."role" = 'TEACHER'::"ExternalCourseMemberRole"
+              AND "teacherMembership"."active" = true
+          )
+        )
       )
       SELECT
         "id",
@@ -282,7 +335,7 @@ export async function updateOwnedCourse(
   data: UpdateOwnedCourseData,
 ) {
   const result = await db.course.updateMany({
-    where: { id: courseId, ownerId: userId },
+    where: { id: courseId, ...teacherCourseAccessWhere(userId) },
     data,
   });
   if (result.count === 0) return null;

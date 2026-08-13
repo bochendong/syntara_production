@@ -1207,7 +1207,21 @@ async function loadCourseProblemsForUserFast(args: {
         n."name" AS "notebookName",
         n."courseId" AS "notebookCourseId",
         CASE
-          WHEN c."ownerId" = ${args.userId} THEN s."secretJudgeJson"
+          WHEN (
+            (
+              NOT EXISTS (SELECT 1 FROM "ExternalCourseBinding" b WHERE b."courseId" = c."id")
+              AND c."ownerId" = ${args.userId}
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM "ExternalCourseBinding" b
+              JOIN "ExternalCourseMembership" m ON m."bindingId" = b."id"
+              WHERE b."courseId" = c."id"
+                AND m."userId" = ${args.userId}
+                AND m."role" = 'TEACHER'::"ExternalCourseMemberRole"
+                AND m."active" = true
+            )
+          ) THEN s."secretJudgeJson"
           ELSE NULL
         END AS "secretJudgeJson",
         a."id" AS "latestAttemptId",
@@ -1223,11 +1237,37 @@ async function loadCourseProblemsForUserFast(args: {
       LEFT JOIN "NotebookProblemAttempt" a ON a."id" = g."latestAttemptId"
       WHERE p."courseId" = ${args.courseId}
         AND (
-          c."ownerId" = ${args.userId}
+          (
+            NOT EXISTS (SELECT 1 FROM "ExternalCourseBinding" b WHERE b."courseId" = c."id")
+            AND c."ownerId" = ${args.userId}
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM "ExternalCourseBinding" b
+            JOIN "ExternalCourseMembership" m ON m."bindingId" = b."id"
+            WHERE b."courseId" = c."id"
+              AND m."userId" = ${args.userId}
+              AND m."role" = 'TEACHER'::"ExternalCourseMemberRole"
+              AND m."active" = true
+          )
           OR EXISTS (
             SELECT 1
             FROM "CourseEnrollment" e
             WHERE e."courseId" = c."id" AND e."userId" = ${args.userId}
+              AND (
+                NOT EXISTS (
+                  SELECT 1 FROM "ExternalCourseBinding" b WHERE b."courseId" = c."id"
+                )
+                OR EXISTS (
+                  SELECT 1
+                  FROM "ExternalCourseBinding" b
+                  JOIN "ExternalCourseMembership" m ON m."bindingId" = b."id"
+                  WHERE b."courseId" = c."id"
+                    AND m."userId" = ${args.userId}
+                    AND m."role" = 'STUDENT'::"ExternalCourseMemberRole"
+                    AND m."active" = true
+                )
+              )
           )
           OR EXISTS (
             SELECT 1
@@ -1298,13 +1338,36 @@ function reviewProblemTargetAccessSql(args: {
       )
     )
     AND (
-      n."ownerId" = ${args.userId}
-      OR c."ownerId" = ${args.userId}
+      (
+        NOT EXISTS (SELECT 1 FROM "ExternalCourseBinding" b WHERE b."courseId" = c."id")
+        AND (n."ownerId" = ${args.userId} OR c."ownerId" = ${args.userId})
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM "ExternalCourseBinding" b
+        JOIN "ExternalCourseMembership" m ON m."bindingId" = b."id"
+        WHERE b."courseId" = c."id"
+          AND m."userId" = ${args.userId}
+          AND m."role" = 'TEACHER'::"ExternalCourseMemberRole"
+          AND m."active" = true
+      )
       OR EXISTS (
         SELECT 1
         FROM "CourseEnrollment" AS enrollment
         WHERE enrollment."courseId" = c."id"
           AND enrollment."userId" = ${args.userId}
+          AND (
+            NOT EXISTS (SELECT 1 FROM "ExternalCourseBinding" b WHERE b."courseId" = c."id")
+            OR EXISTS (
+              SELECT 1
+              FROM "ExternalCourseBinding" b
+              JOIN "ExternalCourseMembership" m ON m."bindingId" = b."id"
+              WHERE b."courseId" = c."id"
+                AND m."userId" = ${args.userId}
+                AND m."role" = 'STUDENT'::"ExternalCourseMemberRole"
+                AND m."active" = true
+            )
+          )
       )
       OR EXISTS (
         SELECT 1

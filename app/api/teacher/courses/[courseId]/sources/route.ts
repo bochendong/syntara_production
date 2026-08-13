@@ -6,6 +6,7 @@ import { prisma } from '@/lib/server/prisma';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { requireTeacher } from '@/lib/server/teacher-auth';
 import { toPrismaJson } from '@/lib/server/prisma-json';
+import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -23,7 +24,7 @@ export async function POST(request: Request, context: { params: Promise<{ course
     if ('response' in teacher) return teacher.response;
     const { courseId } = await context.params;
     const course = await prisma.course.findFirst({
-      where: { id: courseId, ownerId: teacher.userId },
+      where: { id: courseId, ...teacherCourseAccessWhere(teacher.userId) },
       select: { id: true },
     });
     if (!course) return NextResponse.json({ error: 'Course not found' }, { status: 404 });

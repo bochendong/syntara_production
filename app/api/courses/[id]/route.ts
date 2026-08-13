@@ -68,9 +68,10 @@ function courseDetailFlights() {
 }
 
 async function readCourseDetail(userId: string, courseId: string): Promise<CourseDetailRow | null> {
-  // The course shell is opened alongside notebooks and the problem summary.
-  // Resolve the course, owner label, and access role in one scarce remote-pool
-  // lease so two tabs cannot turn one visible navigation into several queries.
+  const accessRole = await findCourseAccessRole(prisma, userId, courseId);
+  if (!accessRole) return null;
+  // Resolve Speedup-backed access first so inactive external memberships cannot
+  // use a stale enrollment or historical owner id to reopen the course.
   const rows = await withCourseEnrollmentSchemaFallback(
     prisma,
     () =>
@@ -79,19 +80,7 @@ async function readCourseDetail(userId: string, courseId: string): Promise<Cours
           course.*,
           owner."name" AS "ownerName",
           owner."email" AS "ownerEmail",
-          CASE
-            WHEN course."ownerId" = ${userId} THEN 'owner'
-            WHEN EXISTS (
-              SELECT 1
-              FROM "CourseEnrollment"
-              WHERE "userId" = ${userId} AND "courseId" = ${courseId}
-            ) OR EXISTS (
-              SELECT 1
-              FROM "CoursePurchase"
-              WHERE "buyerId" = ${userId} AND "sourceCourseId" = ${courseId}
-            ) THEN 'enrolled'
-            ELSE NULL
-          END AS "accessRole"
+          ${accessRole}::text AS "accessRole"
         FROM "Course" AS course
         INNER JOIN "User" AS owner ON owner."id" = course."ownerId"
         WHERE course."id" = ${courseId}
@@ -270,6 +259,16 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     }
 
     if (accessRole === 'owner') {
+      const externalBinding = await prisma.externalCourseBinding.findUnique({
+        where: { courseId: id },
+        select: { id: true },
+      });
+      if (externalBinding) {
+        return NextResponse.json(
+          { error: 'Speedup 托管课程不能在 Syntara 中永久删除。' },
+          { status: 409 },
+        );
+      }
       await deleteOwnedCourseWithNotebooks(prisma, userId, id);
       return NextResponse.json({ ok: true, action: 'deleted' });
     }

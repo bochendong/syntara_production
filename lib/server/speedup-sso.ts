@@ -11,11 +11,24 @@ export type SpeedupUserRole = 'STUDENT' | 'TEACHER';
 
 export type SpeedupCourse = {
   id: string;
+  /** Internal normalized campus key, sourced from Speedup UniversityAbbrs. */
+  campusCode: string;
   name: string;
   code: string | null;
   termName: string | null;
   universityAbbrs: string | null;
 };
+
+export function normalizeSpeedupUniversityAbbrs(value: string | null | undefined): string {
+  const normalized = (value || '')
+    .normalize('NFKC')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120);
+  return normalized || 'UNKNOWN';
+}
 
 export type SpeedupVerifiedIdentity = {
   accessToken: string;
@@ -26,6 +39,7 @@ export type SpeedupVerifiedIdentity = {
   studentId: string | null;
   teacherId: string | null;
   course: SpeedupCourse;
+  courses: SpeedupCourse[];
 };
 
 export class SpeedupSsoError extends Error {
@@ -140,13 +154,15 @@ function resolveRole(exchange: JsonRecord): SpeedupUserRole {
 
 function speedupCourseFromRecord(course: JsonRecord): SpeedupCourse | null {
   const id = stringValue(course, 'CourseId', 'courseId');
-  if (!id) return null;
+  const universityAbbrs = stringValue(course, 'UniversityAbbrs', 'universityAbbrs');
+  if (!id || !universityAbbrs) return null;
   return {
     id,
+    campusCode: normalizeSpeedupUniversityAbbrs(universityAbbrs),
     name: stringValue(course, 'CourseName', 'courseName') || `课程 ${id}`,
     code: stringValue(course, 'CourseCode', 'courseCode'),
     termName: stringValue(course, 'TermName', 'termName'),
-    universityAbbrs: stringValue(course, 'UniversityAbbrs', 'universityAbbrs'),
+    universityAbbrs,
   };
 }
 
@@ -188,14 +204,20 @@ async function verifyCourseAccess(
   accessToken: string,
   role: SpeedupUserRole,
   requestedCourseId: string,
-): Promise<SpeedupCourse> {
-  const matchedCourse = (await fetchSpeedupCourses(accessToken, role)).find(
-    (course) => course.id === requestedCourseId,
-  );
+): Promise<{ course: SpeedupCourse; courses: SpeedupCourse[] }> {
+  const courses = await fetchSpeedupCourses(accessToken, role);
+  const matchingIds = courses.filter((course) => course.id === requestedCourseId);
+  if (matchingIds.length > 1) {
+    throw new SpeedupSsoError(
+      502,
+      'Speedup 课程数据包含重复的 CourseId，请联系管理员检查课程配置。',
+    );
+  }
+  const matchedCourse = matchingIds[0];
   if (!matchedCourse) {
     throw new SpeedupSsoError(403, '当前账号没有该课程的访问权限。');
   }
-  return matchedCourse;
+  return { course: matchedCourse, courses };
 }
 
 export async function listSpeedupCoursesForUser(
@@ -232,7 +254,7 @@ export async function verifySpeedupCallback(
   }
 
   const role = resolveRole(exchange);
-  const course = await verifyCourseAccess(accessToken, role, requestedCourseId);
+  const { course, courses } = await verifyCourseAccess(accessToken, role, requestedCourseId);
   const expiresIn = Math.max(
     60,
     Math.min(
@@ -250,6 +272,7 @@ export async function verifySpeedupCallback(
     studentId: stringValue(exchange, 'StudentId', 'studentId'),
     teacherId: stringValue(exchange, 'TeacherId', 'teacherId'),
     course,
+    courses,
   };
 }
 

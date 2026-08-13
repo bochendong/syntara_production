@@ -5,6 +5,7 @@ import { safeRoute } from '@/lib/server/json-error-response';
 import { prisma } from '@/lib/server/prisma';
 import { toPrismaJson } from '@/lib/server/prisma-json';
 import { requireTeacher } from '@/lib/server/teacher-auth';
+import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 
 const payloadSchema = z.object({
   sourceCourseId: z.string().trim().min(1),
@@ -28,11 +29,11 @@ export async function POST(request: Request) {
     }
     const [sourceCourse, targetCourse] = await Promise.all([
       prisma.course.findFirst({
-        where: { id: input.sourceCourseId, ownerId: teacher.userId },
+        where: { id: input.sourceCourseId, ...teacherCourseAccessWhere(teacher.userId) },
         select: { id: true, name: true, courseCode: true, academicYear: true, academicTerm: true },
       }),
       prisma.course.findFirst({
-        where: { id: input.targetCourseId, ownerId: teacher.userId },
+        where: { id: input.targetCourseId, ...teacherCourseAccessWhere(teacher.userId) },
         select: { id: true, name: true, courseCode: true, academicYear: true, academicTerm: true },
       }),
     ]);

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/server/prisma';
 import { toPrismaJson } from '@/lib/server/prisma-json';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { requireTeacher } from '@/lib/server/teacher-auth';
+import { hasTeacherCourseAccess } from '@/lib/server/external-course-access';
 
 const schema = z.object({
   notebookIds: z
@@ -25,6 +26,9 @@ export async function PUT(request: Request, context: { params: Promise<{ courseI
     const teacher = await requireTeacher();
     if ('response' in teacher) return teacher.response;
     const { courseId } = await context.params;
+    if (!(await hasTeacherCourseAccess(prisma, teacher.userId, courseId))) {
+      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
     const payload = schema.safeParse(await request.json().catch(() => null));
     if (!payload.success) return NextResponse.json({ error: '笔记本顺序无效' }, { status: 400 });
     const notebooks = await prisma.notebook.findMany({

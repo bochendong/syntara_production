@@ -6,6 +6,7 @@ import {
   type LearnerAnalyticsTimeScope,
 } from '@/lib/server/memory-learner-analytics';
 import type { MemorySearchIntent, MemorySearchIntentKind } from '@/lib/server/memory-search-intent';
+import { findCourseAccessRole } from '@/lib/server/repositories/course-enrollment-repository';
 
 export type CourseAgentLearningFocus = 'questions' | 'status' | 'weakness' | 'all';
 
@@ -122,8 +123,24 @@ async function enrolledStudents(
   prisma: PrismaClient,
   courseId: string,
 ): Promise<EnrolledStudent[]> {
+  const binding = await prisma.externalCourseBinding.findUnique({
+    where: { courseId },
+    select: { id: true },
+  });
   const rows = await prisma.courseEnrollment.findMany({
-    where: { courseId, user: { isActive: true } },
+    where: {
+      courseId,
+      user: {
+        isActive: true,
+        ...(binding
+          ? {
+              externalCourseMemberships: {
+                some: { bindingId: binding.id, role: 'STUDENT', active: true },
+              },
+            }
+          : {}),
+      },
+    },
     select: { user: { select: { id: true, name: true, email: true } } },
     orderBy: { joinedAt: 'desc' },
   });
@@ -399,11 +416,10 @@ export async function recordCourseLearnerSignal(args: {
     };
   }
 
-  const enrollment = await args.prisma.courseEnrollment.findUnique({
-    where: { userId_courseId: { userId: args.userId, courseId: args.courseId } },
-    select: { id: true },
-  });
-  if (!enrollment) return { recorded: false as const, reason: '当前用户不在这门课程中。' };
+  const accessRole = await findCourseAccessRole(args.prisma, args.userId, args.courseId);
+  if (accessRole !== 'enrolled') {
+    return { recorded: false as const, reason: '当前用户不在这门课程中。' };
+  }
 
   const memoryId = stableCourseMemoryId(args.userId, args.courseId, pointKey);
   const existing = await args.prisma.studyMemory.findUnique({ where: { id: memoryId } });
