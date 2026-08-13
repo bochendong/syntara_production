@@ -8,6 +8,7 @@ import {
   requireCourseForumAccess,
 } from '@/features/course-forum/server/course-forum-access';
 import type { CourseForumStatusFilter } from '@/features/course-forum/domain/course-forum';
+import { ensureCourseForumWelcomePost } from '@/features/course-forum/server/course-forum-welcome';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,7 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
     const { courseId } = await context.params;
     const access = await requireCourseForumAccess(courseId);
     if (!access.ok) return access.response;
+    await ensureCourseForumWelcomePost(access.course);
 
     const url = new URL(request.url);
     const filter = statusFilter(url.searchParams.get('status'));
@@ -56,6 +58,7 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
     const requestedPostId = url.searchParams.get('postId')?.trim() || '';
     const where = {
       courseId,
+      pinnedAt: null,
       ...(filter === 'resolved'
         ? { resolvedAt: { not: null } }
         : filter === 'unresolved'
@@ -70,10 +73,39 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
           }
         : {}),
     };
+    const pinnedWhere = {
+      courseId,
+      pinnedAt: { not: null },
+      ...(search
+        ? {
+            OR: [
+              { title: { contains: search, mode: 'insensitive' as const } },
+              { bodyMarkdown: { contains: search, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+    };
 
-    const [unresolvedCount, totalCount, posts] = await prisma.$transaction([
-      prisma.courseForumPost.count({ where: { courseId, resolvedAt: null } }),
-      prisma.courseForumPost.count({ where: { courseId } }),
+    const [unresolvedCount, totalCount, pinnedPosts, posts] = await prisma.$transaction([
+      prisma.courseForumPost.count({ where: { courseId, systemKey: null, resolvedAt: null } }),
+      prisma.courseForumPost.count({ where: { courseId, systemKey: null } }),
+      prisma.courseForumPost.findMany({
+        where: pinnedWhere,
+        orderBy: { pinnedAt: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          title: true,
+          bodyMarkdown: true,
+          resolvedAt: true,
+          pinnedAt: true,
+          systemKey: true,
+          createdAt: true,
+          updatedAt: true,
+          author: { select: authorSelect },
+          _count: { select: { answers: true, comments: true, attachments: true } },
+        },
+      }),
       prisma.courseForumPost.findMany({
         where,
         orderBy: [{ resolvedAt: 'asc' }, { updatedAt: 'desc' }],
@@ -83,6 +115,8 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
           title: true,
           bodyMarkdown: true,
           resolvedAt: true,
+          pinnedAt: true,
+          systemKey: true,
           createdAt: true,
           updatedAt: true,
           author: { select: authorSelect },
@@ -92,9 +126,9 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
     ]);
 
     const selectedPostId =
-      (requestedPostId && posts.some((post) => post.id === requestedPostId)
+      (requestedPostId && [...pinnedPosts, ...posts].some((post) => post.id === requestedPostId)
         ? requestedPostId
-        : posts[0]?.id) || '';
+        : pinnedPosts[0]?.id || posts[0]?.id) || '';
     const selected = selectedPostId
       ? await prisma.courseForumPost.findFirst({
           where: { id: selectedPostId, courseId },
@@ -103,6 +137,8 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
             title: true,
             bodyMarkdown: true,
             resolvedAt: true,
+            pinnedAt: true,
+            systemKey: true,
             createdAt: true,
             updatedAt: true,
             author: { select: authorSelect },
@@ -140,6 +176,9 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
       bodyPreview: bodyPreview(post.bodyMarkdown),
       author: forumAuthor(post.author, access.course.ownerId),
       resolved: Boolean(post.resolvedAt),
+      pinned: Boolean(post.pinnedAt),
+      pinnedAt: post.pinnedAt?.toISOString() || null,
+      isWelcome: Boolean(post.systemKey),
       answerCount: post._count.answers,
       commentCount: post._count.comments,
       attachmentCount: post._count.attachments,
@@ -154,6 +193,9 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
           bodyPreview: bodyPreview(selected.bodyMarkdown),
           author: forumAuthor(selected.author, access.course.ownerId),
           resolved: Boolean(selected.resolvedAt),
+          pinned: Boolean(selected.pinnedAt),
+          pinnedAt: selected.pinnedAt?.toISOString() || null,
+          isWelcome: Boolean(selected.systemKey),
           answerCount: selected._count.answers,
           commentCount: selected._count.comments,
           attachmentCount: selected._count.attachments,
@@ -177,6 +219,7 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
         },
         unresolvedCount,
         totalCount,
+        pinnedPosts: pinnedPosts.map(mapSummary),
         posts: posts.map(mapSummary),
         selectedPost:
           selected && selectedSummary

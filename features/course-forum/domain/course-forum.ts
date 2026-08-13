@@ -22,6 +22,9 @@ export type CourseForumPostSummary = {
   bodyPreview: string;
   author: CourseForumAuthor;
   resolved: boolean;
+  pinned: boolean;
+  pinnedAt: string | null;
+  isWelcome: boolean;
   answerCount: number;
   commentCount: number;
   attachmentCount: number;
@@ -66,6 +69,7 @@ export type CourseForumSnapshot = {
   viewer: CourseForumAuthor & { accessRole: 'owner' | 'enrolled' };
   unresolvedCount: number;
   totalCount: number;
+  pinnedPosts: CourseForumPostSummary[];
   posts: CourseForumPostSummary[];
   selectedPost: CourseForumPostDetail | null;
 };

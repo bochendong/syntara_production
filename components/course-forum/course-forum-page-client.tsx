@@ -13,6 +13,8 @@ import {
   MessageCircle,
   MessageSquareReply,
   Paperclip,
+  Pin,
+  PinOff,
   Plus,
   RefreshCw,
   Search,
@@ -444,6 +446,31 @@ export function CourseForumPageClient({
     }
   };
 
+  const togglePin = async () => {
+    if (!selected || !isTeacher || savingAction) return;
+    setSavingAction(`pin:${selected.id}`);
+    setError('');
+    try {
+      const response = await backendFetch(
+        `/api/course-forum/${encodeURIComponent(courseId)}/posts/${encodeURIComponent(selected.id)}/pin`,
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ pinned: !selected.pinned }),
+          timeoutMs: 20_000,
+        },
+      );
+      if (!response.ok) {
+        throw new Error(await requestError(response, selected.pinned ? '取消置顶失败' : '置顶失败'));
+      }
+      await load({ postId: selected.id, quiet: true });
+    } catch (pinError) {
+      setError(pinError instanceof Error ? pinError.message : '更新置顶状态失败');
+    } finally {
+      setSavingAction('');
+    }
+  };
+
   const deleteComment = async (commentId: string) => {
     if (!selected || savingAction || !window.confirm('确定删除这条评论吗？')) return;
     setSavingAction(`delete:${commentId}`);
@@ -577,6 +604,40 @@ export function CourseForumPageClient({
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
+              {snapshot?.pinnedPosts.length ? (
+                <section className="border-b border-violet-200/70 bg-violet-50/65 px-3 py-3 dark:border-violet-400/20 dark:bg-violet-400/[0.07]">
+                  <div className="mb-2 flex items-center gap-1.5 px-1 text-[11px] font-bold tracking-wide text-violet-700 dark:text-violet-200">
+                    <Pin className="size-3.5 fill-current" />
+                    置顶
+                  </div>
+                  <div className="space-y-2">
+                    {snapshot.pinnedPosts.map((post) => (
+                      <button
+                        key={post.id}
+                        type="button"
+                        onClick={() => openPost(post.id)}
+                        className={cn(
+                          'w-full rounded-xl border border-violet-200/80 bg-white/90 px-3 py-3 text-left shadow-sm transition hover:border-violet-300 hover:bg-white dark:border-violet-400/20 dark:bg-white/5 dark:hover:bg-white/10',
+                          selected?.id === post.id &&
+                            'border-violet-400 ring-2 ring-violet-200/70 dark:border-violet-300/50 dark:ring-violet-400/20',
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <h2 className="line-clamp-2 min-w-0 flex-1 text-sm font-semibold leading-5">
+                            {post.title}
+                          </h2>
+                          <Badge className="h-5 shrink-0 bg-violet-600 px-1.5 text-[10px] text-white hover:bg-violet-600">
+                            {post.isWelcome ? '指南' : '置顶'}
+                          </Badge>
+                        </div>
+                        <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                          {post.bodyPreview}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
               {snapshot?.posts.length ? (
                 <div className="divide-y divide-slate-200/80 dark:divide-white/10">
                   {snapshot.posts.map((post) => (
@@ -640,7 +701,13 @@ export function CourseForumPageClient({
               <div className="mx-auto max-w-4xl px-5 py-5 sm:px-8 sm:py-6">
                 <article>
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0 flex-1">
+                      {selected.pinned ? (
+                        <Badge className="mb-2 bg-violet-600 text-white hover:bg-violet-600">
+                          <Pin className="size-3 fill-current" />
+                          {selected.isWelcome ? '论坛指南' : '置顶'}
+                        </Badge>
+                      ) : null}
                       <Badge
                         className={cn(
                           selected.resolved
@@ -659,6 +726,24 @@ export function CourseForumPageClient({
                         {selected.title}
                       </h2>
                     </div>
+                    {isTeacher ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl text-xs"
+                        disabled={Boolean(savingAction)}
+                        onClick={() => void togglePin()}
+                      >
+                        {savingAction === `pin:${selected.id}` ? (
+                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                        ) : selected.pinned ? (
+                          <PinOff className="mr-1.5 size-3.5" />
+                        ) : (
+                          <Pin className="mr-1.5 size-3.5" />
+                        )}
+                        {selected.pinned ? '取消置顶' : '置顶帖子'}
+                      </Button>
+                    ) : null}
                   </div>
                   <div className="mt-3">
                     <AuthorLine author={selected.author} time={selected.createdAt} label="提问者" />

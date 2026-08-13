@@ -241,6 +241,7 @@ model User {
   learningCalendarEvents    LearningCalendarEvent[]
   calendarMutations         LearningCalendarMutation[]
   forumPosts                CourseForumPost[]          @relation("CourseForumPostAuthor")
+  pinnedForumPosts          CourseForumPost[]          @relation("CourseForumPostPinnedBy")
   forumAnswers              CourseForumAnswer[]        @relation("CourseForumAnswerAuthor")
   acceptedForumAnswers      CourseForumAnswer[]        @relation("CourseForumAnswerAcceptedBy")
   forumComments             CourseForumComment[]       @relation("CourseForumCommentAuthor")
@@ -1383,9 +1384,13 @@ model CourseForumPost {
   title        String    @db.VarChar(200)
   bodyMarkdown String    @db.Text
   resolvedAt   DateTime?
+  pinnedAt     DateTime?
+  pinnedById   String?
+  systemKey    String?   @db.VarChar(80)
 
   course      Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   author      User                    @relation("CourseForumPostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  pinnedBy    User?                   @relation("CourseForumPostPinnedBy", fields: [pinnedById], references: [id], onDelete: SetNull)
   answers     CourseForumAnswer[]
   comments    CourseForumComment[]
   attachments CourseForumAttachment[]
@@ -1393,7 +1398,9 @@ model CourseForumPost {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([courseId, systemKey])
   @@index([courseId, resolvedAt, updatedAt(sort: Desc)])
+  @@index([courseId, pinnedAt(sort: Desc)])
   @@index([authorId, createdAt(sort: Desc)])
 }
 
