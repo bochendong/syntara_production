@@ -17,6 +17,7 @@ export type SpeedupCourse = {
   code: string | null;
   termName: string | null;
   universityAbbrs: string | null;
+  teacherName: string | null;
 };
 
 export function normalizeSpeedupUniversityAbbrs(value: string | null | undefined): string {
@@ -35,6 +36,7 @@ export type SpeedupVerifiedIdentity = {
   expiresIn: number;
   externalUserId: string;
   name: string;
+  image: string | null;
   role: SpeedupUserRole;
   studentId: string | null;
   teacherId: string | null;
@@ -163,7 +165,26 @@ function speedupCourseFromRecord(course: JsonRecord): SpeedupCourse | null {
     code: stringValue(course, 'CourseCode', 'courseCode'),
     termName: stringValue(course, 'TermName', 'termName'),
     universityAbbrs,
+    teacherName: stringValue(course, 'TeacherName', 'teacherName'),
   };
+}
+
+function speedupIdentityName(
+  exchange: JsonRecord,
+  role: SpeedupUserRole,
+  courses: SpeedupCourse[],
+): string {
+  const exchangedName = stringValue(exchange, 'DisplayName', 'displayName', 'Name', 'name');
+  if (exchangedName && !/^\d{6,}$/u.test(exchangedName)) return exchangedName;
+
+  if (role === 'TEACHER') {
+    const teacherName = courses
+      .map((course) => course.teacherName)
+      .find((name): name is string => Boolean(name && !/^\d{6,}$/u.test(name)));
+    if (teacherName) return teacherName;
+    return '课程老师';
+  }
+  return '课程同学';
 }
 
 async function fetchSpeedupCourses(
@@ -267,7 +288,8 @@ export async function verifySpeedupCallback(
     accessToken,
     expiresIn,
     externalUserId,
-    name: stringValue(exchange, 'Name', 'name') || `Speedup 用户 ${externalUserId}`,
+    name: speedupIdentityName(exchange, role, courses),
+    image: stringValue(exchange, 'AvatarUrl', 'avatarUrl', 'Avatar', 'avatar', 'Image', 'image'),
     role,
     studentId: stringValue(exchange, 'StudentId', 'studentId'),
     teacherId: stringValue(exchange, 'TeacherId', 'teacherId'),
@@ -320,6 +342,7 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
           where: { id: existingAccount.userId },
           data: {
             name: identity.name,
+            ...(identity.image ? { image: identity.image } : {}),
             role: identity.role,
             isActive: true,
           },
@@ -331,6 +354,7 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
       user = await prisma.user.create({
         data: {
           name: identity.name,
+          image: identity.image,
           role: identity.role,
           isActive: true,
           accounts: {

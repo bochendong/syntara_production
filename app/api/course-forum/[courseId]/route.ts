@@ -29,6 +29,11 @@ function bodyPreview(markdown: string) {
   return markdown
     .replace(/```[\s\S]*?```/g, ' [代码] ')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' [图片] ')
+    .replace(/\\begin\{([^}]+)\}[\s\S]*?\\end\{\1\}/g, ' [公式] ')
+    .replace(/\$\$[\s\S]*?\$\$/g, ' [公式] ')
+    .replace(/\$[^$\n]*\$/g, ' [公式] ')
+    .replace(/\\[A-Za-z]+/g, ' ')
+    .replace(/[${}]/g, ' ')
     .replace(/[`*_>#\-[\]()]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()

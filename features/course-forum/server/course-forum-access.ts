@@ -36,7 +36,7 @@ type CourseForumAccessResult =
 
 export function courseForumDisplayName(user: { name: string | null; email: string | null }) {
   const name = user.name?.trim();
-  if (name) return name;
+  if (name && !/^\d{6,}$/u.test(name)) return name;
   const email = user.email?.trim();
   if (email) return email.split('@')[0] || email;
   return '课程成员';
@@ -125,11 +125,13 @@ export function forumAuthor(
   },
   teacherId: string,
 ) {
+  const isTeacher = user.id === teacherId;
+  const displayName = courseForumDisplayName(user);
   return {
     id: user.id,
-    name: courseForumDisplayName(user),
+    name: displayName === '课程成员' ? (isTeacher ? '课程老师' : '课程同学') : displayName,
     image: user.image,
-    isTeacher: user.id === teacherId,
+    isTeacher,
   };
 }
 

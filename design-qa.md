@@ -117,6 +117,44 @@
 
 final result: passed
 
+# 课程论坛作者信息与紧凑阅读区 Design QA — 2026-08-13
+
+## Evidence
+
+- Source visual truth: `/Users/dongpochen/Desktop/截屏2026-08-13 下午9.31.45.png` (`1500 × 612` px).
+- Browser-rendered implementation: in-app Browser capture of the production `CourseForumPageClient` at `1280 × 720` CSS px using the same resolved-post state and representative author records.
+- State: one resolved post, one accepted answer, mathematical Markdown body, real repository avatar assets for both authors.
+- Focused comparison: the complete forum split view was readable in the full-view capture, so no extra crop was needed.
+
+## Findings
+
+- The list preview now replaces inline/display/bare LaTeX structures with `[公式]`; no `\\mathbb`, `\\frac`, or delimiter source remains visible in the left pane.
+- List and detail author time both use `createdAt`, eliminating the previous 10-minute/22-minute mismatch.
+- Detail title, author, body, answers, and comments use tighter vertical spacing; title-to-author and author-to-body gaps are reduced without crowding the formulas.
+- Question and answer author rows show a real avatar, display name, role, and time. Numeric Speedup account names are no longer exposed; the product profile nickname/avatar can sync to the server-backed user record.
+- At `1280px` the page had `scrollWidth === innerWidth`, with no horizontal overflow.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing Syntara type scale and weights are preserved; author labels move inline to reduce height while retaining hierarchy.
+- Spacing and layout rhythm: detail top padding is reduced from 32px to 24px at desktop; major section gaps are reduced from 40/32px to 28/24px.
+- Colors and visual tokens: existing violet identity and emerald resolved/accepted tokens remain unchanged.
+- Image quality and asset fidelity: QA used the repository's AVIF profile avatars; no placeholder graphics or CSS-drawn assets were introduced.
+- Copy and content: raw formula source and raw numeric login names are removed from public-facing copy; author roles remain explicit.
+
+## Interaction and runtime evidence
+
+- The production split-view component rendered one selected post and one accepted answer with both author images present.
+- Formula body remained KaTeX-rendered while the list preview stayed plain and compact.
+- Targeted ESLint, TypeScript, Prettier, and `git diff --check` pass.
+
+## Comparison history
+
+1. Initial — P1: raw LaTeX and numeric login account leaked into the list; list/detail timestamps disagreed. P2: right pane used excessive vertical whitespace.
+2. Final — formula preview sanitized, author identity fallback/sync corrected, timestamps unified, and right pane tightened. No remaining P0/P1/P2 findings.
+
+final result: passed
+
 # 课程论坛数学编辑器 Design QA — 2026-08-13
 
 ## Evidence

@@ -44,6 +44,7 @@ import type {
 } from '@/features/course-forum/domain/course-forum';
 import { cn } from '@/lib/utils';
 import { backendFetch, backendJson } from '@/lib/utils/backend-api';
+import { useUserProfileStore } from '@/lib/store/user-profile';
 
 const TERM_LABEL = { winter: 'Winter', summer: 'Summer', fall: 'Fall' } as const;
 
@@ -89,10 +90,8 @@ function AuthorLine({
         </AvatarFallback>
       </Avatar>
       <div className={cn('min-w-0', prominent ? 'text-sm' : 'text-xs')}>
-        {label ? (
-          <div className="mb-0.5 text-[11px] font-medium text-slate-400">{label}</div>
-        ) : null}
         <div className="flex flex-wrap items-center gap-1.5">
+          {label ? <span className="text-[11px] font-medium text-slate-400">{label}</span> : null}
           <span
             className={cn(
               'truncate text-slate-700 dark:text-slate-200',
@@ -256,14 +255,24 @@ async function requestError(response: Response, fallback: string) {
   return payload.error || fallback;
 }
 
-export function CourseForumPageClient({ courseId }: { courseId: string }) {
+export function CourseForumPageClient({
+  courseId,
+  initialSnapshot,
+  disableProfileSync = false,
+}: {
+  courseId: string;
+  initialSnapshot?: CourseForumSnapshot;
+  disableProfileSync?: boolean;
+}) {
   const router = useRouter();
-  const [snapshot, setSnapshot] = useState<CourseForumSnapshot | null>(null);
+  const profileNickname = useUserProfileStore((state) => state.nickname);
+  const profileAvatar = useUserProfileStore((state) => state.avatar);
+  const [snapshot, setSnapshot] = useState<CourseForumSnapshot | null>(initialSnapshot || null);
   const [filter, setFilter] = useState<CourseForumStatusFilter>('unresolved');
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
-  const [selectedPostId, setSelectedPostId] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [selectedPostId, setSelectedPostId] = useState(initialSnapshot?.selectedPost?.id || '');
+  const [loading, setLoading] = useState(!initialSnapshot);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [newPostOpen, setNewPostOpen] = useState(false);
@@ -275,6 +284,7 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
   const [commentBody, setCommentBody] = useState('');
   const [savingAction, setSavingAction] = useState('');
   const answerImageInputRef = useRef<HTMLInputElement>(null);
+  const lastProfileSyncKeyRef = useRef('');
 
   const load = useCallback(
     async (options?: { postId?: string; quiet?: boolean; status?: CourseForumStatusFilter }) => {
@@ -303,8 +313,28 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
   );
 
   useEffect(() => {
+    if (initialSnapshot) return;
     void load();
-  }, [load]);
+  }, [initialSnapshot, load]);
+
+  useEffect(() => {
+    if (disableProfileSync) return;
+    const name = profileNickname.trim();
+    const image = profileAvatar.trim();
+    if (!name && !image) return;
+    const syncKey = `${name}\u0000${image}`;
+    if (lastProfileSyncKeyRef.current === syncKey) return;
+    lastProfileSyncKeyRef.current = syncKey;
+
+    void backendFetch('/api/me', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: name || undefined, image: image || undefined }),
+      timeoutMs: 12_000,
+    }).then((response) => {
+      if (response.ok) void load({ postId: selectedPostId, quiet: true });
+    });
+  }, [disableProfileSync, load, profileAvatar, profileNickname, selectedPostId]);
 
   const selected = snapshot?.selectedPost || null;
   const isTeacher = snapshot?.viewer.accessRole === 'owner';
@@ -576,7 +606,7 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
                         {post.bodyPreview || '查看问题详情'}
                       </p>
                       <div className="mt-3 flex items-center justify-between gap-3">
-                        <AuthorLine author={post.author} time={post.updatedAt} />
+                        <AuthorLine author={post.author} time={post.createdAt} />
                         <div className="flex shrink-0 items-center gap-2 text-[11px] text-slate-400">
                           <span className="inline-flex items-center gap-1">
                             <MessageSquareReply className="size-3" /> {post.answerCount}
@@ -607,7 +637,7 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
 
           <section className="min-h-0 overflow-y-auto bg-white dark:bg-slate-950">
             {selected ? (
-              <div className="mx-auto max-w-4xl px-5 py-6 sm:px-8 sm:py-8">
+              <div className="mx-auto max-w-4xl px-5 py-5 sm:px-8 sm:py-6">
                 <article>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -625,21 +655,21 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
                         )}
                         {selected.resolved ? '已解决' : '等待解答'}
                       </Badge>
-                      <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-[28px]">
+                      <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-[28px]">
                         {selected.title}
                       </h2>
                     </div>
                   </div>
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <AuthorLine author={selected.author} time={selected.createdAt} label="提问者" />
                   </div>
-                  <div className="mt-6">
+                  <div className="mt-4">
                     <ForumMarkdown>{selected.bodyMarkdown}</ForumMarkdown>
                     <ForumAttachmentGallery items={selected.attachments} />
                   </div>
                 </article>
 
-                <section className="mt-10 border-t border-slate-200 pt-8 dark:border-white/10">
+                <section className="mt-7 border-t border-slate-200 pt-6 dark:border-white/10">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="text-lg font-semibold">解答</h3>
@@ -734,7 +764,7 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
                   </div>
                 </section>
 
-                <section className="mt-10 border-t border-slate-200 pt-8 dark:border-white/10">
+                <section className="mt-7 border-t border-slate-200 pt-6 dark:border-white/10">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <h3 className="text-lg font-semibold">评论</h3>

@@ -165,6 +165,13 @@ function queueFileTypeLabel(fileName: string): string {
   return extension && extension !== fileName.toUpperCase() ? extension : '资料';
 }
 
+function queueErrorLabel(errorReason: string): string {
+  if (/API key required for provider/i.test(errorReason)) {
+    return 'AI 服务配置缺失；管理员修复后可重新处理';
+  }
+  return errorReason;
+}
+
 function latestJobsByAsset(jobs: TeacherStudioTask[]) {
   const map = new Map<string, TeacherStudioTask>();
   for (const job of jobs) {
@@ -1883,7 +1890,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
                           </div>
                           {job.errorReason ? (
                             <p className="mt-1.5 line-clamp-1 text-[11px] text-rose-600 dark:text-rose-300">
-                              {job.errorReason}
+                              {queueErrorLabel(job.errorReason)}
                             </p>
                           ) : null}
                         </div>
