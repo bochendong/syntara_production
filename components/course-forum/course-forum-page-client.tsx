@@ -21,6 +21,7 @@ import {
   UserRoundCheck,
 } from 'lucide-react';
 import { MessageResponse } from '@/components/ai-elements/message';
+import { normalizeForumMarkdownForDisplay } from '@/lib/course-forum/markdown';
 import { ForumMarkdownEditor } from '@/components/course-forum/forum-markdown-editor';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -91,12 +92,13 @@ function AuthorLine({ author, time }: { author: CourseForumAuthor; time: string 
 }
 
 function ForumMarkdown({ children }: { children: string }) {
+  const normalized = normalizeForumMarkdownForDisplay(children);
   return (
     <MessageResponse
       mode="static"
       className="text-[15px] leading-7 text-slate-700 dark:text-slate-200 [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-slate-200 [&_pre]:bg-slate-950 [&_pre]:text-slate-100 dark:[&_pre]:border-white/10"
     >
-      {children}
+      {normalized}
     </MessageResponse>
   );
 }
