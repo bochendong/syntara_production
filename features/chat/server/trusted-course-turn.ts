@@ -16,6 +16,10 @@ import { hasCourseEnrollment } from '@/lib/server/repositories/course-enrollment
 import type { CourseChatContext, StatelessChatRequest, StatelessEvent } from '@/lib/types/chat';
 import type { ThinkingConfig } from '@/lib/types/provider';
 import { COURSE_ORCHESTRATOR_ID, COURSE_ORCHESTRATOR_NAME } from '@/lib/constants/course-chat';
+import {
+  loadCourseRuleContext,
+  validateCourseRulePacks,
+} from '@/features/memory/server/course-rule-pack-store';
 
 const log = createLogger('TrustedCourseTurn');
 const MOCK_COURSE_CHAT_ID = 'syntara-mock-course-chat';
@@ -403,19 +407,55 @@ export async function runTrustedCourseTurn(args: {
     providerType: undefined,
     requiresApiKey: false,
   };
-  const task = inferCourseAnswerContractConversationTask(
-    safeBody.messages
-      .filter((message) => message.role === 'user')
-      .map(messageText)
-      .filter(Boolean),
-  );
-  const courseContractMessage = trustedCourseAnswerContractText(safeBody, task);
+  const databaseRuleContext = safeBody.courseContext?.course.id
+    ? await loadCourseRuleContext({
+        prisma,
+        courseId: safeBody.courseContext.course.id,
+        body: safeBody,
+      })
+    : null;
+  const task =
+    databaseRuleContext?.task ??
+    inferCourseAnswerContractConversationTask(
+      safeBody.messages
+        .filter((message) => message.role === 'user')
+        .map(messageText)
+        .filter(Boolean),
+    );
+  const courseContractMessage =
+    databaseRuleContext?.reviewText ?? trustedCourseAnswerContractText(safeBody, task);
+  const rulePrompt = databaseRuleContext?.prompt.trim();
+  const primaryDatabaseRulePack = databaseRuleContext?.packs[0];
+  const databaseRuleCheckIds =
+    databaseRuleContext?.packs.flatMap((pack) => pack.contract.checks.map((check) => check.id)) ||
+    [];
+  const baseCoursePack = safeBody.courseContext?.serverCoursePack;
+  const ruleAwareBody: StatelessChatRequest = rulePrompt
+    ? {
+        ...safeBody,
+        courseContext: safeBody.courseContext
+          ? {
+              ...safeBody.courseContext,
+              serverCoursePack: {
+                prompt: [baseCoursePack?.prompt, rulePrompt].filter(Boolean).join('\n\n'),
+                metadata: {
+                  ...(baseCoursePack?.metadata || { matched: true }),
+                  matched: true,
+                  answerContractId: primaryDatabaseRulePack?.contract.id,
+                  answerContractVersion: primaryDatabaseRulePack?.contract.version,
+                  answerContractCheckIds: databaseRuleCheckIds,
+                },
+              },
+            }
+          : undefined,
+      }
+    : safeBody;
   const enforceCourseContract =
     task !== 'not_applicable' &&
-    Boolean(safeBody.courseContext?.serverCoursePack?.metadata.answerContractId);
+    Boolean(ruleAwareBody.courseContext?.serverCoursePack?.metadata.answerContractId);
 
   if (!enforceCourseContract) {
-    const generator = statelessGenerate(safeBody, args.signal, args.languageModel, {
+    const generator = statelessGenerate(ruleAwareBody, args.signal, args.languageModel, {
       enabled: false,
     } satisfies ThinkingConfig);
     for await (const event of generator) {
@@ -429,7 +469,7 @@ export async function runTrustedCourseTurn(args: {
     };
   }
 
-  let candidateBody = safeBody;
+  let candidateBody = ruleAwareBody;
   let failures: string[] = [];
   let attempts = 0;
   for (let attempt = 0; attempt <= COURSE_CONTRACT_REPAIR_ATTEMPTS; attempt += 1) {
@@ -453,15 +493,24 @@ export async function runTrustedCourseTurn(args: {
       };
     }
 
-    const result = validateCourseAnswerContract({
-      courseCode: safeBody.courseContext?.course.courseCode,
-      courseName: safeBody.courseContext?.course.name,
-      courseId: safeBody.courseContext?.course.id,
-      message: courseContractMessage,
-      answerText: answerText(events),
-      taskHint: task,
-    });
-    failures = formatCourseAnswerContractValidationFailures(result);
+    if (databaseRuleContext?.packs.length) {
+      failures = validateCourseRulePacks({
+        packs: databaseRuleContext.packs,
+        task,
+        reviewText: courseContractMessage,
+        answerText: answerText(events),
+      }).flatMap(formatCourseAnswerContractValidationFailures);
+    } else {
+      const result = validateCourseAnswerContract({
+        courseCode: safeBody.courseContext?.course.courseCode,
+        courseName: safeBody.courseContext?.course.name,
+        courseId: safeBody.courseContext?.course.id,
+        message: courseContractMessage,
+        answerText: answerText(events),
+        taskHint: task,
+      });
+      failures = formatCourseAnswerContractValidationFailures(result);
+    }
     if (failures.length === 0) {
       for (const event of events) {
         if (args.signal.aborted) break;
@@ -475,15 +524,18 @@ export async function runTrustedCourseTurn(args: {
     }
 
     log.warn(
-      `Course answer contract rejected draft [course=${result.courseCode}, attempt=${attempt}, checks=${result.failures.map((failure) => failure.checkId).join(',')}]`,
+      `Course answer contract rejected draft [course=${safeBody.courseContext?.course.courseCode || safeBody.courseContext?.course.id}, attempt=${attempt}, failures=${failures.length}]`,
     );
-    if (attempt < COURSE_CONTRACT_REPAIR_ATTEMPTS && safeBody.courseContext?.serverCoursePack) {
+    if (
+      attempt < COURSE_CONTRACT_REPAIR_ATTEMPTS &&
+      ruleAwareBody.courseContext?.serverCoursePack
+    ) {
       candidateBody = {
-        ...safeBody,
+        ...ruleAwareBody,
         courseContext: {
-          ...safeBody.courseContext,
+          ...ruleAwareBody.courseContext,
           serverCoursePack: {
-            ...safeBody.courseContext.serverCoursePack,
+            ...ruleAwareBody.courseContext.serverCoursePack,
             repair: { attempt: attempt + 1, validationFailures: failures },
           },
         },

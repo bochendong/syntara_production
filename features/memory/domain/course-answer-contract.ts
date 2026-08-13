@@ -12,7 +12,7 @@ export const courseAnswerContractEvidenceSchema = z.object({
 });
 
 export const courseAnswerContractCheckSchema = z.object({
-  id: z.string().regex(/^csc(?:108|148)\.[a-z0-9_.]+$/),
+  id: z.string().regex(/^[a-z0-9][a-z0-9_.-]+$/),
   category: z.enum([
     'function_contract',
     'docstring',
@@ -34,7 +34,7 @@ export const courseAnswerContractCheckSchema = z.object({
 export const courseAnswerContractSchema = z.object({
   version: z.literal(COURSE_ANSWER_CONTRACT_VERSION),
   id: z.string().min(1),
-  courseCode: z.enum(['CSC108', 'CSC148']),
+  courseCode: z.string().min(1),
   title: z.string().min(1),
   checks: z.array(courseAnswerContractCheckSchema).min(1),
   evidence: z.array(courseAnswerContractEvidenceSchema).min(1),
@@ -973,7 +973,7 @@ export type CourseAnswerContractValidationFailure = {
 
 export type CourseAnswerContractValidationResult = {
   matched: boolean;
-  courseCode?: SupportedCourseAnswerContractCode;
+  courseCode?: string;
   contractId?: string;
   version?: typeof COURSE_ANSWER_CONTRACT_VERSION;
   task?: CourseAnswerContractTask;
@@ -983,7 +983,7 @@ export type CourseAnswerContractValidationResult = {
 
 export type CourseAnswerContractMemorySignal = {
   contractId: string;
-  courseCode: SupportedCourseAnswerContractCode;
+  courseCode: string;
   knowledgePoint: string;
   masteredSignal: null;
   stuckPoint: string;
@@ -993,6 +993,11 @@ export type CourseAnswerContractMemorySignal = {
   evidenceFromMessage: string[];
   contractCheckIds: string[];
 };
+
+export type CourseRuleEvaluatorKey =
+  | 'python_function_contract'
+  | 'python_class_contract'
+  | 'prompt_contract';
 
 function checkFailure(
   contract: CourseAnswerContract,
@@ -1186,6 +1191,21 @@ function validateCsc108(args: {
   if (task === 'code_review' && submittedFunctions.length > 0) {
     const reviewMentionsDocstring = /docstring|文档字符串/i.test(answerText);
     for (const fn of submittedFunctions) {
+      if (
+        (fn.parameters.some((parameter) => !parameter.hasAnnotation) || !fn.hasReturnAnnotation) &&
+        !/(?:type\s*(?:annotation|hint)|parameter[^\n]{0,60}annotation|return[^\n]{0,60}annotation|类型标注|类型注解|参数类型|返回类型)/i.test(
+          answerText,
+        )
+      ) {
+        failures.push(
+          checkFailure(
+            contract,
+            'csc108.function.header.type_contract',
+            `${fn.name}: proactively point out the missing parameter type annotations or return annotation required by the function contract.`,
+            functionEvidence(fn),
+          ),
+        );
+      }
       if (!fn.docstring && !reviewMentionsDocstring) {
         failures.push(
           checkFailure(
@@ -1610,6 +1630,28 @@ export function validateCourseAnswerContract(args: {
   const contract = resolveCourseAnswerContract(args);
   if (!contract) return { matched: false, failures: [] };
 
+  return validateCourseAnswerContractWithContract({
+    ...args,
+    contract,
+    evaluatorKey:
+      contract.courseCode === 'CSC108'
+        ? 'python_function_contract'
+        : contract.courseCode === 'CSC148'
+          ? 'python_class_contract'
+          : 'prompt_contract',
+  });
+}
+
+export function validateCourseAnswerContractWithContract(args: {
+  contract: CourseAnswerContract;
+  evaluatorKey: CourseRuleEvaluatorKey;
+  message: string;
+  answerText: string;
+  answerCode?: string;
+  taskHint?: CourseAnswerContractTask;
+}): CourseAnswerContractValidationResult {
+  const { contract } = args;
+
   const task = args.taskHint ?? inferCourseAnswerContractTask(args.message);
   if (task === 'not_applicable') {
     return {
@@ -1624,9 +1666,9 @@ export function validateCourseAnswerContract(args: {
   }
 
   const representationOverride =
-    contract.courseCode === 'CSC148' && explicitBstRepresentationVariant(args.message);
+    args.evaluatorKey === 'python_class_contract' && explicitBstRepresentationVariant(args.message);
   const failures =
-    contract.courseCode === 'CSC108'
+    args.evaluatorKey === 'python_function_contract'
       ? validateCsc108({
           contract,
           message: args.message,
@@ -1634,14 +1676,16 @@ export function validateCourseAnswerContract(args: {
           answerCode: args.answerCode || '',
           task,
         })
-      : validateCsc148({
-          contract,
-          message: args.message,
-          answerText: args.answerText,
-          answerCode: args.answerCode || '',
-          task,
-          representationOverride,
-        });
+      : args.evaluatorKey === 'python_class_contract'
+        ? validateCsc148({
+            contract,
+            message: args.message,
+            answerText: args.answerText,
+            answerCode: args.answerCode || '',
+            task,
+            representationOverride,
+          })
+        : [];
 
   const uniqueFailures = [
     ...new Map(failures.map((failure) => [failure.checkId, failure])).values(),

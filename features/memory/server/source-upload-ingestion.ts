@@ -40,6 +40,10 @@ import {
   type SourceUsageProfile,
 } from '@/features/memory/server/source-packet';
 import { refreshKnowledgeCache } from '@/features/memory/server/knowledge-cache';
+import {
+  buildRulePackContractFromSource,
+  replaceCourseRulePack,
+} from '@/features/memory/server/course-rule-pack-store';
 import { routeLayeredMemoryWriteCandidates } from '@/features/memory/server/write-routing';
 import type { MemoryWriteCandidate } from '@/lib/server/memory-write-router';
 import { callLLM } from '@/lib/ai/llm';
@@ -4835,6 +4839,15 @@ export async function ingestCourseSourceUpload(
     sourceHash,
     sourcePacket,
   });
+  const sourceRulePack =
+    sourcePacket.answerContract?.shouldPersist && sourcePacket.answerContract.rules.length > 0
+      ? buildRulePackContractFromSource({
+          sourceHash,
+          fallbackCourseCode: course.courseCode || course.name,
+          sourceTitle: args.sourceTitle,
+          sourceContract: sourcePacket.answerContract,
+        })
+      : null;
   const templateCandidates = sourcePacket.answerContract
     ? synthesizedTemplateCandidate
       ? [synthesizedTemplateCandidate]
@@ -4962,6 +4975,20 @@ export async function ingestCourseSourceUpload(
         },
       ],
     }),
+    ...(sourceRulePack
+      ? [
+          replaceCourseRulePack({
+            prisma: args.prisma,
+            courseId: args.courseId,
+            ruleSetKey: `source:${sourceHash}`,
+            evaluatorKey: sourceRulePack.evaluatorKey,
+            artifactKind: sourceRulePack.artifactKind,
+            appliesTo: ['generation', 'code_review', 'grading'],
+            contract: sourceRulePack.contract,
+            sourceRefs: sourceRulePack.contract.evidence,
+          }),
+        ]
+      : []),
   ]);
 
   const graph = graphValue as { nodes: unknown[]; edges: unknown[] };

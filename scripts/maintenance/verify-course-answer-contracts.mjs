@@ -36,6 +36,14 @@ const memoryWorkflowSource = readFileSync(
   resolve(repositoryRoot, 'features/teaching-orchestrator/domain/fixed-workflows.ts'),
   'utf8',
 );
+const teacherCourseAgentSource = readFileSync(
+  resolve(repositoryRoot, 'features/chat/server/teacher-course-agent.ts'),
+  'utf8',
+);
+const courseRuleStoreSource = readFileSync(
+  resolve(repositoryRoot, 'features/memory/server/course-rule-pack-store.ts'),
+  'utf8',
+);
 const compiled = ts.transpileModule(source, {
   compilerOptions: {
     esModuleInterop: true,
@@ -316,7 +324,7 @@ test('legacy course SSE builds trusted evidence inside the request context', () 
   );
   const modelResolution = statelessCourseChatSource.indexOf('await resolveModel(', handlerStart);
   const initialTrustResolution = statelessCourseChatSource.indexOf(
-    'await resolveTrustedCourseTurn({ body: requestedBody })',
+    'await resolveTrustedCourseTurn({ body: parsedBody })',
     handlerStart,
   );
   const requestContextStart = statelessCourseChatSource.indexOf(
@@ -343,6 +351,14 @@ test('legacy course SSE builds trusted evidence inside the request context', () 
   assert.ok(trustedContextBuild > requestContextStart);
   assert.ok(serverContextInjection > trustedContextBuild);
   assert.ok(generationRun > serverContextInjection);
+});
+
+test('teacher and student course agents share the database-backed rule gateway', () => {
+  assert.match(teacherCourseAgentSource, /loadCourseRuleContext\(/);
+  assert.match(teacherCourseAgentSource, /validateCourseRulePacks\(/);
+  assert.match(teacherCourseAgentSource, /formatCourseRuleGuidance\(/);
+  assert.match(courseRuleStoreSource, /loadApplicableCourseRulePacks\(/);
+  assert.match(courseRuleStoreSource, /evaluatorKey/);
 });
 
 test('CSC108 review identifies a placeholder docstring even when one is present', () => {

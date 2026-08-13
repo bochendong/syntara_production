@@ -385,6 +385,7 @@ model Course {
   knowledgeChunks        KnowledgeChunk[]
   learningCalendarEvents LearningCalendarEvent[]
   hardRules              CourseHardRule[]
+  rulePacks              CourseRulePack[]
   forumPosts             CourseForumPost[]
   externalBinding        ExternalCourseBinding?
 
@@ -411,6 +412,31 @@ model CourseHardRule {
 
   @@index([courseId, position, createdAt])
   @@index([ownerId, updatedAt(sort: Desc)])
+}
+
+/// Structured, course-local answer rules selected by task and artifact type.
+/// The evaluator is shared across courses; only this data varies per course.
+model CourseRulePack {
+  id           String   @id @default(cuid())
+  courseId     String
+  ruleSetKey   String
+  evaluatorKey String
+  artifactKind String
+  appliesTo    String[]
+  version      Int      @default(1)
+  status       String   @default("active")
+  contractJson Json
+  sourceRefs   Json?
+  contentHash  String
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseId, ruleSetKey])
+  @@index([courseId, status, artifactKind])
+  @@index([evaluatorKey, status])
 }
 
 model Notebook {

@@ -28,6 +28,11 @@ import {
   loadTeacherStudentInsight,
   recordCourseLearnerSignal,
 } from '@/lib/server/course-agent-learner-insights';
+import {
+  formatCourseRuleGuidance,
+  loadCourseRuleContext,
+  validateCourseRulePacks,
+} from '@/features/memory/server/course-rule-pack-store';
 
 const MAX_SEARCH_RESULTS = 8;
 const MAX_SEARCH_EXCERPT_CHARS = 2_400;
@@ -327,6 +332,8 @@ function courseAgentInstructions(args: {
   access: TrustedCourseAccess;
   inventory: TeacherCourseInventory;
   mode: CourseAgentMode;
+  courseRulePrompt?: string;
+  courseRuleGuidance?: string;
 }): string {
   const notebookLines = args.inventory.notebooks.length
     ? args.inventory.notebooks.map(
@@ -359,6 +366,20 @@ function courseAgentInstructions(args: {
     '',
     '必须遵循的 Hard Rules（优先级高于普通课程资料）：',
     ...hardRuleLines,
+    ...(args.courseRulePrompt
+      ? [
+          '',
+          '当前课程结构化作答规范（由通用规则层加载）：',
+          args.courseRulePrompt,
+          ...(args.courseRuleGuidance
+            ? [
+                '',
+                args.courseRuleGuidance,
+                '代码检查时必须先覆盖这些课程规范问题，再讨论一般实现、边界条件和性能。',
+              ]
+            : []),
+        ]
+      : []),
     '',
     '工具使用规则：',
     '1. 涉及课程事实、学习记录或日历时，先调用最相关的一个工具；只有上下文不足时才继续调用第二个工具。',
@@ -576,6 +597,19 @@ async function runCourseNotebookAgentTurn(
   );
 
   const inventory = await loadTeacherCourseInventory(args.access, db, args.mode);
+  const courseRuleContext = await loadCourseRuleContext({
+    prisma: db,
+    courseId: args.access.course.id,
+    body: args.body,
+  });
+  const preflightRuleGuidance = formatCourseRuleGuidance(
+    validateCourseRulePacks({
+      packs: courseRuleContext.packs,
+      task: courseRuleContext.task,
+      reviewText: courseRuleContext.reviewText,
+      answerText: '',
+    }),
+  );
   await emitProgress(
     isStudent
       ? `当前进度开放 ${inventory.notebooks.length}/${inventory.totalNotebookCount} 本笔记本，并加载了 ${inventory.hardRules.length} 条 Hard Rule。`
@@ -1001,7 +1035,13 @@ async function runCourseNotebookAgentTurn(
   const agent = new ToolLoopAgent({
     id: agentId,
     model: args.languageModel,
-    instructions: courseAgentInstructions({ access: args.access, inventory, mode: args.mode }),
+    instructions: courseAgentInstructions({
+      access: args.access,
+      inventory,
+      mode: args.mode,
+      courseRulePrompt: courseRuleContext.prompt,
+      courseRuleGuidance: preflightRuleGuidance,
+    }),
     tools,
     stopWhen: stepCountIs(4),
     maxOutputTokens: 10_000,
@@ -1111,6 +1151,20 @@ async function runCourseNotebookAgentTurn(
     }
     streamedText += chunk;
     await args.onEvent({ type: 'text_delta', data: { content: chunk, messageId } });
+  }
+
+  const missingRuleGuidance = formatCourseRuleGuidance(
+    validateCourseRulePacks({
+      packs: courseRuleContext.packs,
+      task: courseRuleContext.task,
+      reviewText: courseRuleContext.reviewText,
+      answerText: streamedText,
+    }),
+  );
+  if (!args.signal.aborted && missingRuleGuidance) {
+    const appendix = `\n\n### 课程规范补充\n\n${missingRuleGuidance}`;
+    streamedText += appendix;
+    await args.onEvent({ type: 'text_delta', data: { content: appendix, messageId } });
   }
 
   const totalUsage = await result.totalUsage;
