@@ -145,9 +145,11 @@ const FORMULA_EXAMPLES = [
   { label: '分数', latex: '\\frac{a+b}{c}' },
   { label: '平方', latex: 'x^2+y^2=z^2' },
   { label: '根式', latex: '\\sqrt{x^2+y^2}' },
-  { label: '定积分', latex: '\\int_{0}^{1} f(x)\\,dx' },
-  { label: '求和', latex: '\\sum_{i=1}^{n} a_i' },
-  { label: '极限', latex: '\\lim_{x\\to 0} \\frac{\\sin x}{x}=1' },
+  { label: '定积分', latex: '\\int\\limits_{0}^{1} f(x)\\,dx', display: true },
+  { label: '求和', latex: '\\sum\\limits_{i=1}^{n} a_i', display: true },
+  { label: '乘积', latex: '\\prod\\limits_{i=1}^{n} a_i', display: true },
+  { label: '大并集', latex: '\\bigcup\\limits_{i=1}^{n} A_i', display: true },
+  { label: '极限', latex: '\\lim\\limits_{x\\to 0} \\frac{\\sin x}{x}=1', display: true },
 ] as const;
 
 const ADVANCED_STRUCTURES = [
@@ -279,6 +281,26 @@ export function ForumMarkdownEditor({
         return;
       }
       insertAtSelection(leading, trailing, structure.source);
+    },
+    [insertAtSelection, value],
+  );
+
+  const insertFormula = useCallback(
+    (formula: (typeof FORMULA_EXAMPLES)[number]) => {
+      if ('display' in formula && formula.display) {
+        const textarea = textareaRef.current;
+        const start = textarea?.selectionStart ?? value.length;
+        const end = textarea?.selectionEnd ?? value.length;
+        const needsLeadingLineBreak = start > 0 && value[start - 1] !== '\n';
+        const needsTrailingLineBreak = end < value.length && value[end] !== '\n';
+        insertAtSelection(
+          `${needsLeadingLineBreak ? '\n' : ''}$$\n`,
+          `\n$$${needsTrailingLineBreak ? '\n' : ''}`,
+          formula.latex,
+        );
+        return;
+      }
+      insertAtSelection(`$${formula.latex}$`);
     },
     [insertAtSelection, value],
   );
@@ -482,7 +504,7 @@ export function ForumMarkdownEditor({
                 <button
                   key={formula.label}
                   type="button"
-                  onClick={() => insertAtSelection(`$${formula.latex}$`)}
+                  onClick={() => insertFormula(formula)}
                   className="grid w-full grid-cols-[minmax(0,1fr)_minmax(120px,0.8fr)] items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:bg-white/5 dark:hover:border-violet-400/40 dark:hover:bg-violet-400/10"
                 >
                   <span className="min-w-0">
@@ -494,10 +516,13 @@ export function ForumMarkdownEditor({
                     </code>
                   </span>
                   <span
-                    className="min-w-0 overflow-x-auto rounded-lg bg-slate-50 px-2 py-3 text-center text-slate-900 dark:bg-slate-950 dark:text-white [&_.katex]:text-[1.05em]"
+                    className="min-w-0 overflow-x-auto rounded-lg bg-slate-50 px-2 py-3 text-center text-slate-900 dark:bg-slate-950 dark:text-white [&_.katex]:text-[1.05em] [&_.katex-display]:m-0"
                     aria-hidden="true"
                     dangerouslySetInnerHTML={{
-                      __html: renderMathToHtml(formula.latex, { forceInline: true }),
+                      __html: renderMathToHtml(formula.latex, {
+                        displayMode: 'display' in formula && formula.display,
+                        forceInline: !('display' in formula && formula.display),
+                      }),
                     }}
                   />
                 </button>
