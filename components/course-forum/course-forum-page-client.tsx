@@ -21,6 +21,7 @@ import {
   UserRoundCheck,
 } from 'lucide-react';
 import { MessageResponse } from '@/components/ai-elements/message';
+import { ForumMarkdownEditor } from '@/components/course-forum/forum-markdown-editor';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -199,10 +200,12 @@ function ImagePicker({
           accept="image/jpeg,image/png,image/webp,image/gif"
           multiple
           className="sr-only"
-          onChange={(event) => onChange(Array.from(event.target.files || []).slice(0, 4))}
+          onChange={(event) => onChange(Array.from(event.target.files || []).slice(0, 5))}
         />
       </label>
-      <p className="mt-1 text-xs text-slate-400">最多 4 张，单张不超过 5 MB</p>
+      <p className="mt-1 text-xs text-slate-400">
+        最多 5 张，单张不超过 5 MB；发布后统一显示在帖子正文下方。
+      </p>
       {files.length ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {files.map((file, index) => (
@@ -800,12 +803,14 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
       </main>
 
       <Dialog open={newPostOpen} onOpenChange={setNewPostOpen}>
-        <DialogContent className="w-[min(94vw,760px)] max-w-none">
-          <DialogHeader>
-            <DialogTitle>发布问题</DialogTitle>
-            <DialogDescription>问题和附件只保存在课程论坛中，不写入课程知识库。</DialogDescription>
+        <DialogContent className="flex h-[min(92dvh,900px)] w-[min(96vw,1320px)] max-w-none flex-col overflow-hidden p-0">
+          <DialogHeader className="shrink-0 border-b border-slate-200 px-6 py-5 pr-16 dark:border-white/10">
+            <DialogTitle className="text-xl">发布问题</DialogTitle>
+            <DialogDescription>
+              用 Markdown、代码块和数学公式完整描述问题；内容只保存在课程论坛中。
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
             <div>
               <label className="text-sm font-medium">标题</label>
               <Input
@@ -818,16 +823,16 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
             </div>
             <div>
               <label className="text-sm font-medium">问题正文</label>
-              <Textarea
+              <ForumMarkdownEditor
                 value={postBody}
-                onChange={(event) => setPostBody(event.target.value)}
+                onChange={setPostBody}
                 placeholder={'支持 Markdown，例如：\n\n```python\na = [1, 2]\nb = a\n```'}
-                className="mt-2 min-h-56 resize-y rounded-xl"
+                className="mt-2 min-h-[500px] lg:h-[min(58dvh,590px)]"
               />
             </div>
             <ImagePicker files={postImages} onChange={setPostImages} />
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-slate-200 px-6 py-4 dark:border-white/10">
             <Button
               variant="outline"
               onClick={() => setNewPostOpen(false)}

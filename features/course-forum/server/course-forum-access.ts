@@ -8,7 +8,7 @@ import {
 } from '@/lib/server/repositories/course-enrollment-repository';
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-export const COURSE_FORUM_MAX_IMAGES = 4;
+export const COURSE_FORUM_MAX_IMAGES = 5;
 export const COURSE_FORUM_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 type CourseForumAccessResult =
