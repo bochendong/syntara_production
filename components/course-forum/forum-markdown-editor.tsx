@@ -158,32 +158,32 @@ const ADVANCED_STRUCTURES = [
   {
     label: '2 × 2 矩阵',
     kind: 'math' as const,
-    source: '\\begin{bmatrix}a&b\\\\c&d\\end{bmatrix}',
+    source: '\\begin{bmatrix}\na&b\\\\\nc&d\n\\end{bmatrix}',
   },
   {
     label: '3 × 3 矩阵',
     kind: 'math' as const,
-    source: '\\begin{bmatrix}a&b&c\\\\d&e&f\\\\g&h&i\\end{bmatrix}',
+    source: '\\begin{bmatrix}\na&b&c\\\\\nd&e&f\\\\\ng&h&i\n\\end{bmatrix}',
   },
   {
     label: '分段函数',
     kind: 'math' as const,
-    source: 'f(x)=\\begin{cases}x^2,&x\\geq 0\\\\-x,&x<0\\end{cases}',
+    source: 'f(x)=\\begin{cases}\nx^2,&x\\geq 0\\\\\n-x,&x<0\n\\end{cases}',
   },
   {
     label: '方程组',
     kind: 'math' as const,
-    source: '\\begin{cases}2x+y=5\\\\x-y=1\\end{cases}',
+    source: '\\begin{cases}\n2x+y=5\\\\\nx-y=1\n\\end{cases}',
   },
   {
     label: '行列式',
     kind: 'math' as const,
-    source: '\\begin{vmatrix}a&b\\\\c&d\\end{vmatrix}=ad-bc',
+    source: '\\begin{vmatrix}\na&b\\\\\nc&d\n\\end{vmatrix}=ad-bc',
   },
   {
     label: '多行推导',
     kind: 'math' as const,
-    source: '\\begin{aligned}a&=b+c\\\\&=d+e\\\\&=f\\end{aligned}',
+    source: '\\begin{aligned}\na&=b+c\\\\\n&=d+e\\\\\n&=f\n\\end{aligned}',
   },
 ] as const;
 

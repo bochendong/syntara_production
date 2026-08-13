@@ -117,6 +117,37 @@
 
 final result: passed
 
+# 课程论坛数学编辑器 Design QA — 2026-08-13
+
+## Evidence
+
+- Source visual truth: `/Users/dongpochen/Desktop/截屏2026-08-13 下午5.51.57.png` (`2850 × 1550` px).
+- Production-component harness screenshots: `/private/tmp/forum-editor-symbols-1600x900.png`, `/private/tmp/forum-editor-formulas-1600x900.png`, `/private/tmp/forum-editor-advanced-fixed-1600x900.png`.
+- Combined comparison: `/private/tmp/forum-editor-reference-vs-implementation.png`.
+- Viewport: `1600 × 900` CSS px; state: local page mounting the exact production `ForumMarkdownEditor` inside the production dialog dimensions.
+
+## Findings
+
+- Dialog measures `1540 × 864px` at this viewport (`96dvh`), leaving 18px above and below; the editor tool panel is `430px` wide and `618px` high.
+- `\\notin` renders as the correct KaTeX `∉` glyph and inserts the LaTeX source `$\\notin$`.
+- All six common-formula cards show a rendered preview alongside their source.
+- Markdown table, 2×2 matrix, 3×3 matrix, piecewise function, equation system, determinant, and aligned derivation are present. An initial P1 row-break escaping issue was found in matrix cards and fixed; the final cards contain six rendered KaTeX structures and no visible raw `\\begin` source.
+- The inserted piecewise template renders correctly in the editor Preview mode.
+- Browser console returned zero warnings or errors.
+
+## Interaction evidence
+
+- Clicked the `\\notin` symbol, Common Formulas tab, Advanced Structures tab, piecewise template, and Preview tab.
+- Confirmed the right panel remains independently scrollable while the main writing area retains full height.
+
+## Comparison history
+
+1. Initial reference — popup and editor were too short; the right panel was narrow and lacked rendered advanced structures.
+2. Pass 1 — height, panel width, symbols, and formula previews were correct, but matrix row separators were normalized incorrectly.
+3. Final — matrix/cases templates use protected multiline row breaks; cards and inserted-preview output render correctly. No remaining P0/P1/P2 issues.
+
+final result: passed
+
 # Settings Background Adaptive Height — 2026-08-10
 
 ## Evidence
