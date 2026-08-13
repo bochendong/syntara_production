@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Bold,
   Braces,
@@ -11,12 +11,17 @@ import {
   Link,
   List,
   ListOrdered,
+  ListTree,
   Pilcrow,
   Quote,
+  Rows3,
   SquareFunction,
+  Table2,
+  Grid3X3,
 } from 'lucide-react';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { normalizeForumMarkdownForDisplay } from '@/lib/course-forum/markdown';
 import { renderMathToHtml } from '@/lib/math-engine';
@@ -149,49 +154,66 @@ const FORMULA_EXAMPLES = [
   { label: '求和', latex: '\\sum\\limits_{i=1}^{n} a_i', display: true },
   { label: '乘积', latex: '\\prod\\limits_{i=1}^{n} a_i', display: true },
   { label: '大并集', latex: '\\bigcup\\limits_{i=1}^{n} A_i', display: true },
-  { label: '极限', latex: '\\lim\\limits_{x\\to 0} \\frac{\\sin x}{x}=1', display: true },
+  {
+    label: '极限',
+    latex: '\\lim\\limits_{x\\to 0} \\frac{\\sin x}{x}=1',
+    display: true,
+  },
 ] as const;
 
-const ADVANCED_STRUCTURES = [
-  {
-    label: 'Markdown 表格',
-    kind: 'markdown' as const,
-    source: '| 项目 | 数值 |\n| --- | ---: |\n| A | 1 |\n| B | 2 |',
-  },
-  {
-    label: '2 × 2 矩阵',
-    kind: 'math' as const,
-    source: '\\begin{bmatrix}\na&b\\\\\nc&d\n\\end{bmatrix}',
-  },
-  {
-    label: '3 × 3 矩阵',
-    kind: 'math' as const,
-    source: '\\begin{bmatrix}\na&b&c\\\\\nd&e&f\\\\\ng&h&i\n\\end{bmatrix}',
-  },
-  {
-    label: '分段函数',
-    kind: 'math' as const,
-    source: 'f(x)=\\begin{cases}\nx^2,&x\\geq 0\\\\\n-x,&x<0\n\\end{cases}',
-  },
-  {
-    label: '方程组',
-    kind: 'math' as const,
-    source: '\\begin{cases}\n2x+y=5\\\\\nx-y=1\n\\end{cases}',
-  },
-  {
-    label: '行列式',
-    kind: 'math' as const,
-    source: '\\begin{vmatrix}\na&b\\\\\nc&d\n\\end{vmatrix}=ad-bc',
-  },
-  {
-    label: '多行推导',
-    kind: 'math' as const,
-    source: '\\begin{aligned}\na&=b+c\\\\\n&=d+e\\\\\n&=f\n\\end{aligned}',
-  },
-] as const;
+const STRUCTURE_LIMITS = {
+  tableRows: { min: 1, max: 12 },
+  tableCols: { min: 1, max: 8 },
+  matrix: { min: 2, max: 8 },
+  formulaRows: { min: 2, max: 10 },
+} as const;
+
+function clampInteger(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function generateMarkdownTable(rows: number, cols: number) {
+  const header = Array.from({ length: cols }, (_, index) => `列 ${index + 1}`);
+  const separator = Array.from({ length: cols }, () => '---');
+  const body = Array.from({ length: rows }, (_, rowIndex) =>
+    Array.from({ length: cols }, (_, colIndex) => `内容 ${rowIndex + 1}-${colIndex + 1}`),
+  );
+  return [header, separator, ...body].map((row) => `| ${row.join(' | ')} |`).join('\n');
+}
+
+function generateMatrix(rows: number, cols: number) {
+  const body = Array.from({ length: rows }, (_, rowIndex) =>
+    Array.from({ length: cols }, (_, colIndex) => `a_{${rowIndex + 1}${colIndex + 1}}`).join(' & '),
+  ).join(' \\\\\n');
+  return `\\begin{bmatrix}\n${body}\n\\end{bmatrix}`;
+}
+
+function generatePiecewise(rows: number) {
+  const body = Array.from(
+    { length: rows },
+    (_, index) => `f_{${index + 1}}(x), & x \\in D_{${index + 1}}`,
+  ).join(' \\\\\n');
+  return `f(x)=\\begin{cases}\n${body}\n\\end{cases}`;
+}
+
+function generateEquationSystem(rows: number) {
+  const body = Array.from(
+    { length: rows },
+    (_, index) => `a_{${index + 1}}x+b_{${index + 1}}y=c_{${index + 1}}`,
+  ).join(' \\\\\n');
+  return `\\begin{cases}\n${body}\n\\end{cases}`;
+}
+
+function generateAligned(rows: number) {
+  const body = Array.from({ length: rows }, (_, index) =>
+    index === 0 ? 'a&=b+c' : `&=u_{${index + 1}}+v_{${index + 1}}`,
+  ).join(' \\\\\n');
+  return `\\begin{aligned}\n${body}\n\\end{aligned}`;
+}
 
 type EditorMode = 'markdown' | 'preview';
 type ToolPanel = 'symbols' | 'formula' | 'structures';
+type StructureKind = 'table' | 'matrix' | 'piecewise' | 'equations' | 'aligned';
 type FormatAction =
   | 'heading'
   | 'bold'
@@ -217,6 +239,69 @@ const FORMAT_CONTROLS = [
   action: FormatAction;
 }>;
 
+const STRUCTURE_OPTIONS = [
+  {
+    kind: 'table',
+    label: 'Markdown 表格',
+    description: '自定义行数和列数',
+    icon: Table2,
+  },
+  { kind: 'matrix', label: '矩阵', description: '2×2 至 8×8', icon: Grid3X3 },
+  {
+    kind: 'piecewise',
+    label: '分段函数',
+    description: '自定义分段数',
+    icon: ListTree,
+  },
+  {
+    kind: 'equations',
+    label: '方程组',
+    description: '自定义方程数',
+    icon: Braces,
+  },
+  {
+    kind: 'aligned',
+    label: '多行推导',
+    description: '自定义推导行数',
+    icon: Rows3,
+  },
+] as const satisfies ReadonlyArray<{
+  kind: StructureKind;
+  label: string;
+  description: string;
+  icon: typeof Table2;
+}>;
+
+function StructureNumberInput({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="min-w-[88px] text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+      <span className="mb-1.5 block">{label}</span>
+      <Input
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        value={value}
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) => onChange(clampInteger(Number(event.target.value) || min, min, max))}
+        className="h-9 rounded-lg bg-white text-center text-sm font-semibold shadow-none dark:bg-slate-950"
+      />
+    </label>
+  );
+}
+
 type ForumMarkdownEditorProps = {
   value: string;
   onChange: (value: string) => void;
@@ -233,6 +318,63 @@ export function ForumMarkdownEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<EditorMode>('markdown');
   const [toolPanel, setToolPanel] = useState<ToolPanel>('symbols');
+  const [structureKind, setStructureKind] = useState<StructureKind>('table');
+  const [tableRows, setTableRows] = useState(3);
+  const [tableCols, setTableCols] = useState(3);
+  const [matrixRows, setMatrixRows] = useState(2);
+  const [matrixCols, setMatrixCols] = useState(2);
+  const [piecewiseRows, setPiecewiseRows] = useState(2);
+  const [equationRows, setEquationRows] = useState(2);
+  const [alignedRows, setAlignedRows] = useState(3);
+
+  const generatedStructure = useMemo(() => {
+    switch (structureKind) {
+      case 'table':
+        return {
+          label: 'Markdown 表格',
+          source: generateMarkdownTable(tableRows, tableCols),
+          math: false,
+          summary: `${tableRows} 行 × ${tableCols} 列`,
+        };
+      case 'matrix':
+        return {
+          label: '矩阵',
+          source: generateMatrix(matrixRows, matrixCols),
+          math: true,
+          summary: `${matrixRows} × ${matrixCols}`,
+        };
+      case 'piecewise':
+        return {
+          label: '分段函数',
+          source: generatePiecewise(piecewiseRows),
+          math: true,
+          summary: `${piecewiseRows} 段`,
+        };
+      case 'equations':
+        return {
+          label: '方程组',
+          source: generateEquationSystem(equationRows),
+          math: true,
+          summary: `${equationRows} 行`,
+        };
+      case 'aligned':
+        return {
+          label: '多行推导',
+          source: generateAligned(alignedRows),
+          math: true,
+          summary: `${alignedRows} 行`,
+        };
+    }
+  }, [
+    alignedRows,
+    equationRows,
+    matrixCols,
+    matrixRows,
+    piecewiseRows,
+    structureKind,
+    tableCols,
+    tableRows,
+  ]);
 
   const insertAtSelection = useCallback(
     (before: string, after = '', fallback = '') => {
@@ -266,24 +408,28 @@ export function ForumMarkdownEditor({
     [insertAtSelection, value],
   );
 
-  const insertStructure = useCallback(
-    (structure: (typeof ADVANCED_STRUCTURES)[number]) => {
-      const textarea = textareaRef.current;
-      const start = textarea?.selectionStart ?? value.length;
-      const end = textarea?.selectionEnd ?? value.length;
-      const needsLeadingLineBreak = start > 0 && value[start - 1] !== '\n';
-      const needsTrailingLineBreak = end < value.length && value[end] !== '\n';
-      const leading = needsLeadingLineBreak ? '\n' : '';
-      const trailing = needsTrailingLineBreak ? '\n' : '';
+  const insertGeneratedStructure = useCallback(() => {
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? value.length;
+    const end = textarea?.selectionEnd ?? value.length;
+    const needsLeadingLineBreak = start > 0 && value[start - 1] !== '\n';
+    const needsTrailingLineBreak = end < value.length && value[end] !== '\n';
+    const leading = needsLeadingLineBreak ? '\n' : '';
+    const trailing = needsTrailingLineBreak ? '\n' : '';
+    const block = generatedStructure.math
+      ? `${leading}$$\n${generatedStructure.source}\n$$${trailing}`
+      : `${leading}${generatedStructure.source}${trailing}`;
+    const next = `${value.slice(0, start)}${block}${value.slice(end)}`;
+    const caretPosition = start + block.length;
 
-      if (structure.kind === 'math') {
-        insertAtSelection(`${leading}$$\n`, `\n$$${trailing}`, structure.source);
-        return;
-      }
-      insertAtSelection(leading, trailing, structure.source);
-    },
-    [insertAtSelection, value],
-  );
+    onChange(next);
+    setMode('markdown');
+    requestAnimationFrame(() => {
+      const nextTextarea = textareaRef.current;
+      nextTextarea?.focus();
+      nextTextarea?.setSelectionRange(caretPosition, caretPosition);
+    });
+  }, [generatedStructure, onChange, value]);
 
   const insertFormula = useCallback(
     (formula: (typeof FORMULA_EXAMPLES)[number]) => {
@@ -486,7 +632,9 @@ export function ForumMarkdownEditor({
                         <span
                           aria-hidden="true"
                           dangerouslySetInnerHTML={{
-                            __html: renderMathToHtml(latex, { forceInline: true }),
+                            __html: renderMathToHtml(latex, {
+                              forceInline: true,
+                            }),
                           }}
                         />
                       </button>
@@ -529,42 +677,147 @@ export function ForumMarkdownEditor({
               ))}
             </div>
           ) : (
-            <div className="space-y-2">
-              <p className="mb-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                表格会插入 Markdown；矩阵、分段函数等会插入独立显示的 LaTeX 结构。
-              </p>
-              {ADVANCED_STRUCTURES.map((structure) => (
-                <button
-                  key={structure.label}
-                  type="button"
-                  onClick={() => insertStructure(structure)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:bg-white/5 dark:hover:border-violet-400/40 dark:hover:bg-violet-400/10"
-                >
-                  <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    {structure.label}
-                  </span>
-                  {structure.kind === 'math' ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {STRUCTURE_OPTIONS.map(({ kind, label, description, icon: Icon }) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => setStructureKind(kind)}
+                    className={cn(
+                      'rounded-xl border px-3 py-2.5 text-left transition',
+                      structureKind === kind
+                        ? 'border-violet-300 bg-violet-50 text-violet-800 shadow-sm dark:border-violet-400/40 dark:bg-violet-400/10 dark:text-violet-100'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-violet-200 hover:bg-violet-50/50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-violet-400/30 dark:hover:bg-violet-400/[0.06]',
+                    )}
+                  >
+                    <span className="flex items-center gap-2 text-xs font-semibold">
+                      <Icon className="size-4 shrink-0" />
+                      {label}
+                    </span>
+                    <span className="mt-1 block text-[10px] text-slate-400 dark:text-slate-500">
+                      {description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {generatedStructure.label}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      当前生成：{generatedStructure.summary}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 rounded-lg bg-violet-600 px-3 text-xs hover:bg-violet-700"
+                    onClick={insertGeneratedStructure}
+                  >
+                    插入结构
+                  </Button>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-end gap-2">
+                  {structureKind === 'table' ? (
+                    <>
+                      <StructureNumberInput
+                        label="数据行数"
+                        value={tableRows}
+                        {...STRUCTURE_LIMITS.tableRows}
+                        onChange={setTableRows}
+                      />
+                      <StructureNumberInput
+                        label="列数"
+                        value={tableCols}
+                        {...STRUCTURE_LIMITS.tableCols}
+                        onChange={setTableCols}
+                      />
+                    </>
+                  ) : structureKind === 'matrix' ? (
+                    <>
+                      <StructureNumberInput
+                        label="行数"
+                        value={matrixRows}
+                        {...STRUCTURE_LIMITS.matrix}
+                        onChange={setMatrixRows}
+                      />
+                      <StructureNumberInput
+                        label="列数"
+                        value={matrixCols}
+                        {...STRUCTURE_LIMITS.matrix}
+                        onChange={setMatrixCols}
+                      />
+                    </>
+                  ) : (
+                    <StructureNumberInput
+                      label={structureKind === 'piecewise' ? '分段数' : '行数'}
+                      value={
+                        structureKind === 'piecewise'
+                          ? piecewiseRows
+                          : structureKind === 'equations'
+                            ? equationRows
+                            : alignedRows
+                      }
+                      {...STRUCTURE_LIMITS.formulaRows}
+                      onChange={
+                        structureKind === 'piecewise'
+                          ? setPiecewiseRows
+                          : structureKind === 'equations'
+                            ? setEquationRows
+                            : setAlignedRows
+                      }
+                    />
+                  )}
+                </div>
+
+                <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-950">
+                  {generatedStructure.math ? (
                     <span
-                      className="mt-2 block min-h-12 overflow-x-auto rounded-lg bg-slate-50 px-2 py-3 text-center text-slate-900 dark:bg-slate-950 dark:text-white [&_.katex]:text-[1.02em]"
-                      aria-hidden="true"
+                      className="block min-h-16 min-w-max text-center text-slate-900 dark:text-white [&_.katex-display]:m-0"
+                      aria-label={`${generatedStructure.label}预览`}
                       dangerouslySetInnerHTML={{
-                        __html: renderMathToHtml(structure.source, { displayMode: true }),
+                        __html: renderMathToHtml(generatedStructure.source, {
+                          displayMode: true,
+                        }),
                       }}
                     />
                   ) : (
-                    <span className="mt-2 block overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-slate-950">
-                      <span className="grid grid-cols-2 border-b border-slate-200 px-2 py-1.5 text-[11px] font-semibold dark:border-white/10">
-                        <span>项目</span>
-                        <span className="text-right">数值</span>
-                      </span>
-                      <span className="grid grid-cols-2 px-2 py-1.5 text-[11px] text-slate-500">
-                        <span>A</span>
-                        <span className="text-right">1</span>
-                      </span>
-                    </span>
+                    <table className="min-w-full border-separate border-spacing-0 overflow-hidden rounded-md text-center text-[11px] text-slate-600 dark:text-slate-300">
+                      <thead>
+                        <tr>
+                          {Array.from({ length: tableCols }, (_, columnIndex) => (
+                            <th
+                              key={columnIndex}
+                              className="min-w-20 border border-slate-200 bg-white px-2 py-1.5 font-semibold dark:border-white/10 dark:bg-white/5"
+                            >
+                              列 {columnIndex + 1}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Array.from({ length: tableRows }, (_, rowIndex) => (
+                          <tr key={rowIndex}>
+                            {Array.from({ length: tableCols }, (_, columnIndex) => (
+                              <td
+                                key={columnIndex}
+                                className="min-w-20 border border-slate-200 bg-slate-50/40 px-2 py-1.5 dark:border-white/10 dark:bg-slate-950"
+                              >
+                                内容 {rowIndex + 1}-{columnIndex + 1}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   )}
-                </button>
-              ))}
+                </div>
+              </section>
             </div>
           )}
         </div>
