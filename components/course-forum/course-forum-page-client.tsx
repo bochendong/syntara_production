@@ -803,7 +803,7 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
       </main>
 
       <Dialog open={newPostOpen} onOpenChange={setNewPostOpen}>
-        <DialogContent className="flex h-[min(92dvh,900px)] w-[min(96vw,1320px)] max-w-none flex-col overflow-hidden p-0">
+        <DialogContent className="flex h-[96dvh] max-h-[1100px] w-[min(98vw,1540px)] max-w-none flex-col overflow-hidden p-0">
           <DialogHeader className="shrink-0 border-b border-slate-200 px-6 py-5 pr-16 dark:border-white/10">
             <DialogTitle className="text-xl">发布问题</DialogTitle>
             <DialogDescription>
@@ -827,7 +827,7 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
                 value={postBody}
                 onChange={setPostBody}
                 placeholder={'支持 Markdown，例如：\n\n```python\na = [1, 2]\nb = a\n```'}
-                className="mt-2 min-h-[500px] lg:h-[min(58dvh,590px)]"
+                className="mt-2 min-h-[620px] lg:h-[calc(96dvh-300px)] lg:max-h-[760px]"
               />
             </div>
             <ImagePicker files={postImages} onChange={setPostImages} />

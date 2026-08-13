@@ -18,72 +18,125 @@ import {
 import { MessageResponse } from '@/components/ai-elements/message';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { renderMathToHtml } from '@/lib/math-engine';
 import { cn } from '@/lib/utils';
 
 const SYMBOL_GROUPS = [
   {
     label: '集合与数系',
-    symbols: ['ℕ', 'ℤ', 'ℚ', 'ℝ', 'ℂ', '∅', '∈', '∉', '⊂', '⊆', '⊇', '∪', '∩', '∖'],
+    symbols: [
+      ['\\mathbb{N}', '自然数'],
+      ['\\mathbb{Z}', '整数'],
+      ['\\mathbb{Q}', '有理数'],
+      ['\\mathbb{R}', '实数'],
+      ['\\mathbb{C}', '复数'],
+      ['\\varnothing', '空集'],
+      ['\\in', '属于'],
+      ['\\notin', '不属于'],
+      ['\\subset', '真子集'],
+      ['\\subseteq', '子集'],
+      ['\\supseteq', '超集'],
+      ['\\cup', '并集'],
+      ['\\cap', '交集'],
+      ['\\setminus', '差集'],
+    ],
   },
   {
     label: '逻辑与证明',
-    symbols: ['∀', '∃', '∄', '∴', '∵', '¬', '∧', '∨', '⊢', '⊨', '⇒', '⇐', '⇔'],
+    symbols: [
+      ['\\forall', '任意'],
+      ['\\exists', '存在'],
+      ['\\nexists', '不存在'],
+      ['\\therefore', '所以'],
+      ['\\because', '因为'],
+      ['\\neg', '非'],
+      ['\\land', '且'],
+      ['\\lor', '或'],
+      ['\\vdash', '可推导'],
+      ['\\models', '满足'],
+      ['\\Rightarrow', '推出'],
+      ['\\Leftarrow', '由此得'],
+      ['\\Leftrightarrow', '等价'],
+    ],
   },
   {
     label: '关系与运算',
     symbols: [
-      '=',
-      '≠',
-      '≤',
-      '≥',
-      '≈',
-      '≡',
-      '∝',
-      '±',
-      '×',
-      '÷',
-      '⋅',
-      '∑',
-      '∏',
-      '√',
-      '∞',
-      '∂',
-      '∇',
-      '∫',
+      ['=', '等于'],
+      ['\\neq', '不等于'],
+      ['\\leq', '小于等于'],
+      ['\\geq', '大于等于'],
+      ['\\approx', '约等于'],
+      ['\\equiv', '恒等'],
+      ['\\propto', '正比'],
+      ['\\pm', '正负'],
+      ['\\times', '乘'],
+      ['\\div', '除'],
+      ['\\cdot', '点乘'],
+      ['\\sum', '求和'],
+      ['\\prod', '求积'],
+      ['\\sqrt{x}', '根式'],
+      ['\\infty', '无穷'],
+      ['\\partial', '偏导'],
+      ['\\nabla', '梯度'],
+      ['\\int', '积分'],
     ],
   },
   {
     label: '箭头',
-    symbols: ['→', '←', '↔', '↦', '↑', '↓', '↗', '↘', '⟶', '⟵', '⟷'],
+    symbols: [
+      ['\\to', '趋向'],
+      ['\\leftarrow', '左箭头'],
+      ['\\leftrightarrow', '双向'],
+      ['\\mapsto', '映射'],
+      ['\\uparrow', '向上'],
+      ['\\downarrow', '向下'],
+      ['\\nearrow', '右上'],
+      ['\\searrow', '右下'],
+      ['\\longrightarrow', '长右箭头'],
+      ['\\longleftarrow', '长左箭头'],
+      ['\\longleftrightarrow', '长双向箭头'],
+    ],
   },
   {
     label: '希腊字母',
     symbols: [
-      'α',
-      'β',
-      'γ',
-      'δ',
-      'ε',
-      'θ',
-      'λ',
-      'μ',
-      'π',
-      'ρ',
-      'σ',
-      'φ',
-      'ω',
-      'Γ',
-      'Δ',
-      'Θ',
-      'Λ',
-      'Σ',
-      'Φ',
-      'Ω',
+      ['\\alpha', 'alpha'],
+      ['\\beta', 'beta'],
+      ['\\gamma', 'gamma'],
+      ['\\delta', 'delta'],
+      ['\\epsilon', 'epsilon'],
+      ['\\theta', 'theta'],
+      ['\\lambda', 'lambda'],
+      ['\\mu', 'mu'],
+      ['\\pi', 'pi'],
+      ['\\rho', 'rho'],
+      ['\\sigma', 'sigma'],
+      ['\\phi', 'phi'],
+      ['\\omega', 'omega'],
+      ['\\Gamma', 'Gamma'],
+      ['\\Delta', 'Delta'],
+      ['\\Theta', 'Theta'],
+      ['\\Lambda', 'Lambda'],
+      ['\\Sigma', 'Sigma'],
+      ['\\Phi', 'Phi'],
+      ['\\Omega', 'Omega'],
     ],
   },
   {
     label: '几何',
-    symbols: ['∠', '⊥', '∥', '△', '□', '○', '⌒', '°', '′', '″'],
+    symbols: [
+      ['\\angle', '角'],
+      ['\\perp', '垂直'],
+      ['\\parallel', '平行'],
+      ['\\triangle', '三角形'],
+      ['\\square', '正方形'],
+      ['\\circ', '圆'],
+      ['\\frown', '圆弧'],
+      ['^\\circ', '度'],
+      ["'", '一撇'],
+      ["''", '两撇'],
+    ],
   },
 ] as const;
 
@@ -94,11 +147,48 @@ const FORMULA_EXAMPLES = [
   { label: '定积分', latex: '\\int_{0}^{1} f(x)\\,dx' },
   { label: '求和', latex: '\\sum_{i=1}^{n} a_i' },
   { label: '极限', latex: '\\lim_{x\\to 0} \\frac{\\sin x}{x}=1' },
-  { label: '矩阵', latex: '\\begin{bmatrix}a&b\\\\c&d\\end{bmatrix}' },
+] as const;
+
+const ADVANCED_STRUCTURES = [
+  {
+    label: 'Markdown 表格',
+    kind: 'markdown' as const,
+    source: '| 项目 | 数值 |\n| --- | ---: |\n| A | 1 |\n| B | 2 |',
+  },
+  {
+    label: '2 × 2 矩阵',
+    kind: 'math' as const,
+    source: '\\begin{bmatrix}a&b\\\\c&d\\end{bmatrix}',
+  },
+  {
+    label: '3 × 3 矩阵',
+    kind: 'math' as const,
+    source: '\\begin{bmatrix}a&b&c\\\\d&e&f\\\\g&h&i\\end{bmatrix}',
+  },
+  {
+    label: '分段函数',
+    kind: 'math' as const,
+    source: 'f(x)=\\begin{cases}x^2,&x\\geq 0\\\\-x,&x<0\\end{cases}',
+  },
+  {
+    label: '方程组',
+    kind: 'math' as const,
+    source: '\\begin{cases}2x+y=5\\\\x-y=1\\end{cases}',
+  },
+  {
+    label: '行列式',
+    kind: 'math' as const,
+    source: '\\begin{vmatrix}a&b\\\\c&d\\end{vmatrix}=ad-bc',
+  },
+  {
+    label: '多行推导',
+    kind: 'math' as const,
+    source: '\\begin{aligned}a&=b+c\\\\&=d+e\\\\&=f\\end{aligned}',
+  },
 ] as const;
 
 type EditorMode = 'markdown' | 'preview';
-type ToolPanel = 'symbols' | 'formula';
+type ToolPanel = 'symbols' | 'formula' | 'structures';
 type FormatAction =
   | 'heading'
   | 'bold'
@@ -173,6 +263,25 @@ export function ForumMarkdownEditor({
     [insertAtSelection, value],
   );
 
+  const insertStructure = useCallback(
+    (structure: (typeof ADVANCED_STRUCTURES)[number]) => {
+      const textarea = textareaRef.current;
+      const start = textarea?.selectionStart ?? value.length;
+      const end = textarea?.selectionEnd ?? value.length;
+      const needsLeadingLineBreak = start > 0 && value[start - 1] !== '\n';
+      const needsTrailingLineBreak = end < value.length && value[end] !== '\n';
+      const leading = needsLeadingLineBreak ? '\n' : '';
+      const trailing = needsTrailingLineBreak ? '\n' : '';
+
+      if (structure.kind === 'math') {
+        insertAtSelection(`${leading}$$\n`, `\n$$${trailing}`, structure.source);
+        return;
+      }
+      insertAtSelection(leading, trailing, structure.source);
+    },
+    [insertAtSelection, value],
+  );
+
   const applyFormat = (action: FormatAction) => {
     switch (action) {
       case 'heading':
@@ -205,7 +314,7 @@ export function ForumMarkdownEditor({
   return (
     <div
       className={cn(
-        'grid min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white lg:grid-cols-[minmax(0,1fr)_300px] dark:border-white/10 dark:bg-slate-950',
+        'grid min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_430px] dark:border-white/10 dark:bg-slate-950',
         className,
       )}
     >
@@ -291,7 +400,7 @@ export function ForumMarkdownEditor({
       </section>
 
       <aside className="flex min-h-0 flex-col border-t border-slate-200 bg-slate-50/70 dark:border-white/10 dark:bg-white/[0.025] lg:border-t-0 lg:border-l">
-        <div className="grid grid-cols-2 gap-1 border-b border-slate-200 p-2 dark:border-white/10">
+        <div className="grid grid-cols-3 gap-1 border-b border-slate-200 p-2 dark:border-white/10">
           <button
             type="button"
             onClick={() => setToolPanel('symbols')}
@@ -318,6 +427,19 @@ export function ForumMarkdownEditor({
             <SquareFunction className="size-4" />
             常用公式
           </button>
+          <button
+            type="button"
+            onClick={() => setToolPanel('structures')}
+            className={cn(
+              'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition',
+              toolPanel === 'structures'
+                ? 'bg-violet-600 text-white shadow-sm'
+                : 'text-slate-500 hover:bg-white hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white',
+            )}
+          >
+            <Code2 className="size-4" />
+            高级结构
+          </button>
         </div>
 
         <div className="max-h-[340px] min-h-0 flex-1 overflow-y-auto p-3 lg:max-h-none">
@@ -329,21 +451,28 @@ export function ForumMarkdownEditor({
                     {group.label}
                   </h4>
                   <div className="flex flex-wrap gap-1.5">
-                    {group.symbols.map((symbol) => (
+                    {group.symbols.map(([latex, label]) => (
                       <button
-                        key={`${group.label}-${symbol}`}
+                        key={`${group.label}-${latex}`}
                         type="button"
-                        onClick={() => insertAtSelection(symbol)}
-                        className="grid h-8 min-w-8 place-items-center rounded-lg border border-slate-200 bg-white px-2 text-sm font-medium text-slate-700 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-violet-400/40 dark:hover:bg-violet-400/10 dark:hover:text-violet-200"
+                        title={`${label} · ${latex}`}
+                        aria-label={`${label} ${latex}`}
+                        onClick={() => insertAtSelection(`$${latex}$`)}
+                        className="grid h-10 min-w-11 place-items-center rounded-lg border border-slate-200 bg-white px-2 text-sm font-medium text-slate-700 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-violet-400/40 dark:hover:bg-violet-400/10 dark:hover:text-violet-200 [&_.katex]:text-[1.05em]"
                       >
-                        {symbol}
+                        <span
+                          aria-hidden="true"
+                          dangerouslySetInnerHTML={{
+                            __html: renderMathToHtml(latex, { forceInline: true }),
+                          }}
+                        />
                       </button>
                     ))}
                   </div>
                 </section>
               ))}
             </div>
-          ) : (
+          ) : toolPanel === 'formula' ? (
             <div className="space-y-2">
               <p className="mb-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
                 点击后会把带 `$` 的 LaTeX 公式插入当前光标位置。
@@ -353,14 +482,61 @@ export function ForumMarkdownEditor({
                   key={formula.label}
                   type="button"
                   onClick={() => insertAtSelection(`$${formula.latex}$`)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:bg-white/5 dark:hover:border-violet-400/40 dark:hover:bg-violet-400/10"
+                  className="grid w-full grid-cols-[minmax(0,1fr)_minmax(120px,0.8fr)] items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:bg-white/5 dark:hover:border-violet-400/40 dark:hover:bg-violet-400/10"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      {formula.label}
+                    </span>
+                    <code className="mt-1 block break-all font-mono text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                      {formula.latex}
+                    </code>
+                  </span>
+                  <span
+                    className="min-w-0 overflow-x-auto rounded-lg bg-slate-50 px-2 py-3 text-center text-slate-900 dark:bg-slate-950 dark:text-white [&_.katex]:text-[1.05em]"
+                    aria-hidden="true"
+                    dangerouslySetInnerHTML={{
+                      __html: renderMathToHtml(formula.latex, { forceInline: true }),
+                    }}
+                  />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="mb-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                表格会插入 Markdown；矩阵、分段函数等会插入独立显示的 LaTeX 结构。
+              </p>
+              {ADVANCED_STRUCTURES.map((structure) => (
+                <button
+                  key={structure.label}
+                  type="button"
+                  onClick={() => insertStructure(structure)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:bg-white/5 dark:hover:border-violet-400/40 dark:hover:bg-violet-400/10"
                 >
                   <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    {formula.label}
+                    {structure.label}
                   </span>
-                  <code className="mt-1 block break-all font-mono text-[11px] leading-5 text-slate-500 dark:text-slate-400">
-                    {formula.latex}
-                  </code>
+                  {structure.kind === 'math' ? (
+                    <span
+                      className="mt-2 block min-h-12 overflow-x-auto rounded-lg bg-slate-50 px-2 py-3 text-center text-slate-900 dark:bg-slate-950 dark:text-white [&_.katex]:text-[1.02em]"
+                      aria-hidden="true"
+                      dangerouslySetInnerHTML={{
+                        __html: renderMathToHtml(structure.source, { displayMode: true }),
+                      }}
+                    />
+                  ) : (
+                    <span className="mt-2 block overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-slate-950">
+                      <span className="grid grid-cols-2 border-b border-slate-200 px-2 py-1.5 text-[11px] font-semibold dark:border-white/10">
+                        <span>项目</span>
+                        <span className="text-right">数值</span>
+                      </span>
+                      <span className="grid grid-cols-2 px-2 py-1.5 text-[11px] text-slate-500">
+                        <span>A</span>
+                        <span className="text-right">1</span>
+                      </span>
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
