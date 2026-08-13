@@ -65,18 +65,40 @@ function relativeTime(value: string) {
   return new Date(value).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
 }
 
-function AuthorLine({ author, time }: { author: CourseForumAuthor; time: string }) {
+function AuthorLine({
+  author,
+  time,
+  label,
+}: {
+  author: CourseForumAuthor;
+  time: string;
+  label?: '提问者' | '回答者' | '评论者';
+}) {
+  const prominent = Boolean(label);
   return (
     <div className="flex min-w-0 items-center gap-2.5">
-      <Avatar size="sm" className="size-7">
+      <Avatar size={prominent ? 'default' : 'sm'} className={prominent ? 'size-10' : 'size-7'}>
         {author.image ? <AvatarImage src={author.image} alt={author.name} /> : null}
-        <AvatarFallback className="bg-violet-50 text-[10px] font-semibold text-violet-700">
+        <AvatarFallback
+          className={cn(
+            'bg-violet-50 font-semibold text-violet-700',
+            prominent ? 'text-xs' : 'text-[10px]',
+          )}
+        >
           {initials(author.name)}
         </AvatarFallback>
       </Avatar>
-      <div className="min-w-0 text-xs">
+      <div className={cn('min-w-0', prominent ? 'text-sm' : 'text-xs')}>
+        {label ? (
+          <div className="mb-0.5 text-[11px] font-medium text-slate-400">{label}</div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="truncate font-medium text-slate-700 dark:text-slate-200">
+          <span
+            className={cn(
+              'truncate text-slate-700 dark:text-slate-200',
+              prominent ? 'font-semibold' : 'font-medium',
+            )}
+          >
             {author.name}
           </span>
           {author.isTeacher ? (
@@ -609,7 +631,7 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
                     </div>
                   </div>
                   <div className="mt-4">
-                    <AuthorLine author={selected.author} time={selected.createdAt} />
+                    <AuthorLine author={selected.author} time={selected.createdAt} label="提问者" />
                   </div>
                   <div className="mt-6">
                     <ForumMarkdown>{selected.bodyMarkdown}</ForumMarkdown>
@@ -640,7 +662,11 @@ export function CourseForumPageClient({ courseId }: { courseId: string }) {
                         )}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
-                          <AuthorLine author={answer.author} time={answer.createdAt} />
+                          <AuthorLine
+                            author={answer.author}
+                            time={answer.createdAt}
+                            label="回答者"
+                          />
                           {answer.accepted ? (
                             <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
                               <UserRoundCheck className="size-3" />
