@@ -91,27 +91,23 @@ export async function GET(request: Request): Promise<NextResponse> {
         identity.courses.map((course) => course.id),
         identity.courses,
       );
-      const requestedCourse = activated.find(
+      const requestedCourseActivated = activated.some(
         (course) =>
           course.externalCourseId === identity.course.id &&
           course.campusCode === identity.course.campusCode,
       );
-      if (!requestedCourse) {
+      if (!requestedCourseActivated) {
         throw new SpeedupSsoError(409, '当前课程未能自动开通，请返回 Speedup 后重试。');
       }
-      destination = new URL(
-        `/teacher/courses/${encodeURIComponent(requestedCourse.localCourseId)}`,
-        requestUrl.origin,
-      );
+      destination = new URL('/teacher', requestUrl.origin);
     } else {
-      const localCourseId = await enrollSpeedupStudentCourse(
+      await enrollSpeedupStudentCourse(
         session.userId,
         identity.course.id,
         identity.courses,
         identity.course.campusCode,
       );
       destination = new URL('/learn', requestUrl.origin);
-      destination.searchParams.set('courseId', localCourseId);
     }
 
     const response = NextResponse.redirect(destination, 303);
