@@ -18325,10 +18325,11 @@ export function LearnPageClient() {
                   notebooks={notebooks}
                   loading={
                     notebooks.length === 0 &&
-                    notebooksLoadState.status !== 'empty' &&
                     (notebooksLoadState.status === 'loading' ||
-                      (activeCourseContentState?.notebooks.count || 0) > 0)
+                      (notebooksLoadState.status === 'idle' &&
+                        (activeCourseContentState?.notebooks.count || 0) > 0))
                   }
+                  error={notebooksLoadState.status === 'error' ? notebooksLoadState.error : null}
                   selection={
                     progressSelection ||
                     progressSelectionFromSnapshot(snapshot) ||

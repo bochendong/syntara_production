@@ -121,16 +121,19 @@ async function readCourseContentState(
           SELECT COUNT(*)::bigint
           FROM "Notebook"
           WHERE "courseId" = ${courseId}
+            AND "removedAt" IS NULL
         ) AS "notebookCount",
         (
           SELECT MAX("updatedAt")
           FROM "Notebook"
           WHERE "courseId" = ${courseId}
+            AND "removedAt" IS NULL
         ) AS "notebookUpdatedAt",
         (
           SELECT COALESCE(SUM("contentVersion"), 0)::bigint
           FROM "Notebook"
           WHERE "courseId" = ${courseId}
+            AND "removedAt" IS NULL
         ) AS "notebookContentVersion",
         (
           SELECT COUNT(*)::bigint
@@ -143,6 +146,7 @@ async function readCourseContentState(
                 FROM "Notebook" AS problem_notebook
                 WHERE problem_notebook."id" = problem."notebookId"
                   AND problem_notebook."courseId" = ${courseId}
+                  AND problem_notebook."removedAt" IS NULL
               )
             )
         ) AS "problemCount",
@@ -157,6 +161,7 @@ async function readCourseContentState(
                 FROM "Notebook" AS problem_notebook
                 WHERE problem_notebook."id" = problem."notebookId"
                   AND problem_notebook."courseId" = ${courseId}
+                  AND problem_notebook."removedAt" IS NULL
               )
             )
         ) AS "problemUpdatedAt",

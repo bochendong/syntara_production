@@ -52,6 +52,7 @@ type CourseLearningProgressPanelProps = {
   onProgressChange: (selection: string) => void;
   onOpenNotebook?: (notebook: StageListItem) => void;
   loading?: boolean;
+  error?: string | null;
   className?: string;
 };
 
@@ -63,6 +64,7 @@ export function CourseLearningProgressPanel({
   onProgressChange,
   onOpenNotebook,
   loading = false,
+  error = null,
   className,
 }: CourseLearningProgressPanelProps) {
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -218,6 +220,10 @@ export function CourseLearningProgressPanel({
           <div className="h-3 w-4/5 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
           <div className="h-3 w-3/5 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
         </div>
+      ) : error && notebookCount === 0 ? (
+        <p className="mt-3 text-xs leading-5 text-rose-600 dark:text-rose-300">
+          学习进度暂时无法加载，请稍后刷新重试。
+        </p>
       ) : notebookCount === 0 ? (
         <p className="mt-3 text-xs leading-5 text-muted-foreground">
           还没有上传笔记本。上传后会出现在这里，方便拖动进度。

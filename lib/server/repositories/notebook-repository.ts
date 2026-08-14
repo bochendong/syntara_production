@@ -458,6 +458,7 @@ export function listOwnedNotebooks(db: DbClient, userId: string, courseId?: stri
   return db.notebook.findMany({
     where: {
       ownerId: userId,
+      removedAt: null,
       ...(courseId ? { courseId } : {}),
     },
     select: notebookListSelect,
@@ -469,6 +470,7 @@ function listOwnedNotebookLibraryItems(db: DbClient, userId: string, courseId?: 
   return db.notebook.findMany({
     where: {
       ownerId: userId,
+      removedAt: null,
       ...(courseId ? { courseId } : {}),
     },
     select: notebookLibraryListSelect,
@@ -488,7 +490,7 @@ export async function listReadableNotebooks(db: DbClient, userId: string, course
   const access = await resolveCourseNotebookAccess(db, userId, courseId);
   if (!access || access.role === 'owner') return [];
   const notebooks = await db.notebook.findMany({
-    where: { courseId },
+    where: { courseId, removedAt: null },
     select: notebookListSelect,
     orderBy: { createdAt: 'asc' },
   });
@@ -514,7 +516,7 @@ export async function listReadableNotebookLibraryItems(
   const access = await resolveCourseNotebookAccess(db, userId, courseId);
   if (!access || access.role === 'owner') return [];
   const notebooks = await db.notebook.findMany({
-    where: { courseId },
+    where: { courseId, removedAt: null },
     select: notebookLibraryListSelect,
     orderBy: { createdAt: 'asc' },
   });
