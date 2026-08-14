@@ -31,6 +31,7 @@ import {
   Maximize2,
   MessageCircle,
   MessageSquarePlus,
+  MessagesSquare,
   Minimize2,
   MoreHorizontal,
   Network,
@@ -18367,6 +18368,43 @@ export function LearnPageClient() {
                     <span className="block text-xs font-semibold text-foreground">打开资料库</span>
                     <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
                       {resourceCountText(notebooksLoadState, notebooks.length)} 本课程笔记
+                    </span>
+                  </span>
+                  <ChevronRight
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                    strokeWidth={1.8}
+                  />
+                </button>
+              </section>
+
+              <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
+                <div className="flex items-center gap-2">
+                  <MessagesSquare className="size-4 text-muted-foreground" strokeWidth={1.8} />
+                  <p className="text-sm font-semibold text-foreground">课程论坛</p>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  向老师和同学提问，查看课程讨论与已解决的问题。
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(`/course/${encodeURIComponent(activeCourseId || '')}/forum`)
+                  }
+                  disabled={!activeCourseId}
+                  className={cn(
+                    rightRailRowClassName,
+                    'mt-3 flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-violet-300 hover:bg-violet-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-100 disabled:pointer-events-none disabled:opacity-50 dark:hover:border-violet-300/30 dark:hover:bg-violet-400/10 dark:focus-visible:ring-violet-300/20',
+                  )}
+                >
+                  <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-violet-50 text-violet-700 shadow-sm ring-1 ring-violet-200/70 dark:bg-violet-400/10 dark:text-violet-200 dark:ring-violet-300/15">
+                    <MessageCircle className="size-4" strokeWidth={1.8} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-semibold text-foreground">
+                      打开课程论坛
+                    </span>
+                    <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                      提问、回答与查看置顶通知
                     </span>
                   </span>
                   <ChevronRight
