@@ -556,7 +556,9 @@ export function CourseForumPageClient({
                 className="mt-0.5 shrink-0 rounded-xl"
                 onClick={() =>
                   router.push(
-                    isTeacher ? `/teacher/courses/${courseId}` : `/student/courses/${courseId}`,
+                    isTeacher
+                      ? `/teacher/courses/${courseId}`
+                      : `/learn?courseId=${encodeURIComponent(courseId)}`,
                   )
                 }
                 aria-label="返回课程"
