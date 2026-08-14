@@ -79,13 +79,9 @@ const SYMBOL_GROUPS = [
       ['\\times', '乘'],
       ['\\div', '除'],
       ['\\cdot', '点乘'],
-      ['\\sum', '求和'],
-      ['\\prod', '求积'],
-      ['\\sqrt{x}', '根式'],
       ['\\infty', '无穷'],
       ['\\partial', '偏导'],
       ['\\nabla', '梯度'],
-      ['\\int', '积分'],
     ],
   },
   {
@@ -154,11 +150,7 @@ const FORMULA_EXAMPLES = [
   { label: '求和', latex: '\\sum\\limits_{i=1}^{n} a_i', display: true },
   { label: '乘积', latex: '\\prod\\limits_{i=1}^{n} a_i', display: true },
   { label: '大并集', latex: '\\bigcup\\limits_{i=1}^{n} A_i', display: true },
-  {
-    label: '极限',
-    latex: '\\lim\\limits_{x\\to 0} \\frac{\\sin x}{x}=1',
-    display: true,
-  },
+  { label: '极限', latex: '\\lim\\limits_{x\\to 0} \\frac{\\sin x}{x}=1', display: true },
 ] as const;
 
 const STRUCTURE_LIMITS = {
@@ -240,31 +232,11 @@ const FORMAT_CONTROLS = [
 }>;
 
 const STRUCTURE_OPTIONS = [
-  {
-    kind: 'table',
-    label: 'Markdown 表格',
-    description: '自定义行数和列数',
-    icon: Table2,
-  },
+  { kind: 'table', label: 'Markdown 表格', description: '自定义行数和列数', icon: Table2 },
   { kind: 'matrix', label: '矩阵', description: '2×2 至 8×8', icon: Grid3X3 },
-  {
-    kind: 'piecewise',
-    label: '分段函数',
-    description: '自定义分段数',
-    icon: ListTree,
-  },
-  {
-    kind: 'equations',
-    label: '方程组',
-    description: '自定义方程数',
-    icon: Braces,
-  },
-  {
-    kind: 'aligned',
-    label: '多行推导',
-    description: '自定义推导行数',
-    icon: Rows3,
-  },
+  { kind: 'piecewise', label: '分段函数', description: '自定义分段数', icon: ListTree },
+  { kind: 'equations', label: '方程组', description: '自定义方程数', icon: Braces },
+  { kind: 'aligned', label: '多行推导', description: '自定义推导行数', icon: Rows3 },
 ] as const satisfies ReadonlyArray<{
   kind: StructureKind;
   label: string;
@@ -483,93 +455,12 @@ export function ForumMarkdownEditor({
   return (
     <div
       className={cn(
-        'grid min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_430px] dark:border-white/10 dark:bg-slate-950',
+        'grid min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white lg:grid-cols-2 dark:border-white/10 dark:bg-slate-950',
         className,
       )}
     >
-      <section className="flex min-h-[440px] min-w-0 flex-col lg:min-h-0">
-        <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-white/10 dark:bg-white/[0.035]">
-          <div className="flex items-center gap-1 rounded-lg bg-slate-200/70 p-1 dark:bg-white/10">
-            <button
-              type="button"
-              onClick={() => setMode('markdown')}
-              className={cn(
-                'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition',
-                mode === 'markdown'
-                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white',
-              )}
-            >
-              <Pilcrow className="size-3.5" />
-              Markdown
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('preview')}
-              className={cn(
-                'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition',
-                mode === 'preview'
-                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white',
-              )}
-            >
-              <Eye className="size-3.5" />
-              预览
-            </button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-0.5">
-            {FORMAT_CONTROLS.map(({ label, icon: Icon, action }) => (
-              <Button
-                key={label}
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                title={label}
-                aria-label={label}
-                onClick={() => applyFormat(action)}
-                className="text-slate-500 hover:bg-white hover:text-violet-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-violet-300"
-              >
-                <Icon className="size-4" />
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        {mode === 'markdown' ? (
-          <Textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            placeholder={placeholder}
-            spellCheck
-            className="min-h-[380px] flex-1 resize-none rounded-none border-0 bg-white px-5 py-4 font-mono text-[14px] leading-7 shadow-none focus-visible:ring-0 dark:bg-slate-950"
-          />
-        ) : (
-          <div className="min-h-[380px] flex-1 overflow-y-auto px-6 py-5">
-            {value.trim() ? (
-              <MessageResponse
-                mode="static"
-                className="text-[15px] leading-7 text-slate-700 dark:text-slate-200 [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-slate-200 [&_pre]:bg-slate-950 [&_pre]:text-slate-100 dark:[&_pre]:border-white/10"
-              >
-                {normalizeForumMarkdownForDisplay(value)}
-              </MessageResponse>
-            ) : (
-              <div className="grid h-full min-h-72 place-items-center text-center text-sm text-slate-400">
-                输入 Markdown 后，这里会显示排版和公式预览。
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-2 text-[11px] text-slate-400 dark:border-white/10">
-          <span>支持 Markdown、代码块与 $LaTeX$ 公式</span>
-          <span>{value.length} 字符</span>
-        </div>
-      </section>
-
-      <aside className="flex min-h-0 flex-col border-t border-slate-200 bg-slate-50/70 dark:border-white/10 dark:bg-white/[0.025] lg:border-t-0 lg:border-l">
-        <div className="grid grid-cols-3 gap-1 border-b border-slate-200 p-2 dark:border-white/10">
+      <aside className="flex min-h-0 min-w-0 flex-col border-b border-slate-200 bg-slate-50/70 dark:border-white/10 dark:bg-white/[0.025] lg:min-h-0 lg:border-r lg:border-b-0">
+        <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-200 p-2 dark:border-white/10">
           <button
             type="button"
             onClick={() => setToolPanel('symbols')}
@@ -611,7 +502,7 @@ export function ForumMarkdownEditor({
           </button>
         </div>
 
-        <div className="max-h-[340px] min-h-0 flex-1 overflow-y-auto p-3 lg:max-h-none">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {toolPanel === 'symbols' ? (
             <div className="space-y-4">
               {SYMBOL_GROUPS.map((group) => (
@@ -632,9 +523,7 @@ export function ForumMarkdownEditor({
                         <span
                           aria-hidden="true"
                           dangerouslySetInnerHTML={{
-                            __html: renderMathToHtml(latex, {
-                              forceInline: true,
-                            }),
+                            __html: renderMathToHtml(latex, { forceInline: true }),
                           }}
                         />
                       </button>
@@ -645,9 +534,6 @@ export function ForumMarkdownEditor({
             </div>
           ) : toolPanel === 'formula' ? (
             <div className="space-y-2">
-              <p className="mb-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                点击后会把带 `$` 的 LaTeX 公式插入当前光标位置。
-              </p>
               {FORMULA_EXAMPLES.map((formula) => (
                 <button
                   key={formula.label}
@@ -781,9 +667,7 @@ export function ForumMarkdownEditor({
                       className="block min-h-16 min-w-max text-center text-slate-900 dark:text-white [&_.katex-display]:m-0"
                       aria-label={`${generatedStructure.label}预览`}
                       dangerouslySetInnerHTML={{
-                        __html: renderMathToHtml(generatedStructure.source, {
-                          displayMode: true,
-                        }),
+                        __html: renderMathToHtml(generatedStructure.source, { displayMode: true }),
                       }}
                     />
                   ) : (
@@ -822,6 +706,87 @@ export function ForumMarkdownEditor({
           )}
         </div>
       </aside>
+
+      <section className="flex min-h-[440px] min-w-0 flex-col lg:min-h-0">
+        <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-white/10 dark:bg-white/[0.035]">
+          <div className="flex items-center gap-1 rounded-lg bg-slate-200/70 p-1 dark:bg-white/10">
+            <button
+              type="button"
+              onClick={() => setMode('markdown')}
+              className={cn(
+                'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition',
+                mode === 'markdown'
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white',
+              )}
+            >
+              <Pilcrow className="size-3.5" />
+              Markdown
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('preview')}
+              className={cn(
+                'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition',
+                mode === 'preview'
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white',
+              )}
+            >
+              <Eye className="size-3.5" />
+              预览
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-0.5">
+            {FORMAT_CONTROLS.map(({ label, icon: Icon, action }) => (
+              <Button
+                key={label}
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                title={label}
+                aria-label={label}
+                onClick={() => applyFormat(action)}
+                className="text-slate-500 hover:bg-white hover:text-violet-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-violet-300"
+              >
+                <Icon className="size-4" />
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {mode === 'markdown' ? (
+          <Textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={placeholder}
+            spellCheck
+            className="min-h-[380px] flex-1 resize-none rounded-none border-0 bg-white px-5 py-4 font-mono text-[14px] leading-7 shadow-none focus-visible:ring-0 dark:bg-slate-950"
+          />
+        ) : (
+          <div className="min-h-[380px] flex-1 overflow-y-auto px-6 py-5">
+            {value.trim() ? (
+              <MessageResponse
+                mode="static"
+                className="text-[15px] leading-7 text-slate-700 dark:text-slate-200 [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-slate-200 [&_pre]:bg-slate-950 [&_pre]:text-slate-100 dark:[&_pre]:border-white/10"
+              >
+                {normalizeForumMarkdownForDisplay(value)}
+              </MessageResponse>
+            ) : (
+              <div className="grid h-full min-h-72 place-items-center text-center text-sm text-slate-400">
+                输入 Markdown 后，这里会显示排版和公式预览。
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-2 text-[11px] text-slate-400 dark:border-white/10">
+          <span>支持 Markdown、代码块与 $LaTeX$ 公式</span>
+          <span>{value.length} 字符</span>
+        </div>
+      </section>
     </div>
   );
 }

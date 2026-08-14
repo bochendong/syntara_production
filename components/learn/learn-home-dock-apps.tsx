@@ -18,6 +18,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { USER_AVATAR_PRESET_URLS } from '@/lib/constants/user-avatars';
+import { useAuthSignOut } from '@/lib/hooks/use-auth-sign-out';
 import { useAuthStore } from '@/lib/store/auth';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 import { listRemoteLearnSessionsPage } from '@/features/learn-conversations/client/remote-conversation-api';
@@ -89,7 +90,7 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
   const authName = useAuthStore((state) => state.name);
   const email = useAuthStore((state) => state.email);
   const role = useAuthStore((state) => state.role);
-  const logout = useAuthStore((state) => state.logout);
+  const signOut = useAuthSignOut();
   const profileAvatar = useUserProfileStore((state) => state.avatar);
   const profileNickname = useUserProfileStore((state) => state.nickname);
   const profileBio = useUserProfileStore((state) => state.bio);
@@ -174,13 +175,7 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
               <ArrowLeft size={17} strokeWidth={1.9} />
               返回主屏
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                logout();
-                router.push('/login');
-              }}
-            >
+            <button type="button" onClick={() => void signOut()}>
               <LogOut size={17} strokeWidth={1.9} />
               退出登录
             </button>

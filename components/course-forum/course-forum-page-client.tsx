@@ -19,8 +19,10 @@ import {
   RefreshCw,
   Search,
   Send,
+  Sparkles,
   Trash2,
   UserRoundCheck,
+  X,
 } from 'lucide-react';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { normalizeForumMarkdownForDisplay } from '@/lib/course-forum/markdown';
@@ -30,6 +32,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -44,6 +47,7 @@ import type {
   CourseForumSnapshot,
   CourseForumStatusFilter,
 } from '@/features/course-forum/domain/course-forum';
+import { buildCourseForumMockSnapshot } from '@/features/course-forum/mock/course-forum-mock';
 import { cn } from '@/lib/utils';
 import { backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { useUserProfileStore } from '@/lib/store/user-profile';
@@ -131,11 +135,11 @@ function ForumAttachmentGallery({ items }: { items: CourseForumAttachmentItem[] 
   if (!items.length) return null;
   return (
     <>
-      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="mt-4 flex flex-wrap gap-2.5">
         {items.map((item) => (
           <div
             key={item.id}
-            className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5"
+            className="group w-[148px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50 sm:w-[168px] dark:border-white/10 dark:bg-white/5"
           >
             <button
               type="button"
@@ -149,9 +153,9 @@ function ForumAttachmentGallery({ items }: { items: CourseForumAttachmentItem[] 
                 className="size-full object-cover transition duration-200 group-hover:scale-[1.02]"
               />
             </button>
-            <div className="flex items-center gap-2 px-3 py-2">
-              <FileImage className="size-3.5 shrink-0 text-slate-400" />
-              <span className="min-w-0 flex-1 truncate text-xs text-slate-600 dark:text-slate-300">
+            <div className="flex items-center gap-1.5 px-2 py-1.5">
+              <FileImage className="size-3 shrink-0 text-slate-400" />
+              <span className="min-w-0 flex-1 truncate text-[11px] text-slate-600 dark:text-slate-300">
                 {item.fileName}
               </span>
               <button
@@ -160,7 +164,7 @@ function ForumAttachmentGallery({ items }: { items: CourseForumAttachmentItem[] 
                 className="text-slate-400 transition hover:text-violet-600"
                 aria-label={`放大查看 ${item.fileName}`}
               >
-                <Eye className="size-3.5" />
+                <Eye className="size-3" />
               </button>
               <a
                 href={item.downloadUrl}
@@ -168,7 +172,7 @@ function ForumAttachmentGallery({ items }: { items: CourseForumAttachmentItem[] 
                 className="text-slate-400 transition hover:text-violet-600"
                 aria-label={`保存图片 ${item.fileName}`}
               >
-                <Download className="size-3.5" />
+                <Download className="size-3" />
               </a>
             </div>
           </div>
@@ -261,16 +265,18 @@ export function CourseForumPageClient({
   courseId,
   initialSnapshot,
   disableProfileSync = false,
+  mockMode = false,
 }: {
   courseId: string;
   initialSnapshot?: CourseForumSnapshot;
   disableProfileSync?: boolean;
+  mockMode?: boolean;
 }) {
   const router = useRouter();
   const profileNickname = useUserProfileStore((state) => state.nickname);
   const profileAvatar = useUserProfileStore((state) => state.avatar);
   const [snapshot, setSnapshot] = useState<CourseForumSnapshot | null>(initialSnapshot || null);
-  const [filter, setFilter] = useState<CourseForumStatusFilter>('unresolved');
+  const [filter, setFilter] = useState<CourseForumStatusFilter>('all');
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const [selectedPostId, setSelectedPostId] = useState(initialSnapshot?.selectedPost?.id || '');
@@ -282,20 +288,33 @@ export function CourseForumPageClient({
   const [postBody, setPostBody] = useState('');
   const [postImages, setPostImages] = useState<File[]>([]);
   const [answerBody, setAnswerBody] = useState('');
-  const [answerImages, setAnswerImages] = useState<File[]>([]);
   const [commentBody, setCommentBody] = useState('');
   const [savingAction, setSavingAction] = useState('');
-  const answerImageInputRef = useRef<HTMLInputElement>(null);
   const lastProfileSyncKeyRef = useRef('');
+  const mockAsTeacher = initialSnapshot?.viewer.accessRole === 'owner';
 
   const load = useCallback(
     async (options?: { postId?: string; quiet?: boolean; status?: CourseForumStatusFilter }) => {
       if (options?.quiet) setRefreshing(true);
       else setLoading(true);
       try {
-        const params = new URLSearchParams({ status: options?.status || filter });
-        if (search) params.set('q', search);
+        const status = options?.status || filter;
         const postId = options?.postId || '';
+        if (mockMode) {
+          const next = buildCourseForumMockSnapshot({
+            courseId,
+            status,
+            q: search,
+            postId,
+            asTeacher: mockAsTeacher,
+          });
+          setSnapshot(next);
+          setSelectedPostId(next.selectedPost?.id || '');
+          setError('');
+          return;
+        }
+        const params = new URLSearchParams({ status });
+        if (search) params.set('q', search);
         if (postId) params.set('postId', postId);
         const next = await backendJson<CourseForumSnapshot>(
           `/api/course-forum/${encodeURIComponent(courseId)}?${params.toString()}`,
@@ -311,16 +330,20 @@ export function CourseForumPageClient({
         setRefreshing(false);
       }
     },
-    [courseId, filter, search],
+    [courseId, filter, mockAsTeacher, mockMode, search],
   );
 
   useEffect(() => {
+    if (mockMode) {
+      void load({ postId: selectedPostId, quiet: true, status: filter });
+      return;
+    }
     if (initialSnapshot) return;
     void load();
-  }, [initialSnapshot, load]);
+  }, [filter, initialSnapshot, load, mockMode, search]);
 
   useEffect(() => {
-    if (disableProfileSync) return;
+    if (disableProfileSync || mockMode) return;
     const name = profileNickname.trim();
     const image = profileAvatar.trim();
     if (!name && !image) return;
@@ -352,6 +375,10 @@ export function CourseForumPageClient({
 
   const createPost = async () => {
     if (!postTitle.trim() || !postBody.trim() || savingAction) return;
+    if (mockMode) {
+      setError('Mock 模式仅用于 UI 预览，发布不会写入服务器。');
+      return;
+    }
     setSavingAction('post');
     setError('');
     try {
@@ -370,9 +397,9 @@ export function CourseForumPageClient({
       setPostTitle('');
       setPostBody('');
       setPostImages([]);
-      setFilter('unresolved');
+      setFilter('all');
       setSelectedPostId(payload.postId);
-      await load({ postId: payload.postId, quiet: true, status: 'unresolved' });
+      await load({ postId: payload.postId, quiet: true, status: 'all' });
     } catch (postError) {
       setError(postError instanceof Error ? postError.message : '发布问题失败');
     } finally {
@@ -382,20 +409,21 @@ export function CourseForumPageClient({
 
   const submitAnswer = async () => {
     if (!selected || !answerBody.trim() || savingAction) return;
+    if (mockMode) {
+      setError('Mock 模式仅用于 UI 预览，解答不会写入服务器。');
+      return;
+    }
     setSavingAction('answer');
     setError('');
     try {
       const form = new FormData();
       form.set('bodyMarkdown', answerBody.trim());
-      answerImages.forEach((file) => form.append('images', file));
       const response = await backendFetch(
         `/api/course-forum/${encodeURIComponent(courseId)}/posts/${encodeURIComponent(selected.id)}/answers`,
         { method: 'POST', body: form, timeoutMs: 30_000 },
       );
       if (!response.ok) throw new Error(await requestError(response, '提交解答失败'));
       setAnswerBody('');
-      setAnswerImages([]);
-      if (answerImageInputRef.current) answerImageInputRef.current.value = '';
       await load({ postId: selected.id, quiet: true });
     } catch (answerError) {
       setError(answerError instanceof Error ? answerError.message : '提交解答失败');
@@ -406,6 +434,10 @@ export function CourseForumPageClient({
 
   const submitComment = async () => {
     if (!selected || !commentBody.trim() || savingAction) return;
+    if (mockMode) {
+      setError('Mock 模式仅用于 UI 预览，评论不会写入服务器。');
+      return;
+    }
     setSavingAction('comment');
     setError('');
     try {
@@ -430,6 +462,10 @@ export function CourseForumPageClient({
 
   const acceptAnswer = async (answerId: string) => {
     if (!selected || savingAction) return;
+    if (mockMode) {
+      setError('Mock 模式仅用于 UI 预览，采纳不会写入服务器。');
+      return;
+    }
     setSavingAction(`accept:${answerId}`);
     setError('');
     try {
@@ -448,6 +484,10 @@ export function CourseForumPageClient({
 
   const togglePin = async () => {
     if (!selected || !isTeacher || savingAction) return;
+    if (mockMode) {
+      setError('Mock 模式仅用于 UI 预览，置顶状态不会写入服务器。');
+      return;
+    }
     setSavingAction(`pin:${selected.id}`);
     setError('');
     try {
@@ -473,6 +513,10 @@ export function CourseForumPageClient({
 
   const deleteComment = async (commentId: string) => {
     if (!selected || savingAction || !window.confirm('确定删除这条评论吗？')) return;
+    if (mockMode) {
+      setError('Mock 模式仅用于 UI 预览，删除不会写入服务器。');
+      return;
+    }
     setSavingAction(`delete:${commentId}`);
     setError('');
     try {
@@ -525,13 +569,7 @@ export function CourseForumPageClient({
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">课程论坛</h1>
-                  <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 dark:bg-amber-400/10 dark:text-amber-200">
-                    {snapshot?.unresolvedCount || 0} 个未解决
-                  </Badge>
                 </div>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  学生提问、同学解答，老师采纳最合适的答案。
-                </p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 pl-12 lg:pl-0">
@@ -563,7 +601,7 @@ export function CourseForumPageClient({
 
         <div className="grid min-h-0 flex-1 lg:grid-cols-[390px_minmax(0,1fr)]">
           <aside className="flex min-h-[360px] flex-col border-b border-slate-200/80 bg-slate-50/70 dark:border-white/10 dark:bg-white/[0.025] lg:min-h-0 lg:border-r lg:border-b-0">
-            <div className="space-y-3 border-b border-slate-200/80 p-4 dark:border-white/10">
+            <div className="border-b border-slate-200/80 p-4 dark:border-white/10">
               <form
                 className="relative"
                 onSubmit={(event) => {
@@ -579,29 +617,6 @@ export function CourseForumPageClient({
                   className="h-10 rounded-xl bg-white pl-9 shadow-none dark:bg-white/5"
                 />
               </form>
-              <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
-                {(
-                  [
-                    ['unresolved', `未解决 ${snapshot?.unresolvedCount || 0}`],
-                    ['resolved', '已解决'],
-                    ['all', `全部 ${snapshot?.totalCount || 0}`],
-                  ] as Array<[CourseForumStatusFilter, string]>
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setFilter(value)}
-                    className={cn(
-                      'rounded-lg px-2 py-2 text-xs font-medium transition',
-                      filter === value
-                        ? 'bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-white'
-                        : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white',
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {snapshot?.pinnedPosts.length ? (
@@ -652,20 +667,20 @@ export function CourseForumPageClient({
                       )}
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <h2 className="line-clamp-2 text-sm font-semibold leading-5">
+                        <h2 className="line-clamp-2 min-w-0 flex-1 text-sm font-semibold leading-5">
                           {post.title}
                         </h2>
-                        <span
+                        <Badge
                           className={cn(
-                            'mt-1 size-2 shrink-0 rounded-full',
-                            post.resolved ? 'bg-emerald-500' : 'bg-amber-500',
+                            'mt-0.5 h-5 shrink-0 px-1.5 text-[10px] font-semibold',
+                            post.resolved
+                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-50 dark:bg-emerald-400/10 dark:text-emerald-200'
+                              : 'bg-amber-50 text-amber-700 hover:bg-amber-50 dark:bg-amber-400/10 dark:text-amber-200',
                           )}
-                          aria-label={post.resolved ? '已解决' : '未解决'}
-                        />
+                        >
+                          {post.resolved ? '已解决' : '未解决'}
+                        </Badge>
                       </div>
-                      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                        {post.bodyPreview || '查看问题详情'}
-                      </p>
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <AuthorLine author={post.author} time={post.createdAt} />
                         <div className="flex shrink-0 items-center gap-2 text-[11px] text-slate-400">
@@ -698,55 +713,43 @@ export function CourseForumPageClient({
 
           <section className="min-h-0 overflow-y-auto bg-white dark:bg-slate-950">
             {selected ? (
-              <div className="mx-auto max-w-4xl px-5 py-5 sm:px-8 sm:py-6">
+              <div className="mx-auto w-full max-w-6xl px-5 py-5 sm:px-8 sm:py-6 lg:px-10">
                 <article>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
                     <div className="min-w-0 flex-1">
-                      {selected.pinned ? (
-                        <Badge className="mb-2 bg-violet-600 text-white hover:bg-violet-600">
-                          <Pin className="size-3 fill-current" />
-                          {selected.isWelcome ? '论坛指南' : '置顶'}
-                        </Badge>
-                      ) : null}
-                      <Badge
-                        className={cn(
-                          selected.resolved
-                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-50 dark:bg-emerald-400/10 dark:text-emerald-200'
-                            : 'bg-amber-50 text-amber-700 hover:bg-amber-50 dark:bg-amber-400/10 dark:text-amber-200',
-                        )}
-                      >
-                        {selected.resolved ? (
-                          <CheckCircle2 className="size-3" />
-                        ) : (
-                          <MessageCircle className="size-3" />
-                        )}
-                        {selected.resolved ? '已解决' : '等待解答'}
-                      </Badge>
-                      <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-[28px]">
-                        {selected.title}
-                      </h2>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {selected.pinned ? (
+                          <Badge className="bg-violet-600 text-white hover:bg-violet-600">
+                            <Pin className="size-3 fill-current" />
+                            {selected.isWelcome ? '论坛指南' : '置顶'}
+                          </Badge>
+                        ) : null}
+                        <h2 className="min-w-0 text-2xl font-semibold tracking-tight sm:text-[28px]">
+                          {selected.title}
+                        </h2>
+                      </div>
                     </div>
-                    {isTeacher ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-xl text-xs"
-                        disabled={Boolean(savingAction)}
-                        onClick={() => void togglePin()}
-                      >
-                        {savingAction === `pin:${selected.id}` ? (
-                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                        ) : selected.pinned ? (
-                          <PinOff className="mr-1.5 size-3.5" />
-                        ) : (
-                          <Pin className="mr-1.5 size-3.5" />
-                        )}
-                        {selected.pinned ? '取消置顶' : '置顶帖子'}
-                      </Button>
-                    ) : null}
-                  </div>
-                  <div className="mt-3">
-                    <AuthorLine author={selected.author} time={selected.createdAt} label="提问者" />
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
+                      {isTeacher ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl text-xs"
+                          disabled={Boolean(savingAction)}
+                          onClick={() => void togglePin()}
+                        >
+                          {savingAction === `pin:${selected.id}` ? (
+                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                          ) : selected.pinned ? (
+                            <PinOff className="mr-1.5 size-3.5" />
+                          ) : (
+                            <Pin className="mr-1.5 size-3.5" />
+                          )}
+                          {selected.pinned ? '取消置顶' : '置顶帖子'}
+                        </Button>
+                      ) : null}
+                      <AuthorLine author={selected.author} time={selected.createdAt} label="提问者" />
+                    </div>
                   </div>
                   <div className="mt-4">
                     <ForumMarkdown>{selected.bodyMarkdown}</ForumMarkdown>
@@ -754,15 +757,24 @@ export function CourseForumPageClient({
                   </div>
                 </article>
 
-                <section className="mt-7 border-t border-slate-200 pt-6 dark:border-white/10">
+                <section className="mt-8 rounded-[24px] border border-violet-200/70 bg-violet-50/40 p-5 dark:border-violet-400/20 dark:bg-violet-400/[0.06] sm:p-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold">解答</h3>
-                      <p className="mt-1 text-sm text-slate-500">
-                        同学可以尝试作答，老师选择最合适的答案。
-                      </p>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-violet-600 text-white shadow-sm">
+                        <MessageSquareReply className="size-4" />
+                      </span>
+                      <div>
+                        <h3 className="text-lg font-semibold text-violet-950 dark:text-violet-100">
+                          解答
+                        </h3>
+                        <p className="mt-1 text-sm text-violet-700/80 dark:text-violet-200/70">
+                          同学可以尝试作答，老师选择最合适的答案。
+                        </p>
+                      </div>
                     </div>
-                    <Badge variant="outline">{selected.answers.length} 个解答</Badge>
+                    <Badge className="bg-white/80 text-violet-700 hover:bg-white/80 dark:bg-white/10 dark:text-violet-200">
+                      {selected.answers.length} 个解答
+                    </Badge>
                   </div>
 
                   <div className="mt-5 space-y-4">
@@ -770,10 +782,10 @@ export function CourseForumPageClient({
                       <article
                         key={answer.id}
                         className={cn(
-                          'rounded-2xl border p-5',
+                          'rounded-2xl border bg-white p-5 shadow-[0_8px_24px_rgba(91,33,182,0.04)] dark:bg-slate-950/70',
                           answer.accepted
-                            ? 'border-emerald-300 bg-emerald-50/50 dark:border-emerald-400/30 dark:bg-emerald-400/5'
-                            : 'border-slate-200 dark:border-white/10',
+                            ? 'border-emerald-300 dark:border-emerald-400/30'
+                            : 'border-violet-100 dark:border-white/10',
                         )}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -811,57 +823,73 @@ export function CourseForumPageClient({
                       </article>
                     ))}
                     {!selected.answers.length ? (
-                      <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-8 text-center text-sm text-slate-500 dark:border-white/15">
+                      <div className="rounded-2xl border border-dashed border-violet-200 bg-white/60 px-5 py-8 text-center text-sm text-violet-700/70 dark:border-violet-400/20 dark:bg-white/5 dark:text-violet-200/70">
                         还没有解答，成为第一个回答的同学吧。
                       </div>
                     ) : null}
                   </div>
 
-                  <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/5">
-                    <label className="text-sm font-semibold">写下你的解答</label>
+                  <div className="mt-5 rounded-2xl border border-violet-200/80 bg-white p-4 dark:border-white/10 dark:bg-slate-950/60">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <label className="text-sm font-semibold">写下你的解答</label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {isTeacher ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-xl"
+                            disabled
+                            title="AI 回复功能待开放"
+                          >
+                            <Sparkles className="mr-1.5 size-4" />
+                            生成 AI 回复
+                          </Button>
+                        ) : null}
+                        <Button
+                          className="rounded-xl bg-violet-600 hover:bg-violet-700"
+                          disabled={!answerBody.trim() || Boolean(savingAction)}
+                          onClick={() => void submitAnswer()}
+                        >
+                          {savingAction === 'answer' ? (
+                            <Loader2 className="mr-1.5 size-4 animate-spin" />
+                          ) : (
+                            <Send className="mr-1.5 size-4" />
+                          )}
+                          提交解答
+                        </Button>
+                      </div>
+                    </div>
                     <Textarea
                       value={answerBody}
                       onChange={(event) => setAnswerBody(event.target.value)}
                       placeholder="支持 Markdown、代码块和公式…"
-                      className="mt-3 min-h-32 resize-y rounded-xl bg-white dark:bg-slate-950"
+                      className="mt-3 min-h-32 resize-y rounded-xl bg-slate-50 dark:bg-slate-950"
                     />
-                    <div className="mt-3">
-                      <ImagePicker
-                        files={answerImages}
-                        onChange={setAnswerImages}
-                        inputRef={answerImageInputRef}
-                      />
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        className="rounded-xl bg-violet-600 hover:bg-violet-700"
-                        disabled={!answerBody.trim() || Boolean(savingAction)}
-                        onClick={() => void submitAnswer()}
-                      >
-                        {savingAction === 'answer' ? (
-                          <Loader2 className="mr-1.5 size-4 animate-spin" />
-                        ) : (
-                          <Send className="mr-1.5 size-4" />
-                        )}
-                        提交解答
-                      </Button>
-                    </div>
                   </div>
                 </section>
 
-                <section className="mt-7 border-t border-slate-200 pt-6 dark:border-white/10">
+                <section className="mt-6 rounded-[24px] border border-slate-200 bg-slate-100/70 p-5 dark:border-white/10 dark:bg-white/[0.035] sm:p-6">
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold">评论</h3>
-                      <p className="mt-1 text-sm text-slate-500">
-                        用于追问、补充和澄清，不作为正式解答。
-                      </p>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-slate-700 text-white shadow-sm dark:bg-slate-600">
+                        <MessageCircle className="size-4" />
+                      </span>
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                          评论
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                          用于追问、补充和澄清，不作为正式解答。
+                        </p>
+                      </div>
                     </div>
-                    <Badge variant="outline">{selected.comments.length} 条</Badge>
+                    <Badge variant="outline" className="bg-white/70 dark:bg-white/5">
+                      {selected.comments.length} 条
+                    </Badge>
                   </div>
-                  <div className="mt-5 divide-y divide-slate-200 rounded-2xl border border-slate-200 px-4 dark:divide-white/10 dark:border-white/10">
+                  <div className="mt-5 divide-y divide-slate-200/80 overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:divide-white/10 dark:border-white/10 dark:bg-slate-950/55">
                     {selected.comments.map((comment) => (
-                      <div key={comment.id} className="flex items-start gap-3 py-4">
+                      <div key={comment.id} className="flex items-start gap-3 px-4 py-3.5">
                         <Avatar size="sm" className="mt-0.5">
                           {comment.author.image ? (
                             <AvatarImage src={comment.author.image} alt={comment.author.name} />
@@ -946,15 +974,29 @@ export function CourseForumPageClient({
       </main>
 
       <Dialog open={newPostOpen} onOpenChange={setNewPostOpen}>
-        <DialogContent className="flex h-[96dvh] max-h-[1100px] w-[min(98vw,1540px)] max-w-none flex-col overflow-hidden p-0">
-          <DialogHeader className="shrink-0 border-b border-slate-200 px-6 py-5 pr-16 dark:border-white/10">
-            <DialogTitle className="text-xl">发布问题</DialogTitle>
+        <DialogContent
+          showCloseButton={false}
+          className="flex h-[96dvh] max-h-[1100px] w-[min(98vw,1540px)] max-w-none flex-col overflow-hidden p-0"
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>发布问题</DialogTitle>
             <DialogDescription>
               用 Markdown、代码块和数学公式完整描述问题；内容只保存在课程论坛中。
             </DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
-            <div>
+          <div className="relative min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="absolute top-4 right-4 z-10 size-8 shrink-0 rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                aria-label="关闭"
+              >
+                <X className="size-4" />
+              </Button>
+            </DialogClose>
+            <div className="pr-12">
               <label className="text-sm font-medium">标题</label>
               <Input
                 value={postTitle}
@@ -965,12 +1007,11 @@ export function CourseForumPageClient({
               />
             </div>
             <div>
-              <label className="text-sm font-medium">问题正文</label>
               <ForumMarkdownEditor
                 value={postBody}
                 onChange={setPostBody}
                 placeholder={'支持 Markdown，例如：\n\n```python\na = [1, 2]\nb = a\n```'}
-                className="mt-2 min-h-[620px] lg:h-[calc(96dvh-300px)] lg:max-h-[760px]"
+                className="min-h-[620px] lg:h-[calc(96dvh-300px)] lg:max-h-[760px]"
               />
             </div>
             <ImagePicker files={postImages} onChange={setPostImages} />

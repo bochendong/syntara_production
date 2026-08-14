@@ -347,6 +347,19 @@ export async function updateOnlineNotebookOrder(courseId: string, notebookIds: s
   if (!response.ok) throw new Error(payload?.error || '保存课程顺序失败');
 }
 
+export async function renameOnlineNotebook(courseId: string, notebookId: string, name: string) {
+  const response = await backendFetch(
+    `/api/teacher/courses/${encodeURIComponent(courseId)}/notebooks/${encodeURIComponent(notebookId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'rename', name }),
+    },
+  );
+  const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+  if (!response.ok) throw new Error(payload?.error || '笔记本改名失败');
+}
+
 export async function processOnlineSource(courseId: string, sourceId: string) {
   const response = await backendFetch(
     `/api/teacher/courses/${encodeURIComponent(courseId)}/sources/${encodeURIComponent(sourceId)}/process`,

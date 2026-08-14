@@ -18,6 +18,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
     pathname === '/sso/callback' ||
+    pathname === '/speedup/signed-out' ||
     pathname === '/login' ||
     pathname === '/learn' ||
     pathname.startsWith('/student/') ||

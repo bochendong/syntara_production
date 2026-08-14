@@ -17,6 +17,7 @@ import {
   Eye,
   FileText,
   GripVertical,
+  Home,
   Library,
   ListChecks,
   ListOrdered,
@@ -24,6 +25,7 @@ import {
   MessageCircleMore,
   MessagesSquare,
   Network,
+  Pencil,
   Plus,
   RefreshCw,
   Rocket,
@@ -36,6 +38,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -62,6 +65,7 @@ import {
   orderCourseContentNotebooks,
   permanentlyDeleteOnlineContent,
   processOnlineSource,
+  renameOnlineNotebook,
   setOnlineContentRemoved,
   updateOnlineNotebookOrder,
   uploadOnlineTeacherSources,
@@ -180,15 +184,23 @@ function latestJobsByAsset(jobs: TeacherStudioTask[]) {
   return map;
 }
 
-export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
+export function TeacherCourseStudioClient({
+  courseId,
+  mockMode = false,
+}: {
+  courseId: string;
+  mockMode?: boolean;
+}) {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
-  const hydrated = sessionStatus !== 'loading';
-  const isLoggedIn = sessionStatus === 'authenticated';
+  const hydrated = mockMode || sessionStatus !== 'loading';
+  const isLoggedIn = mockMode || sessionStatus === 'authenticated';
   const role =
-    session?.user?.role === 'TEACHER' || session?.user?.role === 'ADMIN' ? 'TEACHER' : 'STUDENT';
-  const teacherId = session?.user?.id || '';
-  const localDemo = isLocalDemoUserId(teacherId);
+    mockMode || session?.user?.role === 'TEACHER' || session?.user?.role === 'ADMIN'
+      ? 'TEACHER'
+      : 'STUDENT';
+  const teacherId = mockMode ? 'local-demo-teacher-ui-mock' : session?.user?.id || '';
+  const localDemo = mockMode || isLocalDemoUserId(teacherId);
   const [course, setCourse] = useState<TeacherStudioCourse | null>(null);
   const [content, setContent] = useState<CourseContentItem[]>([]);
   const [removedContent, setRemovedContent] = useState<CourseContentItem[]>([]);
@@ -214,6 +226,9 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
   const [editingNotebookOrder, setEditingNotebookOrder] = useState(false);
   const [notebookOrderDraft, setNotebookOrderDraft] = useState<string[]>([]);
   const [savingNotebookOrder, setSavingNotebookOrder] = useState(false);
+  const [renamingNotebook, setRenamingNotebook] = useState<CourseContentItem | null>(null);
+  const [notebookNameDraft, setNotebookNameDraft] = useState('');
+  const [savingNotebookName, setSavingNotebookName] = useState(false);
   const [listPage, setListPage] = useState(1);
   const [sourceCategory, setSourceCategory] =
     useState<CourseSourceCategory>('school_teacher_notes');
@@ -221,6 +236,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
   const [selectedNotebookSectionId, setSelectedNotebookSectionId] = useState('');
   const [mindMapOpen, setMindMapOpen] = useState(false);
   const [hardRuleDialogOpen, setHardRuleDialogOpen] = useState(false);
+  const [editingHardRuleId, setEditingHardRuleId] = useState('');
   const [mindMapImageUrl, setMindMapImageUrl] = useState('');
   const [mindMapImageLoading, setMindMapImageLoading] = useState(false);
   const [mindMapImageError, setMindMapImageError] = useState('');
@@ -334,7 +350,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!isLoggedIn || role !== 'TEACHER') {
+    if (!mockMode && (!isLoggedIn || role !== 'TEACHER')) {
       router.replace('/teacher/login');
       return;
     }
@@ -343,11 +359,15 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
       .catch((loadError) =>
         setError(loadError instanceof Error ? loadError.message : '课程读取失败'),
       )
-      .finally(() => setLoading(false));
-  }, [hydrated, isLoggedIn, loadStudio, role, router]);
+      .finally(() => {
+        if (mockMode) setUnresolvedForumCount(3);
+        setLoading(false);
+      });
+  }, [hydrated, isLoggedIn, loadStudio, mockMode, role, router]);
 
   useEffect(() => {
-    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || localDemo) return;
+    if (mockMode || !hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || localDemo)
+      return;
     let cancelled = false;
     void backendJson<{ unresolvedCount: number }>(
       `/api/course-forum/${encodeURIComponent(courseId)}/summary`,
@@ -360,7 +380,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [courseId, hydrated, isLoggedIn, localDemo, role, teacherId]);
+  }, [courseId, hydrated, isLoggedIn, localDemo, mockMode, role, teacherId]);
 
   useEffect(() => {
     if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || localDemo) return;
@@ -538,14 +558,17 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
         ? problemBanks.length
         : tab === 'sources'
           ? categorySources.length
-          : tab === 'queue'
-            ? queueJobs.length
-            : removedContent.length;
+          : tab === 'hard_rules'
+            ? hardRules.length
+            : tab === 'queue'
+              ? queueJobs.length
+              : removedContent.length;
   const listPageCount = Math.max(1, Math.ceil(listTotal / STUDIO_PAGE_SIZE));
   const safeListPage = Math.min(listPage, listPageCount);
   const listOffset = (safeListPage - 1) * STUDIO_PAGE_SIZE;
   const pagedLibraryResources = libraryResources.slice(listOffset, listOffset + STUDIO_PAGE_SIZE);
   const visibleSources = categorySources.slice(listOffset, listOffset + STUDIO_PAGE_SIZE);
+  const pagedHardRules = hardRules.slice(listOffset, listOffset + STUDIO_PAGE_SIZE);
   const pagedJobs = queueJobs.slice(listOffset, listOffset + STUDIO_PAGE_SIZE);
   const pagedRemovedContent = removedContent.slice(listOffset, listOffset + STUDIO_PAGE_SIZE);
 
@@ -567,12 +590,64 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
     }
   };
 
+  const closeHardRuleDialog = () => {
+    if (
+      savingHardRuleId === 'new' ||
+      (editingHardRuleId && savingHardRuleId === editingHardRuleId)
+    ) {
+      return;
+    }
+    if (editingHardRuleId) {
+      const original = hardRules.find((rule) => rule.id === editingHardRuleId)?.content ?? '';
+      setHardRuleDrafts((current) => ({ ...current, [editingHardRuleId]: original }));
+      dirtyHardRuleIdsRef.current.delete(editingHardRuleId);
+    }
+    setHardRuleDialogOpen(false);
+    setEditingHardRuleId('');
+    setNewHardRule('');
+  };
+
+  const openCreateHardRuleDialog = () => {
+    setEditingHardRuleId('');
+    setNewHardRule('');
+    setHardRuleDialogOpen(true);
+  };
+
+  const openEditHardRuleDialog = (rule: CourseHardRuleRecord) => {
+    setEditingHardRuleId(rule.id);
+    setHardRuleDrafts((current) => ({
+      ...current,
+      [rule.id]: current[rule.id] ?? rule.content,
+    }));
+    setHardRuleDialogOpen(true);
+  };
+
   const handleCreateHardRule = async () => {
     const content = newHardRule.trim();
     if (!content || savingHardRuleId) return;
     setSavingHardRuleId('new');
     setError('');
     try {
+      if (localDemo) {
+        const now = new Date().toISOString();
+        const rule: CourseHardRuleRecord = {
+          id: `${courseId}-hard-rule-${Date.now()}`,
+          courseId,
+          ownerId: teacherId,
+          content,
+          position: hardRules.length,
+          createdAt: now,
+          updatedAt: now,
+        };
+        setHardRules((current) => [...current, rule]);
+        setHardRuleDrafts((current) => ({ ...current, [rule.id]: rule.content }));
+        setNewHardRule('');
+        setHardRuleDialogOpen(false);
+        setEditingHardRuleId('');
+        setHardRulesLoaded(true);
+        hardRulesLoadedRef.current = true;
+        return;
+      }
       const response = await backendFetch(
         `/api/teacher/courses/${encodeURIComponent(courseId)}/hard-rules`,
         {
@@ -596,6 +671,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
       }));
       setNewHardRule('');
       setHardRuleDialogOpen(false);
+      setEditingHardRuleId('');
       setHardRulesLoaded(true);
       hardRulesLoadedRef.current = true;
     } catch (createError) {
@@ -611,6 +687,21 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
     setSavingHardRuleId(rule.id);
     setError('');
     try {
+      if (localDemo) {
+        const savedRule: CourseHardRuleRecord = {
+          ...rule,
+          content,
+          updatedAt: new Date().toISOString(),
+        };
+        setHardRules((current) =>
+          current.map((candidate) => (candidate.id === savedRule.id ? savedRule : candidate)),
+        );
+        setHardRuleDrafts((current) => ({ ...current, [savedRule.id]: savedRule.content }));
+        dirtyHardRuleIdsRef.current.delete(savedRule.id);
+        setHardRuleDialogOpen(false);
+        setEditingHardRuleId('');
+        return;
+      }
       const response = await backendFetch(
         `/api/teacher/courses/${encodeURIComponent(courseId)}/hard-rules/${encodeURIComponent(rule.id)}`,
         {
@@ -633,6 +724,8 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
       );
       setHardRuleDrafts((current) => ({ ...current, [savedRule.id]: savedRule.content }));
       dirtyHardRuleIdsRef.current.delete(savedRule.id);
+      setHardRuleDialogOpen(false);
+      setEditingHardRuleId('');
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : '保存 Hard Rule 失败');
     } finally {
@@ -676,6 +769,54 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
       setError(saveError instanceof Error ? saveError.message : '保存课程顺序失败');
     } finally {
       setSavingNotebookOrder(false);
+    }
+  };
+
+  const openNotebookRename = (item: CourseContentItem) => {
+    if (item.type !== 'notebook') return;
+    setRenamingNotebook(item);
+    setNotebookNameDraft(item.title);
+  };
+
+  const closeNotebookRename = () => {
+    if (savingNotebookName) return;
+    setRenamingNotebook(null);
+    setNotebookNameDraft('');
+  };
+
+  const saveNotebookName = async () => {
+    const nextName = notebookNameDraft.trim();
+    if (
+      !teacherId ||
+      !renamingNotebook ||
+      !nextName ||
+      nextName === renamingNotebook.title ||
+      savingNotebookName
+    ) {
+      return;
+    }
+
+    setSavingNotebookName(true);
+    setError('');
+    try {
+      if (localDemo) {
+        setContent((current) =>
+          current.map((item) =>
+            item.id === renamingNotebook.id
+              ? { ...item, title: nextName, updatedAt: Date.now() }
+              : item,
+          ),
+        );
+      } else {
+        await renameOnlineNotebook(courseId, renamingNotebook.id, nextName);
+        await loadStudio();
+      }
+      setRenamingNotebook(null);
+      setNotebookNameDraft('');
+    } catch (renameError) {
+      setError(renameError instanceof Error ? renameError.message : '笔记本改名失败');
+    } finally {
+      setSavingNotebookName(false);
     }
   };
 
@@ -987,18 +1128,20 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
     <div className="min-h-full bg-white px-4 py-4 text-slate-950 dark:bg-slate-950 dark:text-white sm:px-6 sm:py-6 lg:px-12">
       <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-[1536px] flex-col">
         <section className="border-b border-slate-200/80 pb-6 dark:border-white/10 sm:pb-8">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3 mb-5 rounded-lg px-3 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white sm:mb-7 sm:text-[15px]"
-            onClick={() => router.push('/teacher')}
-          >
-            <ArrowLeft className="mr-1.5 size-4" />
-            返回教师桌面
-          </Button>
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <h1 className="break-words text-2xl font-bold leading-tight tracking-[-0.035em] text-slate-950 dark:text-white sm:text-[28px] lg:text-[2.75rem]">
+            <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="返回教师桌面"
+                title="返回教师桌面"
+                className="-ml-1.5 size-9 shrink-0 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+                onClick={() => router.push('/teacher')}
+              >
+                <Home className="size-4.5" strokeWidth={1.9} />
+              </Button>
+              <h1 className="min-w-0 break-words text-2xl font-bold leading-tight tracking-[-0.035em] text-slate-950 dark:text-white sm:text-[28px] lg:text-[2.75rem]">
                 {course.code} · {course.academicYear} {academicTermLabel(course.term)}
               </h1>
             </div>
@@ -1054,32 +1197,63 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
         ) : null}
 
         <nav
-          className="flex flex-wrap gap-x-6 gap-y-2 border-b border-slate-200/80 dark:border-white/10 sm:gap-x-9 lg:gap-x-14"
+          className="mt-5 rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1.5 dark:border-white/10 dark:bg-white/[0.04] sm:mt-6"
           aria-label="课程工作台分区"
         >
-          {(
-            [
-              ['sources', '源文件'],
-              ['notebooks', '笔记本库'],
-              ['hard_rules', `Hard Rule${hardRules.length ? ` · ${hardRules.length}` : ''}`],
-              ['queue', `AI 队列${counts.queued ? ` · ${counts.queued}` : ''}`],
-              ['problem_banks', '题库'],
-              ['removed', `已移除${removedContent.length ? ` · ${removedContent.length}` : ''}`],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => switchTab(value)}
-              className={`relative shrink-0 px-0 py-4 text-sm font-medium outline-none transition-colors after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 after:rounded-full after:transition-opacity focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-emerald-500/35 sm:py-5 sm:text-[15px] ${tab === value ? 'text-slate-950 after:bg-emerald-500 after:opacity-100 dark:text-white' : 'text-slate-500 after:opacity-0 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}`}
-            >
-              {label}
-            </button>
-          ))}
+          <div className="flex flex-wrap gap-1">
+            {(
+              [
+                ['sources', '源文件', FileText, null],
+                ['notebooks', '笔记本库', BookOpenText, null],
+                ['hard_rules', 'Hard Rule', ShieldCheck, hardRules.length || null],
+                ['queue', 'AI 队列', Brain, counts.queued || null],
+                ['problem_banks', '题库', Library, null],
+                ['removed', '已移除', Trash2, removedContent.length || null],
+              ] as const
+            ).map(([value, label, Icon, count]) => {
+              const active = tab === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => switchTab(value)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium outline-none transition-all focus-visible:ring-2 focus-visible:ring-emerald-500/35 sm:min-w-[7.5rem] sm:flex-none sm:justify-start sm:px-3.5 ${
+                    active
+                      ? 'bg-white text-slate-950 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_4px_12px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/80 dark:bg-white/[0.1] dark:text-white dark:ring-white/10'
+                      : 'text-slate-500 hover:bg-white/70 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white'
+                  }`}
+                >
+                  <Icon
+                    className={`size-4 shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-500'}`}
+                    strokeWidth={1.9}
+                  />
+                  <span className="truncate">{label}</span>
+                  {typeof count === 'number' ? (
+                    <span
+                      className={`inline-flex min-w-5 shrink-0 items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums leading-4 ${
+                        active
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200'
+                          : 'bg-slate-200/80 text-slate-600 dark:bg-white/10 dark:text-slate-300'
+                      }`}
+                    >
+                      {count > 99 ? '99+' : count}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
         </nav>
 
         {resourceLibraryKind ? (
-          <section className={STUDIO_SECTION_CLASS}>
+          <section
+            className={
+              selectedLibraryResource && resourceLibraryKind === 'notebook'
+                ? 'mt-6 flex flex-col overflow-visible rounded-3xl border border-slate-200/80 bg-white/90 dark:border-white/10 dark:bg-white/[0.055] sm:mt-8'
+                : STUDIO_SECTION_CLASS
+            }
+          >
             {resourceLibraryKind === 'problem_bank' ? (
               <div className={STUDIO_PANEL_BODY_CLASS}>
                 <StudioEmptyPlaceholder>
@@ -1097,7 +1271,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
                 </StudioEmptyPlaceholder>
               </div>
             ) : selectedLibraryResource ? (
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50/80 dark:bg-slate-950">
+              <div className="flex flex-col bg-slate-50/80 dark:bg-slate-950">
                 <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200/80 bg-white px-5 py-3 dark:border-white/10 dark:bg-slate-950">
                   <Button
                     size="sm"
@@ -1131,10 +1305,20 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
                   ) : null}
                   <div className="ml-auto flex items-center gap-2">
                     {selectedLibraryResource.type === 'notebook' ? (
-                      <Button size="sm" variant="outline" onClick={() => setMindMapOpen(true)}>
-                        <Network className="mr-1.5 size-3.5" />
-                        查看思维导图
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openNotebookRename(selectedLibraryResource)}
+                        >
+                          <Pencil className="mr-1.5 size-3.5" />
+                          重命名
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setMindMapOpen(true)}>
+                          <Network className="mr-1.5 size-3.5" />
+                          查看思维导图
+                        </Button>
+                      </>
                     ) : null}
                     <Button
                       size="sm"
@@ -1154,7 +1338,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
                 </div>
 
                 {selectedLibraryResource.type === 'notebook' ? (
-                  <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+                  <div className="p-4 sm:p-6">
                     <div className="w-full">
                       <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
                         {selectedLibraryResource.title}
@@ -1178,7 +1362,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
                       ) : null}
 
                       {selectedLibraryResource.notebookSections?.length ? (
-                        <div className="mt-5 grid min-h-[440px] rounded-2xl border border-slate-200/80 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-slate-900 md:grid-cols-[300px_minmax(0,1fr)]">
+                        <div className="mt-5 grid rounded-2xl border border-slate-200/80 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-slate-900 md:grid-cols-[300px_minmax(0,1fr)] md:items-start">
                           <aside className="border-b border-slate-200/80 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/[0.03] md:border-r md:border-b-0">
                             <p className="px-2 py-1 text-xs font-semibold text-slate-500">章节</p>
                             <div className="mt-1 space-y-1.5">
@@ -1414,6 +1598,15 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
                                   <Trash2 className="size-3.5" />
                                 )}
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="absolute -right-2 top-8 z-10 size-8 rounded-full bg-white p-0 text-slate-500 shadow-md hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:bg-slate-900"
+                                aria-label={`重命名 ${item.title}`}
+                                onClick={() => openNotebookRename(item)}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
                             </article>
                           );
                         })}
@@ -1437,43 +1630,20 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
         ) : null}
 
         {tab === 'hard_rules' ? (
-          <section className={STUDIO_SECTION_CLASS}>
-            <div className="flex shrink-0 flex-col gap-4 border-b border-slate-200/80 p-5 dark:border-white/10 lg:flex-row lg:items-start lg:justify-between">
-              <div className="max-w-2xl">
-                <div className="flex items-center gap-2">
-                  <span className="grid size-9 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-400/10 dark:text-violet-200">
-                    <ShieldCheck className="size-4.5" />
-                  </span>
-                  <div>
-                    <h2 className="text-lg font-semibold tracking-tight">Hard Rule</h2>
-                    <p className="text-xs font-medium text-violet-600 dark:text-violet-300">
-                      课程聊天强制规则
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                  这里的每条规则都会从 PostgreSQL 注入课程聊天的 system prompt，课程 Agent
-                  必须在每次回复中遵循。每门课程最多 30 条，每条最多 1000 字。
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <span className="inline-flex w-fit items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200">
-                  <Database className="size-3.5" />
-                  PostgreSQL 持久化
-                </span>
-                <Button
-                  type="button"
-                  className="rounded-xl bg-violet-600 text-white hover:bg-violet-700"
-                  disabled={hardRules.length >= 30}
-                  onClick={() => setHardRuleDialogOpen(true)}
-                >
-                  <Plus className="mr-1.5 size-3.5" />
-                  添加规则
-                </Button>
-              </div>
+          <section className="flex min-h-[calc(100dvh-300px)] flex-1 flex-col pt-6 sm:pt-8">
+            <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-xl bg-violet-600 text-white hover:bg-violet-700"
+                disabled={hardRules.length >= 30}
+                onClick={openCreateHardRuleDialog}
+              >
+                <Plus className="mr-1.5 size-3.5" />
+                添加规则
+              </Button>
             </div>
-
-            <div className={STUDIO_PANEL_BODY_CLASS}>
+            <div className="min-h-0 flex-1">
               {hardRulesLoading && !hardRulesLoaded ? (
                 <StudioEmptyPlaceholder>
                   <span className="inline-flex items-center gap-2">
@@ -1482,66 +1652,62 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
                   </span>
                 </StudioEmptyPlaceholder>
               ) : hardRules.length ? (
-                <StudioList className="mx-auto w-full max-w-4xl">
-                  {hardRules.map((rule, index) => {
+                <StudioList className="dark:bg-white/[0.02]">
+                  {pagedHardRules.map((rule, index) => {
                     const draft = hardRuleDrafts[rule.id] ?? rule.content;
                     const changed = draft.trim() !== rule.content.trim();
                     return (
-                      <StudioListItem key={rule.id} density="editor">
-                        <div className="flex items-start gap-3">
-                          <StudioItemIcon compact tone="violet" className="text-xs font-bold">
-                            {index + 1}
+                      <StudioListItem
+                        key={rule.id}
+                        density="compact"
+                        className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-4 lg:min-h-[52px] lg:gap-6"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <StudioItemIcon
+                            compact
+                            round
+                            tone={changed ? 'amber' : 'violet'}
+                            className="text-xs font-bold"
+                          >
+                            {listOffset + index + 1}
                           </StudioItemIcon>
-                          <div className="min-w-0 flex-1">
-                            <Textarea
-                              aria-label={`Hard Rule ${index + 1}`}
-                              value={draft}
-                              maxLength={1000}
-                              rows={3}
-                              className="min-h-24 resize-y rounded-xl border-slate-200 bg-slate-50/60 shadow-none dark:border-white/10 dark:bg-slate-950"
-                              onChange={(event) =>
-                                setHardRuleDrafts((current) => {
-                                  const value = event.target.value;
-                                  if (value.trim() === rule.content.trim()) {
-                                    dirtyHardRuleIdsRef.current.delete(rule.id);
-                                  } else {
-                                    dirtyHardRuleIdsRef.current.add(rule.id);
-                                  }
-                                  return { ...current, [rule.id]: value };
-                                })
-                              }
-                            />
-                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                              <div className="flex flex-wrap items-center gap-2 text-xs">
-                                <span className="tabular-nums text-slate-400">
-                                  {draft.length}/1000
-                                </span>
-                                <StudioStatusBadge tone={changed ? 'amber' : 'emerald'}>
-                                  {changed ? (
-                                    <Clock3 className="size-3" />
-                                  ) : (
-                                    <ShieldCheck className="size-3" />
-                                  )}
-                                  {changed ? '有未保存修改' : '已持久化 · 已注入 Agent'}
-                                </StudioStatusBadge>
-                              </div>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="rounded-xl"
-                                disabled={!changed || !draft.trim() || Boolean(savingHardRuleId)}
-                                onClick={() => void handleUpdateHardRule(rule)}
-                              >
-                                {savingHardRuleId === rule.id ? (
-                                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                                ) : (
-                                  <Save className="mr-1.5 size-3.5" />
-                                )}
-                                保存修改
-                              </Button>
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-950 dark:text-white">
+                              {draft || '（空规则）'}
+                            </h3>
+                            <div className="flex shrink-0 items-center gap-1 overflow-hidden">
+                              <StudioItemTag tone="neutral">{draft.length}/1000</StudioItemTag>
+                              <StudioItemTag tone="violet">强制规则</StudioItemTag>
                             </div>
                           </div>
+                        </div>
+
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:flex-nowrap sm:justify-end">
+                          <StudioStatusBadge tone={changed ? 'amber' : 'emerald'}>
+                            {changed ? (
+                              <Clock3 className="size-3" />
+                            ) : (
+                              <ShieldCheck className="size-3" />
+                            )}
+                            {changed ? '未保存' : '已注入 Agent'}
+                          </StudioStatusBadge>
+                          <StudioStatusBadge tone="indigo">
+                            <Database className="size-3" />
+                            已持久化
+                          </StudioStatusBadge>
+                          <p className="shrink-0 text-[10px] text-slate-400 lg:text-right">
+                            {new Date(rule.updatedAt).toLocaleString('zh-CN')}
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 shrink-0 px-2.5 text-xs"
+                            onClick={() => openEditHardRuleDialog(rule)}
+                          >
+                            <Pencil className="mr-1 size-3" />
+                            编辑
+                          </Button>
                         </div>
                       </StudioListItem>
                     );
@@ -1553,6 +1719,14 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
                 </StudioEmptyPlaceholder>
               )}
             </div>
+            {hardRules.length ? (
+              <StudioPagination
+                page={safeListPage}
+                pageCount={listPageCount}
+                total={listTotal}
+                onPage={setListPage}
+              />
+            ) : null}
           </section>
         ) : null}
 
@@ -1819,7 +1993,7 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
                       <StudioListItem
                         key={job.id}
                         density="compact"
-                        className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4 sm:gap-y-2 lg:min-h-[52px] lg:grid-cols-[minmax(360px,1fr)_minmax(300px,1.15fr)_auto] lg:items-center lg:gap-6"
+                        className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4 sm:gap-y-2 lg:min-h-[52px] lg:grid-cols-[minmax(300px,1fr)_minmax(260px,1.15fr)_minmax(345px,0.9fr)] lg:items-center lg:gap-4 xl:gap-6"
                       >
                         <div className="flex min-w-0 items-center gap-3">
                           <StudioItemIcon
@@ -1851,12 +2025,9 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
                               {[
                                 queueFileTypeLabel(sourceTitle),
                                 job.kind === 'mind_map' ? '思维导图' : '知识库',
-                                persistenceStatus === 'failed' ? '持久化失败' : '自动处理',
+                                '自动处理',
                               ].map((label) => (
-                                <StudioItemTag
-                                  key={label}
-                                  tone={label === '持久化失败' ? 'rose' : 'neutral'}
-                                >
+                                <StudioItemTag key={label} tone="neutral">
                                   {label}
                                 </StudioItemTag>
                               ))}
@@ -1866,9 +2037,21 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
 
                         <div className="min-w-0 sm:col-span-2 sm:row-start-2 lg:col-span-1 lg:col-start-auto lg:row-start-auto">
                           <div className="flex items-center justify-between gap-3 text-xs font-medium">
-                            <span className="truncate text-slate-500 dark:text-slate-400">
-                              {queueStageLabel(job)}
-                            </span>
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <span
+                                className={`shrink-0 ${isFailed ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}
+                              >
+                                {queueStageLabel(job)}
+                              </span>
+                              {job.errorReason ? (
+                                <span
+                                  className="min-w-0 truncate text-[11px] font-normal text-slate-400 dark:text-slate-500"
+                                  title={queueErrorLabel(job.errorReason)}
+                                >
+                                  · {queueErrorLabel(job.errorReason)}
+                                </span>
+                              ) : null}
+                            </div>
                             <span
                               className={`shrink-0 tabular-nums ${isCompleted ? 'text-emerald-700 dark:text-emerald-300' : isFailed ? 'text-rose-700 dark:text-rose-300' : 'text-sky-700 dark:text-sky-300'}`}
                             >
@@ -1888,11 +2071,6 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
                               ) : null}
                             </div>
                           </div>
-                          {job.errorReason ? (
-                            <p className="mt-1.5 line-clamp-1 text-[11px] text-rose-600 dark:text-rose-300">
-                              {queueErrorLabel(job.errorReason)}
-                            </p>
-                          ) : null}
                         </div>
 
                         <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:col-start-2 sm:row-start-1 sm:flex-nowrap sm:justify-end lg:col-start-auto lg:row-start-auto">
@@ -1964,13 +2142,10 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
         ) : null}
 
         {tab === 'removed' ? (
-          <section className={STUDIO_SECTION_CLASS}>
-            <div className="shrink-0 border-b border-slate-200/80 p-5 dark:border-white/10">
-              <h2 className="font-semibold">已从本学期移除</h2>
-            </div>
-            <div className={STUDIO_PANEL_BODY_CLASS}>
+          <section className="flex min-h-[calc(100dvh-300px)] flex-1 flex-col pt-6 sm:pt-8">
+            <div className="min-h-0 flex-1">
               {removedContent.length ? (
-                <StudioList>
+                <StudioList className="dark:bg-white/[0.02]">
                   {pagedRemovedContent.map((item) => {
                     const meta = TYPE_META[item.type];
                     return (
@@ -2044,47 +2219,179 @@ export function TeacherCourseStudioClient({ courseId }: { courseId: string }) {
       <Dialog
         open={hardRuleDialogOpen}
         onOpenChange={(open) => {
-          if (savingHardRuleId === 'new') return;
-          setHardRuleDialogOpen(open);
+          if (!open) {
+            closeHardRuleDialog();
+            return;
+          }
+          setHardRuleDialogOpen(true);
         }}
       >
         <DialogContent className="max-w-lg rounded-3xl">
           <DialogHeader>
-            <DialogTitle>添加新的 Hard Rule</DialogTitle>
+            <DialogTitle>{editingHardRuleId ? '编辑 Hard Rule' : '添加新的 Hard Rule'}</DialogTitle>
             <DialogDescription>
               规则会注入课程聊天的 system prompt。每门课程最多 30 条，每条最多 1000 字。
             </DialogDescription>
           </DialogHeader>
           <div className="mt-1">
-            <Textarea
-              id="new-course-hard-rule"
-              value={newHardRule}
-              maxLength={1000}
-              rows={4}
-              className="min-h-28 resize-y rounded-xl border-violet-200 bg-violet-50/40 shadow-none dark:border-violet-400/20 dark:bg-violet-400/[0.06]"
-              placeholder="例如：讲解代码时必须先解释运行结果，再展示实现；不得直接给出作业最终答案。"
-              onChange={(event) => setNewHardRule(event.target.value)}
+            {(() => {
+              const editingRule = editingHardRuleId
+                ? hardRules.find((rule) => rule.id === editingHardRuleId)
+                : null;
+              const dialogValue = editingRule
+                ? (hardRuleDrafts[editingRule.id] ?? editingRule.content)
+                : newHardRule;
+              const dialogChanged = editingRule
+                ? dialogValue.trim() !== editingRule.content.trim()
+                : Boolean(dialogValue.trim());
+              return (
+                <>
+                  <Textarea
+                    id="course-hard-rule-dialog"
+                    value={dialogValue}
+                    maxLength={1000}
+                    rows={4}
+                    className="min-h-28 resize-y rounded-xl border-violet-200 bg-violet-50/40 shadow-none dark:border-violet-400/20 dark:bg-violet-400/[0.06]"
+                    placeholder="例如：讲解代码时必须先解释运行结果，再展示实现；不得直接给出作业最终答案。"
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (editingRule) {
+                        if (value.trim() === editingRule.content.trim()) {
+                          dirtyHardRuleIdsRef.current.delete(editingRule.id);
+                        } else {
+                          dirtyHardRuleIdsRef.current.add(editingRule.id);
+                        }
+                        setHardRuleDrafts((current) => ({
+                          ...current,
+                          [editingRule.id]: value,
+                        }));
+                        return;
+                      }
+                      setNewHardRule(value);
+                    }}
+                  />
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-xs tabular-nums text-slate-400">
+                      {dialogValue.length}/1000 · {hardRules.length}/30 条
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl"
+                        onClick={closeHardRuleDialog}
+                      >
+                        取消
+                      </Button>
+                      {editingRule ? (
+                        <Button
+                          type="button"
+                          className="rounded-xl bg-violet-600 text-white hover:bg-violet-700"
+                          disabled={
+                            !dialogChanged ||
+                            !dialogValue.trim() ||
+                            savingHardRuleId === editingRule.id
+                          }
+                          onClick={() => void handleUpdateHardRule(editingRule)}
+                        >
+                          {savingHardRuleId === editingRule.id ? (
+                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                          ) : (
+                            <Save className="mr-1.5 size-3.5" />
+                          )}
+                          保存修改
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          className="rounded-xl bg-violet-600 text-white hover:bg-violet-700"
+                          disabled={
+                            !newHardRule.trim() ||
+                            savingHardRuleId === 'new' ||
+                            hardRules.length >= 30
+                          }
+                          onClick={() => void handleCreateHardRule()}
+                        >
+                          {savingHardRuleId === 'new' ? (
+                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                          ) : (
+                            <Plus className="mr-1.5 size-3.5" />
+                          )}
+                          添加规则
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(renamingNotebook)}
+        onOpenChange={(open) => {
+          if (!open) closeNotebookRename();
+        }}
+      >
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>重命名 AI 笔记本</DialogTitle>
+            <DialogDescription className="leading-6">
+              名称会同步到老师资料库、学生课程页和课程聊天引用中；笔记本内容不会改变。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-1 space-y-2">
+            <label
+              htmlFor="teacher-notebook-name"
+              className="text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              笔记本名称
+            </label>
+            <Input
+              id="teacher-notebook-name"
+              autoFocus
+              maxLength={120}
+              value={notebookNameDraft}
+              placeholder="输入新的笔记本名称"
+              className="h-11 rounded-xl"
+              onChange={(event) => setNotebookNameDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void saveNotebookName();
+              }}
             />
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <span className="text-xs tabular-nums text-slate-400">
-                {newHardRule.length}/1000 · {hardRules.length}/30 条
-              </span>
-              <Button
-                type="button"
-                className="rounded-xl bg-violet-600 text-white hover:bg-violet-700"
-                disabled={
-                  !newHardRule.trim() || savingHardRuleId === 'new' || hardRules.length >= 30
-                }
-                onClick={() => void handleCreateHardRule()}
-              >
-                {savingHardRuleId === 'new' ? (
-                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                ) : (
-                  <Plus className="mr-1.5 size-3.5" />
-                )}
-                添加规则
-              </Button>
-            </div>
+            <p className="text-right text-xs tabular-nums text-slate-400">
+              {notebookNameDraft.length}/120
+            </p>
+          </div>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              disabled={savingNotebookName}
+              onClick={closeNotebookRename}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              className="rounded-xl bg-violet-600 text-white hover:bg-violet-700"
+              disabled={
+                savingNotebookName ||
+                !notebookNameDraft.trim() ||
+                notebookNameDraft.trim() === renamingNotebook?.title
+              }
+              onClick={() => void saveNotebookName()}
+            >
+              {savingNotebookName ? (
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+              ) : (
+                <Save className="mr-1.5 size-3.5" />
+              )}
+              保存名称
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -6,7 +6,10 @@ import { safeRoute } from '@/lib/server/json-error-response';
 import { requireTeacher } from '@/lib/server/teacher-auth';
 import { hasTeacherCourseAccess } from '@/lib/server/external-course-access';
 
-const updateSchema = z.object({ action: z.enum(['remove', 'restore']) });
+const updateSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.enum(['remove', 'restore']) }),
+  z.object({ action: z.literal('rename'), name: z.string().trim().min(1).max(120) }),
+]);
 
 async function ownedNotebook(userId: string, courseId: string, notebookId: string) {
   return prisma.notebook.findFirst({
@@ -31,11 +34,15 @@ export async function PATCH(
     }
     const payload = updateSchema.safeParse(await request.json().catch(() => null));
     if (!payload.success) return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-    await prisma.notebook.update({
+    const notebook = await prisma.notebook.update({
       where: { id: notebookId },
-      data: { removedAt: payload.data.action === 'remove' ? new Date() : null },
+      data:
+        payload.data.action === 'rename'
+          ? { name: payload.data.name }
+          : { removedAt: payload.data.action === 'remove' ? new Date() : null },
+      select: { id: true, name: true },
     });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, notebook });
   });
 }
 

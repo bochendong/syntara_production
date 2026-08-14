@@ -109,6 +109,7 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   const isLogin = pathname === '/login' || pathname?.startsWith('/login/');
   const isTeacherLogin =
     pathname === '/teacher/login' || Boolean(pathname?.startsWith('/teacher/login/'));
+  const isSpeedupSignedOut = pathname === '/speedup/signed-out';
   const isTeacherPortal = pathname === '/teacher' || Boolean(pathname?.startsWith('/teacher/'));
   const isStudentPortal = pathname === '/student' || Boolean(pathname?.startsWith('/student/'));
   const isRegister = pathname === '/register' || pathname?.startsWith('/register/');
@@ -169,7 +170,7 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   const isChatPage = pathname === '/chat';
   const hasRightRail = isChatPage;
   const hasGlobalHeader = false;
-  if (isLogin || isTeacherLogin || isRegister || isLanding) {
+  if (isLogin || isTeacherLogin || isSpeedupSignedOut || isRegister || isLanding) {
     return <>{children}</>;
   }
 
