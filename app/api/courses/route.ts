@@ -11,6 +11,8 @@ import {
   createOwnedCourse,
   listAccessibleCoursesForUser,
 } from '@/lib/server/repositories/course-repository';
+import { reconcileSpeedupCourseMembershipsForUser } from '@/lib/server/speedup-course-provisioning';
+import { SpeedupSsoError } from '@/lib/server/speedup-sso';
 
 function isTransientDatabaseConnectionError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -50,16 +52,30 @@ export async function GET() {
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
     const { userId, userEmail } = auth;
+
+    try {
+      await reconcileSpeedupCourseMembershipsForUser(userId);
+    } catch (error) {
+      if (!(error instanceof SpeedupSsoError)) throw error;
+      // Keep the last verified memberships during a temporary upstream outage.
+      // A successful empty StudentCourses response still reaches the normal
+      // reconciliation path above and revokes every stale membership.
+      console.warn('[speedup-course-sync] keeping cached memberships', error.status);
+    }
+
     const courses = await readAccessibleCourses(userId, userEmail);
 
-    return NextResponse.json({
-      courses: courses.map((course) => ({
-        ...course,
-        avatarUrl: course.avatarUrl?.trim() || pickStableCourseAvatarUrl(course.id),
-        joinedAt: course.joinedAt ?? undefined,
-        sourceOwnerName: course.sourceOwnerName ?? undefined,
-      })),
-    });
+    return NextResponse.json(
+      {
+        courses: courses.map((course) => ({
+          ...course,
+          avatarUrl: course.avatarUrl?.trim() || pickStableCourseAvatarUrl(course.id),
+          joinedAt: course.joinedAt ?? undefined,
+          sourceOwnerName: course.sourceOwnerName ?? undefined,
+        })),
+      },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
   });
 }
 

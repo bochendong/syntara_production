@@ -19,6 +19,28 @@ export type SpeedupTeacherCourseOption = SpeedupCourse & {
   localCourseId: string | null;
 };
 
+/**
+ * Refresh the current Speedup user's external course memberships before an
+ * access-sensitive read. A successful empty upstream list intentionally
+ * revokes every cached membership; local courses and learning history remain.
+ */
+export async function reconcileSpeedupCourseMembershipsForUser(
+  userId: string,
+): Promise<'refreshed' | 'skipped'> {
+  const speedupAccount = await prisma.account.findFirst({
+    where: { userId, provider: SPEEDUP_PROVIDER },
+    select: { user: { select: { role: true } } },
+  });
+  if (!speedupAccount) return 'skipped';
+
+  const role = speedupAccount.user.role;
+  if (role !== 'STUDENT' && role !== 'TEACHER') return 'skipped';
+
+  const courses = await listSpeedupCoursesForUser(userId, role);
+  await syncSpeedupCourseMemberships(userId, role, courses);
+  return 'refreshed';
+}
+
 export async function syncSpeedupCourseMemberships(
   userId: string,
   role: SpeedupMembershipRole,
