@@ -5,6 +5,10 @@ export const SYNTARA_WORKSPACE_DIALOG_OVERLAY_CLASS =
   'bg-slate-900/22 backdrop-blur-[10px] supports-backdrop-filter:backdrop-blur-[10px]';
 
 export const SYNTARA_ACTION_DIALOG_CONTENT_CLASS =
+  'flex h-auto w-[calc(100vw-1rem)] min-w-[min(960px,calc(100vw-1rem))] max-w-[1040px] min-h-[min(620px,calc(100dvh-1rem))] max-h-[calc(100dvh-1rem)] flex-col gap-4 overflow-hidden rounded-[28px] border border-white/80 bg-slate-50/96 p-5 shadow-[0_28px_90px_rgba(15,23,42,0.25)] ring-0 backdrop-blur-[32px] supports-backdrop-filter:backdrop-blur-[32px] dark:border-white/12 dark:bg-slate-950/96';
+
+/** Destructive confirmations stay intentionally compact; normal Dialog content defaults to large. */
+export const SYNTARA_COMPACT_DIALOG_CONTENT_CLASS =
   'flex w-[calc(100vw-2rem)] max-w-[480px] max-h-[min(620px,88dvh)] min-h-0 flex-col gap-4 overflow-hidden rounded-[22px] border border-white/80 bg-slate-50/96 p-5 shadow-[0_28px_90px_rgba(15,23,42,0.25)] ring-0 backdrop-blur-[32px] supports-backdrop-filter:backdrop-blur-[32px] dark:border-white/12 dark:bg-slate-950/96';
 
 export const SYNTARA_WORKSPACE_DIALOG_CONTENT_CLASS =

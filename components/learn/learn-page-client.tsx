@@ -19364,9 +19364,7 @@ export function LearnPageClient() {
           if (!open) setPendingDeleteLearnSession(null);
         }}
       >
-        <DialogContent
-          className={cn(SYNTARA_ACTION_DIALOG_CONTENT_CLASS, 'max-w-[430px] gap-0 p-0')}
-        >
+        <DialogContent size="compact" className="max-w-[430px] gap-0 p-0">
           <DialogHeader className={SYNTARA_DIALOG_HEADER_CLASS}>
             <DialogTitle className="text-base">删除这条会话？</DialogTitle>
             <DialogDescription className="leading-5">

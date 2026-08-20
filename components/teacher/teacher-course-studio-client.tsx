@@ -2473,7 +2473,7 @@ export function TeacherCourseStudioClient({
           if (!open && !permanentDeleteReferenceId) setPendingPermanentDeleteItem(null);
         }}
       >
-        <DialogContent className="max-w-md rounded-3xl">
+        <DialogContent size="compact" className="max-w-md rounded-3xl">
           <DialogHeader>
             <DialogTitle>彻底删除课程内容？</DialogTitle>
             <DialogDescription className="leading-6">

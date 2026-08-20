@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { XIcon } from 'lucide-react';
 import {
   SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+  SYNTARA_COMPACT_DIALOG_CONTENT_CLASS,
   SYNTARA_DIALOG_OVERLAY_CLASS,
 } from '@/components/ui/syntara-dialog-style';
 
@@ -50,20 +51,25 @@ function DialogContent({
   showCloseButton = true,
   showOverlay = true,
   overlayClassName,
+  size = 'large',
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
   showOverlay?: boolean;
   overlayClassName?: string;
+  size?: 'large' | 'compact';
 }) {
   return (
     <DialogPortal>
       {showOverlay ? <DialogOverlay className={overlayClassName} /> : null}
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        data-size={size}
         className={cn(
           'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-1/2 left-1/2 z-[1401] -translate-x-1/2 -translate-y-1/2 text-sm duration-200 outline-none',
-          SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+          size === 'compact'
+            ? SYNTARA_COMPACT_DIALOG_CONTENT_CLASS
+            : SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
           className,
         )}
         {...props}

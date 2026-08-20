@@ -6,7 +6,7 @@ import { AlertDialog as AlertDialogPrimitive } from 'radix-ui';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
-  SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+  SYNTARA_COMPACT_DIALOG_CONTENT_CLASS,
   SYNTARA_DIALOG_OVERLAY_CLASS,
 } from '@/components/ui/syntara-dialog-style';
 
@@ -56,7 +56,7 @@ function AlertDialogContent({
         data-size={size}
         className={cn(
           'data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 group/alert-dialog-content fixed top-1/2 left-1/2 z-[1401] grid -translate-x-1/2 -translate-y-1/2 duration-200 outline-none',
-          SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
+          SYNTARA_COMPACT_DIALOG_CONTENT_CLASS,
           'data-[size=sm]:max-w-[420px]',
           className,
         )}
