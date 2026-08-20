@@ -93,6 +93,51 @@ function asRecord(value: unknown): JsonRecord | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : null;
 }
 
+function booleanValue(record: JsonRecord, ...keys: string[]): boolean | null {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number' && Number.isFinite(value)) return value !== 0;
+    if (typeof value !== 'string' || !value.trim()) continue;
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on', 'enabled', 'active', '开启', '已开启'].includes(normalized)) {
+      return true;
+    }
+    if (
+      ['false', '0', 'no', 'off', 'disabled', 'inactive', '关闭', '已关闭'].includes(normalized)
+    ) {
+      return false;
+    }
+  }
+  return null;
+}
+
+/**
+ * StudentCourses may retain the normal course enrollment after the
+ * institution disables only its AI-course entitlement. Missing flags remain
+ * backward compatible; an explicit disabled value is authoritative.
+ */
+function speedupAiCourseEnabled(course: JsonRecord): boolean {
+  return (
+    booleanValue(
+      course,
+      'AIEnabled',
+      'AiEnabled',
+      'aiEnabled',
+      'IsAIEnabled',
+      'IsAiEnabled',
+      'isAIEnabled',
+      'isAiEnabled',
+      'AICourseEnabled',
+      'AiCourseEnabled',
+      'aiCourseEnabled',
+      'IsAICourseEnabled',
+      'IsAiCourseEnabled',
+      'isAiCourseEnabled',
+    ) !== false
+  );
+}
+
 async function readJsonResponse(response: Response): Promise<unknown> {
   try {
     return await response.json();
@@ -217,6 +262,7 @@ async function fetchSpeedupCourses(
   return payload
     .map(asRecord)
     .filter((course): course is JsonRecord => course !== null)
+    .filter((course) => role === 'TEACHER' || speedupAiCourseEnabled(course))
     .map(speedupCourseFromRecord)
     .filter((course): course is SpeedupCourse => course !== null);
 }

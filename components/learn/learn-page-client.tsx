@@ -7256,6 +7256,7 @@ export function LearnPageClient() {
     urlCourseId ? 'ready' : 'idle',
   );
   const [courseLoadError, setCourseLoadError] = useState<string | null>(null);
+  const [unavailableCourseId, setUnavailableCourseId] = useState<string | null>(null);
   const [courseLoadAttempt, setCourseLoadAttempt] = useState(0);
   const [activeCourseId, setActiveCourseId] = useState<string | null>(() => urlCourseId || null);
   const [notebooks, setNotebooks] = useState<StageListItem[]>([]);
@@ -9644,6 +9645,14 @@ export function LearnPageClient() {
       return;
     }
     let alive = true;
+    if (urlCourseId && unavailableCourseId === urlCourseId) {
+      setCourses((current) => current.filter((course) => course.id !== urlCourseId));
+      setActiveCourseId((current) => (current === urlCourseId ? null : current));
+      setCoursesLoadState('ready');
+      return () => {
+        alive = false;
+      };
+    }
     setCourseLoadError(null);
     const cachedCourses = readLearnCourseListCache(localUserId, { allowStale: true });
     const cachedCourseList = urlCourseId
@@ -9709,6 +9718,7 @@ export function LearnPageClient() {
           return;
         }
         if (urlCourseId && items[0]) {
+          setUnavailableCourseId((current) => (current === urlCourseId ? null : current));
           const nextCachedCourses = [
             items[0],
             ...(cachedCourses || []).filter((course) => course.id !== items[0].id),
@@ -9732,6 +9742,7 @@ export function LearnPageClient() {
         const accessUnavailable =
           err instanceof BackendApiError && (err.status === 403 || err.status === 404);
         if (accessUnavailable) {
+          setUnavailableCourseId(urlCourseId || null);
           setCourses((current) => current.filter((course) => course.id !== urlCourseId));
           setCourseLoadError(reason);
           setCoursesLoadState('ready');
@@ -9775,8 +9786,13 @@ export function LearnPageClient() {
     previewLearnHome,
     router,
     setCurrentCourse,
+    unavailableCourseId,
     urlCourseId,
   ]);
+
+  useEffect(() => {
+    setUnavailableCourseId((current) => (current && current !== urlCourseId ? null : current));
+  }, [urlCourseId]);
 
   useEffect(() => {
     if (previewLearnHome) {
@@ -10439,6 +10455,7 @@ export function LearnPageClient() {
           watchError instanceof BackendApiError &&
           (watchError.status === 403 || watchError.status === 404)
         ) {
+          setUnavailableCourseId(courseId);
           setCourses((current) => current.filter((course) => course.id !== courseId));
           setCourseLoadError(watchError.backendMessage || '机构已关闭这门课程的 AI 访问权限。');
           setCoursesLoadState('ready');
@@ -15864,7 +15881,10 @@ export function LearnPageClient() {
     .filter(Boolean)
     .join('\n');
   const retryFailedCourseContent = () => {
-    if (courseLoadError) setCourseLoadAttempt((current) => current + 1);
+    if (courseLoadError) {
+      setUnavailableCourseId(null);
+      setCourseLoadAttempt((current) => current + 1);
+    }
     if (remoteConversationLoadError) {
       setRemoteConversationLoadAttempt((current) => current + 1);
     } else if (remoteConversationSyncError) {
@@ -15890,7 +15910,10 @@ export function LearnPageClient() {
     return (
       <LearnPageShellSkeleton
         error={courseLoadError || '课程加载失败，服务端没有返回可用的错误原因。'}
-        onRetry={() => setCourseLoadAttempt((current) => current + 1)}
+        onRetry={() => {
+          setUnavailableCourseId(null);
+          setCourseLoadAttempt((current) => current + 1);
+        }}
       />
     );
   }
@@ -15901,7 +15924,7 @@ export function LearnPageClient() {
         <div className="max-w-sm">
           <BookOpenCheck className="mx-auto size-8 text-slate-400" strokeWidth={1.6} />
           <h1 className="mt-4 text-lg font-semibold text-slate-950 dark:text-slate-50">
-            无法打开这门课程
+            {unavailableCourseId === urlCourseId ? '课程权限已关闭' : '无法打开这门课程'}
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
             {courseLoadError ||
@@ -15911,7 +15934,10 @@ export function LearnPageClient() {
             type="button"
             variant="outline"
             className="mt-5 rounded-full px-5"
-            onClick={() => setCourseLoadAttempt((current) => current + 1)}
+            onClick={() => {
+              setUnavailableCourseId(null);
+              setCourseLoadAttempt((current) => current + 1);
+            }}
           >
             <RefreshCw className="size-4" />
             重试
