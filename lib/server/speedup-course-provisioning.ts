@@ -31,6 +31,17 @@ export type SpeedupTeacherCourseOption = SpeedupCourse & {
   localCourseId: string | null;
 };
 
+async function ensureSpeedupStudentEnrollments(
+  studentId: string,
+  bindings: Array<{ courseId: string }>,
+): Promise<void> {
+  if (bindings.length === 0) return;
+  await prisma.courseEnrollment.createMany({
+    data: bindings.map((binding) => ({ userId: studentId, courseId: binding.courseId })),
+    skipDuplicates: true,
+  });
+}
+
 /**
  * Refresh the current Speedup user's external course memberships before an
  * access-sensitive read. A successful empty upstream list intentionally
@@ -49,7 +60,13 @@ async function reconcileSpeedupCourseMembershipsForUserUncached(
   if (role !== 'STUDENT' && role !== 'TEACHER') return 'skipped';
 
   const courses = await listSpeedupCoursesForUser(userId, role);
-  await syncSpeedupCourseMemberships(userId, role, courses);
+  const bindings = await syncSpeedupCourseMemberships(userId, role, courses);
+  if (role === 'STUDENT') {
+    // The all-courses refresh must grant newly assigned, already-activated
+    // Speedup courses just like the SSO callback does. createMany keeps this
+    // idempotent; inactive memberships still hide revoked courses at read time.
+    await ensureSpeedupStudentEnrollments(userId, bindings);
+  }
   return 'refreshed';
 }
 
@@ -449,12 +466,7 @@ export async function enrollSpeedupStudentCourse(
   requestedCampusCode?: string,
 ): Promise<string> {
   const bindings = await syncSpeedupCourseMemberships(studentId, 'STUDENT', courses);
-  if (bindings.length > 0) {
-    await prisma.courseEnrollment.createMany({
-      data: bindings.map((binding) => ({ userId: studentId, courseId: binding.courseId })),
-      skipDuplicates: true,
-    });
-  }
+  await ensureSpeedupStudentEnrollments(studentId, bindings);
   const binding = bindings.find(
     (candidate) =>
       candidate.externalCourseId === externalCourseId &&
