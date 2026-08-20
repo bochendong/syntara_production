@@ -113,9 +113,9 @@ function booleanValue(record: JsonRecord, ...keys: string[]): boolean | null {
 }
 
 /**
- * StudentCourses may retain the normal course enrollment after the
- * institution disables only its AI-course entitlement. Missing flags remain
- * backward compatible; an explicit disabled value is authoritative.
+ * Speedup may retain the normal student enrollment or teacher assignment after
+ * the institution disables only its AI-course entitlement. Missing flags
+ * remain backward compatible; an explicit disabled value is authoritative.
  */
 function speedupAiCourseEnabled(course: JsonRecord): boolean {
   return (
@@ -262,7 +262,7 @@ async function fetchSpeedupCourses(
   return payload
     .map(asRecord)
     .filter((course): course is JsonRecord => course !== null)
-    .filter((course) => role === 'TEACHER' || speedupAiCourseEnabled(course))
+    .filter(speedupAiCourseEnabled)
     .map(speedupCourseFromRecord)
     .filter((course): course is SpeedupCourse => course !== null);
 }

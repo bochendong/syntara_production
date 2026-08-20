@@ -817,7 +817,7 @@ export default function CourseDetailPageClient() {
   useEffect(() => {
     if (!authHydrated) return;
     if (!isLoggedIn) {
-      router.replace('/login');
+      router.replace('/speedup/signed-out?role=student');
       return;
     }
     if (!id) return;

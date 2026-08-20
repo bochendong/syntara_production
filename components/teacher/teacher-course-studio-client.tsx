@@ -38,6 +38,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { CourseAccessClosedCard } from '@/components/course-access-closed-card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -76,7 +77,7 @@ import {
   type TeacherStudioSourcePreview,
   type TeacherStudioTask,
 } from '@/lib/teacher/online-course-studio';
-import { backendFetch, backendJson } from '@/lib/utils/backend-api';
+import { BackendApiError, backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { isLocalDemoUserId } from '@/lib/auth/local-demo';
 import {
   getLocalDemoCourseHardRules,
@@ -128,6 +129,10 @@ const SOURCE_CATEGORY_META = Object.fromEntries(
 ) as Record<CourseSourceCategory, (typeof SOURCE_CATEGORIES)[number]>;
 const STUDIO_SECTION_CLASS =
   'mt-6 flex min-h-[min(706px,72dvh)] flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 dark:border-white/10 dark:bg-white/[0.055] sm:mt-8';
+
+function teacherCourseAccessWasRevoked(error: unknown): error is BackendApiError {
+  return error instanceof BackendApiError && (error.status === 403 || error.status === 404);
+}
 const STUDIO_PANEL_BODY_CLASS =
   'flex min-h-0 flex-1 flex-col overflow-y-auto bg-slate-50/80 p-4 dark:bg-slate-950 sm:p-5';
 
@@ -215,6 +220,7 @@ export function TeacherCourseStudioClient({
   const [tab, setTab] = useState<StudioTab>('sources');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [accessRevoked, setAccessRevoked] = useState(false);
   const [unresolvedForumCount, setUnresolvedForumCount] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [processingSourceIds, setProcessingSourceIds] = useState<Set<string>>(() => new Set());
@@ -257,14 +263,24 @@ export function TeacherCourseStudioClient({
 
   const loadStudio = useCallback(async () => {
     if (!teacherId) return;
-    const snapshot = localDemo
-      ? getLocalDemoTeacherStudio(courseId, teacherId)
-      : await loadOnlineTeacherStudio({ teacherId, courseId });
-    setCourse(snapshot.course);
-    setContent(snapshot.content);
-    setRemovedContent(snapshot.removedContent);
-    setJobs(snapshot.tasks);
-    setPersistenceTasks(snapshot.tasks);
+    try {
+      const snapshot = localDemo
+        ? getLocalDemoTeacherStudio(courseId, teacherId)
+        : await loadOnlineTeacherStudio({ teacherId, courseId });
+      setCourse(snapshot.course);
+      setContent(snapshot.content);
+      setRemovedContent(snapshot.removedContent);
+      setJobs(snapshot.tasks);
+      setPersistenceTasks(snapshot.tasks);
+      setAccessRevoked(false);
+    } catch (loadError) {
+      if (teacherCourseAccessWasRevoked(loadError)) {
+        setCourse(null);
+        setAccessRevoked(true);
+        setError(loadError.backendMessage || '机构已关闭这门课程的 AI 访问权限。');
+      }
+      throw loadError;
+    }
   }, [courseId, localDemo, teacherId]);
 
   const loadHardRules = useCallback(
@@ -333,7 +349,7 @@ export function TeacherCourseStudioClient({
   }, [courseId, localDemo, teacherId]);
 
   const refreshSharedCourseContent = useCallback(async () => {
-    if (!teacherId || sharedContentRefreshRef.current) return;
+    if (!teacherId || accessRevoked || sharedContentRefreshRef.current) return;
     if (localDemo) return;
     sharedContentRefreshRef.current = true;
     try {
@@ -346,12 +362,12 @@ export function TeacherCourseStudioClient({
     } finally {
       sharedContentRefreshRef.current = false;
     }
-  }, [loadStudio, localDemo, teacherId]);
+  }, [accessRevoked, loadStudio, localDemo, teacherId]);
 
   useEffect(() => {
     if (!hydrated) return;
     if (!mockMode && (!isLoggedIn || role !== 'TEACHER')) {
-      router.replace('/teacher/login');
+      router.replace('/speedup/signed-out?role=teacher');
       return;
     }
     setLoading(true);
@@ -383,9 +399,10 @@ export function TeacherCourseStudioClient({
   }, [courseId, hydrated, isLoggedIn, localDemo, mockMode, role, teacherId]);
 
   useEffect(() => {
-    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || localDemo) return;
+    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || localDemo || accessRevoked)
+      return;
     void refreshPersistenceTasks();
-  }, [hydrated, isLoggedIn, localDemo, refreshPersistenceTasks, role, teacherId]);
+  }, [accessRevoked, hydrated, isLoggedIn, localDemo, refreshPersistenceTasks, role, teacherId]);
 
   useEffect(() => {
     if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || localDemo) return;
@@ -393,7 +410,7 @@ export function TeacherCourseStudioClient({
       if (document.visibilityState === 'visible') void refreshSharedCourseContent();
     };
     void refreshSharedCourseContent();
-    const interval = window.setInterval(refreshWhenVisible, 60_000);
+    const interval = window.setInterval(refreshWhenVisible, 30_000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
@@ -401,7 +418,7 @@ export function TeacherCourseStudioClient({
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [hydrated, isLoggedIn, localDemo, refreshSharedCourseContent, role, teacherId]);
+  }, [accessRevoked, hydrated, isLoggedIn, localDemo, refreshSharedCourseContent, role, teacherId]);
 
   useEffect(() => {
     if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || tab !== 'hard_rules') {
@@ -1098,6 +1115,10 @@ export function TeacherCourseStudioClient({
   }, [mindMapImageReloadKey, mindMapOpen, selectedMindMapAssetUrl]);
 
   if (!hydrated || !isLoggedIn || role !== 'TEACHER') return null;
+
+  if (accessRevoked) {
+    return <CourseAccessClosedCard returnHref="/teacher" returnLabel="返回教师工作台" />;
+  }
 
   if (loading) {
     return (

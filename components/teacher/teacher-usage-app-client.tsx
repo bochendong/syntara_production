@@ -20,7 +20,9 @@ export function TeacherUsageAppClient() {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!isLoggedIn || role !== 'TEACHER') router.replace('/teacher/login');
+    if (!isLoggedIn || role !== 'TEACHER') {
+      router.replace('/speedup/signed-out?role=teacher');
+    }
   }, [hydrated, isLoggedIn, role, router]);
 
   if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId) return null;

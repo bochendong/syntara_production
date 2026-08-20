@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { Clock3, Loader2, Mail, School, Search, ShieldCheck, Users } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
+import { CourseAccessClosedCard } from '@/components/course-access-closed-card';
 import { TeacherAppShell } from '@/components/teacher/teacher-app-shell';
 import {
   StudioItemTag,
@@ -14,7 +15,7 @@ import {
   StudioPagination,
 } from '@/components/teacher/studio-list';
 import { academicTermLabel, type AcademicTerm } from '@/lib/teacher/online-course-studio';
-import { backendJson } from '@/lib/utils/backend-api';
+import { BackendApiError, backendJson } from '@/lib/utils/backend-api';
 
 type TeacherCourseSummary = {
   id: string;
@@ -51,13 +52,16 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [accessRevoked, setAccessRevoked] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(0);
   const [savingProgressUserId, setSavingProgressUserId] = useState<string | null>(null);
   const loadingRef = useRef(false);
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!isLoggedIn || role !== 'TEACHER') router.replace('/teacher/login');
+    if (!isLoggedIn || role !== 'TEACHER') {
+      router.replace('/speedup/signed-out?role=teacher');
+    }
   }, [hydrated, isLoggedIn, role, router]);
 
   const loadStudents = useCallback(
@@ -75,7 +79,16 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
         setStudents(payload.students);
         setLastUpdatedAt(Date.now());
         setError('');
+        setAccessRevoked(false);
       } catch (loadError) {
+        if (
+          loadError instanceof BackendApiError &&
+          (loadError.status === 403 || loadError.status === 404)
+        ) {
+          setCourse(null);
+          setStudents([]);
+          setAccessRevoked(true);
+        }
         setError(loadError instanceof Error ? loadError.message : '学生名单读取失败');
       } finally {
         setLoading(false);
@@ -87,13 +100,13 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
   );
 
   useEffect(() => {
-    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId) return;
+    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || accessRevoked) return;
     void loadStudents(false);
     const refresh = () => void loadStudents(true);
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') refresh();
     };
-    const interval = window.setInterval(refresh, 60_000);
+    const interval = window.setInterval(refresh, 30_000);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
@@ -101,7 +114,7 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [hydrated, isLoggedIn, loadStudents, role, teacherId]);
+  }, [accessRevoked, hydrated, isLoggedIn, loadStudents, role, teacherId]);
 
   const filteredStudents = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('zh-CN');
@@ -135,6 +148,14 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
         );
         setError('');
       } catch (saveError) {
+        if (
+          saveError instanceof BackendApiError &&
+          (saveError.status === 403 || saveError.status === 404)
+        ) {
+          setCourse(null);
+          setStudents([]);
+          setAccessRevoked(true);
+        }
         setError(saveError instanceof Error ? saveError.message : '进度限制保存失败');
       } finally {
         setSavingProgressUserId(null);
@@ -144,6 +165,10 @@ export function TeacherCourseStudentsClient({ courseId }: { courseId: string }) 
   );
 
   if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId) return null;
+
+  if (accessRevoked) {
+    return <CourseAccessClosedCard returnHref="/teacher" returnLabel="返回教师工作台" />;
+  }
 
   if (loading && !course) {
     return (

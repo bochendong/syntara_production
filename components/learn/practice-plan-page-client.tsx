@@ -80,7 +80,7 @@ export function PracticePlanPageClient({ planId }: { planId: string }) {
   useEffect(() => {
     if (!authHydrated) return;
     if (!isLoggedIn) {
-      router.replace('/login');
+      router.replace('/speedup/signed-out?role=student');
       return;
     }
 
@@ -140,10 +140,7 @@ export function PracticePlanPageClient({ planId }: { planId: string }) {
 
   const handlePracticeProblemChange = useCallback(
     (problemId: string) => {
-      const next = updatePracticeSessionCurrentProblem(
-        practiceSessionIdForPlan(planId),
-        problemId,
-      );
+      const next = updatePracticeSessionCurrentProblem(practiceSessionIdForPlan(planId), problemId);
       if (next) setSession(next);
     },
     [planId],

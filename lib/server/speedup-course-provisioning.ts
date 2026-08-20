@@ -99,6 +99,32 @@ export async function reconcileSpeedupCourseMembershipsIfAvailable(
   }
 }
 
+/**
+ * Reuse the database verification timestamp across separate serverless
+ * functions. This keeps access-sensitive teacher actions current without one
+ * upstream Speedup request per API call.
+ */
+export async function reconcileSpeedupCourseMembershipsIfVerificationStale(
+  userId: string,
+  role: SpeedupMembershipRole,
+  maxAgeMs: number,
+): Promise<SpeedupMembershipReconciliationResult | 'unavailable'> {
+  const freshnessWindowMs = Math.max(0, maxAgeMs);
+  if (freshnessWindowMs > 0) {
+    const recentlyVerified = await prisma.externalCourseMembership.findFirst({
+      where: {
+        userId,
+        role,
+        lastVerifiedAt: { gte: new Date(Date.now() - freshnessWindowMs) },
+        binding: { provider: SPEEDUP_PROVIDER },
+      },
+      select: { id: true },
+    });
+    if (recentlyVerified) return 'skipped';
+  }
+  return reconcileSpeedupCourseMembershipsIfAvailable(userId, { maxAgeMs: freshnessWindowMs });
+}
+
 export async function syncSpeedupCourseMemberships(
   userId: string,
   role: SpeedupMembershipRole,

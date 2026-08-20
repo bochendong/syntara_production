@@ -59,7 +59,7 @@ export function LearnHomePageClient({
   useEffect(() => {
     if (preview || !authHydrated) return;
     if (!isLoggedIn && !forceStudentPortal) {
-      router.replace('/login');
+      router.replace('/speedup/signed-out?role=student');
       return;
     }
     if (role !== 'STUDENT' && !forceStudentPortal) {

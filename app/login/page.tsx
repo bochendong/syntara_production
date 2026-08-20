@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import { StudentOnlineLoginPage } from '@/components/auth/student-online-login-page';
+import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
   title: '学生登录 · Syntara',
 };
 
 export default function LoginPage() {
-  return <StudentOnlineLoginPage />;
+  redirect('/speedup/signed-out?role=student');
 }

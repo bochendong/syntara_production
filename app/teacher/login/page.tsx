@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { TeacherOnlineLoginPage } from '@/components/auth/teacher-online-login-page';
+import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
   title: '教师登录 · Syntara',
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function TeacherLoginPage() {
-  return <TeacherOnlineLoginPage />;
+  redirect('/speedup/signed-out?role=teacher');
 }

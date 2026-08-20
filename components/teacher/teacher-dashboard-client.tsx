@@ -47,7 +47,7 @@ export function TeacherDashboardClient() {
   useEffect(() => {
     if (!hydrated) return;
     if (!isLoggedIn || role !== 'TEACHER') {
-      router.replace('/teacher/login');
+      router.replace('/speedup/signed-out?role=teacher');
       return;
     }
     void loadHomeCourses();

@@ -9641,7 +9641,7 @@ export function LearnPageClient() {
     }
     if (!hydrated) return;
     if (!isLoggedIn) {
-      router.replace('/login');
+      router.replace('/speedup/signed-out?role=student');
       return;
     }
     let alive = true;

@@ -17,7 +17,9 @@ export function StudentUsageAppClient() {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!isLoggedIn || role !== 'STUDENT') router.replace('/login');
+    if (!isLoggedIn || role !== 'STUDENT') {
+      router.replace('/speedup/signed-out?role=student');
+    }
   }, [hydrated, isLoggedIn, role, router]);
 
   if (!hydrated || !isLoggedIn || role !== 'STUDENT' || !studentId) return null;

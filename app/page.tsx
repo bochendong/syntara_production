@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return redirect('/login');
+  return redirect('/speedup/signed-out?role=student');
 }
