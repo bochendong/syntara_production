@@ -183,12 +183,22 @@ const DEFAULT_FILENAME = 'server-providers.yml';
 const _configs: Map<string, ServerConfig> = new Map();
 
 function buildConfig(yamlData: YamlData): ServerConfig {
+  const image = loadEnvSection(IMAGE_ENV_MAP, yamlData.image);
+  if (!image['openai-image'] && process.env.OPENAI_API_KEY) {
+    image['openai-image'] = {
+      apiKey: process.env.OPENAI_API_KEY,
+      baseUrl: process.env.IMAGE_OPENAI_IMAGE_BASE_URL || undefined,
+      models: process.env.IMAGE_OPENAI_IMAGE_MODELS?.split(',')
+        .map((model) => model.trim())
+        .filter(Boolean),
+    };
+  }
   return {
     providers: loadEnvSection(LLM_ENV_MAP, yamlData.providers),
     tts: loadEnvSection(TTS_ENV_MAP, yamlData.tts),
     asr: loadEnvSection(ASR_ENV_MAP, yamlData.asr),
     pdf: loadEnvSection(PDF_ENV_MAP, yamlData.pdf),
-    image: loadEnvSection(IMAGE_ENV_MAP, yamlData.image),
+    image,
     video: loadEnvSection(VIDEO_ENV_MAP, yamlData.video),
     webSearch: loadEnvSection(WEB_SEARCH_ENV_MAP, yamlData['web-search']),
   };

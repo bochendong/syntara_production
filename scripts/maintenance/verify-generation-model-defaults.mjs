@@ -114,6 +114,11 @@ requireMatch(
   'OpenAI image adapter must default to GPT Image 2.',
 );
 requireMatch(
+  'lib/server/provider-config.ts',
+  /if \(!image\['openai-image'\] && process\.env\.OPENAI_API_KEY\)/,
+  'OpenAI image generation must reuse OPENAI_API_KEY when no image-specific key is configured.',
+);
+requireMatch(
   'lib/media/adapters/openai-image-adapter.ts',
   /const RESPONSES_IMAGE_HOST_MODEL = 'gpt-5\.6-sol';/,
   'GPT Image 2 Responses calls must use the current flagship host model.',

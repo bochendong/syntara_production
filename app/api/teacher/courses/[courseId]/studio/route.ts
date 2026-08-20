@@ -21,6 +21,23 @@ function sourceCategory(value: string | null, metadata: unknown) {
     : 'school_teacher_notes';
 }
 
+function legacyMindMapImageUrl(mindMap: Record<string, unknown>): string | null {
+  const value = typeof mindMap.imageUrl === 'string' ? mindMap.imageUrl.trim() : '';
+  if (!value || value.startsWith('blob:')) return null;
+  if (/^\/api\/teacher\/courses\/[^/]+\/notebooks\/[^/]+\/mind-map(?:[?#]|$)/.test(value)) {
+    return null;
+  }
+  if ((value.startsWith('/') && !value.startsWith('//')) || value.startsWith('data:image/')) {
+    return value;
+  }
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 function notebookMetadata(
   value: unknown,
   courseId: string,
@@ -29,6 +46,10 @@ function notebookMetadata(
 ) {
   const cover = jsonRecord(value);
   const mindMap = jsonRecord(cover.mindMap);
+  const legacyImageUrl = legacyMindMapImageUrl(mindMap);
+  const imageUrl = hasMindMapData
+    ? `/api/teacher/courses/${encodeURIComponent(courseId)}/notebooks/${encodeURIComponent(notebookId)}/mind-map`
+    : legacyImageUrl;
   return {
     learningOrder:
       typeof cover.learningOrder === 'number' && Number.isInteger(cover.learningOrder)
@@ -45,14 +66,14 @@ function notebookMetadata(
     generation: Object.keys(jsonRecord(cover.generation)).length
       ? jsonRecord(cover.generation)
       : null,
-    mindMap:
-      Object.keys(mindMap).length > 0 || hasMindMapData
-        ? {
-            ...mindMap,
-            storage: typeof mindMap.storage === 'string' ? mindMap.storage : 'postgresql',
-            imageUrl: `/api/teacher/courses/${encodeURIComponent(courseId)}/notebooks/${encodeURIComponent(notebookId)}/mind-map`,
-          }
-        : null,
+    mindMap: imageUrl
+      ? {
+          ...mindMap,
+          storage:
+            hasMindMapData || typeof mindMap.storage !== 'string' ? 'postgresql' : mindMap.storage,
+          imageUrl,
+        }
+      : null,
   };
 }
 
