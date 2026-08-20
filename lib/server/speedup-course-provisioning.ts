@@ -8,6 +8,18 @@ import {
 const SPEEDUP_PROVIDER = 'speedup';
 
 type SpeedupMembershipRole = 'TEACHER' | 'STUDENT';
+type SpeedupMembershipReconciliationResult = 'refreshed' | 'skipped';
+type SpeedupMembershipReconciliationFlight = {
+  completedAt: number;
+  result: SpeedupMembershipReconciliationResult | null;
+  promise: Promise<SpeedupMembershipReconciliationResult> | null;
+};
+
+declare global {
+  var __syntaraSpeedupMembershipReconciliationFlights__:
+    | Map<string, SpeedupMembershipReconciliationFlight>
+    | undefined;
+}
 
 function speedupCourseKey(course: Pick<SpeedupCourse, 'campusCode' | 'id'>): string {
   return `${course.campusCode}:${course.id}`;
@@ -24,9 +36,9 @@ export type SpeedupTeacherCourseOption = SpeedupCourse & {
  * access-sensitive read. A successful empty upstream list intentionally
  * revokes every cached membership; local courses and learning history remain.
  */
-export async function reconcileSpeedupCourseMembershipsForUser(
+async function reconcileSpeedupCourseMembershipsForUserUncached(
   userId: string,
-): Promise<'refreshed' | 'skipped'> {
+): Promise<SpeedupMembershipReconciliationResult> {
   const speedupAccount = await prisma.account.findFirst({
     where: { userId, provider: SPEEDUP_PROVIDER },
     select: { user: { select: { role: true } } },
@@ -39,6 +51,52 @@ export async function reconcileSpeedupCourseMembershipsForUser(
   const courses = await listSpeedupCoursesForUser(userId, role);
   await syncSpeedupCourseMemberships(userId, role, courses);
   return 'refreshed';
+}
+
+export async function reconcileSpeedupCourseMembershipsForUser(
+  userId: string,
+  options: { maxAgeMs?: number } = {},
+): Promise<SpeedupMembershipReconciliationResult> {
+  globalThis.__syntaraSpeedupMembershipReconciliationFlights__ ??= new Map();
+  const flights = globalThis.__syntaraSpeedupMembershipReconciliationFlights__;
+  const existing = flights.get(userId);
+  if (existing?.promise) return existing.promise;
+
+  const maxAgeMs = Math.max(0, options.maxAgeMs ?? 0);
+  if (existing?.result && maxAgeMs > 0 && Date.now() - existing.completedAt < maxAgeMs) {
+    return existing.result;
+  }
+
+  const promise = reconcileSpeedupCourseMembershipsForUserUncached(userId);
+  flights.set(userId, {
+    completedAt: existing?.completedAt ?? 0,
+    result: existing?.result ?? null,
+    promise,
+  });
+  try {
+    const result = await promise;
+    flights.set(userId, { completedAt: Date.now(), result, promise: null });
+    return result;
+  } catch (error) {
+    flights.delete(userId);
+    throw error;
+  }
+}
+
+export async function reconcileSpeedupCourseMembershipsIfAvailable(
+  userId: string,
+  options: { maxAgeMs?: number } = {},
+): Promise<SpeedupMembershipReconciliationResult | 'unavailable'> {
+  try {
+    return await reconcileSpeedupCourseMembershipsForUser(userId, options);
+  } catch (error) {
+    if (!(error instanceof SpeedupSsoError)) throw error;
+    // An upstream outage must not revoke every cached membership. A successful
+    // empty response still reaches the normal reconciliation path and revokes
+    // stale access.
+    console.warn('[speedup-course-sync] keeping cached memberships', error.status);
+    return 'unavailable';
+  }
 }
 
 export async function syncSpeedupCourseMemberships(

@@ -7,6 +7,7 @@ import {
   findCourseAccessRole,
   withCourseEnrollmentSchemaFallback,
 } from '@/lib/server/repositories/course-enrollment-repository';
+import { reconcileSpeedupCourseMembershipsIfAvailable } from '@/lib/server/speedup-course-provisioning';
 
 export const dynamic = 'force-dynamic';
 
@@ -264,10 +265,15 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
     const { id } = await context.params;
+    const reconciliation = await reconcileSpeedupCourseMembershipsIfAvailable(auth.userId, {
+      maxAgeMs: 25_000,
+    });
     let snapshot: CourseContentStateSnapshot | null;
     try {
       snapshot = await waitForCourseContentState(
-        readCourseContentStateSingleFlight(auth.userId, id),
+        reconciliation === 'refreshed'
+          ? readCourseContentState(auth.userId, id)
+          : readCourseContentStateSingleFlight(auth.userId, id),
       );
     } catch (error) {
       if (error instanceof CourseContentStateTimeoutError) {
@@ -289,7 +295,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       throw error;
     }
     if (!snapshot) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: '课程不存在，或该课程的 AI 访问权限已由机构关闭。' },
+        { status: 404 },
+      );
     }
 
     return NextResponse.json(snapshot, {

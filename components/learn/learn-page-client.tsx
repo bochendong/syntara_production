@@ -10435,6 +10435,19 @@ export function LearnPageClient() {
         }
       } catch (watchError) {
         if (!alive || controller.signal.aborted) return;
+        if (
+          watchError instanceof BackendApiError &&
+          (watchError.status === 403 || watchError.status === 404)
+        ) {
+          setCourses((current) => current.filter((course) => course.id !== courseId));
+          setCourseLoadError(watchError.backendMessage || '机构已关闭这门课程的 AI 访问权限。');
+          setCoursesLoadState('ready');
+          setCourseContentWatchError((current) =>
+            current?.courseId === courseId ? null : current,
+          );
+          alive = false;
+          return;
+        }
         consecutiveFailures += 1;
         const backoffMs = Math.min(
           COURSE_CONTENT_STATE_MAX_BACKOFF_MS,

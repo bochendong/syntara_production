@@ -19,6 +19,7 @@ import {
   updateOwnedCourse,
 } from '@/lib/server/repositories/course-repository';
 import { publishCourseProblemBankForUser } from '@/features/problems/server/service';
+import { reconcileSpeedupCourseMembershipsIfAvailable } from '@/lib/server/speedup-course-provisioning';
 
 function ownerDisplayName(owner: { name: string | null; email: string | null }): string {
   const n = owner.name?.trim();
@@ -146,9 +147,17 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const { userId } = auth;
     const { id } = await context.params;
 
-    let course = await readCourseDetailSingleFlight(userId, id);
+    const reconciliation = await reconcileSpeedupCourseMembershipsIfAvailable(userId);
+
+    let course =
+      reconciliation === 'refreshed'
+        ? await readCourseDetail(userId, id)
+        : await readCourseDetailSingleFlight(userId, id);
     if (!course) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: '课程不存在，或该课程的 AI 访问权限已由机构关闭。' },
+        { status: 404 },
+      );
     }
     const accessRole = course.accessRole;
     if (accessRole === 'owner' && !course.avatarUrl?.trim()) {

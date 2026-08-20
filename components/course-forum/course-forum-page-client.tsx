@@ -9,6 +9,7 @@ import {
   Eye,
   FileImage,
   ImagePlus,
+  LockKeyhole,
   Loader2,
   MessageCircle,
   MessageSquareReply,
@@ -49,7 +50,7 @@ import type {
 } from '@/features/course-forum/domain/course-forum';
 import { buildCourseForumMockSnapshot } from '@/features/course-forum/mock/course-forum-mock';
 import { cn } from '@/lib/utils';
-import { backendFetch, backendJson } from '@/lib/utils/backend-api';
+import { BackendApiError, backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 
 const TERM_LABEL = { winter: 'Winter', summer: 'Summer', fall: 'Fall' } as const;
@@ -282,6 +283,7 @@ export function CourseForumPageClient({
   const [selectedPostId, setSelectedPostId] = useState(initialSnapshot?.selectedPost?.id || '');
   const [loading, setLoading] = useState(!initialSnapshot);
   const [refreshing, setRefreshing] = useState(false);
+  const [accessRevoked, setAccessRevoked] = useState(false);
   const [error, setError] = useState('');
   const [newPostOpen, setNewPostOpen] = useState(false);
   const [postTitle, setPostTitle] = useState('');
@@ -291,12 +293,20 @@ export function CourseForumPageClient({
   const [commentBody, setCommentBody] = useState('');
   const [savingAction, setSavingAction] = useState('');
   const lastProfileSyncKeyRef = useRef('');
+  const accessCheckInFlightRef = useRef(false);
   const mockAsTeacher = initialSnapshot?.viewer.accessRole === 'owner';
 
   const load = useCallback(
-    async (options?: { postId?: string; quiet?: boolean; status?: CourseForumStatusFilter }) => {
-      if (options?.quiet) setRefreshing(true);
-      else setLoading(true);
+    async (options?: {
+      postId?: string;
+      quiet?: boolean;
+      background?: boolean;
+      status?: CourseForumStatusFilter;
+    }) => {
+      if (!options?.background) {
+        if (options?.quiet) setRefreshing(true);
+        else setLoading(true);
+      }
       try {
         const status = options?.status || filter;
         const postId = options?.postId || '';
@@ -322,8 +332,18 @@ export function CourseForumPageClient({
         );
         setSnapshot(next);
         setSelectedPostId(next.selectedPost?.id || '');
+        setAccessRevoked(false);
         setError('');
       } catch (loadError) {
+        if (
+          loadError instanceof BackendApiError &&
+          (loadError.status === 403 || loadError.status === 404)
+        ) {
+          setSnapshot(null);
+          setAccessRevoked(true);
+          setError(loadError.backendMessage || '机构已关闭这门课程的 AI 访问权限。');
+          return;
+        }
         setError(loadError instanceof Error ? loadError.message : '论坛加载失败');
       } finally {
         setLoading(false);
@@ -341,6 +361,28 @@ export function CourseForumPageClient({
     if (initialSnapshot) return;
     void load();
   }, [filter, initialSnapshot, load, mockMode, search]);
+
+  useEffect(() => {
+    if (mockMode || accessRevoked) return;
+    const checkAccess = () => {
+      if (accessCheckInFlightRef.current) return;
+      accessCheckInFlightRef.current = true;
+      void load({ postId: selectedPostId, quiet: true, background: true }).finally(() => {
+        accessCheckInFlightRef.current = false;
+      });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') checkAccess();
+    };
+    const timer = window.setInterval(checkAccess, 30_000);
+    window.addEventListener('focus', checkAccess);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', checkAccess);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [accessRevoked, load, mockMode, selectedPostId]);
 
   useEffect(() => {
     if (disableProfileSync || mockMode) return;
@@ -540,6 +582,23 @@ export function CourseForumPageClient({
           <Loader2 className="size-4 animate-spin" />
           正在打开课程论坛…
         </span>
+      </div>
+    );
+  }
+
+  if (accessRevoked) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-slate-50 px-6 text-center text-slate-950 dark:bg-slate-950 dark:text-white">
+        <div className="max-w-sm rounded-[28px] border border-slate-200/80 bg-white px-8 py-10 shadow-[0_24px_70px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/5">
+          <LockKeyhole className="mx-auto size-9 text-slate-400" strokeWidth={1.6} />
+          <h1 className="mt-4 text-xl font-semibold">课程权限已关闭</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+            {error || '机构已关闭这门课程的 AI 访问权限，课程论坛现在不可访问。'}
+          </p>
+          <Button className="mt-6 rounded-full px-5" onClick={() => router.push('/learn')}>
+            返回全部课程
+          </Button>
+        </div>
       </div>
     );
   }

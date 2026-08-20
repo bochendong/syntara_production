@@ -6,6 +6,7 @@ import {
   findCourseAccessRole,
   type CourseAccessRole,
 } from '@/lib/server/repositories/course-enrollment-repository';
+import { reconcileSpeedupCourseMembershipsIfAvailable } from '@/lib/server/speedup-course-provisioning';
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 export const COURSE_FORUM_MAX_IMAGES = 5;
@@ -46,11 +47,15 @@ export async function requireCourseForumAccess(courseId: string): Promise<Course
   const auth = await requireUserId({ ensureFallbackUser: false });
   if (auth.response) return { ok: false, response: auth.response };
 
+  await reconcileSpeedupCourseMembershipsIfAvailable(auth.userId, { maxAgeMs: 15_000 });
   const accessRole = await findCourseAccessRole(prisma, auth.userId, courseId);
   if (!accessRole) {
     return {
       ok: false,
-      response: NextResponse.json({ error: 'Course not found' }, { status: 404 }),
+      response: NextResponse.json(
+        { error: '课程不存在，或该课程的 AI 访问权限已由机构关闭。' },
+        { status: 404 },
+      ),
     };
   }
 

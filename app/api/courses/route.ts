@@ -11,8 +11,7 @@ import {
   createOwnedCourse,
   listAccessibleCoursesForUser,
 } from '@/lib/server/repositories/course-repository';
-import { reconcileSpeedupCourseMembershipsForUser } from '@/lib/server/speedup-course-provisioning';
-import { SpeedupSsoError } from '@/lib/server/speedup-sso';
+import { reconcileSpeedupCourseMembershipsIfAvailable } from '@/lib/server/speedup-course-provisioning';
 
 function isTransientDatabaseConnectionError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -53,15 +52,7 @@ export async function GET() {
     if ('response' in auth) return auth.response;
     const { userId, userEmail } = auth;
 
-    try {
-      await reconcileSpeedupCourseMembershipsForUser(userId);
-    } catch (error) {
-      if (!(error instanceof SpeedupSsoError)) throw error;
-      // Keep the last verified memberships during a temporary upstream outage.
-      // A successful empty StudentCourses response still reaches the normal
-      // reconciliation path above and revokes every stale membership.
-      console.warn('[speedup-course-sync] keeping cached memberships', error.status);
-    }
+    await reconcileSpeedupCourseMembershipsIfAvailable(userId);
 
     const courses = await readAccessibleCourses(userId, userEmail);
 

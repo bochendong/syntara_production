@@ -13,6 +13,7 @@ import { requireUserId } from '@/lib/server/api-auth';
 import type { PrismaClient } from '@/lib/server/generated-prisma';
 import { prisma } from '@/lib/server/prisma';
 import { hasCourseEnrollment } from '@/lib/server/repositories/course-enrollment-repository';
+import { reconcileSpeedupCourseMembershipsIfAvailable } from '@/lib/server/speedup-course-provisioning';
 import type { CourseChatContext, StatelessChatRequest, StatelessEvent } from '@/lib/types/chat';
 import type { ThinkingConfig } from '@/lib/types/provider';
 import { COURSE_ORCHESTRATOR_ID, COURSE_ORCHESTRATOR_NAME } from '@/lib/constants/course-chat';
@@ -353,6 +354,7 @@ export async function resolveTrustedCourseTurn(args: {
   }
 
   const userId = await authenticatedUserId(args.authenticatedUserId);
+  await reconcileSpeedupCourseMembershipsIfAvailable(userId, { maxAgeMs: 15_000 });
   const trustedAccess =
     args.trustedAccess &&
     args.trustedAccess.userId === userId &&
