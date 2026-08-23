@@ -6,6 +6,8 @@ import {
 } from '@/lib/server/speedup-sso';
 
 const SPEEDUP_PROVIDER = 'speedup';
+const SPEEDUP_PROVISIONER_USER_ID = 'system:speedup-course-provisioner';
+const SPEEDUP_PROVISIONER_USER_NAME = 'Speedup 课程';
 
 type SpeedupMembershipRole = 'TEACHER' | 'STUDENT';
 type SpeedupMembershipReconciliationResult = 'refreshed' | 'skipped';
@@ -30,6 +32,27 @@ export type SpeedupTeacherCourseOption = SpeedupCourse & {
   ownedByCurrentTeacher: boolean;
   localCourseId: string | null;
 };
+
+type SpeedupCourseBinding = {
+  id: string;
+  courseId: string;
+  campusCode: string;
+  externalCourseId: string;
+  course: { ownerId: string };
+};
+
+type ProvisionedSpeedupCourse = {
+  externalCourseId: string;
+  campusCode: string;
+  localCourseId: string;
+  created: boolean;
+};
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return Boolean(
+    error && typeof error === 'object' && (error as { code?: unknown }).code === 'P2002',
+  );
+}
 
 async function ensureSpeedupStudentEnrollments(
   studentId: string,
@@ -60,12 +83,17 @@ async function reconcileSpeedupCourseMembershipsForUserUncached(
   if (role !== 'STUDENT' && role !== 'TEACHER') return 'skipped';
 
   const courses = await listSpeedupCoursesForUser(userId, role);
-  const bindings = await syncSpeedupCourseMemberships(userId, role, courses);
+  const syncedBindings = await syncSpeedupCourseMemberships(userId, role, courses);
+  const provisioned = await provisionMissingSpeedupCourses(userId, role, courses, syncedBindings);
   if (role === 'STUDENT') {
-    // The all-courses refresh must grant newly assigned, already-activated
-    // Speedup courses just like the SSO callback does. createMany keeps this
-    // idempotent; inactive memberships still hide revoked courses at read time.
-    await ensureSpeedupStudentEnrollments(userId, bindings);
+    // A student's first verified refresh may be the first time anyone enters
+    // an enabled Speedup course. Provision it here, then grant the enrollment.
+    // createMany keeps this idempotent; inactive memberships still hide
+    // revoked courses at read time.
+    await ensureSpeedupStudentEnrollments(userId, [
+      ...syncedBindings.map((binding) => ({ courseId: binding.courseId })),
+      ...provisioned.map((binding) => ({ courseId: binding.localCourseId })),
+    ]);
   }
   return 'refreshed';
 }
@@ -146,10 +174,11 @@ export async function syncSpeedupCourseMemberships(
   userId: string,
   role: SpeedupMembershipRole,
   courses: SpeedupCourse[],
-) {
+): Promise<SpeedupCourseBinding[]> {
   const uniqueCourses = Array.from(
     new Map(courses.map((course) => [speedupCourseKey(course), course] as const)).values(),
   );
+  const courseByKey = new Map(uniqueCourses.map((course) => [speedupCourseKey(course), course]));
   const bindings = uniqueCourses.length
     ? await prisma.externalCourseBinding.findMany({
         where: {
@@ -181,6 +210,20 @@ export async function syncSpeedupCourseMemberships(
       data: { active: false, revokedAt: verifiedAt, lastVerifiedAt: verifiedAt },
     });
     for (const binding of bindings) {
+      const externalCourse = courseByKey.get(
+        speedupCourseKey({ id: binding.externalCourseId, campusCode: binding.campusCode }),
+      );
+      if (externalCourse) {
+        await tx.externalCourseBinding.update({
+          where: { id: binding.id },
+          data: {
+            externalCourseName: externalCourse.name,
+            externalCourseCode: externalCourse.code,
+            termName: externalCourse.termName,
+            universityAbbrs: externalCourse.universityAbbrs,
+          },
+        });
+      }
       if (role === 'TEACHER' && binding.course.ownerId !== userId) {
         const previousOwnerId = binding.course.ownerId;
         await Promise.all([
@@ -280,6 +323,157 @@ function courseTags(course: SpeedupCourse): string[] {
   ).slice(0, 12);
 }
 
+/**
+ * Create only the verified Speedup courses that do not have a local binding.
+ * Existing-course reconciliation stays on the normal single-transaction path;
+ * this extra transaction runs only for a genuinely new course.
+ *
+ * A student must never become the management owner merely because they were
+ * the first person to enter. Student-first courses therefore use a dormant
+ * system owner until a verified teacher membership claims the course during
+ * the next normal reconciliation.
+ */
+async function provisionMissingSpeedupCourses(
+  userId: string,
+  role: SpeedupMembershipRole,
+  courses: SpeedupCourse[],
+  existingBindings: SpeedupCourseBinding[],
+  attempt = 0,
+): Promise<ProvisionedSpeedupCourse[]> {
+  const existingKeys = new Set(
+    existingBindings.map((binding) =>
+      speedupCourseKey({ id: binding.externalCourseId, campusCode: binding.campusCode }),
+    ),
+  );
+  const missingCourses = Array.from(
+    new Map(courses.map((course) => [speedupCourseKey(course), course] as const)).values(),
+  ).filter((course) => !existingKeys.has(speedupCourseKey(course)));
+  if (missingCourses.length === 0) return [];
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      if (role === 'STUDENT') {
+        await tx.user.upsert({
+          where: { id: SPEEDUP_PROVISIONER_USER_ID },
+          update: { name: SPEEDUP_PROVISIONER_USER_NAME, role: 'USER', isActive: true },
+          create: {
+            id: SPEEDUP_PROVISIONER_USER_ID,
+            name: SPEEDUP_PROVISIONER_USER_NAME,
+            role: 'USER',
+            isActive: true,
+          },
+        });
+      }
+
+      const provisioned: ProvisionedSpeedupCourse[] = [];
+      for (const externalCourse of missingCourses) {
+        // Re-check inside the transaction so simultaneous first-entry requests
+        // usually converge without attempting a duplicate insert.
+        const racedBinding = await tx.externalCourseBinding.findUnique({
+          where: {
+            provider_campusCode_externalCourseId: {
+              provider: SPEEDUP_PROVIDER,
+              campusCode: externalCourse.campusCode,
+              externalCourseId: externalCourse.id,
+            },
+          },
+          select: { id: true, courseId: true },
+        });
+        if (racedBinding) {
+          await tx.externalCourseMembership.upsert({
+            where: {
+              bindingId_userId_role: { bindingId: racedBinding.id, userId, role },
+            },
+            update: { active: true, revokedAt: null, lastVerifiedAt: new Date() },
+            create: { bindingId: racedBinding.id, userId, role },
+          });
+          provisioned.push({
+            externalCourseId: externalCourse.id,
+            campusCode: externalCourse.campusCode,
+            localCourseId: racedBinding.courseId,
+            created: false,
+          });
+          continue;
+        }
+
+        const ownerId = role === 'TEACHER' ? userId : SPEEDUP_PROVISIONER_USER_ID;
+        const period = parseAcademicPeriod(externalCourse.termName);
+        const localCourse = await tx.course.create({
+          data: {
+            ownerId,
+            name: externalCourse.name,
+            description: courseDescription(externalCourse),
+            language: 'zh-CN',
+            tags: courseTags(externalCourse),
+            purpose: 'university',
+            university: externalCourse.universityAbbrs || externalCourse.campusCode,
+            courseCode: externalCourse.code,
+            academicYear: period.academicYear,
+            academicTerm: period.academicTerm,
+          },
+          select: { id: true },
+        });
+        await tx.externalCourseBinding.create({
+          data: {
+            provider: SPEEDUP_PROVIDER,
+            campusCode: externalCourse.campusCode,
+            externalCourseId: externalCourse.id,
+            courseId: localCourse.id,
+            activatedById: ownerId,
+            externalCourseName: externalCourse.name,
+            externalCourseCode: externalCourse.code,
+            termName: externalCourse.termName,
+            universityAbbrs: externalCourse.universityAbbrs,
+            memberships: { create: { userId, role } },
+          },
+        });
+        provisioned.push({
+          externalCourseId: externalCourse.id,
+          campusCode: externalCourse.campusCode,
+          localCourseId: localCourse.id,
+          created: true,
+        });
+      }
+      return provisioned;
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error) || attempt >= 2) throw error;
+    // A teacher and student can be the first entrants at nearly the same time.
+    // Re-read the winning binding and attach this verified user instead of
+    // surfacing a transient duplicate-key failure.
+    const refreshedBindings = await syncSpeedupCourseMemberships(userId, role, courses);
+    const retried = await provisionMissingSpeedupCourses(
+      userId,
+      role,
+      courses,
+      refreshedBindings,
+      attempt + 1,
+    );
+    const originallyMissingKeys = new Set(missingCourses.map(speedupCourseKey));
+    const resultByKey = new Map<string, ProvisionedSpeedupCourse>();
+    for (const binding of refreshedBindings) {
+      const key = speedupCourseKey({
+        id: binding.externalCourseId,
+        campusCode: binding.campusCode,
+      });
+      if (!originallyMissingKeys.has(key)) continue;
+      resultByKey.set(key, {
+        externalCourseId: binding.externalCourseId,
+        campusCode: binding.campusCode,
+        localCourseId: binding.courseId,
+        created: false,
+      });
+    }
+    for (const binding of retried) {
+      resultByKey.set(
+        speedupCourseKey({ id: binding.externalCourseId, campusCode: binding.campusCode }),
+        binding,
+      );
+    }
+    return Array.from(resultByKey.values());
+  }
+}
+
 export async function listSpeedupTeacherCourseOptions(
   teacherId: string,
 ): Promise<SpeedupTeacherCourseOption[]> {
@@ -346,7 +540,6 @@ export async function activateSpeedupTeacherCourses(
 > {
   const availableCourses =
     verifiedCourses ?? (await listSpeedupCoursesForUser(teacherId, 'TEACHER'));
-  await syncSpeedupCourseMemberships(teacherId, 'TEACHER', availableCourses);
   const requestedIdSet = new Set(externalCourseIds);
   const requestedCourses = verifiedCourses
     ? availableCourses.filter((course) => requestedIdSet.has(course.id))
@@ -362,101 +555,34 @@ export async function activateSpeedupTeacherCourses(
         return course;
       });
 
-  return prisma.$transaction(async (tx) => {
-    const activated: Array<{
-      externalCourseId: string;
-      campusCode: string;
-      localCourseId: string;
-      created: boolean;
-    }> = [];
-
-    for (const externalCourse of requestedCourses) {
-      const existing = await tx.externalCourseBinding.findUnique({
-        where: {
-          provider_campusCode_externalCourseId: {
-            provider: SPEEDUP_PROVIDER,
-            campusCode: externalCourse.campusCode,
-            externalCourseId: externalCourse.id,
-          },
-        },
-        include: { course: { select: { ownerId: true } } },
-      });
-      if (existing) {
-        await tx.externalCourseBinding.update({
-          where: { id: existing.id },
-          data: {
-            externalCourseName: externalCourse.name,
-            externalCourseCode: externalCourse.code,
-            termName: externalCourse.termName,
-            universityAbbrs: externalCourse.universityAbbrs,
-          },
-        });
-        await tx.externalCourseMembership.upsert({
-          where: {
-            bindingId_userId_role: {
-              bindingId: existing.id,
-              userId: teacherId,
-              role: 'TEACHER',
-            },
-          },
-          update: { active: true, revokedAt: null, lastVerifiedAt: new Date() },
-          create: {
-            bindingId: existing.id,
-            userId: teacherId,
-            role: 'TEACHER',
-          },
-        });
-        activated.push({
-          externalCourseId: externalCourse.id,
-          campusCode: externalCourse.campusCode,
-          localCourseId: existing.courseId,
-          created: false,
-        });
-        continue;
-      }
-
-      const period = parseAcademicPeriod(externalCourse.termName);
-      const localCourse = await tx.course.create({
-        data: {
-          ownerId: teacherId,
-          name: externalCourse.name,
-          description: courseDescription(externalCourse),
-          language: 'zh-CN',
-          tags: courseTags(externalCourse),
-          purpose: 'university',
-          university: externalCourse.universityAbbrs || externalCourse.campusCode,
-          courseCode: externalCourse.code,
-          academicYear: period.academicYear,
-          academicTerm: period.academicTerm,
-        },
-        select: { id: true },
-      });
-      await tx.externalCourseBinding.create({
-        data: {
-          provider: SPEEDUP_PROVIDER,
-          campusCode: externalCourse.campusCode,
-          externalCourseId: externalCourse.id,
-          courseId: localCourse.id,
-          activatedById: teacherId,
-          externalCourseName: externalCourse.name,
-          externalCourseCode: externalCourse.code,
-          termName: externalCourse.termName,
-          universityAbbrs: externalCourse.universityAbbrs,
-          memberships: {
-            create: { userId: teacherId, role: 'TEACHER' },
-          },
-        },
-      });
-      activated.push({
-        externalCourseId: externalCourse.id,
-        campusCode: externalCourse.campusCode,
-        localCourseId: localCourse.id,
-        created: true,
-      });
-    }
-
-    return activated;
-  });
+  const syncedBindings = await syncSpeedupCourseMemberships(teacherId, 'TEACHER', availableCourses);
+  const createdBindings = await provisionMissingSpeedupCourses(
+    teacherId,
+    'TEACHER',
+    requestedCourses,
+    syncedBindings,
+  );
+  const resultByKey = new Map<string, ProvisionedSpeedupCourse>();
+  for (const binding of syncedBindings) {
+    resultByKey.set(
+      speedupCourseKey({ id: binding.externalCourseId, campusCode: binding.campusCode }),
+      {
+        externalCourseId: binding.externalCourseId,
+        campusCode: binding.campusCode,
+        localCourseId: binding.courseId,
+        created: false,
+      },
+    );
+  }
+  for (const binding of createdBindings) {
+    resultByKey.set(
+      speedupCourseKey({ id: binding.externalCourseId, campusCode: binding.campusCode }),
+      binding,
+    );
+  }
+  return requestedCourses
+    .map((course) => resultByKey.get(speedupCourseKey(course)))
+    .filter((course): course is ProvisionedSpeedupCourse => Boolean(course));
 }
 
 export async function enrollSpeedupStudentCourse(
@@ -465,15 +591,32 @@ export async function enrollSpeedupStudentCourse(
   courses: SpeedupCourse[],
   requestedCampusCode?: string,
 ): Promise<string> {
-  const bindings = await syncSpeedupCourseMemberships(studentId, 'STUDENT', courses);
-  await ensureSpeedupStudentEnrollments(studentId, bindings);
+  const syncedBindings = await syncSpeedupCourseMemberships(studentId, 'STUDENT', courses);
+  const provisioned = await provisionMissingSpeedupCourses(
+    studentId,
+    'STUDENT',
+    courses,
+    syncedBindings,
+  );
+  const bindings = [
+    ...syncedBindings.map((binding) => ({
+      externalCourseId: binding.externalCourseId,
+      campusCode: binding.campusCode,
+      localCourseId: binding.courseId,
+    })),
+    ...provisioned,
+  ];
+  await ensureSpeedupStudentEnrollments(
+    studentId,
+    bindings.map((binding) => ({ courseId: binding.localCourseId })),
+  );
   const binding = bindings.find(
     (candidate) =>
       candidate.externalCourseId === externalCourseId &&
       (!requestedCampusCode || candidate.campusCode === requestedCampusCode),
   );
   if (!binding) {
-    throw new SpeedupSsoError(409, '这门 AI 课程尚未由老师开通，请联系任课老师后重试。');
+    throw new SpeedupSsoError(409, '当前课程未能自动创建，请返回 Speedup 后重试。');
   }
-  return binding.courseId;
+  return binding.localCourseId;
 }
