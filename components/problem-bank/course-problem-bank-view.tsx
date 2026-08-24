@@ -879,6 +879,7 @@ export function CourseProblemBankView({
     choiceAnswers,
     codeAnswers,
     codeRunResults,
+    courseAccessRole,
     courseHasTranslations,
     courseName,
     currentNotebookProblemPosition,
@@ -2645,11 +2646,22 @@ export function CourseProblemBankView({
                           onPracticeBack();
                           return;
                         }
-                        router.push(`/course/${encodeURIComponent(courseId)}`);
+                        router.push(
+                          courseAccessRole === 'owner'
+                            ? `/teacher/courses/${encodeURIComponent(courseId)}`
+                            : `/learn?courseId=${encodeURIComponent(courseId)}`,
+                        );
                       }}
                     >
                       <ChevronLeft className="mr-1 h-4 w-4" />
-                      {practiceBackLabel ?? (locale === 'zh-CN' ? '课程空间' : 'Course')}
+                      {practiceBackLabel ??
+                        (courseAccessRole === 'owner'
+                          ? locale === 'zh-CN'
+                            ? '返回课程主页'
+                            : 'Back to course'
+                          : locale === 'zh-CN'
+                            ? '返回课程聊天'
+                            : 'Back to chat')}
                     </Button>
                     <span className="inline-flex h-6 items-center rounded-full bg-slate-100 px-2 text-[11px] font-semibold text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                       {isReviewPracticeMode && reviewPracticeIndex >= 0
