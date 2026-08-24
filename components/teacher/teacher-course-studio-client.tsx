@@ -1198,6 +1198,15 @@ export function TeacherCourseStudioClient({
               <Button
                 type="button"
                 variant="outline"
+                className="h-10 rounded-xl border-slate-200 bg-white px-3 text-sm font-semibold shadow-none hover:border-indigo-300 hover:bg-indigo-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-indigo-400/10 sm:h-11 sm:px-4"
+                onClick={() => router.push(`/course/${encodeURIComponent(courseId)}/problem-bank`)}
+              >
+                <Library className="mr-1.5 size-4" />
+                课程题库
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
                 className="relative h-10 rounded-xl border-slate-200 bg-white px-3 text-sm font-semibold shadow-none hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-violet-400/10 sm:h-11 sm:px-4"
                 onClick={() => router.push(`/course/${encodeURIComponent(courseId)}/forum`)}
               >
