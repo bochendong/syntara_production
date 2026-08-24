@@ -335,9 +335,7 @@ export function getLocalDemoTeacherStudio(courseId: string, teacherId: string) {
       notebookId: notebooks[index % notebooks.length]?.id,
       kind,
       sourceId: source.id,
-      sourceTitle: longTitle
-        ? `${source.title} · 队列条目超长文件名截断测试`
-        : source.title,
+      sourceTitle: longTitle ? `${source.title} · 队列条目超长文件名截断测试` : source.title,
       sourceFileId: source.sourceFileId || source.id,
       sourceAssetId: source.id,
       requestedBy: teacherId,

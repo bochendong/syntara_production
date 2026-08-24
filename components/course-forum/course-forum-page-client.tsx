@@ -543,7 +543,9 @@ export function CourseForumPageClient({
         },
       );
       if (!response.ok) {
-        throw new Error(await requestError(response, selected.pinned ? '取消置顶失败' : '置顶失败'));
+        throw new Error(
+          await requestError(response, selected.pinned ? '取消置顶失败' : '置顶失败'),
+        );
       }
       await load({ postId: selected.id, quiet: true });
     } catch (pinError) {
@@ -809,7 +811,11 @@ export function CourseForumPageClient({
                           {selected.pinned ? '取消置顶' : '置顶帖子'}
                         </Button>
                       ) : null}
-                      <AuthorLine author={selected.author} time={selected.createdAt} label="提问者" />
+                      <AuthorLine
+                        author={selected.author}
+                        time={selected.createdAt}
+                        label="提问者"
+                      />
                     </div>
                   </div>
                   <div className="mt-4">

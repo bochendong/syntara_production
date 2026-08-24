@@ -26,7 +26,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ImageProviderId } from '@/lib/media/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface ImageSettingsProps {
   selectedProviderId: ImageProviderId;
@@ -190,12 +196,15 @@ export function ImageSettings({ selectedProviderId }: ImageSettingsProps) {
               系统图像生成
             </CardTitle>
             <CardDescription>
-              图像生成默认使用 GPT Image 2。你可以在管理员开放的 Provider 和模型范围内切换，API Key 由系统统一托管。
+              图像生成默认使用 GPT Image 2。你可以在管理员开放的 Provider 和模型范围内切换，API Key
+              由系统统一托管。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">Provider: {currentProvider?.name || selectedProviderId}</Badge>
+              <Badge variant="secondary">
+                Provider: {currentProvider?.name || selectedProviderId}
+              </Badge>
               <Badge variant="secondary">Model: {imageModelId || '未选择'}</Badge>
               <Badge variant="outline" className="gap-1">
                 <ShieldCheck className="h-3.5 w-3.5" />
@@ -204,7 +213,9 @@ export function ImageSettings({ selectedProviderId }: ImageSettingsProps) {
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">选择图像服务（管理员开放范围）</Label>
+                <Label className="text-xs text-muted-foreground">
+                  选择图像服务（管理员开放范围）
+                </Label>
                 <Select
                   value={selectedProviderId}
                   onValueChange={(v) => setImageProvider(v as ImageProviderId)}
@@ -244,7 +255,9 @@ export function ImageSettings({ selectedProviderId }: ImageSettingsProps) {
             <div className="rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground">
               <p className="flex items-start gap-2">
                 <Info className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>你的图像调用将统一走站点管理员配置的服务，系统会记录调用情况用于统计与运维。</span>
+                <span>
+                  你的图像调用将统一走站点管理员配置的服务，系统会记录调用情况用于统计与运维。
+                </span>
               </p>
             </div>
           </CardContent>
@@ -264,157 +277,163 @@ export function ImageSettings({ selectedProviderId }: ImageSettingsProps) {
       )}
 
       {/* API Key + Test inline */}
-      {!systemManaged && <div className="space-y-2">
-        <Label>API Key</Label>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Input
-              name={`image-api-key-${selectedProviderId}`}
-              type={showApiKey ? 'text' : 'password'}
-              autoComplete="new-password"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              placeholder={
-                isServerConfigured ? t('settings.optionalOverride') : t('settings.enterApiKey')
-              }
-              value={currentConfig?.apiKey || ''}
-              onChange={(e) => handleApiKeyChange(e.target.value)}
-              className="h-8 pr-8"
-            />
-            <button
-              type="button"
-              onClick={() => setShowApiKey(!showApiKey)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-          <SettingsButton
-            size="sm"
-            onClick={handleTest}
-            disabled={testLoading || (!currentConfig?.apiKey && !isServerConfigured)}
-          >
-            {testLoading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <>
-                <Zap className="h-3.5 w-3.5" />
-                {t('settings.testConnection')}
-              </>
-            )}
-          </SettingsButton>
-        </div>
-        {testMessage && (
-          <div
-            className={cn(
-              'rounded-lg p-3 text-sm overflow-hidden',
-              testStatus === 'success' &&
-                'bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/50 dark:text-green-400 dark:border-green-800',
-              testStatus === 'error' &&
-                'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-800',
-            )}
-          >
-            <div className="flex items-start gap-2 min-w-0">
-              {testStatus === 'success' && <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />}
-              {testStatus === 'error' && <XCircle className="h-4 w-4 mt-0.5 shrink-0" />}
-              <p className="flex-1 min-w-0 break-all">{testMessage}</p>
+      {!systemManaged && (
+        <div className="space-y-2">
+          <Label>API Key</Label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                name={`image-api-key-${selectedProviderId}`}
+                type={showApiKey ? 'text' : 'password'}
+                autoComplete="new-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder={
+                  isServerConfigured ? t('settings.optionalOverride') : t('settings.enterApiKey')
+                }
+                value={currentConfig?.apiKey || ''}
+                onChange={(e) => handleApiKeyChange(e.target.value)}
+                className="h-8 pr-8"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
+            <SettingsButton
+              size="sm"
+              onClick={handleTest}
+              disabled={testLoading || (!currentConfig?.apiKey && !isServerConfigured)}
+            >
+              {testLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <>
+                  <Zap className="h-3.5 w-3.5" />
+                  {t('settings.testConnection')}
+                </>
+              )}
+            </SettingsButton>
           </div>
-        )}
-      </div>}
+          {testMessage && (
+            <div
+              className={cn(
+                'rounded-lg p-3 text-sm overflow-hidden',
+                testStatus === 'success' &&
+                  'bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/50 dark:text-green-400 dark:border-green-800',
+                testStatus === 'error' &&
+                  'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-800',
+              )}
+            >
+              <div className="flex items-start gap-2 min-w-0">
+                {testStatus === 'success' && <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />}
+                {testStatus === 'error' && <XCircle className="h-4 w-4 mt-0.5 shrink-0" />}
+                <p className="flex-1 min-w-0 break-all">{testMessage}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Base URL */}
-      {!systemManaged && <div className="space-y-2">
-        <Label>Base URL</Label>
-        <Input
-          name={`image-base-url-${selectedProviderId}`}
-          type="url"
-          autoComplete="off"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          value={currentConfig?.baseUrl || ''}
-          onChange={(e) => handleBaseUrlChange(e.target.value)}
-          placeholder={
-            currentConfig?.serverBaseUrl ||
-            currentProvider?.defaultBaseUrl ||
-            t('settings.enterCustomBaseUrl')
-          }
-          className="h-8"
-        />
-        {(() => {
-          const effectiveBaseUrl =
-            currentConfig?.baseUrl ||
-            currentConfig?.serverBaseUrl ||
-            currentProvider?.defaultBaseUrl ||
-            '';
-          if (!effectiveBaseUrl) return null;
-          return (
-            <p className="text-xs text-muted-foreground break-all">
-              {t('settings.requestUrl')}: {effectiveBaseUrl}
-            </p>
-          );
-        })()}
-      </div>}
+      {!systemManaged && (
+        <div className="space-y-2">
+          <Label>Base URL</Label>
+          <Input
+            name={`image-base-url-${selectedProviderId}`}
+            type="url"
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            value={currentConfig?.baseUrl || ''}
+            onChange={(e) => handleBaseUrlChange(e.target.value)}
+            placeholder={
+              currentConfig?.serverBaseUrl ||
+              currentProvider?.defaultBaseUrl ||
+              t('settings.enterCustomBaseUrl')
+            }
+            className="h-8"
+          />
+          {(() => {
+            const effectiveBaseUrl =
+              currentConfig?.baseUrl ||
+              currentConfig?.serverBaseUrl ||
+              currentProvider?.defaultBaseUrl ||
+              '';
+            if (!effectiveBaseUrl) return null;
+            return (
+              <p className="text-xs text-muted-foreground break-all">
+                {t('settings.requestUrl')}: {effectiveBaseUrl}
+              </p>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Model list */}
-      {!systemManaged && <div className="space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <Label className="text-base">{t('settings.models')}</Label>
-          <SettingsButton variant="secondary" size="sm" onClick={handleOpenAddModel}>
-            <Plus className="h-3.5 w-3.5" />
-            {t('settings.addNewModel')}
-          </SettingsButton>
-        </div>
+      {!systemManaged && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <Label className="text-base">{t('settings.models')}</Label>
+            <SettingsButton variant="secondary" size="sm" onClick={handleOpenAddModel}>
+              <Plus className="h-3.5 w-3.5" />
+              {t('settings.addNewModel')}
+            </SettingsButton>
+          </div>
 
-        <div className="space-y-1.5">
-          {/* Built-in models */}
-          {builtInModels.map((model) => (
-            <div
-              key={model.id}
-              className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-card"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="font-mono text-sm font-medium">{model.name}</div>
-                <div className="text-xs text-muted-foreground font-mono mt-0.5">{model.id}</div>
+          <div className="space-y-1.5">
+            {/* Built-in models */}
+            {builtInModels.map((model) => (
+              <div
+                key={model.id}
+                className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-card"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono text-sm font-medium">{model.name}</div>
+                  <div className="text-xs text-muted-foreground font-mono mt-0.5">{model.id}</div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {/* Custom models */}
-          {customModels.map((model, index) => (
-            <div
-              key={`custom-${index}`}
-              className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-card"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="font-mono text-sm font-medium">{model.name}</div>
-                <div className="text-xs text-muted-foreground font-mono mt-0.5">{model.id}</div>
+            {/* Custom models */}
+            {customModels.map((model, index) => (
+              <div
+                key={`custom-${index}`}
+                className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-card"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono text-sm font-medium">{model.name}</div>
+                  <div className="text-xs text-muted-foreground font-mono mt-0.5">{model.id}</div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <SettingsButton
+                    variant="secondary"
+                    size="iconSm"
+                    onClick={() => handleOpenEditModel(index)}
+                    title={t('settings.editModel')}
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                  </SettingsButton>
+                  <SettingsButton
+                    variant="destructive"
+                    size="iconSm"
+                    className="border-destructive/25"
+                    onClick={() => handleDeleteModel(index)}
+                    title={t('settings.deleteModel')}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </SettingsButton>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <SettingsButton
-                  variant="secondary"
-                  size="iconSm"
-                  onClick={() => handleOpenEditModel(index)}
-                  title={t('settings.editModel')}
-                >
-                  <Settings2 className="h-3.5 w-3.5" />
-                </SettingsButton>
-                <SettingsButton
-                  variant="destructive"
-                  size="iconSm"
-                  className="border-destructive/25"
-                  onClick={() => handleDeleteModel(index)}
-                  title={t('settings.deleteModel')}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </SettingsButton>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>}
+      )}
 
       {/* Add/Edit Model Dialog */}
       <Dialog open={showModelDialog} onOpenChange={setShowModelDialog}>
@@ -445,7 +464,11 @@ export function ImageSettings({ selectedProviderId }: ImageSettingsProps) {
               />
             </div>
             <div className="flex justify-end gap-2">
-              <SettingsButton variant="secondary" size="sm" onClick={() => setShowModelDialog(false)}>
+              <SettingsButton
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowModelDialog(false)}
+              >
                 {t('common.cancel')}
               </SettingsButton>
               <SettingsButton size="sm" onClick={handleSaveModel} disabled={!modelForm.id.trim()}>
