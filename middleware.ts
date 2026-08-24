@@ -21,6 +21,8 @@ export function middleware(request: NextRequest) {
     pathname === '/speedup/signed-out' ||
     pathname === '/login' ||
     pathname === '/learn' ||
+    pathname === '/test' ||
+    pathname.startsWith('/test/') ||
     pathname.startsWith('/student/') ||
     pathname === '/student' ||
     pathname === '/calendar' ||
