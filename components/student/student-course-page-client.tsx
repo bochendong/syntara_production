@@ -57,7 +57,56 @@ type StudentCoursePayload = {
 
 const TERM_LABEL = { winter: 'Winter', summer: 'Summer', fall: 'Fall' } as const;
 
-export function StudentCoursePageClient({ courseId }: { courseId: string }) {
+function mockStudentCoursePayload(courseId: string): StudentCoursePayload {
+  const normalizedCode = courseId
+    .replace(/^demo-|^preview-/, '')
+    .replace(/[^a-z0-9]+/gi, '')
+    .toUpperCase();
+  const code = normalizedCode || 'CSC148';
+  const updatedAt = '2026-08-24T08:00:00.000Z';
+  return {
+    previewedByAdmin: false,
+    student: { id: 'ui-preview-student', name: '前端测试学生', email: 'preview@example.com' },
+    course: {
+      id: courseId,
+      name: `${code} · 前端演示课程`,
+      description: '免登录前端测试数据：用于检查学生课程概览、工具入口和笔记本列表。',
+      code,
+      academicYear: 2026,
+      term: 'summer',
+      avatarUrl: null,
+      problemCount: 0,
+      teacherName: '前端测试老师',
+      updatedAt,
+    },
+    progressLimit: { notebookAccessLimit: 3, unlockedCount: 3, totalCount: 4 },
+    notebooks: [
+      ['preview-notebook-1', '课程导览与核心概念', '先了解课程结构、符号约定与学习目标。'],
+      ['preview-notebook-2', '第一章：基础方法', '包含例题、逐步推导和常见误区。'],
+      ['preview-notebook-3', '章节复习与检查清单', '用于检查长标题、标签和内容数量的排版。'],
+      ['preview-notebook-4', '尚未开放的后续内容', '用于验证锁定状态。'],
+    ].map(([id, title, summary], index) => ({
+      id,
+      title,
+      summary,
+      kind: index === 1 ? ('image' as const) : ('markdown' as const),
+      tags: index === 2 ? ['复习', '重点', '测试'] : ['课程笔记'],
+      order: index,
+      unlocked: index < 3,
+      contentCount: 4 + index * 3,
+      hasMindMap: false,
+      updatedAt,
+    })),
+  };
+}
+
+export function StudentCoursePageClient({
+  courseId,
+  mockMode = false,
+}: {
+  courseId: string;
+  mockMode?: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedPreview = searchParams.get('preview') === '1';
@@ -72,6 +121,12 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
   const load = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true);
+      if (mockMode) {
+        setPayload(mockStudentCoursePayload(courseId));
+        setError('');
+        setLoading(false);
+        return;
+      }
       try {
         const next = await backendJson<StudentCoursePayload>(
           `/api/student/courses/${encodeURIComponent(courseId)}`,
@@ -84,7 +139,7 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
         if (!silent) setLoading(false);
       }
     },
-    [courseId],
+    [courseId, mockMode],
   );
 
   useEffect(() => {
@@ -99,6 +154,10 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
   }, [load]);
 
   useEffect(() => {
+    if (mockMode) {
+      setUnresolvedForumCount(2);
+      return;
+    }
     let cancelled = false;
     void backendJson<{ unresolvedCount: number }>(
       `/api/course-forum/${encodeURIComponent(courseId)}/summary`,
@@ -111,7 +170,7 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [courseId]);
+  }, [courseId, mockMode]);
 
   if (loading && !payload) {
     return (
@@ -140,10 +199,10 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
     );
   }
 
-  const previewMode = payload.previewedByAdmin || requestedPreview;
-  const homeHref = previewMode ? '/student?preview=1' : '/learn';
-  const chatHref = `/learn?courseId=${encodeURIComponent(courseId)}${previewMode ? '&asStudent=1' : ''}`;
-  const forumHref = `/course/${encodeURIComponent(courseId)}/forum`;
+  const previewMode = mockMode || payload.previewedByAdmin || requestedPreview;
+  const homeHref = mockMode ? '/test/frontend' : previewMode ? '/student?preview=1' : '/learn';
+  const chatHref = `/learn?courseId=${encodeURIComponent(courseId)}${mockMode ? '&uiPreview=1&asStudent=1' : previewMode ? '&asStudent=1' : ''}`;
+  const forumHref = `/course/${encodeURIComponent(courseId)}/forum${mockMode ? '?mock=1' : ''}`;
   const problemBankHref = `/course/${encodeURIComponent(courseId)}/problem-bank`;
   const term = payload.course.term ? TERM_LABEL[payload.course.term] : null;
 
@@ -159,7 +218,11 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
       previewMode={previewMode}
     >
       <div className="space-y-5 p-4 sm:p-6">
-        {previewMode ? (
+        {mockMode ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            当前为免登录前端测试模式；页面只使用演示数据，不会读取或写入真实学生记录。
+          </div>
+        ) : previewMode ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             管理员正在预览 {payload.student?.name || payload.student?.email || '该学生'}{' '}
             的真实学生页面；课程、进度限制和日历写入都会使用该学生账号。

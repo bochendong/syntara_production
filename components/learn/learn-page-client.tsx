@@ -7140,8 +7140,11 @@ export function LearnPageClient() {
   const urlSessionId = searchParams.get('session')?.trim() || '';
   const urlCourseId = searchParams.get('courseId')?.trim() || '';
   const debugNoCourses = searchParams.get('debugNoCourses') === '1';
+  const uiPreviewMode = searchParams.get('uiPreview') === '1';
   const previewLearnHome =
-    process.env.NODE_ENV !== 'production' && searchParams.get('previewLearnHome') === '1';
+    !urlCourseId &&
+    (uiPreviewMode ||
+      (process.env.NODE_ENV !== 'production' && searchParams.get('previewLearnHome') === '1'));
   const platformMemoryStatusMockMode = platformMemoryStatusMockModeFromValue(
     searchParams.get(PLATFORM_MEMORY_STATUS_MOCK_QUERY_PARAM),
   );
@@ -7636,7 +7639,7 @@ export function LearnPageClient() {
   >(null);
 
   const hydrated = authHydrated && courseHydrated;
-  const localUserId = userId || 'anonymous';
+  const localUserId = userId || (uiPreviewMode ? 'ui-preview-student' : 'anonymous');
   const canManageCourseContent = portalRole === 'TEACHER' || portalRole === 'ADMIN';
   const teacherChatMode = searchParams.get('from') === 'teacher';
   const studentPreviewMode = searchParams.get('asStudent') === '1';
@@ -9641,8 +9644,22 @@ export function LearnPageClient() {
       return;
     }
     if (!hydrated) return;
-    if (!isLoggedIn) {
+    if (!isLoggedIn && !uiPreviewMode) {
       router.replace('/speedup/signed-out?role=student');
+      return;
+    }
+    if (uiPreviewMode && urlCourseId) {
+      const previewCourse =
+        LEARN_HOME_PREVIEW_COURSES.find((course) => course.id === urlCourseId) ??
+        courseShellFromUrl(urlCourseId, {
+          id: urlCourseId,
+          name: urlCourseId.replace(/^demo-|^preview-/, '').toUpperCase(),
+          avatarUrl: undefined,
+        });
+      setCourses([previewCourse]);
+      setActiveCourseId(urlCourseId);
+      setCoursesLoadState('ready');
+      setCourseLoadError(null);
       return;
     }
     let alive = true;
@@ -9787,6 +9804,7 @@ export function LearnPageClient() {
     previewLearnHome,
     router,
     setCurrentCourse,
+    uiPreviewMode,
     unavailableCourseId,
     urlCourseId,
   ]);
@@ -14181,6 +14199,30 @@ export function LearnPageClient() {
         setError('会话仍在本地恢复，请稍后再发送。');
         return;
       }
+      if (uiPreviewMode) {
+        const questionText = text || '请阅读我上传的附件，结合课程内容帮我分析。';
+        const now = Date.now();
+        updateComposerDraft('');
+        updateComposerAttachments([]);
+        setError(null);
+        setMessages((current) => [
+          ...current,
+          {
+            id: makeClientId('preview-user'),
+            role: 'user',
+            text: questionText,
+            attachments: outgoingAttachments,
+            createdAt: now,
+          },
+          {
+            id: makeClientId('preview-assistant'),
+            role: 'assistant',
+            text: '这是免登录前端测试模式的本地演示回复。你可以继续检查消息排版、Markdown、公式、附件缩略图和长内容滚动；该消息不会调用 AI，也不会写入真实课程数据库。',
+            createdAt: now + 1,
+          },
+        ]);
+        return;
+      }
       if (hasImageAttachments && selectedKnownNoVision) {
         setError('当前模型不支持图片，请先切换到带视觉能力的模型。');
         return;
@@ -15086,6 +15128,7 @@ export function LearnPageClient() {
       syllabusEvents,
       updateComposerAttachments,
       updateComposerDraft,
+      uiPreviewMode,
       userId,
       userName,
     ],
@@ -18793,6 +18836,7 @@ export function LearnPageClient() {
                 role={isTeacherCourseChat ? 'teacher' : 'student'}
                 active="chat"
                 problemCount={activeCourse.problemCount}
+                previewMode={uiPreviewMode}
                 className="mt-2 w-fit max-w-full"
               />
             ) : null}

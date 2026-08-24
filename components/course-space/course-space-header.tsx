@@ -14,6 +14,7 @@ type CourseSpaceNavigationProps = {
   active: CourseSpaceSection;
   problemCount?: number;
   forumCount?: number;
+  previewMode?: boolean;
   className?: string;
 };
 
@@ -22,6 +23,7 @@ function navigationItems({
   role,
   problemCount,
   forumCount,
+  previewMode,
 }: Omit<CourseSpaceNavigationProps, 'active' | 'className'>) {
   const encodedCourseId = encodeURIComponent(courseId);
   return [
@@ -30,7 +32,7 @@ function navigationItems({
           {
             key: 'resources' as const,
             label: '资料库',
-            href: `/teacher/courses/${encodedCourseId}`,
+            href: `/teacher/courses/${encodedCourseId}${previewMode ? '?mock=1' : ''}`,
             Icon: BookOpenText,
           },
         ]
@@ -38,10 +40,10 @@ function navigationItems({
     {
       key: 'chat' as const,
       label: '课程聊天',
-      href: `/learn?courseId=${encodedCourseId}${role === 'teacher' ? '&from=teacher' : ''}`,
+      href: `/learn?courseId=${encodedCourseId}${role === 'teacher' ? '&from=teacher' : ''}${previewMode ? '&uiPreview=1' : ''}`,
       Icon: MessageCircleMore,
     },
-    ...(typeof problemCount === 'number' && problemCount > 0
+    ...(!previewMode && typeof problemCount === 'number' && problemCount > 0
       ? [
           {
             key: 'problem-bank' as const,
@@ -54,7 +56,7 @@ function navigationItems({
     {
       key: 'forum' as const,
       label: '课程论坛',
-      href: `/course/${encodedCourseId}/forum`,
+      href: `/course/${encodedCourseId}/forum${previewMode ? `?mock=1${role === 'teacher' ? '&asTeacher=1' : ''}` : ''}`,
       Icon: MessagesSquare,
       count: forumCount,
     },
@@ -67,9 +69,10 @@ export function CourseSpaceNavigation({
   active,
   problemCount,
   forumCount,
+  previewMode,
   className,
 }: CourseSpaceNavigationProps) {
-  const items = navigationItems({ courseId, role, problemCount, forumCount });
+  const items = navigationItems({ courseId, role, problemCount, forumCount, previewMode });
 
   return (
     <nav
@@ -121,6 +124,7 @@ export function CourseSpaceHeader({
   active,
   problemCount,
   forumCount,
+  previewMode,
   actions,
   className,
 }: CourseSpaceNavigationProps & {
@@ -158,6 +162,7 @@ export function CourseSpaceHeader({
             active={active}
             problemCount={problemCount}
             forumCount={forumCount}
+            previewMode={previewMode}
             className="max-w-full"
           />
           {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}

@@ -1170,13 +1170,21 @@ export function TeacherCourseStudioClient({
           active="resources"
           problemCount={course.problemCount}
           forumCount={unresolvedForumCount}
+          previewMode={mockMode}
           className="overflow-hidden rounded-[22px] border border-slate-200/80 shadow-[0_12px_32px_rgba(15,23,42,0.04)] dark:border-white/10"
           actions={
             <Button
               type="button"
               variant="outline"
               className="h-9 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold shadow-none hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-white/5 sm:text-sm"
-              onClick={() => router.push(`/teacher/courses/${courseId}/students`)}
+              onClick={() =>
+                router.push(
+                  mockMode
+                    ? `/teacher/courses/${courseId}?mock=1`
+                    : `/teacher/courses/${courseId}/students`,
+                )
+              }
+              disabled={mockMode}
             >
               <Users className="mr-1.5 size-4" />
               学生管理

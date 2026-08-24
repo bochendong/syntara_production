@@ -115,10 +115,11 @@ export function LearnHomePageClient({
         setCurrentCourse({ id: course.id, name: course.name, avatarUrl: course.avatarUrl });
       }
       const params = new URLSearchParams({ courseId });
-      if (forceStudentPortal) params.set('asStudent', '1');
+      if (forceStudentPortal || preview) params.set('asStudent', '1');
+      if (preview) params.set('uiPreview', '1');
       router.push(`/learn?${params.toString()}`);
     },
-    [courses, forceStudentPortal, router, setCurrentCourse],
+    [courses, forceStudentPortal, preview, router, setCurrentCourse],
   );
 
   return (

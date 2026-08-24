@@ -5,6 +5,7 @@ import {
   CalendarDays,
   CheckCircle2,
   GitBranch,
+  LayoutDashboard,
   Lightbulb,
   ListChecks,
   MessageSquareText,
@@ -274,6 +275,32 @@ export default function PlatformTestsPage() {
             </div>
           </div>
         </header>
+
+        <section className="overflow-hidden rounded-3xl border border-emerald-200 bg-[linear-gradient(135deg,#ffffff_0%,#ecfdf5_58%,#f0fdfa_100%)] shadow-sm">
+          <div className="grid gap-6 px-6 py-7 lg:grid-cols-[1fr_auto] lg:items-center lg:px-8">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                <LayoutDashboard className="size-4" />
+                前端开发入口
+              </div>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
+                不登录，直接测试老师端和学生端
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                使用隔离的演示数据切换课程工作台、学生课程、聊天和论坛。不会创建真实登录会话，也不会改动线上课程数据。
+              </p>
+            </div>
+            <Button
+              asChild
+              className="w-fit rounded-full bg-emerald-700 px-5 text-white hover:bg-emerald-800"
+            >
+              <Link href="/test/frontend">
+                打开前端测试台
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </div>
+        </section>
 
         <section className="overflow-hidden rounded-3xl border border-violet-200 bg-[linear-gradient(135deg,#ffffff_0%,#f5f3ff_58%,#eef2ff_100%)] shadow-sm">
           <div className="grid gap-6 px-6 py-7 lg:grid-cols-[1fr_auto] lg:items-center lg:px-8">

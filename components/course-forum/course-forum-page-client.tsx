@@ -617,6 +617,7 @@ export function CourseForumPageClient({
             active="forum"
             problemCount={snapshot.course.problemCount}
             forumCount={snapshot.unresolvedCount}
+            previewMode={mockMode}
             actions={
               <>
                 <Button

@@ -15,7 +15,9 @@ type LearnPageProps = {
 
 export default async function LearnPage({ searchParams }: LearnPageProps) {
   const params = await searchParams;
-  const previewLearnHome = process.env.NODE_ENV !== 'production' && params.previewLearnHome === '1';
+  const uiPreview = params.uiPreview === '1';
+  const previewLearnHome =
+    uiPreview || (process.env.NODE_ENV !== 'production' && params.previewLearnHome === '1');
   const hasCourseId = typeof params.courseId === 'string' && params.courseId.trim().length > 0;
   const hasSessionId = typeof params.session === 'string' && params.session.trim().length > 0;
   const debugNoCourses = params.debugNoCourses === '1';
@@ -24,7 +26,11 @@ export default async function LearnPage({ searchParams }: LearnPageProps) {
     return <LearnHomePageClient preview={previewLearnHome} />;
   }
 
-  if (hasCourseId && (await currentCoursePageAccess((params.courseId as string).trim())) === null) {
+  if (
+    hasCourseId &&
+    !uiPreview &&
+    (await currentCoursePageAccess((params.courseId as string).trim())) === null
+  ) {
     return <CourseAccessClosedCard returnHref="/learn" returnLabel="返回全部课程" />;
   }
 
