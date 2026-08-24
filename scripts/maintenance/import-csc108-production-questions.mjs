@@ -326,6 +326,7 @@ async function main() {
   loadEnvLocal();
   const write = hasFlag('write');
   const allowDuplicates = hasFlag('allow-duplicates');
+  const courseLevelFallback = hasFlag('course-level-fallback');
   const courseId = argValue('course-id') || DEFAULT_COURSE_ID;
   const sourcePath = argValue('source') || DEFAULT_SOURCE_PATH;
   const absoluteSourcePath = path.resolve(ROOT, sourcePath);
@@ -371,6 +372,21 @@ async function main() {
     const missingAssignedNotebookIds = assignedNotebookIds.filter(
       (notebookId) => !existingAssignedNotebookIds.has(notebookId),
     );
+    const missingAssignedNotebookIdSet = new Set(missingAssignedNotebookIds);
+    const resolvedDraftsToInsert = draftsToInsert.map((draft) => {
+      if (!draft.notebookId || !missingAssignedNotebookIdSet.has(draft.notebookId)) return draft;
+      if (!courseLevelFallback) return draft;
+      return {
+        ...draft,
+        notebookId: null,
+        sourceMeta: {
+          ...draft.sourceMeta,
+          requestedNotebookId: draft.notebookId,
+          assignedNotebookId: null,
+          notebookAssignment: 'course-level-fallback',
+        },
+      };
+    });
 
     const publicTestCount = draftsToInsert.reduce(
       (sum, draft) => sum + draft.publicContent.publicTests.length,
@@ -395,6 +411,10 @@ async function main() {
           secretTestCount,
           draftProblemCount,
           missingAssignedNotebookIds,
+          courseLevelFallback,
+          courseLevelFallbackQuestionCount: resolvedDraftsToInsert.filter(
+            (draft) => draft.sourceMeta.notebookAssignment === 'course-level-fallback',
+          ).length,
           categories: draftsToInsert.reduce((acc, draft) => {
             const category = draft.sourceMeta.sourceCategory || 'Unknown';
             acc[category] = (acc[category] ?? 0) + 1;
@@ -407,7 +427,7 @@ async function main() {
     );
 
     if (!write || draftsToInsert.length === 0) return;
-    if (missingAssignedNotebookIds.length > 0) {
+    if (missingAssignedNotebookIds.length > 0 && !courseLevelFallback) {
       throw new Error(`Missing CSC108 notebooks: ${missingAssignedNotebookIds.join(', ')}`);
     }
 
@@ -439,53 +459,65 @@ async function main() {
             sourceFileName: SOURCE_FILE_NAME,
             sourceFileMime: 'application/json',
             sourceTextHash: hashText(sourceText),
-            draftCount: draftsToInsert.length,
-            draftSnapshotJson: draftsToInsert,
+            draftCount: resolvedDraftsToInsert.length,
+            draftSnapshotJson: resolvedDraftsToInsert,
             warnings: [],
           },
           select: { id: true },
         });
 
-        for (let index = 0; index < draftsToInsert.length; index += 1) {
-          const draft = draftsToInsert[index];
-          const created = await tx.notebookProblem.create({
-            data: {
-              courseId,
-              notebookId: draft.notebookId,
-              title: draft.title,
-              type: draft.type,
-              status: draft.status,
-              source: draft.source,
-              order: count + index,
-              problemNumber: firstProblemNumber + index,
-              points: draft.points,
-              tags: draft.tags,
-              difficulty: draft.difficulty,
-              publicContentJson: draft.publicContent,
-              gradingJson: draft.grading,
-              sourceMeta: {
-                ...draft.sourceMeta,
-                importBatchId: importBatch.id,
-              },
+        const createdProblems = await tx.notebookProblem.createManyAndReturn({
+          data: resolvedDraftsToInsert.map((draft, index) => ({
+            courseId,
+            notebookId: draft.notebookId,
+            title: draft.title,
+            type: draft.type,
+            status: draft.status,
+            source: draft.source,
+            order: count + index,
+            problemNumber: firstProblemNumber + index,
+            points: draft.points,
+            tags: draft.tags,
+            difficulty: draft.difficulty,
+            publicContentJson: draft.publicContent,
+            gradingJson: draft.grading,
+            sourceMeta: {
+              ...draft.sourceMeta,
+              importBatchId: importBatch.id,
             },
-            select: { id: true },
-          });
-
-          if (draft.secretJudge) {
-            await tx.notebookProblemSecret.create({
-              data: {
-                problemId: created.id,
-                secretJudgeJson: draft.secretJudge,
-              },
-            });
+          })),
+          select: { id: true, sourceMeta: true },
+        });
+        const createdProblemIdBySourceQuestionId = new Map(
+          createdProblems.map((problem) => {
+            const sourceMeta =
+              problem.sourceMeta && typeof problem.sourceMeta === 'object'
+                ? problem.sourceMeta
+                : {};
+            return [String(sourceMeta.sourceQuestionId), problem.id];
+          }),
+        );
+        const secretRows = resolvedDraftsToInsert.flatMap((draft) => {
+          if (!draft.secretJudge) return [];
+          const problemId = createdProblemIdBySourceQuestionId.get(
+            String(draft.sourceMeta.sourceQuestionId),
+          );
+          if (!problemId) {
+            throw new Error(
+              `Created problem missing for source question ${draft.sourceMeta.sourceQuestionId}`,
+            );
           }
+          return [{ problemId, secretJudgeJson: draft.secretJudge }];
+        });
+        if (secretRows.length > 0) {
+          await tx.notebookProblemSecret.createMany({ data: secretRows });
         }
 
         await tx.problemImportBatch.update({
           where: { id: importBatch.id },
           data: {
             status: 'committed',
-            committedCount: draftsToInsert.length,
+            committedCount: resolvedDraftsToInsert.length,
           },
         });
       },

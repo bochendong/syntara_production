@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
@@ -83,6 +84,24 @@ import {
   getLocalDemoCourseHardRules,
   getLocalDemoTeacherStudio,
 } from '@/lib/teacher/local-demo-fixtures';
+
+const CourseProblemBankView = dynamic(
+  () =>
+    import('@/components/problem-bank/course-problem-bank-view').then(
+      (module) => module.CourseProblemBankView,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid min-h-80 flex-1 place-items-center text-sm text-slate-500">
+        <span className="inline-flex items-center gap-2">
+          <Loader2 className="size-4 animate-spin" />
+          正在加载题库…
+        </span>
+      </div>
+    ),
+  },
+);
 
 type StudioTab = 'notebooks' | 'problem_banks' | 'hard_rules' | 'sources' | 'queue' | 'removed';
 type ResourceLibraryKind = 'notebook' | 'problem_bank';
@@ -1276,21 +1295,31 @@ export function TeacherCourseStudioClient({
             }
           >
             {resourceLibraryKind === 'problem_bank' ? (
-              <div className={STUDIO_PANEL_BODY_CLASS}>
-                <StudioEmptyPlaceholder>
-                  <div className="flex flex-col items-center gap-2 px-4">
-                    <span className="grid size-11 place-items-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300">
-                      <Library className="size-5" />
-                    </span>
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                      题库功能待开放
-                    </p>
-                    <p className="max-w-sm text-xs leading-5 text-slate-400 dark:text-slate-500">
-                      教师端题库管理暂未上线，当前不会加载课程题目。
-                    </p>
-                  </div>
-                </StudioEmptyPlaceholder>
-              </div>
+              localDemo ? (
+                <div className={STUDIO_PANEL_BODY_CLASS}>
+                  <StudioEmptyPlaceholder>
+                    <div className="flex flex-col items-center gap-2 px-4">
+                      <span className="grid size-11 place-items-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300">
+                        <Library className="size-5" />
+                      </span>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                        本地预览不加载真实题库
+                      </p>
+                      <p className="max-w-sm text-xs leading-5 text-slate-400 dark:text-slate-500">
+                        使用 Speedup 教师身份进入课程后，可以管理、导入和练习数据库中的真实题目。
+                      </p>
+                    </div>
+                  </StudioEmptyPlaceholder>
+                </div>
+              ) : (
+                <div className="flex min-h-[min(706px,72dvh)] flex-1 overflow-hidden p-2">
+                  <CourseProblemBankView
+                    courseId={courseId}
+                    showCourseTitle={false}
+                    showChromeBackground={false}
+                  />
+                </div>
+              )
             ) : selectedLibraryResource ? (
               <div className="flex flex-col bg-slate-50/80 dark:bg-slate-950">
                 <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200/80 bg-white px-5 py-3 dark:border-white/10 dark:bg-slate-950">
@@ -1792,12 +1821,11 @@ export function TeacherCourseStudioClient({
                 {sourceCategory === 'problem_bank' ? (
                   <button
                     type="button"
-                    disabled
-                    title="题库上传功能待开放"
-                    className="inline-flex min-h-10 flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-300 px-4 text-sm font-semibold text-white dark:bg-white/20 dark:text-slate-400"
+                    onClick={() => switchTab('problem_banks')}
+                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                   >
-                    <Upload className="size-4" />
-                    上传题库（待开放）
+                    <Library className="size-4" />
+                    进入题库管理
                   </button>
                 ) : (
                   <label
