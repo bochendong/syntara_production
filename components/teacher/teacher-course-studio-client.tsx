@@ -115,7 +115,6 @@ type CourseHardRuleRecord = {
   updatedAt: string;
 };
 const STUDIO_PAGE_SIZE = 8;
-const NOTEBOOK_GRID_CAPACITY = 8;
 
 const SOURCE_CATEGORIES: Array<{
   value: CourseSourceCategory;
@@ -587,6 +586,8 @@ export function TeacherCourseStudioClient({
     () => sources.filter((source) => resolveCourseSourceCategory(source) === sourceCategory),
     [sourceCategory, sources],
   );
+  const selectedSourceCategoryMeta = SOURCE_CATEGORY_META[sourceCategory];
+  const SelectedSourceCategoryIcon = selectedSourceCategoryMeta.Icon;
   const listTotal =
     tab === 'notebooks'
       ? notebooks.length
@@ -1615,61 +1616,85 @@ export function TeacherCourseStudioClient({
                 <div className={`${STUDIO_PANEL_BODY_CLASS} min-w-0`}>
                   <div className="mx-auto flex h-full w-full max-w-6xl min-h-0 flex-1 flex-col">
                     {libraryResources.length ? (
-                      <div className="grid min-h-0 flex-1 auto-rows-[220px] grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-x-6 xl:h-full xl:auto-rows-auto xl:grid-cols-4 xl:grid-rows-2 xl:gap-x-10 xl:gap-y-8">
-                        {Array.from({ length: NOTEBOOK_GRID_CAPACITY }, (_, index) => {
-                          const item = pagedLibraryResources[index];
-                          if (!item) {
-                            return (
-                              <div
-                                key={`notebook-slot-${index}`}
-                                className="hidden min-h-0 rounded-2xl border border-dashed border-slate-200/80 bg-transparent dark:border-white/10 xl:block"
-                                aria-hidden
-                              />
-                            );
-                          }
+                      <StudioList className="dark:bg-white/[0.02]">
+                        {pagedLibraryResources.map((item) => {
+                          const sectionCount = item.notebookSections?.length ?? 0;
+                          const persisted = persistedNotebookIds.has(item.id);
                           return (
-                            <article
+                            <StudioListItem
                               key={item.reference.id}
-                              className="group relative mx-auto h-full min-h-0 w-full max-w-[220px]"
+                              className="flex flex-col gap-3 sm:flex-row sm:items-center"
                             >
+                              <StudioItemIcon tone="sky">
+                                <BookOpenText className="size-4" />
+                              </StudioItemIcon>
                               <button
                                 type="button"
-                                aria-label={`打开 ${item.title}`}
+                                className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
                                 onClick={() => openResourceDetail(item)}
-                                className="block size-full text-left transition duration-150 hover:-translate-y-1 hover:-rotate-[0.6deg] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
                               >
-                                <TeacherNotebookCardFace
-                                  item={item}
-                                  persisted={persistedNotebookIds.has(item.id)}
-                                />
+                                <span className="flex flex-wrap items-center gap-2">
+                                  <span className="truncate text-sm font-semibold text-slate-950 dark:text-white">
+                                    {item.title}
+                                  </span>
+                                  <StudioItemTag tone="sky" className="rounded-full">
+                                    {sectionCount ? `${sectionCount} 章节` : '课程笔记本'}
+                                  </StudioItemTag>
+                                  <StudioItemTag
+                                    tone={persisted ? 'emerald' : 'amber'}
+                                    className="rounded-full"
+                                  >
+                                    <Database className="size-3" />
+                                    {persisted ? '已保存' : '状态未确认'}
+                                  </StudioItemTag>
+                                  {item.reference.inheritedFromCourseId ? (
+                                    <StudioItemTag tone="violet" className="rounded-full">
+                                      历史引用
+                                    </StudioItemTag>
+                                  ) : null}
+                                </span>
+                                <span className="mt-1 block truncate text-xs text-slate-500">
+                                  {item.description || '该笔记本暂无简介'} · 更新于{' '}
+                                  {new Date(item.updatedAt).toLocaleDateString('zh-CN')}
+                                </span>
                               </button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="absolute -right-2 -top-2 z-10 size-8 rounded-full bg-white p-0 text-slate-500 shadow-md hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-900"
-                                aria-label={`删除 ${item.title}`}
-                                disabled={actionReferenceId === item.reference.id}
-                                onClick={() => void handleHideContent(item)}
-                              >
-                                {actionReferenceId === item.reference.id ? (
-                                  <Loader2 className="size-3.5 animate-spin" />
-                                ) : (
-                                  <Trash2 className="size-3.5" />
-                                )}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="absolute -right-2 top-8 z-10 size-8 rounded-full bg-white p-0 text-slate-500 shadow-md hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:bg-slate-900"
-                                aria-label={`重命名 ${item.title}`}
-                                onClick={() => openNotebookRename(item)}
-                              >
-                                <Pencil className="size-3.5" />
-                              </Button>
-                            </article>
+                              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openResourceDetail(item)}
+                                >
+                                  <Eye className="mr-1.5 size-3.5" />
+                                  查看
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openNotebookRename(item)}
+                                >
+                                  <Pencil className="mr-1.5 size-3.5" />
+                                  重命名
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-slate-500 hover:text-rose-600"
+                                  aria-label={`删除 ${item.title}`}
+                                  disabled={actionReferenceId === item.reference.id}
+                                  onClick={() => void handleHideContent(item)}
+                                >
+                                  {actionReferenceId === item.reference.id ? (
+                                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="mr-1.5 size-3.5" />
+                                  )}
+                                  移除
+                                </Button>
+                              </div>
+                            </StudioListItem>
                           );
                         })}
-                      </div>
+                      </StudioList>
                     ) : (
                       <StudioEmptyPlaceholder>还没有笔记本。</StudioEmptyPlaceholder>
                     )}
@@ -1791,221 +1816,251 @@ export function TeacherCourseStudioClient({
 
         {tab === 'sources' ? (
           <section className={STUDIO_SECTION_CLASS}>
-            <div className="flex shrink-0 flex-col gap-3 border-b border-slate-200/80 p-5 dark:border-white/10 lg:flex-row lg:items-stretch">
-              <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-3">
-                {SOURCE_CATEGORIES.map((category) => {
-                  const selected = sourceCategory === category.value;
-                  return (
-                    <button
-                      key={category.value}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => {
-                        setSourceCategory(category.value);
-                        setListPage(1);
-                      }}
-                      className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${selected ? 'border-sky-300 bg-sky-50 shadow-sm dark:border-sky-400/40 dark:bg-sky-400/10' : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 hover:bg-white dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.06]'}`}
-                    >
-                      <span
-                        className={`grid size-10 shrink-0 place-items-center rounded-xl ${selected ? 'bg-sky-500 text-white' : 'bg-white text-slate-500 shadow-sm dark:bg-white/10'}`}
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50/80 dark:bg-slate-950 lg:flex-row">
+              <aside className="flex shrink-0 flex-col border-b border-slate-200/80 bg-white/90 p-4 dark:border-white/10 dark:bg-white/[0.035] lg:w-72 lg:border-r lg:border-b-0">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
+                    源文件分类
+                  </h2>
+                  <p className="mt-1 text-[11px] leading-4 text-slate-500">
+                    选择分类后在右侧管理文件
+                  </p>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {SOURCE_CATEGORIES.map((category) => {
+                    const selected = sourceCategory === category.value;
+                    return (
+                      <button
+                        key={category.value}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => {
+                          setSourceCategory(category.value);
+                          setListPage(1);
+                        }}
+                        className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition ${selected ? 'bg-sky-50 text-sky-950 ring-1 ring-sky-200 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-400/20' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white'}`}
                       >
-                        <category.Icon className="size-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="flex items-center gap-2 font-semibold">
-                          {category.label}
-                          <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-slate-500 dark:bg-white/10 dark:text-slate-300">
-                            {sourceCategoryCounts[category.value]}
+                        <span
+                          className={`grid size-9 shrink-0 place-items-center rounded-xl ${selected ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300'}`}
+                        >
+                          <category.Icon className="size-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-2 text-sm font-semibold">
+                            {category.label}
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
+                              {sourceCategoryCounts[category.value]}
+                            </span>
+                          </span>
+                          <span className="mt-1 block text-[11px] leading-4 text-slate-500">
+                            {category.description}
                           </span>
                         </span>
-                        <span className="mt-1 block text-xs leading-5 text-slate-500">
-                          {category.description}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex shrink-0 flex-col gap-2 lg:min-w-[10.5rem]">
-                {sourceCategory === 'problem_bank' ? (
-                  <button
-                    type="button"
-                    onClick={() => switchTab('problem_banks')}
-                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
-                  >
-                    <Library className="size-4" />
-                    进入题库管理
-                  </button>
-                ) : (
-                  <label
-                    className={`inline-flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white dark:bg-white dark:text-slate-950 ${uploading ? 'pointer-events-none opacity-60' : ''}`}
-                  >
-                    {uploading ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Upload className="size-4" />
-                    )}
-                    {uploading ? '正在保存…' : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`}
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf,.pptx,.docx,.md,.txt,text/plain,text/markdown,application/pdf"
-                      className="sr-only"
-                      onChange={(event) => {
-                        const files = Array.from(event.target.files ?? []);
-                        event.target.value = '';
-                        void handleUpload(files);
-                      }}
-                    />
-                  </label>
-                )}
-              </div>
-            </div>
-            <div className={STUDIO_PANEL_BODY_CLASS}>
-              {categorySources.length ? (
-                <StudioList>
-                  {visibleSources.map((source) => {
-                    const job = knowledgeJobsByAsset.get(source.id);
-                    const mindMapJob = mindMapJobsByAsset.get(source.id);
-                    const pending = job?.status === 'queued' || job?.status === 'running';
-                    const categoryMeta = SOURCE_CATEGORY_META[resolveCourseSourceCategory(source)];
-                    const CategoryIcon = categoryMeta.Icon;
-                    const linkedNotebook = notebooks.find(
-                      (notebook) =>
-                        notebook.id === job?.notebookId ||
-                        notebook.id === `teacher-notebook:${source.id}` ||
-                        notebook.sourceFileId === source.id,
-                    );
-                    const hasMindMap = Boolean(linkedNotebook?.mindMap);
-                    const generatingMindMap =
-                      !hasMindMap &&
-                      (mindMapSourceAssetId === source.id ||
-                        mindMapJob?.status === 'queued' ||
-                        mindMapJob?.status === 'running');
-                    return (
-                      <StudioListItem
-                        key={source.reference.id}
-                        className="flex flex-col gap-3 sm:flex-row sm:items-center"
-                      >
-                        <StudioItemIcon>
-                          <CategoryIcon className="size-4" />
-                        </StudioItemIcon>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="truncate text-sm font-semibold">{source.title}</h3>
-                            <StudioItemTag className="rounded-full">
-                              {categoryMeta.label}
-                            </StudioItemTag>
-                            <StudioItemTag className="rounded-full" tone="emerald">
-                              <Database className="size-3" />
-                              已保存到共享数据库
-                            </StudioItemTag>
-                            {source.reference.inheritedFromCourseId ? (
-                              <StudioItemTag tone="sky" className="rounded-full">
-                                历史引用
-                              </StudioItemTag>
-                            ) : null}
-                          </div>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {source.description || '数据库源文件'} ·{' '}
-                            {job ? queueStageLabel(job) : '尚未加入 AI'}
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 flex-wrap items-center gap-2">
-                          {resolveCourseSourceCategory(source) !== 'problem_bank' ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={
-                                job?.status !== 'completed' || generatingMindMap || hasMindMap
-                              }
-                              title={
-                                hasMindMap
-                                  ? '思维导图已经生成，请前往笔记本库查看'
-                                  : job?.status === 'completed'
-                                    ? undefined
-                                    : '请先将讲义加入 AI 知识库并生成笔记本'
-                              }
-                              onClick={() => job && void handleGenerateMindMap(source, job)}
-                            >
-                              {generatingMindMap ? (
-                                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                              ) : hasMindMap ? (
-                                <CheckCircle2 className="mr-1.5 size-3.5" />
-                              ) : (
-                                <Network className="mr-1.5 size-3.5" />
-                              )}
-                              {generatingMindMap
-                                ? '正在生成…'
-                                : hasMindMap
-                                  ? '已生成思维导图'
-                                  : '生成思维导图'}
-                            </Button>
-                          ) : null}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            aria-label={`在线预览 ${source.title}`}
-                            onClick={() => void handlePreviewSource(source)}
-                          >
-                            <Eye className="mr-1.5 size-3.5" />
-                            在线预览
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-slate-500 hover:text-rose-600"
-                            disabled={actionReferenceId === source.reference.id}
-                            onClick={() => void handleHideContent(source)}
-                          >
-                            {actionReferenceId === source.reference.id ? (
-                              <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="mr-1.5 size-3.5" />
-                            )}
-                            移除
-                          </Button>
-                          {job?.status === 'completed' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
-                              <CheckCircle2 className="size-4" />
-                              已入库
-                            </span>
-                          ) : job?.status === 'failed' ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => void handleRetry(job.id)}
-                            >
-                              <RefreshCw className="mr-1.5 size-3.5" />
-                              重试
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              disabled={pending || processingSourceIds.has(source.id)}
-                              aria-label={`将 ${source.title} 加入 AI 知识库`}
-                              onClick={() => void handleEnqueue(source.id)}
-                            >
-                              {pending || processingSourceIds.has(source.id) ? (
-                                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                              ) : (
-                                <Brain className="mr-1.5 size-3.5" />
-                              )}
-                              {pending || processingSourceIds.has(source.id)
-                                ? '处理中'
-                                : '加入 AI 知识库'}
-                            </Button>
-                          )}
-                        </div>
-                      </StudioListItem>
+                      </button>
                     );
                   })}
-                </StudioList>
-              ) : (
-                <StudioEmptyPlaceholder>
-                  还没有{SOURCE_CATEGORY_META[sourceCategory].label}。上传不会自动触发 AI。
-                </StudioEmptyPlaceholder>
-              )}
+                </div>
+              </aside>
+
+              <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex shrink-0 flex-col gap-3 border-b border-slate-200/80 bg-white/80 px-4 py-4 dark:border-white/10 dark:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <SelectedSourceCategoryIcon className="size-4 text-sky-600" />
+                      <h2 className="truncate text-sm font-semibold text-slate-950 dark:text-white">
+                        {selectedSourceCategoryMeta.label}
+                      </h2>
+                      <StudioItemTag tone="sky" className="rounded-full">
+                        {categorySources.length} 个文件
+                      </StudioItemTag>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {selectedSourceCategoryMeta.description}
+                    </p>
+                  </div>
+                  {sourceCategory === 'problem_bank' ? (
+                    <button
+                      type="button"
+                      onClick={() => switchTab('problem_banks')}
+                      className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                    >
+                      <Library className="size-4" />
+                      进入题库管理
+                    </button>
+                  ) : (
+                    <label
+                      className={`inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white dark:bg-white dark:text-slate-950 ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+                    >
+                      {uploading ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Upload className="size-4" />
+                      )}
+                      {uploading
+                        ? '正在保存…'
+                        : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`}
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,.pptx,.docx,.md,.txt,text/plain,text/markdown,application/pdf"
+                        className="sr-only"
+                        onChange={(event) => {
+                          const files = Array.from(event.target.files ?? []);
+                          event.target.value = '';
+                          void handleUpload(files);
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                <div className={STUDIO_PANEL_BODY_CLASS}>
+                  {categorySources.length ? (
+                    <StudioList>
+                      {visibleSources.map((source) => {
+                        const job = knowledgeJobsByAsset.get(source.id);
+                        const mindMapJob = mindMapJobsByAsset.get(source.id);
+                        const pending = job?.status === 'queued' || job?.status === 'running';
+                        const categoryMeta =
+                          SOURCE_CATEGORY_META[resolveCourseSourceCategory(source)];
+                        const CategoryIcon = categoryMeta.Icon;
+                        const linkedNotebook = notebooks.find(
+                          (notebook) =>
+                            notebook.id === job?.notebookId ||
+                            notebook.id === `teacher-notebook:${source.id}` ||
+                            notebook.sourceFileId === source.id,
+                        );
+                        const hasMindMap = Boolean(linkedNotebook?.mindMap);
+                        const generatingMindMap =
+                          !hasMindMap &&
+                          (mindMapSourceAssetId === source.id ||
+                            mindMapJob?.status === 'queued' ||
+                            mindMapJob?.status === 'running');
+                        return (
+                          <StudioListItem
+                            key={source.reference.id}
+                            className="flex flex-col gap-3 sm:flex-row sm:items-center"
+                          >
+                            <StudioItemIcon>
+                              <CategoryIcon className="size-4" />
+                            </StudioItemIcon>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="truncate text-sm font-semibold">{source.title}</h3>
+                                <StudioItemTag className="rounded-full">
+                                  {categoryMeta.label}
+                                </StudioItemTag>
+                                <StudioItemTag className="rounded-full" tone="emerald">
+                                  <Database className="size-3" />
+                                  已保存到共享数据库
+                                </StudioItemTag>
+                                {source.reference.inheritedFromCourseId ? (
+                                  <StudioItemTag tone="sky" className="rounded-full">
+                                    历史引用
+                                  </StudioItemTag>
+                                ) : null}
+                              </div>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {source.description || '数据库源文件'} ·{' '}
+                                {job ? queueStageLabel(job) : '尚未加入 AI'}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 flex-wrap items-center gap-2">
+                              {resolveCourseSourceCategory(source) !== 'problem_bank' ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={
+                                    job?.status !== 'completed' || generatingMindMap || hasMindMap
+                                  }
+                                  title={
+                                    hasMindMap
+                                      ? '思维导图已经生成，请前往笔记本库查看'
+                                      : job?.status === 'completed'
+                                        ? undefined
+                                        : '请先将讲义加入 AI 知识库并生成笔记本'
+                                  }
+                                  onClick={() => job && void handleGenerateMindMap(source, job)}
+                                >
+                                  {generatingMindMap ? (
+                                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                                  ) : hasMindMap ? (
+                                    <CheckCircle2 className="mr-1.5 size-3.5" />
+                                  ) : (
+                                    <Network className="mr-1.5 size-3.5" />
+                                  )}
+                                  {generatingMindMap
+                                    ? '正在生成…'
+                                    : hasMindMap
+                                      ? '已生成思维导图'
+                                      : '生成思维导图'}
+                                </Button>
+                              ) : null}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                aria-label={`在线预览 ${source.title}`}
+                                onClick={() => void handlePreviewSource(source)}
+                              >
+                                <Eye className="mr-1.5 size-3.5" />
+                                在线预览
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-slate-500 hover:text-rose-600"
+                                disabled={actionReferenceId === source.reference.id}
+                                onClick={() => void handleHideContent(source)}
+                              >
+                                {actionReferenceId === source.reference.id ? (
+                                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="mr-1.5 size-3.5" />
+                                )}
+                                移除
+                              </Button>
+                              {job?.status === 'completed' ? (
+                                <span className="inline-flex items-center gap-1.5 px-2 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
+                                  <CheckCircle2 className="size-4" />
+                                  已入库
+                                </span>
+                              ) : job?.status === 'failed' ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void handleRetry(job.id)}
+                                >
+                                  <RefreshCw className="mr-1.5 size-3.5" />
+                                  重试
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  disabled={pending || processingSourceIds.has(source.id)}
+                                  aria-label={`将 ${source.title} 加入 AI 知识库`}
+                                  onClick={() => void handleEnqueue(source.id)}
+                                >
+                                  {pending || processingSourceIds.has(source.id) ? (
+                                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                                  ) : (
+                                    <Brain className="mr-1.5 size-3.5" />
+                                  )}
+                                  {pending || processingSourceIds.has(source.id)
+                                    ? '处理中'
+                                    : '加入 AI 知识库'}
+                                </Button>
+                              )}
+                            </div>
+                          </StudioListItem>
+                        );
+                      })}
+                    </StudioList>
+                  ) : (
+                    <StudioEmptyPlaceholder>
+                      还没有{selectedSourceCategoryMeta.label}。上传不会自动触发 AI。
+                    </StudioEmptyPlaceholder>
+                  )}
+                </div>
+              </div>
             </div>
             <StudioPagination
               page={safeListPage}
@@ -2621,65 +2676,6 @@ export function TeacherCourseStudioClient({
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function TeacherNotebookCardFace({
-  item,
-  persisted,
-}: {
-  item: CourseContentItem;
-  persisted: boolean;
-}) {
-  const typeLabel = item.sourceFileId ? 'Markdown' : '讲义';
-  const subtitle = item.notebookSections?.length
-    ? `${item.notebookSections.length} 章节`
-    : item.sourceFileId
-      ? '关联源文件'
-      : '课程笔记本';
-  const dateLabel = new Date(item.updatedAt).toLocaleDateString('zh-CN');
-
-  return (
-    <div className="relative size-full text-left">
-      <span className="absolute inset-y-1 left-0 z-[3] flex w-[18px] flex-col items-center justify-evenly rounded-l-[10px] bg-[linear-gradient(90deg,#1e3a5f_0%,#2b4d78_55%,#243f63_100%)] shadow-[inset_-1px_0_0_rgba(255,255,255,0.18),inset_1px_0_0_rgba(0,0,0,0.18)]">
-        {[0, 1, 2].map((index) => (
-          <span
-            key={index}
-            className="size-2 rounded-full bg-[radial-gradient(circle_at_35%_30%,#f8fafc_0%,#94a3b8_45%,#475569_100%)] shadow-[0_0_0_1px_rgba(15,23,42,0.25),inset_0_1px_1px_rgba(255,255,255,0.55)]"
-          />
-        ))}
-      </span>
-      <span className="absolute bottom-2 right-0 top-2 z-[1] w-2.5 rounded-r-lg bg-[repeating-linear-gradient(180deg,#fff_0_2px,#e2e8f0_2px_3px)] shadow-[2px_0_0_#f1f5f9,4px_0_0_#e2e8f0,6px_0_8px_rgba(15,23,42,0.08)]" />
-      <span
-        className="absolute bottom-0 left-3.5 right-1.5 top-0 z-[2] grid grid-rows-[auto_1fr_auto_auto] gap-2.5 overflow-hidden rounded-r-[14px] border border-l-0 border-slate-400/35 px-3.5 pb-3.5 pl-4 pt-4 shadow-[0_12px_28px_rgba(15,23,42,0.12),inset_0_2px_0_rgba(255,255,255,0.70),-2px_0_6px_rgba(15,23,42,0.08)] transition group-hover:shadow-[0_18px_34px_rgba(15,23,42,0.16),inset_0_2px_0_rgba(255,255,255,0.70),-2px_0_6px_rgba(15,23,42,0.10)]"
-        style={{
-          background:
-            'linear-gradient(90deg,rgba(15,23,42,.06) 0 1px,transparent 1px 100%),linear-gradient(180deg,transparent 0,transparent 28px,rgba(148,163,184,.22) 28px,rgba(148,163,184,.22) 29px),repeating-linear-gradient(180deg,transparent 0 27px,rgba(148,163,184,.18) 27px 28px),linear-gradient(145deg,#f7fafc 0%,#eef4f8 48%,#e8eef4 100%)',
-        }}
-      >
-        <span className="flex min-w-0 items-center justify-between gap-1.5">
-          <span className="w-fit rounded border border-blue-600/20 bg-white/70 px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.06em] text-slate-700">
-            {typeLabel}
-          </span>
-          <span
-            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-[3px] text-[9px] font-bold ${persisted ? 'bg-emerald-100/90 text-emerald-700' : 'bg-amber-100/90 text-amber-700'}`}
-          >
-            <Database className="size-2.5" />
-            {persisted ? '已持久化' : '未确认'}
-          </span>
-        </span>
-        <strong className="line-clamp-4 text-sm font-bold leading-[1.4] tracking-[0.01em] text-slate-900">
-          {item.title}
-        </strong>
-        <span className="grid gap-0.5 text-[11px] leading-[1.35] text-slate-500">
-          <span className="truncate">{subtitle}</span>
-          <span className="truncate">{dateLabel}</span>
-        </span>
-        <span className="inline-flex w-fit min-w-[4.25rem] items-center justify-center rounded-lg bg-blue-700 px-[11px] py-1.5 text-xs font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]">
-          打开
-        </span>
-      </span>
     </div>
   );
 }

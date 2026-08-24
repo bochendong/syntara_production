@@ -117,6 +117,40 @@
 
 final result: passed
 
+---
+
+# Teacher Course Libraries Design QA (2026-08-24)
+
+- Source visual truth: the annotated source-file workspace at `https://dev.notebookagent.space/teacher/courses/cmsq4yi7k0001kv04zxlzy7ct` and its existing notebook-library two-pane pattern.
+- Implementation screenshots: `/private/tmp/syntara-source-files-after.png` and `/private/tmp/syntara-notebook-list-after.png`.
+- Source viewport: `1470 × 837`; implementation viewport: `1280 × 720`, device scale factor 1.
+- Normalization: compared the course-workspace content region and responsive proportions rather than pixel equality across the two desktop viewport sizes.
+- State: light theme, teacher local-demo course, source-file and notebook-library tabs.
+
+## Findings
+
+- No actionable P0/P1/P2 differences remain.
+- Fonts and typography: existing application font, weights, line heights, truncation, and small-label hierarchy are preserved; long fixture titles truncate without moving row actions.
+- Spacing and layout rhythm: both tabs use the same 288px desktop sidebar, border rhythm, list density, radii, and responsive stacked fallback.
+- Colors and visual tokens: existing slate, sky, emerald, amber, and destructive states are reused.
+- Image quality and assets: these management views contain no raster imagery; existing interface icons remain sharp and consistently sized.
+- Copy and content: category names, counts, descriptions, upload behavior, notebook persistence status, ordering controls, rename, preview, and remove actions remain visible.
+
+## Interaction and runtime evidence
+
+- Switched between source-file and notebook-library tabs.
+- Source categories render as a left navigation column and files render as a right-side list.
+- Notebooks render as list rows with view, rename, and remove actions; simulated notebook covers and empty grid slots are absent.
+- Focused region comparison was unnecessary because labels, badges, truncation, and controls were legible in the full-view captures.
+- Browser console check returned zero errors.
+- Focused ESLint, TypeScript typecheck, Prettier, and `git diff --check` pass.
+
+## Comparison history
+
+1. Initial implementation pass — no P0/P1/P2 visual findings, so no corrective iteration was required.
+
+final result: passed
+
 # 课程论坛作者信息与紧凑阅读区 Design QA — 2026-08-13
 
 ## Evidence
