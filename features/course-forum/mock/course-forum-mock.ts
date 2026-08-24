@@ -408,6 +408,7 @@ export function buildCourseForumMockSnapshot(args: {
       code: 'CSC108',
       academicYear: 2026,
       term: 'fall',
+      problemCount: 24,
     },
     viewer: {
       ...(args.asTeacher ? authors.teacher : authors.alice),

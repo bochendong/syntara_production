@@ -46,6 +46,7 @@ export default async function CourseProblemBankPage({
       courseId={id}
       initialNotebookId={initialNotebookId}
       initialFilters={initialFilters}
+      showCourseNavigation
     />
   );
 }

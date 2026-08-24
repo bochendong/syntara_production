@@ -262,6 +262,7 @@ import {
 import type { NotebookProblemAttemptAnswer } from '@/lib/problem-bank';
 import type { ProviderId } from '@/lib/ai/providers';
 import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
+import { CourseSpaceNavigation } from '@/components/course-space/course-space-header';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/notifications/client-toast';
 import type { CourseRecord } from '@/lib/utils/database';
@@ -18786,6 +18787,15 @@ export function LearnPageClient() {
                 ) : null}
               </div>
             </div>
+            {activeCourse ? (
+              <CourseSpaceNavigation
+                courseId={activeCourse.id}
+                role={isTeacherCourseChat ? 'teacher' : 'student'}
+                active="chat"
+                problemCount={activeCourse.problemCount}
+                className="mt-2 w-fit max-w-full"
+              />
+            ) : null}
           </header>
 
           <div

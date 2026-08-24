@@ -48,6 +48,7 @@ export default async function CourseProblemPracticePage({
       initialProblemId={problemId}
       initialFilters={initialFilters}
       mode="practice"
+      showCourseNavigation
     />
   );
 }

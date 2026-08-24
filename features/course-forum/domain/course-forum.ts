@@ -65,6 +65,7 @@ export type CourseForumSnapshot = {
     code: string;
     academicYear: number | null;
     term: 'winter' | 'summer' | 'fall' | null;
+    problemCount: number;
   };
   viewer: CourseForumAuthor & { accessRole: 'owner' | 'enrolled' };
   unresolvedCount: number;

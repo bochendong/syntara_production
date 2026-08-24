@@ -132,6 +132,7 @@ export function getLocalDemoTeacherStudio(courseId: string, teacherId: string) {
     description: `${courseCode} · ${courseName}的本地教师工作台预览`,
     academicYear: homeCourse.academicYear || 2026,
     term: homeCourse.academicTerm || 'summer',
+    problemCount: homeCourse.problemCount || 0,
     createdAt: homeCourse.createdAt,
     updatedAt: homeCourse.updatedAt,
   } satisfies TeacherStudioCourse;

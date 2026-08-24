@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft,
   CheckCircle2,
   Download,
   Eye,
@@ -26,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { MessageResponse } from '@/components/ai-elements/message';
+import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
 import { normalizeForumMarkdownForDisplay } from '@/lib/course-forum/markdown';
 import { ForumMarkdownEditor } from '@/components/course-forum/forum-markdown-editor';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -608,53 +608,37 @@ export function CourseForumPageClient({
   return (
     <div className="min-h-dvh bg-slate-50 p-3 text-slate-950 dark:bg-slate-950 dark:text-white sm:p-4">
       <main className="mx-auto flex min-h-[calc(100dvh-24px)] max-w-[1536px] flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950 sm:min-h-[calc(100dvh-32px)]">
-        <header className="border-b border-slate-200/80 px-4 py-4 dark:border-white/10 sm:px-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-start gap-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mt-0.5 shrink-0 rounded-xl"
-                onClick={() =>
-                  router.push(
-                    isTeacher
-                      ? `/teacher/courses/${courseId}`
-                      : `/learn?courseId=${encodeURIComponent(courseId)}`,
-                  )
-                }
-                aria-label="返回课程"
-              >
-                <ArrowLeft className="size-5" />
-              </Button>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                  {courseHeading}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">课程论坛</h1>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 pl-12 lg:pl-0">
-              <Button
-                variant="outline"
-                className="rounded-xl"
-                onClick={() => void load({ postId: selectedPostId, quiet: true })}
-                disabled={refreshing}
-              >
-                <RefreshCw className={cn('mr-1.5 size-4', refreshing && 'animate-spin')} />
-                刷新
-              </Button>
-              <Button
-                className="rounded-xl bg-violet-600 hover:bg-violet-700"
-                onClick={() => setNewPostOpen(true)}
-              >
-                <Plus className="mr-1.5 size-4" />
-                发布问题
-              </Button>
-            </div>
-          </div>
-        </header>
+        {snapshot ? (
+          <CourseSpaceHeader
+            courseId={courseId}
+            courseTitle={courseHeading}
+            courseMeta={snapshot.course.name}
+            role={isTeacher ? 'teacher' : 'student'}
+            active="forum"
+            problemCount={snapshot.course.problemCount}
+            forumCount={snapshot.unresolvedCount}
+            actions={
+              <>
+                <Button
+                  variant="outline"
+                  className="h-9 rounded-lg"
+                  onClick={() => void load({ postId: selectedPostId, quiet: true })}
+                  disabled={refreshing}
+                >
+                  <RefreshCw className={cn('mr-1.5 size-4', refreshing && 'animate-spin')} />
+                  刷新
+                </Button>
+                <Button
+                  className="h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => setNewPostOpen(true)}
+                >
+                  <Plus className="mr-1.5 size-4" />
+                  发布问题
+                </Button>
+              </>
+            }
+          />
+        ) : null}
 
         {error ? (
           <div className="border-b border-rose-200 bg-rose-50 px-5 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">

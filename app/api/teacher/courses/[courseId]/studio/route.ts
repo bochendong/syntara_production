@@ -91,6 +91,7 @@ export async function GET(_request: Request, context: { params: Promise<{ course
         courseCode: true,
         academicYear: true,
         academicTerm: true,
+        problemCount: true,
         createdAt: true,
         updatedAt: true,
       },

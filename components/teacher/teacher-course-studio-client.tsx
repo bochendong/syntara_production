@@ -18,13 +18,10 @@ import {
   Eye,
   FileText,
   GripVertical,
-  Home,
   Library,
   ListChecks,
   ListOrdered,
   Loader2,
-  MessageCircleMore,
-  MessagesSquare,
   Network,
   Pencil,
   Plus,
@@ -39,6 +36,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
 import { CourseAccessClosedCard } from '@/components/course-access-closed-card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -1040,10 +1038,6 @@ export function TeacherCourseStudioClient({
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
-  const openCourseChat = () => {
-    router.push(`/learn?courseId=${encodeURIComponent(courseId)}&from=teacher`);
-  };
-
   useEffect(() => {
     if (sourcePreview?.kind !== 'pdf') {
       setSourcePreviewUrl('');
@@ -1168,68 +1162,27 @@ export function TeacherCourseStudioClient({
   return (
     <div className="min-h-full bg-white px-4 py-4 text-slate-950 dark:bg-slate-950 dark:text-white sm:px-6 sm:py-6 lg:px-12">
       <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-[1536px] flex-col">
-        <section className="border-b border-slate-200/80 pb-6 dark:border-white/10 sm:pb-8">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="返回教师桌面"
-                title="返回教师桌面"
-                className="-ml-1.5 size-9 shrink-0 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
-                onClick={() => router.push('/teacher')}
-              >
-                <Home className="size-4.5" strokeWidth={1.9} />
-              </Button>
-              <h1 className="min-w-0 break-words text-2xl font-bold leading-tight tracking-[-0.035em] text-slate-950 dark:text-white sm:text-[28px] lg:text-[2.75rem]">
-                {course.code} · {course.academicYear} {academicTermLabel(course.term)}
-              </h1>
-            </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-3 sm:gap-5">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 rounded-xl border-slate-200 bg-white px-3 text-sm font-semibold shadow-none hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-white/5 sm:h-11 sm:px-4"
-                onClick={() => router.push(`/teacher/courses/${courseId}/students`)}
-              >
-                <Users className="mr-1.5 size-4" />
-                学生管理
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 rounded-xl border-slate-200 bg-white px-3 text-sm font-semibold shadow-none hover:border-indigo-300 hover:bg-indigo-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-indigo-400/10 sm:h-11 sm:px-4"
-                onClick={() => router.push(`/course/${encodeURIComponent(courseId)}/problem-bank`)}
-              >
-                <Library className="mr-1.5 size-4" />
-                课程题库
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="relative h-10 rounded-xl border-slate-200 bg-white px-3 text-sm font-semibold shadow-none hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-violet-400/10 sm:h-11 sm:px-4"
-                onClick={() => router.push(`/course/${encodeURIComponent(courseId)}/forum`)}
-              >
-                <MessagesSquare className="mr-1.5 size-4" />
-                课程论坛
-                <span
-                  className={`ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-4 text-white ${unresolvedForumCount > 0 ? 'bg-rose-500' : 'bg-slate-400'}`}
-                >
-                  {unresolvedForumCount > 99 ? '99+' : unresolvedForumCount}
-                </span>
-              </Button>
-              <Button
-                type="button"
-                className="h-10 rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white shadow-[0_7px_20px_rgba(5,150,105,0.18)] hover:bg-emerald-700 sm:h-11 sm:px-4"
-                onClick={openCourseChat}
-              >
-                <MessageCircleMore className="mr-1.5 size-4" />
-                课程聊天
-              </Button>
-            </div>
-          </div>
-        </section>
+        <CourseSpaceHeader
+          courseId={courseId}
+          courseTitle={`${course.code} · ${course.academicYear} ${academicTermLabel(course.term)}`}
+          courseMeta={course.name}
+          role="teacher"
+          active="resources"
+          problemCount={course.problemCount}
+          forumCount={unresolvedForumCount}
+          className="overflow-hidden rounded-[22px] border border-slate-200/80 shadow-[0_12px_32px_rgba(15,23,42,0.04)] dark:border-white/10"
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 rounded-lg border-slate-200 bg-white px-3 text-xs font-semibold shadow-none hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-white/5 sm:text-sm"
+              onClick={() => router.push(`/teacher/courses/${courseId}/students`)}
+            >
+              <Users className="mr-1.5 size-4" />
+              学生管理
+            </Button>
+          }
+        />
 
         {localDemo ? (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-100">

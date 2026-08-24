@@ -26,6 +26,7 @@ type CourseForumAccessResult =
         courseCode: string | null;
         academicYear: number | null;
         academicTerm: string | null;
+        problemCount: number;
       };
       user: {
         id: string;
@@ -69,6 +70,7 @@ export async function requireCourseForumAccess(courseId: string): Promise<Course
         courseCode: true,
         academicYear: true,
         academicTerm: true,
+        problemCount: true,
       },
     }),
     prisma.user.findUnique({

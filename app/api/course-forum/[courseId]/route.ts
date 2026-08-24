@@ -212,6 +212,7 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
           code: access.course.courseCode?.trim() || access.course.name,
           academicYear: access.course.academicYear,
           term: access.course.academicTerm,
+          problemCount: access.course.problemCount,
         },
         viewer: {
           ...forumAuthor(access.user, access.course.ownerId),

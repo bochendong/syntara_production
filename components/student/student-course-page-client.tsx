@@ -32,6 +32,7 @@ type StudentCoursePayload = {
     academicYear: number | null;
     term: 'winter' | 'summer' | 'fall' | null;
     avatarUrl: string | null;
+    problemCount: number;
     teacherName: string;
     updatedAt: string;
   };
@@ -215,19 +216,21 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
               <small className="text-slate-500">读取和管理个人安排</small>
             </span>
           </button>
-          <button
-            type="button"
-            onClick={() => router.push(problemBankHref)}
-            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-sky-300 hover:shadow-sm"
-          >
-            <span className="grid size-10 place-items-center rounded-xl bg-sky-50 text-sky-700">
-              <Library className="size-5" />
-            </span>
-            <span>
-              <strong className="block text-sm">课程题库</strong>
-              <small className="text-slate-500">按章节筛选并直接练习</small>
-            </span>
-          </button>
+          {payload.course.problemCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => router.push(problemBankHref)}
+              className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-sky-300 hover:shadow-sm"
+            >
+              <span className="grid size-10 place-items-center rounded-xl bg-sky-50 text-sky-700">
+                <Library className="size-5" />
+              </span>
+              <span>
+                <strong className="block text-sm">课程题库</strong>
+                <small className="text-slate-500">按章节筛选并直接练习</small>
+              </span>
+            </button>
+          ) : null}
           <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
             <span className="grid size-10 place-items-center rounded-xl bg-sky-50 text-sky-700">
               <BrainCircuit className="size-5" />
@@ -246,7 +249,9 @@ export function StudentCoursePageClient({ courseId }: { courseId: string }) {
             <div>
               <h2 className="font-semibold">AI 笔记本</h2>
               <p className="mt-1 text-xs text-slate-500">
-                这里只展示老师整理好的 AI 笔记本和思维导图；题库请从上方课程题库入口进入。
+                {payload.course.problemCount > 0
+                  ? '这里只展示老师整理好的 AI 笔记本和思维导图；题库请从上方课程题库入口进入。'
+                  : '这里只展示老师整理好的 AI 笔记本和思维导图。'}
               </p>
             </div>
             <Badge variant="outline">自动同步</Badge>
