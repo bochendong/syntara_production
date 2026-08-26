@@ -16,6 +16,24 @@ if (!process.env.DATABASE_URL?.trim()) {
 
 console.log('[deploy] Applying committed Prisma migrations before the production build.');
 const command = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+const recoverableFailedMigrations = new Set(['20260821164000_add_community_post_pinning']);
+const migrationToResolve = process.env.RESOLVE_ROLLED_BACK_MIGRATION?.trim();
+if (migrationToResolve) {
+  if (!recoverableFailedMigrations.has(migrationToResolve)) {
+    console.error(`[deploy] Refusing to resolve unapproved migration: ${migrationToResolve}`);
+    process.exit(1);
+  }
+  console.log(`[deploy] Marking failed migration as rolled back: ${migrationToResolve}`);
+  const resolve = spawnSync(
+    command,
+    ['exec', 'prisma', 'migrate', 'resolve', '--rolled-back', migrationToResolve],
+    { env: process.env, stdio: 'inherit' },
+  );
+  if (resolve.error || (resolve.status ?? 1) !== 0) {
+    console.error('[deploy] Failed to resolve the approved failed migration.');
+    process.exit(resolve.status ?? 1);
+  }
+}
 const result = spawnSync(command, ['exec', 'prisma', 'migrate', 'deploy'], {
   env: process.env,
   stdio: 'inherit',
