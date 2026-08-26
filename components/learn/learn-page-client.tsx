@@ -569,6 +569,24 @@ function isProvisionalCourseShell(course: CourseRecord | null | undefined): bool
   return Boolean(course && Number(course.createdAt) === 0 && Number(course.updatedAt) === 0);
 }
 
+function getInitialLearnCourses(urlCourseId: string): CourseRecord[] {
+  const localUserId = useAuthStore.getState().userId || 'anonymous';
+  const cachedCourses = readLearnCourseListCache(localUserId, { allowStale: true });
+  if (urlCourseId) {
+    const storedCourseHint = useCurrentCourseStore.getState();
+    const cachedCourse = cachedCourses?.find((course) => course.id === urlCourseId);
+    return [
+      cachedCourse ||
+        courseShellFromUrl(urlCourseId, {
+          id: storedCourseHint.id,
+          name: storedCourseHint.name,
+          avatarUrl: storedCourseHint.avatarUrl,
+        }),
+    ];
+  }
+  return cachedCourses ?? [];
+}
+
 function emptyResourceLoadState(): ResourceLoadState {
   return {
     courseId: null,
@@ -7241,19 +7259,9 @@ export function LearnPageClient() {
   const memoryActivities = useMemoryActivityStore((state) => state.activities);
   const memoryHistoryRecords = useTaskHistoryStore((state) => state.records);
 
-  const [courses, setCourses] = useState<CourseRecord[]>(() =>
-    urlCourseId
-      ? [
-          courseShellFromUrl(urlCourseId, {
-            id: storedCourseId,
-            name: storedCourseName,
-            avatarUrl: storedCourseAvatarUrl,
-          }),
-        ]
-      : [],
-  );
+  const [courses, setCourses] = useState<CourseRecord[]>(() => getInitialLearnCourses(urlCourseId));
   const [coursesLoadState, setCoursesLoadState] = useState<LoadState>(() =>
-    urlCourseId ? 'ready' : 'idle',
+    urlCourseId || getInitialLearnCourses('').length > 0 ? 'ready' : 'idle',
   );
   const [courseLoadError, setCourseLoadError] = useState<string | null>(null);
   const [courseLoadAttempt, setCourseLoadAttempt] = useState(0);
@@ -18388,7 +18396,11 @@ export function LearnPageClient() {
                 <button
                   type="button"
                   onClick={() =>
-                    router.push(`/course/${encodeURIComponent(activeCourseId || '')}/forum`)
+                    router.push(
+                      `/forum?returnTo=${encodeURIComponent(
+                        `/learn?courseId=${encodeURIComponent(activeCourseId || '')}`,
+                      )}`,
+                    )
                   }
                   disabled={!activeCourseId}
                   className={cn(
@@ -18468,6 +18480,7 @@ export function LearnPageClient() {
           onOpenCalendar={() => setCalendarDialogOpen(true)}
           onOpenUsage={() => router.push('/student/usage')}
           onOpenCourse={switchCourse}
+          onOpenForum={() => router.push('/forum')}
         />
         <CreateCourseDialog
           open={createCourseOpen}
@@ -18645,6 +18658,23 @@ export function LearnPageClient() {
               <div className="flex shrink-0 items-center gap-1.5">
                 {activeCourse ? (
                   <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        router.push(
+                          `/forum?returnTo=${encodeURIComponent(
+                            `/learn?courseId=${encodeURIComponent(activeCourse.id)}`,
+                          )}`,
+                        )
+                      }
+                      className="h-9 rounded-[11px] border-violet-200 bg-violet-50 px-3 text-xs font-semibold text-violet-700 shadow-sm hover:bg-violet-100 hover:text-violet-800 dark:border-violet-300/20 dark:bg-violet-400/10 dark:text-violet-100 dark:hover:bg-violet-400/15"
+                    >
+                      <MessagesSquare className="size-4" strokeWidth={1.8} aria-hidden="true" />
+                      <span className="hidden sm:inline">课程论坛</span>
+                      <span className="sm:hidden">论坛</span>
+                    </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button

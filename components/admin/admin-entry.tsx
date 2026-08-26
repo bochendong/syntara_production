@@ -34,7 +34,7 @@ type AdminDebugEnvResponse = {
 export function AdminEntry() {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
-  const [email, setEmail] = useState('dongbochen1218@icloud.com');
+  const [email, setEmail] = useState('admin@syntara.local');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

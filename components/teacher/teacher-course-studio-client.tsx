@@ -22,8 +22,8 @@ import {
   ListChecks,
   ListOrdered,
   Loader2,
-  MessageCircleMore,
   MessagesSquare,
+  MessageCircleMore,
   Network,
   Pencil,
   Plus,
@@ -215,7 +215,6 @@ export function TeacherCourseStudioClient({
   const [tab, setTab] = useState<StudioTab>('sources');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [unresolvedForumCount, setUnresolvedForumCount] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [processingSourceIds, setProcessingSourceIds] = useState<Set<string>>(() => new Set());
   const [mindMapSourceAssetId, setMindMapSourceAssetId] = useState('');
@@ -360,27 +359,9 @@ export function TeacherCourseStudioClient({
         setError(loadError instanceof Error ? loadError.message : '课程读取失败'),
       )
       .finally(() => {
-        if (mockMode) setUnresolvedForumCount(3);
         setLoading(false);
       });
   }, [hydrated, isLoggedIn, loadStudio, mockMode, role, router]);
-
-  useEffect(() => {
-    if (mockMode || !hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || localDemo)
-      return;
-    let cancelled = false;
-    void backendJson<{ unresolvedCount: number }>(
-      `/api/course-forum/${encodeURIComponent(courseId)}/summary`,
-      { timeoutMs: 12_000 },
-    )
-      .then((result) => {
-        if (!cancelled) setUnresolvedForumCount(Math.max(0, result.unresolvedCount || 0));
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [courseId, hydrated, isLoggedIn, localDemo, mockMode, role, teacherId]);
 
   useEffect(() => {
     if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || localDemo) return;
@@ -1149,25 +1130,24 @@ export function TeacherCourseStudioClient({
               <Button
                 type="button"
                 variant="outline"
+                className="h-10 rounded-xl border-slate-200 bg-white px-3 text-sm font-semibold shadow-none hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-violet-400/10 sm:h-11 sm:px-4"
+                onClick={() =>
+                  router.push(
+                    `/forum?returnTo=${encodeURIComponent(`/teacher/courses/${courseId}`)}`,
+                  )
+                }
+              >
+                <MessagesSquare className="mr-1.5 size-4" />
+                论坛
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
                 className="h-10 rounded-xl border-slate-200 bg-white px-3 text-sm font-semibold shadow-none hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-white/5 sm:h-11 sm:px-4"
                 onClick={() => router.push(`/teacher/courses/${courseId}/students`)}
               >
                 <Users className="mr-1.5 size-4" />
                 学生管理
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="relative h-10 rounded-xl border-slate-200 bg-white px-3 text-sm font-semibold shadow-none hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-violet-400/10 sm:h-11 sm:px-4"
-                onClick={() => router.push(`/course/${encodeURIComponent(courseId)}/forum`)}
-              >
-                <MessagesSquare className="mr-1.5 size-4" />
-                课程论坛
-                <span
-                  className={`ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-4 text-white ${unresolvedForumCount > 0 ? 'bg-rose-500' : 'bg-slate-400'}`}
-                >
-                  {unresolvedForumCount > 99 ? '99+' : unresolvedForumCount}
-                </span>
               </Button>
               <Button
                 type="button"

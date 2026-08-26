@@ -241,43 +241,6 @@ export function StudentOnlineLoginPage() {
             </p>
           )}
 
-          <div className="my-5 flex items-center gap-3 text-[11px] text-slate-500" aria-hidden>
-            <span className="h-px flex-1 bg-white/10" />
-            或
-            <span className="h-px flex-1 bg-white/10" />
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {mode !== 'teacher' ? (
-              <button
-                type="button"
-                onClick={() => switchMode('teacher')}
-                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[.06] text-sm font-semibold text-slate-100 transition hover:border-sky-300/40 hover:bg-sky-300/10"
-              >
-                <ShieldCheck className="size-4" />
-                我是老师
-              </button>
-            ) : null}
-            {mode !== 'admin' ? (
-              <button
-                type="button"
-                onClick={() => switchMode('admin')}
-                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[.06] text-sm font-semibold text-slate-100 transition hover:border-amber-300/40 hover:bg-amber-300/10"
-              >
-                <UserRoundCog className="size-4" />
-                我是管理员
-              </button>
-            ) : null}
-            {mode !== 'student' ? (
-              <button
-                type="button"
-                onClick={() => switchMode('student')}
-                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[.06] text-sm font-semibold text-slate-100 transition hover:border-emerald-300/40 hover:bg-emerald-300/10"
-              >
-                <GraduationCap className="size-4" />
-                我是学生
-              </button>
-            ) : null}
-          </div>
         </section>
       </main>
     </div>

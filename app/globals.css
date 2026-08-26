@@ -1134,7 +1134,11 @@
 
 /* 登录后的学习桌面：iPadOS 主屏式蓝紫壁纸与玻璃组件。 */
 .learn-app-home {
-  background: #155bdc;
+  background:
+    radial-gradient(circle at 6% 8%, rgba(225, 111, 104, 0.34), transparent 34%),
+    radial-gradient(circle at 92% 12%, rgba(222, 192, 246, 0.4), transparent 40%),
+    radial-gradient(circle at 84% 86%, rgba(174, 223, 218, 0.5), transparent 38%),
+    linear-gradient(135deg, #e5eff5 0%, #f2d7d1 45%, #d7ebe8 100%);
   background-position: center;
   background-size: cover;
   font-family: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -1153,7 +1157,14 @@
 }
 
 .learn-app-home__widget {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.34), rgba(232, 232, 255, 0.2));
+  isolation: isolate;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.38), rgba(232, 232, 255, 0.24)),
+    rgba(255, 255, 255, 0.26);
+  background-color: rgba(255, 255, 255, 0.26);
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
 }
 
 @media (min-width: 1024px) {

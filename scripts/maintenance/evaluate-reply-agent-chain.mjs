@@ -28,10 +28,10 @@ async function loadProblemPromptBuilderForEval() {
       importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
     },
   }).outputText;
-  const module = { exports: {} };
+  const cjsModule = { exports: {} };
   const sandbox = {
-    exports: module.exports,
-    module,
+    exports: cjsModule.exports,
+    module: cjsModule,
     require(id) {
       throw new Error(`Unexpected runtime require while evaluating prompt builder: ${id}`);
     },
@@ -39,7 +39,7 @@ async function loadProblemPromptBuilderForEval() {
   vm.runInNewContext(transpiled, sandbox, {
     filename: 'lib/chat/problem-explain-prompt.ts',
   });
-  return module.exports.buildProblemExplainPrompt;
+  return cjsModule.exports.buildProblemExplainPrompt;
 }
 
 function compact(input, max = 4000) {

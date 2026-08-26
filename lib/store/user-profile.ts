@@ -22,6 +22,16 @@ import {
   isValidSlideBackgroundStyleId,
   type SlideBackgroundStyleId,
 } from '@/lib/constants/slide-backgrounds';
+import { backendFetch } from '@/lib/utils/backend-api';
+
+function syncForumProfile(payload: { name?: string; image?: string }) {
+  if (typeof window === 'undefined') return;
+  void backendFetch('/api/profile/forum', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch(() => undefined);
+}
 
 function isValidNotificationStyleChoice(v: unknown): v is NotificationCardStyleChoice {
   return (
@@ -47,6 +57,8 @@ function isValidLeftRailBarStageChoice(v: unknown): v is LeftRailBarStageChoice 
 export const AVATAR_OPTIONS = USER_AVATAR_PRESET_URLS;
 
 export interface UserProfileState {
+  /** The account that owns the local-only profile customizations. */
+  userId: string;
   /** Local avatar path or data-URL (for custom uploads) */
   avatar: string;
   nickname: string;
@@ -64,6 +76,7 @@ export interface UserProfileState {
   setAvatar: (avatar: string) => void;
   setNickname: (nickname: string) => void;
   setBio: (bio: string) => void;
+  setProfileUserId: (userId: string) => void;
   setNotificationCardStyle: (choice: NotificationCardStyleChoice) => void;
   setNotificationBarStageId: (id: NotificationBarStageId) => void;
   setLeftRailBarStageId: (id: LeftRailBarStageChoice) => void;
@@ -74,6 +87,7 @@ export interface UserProfileState {
 export const useUserProfileStore = create<UserProfileState>()(
   persist(
     (set) => ({
+      userId: '',
       avatar: DEFAULT_USER_PRESET_AVATAR,
       nickname: '',
       bio: '',
@@ -82,9 +96,17 @@ export const useUserProfileStore = create<UserProfileState>()(
       leftRailBarStageId: 'default',
       slideBackgroundStyleId: DEFAULT_SLIDE_BACKGROUND_STYLE_ID,
       avatarFrameId: DEFAULT_USER_AVATAR_FRAME_ID,
-      setAvatar: (avatar) => set({ avatar }),
-      setNickname: (nickname) => set({ nickname }),
+      setAvatar: (avatar) => {
+        set({ avatar });
+        syncForumProfile({ image: avatar });
+      },
+      setNickname: (nickname) => {
+        set({ nickname });
+        const name = nickname.trim();
+        if (name) syncForumProfile({ name });
+      },
       setBio: (bio) => set({ bio }),
+      setProfileUserId: (userId) => set({ userId: userId.trim() }),
       setNotificationCardStyle: (choice) =>
         set(
           isValidNotificationStyleChoice(choice)
@@ -120,6 +142,7 @@ export const useUserProfileStore = create<UserProfileState>()(
       name: 'user-profile-storage',
       merge: (persistedState, currentState) => {
         const next = { ...currentState, ...(persistedState as Partial<UserProfileState>) };
+        next.userId = typeof next.userId === 'string' ? next.userId : '';
         if ((next.notificationBarStageId as string) === 'pixel-blast') {
           next.notificationBarStageId = 'solid-black';
         }

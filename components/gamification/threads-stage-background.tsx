@@ -166,7 +166,11 @@ export function ThreadsStageBackground({
       uniforms: {
         iTime: { value: 0 },
         iResolution: {
-          value: new Color(gl.canvas.width, gl.canvas.height, gl.canvas.width / Math.max(gl.canvas.height, 1)),
+          value: new Color(
+            gl.canvas.width,
+            gl.canvas.height,
+            gl.canvas.width / Math.max(gl.canvas.height, 1),
+          ),
         },
         uColor: { value: new Color(r0, r1, r2) },
         uAmplitude: { value: amplitude },
@@ -189,7 +193,7 @@ export function ThreadsStageBackground({
     window.addEventListener('resize', resize);
     resize();
 
-    let currentMouse = [0.5, 0.5];
+    const currentMouse = [0.5, 0.5];
     let targetMouse = [0.5, 0.5];
 
     function handleMouseMove(e: MouseEvent) {

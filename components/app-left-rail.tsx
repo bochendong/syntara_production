@@ -39,6 +39,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AppCoreNavList } from '@/components/app-core-nav-list';
+import { CommunityRailList } from '@/components/communities/community-rail-list';
 import { CreateCourseDialog } from '@/components/courses/create-course-dialog';
 import { resolveCourseOrchestratorAvatar } from '@/lib/constants/course-chat';
 import { isDashboardRoute } from '@/lib/utils/dashboard-routes';
@@ -84,6 +85,7 @@ const COURSE_CONTEXT_CLEAR_PREFIXES = [
   '/login',
   '/courses/new',
   '/notifications',
+  '/communities',
 ] as const;
 
 function formatRailCreditAmount(value: number): string {
@@ -785,6 +787,7 @@ export function AppLeftRail({
                       if (key === 'chat') expandIfCollapsed();
                     }}
                   />
+                  <CommunityRailList collapsed={collapsed} blackSurface={!onLightRail} />
                 </div>
               </nav>
             )}

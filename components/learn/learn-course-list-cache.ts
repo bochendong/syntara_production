@@ -29,6 +29,34 @@ function parseCachedCourses(raw: string | null, maxAgeMs: number): CourseRecord[
   return parsed.courses;
 }
 
+function readMostRecentCourseListCache(maxAgeMs: number): CourseRecord[] | null {
+  let best: { savedAt: number; courses: CourseRecord[] } | null = null;
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key?.startsWith(`${LEARN_COURSE_LIST_CACHE_PREFIX}:`)) continue;
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || '') as {
+        savedAt?: number;
+        courses?: CourseRecord[];
+      };
+      if (
+        typeof parsed.savedAt !== 'number' ||
+        Date.now() - parsed.savedAt > maxAgeMs ||
+        !Array.isArray(parsed.courses) ||
+        parsed.courses.length === 0
+      ) {
+        continue;
+      }
+      if (!best || parsed.savedAt > best.savedAt) {
+        best = { savedAt: parsed.savedAt, courses: parsed.courses };
+      }
+    } catch {
+      /* Ignore malformed cache entries. */
+    }
+  }
+  return best?.courses ?? null;
+}
+
 export function readLearnCourseListCache(
   userId: string,
   options: { allowStale?: boolean } = {},
@@ -53,6 +81,9 @@ export function readLearnCourseListCache(
         writeLearnCourseListCache(userId, legacy);
         return legacy;
       }
+    }
+    if (!userId || userId === 'anonymous') {
+      return readMostRecentCourseListCache(maxAgeMs);
     }
     return null;
   } catch {
