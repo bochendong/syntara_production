@@ -195,13 +195,15 @@ export function SoftAuroraStageBackground({
       pointerEvents: 'none',
     });
 
-    let currentMouse: [number, number] = [0.5, 0.5];
+    const currentMouse: [number, number] = [0.5, 0.5];
     let targetMouse: [number, number] = [0.5, 0.5];
 
     const geometry = new Triangle(gl);
     const uniforms = {
       uTime: { value: 0 },
-      uResolution: { value: [gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height] },
+      uResolution: {
+        value: [gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height],
+      },
       uSpeed: { value: speed },
       uScale: { value: scale },
       uBrightness: { value: brightness },
@@ -240,7 +242,11 @@ export function SoftAuroraStageBackground({
 
     const resize = () => {
       renderer.setSize(container.offsetWidth || 1, container.offsetHeight || 1);
-      uniforms.uResolution.value = [gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height];
+      uniforms.uResolution.value = [
+        gl.canvas.width,
+        gl.canvas.height,
+        gl.canvas.width / gl.canvas.height,
+      ];
     };
 
     window.addEventListener('resize', resize);
@@ -296,4 +302,3 @@ export function SoftAuroraStageBackground({
 
   return <div ref={containerRef} className={className ?? 'absolute inset-0'} />;
 }
-

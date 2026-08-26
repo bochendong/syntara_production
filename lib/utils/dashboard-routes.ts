@@ -27,5 +27,6 @@ export function isDashboardRoute(
   if (p === '/store/courses' || p.startsWith('/store/courses/')) return true;
   if (p === '/notifications' || p.startsWith('/notifications/')) return true;
   if (p === '/agent-teams' || p.startsWith('/agent-teams/')) return true;
+  if (p === '/communities' || p.startsWith('/communities/')) return true;
   return false;
 }

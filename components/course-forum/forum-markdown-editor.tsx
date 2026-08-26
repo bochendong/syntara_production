@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Bold,
   Braces,
+  ChevronDown,
   Code2,
   Eye,
   Heading2,
@@ -290,6 +291,7 @@ export function ForumMarkdownEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<EditorMode>('markdown');
   const [toolPanel, setToolPanel] = useState<ToolPanel>('symbols');
+  const [toolPanelOpen, setToolPanelOpen] = useState(false);
   const [structureKind, setStructureKind] = useState<StructureKind>('table');
   const [tableRows, setTableRows] = useState(3);
   const [tableCols, setTableCols] = useState(3);
@@ -455,11 +457,38 @@ export function ForumMarkdownEditor({
   return (
     <div
       className={cn(
-        'grid min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white lg:grid-cols-2 dark:border-white/10 dark:bg-slate-950',
+        'grid min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950',
+        toolPanelOpen ? 'lg:grid-cols-[minmax(320px,0.88fr)_minmax(0,1.12fr)]' : 'lg:grid-cols-1',
         className,
       )}
     >
-      <aside className="flex min-h-0 min-w-0 flex-col border-b border-slate-200 bg-slate-50/70 dark:border-white/10 dark:bg-white/[0.025] lg:min-h-0 lg:border-r lg:border-b-0">
+      <div className="col-span-full flex shrink-0 items-center border-b border-slate-200 bg-slate-50/80 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.035]">
+        <button
+          type="button"
+          onClick={() => {
+            if (!toolPanelOpen) {
+              setToolPanel('symbols');
+            }
+            setToolPanelOpen(!toolPanelOpen);
+          }}
+          className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-violet-300 hover:text-violet-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-violet-200"
+          aria-label={toolPanelOpen ? '收起特殊符号' : '展开特殊符号'}
+          aria-expanded={toolPanelOpen}
+        >
+          <Braces className="size-3.5" />
+          特殊符号
+          <ChevronDown
+            className={cn('size-3.5 transition-transform', toolPanelOpen && 'rotate-180')}
+          />
+        </button>
+      </div>
+
+      <aside
+        className={cn(
+          'min-h-0 min-w-0 flex-col border-b border-slate-200 bg-slate-50/70 transition-[width] dark:border-white/10 dark:bg-white/[0.025] lg:min-h-0 lg:border-r lg:border-b-0',
+          toolPanelOpen ? 'flex' : 'hidden',
+        )}
+      >
         <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-200 p-2 dark:border-white/10">
           <button
             type="button"
@@ -501,7 +530,6 @@ export function ForumMarkdownEditor({
             高级结构
           </button>
         </div>
-
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {toolPanel === 'symbols' ? (
             <div className="space-y-4">

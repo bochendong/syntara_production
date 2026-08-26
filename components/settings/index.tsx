@@ -96,8 +96,16 @@ export function SettingsDialog({
     const preloadAll = () => {
       PRELOADABLE_SETTINGS_SECTIONS.forEach(preloadSection);
     };
-    const idleId = window.requestIdleCallback(preloadAll, { timeout: 1200 });
-    return () => window.cancelIdleCallback(idleId);
+    const idleWindow = window as unknown as {
+      requestIdleCallback?: typeof window.requestIdleCallback;
+      cancelIdleCallback?: typeof window.cancelIdleCallback;
+    };
+    if (idleWindow.requestIdleCallback && idleWindow.cancelIdleCallback) {
+      const idleId = idleWindow.requestIdleCallback(preloadAll, { timeout: 1200 });
+      return () => idleWindow.cancelIdleCallback?.(idleId);
+    }
+    const timerId = window.setTimeout(preloadAll, 300);
+    return () => window.clearTimeout(timerId);
   }, [preloadSection]);
   // Navigate to initialSection when dialog opens or embedded page loads / query changes
   useEffect(() => {

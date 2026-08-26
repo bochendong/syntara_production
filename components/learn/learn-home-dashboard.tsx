@@ -115,6 +115,7 @@ type LearnHomeDashboardProps = {
   onCreateCourse: () => void;
   onOpenCalendar: () => void;
   onOpenCourse: (courseId: string) => void;
+  onOpenForum?: () => void;
   onOpenPastCourses?: () => void;
   onOpenUsage?: () => void;
   onSignOut?: () => void | Promise<void>;
@@ -125,6 +126,7 @@ type SystemAppAction =
   | 'calendar'
   | 'profile'
   | 'settings'
+  | 'forum'
   | 'create'
   | 'past_courses'
   | 'usage'
@@ -210,6 +212,12 @@ const SYSTEM_APPS: SystemApp[] = [
 const HOME_GRID_SYSTEM_APPS: SystemApp[] = [
   ...SYSTEM_APPS,
   {
+    label: '论坛',
+    secondary: 'Forum',
+    iconSrc: '/learn/system-apps/forum.svg',
+    action: 'forum',
+  },
+  {
     label: '用量统计',
     secondary: 'AI usage',
     iconSrc: '/learn/system-apps/用量统计.svg',
@@ -225,6 +233,12 @@ const HOME_GRID_SYSTEM_APPS: SystemApp[] = [
 
 const TEACHER_HOME_GRID_SYSTEM_APPS: SystemApp[] = [
   ...SYSTEM_APPS,
+  {
+    label: '论坛',
+    secondary: 'Forum',
+    iconSrc: '/learn/system-apps/forum.svg',
+    action: 'forum',
+  },
   {
     label: '用量统计',
     secondary: 'AI usage',
@@ -496,6 +510,7 @@ export function LearnHomeDashboard({
   onCreateCourse,
   onOpenCalendar,
   onOpenCourse,
+  onOpenForum,
   onOpenPastCourses,
   onOpenUsage,
   onSignOut,
@@ -506,13 +521,32 @@ export function LearnHomeDashboard({
   const [now, setNow] = useState<Date | null>(null);
   const [page, setPage] = useState(1);
   const [activeDockApp, setActiveDockApp] = useState<LearnDockApp | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const [showInitialLoading, setShowInitialLoading] = useState(false);
 
   useEffect(() => {
+    setHydrated(true);
     const timer = window.setTimeout(() => setNow(new Date()), 0);
     return () => window.clearTimeout(timer);
   }, []);
-  const homeGridSystemApps =
-    variant === 'teacher' ? TEACHER_HOME_GRID_SYSTEM_APPS : HOME_GRID_SYSTEM_APPS;
+
+  useEffect(() => {
+    if (!coursesLoading || courses.length > 0) {
+      setShowInitialLoading(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowInitialLoading(true), 500);
+    return () => window.clearTimeout(timer);
+  }, [courses.length, coursesLoading]);
+  const homeGridSystemApps = useMemo(
+    () =>
+      variant === 'teacher'
+        ? TEACHER_HOME_GRID_SYSTEM_APPS
+        : courses.length > 0
+          ? HOME_GRID_SYSTEM_APPS
+          : HOME_GRID_SYSTEM_APPS.filter((app) => app.action !== 'forum'),
+    [courses.length, variant],
+  );
   const orderedHomeIcons = useMemo(
     () => buildHomeIconItems(courses, homeGridSystemApps),
     [courses, homeGridSystemApps],
@@ -583,6 +617,10 @@ export function LearnHomeDashboard({
       onOpenUsage?.();
       return;
     }
+    if (action === 'forum') {
+      onOpenForum?.();
+      return;
+    }
     if (action === 'sign_out') {
       void onSignOut?.();
       return;
@@ -591,18 +629,6 @@ export function LearnHomeDashboard({
       setActiveDockApp('notifications');
     }
   };
-
-  if (activeDockApp) {
-    return (
-      <section className="learn-app-home relative isolate h-full min-h-0 overflow-hidden">
-        <LearnHomeDockAppLayer
-          app={activeDockApp}
-          courses={courses}
-          onClose={() => setActiveDockApp(null)}
-        />
-      </section>
-    );
-  }
 
   return (
     <section
@@ -616,11 +642,11 @@ export function LearnHomeDashboard({
       <div className="learn-app-home__bloom learn-app-home__bloom--b" aria-hidden="true" />
       <div className="learn-app-home__bloom learn-app-home__bloom--c" aria-hidden="true" />
 
-      {coursesLoading && courses.length === 0 ? <LearnHomeLoadingState /> : null}
+      {showInitialLoading ? <LearnHomeLoadingState /> : null}
 
-      {coursesLoading && courses.length === 0 ? null : (
+      {showInitialLoading ? null : (
         <div className="learn-app-home__shell relative z-10 mx-auto h-full w-full max-w-[1320px] px-5 pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-[1.5vh] sm:px-8 lg:max-w-none lg:w-[min(94vw,1760px)] lg:px-[clamp(1rem,2vw,2.75rem)] lg:pb-[max(10px,env(safe-area-inset-bottom,0px))] lg:pt-[clamp(24px,3.5vh,44px)]">
-          {courseLoadError ? (
+          {hydrated && courseLoadError ? (
             <div
               className="mb-2 flex shrink-0 items-center justify-between gap-3 rounded-[16px] border border-white/40 bg-slate-950/58 px-4 py-2.5 text-sm text-white shadow-lg backdrop-blur-xl lg:absolute lg:left-[clamp(1rem,2vw,2.75rem)] lg:right-[clamp(1rem,2vw,2.75rem)] lg:top-[clamp(8px,1.2vh,16px)] lg:z-20 lg:mb-0"
               role="alert"
@@ -638,7 +664,7 @@ export function LearnHomeDashboard({
                 </button>
               ) : null}
             </div>
-          ) : coursesLoading ? (
+          ) : hydrated && coursesLoading ? (
             <div
               className="mb-2 flex shrink-0 items-center gap-2 rounded-[16px] border border-white/30 bg-slate-950/38 px-4 py-2.5 text-sm text-white shadow-lg backdrop-blur-xl lg:absolute lg:left-[clamp(1rem,2vw,2.75rem)] lg:right-[clamp(1rem,2vw,2.75rem)] lg:top-[clamp(8px,1.2vh,16px)] lg:z-20 lg:mb-0"
               role="status"
@@ -795,6 +821,15 @@ export function LearnHomeDashboard({
           </nav>
         </div>
       )}
+      {activeDockApp ? (
+        <div className="absolute inset-0 z-30 min-h-0 overflow-hidden bg-white text-slate-950 transform-gpu dark:bg-slate-950 dark:text-white">
+          <LearnHomeDockAppLayer
+            app={activeDockApp}
+            courses={courses}
+            onClose={() => setActiveDockApp(null)}
+          />
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -67,6 +67,7 @@ export function TeacherDashboardClient() {
       onOpenUsage={() => router.push('/teacher/usage')}
       onOpenCalendar={() => router.push('/calendar')}
       onOpenCourse={(courseId) => router.push(`/teacher/courses/${encodeURIComponent(courseId)}`)}
+      onOpenForum={() => router.push('/forum')}
       onSignOut={signOut}
       onRetryCourseLoad={() => void loadHomeCourses()}
     />

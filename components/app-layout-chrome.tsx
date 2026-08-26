@@ -120,6 +120,9 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   const isSettings = pathname === '/settings' || pathname?.startsWith('/settings/');
   const isCalendar = pathname === '/calendar' || pathname?.startsWith('/calendar/');
   const isStore = pathname === '/store' || Boolean(pathname?.startsWith('/store/'));
+  const isCommunitiesPage =
+    pathname === '/communities' || Boolean(pathname?.startsWith('/communities/'));
+  const isForumPage = pathname === '/forum' || Boolean(pathname?.startsWith('/forum/'));
   const isTestPage = isTestSurface(pathname);
   const isCsc148LocalPage = pathname === '/csc148' || Boolean(pathname?.startsWith('/csc148/'));
   const isCourseHome = pathname != null && /^\/course\/[^/]+\/?$/.test(pathname);
@@ -208,6 +211,14 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
 
   if (isStore) {
     return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
+  }
+
+  if (isCommunitiesPage) {
+    return <MainShellNoRail edgeToEdge>{children}</MainShellNoRail>;
+  }
+
+  if (isForumPage) {
+    return <MainShellNoRail edgeToEdge>{children}</MainShellNoRail>;
   }
 
   if (isTestPage) {

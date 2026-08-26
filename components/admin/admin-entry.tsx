@@ -34,7 +34,7 @@ type AdminDebugEnvResponse = {
 export function AdminEntry() {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
-  const [email, setEmail] = useState('dongbochen1218@icloud.com');
+  const [email, setEmail] = useState('admin@syntara.local');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,12 +172,30 @@ export function AdminEntry() {
               <div className="rounded-xl border border-amber-200/60 bg-amber-50/80 px-3 py-3 text-sm text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
                 <p className="font-medium">当前服务没有读到管理员登录配置</p>
                 <div className="mt-2 space-y-1 text-xs">
-                  <p>{debugEnv ? `ADMIN_LOGIN_EMAIL: ${debugEnv.hasAdminLoginEmail ? 'yes' : 'no'}` : 'ADMIN_LOGIN_EMAIL: unknown'}</p>
-                  <p>{debugEnv ? `ADMIN_LOGIN_PASSWORD: ${debugEnv.hasAdminLoginPassword ? 'yes' : 'no'}` : 'ADMIN_LOGIN_PASSWORD: unknown'}</p>
-                  <p>{debugEnv ? `ADMIN_LOGIN_SECRET: ${debugEnv.hasAdminLoginSecret ? 'yes' : 'no'}` : 'ADMIN_LOGIN_SECRET: unknown'}</p>
-                  <p>{debugEnv ? `DATABASE_URL: ${debugEnv.hasDatabaseUrl ? 'yes' : 'no'}` : 'DATABASE_URL: unknown'}</p>
+                  <p>
+                    {debugEnv
+                      ? `ADMIN_LOGIN_EMAIL: ${debugEnv.hasAdminLoginEmail ? 'yes' : 'no'}`
+                      : 'ADMIN_LOGIN_EMAIL: unknown'}
+                  </p>
+                  <p>
+                    {debugEnv
+                      ? `ADMIN_LOGIN_PASSWORD: ${debugEnv.hasAdminLoginPassword ? 'yes' : 'no'}`
+                      : 'ADMIN_LOGIN_PASSWORD: unknown'}
+                  </p>
+                  <p>
+                    {debugEnv
+                      ? `ADMIN_LOGIN_SECRET: ${debugEnv.hasAdminLoginSecret ? 'yes' : 'no'}`
+                      : 'ADMIN_LOGIN_SECRET: unknown'}
+                  </p>
+                  <p>
+                    {debugEnv
+                      ? `DATABASE_URL: ${debugEnv.hasDatabaseUrl ? 'yes' : 'no'}`
+                      : 'DATABASE_URL: unknown'}
+                  </p>
                   {debugEnv?.vercelEnv ? <p>{`VERCEL_ENV: ${debugEnv.vercelEnv}`}</p> : null}
-                  {debugEnv?.railwayEnv ? <p>{`RAILWAY_ENVIRONMENT_NAME: ${debugEnv.railwayEnv}`}</p> : null}
+                  {debugEnv?.railwayEnv ? (
+                    <p>{`RAILWAY_ENVIRONMENT_NAME: ${debugEnv.railwayEnv}`}</p>
+                  ) : null}
                 </div>
               </div>
             ) : null}

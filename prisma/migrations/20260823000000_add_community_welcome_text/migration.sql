@@ -1,0 +1,2 @@
+ALTER TABLE "Community"
+  ADD COLUMN IF NOT EXISTS "welcomeText" VARCHAR(200);

@@ -392,7 +392,6 @@ export function TeacherCourseStudioClient({
         setError(loadError instanceof Error ? loadError.message : '课程读取失败'),
       )
       .finally(() => {
-        if (mockMode) setUnresolvedForumCount(3);
         setLoading(false);
       });
   }, [hydrated, isLoggedIn, loadStudio, mockMode, role, router]);
