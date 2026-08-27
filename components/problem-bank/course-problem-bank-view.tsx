@@ -2042,8 +2042,7 @@ export function CourseProblemBankView({
     previewMode || isLocalDemoProblemBankCourse(courseId)
       ? findLocalDemoTeacherHomeCourse(courseId)
       : undefined;
-  const isTeacherCourseSpace =
-    (previewMode && previewAsTeacher) || courseAccessRole === 'owner';
+  const isTeacherCourseSpace = (previewMode && previewAsTeacher) || courseAccessRole === 'owner';
   const courseHeaderFields = resolveCourseSpaceHeaderFields({
     courseCode: previewDemoCourse?.courseCode ?? courseCode,
     code: previewDemoCourse?.courseCode ?? courseCode,

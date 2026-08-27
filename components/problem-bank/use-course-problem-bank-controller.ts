@@ -207,9 +207,7 @@ export function useCourseProblemBankController({
   const [courseName, setCourseName] = useState('');
   const [courseCode, setCourseCode] = useState<string | undefined>();
   const [courseAcademicYear, setCourseAcademicYear] = useState<number | undefined>();
-  const [courseAcademicTerm, setCourseAcademicTerm] = useState<
-    CourseRecord['academicTerm']
-  >();
+  const [courseAcademicTerm, setCourseAcademicTerm] = useState<CourseRecord['academicTerm']>();
   const [courseAccessRole, setCourseAccessRole] = useState<CourseRecord['accessRole']>();
   const [problems, setProblems] = useState<NotebookProblemClientRecord[]>([]);
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
