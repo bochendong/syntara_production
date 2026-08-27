@@ -5,8 +5,6 @@ export type CourseForumAuthor = {
   name: string;
   image: string | null;
   isTeacher: boolean;
-  forumRole?: 'student' | 'teacher' | 'admin';
-  forumRoleLabel?: '学生' | '老师' | '管理员';
 };
 
 export type CourseForumAttachmentItem = {
@@ -22,14 +20,6 @@ export type CourseForumPostSummary = {
   id: string;
   title: string;
   bodyPreview: string;
-  bodyPreviewMarkdown?: string;
-  source?: 'course' | 'community';
-  community?: {
-    id: string;
-    slug: string;
-    name: string;
-    visibility: string;
-  } | null;
   author: CourseForumAuthor;
   resolved: boolean;
   pinned: boolean;
@@ -38,13 +28,6 @@ export type CourseForumPostSummary = {
   answerCount: number;
   commentCount: number;
   attachmentCount: number;
-  previewAttachments?: Array<
-    Pick<CourseForumAttachmentItem, 'id' | 'fileName' | 'url' | 'downloadUrl'>
-  >;
-  tablePreview?: {
-    headers: string[];
-    rows: string[][];
-  } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -64,16 +47,8 @@ export type CourseForumCommentItem = {
   id: string;
   body: string;
   author: CourseForumAuthor;
-  parentId: string | null;
-  replyCount: number;
   createdAt: string;
   updatedAt: string;
-};
-
-export type CourseForumCommentPage = {
-  hasMore: boolean;
-  nextOffset: number;
-  totalCount: number;
 };
 
 export type CourseForumPostDetail = CourseForumPostSummary & {
@@ -81,7 +56,6 @@ export type CourseForumPostDetail = CourseForumPostSummary & {
   attachments: CourseForumAttachmentItem[];
   answers: CourseForumAnswerItem[];
   comments: CourseForumCommentItem[];
-  commentsPage: CourseForumCommentPage;
 };
 
 export type CourseForumSnapshot = {

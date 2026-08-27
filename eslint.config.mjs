@@ -13,10 +13,7 @@ const eslintConfig = defineConfig([
     'build/**',
     'next-env.d.ts',
     // Vendored/generated code:
-    'apps/native/**',
-    'apps/native/public/**',
     'packages/**',
-    'public/live2d/**',
     // Claude Code local files:
     '.claude/**',
     '.superpowers/**',
@@ -38,7 +35,6 @@ const eslintConfig = defineConfig([
           destructuredArrayIgnorePattern: '^_',
         },
       ],
-      'react-hooks/set-state-in-effect': 'warn',
     },
   },
   {

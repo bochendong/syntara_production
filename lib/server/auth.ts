@@ -79,45 +79,6 @@ function localDemoUser(email: string, role: LocalDemoRole) {
   };
 }
 
-async function ensureLocalDemoUser(email: string, role: LocalDemoRole) {
-  const user = localDemoUser(email, role);
-  const prisma = getOptionalPrisma();
-  if (!prisma) return user;
-  try {
-    await prisma.user.upsert({
-      where: { id: user.id },
-      create: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        image: user.image,
-        role: user.role,
-        isActive: true,
-      },
-      update: {
-        email: user.email,
-        name: user.name,
-        image: user.image,
-        role: user.role,
-        isActive: true,
-      },
-    });
-  } catch {
-    const existing = await prisma.user.update({
-      where: { email: user.email },
-      data: {
-        name: user.name,
-        image: user.image,
-        role: user.role,
-        isActive: true,
-      },
-      select: { id: true },
-    });
-    return { ...user, id: existing.id };
-  }
-  return user;
-}
-
 function buildProviders() {
   const providers = [];
 
@@ -135,7 +96,7 @@ function buildProviders() {
           const email = credentials?.email?.trim().toLowerCase() || '';
           const password = credentials?.password || '';
           if (!email || !password) return null;
-          if (isLocalDemoAuthEnabled(request)) return ensureLocalDemoUser(email, 'TEACHER');
+          if (isLocalDemoAuthEnabled(request)) return localDemoUser(email, 'TEACHER');
           const user = await prisma?.user.findUnique({
             where: { email },
             select: {
@@ -179,7 +140,7 @@ function buildProviders() {
           const email = credentials?.email?.trim().toLowerCase() || '';
           const password = credentials?.password || '';
           if (!email || !password) return null;
-          if (isLocalDemoAuthEnabled(request)) return ensureLocalDemoUser(email, 'STUDENT');
+          if (isLocalDemoAuthEnabled(request)) return localDemoUser(email, 'STUDENT');
           const user = await prisma?.user.findUnique({
             where: { email },
             select: {

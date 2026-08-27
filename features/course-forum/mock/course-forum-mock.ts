@@ -149,9 +149,7 @@ $$
 
 请问论坛这里支持哪些数学写法？代码块和公式可以混排吗？`;
 
-  const posts: Array<
-    Omit<CourseForumPostDetail, 'pinned' | 'pinnedAt' | 'isWelcome' | 'commentsPage'>
-  > = [
+  const posts: Array<Omit<CourseForumPostDetail, 'pinned' | 'pinnedAt' | 'isWelcome'>> = [
     {
       id: `${courseId}-forum-post-induction`,
       title: 'Induction：奇数和怎么接到 (k+1)^2？',
@@ -205,8 +203,6 @@ $$
           id: `${courseId}-cmt-1`,
           body: '我也卡在同一处，等老师看看哪条更适合采纳。',
           author: authors.dylan,
-          parentId: null,
-          replyCount: 0,
           createdAt: iso(90 * 60_000),
           updatedAt: iso(90 * 60_000),
         },
@@ -214,8 +210,6 @@ $$
           id: `${courseId}-cmt-2`,
           body: '正方形补边那个解释太好懂了。',
           author: authors.alice,
-          parentId: null,
-          replyCount: 0,
           createdAt: iso(55 * 60_000),
           updatedAt: iso(55 * 60_000),
         },
@@ -223,8 +217,6 @@ $$
           id: `${courseId}-cmt-3`,
           body: '建议把“归纳假设用在哪一行”写清楚，阅卷会更稳。',
           author: authors.teacher,
-          parentId: null,
-          replyCount: 0,
           createdAt: iso(40 * 60_000),
           updatedAt: iso(40 * 60_000),
         },
@@ -268,8 +260,6 @@ $$
           id: `${courseId}-cmt-4`,
           body: '感谢！我之前把复杂度写成了 O(n!)，现在明白了。',
           author: authors.bob,
-          parentId: null,
-          replyCount: 0,
           createdAt: iso(20 * HOUR),
           updatedAt: iso(20 * HOUR),
         },
@@ -277,8 +267,6 @@ $$
           id: `${courseId}-cmt-5`,
           body: '老师采纳的这条可以直接当作业模板。',
           author: authors.cara,
-          parentId: null,
-          replyCount: 0,
           createdAt: iso(19 * HOUR),
           updatedAt: iso(19 * HOUR),
         },
@@ -320,8 +308,6 @@ Office hour 本周四仍是 2–4pm，地点不变。`,
           id: `${courseId}-cmt-6`,
           body: '等老师最终确认一下 cheat sheet 规则。',
           author: authors.alice,
-          parentId: null,
-          replyCount: 0,
           createdAt: iso(2 * HOUR),
           updatedAt: iso(2 * HOUR),
         },
@@ -384,11 +370,6 @@ Office hour 本周四仍是 2–4pm，地点不变。`,
     pinned: false,
     pinnedAt: null,
     isWelcome: false,
-    commentsPage: {
-      hasMore: false,
-      nextOffset: post.comments.length,
-      totalCount: post.comments.length,
-    },
   }));
 }
 

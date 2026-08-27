@@ -240,20 +240,12 @@ model User {
   courseQuestionRuns        CourseQuestionRun[]
   learningCalendarEvents    LearningCalendarEvent[]
   calendarMutations         LearningCalendarMutation[]
-  ownedCommunities          Community[]                @relation("CommunityOwner")
-  communityMemberships      CommunityMember[]
-  communityPosts            CommunityPost[]            @relation("CommunityPostAuthor")
-  pinnedCommunityPosts      CommunityPost[]            @relation("CommunityPostPinnedBy")
   forumPosts                CourseForumPost[]          @relation("CourseForumPostAuthor")
   pinnedForumPosts          CourseForumPost[]          @relation("CourseForumPostPinnedBy")
   forumAnswers              CourseForumAnswer[]        @relation("CourseForumAnswerAuthor")
   acceptedForumAnswers      CourseForumAnswer[]        @relation("CourseForumAnswerAcceptedBy")
   forumComments             CourseForumComment[]       @relation("CourseForumCommentAuthor")
   forumAttachments          CourseForumAttachment[]    @relation("CourseForumAttachmentUploader")
-  directThreadsAsA          DirectMessageThread[]      @relation("DirectMessageThreadUserA")
-  directThreadsAsB          DirectMessageThread[]      @relation("DirectMessageThreadUserB")
-  directMessagesSent        DirectMessage[]            @relation("DirectMessageSender")
-  directMessageAttachments  DirectMessageAttachment[]  @relation("DirectMessageAttachmentUploader")
   externalCourseBindings    ExternalCourseBinding[]    @relation("ExternalCourseBindingActivator")
   externalCourseMemberships ExternalCourseMembership[]
 
@@ -396,8 +388,6 @@ model Course {
   hardRules              CourseHardRule[]
   rulePacks              CourseRulePack[]
   forumPosts             CourseForumPost[]
-  communities            Community[]
-  directMessageThreads   DirectMessageThread[]
   externalBinding        ExternalCourseBinding?
 
   createdAt DateTime @default(now())
@@ -1389,8 +1379,7 @@ model ExternalCourseMembership {
 
 model CourseForumPost {
   id           String    @id @default(cuid())
-  courseId     String?
-  communityId  String?
+  courseId     String
   authorId     String
   title        String    @db.VarChar(200)
   bodyMarkdown String    @db.Text
@@ -1399,8 +1388,7 @@ model CourseForumPost {
   pinnedById   String?
   systemKey    String?   @db.VarChar(80)
 
-  course      Course?                 @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  community   Community?              @relation("CommunityForumPosts", fields: [communityId], references: [id], onDelete: Cascade)
+  course      Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   author      User                    @relation("CourseForumPostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   pinnedBy    User?                   @relation("CourseForumPostPinnedBy", fields: [pinnedById], references: [id], onDelete: SetNull)
   answers     CourseForumAnswer[]
@@ -1413,8 +1401,6 @@ model CourseForumPost {
   @@unique([courseId, systemKey])
   @@index([courseId, resolvedAt, updatedAt(sort: Desc)])
   @@index([courseId, pinnedAt(sort: Desc)])
-  @@index([communityId, pinnedAt(sort: Desc)])
-  @@index([communityId, createdAt(sort: Desc)])
   @@index([authorId, createdAt(sort: Desc)])
 }
 
@@ -1439,21 +1425,17 @@ model CourseForumAnswer {
 }
 
 model CourseForumComment {
-  id       String  @id @default(cuid())
+  id       String @id @default(cuid())
   postId   String
   authorId String
-  parentId String?
-  body     String  @db.VarChar(2000)
+  body     String @db.VarChar(2000)
 
-  post    CourseForumPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author  User                 @relation("CourseForumCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  parent  CourseForumComment?  @relation("CourseForumCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies CourseForumComment[] @relation("CourseForumCommentReplies")
+  post   CourseForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User            @relation("CourseForumCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([parentId, createdAt])
   @@index([postId, createdAt])
   @@index([authorId, createdAt(sort: Desc)])
 }
@@ -1478,144 +1460,6 @@ model CourseForumAttachment {
   @@index([postId, createdAt])
   @@index([answerId, createdAt])
   @@index([uploaderId, createdAt(sort: Desc)])
-}
-
-model DirectMessageThread {
-  id            String    @id @default(cuid())
-  courseId      String?
-  userAId       String
-  userBId       String
-  lastMessageAt DateTime?
-
-  course   Course?         @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  userA    User            @relation("DirectMessageThreadUserA", fields: [userAId], references: [id], onDelete: Cascade)
-  userB    User            @relation("DirectMessageThreadUserB", fields: [userBId], references: [id], onDelete: Cascade)
-  messages DirectMessage[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userAId, userBId])
-  @@index([userAId, lastMessageAt(sort: Desc)])
-  @@index([userBId, lastMessageAt(sort: Desc)])
-  @@index([courseId, lastMessageAt(sort: Desc)])
-}
-
-model DirectMessage {
-  id       String @id @default(cuid())
-  threadId String
-  senderId String
-  body     String @db.VarChar(4000)
-
-  thread      DirectMessageThread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  sender      User                      @relation("DirectMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
-  attachments DirectMessageAttachment[]
-
-  createdAt DateTime @default(now())
-
-  @@index([threadId, createdAt])
-  @@index([senderId, createdAt(sort: Desc)])
-}
-
-model DirectMessageAttachment {
-  id         String @id @default(cuid())
-  messageId  String
-  uploaderId String
-  fileName   String @db.VarChar(255)
-  mimeType   String @db.VarChar(100)
-  byteSize   Int
-  contentSha String @db.VarChar(64)
-  data       Bytes
-
-  message  DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  uploader User          @relation("DirectMessageAttachmentUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@index([messageId, createdAt])
-  @@index([uploaderId, createdAt(sort: Desc)])
-}
-
-model Community {
-  id          String  @id @default(cuid())
-  courseId    String?
-  slug        String  @unique @db.VarChar(80)
-  name        String  @db.VarChar(120)
-  description String? @db.VarChar(600)
-  welcomeText String? @db.VarChar(200)
-  avatarUrl   String? @db.VarChar(2000)
-  bannerUrl   String? @db.VarChar(2000)
-  visibility  String  @default("public") @db.VarChar(32)
-  ownerId     String
-
-  course     Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  owner      User              @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  members    CommunityMember[]
-  posts      CommunityPost[]
-  assets     CommunityAsset[]
-  forumPosts CourseForumPost[] @relation("CommunityForumPosts")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([ownerId, createdAt(sort: Desc)])
-  @@index([courseId, updatedAt(sort: Desc)])
-  @@index([visibility, updatedAt(sort: Desc)])
-}
-
-model CommunityMember {
-  id          String   @id @default(cuid())
-  communityId String
-  userId      String
-  role        String   @default("member") @db.VarChar(32)
-  joinedAt    DateTime @default(now())
-
-  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([communityId, userId])
-  @@index([userId, joinedAt(sort: Desc)])
-  @@index([communityId, joinedAt(sort: Desc)])
-}
-
-model CommunityAsset {
-  id          String @id @default(cuid())
-  communityId String
-  uploaderId  String
-  kind        String @db.VarChar(32)
-  fileName    String @db.VarChar(255)
-  mimeType    String @db.VarChar(100)
-  byteSize    Int
-  contentSha  String @db.VarChar(64)
-  data        Bytes
-
-  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@index([communityId, kind, createdAt(sort: Desc)])
-  @@index([uploaderId, createdAt(sort: Desc)])
-}
-
-model CommunityPost {
-  id           String    @id @default(cuid())
-  communityId  String
-  authorId     String
-  title        String    @db.VarChar(220)
-  bodyMarkdown String    @db.Text
-  pinnedAt     DateTime?
-  pinnedById   String?
-
-  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  author    User      @relation("CommunityPostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  pinnedBy  User?     @relation("CommunityPostPinnedBy", fields: [pinnedById], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([communityId, pinnedAt(sort: Desc)])
-  @@index([communityId, createdAt(sort: Desc)])
-  @@index([authorId, createdAt(sort: Desc)])
 }
 
 model LearningCalendarEvent {

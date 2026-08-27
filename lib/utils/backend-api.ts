@@ -22,8 +22,6 @@ const DATABASE_READ_LOCK_NAME = 'syntara:database-read';
 const DATABASE_READ_PREFIXES = [
   '/api/courses',
   '/api/course-forum',
-  '/api/forum',
-  '/api/communities',
   '/api/notebooks',
   '/api/learn/calendar',
   '/api/learn/conversations',
@@ -34,50 +32,6 @@ const DATABASE_READ_PREFIXES = [
 type BrowserLockManager = {
   request<T>(name: string, callback: () => Promise<T>): Promise<T>;
 };
-
-function sameOriginApiPath(path: string) {
-  if (!path.startsWith('/api/')) return false;
-  return !path.startsWith('//');
-}
-
-type LocalAuthHeaders = {
-  userId: string;
-  name: string;
-  email: string;
-  role: string;
-};
-
-function safeHeaderValue(value: string) {
-  return encodeURIComponent(value).slice(0, 500);
-}
-
-function localAuthHeaders(): LocalAuthHeaders | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem('synatra-auth');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as {
-      state?: {
-        userId?: unknown;
-        isLoggedIn?: unknown;
-        name?: unknown;
-        email?: unknown;
-        role?: unknown;
-      };
-    };
-    if (parsed.state?.isLoggedIn !== true) return null;
-    const userId = typeof parsed.state.userId === 'string' ? parsed.state.userId.trim() : '';
-    if (!userId) return null;
-    return {
-      userId,
-      name: typeof parsed.state.name === 'string' ? parsed.state.name.trim() : '',
-      email: typeof parsed.state.email === 'string' ? parsed.state.email.trim().toLowerCase() : '',
-      role: typeof parsed.state.role === 'string' ? parsed.state.role.trim().toUpperCase() : '',
-    };
-  } catch {
-    return null;
-  }
-}
 
 type QueuedDatabaseRead = {
   path: string;
@@ -419,13 +373,6 @@ async function performBackendFetch(
   context: RequestAbortContext,
 ): Promise<Response> {
   const headers = new Headers(init?.headers || {});
-  const localAuth = sameOriginApiPath(path) ? localAuthHeaders() : null;
-  if (localAuth?.userId && !headers.has('x-syntara-user-id')) {
-    headers.set('x-syntara-user-id', localAuth.userId);
-    if (localAuth.name) headers.set('x-syntara-user-name', safeHeaderValue(localAuth.name));
-    if (localAuth.email) headers.set('x-syntara-user-email', safeHeaderValue(localAuth.email));
-    if (localAuth.role) headers.set('x-syntara-user-role', safeHeaderValue(localAuth.role));
-  }
   const { timeoutMs: _timeoutMs, signal: _callerSignal, ...fetchInit } = init || {};
   try {
     return await fetch(path, {

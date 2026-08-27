@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/prisma';
 import { safeRoute } from '@/lib/server/json-error-response';
-import { requireCourseForumReadAccess } from '@/features/course-forum/server/course-forum-access';
+import { requireCourseForumAccess } from '@/features/course-forum/server/course-forum-access';
 
 function safeFileName(value: string) {
   return value.replace(/[\r\n"\\/]/g, '_').slice(0, 180) || 'forum-image';
@@ -13,7 +13,7 @@ export async function GET(
 ) {
   return safeRoute(async () => {
     const { courseId, attachmentId } = await context.params;
-    const access = await requireCourseForumReadAccess(courseId);
+    const access = await requireCourseForumAccess(courseId);
     if (!access.ok) return access.response;
     const attachment = await prisma.courseForumAttachment.findFirst({
       where: {

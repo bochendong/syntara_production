@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   LEARN_HOME_PREVIEW_COURSES,
@@ -10,10 +10,6 @@ import { usePersistHydrated } from '@/lib/hooks/use-persist-hydrated';
 import { useAuthSignOut } from '@/lib/hooks/use-auth-sign-out';
 import { useAuthStore } from '@/lib/store/auth';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
-import {
-  readLearnCourseListCache,
-  writeLearnCourseListCache,
-} from '@/components/learn/learn-course-list-cache';
 import { listCoursesOrThrow } from '@/lib/utils/course-storage';
 import type { CourseRecord } from '@/lib/utils/database';
 
@@ -23,15 +19,6 @@ const HOME_ROUTE_PREFETCH_TARGETS = [
   '/profile',
   '/settings',
 ] as const;
-
-function getInitialHomeCourses(preview: boolean) {
-  if (preview) return LEARN_HOME_PREVIEW_COURSES;
-  return (
-    readLearnCourseListCache(useAuthStore.getState().userId || 'anonymous', {
-      allowStale: true,
-    }) ?? []
-  );
-}
 
 export function LearnHomePageClient({
   preview = false,
@@ -46,9 +33,8 @@ export function LearnHomePageClient({
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const role = useAuthStore((state) => state.role);
   const setCurrentCourse = useCurrentCourseStore((state) => state.setCurrentCourse);
-  const initialCourses = useMemo(() => getInitialHomeCourses(preview), [preview]);
-  const [courses, setCourses] = useState<CourseRecord[]>(initialCourses);
-  const [coursesLoading, setCoursesLoading] = useState(!preview && initialCourses.length === 0);
+  const [courses, setCourses] = useState<CourseRecord[]>(preview ? LEARN_HOME_PREVIEW_COURSES : []);
+  const [coursesLoading, setCoursesLoading] = useState(!preview);
   const [courseLoadError, setCourseLoadError] = useState<string | null>(null);
 
   const loadCourses = useCallback(async (options: { silent?: boolean } = {}) => {
@@ -59,7 +45,6 @@ export function LearnHomePageClient({
     try {
       const items = await listCoursesOrThrow();
       setCourses(items);
-      writeLearnCourseListCache(useAuthStore.getState().userId || 'anonymous', items);
       return items;
     } catch (error) {
       if (!options.silent) {
@@ -83,23 +68,14 @@ export function LearnHomePageClient({
     }
 
     let alive = true;
-    void loadCourses({ silent: initialCourses.length > 0 }).catch(() => {
+    void loadCourses().catch(() => {
       if (!alive) return;
     });
 
     return () => {
       alive = false;
     };
-  }, [
-    authHydrated,
-    forceStudentPortal,
-    initialCourses.length,
-    isLoggedIn,
-    loadCourses,
-    preview,
-    role,
-    router,
-  ]);
+  }, [authHydrated, forceStudentPortal, isLoggedIn, loadCourses, preview, role, router]);
 
   useEffect(() => {
     if (preview || (!isLoggedIn && !forceStudentPortal)) return;
@@ -156,7 +132,6 @@ export function LearnHomePageClient({
       onOpenCalendar={() => router.push('/calendar')}
       onOpenUsage={() => router.push('/student/usage')}
       onOpenCourse={openCourse}
-      onOpenForum={() => router.push('/forum')}
       onSignOut={signOut}
       onRetryCourseLoad={() => void loadCourses().catch(() => {})}
     />

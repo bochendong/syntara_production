@@ -15,7 +15,6 @@ export function LearnBackgroundVisual({
 }: LearnBackgroundVisualProps) {
   const background = getLearnBackground(backgroundId);
   const style: CSSProperties = {
-    backgroundColor: '#e8eef5',
     backgroundImage: `url("${preview ? background.previewUrl : background.imageUrl}")`,
   };
   return (

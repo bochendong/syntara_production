@@ -13,7 +13,6 @@ import {
   HardDrive,
   Loader2,
   MessageCircle,
-  MessagesSquare,
   Pencil,
   Plus,
   Search,
@@ -1390,20 +1389,6 @@ export default function CourseDetailPageClient() {
                               size="icon-sm"
                               variant="outline"
                               className="size-8 rounded-full border-white/15 bg-slate-950/22 text-white shadow-sm backdrop-blur-md hover:bg-slate-950/34 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
-                              title="论坛"
-                            >
-                              <Link
-                                href={`/forum?returnTo=${encodeURIComponent(`/course/${id}`)}`}
-                                aria-label="论坛"
-                              >
-                                <MessagesSquare className="size-4" strokeWidth={1.85} />
-                              </Link>
-                            </Button>
-                            <Button
-                              asChild
-                              size="icon-sm"
-                              variant="outline"
-                              className="size-8 rounded-full border-white/15 bg-slate-950/22 text-white shadow-sm backdrop-blur-md hover:bg-slate-950/34 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
                               title="资料库"
                             >
                               <Link
@@ -1485,16 +1470,6 @@ export default function CourseDetailPageClient() {
                         variant="outline"
                         className="h-8 min-h-0 gap-1.5 rounded-full border-white/15 bg-slate-950/20 px-3 text-xs text-white shadow-sm backdrop-blur-md hover:bg-slate-950/30 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
                       >
-                        <Link href={`/forum?returnTo=${encodeURIComponent(`/course/${id}`)}`}>
-                          <MessagesSquare className="size-3.5" strokeWidth={1.8} />
-                          论坛
-                        </Link>
-                      </Button>
-                      <Button
-                        asChild
-                        variant="outline"
-                        className="h-8 min-h-0 gap-1.5 rounded-full border-white/15 bg-slate-950/20 px-3 text-xs text-white shadow-sm backdrop-blur-md hover:bg-slate-950/30 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
-                      >
                         <Link href={`/course/${encodeURIComponent(id)}/resources`}>
                           <HardDrive className="size-3.5" strokeWidth={1.8} />
                           资料库
@@ -1540,16 +1515,6 @@ export default function CourseDetailPageClient() {
                         <Link href={`/course/${encodeURIComponent(id)}/resources`}>
                           <HardDrive className="size-3.5" strokeWidth={1.8} />
                           资料库
-                        </Link>
-                      </Button>
-                      <Button
-                        asChild
-                        variant="outline"
-                        className="h-8 gap-1.5 rounded-lg border-emerald-200 bg-white/72 px-2.5 text-xs font-semibold text-emerald-800 hover:bg-white dark:border-emerald-300/25 dark:bg-white/8 dark:text-emerald-100 dark:hover:bg-white/12"
-                      >
-                        <Link href={`/forum?returnTo=${encodeURIComponent(`/course/${id}`)}`}>
-                          <MessagesSquare className="size-3.5" strokeWidth={1.8} />
-                          论坛
                         </Link>
                       </Button>
                     </div>

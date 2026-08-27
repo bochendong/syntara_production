@@ -12,7 +12,7 @@ const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'i
 export const COURSE_FORUM_MAX_IMAGES = 5;
 export const COURSE_FORUM_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-export type CourseForumAccessResult =
+type CourseForumAccessResult =
   | { ok: false; response: NextResponse }
   | {
       ok: true;
@@ -42,18 +42,6 @@ export function courseForumDisplayName(user: { name: string | null; email: strin
   const email = user.email?.trim();
   if (email) return email.split('@')[0] || email;
   return '课程成员';
-}
-
-export function isSameForumIdentity(
-  a: { id: string; email: string | null },
-  b: { id: string; email: string | null },
-) {
-  if (a.id === b.id) return true;
-  const aEmail = a.email?.trim().toLowerCase() || '';
-  const bEmail = b.email?.trim().toLowerCase() || '';
-  if (aEmail && bEmail && aEmail === bEmail) return true;
-  const localDemoStudentEmails = new Set(['student@example.com', 'student@test.local']);
-  return localDemoStudentEmails.has(aEmail) && localDemoStudentEmails.has(bEmail);
 }
 
 export async function requireCourseForumAccess(courseId: string): Promise<CourseForumAccessResult> {
@@ -87,7 +75,7 @@ export async function requireCourseForumAccess(courseId: string): Promise<Course
     }),
     prisma.user.findUnique({
       where: { id: auth.userId },
-      select: { id: true, name: true, email: true, image: true, role: true },
+      select: { id: true, name: true, email: true, image: true },
     }),
   ]);
   if (!course || !user) {
@@ -102,58 +90,6 @@ export async function requireCourseForumAccess(courseId: string): Promise<Course
     userId: user.id,
     accessRole,
     isTeacher: accessRole === 'owner',
-    course,
-    user,
-  };
-}
-
-export async function requireCourseForumReadAccess(
-  courseId: string,
-): Promise<CourseForumAccessResult> {
-  const courseAccess = await requireCourseForumAccess(courseId);
-  if (courseAccess.ok) return courseAccess;
-
-  const auth = await requireUserId({ ensureFallbackUser: false });
-  if (auth.response) return { ok: false, response: auth.response };
-
-  const [course, user, community] = await Promise.all([
-    prisma.course.findUnique({
-      where: { id: courseId },
-      select: {
-        id: true,
-        ownerId: true,
-        name: true,
-        courseCode: true,
-        academicYear: true,
-        academicTerm: true,
-        problemCount: true,
-      },
-    }),
-    prisma.user.findUnique({
-      where: { id: auth.userId },
-      select: { id: true, name: true, email: true, image: true, role: true },
-    }),
-    prisma.community.findFirst({
-      where: {
-        OR: [{ visibility: 'public' }, { members: { some: { userId: auth.userId } } }],
-        forumPosts: { some: { courseId } },
-      },
-      select: { id: true },
-    }),
-  ]);
-
-  if (!course || !user || !community) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: 'Course not found' }, { status: 404 }),
-    };
-  }
-
-  return {
-    ok: true,
-    userId: user.id,
-    accessRole: 'enrolled',
-    isTeacher: user.id === course.ownerId,
     course,
     user,
   };
@@ -193,23 +129,16 @@ export function forumAuthor(
     name: string | null;
     email: string | null;
     image: string | null;
-    role?: string | null;
   },
   teacherId: string,
 ) {
   const isTeacher = user.id === teacherId;
-  const forumRole =
-    user.role === 'ADMIN' ? 'admin' : user.role === 'TEACHER' || isTeacher ? 'teacher' : 'student';
-  const forumRoleLabel =
-    forumRole === 'admin' ? '管理员' : forumRole === 'teacher' ? '老师' : '学生';
   const displayName = courseForumDisplayName(user);
   return {
     id: user.id,
     name: displayName === '课程成员' ? (isTeacher ? '课程老师' : '课程同学') : displayName,
     image: user.image,
     isTeacher,
-    forumRole,
-    forumRoleLabel,
   };
 }
 

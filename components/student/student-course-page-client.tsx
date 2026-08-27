@@ -113,6 +113,7 @@ export function StudentCoursePageClient({
   const [payload, setPayload] = useState<StudentCoursePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [unresolvedForumCount, setUnresolvedForumCount] = useState(0);
   const [mindMapNotebook, setMindMapNotebook] = useState<
     StudentCoursePayload['notebooks'][number] | null
   >(null);
@@ -152,6 +153,25 @@ export function StudentCoursePageClient({
     };
   }, [load]);
 
+  useEffect(() => {
+    if (mockMode) {
+      setUnresolvedForumCount(2);
+      return;
+    }
+    let cancelled = false;
+    void backendJson<{ unresolvedCount: number }>(
+      `/api/course-forum/${encodeURIComponent(courseId)}/summary`,
+      { timeoutMs: 12_000 },
+    )
+      .then((result) => {
+        if (!cancelled) setUnresolvedForumCount(Math.max(0, result.unresolvedCount || 0));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, mockMode]);
+
   if (loading && !payload) {
     return (
       <div className="grid min-h-dvh place-items-center bg-slate-50 text-sm text-slate-500">
@@ -182,9 +202,7 @@ export function StudentCoursePageClient({
   const previewMode = mockMode || payload.previewedByAdmin || requestedPreview;
   const homeHref = mockMode ? '/test/frontend' : previewMode ? '/student?preview=1' : '/learn';
   const chatHref = `/learn?courseId=${encodeURIComponent(courseId)}${mockMode ? '&uiPreview=1&asStudent=1' : previewMode ? '&asStudent=1' : ''}`;
-  const forumHref = mockMode
-    ? '/test/frontend'
-    : `/forum?returnTo=${encodeURIComponent(`/student/courses/${courseId}`)}`;
+  const forumHref = `/course/${encodeURIComponent(courseId)}/forum${mockMode ? '?mock=1' : ''}`;
   const problemBankHref = `/course/${encodeURIComponent(courseId)}/problem-bank`;
   const term = payload.course.term ? TERM_LABEL[payload.course.term] : null;
 
@@ -235,12 +253,17 @@ export function StudentCoursePageClient({
             onClick={() => router.push(forumHref)}
             className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-violet-300 hover:shadow-sm"
           >
-            <span className="grid size-10 place-items-center rounded-xl bg-violet-50 text-violet-700">
+            <span className="relative grid size-10 place-items-center rounded-xl bg-violet-50 text-violet-700">
               <MessagesSquare className="size-5" />
+              <span
+                className={`absolute -top-2 -right-2 grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-4 text-white ring-2 ring-white ${unresolvedForumCount > 0 ? 'bg-rose-500' : 'bg-slate-400'}`}
+              >
+                {unresolvedForumCount > 99 ? '99+' : unresolvedForumCount}
+              </span>
             </span>
             <span>
-              <strong className="block text-sm">论坛</strong>
-              <small className="text-slate-500">查看帖子和 community</small>
+              <strong className="block text-sm">课程论坛</strong>
+              <small className="text-slate-500">{unresolvedForumCount} 个问题未解决</small>
             </span>
           </button>
           <button
