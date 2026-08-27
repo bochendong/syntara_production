@@ -2,6 +2,7 @@ import type {
   AcademicCourseSummary,
   AcademicTermSummary,
 } from '@/lib/teacher/online-course-archive';
+import { LOCAL_DEMO_CSC148_PROBLEM_COUNT } from '@/lib/teacher/local-demo-problem-bank';
 import type { CourseRecord } from '@/lib/utils/database';
 import type {
   TeacherStudioContentItem,
@@ -32,10 +33,14 @@ export const LOCAL_DEMO_TEACHER_HOME_COURSES: CourseRecord[] = [
   academicYear: 2026,
   academicTerm: 'summer' as const,
   notebookCount: 3 + (index % 4),
-  problemCount: 18 + index * 5,
+  problemCount: id === 'demo-csc148' ? LOCAL_DEMO_CSC148_PROBLEM_COUNT : 18 + index * 5,
   createdAt: LOCAL_DEMO_NOW - (index + 1) * 86_400_000,
   updatedAt: LOCAL_DEMO_NOW - index * 3_600_000,
 }));
+
+export function findLocalDemoTeacherHomeCourse(courseId: string): CourseRecord | undefined {
+  return LOCAL_DEMO_TEACHER_HOME_COURSES.find((course) => course.id === courseId);
+}
 
 export const LOCAL_DEMO_CURRENT_COURSE_SUMMARIES: AcademicCourseSummary[] =
   LOCAL_DEMO_TEACHER_HOME_COURSES.map((course, index) => ({

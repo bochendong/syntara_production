@@ -5,6 +5,12 @@ export const metadata: Metadata = {
   title: '教师工作台 · Syntara',
 };
 
-export default function TeacherDashboardPage() {
-  return <TeacherDashboardClient />;
+export default async function TeacherDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mock?: string }>;
+}) {
+  const query = await searchParams;
+  const mockMode = query.mock === '1';
+  return <TeacherDashboardClient mockMode={mockMode} />;
 }

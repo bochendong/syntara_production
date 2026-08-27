@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { Suspense, useState, useLayoutEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   CHAT_RIGHT_RAIL_COLLAPSED_STORAGE_KEY,
@@ -105,7 +105,6 @@ function MainShellNoRail({
 
 export function AppLayoutChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const isLogin = pathname === '/login' || pathname?.startsWith('/login/');
   const isTeacherLogin =
     pathname === '/teacher/login' || Boolean(pathname?.startsWith('/teacher/login/'));
@@ -124,8 +123,6 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   const isCsc148LocalPage = pathname === '/csc148' || Boolean(pathname?.startsWith('/csc148/'));
   const isCourseHome = pathname != null && /^\/course\/[^/]+\/?$/.test(pathname);
   const isCourseForum = pathname != null && /^\/course\/[^/]+\/forum(?:\/|$)/.test(pathname);
-  const isCourseProblemDetail =
-    pathname != null && /^\/course\/[^/]+\/problem-bank\/[^/]+\/?$/.test(pathname);
   const isCourseProblemBank =
     pathname != null && /^\/course\/[^/]+\/problem-bank(?:\/|$)/.test(pathname);
   const isCourseMemory = pathname != null && /^\/course\/[^/]+\/memory(?:\/|$)/.test(pathname);
@@ -139,11 +136,6 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
     Boolean(pathname?.startsWith('/learn/')) ||
     pathname === '/practice' ||
     Boolean(pathname?.startsWith('/practice/'));
-  const isLearnHome =
-    pathname === '/learn' &&
-    !searchParams.has('courseId') &&
-    !searchParams.has('sessionId') &&
-    !searchParams.has('debugNoCourses');
   const isCreatorV2 = pathname === '/creator' || Boolean(pathname?.startsWith('/creator/'));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed);
   const [chatRightCollapsed, setChatRightCollapsed] = useState(getInitialChatRightCollapsed);
@@ -195,11 +187,7 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   }
 
   if (isLearnV2) {
-    return (
-      <MainShellNoRail balancedInset edgeToEdge={isLearnHome}>
-        {children}
-      </MainShellNoRail>
-    );
+    return <MainShellNoRail edgeToEdge>{children}</MainShellNoRail>;
   }
 
   if (isCreatorV2) {
@@ -230,12 +218,8 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
     return <MainShellNoRail edgeToEdge>{children}</MainShellNoRail>;
   }
 
-  if (isCourseProblemDetail) {
-    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
-  }
-
   if (isCourseProblemBank) {
-    return <MainShellNoRail balancedInset>{children}</MainShellNoRail>;
+    return <MainShellNoRail edgeToEdge>{children}</MainShellNoRail>;
   }
 
   if (isCourseMemory) {

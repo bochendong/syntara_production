@@ -26,8 +26,14 @@ import {
 } from 'lucide-react';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
+import { CourseSpacePageFrame } from '@/components/course-space/course-space-page-frame';
+import {
+  COURSE_SPACE_BODY_SURFACE_CLASS,
+  resolveCourseSpaceHeaderFields,
+} from '@/lib/course-space/format-course-space-header';
 import { normalizeForumMarkdownForDisplay } from '@/lib/course-forum/markdown';
 import { ForumMarkdownEditor } from '@/components/course-forum/forum-markdown-editor';
+import { forumMarkdownDisplayClassName } from '@/components/course-forum/forum-markdown-display';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -53,8 +59,6 @@ import { cn } from '@/lib/utils';
 import { BackendApiError, backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 
-const TERM_LABEL = { winter: 'Winter', summer: 'Summer', fall: 'Fall' } as const;
-
 function initials(name: string) {
   const compact = name.trim();
   return compact.slice(0, 2).toUpperCase() || '同学';
@@ -77,15 +81,20 @@ function AuthorLine({
   author,
   time,
   label,
+  compact = false,
 }: {
   author: CourseForumAuthor;
   time: string;
   label?: '提问者' | '回答者' | '评论者';
+  compact?: boolean;
 }) {
   const prominent = Boolean(label);
   return (
-    <div className="flex min-w-0 items-center gap-2.5">
-      <Avatar size={prominent ? 'default' : 'sm'} className={prominent ? 'size-10' : 'size-7'}>
+    <div className={cn('flex min-w-0 items-center', compact ? 'gap-2' : 'gap-2.5')}>
+      <Avatar
+        size={prominent ? 'default' : 'sm'}
+        className={cn(prominent ? 'size-10' : compact ? 'size-6' : 'size-7')}
+      >
         {author.image ? <AvatarImage src={author.image} alt={author.name} /> : null}
         <AvatarFallback
           className={cn(
@@ -122,10 +131,7 @@ function AuthorLine({
 function ForumMarkdown({ children }: { children: string }) {
   const normalized = normalizeForumMarkdownForDisplay(children);
   return (
-    <MessageResponse
-      mode="static"
-      className="text-[15px] leading-7 text-slate-700 dark:text-slate-200 [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-slate-200 [&_pre]:bg-slate-950 [&_pre]:text-slate-100 dark:[&_pre]:border-white/10"
-    >
+    <MessageResponse mode="static" className={forumMarkdownDisplayClassName}>
       {normalized}
     </MessageResponse>
   );
@@ -405,10 +411,14 @@ export function CourseForumPageClient({
 
   const selected = snapshot?.selectedPost || null;
   const isTeacher = snapshot?.viewer.accessRole === 'owner';
-  const term = snapshot?.course.term ? TERM_LABEL[snapshot.course.term] : null;
   const courseHeading = snapshot
-    ? [snapshot.course.code, snapshot.course.academicYear, term].filter(Boolean).join(' · ')
-    : '课程论坛';
+    ? resolveCourseSpaceHeaderFields({
+        code: snapshot.course.code,
+        name: snapshot.course.name,
+        academicYear: snapshot.course.academicYear,
+        term: snapshot.course.term,
+      })
+    : { courseTitle: '课程论坛', courseMeta: undefined };
 
   const openPost = (postId: string) => {
     setSelectedPostId(postId);
@@ -606,47 +616,47 @@ export function CourseForumPageClient({
   }
 
   return (
-    <div className="min-h-dvh bg-slate-50 p-3 text-slate-950 dark:bg-slate-950 dark:text-white sm:p-4">
-      <main className="mx-auto flex min-h-[calc(100dvh-24px)] max-w-[1536px] flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950 sm:min-h-[calc(100dvh-32px)]">
-        {snapshot ? (
-          <CourseSpaceHeader
-            courseId={courseId}
-            courseTitle={courseHeading}
-            courseMeta={snapshot.course.name}
-            role={isTeacher ? 'teacher' : 'student'}
-            active="forum"
-            problemCount={snapshot.course.problemCount}
-            forumCount={snapshot.unresolvedCount}
-            previewMode={mockMode}
-            actions={
-              <>
-                <Button
-                  variant="outline"
-                  className="h-9 rounded-lg"
-                  onClick={() => void load({ postId: selectedPostId, quiet: true })}
-                  disabled={refreshing}
-                >
-                  <RefreshCw className={cn('mr-1.5 size-4', refreshing && 'animate-spin')} />
-                  刷新
-                </Button>
-                <Button
-                  className="h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => setNewPostOpen(true)}
-                >
-                  <Plus className="mr-1.5 size-4" />
-                  发布问题
-                </Button>
-              </>
-            }
-          />
-        ) : null}
+    <CourseSpacePageFrame>
+      {snapshot ? (
+        <CourseSpaceHeader
+          courseId={courseId}
+          courseTitle={courseHeading.courseTitle}
+          courseMeta={courseHeading.courseMeta}
+          role={isTeacher ? 'teacher' : 'student'}
+          active="forum"
+          problemCount={snapshot.course.problemCount}
+          forumCount={snapshot.unresolvedCount}
+          previewMode={mockMode}
+          actions={
+            <>
+              <Button
+                variant="outline"
+                className="h-8 rounded-lg"
+                onClick={() => void load({ postId: selectedPostId, quiet: true })}
+                disabled={refreshing}
+              >
+                <RefreshCw className={cn('mr-1.5 size-4', refreshing && 'animate-spin')} />
+                刷新
+              </Button>
+              <Button
+                className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => setNewPostOpen(true)}
+              >
+                <Plus className="mr-1.5 size-4" />
+                发布问题
+              </Button>
+            </>
+          }
+        />
+      ) : null}
 
-        {error ? (
-          <div className="border-b border-rose-200 bg-rose-50 px-5 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">
-            {error}
-          </div>
-        ) : null}
+      {error ? (
+        <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">
+          {error}
+        </div>
+      ) : null}
 
+      <section className={cn(COURSE_SPACE_BODY_SURFACE_CLASS, 'flex min-h-0 flex-1 flex-col')}>
         <div className="grid min-h-0 flex-1 lg:grid-cols-[390px_minmax(0,1fr)]">
           <aside className="flex min-h-[360px] flex-col border-b border-slate-200/80 bg-slate-50/70 dark:border-white/10 dark:bg-white/[0.025] lg:min-h-0 lg:border-r lg:border-b-0">
             <div className="border-b border-slate-200/80 p-4 dark:border-white/10">
@@ -680,20 +690,20 @@ export function CourseForumPageClient({
                         type="button"
                         onClick={() => openPost(post.id)}
                         className={cn(
-                          'w-full rounded-xl border border-violet-200/80 bg-white/90 px-3 py-3 text-left shadow-sm transition hover:border-violet-300 hover:bg-white dark:border-violet-400/20 dark:bg-white/5 dark:hover:bg-white/10',
+                          'w-full rounded-xl border border-violet-200/80 bg-white/90 px-3 py-2.5 text-left shadow-sm transition hover:border-violet-300 hover:bg-white dark:border-violet-400/20 dark:bg-white/5 dark:hover:bg-white/10',
                           selected?.id === post.id &&
                             'border-violet-400 ring-2 ring-violet-200/70 dark:border-violet-300/50 dark:ring-violet-400/20',
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <h2 className="line-clamp-2 min-w-0 flex-1 text-sm font-semibold leading-5">
+                          <h2 className="line-clamp-1 min-w-0 flex-1 text-[13px] font-semibold leading-4">
                             {post.title}
                           </h2>
-                          <Badge className="h-5 shrink-0 bg-violet-600 px-1.5 text-[10px] text-white hover:bg-violet-600">
+                          <Badge className="h-4 shrink-0 bg-violet-600 px-1.5 text-[10px] leading-none text-white hover:bg-violet-600">
                             {post.isWelcome ? '指南' : '置顶'}
                           </Badge>
                         </div>
-                        <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                        <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
                           {post.bodyPreview}
                         </p>
                       </button>
@@ -709,18 +719,18 @@ export function CourseForumPageClient({
                       type="button"
                       onClick={() => openPost(post.id)}
                       className={cn(
-                        'w-full px-4 py-4 text-left transition hover:bg-white dark:hover:bg-white/5',
+                        'w-full px-3 py-2.5 text-left transition hover:bg-white dark:hover:bg-white/5',
                         selected?.id === post.id &&
                           'bg-white shadow-[inset_3px_0_0_#7c3aed] dark:bg-white/5',
                       )}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <h2 className="line-clamp-2 min-w-0 flex-1 text-sm font-semibold leading-5">
+                      <div className="flex items-start justify-between gap-2">
+                        <h2 className="line-clamp-1 min-w-0 flex-1 text-[13px] font-semibold leading-4">
                           {post.title}
                         </h2>
                         <Badge
                           className={cn(
-                            'mt-0.5 h-5 shrink-0 px-1.5 text-[10px] font-semibold',
+                            'h-4 shrink-0 px-1.5 text-[10px] font-semibold leading-none',
                             post.resolved
                               ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-50 dark:bg-emerald-400/10 dark:text-emerald-200'
                               : 'bg-amber-50 text-amber-700 hover:bg-amber-50 dark:bg-amber-400/10 dark:text-amber-200',
@@ -729,9 +739,9 @@ export function CourseForumPageClient({
                           {post.resolved ? '已解决' : '未解决'}
                         </Badge>
                       </div>
-                      <div className="mt-3 flex items-center justify-between gap-3">
-                        <AuthorLine author={post.author} time={post.createdAt} />
-                        <div className="flex shrink-0 items-center gap-2 text-[11px] text-slate-400">
+                      <div className="mt-1.5 flex items-center justify-between gap-2">
+                        <AuthorLine author={post.author} time={post.createdAt} compact />
+                        <div className="flex shrink-0 items-center gap-1.5 text-[10px] text-slate-400">
                           <span className="inline-flex items-center gap-1">
                             <MessageSquareReply className="size-3" /> {post.answerCount}
                           </span>
@@ -1023,7 +1033,7 @@ export function CourseForumPageClient({
             )}
           </section>
         </div>
-      </main>
+      </section>
 
       <Dialog open={newPostOpen} onOpenChange={setNewPostOpen}>
         <DialogContent
@@ -1091,6 +1101,6 @@ export function CourseForumPageClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </CourseSpacePageFrame>
   );
 }

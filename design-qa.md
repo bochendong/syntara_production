@@ -520,3 +520,55 @@ final result: passed
 2. Final — removed the three sections and top header, renamed the section to Companion Role in Chinese, switched all five models to existing local poster assets, removed the preview runtime path and internal scroll container, and compacted the desktop selector into one row.
 
 final result: passed
+
+## 2026-08-27 Course-space header and mock parity QA
+
+
+**Source visual truth**
+
+- Browser Comment 1 and Browser Comment 2 attached to the course chat at `https://dev.notebookagent.space/learn?courseId=cmt3xh3cy000ljm04bm6b2qhz` (task attachment; no local filesystem path).
+- Source capture: 1470 × 837 px desktop viewport. The annotations require removing the in-content chat/forum switcher and placing one shared course header above the full page shell.
+
+**Implementation evidence**
+
+- Student course chat: `/private/tmp/syntara-student-course-header-final.png`
+- Teacher course workspace: `/private/tmp/syntara-teacher-course-header-final.png`
+- Implementation captures: 1280 × 720 px, CSS viewport 1280 × 720, device density 1.
+- State: local no-login mock, CSC148, light theme. Student and teacher roles were checked independently.
+- Primary interactions checked: course navigation presence, active item, role-specific item visibility, problem-bank visibility, forum count, and absence of the old in-content course switcher.
+- Console errors checked: none on the student chat, teacher course workspace, student problem bank, or student course forum.
+
+**Full-view comparison evidence**
+
+- The shared course header is now above the entire course workspace rather than inside the chat column.
+- The student chat, teacher workspace, problem bank, and course forum use the same header component and 48 px desktop height.
+- The student header contains chat, problem bank, and forum only. The teacher header additionally contains resources and student management.
+- The source and implementation captures use different desktop viewport widths, so exact horizontal pixel offsets were not compared. The responsive composition and region order were compared instead.
+
+**Focused region comparison evidence**
+
+- Header region: course identity remains on the left, navigation remains on the right, and the old second navigation row is absent.
+- Role region: student mock no longer inherits teacher-only navigation; teacher-only controls remain available in the teacher course workspace.
+- Typography, spacing, colors, icons, image quality, and copy were checked against the existing Syntara course-space language. Existing course avatars and Lucide icons are reused; no placeholder or synthetic assets were introduced.
+
+**Findings**
+
+- No actionable P0, P1, or P2 mismatch remains.
+- P3: course metadata is intentionally hidden at narrower desktop widths before the navigation wraps; the course title remains visible and the behavior avoids increasing header height.
+
+**Comparison history**
+
+- Pass 1 found a P1 role mismatch: the student mock was treated as a teacher and exposed Resources and Student Management. The preview-role rule was corrected so UI preview defaults to student unless `from=teacher` is explicit.
+- Pass 1 also found a P2 density issue: the shared header occupied about 60–70 px. Header padding, avatar, navigation controls, radius, and typography were tightened.
+- Pass 2 evidence shows a 48 px header on all four course surfaces, correct role-specific navigation, and no browser console errors.
+
+**Implementation checklist**
+
+- [x] Shared header above the complete course shell.
+- [x] Old in-chat course navigation removed.
+- [x] Teacher and student pages use the same component.
+- [x] Teacher-only controls remain permission-gated.
+- [x] Problem-bank button is hidden when the course has no questions.
+- [x] Desktop overflow and console errors checked.
+
+final result: passed

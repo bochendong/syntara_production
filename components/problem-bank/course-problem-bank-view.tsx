@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import {
   AlertCircle,
-  ArrowRightLeft,
   BookOpen,
   CheckCircle2,
   CheckSquare,
@@ -11,8 +10,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
-  Ellipsis,
-  ExternalLink,
   FileUp,
   ImagePlus,
   Loader2,
@@ -45,12 +42,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { AnswerComposer, AnswerComposerToolbar } from '@/components/problem-bank/answer-composer';
 import { ProblemDraftForm } from '@/components/problem-bank/problem-draft-form';
 import { ProblemLanguageToggle } from '@/components/problem-bank/problem-language-toggle';
@@ -100,8 +91,13 @@ import {
   type CourseProblemPracticeAttemptResolvedEvent,
 } from '@/components/problem-bank/use-course-problem-bank-controller';
 import { CourseProblemImportDialog } from '@/components/problem-bank/course-problem-import-dialog';
-import { ProblemAiHelpButton } from '@/components/problem-bank/problem-ai-help-drawer';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
+import {
+  COURSE_SPACE_BODY_SURFACE_CLASS,
+  resolveCourseSpaceHeaderFields,
+} from '@/lib/course-space/format-course-space-header';
+import { findLocalDemoTeacherHomeCourse } from '@/lib/teacher/local-demo-fixtures';
+import { isLocalDemoProblemBankCourse } from '@/lib/teacher/local-demo-problem-bank';
 import type { NotebookProblemClientRecord } from '@/lib/utils/notebook-problem-api';
 
 type PracticePaneId = 'left' | 'right';
@@ -157,7 +153,7 @@ const CODE_PRACTICE_TABS: CodePracticeTab[] = ['testcase', 'secret', 'code', 'ou
 const PRACTICE_TAB_DRAG_TYPE = 'application/x-openmaic-practice-tab';
 const DEFAULT_PRACTICE_PANE_TABS: PracticePaneTabs = {
   left: ['description', FORMULA_PRACTICE_TAB, 'edit'],
-  right: ['answer', 'preview', 'solution', 'history'],
+  right: ['answer', 'preview', 'history'],
 };
 
 type PracticeAiHelpState = {
@@ -836,10 +832,12 @@ export function CourseProblemBankView({
   onPracticeAttemptResolved,
   onPracticeHeaderStateChange,
   practiceAiHelp,
-  showStartPractice = true,
   showCourseTitle = true,
   showChromeBackground = true,
   showCourseNavigation = false,
+  previewMode = false,
+  previewAsTeacher = false,
+  forumCount,
 }: {
   courseId: string;
   initialNotebookId?: string;
@@ -859,10 +857,12 @@ export function CourseProblemBankView({
   onPracticeAttemptResolved?: (event: CourseProblemPracticeAttemptResolvedEvent) => void;
   onPracticeHeaderStateChange?: (state: CourseProblemPracticeHeaderState | null) => void;
   practiceAiHelp?: PracticeAiHelpController;
-  showStartPractice?: boolean;
   showCourseTitle?: boolean;
   showChromeBackground?: boolean;
   showCourseNavigation?: boolean;
+  previewMode?: boolean;
+  previewAsTeacher?: boolean;
+  forumCount?: number;
 }) {
   const view = useCourseProblemBankController({
     courseId,
@@ -872,6 +872,8 @@ export function CourseProblemBankView({
     initialPracticeAnswers,
     practiceProblemIds,
     mode,
+    previewMode,
+    previewAsTeacher,
     onPracticeAttemptResolved,
   });
   const {
@@ -883,6 +885,9 @@ export function CourseProblemBankView({
     codeAnswers,
     codeRunResults,
     courseAccessRole,
+    courseAcademicTerm,
+    courseAcademicYear,
+    courseCode,
     courseHasTranslations,
     courseName,
     currentNotebookProblemPosition,
@@ -1045,7 +1050,7 @@ export function CourseProblemBankView({
     selectedProblemSupportsPreviewTab,
     selectedProblemCodeTabs,
     practiceHeaderPlacement === 'external',
-    practiceHeaderPlacement === 'external',
+    true,
     Boolean(practiceAiHelp),
   );
   const normalizedPracticePaneActive = normalizePracticePaneActive(
@@ -1189,6 +1194,75 @@ export function CourseProblemBankView({
     selectedProblemLatestDetailedAttempt,
     selectedProblemNotebookLabel,
     selectedProblemTitle,
+  ]);
+
+  const courseSpaceHeaderActions = useMemo(() => {
+    if (
+      !isPracticeMode ||
+      !showCourseNavigation ||
+      !selectedProblem ||
+      practiceHeaderPlacement === 'external'
+    ) {
+      return null;
+    }
+
+    return (
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 shadow-none hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+          disabled={!headerPreviousPracticeTarget}
+          onClick={() => {
+            if (!headerPreviousPracticeTarget) return;
+            handlePracticeTargetChange(headerPreviousPracticeTarget);
+          }}
+          title={
+            headerPreviousPracticeTarget
+              ? headerPreviousPracticeTarget.title
+              : locale === 'zh-CN'
+                ? '没有上一题'
+                : 'No previous problem'
+          }
+        >
+          <ChevronLeft className="mr-1 h-4 w-4" />
+          {previousPracticeHeaderLabel}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 shadow-none hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+          disabled={!headerNextPracticeTarget}
+          onClick={() => {
+            if (!headerNextPracticeTarget) return;
+            handlePracticeTargetChange(headerNextPracticeTarget);
+          }}
+          title={
+            headerNextPracticeTarget
+              ? headerNextPracticeTarget.title
+              : locale === 'zh-CN'
+                ? '没有下一题'
+                : 'No next problem'
+          }
+        >
+          {nextPracticeHeaderLabel}
+          <ChevronRight className="ml-1 h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }, [
+    handlePracticeTargetChange,
+    headerNextPracticeTarget,
+    headerPreviousPracticeTarget,
+    isPracticeMode,
+    locale,
+    nextPracticeHeaderLabel,
+    practiceHeaderPlacement,
+    previousPracticeHeaderLabel,
+    selectedProblem,
+    showCourseNavigation,
   ]);
 
   useEffect(() => {
@@ -1964,29 +2038,46 @@ export function CourseProblemBankView({
           ? renderCodePracticePaneContent(tab)
           : renderAnswerPaneContent(tab);
 
+  const previewDemoCourse =
+    previewMode || isLocalDemoProblemBankCourse(courseId)
+      ? findLocalDemoTeacherHomeCourse(courseId)
+      : undefined;
+  const isTeacherCourseSpace =
+    (previewMode && previewAsTeacher) || courseAccessRole === 'owner';
+  const courseHeaderFields = resolveCourseSpaceHeaderFields({
+    courseCode: previewDemoCourse?.courseCode ?? courseCode,
+    code: previewDemoCourse?.courseCode ?? courseCode,
+    name: previewDemoCourse?.name ?? courseName,
+    academicYear: previewDemoCourse?.academicYear ?? courseAcademicYear,
+    academicTerm: previewDemoCourse?.academicTerm ?? courseAcademicTerm,
+  });
+
   return (
     <div
       className={cn(
-        'flex h-full min-h-0 w-full flex-col',
+        'flex h-full min-h-0 w-full flex-col gap-4 sm:gap-5',
+        isPracticeMode && 'min-h-0',
         showChromeBackground ? 'bg-[#f5f5f5] dark:bg-slate-950' : 'bg-transparent',
       )}
     >
       {showCourseNavigation ? (
         <CourseSpaceHeader
           courseId={courseId}
-          courseTitle={courseName || (locale === 'zh-CN' ? '课程题库' : 'Problem bank')}
-          courseMeta={
-            locale === 'zh-CN' ? `${problems.length} 道题` : `${problems.length} problems`
-          }
-          role={courseAccessRole === 'owner' ? 'teacher' : 'student'}
+          {...courseHeaderFields}
+          role={isTeacherCourseSpace ? 'teacher' : 'student'}
           active="problem-bank"
           problemCount={problems.length}
+          forumCount={forumCount}
+          previewMode={previewMode}
+          actions={courseSpaceHeaderActions}
         />
       ) : null}
 
       <div
         className={cn(
           'flex min-h-0 w-full flex-1 gap-2',
+          isPracticeMode && 'h-full min-h-0',
+          showCourseNavigation && COURSE_SPACE_BODY_SURFACE_CLASS,
           showChromeBackground
             ? cn(
                 isPracticeMode ? 'p-2' : 'p-2.5',
@@ -2077,36 +2168,6 @@ export function CourseProblemBankView({
                       ))}
                     </select>
                   </div>
-                  {showStartPractice ? (
-                    <Button
-                      type="button"
-                      disabled={filteredProblems.length === 0}
-                      onClick={() => {
-                        const firstProblem = filteredProblems[0];
-                        if (firstProblem) navigateToPracticeProblem(firstProblem);
-                      }}
-                      className={cn(
-                        'h-9 gap-1.5 rounded-lg px-3.5 text-[13px] font-semibold shadow-none',
-                        PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
-                      )}
-                    >
-                      <Play className="h-[15px] w-[15px]" />
-                      {locale === 'zh-CN' ? '开始练习' : 'Start practice'}
-                    </Button>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                  <span className="inline-flex items-center gap-1.5">
-                    <BookOpen className="h-3.5 w-3.5" />
-                    {locale === 'zh-CN'
-                      ? `当前筛选 ${filteredProblems.length} 题`
-                      : `${filteredProblems.length} filtered problems`}
-                  </span>
-                  <span>
-                    {locale === 'zh-CN'
-                      ? `第 ${currentProblemPage}/${problemPageCount} 页 · 每页 10 题`
-                      : `Page ${currentProblemPage}/${problemPageCount} · 10 per page`}
-                  </span>
                 </div>
                 {canEditProblems ? (
                   <div className="mt-3 grid grid-cols-2 gap-2 xl:hidden">
@@ -2644,7 +2705,7 @@ export function CourseProblemBankView({
         ) : null}
 
         {isPracticeMode ? (
-          <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="order-1 flex h-full min-h-0 min-w-0 flex-1 flex-col">
             {!selectedProblem ? (
               <div className="flex h-full w-full items-center justify-center rounded-2xl border border-slate-200 bg-white/80 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-400">
                 {loading ? (
@@ -2657,207 +2718,8 @@ export function CourseProblemBankView({
                 )}
               </div>
             ) : (
-              <>
-                {practiceHeaderPlacement === 'internal' ? (
-                  <div className="mb-2 flex min-h-11 shrink-0 flex-col gap-2 rounded-[10px] border border-slate-200 bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-950">
-                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 shrink-0 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-none hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-                        onClick={() => {
-                          if (onPracticeBack) {
-                            onPracticeBack();
-                            return;
-                          }
-                          router.push(
-                            courseAccessRole === 'owner'
-                              ? `/teacher/courses/${encodeURIComponent(courseId)}`
-                              : `/learn?courseId=${encodeURIComponent(courseId)}`,
-                          );
-                        }}
-                      >
-                        <ChevronLeft className="mr-1 h-4 w-4" />
-                        {practiceBackLabel ??
-                          (courseAccessRole === 'owner'
-                            ? locale === 'zh-CN'
-                              ? '返回课程主页'
-                              : 'Back to course'
-                            : locale === 'zh-CN'
-                              ? '返回课程聊天'
-                              : 'Back to chat')}
-                      </Button>
-                      <span className="inline-flex h-6 items-center rounded-full bg-slate-100 px-2 text-[11px] font-semibold text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-                        {isReviewPracticeMode && reviewPracticeIndex >= 0
-                          ? `${reviewPracticeIndex + 1}/${reviewPracticeProblems.length}`
-                          : currentNotebookProblemPosition > 0
-                            ? `${currentNotebookProblemPosition}/${practiceNavigationProblemCount}`
-                            : locale === 'zh-CN'
-                              ? '未归类'
-                              : 'Unassigned'}
-                      </span>
-                      <span className="inline-flex h-6 shrink-0 items-center rounded-full bg-sky-50 px-2 text-[11px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-100 dark:bg-sky-500/10 dark:text-sky-200 dark:ring-sky-500/20">
-                        {typeLabel(selectedProblem.type, locale)}
-                      </span>
-                      <strong
-                        className="min-w-[120px] flex-1 truncate text-sm font-semibold text-slate-950 dark:text-white"
-                        title={selectedProblemTitle}
-                      >
-                        <ProblemTitleText content={selectedProblemTitle} />
-                      </strong>
-                      <span className="hidden text-[11px] font-semibold text-slate-400 lg:inline">
-                        {difficultyLabel(selectedProblem.difficulty, locale)}
-                      </span>
-                    </div>
-
-                    <div className="flex shrink-0 flex-wrap items-center justify-between gap-1.5 sm:justify-end">
-                      <>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 rounded-md px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900"
-                          disabled={!headerPreviousPracticeTarget}
-                          onClick={() => {
-                            if (!headerPreviousPracticeTarget) return;
-                            handlePracticeTargetChange(headerPreviousPracticeTarget);
-                          }}
-                          title={
-                            headerPreviousPracticeTarget
-                              ? headerPreviousPracticeTarget.title
-                              : locale === 'zh-CN'
-                                ? '没有上一题'
-                                : 'No previous problem'
-                          }
-                        >
-                          <ChevronLeft className="mr-1 h-4 w-4" />
-                          {!isReviewPracticeMode && previousPracticeIsChapterJump
-                            ? locale === 'zh-CN'
-                              ? '上一章'
-                              : 'Prev chapter'
-                            : locale === 'zh-CN'
-                              ? '上一题'
-                              : 'Prev'}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 rounded-md px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900"
-                          disabled={!headerNextPracticeTarget}
-                          onClick={() => {
-                            if (!headerNextPracticeTarget) return;
-                            handlePracticeTargetChange(headerNextPracticeTarget);
-                          }}
-                          title={
-                            headerNextPracticeTarget
-                              ? headerNextPracticeTarget.title
-                              : locale === 'zh-CN'
-                                ? '没有下一题'
-                                : 'No next problem'
-                          }
-                        >
-                          {!isReviewPracticeMode && nextPracticeIsChapterJump
-                            ? locale === 'zh-CN'
-                              ? '下一章'
-                              : 'Next chapter'
-                            : locale === 'zh-CN'
-                              ? '下一题'
-                              : 'Next'}
-                          <ChevronRight className="ml-1 h-4 w-4" />
-                        </Button>
-                        <ProblemAiHelpButton
-                          courseId={courseId}
-                          problem={selectedProblem}
-                          problemTitle={selectedProblemTitle}
-                          problemContent={selectedProblemContent}
-                          notebook={selectedProblemNotebook}
-                          notebookLabel={selectedProblemNotebookLabel}
-                          locale={locale}
-                          currentAnswer={selectedProblemCurrentAnswer}
-                          latestAttempt={selectedProblemLatestDetailedAttempt}
-                        />
-                        {canEditProblems || selectedProblem.notebookId ? (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
-                                aria-label={locale === 'zh-CN' ? '更多操作' : 'More actions'}
-                              >
-                                <Ellipsis className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-44">
-                              {canEditProblems ? (
-                                <DropdownMenuItem onClick={() => setMoveDialogOpen(true)}>
-                                  <ArrowRightLeft className="h-4 w-4" />
-                                  {locale === 'zh-CN' ? '移动到其他笔记本' : 'Move to notebook'}
-                                </DropdownMenuItem>
-                              ) : null}
-                              {selectedProblem.notebookId ? (
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    router.push(`/classroom/${selectedProblem.notebookId}`)
-                                  }
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                  {locale === 'zh-CN' ? '打开对应笔记本' : 'Open notebook'}
-                                </DropdownMenuItem>
-                              ) : null}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ) : null}
-                      </>
-                      {canEditProblems ? (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="h-8 rounded-md px-2 text-xs font-semibold"
-                          title={locale === 'zh-CN' ? '删除题目' : 'Delete problem'}
-                          aria-label={locale === 'zh-CN' ? '删除题目' : 'Delete problem'}
-                          disabled={deletingProblem}
-                          onClick={() => {
-                            void handleDeleteProblem();
-                          }}
-                        >
-                          {deletingProblem ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                          <span className="hidden sm:inline">
-                            {locale === 'zh-CN' ? '删除题目' : 'Delete'}
-                          </span>
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-
-                {practiceHeaderPlacement === 'internal' ? (
-                  <div className="mb-2 h-[3px] shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                    <div
-                      className="h-full bg-gradient-to-r from-emerald-500 to-sky-500"
-                      style={{
-                        width: `${
-                          practiceNavigationProblemCount > 0
-                            ? Math.round(
-                                ((Math.max(1, currentNotebookProblemPosition) || 1) /
-                                  practiceNavigationProblemCount) *
-                                  100,
-                              )
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
-                ) : null}
-
-                <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto min-[981px]:grid-cols-[minmax(0,1fr)_minmax(22rem,1fr)] min-[981px]:overflow-hidden">
+              <div className="flex h-full min-h-0 flex-1 flex-col">
+                <div className="grid h-full min-h-0 flex-1 gap-2 overflow-y-auto min-[981px]:grid-cols-[minmax(0,1fr)_minmax(22rem,1fr)] min-[981px]:overflow-hidden">
                   <section className="flex min-h-[min(34rem,72dvh)] flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white min-[981px]:min-h-0 dark:border-slate-800 dark:bg-slate-950">
                     {renderPracticePaneHeader('left')}
                     {renderPracticePaneContent(visiblePracticePaneActive.left)}
@@ -2918,7 +2780,7 @@ export function CourseProblemBankView({
                     </DialogContent>
                   </Dialog>
                 ) : null}
-              </>
+              </div>
             )}
           </div>
         ) : null}

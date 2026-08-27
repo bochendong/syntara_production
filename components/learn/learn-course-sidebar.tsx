@@ -2,11 +2,9 @@
 
 import { useId, useMemo, useState } from 'react';
 import {
-  ArrowLeft,
   Loader2,
   MessageCircle,
   MoreHorizontal,
-  PanelLeftClose,
   Plus,
   Search,
   Trash2,
@@ -45,13 +43,11 @@ export type LearnCourseSidebarProps = {
   error?: string | null;
   interactionDisabled?: boolean;
   className?: string;
-  onShowAllCourses: () => void;
   onCreateSession: () => void;
   onSelectSession: (session: LearnCourseSidebarSession) => void;
   onDeleteSession: (session: LearnCourseSidebarSession) => void | Promise<void>;
   onShowAllSessions: () => void;
   onRetry?: () => void;
-  onCollapse?: () => void;
 };
 
 type SessionGroupKey = 'today' | 'recent' | 'older';
@@ -90,19 +86,17 @@ export function LearnCourseSidebar({
   course: _course,
   sessions,
   activeSessionId,
-  totalCount,
+  totalCount: _totalCount,
   loading = false,
-  hasMore = false,
+  hasMore: _hasMore = false,
   error,
   interactionDisabled = false,
   className,
-  onShowAllCourses,
   onCreateSession,
   onSelectSession,
   onDeleteSession,
   onShowAllSessions,
   onRetry,
-  onCollapse,
 }: LearnCourseSidebarProps) {
   const historyHeadingId = useId();
   const [groupingAnchor] = useState(Date.now);
@@ -113,7 +107,6 @@ export function LearnCourseSidebar({
     if (!active) return recent;
     return [...recent.slice(0, MAX_VISIBLE_SESSIONS - 1), active];
   }, [activeSessionId, sessions]);
-  const safeTotalCount = Math.max(totalCount, sessions.length);
   const groupedSessions = useMemo(() => {
     const todayStart = localDayStart(groupingAnchor);
     const sevenDayStart = recentSevenDayStart(groupingAnchor);
@@ -140,16 +133,6 @@ export function LearnCourseSidebar({
       )}
       aria-busy={loading}
     >
-      <button
-        type="button"
-        onClick={onShowAllCourses}
-        disabled={interactionDisabled}
-        className="flex h-[50px] w-full shrink-0 items-center gap-2.5 border-b border-slate-200/80 px-4 text-left text-[13px] font-medium text-slate-600 outline-none transition hover:bg-white/65 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-300 disabled:pointer-events-none disabled:opacity-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/[0.04] dark:hover:text-white dark:focus-visible:ring-sky-300/30"
-      >
-        <ArrowLeft className="size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-        <span>所有课程</span>
-      </button>
-
       <section className="shrink-0 px-3 pb-3 pt-4" aria-labelledby={historyHeadingId}>
         <div className="flex items-center justify-between gap-3 px-1">
           <div>
@@ -173,20 +156,6 @@ export function LearnCourseSidebar({
             >
               <Search className="size-4" strokeWidth={1.8} aria-hidden="true" />
             </Button>
-            {onCollapse ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={onCollapse}
-                disabled={interactionDisabled}
-                className="rounded-full text-slate-500 hover:bg-white hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-white"
-                aria-label="收起会话历史"
-                title="收起会话历史"
-              >
-                <PanelLeftClose className="size-4" strokeWidth={1.8} aria-hidden="true" />
-              </Button>
-            ) : null}
           </div>
         </div>
 
@@ -325,22 +294,6 @@ export function LearnCourseSidebar({
           </p>
         )}
       </nav>
-
-      <div className="shrink-0 border-t border-slate-200/80 p-3 dark:border-white/10">
-        <button
-          type="button"
-          onClick={onShowAllSessions}
-          disabled={interactionDisabled || loading}
-          className="flex min-h-9 w-full items-center rounded-[10px] px-2.5 text-left text-[12px] font-semibold text-slate-600 outline-none transition hover:bg-white/80 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-sky-300 disabled:pointer-events-none disabled:opacity-50 dark:text-slate-300 dark:hover:bg-white/[0.06] dark:hover:text-white dark:focus-visible:ring-sky-300/30"
-        >
-          <span>查看全部会话</span>
-          <span className="ml-auto mr-2 font-medium tabular-nums text-slate-400">
-            {safeTotalCount}
-            {hasMore ? '+' : ''}
-          </span>
-          <Search className="size-3.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-        </button>
-      </div>
     </div>
   );
 }

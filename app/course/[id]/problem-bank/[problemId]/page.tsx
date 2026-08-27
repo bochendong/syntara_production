@@ -1,7 +1,11 @@
 import { CourseProblemBankView } from '@/components/problem-bank/course-problem-bank-view';
+import { CourseSpacePageFrame } from '@/components/course-space/course-space-page-frame';
 import type { CourseProblemBankInitialFilters } from '@/components/problem-bank/use-course-problem-bank-controller';
+import { isLocalDemoProblemBankCourse } from '@/lib/teacher/local-demo-problem-bank';
 
 type CourseProblemPracticeSearchParams = {
+  mock?: string | string[];
+  asTeacher?: string | string[];
   notebookId?: string | string[];
   notebookFilter?: string | string[];
   q?: string | string[];
@@ -40,15 +44,23 @@ export default async function CourseProblemPracticePage({
   const notebookId = resolvedSearchParams.notebookId;
   const initialNotebookId = typeof notebookId === 'string' ? notebookId : undefined;
   const initialFilters = initialFiltersFromSearchParams(resolvedSearchParams);
+  const previewMode =
+    firstSearchParam(resolvedSearchParams.mock) === '1' || isLocalDemoProblemBankCourse(id);
+  const previewAsTeacher = firstSearchParam(resolvedSearchParams.asTeacher) === '1';
 
   return (
-    <CourseProblemBankView
-      courseId={id}
-      initialNotebookId={initialNotebookId}
-      initialProblemId={problemId}
-      initialFilters={initialFilters}
-      mode="practice"
-      showCourseNavigation
-    />
+    <CourseSpacePageFrame variant="fill">
+      <CourseProblemBankView
+        courseId={id}
+        initialNotebookId={initialNotebookId}
+        initialProblemId={problemId}
+        initialFilters={initialFilters}
+        mode="practice"
+        showCourseNavigation
+        showChromeBackground={false}
+        previewMode={previewMode}
+        previewAsTeacher={previewAsTeacher}
+      />
+    </CourseSpacePageFrame>
   );
 }

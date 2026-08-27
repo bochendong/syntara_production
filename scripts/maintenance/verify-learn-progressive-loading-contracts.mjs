@@ -293,19 +293,19 @@ requirePattern(
 );
 requirePattern(
   learnPage,
-  /data-testid="learn-surface-status"[\s\S]*learnSurfaceStatusItems\.map/,
-  'the visible header must expose independent surface statuses',
+  /const learnSurfaceStatusItems: LearnSurfaceStatusItem\[\] = \[/,
+  'the course chat surface must keep the independent surface status model',
 );
 for (const label of ['题库', '笔记本']) {
   requirePattern(
-    surfaceStatusBlock,
+    learnPage,
     new RegExp(`label:\\s*'${label}'`),
     `the visible status model must include ${label}`,
   );
 }
 requirePattern(
-  surfaceStatusBlock,
-  /label:\s*'笔记本'[\s\S]{0,500}deferredWhenListIdle:\s*true/,
+  learnPage,
+  /const notebookSurfaceStatus[\s\S]{0,800}label:\s*'笔记本'[\s\S]{0,800}deferredWhenListIdle:\s*true/,
   'an untouched notebook list must remain visibly deferred instead of pretending to load',
 );
 requirePattern(

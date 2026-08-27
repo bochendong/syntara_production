@@ -3,6 +3,7 @@ import type {
   CourseForumSnapshot,
   CourseForumStatusFilter,
 } from '@/features/course-forum/domain/course-forum';
+import { findLocalDemoTeacherHomeCourse } from '@/lib/teacher/local-demo-fixtures';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -401,14 +402,16 @@ export function buildCourseForumMockSnapshot(args: {
     filtered[0] ||
     null;
 
+  const demoCourse = findLocalDemoTeacherHomeCourse(args.courseId);
+
   return {
     course: {
       id: args.courseId,
-      name: 'Introduction to Computer Science',
-      code: 'CSC108',
-      academicYear: 2026,
-      term: 'fall',
-      problemCount: 24,
+      name: demoCourse?.name ?? '程序设计基础',
+      code: demoCourse?.courseCode ?? 'CSC148',
+      academicYear: demoCourse?.academicYear ?? 2026,
+      term: demoCourse?.academicTerm ?? 'summer',
+      problemCount: demoCourse?.problemCount ?? 24,
     },
     viewer: {
       ...(args.asTeacher ? authors.teacher : authors.alice),

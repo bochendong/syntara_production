@@ -31,7 +31,6 @@ import {
   Maximize2,
   MessageCircle,
   MessageSquarePlus,
-  MessagesSquare,
   Minimize2,
   MoreHorizontal,
   Network,
@@ -262,7 +261,13 @@ import {
 import type { NotebookProblemAttemptAnswer } from '@/lib/problem-bank';
 import type { ProviderId } from '@/lib/ai/providers';
 import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
-import { CourseSpaceNavigation } from '@/components/course-space/course-space-header';
+import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
+import { CourseSpacePageFrame } from '@/components/course-space/course-space-page-frame';
+import {
+  COURSE_SPACE_BODY_SURFACE_CLASS,
+  resolveCourseSpaceHeaderFields,
+} from '@/lib/course-space/format-course-space-header';
+import { findLocalDemoTeacherHomeCourse } from '@/lib/teacher/local-demo-fixtures';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/notifications/client-toast';
 import type { CourseRecord } from '@/lib/utils/database';
@@ -2778,6 +2783,13 @@ function buildLearnModelOptions(
     }
   }
   return options;
+}
+
+function formatCalendarLoadErrorLabel(error: string): string {
+  if (/401|unauthorized/i.test(error)) return '日历暂不可用';
+  if (/403|forbidden/i.test(error)) return '暂无访问权限';
+  if (error.length > 20) return '日历加载失败';
+  return error;
 }
 
 const courseMarkdownClassName = cn(
@@ -7642,7 +7654,8 @@ export function LearnPageClient() {
   const localUserId = userId || (uiPreviewMode ? 'ui-preview-student' : 'anonymous');
   const canManageCourseContent = portalRole === 'TEACHER' || portalRole === 'ADMIN';
   const teacherChatMode = searchParams.get('from') === 'teacher';
-  const studentPreviewMode = searchParams.get('asStudent') === '1';
+  const studentPreviewMode =
+    searchParams.get('asStudent') === '1' || (uiPreviewMode && !teacherChatMode);
   const isTeacherCourseChat = !studentPreviewMode && (canManageCourseContent || teacherChatMode);
   const isStudentCourseChat = !isTeacherCourseChat;
   // 学生在课程聊天内继续使用课程工具侧栏；教师聊天保持精简的双栏布局。
@@ -9650,6 +9663,7 @@ export function LearnPageClient() {
     }
     if (uiPreviewMode && urlCourseId) {
       const previewCourse =
+        findLocalDemoTeacherHomeCourse(urlCourseId) ??
         LEARN_HOME_PREVIEW_COURSES.find((course) => course.id === urlCourseId) ??
         courseShellFromUrl(urlCourseId, {
           id: urlCourseId,
@@ -15868,10 +15882,23 @@ export function LearnPageClient() {
       deferredWhenListIdle: true,
     }),
   };
+  const problemSurfaceStatus: LearnSurfaceStatusItem = {
+    key: 'problems',
+    label: '题库',
+    ...resourceSurfaceStatusFromContentOrList({
+      activeCourseId,
+      listState: problemsLoadState,
+      content: activeCourseContentState?.problems,
+      contentReady: contentStateReady,
+      listHydrationWanted: problemsHydrationWanted,
+      deferredWhenListIdle: true,
+    }),
+  };
   const learnSurfaceStatusItems: LearnSurfaceStatusItem[] = [
     courseSurfaceStatus,
     conversationSurfaceStatus,
     notebookSurfaceStatus,
+    problemSurfaceStatus,
     isTeacherCourseChat
       ? {
           key: 'teacher-agent',
@@ -15888,6 +15915,7 @@ export function LearnPageClient() {
           detail: '只读取当前进度开放的笔记本和 Hard Rule；日历变更必须经你确认。',
         },
   ];
+  void learnSurfaceStatusItems;
   // Students consume the teacher-published notebook projection and cannot read
   // or repair the teacher's private source catalog. Keep source-ingest/index
   // health actionable by showing it only in the teacher course-chat surface.
@@ -16035,11 +16063,16 @@ export function LearnPageClient() {
         </p>
       ) : null}
       {calendarLoadError ? (
-        <div className="mt-3 flex items-center justify-between gap-2 rounded-[12px] bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-400/10 dark:text-rose-100">
-          <span className="min-w-0 truncate">{calendarLoadError}</span>
+        <div
+          className="mt-3 inline-flex max-w-[13.5rem] items-center gap-2 rounded-[10px] bg-rose-50 px-2.5 py-1.5 text-[11px] leading-4 text-rose-700 dark:bg-rose-400/10 dark:text-rose-100"
+          title={calendarLoadError}
+        >
+          <span className="min-w-0 truncate">
+            {formatCalendarLoadErrorLabel(calendarLoadError)}
+          </span>
           <button
             type="button"
-            className="inline-flex shrink-0 items-center gap-1 font-semibold"
+            className="inline-flex shrink-0 items-center gap-0.5 font-semibold"
             onClick={() => void reloadCalendarEvents().catch(() => undefined)}
           >
             <RefreshCw className="size-3" aria-hidden="true" />
@@ -17781,8 +17814,13 @@ export function LearnPageClient() {
             </p>
           ) : null}
           {calendarLoadError ? (
-            <div className="mx-5 mb-3 flex items-center justify-between gap-3 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700 sm:mx-6 dark:bg-rose-400/10 dark:text-rose-100">
-              <span className="min-w-0 truncate">{calendarLoadError}</span>
+            <div
+              className="mx-5 mb-3 inline-flex max-w-[min(100%,20rem)] items-center gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700 sm:mx-6 dark:bg-rose-400/10 dark:text-rose-100"
+              title={calendarLoadError}
+            >
+              <span className="min-w-0 truncate">
+                {formatCalendarLoadErrorLabel(calendarLoadError)}
+              </span>
               <button
                 type="button"
                 className="inline-flex shrink-0 items-center gap-1 font-semibold"
@@ -18164,7 +18202,6 @@ export function LearnPageClient() {
         hasMore={activeLearnSessionListState.hasMore}
         error={activeLearnSessionListState.error}
         interactionDisabled={sending}
-        onShowAllCourses={() => router.push('/learn')}
         onCreateSession={createNewLearnSession}
         onSelectSession={(session) => selectLearnSession(session.id)}
         onDeleteSession={(session) => {
@@ -18173,7 +18210,6 @@ export function LearnPageClient() {
         }}
         onShowAllSessions={() => setAllSessionsDialogOpen(true)}
         onRetry={() => setLearnSessionListRefreshAttempt((current) => current + 1)}
-        onCollapse={() => persistLeftRailCollapsed(true)}
       />
     ) : (
       legacySessionsPanel
@@ -18201,40 +18237,6 @@ export function LearnPageClient() {
       },
     },
   ] as const;
-
-  const compactCourseToolsPanel = (
-    <div className="flex min-h-0 flex-1 flex-col items-center bg-slate-50/80 px-1 py-3 dark:bg-slate-950/40">
-      <span
-        className="mb-3 grid size-9 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/[0.06] dark:text-slate-300 dark:ring-white/10"
-        title="课程工具"
-        aria-hidden="true"
-      >
-        <Target className="size-4" strokeWidth={1.75} />
-      </span>
-      <nav
-        className="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto"
-        aria-label="课程工具"
-      >
-        {courseToolButtons.map(({ key, label, Icon, active, onSelect }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={onSelect}
-            className={cn(
-              'flex size-10 items-center justify-center rounded-full bg-background text-muted-foreground shadow-sm ring-1 ring-border/70 transition hover:text-foreground',
-              active
-                ? 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-400/10 dark:text-sky-200 dark:ring-sky-300/20'
-                : null,
-            )}
-            aria-label={label}
-            title={label}
-          >
-            <Icon className="size-[18px]" strokeWidth={1.75} />
-          </button>
-        ))}
-      </nav>
-    </div>
-  );
 
   const courseContextPanel = (
     <div
@@ -18279,25 +18281,8 @@ export function LearnPageClient() {
         </>
       ) : (
         <>
-          <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold tracking-[-0.01em] text-slate-950 dark:text-white">
-                课程工具
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => persistRightRailCollapsed(true)}
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-background text-muted-foreground shadow-sm ring-1 ring-border/70 transition hover:text-foreground"
-              aria-label="收起右侧栏"
-              title="收起右侧栏"
-            >
-              <ChevronRight className="size-4" strokeWidth={1.75} />
-            </button>
-          </div>
-
           <nav
-            className="mt-4 grid grid-cols-2 gap-[3px] rounded-[10px] bg-slate-100/80 p-[3px] dark:bg-white/5"
+            className="grid grid-cols-2 gap-[3px] rounded-[10px] bg-slate-100/80 p-[3px] dark:bg-white/5"
             aria-label="课程工具"
           >
             {courseToolButtons.map(({ key, label, Icon, active, onSelect }) => (
@@ -18460,43 +18445,6 @@ export function LearnPageClient() {
                 </button>
               </section>
 
-              <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
-                <div className="flex items-center gap-2">
-                  <MessagesSquare className="size-4 text-muted-foreground" strokeWidth={1.8} />
-                  <p className="text-sm font-semibold text-foreground">课程论坛</p>
-                </div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  向老师和同学提问，查看课程讨论与已解决的问题。
-                </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(`/course/${encodeURIComponent(activeCourseId || '')}/forum`)
-                  }
-                  disabled={!activeCourseId}
-                  className={cn(
-                    rightRailRowClassName,
-                    'mt-3 flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-violet-300 hover:bg-violet-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-100 disabled:pointer-events-none disabled:opacity-50 dark:hover:border-violet-300/30 dark:hover:bg-violet-400/10 dark:focus-visible:ring-violet-300/20',
-                  )}
-                >
-                  <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-violet-50 text-violet-700 shadow-sm ring-1 ring-violet-200/70 dark:bg-violet-400/10 dark:text-violet-200 dark:ring-violet-300/15">
-                    <MessageCircle className="size-4" strokeWidth={1.8} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs font-semibold text-foreground">
-                      打开课程论坛
-                    </span>
-                    <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                      提问、回答与查看置顶通知
-                    </span>
-                  </span>
-                  <ChevronRight
-                    className="size-3.5 shrink-0 text-muted-foreground"
-                    strokeWidth={1.8}
-                  />
-                </button>
-              </section>
-
               {activeCourse && canManageCourseContent ? (
                 <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
                   <div className="flex items-center gap-2">
@@ -18564,849 +18512,797 @@ export function LearnPageClient() {
 
   return (
     <>
-      <div
-        data-learn-background-shell={learnBackgroundId}
-        className={cn(
-          'learn-course-shell relative isolate grid h-full min-h-0 overflow-hidden text-foreground transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]',
-          // Fixed left/center/right proportions at every viewport size (lg+).
-          // Teachers don't use the student course-tools right rail.
-          showRightRail &&
-            !leftRailCollapsed &&
-            !rightRailCollapsed &&
-            'lg:grid-cols-[18%_minmax(0,1fr)_22%]',
-          showRightRail &&
-            leftRailCollapsed &&
-            !rightRailCollapsed &&
-            'lg:grid-cols-[4.5rem_minmax(0,1fr)_22%]',
-          showRightRail &&
-            !leftRailCollapsed &&
-            rightRailCollapsed &&
-            'lg:grid-cols-[18%_minmax(0,1fr)_4.5rem]',
-          showRightRail &&
-            leftRailCollapsed &&
-            rightRailCollapsed &&
-            'lg:grid-cols-[4.5rem_minmax(0,1fr)_4.5rem]',
-          !showRightRail && !leftRailCollapsed && 'lg:grid-cols-[18%_minmax(0,1fr)]',
-          !showRightRail && leftRailCollapsed && 'lg:grid-cols-[4.5rem_minmax(0,1fr)]',
-        )}
-      >
-        <LearnBackgroundVisual
-          backgroundId={learnBackgroundId}
-          className="pointer-events-none absolute inset-0 z-0"
-        />
-        <div
-          className="pointer-events-none absolute inset-0 z-[1] bg-white/28 backdrop-blur-[2px] dark:bg-slate-950/42"
-          aria-hidden="true"
-        />
-
-        <aside className="relative z-10 hidden min-h-0 flex-col overflow-hidden border-r border-slate-200/80 bg-slate-50/90 backdrop-blur-xl lg:flex dark:border-white/10 dark:bg-slate-950/90">
-          {sessionsPanel}
-        </aside>
-
-        <main className="relative z-10 flex min-h-[70dvh] flex-col overflow-hidden bg-white/[0.86] backdrop-blur-xl lg:min-h-0 dark:bg-slate-950/[0.86]">
-          <header className="shrink-0 border-b border-slate-200/80 bg-white/80 px-6 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/80">
-            <div className="flex w-full items-center justify-between gap-3">
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                {activeCourse ? (
-                  <CourseAvatar course={activeCourse} className="size-10 rounded-[12px]" />
-                ) : null}
-                <div className="min-w-0 flex-1">
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <h1 className="min-w-0 truncate text-sm font-semibold leading-5 text-slate-950 dark:text-slate-50">
-                        {activeCourse?.name || '学习聊天'}
-                      </h1>
-                      <p className="shrink-0 truncate text-[11px] font-medium leading-4 text-slate-400">
-                        {activeCourse?.courseCode ||
-                          (activeCourse ? '当前课程上下文' : '等待添加课程上下文')}
-                      </p>
-                      {hasCourseSyncError ? (
-                        <button
-                          type="button"
-                          onClick={retryFailedCourseContent}
-                          className={cn(
-                            'inline-flex h-6 min-w-0 items-center gap-1.5 rounded-[8px] border px-2 text-left text-[10px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
-                            courseSyncUsesLocalFallback
-                              ? 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15'
-                              : 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15',
-                          )}
-                          title={courseSyncErrorTitle}
-                        >
-                          <RefreshCw className="size-3 shrink-0" aria-hidden="true" />
-                          <span className="truncate">
-                            {courseSyncUsesLocalFallback
-                              ? '对话同步异常，点击重试'
-                              : '部分内容同步失败，点击重试'}
-                          </span>
-                        </button>
-                      ) : null}
-                      {activeCourseSourceHealthNotice ? (
-                        <button
-                          type="button"
-                          onClick={openSourceUploadPanel}
-                          className={cn(
-                            'inline-flex h-6 min-w-0 items-center gap-1.5 rounded-[8px] border px-2 text-left text-[10px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
-                            activeCourseSourceHealthNotice.tone === 'error'
-                              ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15'
-                              : 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15',
-                          )}
-                          title={activeCourseSourceHealthNotice.detail}
-                          aria-label={`${activeCourseSourceHealthNotice.label}，打开原始讲义库`}
-                          data-testid="learn-source-health-warning"
-                        >
-                          {activeCourseSourceHealthNotice.tone === 'error' ? (
-                            <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
-                          ) : (
-                            <Loader2
-                              className="size-3 shrink-0 animate-spin motion-reduce:animate-none"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
-                        </button>
-                      ) : null}
-                    </div>
-                    {activeCourse ? (
-                      <div
-                        className="mt-1 flex min-w-0 flex-wrap items-center gap-1"
-                        role="status"
-                        aria-live="polite"
-                        aria-label={learnSurfaceStatusItems
-                          .map((item) => `${item.label}${item.statusLabel}`)
-                          .join('，')}
-                        data-testid="learn-surface-status"
-                      >
-                        {learnSurfaceStatusItems.map((item) => (
-                          <span
-                            key={item.key}
-                            className={cn(
-                              'inline-flex h-5 min-w-0 items-center gap-1 rounded-full border px-1.5 text-[9px] font-semibold leading-none',
-                              item.status === 'loading' &&
-                                'border-slate-200/80 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300',
-                              item.status === 'deferred' &&
-                                'border-slate-200/80 bg-white text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300',
-                              item.status === 'ready' &&
-                                'border-emerald-200/80 bg-emerald-50/80 text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-400/10 dark:text-emerald-100',
-                              item.status === 'empty' &&
-                                'border-slate-200/80 bg-white text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300',
-                              item.status === 'local' &&
-                                'border-amber-200/80 bg-amber-50/80 text-amber-700 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100',
-                              item.status === 'error' &&
-                                'border-rose-200/80 bg-rose-50/80 text-rose-700 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100',
-                            )}
-                            title={
-                              item.detail
-                                ? `${item.label}：${item.statusLabel}\n${item.detail}`
-                                : `${item.label}：${item.statusLabel}`
-                            }
-                          >
-                            {item.status === 'loading' ? (
-                              <Loader2
-                                className="size-2.5 shrink-0 animate-spin motion-reduce:animate-none"
-                                aria-hidden="true"
-                              />
-                            ) : item.status === 'deferred' ? (
-                              <BookOpen
-                                className="size-2.5 shrink-0"
-                                strokeWidth={1.8}
-                                aria-hidden="true"
-                              />
-                            ) : item.status === 'error' || item.status === 'local' ? (
-                              <AlertTriangle className="size-2.5 shrink-0" aria-hidden="true" />
-                            ) : (
-                              <CheckCircle2 className="size-2.5 shrink-0" aria-hidden="true" />
-                            )}
-                            <span className="truncate">{item.label}</span>
-                            <span className="truncate opacity-75">{item.statusLabel}</span>
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                {activeCourse ? (
-                  <>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          className="size-9 rounded-[11px] border-slate-200 bg-white shadow-sm lg:hidden dark:border-white/10 dark:bg-white/5"
-                          aria-label="打开课程导航"
-                        >
-                          <MoreHorizontal className="size-4" strokeWidth={1.9} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        sideOffset={8}
-                        className="w-60 rounded-[14px] p-1.5"
-                      >
-                        <DropdownMenuLabel>课程导航</DropdownMenuLabel>
-                        <DropdownMenuItem onSelect={() => router.push('/learn')}>
-                          <ArrowLeft className="size-4" strokeWidth={1.8} />
-                          所有课程
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          disabled={sending}
-                          onSelect={hasActiveCourse ? createNewLearnSession : undefined}
-                        >
-                          <MessageSquarePlus className="size-4" strokeWidth={1.8} />
-                          新对话
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => setAllSessionsDialogOpen(true)}>
-                          <MessageCircle className="size-4" strokeWidth={1.8} />
-                          会话历史
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {courseRailTools.map((tool) => {
-                          const Icon = tool.Icon;
-                          return (
-                            <DropdownMenuItem key={tool.label} onSelect={tool.onSelect}>
-                              <Icon className="size-4" strokeWidth={1.8} />
-                              {tool.label}
-                              <DropdownMenuShortcut className="max-w-28 truncate tracking-normal">
-                                {tool.description}
-                              </DropdownMenuShortcut>
-                            </DropdownMenuItem>
-                          );
-                        })}
-                        {!missingLearningSetup && !snapshot?.progressKnown ? (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onSelect={() => addProgressRequestMessage({ snapshot })}
-                            >
-                              <Target className="size-4" strokeWidth={1.8} />
-                              {isResearchCourse ? '更新研究进度' : '更新学习进度'}
-                            </DropdownMenuItem>
-                          </>
-                        ) : null}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    {!isTeacherCourseChat ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="outline"
-                            onClick={() => setMemoryActivityDialogOpen(true)}
-                            className="learn-memory-orb-button size-9 rounded-full border-transparent p-0 text-white shadow-sm hover:text-white focus-visible:ring-sky-200"
-                            data-memory-state={platformMemoryState}
-                            aria-label={platformMemoryButtonLabel}
-                          >
-                            <span className="learn-memory-orb-core" aria-hidden="true">
-                              <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-a" />
-                              <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-b" />
-                              <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-c" />
-                              <span className="learn-memory-orb-star" />
-                            </span>
-                            {platformMemoryBadgeCount > 0 ? (
-                              <span
-                                className={cn(
-                                  'absolute -right-1.5 -top-1.5 z-20 grid min-w-5 place-items-center rounded-full border border-white px-1 text-[10px] font-bold leading-5 shadow-sm dark:border-slate-950',
-                                  platformMemoryState === 'writing'
-                                    ? 'bg-amber-400 text-amber-950'
-                                    : 'bg-sky-500 text-white',
-                                )}
-                                aria-hidden="true"
-                              >
-                                {platformMemoryBadgeCount > 9 ? '9+' : platformMemoryBadgeCount}
-                              </span>
-                            ) : null}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" align="end" className="font-medium">
-                          {platformMemoryTooltip}
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
-            </div>
-            {activeCourse ? (
-              <CourseSpaceNavigation
-                courseId={activeCourse.id}
-                role={isTeacherCourseChat ? 'teacher' : 'student'}
-                active="chat"
-                problemCount={activeCourse.problemCount}
-                previewMode={uiPreviewMode}
-                className="mt-2 w-fit max-w-full"
-              />
-            ) : null}
-          </header>
-
-          <div
-            ref={conversationScrollContainerRef}
-            onScroll={handleConversationScroll}
-            className="min-h-0 flex-1 overflow-y-auto bg-white/62 px-6 py-5 dark:bg-slate-950/62"
-          >
-            <div className="flex min-h-full w-full flex-col gap-4">
-              {remoteConversationMessagePage?.hasMore || remoteConversationMessagePage?.error ? (
-                <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-1.5">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void loadOlderLearnMessages()}
-                    disabled={remoteConversationMessagePage.loading}
-                    className="h-8 rounded-full px-3 text-xs"
+      <CourseSpacePageFrame variant="fill">
+        {activeCourse ? (
+          <CourseSpaceHeader
+            courseId={activeCourse.id}
+            {...resolveCourseSpaceHeaderFields({
+              id: activeCourse.id,
+              courseCode: activeCourse.courseCode,
+              name: activeCourse.name,
+              academicYear: activeCourse.academicYear,
+              academicTerm: activeCourse.academicTerm,
+            })}
+            courseAvatarUrl={activeCourse.avatarUrl}
+            role={isTeacherCourseChat ? 'teacher' : 'student'}
+            active="chat"
+            problemCount={
+              activeCourse.problemCount ??
+              findLocalDemoTeacherHomeCourse(activeCourse.id)?.problemCount
+            }
+            previewMode={uiPreviewMode}
+            className="relative z-20"
+            actions={
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      className="size-8 rounded-lg border-slate-200 bg-white shadow-sm lg:hidden dark:border-white/10 dark:bg-white/5"
+                      aria-label="打开课程导航"
+                    >
+                      <MoreHorizontal className="size-4" strokeWidth={1.9} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    sideOffset={8}
+                    className="w-60 rounded-[14px] p-1.5"
                   >
-                    {remoteConversationMessagePage.loading ? (
+                    <DropdownMenuLabel>课程导航</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      disabled={sending}
+                      onSelect={hasActiveCourse ? createNewLearnSession : undefined}
+                    >
+                      <MessageSquarePlus className="size-4" strokeWidth={1.8} />
+                      新对话
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setAllSessionsDialogOpen(true)}>
+                      <MessageCircle className="size-4" strokeWidth={1.8} />
+                      会话历史
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {courseRailTools.map((tool) => {
+                      const Icon = tool.Icon;
+                      return (
+                        <DropdownMenuItem key={tool.label} onSelect={tool.onSelect}>
+                          <Icon className="size-4" strokeWidth={1.8} />
+                          {tool.label}
+                          <DropdownMenuShortcut className="max-w-28 truncate tracking-normal">
+                            {tool.description}
+                          </DropdownMenuShortcut>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                    {!missingLearningSetup && !snapshot?.progressKnown ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => addProgressRequestMessage({ snapshot })}>
+                          <Target className="size-4" strokeWidth={1.8} />
+                          {isResearchCourse ? '更新研究进度' : '更新学习进度'}
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {!isTeacherCourseChat ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => setMemoryActivityDialogOpen(true)}
+                        className="learn-memory-orb-button size-8 rounded-full border-transparent p-0 text-white shadow-sm hover:text-white focus-visible:ring-sky-200"
+                        data-memory-state={platformMemoryState}
+                        aria-label={platformMemoryButtonLabel}
+                      >
+                        <span className="learn-memory-orb-core" aria-hidden="true">
+                          <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-a" />
+                          <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-b" />
+                          <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-c" />
+                          <span className="learn-memory-orb-star" />
+                        </span>
+                        {platformMemoryBadgeCount > 0 ? (
+                          <span
+                            className={cn(
+                              'absolute -right-1.5 -top-1.5 z-20 grid min-w-5 place-items-center rounded-full border border-white px-1 text-[10px] font-bold leading-5 shadow-sm dark:border-slate-950',
+                              platformMemoryState === 'writing'
+                                ? 'bg-amber-400 text-amber-950'
+                                : 'bg-sky-500 text-white',
+                            )}
+                            aria-hidden="true"
+                          >
+                            {platformMemoryBadgeCount > 9 ? '9+' : platformMemoryBadgeCount}
+                          </span>
+                        ) : null}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end" className="font-medium">
+                      {platformMemoryTooltip}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : null}
+              </>
+            }
+          />
+        ) : null}
+
+        <div
+          data-learn-background-shell={learnBackgroundId}
+          className={cn(
+            'learn-course-shell relative isolate grid min-h-0 flex-1 text-foreground transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]',
+            COURSE_SPACE_BODY_SURFACE_CLASS,
+            // Fixed left/center/right proportions at every viewport size (lg+).
+            // Teachers don't use the student course-tools right rail.
+            showRightRail &&
+              !leftRailCollapsed &&
+              !rightRailCollapsed &&
+              'lg:grid-cols-[18%_minmax(0,1fr)] xl:grid-cols-[18%_minmax(0,1fr)_22%]',
+            showRightRail &&
+              leftRailCollapsed &&
+              !rightRailCollapsed &&
+              'lg:grid-cols-[4.5rem_minmax(0,1fr)] xl:grid-cols-[4.5rem_minmax(0,1fr)_22%]',
+            showRightRail &&
+              !leftRailCollapsed &&
+              rightRailCollapsed &&
+              'lg:grid-cols-[18%_minmax(0,1fr)] xl:grid-cols-[18%_minmax(0,1fr)_4.5rem]',
+            showRightRail &&
+              leftRailCollapsed &&
+              rightRailCollapsed &&
+              'lg:grid-cols-[4.5rem_minmax(0,1fr)] xl:grid-cols-[4.5rem_minmax(0,1fr)_4.5rem]',
+            !showRightRail && !leftRailCollapsed && 'lg:grid-cols-[18%_minmax(0,1fr)]',
+            !showRightRail && leftRailCollapsed && 'lg:grid-cols-[4.5rem_minmax(0,1fr)]',
+          )}
+        >
+          <LearnBackgroundVisual
+            backgroundId={learnBackgroundId}
+            className="pointer-events-none absolute inset-0 z-0"
+          />
+          <div
+            className="pointer-events-none absolute inset-0 z-[1] bg-white/28 backdrop-blur-[2px] dark:bg-slate-950/42"
+            aria-hidden="true"
+          />
+
+          <aside className="relative z-10 hidden min-h-0 flex-col overflow-hidden border-r border-slate-200/80 bg-slate-50/90 backdrop-blur-xl lg:flex dark:border-white/10 dark:bg-slate-950/90">
+            {sessionsPanel}
+          </aside>
+
+          <main className="relative z-10 flex min-h-[70dvh] flex-col overflow-hidden bg-white/[0.86] backdrop-blur-xl lg:min-h-0 dark:bg-slate-950/[0.86]">
+            {!activeCourse ? (
+              <header className="shrink-0 border-b border-slate-200/80 bg-white/80 px-6 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/80">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h1 className="min-w-0 truncate text-sm font-semibold leading-5 text-slate-950 dark:text-slate-50">
+                    学习聊天
+                  </h1>
+                  <p className="shrink-0 truncate text-[11px] font-medium leading-4 text-slate-400">
+                    等待添加课程上下文
+                  </p>
+                </div>
+              </header>
+            ) : hasCourseSyncError || activeCourseSourceHealthNotice ? (
+              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200/80 bg-white/80 px-6 py-2 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/80">
+                {hasCourseSyncError ? (
+                  <button
+                    type="button"
+                    onClick={retryFailedCourseContent}
+                    className={cn(
+                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
+                      courseSyncUsesLocalFallback
+                        ? 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15'
+                        : 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15',
+                    )}
+                    title={courseSyncErrorTitle}
+                  >
+                    <RefreshCw className="size-3 shrink-0" aria-hidden="true" />
+                    <span className="truncate">
+                      {courseSyncUsesLocalFallback
+                        ? '对话同步异常，点击重试'
+                        : '部分内容同步失败，点击重试'}
+                    </span>
+                  </button>
+                ) : null}
+                {activeCourseSourceHealthNotice ? (
+                  <button
+                    type="button"
+                    onClick={openSourceUploadPanel}
+                    className={cn(
+                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
+                      activeCourseSourceHealthNotice.tone === 'error'
+                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15'
+                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15',
+                    )}
+                    title={activeCourseSourceHealthNotice.detail}
+                    aria-label={`${activeCourseSourceHealthNotice.label}，打开原始讲义库`}
+                    data-testid="learn-source-health-warning"
+                  >
+                    {activeCourseSourceHealthNotice.tone === 'error' ? (
+                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                    ) : (
                       <Loader2
-                        className="size-3.5 animate-spin motion-reduce:animate-none"
+                        className="size-3 shrink-0 animate-spin motion-reduce:animate-none"
                         aria-hidden="true"
                       />
-                    ) : (
-                      <ChevronUp className="size-3.5" aria-hidden="true" />
                     )}
-                    {remoteConversationMessagePage.loading
-                      ? '正在加载更早消息…'
-                      : remoteConversationMessagePage.error
-                        ? '重试加载更早消息'
-                        : '加载更早消息'}
-                  </Button>
-                  {remoteConversationMessagePage.error ? (
-                    <p
-                      className="text-center text-[11px] text-amber-700 dark:text-amber-200"
-                      role="status"
-                    >
-                      {remoteConversationMessagePage.error}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-              {remoteConversationSummary?.text.trim() ? (
-                <section
-                  className="mx-auto w-full max-w-3xl rounded-[12px] border border-slate-200/80 bg-slate-50/80 px-4 py-3 text-xs leading-5 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300"
-                  aria-label="较早对话摘要"
-                >
-                  <p className="font-semibold text-slate-800 dark:text-slate-100">较早对话摘要</p>
-                  <p className="mt-1 whitespace-pre-wrap">{remoteConversationSummary.text}</p>
-                </section>
-              ) : null}
-              {visibleMessages.length === 0 && !sending ? (
-                <div className="learn-empty-ambient relative isolate flex min-h-[420px] flex-1 items-center justify-center overflow-hidden">
-                  <span className="learn-empty-spotlight learn-empty-spotlight-main" aria-hidden />
-                  <span
-                    className="learn-empty-spotlight learn-empty-spotlight-accent"
-                    aria-hidden
-                  />
-                  <div
-                    className="learn-empty-center relative z-10 flex max-w-2xl flex-col items-center gap-4 px-3 text-center"
-                    style={{
-                      background: 'transparent',
-                      borderColor: 'transparent',
-                      boxShadow: 'none',
-                      backdropFilter: 'none',
-                    }}
-                  >
-                    <div className="learn-empty-avatar relative">
-                      {activeCourse ? (
-                        <CourseAvatar course={activeCourse} className="size-14 rounded-[18px]" />
-                      ) : (
-                        <div className="grid size-14 place-items-center rounded-[18px] bg-sky-50 text-sky-700 ring-1 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-300/15">
-                          <MessageSquarePlus className="size-6" strokeWidth={1.8} />
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                        {activeCourse?.courseCode ||
-                          (activeCourse
-                            ? isTeacherCourseChat
-                              ? 'Teacher assistant'
-                              : 'Student assistant'
-                            : 'General chat')}
-                      </p>
-                      <p className="mt-1 text-lg font-semibold tracking-normal text-slate-950 dark:text-slate-50">
-                        {!activeCourse
-                          ? '添加课程后开始聊天'
-                          : isTeacherCourseChat
-                            ? '想核对哪份课程资料？'
-                            : '想查哪一本课程笔记？'}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                        {!activeCourse
-                          ? '添加课程后，我会把聊天、复习、题库和记忆都绑定到对应课程。'
-                          : isTeacherCourseChat
-                            ? '回答前会先核对笔记本正文与 Hard Rule，不读取题库，也不会改写学生学习状态。'
-                            : '回答前会核对已开放的笔记本与 Hard Rule；不加载题库，也不记录薄弱点。日历变更会先请你确认。'}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-2" aria-label="快捷入口">
-                      {(activeCourse ? activeQuickPrompts : ['添加一门课程']).map((prompt) => (
-                        <Button
-                          key={prompt}
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (prompt === '添加一门课程') {
-                              setCreateCourseOpen(true);
-                              return;
-                            }
-                            updateComposerDraft(prompt);
-                            window.requestAnimationFrame(() => draftTextareaRef.current?.focus());
-                          }}
-                          className="h-8 rounded-full border-slate-200/80 bg-white/76 px-3 text-xs shadow-sm backdrop-blur-sm hover:bg-white dark:border-white/10 dark:bg-white/8 dark:hover:bg-white/12"
-                        >
-                          {prompt}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-              {visibleMessages.map((message, messageIndex) => {
-                const displayText =
-                  message.role === 'assistant' &&
-                  message.plan &&
-                  isProblemSelectionPlan(message.plan)
-                    ? selectedPracticeIntro(message.plan)
-                    : repairStalePracticeSelectionMessageText(message.text);
-                const miniLecturePrompt = miniLecturePromptForMessage({
-                  messages: visibleMessages,
-                  messageIndex,
-                  course: activeCourse,
-                });
+                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
 
-                return (
-                  <ContextMenu key={message.id}>
-                    <ContextMenuTrigger asChild>
-                      <div
-                        className={cn(
-                          message.role === 'user'
-                            ? 'ml-auto max-w-[82%] rounded-[15px_6px_15px_15px] bg-[#4d4a43] px-3 py-2.5 text-[12px] leading-[1.65] text-[#f8f5ee] shadow-[0_7px_20px_rgba(70,61,48,0.05)] dark:bg-slate-100 dark:text-slate-950'
-                            : 'flex w-full items-start gap-[9px]',
-                        )}
+            <div
+              ref={conversationScrollContainerRef}
+              onScroll={handleConversationScroll}
+              className="min-h-0 flex-1 overflow-y-auto bg-white/62 px-6 py-5 dark:bg-slate-950/62"
+            >
+              <div className="flex min-h-full w-full flex-col gap-4">
+                {remoteConversationMessagePage?.hasMore || remoteConversationMessagePage?.error ? (
+                  <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void loadOlderLearnMessages()}
+                      disabled={remoteConversationMessagePage.loading}
+                      className="h-8 rounded-full px-3 text-xs"
+                    >
+                      {remoteConversationMessagePage.loading ? (
+                        <Loader2
+                          className="size-3.5 animate-spin motion-reduce:animate-none"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <ChevronUp className="size-3.5" aria-hidden="true" />
+                      )}
+                      {remoteConversationMessagePage.loading
+                        ? '正在加载更早消息…'
+                        : remoteConversationMessagePage.error
+                          ? '重试加载更早消息'
+                          : '加载更早消息'}
+                    </Button>
+                    {remoteConversationMessagePage.error ? (
+                      <p
+                        className="text-center text-[11px] text-amber-700 dark:text-amber-200"
+                        role="status"
                       >
-                        {message.role === 'user' ? (
-                          <>
-                            {message.attachments?.length ? (
-                              <div className="mb-2 grid max-w-full grid-cols-2 gap-2">
-                                {message.attachments.map((attachment) =>
-                                  attachment.mimeType.startsWith('image/') &&
-                                  attachment.objectUrl ? (
-                                    <img
-                                      key={attachment.id}
-                                      src={attachment.objectUrl}
-                                      alt={attachment.name}
-                                      className="max-h-40 w-full rounded-lg border border-white/15 object-cover"
-                                    />
-                                  ) : attachment.objectUrl ? (
-                                    <div
-                                      key={attachment.id}
-                                      className="flex min-h-16 min-w-0 items-center gap-2.5 rounded-xl border border-white/15 bg-white/10 px-3 py-2.5"
-                                    >
-                                      <span
-                                        className={cn(
-                                          'grid size-9 shrink-0 place-items-center rounded-lg bg-white/10',
-                                          attachment.mimeType === 'application/pdf'
-                                            ? 'text-rose-300'
-                                            : 'text-white/70',
-                                        )}
-                                      >
-                                        <FileText className="size-5" />
-                                      </span>
-                                      <span className="min-w-0 text-left">
-                                        <span className="block truncate text-xs font-medium text-white">
-                                          {attachment.name}
-                                        </span>
-                                        <span className="mt-0.5 block text-[10px] text-white/55">
-                                          {learnChatAttachmentTypeLabel(attachment)} · 仅当前设备
-                                        </span>
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <div
-                                      key={attachment.id}
-                                      className="flex min-h-24 flex-col items-center justify-center gap-1 rounded-lg border border-white/15 bg-white/10 px-3 text-center text-xs text-white/75"
-                                      title="附件原件只保存在上传设备；当前浏览器未找到本地副本。"
-                                    >
-                                      <FileText className="size-5" />
-                                      <span className="max-w-full truncate">{attachment.name}</span>
-                                      <span className="text-[10px] text-white/55">
-                                        当前设备未找到附件
-                                      </span>
-                                    </div>
-                                  ),
-                                )}
-                              </div>
-                            ) : null}
-                            <p className="select-text whitespace-pre-wrap">{message.text}</p>
-                          </>
+                        {remoteConversationMessagePage.error}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                {remoteConversationSummary?.text.trim() ? (
+                  <section
+                    className="mx-auto w-full max-w-3xl rounded-[12px] border border-slate-200/80 bg-slate-50/80 px-4 py-3 text-xs leading-5 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300"
+                    aria-label="较早对话摘要"
+                  >
+                    <p className="font-semibold text-slate-800 dark:text-slate-100">较早对话摘要</p>
+                    <p className="mt-1 whitespace-pre-wrap">{remoteConversationSummary.text}</p>
+                  </section>
+                ) : null}
+                {visibleMessages.length === 0 && !sending ? (
+                  <div className="learn-empty-ambient relative isolate flex min-h-[420px] flex-1 items-center justify-center overflow-hidden">
+                    <span
+                      className="learn-empty-spotlight learn-empty-spotlight-main"
+                      aria-hidden
+                    />
+                    <span
+                      className="learn-empty-spotlight learn-empty-spotlight-accent"
+                      aria-hidden
+                    />
+                    <div
+                      className="learn-empty-center relative z-10 flex max-w-2xl flex-col items-center gap-4 px-3 text-center"
+                      style={{
+                        background: 'transparent',
+                        borderColor: 'transparent',
+                        boxShadow: 'none',
+                        backdropFilter: 'none',
+                      }}
+                    >
+                      <div className="learn-empty-avatar relative">
+                        {activeCourse ? (
+                          <CourseAvatar course={activeCourse} className="size-14 rounded-[18px]" />
                         ) : (
-                          <>
-                            {activeCourse ? (
-                              <CourseAvatar
-                                course={activeCourse}
-                                className="size-7 rounded-[9px]"
-                              />
-                            ) : (
-                              <div className="grid size-7 shrink-0 place-items-center rounded-[9px] bg-sky-50 text-sky-700 ring-1 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-300/15">
-                                <MessageSquarePlus className="size-4" strokeWidth={1.8} />
-                              </div>
-                            )}
-                            <div className="min-w-0 w-full flex-1 select-text bg-transparent px-0 py-0.5">
-                              {message.contextCompression ? (
-                                <ChatContextCompressionNotice
-                                  compression={message.contextCompression}
-                                />
-                              ) : null}
-                              {shouldDisplayPublicTrace(message) ? (
-                                <LearnPublicTraceCard
-                                  steps={message.publicTrace}
-                                  transient={message.transient}
-                                />
-                              ) : null}
-                              {displayText ? (
-                                <MessageResponse
-                                  className={courseMarkdownClassName}
-                                  mode={message.transient ? 'streaming' : 'static'}
-                                >
-                                  {normalizeAssistantMarkdown(displayText)}
-                                </MessageResponse>
-                              ) : null}
-                              {message.plan ? (
-                                <PlanActionCard
-                                  plan={message.plan}
-                                  problemsState={problemsLoadState}
-                                  disabled={!conversationInteractive}
-                                  sessionSummary={practiceSessionSummaryByPlanId.get(
-                                    message.plan.id,
-                                  )}
-                                  onStart={startPlan}
-                                />
-                              ) : null}
-                              {message.artifacts?.length ? (
-                                <LearnArtifactCards
-                                  artifacts={message.artifacts}
-                                  actions={message.learningActions}
-                                  courseId={activeCourse?.id}
-                                  disabled={!conversationInteractive}
-                                  isResearchCourse={isResearchCourse}
-                                  onConfirmCalendarAction={handleLearningActionConfirm}
-                                />
-                              ) : null}
-                              {message.progressProposal ? (
-                                <ProgressConfirmationCard
-                                  proposal={message.progressProposal}
-                                  notebooks={notebooks}
-                                  disabled={!conversationInteractive}
-                                  onSelectionChange={(selection) =>
-                                    updateMessageProgressProposal(message.id, selection)
-                                  }
-                                  onConfirm={() =>
-                                    confirmMessageProgressProposal(
-                                      message.id,
-                                      message.progressProposal?.selection || '',
-                                    )
-                                  }
-                                  onDismiss={() => dismissMessageProgressProposal(message.id)}
-                                />
-                              ) : null}
-                              {miniLecturePrompt || message.lectureDeck ? (
-                                <MiniLectureInviteCard
-                                  prompt={miniLecturePrompt}
-                                  deck={message.lectureDeck}
-                                  generating={generatingMiniLectureMessageId === message.id}
-                                  disabled={!conversationInteractive}
-                                  onGenerate={() => generateMiniLectureForMessage(message.id)}
-                                  onOpen={openMiniLectureDeck}
-                                />
-                              ) : null}
-                              {message.learningActions?.length ? (
-                                <LearnLearningActionCards
-                                  actions={visibleLearningActionsForArtifacts(
-                                    message.learningActions,
-                                    message.artifacts,
-                                  )}
-                                  disabled={!conversationInteractive}
-                                  onConfirm={handleLearningActionConfirm}
-                                  onCancel={handleLearningActionCancel}
-                                  onReviewModeChoice={(action, choice) => {
-                                    if (!conversationInteractive) return;
-                                    markLearningActionStatus(
-                                      action.id,
-                                      'completed',
-                                      actionResult(action, {
-                                        status: 'completed',
-                                        summary: `已选择复习方式：${choice.label}`,
-                                        input: { payload: action.payload || {}, choice },
-                                        output: { followupText: choice.followupText },
-                                      }),
-                                    );
-                                    void sendMessage(choice.followupText);
-                                  }}
-                                />
-                              ) : null}
-                            </div>
-                          </>
+                          <div className="grid size-14 place-items-center rounded-[18px] bg-sky-50 text-sky-700 ring-1 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-300/15">
+                            <MessageSquarePlus className="size-6" strokeWidth={1.8} />
+                          </div>
                         )}
                       </div>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent className="w-40">
-                      <ContextMenuItem onSelect={() => void copyLearnMessage(message)}>
-                        <Copy className="size-4" />
-                        复制消息
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        variant="destructive"
-                        onSelect={() => deleteLearnMessage(message.id)}
-                      >
-                        <Trash2 className="size-4" />
-                        删除消息
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
-                );
-              })}
-              {sending &&
-              !messages.some((message) => message.transient && message.publicTrace?.length) ? (
-                <div className="mr-auto flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2 text-sm text-slate-500 ring-1 ring-slate-200 dark:bg-white/5 dark:ring-white/10">
-                  <Loader2 className="size-4 animate-spin" />
-                  课程正在整理回答…
-                </div>
-              ) : null}
-              {sourceUploading ? (
-                <div className="mr-auto flex items-center gap-2 rounded-full bg-sky-50 px-3 py-2 text-sm text-sky-700 ring-1 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-300/15">
-                  <Loader2 className="size-4 animate-spin" />
-                  正在摄取原始讲义…
-                </div>
-              ) : null}
-            </div>
-          </div>
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          {activeCourse?.courseCode ||
+                            (activeCourse
+                              ? isTeacherCourseChat
+                                ? 'Teacher assistant'
+                                : 'Student assistant'
+                              : 'General chat')}
+                        </p>
+                        <p className="mt-1 text-lg font-semibold tracking-normal text-slate-950 dark:text-slate-50">
+                          {!activeCourse
+                            ? '添加课程后开始聊天'
+                            : isTeacherCourseChat
+                              ? '想核对哪份课程资料？'
+                              : '想查哪一本课程笔记？'}
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                          {!activeCourse
+                            ? '添加课程后，我会把聊天、复习、题库和记忆都绑定到对应课程。'
+                            : isTeacherCourseChat
+                              ? '回答前会先核对笔记本正文与 Hard Rule，不读取题库，也不会改写学生学习状态。'
+                              : '回答前会核对已开放的笔记本与 Hard Rule；不加载题库，也不记录薄弱点。日历变更会先请你确认。'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-2" aria-label="快捷入口">
+                        {(activeCourse ? activeQuickPrompts : ['添加一门课程']).map((prompt) => (
+                          <Button
+                            key={prompt}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (prompt === '添加一门课程') {
+                                setCreateCourseOpen(true);
+                                return;
+                              }
+                              updateComposerDraft(prompt);
+                              window.requestAnimationFrame(() => draftTextareaRef.current?.focus());
+                            }}
+                            className="h-8 rounded-full border-slate-200/80 bg-white/76 px-3 text-xs shadow-sm backdrop-blur-sm hover:bg-white dark:border-white/10 dark:bg-white/8 dark:hover:bg-white/12"
+                          >
+                            {prompt}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+                {visibleMessages.map((message, messageIndex) => {
+                  const displayText =
+                    message.role === 'assistant' &&
+                    message.plan &&
+                    isProblemSelectionPlan(message.plan)
+                      ? selectedPracticeIntro(message.plan)
+                      : repairStalePracticeSelectionMessageText(message.text);
+                  const miniLecturePrompt = miniLecturePromptForMessage({
+                    messages: visibleMessages,
+                    messageIndex,
+                    course: activeCourse,
+                  });
 
-          <footer className="shrink-0 bg-gradient-to-t from-white/95 via-white/92 to-white/72 px-6 pb-4 pt-3 backdrop-blur-xl dark:from-slate-950/95 dark:via-slate-950/92 dark:to-slate-950/72">
-            <div className="w-full">
-              <div
-                className={cn(
-                  composerInputShellClassName,
-                  'rounded-[24px] border-slate-200/90 bg-white/95 px-2.5 py-2 shadow-[0_12px_36px_rgba(15,23,42,0.08)] focus-within:border-slate-300 focus-within:shadow-[0_16px_44px_rgba(15,23,42,0.12)] dark:border-white/12 dark:bg-slate-900/95',
-                )}
-              >
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/*,.pdf,.txt,.md,.markdown,.csv,.json,.xml,application/pdf,application/json,application/xml,text/*"
-                  multiple
-                  className="hidden"
-                  onChange={(event) => {
-                    void handleChatAttachmentFiles(event.currentTarget.files);
-                    event.currentTarget.value = '';
-                  }}
-                />
-                {canManageCourseContent ? (
+                  return (
+                    <ContextMenu key={message.id}>
+                      <ContextMenuTrigger asChild>
+                        <div
+                          className={cn(
+                            message.role === 'user'
+                              ? 'ml-auto max-w-[82%] rounded-[15px_6px_15px_15px] bg-[#4d4a43] px-3 py-2.5 text-[12px] leading-[1.65] text-[#f8f5ee] shadow-[0_7px_20px_rgba(70,61,48,0.05)] dark:bg-slate-100 dark:text-slate-950'
+                              : 'flex w-full items-start gap-[9px]',
+                          )}
+                        >
+                          {message.role === 'user' ? (
+                            <>
+                              {message.attachments?.length ? (
+                                <div className="mb-2 grid max-w-full grid-cols-2 gap-2">
+                                  {message.attachments.map((attachment) =>
+                                    attachment.mimeType.startsWith('image/') &&
+                                    attachment.objectUrl ? (
+                                      <img
+                                        key={attachment.id}
+                                        src={attachment.objectUrl}
+                                        alt={attachment.name}
+                                        className="max-h-40 w-full rounded-lg border border-white/15 object-cover"
+                                      />
+                                    ) : attachment.objectUrl ? (
+                                      <div
+                                        key={attachment.id}
+                                        className="flex min-h-16 min-w-0 items-center gap-2.5 rounded-xl border border-white/15 bg-white/10 px-3 py-2.5"
+                                      >
+                                        <span
+                                          className={cn(
+                                            'grid size-9 shrink-0 place-items-center rounded-lg bg-white/10',
+                                            attachment.mimeType === 'application/pdf'
+                                              ? 'text-rose-300'
+                                              : 'text-white/70',
+                                          )}
+                                        >
+                                          <FileText className="size-5" />
+                                        </span>
+                                        <span className="min-w-0 text-left">
+                                          <span className="block truncate text-xs font-medium text-white">
+                                            {attachment.name}
+                                          </span>
+                                          <span className="mt-0.5 block text-[10px] text-white/55">
+                                            {learnChatAttachmentTypeLabel(attachment)} · 仅当前设备
+                                          </span>
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div
+                                        key={attachment.id}
+                                        className="flex min-h-24 flex-col items-center justify-center gap-1 rounded-lg border border-white/15 bg-white/10 px-3 text-center text-xs text-white/75"
+                                        title="附件原件只保存在上传设备；当前浏览器未找到本地副本。"
+                                      >
+                                        <FileText className="size-5" />
+                                        <span className="max-w-full truncate">
+                                          {attachment.name}
+                                        </span>
+                                        <span className="text-[10px] text-white/55">
+                                          当前设备未找到附件
+                                        </span>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              ) : null}
+                              <p className="select-text whitespace-pre-wrap">{message.text}</p>
+                            </>
+                          ) : (
+                            <>
+                              {activeCourse ? (
+                                <CourseAvatar
+                                  course={activeCourse}
+                                  className="size-7 rounded-[9px]"
+                                />
+                              ) : (
+                                <div className="grid size-7 shrink-0 place-items-center rounded-[9px] bg-sky-50 text-sky-700 ring-1 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-300/15">
+                                  <MessageSquarePlus className="size-4" strokeWidth={1.8} />
+                                </div>
+                              )}
+                              <div className="min-w-0 w-full flex-1 select-text bg-transparent px-0 py-0.5">
+                                {message.contextCompression ? (
+                                  <ChatContextCompressionNotice
+                                    compression={message.contextCompression}
+                                  />
+                                ) : null}
+                                {shouldDisplayPublicTrace(message) ? (
+                                  <LearnPublicTraceCard
+                                    steps={message.publicTrace}
+                                    transient={message.transient}
+                                  />
+                                ) : null}
+                                {displayText ? (
+                                  <MessageResponse
+                                    className={courseMarkdownClassName}
+                                    mode={message.transient ? 'streaming' : 'static'}
+                                  >
+                                    {normalizeAssistantMarkdown(displayText)}
+                                  </MessageResponse>
+                                ) : null}
+                                {message.plan ? (
+                                  <PlanActionCard
+                                    plan={message.plan}
+                                    problemsState={problemsLoadState}
+                                    disabled={!conversationInteractive}
+                                    sessionSummary={practiceSessionSummaryByPlanId.get(
+                                      message.plan.id,
+                                    )}
+                                    onStart={startPlan}
+                                  />
+                                ) : null}
+                                {message.artifacts?.length ? (
+                                  <LearnArtifactCards
+                                    artifacts={message.artifacts}
+                                    actions={message.learningActions}
+                                    courseId={activeCourse?.id}
+                                    disabled={!conversationInteractive}
+                                    isResearchCourse={isResearchCourse}
+                                    onConfirmCalendarAction={handleLearningActionConfirm}
+                                  />
+                                ) : null}
+                                {message.progressProposal ? (
+                                  <ProgressConfirmationCard
+                                    proposal={message.progressProposal}
+                                    notebooks={notebooks}
+                                    disabled={!conversationInteractive}
+                                    onSelectionChange={(selection) =>
+                                      updateMessageProgressProposal(message.id, selection)
+                                    }
+                                    onConfirm={() =>
+                                      confirmMessageProgressProposal(
+                                        message.id,
+                                        message.progressProposal?.selection || '',
+                                      )
+                                    }
+                                    onDismiss={() => dismissMessageProgressProposal(message.id)}
+                                  />
+                                ) : null}
+                                {miniLecturePrompt || message.lectureDeck ? (
+                                  <MiniLectureInviteCard
+                                    prompt={miniLecturePrompt}
+                                    deck={message.lectureDeck}
+                                    generating={generatingMiniLectureMessageId === message.id}
+                                    disabled={!conversationInteractive}
+                                    onGenerate={() => generateMiniLectureForMessage(message.id)}
+                                    onOpen={openMiniLectureDeck}
+                                  />
+                                ) : null}
+                                {message.learningActions?.length ? (
+                                  <LearnLearningActionCards
+                                    actions={visibleLearningActionsForArtifacts(
+                                      message.learningActions,
+                                      message.artifacts,
+                                    )}
+                                    disabled={!conversationInteractive}
+                                    onConfirm={handleLearningActionConfirm}
+                                    onCancel={handleLearningActionCancel}
+                                    onReviewModeChoice={(action, choice) => {
+                                      if (!conversationInteractive) return;
+                                      markLearningActionStatus(
+                                        action.id,
+                                        'completed',
+                                        actionResult(action, {
+                                          status: 'completed',
+                                          summary: `已选择复习方式：${choice.label}`,
+                                          input: { payload: action.payload || {}, choice },
+                                          output: { followupText: choice.followupText },
+                                        }),
+                                      );
+                                      void sendMessage(choice.followupText);
+                                    }}
+                                  />
+                                ) : null}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent className="w-40">
+                        <ContextMenuItem onSelect={() => void copyLearnMessage(message)}>
+                          <Copy className="size-4" />
+                          复制消息
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          variant="destructive"
+                          onSelect={() => deleteLearnMessage(message.id)}
+                        >
+                          <Trash2 className="size-4" />
+                          删除消息
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
+                  );
+                })}
+                {sending &&
+                !messages.some((message) => message.transient && message.publicTrace?.length) ? (
+                  <div className="mr-auto flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2 text-sm text-slate-500 ring-1 ring-slate-200 dark:bg-white/5 dark:ring-white/10">
+                    <Loader2 className="size-4 animate-spin" />
+                    课程正在整理回答…
+                  </div>
+                ) : null}
+                {sourceUploading ? (
+                  <div className="mr-auto flex items-center gap-2 rounded-full bg-sky-50 px-3 py-2 text-sm text-sky-700 ring-1 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-300/15">
+                    <Loader2 className="size-4 animate-spin" />
+                    正在摄取原始讲义…
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <footer className="shrink-0 bg-transparent px-6 pb-4 pt-3">
+              <div className="w-full">
+                <div
+                  className={cn(
+                    composerInputShellClassName,
+                    'rounded-[24px] border-slate-200/90 bg-white/95 px-2.5 py-2 shadow-[0_12px_36px_rgba(15,23,42,0.08)] focus-within:border-slate-300 focus-within:shadow-[0_16px_44px_rgba(15,23,42,0.12)] dark:border-white/12 dark:bg-slate-900/95',
+                  )}
+                >
                   <input
-                    ref={sourceDocumentInputRef}
+                    ref={imageInputRef}
                     type="file"
-                    accept=".pdf,.pptx,.docx,.txt,.md,.markdown,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
+                    accept="image/*,.pdf,.txt,.md,.markdown,.csv,.json,.xml,application/pdf,application/json,application/xml,text/*"
                     multiple
                     className="hidden"
                     onChange={(event) => {
-                      void handleLearnUploadFiles(event.currentTarget.files);
+                      void handleChatAttachmentFiles(event.currentTarget.files);
                       event.currentTarget.value = '';
                     }}
                   />
-                ) : null}
-                {attachments.length > 0 ? (
-                  <div className="mb-2 flex gap-2 overflow-x-auto px-1 pb-2">
-                    {attachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="group relative flex h-[74px] min-w-[240px] basis-[calc(50%-0.25rem)] items-center gap-3 rounded-[18px] border border-slate-200 bg-white px-3.5 pr-10 shadow-[0_3px_12px_rgba(15,23,42,0.035)] dark:border-white/10 dark:bg-white/5"
-                      >
-                        {attachment.mimeType.startsWith('image/') && attachment.objectUrl ? (
-                          <img
-                            src={attachment.objectUrl}
-                            alt={attachment.name}
-                            className="size-11 shrink-0 rounded-[10px] border border-slate-200 object-cover dark:border-white/10"
-                          />
-                        ) : (
-                          <span
-                            className={cn(
-                              'grid size-11 shrink-0 place-items-center rounded-[11px] bg-slate-50 dark:bg-white/5',
-                              attachment.mimeType === 'application/pdf'
-                                ? 'text-rose-500'
-                                : 'text-slate-500 dark:text-slate-300',
-                            )}
-                          >
-                            <FileText className="size-6" strokeWidth={1.8} />
-                          </span>
-                        )}
-                        <span className="min-w-0 text-left">
-                          <span className="block truncate text-sm font-semibold text-slate-950 dark:text-white">
-                            {attachment.name}
-                          </span>
-                          <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
-                            {learnChatAttachmentTypeLabel(attachment)} · 仅本次聊天
-                          </span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeAttachment(attachment.id)}
-                          className="absolute right-2 top-2 grid size-6 place-items-center rounded-full text-slate-400 opacity-80 transition hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white"
-                          title="移除附件"
-                          aria-label={`移除附件 ${attachment.name}`}
-                        >
-                          <X className="size-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="flex min-h-10 items-center gap-2">
                   {canManageCourseContent ? (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={!conversationInteractive}
-                          title="添加内容"
-                          aria-label="添加内容"
-                          className="relative size-9 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
+                    <input
+                      ref={sourceDocumentInputRef}
+                      type="file"
+                      accept=".pdf,.pptx,.docx,.txt,.md,.markdown,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
+                      multiple
+                      className="hidden"
+                      onChange={(event) => {
+                        void handleLearnUploadFiles(event.currentTarget.files);
+                        event.currentTarget.value = '';
+                      }}
+                    />
+                  ) : null}
+                  {attachments.length > 0 ? (
+                    <div className="mb-2 flex gap-2 overflow-x-auto px-1 pb-2">
+                      {attachments.map((attachment) => (
+                        <div
+                          key={attachment.id}
+                          className="group relative flex h-[74px] min-w-[240px] basis-[calc(50%-0.25rem)] items-center gap-3 rounded-[18px] border border-slate-200 bg-white px-3.5 pr-10 shadow-[0_3px_12px_rgba(15,23,42,0.035)] dark:border-white/10 dark:bg-white/5"
                         >
-                          {sourceUploading ? (
-                            <Loader2 className="size-4 animate-spin" />
+                          {attachment.mimeType.startsWith('image/') && attachment.objectUrl ? (
+                            <img
+                              src={attachment.objectUrl}
+                              alt={attachment.name}
+                              className="size-11 shrink-0 rounded-[10px] border border-slate-200 object-cover dark:border-white/10"
+                            />
                           ) : (
-                            <Plus className="size-4" />
+                            <span
+                              className={cn(
+                                'grid size-11 shrink-0 place-items-center rounded-[11px] bg-slate-50 dark:bg-white/5',
+                                attachment.mimeType === 'application/pdf'
+                                  ? 'text-rose-500'
+                                  : 'text-slate-500 dark:text-slate-300',
+                              )}
+                            >
+                              <FileText className="size-6" strokeWidth={1.8} />
+                            </span>
                           )}
-                          <SourceUploadBadge
-                            uploading={sourceUploading}
-                            completedCount={completedSourceUploadBadgeCount}
-                            compact
-                          />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-56">
-                        <DropdownMenuItem onSelect={() => imageInputRef.current?.click()}>
-                          <Paperclip className="size-4" />
-                          添加到本次聊天
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={handleUploadButtonClick}>
-                          <UploadCloud className="size-4" />
-                          {sourceUploading ||
-                          activeSourceUploadItems.length > 0 ||
-                          completedSourceUploadBadgeCount > 0
-                            ? '查看课程资料入库状态'
-                            : '上传为课程资料'}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => imageInputRef.current?.click()}
+                          <span className="min-w-0 text-left">
+                            <span className="block truncate text-sm font-semibold text-slate-950 dark:text-white">
+                              {attachment.name}
+                            </span>
+                            <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                              {learnChatAttachmentTypeLabel(attachment)} · 仅本次聊天
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(attachment.id)}
+                            className="absolute right-2 top-2 grid size-6 place-items-center rounded-full text-slate-400 opacity-80 transition hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white"
+                            title="移除附件"
+                            aria-label={`移除附件 ${attachment.name}`}
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="flex min-h-10 items-center gap-2">
+                    {canManageCourseContent ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={!conversationInteractive}
+                            title="添加内容"
+                            aria-label="添加内容"
+                            className="relative size-9 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
+                          >
+                            {sourceUploading ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Plus className="size-4" />
+                            )}
+                            <SourceUploadBadge
+                              uploading={sourceUploading}
+                              completedCount={completedSourceUploadBadgeCount}
+                              compact
+                            />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-56">
+                          <DropdownMenuItem onSelect={() => imageInputRef.current?.click()}>
+                            <Paperclip className="size-4" />
+                            添加到本次聊天
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onSelect={handleUploadButtonClick}>
+                            <UploadCloud className="size-4" />
+                            {sourceUploading ||
+                            activeSourceUploadItems.length > 0 ||
+                            completedSourceUploadBadgeCount > 0
+                              ? '查看课程资料入库状态'
+                              : '上传为课程资料'}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => imageInputRef.current?.click()}
+                        disabled={!conversationInteractive}
+                        title="添加聊天附件"
+                        aria-label="添加聊天附件"
+                        className="relative size-9 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
+                      >
+                        <Plus className="size-4" />
+                      </Button>
+                    )}
+                    <Textarea
+                      ref={draftTextareaRef}
+                      rows={1}
+                      value={draft}
+                      onChange={(event) => updateComposerDraft(event.target.value)}
                       disabled={!conversationInteractive}
-                      title="添加聊天附件"
-                      aria-label="添加聊天附件"
-                      className="relative size-9 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
-                    >
-                      <Plus className="size-4" />
-                    </Button>
-                  )}
-                  <Textarea
-                    ref={draftTextareaRef}
-                    rows={1}
-                    value={draft}
-                    onChange={(event) => updateComposerDraft(event.target.value)}
-                    disabled={!conversationInteractive}
-                    placeholder={
-                      conversationFallbackActive
-                        ? '云端同步暂时异常，恢复后会自动同步…'
-                        : !conversationInteractive
-                          ? '正在加载课程会话…'
-                          : activeCourse
-                            ? isTeacherCourseChat
-                              ? `询问 ${activeCourse.courseCode || activeCourse.name} 的课程资料`
-                              : `问 ${activeCourse.courseCode || activeCourse.name} 一个问题`
-                            : '添加课程后开始提问'
-                    }
-                    className="max-h-32 min-h-9 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-0 py-1.5 text-sm leading-6 shadow-none [field-sizing:fixed] focus-visible:ring-0"
-                  />
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <Button
-                      type="button"
-                      size="icon"
-                      onClick={sending ? stopSending : () => void sendMessage()}
-                      disabled={
-                        sending
-                          ? false
-                          : (!draft.trim() && attachments.length === 0) ||
-                            !activeCourse ||
-                            !conversationInteractive ||
-                            sourceUploading ||
-                            (attachments.some((attachment) =>
-                              attachment.mimeType.startsWith('image/'),
-                            ) &&
-                              selectedKnownNoVision)
+                      placeholder={
+                        conversationFallbackActive
+                          ? '云端同步暂时异常，恢复后会自动同步…'
+                          : !conversationInteractive
+                            ? '正在加载课程会话…'
+                            : activeCourse
+                              ? isTeacherCourseChat
+                                ? `询问 ${activeCourse.courseCode || activeCourse.name} 的课程资料`
+                                : `问 ${activeCourse.courseCode || activeCourse.name} 一个问题`
+                              : '添加课程后开始提问'
                       }
-                      className={cn(
-                        'size-9 rounded-full text-white shadow-[0_10px_22px_rgba(15,23,42,0.18)] disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:disabled:bg-white/10 dark:disabled:text-white/35',
-                        sending
-                          ? 'bg-rose-600 hover:bg-rose-500 dark:bg-rose-500 dark:text-white dark:hover:bg-rose-400'
-                          : 'bg-slate-950 hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200',
-                      )}
-                      aria-label={sending ? '停止生成' : '发送'}
-                      title={sending ? '停止生成' : '发送'}
-                    >
-                      {sending ? (
-                        <Square className="size-3.5 fill-current" />
-                      ) : (
-                        <SendHorizontal className="size-4" />
-                      )}
-                    </Button>
+                      className="max-h-32 min-h-9 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-0 py-1.5 text-sm leading-6 shadow-none [field-sizing:fixed] focus-visible:ring-0"
+                    />
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Button
+                        type="button"
+                        size="icon"
+                        onClick={sending ? stopSending : () => void sendMessage()}
+                        disabled={
+                          sending
+                            ? false
+                            : (!draft.trim() && attachments.length === 0) ||
+                              !activeCourse ||
+                              !conversationInteractive ||
+                              sourceUploading ||
+                              (attachments.some((attachment) =>
+                                attachment.mimeType.startsWith('image/'),
+                              ) &&
+                                selectedKnownNoVision)
+                        }
+                        className={cn(
+                          'size-9 rounded-full text-white shadow-[0_10px_22px_rgba(15,23,42,0.18)] disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:disabled:bg-white/10 dark:disabled:text-white/35',
+                          sending
+                            ? 'bg-rose-600 hover:bg-rose-500 dark:bg-rose-500 dark:text-white dark:hover:bg-rose-400'
+                            : 'bg-slate-950 hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200',
+                        )}
+                        aria-label={sending ? '停止生成' : '发送'}
+                        title={sending ? '停止生成' : '发送'}
+                      >
+                        {sending ? (
+                          <Square className="size-3.5 fill-current" />
+                        ) : (
+                          <SendHorizontal className="size-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
+                  {conversationFallbackActive ? (
+                    <p
+                      role="status"
+                      aria-live="polite"
+                      className="mt-2 px-1 text-[11px] leading-5 text-amber-700 dark:text-amber-200"
+                    >
+                      云端会话同步暂时异常；系统会自动重试，也可以点击页头立即重试。
+                    </p>
+                  ) : null}
+                  {attachments.some((attachment) => attachment.mimeType.startsWith('image/')) &&
+                  selectedKnownNoVision ? (
+                    <p className="mt-2 px-1 text-xs text-destructive">当前模型不支持图片</p>
+                  ) : null}
                 </div>
-                {conversationFallbackActive ? (
-                  <p
-                    role="status"
-                    aria-live="polite"
-                    className="mt-2 px-1 text-[11px] leading-5 text-amber-700 dark:text-amber-200"
+                {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
+                {retryTurn && !sending ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void sendMessage(retryTurn.text, retryTurn.attachments)}
+                    className="mt-1.5 h-8 gap-1.5 rounded-full px-3 text-xs text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
                   >
-                    云端会话同步暂时异常；系统会自动重试，也可以点击页头立即重试。
-                  </p>
-                ) : null}
-                {attachments.some((attachment) => attachment.mimeType.startsWith('image/')) &&
-                selectedKnownNoVision ? (
-                  <p className="mt-2 px-1 text-xs text-destructive">当前模型不支持图片</p>
+                    <RefreshCw className="size-3.5" />
+                    重新发送上一条
+                  </Button>
                 ) : null}
               </div>
-              {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
-              {retryTurn && !sending ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void sendMessage(retryTurn.text, retryTurn.attachments)}
-                  className="mt-1.5 h-8 gap-1.5 rounded-full px-3 text-xs text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
-                >
-                  <RefreshCw className="size-3.5" />
-                  重新发送上一条
-                </Button>
-              ) : null}
-            </div>
-          </footer>
-        </main>
+            </footer>
+          </main>
 
-        {showRightRail ? (
-          <aside className="relative z-10 hidden min-h-0 flex-col overflow-hidden border-l border-border/70 bg-background/90 backdrop-blur-xl lg:flex">
-            <div className="flex min-h-0 flex-1 xl:hidden">{compactCourseToolsPanel}</div>
-            <div className="hidden min-h-0 flex-1 xl:flex">{courseContextPanel}</div>
-          </aside>
-        ) : null}
-      </div>
+          {showRightRail ? (
+            <aside className="relative z-10 hidden min-h-0 flex-col overflow-hidden border-l border-border/70 bg-background/90 backdrop-blur-xl xl:flex">
+              <div className="flex min-h-0 flex-1">{courseContextPanel}</div>
+            </aside>
+          ) : null}
+        </div>
+      </CourseSpacePageFrame>
       <CreateCourseDialog
         open={createCourseOpen}
         onOpenChange={setCreateCourseOpen}

@@ -36,6 +36,11 @@ import type { CourseRecord } from '@/lib/utils/database';
 import { useAnswerComposerController } from '@/components/problem-bank/answer-composer';
 import { problemRecordToDraft } from '@/lib/problem-bank/editor';
 import {
+  isLocalDemoProblemBankCourse,
+  listLocalDemoProblemBank,
+  resolveLocalDemoProblemBankCourse,
+} from '@/lib/teacher/local-demo-problem-bank';
+import {
   MAX_PHOTO_ANSWER_BYTES,
   MAX_PHOTO_ANSWER_FILES,
   PROBLEM_BANK_PAGE_SIZE,
@@ -77,6 +82,8 @@ type CourseProblemBankControllerArgs = {
   initialPracticeAnswers?: Record<string, NotebookProblemAttemptAnswer | null | undefined>;
   practiceProblemIds?: string[];
   mode?: 'bank' | 'practice';
+  previewMode?: boolean;
+  previewAsTeacher?: boolean;
   onPracticeAttemptResolved?: (event: CourseProblemPracticeAttemptResolvedEvent) => void;
 };
 
@@ -184,6 +191,8 @@ export function useCourseProblemBankController({
   initialPracticeAnswers,
   practiceProblemIds,
   mode = 'bank',
+  previewMode = false,
+  previewAsTeacher = false,
   onPracticeAttemptResolved,
 }: CourseProblemBankControllerArgs) {
   const router = useRouter();
@@ -196,6 +205,11 @@ export function useCourseProblemBankController({
   const initialPracticeAnswersRef = useRef(initialPracticeAnswers);
 
   const [courseName, setCourseName] = useState('');
+  const [courseCode, setCourseCode] = useState<string | undefined>();
+  const [courseAcademicYear, setCourseAcademicYear] = useState<number | undefined>();
+  const [courseAcademicTerm, setCourseAcademicTerm] = useState<
+    CourseRecord['academicTerm']
+  >();
   const [courseAccessRole, setCourseAccessRole] = useState<CourseRecord['accessRole']>();
   const [problems, setProblems] = useState<NotebookProblemClientRecord[]>([]);
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
@@ -298,6 +312,32 @@ export function useCourseProblemBankController({
     }
     setLoading(true);
     try {
+      const localDemoProblems = listLocalDemoProblemBank(courseId);
+      if (localDemoProblems) {
+        const localDemoCourse = resolveLocalDemoProblemBankCourse(courseId, previewAsTeacher);
+        setCourseName(localDemoCourse?.name || '');
+        setCourseCode(localDemoCourse?.courseCode);
+        setCourseAcademicYear(localDemoCourse?.academicYear);
+        setCourseAcademicTerm(localDemoCourse?.academicTerm);
+        setCourseAccessRole(localDemoCourse?.accessRole);
+        setProblems(localDemoProblems);
+        if (isPracticeMode) {
+          const preferred =
+            localDemoProblems.find((problem) => problem.id === initialProblemId)?.id ??
+            localDemoProblems.find((problem) =>
+              initialNotebookId ? problem.notebookId === initialNotebookId : true,
+            )?.id ??
+            localDemoProblems[0]?.id ??
+            null;
+          setSelectedProblemId(preferred);
+        } else {
+          setSelectedProblemId((current) =>
+            current && localDemoProblems.some((problem) => problem.id === current) ? current : null,
+          );
+        }
+        return;
+      }
+
       if (isPracticeMode && scopedPracticeProblemIds.length > 0) {
         const courseProblems = await listCourseProblemsByIds(courseId, scopedPracticeProblemIds);
         setProblems(courseProblems);
@@ -314,6 +354,9 @@ export function useCourseProblemBankController({
         void getCourse(courseId)
           .then((course) => {
             setCourseName(course?.name || '');
+            setCourseCode(course?.courseCode);
+            setCourseAcademicYear(course?.academicYear);
+            setCourseAcademicTerm(course?.academicTerm);
             setCourseAccessRole(course?.accessRole);
           })
           .catch((error) => {
@@ -332,6 +375,9 @@ export function useCourseProblemBankController({
           ? []
           : await listCourseProblems(courseId, { lean: true, timeoutMs: 45_000 });
       setCourseName(course?.name || '');
+      setCourseCode(course?.courseCode);
+      setCourseAcademicYear(course?.academicYear);
+      setCourseAcademicTerm(course?.academicTerm);
       setCourseAccessRole(course?.accessRole);
       setProblems(courseProblems);
       if (isPracticeMode) {
@@ -353,7 +399,15 @@ export function useCourseProblemBankController({
     } finally {
       setLoading(false);
     }
-  }, [courseId, initialNotebookId, initialProblemId, isPracticeMode, scopedPracticeProblemIds]);
+  }, [
+    courseId,
+    initialNotebookId,
+    initialProblemId,
+    isPracticeMode,
+    previewAsTeacher,
+    previewMode,
+    scopedPracticeProblemIds,
+  ]);
 
   useEffect(() => {
     void loadAll();
@@ -543,6 +597,10 @@ export function useCourseProblemBankController({
     if (normalizedNotebookFilter !== 'all' && normalizedNotebookFilter !== scopedNotebookId) {
       params.set('notebookFilter', normalizedNotebookFilter);
     }
+    if (previewMode || isLocalDemoProblemBankCourse(courseId)) {
+      params.set('mock', '1');
+      if (previewAsTeacher) params.set('asTeacher', '1');
+    }
 
     return params.toString();
   }, [
@@ -550,9 +608,12 @@ export function useCourseProblemBankController({
     initialNotebookId,
     notebookFilter,
     practiceFilter,
+    previewAsTeacher,
+    previewMode,
     searchQuery,
     statusFilter,
     typeFilter,
+    courseId,
   ]);
   const getProblemBankHref = useCallback(() => {
     const query = buildProblemBankFilterSearchParams();
@@ -1962,6 +2023,9 @@ export function useCourseProblemBankController({
     codeRunResults,
     commitLoading,
     courseAccessRole,
+    courseAcademicTerm,
+    courseAcademicYear,
+    courseCode,
     courseHasTranslations,
     courseId,
     courseName,

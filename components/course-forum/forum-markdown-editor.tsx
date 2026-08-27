@@ -20,6 +20,7 @@ import {
   Grid3X3,
 } from 'lucide-react';
 import { MessageResponse } from '@/components/ai-elements/message';
+import { forumMarkdownDisplayClassName } from '@/components/course-forum/forum-markdown-display';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -768,10 +769,7 @@ export function ForumMarkdownEditor({
         ) : (
           <div className="min-h-[380px] flex-1 overflow-y-auto px-6 py-5">
             {value.trim() ? (
-              <MessageResponse
-                mode="static"
-                className="text-[15px] leading-7 text-slate-700 dark:text-slate-200 [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-slate-200 [&_pre]:bg-slate-950 [&_pre]:text-slate-100 dark:[&_pre]:border-white/10"
-              >
+              <MessageResponse mode="static" className={forumMarkdownDisplayClassName}>
                 {normalizeForumMarkdownForDisplay(value)}
               </MessageResponse>
             ) : (
