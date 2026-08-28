@@ -201,61 +201,62 @@ model User {
   nativeDeviceAuthorizations NativeDeviceAuthorization[]
   nativeDeviceSessions       NativeDeviceSession[]
 
-  courses                   Course[]
-  notebooks                 Notebook[]
-  conversations             Conversation[]
-  messages                  Message[]
-  courseConversations       CourseConversation[]
-  agentTasks                AgentTask[]
-  agentEnvelopes            AgentEnvelope[]
-  llmUsageLogs              LLMUsageLog[]
-  llmPromptLogs             LLMPromptLog[]
-  creditTransactions        CreditTransaction[]
-  cloudUsageLimit           CloudUsageUserLimit?
-  cloudUsageCostLogs        CloudUsageCostLog[]
-  coursePurchases           CoursePurchase[]
-  courseEnrollments         CourseEnrollment[]
-  courseHardRules           CourseHardRule[]
-  notebookPurchases         NotebookPurchase[]
-  courseReviews             CourseReview[]
-  notebookReviews           NotebookReview[]
-  notebookProblemAttempts   NotebookProblemAttempt[]
-  notebookProblemProgress   NotebookProblemProgress[]
-  topUpOrders               TopUpOrder[]
-  engagementProfile         UserEngagementProfile?
-  learningActionLogs        LearningActionLog[]
-  characterProgress         UserCharacterProgress[]
-  missionProgress           UserMissionProgress[]
-  testResults               TestResult[]
-  studyMemories             StudyMemory[]
-  studyMemoryChunks         StudyMemoryChunk[]
-  memoryFacts               MemoryFact[]
-  memoryFactEvents          MemoryFactEvent[]
-  knowledgeCacheEntries     MemoryKnowledgeCache[]
-  courseSources             CourseSource[]
-  knowledgeDocuments        KnowledgeDocument[]
-  knowledgeChunks           KnowledgeChunk[]
-  speechAudios              UserSpeechAudio[]
-  problemImportBatches      ProblemImportBatch[]
-  courseQuestionRuns        CourseQuestionRun[]
-  learningCalendarEvents    LearningCalendarEvent[]
-  calendarMutations         LearningCalendarMutation[]
-  ownedCommunities          Community[]                @relation("CommunityOwner")
-  communityMemberships      CommunityMember[]
-  communityPosts            CommunityPost[]            @relation("CommunityPostAuthor")
-  pinnedCommunityPosts      CommunityPost[]            @relation("CommunityPostPinnedBy")
-  forumPosts                CourseForumPost[]          @relation("CourseForumPostAuthor")
-  pinnedForumPosts          CourseForumPost[]          @relation("CourseForumPostPinnedBy")
-  forumAnswers              CourseForumAnswer[]        @relation("CourseForumAnswerAuthor")
-  acceptedForumAnswers      CourseForumAnswer[]        @relation("CourseForumAnswerAcceptedBy")
-  forumComments             CourseForumComment[]       @relation("CourseForumCommentAuthor")
-  forumAttachments          CourseForumAttachment[]    @relation("CourseForumAttachmentUploader")
-  directThreadsAsA          DirectMessageThread[]      @relation("DirectMessageThreadUserA")
-  directThreadsAsB          DirectMessageThread[]      @relation("DirectMessageThreadUserB")
-  directMessagesSent        DirectMessage[]            @relation("DirectMessageSender")
-  directMessageAttachments  DirectMessageAttachment[]  @relation("DirectMessageAttachmentUploader")
-  externalCourseBindings    ExternalCourseBinding[]    @relation("ExternalCourseBindingActivator")
-  externalCourseMemberships ExternalCourseMembership[]
+  courses                    Course[]
+  notebooks                  Notebook[]
+  conversations              Conversation[]
+  messages                   Message[]
+  courseConversations        CourseConversation[]
+  agentTasks                 AgentTask[]
+  agentEnvelopes             AgentEnvelope[]
+  llmUsageLogs               LLMUsageLog[]
+  llmPromptLogs              LLMPromptLog[]
+  creditTransactions         CreditTransaction[]
+  cloudUsageLimit            CloudUsageUserLimit?
+  cloudUsageCostLogs         CloudUsageCostLog[]
+  coursePurchases            CoursePurchase[]
+  courseEnrollments          CourseEnrollment[]
+  courseHardRules            CourseHardRule[]
+  notebookPurchases          NotebookPurchase[]
+  courseReviews              CourseReview[]
+  notebookReviews            NotebookReview[]
+  notebookProblemAttempts    NotebookProblemAttempt[]
+  notebookProblemProgress    NotebookProblemProgress[]
+  topUpOrders                TopUpOrder[]
+  engagementProfile          UserEngagementProfile?
+  learningActionLogs         LearningActionLog[]
+  characterProgress          UserCharacterProgress[]
+  missionProgress            UserMissionProgress[]
+  testResults                TestResult[]
+  studyMemories              StudyMemory[]
+  studyMemoryChunks          StudyMemoryChunk[]
+  memoryFacts                MemoryFact[]
+  memoryFactEvents           MemoryFactEvent[]
+  knowledgeCacheEntries      MemoryKnowledgeCache[]
+  courseSources              CourseSource[]
+  knowledgeDocuments         KnowledgeDocument[]
+  knowledgeChunks            KnowledgeChunk[]
+  speechAudios               UserSpeechAudio[]
+  problemImportBatches       ProblemImportBatch[]
+  courseQuestionRuns         CourseQuestionRun[]
+  learningCalendarEvents     LearningCalendarEvent[]
+  calendarMutations          LearningCalendarMutation[]
+  ownedCommunities           Community[]                @relation("CommunityOwner")
+  communityMemberships       CommunityMember[]
+  communityPosts             CommunityPost[]            @relation("CommunityPostAuthor")
+  pinnedCommunityPosts       CommunityPost[]            @relation("CommunityPostPinnedBy")
+  forumPosts                 CourseForumPost[]          @relation("CourseForumPostAuthor")
+  pinnedForumPosts           CourseForumPost[]          @relation("CourseForumPostPinnedBy")
+  forumAnswers               CourseForumAnswer[]        @relation("CourseForumAnswerAuthor")
+  acceptedForumAnswers       CourseForumAnswer[]        @relation("CourseForumAnswerAcceptedBy")
+  forumComments              CourseForumComment[]       @relation("CourseForumCommentAuthor")
+  qualityAnswerForumComments CourseForumComment[]       @relation("CourseForumCommentQualityAnswerBy")
+  forumAttachments           CourseForumAttachment[]    @relation("CourseForumAttachmentUploader")
+  directThreadsAsA           DirectMessageThread[]      @relation("DirectMessageThreadUserA")
+  directThreadsAsB           DirectMessageThread[]      @relation("DirectMessageThreadUserB")
+  directMessagesSent         DirectMessage[]            @relation("DirectMessageSender")
+  directMessageAttachments   DirectMessageAttachment[]  @relation("DirectMessageAttachmentUploader")
+  externalCourseBindings     ExternalCourseBinding[]    @relation("ExternalCourseBindingActivator")
+  externalCourseMemberships  ExternalCourseMembership[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1439,21 +1440,25 @@ model CourseForumAnswer {
 }
 
 model CourseForumComment {
-  id       String  @id @default(cuid())
-  postId   String
-  authorId String
-  parentId String?
-  body     String  @db.VarChar(2000)
+  id                String    @id @default(cuid())
+  postId            String
+  authorId          String
+  parentId          String?
+  body              String    @db.VarChar(2000)
+  qualityAnswerAt   DateTime?
+  qualityAnswerById String?
 
-  post    CourseForumPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author  User                 @relation("CourseForumCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  parent  CourseForumComment?  @relation("CourseForumCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies CourseForumComment[] @relation("CourseForumCommentReplies")
+  post            CourseForumPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author          User                 @relation("CourseForumCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  qualityAnswerBy User?                @relation("CourseForumCommentQualityAnswerBy", fields: [qualityAnswerById], references: [id], onDelete: SetNull)
+  parent          CourseForumComment?  @relation("CourseForumCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies         CourseForumComment[] @relation("CourseForumCommentReplies")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([parentId, createdAt])
+  @@index([postId, qualityAnswerAt(sort: Desc)])
   @@index([postId, createdAt])
   @@index([authorId, createdAt(sort: Desc)])
 }

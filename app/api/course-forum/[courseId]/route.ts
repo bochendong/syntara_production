@@ -263,12 +263,13 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
             },
             comments: {
               where: { parentId: null },
-              orderBy: { createdAt: 'asc' },
+              orderBy: [{ qualityAnswerAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
               take: COMMENT_PAGE_SIZE + 1,
               select: {
                 id: true,
                 body: true,
                 parentId: true,
+                qualityAnswerAt: true,
                 createdAt: true,
                 updatedAt: true,
                 author: { select: authorSelect },
@@ -384,6 +385,8 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
                   author: forumAuthor(comment.author, access.course.ownerId),
                   parentId: comment.parentId,
                   replyCount: comment._count.replies,
+                  qualityAnswer: Boolean(comment.qualityAnswerAt),
+                  qualityAnswerAt: comment.qualityAnswerAt?.toISOString() || null,
                   createdAt: comment.createdAt.toISOString(),
                   updatedAt: comment.updatedAt.toISOString(),
                 })),

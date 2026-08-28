@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
+  Award,
   ChevronDown,
   Download,
   Eye,
@@ -1261,7 +1262,7 @@ export function CourseForumPageClient({
                             0,
                           );
                           return (
-                            <div key={comment.id} className="px-4 py-3.5">
+                            <div key={comment.id} className="relative px-4 py-3.5 pb-9">
                               <div className="flex items-start gap-3">
                                 <Link
                                   href={forumUserHref(courseId, comment.author.id)}
@@ -1337,6 +1338,12 @@ export function CourseForumPageClient({
                                   </Button>
                                 ) : null}
                               </div>
+                              {comment.qualityAnswer ? (
+                                <div className="absolute right-4 bottom-3 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-400/20">
+                                  <Award className="size-3" />
+                                  优质解答
+                                </div>
+                              ) : null}
                               {repliesState ? (
                                 <div className="mt-3 ml-11 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70 dark:border-white/10 dark:bg-white/[0.035]">
                                   {replies.length ? (

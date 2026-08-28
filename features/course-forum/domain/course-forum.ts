@@ -38,7 +38,9 @@ export type CourseForumPostSummary = {
   answerCount: number;
   commentCount: number;
   attachmentCount: number;
-  previewAttachments?: Array<Pick<CourseForumAttachmentItem, 'id' | 'fileName' | 'url' | 'downloadUrl'>>;
+  previewAttachments?: Array<
+    Pick<CourseForumAttachmentItem, 'id' | 'fileName' | 'url' | 'downloadUrl'>
+  >;
   tablePreview?: {
     headers: string[];
     rows: string[][];
@@ -64,6 +66,8 @@ export type CourseForumCommentItem = {
   author: CourseForumAuthor;
   parentId: string | null;
   replyCount: number;
+  qualityAnswer: boolean;
+  qualityAnswerAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import {
+  Award,
   Download,
   Eye,
   FileImage,
@@ -15,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { MessageResponse } from '@/components/ai-elements/message';
+import { CommunityCommentQualityAnswerButton } from '@/components/communities/community-comment-quality-answer-button';
 import { CommunityPostPinButton } from '@/components/communities/community-post-pin-button';
 import { StartDirectMessageButton } from '@/components/course-forum/direct-messages/start-direct-message-button';
 import { ForumPostFeedCard } from '@/components/course-forum/forum-post-feed-card';
@@ -90,6 +92,8 @@ export type CommunityPostFeedItem = {
     body: string;
     parentId: string | null;
     replyCount: number;
+    qualityAnswer: boolean;
+    qualityAnswerAt: string | null;
     createdAt: string;
     updatedAt: string;
     author: CommunityPostPerson;
@@ -337,6 +341,35 @@ export function CommunityPostFeedClient({
   const selectedComments = selected
     ? commentsByPostId.get(selected.summary.id) || selected.comments
     : [];
+
+  const updateCommentQualityAnswer = (
+    postId: string,
+    commentId: string,
+    value: { qualityAnswer: boolean; qualityAnswerAt: string | null },
+  ) => {
+    setCommentsByPostId((current) => {
+      const next = new Map(current);
+      const comments = next.get(postId) || postsById.get(postId)?.comments || [];
+      next.set(
+        postId,
+        comments
+          .map((comment) =>
+            comment.id === commentId
+              ? {
+                  ...comment,
+                  qualityAnswer: value.qualityAnswer,
+                  qualityAnswerAt: value.qualityAnswerAt,
+                }
+              : comment,
+          )
+          .sort((a, b) => {
+            if (a.qualityAnswer !== b.qualityAnswer) return a.qualityAnswer ? -1 : 1;
+            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          }),
+      );
+      return next;
+    });
+  };
   const visiblePosts = useMemo(() => {
     const items = [...posts];
     if (sortMode === 'latest') {
@@ -624,7 +657,7 @@ export function CommunityPostFeedClient({
                   </div>
                   <div className="mt-5 divide-y divide-slate-200/80 overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:divide-white/10 dark:border-white/10 dark:bg-slate-950/55">
                     {selectedComments.map((comment) => (
-                      <div key={comment.id} className="px-4 py-3.5">
+                      <div key={comment.id} className="relative px-4 py-3.5 pb-9">
                         <div className="flex items-start gap-3">
                           <button
                             type="button"
@@ -664,7 +697,24 @@ export function CommunityPostFeedClient({
                               {comment.body}
                             </p>
                           </div>
+                          {viewerIsManager ? (
+                            <CommunityCommentQualityAnswerButton
+                              communitySlug={communitySlug}
+                              postId={selected.summary.id}
+                              commentId={comment.id}
+                              qualityAnswer={comment.qualityAnswer}
+                              onChanged={(value) =>
+                                updateCommentQualityAnswer(selected.summary.id, comment.id, value)
+                              }
+                            />
+                          ) : null}
                         </div>
+                        {comment.qualityAnswer ? (
+                          <div className="absolute right-4 bottom-3 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-400/20">
+                            <Award className="size-3" />
+                            优质解答
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                     {!selectedComments.length ? (

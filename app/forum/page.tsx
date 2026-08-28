@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { ForumHomeClient } from '@/app/forum/forum-home-client';
 import { forumAuthor } from '@/features/course-forum/server/course-forum-access';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -13,7 +14,7 @@ const postSelect = {
   updatedAt: true,
   author: { select: { id: true, name: true, email: true, image: true, role: true } },
   community: {
-    select: { id: true, slug: true, name: true, visibility: true },
+    select: { id: true, slug: true, name: true, visibility: true, ownerId: true },
   },
   attachments: {
     orderBy: { createdAt: 'asc' },
@@ -21,17 +22,18 @@ const postSelect = {
     select: { id: true, fileName: true },
   },
   comments: {
-    orderBy: { createdAt: 'asc' },
+    orderBy: [{ qualityAnswerAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
     take: 50,
     select: {
       id: true,
       body: true,
+      qualityAnswerAt: true,
       createdAt: true,
       author: { select: { id: true, name: true, email: true, image: true, role: true } },
     },
   },
   _count: { select: { answers: true, comments: true, attachments: true } },
-} as const;
+} satisfies Prisma.CourseForumPostSelect;
 
 const publicCommunitySelect = {
   id: true,
@@ -82,6 +84,18 @@ function safeReturnTo(value: string | string[] | undefined) {
   return candidate;
 }
 
+function visibleForumPostWhere(viewerId: string): Prisma.CourseForumPostWhereInput {
+  return {
+    systemKey: null,
+    OR: [
+      { communityId: null },
+      { community: { visibility: 'public' } },
+      { community: { ownerId: viewerId } },
+      { community: { members: { some: { userId: viewerId } } } },
+    ],
+  };
+}
+
 export default async function ForumHomePage({
   searchParams,
 }: {
@@ -126,10 +140,7 @@ export default async function ForumHomePage({
       select: publicCommunitySelect,
     }),
     prisma.courseForumPost.findMany({
-      where: {
-        systemKey: null,
-        OR: [{ communityId: null }, { community: { visibility: 'public' } }],
-      },
+      where: visibleForumPostWhere(auth.userId),
       orderBy: [{ pinnedAt: 'desc' }, { updatedAt: 'desc' }],
       take: 80,
       select: postSelect,
@@ -184,7 +195,13 @@ export default async function ForumHomePage({
             forumRoleLabel: forumRoleLabel(author.forumRoleLabel),
           },
           community: post.community
-            ? { slug: post.community.slug, name: post.community.name }
+            ? {
+                slug: post.community.slug,
+                name: post.community.name,
+                viewerJoined:
+                  post.community.ownerId === auth.userId ||
+                  memberships.some(({ community }) => community.id === post.community?.id),
+              }
             : null,
           course: null,
           attachments: post.attachments.map((attachment) => ({
@@ -197,6 +214,8 @@ export default async function ForumHomePage({
             return {
               id: comment.id,
               body: comment.body,
+              qualityAnswer: Boolean(comment.qualityAnswerAt),
+              qualityAnswerAt: comment.qualityAnswerAt?.toISOString() || null,
               createdAt: comment.createdAt.toISOString(),
               author: {
                 id: commentAuthor.id,

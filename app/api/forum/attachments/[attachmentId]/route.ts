@@ -7,6 +7,16 @@ function safeFileName(value: string) {
   return value.replace(/[\r\n"\\/]/g, '_').slice(0, 180) || 'forum-image';
 }
 
+function visibleCommunityAccess(viewerId: string) {
+  return {
+    OR: [
+      { visibility: 'public' as const },
+      { ownerId: viewerId },
+      { members: { some: { userId: viewerId } } },
+    ],
+  };
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ attachmentId: string }> },
@@ -21,9 +31,9 @@ export async function GET(
         id: attachmentId,
         OR: [
           { post: { communityId: null } },
-          { post: { community: { visibility: 'public' } } },
+          { post: { community: visibleCommunityAccess(auth.userId) } },
           { answer: { post: { communityId: null } } },
-          { answer: { post: { community: { visibility: 'public' } } } },
+          { answer: { post: { community: visibleCommunityAccess(auth.userId) } } },
         ],
       },
       select: { data: true, fileName: true, mimeType: true, contentSha: true },

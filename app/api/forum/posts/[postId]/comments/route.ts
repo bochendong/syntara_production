@@ -11,6 +11,15 @@ const createCommentSchema = z.object({
   body: z.string().trim().min(1).max(2000),
 });
 
+function visibleForumPostAccess(viewerId: string) {
+  return [
+    { communityId: null },
+    { community: { visibility: 'public' } },
+    { community: { ownerId: viewerId } },
+    { community: { members: { some: { userId: viewerId } } } },
+  ];
+}
+
 export async function POST(request: Request, context: { params: Promise<{ postId: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId({ ensureFallbackUser: false });
@@ -26,7 +35,7 @@ export async function POST(request: Request, context: { params: Promise<{ postId
       where: {
         id: postId,
         systemKey: null,
-        OR: [{ communityId: null }, { community: { visibility: 'public' } }],
+        OR: visibleForumPostAccess(auth.userId),
       },
       select: { id: true },
     });
@@ -47,7 +56,12 @@ export async function POST(request: Request, context: { params: Promise<{ postId
         comment: {
           id: comment.id,
           body: comment.body,
+          parentId: null,
+          replyCount: 0,
+          qualityAnswer: false,
+          qualityAnswerAt: null,
           createdAt: comment.createdAt.toISOString(),
+          updatedAt: comment.createdAt.toISOString(),
           author: forumAuthor(comment.author, ''),
         },
       },

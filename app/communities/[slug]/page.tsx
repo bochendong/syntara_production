@@ -129,6 +129,7 @@ type CommunityPagePost = {
     id: string;
     body: string;
     parentId: string | null;
+    qualityAnswerAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
     author: {
@@ -253,6 +254,8 @@ function serializePost(
       body: comment.body,
       parentId: comment.parentId,
       replyCount: comment._count.replies,
+      qualityAnswer: Boolean(comment.qualityAnswerAt),
+      qualityAnswerAt: comment.qualityAnswerAt?.toISOString() || null,
       createdAt: comment.createdAt.toISOString(),
       updatedAt: comment.updatedAt.toISOString(),
       author: person(comment.author),
@@ -325,12 +328,13 @@ export default async function CommunityPage({ params }: { params: Promise<{ slug
       },
       comments: {
         where: { parentId: null },
-        orderBy: { createdAt: 'asc' },
+        orderBy: [{ qualityAnswerAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
         take: 30,
         select: {
           id: true,
           body: true,
           parentId: true,
+          qualityAnswerAt: true,
           createdAt: true,
           updatedAt: true,
           author: { select: { id: true, name: true, email: true, image: true, role: true } },
@@ -366,12 +370,13 @@ export default async function CommunityPage({ params }: { params: Promise<{ slug
       },
       comments: {
         where: { parentId: null },
-        orderBy: { createdAt: 'asc' },
+        orderBy: [{ qualityAnswerAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
         take: 30,
         select: {
           id: true,
           body: true,
           parentId: true,
+          qualityAnswerAt: true,
           createdAt: true,
           updatedAt: true,
           author: { select: { id: true, name: true, email: true, image: true, role: true } },

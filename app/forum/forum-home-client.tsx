@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
+  Award,
   ImagePlus,
   Loader2,
   MessageCircle,
@@ -14,6 +15,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import { MessageResponse } from '@/components/ai-elements/message';
@@ -23,6 +25,14 @@ import { ForumMarkdownEditor } from '@/components/course-forum/forum-markdown-ed
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Dialog,
   DialogClose,
@@ -49,12 +59,14 @@ type ForumPostItem = {
     forumRole?: 'student' | 'teacher' | 'admin';
     forumRoleLabel?: '学生' | '老师' | '管理员';
   };
-  community: { slug: string; name: string } | null;
+  community: { slug: string; name: string; viewerJoined: boolean } | null;
   course: { courseCode: string | null; name: string } | null;
   attachments: Array<{ id: string; fileName: string; url: string }>;
   comments: Array<{
     id: string;
     body: string;
+    qualityAnswer: boolean;
+    qualityAnswerAt: string | null;
     createdAt: string;
     author: {
       id: string;
@@ -93,6 +105,8 @@ type ForumViewer = {
   image: string | null;
   role: string | null;
 };
+
+type RecommendationFilter = 'all' | 'joined';
 
 type ForumMemberProfile = {
   viewerId: string;
@@ -226,6 +240,7 @@ export function ForumHomeClient({
   const [profileBioDraft, setProfileBioDraft] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [recommendationFilter, setRecommendationFilter] = useState<RecommendationFilter>('all');
   const [selectedPostId, setSelectedPostId] = useState('');
   const [newPostOpen, setNewPostOpen] = useState(false);
   const [postTitle, setPostTitle] = useState('');
@@ -264,8 +279,12 @@ export function ForumHomeClient({
     );
   }, [normalizedSearchQuery, publicCommunities, searchActive]);
   const filteredPosts = useMemo(() => {
-    if (!searchActive) return posts;
-    return posts.filter((post) =>
+    const recommendedPosts =
+      recommendationFilter === 'joined'
+        ? posts.filter((post) => Boolean(post.community?.viewerJoined))
+        : posts;
+    if (!searchActive) return recommendedPosts;
+    return recommendedPosts.filter((post) =>
       [
         post.title,
         post.bodyMarkdown,
@@ -278,7 +297,9 @@ export function ForumHomeClient({
         .toLowerCase()
         .includes(normalizedSearchQuery),
     );
-  }, [normalizedSearchQuery, posts, searchActive]);
+  }, [normalizedSearchQuery, posts, recommendationFilter, searchActive]);
+  const recommendationFilterLabel =
+    recommendationFilter === 'joined' ? '加入的 community' : '无筛选';
 
   useEffect(() => {
     if (!profileOpen) return;
@@ -564,26 +585,82 @@ export function ForumHomeClient({
               </section>
             </aside>
 
+            <aside
+              className="absolute top-5 right-4 hidden xl:block"
+              style={{ width: 'calc(50% - 28rem - 2rem)', minWidth: 240, maxWidth: 420 }}
+            >
+              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-950 dark:text-slate-50">推荐器</h2>
+                    <p className="mt-1 text-xs text-slate-400">{recommendationFilterLabel}</p>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="outline" size="icon-sm" className="rounded-xl">
+                        <SlidersHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuLabel>推荐筛选</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setRecommendationFilter('all')}>
+                        无筛选
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setRecommendationFilter('joined')}>
+                        只看加入的 community
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </section>
+            </aside>
+
             <section className="mx-auto min-w-0 max-w-4xl">
               <div className="pb-4">
-                <div className="relative">
-                  <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="搜索标题、正文或 public community"
-                    className="h-12 rounded-2xl bg-white pl-10 text-base shadow-sm dark:bg-white/5"
-                  />
-                  {searchQuery ? (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      className="absolute top-1/2 right-3 grid size-7 -translate-y-1/2 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
-                      aria-label="清空搜索"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  ) : null}
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="搜索标题、正文或 community"
+                      className="h-12 rounded-2xl bg-white pl-10 text-base shadow-sm dark:bg-white/5"
+                    />
+                    {searchQuery ? (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute top-1/2 right-3 grid size-7 -translate-y-1/2 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
+                        aria-label="清空搜索"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-12 shrink-0 gap-2 rounded-2xl bg-white px-4 shadow-sm dark:bg-white/5 xl:hidden"
+                      >
+                        <SlidersHorizontal className="size-4" />
+                        <span className="hidden sm:inline">推荐器</span>
+                        <span className="text-slate-500">{recommendationFilterLabel}</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuLabel>推荐筛选</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setRecommendationFilter('all')}>
+                        无筛选
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setRecommendationFilter('joined')}>
+                        只看加入的 community
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 
@@ -879,7 +956,7 @@ export function ForumHomeClient({
                   </div>
                   <div className="mt-5 divide-y divide-slate-200/80 overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:divide-white/10 dark:border-white/10 dark:bg-slate-950/55">
                     {selectedComments.map((comment) => (
-                      <div key={comment.id} className="px-4 py-3.5">
+                      <div key={comment.id} className="relative px-4 py-3.5 pb-9">
                         <div className="flex items-start gap-3">
                           <Avatar size="sm" className="mt-0.5">
                             {comment.author.image ? (
@@ -910,6 +987,12 @@ export function ForumHomeClient({
                             </p>
                           </div>
                         </div>
+                        {comment.qualityAnswer ? (
+                          <div className="absolute right-4 bottom-3 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-400/20">
+                            <Award className="size-3" />
+                            优质解答
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                     {!selectedComments.length ? (

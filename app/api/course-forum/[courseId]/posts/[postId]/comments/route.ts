@@ -46,13 +46,14 @@ export async function GET(
     );
     const rows = await prisma.courseForumComment.findMany({
       where: { postId, parentId: null },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ qualityAnswerAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
       skip: offset,
       take: limit + 1,
       select: {
         id: true,
         body: true,
         parentId: true,
+        qualityAnswerAt: true,
         createdAt: true,
         updatedAt: true,
         author: { select: { id: true, name: true, email: true, image: true, role: true } },
@@ -68,6 +69,8 @@ export async function GET(
           author: forumAuthor(comment.author, access.course.ownerId),
           parentId: comment.parentId,
           replyCount: comment._count.replies,
+          qualityAnswer: Boolean(comment.qualityAnswerAt),
+          qualityAnswerAt: comment.qualityAnswerAt?.toISOString() || null,
           createdAt: comment.createdAt.toISOString(),
           updatedAt: comment.updatedAt.toISOString(),
         })),

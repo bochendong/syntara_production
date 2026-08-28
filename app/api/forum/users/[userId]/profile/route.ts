@@ -19,10 +19,15 @@ function preview(markdown: string) {
     .slice(0, 120);
 }
 
-function visibleForumPostWhere(): Prisma.CourseForumPostWhereInput {
+function visibleForumPostWhere(viewerId: string): Prisma.CourseForumPostWhereInput {
   return {
     systemKey: null,
-    OR: [{ communityId: null }, { community: { visibility: 'public' } }],
+    OR: [
+      { communityId: null },
+      { community: { visibility: 'public' } },
+      { community: { ownerId: viewerId } },
+      { community: { members: { some: { userId: viewerId } } } },
+    ],
   };
 }
 
@@ -32,7 +37,7 @@ export async function GET(_request: Request, context: { params: Promise<{ userId
     if (auth.response) return auth.response;
 
     const { userId } = await context.params;
-    const visibleWhere = visibleForumPostWhere();
+    const visibleWhere = visibleForumPostWhere(auth.userId);
 
     const [viewer, user, postCount, answerCount, commentCount, recentPosts] = await Promise.all([
       prisma.user.findUnique({

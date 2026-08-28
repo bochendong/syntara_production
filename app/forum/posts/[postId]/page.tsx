@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, MessageCircle, Paperclip } from 'lucide-react';
+import { ArrowLeft, Award, MessageCircle, Paperclip } from 'lucide-react';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +26,15 @@ function roleBadgeClass(role: string | undefined) {
   return 'bg-emerald-50 text-emerald-700 hover:bg-emerald-50';
 }
 
+function visibleForumPostAccess(viewerId: string) {
+  return [
+    { communityId: null },
+    { community: { visibility: 'public' } },
+    { community: { ownerId: viewerId } },
+    { community: { members: { some: { userId: viewerId } } } },
+  ];
+}
+
 export default async function ForumPostPage({ params }: { params: Promise<{ postId: string }> }) {
   const { postId } = await params;
   const auth = await requireUserId({ ensureFallbackUser: false });
@@ -34,7 +43,7 @@ export default async function ForumPostPage({ params }: { params: Promise<{ post
   const post = await prisma.courseForumPost.findFirst({
     where: {
       id: postId,
-      OR: [{ communityId: null }, { community: { visibility: 'public' } }],
+      OR: visibleForumPostAccess(auth.userId),
     },
     select: {
       id: true,
@@ -51,11 +60,12 @@ export default async function ForumPostPage({ params }: { params: Promise<{ post
       },
       comments: {
         where: { parentId: null },
-        orderBy: { createdAt: 'asc' },
+        orderBy: [{ qualityAnswerAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
         take: 30,
         select: {
           id: true,
           body: true,
+          qualityAnswerAt: true,
           createdAt: true,
           author: { select: { id: true, name: true, email: true, image: true, role: true } },
         },
@@ -152,7 +162,7 @@ export default async function ForumPostPage({ params }: { params: Promise<{ post
                 return (
                   <article
                     key={comment.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
+                    className="relative rounded-2xl border border-slate-200 bg-white p-4 pb-10 dark:border-white/10 dark:bg-slate-950"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold">{commentAuthor.name}</p>
@@ -167,6 +177,12 @@ export default async function ForumPostPage({ params }: { params: Promise<{ post
                     <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                       {comment.body}
                     </p>
+                    {comment.qualityAnswerAt ? (
+                      <div className="absolute right-4 bottom-3 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-400/20">
+                        <Award className="size-3" />
+                        优质解答
+                      </div>
+                    ) : null}
                   </article>
                 );
               })
