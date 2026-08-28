@@ -1,0 +1,166 @@
+name: Deploy Development
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [codex/automatic-deploy]
+  workflow_dispatch:
+
+concurrency:
+  group: development-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  railway:
+    name: Deploy Railway Development
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: development
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: 0e295715-7a24-4cf2-b629-5095b4c90c3e
+      RAILWAY_ENVIRONMENT_ID: 6bcf40c9-d92a-4678-b815-491ec48dfc4d
+      RAILWAY_SERVICE_ID: 878cb575-6912-4a2a-9d96-9914ad6ba0f9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'codex/automatic-deploy' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify Railway development target
+        shell: bash
+        run: |
+          test -n "$RAILWAY_TOKEN" || { echo "Missing GitHub secret RAILWAY_TOKEN"; exit 1; }
+          test "$RAILWAY_ENVIRONMENT_ID" = "6bcf40c9-d92a-4678-b815-491ec48dfc4d" || {
+            echo "Refusing to deploy: unexpected Railway development environment"
+            exit 1
+          }
+
+      - name: Deploy to Railway development
+        run: >-
+          npx --yes @railway/cli@latest up --ci
+          --project "$RAILWAY_PROJECT_ID"
+          --environment "$RAILWAY_ENVIRONMENT_ID"
+          --service "$RAILWAY_SERVICE_ID"
+
+  vercel:
+    name: Deploy Vercel Development
+    needs: railway
+    if: >-
+      always() &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') &&
+      needs.railway.result == 'success'
+    runs-on: ubuntu-latest
+    environment: development
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_eNxElDgJsweQUNuESI6majDN
+      VERCEL_PROJECT_ID: prj_4Ey36cL65SZ1KxEOHLVqtJA6p4Os
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'codex/automatic-deploy' }}
+
+      - name: Verify Vercel development credentials and target
+        shell: bash
+        run: |
+          test -n "$VERCEL_TOKEN" || { echo "Missing GitHub secret VERCEL_TOKEN"; exit 1; }
+          test "$VERCEL_PROJECT_ID" = "prj_4Ey36cL65SZ1KxEOHLVqtJA6p4Os" || {
+            echo "Refusing to deploy: unexpected Vercel development project"
+            exit 1
+          }
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
+          if [ "$status" != "200" ]; then
+            message="$(jq -r '.error.message // "Unknown Vercel API error"' "$response_file")"
+            echo "::error title=Vercel credentials rejected::$message (HTTP $status)"
+            exit 1
+          fi
+
+      - name: Deploy to Vercel development
+        shell: bash
+        env:
+          DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          request_file="$(mktemp)"
+          response_file="$(mktemp)"
+          jq -n \
+            --arg project "$VERCEL_PROJECT_ID" \
+            --arg sha "$DEPLOY_SHA" \
+            '{
+              name: "syntara-speedup-dev",
+              project: $project,
+              target: "production",
+              gitSource: {
+                type: "github",
+                org: "bochendong",
+                repo: "syntara_production",
+                ref: "codex/automatic-deploy",
+                sha: $sha
+              }
+            }' > "$request_file"
+
+          create_status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Content-Type: application/json' \
+            --data-binary "@$request_file" \
+            "https://api.vercel.com/v13/deployments?teamId=$VERCEL_ORG_ID&forceNew=1")"
+          if [ "$create_status" != "200" ] && [ "$create_status" != "201" ]; then
+            message="$(jq -r '.error.message // "Unknown Vercel deployment error"' "$response_file")"
+            echo "::error title=Vercel deployment rejected::$message (HTTP $create_status)"
+            exit 1
+          fi
+
+          deployment_id="$(jq -r '.id // empty' "$response_file")"
+          deployment_url="$(jq -r '.url // empty' "$response_file")"
+          test -n "$deployment_id" || { echo "Vercel response did not include a deployment ID"; exit 1; }
+          echo "Created Vercel development deployment $deployment_id at https://$deployment_url"
+
+          for attempt in $(seq 1 120); do
+            state_status="$(curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v13/deployments/$deployment_id?teamId=$VERCEL_ORG_ID")"
+            if [ "$state_status" != "200" ]; then
+              message="$(jq -r '.error.message // "Unknown Vercel status error"' "$response_file")"
+              echo "::error title=Vercel status check failed::$message (HTTP $state_status)"
+              exit 1
+            fi
+            ready_state="$(jq -r '.readyState // .state // "UNKNOWN"' "$response_file")"
+            echo "Vercel development deployment state: $ready_state"
+            case "$ready_state" in
+              READY)
+                {
+                  echo "### Vercel development deployment"
+                  echo "- URL: https://$deployment_url"
+                  echo "- Commit: $DEPLOY_SHA"
+                  echo "- State: READY"
+                } >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+              ERROR | CANCELED)
+                message="$(jq -r '.errorMessage // .error.message // "Deployment failed"' "$response_file")"
+                echo "::error title=Vercel development deployment failed::$message"
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+
+          echo "::error title=Vercel deployment timed out::Development deployment did not reach READY within 20 minutes"
+          exit 1

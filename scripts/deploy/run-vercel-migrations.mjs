@@ -1,10 +1,9 @@
 import { spawnSync } from 'node:child_process';
 
 const explicitDatabaseMigration = process.env.RUN_DATABASE_MIGRATIONS === '1';
-if (
-  process.env.VERCEL !== '1' ||
-  (process.env.VERCEL_ENV !== 'production' && !explicitDatabaseMigration)
-) {
+const isVercelProductionBuild =
+  process.env.VERCEL === '1' && process.env.VERCEL_ENV === 'production';
+if (!isVercelProductionBuild && !explicitDatabaseMigration) {
   console.log('[deploy] Skipping Vercel production migrations outside a production Vercel build.');
   process.exit(0);
 }
@@ -14,7 +13,38 @@ if (!process.env.DATABASE_URL?.trim()) {
   process.exit(1);
 }
 
-console.log('[deploy] Applying committed Prisma migrations before the production build.');
+const deploymentEnvironment = process.env.SYNTARA_DEPLOYMENT_ENV?.trim();
+if (!['development', 'production'].includes(deploymentEnvironment)) {
+  console.error(
+    '[deploy] SYNTARA_DEPLOYMENT_ENV must be either "development" or "production" before database migrations can run.',
+  );
+  process.exit(1);
+}
+
+const expectedDatabaseHost = process.env.EXPECTED_DATABASE_HOST?.trim();
+if (!expectedDatabaseHost) {
+  console.error('[deploy] EXPECTED_DATABASE_HOST is required before database migrations can run.');
+  process.exit(1);
+}
+
+let actualDatabaseHost;
+try {
+  actualDatabaseHost = new URL(process.env.DATABASE_URL).host;
+} catch {
+  console.error('[deploy] DATABASE_URL is not a valid URL.');
+  process.exit(1);
+}
+
+if (actualDatabaseHost !== expectedDatabaseHost) {
+  console.error(
+    `[deploy] Refusing to migrate ${deploymentEnvironment}: DATABASE_URL points to ${actualDatabaseHost}, expected ${expectedDatabaseHost}.`,
+  );
+  process.exit(1);
+}
+
+console.log(
+  `[deploy] Database target verified for ${deploymentEnvironment} (${actualDatabaseHost}). Applying committed Prisma migrations.`,
+);
 const command = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const result = spawnSync(command, ['exec', 'prisma', 'migrate', 'deploy'], {
   env: process.env,
