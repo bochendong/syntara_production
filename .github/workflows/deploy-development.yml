@@ -53,44 +53,10 @@ jobs:
       - name: TypeScript
         run: node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit
 
-  railway:
-    name: Deploy Railway Development
-    needs: verify
-    runs-on: ubuntu-latest
-    environment: development
-    env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      RAILWAY_PROJECT_ID: 0e295715-7a24-4cf2-b629-5095b4c90c3e
-      RAILWAY_ENVIRONMENT_ID: 6bcf40c9-d92a-4678-b815-491ec48dfc4d
-      RAILWAY_SERVICE_ID: 878cb575-6912-4a2a-9d96-9914ad6ba0f9
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'push' && github.sha || 'codex/automatic-deploy' }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Verify Railway development target
-        shell: bash
-        run: |
-          test -n "$RAILWAY_TOKEN" || { echo "Missing GitHub secret RAILWAY_TOKEN"; exit 1; }
-          test "$RAILWAY_ENVIRONMENT_ID" = "6bcf40c9-d92a-4678-b815-491ec48dfc4d" || {
-            echo "Refusing to deploy: unexpected Railway development environment"
-            exit 1
-          }
-
-      - name: Deploy to Railway development
-        run: >-
-          npx --yes @railway/cli@latest up --ci
-          --project "$RAILWAY_PROJECT_ID"
-          --environment "$RAILWAY_ENVIRONMENT_ID"
-          --service "$RAILWAY_SERVICE_ID"
-
   vercel:
     name: Deploy Vercel Development
-    needs: railway
+    needs: verify
+    if: ${{ vars.VERCEL_AUTOMATIC_DEPLOY == 'true' }}
     runs-on: ubuntu-latest
     environment: development
     env:
