@@ -1,9 +1,7 @@
 name: Deploy Development
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  push:
     branches: [codex/automatic-deploy]
   workflow_dispatch:
 
@@ -15,9 +13,49 @@ permissions:
   contents: read
 
 jobs:
+  verify:
+    name: Verify Development Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'codex/automatic-deploy' }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm exec prisma generate
+
+      - name: Prettier
+        env:
+          CI_BASE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          base_sha="${CI_BASE_SHA:-HEAD^}"
+          pnpm check:changed -- "$base_sha"
+
+      - name: ESLint
+        env:
+          CI_BASE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          base_sha="${CI_BASE_SHA:-HEAD^}"
+          pnpm lint:changed -- "$base_sha"
+
+      - name: TypeScript
+        run: node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit
+
   railway:
     name: Deploy Railway Development
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: verify
     runs-on: ubuntu-latest
     environment: development
     env:
@@ -28,7 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'codex/automatic-deploy' }}
+          ref: ${{ github.event_name == 'push' && github.sha || 'codex/automatic-deploy' }}
 
       - uses: actions/setup-node@v4
         with:
@@ -53,10 +91,6 @@ jobs:
   vercel:
     name: Deploy Vercel Development
     needs: railway
-    if: >-
-      always() &&
-      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') &&
-      needs.railway.result == 'success'
     runs-on: ubuntu-latest
     environment: development
     env:
@@ -66,7 +100,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'codex/automatic-deploy' }}
+          ref: ${{ github.event_name == 'push' && github.sha || 'codex/automatic-deploy' }}
+
+      - name: Resolve development commit
+        shell: bash
+        run: echo "DEPLOY_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Verify Vercel development credentials and target
         shell: bash
@@ -90,8 +128,6 @@ jobs:
 
       - name: Deploy to Vercel development
         shell: bash
-        env:
-          DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           request_file="$(mktemp)"
           response_file="$(mktemp)"
