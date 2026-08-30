@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import {
   AlertCircle,
@@ -81,6 +82,11 @@ import {
 } from '@/lib/teacher/online-course-studio';
 import { BackendApiError, backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { isLocalDemoUserId } from '@/lib/auth/local-demo';
+import {
+  COURSE_SOURCE_ACCEPT,
+  COURSE_SOURCE_SUPPORTED_FORMATS,
+  courseSourceFileValidationError,
+} from '@/lib/uploads/course-source-policy';
 import {
   getLocalDemoCourseHardRules,
   getLocalDemoTeacherStudio,
@@ -588,6 +594,11 @@ export function TeacherCourseStudioClient({
 
   const handleUpload = async (files: File[]) => {
     if (!teacherId || files.length === 0) return;
+    const validationError = files.map(courseSourceFileValidationError).find(Boolean);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     setUploading(true);
     setError('');
     try {
@@ -1018,7 +1029,7 @@ export function TeacherCourseStudioClient({
   };
 
   useEffect(() => {
-    if (sourcePreview?.kind !== 'pdf') {
+    if (sourcePreview?.kind !== 'pdf' && sourcePreview?.kind !== 'image') {
       setSourcePreviewUrl('');
       return;
     }
@@ -1804,7 +1815,7 @@ export function TeacherCourseStudioClient({
                     <input
                       type="file"
                       multiple
-                      accept=".pdf,.pptx,.docx,.md,.txt,text/plain,text/markdown,application/pdf"
+                      accept={COURSE_SOURCE_ACCEPT}
                       className="sr-only"
                       onChange={(event) => {
                         const files = Array.from(event.target.files ?? []);
@@ -1815,6 +1826,11 @@ export function TeacherCourseStudioClient({
                   </label>
                 )}
               </div>
+              {tab === 'sources' && sourceCategory !== 'problem_bank' ? (
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  支持 {COURSE_SOURCE_SUPPORTED_FORMATS}，单个文件不超过 50MB。
+                </p>
+              ) : null}
               <div className={STUDIO_PANEL_BODY_CLASS}>
                 {categorySources.length ? (
                   <StudioList>
@@ -2547,6 +2563,16 @@ export function TeacherCourseStudioClient({
                 src={sourcePreviewUrl}
                 className="h-full min-h-64 w-full border-0 bg-white"
               />
+            ) : sourcePreview?.kind === 'image' && sourcePreviewUrl ? (
+              <div className="relative h-full min-h-64 w-full">
+                <Image
+                  src={sourcePreviewUrl}
+                  alt={sourcePreview.fileName}
+                  fill
+                  unoptimized
+                  className="object-contain p-5"
+                />
+              </div>
             ) : sourcePreview?.kind === 'markdown' ? (
               <div className="h-full overflow-y-auto p-4 sm:p-7">
                 <article className="mx-auto max-w-4xl rounded-2xl bg-white p-5 shadow-sm dark:bg-slate-950 sm:p-8">

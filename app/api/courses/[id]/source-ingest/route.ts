@@ -38,10 +38,16 @@ import {
   listCourseSourceUploads,
 } from '@/features/memory/server/source-upload-library';
 import { indexCourseSourceKnowledge } from '@/lib/server/knowledge-document-index';
+import { extractCourseSourceImageText } from '@/lib/server/extract-course-source-image-text';
+import {
+  COURSE_SOURCE_MAX_FILE_BYTES,
+  courseSourceFileKind,
+  courseSourceFileValidationError,
+  normalizedCourseSourceMimeType,
+} from '@/lib/uploads/course-source-policy';
 
 export const maxDuration = 300;
 
-const MAX_SOURCE_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_SOURCE_TEXT_CHARS = 220_000;
 const OPENAI_FILE_UPLOAD_MIN_TIMEOUT_MS = 90_000;
 const OPENAI_FILE_UPLOAD_MAX_TIMEOUT_MS = 300_000;
@@ -63,7 +69,7 @@ function sanitizeSourceText(value: string): string {
 const sourceUploadSchema = z.object({
   sourceTitle: z.string().trim().min(1).max(240),
   sourceKind: z
-    .enum(['pdf', 'markdown', 'plain_text', 'pptx', 'docx', 'problem_bank', 'other'])
+    .enum(['pdf', 'markdown', 'plain_text', 'pptx', 'docx', 'image', 'problem_bank', 'other'])
     .default('plain_text'),
   sourceFileMime: z.string().trim().max(160).optional(),
   targetNotebookId: z.string().trim().min(1).optional(),
@@ -219,35 +225,10 @@ function isSourceKind(value: string | undefined): value is SourceUploadKind {
     value === 'plain_text' ||
     value === 'pptx' ||
     value === 'docx' ||
+    value === 'image' ||
     value === 'problem_bank' ||
     value === 'other'
   );
-}
-
-function inferSourceKind(file: File): SourceUploadKind {
-  const lowerName = file.name.toLowerCase();
-  const mime = (file.type || '').toLowerCase();
-  if (mime === 'application/pdf' || lowerName.endsWith('.pdf')) return 'pdf';
-  if (
-    mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
-    lowerName.endsWith('.pptx')
-  ) {
-    return 'pptx';
-  }
-  if (
-    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    lowerName.endsWith('.docx')
-  ) {
-    return 'docx';
-  }
-  if (mime.includes('markdown') || lowerName.endsWith('.md') || lowerName.endsWith('.markdown')) {
-    return 'markdown';
-  }
-  if (lowerName.includes('problem') || lowerName.includes('question') || lowerName.includes('题')) {
-    return 'problem_bank';
-  }
-  if (mime.startsWith('text/') || /\.(txt|csv|json)$/i.test(file.name)) return 'plain_text';
-  return 'other';
 }
 
 async function openAIRequestJson(args: {
@@ -519,6 +500,7 @@ async function waitForOpenAIFileInputReady(args: {
 }
 
 async function extractSourceTextFromFile(args: {
+  request: NextRequest;
   file: File;
   sourceKind: SourceUploadKind;
   buffer: Buffer;
@@ -589,6 +571,23 @@ async function extractSourceTextFromFile(args: {
     };
   }
 
+  if (args.sourceKind === 'image') {
+    const { model } = await resolveOpenAIResponsesModelFromHeaders(args.request, {
+      allowOpenAIModelOverride: true,
+    });
+    return {
+      text: await extractCourseSourceImageText({
+        buffer: args.buffer,
+        fileName: args.file.name,
+        mimeType: normalizedCourseSourceMimeType(args.file, 'image'),
+        model,
+      }),
+      parser: 'openai-responses-image',
+      pageCount: null,
+      slideCount: null,
+    };
+  }
+
   return {
     text: args.buffer.toString('utf8'),
     parser: 'text',
@@ -609,15 +608,32 @@ async function parseMultipartSourceUpload(
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'No source file provided' }, { status: 400 });
   }
-  if (file.size <= 0) {
-    return NextResponse.json({ error: 'Uploaded source file is empty' }, { status: 400 });
-  }
-  if (file.size > MAX_SOURCE_FILE_BYTES) {
-    return NextResponse.json({ error: 'Uploaded source file is too large' }, { status: 413 });
+  const validationError = courseSourceFileValidationError(file);
+  if (validationError) {
+    return NextResponse.json(
+      { error: validationError },
+      {
+        status: file.size <= 0 ? 400 : file.size > COURSE_SOURCE_MAX_FILE_BYTES ? 413 : 415,
+      },
+    );
   }
 
   const explicitKind = stringFormValue(formData, 'sourceKind');
-  const sourceKind = isSourceKind(explicitKind) ? explicitKind : inferSourceKind(file);
+  if (explicitKind && !isSourceKind(explicitKind)) {
+    return NextResponse.json({ error: `不支持的课程资料类型：${explicitKind}。` }, { status: 400 });
+  }
+  const detectedKind = courseSourceFileKind(file);
+  if (!detectedKind) {
+    return NextResponse.json({ error: '无法识别上传文件的格式。' }, { status: 415 });
+  }
+  if (explicitKind && explicitKind !== detectedKind && explicitKind !== 'problem_bank') {
+    return NextResponse.json(
+      { error: `文件实际格式为 ${detectedKind}，与提交类型 ${explicitKind} 不一致。` },
+      { status: 415 },
+    );
+  }
+  const sourceKind: SourceUploadKind =
+    explicitKind === 'problem_bank' ? 'problem_bank' : detectedKind;
   const sourceTitle = stringFormValue(formData, 'sourceTitle') || file.name;
   const languageValue = stringFormValue(formData, 'language');
   const language = languageValue === 'en-US' ? 'en-US' : 'zh-CN';
@@ -709,6 +725,7 @@ async function parseMultipartSourceUpload(
   let extracted: Awaited<ReturnType<typeof extractSourceTextFromFile>>;
   try {
     extracted = await extractSourceTextFromFile({
+      request,
       file,
       sourceKind,
       buffer,

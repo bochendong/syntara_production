@@ -4,20 +4,25 @@ import { type DragEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useDraftCache } from '@/lib/hooks/use-draft-cache';
 import { getPdfSourceFileSignature, type PdfSourceSelection } from '@/lib/pdf/page-selection';
 import type { ImageMapping, PdfImage } from '@/lib/types/generation';
+import { courseSourceFileValidationError } from '@/lib/uploads/course-source-policy';
 import {
+  parseDocxLikeGenerationInput,
+  parseImageLikeGenerationInput,
   parseMarkdownLikeGenerationInput,
   parsePdfLikeGenerationPreview,
   parsePptxLikeGenerationPreview,
 } from '@/lib/create/source-input';
 import {
-  MAX_SOURCE_FILE_SIZE_BYTES,
   buildExtractedTextItems,
   buildImagePreviews,
   buildMaterialRows,
   buildRequirementPreview,
   isMarkdownSourceFile,
+  isDocxSourceFile,
+  isImageSourceFile,
   isPdfSourceFile,
   isPptxSourceFile,
+  isTextSourceFile,
   type ExtractedSourceItem,
   type ExtractedSourcePreview,
   type FormState,
@@ -41,7 +46,6 @@ type UseCreateNotebookSourceInputArgs = {
   activeStep: WorkspaceStep;
   busy: boolean;
   language: 'zh-CN' | 'en-US';
-  fileTooLargeMessage: string;
   onError: (message: string | null) => void;
   onSourceChanged: () => void;
 };
@@ -112,7 +116,6 @@ export function useCreateNotebookSourceInput({
   activeStep,
   busy,
   language,
-  fileTooLargeMessage,
   onError,
   onSourceChanged,
 }: UseCreateNotebookSourceInputArgs) {
@@ -162,6 +165,46 @@ export function useCreateNotebookSourceInput({
           imageDuplicateCount: 0,
           pdfImages: [],
           imageMapping: {},
+          warnings: parsed.truncationWarnings,
+        };
+      }
+
+      if (isTextSourceFile(file)) {
+        const parsed = await parseMarkdownLikeGenerationInput({ file });
+        return {
+          text: parsed.pdfText,
+          imageCount: 0,
+          imagePreviews: [],
+          imageDuplicateCount: 0,
+          pdfImages: [],
+          imageMapping: {},
+          warnings: parsed.truncationWarnings,
+        };
+      }
+
+      if (isDocxSourceFile(file)) {
+        const parsed = await parseDocxLikeGenerationInput({ file, signal });
+        return {
+          text: parsed.pdfText,
+          imageCount: 0,
+          imagePreviews: [],
+          imageDuplicateCount: 0,
+          pdfImages: [],
+          imageMapping: {},
+          warnings: parsed.truncationWarnings,
+        };
+      }
+
+      if (isImageSourceFile(file)) {
+        const parsed = await parseImageLikeGenerationInput({ file });
+        const imagePreviewResult = buildImagePreviews(parsed.pdfImages, parsed.imageMapping);
+        return {
+          text: parsed.pdfText,
+          imageCount: parsed.pdfImages.length,
+          imagePreviews: imagePreviewResult.imagePreviews,
+          imageDuplicateCount: imagePreviewResult.duplicateCount,
+          pdfImages: parsed.pdfImages,
+          imageMapping: parsed.imageMapping,
           warnings: parsed.truncationWarnings,
         };
       }
@@ -270,19 +313,16 @@ export function useCreateNotebookSourceInput({
 
   const handleFileSelect = useCallback(
     (file: File) => {
-      if (!isPdfSourceFile(file) && !isMarkdownSourceFile(file) && !isPptxSourceFile(file)) {
-        onError('目前只支持 PDF、PPTX 或 Markdown（.md）文件。');
-        return;
-      }
-      if (file.size > MAX_SOURCE_FILE_SIZE_BYTES) {
-        onError(fileTooLargeMessage);
+      const validationError = courseSourceFileValidationError(file);
+      if (validationError) {
+        onError(validationError);
         return;
       }
       onError(null);
       onSourceChanged();
       setForm((prev) => ({ ...prev, sourceFile: file }));
     },
-    [fileTooLargeMessage, onError, onSourceChanged],
+    [onError, onSourceChanged],
   );
 
   const clearSourceFile = useCallback(() => {

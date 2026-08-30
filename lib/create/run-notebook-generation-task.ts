@@ -35,9 +35,14 @@ import { writeMemoryWithActivity } from '@/lib/utils/memory-write-api';
 import { writePersistedStageOutlines } from '@/lib/utils/stage-outline-storage';
 import { getApiHeaders } from './generation-headers';
 import {
+  isDocxSourceFile,
+  isImageSourceFile,
   isMarkdownSourceFile,
   isPdfSourceFile,
   isPptxSourceFile,
+  isTextSourceFile,
+  parseDocxLikeGenerationInput,
+  parseImageLikeGenerationInput,
   parseMarkdownLikeGenerationInput,
   parsePdfLikeGenerationPreview,
   parsePptxLikeGenerationPreview,
@@ -1313,9 +1318,7 @@ export async function runNotebookGenerationTask(
   const sourceFile = input.sourceFile ?? input.pdfFile ?? null;
   if (!requirement && !sourceFile) throw new Error('缺少笔记本创建需求或上传文档');
   if (!requirement && sourceFile) {
-    requirement = isMarkdownSourceFile(sourceFile)
-      ? '请根据上传的 Markdown 文档创建笔记本。'
-      : '请根据上传的 PDF 创建笔记本。';
+    requirement = `请根据上传的${isImageSourceFile(sourceFile) ? '课程图片' : '课程资料'}创建笔记本。`;
   }
 
   const language = input.language || 'zh-CN';
@@ -1416,8 +1419,43 @@ export async function runNotebookGenerationTask(
               ? `Markdown 已读取。${parsed.truncationWarnings.join(' ')}`
               : 'Markdown 已读取，已提取正文内容。',
         });
+      } else if (isTextSourceFile(sourceFile)) {
+        input.onProgress?.({ stage: 'pdf-analysis', detail: '正在读取 TXT 文档…' });
+        const parsed = await parseMarkdownLikeGenerationInput({ file: sourceFile });
+        pdfText = parsed.pdfText;
+        input.onProgress?.({
+          stage: 'pdf-analysis',
+          detail:
+            parsed.truncationWarnings.length > 0
+              ? `TXT 已读取。${parsed.truncationWarnings.join(' ')}`
+              : 'TXT 已读取，已提取正文内容。',
+        });
+      } else if (isDocxSourceFile(sourceFile)) {
+        input.onProgress?.({ stage: 'pdf-analysis', detail: '正在解析 DOCX 文档…' });
+        const parsed = await parseDocxLikeGenerationInput({
+          file: sourceFile,
+          signal: input.signal,
+        });
+        pdfText = parsed.pdfText;
+        input.onProgress?.({
+          stage: 'pdf-analysis',
+          detail:
+            parsed.truncationWarnings.length > 0
+              ? `DOCX 已解析。${parsed.truncationWarnings.join(' ')}`
+              : 'DOCX 已解析，已提取正文内容。',
+        });
+      } else if (isImageSourceFile(sourceFile)) {
+        input.onProgress?.({ stage: 'pdf-analysis', detail: '正在读取课程图片…' });
+        const parsed = await parseImageLikeGenerationInput({ file: sourceFile });
+        pdfText = parsed.pdfText;
+        pdfImages = parsed.pdfImages;
+        imageMapping = parsed.imageMapping;
+        input.onProgress?.({
+          stage: 'pdf-analysis',
+          detail: '课程图片已读取，将作为视觉资料参与生成。',
+        });
       } else {
-        throw new Error('目前只支持 PDF、PPTX 或 Markdown（.md）文件用于创建笔记本。');
+        throw new Error('文件格式不受支持，请重新选择课程资料。');
       }
     }
 

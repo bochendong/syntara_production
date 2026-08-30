@@ -63,6 +63,7 @@ export type SourceUploadKind =
   | 'plain_text'
   | 'pptx'
   | 'docx'
+  | 'image'
   | 'problem_bank'
   | 'other';
 

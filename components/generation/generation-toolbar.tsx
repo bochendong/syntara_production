@@ -22,30 +22,20 @@ import type { ProviderId } from '@/lib/ai/providers';
 import { Button } from '@/components/ui/button';
 import { getTTSVoices } from '@/lib/audio/constants';
 import { voiceRowBlurb } from '@/lib/audio/voice-display';
-
-// ─── Constants ───────────────────────────────────────────────
-const MAX_SOURCE_FILE_SIZE_MB = 50;
-const MAX_SOURCE_FILE_SIZE_BYTES = MAX_SOURCE_FILE_SIZE_MB * 1024 * 1024;
+import {
+  COURSE_SOURCE_ACCEPT,
+  COURSE_SOURCE_MAX_FILE_SIZE_MB,
+  COURSE_SOURCE_SUPPORTED_FORMATS,
+  courseSourceFileKind,
+  courseSourceFileValidationError,
+} from '@/lib/uploads/course-source-policy';
 
 function isPdfSourceFile(file: File): boolean {
-  const mime = (file.type || '').toLowerCase();
-  const lower = file.name.toLowerCase();
-  return mime === 'application/pdf' || lower.endsWith('.pdf');
-}
-
-function isMarkdownSourceFile(file: File): boolean {
-  const mime = (file.type || '').toLowerCase();
-  const lower = file.name.toLowerCase();
-  return mime === 'text/markdown' || mime === 'text/x-markdown' || lower.endsWith('.md');
+  return courseSourceFileKind(file) === 'pdf';
 }
 
 function isPptxSourceFile(file: File): boolean {
-  const mime = (file.type || '').toLowerCase();
-  const lower = file.name.toLowerCase();
-  return (
-    mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
-    lower.endsWith('.pptx')
-  );
+  return courseSourceFileKind(file) === 'pptx';
 }
 
 // ─── Types ───────────────────────────────────────────────────
@@ -80,7 +70,7 @@ export function GenerationToolbar({
 
   const documentLabel = language === 'zh-CN' ? '文档' : 'Document';
   const uploadLabel =
-    language === 'zh-CN' ? '上传 PDF、PPTX 或 Markdown' : 'Upload PDF, PPTX or Markdown';
+    language === 'zh-CN' ? `上传 ${COURSE_SOURCE_SUPPORTED_FORMATS}` : 'Upload course material';
   const markdownHint =
     language === 'zh-CN'
       ? 'Markdown 文件会直接读取正文，不经过 PDF 文件解析流程。'
@@ -89,6 +79,10 @@ export function GenerationToolbar({
     language === 'zh-CN'
       ? 'PPTX 文件会提取每页文字、备注和图片，用作笔记本生成上下文。'
       : 'PPTX files will extract slide text, notes, and images for notebook generation.';
+  const otherDocumentHint =
+    language === 'zh-CN'
+      ? 'DOCX、Markdown 和 TXT 会提取正文；图片会作为视觉资料参与生成。'
+      : 'DOCX, Markdown, and TXT extract text; images are used as visual source material.';
 
   const effectiveSourceFile = sourceFile ?? pdfFile ?? null;
   const effectiveSetSourceFile = onSourceFileChange ?? onPdfFileChange ?? (() => undefined);
@@ -96,16 +90,9 @@ export function GenerationToolbar({
 
   // Source file handler
   const handleFileSelect = (file: File) => {
-    if (!isPdfSourceFile(file) && !isMarkdownSourceFile(file) && !isPptxSourceFile(file)) {
-      effectiveSetSourceFileError(
-        language === 'zh-CN'
-          ? '目前只支持 PDF、PPTX 或 Markdown（.md）文件。'
-          : 'Only PDF, PPTX or Markdown (.md) files are supported.',
-      );
-      return;
-    }
-    if (file.size > MAX_SOURCE_FILE_SIZE_BYTES) {
-      effectiveSetSourceFileError(t('upload.fileTooLarge'));
+    const validationError = courseSourceFileValidationError(file);
+    if (validationError) {
+      effectiveSetSourceFileError(validationError);
       return;
     }
     effectiveSetSourceFileError(null);
@@ -195,7 +182,9 @@ export function GenerationToolbar({
             </div>
           ) : (
             <div className="px-3 pt-3 pb-2 text-[11px] leading-relaxed text-muted-foreground">
-              {markdownHint}
+              {courseSourceFileKind(effectiveSourceFile) === 'markdown'
+                ? markdownHint
+                : otherDocumentHint}
             </div>
           )}
 
@@ -205,7 +194,7 @@ export function GenerationToolbar({
               type="file"
               ref={fileInputRef}
               className="hidden"
-              accept=".pdf,.pptx,.md,text/markdown,text/x-markdown,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+              accept={COURSE_SOURCE_ACCEPT}
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) handleFileSelect(f);
@@ -257,8 +246,8 @@ export function GenerationToolbar({
                 <p className="text-xs font-medium">{uploadLabel}</p>
                 <p className="text-[10px] text-muted-foreground/60 mt-0.5">
                   {language === 'zh-CN'
-                    ? `单个文件不超过 ${MAX_SOURCE_FILE_SIZE_MB}MB`
-                    : `Up to ${MAX_SOURCE_FILE_SIZE_MB}MB per file`}
+                    ? `支持 ${COURSE_SOURCE_SUPPORTED_FORMATS}；单个文件不超过 ${COURSE_SOURCE_MAX_FILE_SIZE_MB}MB`
+                    : `Up to ${COURSE_SOURCE_MAX_FILE_SIZE_MB}MB per file`}
                 </p>
               </div>
             )}

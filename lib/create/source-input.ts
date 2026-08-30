@@ -6,38 +6,47 @@ import type { PdfSourceSelection } from '@/lib/pdf/page-selection';
 import { useSettingsStore } from '@/lib/store/settings';
 import type { ImageMapping, PdfImage } from '@/lib/types/generation';
 import { loadImageMapping, storeImages } from '@/lib/utils/image-storage';
+import {
+  courseSourceFileKind,
+  normalizedCourseSourceMimeType,
+} from '@/lib/uploads/course-source-policy';
 
 export function isPdfSourceFile(file: File): boolean {
-  const mime = (file.type || '').toLowerCase();
-  const lowerName = file.name.toLowerCase();
-  return mime === 'application/pdf' || lowerName.endsWith('.pdf');
+  return courseSourceFileKind(file) === 'pdf';
 }
 
 export function isMarkdownSourceFile(file: File): boolean {
-  const mime = (file.type || '').toLowerCase();
-  const lowerName = file.name.toLowerCase();
-  return mime === 'text/markdown' || mime === 'text/x-markdown' || lowerName.endsWith('.md');
+  return courseSourceFileKind(file) === 'markdown';
 }
 
 export function isPptxSourceFile(file: File): boolean {
-  const mime = (file.type || '').toLowerCase();
-  const lowerName = file.name.toLowerCase();
-  return (
-    mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
-    lowerName.endsWith('.pptx')
-  );
+  return courseSourceFileKind(file) === 'pptx';
+}
+
+export function isDocxSourceFile(file: File): boolean {
+  return courseSourceFileKind(file) === 'docx';
+}
+
+export function isTextSourceFile(file: File): boolean {
+  const kind = courseSourceFileKind(file);
+  return kind === 'markdown' || kind === 'plain_text';
+}
+
+export function isImageSourceFile(file: File): boolean {
+  return courseSourceFileKind(file) === 'image';
 }
 
 export async function parseMarkdownLikeGenerationInput(args: {
   file: File;
 }): Promise<{ pdfText: string; truncationWarnings: string[] }> {
   const file = args.file;
+  const kindLabel = isMarkdownSourceFile(file) ? 'Markdown' : 'TXT';
   if (!(file instanceof File) || file.size === 0) {
-    throw new Error('Markdown 文件无效或为空');
+    throw new Error(`${kindLabel} 文件无效或为空`);
   }
   const raw = (await file.text()).replace(/\u0000/g, '').trim();
   if (!raw) {
-    throw new Error('Markdown 文件为空，无法用于生成');
+    throw new Error(`${kindLabel} 文件为空，无法用于生成`);
   }
   const truncationWarnings: string[] = [];
   let pdfText = raw;
@@ -46,6 +55,79 @@ export async function parseMarkdownLikeGenerationInput(args: {
     truncationWarnings.push(`正文已截断至前 ${MAX_PDF_CONTENT_CHARS} 字符`);
   }
   return { pdfText, truncationWarnings };
+}
+
+export async function parseDocxLikeGenerationInput(args: {
+  file: File;
+  signal?: AbortSignal;
+}): Promise<{ pdfText: string; truncationWarnings: string[] }> {
+  const formData = new FormData();
+  formData.set('file', args.file);
+  const response = await fetch('/api/parse-docx', {
+    method: 'POST',
+    body: formData,
+    signal: args.signal,
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    text?: unknown;
+    error?: unknown;
+  } | null;
+  if (!response.ok || typeof payload?.text !== 'string') {
+    throw new Error(
+      typeof payload?.error === 'string'
+        ? payload.error
+        : `DOCX 解析失败（HTTP ${response.status}）`,
+    );
+  }
+  let pdfText = payload.text.replace(/\u0000/g, '').trim();
+  if (!pdfText) throw new Error('DOCX 文件没有可读取的正文。');
+  const truncationWarnings: string[] = [];
+  if (pdfText.length > MAX_PDF_CONTENT_CHARS) {
+    pdfText = pdfText.substring(0, MAX_PDF_CONTENT_CHARS);
+    truncationWarnings.push(`正文已截断至前 ${MAX_PDF_CONTENT_CHARS} 字符`);
+  }
+  return { pdfText, truncationWarnings };
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      typeof reader.result === 'string'
+        ? resolve(reader.result)
+        : reject(new Error('图片读取失败'));
+    reader.onerror = () => reject(reader.error || new Error('图片读取失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function parseImageLikeGenerationInput(args: { file: File }): Promise<{
+  pdfText: string;
+  pdfImages: PdfImage[];
+  imageStorageIds: string[];
+  imageMapping: ImageMapping;
+  truncationWarnings: string[];
+}> {
+  const src = await readFileAsDataUrl(args.file);
+  const id = 'source_image_1';
+  const imageStorageIds = await storeImages([{ id, src, pageNumber: 1 }]);
+  const imageMapping = await loadImageMapping(imageStorageIds);
+  const pdfImages: PdfImage[] = [
+    {
+      id,
+      src: '',
+      pageNumber: 1,
+      storageId: imageStorageIds[0],
+      description: `用户上传的课程图片：${args.file.name}（${normalizedCourseSourceMimeType(args.file, 'image')}）`,
+    },
+  ];
+  return {
+    pdfText: `用户上传了一张课程资料图片：${args.file.name}。请直接阅读图片内容，并将图片中的文字、公式、图表和结构作为生成依据。`,
+    pdfImages,
+    imageStorageIds,
+    imageMapping,
+    truncationWarnings: [],
+  };
 }
 
 export async function parsePdfLikeGenerationPreview(args: {

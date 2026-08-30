@@ -7,11 +7,15 @@ import { safeRoute } from '@/lib/server/json-error-response';
 import { requireTeacher } from '@/lib/server/teacher-auth';
 import { toPrismaJson } from '@/lib/server/prisma-json';
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
+import {
+  COURSE_SOURCE_MAX_FILE_BYTES,
+  courseSourceFileValidationError,
+  normalizedCourseSourceMimeType,
+} from '@/lib/uploads/course-source-policy';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const categorySchema = z.enum([
   'school_teacher_notes',
   'crash_course_teacher_notes',
@@ -34,14 +38,19 @@ export async function POST(request: Request, context: { params: Promise<{ course
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'Missing source file' }, { status: 400 });
     }
-    if (file.size <= 0 || file.size > MAX_FILE_BYTES) {
-      return NextResponse.json({ error: '源文件必须小于 50MB 且不能为空' }, { status: 413 });
+    const validationError = courseSourceFileValidationError(file);
+    if (validationError) {
+      return NextResponse.json(
+        { error: validationError },
+        { status: file.size <= 0 ? 400 : file.size > COURSE_SOURCE_MAX_FILE_BYTES ? 413 : 415 },
+      );
     }
     const parsedCategory = categorySchema.safeParse(formData.get('sourceCategory'));
     if (!parsedCategory.success) {
       return NextResponse.json({ error: '源文件分类无效' }, { status: 400 });
     }
     const buffer = Buffer.from(await file.arrayBuffer());
+    const normalizedMimeType = normalizedCourseSourceMimeType(file);
     const sourceHash = createHash('sha256').update(buffer).digest('hex');
     const existing = await prisma.courseSource.findUnique({
       where: { courseId_sourceHash: { courseId, sourceHash } },
@@ -58,7 +67,7 @@ export async function POST(request: Request, context: { params: Promise<{ course
         sourceHash,
         title: file.name,
         kind: 'teacher_upload',
-        fileMime: file.type || 'application/octet-stream',
+        fileMime: normalizedMimeType,
         fileData: buffer,
         fileSize: file.size,
         sourceCategory: parsedCategory.data,
@@ -68,7 +77,7 @@ export async function POST(request: Request, context: { params: Promise<{ course
       },
       update: {
         title: file.name,
-        fileMime: file.type || 'application/octet-stream',
+        fileMime: normalizedMimeType,
         fileData: buffer,
         fileSize: file.size,
         sourceCategory: parsedCategory.data,

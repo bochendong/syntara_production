@@ -10,7 +10,15 @@ export type SourceIngestionInput = {
   targetId?: string;
   courseCode?: string;
   sourceTitle: string;
-  sourceKind?: 'pdf' | 'markdown' | 'plain_text' | 'pptx' | 'docx' | 'problem_bank' | 'other';
+  sourceKind?:
+    | 'pdf'
+    | 'markdown'
+    | 'plain_text'
+    | 'pptx'
+    | 'docx'
+    | 'image'
+    | 'problem_bank'
+    | 'other';
   sourceHash?: string;
   text: string;
   audience?: SourceIngestionAudience;

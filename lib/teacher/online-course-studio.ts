@@ -1,6 +1,7 @@
 'use client';
 
 import { backendFetch, backendJson } from '@/lib/utils/backend-api';
+import { courseSourceFileKind } from '@/lib/uploads/course-source-policy';
 
 export type AcademicTerm = 'winter' | 'summer' | 'fall';
 export type CourseContentType = 'notebook' | 'problem_bank' | 'source';
@@ -91,7 +92,7 @@ export type TeacherStudioSourcePreview = {
   fileName: string;
   mimeType: string;
   size: number;
-  kind: 'pdf' | 'markdown' | 'text' | 'office';
+  kind: 'pdf' | 'markdown' | 'text' | 'office' | 'image';
   blob: Blob;
   text?: string;
   pageCount?: number;
@@ -290,15 +291,20 @@ export async function getOnlineTeacherSourcePreview(item: TeacherStudioContentIt
   const response = await backendFetch(item.fileUrl, { timeoutMs: 120_000 });
   if (!response.ok) throw new Error(`源文件读取失败（HTTP ${response.status}）`);
   const blob = await response.blob();
-  const lower = item.title.toLowerCase();
+  const detectedKind = courseSourceFileKind({
+    name: item.title,
+    type: item.mimeType || blob.type || '',
+  });
   const kind: TeacherStudioSourcePreview['kind'] =
-    item.mimeType === 'application/pdf' || lower.endsWith('.pdf')
+    detectedKind === 'pdf'
       ? 'pdf'
-      : lower.endsWith('.md') || lower.endsWith('.markdown')
+      : detectedKind === 'markdown'
         ? 'markdown'
-        : lower.endsWith('.docx') || lower.endsWith('.pptx')
+        : detectedKind === 'docx' || detectedKind === 'pptx'
           ? 'office'
-          : 'text';
+          : detectedKind === 'image'
+            ? 'image'
+            : 'text';
   return {
     fileName: item.title,
     mimeType: item.mimeType || blob.type || 'application/octet-stream',

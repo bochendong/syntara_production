@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import {
+  COURSE_SOURCE_ACCEPT,
+  COURSE_SOURCE_SUPPORTED_FORMATS,
+  courseSourceFileValidationError,
+} from '@/lib/uploads/course-source-policy';
+import {
   COURSE_MATERIAL_SPACE_LIMIT_BYTES,
   addCourseMaterials,
   deleteCourseMaterial,
@@ -72,6 +77,11 @@ export function CourseMaterialsPanel({
   const handlePickFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const selected = Array.from(files);
+    const validationError = selected.map(courseSourceFileValidationError).find(Boolean);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     setBusy(true);
     try {
       const added = await addCourseMaterials(courseId, selected);
@@ -131,6 +141,7 @@ export function CourseMaterialsPanel({
         ref={fileInputRef}
         type="file"
         multiple
+        accept={COURSE_SOURCE_ACCEPT}
         className="hidden"
         onChange={(event) => void handlePickFiles(event.target.files)}
       />
@@ -180,7 +191,7 @@ export function CourseMaterialsPanel({
             <FileText className="mb-2 size-6 text-slate-400" strokeWidth={1.7} />
             <p className="text-sm font-medium text-slate-600 dark:text-slate-200">还没有上传资料</p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              PDF、PPTX、Markdown 或其它课程文件都可以先放在这里。
+              支持 {COURSE_SOURCE_SUPPORTED_FORMATS}。
             </p>
           </div>
         ) : (

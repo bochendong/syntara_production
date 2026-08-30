@@ -344,7 +344,6 @@ export function useCreateNotebookWorkspaceController({
     activeStep,
     busy,
     language,
-    fileTooLargeMessage: t('upload.fileTooLarge'),
     onError: setError,
     onSourceChanged: invalidateSourcePlan,
   });

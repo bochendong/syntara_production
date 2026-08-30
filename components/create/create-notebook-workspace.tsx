@@ -49,6 +49,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { PdfPageSelectionDialog } from '@/components/create/pdf-page-selection-dialog';
 import { SpeechButton } from '@/components/audio/speech-button';
 import { cn } from '@/lib/utils';
+import {
+  COURSE_SOURCE_ACCEPT,
+  COURSE_SOURCE_SUPPORTED_FORMATS,
+} from '@/lib/uploads/course-source-policy';
 import type { OrchestratorWorkedExampleLevel } from '@/lib/store/orchestrator-notebook-generation';
 import {
   IMAGE_GENERATION_STATUS_LABELS,
@@ -406,7 +410,7 @@ export function CreateNotebookWorkspace({ courseId }: { courseId: string }) {
                       ref={fileInputRef}
                       type="file"
                       className="hidden"
-                      accept=".pdf,.pptx,.md,text/markdown,text/x-markdown,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                      accept={COURSE_SOURCE_ACCEPT}
                       onChange={(event) => {
                         const file = event.target.files?.[0];
                         if (file) handleFileSelect(file);
@@ -443,7 +447,7 @@ export function CreateNotebookWorkspace({ courseId }: { courseId: string }) {
                           <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">
                             {form.sourceFile
                               ? `${fileKindLabel(form.sourceFile)} · ${formatFileSize(form.sourceFile.size)}`
-                              : `PDF / PPTX / Markdown，不超过 ${MAX_SOURCE_FILE_SIZE_MB}MB。`}
+                              : `${COURSE_SOURCE_SUPPORTED_FORMATS}，不超过 ${MAX_SOURCE_FILE_SIZE_MB}MB。`}
                           </span>
                         </span>
                       </button>

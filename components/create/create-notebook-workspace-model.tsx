@@ -13,9 +13,14 @@ import {
   type ImageNotebookQaResult,
   type ImageNotebookStyleBrief,
 } from '@/lib/generation/image-notebook-quality';
+import {
+  COURSE_SOURCE_MAX_FILE_BYTES,
+  COURSE_SOURCE_MAX_FILE_SIZE_MB,
+  courseSourceFileKind,
+} from '@/lib/uploads/course-source-policy';
 
-const MAX_SOURCE_FILE_SIZE_MB = 50;
-const MAX_SOURCE_FILE_SIZE_BYTES = MAX_SOURCE_FILE_SIZE_MB * 1024 * 1024;
+const MAX_SOURCE_FILE_SIZE_MB = COURSE_SOURCE_MAX_FILE_SIZE_MB;
+const MAX_SOURCE_FILE_SIZE_BYTES = COURSE_SOURCE_MAX_FILE_BYTES;
 
 type WorkspaceStep = 'input' | 'materials' | 'outline' | 'style' | 'result';
 type PlanningPhase = 'course-spine' | 'page-brief';
@@ -489,9 +494,7 @@ function stylePresetForOption(styleId: string): ImageNotebookStyleBrief['preset'
   return 'hand-drawn-course-notebook';
 }
 
-function decorationLevelForStyle(
-  styleId: string,
-): ImageNotebookStyleBrief['decorationLevel'] {
+function decorationLevelForStyle(styleId: string): ImageNotebookStyleBrief['decorationLevel'] {
   if (styleId === 'clean' || styleId === 'exam') return 'moderate';
   if (styleId === 'diagram') return 'light';
   if (styleId === 'custom') return 'light';
@@ -685,24 +688,27 @@ function buildImagePreviews(
 }
 
 function isPdfSourceFile(file: File): boolean {
-  const mime = (file.type || '').toLowerCase();
-  const lower = file.name.toLowerCase();
-  return mime === 'application/pdf' || lower.endsWith('.pdf');
+  return courseSourceFileKind(file) === 'pdf';
 }
 
 function isMarkdownSourceFile(file: File): boolean {
-  const mime = (file.type || '').toLowerCase();
-  const lower = file.name.toLowerCase();
-  return mime === 'text/markdown' || mime === 'text/x-markdown' || lower.endsWith('.md');
+  return courseSourceFileKind(file) === 'markdown';
 }
 
 function isPptxSourceFile(file: File): boolean {
-  const mime = (file.type || '').toLowerCase();
-  const lower = file.name.toLowerCase();
-  return (
-    mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
-    lower.endsWith('.pptx')
-  );
+  return courseSourceFileKind(file) === 'pptx';
+}
+
+function isDocxSourceFile(file: File): boolean {
+  return courseSourceFileKind(file) === 'docx';
+}
+
+function isTextSourceFile(file: File): boolean {
+  return courseSourceFileKind(file) === 'plain_text';
+}
+
+function isImageSourceFile(file: File): boolean {
+  return courseSourceFileKind(file) === 'image';
 }
 
 function formatFileSize(bytes: number): string {
@@ -717,7 +723,10 @@ function fileKindLabel(file: File | null): string {
   if (!file) return '文字需求';
   if (isPdfSourceFile(file)) return 'PDF';
   if (isPptxSourceFile(file)) return 'PPTX';
+  if (isDocxSourceFile(file)) return 'DOCX';
   if (isMarkdownSourceFile(file)) return 'Markdown';
+  if (isTextSourceFile(file)) return 'TXT';
+  if (isImageSourceFile(file)) return '图片';
   return '文档';
 }
 
@@ -1462,6 +1471,9 @@ export {
   isPdfSourceFile,
   isMarkdownSourceFile,
   isPptxSourceFile,
+  isDocxSourceFile,
+  isTextSourceFile,
+  isImageSourceFile,
   formatFileSize,
   fileKindLabel,
   buildMaterialRows,

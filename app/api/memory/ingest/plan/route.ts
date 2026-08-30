@@ -12,7 +12,7 @@ const ingestionPlanRequestSchema = z.object({
   courseCode: z.string().trim().min(1).max(40).optional(),
   sourceTitle: z.string().trim().min(1).max(240),
   sourceKind: z
-    .enum(['pdf', 'markdown', 'plain_text', 'pptx', 'docx', 'problem_bank', 'other'])
+    .enum(['pdf', 'markdown', 'plain_text', 'pptx', 'docx', 'image', 'problem_bank', 'other'])
     .default('plain_text'),
   audience: z.enum(['creator', 'learner']).default('creator'),
   text: z.string().trim().min(1).max(200000),

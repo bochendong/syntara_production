@@ -269,6 +269,11 @@ import {
 } from '@/lib/course-space/format-course-space-header';
 import { findLocalDemoTeacherHomeCourse } from '@/lib/teacher/local-demo-fixtures';
 import { cn } from '@/lib/utils';
+import {
+  COURSE_SOURCE_ACCEPT,
+  courseSourceFileKind,
+  courseSourceFileValidationError,
+} from '@/lib/uploads/course-source-policy';
 import { toast } from '@/lib/notifications/client-toast';
 import type { CourseRecord } from '@/lib/utils/database';
 import { BackendApiError, backendJson } from '@/lib/utils/backend-api';
@@ -978,6 +983,7 @@ type CourseSourceUploadKind =
   | 'plain_text'
   | 'pptx'
   | 'docx'
+  | 'image'
   | 'problem_bank'
   | 'other';
 
@@ -1313,8 +1319,6 @@ const MAX_LEARN_CHAT_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_LEARN_CHAT_PDF_BYTES = 4 * 1024 * 1024;
 const MAX_LEARN_CHAT_TEXT_BYTES = 1024 * 1024;
 const LEARN_CHAT_IMAGE_MAX_DIMENSION = 1280;
-const MAX_LEARN_SOURCE_TEXT_FILE_BYTES = 4 * 1024 * 1024;
-const MAX_LEARN_SOURCE_DOCUMENT_BYTES = 18 * 1024 * 1024;
 const MAX_SYLLABUS_TEXT_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_SYLLABUS_DOCUMENT_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_SYLLABUS_IMAGE_FILE_BYTES = 12 * 1024 * 1024;
@@ -1845,47 +1849,20 @@ function isSyllabusImageFile(file: File) {
   );
 }
 
-function isPptxSourceFile(file: File) {
-  const mime = (file.type || '').toLowerCase();
-  return (
-    mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
-    /\.pptx$/i.test(file.name)
-  );
-}
-
-function isDocxSourceFile(file: File) {
-  const mime = (file.type || '').toLowerCase();
-  return (
-    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    /\.docx$/i.test(file.name)
-  );
-}
-
 function learnSourceKindForFile(file: File): CourseSourceUploadKind {
   const lowerName = file.name.toLowerCase();
-  const mime = (file.type || '').toLowerCase();
-  if (isSyllabusPdfFile(file)) return 'pdf';
-  if (isPptxSourceFile(file)) return 'pptx';
-  if (isDocxSourceFile(file)) return 'docx';
-  if (mime.includes('markdown') || lowerName.endsWith('.md') || lowerName.endsWith('.markdown')) {
-    return 'markdown';
-  }
-  if (lowerName.includes('problem') || lowerName.includes('question') || lowerName.includes('题')) {
+  const kind = courseSourceFileKind(file);
+  if (
+    kind === 'plain_text' &&
+    (lowerName.includes('problem') || lowerName.includes('question') || lowerName.includes('题'))
+  ) {
     return 'problem_bank';
   }
-  if (mime.startsWith('text/') || /\.(txt|csv|json)$/i.test(file.name)) return 'plain_text';
-  return 'other';
+  return kind || 'other';
 }
 
 function isLearnSourceDocumentFile(file: File) {
-  if (file.type.startsWith('image/')) return false;
-  return (
-    isSyllabusPdfFile(file) ||
-    isPptxSourceFile(file) ||
-    isDocxSourceFile(file) ||
-    /\.(txt|md|markdown|csv|json)$/i.test(file.name) ||
-    (file.type || '').startsWith('text/')
-  );
+  return courseSourceFileKind(file) !== null;
 }
 
 function pdfParseApiError(data: unknown, fallback: string) {
@@ -11089,9 +11066,7 @@ export function LearnPageClient() {
       const unsupportedFiles = files.filter((file) => !isLearnSourceDocumentFile(file));
 
       if (unsupportedFiles.length) {
-        setError(
-          `暂不支持 ${unsupportedFiles[0].name}，课程资料支持 PDF、PPTX、DOCX、Markdown 或文本文件。`,
-        );
+        setError(courseSourceFileValidationError(unsupportedFiles[0]));
       }
       if (!sourceFiles.length) return;
       if (!activeCourse) {
@@ -11153,19 +11128,9 @@ export function LearnPageClient() {
           });
           updateSourceUploadItem(itemId, { activityId });
 
-          const maxSize =
-            sourceKind === 'plain_text' ||
-            sourceKind === 'markdown' ||
-            sourceKind === 'problem_bank'
-              ? MAX_LEARN_SOURCE_TEXT_FILE_BYTES
-              : MAX_LEARN_SOURCE_DOCUMENT_BYTES;
-
           try {
-            if (file.size > maxSize) {
-              throw new Error(
-                `${file.name} 太大，请上传 ${compactBytes(maxSize)} 以内的原始讲义。`,
-              );
-            }
+            const validationError = courseSourceFileValidationError(file);
+            if (validationError) throw new Error(validationError);
 
             const formData = new FormData();
             formData.append('file', file);
@@ -19102,7 +19067,7 @@ export function LearnPageClient() {
                     <input
                       ref={sourceDocumentInputRef}
                       type="file"
-                      accept=".pdf,.pptx,.docx,.txt,.md,.markdown,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
+                      accept={COURSE_SOURCE_ACCEPT}
                       multiple
                       className="hidden"
                       onChange={(event) => {

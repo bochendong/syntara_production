@@ -16,6 +16,7 @@ import { withRequestContext } from '@/lib/server/request-context';
 import { resolveOpenAIResponsesModelFromHeaders } from '@/lib/server/resolve-model';
 import { requireTeacher } from '@/lib/server/teacher-auth';
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
+import { courseSourceFileKind } from '@/lib/uploads/course-source-policy';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -42,6 +43,8 @@ function jsonRecord(value: unknown): Record<string, unknown> {
 }
 
 function sourceKind(title: string, mimeType: string | null): SourceUploadKind {
+  const detected = courseSourceFileKind({ name: title, type: mimeType || '' });
+  if (detected) return detected;
   const lower = title.toLowerCase();
   if (mimeType === 'application/pdf' || lower.endsWith('.pdf')) return 'pdf';
   if (lower.endsWith('.pptx')) return 'pptx';

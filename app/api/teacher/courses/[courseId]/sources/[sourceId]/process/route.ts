@@ -9,20 +9,22 @@ import { toPrismaJson } from '@/lib/server/prisma-json';
 import { requireTeacher } from '@/lib/server/teacher-auth';
 import { generateTeacherCourseNotebook } from '@/lib/server/teacher-course-notebook-generation';
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
+import { courseSourceFileKind } from '@/lib/uploads/course-source-policy';
+import { extractCourseSourceImageText } from '@/lib/server/extract-course-source-image-text';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 async function extractText(args: { title: string; mimeType: string; data: Buffer }) {
-  const lower = args.title.toLowerCase();
-  if (args.mimeType === 'application/pdf' || lower.endsWith('.pdf')) {
+  const kind = courseSourceFileKind({ name: args.title, type: args.mimeType });
+  if (kind === 'pdf') {
     const parsed = await parsePDF({ providerId: 'unpdf', apiKey: '', baseUrl: '' }, args.data);
     return {
       text: parsed.text || '',
       pageCount: typeof parsed.metadata?.pageCount === 'number' ? parsed.metadata.pageCount : 1,
     };
   }
-  if (lower.endsWith('.docx')) {
+  if (kind === 'docx') {
     const parsed = await parseDocxBuffer({
       buffer: args.data,
       fileName: args.title,
@@ -30,13 +32,23 @@ async function extractText(args: { title: string; mimeType: string; data: Buffer
     });
     return { text: parsed.text, pageCount: 1 };
   }
-  if (lower.endsWith('.pptx')) {
+  if (kind === 'pptx') {
     const parsed = await parsePptxBuffer({
       buffer: args.data,
       fileName: args.title,
       fileSize: args.data.byteLength,
     });
     return { text: parsed.text || '', pageCount: parsed.metadata.slideCount || 1 };
+  }
+  if (kind === 'image') {
+    return {
+      text: await extractCourseSourceImageText({
+        buffer: args.data,
+        fileName: args.title,
+        mimeType: args.mimeType,
+      }),
+      pageCount: 1,
+    };
   }
   return { text: args.data.toString('utf8'), pageCount: 1 };
 }
