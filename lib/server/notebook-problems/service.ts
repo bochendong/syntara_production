@@ -2751,6 +2751,84 @@ export async function deleteNotebookProblem(args: {
   });
 }
 
+export async function assignUnassignedCourseProblemsToNotebooks(args: {
+  userId: string;
+  courseId: string;
+  assignments: Array<{ problemId: string; notebookId: string }>;
+}): Promise<{
+  assignedCount: number;
+  assignedProblemIds: string[];
+  touchedNotebookIds: string[];
+}> {
+  const accessRole = await findCourseAccessRole(prisma, args.userId, args.courseId);
+  if (accessRole !== 'owner') throw new Error('Course not found');
+
+  const notebooks = await prisma.notebook.findMany({
+    where: { courseId: args.courseId, removedAt: null },
+    select: { id: true },
+  });
+  const allowedNotebookIds = new Set(notebooks.map((notebook) => notebook.id));
+  const problemIdsByNotebook = new Map<string, Set<string>>();
+  for (const assignment of args.assignments) {
+    const notebookId = assignment.notebookId.trim();
+    const problemId = assignment.problemId.trim();
+    if (!problemId || !allowedNotebookIds.has(notebookId)) continue;
+    const problemIds = problemIdsByNotebook.get(notebookId) ?? new Set<string>();
+    problemIds.add(problemId);
+    problemIdsByNotebook.set(notebookId, problemIds);
+  }
+  if (problemIdsByNotebook.size === 0) {
+    return { assignedCount: 0, assignedProblemIds: [], touchedNotebookIds: [] };
+  }
+
+  return prisma.$transaction(async (tx) => {
+    let assignedCount = 0;
+    const assignedProblemIds: string[] = [];
+    const touchedNotebookIds: string[] = [];
+    for (const [notebookId, problemIds] of problemIdsByNotebook) {
+      const ids = Array.from(problemIds);
+      const existing = await tx.notebookProblem.findMany({
+        where: {
+          id: { in: ids },
+          courseId: args.courseId,
+          notebookId: null,
+          status: { not: 'archived' },
+        },
+        select: { id: true },
+      });
+      if (existing.length === 0) continue;
+      const assignableIds = existing.map((problem) => problem.id);
+      const result = await tx.notebookProblem.updateMany({
+        where: {
+          id: { in: assignableIds },
+          courseId: args.courseId,
+          notebookId: null,
+          status: { not: 'archived' },
+        },
+        data: { notebookId },
+      });
+      if (result.count <= 0) continue;
+      const assigned = await tx.notebookProblem.findMany({
+        where: { id: { in: assignableIds }, courseId: args.courseId, notebookId },
+        select: { id: true },
+      });
+      assignedCount += result.count;
+      assignedProblemIds.push(...assigned.map((problem) => problem.id));
+      touchedNotebookIds.push(notebookId);
+    }
+    await touchOwnersAfterProblemWriteTx({
+      tx,
+      courseId: args.courseId,
+      notebookIds: touchedNotebookIds,
+    });
+    return {
+      assignedCount,
+      assignedProblemIds: Array.from(new Set(assignedProblemIds)),
+      touchedNotebookIds: Array.from(new Set(touchedNotebookIds)),
+    };
+  });
+}
+
 export async function deleteCourseProblem(args: {
   userId: string;
   courseId: string;

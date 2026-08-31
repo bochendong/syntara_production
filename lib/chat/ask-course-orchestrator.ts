@@ -35,6 +35,8 @@ export type CourseChatImageAttachment = {
   size: number;
   /** Browser-local bytes used for images and before a PDF is staged for the model. */
   dataUrl?: string;
+  /** Non-serialized browser file used for chunked OpenAI uploads. */
+  browserFile?: File;
   /** Short-lived OpenAI file id. This is never persisted into conversation storage. */
   modelUrl?: string;
   /** Text-like attachments are injected as bounded text instead of a provider file part. */

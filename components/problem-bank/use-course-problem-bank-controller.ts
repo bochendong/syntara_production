@@ -18,6 +18,7 @@ import {
   type ProblemContentLanguage,
 } from '@/lib/problem-bank';
 import {
+  autoArchiveUnassignedCourseProblems,
   commitCourseProblemImportWithSummary,
   deleteCourseProblem,
   listNotebookProblemAttempts,
@@ -76,6 +77,7 @@ import {
 
 type CourseProblemBankControllerArgs = {
   courseId: string;
+  initialImportOpen?: boolean;
   initialNotebookId?: string;
   initialProblemId?: string;
   initialFilters?: CourseProblemBankInitialFilters;
@@ -185,6 +187,7 @@ function attemptAnswerHasContent(answer: NotebookProblemAttemptAnswer | null | u
 
 export function useCourseProblemBankController({
   courseId,
+  initialImportOpen = false,
   initialNotebookId,
   initialProblemId,
   initialFilters,
@@ -203,6 +206,7 @@ export function useCourseProblemBankController({
   const webSearchProviderId = useSettingsStore((state) => state.webSearchProviderId);
   const webSearchProvidersConfig = useSettingsStore((state) => state.webSearchProvidersConfig);
   const initialPracticeAnswersRef = useRef(initialPracticeAnswers);
+  const initialImportOpenPendingRef = useRef(initialImportOpen);
 
   const [courseName, setCourseName] = useState('');
   const [courseCode, setCourseCode] = useState<string | undefined>();
@@ -222,6 +226,7 @@ export function useCourseProblemBankController({
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [moveNotebookId, setMoveNotebookId] = useState<string>('__unassigned__');
   const [savingAssignment, setSavingAssignment] = useState(false);
+  const [autoArchiving, setAutoArchiving] = useState(false);
   const [deletingProblem, setDeletingProblem] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [answerModes, setAnswerModes] = useState<Record<string, TextAnswerMode>>({});
@@ -264,7 +269,9 @@ export function useCourseProblemBankController({
   );
 
   const [importOpen, setImportOpen] = useState(false);
-  const [importMode, setImportMode] = useState<'text' | 'pdf' | 'web' | 'manual'>('text');
+  const [importMode, setImportMode] = useState<'text' | 'pdf' | 'web' | 'manual'>(() =>
+    initialImportOpen ? 'pdf' : 'text',
+  );
   const [importText, setImportText] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importWebQuery, setImportWebQuery] = useState('');
@@ -477,7 +484,14 @@ export function useCourseProblemBankController({
   const canEditProblems = courseAccessRole === 'owner';
 
   useEffect(() => {
-    if (canEditProblems) return;
+    if (canEditProblems) {
+      if (initialImportOpenPendingRef.current) {
+        initialImportOpenPendingRef.current = false;
+        setImportMode('pdf');
+        setImportOpen(true);
+      }
+      return;
+    }
     setImportOpen(false);
     setMoveDialogOpen(false);
     setProblemInfoTab((current) => (current === 'edit' ? 'description' : current));
@@ -630,6 +644,10 @@ export function useCourseProblemBankController({
   const activeProblems = useMemo(
     () => problems.filter((problem) => problem.status !== 'archived'),
     [problems],
+  );
+  const unassignedProblemCount = useMemo(
+    () => activeProblems.filter((problem) => !problem.notebookId).length,
+    [activeProblems],
   );
   const notebooks = useMemo<StageListItem[]>(() => {
     const notebookById = new Map<string, StageListItem>();
@@ -1276,7 +1294,7 @@ export function useCourseProblemBankController({
     setImportBatchId(null);
     try {
       if (importMode === 'manual') {
-        const manualDraft = createManualProblemDraft(locale, initialNotebookId ?? null);
+        const manualDraft = createManualProblemDraft(locale, null);
         setPreviewNotebookOptions(
           notebooks.map((notebook) => ({ id: notebook.id, name: notebook.name })),
         );
@@ -1285,8 +1303,8 @@ export function useCourseProblemBankController({
         setImportProcessingStage('preview-ready');
         setImportProcessingDetail(
           locale === 'zh-CN'
-            ? '已创建 1 道手动草稿，可以直接设置章节归属并填写题目表单。'
-            : 'Created 1 manual draft. You can assign a notebook and fill out the form right away.',
+            ? '已创建 1 道手动草稿，可以填写题目表单；题目会保存在当前课程下。'
+            : 'Created 1 manual draft. It will be saved at course level.',
         );
         setDrafts([manualDraft]);
         setIncludedDraftIds({ [manualDraft.draftId]: true });
@@ -1377,8 +1395,8 @@ export function useCourseProblemBankController({
       setImportProcessingStage('validating');
       setImportProcessingDetail(
         locale === 'zh-CN'
-          ? '正在校验题目 schema，并给题目匹配章节…'
-          : 'Validating and matching notebooks…',
+          ? '正在校验题目 schema，并准备写入课程题库…'
+          : 'Validating drafts for the course problem bank…',
       );
 
       setImportProcessedProblemCount(previewResult.drafts.length);
@@ -1406,7 +1424,7 @@ export function useCourseProblemBankController({
             ? '这些题目已经在课程题库中，本次没有重复写入。'
             : 'These problems already exist in the course. Nothing was inserted.'
           : locale === 'zh-CN'
-            ? '草稿预览已生成，可以调整章节归属后写入课程题库。'
+            ? '草稿预览已生成；确认后会作为课程级题目写入题库。'
             : 'Preview ready.',
       );
       setImportSummaryNote(
@@ -2010,9 +2028,44 @@ export function useCourseProblemBankController({
     [codeAnswers, locale, runningCode, selectedProblem, selectedProblemContent],
   );
 
+  const handleAutoArchiveUnassignedProblems = useCallback(async () => {
+    if (!canEditProblems || autoArchiving) return;
+    if (unassignedProblemCount === 0) {
+      toast.info(locale === 'zh-CN' ? '当前没有未归档题目。' : 'No unassigned problems.');
+      return;
+    }
+    if (isLocalDemoProblemBankCourse(courseId)) {
+      toast.info(locale === 'zh-CN' ? '预览课程不会写入归档结果。' : 'Preview data is read-only.');
+      return;
+    }
+    setAutoArchiving(true);
+    try {
+      const result = await autoArchiveUnassignedCourseProblems(courseId);
+      await loadAll();
+      if (result.assignedCount > 0) {
+        toast.success(
+          locale === 'zh-CN'
+            ? `AI 已将 ${result.assignedCount} 道题归档到合适章节${result.remainingCount > 0 ? `，还有 ${result.remainingCount} 道暂未归档` : ''}。`
+            : `AI assigned ${result.assignedCount} problems${result.remainingCount > 0 ? `; ${result.remainingCount} remain unassigned` : ''}.`,
+        );
+      } else {
+        toast.info(
+          locale === 'zh-CN'
+            ? 'AI 没有找到足够可靠的章节匹配，题目仍保持未归档。'
+            : 'AI found no sufficiently reliable chapter matches.',
+        );
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'AI 自动归档失败');
+    } finally {
+      setAutoArchiving(false);
+    }
+  }, [autoArchiving, canEditProblems, courseId, loadAll, locale, unassignedProblemCount]);
+
   return {
     activeBankFilterCount,
     answerPanelTab,
+    autoArchiving,
     bankStats,
     blankAnswers,
     canEditProblems,
@@ -2038,6 +2091,7 @@ export function useCourseProblemBankController({
     editingDraftIsManual,
     filteredProblems,
     handleAddPhotoAnswerFiles,
+    handleAutoArchiveUnassignedProblems,
     handleCommitImport,
     handleDeleteProblem,
     handleEditingDraftChange,
@@ -2146,6 +2200,7 @@ export function useCourseProblemBankController({
     textAnswers,
     typeFilter,
     typeFilterOptions,
+    unassignedProblemCount,
     visibleProblemPreviewDraft,
     webSearchProviderId,
     webSearchProvidersConfig,

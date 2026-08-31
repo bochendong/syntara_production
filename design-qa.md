@@ -117,6 +117,65 @@
 
 final result: passed
 
+## 2026-08-31 Problem-bank empty state and course header QA
+
+**Source visual truth**
+
+- `/Users/dongpochen/Desktop/截屏2026-08-31 上午10.04.19.png`
+- Source pixels: 2824 × 1492 at Retina 2x; normalized to 1412 × 746 for comparison.
+- State: teacher course problem bank with zero visible results. The requested intentional changes are a taller placeholder, an always-visible problem-bank nav item, no Student Management item, and an Upload Problems action from the teacher source library.
+
+**Implementation evidence**
+
+- Implementation screenshot: `/Users/dongpochen/Github/syntara_production/artifacts/course-problem-bank-empty-after.png`
+- Side-by-side comparison: `/Users/dongpochen/Github/syntara_production/artifacts/course-problem-bank-empty-comparison.png`
+- CSS viewport and implementation pixels: 1412 × 746 at screenshot density 1; browser devicePixelRatio reported 2.
+- State: local teacher preview, CSC148, no matching filtered problems, light theme.
+
+**Full-view comparison evidence**
+
+- The previous 100 px-tall dashed strip is replaced by a 432.7 px-tall centered empty workspace at this viewport, so the page no longer collapses when no problems are visible.
+- The header now reads `资料库 / 课程聊天 / 题库 / 课程论坛`; `学生管理` is absent.
+- The problem-bank entry remains visible even when the count is zero or unavailable.
+
+**Focused region comparison evidence**
+
+- A separate crop was unnecessary because the 1412 × 746 full-view pair keeps the header text, filters, empty-state icon, title, and help copy legible.
+- The teacher source-library interaction was tested directly: selecting the 题库 source category exposes `上传题目`; clicking it navigates to `?upload=1` and opens the PDF import dialog after teacher access resolves.
+- The same `upload=1` parameter was tested in student preview and opened zero dialogs.
+
+**Required fidelity surfaces**
+
+- Fonts and typography: existing Syntara type scale, weights, truncation, and Chinese fallbacks are unchanged; the new empty-state heading and helper copy use existing interface sizes.
+- Spacing and layout rhythm: header remains 48 px tall; page insets and card radii remain unchanged; only the empty workspace gains the requested stable vertical presence.
+- Colors and visual tokens: existing slate, sky, border, shadow, and dark-mode tokens are reused.
+- Image quality and asset fidelity: the existing course avatar remains unchanged; the empty state uses the existing Lucide icon set and introduces no raster placeholder.
+- Copy and content: the header always includes 题库, teacher Student Management is removed, the source-library action is now 上传题目, and empty/filter states have distinct guidance.
+
+**Interaction and runtime evidence**
+
+- Teacher source category → 上传题目 → problem-bank PDF import dialog: passed.
+- Student `upload=1` permission guard: passed, zero dialogs.
+- Browser console errors: zero.
+- TypeScript, focused ESLint, contract test, Prettier, and `git diff --check`: passed; only pre-existing warnings remain in the large problem-bank components.
+
+**Comparison history**
+
+1. Initial source — P1: empty problem bank collapsed into a narrow strip; P1: problem-bank navigation disappeared at zero count; P2: teacher header exposed Student Management; P1: source-library action only entered management instead of opening upload.
+2. Interaction pass — P1: the `upload=1` route reached the problem bank, but the first permission-loading render closed the dialog. Fixed by deferring the one-time open until teacher access resolves; students remain blocked.
+3. Final — stable full-height empty state, correct shared navigation, direct upload dialog, zero browser console errors, and no remaining actionable P0/P1/P2 findings.
+
+**Implementation checklist**
+
+- [x] Keep the problem bank visible in shared course navigation regardless of count.
+- [x] Remove Student Management from the teacher course header.
+- [x] Give the problem-bank empty state a stable full workspace placeholder.
+- [x] Rename and wire the source-library action to Upload Problems.
+- [x] Open upload only after teacher permission resolves.
+- [x] Verify teacher/student behavior and console state.
+
+final result: passed
+
 ---
 
 # Teacher Course Libraries Design QA (2026-08-24)
@@ -568,7 +627,11 @@ final result: passed
 - [x] Old in-chat course navigation removed.
 - [x] Teacher and student pages use the same component.
 - [x] Teacher-only controls remain permission-gated.
-- [x] Problem-bank button is hidden when the course has no questions.
+- [x] Superseded on 2026-08-31: the problem-bank button is now always visible, including empty courses.
 - [x] Desktop overflow and console errors checked.
+
+final result: passed
+
+Latest QA result: the 2026-08-31 problem-bank empty-state and header pass above supersedes the older zero-question visibility rule.
 
 final result: passed

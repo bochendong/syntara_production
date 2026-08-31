@@ -22,3 +22,4 @@ export {
   runDirectLlmProblemImportPipeline,
   runProblemImportPipelineV2,
 } from './import.pipeline';
+export { llmExtractProblemDraftsFromOpenAIFile } from './import.core.llm';

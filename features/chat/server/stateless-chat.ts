@@ -51,6 +51,17 @@ function stripTrustedLearnHandoffToken(body: StatelessChatRequest): StatelessCha
   return sanitized;
 }
 
+function requestHasOpenAIFileInput(body: StatelessChatRequest): boolean {
+  return body.messages.some((message) =>
+    message.parts?.some((part) => {
+      const value = part as { type?: unknown; url?: unknown };
+      return (
+        value.type === 'file' && typeof value.url === 'string' && value.url.startsWith('file-')
+      );
+    }),
+  );
+}
+
 export async function handleStatelessChatRequest(req: NextRequest) {
   const encoder = new TextEncoder();
   try {
@@ -73,7 +84,10 @@ export async function handleStatelessChatRequest(req: NextRequest) {
         providerType: parsedBody.providerType,
         requiresApiKey: parsedBody.requiresApiKey,
       },
-      { allowOpenAIModelOverride: true },
+      {
+        allowOpenAIModelOverride: true,
+        useOpenAIResponses: requestHasOpenAIFileInput(parsedBody),
+      },
     );
     const trusted = await resolveTrustedCourseTurn({ body: parsedBody });
     const body = trusted.body;

@@ -35,7 +35,6 @@ import {
   MoreHorizontal,
   Network,
   Pause,
-  Paperclip,
   Play,
   Plus,
   RefreshCw,
@@ -274,6 +273,7 @@ import {
   courseSourceFileKind,
   courseSourceFileValidationError,
 } from '@/lib/uploads/course-source-policy';
+import { uploadFileToOpenAI } from '@/lib/uploads/openai-file-upload-client';
 import { toast } from '@/lib/notifications/client-toast';
 import type { CourseRecord } from '@/lib/utils/database';
 import { BackendApiError, backendJson } from '@/lib/utils/backend-api';
@@ -1316,8 +1316,7 @@ const PROGRESS_SELECTION_COMPLETED_ALL = '__completed_all__';
 const MODEL_VALUE_SEPARATOR = '\u001e';
 const MAX_LEARN_CHAT_ATTACHMENTS = 6;
 const MAX_LEARN_CHAT_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_LEARN_CHAT_PDF_BYTES = 4 * 1024 * 1024;
-const MAX_LEARN_CHAT_TEXT_BYTES = 1024 * 1024;
+const MAX_LEARN_CHAT_DOCUMENT_BYTES = 50 * 1024 * 1024;
 const LEARN_CHAT_IMAGE_MAX_DIMENSION = 1280;
 const MAX_SYLLABUS_TEXT_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_SYLLABUS_DOCUMENT_FILE_BYTES = 20 * 1024 * 1024;
@@ -2556,40 +2555,6 @@ function persistedSourceUploadTileState(upload: CourseSourceUploadRecord): {
   return { status: null, error: null };
 }
 
-function SourceUploadBadge({
-  uploading,
-  completedCount,
-  compact = false,
-}: {
-  uploading: boolean;
-  completedCount: number;
-  compact?: boolean;
-}) {
-  if (!uploading && completedCount <= 0) return null;
-  const label = uploading
-    ? compact
-      ? '中'
-      : '入库中'
-    : completedCount > 9
-      ? '9+'
-      : String(completedCount);
-  const srLabel = uploading ? '原始讲义正在入库' : `有 ${completedCount} 个新文件已入库`;
-
-  return (
-    <span
-      className={cn(
-        'absolute z-10 grid place-items-center rounded-full border border-white px-1 text-[10px] font-bold leading-4 text-white shadow-sm dark:border-slate-950',
-        compact ? '-right-0.5 -top-0.5 min-w-4' : '-right-1.5 -top-1.5 min-w-4',
-        uploading ? 'bg-sky-500' : 'bg-emerald-500',
-        !compact && uploading ? 'min-w-[2.5rem] px-1.5' : null,
-      )}
-      aria-label={srLabel}
-    >
-      {label}
-    </span>
-  );
-}
-
 function modelOptionValue(providerId: ProviderId, modelId: string): string {
   return `${providerId}${MODEL_VALUE_SEPARATOR}${modelId}`;
 }
@@ -2616,10 +2581,13 @@ function normalizedLearnChatAttachmentMime(file: Pick<File, 'name' | 'type'>): s
   if (declared) return declared;
   const extension = file.name.split('.').pop()?.trim().toLowerCase();
   if (extension === 'pdf') return 'application/pdf';
-  if (extension === 'json') return 'application/json';
-  if (extension === 'xml') return 'application/xml';
+  if (extension === 'pptx') {
+    return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  }
+  if (extension === 'docx') {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  }
   if (extension === 'md' || extension === 'markdown') return 'text/markdown';
-  if (extension === 'csv') return 'text/csv';
   if (extension === 'txt') return 'text/plain';
   return 'application/octet-stream';
 }
@@ -2628,21 +2596,21 @@ function isSupportedLearnChatAttachmentMime(mimeType: string): boolean {
   const normalized = mimeType.trim().toLowerCase();
   return (
     normalized.startsWith('image/') ||
-    normalized.startsWith('text/') ||
+    normalized === 'text/plain' ||
+    normalized === 'text/markdown' ||
     normalized === 'application/pdf' ||
-    normalized === 'application/json' ||
-    normalized === 'application/xml'
+    normalized === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+    normalized === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   );
 }
 
 function learnChatAttachmentTypeLabel(attachment: Pick<LearnImageAttachment, 'mimeType'>): string {
   const mimeType = attachment.mimeType.toLowerCase();
   if (mimeType === 'application/pdf') return 'PDF';
+  if (mimeType.includes('presentationml')) return 'PPTX';
+  if (mimeType.includes('wordprocessingml')) return 'DOCX';
   if (mimeType.startsWith('image/')) return '图片';
-  if (mimeType === 'application/json') return 'JSON';
-  if (mimeType === 'application/xml') return 'XML';
   if (mimeType === 'text/markdown') return 'Markdown';
-  if (mimeType === 'text/csv') return 'CSV';
   return '文本';
 }
 
@@ -2710,10 +2678,9 @@ async function prepareLearnChatAttachment(file: File): Promise<LearnImageAttachm
     );
   }
   if (!isSupportedLearnChatAttachmentMime(mimeType)) {
-    throw new Error(`${file.name} 暂不支持。聊天附件支持图片、PDF、Markdown 和文本文件。`);
+    throw new Error(`${file.name} 暂不支持。聊天附件支持 PDF、PPTX、DOCX、MD、TXT 和常见图片。`);
   }
-  const maxBytes =
-    mimeType === 'application/pdf' ? MAX_LEARN_CHAT_PDF_BYTES : MAX_LEARN_CHAT_TEXT_BYTES;
+  const maxBytes = MAX_LEARN_CHAT_DOCUMENT_BYTES;
   if (file.size > maxBytes) {
     throw new Error(`${file.name} 不能超过 ${compactBytes(maxBytes)}。`);
   }
@@ -2723,6 +2690,7 @@ async function prepareLearnChatAttachment(file: File): Promise<LearnImageAttachm
     name: file.name.trim() || '附件',
     mimeType,
     size: file.size,
+    browserFile: file,
     dataUrl,
     objectUrl: dataUrl,
   };
@@ -7341,10 +7309,6 @@ export function LearnPageClient() {
     Record<string, NotebookImagePreviewState>
   >({});
   const [courseSourceUploads, setCourseSourceUploads] = useState<CourseSourceUploadRecord[]>([]);
-  const [completedSourceUploadBadge, setCompletedSourceUploadBadge] = useState<{
-    courseId: string | null;
-    count: number;
-  }>({ courseId: null, count: 0 });
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [publishingCourse, setPublishingCourse] = useState(false);
   const [publishableMemoryCount, setPublishableMemoryCount] = useState<number | null>(null);
@@ -7700,9 +7664,6 @@ export function LearnPageClient() {
     () => courseSourceUploads.filter((upload) => upload.courseId === activeCourseId),
     [activeCourseId, courseSourceUploads],
   );
-  const completedSourceUploadBadgeCount =
-    completedSourceUploadBadge.courseId === activeCourseId ? completedSourceUploadBadge.count : 0;
-
   const updateComposerDraft = useCallback(
     (value: string) => {
       setDraft(value);
@@ -7969,6 +7930,9 @@ export function LearnPageClient() {
           error: null,
         };
   const activeCourseIsOwner = canManageCourseContent && activeCourse?.accessRole !== 'enrolled';
+  // Course chat attachments are ephemeral conversation inputs. Persisting a file into the
+  // course belongs to the teacher course studio, never to the chat composer or chat library.
+  const canUploadCourseContentFromChat = false;
   const isResearchCourse = activeCourse?.purpose === 'research';
   const coursePublishBlockReason = activeCourse
     ? getCoursePublishBlockReason(activeCourse, notebooks)
@@ -8022,22 +7986,15 @@ export function LearnPageClient() {
   const selectedKnownNoVision = selectedModel.vision === false;
   const pdfProviderConfig = pdfProvidersConfig[pdfProviderId];
 
-  const setSourceUploadDialogOpen = useCallback(
-    (open: boolean) => {
-      sourceUploadPanelOpenRef.current = open;
-      setSourceUploadPanelOpen(open);
-      if (open) {
-        setCompletedSourceUploadBadge((current) =>
-          current.courseId === activeCourseId ? { ...current, count: 0 } : current,
-        );
-      } else {
-        setSelectedSourceLibraryTileId(null);
-        setSourceLibraryDetailView('image');
-        setSourceLibraryImageExpanded(false);
-      }
-    },
-    [activeCourseId],
-  );
+  const setSourceUploadDialogOpen = useCallback((open: boolean) => {
+    sourceUploadPanelOpenRef.current = open;
+    setSourceUploadPanelOpen(open);
+    if (!open) {
+      setSelectedSourceLibraryTileId(null);
+      setSourceLibraryDetailView('image');
+      setSourceLibraryImageExpanded(false);
+    }
+  }, []);
 
   const openSourceUploadPanel = useCallback(() => {
     setSourceUploadDialogOpen(true);
@@ -8180,35 +8137,6 @@ export function LearnPageClient() {
     },
     [],
   );
-
-  const handleUploadButtonClick = useCallback(() => {
-    if (!canManageCourseContent) return;
-    if (!activeCourse) {
-      setError('先添加或选择一门课程，再上传原始讲义。');
-      return;
-    }
-    if (sourceUploadingCourseId && sourceUploadingCourseId !== activeCourse.id) {
-      setError('另一门课程的原始讲义仍在入库，请等待完成后再上传。');
-      return;
-    }
-    if (
-      sourceUploading ||
-      activeSourceUploadItems.length > 0 ||
-      completedSourceUploadBadgeCount > 0
-    ) {
-      openSourceUploadPanel();
-      return;
-    }
-    sourceDocumentInputRef.current?.click();
-  }, [
-    canManageCourseContent,
-    completedSourceUploadBadgeCount,
-    activeCourse,
-    activeSourceUploadItems.length,
-    openSourceUploadPanel,
-    sourceUploading,
-    sourceUploadingCourseId,
-  ]);
 
   useEffect(() => {
     const textarea = draftTextareaRef.current;
@@ -11036,9 +10964,17 @@ export function LearnPageClient() {
       }
       const prepared: LearnImageAttachment[] = [];
       let firstError: string | null = null;
+      let remainingBytes = Math.max(
+        0,
+        MAX_LEARN_CHAT_DOCUMENT_BYTES - attachments.reduce((total, item) => total + item.size, 0),
+      );
       for (const file of files.slice(0, remainingSlots)) {
         try {
+          if (file.size > remainingBytes) {
+            throw new Error('单次提问的全部附件合计不能超过 50 MB。');
+          }
           prepared.push(await prepareLearnChatAttachment(file));
+          remainingBytes -= file.size;
         } catch (error) {
           firstError ||= error instanceof Error ? error.message : `${file.name} 添加失败`;
         }
@@ -11053,12 +10989,12 @@ export function LearnPageClient() {
       }
       setError(firstError);
     },
-    [attachments.length, updateComposerAttachments],
+    [attachments, updateComposerAttachments],
   );
 
   const handleLearnUploadFiles = useCallback(
     async (fileList: FileList | null) => {
-      if (!canManageCourseContent) return;
+      if (!canUploadCourseContentFromChat) return;
       const files = Array.from(fileList || []);
       if (!files.length) return;
 
@@ -11132,24 +11068,24 @@ export function LearnPageClient() {
             const validationError = courseSourceFileValidationError(file);
             if (validationError) throw new Error(validationError);
 
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('sourceTitle', file.name);
-            formData.append('sourceKind', sourceKind);
-            formData.append('language', activeCourse.language === 'en-US' ? 'en-US' : 'zh-CN');
-            formData.append('pdfProviderId', pdfProviderId);
-            if (pdfProviderConfig?.apiKey) formData.append('pdfApiKey', pdfProviderConfig.apiKey);
-            if (pdfProviderConfig?.baseUrl) {
-              formData.append('pdfBaseUrl', pdfProviderConfig.baseUrl);
-            }
+            const staged = await uploadFileToOpenAI({
+              file,
+              intent: sourceKind === 'problem_bank' ? 'problem_bank_source' : 'course_source',
+            });
             const response = await backendJson<CourseSourceIngestResponse>(
               `/api/courses/${encodeURIComponent(activeCourse.id)}/source-ingest`,
               {
                 method: 'POST',
                 headers: {
+                  'Content-Type': 'application/json',
                   ...(providerId === 'openai' && modelId ? { 'x-model': `openai:${modelId}` } : {}),
                 },
-                body: formData,
+                body: JSON.stringify({
+                  stagedFileToken: staged.fileToken,
+                  sourceTitle: file.name,
+                  sourceKind,
+                  language: activeCourse.language === 'en-US' ? 'en-US' : 'zh-CN',
+                }),
                 timeoutMs: COURSE_SOURCE_UPLOAD_TIMEOUT_MS,
               },
             );
@@ -11167,12 +11103,6 @@ export function LearnPageClient() {
               chips: [activeCourse.courseCode || '课程', '原始讲义'],
             });
             notifySourceUploadLive2D(file.name, response.ingest);
-            if (!sourceUploadPanelOpenRef.current) {
-              setCompletedSourceUploadBadge((current) => ({
-                courseId: uploadCourseId,
-                count: current.courseId === uploadCourseId ? Math.min(99, current.count + 1) : 1,
-              }));
-            }
             didIngestAnyFile = true;
           } catch (err) {
             const message = err instanceof Error ? err.message : '原始讲义上传失败';
@@ -11242,12 +11172,10 @@ export function LearnPageClient() {
       activeCourse,
       activeCourseSourceUploads,
       activeSourceUploadItems,
-      canManageCourseContent,
+      canUploadCourseContentFromChat,
       markCourseContentMutation,
       modelId,
       openSourceUploadPanel,
-      pdfProviderConfig,
-      pdfProviderId,
       providerId,
       setMessages,
       sourceUploadingCourseId,
@@ -14215,6 +14143,7 @@ export function LearnPageClient() {
                 mimeType: attachment.mimeType,
                 size: attachment.size,
                 dataUrl: attachment.dataUrl,
+                browserFile: attachment.browserFile,
               },
             ]
           : [],
@@ -16683,7 +16612,7 @@ export function LearnPageClient() {
       onOpenChange={setSourceUploadDialogOpen}
       title="原始讲义库"
       description={
-        canManageCourseContent
+        canUploadCourseContentFromChat
           ? '浏览课程文件和整理好的正文；第一个位置用于上传新的课程文件。'
           : '浏览老师提供的课程文件和整理好的正文。'
       }
@@ -16976,7 +16905,7 @@ export function LearnPageClient() {
                   ))}
                 </div>
               ) : null}
-              {activeCourseIsOwner ? (
+              {canUploadCourseContentFromChat ? (
                 <div className="min-w-0 text-center">
                   <button
                     type="button"
@@ -19055,7 +18984,7 @@ export function LearnPageClient() {
                   <input
                     ref={imageInputRef}
                     type="file"
-                    accept="image/*,.pdf,.txt,.md,.markdown,.csv,.json,.xml,application/pdf,application/json,application/xml,text/*"
+                    accept={COURSE_SOURCE_ACCEPT}
                     multiple
                     className="hidden"
                     onChange={(event) => {
@@ -19063,7 +18992,7 @@ export function LearnPageClient() {
                       event.currentTarget.value = '';
                     }}
                   />
-                  {canManageCourseContent ? (
+                  {canUploadCourseContentFromChat ? (
                     <input
                       ref={sourceDocumentInputRef}
                       type="file"
@@ -19123,60 +19052,18 @@ export function LearnPageClient() {
                     </div>
                   ) : null}
                   <div className="flex min-h-10 items-center gap-2">
-                    {canManageCourseContent ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            disabled={!conversationInteractive}
-                            title="添加内容"
-                            aria-label="添加内容"
-                            className="relative size-9 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
-                          >
-                            {sourceUploading ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Plus className="size-4" />
-                            )}
-                            <SourceUploadBadge
-                              uploading={sourceUploading}
-                              completedCount={completedSourceUploadBadgeCount}
-                              compact
-                            />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-56">
-                          <DropdownMenuItem onSelect={() => imageInputRef.current?.click()}>
-                            <Paperclip className="size-4" />
-                            添加到本次聊天
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onSelect={handleUploadButtonClick}>
-                            <UploadCloud className="size-4" />
-                            {sourceUploading ||
-                            activeSourceUploadItems.length > 0 ||
-                            completedSourceUploadBadgeCount > 0
-                              ? '查看课程资料入库状态'
-                              : '上传为课程资料'}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => imageInputRef.current?.click()}
-                        disabled={!conversationInteractive}
-                        title="添加聊天附件"
-                        aria-label="添加聊天附件"
-                        className="relative size-9 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
-                      >
-                        <Plus className="size-4" />
-                      </Button>
-                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => imageInputRef.current?.click()}
+                      disabled={!conversationInteractive}
+                      title="添加到本次聊天"
+                      aria-label="添加到本次聊天"
+                      className="relative size-9 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
+                    >
+                      <Plus className="size-4" />
+                    </Button>
                     <Textarea
                       ref={draftTextareaRef}
                       rows={1}

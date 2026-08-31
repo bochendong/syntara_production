@@ -125,8 +125,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       );
     }
 
+    const courseLevelDrafts = payload.data.drafts.map((draft) => ({
+      ...draft,
+      notebookId: null,
+      sourceMeta: {
+        ...draft.sourceMeta,
+        suggestedNotebookId: null,
+      },
+    }));
     const importBatchId = payload.data.importBatchId?.trim() || null;
-    const payloadHash = hashProblemImportCommitPayload(payload.data.drafts);
+    const payloadHash = hashProblemImportCommitPayload(courseLevelDrafts);
     const idempotencyKey = request.headers.get('idempotency-key')?.trim() || null;
     if (idempotencyKey && idempotencyKey !== importBatchId) {
       return NextResponse.json(
@@ -211,7 +219,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           prisma,
           userId: auth.userId,
           batchId: importBatchId,
-          commitCount: payload.data.drafts.length,
+          commitCount: courseLevelDrafts.length,
           payloadHash,
         });
         if (!reclaimed) {
@@ -229,7 +237,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           prisma,
           userId: auth.userId,
           batchId: importBatchId,
-          commitCount: payload.data.drafts.length,
+          commitCount: courseLevelDrafts.length,
           payloadHash,
         });
         if (!claimed) {
@@ -267,7 +275,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const writeResult = await createCourseProblemsFromDraftsWithSummary({
         userId: auth.userId,
         courseId: id,
-        drafts: payload.data.drafts,
+        drafts: courseLevelDrafts,
         importBatchId,
         importBatchLeaseToken: importBatch?.commitLeaseToken,
       });

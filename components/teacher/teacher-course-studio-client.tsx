@@ -1793,14 +1793,14 @@ export function TeacherCourseStudioClient({
                     onClick={() =>
                       router.push(
                         `/course/${encodeURIComponent(courseId)}/problem-bank${
-                          mockMode ? '?mock=1&asTeacher=1' : ''
+                          mockMode ? '?upload=1&mock=1&asTeacher=1' : '?upload=1'
                         }`,
                       )
                     }
                     className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                   >
                     <Library className="size-4" />
-                    进入题库管理
+                    上传题目
                   </button>
                 ) : (
                   <label

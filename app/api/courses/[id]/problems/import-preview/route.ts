@@ -11,7 +11,6 @@ import {
   createProblemImportBatch,
   markProblemImportBatchCommitted,
 } from '@/lib/server/notebook-problems/import-batch-store';
-import { type NotebookProblemImportDraft } from '@/features/problems';
 import { extractProblemDraftsFromText } from '@/features/problems/server/import';
 import {
   ensureLegacyProblemsBackfilledForCourse,
@@ -50,69 +49,6 @@ const previewSchema = z
     }
   });
 
-function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .split(/[^a-z0-9\u4e00-\u9fff]+/i)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 2);
-}
-
-function extractDraftText(draft: NotebookProblemImportDraft): string {
-  const stem =
-    'stem' in draft.publicContent
-      ? draft.publicContent.stem
-      : 'stemTemplate' in draft.publicContent
-        ? draft.publicContent.stemTemplate
-        : '';
-  return [draft.title, stem, draft.tags.join(' ')].filter(Boolean).join(' ');
-}
-
-function suggestNotebookAssignments(
-  drafts: NotebookProblemImportDraft[],
-  notebooks: Array<{ id: string; name: string; description: string | null; tags: string[] }>,
-): NotebookProblemImportDraft[] {
-  if (notebooks.length === 0) return drafts;
-
-  const notebookProfiles = notebooks.map((notebook) => {
-    const haystack = [notebook.name, notebook.description || '', notebook.tags.join(' ')]
-      .filter(Boolean)
-      .join(' ');
-    const tokens = new Set(tokenize(haystack));
-    return { ...notebook, haystack: haystack.toLowerCase(), tokens };
-  });
-
-  return drafts.map((draft) => {
-    if (draft.notebookId) return draft;
-    const draftText = extractDraftText(draft);
-    const draftTokens = tokenize(draftText);
-    let bestMatch: { id: string; score: number } | null = null;
-
-    for (const notebook of notebookProfiles) {
-      let score = 0;
-      for (const token of draftTokens) {
-        if (notebook.tokens.has(token)) score += token.length >= 4 ? 3 : 1;
-        if (token.length >= 4 && notebook.haystack.includes(token)) score += 1;
-      }
-      if (draft.title && notebook.haystack.includes(draft.title.toLowerCase())) {
-        score += 8;
-      }
-      if (!bestMatch || score > bestMatch.score) {
-        bestMatch = { id: notebook.id, score };
-      }
-    }
-
-    return {
-      ...draft,
-      notebookId: bestMatch && bestMatch.score >= 4 ? bestMatch.id : null,
-      sourceMeta: {
-        ...draft.sourceMeta,
-        assignmentScore: bestMatch?.score ?? 0,
-      },
-    };
-  });
-}
-
 export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
@@ -135,17 +71,6 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         { status: 400 },
       );
     }
-
-    const notebooks = await prisma.notebook.findMany({
-      where: { ownerId: auth.userId, courseId: id },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        tags: true,
-      },
-      orderBy: [{ updatedAt: 'desc' }],
-    });
 
     const { model } = await resolveModelFromHeaders(req, {
       allowOpenAIModelOverride: true,
@@ -229,11 +154,12 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         });
         return {
           ...extracted,
-          drafts: suggestNotebookAssignments(extracted.drafts, notebooks).map((draft) => ({
+          drafts: extracted.drafts.map((draft) => ({
             ...draft,
+            notebookId: null,
             sourceMeta: {
               ...draft.sourceMeta,
-              suggestedNotebookId: draft.notebookId ?? null,
+              suggestedNotebookId: null,
               courseId: id,
               webSearchQuery: webSearch?.query ?? draft.sourceMeta.webSearchQuery,
               webSearchSources: webSearch?.sources ?? draft.sourceMeta.webSearchSources,
@@ -300,10 +226,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         reusedProblemIds: dedupe.reusedProblemIds,
         skipped: dedupe.duplicates,
       },
-      notebooks: notebooks.map((notebook) => ({
-        id: notebook.id,
-        name: notebook.name,
-      })),
+      notebooks: [],
       webSearch,
       importBatch: {
         id: importBatch.id,

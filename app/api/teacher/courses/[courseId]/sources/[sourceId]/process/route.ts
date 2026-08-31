@@ -11,6 +11,13 @@ import { generateTeacherCourseNotebook } from '@/lib/server/teacher-course-noteb
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 import { courseSourceFileKind } from '@/lib/uploads/course-source-policy';
 import { extractCourseSourceImageText } from '@/lib/server/extract-course-source-image-text';
+import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
+import { getServerOpenAIResponsesModel } from '@/lib/ai/server-model';
+import {
+  extractProblemDraftsFromText,
+  llmExtractProblemDraftsFromOpenAIFile,
+} from '@/features/problems/server/import';
+import { createCourseProblemsFromDraftsWithSummary } from '@/features/problems/server/service';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -57,7 +64,7 @@ async function runSourceProcessing(args: {
   ownerId: string;
   courseId: string;
   sourceId: string;
-  notebookId: string;
+  notebookId: string | null;
   taskId: string;
 }) {
   try {
@@ -102,12 +109,74 @@ async function runSourceProcessing(args: {
       .replace(/\u0000/g, '')
       .trim()
       .slice(0, 90_000);
-    if (text.length < 400) throw new Error('源文件提取文字不足，无法生成课程笔记本');
+    const minimumTextLength = source.sourceCategory === 'problem_bank' ? 10 : 400;
+    if (text.length < minimumTextLength) {
+      throw new Error(
+        source.sourceCategory === 'problem_bank'
+          ? '源文件提取文字不足，无法导入课程题库'
+          : '源文件提取文字不足，无法生成课程笔记本',
+      );
+    }
 
     await prisma.courseSource.update({
       where: { id: source.id },
       data: { extractedText: text, ingestStatus: 'processing', errorReason: null },
     });
+
+    if (source.sourceCategory === 'problem_bank') {
+      const runtimeConfig = await getSystemLLMRuntimeConfig();
+      if (!runtimeConfig.apiKey) throw new Error('系统 OpenAI API Key 尚未配置。');
+      const { model } = getServerOpenAIResponsesModel({
+        providerId: 'openai',
+        providerType: 'openai',
+        modelId: runtimeConfig.modelId,
+        apiKey: runtimeConfig.apiKey,
+        baseUrl: runtimeConfig.baseUrl,
+        requiresApiKey: true,
+      });
+      const extractedProblems = source.openaiFileId
+        ? await llmExtractProblemDraftsFromOpenAIFile({
+            fileId: source.openaiFileId,
+            fileName: source.title,
+            mimeType: source.fileMime || 'application/octet-stream',
+            source: 'pdf',
+            model,
+            language: 'zh-CN',
+          })
+        : await extractProblemDraftsFromText({
+            text,
+            source: 'pdf',
+            model,
+            language: 'zh-CN',
+          });
+      await createCourseProblemsFromDraftsWithSummary({
+        userId: args.ownerId,
+        courseId: args.courseId,
+        drafts: extractedProblems.drafts.map((draft) => ({
+          ...draft,
+          notebookId: null,
+          sourceMeta: {
+            ...draft.sourceMeta,
+            courseSourceId: source.id,
+            sourceFileName: source.title,
+            suggestedNotebookId: null,
+          },
+        })),
+      });
+      await Promise.all([
+        prisma.courseSource.update({
+          where: { id: source.id },
+          data: { ingestStatus: 'ready', ingestedAt: new Date(), errorReason: null },
+        }),
+        prisma.agentTask.update({
+          where: { id: args.taskId },
+          data: { status: 'completed', stage: 'completed', progress: 100, error: null },
+        }),
+      ]);
+      return;
+    }
+
+    if (!args.notebookId) throw new Error('课程笔记本任务缺少 notebookId');
 
     await generateTeacherCourseNotebook({
       ownerId: args.ownerId,
@@ -167,8 +236,11 @@ export async function POST(
       return NextResponse.json({ error: '源文件没有可处理的数据库内容' }, { status: 409 });
     }
 
-    const notebookId = `teacher-notebook:${source.id}`;
-    const taskId = `teacher-generation:${notebookId}`;
+    const isProblemBank = source.sourceCategory === 'problem_bank';
+    const notebookId = isProblemBank ? null : `teacher-notebook:${source.id}`;
+    const taskId = isProblemBank
+      ? `teacher-problem-import:${source.id}`
+      : `teacher-generation:${notebookId}`;
     const existingTask = await prisma.agentTask.findUnique({
       where: { id: taskId },
       select: { status: true, stage: true, progress: true },
@@ -196,7 +268,7 @@ export async function POST(
         // persist the notebook. generateTeacherCourseNotebook attaches the
         // relation after persistTeacherCourseNotebook succeeds.
         notebookId: null,
-        taskType: 'teacher_notebook_generation',
+        taskType: isProblemBank ? 'teacher_problem_bank_import' : 'teacher_notebook_generation',
         status: 'queued',
         stage: 'queued',
         progress: 0,

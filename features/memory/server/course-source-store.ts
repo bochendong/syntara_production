@@ -148,6 +148,8 @@ export async function markCourseSourceProcessing(args: {
   title: string;
   kind: string;
   fileMime?: string | null;
+  fileData?: Buffer | null;
+  fileSize?: number;
   storageKey?: string | null;
   openaiFileId?: string | null;
   extractedText?: string | null;
@@ -163,14 +165,15 @@ export async function markCourseSourceProcessing(args: {
     const rows = await args.prisma.$queryRaw<StoredCourseSource[]>(Prisma.sql`
       INSERT INTO "CourseSource" (
         "id", "courseId", "ownerId", "sourceHash", "title", "kind", "fileMime",
-        "storageKey", "openaiFileId", "extractedText", "extractedTextHash",
+        "fileData", "fileSize", "storageKey", "openaiFileId", "extractedText", "extractedTextHash",
         "usageProfile", "topic", "ingestStatus", "ingestLeaseToken", "ingestLeaseExpiresAt",
         "indexStatus", "errorReason", "metadataJson", "artifactCountsJson",
         "contentVersion", "ingestedAt", "indexedAt", "createdAt", "updatedAt"
       )
       SELECT
         ${id}, "id", "ownerId", ${args.sourceHash}, ${args.title}, ${args.kind},
-        ${args.fileMime ?? null}, ${args.storageKey ?? null}, ${args.openaiFileId ?? null},
+        ${args.fileMime ?? null}, ${args.fileData ?? null}, ${args.fileSize ?? 0},
+        ${args.storageKey ?? null}, ${args.openaiFileId ?? null},
         ${args.extractedText ?? null},
         ${
           args.extractedText ? createHash('sha256').update(args.extractedText).digest('hex') : null
@@ -187,6 +190,11 @@ export async function markCourseSourceProcessing(args: {
         "title" = EXCLUDED."title",
         "kind" = EXCLUDED."kind",
         "fileMime" = EXCLUDED."fileMime",
+        "fileData" = COALESCE(EXCLUDED."fileData", "CourseSource"."fileData"),
+        "fileSize" = CASE
+          WHEN EXCLUDED."fileData" IS NULL THEN "CourseSource"."fileSize"
+          ELSE EXCLUDED."fileSize"
+        END,
         "storageKey" = EXCLUDED."storageKey",
         "openaiFileId" = EXCLUDED."openaiFileId",
         "extractedText" = EXCLUDED."extractedText",

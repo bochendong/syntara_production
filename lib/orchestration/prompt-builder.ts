@@ -1364,7 +1364,7 @@ export function convertMessagesToOpenAI(
             const image = typeof p.url === 'string' ? p.url : undefined;
             if (image && mediaType?.startsWith('image/')) {
               contentParts.push({ type: 'image', image, mediaType });
-            } else if (image && mediaType === 'application/pdf') {
+            } else if (image && mediaType) {
               contentParts.push({
                 type: 'file',
                 data: image,

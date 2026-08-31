@@ -2,6 +2,7 @@
 
 import { backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { courseSourceFileKind } from '@/lib/uploads/course-source-policy';
+import { uploadFileToOpenAI } from '@/lib/uploads/openai-file-upload-client';
 
 export type AcademicTerm = 'winter' | 'summer' | 'fall';
 export type CourseContentType = 'notebook' | 'problem_bank' | 'source';
@@ -274,12 +275,21 @@ export async function uploadOnlineTeacherSources(args: {
   files: File[];
 }) {
   for (const file of args.files) {
-    const formData = new FormData();
-    formData.set('file', file);
-    formData.set('sourceCategory', args.sourceCategory);
+    const staged = await uploadFileToOpenAI({
+      file,
+      intent: args.sourceCategory === 'problem_bank' ? 'problem_bank_source' : 'teacher_source',
+    });
     const response = await backendFetch(
       `/api/teacher/courses/${encodeURIComponent(args.courseId)}/sources`,
-      { method: 'POST', body: formData, timeoutMs: 300_000 },
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stagedFileToken: staged.fileToken,
+          sourceCategory: args.sourceCategory,
+        }),
+        timeoutMs: 300_000,
+      },
     );
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
     if (!response.ok) throw new Error(payload?.error || `上传失败（HTTP ${response.status}）`);

@@ -47,7 +47,6 @@ export function CourseProblemImportDialog({ view }: { view: CourseProblemBankCon
     importWebSearchSummary,
     includedDraftIds,
     locale,
-    notebookOptions,
     previewLoading,
     setDraftEditorText,
     setDrafts,
@@ -71,8 +70,8 @@ export function CourseProblemImportDialog({ view }: { view: CourseProblemBankCon
           </DialogTitle>
           <DialogDescription>
             {locale === 'zh-CN'
-              ? '系统会先生成预览，再为每道题标记对应笔记本；找不到时会保留为未归类。'
-              : 'We preview first, then assign each problem to a notebook when possible.'}
+              ? '系统会先生成预览，再写入当前课程题库；本次导入不会关联到任何笔记本。'
+              : 'We preview first, then import into this course without assigning a notebook.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -306,40 +305,6 @@ export function CourseProblemImportDialog({ view }: { view: CourseProblemBankCon
                           ? '编辑 JSON'
                           : 'Edit JSON'}
                     </Button>
-                  </div>
-
-                  <div className="mt-3">
-                    <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
-                      {locale === 'zh-CN' ? '归属笔记本' : 'Assigned notebook'}
-                    </label>
-                    <select
-                      value={draft.notebookId || '__unassigned__'}
-                      onChange={(event) =>
-                        setDrafts((prev) =>
-                          prev.map((item) =>
-                            item.draftId === draft.draftId
-                              ? {
-                                  ...item,
-                                  notebookId:
-                                    event.target.value === '__unassigned__'
-                                      ? null
-                                      : event.target.value,
-                                }
-                              : item,
-                          ),
-                        )
-                      }
-                      className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                    >
-                      <option value="__unassigned__">
-                        {locale === 'zh-CN' ? '未归类题目' : 'Unassigned'}
-                      </option>
-                      {notebookOptions.map((notebook) => (
-                        <option key={notebook.id} value={notebook.id}>
-                          {notebook.name}
-                        </option>
-                      ))}
-                    </select>
                   </div>
 
                   {draft.validationErrors.length > 0 ? (

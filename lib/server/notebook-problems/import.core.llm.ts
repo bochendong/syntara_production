@@ -236,3 +236,64 @@ ${args.text}`.slice(0, 24000);
     ),
   };
 }
+
+export async function llmExtractProblemDraftsFromOpenAIFile(args: {
+  fileId: string;
+  fileName: string;
+  mimeType: string;
+  source: NotebookProblemSource;
+  model: LanguageModel;
+  language: 'zh-CN' | 'en-US';
+}): Promise<{
+  drafts: NotebookProblemImportDraft[];
+  usage: ImportUsageSummary | null;
+}> {
+  const system = buildProblemImportSystemPrompt(args.language);
+  const instruction =
+    args.language === 'zh-CN'
+      ? '请直接阅读附加的原始文件，识别其中全部题目并返回严格 JSON 数组。不要把题目归入任何笔记本；只生成课程级题目草稿。'
+      : 'Read the attached original file, extract all problems, and return a strict JSON array. Create course-level drafts without notebook assignment.';
+  const result = await callLLM(
+    {
+      model: args.model,
+      system,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: instruction },
+            {
+              type: 'file',
+              data: args.fileId,
+              mediaType: args.mimeType,
+              filename: args.fileName,
+            },
+          ],
+        },
+      ],
+      maxOutputTokens: 16000,
+    },
+    'problem-bank-import-openai-file',
+  );
+  const drafts = parseProblemDraftArrayFromLLMText(result.text).map((item) => ({
+    ...normalizeCandidateDraft(item, args.source),
+    notebookId: null,
+  }));
+  const answerResult = await solveMissingChoiceAnswersWithLLM({
+    drafts,
+    model: args.model,
+    language: args.language,
+  });
+  return {
+    drafts: answerResult.drafts.map((draft) => ({ ...draft, notebookId: null })),
+    usage: mergeImportUsage(
+      llmUsageFromResult({
+        model: args.model,
+        inputTokens: result.usage.inputTokens ?? 0,
+        outputTokens: result.usage.outputTokens ?? 0,
+        cachedInputTokens: result.usage.cachedInputTokens ?? 0,
+      }),
+      answerResult.usage,
+    ),
+  };
+}

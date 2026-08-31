@@ -2,19 +2,8 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import {
-  BookOpenText,
-  Home,
-  Library,
-  MessageCircleMore,
-  MessagesSquare,
-  Users,
-} from 'lucide-react';
-import {
-  COURSE_SPACE_HEADER_SURFACE_CLASS,
-  formatCourseSpaceMeta,
-  formatCourseSpaceTitle,
-} from '@/lib/course-space/format-course-space-header';
+import { BookOpenText, Home, Library, MessageCircleMore, MessagesSquare } from 'lucide-react';
+import { COURSE_SPACE_HEADER_SURFACE_CLASS } from '@/lib/course-space/format-course-space-header';
 import { CourseSpaceAvatar } from '@/components/course-space/course-space-avatar';
 import { cn } from '@/lib/utils';
 
@@ -63,7 +52,6 @@ function navigationItems({
   previewMode,
 }: Omit<CourseSpaceNavigationProps, 'active' | 'className'>): CourseSpaceNavItem[] {
   const encodedCourseId = encodeURIComponent(courseId);
-  const showProblemBank = typeof problemCount === 'number' && problemCount > 0;
   const problemBankHref = `/course/${encodedCourseId}/problem-bank${
     previewMode ? `?mock=1${role === 'teacher' ? '&asTeacher=1' : ''}` : ''
   }`;
@@ -85,16 +73,13 @@ function navigationItems({
       href: `/learn?courseId=${encodedCourseId}${role === 'teacher' ? '&from=teacher' : ''}${previewMode ? '&uiPreview=1' : ''}`,
       Icon: MessageCircleMore,
     },
-    ...(showProblemBank
-      ? [
-          {
-            key: 'problem-bank' as const,
-            label: '题库',
-            href: problemBankHref,
-            Icon: Library,
-          },
-        ]
-      : []),
+    {
+      key: 'problem-bank' as const,
+      label: '题库',
+      href: problemBankHref,
+      Icon: Library,
+      count: problemCount,
+    },
     {
       key: 'forum' as const,
       label: '课程论坛',
@@ -102,17 +87,6 @@ function navigationItems({
       Icon: MessagesSquare,
       count: forumCount,
     },
-    ...(role === 'teacher'
-      ? [
-          {
-            key: 'students' as const,
-            label: '学生管理',
-            href: `/teacher/courses/${encodedCourseId}/students`,
-            Icon: Users,
-            disabled: previewMode,
-          },
-        ]
-      : []),
   ];
 }
 

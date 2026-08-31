@@ -45,6 +45,8 @@ import {
   courseSourceFileValidationError,
   normalizedCourseSourceMimeType,
 } from '@/lib/uploads/course-source-policy';
+import { verifyOpenAIFileCapability } from '@/lib/server/openai-upload-capability';
+import { downloadOpenAIUserFile } from '@/lib/server/openai-user-files';
 
 export const maxDuration = 300;
 
@@ -88,6 +90,24 @@ const sourceUploadSchema = z.object({
   ),
 });
 
+const stagedSourceUploadSchema = z.object({
+  stagedFileToken: z.string().trim().min(1),
+  sourceTitle: z.string().trim().min(1).max(240).optional(),
+  sourceKind: z
+    .enum(['pdf', 'markdown', 'plain_text', 'pptx', 'docx', 'image', 'problem_bank', 'other'])
+    .optional(),
+  targetNotebookId: z.string().trim().min(1).optional(),
+  language: z.enum(['zh-CN', 'en-US']).default('zh-CN'),
+  usageProfile: z.enum(['research', 'university_course', 'daily_use']).optional(),
+  coverTitle: z.string().trim().max(120).optional(),
+  coverCourseLabel: z.string().trim().max(80).optional(),
+  coverFocus: z.string().trim().max(1200).optional(),
+  requireNotebookCover: z.boolean().default(false),
+  ingestIntent: z.enum(['standard', 'maintenance_pilot_reuse_only']).default('standard'),
+  expectedReusableProblemCount: z.number().int().min(1).max(5000).optional(),
+  outputMode: z.enum(['ingest', 'cover_prompt', 'notebook_content']).default('ingest'),
+});
+
 export type NormalizedSourceUploadPayload = {
   sourceTitle: string;
   sourceKind: SourceUploadKind;
@@ -113,6 +133,8 @@ export type NormalizedSourceUploadPayload = {
     fileName: string;
     mimeType: string;
   };
+  originalFile?: Buffer;
+  originalFileSize?: number;
 };
 
 function stringFormValue(formData: FormData, key: string): string | undefined {
@@ -634,6 +656,7 @@ async function parseMultipartSourceUpload(
   }
   const sourceKind: SourceUploadKind =
     explicitKind === 'problem_bank' ? 'problem_bank' : detectedKind;
+  const extractionKind: SourceUploadKind = detectedKind;
   const sourceTitle = stringFormValue(formData, 'sourceTitle') || file.name;
   const languageValue = stringFormValue(formData, 'language');
   const language = languageValue === 'en-US' ? 'en-US' : 'zh-CN';
@@ -718,6 +741,8 @@ async function parseMultipartSourceUpload(
       parser: 'openai-file-input',
       pageCount: null,
       slideCount: null,
+      originalFile: buffer,
+      originalFileSize: buffer.byteLength,
     };
   }
   const extractionStartedAt = Date.now();
@@ -727,7 +752,7 @@ async function parseMultipartSourceUpload(
     extracted = await extractSourceTextFromFile({
       request,
       file,
-      sourceKind,
+      sourceKind: extractionKind,
       buffer,
       formData,
       allowClientProviderConfig: options.allowClientProviderConfig,
@@ -797,6 +822,117 @@ async function parseMultipartSourceUpload(
     pageCount: extracted.pageCount,
     slideCount: extracted.slideCount,
     deferredOpenAIFileUpload,
+    originalFile: buffer,
+    originalFileSize: buffer.byteLength,
+  };
+}
+
+async function parseStagedSourceUpload(
+  request: NextRequest,
+  requestBody: unknown,
+  options: {
+    outputMode?: NormalizedSourceUploadPayload['outputMode'];
+    allowClientProviderConfig?: boolean;
+    userId?: string;
+  },
+): Promise<NormalizedSourceUploadPayload | NextResponse | null> {
+  const record =
+    requestBody && typeof requestBody === 'object' && !Array.isArray(requestBody)
+      ? (requestBody as Record<string, unknown>)
+      : null;
+  if (typeof record?.stagedFileToken !== 'string') return null;
+  if (!options.userId) {
+    return NextResponse.json(
+      { error: 'Staged file upload requires authentication.' },
+      { status: 401 },
+    );
+  }
+  const parsed = stagedSourceUploadSchema.safeParse(requestBody);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid staged source upload', details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+  const capability = verifyOpenAIFileCapability({
+    token: parsed.data.stagedFileToken,
+    userId: options.userId,
+    intents: ['course_source', 'problem_bank_source'],
+  });
+  if (!capability) {
+    return NextResponse.json({ error: '文件凭证无效或已过期。' }, { status: 403 });
+  }
+  const fileKind = courseSourceFileKind({
+    name: capability.fileName,
+    type: capability.mimeType,
+  });
+  if (!fileKind) {
+    return NextResponse.json({ error: '无法识别已上传文件的格式。' }, { status: 415 });
+  }
+  const explicitKind = parsed.data.sourceKind;
+  if (explicitKind && explicitKind !== fileKind && explicitKind !== 'problem_bank') {
+    return NextResponse.json(
+      { error: `文件实际格式为 ${fileKind}，与提交类型 ${explicitKind} 不一致。` },
+      { status: 415 },
+    );
+  }
+  const sourceKind: SourceUploadKind =
+    capability.intent === 'problem_bank_source' || explicitKind === 'problem_bank'
+      ? 'problem_bank'
+      : (explicitKind ?? fileKind);
+  const outputMode = options.outputMode || parsed.data.outputMode;
+  const ingestControls = parseSourceIngestControls({
+    rawIntent: parsed.data.ingestIntent,
+    rawExpectedReusableProblemCount: parsed.data.expectedReusableProblemCount,
+    outputMode,
+  });
+  if (ingestControls instanceof NextResponse) return ingestControls;
+
+  const buffer = await downloadOpenAIUserFile(capability.fileId);
+  if (buffer.byteLength !== capability.bytes || buffer.byteLength > COURSE_SOURCE_MAX_FILE_BYTES) {
+    return NextResponse.json({ error: 'OpenAI 文件大小与上传凭证不一致。' }, { status: 409 });
+  }
+  const file = new File([new Uint8Array(buffer)], capability.fileName, {
+    type: capability.mimeType,
+  });
+  const extraction = await extractSourceTextFromFile({
+    request,
+    file,
+    sourceKind: fileKind,
+    buffer,
+    formData: new FormData(),
+    allowClientProviderConfig: options.allowClientProviderConfig,
+  });
+  const text = sanitizeSourceText(extraction.text);
+  if (!text) {
+    return NextResponse.json(
+      { error: 'Uploaded source file was parsed, but no usable text was extracted' },
+      { status: 400 },
+    );
+  }
+  if (text.length > MAX_SOURCE_TEXT_CHARS) return sourceTextTooLongResponse(text.length);
+
+  return {
+    sourceTitle: parsed.data.sourceTitle || capability.fileName,
+    sourceKind,
+    sourceFileMime: capability.mimeType,
+    targetNotebookId: sourceKind === 'problem_bank' ? undefined : parsed.data.targetNotebookId,
+    language: parsed.data.language,
+    usageProfile: parsed.data.usageProfile,
+    coverTitle: parsed.data.coverTitle,
+    coverCourseLabel: parsed.data.coverCourseLabel,
+    coverFocus: parsed.data.coverFocus,
+    requireNotebookCover: parsed.data.requireNotebookCover,
+    ...ingestControls,
+    outputMode,
+    text,
+    rawFileHash: sha256Buffer(buffer),
+    openaiFileId: capability.fileId,
+    parser: extraction.parser,
+    pageCount: extraction.pageCount,
+    slideCount: extraction.slideCount,
+    originalFile: buffer,
+    originalFileSize: buffer.byteLength,
   };
 }
 
@@ -805,6 +941,7 @@ export async function parseSourceUploadPayload(
   options: {
     outputMode?: NormalizedSourceUploadPayload['outputMode'];
     allowClientProviderConfig?: boolean;
+    userId?: string;
   } = {},
 ): Promise<NormalizedSourceUploadPayload | NextResponse> {
   const contentType = request.headers.get('content-type') || '';
@@ -813,6 +950,8 @@ export async function parseSourceUploadPayload(
   }
 
   const requestBody: unknown = await request.json();
+  const staged = await parseStagedSourceUpload(request, requestBody, options);
+  if (staged) return staged;
   const rawText =
     requestBody && typeof requestBody === 'object' && !Array.isArray(requestBody)
       ? (requestBody as { text?: unknown }).text
@@ -1055,7 +1194,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
 
-    const payload = await parseSourceUploadPayload(request);
+    const payload = await parseSourceUploadPayload(request, { userId: auth.userId });
     if (payload instanceof NextResponse) return payload;
 
     const resolved = await resolveOpenAIResponsesModelFromHeaders(request, {
@@ -1157,6 +1296,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         title: payload.sourceTitle,
         kind: payload.sourceKind,
         fileMime: payload.sourceFileMime,
+        fileData: payload.originalFile,
+        fileSize: payload.originalFileSize,
         // Keep the previous file reference until stale artifacts are cleaned.
         // A newly uploaded retry file must not be mistaken for stale data.
         openaiFileId: storedSource.source.openaiFileId,
@@ -1338,6 +1479,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       title: payload.sourceTitle,
       kind: payload.sourceKind,
       fileMime: payload.sourceFileMime,
+      fileData: payload.originalFile,
+      fileSize: payload.originalFileSize,
       openaiFileId: payload.openaiFileId,
       extractedText: payload.text,
       usageProfile: payload.usageProfile,

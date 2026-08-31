@@ -818,6 +818,7 @@ function CodeRunOutputPanel({
 
 export function CourseProblemBankView({
   courseId,
+  initialImportOpen,
   initialNotebookId,
   initialProblemId,
   initialFilters,
@@ -840,6 +841,7 @@ export function CourseProblemBankView({
   forumCount,
 }: {
   courseId: string;
+  initialImportOpen?: boolean;
   initialNotebookId?: string;
   initialProblemId?: string;
   initialFilters?: CourseProblemBankInitialFilters;
@@ -866,6 +868,7 @@ export function CourseProblemBankView({
 }) {
   const view = useCourseProblemBankController({
     courseId,
+    initialImportOpen,
     initialNotebookId,
     initialProblemId,
     initialFilters,
@@ -878,6 +881,7 @@ export function CourseProblemBankView({
   });
   const {
     activeBankFilterCount,
+    autoArchiving,
     bankStats,
     blankAnswers,
     canEditProblems,
@@ -897,6 +901,7 @@ export function CourseProblemBankView({
     difficultyFilterOptions,
     filteredProblems,
     handleAddPhotoAnswerFiles,
+    handleAutoArchiveUnassignedProblems,
     handleDeleteProblem,
     handleEditingDraftChange,
     handleProblemInfoTabChange,
@@ -968,6 +973,7 @@ export function CourseProblemBankView({
     statusFilter,
     statusFilterOptions,
     submittingAnswer,
+    unassignedProblemCount,
     textAnswers,
     typeFilter,
     typeFilterOptions,
@@ -2055,6 +2061,7 @@ export function CourseProblemBankView({
     <div
       className={cn(
         'flex h-full min-h-0 w-full flex-col gap-4 sm:gap-5',
+        showCourseNavigation && !isPracticeMode && 'min-h-[calc(100dvh-3rem)]',
         isPracticeMode && 'min-h-0',
         showChromeBackground ? 'bg-[#f5f5f5] dark:bg-slate-950' : 'bg-transparent',
       )}
@@ -2172,6 +2179,22 @@ export function CourseProblemBankView({
                   <div className="mt-3 grid grid-cols-2 gap-2 xl:hidden">
                     <button
                       type="button"
+                      onClick={() => void handleAutoArchiveUnassignedProblems()}
+                      disabled={autoArchiving || unassignedProblemCount === 0}
+                      className="col-span-2 rounded-xl border border-violet-200 bg-violet-50/90 px-3 py-2 text-center text-xs font-semibold text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-55 dark:border-violet-500/25 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15"
+                    >
+                      {autoArchiving ? (
+                        <Loader2 className="mx-auto mb-1 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="mx-auto mb-1 h-4 w-4" />
+                      )}
+                      {locale === 'zh-CN' ? 'AI 自动归档' : 'AI auto-assign'}
+                      <span className="ml-1 font-normal opacity-75">
+                        · {unassignedProblemCount}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => {
                         setImportMode('pdf');
                         setImportOpen(true);
@@ -2203,8 +2226,47 @@ export function CourseProblemBankView({
                     {locale === 'zh-CN' ? '正在加载课程题库...' : 'Loading course problem bank...'}
                   </div>
                 ) : filteredProblems.length === 0 ? (
-                  <div className="m-4 grid min-h-0 flex-1 place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
-                    {locale === 'zh-CN' ? '当前筛选下没有题目。' : 'No problems match this filter.'}
+                  <div className="m-4 grid min-h-[clamp(26rem,58dvh,46rem)] flex-1 place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                    <div className="flex max-w-md flex-col items-center text-center">
+                      <span className="grid size-12 place-items-center rounded-2xl bg-sky-50 text-sky-600 ring-1 ring-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/20">
+                        <BookOpen className="size-5" />
+                      </span>
+                      <p className="mt-4 text-base font-semibold text-slate-800 dark:text-slate-100">
+                        {problems.length === 0
+                          ? locale === 'zh-CN'
+                            ? '题库还没有题目'
+                            : 'This problem bank is empty'
+                          : locale === 'zh-CN'
+                            ? '当前筛选下没有题目'
+                            : 'No problems match this filter'}
+                      </p>
+                      <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                        {problems.length === 0
+                          ? locale === 'zh-CN'
+                            ? canEditProblems
+                              ? '上传题目文件、粘贴题目文本，或使用 AI 智能生成题目。'
+                              : '老师上传题目后，会在这里显示课程题库。'
+                            : canEditProblems
+                              ? 'Upload a file, paste problem text, or generate problems with AI.'
+                              : 'Course problems will appear here after the teacher uploads them.'
+                          : locale === 'zh-CN'
+                            ? '尝试调整搜索词或筛选条件。'
+                            : 'Try changing the search or filters.'}
+                      </p>
+                      {problems.length === 0 && canEditProblems ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImportMode('pdf');
+                            setImportOpen(true);
+                          }}
+                          className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                        >
+                          <FileUp className="size-4" />
+                          {locale === 'zh-CN' ? '上传题目' : 'Upload problems'}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -2669,6 +2731,24 @@ export function CourseProblemBankView({
 
               {canEditProblems ? (
                 <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleAutoArchiveUnassignedProblems()}
+                    disabled={autoArchiving || unassignedProblemCount === 0}
+                    className="col-span-2 rounded-2xl border border-violet-200 bg-violet-50/90 p-3 text-center text-xs font-semibold text-violet-700 shadow-[0_16px_40px_rgba(76,29,149,0.06)] transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-55 dark:border-violet-500/25 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15"
+                  >
+                    {autoArchiving ? (
+                      <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <Sparkles className="mx-auto mb-2 h-5 w-5" />
+                    )}
+                    <span>{locale === 'zh-CN' ? 'AI 自动归档' : 'AI auto-assign'}</span>
+                    <span className="mt-1 block text-[10px] font-normal opacity-75">
+                      {locale === 'zh-CN'
+                        ? `${unassignedProblemCount} 道未归档题目`
+                        : `${unassignedProblemCount} unassigned`}
+                    </span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {

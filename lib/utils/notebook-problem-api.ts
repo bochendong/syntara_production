@@ -207,6 +207,29 @@ export async function listCourseProblemSummaries(
   return data.problems;
 }
 
+export type CourseProblemAutoArchiveResult = {
+  candidateCount: number;
+  assignedCount: number;
+  remainingCount: number;
+  skippedLowConfidenceCount: number;
+  truncated: boolean;
+  notebookCounts?: Record<string, number>;
+};
+
+export async function autoArchiveUnassignedCourseProblems(
+  courseId: string,
+): Promise<CourseProblemAutoArchiveResult> {
+  return backendJson<CourseProblemAutoArchiveResult>(
+    `/api/courses/${encodeURIComponent(courseId)}/problems/auto-archive`,
+    {
+      method: 'POST',
+      headers: withModelHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({}),
+      timeoutMs: 300_000,
+    },
+  );
+}
+
 export async function insertNotebookReviewProblems(args: {
   notebookId: string;
   problems: ReviewProblemInsertInput[];

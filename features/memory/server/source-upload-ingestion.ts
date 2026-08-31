@@ -4615,6 +4615,7 @@ export async function ingestCourseSourceUpload(
   if (problemExtraction.drafts.length > 0) {
     const sourceTaggedDrafts = problemExtraction.drafts.map((draft) => ({
       ...draft,
+      notebookId: null,
       sourceMeta: {
         ...draft.sourceMeta,
         uploadSourceHash: sourceHash,
@@ -4639,6 +4640,7 @@ export async function ingestCourseSourceUpload(
     importBatchId = importBatch.id;
     const uniqueSourceTaggedDrafts = deduped.uniqueDrafts.map((draft) => ({
       ...draft,
+      notebookId: null,
       sourceMeta: {
         ...draft.sourceMeta,
         uploadSourceHash: sourceHash,

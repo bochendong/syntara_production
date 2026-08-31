@@ -33,6 +33,8 @@ type ResolveModelOptions = {
    * API key and base URL still come from server-side system config.
    */
   allowOpenAIModelOverride?: boolean;
+  /** Use the native Responses API so OpenAI file_id inputs remain first-class. */
+  useOpenAIResponses?: boolean;
 };
 
 /**
@@ -63,7 +65,8 @@ export async function resolveModel(
   }
 
   const modelString = `${providerId}:${modelId}`;
-  const { model, modelInfo } = getServerModel({
+  const factory = options.useOpenAIResponses ? getServerOpenAIResponsesModel : getServerModel;
+  const { model, modelInfo } = factory({
     providerId,
     modelId,
     apiKey: config.apiKey,
