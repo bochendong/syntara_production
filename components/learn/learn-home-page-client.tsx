@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import {
   LEARN_HOME_PREVIEW_COURSES,
   LearnHomeDashboard,
 } from '@/components/learn/learn-home-dashboard';
-import { usePersistHydrated } from '@/lib/hooks/use-persist-hydrated';
 import { useAuthSignOut } from '@/lib/hooks/use-auth-sign-out';
-import { useAuthStore } from '@/lib/store/auth';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
 import { listCoursesOrThrow } from '@/lib/utils/course-storage';
 import type { CourseRecord } from '@/lib/utils/database';
@@ -29,9 +28,15 @@ export function LearnHomePageClient({
 }) {
   const router = useRouter();
   const signOut = useAuthSignOut();
-  const authHydrated = usePersistHydrated(useAuthStore);
-  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
-  const role = useAuthStore((state) => state.role);
+  const { data: session, status: sessionStatus } = useSession();
+  const authHydrated = preview || forceStudentPortal || sessionStatus !== 'loading';
+  const isLoggedIn = preview || forceStudentPortal || sessionStatus === 'authenticated';
+  const role =
+    !preview &&
+    !forceStudentPortal &&
+    (session?.user?.role === 'TEACHER' || session?.user?.role === 'ADMIN')
+      ? session.user.role
+      : 'STUDENT';
   const setCurrentCourse = useCurrentCourseStore((state) => state.setCurrentCourse);
   const [courses, setCourses] = useState<CourseRecord[]>(preview ? LEARN_HOME_PREVIEW_COURSES : []);
   const [coursesLoading, setCoursesLoading] = useState(!preview);
