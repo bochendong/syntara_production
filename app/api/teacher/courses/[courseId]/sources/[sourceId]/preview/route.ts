@@ -79,6 +79,14 @@ export async function GET(
       return pdfResponse(converted.pdf, source.title);
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Office 文件转换失败';
+      console.error('[teacher-source-preview] Office PDF conversion failed', {
+        courseId,
+        sourceId,
+        title: source.title,
+        mimeType: source.fileMime,
+        error: detail,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       return NextResponse.json(
         {
           error:

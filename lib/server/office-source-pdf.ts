@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { GlobalFonts, PDFDocument, loadImage } from '@napi-rs/canvas';
 
@@ -13,7 +13,6 @@ const PORTRAIT_PAGE = { width: 595, height: 842 } as const;
 const SLIDE_PAGE = { width: 960, height: 540 } as const;
 const OFFICE_PDF_FONT_FAMILY = 'Syntara CJK';
 const OFFICE_PDF_FONT = `"${OFFICE_PDF_FONT_FAMILY}"`;
-const require = createRequire(import.meta.url);
 let officePdfFontReady = false;
 
 type PdfContext = ReturnType<PDFDocument['beginPage']>;
@@ -30,11 +29,14 @@ function ensureOfficePdfFont() {
     return;
   }
   const fontPath = join(
-    dirname(require.resolve('@fontsource/noto-sans-sc/package.json')),
+    process.cwd(),
+    'node_modules',
+    '@fontsource',
+    'noto-sans-sc',
     'files',
     'noto-sans-sc-chinese-simplified-400-normal.woff2',
   );
-  if (!GlobalFonts.registerFromPath(fontPath, OFFICE_PDF_FONT_FAMILY)) {
+  if (!GlobalFonts.register(readFileSync(fontPath), OFFICE_PDF_FONT_FAMILY)) {
     throw new Error('PDF 预览字体加载失败。');
   }
   officePdfFontReady = true;

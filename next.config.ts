@@ -41,7 +41,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/*': [
       './node_modules/.pnpm/@prisma+client*/node_modules/.prisma/client/**/*',
-      './node_modules/.pnpm/@fontsource+noto-sans-sc*/node_modules/@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff2',
+      './node_modules/@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff2',
       './lib/generation/prompts/**/*.md',
     ],
   },
