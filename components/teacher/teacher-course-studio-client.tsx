@@ -168,6 +168,13 @@ function queueStageLabel(job: TeacherStudioTask): string {
     if (job.stage === 'failed') return '思维导图生成失败';
     return '等待生成思维导图';
   }
+  if (job.kind === 'problem_bank_import') {
+    if (job.stage === 'extracting') return '解析题目文件';
+    if (job.stage === 'uploading_to_openai') return '提交给 AI 识别';
+    if (job.stage === 'completed') return '题目已导入题库';
+    if (job.stage === 'failed') return '题目导入失败';
+    return '等待导入题库';
+  }
   if (job.stage === 'extracting') return '解析源文件';
   if (job.stage === 'writing_knowledge') return '写入课程知识';
   if (job.stage === 'generating_notebook') return '生成 Markdown 笔记本';
@@ -1970,7 +1977,7 @@ export function TeacherCourseStudioClient({
                   </StudioList>
                 ) : (
                   <StudioEmptyPlaceholder>
-                    还没有{selectedSourceCategoryMeta.label}。上传不会自动触发 AI。
+                    还没有{selectedSourceCategoryMeta.label}。上传成功后会自动进入 AI 队列。
                   </StudioEmptyPlaceholder>
                 )}
               </div>
@@ -2051,7 +2058,11 @@ export function TeacherCourseStudioClient({
                           <div className="flex shrink-0 items-center gap-1 overflow-hidden">
                             {[
                               queueFileTypeLabel(sourceTitle),
-                              job.kind === 'mind_map' ? '思维导图' : '知识库',
+                              job.kind === 'mind_map'
+                                ? '思维导图'
+                                : job.kind === 'problem_bank_import'
+                                  ? '题库导入'
+                                  : '知识库',
                               '自动处理',
                             ].map((label) => (
                               <StudioItemTag key={label} tone="neutral">

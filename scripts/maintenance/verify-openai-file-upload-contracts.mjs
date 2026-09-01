@@ -17,13 +17,32 @@ const checks = [
     ),
   },
   {
-    name: 'fresh OpenAI file content reads retry and preserve upstream diagnostics',
+    name: 'teacher sources persist app-owned chunks before AI queue processing',
     pass:
-      read('lib/server/openai-user-files.ts').includes('OPENAI_FILE_CONTENT_RETRY_DELAYS_MS') &&
-      read('lib/server/openai-user-files.ts').includes("response.headers.get('x-request-id')") &&
       read('app/api/teacher/courses/[courseId]/sources/route.ts').includes(
-        "{ status: 502, headers: { 'Retry-After': '2' } }",
+        "ingestStatus: 'uploading'",
+      ) &&
+      read('app/api/teacher/courses/[courseId]/source-uploads/[sourceId]/parts/route.ts').includes(
+        '"fileData" = COALESCE("fileData"',
+      ) &&
+      read(
+        'app/api/teacher/courses/[courseId]/source-uploads/[sourceId]/complete/route.ts',
+      ).includes("ingestStatus: 'uploaded'") &&
+      read('lib/teacher/online-course-studio.ts').includes(
+        'await processOnlineSource(args.courseId, savedSourceId)',
+      ) &&
+      !read('app/api/teacher/courses/[courseId]/sources/route.ts').includes(
+        'downloadOpenAIUserFile',
       ),
+  },
+  {
+    name: 'teacher problem import failures are visible in the AI queue',
+    pass:
+      read('app/api/teacher/courses/[courseId]/studio/route.ts').includes(
+        "'teacher_problem_bank_import'",
+      ) &&
+      read('lib/teacher/online-course-studio.ts').includes("'problem_bank_import'") &&
+      read('components/teacher/teacher-course-studio-client.tsx').includes('题目导入失败'),
   },
   {
     name: 'chat file_id selects native Responses model',

@@ -1,5 +1,8 @@
 export const COURSE_SOURCE_MAX_FILE_SIZE_MB = 50;
 export const COURSE_SOURCE_MAX_FILE_BYTES = COURSE_SOURCE_MAX_FILE_SIZE_MB * 1024 * 1024;
+// Keep browser-to-app chunks below Vercel's request body ceiling. Course source
+// uploads are persisted by our app before any AI processing begins.
+export const COURSE_SOURCE_BROWSER_UPLOAD_PART_BYTES = 3 * 1024 * 1024;
 
 export type CourseSourceFileKind = 'pdf' | 'pptx' | 'docx' | 'markdown' | 'plain_text' | 'image';
 

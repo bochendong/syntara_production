@@ -125,7 +125,11 @@ export async function GET(_request: Request, context: { params: Promise<{ course
           courseId,
           ownerId: teacher.userId,
           taskType: {
-            in: ['teacher_notebook_generation', 'teacher_mind_map_generation'],
+            in: [
+              'teacher_notebook_generation',
+              'teacher_problem_bank_import',
+              'teacher_mind_map_generation',
+            ],
           },
         },
         orderBy: { updatedAt: 'desc' },
@@ -266,7 +270,12 @@ export async function GET(_request: Request, context: { params: Promise<{ course
         return {
           id: task.id,
           notebookId: task.notebookId || undefined,
-          kind: task.taskType === 'teacher_mind_map_generation' ? 'mind_map' : 'knowledge_notebook',
+          kind:
+            task.taskType === 'teacher_mind_map_generation'
+              ? 'mind_map'
+              : task.taskType === 'teacher_problem_bank_import'
+                ? 'problem_bank_import'
+                : 'knowledge_notebook',
           sourceId:
             typeof request.sourceId === 'string'
               ? request.sourceId

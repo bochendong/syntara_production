@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -9,11 +9,10 @@ import { toPrismaJson } from '@/lib/server/prisma-json';
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 import {
   COURSE_SOURCE_MAX_FILE_BYTES,
+  COURSE_SOURCE_BROWSER_UPLOAD_PART_BYTES,
   courseSourceFileValidationError,
   normalizedCourseSourceMimeType,
 } from '@/lib/uploads/course-source-policy';
-import { verifyOpenAIFileCapability } from '@/lib/server/openai-upload-capability';
-import { downloadOpenAIUserFile } from '@/lib/server/openai-user-files';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -24,10 +23,21 @@ const categorySchema = z.enum([
   'problem_bank',
 ]);
 
-const stagedSourceSchema = z.object({
-  stagedFileToken: z.string().trim().min(1),
+const databaseUploadSchema = z.object({
+  fileName: z.string().trim().min(1).max(240),
+  mimeType: z.string().trim().max(160).default('application/octet-stream'),
+  bytes: z.number().int().positive().max(COURSE_SOURCE_MAX_FILE_BYTES),
   sourceCategory: categorySchema,
 });
+
+function safeFilename(value: string): string {
+  return (
+    value
+      .normalize('NFKC')
+      .replace(/[\u0000-\u001f\u007f/\\]/g, '_')
+      .trim() || 'upload.bin'
+  ).slice(-240);
+}
 
 export async function POST(request: Request, context: { params: Promise<{ courseId: string }> }) {
   return safeRoute(async () => {
@@ -41,69 +51,81 @@ export async function POST(request: Request, context: { params: Promise<{ course
     if (!course) return NextResponse.json({ error: 'Course not found' }, { status: 404 });
 
     const contentType = request.headers.get('content-type') || '';
-    let file: File;
-    let sourceCategory: z.infer<typeof categorySchema>;
-    let stagedOpenAIFileId: string | null = null;
     if (contentType.includes('application/json')) {
-      const stagedPayload = stagedSourceSchema.safeParse(await request.json().catch(() => null));
-      if (!stagedPayload.success) {
+      const uploadPayload = databaseUploadSchema.safeParse(await request.json().catch(() => null));
+      if (!uploadPayload.success) {
         return NextResponse.json({ error: '源文件上传参数无效' }, { status: 400 });
       }
-      const capability = verifyOpenAIFileCapability({
-        token: stagedPayload.data.stagedFileToken,
-        userId: teacher.userId,
-        intents: ['teacher_source', 'problem_bank_source'],
-      });
-      if (!capability) {
-        return NextResponse.json({ error: '文件凭证无效或已过期。' }, { status: 403 });
-      }
-      const expectedIntent =
-        stagedPayload.data.sourceCategory === 'problem_bank'
-          ? 'problem_bank_source'
-          : 'teacher_source';
-      if (capability.intent !== expectedIntent) {
-        return NextResponse.json({ error: '文件上传用途与资料分类不一致。' }, { status: 409 });
-      }
-      let buffer: Buffer;
-      try {
-        buffer = await downloadOpenAIUserFile(capability.fileId);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'OpenAI 文件读取失败。';
+      const fileName = safeFilename(uploadPayload.data.fileName);
+      const fileLike = {
+        name: fileName,
+        size: uploadPayload.data.bytes,
+        type: uploadPayload.data.mimeType,
+      };
+      const validationError = courseSourceFileValidationError(fileLike);
+      if (validationError) {
         return NextResponse.json(
-          { error: message, retryable: true },
-          { status: 502, headers: { 'Retry-After': '2' } },
+          { error: validationError },
+          {
+            status: uploadPayload.data.bytes > COURSE_SOURCE_MAX_FILE_BYTES ? 413 : 415,
+          },
         );
       }
-      if (buffer.byteLength !== capability.bytes) {
-        return NextResponse.json({ error: 'OpenAI 文件大小与上传凭证不一致。' }, { status: 409 });
-      }
-      file = new File([new Uint8Array(buffer)], capability.fileName, {
-        type: capability.mimeType,
+      const normalizedMimeType = normalizedCourseSourceMimeType(fileLike);
+      const source = await prisma.courseSource.create({
+        data: {
+          ownerId: teacher.userId,
+          courseId,
+          sourceHash: `pending-upload:${randomUUID()}`,
+          title: fileName,
+          kind: 'teacher_upload',
+          fileMime: normalizedMimeType,
+          fileData: Buffer.alloc(0),
+          fileSize: uploadPayload.data.bytes,
+          sourceCategory: uploadPayload.data.sourceCategory,
+          ingestStatus: 'uploading',
+          indexStatus: 'pending',
+          metadataJson: toPrismaJson({
+            sourceCategory: uploadPayload.data.sourceCategory,
+            size: uploadPayload.data.bytes,
+            uploadedBytes: 0,
+            uploadedPartCount: 0,
+          }),
+        },
+        select: { id: true },
       });
-      sourceCategory = stagedPayload.data.sourceCategory;
-      stagedOpenAIFileId = capability.fileId;
-    } else {
-      const formData = await request.formData();
-      const candidate = formData.get('file');
-      if (!(candidate instanceof File)) {
-        return NextResponse.json({ error: 'Missing source file' }, { status: 400 });
-      }
-      file = candidate;
-      const category = categorySchema.safeParse(formData.get('sourceCategory'));
-      if (!category.success) {
-        return NextResponse.json({ error: '源文件分类无效' }, { status: 400 });
-      }
-      sourceCategory = category.data;
+      return NextResponse.json(
+        {
+          ok: true,
+          sourceId: source.id,
+          partSizeBytes: COURSE_SOURCE_BROWSER_UPLOAD_PART_BYTES,
+          partCount: Math.ceil(uploadPayload.data.bytes / COURSE_SOURCE_BROWSER_UPLOAD_PART_BYTES),
+        },
+        { status: 201 },
+      );
     }
-    const validationError = courseSourceFileValidationError(file);
+
+    const formData = await request.formData();
+    const candidate = formData.get('file');
+    if (!(candidate instanceof File)) {
+      return NextResponse.json({ error: 'Missing source file' }, { status: 400 });
+    }
+    const category = categorySchema.safeParse(formData.get('sourceCategory'));
+    if (!category.success) {
+      return NextResponse.json({ error: '源文件分类无效' }, { status: 400 });
+    }
+    const validationError = courseSourceFileValidationError(candidate);
     if (validationError) {
       return NextResponse.json(
         { error: validationError },
-        { status: file.size <= 0 ? 400 : file.size > COURSE_SOURCE_MAX_FILE_BYTES ? 413 : 415 },
+        {
+          status:
+            candidate.size <= 0 ? 400 : candidate.size > COURSE_SOURCE_MAX_FILE_BYTES ? 413 : 415,
+        },
       );
     }
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const normalizedMimeType = normalizedCourseSourceMimeType(file);
+    const buffer = Buffer.from(await candidate.arrayBuffer());
+    const normalizedMimeType = normalizedCourseSourceMimeType(candidate);
     const sourceHash = createHash('sha256').update(buffer).digest('hex');
     const existing = await prisma.courseSource.findUnique({
       where: { courseId_sourceHash: { courseId, sourceHash } },
@@ -118,36 +140,35 @@ export async function POST(request: Request, context: { params: Promise<{ course
         ownerId: teacher.userId,
         courseId,
         sourceHash,
-        title: file.name,
+        title: candidate.name,
         kind: 'teacher_upload',
         fileMime: normalizedMimeType,
         fileData: buffer,
-        fileSize: file.size,
-        sourceCategory,
-        openaiFileId: stagedOpenAIFileId,
+        fileSize: candidate.size,
+        sourceCategory: category.data,
         ingestStatus: 'uploaded',
         indexStatus: 'pending',
         metadataJson: toPrismaJson({
-          sourceCategory,
-          size: file.size,
-          openaiFileIds: stagedOpenAIFileId ? [stagedOpenAIFileId] : [],
+          sourceCategory: category.data,
+          size: candidate.size,
+          openaiFileIds: [],
         }),
       },
       update: {
-        title: file.name,
+        title: candidate.name,
         fileMime: normalizedMimeType,
         fileData: buffer,
-        fileSize: file.size,
-        sourceCategory,
-        openaiFileId: stagedOpenAIFileId,
+        fileSize: candidate.size,
+        sourceCategory: category.data,
+        openaiFileId: null,
         removedAt: null,
         ingestStatus: 'uploaded',
         indexStatus: 'pending',
         errorReason: null,
         metadataJson: toPrismaJson({
-          sourceCategory,
-          size: file.size,
-          openaiFileIds: stagedOpenAIFileId ? [stagedOpenAIFileId] : [],
+          sourceCategory: category.data,
+          size: candidate.size,
+          openaiFileIds: [],
         }),
       },
     });

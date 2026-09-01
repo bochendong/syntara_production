@@ -2,7 +2,6 @@
 
 import { backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { courseSourceFileKind } from '@/lib/uploads/course-source-policy';
-import { uploadFileToOpenAI } from '@/lib/uploads/openai-file-upload-client';
 
 export type AcademicTerm = 'winter' | 'summer' | 'fall';
 export type CourseContentType = 'notebook' | 'problem_bank' | 'source';
@@ -70,7 +69,7 @@ export type TeacherStudioContentItem = {
 export type TeacherStudioTask = {
   id: string;
   notebookId?: string;
-  kind: 'knowledge_notebook' | 'mind_map';
+  kind: 'knowledge_notebook' | 'problem_bank_import' | 'mind_map';
   sourceId?: string;
   sourceTitle?: string;
   sourceFileId: string;
@@ -275,24 +274,66 @@ export async function uploadOnlineTeacherSources(args: {
   files: File[];
 }) {
   for (const file of args.files) {
-    const staged = await uploadFileToOpenAI({
-      file,
-      intent: args.sourceCategory === 'problem_bank' ? 'problem_bank_source' : 'teacher_source',
+    const upload = await backendJson<{
+      sourceId: string;
+      partSizeBytes: number;
+      partCount: number;
+    }>(`/api/teacher/courses/${encodeURIComponent(args.courseId)}/sources`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        bytes: file.size,
+        sourceCategory: args.sourceCategory,
+      }),
+      timeoutMs: 30_000,
     });
-    const response = await backendFetch(
-      `/api/teacher/courses/${encodeURIComponent(args.courseId)}/sources`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stagedFileToken: staged.fileToken,
-          sourceCategory: args.sourceCategory,
-        }),
-        timeoutMs: 300_000,
-      },
-    );
-    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-    if (!response.ok) throw new Error(payload?.error || `上传失败（HTTP ${response.status}）`);
+    let savedSourceId = upload.sourceId;
+    let saved = false;
+    try {
+      for (let partIndex = 0; partIndex < upload.partCount; partIndex += 1) {
+        const start = partIndex * upload.partSizeBytes;
+        const end = Math.min(file.size, start + upload.partSizeBytes);
+        const response = await backendFetch(
+          `/api/teacher/courses/${encodeURIComponent(args.courseId)}/source-uploads/${encodeURIComponent(upload.sourceId)}/parts`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'x-part-index': String(partIndex),
+            },
+            body: file.slice(start, end),
+            timeoutMs: 150_000,
+          },
+        );
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        if (!response.ok) {
+          throw new Error(payload?.error || `文件分片 ${partIndex + 1} 保存失败。`);
+        }
+      }
+      const completed = await backendJson<{ sourceId: string; saved: true }>(
+        `/api/teacher/courses/${encodeURIComponent(args.courseId)}/source-uploads/${encodeURIComponent(upload.sourceId)}/complete`,
+        { method: 'POST', timeoutMs: 60_000 },
+      );
+      savedSourceId = completed.sourceId;
+      saved = true;
+    } catch (error) {
+      if (!saved) {
+        await backendFetch(
+          `/api/teacher/courses/${encodeURIComponent(args.courseId)}/sources/${encodeURIComponent(upload.sourceId)}`,
+          { method: 'DELETE', timeoutMs: 20_000 },
+        ).catch(() => undefined);
+      }
+      throw error;
+    }
+
+    try {
+      await processOnlineSource(args.courseId, savedSourceId);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '未知错误';
+      throw new Error(`文件已保存，但加入 AI 队列失败：${detail}`);
+    }
   }
 }
 
