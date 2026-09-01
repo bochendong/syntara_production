@@ -64,7 +64,16 @@ export async function POST(request: Request, context: { params: Promise<{ course
       if (capability.intent !== expectedIntent) {
         return NextResponse.json({ error: '文件上传用途与资料分类不一致。' }, { status: 409 });
       }
-      const buffer = await downloadOpenAIUserFile(capability.fileId);
+      let buffer: Buffer;
+      try {
+        buffer = await downloadOpenAIUserFile(capability.fileId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'OpenAI 文件读取失败。';
+        return NextResponse.json(
+          { error: message, retryable: true },
+          { status: 502, headers: { 'Retry-After': '2' } },
+        );
+      }
       if (buffer.byteLength !== capability.bytes) {
         return NextResponse.json({ error: 'OpenAI 文件大小与上传凭证不一致。' }, { status: 409 });
       }

@@ -3,12 +3,35 @@ import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
 import { proxyFetch, proxyRequest } from '@/lib/server/proxy-fetch';
 
 const OPENAI_STEP_TIMEOUT_MS = 120_000;
+const OPENAI_FILE_CONTENT_RETRY_DELAYS_MS = [0, 500, 1_500, 3_000] as const;
 export const OPENAI_BROWSER_UPLOAD_PART_BYTES = 3 * 1024 * 1024;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function openAIErrorDetail(response: Response): Promise<string> {
+  const responseText = await response.text().catch(() => '');
+  const payload = (() => {
+    try {
+      return JSON.parse(responseText) as unknown;
+    } catch {
+      return null;
+    }
+  })();
+  const error = asRecord(asRecord(payload)?.error);
+  const detail =
+    (typeof error?.message === 'string' && error.message.trim()) ||
+    responseText.replace(/\s+/g, ' ').trim().slice(0, 300) ||
+    'OpenAI 未返回错误说明';
+  const requestId = response.headers.get('x-request-id')?.trim();
+  return requestId ? `${detail}（request_id: ${requestId}）` : detail;
 }
 
 async function officialOpenAIConfig() {
@@ -142,16 +165,32 @@ export async function cancelOpenAIUserUpload(uploadId: string): Promise<void> {
 
 export async function downloadOpenAIUserFile(fileId: string): Promise<Buffer> {
   const config = await officialOpenAIConfig();
-  const response = await proxyFetch(
-    `${config.baseUrl}/files/${encodeURIComponent(fileId)}/content`,
-    {
-      headers: { Authorization: `Bearer ${config.apiKey}` },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(OPENAI_STEP_TIMEOUT_MS),
-    },
-  );
-  if (!response.ok) throw new Error(`OpenAI 文件读取失败（HTTP ${response.status}）。`);
-  return Buffer.from(await response.arrayBuffer());
+  let lastFailure = 'OpenAI 未返回错误说明';
+  let lastStatus = 502;
+  for (const retryDelay of OPENAI_FILE_CONTENT_RETRY_DELAYS_MS) {
+    if (retryDelay > 0) await delay(retryDelay);
+    const response = await proxyFetch(
+      `${config.baseUrl}/files/${encodeURIComponent(fileId)}/content`,
+      {
+        headers: { Authorization: `Bearer ${config.apiKey}` },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(OPENAI_STEP_TIMEOUT_MS),
+      },
+    );
+    if (response.ok) return Buffer.from(await response.arrayBuffer());
+
+    lastStatus = response.status;
+    lastFailure = await openAIErrorDetail(response);
+    const retryable =
+      response.status === 400 ||
+      response.status === 404 ||
+      response.status === 409 ||
+      response.status === 425 ||
+      response.status === 429 ||
+      response.status >= 500;
+    if (!retryable) break;
+  }
+  throw new Error(`OpenAI 文件读取失败（HTTP ${lastStatus}）：${lastFailure}`);
 }
 
 export async function deleteOpenAIUserFile(fileId: string): Promise<void> {

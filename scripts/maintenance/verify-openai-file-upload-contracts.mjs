@@ -17,6 +17,15 @@ const checks = [
     ),
   },
   {
+    name: 'fresh OpenAI file content reads retry and preserve upstream diagnostics',
+    pass:
+      read('lib/server/openai-user-files.ts').includes('OPENAI_FILE_CONTENT_RETRY_DELAYS_MS') &&
+      read('lib/server/openai-user-files.ts').includes("response.headers.get('x-request-id')") &&
+      read('app/api/teacher/courses/[courseId]/sources/route.ts').includes(
+        "{ status: 502, headers: { 'Retry-After': '2' } }",
+      ),
+  },
+  {
     name: 'chat file_id selects native Responses model',
     pass:
       read('features/chat/server/stateless-chat.ts').includes('requestHasOpenAIFileInput') &&
