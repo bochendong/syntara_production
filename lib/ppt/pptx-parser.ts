@@ -107,7 +107,7 @@ export async function parsePptxBuffer(args: {
       }
     }
 
-    const note = typeof slide.note === 'string' ? slide.note.trim() : '';
+    const note = typeof slide.note === 'string' ? stripHtml(slide.note) : '';
     const slideLines = [
       `Slide ${pageNumber}`,
       ...elementText,

@@ -53,7 +53,10 @@ export async function DELETE(
     if (!(await ownedSource(teacher.userId, courseId, sourceId))) {
       return NextResponse.json({ error: 'Source not found' }, { status: 404 });
     }
-    await prisma.courseSource.delete({ where: { id: sourceId } });
+    await prisma.$transaction([
+      prisma.asset.deleteMany({ where: { path: `/course-source-previews/${sourceId}.pdf` } }),
+      prisma.courseSource.delete({ where: { id: sourceId } }),
+    ]);
     return NextResponse.json({ ok: true });
   });
 }

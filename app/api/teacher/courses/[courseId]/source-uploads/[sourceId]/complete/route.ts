@@ -22,7 +22,7 @@ export async function POST(
   context: { params: Promise<{ courseId: string; sourceId: string }> },
 ) {
   return safeRoute(async () => {
-    const teacher = await requireTeacher();
+    const teacher = await requireTeacher({ refreshSpeedupAccess: false });
     if ('response' in teacher) return teacher.response;
     const { courseId, sourceId } = await context.params;
     const [course, source] = await Promise.all([

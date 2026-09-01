@@ -4,7 +4,7 @@ import { reconcileSpeedupCourseMembershipsIfVerificationStale } from '@/lib/serv
 
 const SPEEDUP_TEACHER_ACCESS_MAX_AGE_MS = 20_000;
 
-export async function requireTeacher() {
+export async function requireTeacher(options: { refreshSpeedupAccess?: boolean } = {}) {
   const session = await requireServerSession();
   const user = session?.user;
   if (!user?.id) {
@@ -15,7 +15,11 @@ export async function requireTeacher() {
       response: NextResponse.json({ error: 'Teacher access required' }, { status: 403 }),
     } as const;
   }
-  if (user.role === 'TEACHER' && user.id.startsWith('speedup:')) {
+  if (
+    options.refreshSpeedupAccess !== false &&
+    user.role === 'TEACHER' &&
+    user.id.startsWith('speedup:')
+  ) {
     await reconcileSpeedupCourseMembershipsIfVerificationStale(
       user.id,
       'TEACHER',

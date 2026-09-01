@@ -1,6 +1,6 @@
 'use client';
 
-import { backendFetch, backendJson } from '@/lib/utils/backend-api';
+import { BackendApiError, backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { courseSourceFileKind } from '@/lib/uploads/course-source-policy';
 
 export type AcademicTerm = 'winter' | 'summer' | 'fall';
@@ -94,6 +94,7 @@ export type TeacherStudioSourcePreview = {
   size: number;
   kind: 'pdf' | 'markdown' | 'text' | 'office' | 'image';
   blob: Blob;
+  downloadBlob?: Blob;
   text?: string;
   pageCount?: number;
 };
@@ -274,21 +275,39 @@ export async function uploadOnlineTeacherSources(args: {
   files: File[];
 }) {
   for (const file of args.files) {
-    const upload = await backendJson<{
-      sourceId: string;
-      partSizeBytes: number;
-      partCount: number;
-    }>(`/api/teacher/courses/${encodeURIComponent(args.courseId)}/sources`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fileName: file.name,
-        mimeType: file.type || 'application/octet-stream',
-        bytes: file.size,
-        sourceCategory: args.sourceCategory,
-      }),
-      timeoutMs: 30_000,
-    });
+    const uploadId = crypto.randomUUID();
+    const initializeUpload = () =>
+      backendJson<{
+        sourceId: string;
+        partSizeBytes: number;
+        partCount: number;
+      }>(`/api/teacher/courses/${encodeURIComponent(args.courseId)}/sources`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uploadId,
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          bytes: file.size,
+          sourceCategory: args.sourceCategory,
+        }),
+        timeoutMs: 45_000,
+      });
+    let upload: Awaited<ReturnType<typeof initializeUpload>>;
+    try {
+      upload = await initializeUpload();
+    } catch (error) {
+      if (
+        !(error instanceof BackendApiError) ||
+        (error.kind !== 'timeout' && error.kind !== 'network')
+      ) {
+        throw error;
+      }
+      // The server may have committed the upload row even when the browser lost
+      // the response. Retrying with the same uploadId resumes that row instead
+      // of creating a duplicate or reporting a false failure.
+      upload = await initializeUpload();
+    }
     let savedSourceId = upload.sourceId;
     let saved = false;
     try {
@@ -356,12 +375,29 @@ export async function getOnlineTeacherSourcePreview(item: TeacherStudioContentIt
           : detectedKind === 'image'
             ? 'image'
             : 'text';
+  if (kind === 'office') {
+    const previewUrl = item.fileUrl.replace(/\/file(?:\?.*)?$/, '/preview');
+    const previewResponse = await backendFetch(previewUrl, { timeoutMs: 300_000 });
+    if (!previewResponse.ok) {
+      const payload = (await previewResponse.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error || `PDF 预览生成失败（HTTP ${previewResponse.status}）`);
+    }
+    return {
+      fileName: item.title,
+      mimeType: item.mimeType || blob.type || 'application/octet-stream',
+      size: item.size || blob.size,
+      kind: 'pdf',
+      blob: await previewResponse.blob(),
+      downloadBlob: blob,
+    } satisfies TeacherStudioSourcePreview;
+  }
   return {
     fileName: item.title,
     mimeType: item.mimeType || blob.type || 'application/octet-stream',
     size: item.size || blob.size,
     kind,
     blob,
+    downloadBlob: blob,
     text: kind === 'markdown' || kind === 'text' ? await blob.text() : undefined,
   } satisfies TeacherStudioSourcePreview;
 }

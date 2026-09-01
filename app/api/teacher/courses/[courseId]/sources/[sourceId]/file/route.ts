@@ -12,7 +12,7 @@ export async function GET(
   context: { params: Promise<{ courseId: string; sourceId: string }> },
 ) {
   return safeRoute(async () => {
-    const teacher = await requireTeacher();
+    const teacher = await requireTeacher({ refreshSpeedupAccess: false });
     if ('response' in teacher) return teacher.response;
     const { courseId, sourceId } = await context.params;
     if (!(await hasTeacherCourseAccess(prisma, teacher.userId, courseId))) {

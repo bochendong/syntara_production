@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   // makes localhost substantially slower than production.
   reactStrictMode: false,
   transpilePackages: ['mathml2omml', 'pptxgenjs'],
+  serverExternalPackages: ['@napi-rs/canvas'],
   webpack(config, { isServer, webpack }) {
     if (!isServer) {
       config.plugins.push(
@@ -40,6 +41,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/*': [
       './node_modules/.pnpm/@prisma+client*/node_modules/.prisma/client/**/*',
+      './node_modules/.pnpm/@fontsource+noto-sans-sc*/node_modules/@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff2',
       './lib/generation/prompts/**/*.md',
     ],
   },

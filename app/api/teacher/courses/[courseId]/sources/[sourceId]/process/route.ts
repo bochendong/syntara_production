@@ -1,8 +1,6 @@
 import { after, NextResponse } from 'next/server';
 
-import { parseDocxBuffer } from '@/lib/docx/parse-docx-buffer';
 import { parsePDF } from '@/lib/pdf/pdf-providers';
-import { parsePptxBuffer } from '@/lib/ppt/pptx-parser';
 import { prisma } from '@/lib/server/prisma';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { toPrismaJson } from '@/lib/server/prisma-json';
@@ -13,6 +11,10 @@ import { courseSourceFileKind } from '@/lib/uploads/course-source-policy';
 import { extractCourseSourceImageText } from '@/lib/server/extract-course-source-image-text';
 import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
 import { getServerOpenAIResponsesModel } from '@/lib/ai/server-model';
+import {
+  convertOfficeSourceToPdf,
+  persistCourseSourcePreviewPdf,
+} from '@/lib/server/office-source-pdf';
 import {
   extractProblemDraftsFromText,
   llmExtractProblemDraftsFromOpenAIFile,
@@ -32,20 +34,12 @@ async function extractText(args: { title: string; mimeType: string; data: Buffer
     };
   }
   if (kind === 'docx') {
-    const parsed = await parseDocxBuffer({
-      buffer: args.data,
-      fileName: args.title,
-      fileSize: args.data.byteLength,
-    });
-    return { text: parsed.text, pageCount: 1 };
+    const converted = await convertOfficeSourceToPdf(args);
+    return { text: converted.text, pageCount: converted.pageCount, previewPdf: converted.pdf };
   }
   if (kind === 'pptx') {
-    const parsed = await parsePptxBuffer({
-      buffer: args.data,
-      fileName: args.title,
-      fileSize: args.data.byteLength,
-    });
-    return { text: parsed.text || '', pageCount: parsed.metadata.slideCount || 1 };
+    const converted = await convertOfficeSourceToPdf(args);
+    return { text: converted.text, pageCount: converted.pageCount, previewPdf: converted.pdf };
   }
   if (kind === 'image') {
     return {
@@ -95,13 +89,28 @@ async function runSourceProcessing(args: {
       where: { id: source.id },
       data: { ingestStatus: 'processing', errorReason: null },
     });
-    const extracted = source.extractedText?.trim()
-      ? { text: source.extractedText, pageCount: 1 }
-      : await extractText({
-          title: source.title,
-          mimeType: source.fileMime || 'application/octet-stream',
-          data: Buffer.from(source.fileData!),
-        });
+    const sourceKind = courseSourceFileKind({
+      name: source.title,
+      type: source.fileMime || 'application/octet-stream',
+    });
+    const officeSource = sourceKind === 'docx' || sourceKind === 'pptx';
+    if (officeSource) {
+      await prisma.agentTask.update({
+        where: { id: args.taskId },
+        data: { stage: 'converting_to_pdf', progress: 12 },
+      });
+    }
+    const extracted =
+      officeSource || !source.extractedText?.trim()
+        ? await extractText({
+            title: source.title,
+            mimeType: source.fileMime || 'application/octet-stream',
+            data: Buffer.from(source.fileData!),
+          })
+        : { text: source.extractedText, pageCount: 1 };
+    if ('previewPdf' in extracted && extracted.previewPdf) {
+      await persistCourseSourcePreviewPdf(source.id, extracted.previewPdf);
+    }
     // PostgreSQL text columns reject NUL bytes. Some PDF text extractors keep
     // them as U+0000, so normalize before either prompting the model or
     // persisting the extracted source text.

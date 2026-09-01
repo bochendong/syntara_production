@@ -1027,7 +1027,7 @@ export function TeacherCourseStudioClient({
 
   const downloadSourcePreview = () => {
     if (!sourcePreview) return;
-    const url = URL.createObjectURL(sourcePreview.blob);
+    const url = URL.createObjectURL(sourcePreview.downloadBlob || sourcePreview.blob);
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = sourcePreview.fileName;

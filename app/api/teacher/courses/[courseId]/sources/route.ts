@@ -24,6 +24,7 @@ const categorySchema = z.enum([
 ]);
 
 const databaseUploadSchema = z.object({
+  uploadId: z.string().uuid().optional(),
   fileName: z.string().trim().min(1).max(240),
   mimeType: z.string().trim().max(160).default('application/octet-stream'),
   bytes: z.number().int().positive().max(COURSE_SOURCE_MAX_FILE_BYTES),
@@ -72,11 +73,35 @@ export async function POST(request: Request, context: { params: Promise<{ course
         );
       }
       const normalizedMimeType = normalizedCourseSourceMimeType(fileLike);
+      const uploadId = uploadPayload.data.uploadId || randomUUID();
+      const pendingSourceHash = `pending-upload:${uploadId}`;
+      const existingUpload = await prisma.courseSource.findUnique({
+        where: { courseId_sourceHash: { courseId, sourceHash: pendingSourceHash } },
+        select: { id: true, ownerId: true, ingestStatus: true },
+      });
+      if (existingUpload) {
+        if (existingUpload.ownerId !== teacher.userId) {
+          return NextResponse.json({ error: 'Upload belongs to another user' }, { status: 403 });
+        }
+        if (existingUpload.ingestStatus !== 'uploading') {
+          return NextResponse.json(
+            { error: '该上传任务已经结束，请重新选择文件。' },
+            { status: 409 },
+          );
+        }
+        return NextResponse.json({
+          ok: true,
+          sourceId: existingUpload.id,
+          partSizeBytes: COURSE_SOURCE_BROWSER_UPLOAD_PART_BYTES,
+          partCount: Math.ceil(uploadPayload.data.bytes / COURSE_SOURCE_BROWSER_UPLOAD_PART_BYTES),
+          resumed: true,
+        });
+      }
       const source = await prisma.courseSource.create({
         data: {
           ownerId: teacher.userId,
           courseId,
-          sourceHash: `pending-upload:${randomUUID()}`,
+          sourceHash: pendingSourceHash,
           title: fileName,
           kind: 'teacher_upload',
           fileMime: normalizedMimeType,
@@ -90,6 +115,7 @@ export async function POST(request: Request, context: { params: Promise<{ course
             size: uploadPayload.data.bytes,
             uploadedBytes: 0,
             uploadedPartCount: 0,
+            uploadId,
           }),
         },
         select: { id: true },

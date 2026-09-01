@@ -36,6 +36,23 @@ const checks = [
       ),
   },
   {
+    name: 'teacher Office uploads use idempotent initialization and derived PDF previews',
+    pass:
+      read('app/api/teacher/courses/[courseId]/sources/route.ts').includes(
+        'pending-upload:${uploadId}',
+      ) &&
+      read('lib/teacher/online-course-studio.ts').includes(
+        'const uploadId = crypto.randomUUID()',
+      ) &&
+      read('app/api/teacher/courses/[courseId]/sources/[sourceId]/process/route.ts').includes(
+        "stage: 'converting_to_pdf'",
+      ) &&
+      read('app/api/teacher/courses/[courseId]/sources/[sourceId]/preview/route.ts').includes(
+        'convertOfficeSourceToPdf',
+      ) &&
+      read('lib/server/office-source-pdf.ts').includes('new PDFDocument'),
+  },
+  {
     name: 'teacher problem import failures are visible in the AI queue',
     pass:
       read('app/api/teacher/courses/[courseId]/studio/route.ts').includes(
