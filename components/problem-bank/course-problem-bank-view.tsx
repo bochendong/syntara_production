@@ -2222,13 +2222,13 @@ export function CourseProblemBankView({
               <div className="flex min-h-0 flex-1 flex-col overflow-auto">
                 {loading ? (
                   <div
-                    className="m-4 grid min-h-[clamp(26rem,58dvh,46rem)] flex-1 place-items-center rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-6 text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400"
+                    className="relative m-3 grid min-h-[clamp(26rem,58dvh,46rem)] flex-1 place-items-center overflow-hidden rounded-[20px] bg-[radial-gradient(circle_at_50%_42%,rgba(14,165,233,0.08),transparent_34%),linear-gradient(to_bottom,#f8fafc_0%,#ffffff_72%)] p-6 text-slate-500 ring-1 ring-inset ring-slate-100 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(56,189,248,0.09),transparent_34%),linear-gradient(to_bottom,#0f172a_0%,#020617_72%)] dark:text-slate-400 dark:ring-white/5"
                     role="status"
                     aria-live="polite"
                     aria-busy="true"
                   >
                     <div className="flex max-w-sm flex-col items-center text-center">
-                      <span className="grid size-12 place-items-center rounded-2xl bg-white text-sky-600 shadow-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:text-sky-300 dark:ring-slate-700">
+                      <span className="grid size-14 place-items-center rounded-[18px] bg-white text-sky-600 shadow-[0_12px_35px_rgba(14,165,233,0.14)] ring-1 ring-sky-100 dark:bg-slate-950 dark:text-sky-300 dark:ring-sky-500/20">
                         <Loader2 className="size-5 animate-spin" />
                       </span>
                       <p className="mt-4 text-base font-semibold text-slate-800 dark:text-slate-100">
@@ -2239,20 +2239,20 @@ export function CourseProblemBankView({
                           ? '题目、章节与作答记录准备好后会显示在这里。'
                           : 'Problems, chapters, and attempt history will appear here when ready.'}
                       </p>
-                      <div className="mt-6 grid w-full grid-cols-3 gap-2" aria-hidden="true">
-                        <span className="h-2.5 animate-pulse rounded-full bg-slate-200 motion-reduce:animate-none dark:bg-slate-700" />
-                        <span className="h-2.5 animate-pulse rounded-full bg-slate-200 motion-reduce:animate-none dark:bg-slate-700" />
-                        <span className="h-2.5 animate-pulse rounded-full bg-slate-200 motion-reduce:animate-none dark:bg-slate-700" />
+                      <div className="mt-6 flex items-center gap-2" aria-hidden="true">
+                        <span className="size-1.5 animate-pulse rounded-full bg-sky-400 motion-reduce:animate-none" />
+                        <span className="size-1.5 animate-pulse rounded-full bg-sky-300 delay-150 motion-reduce:animate-none" />
+                        <span className="size-1.5 animate-pulse rounded-full bg-sky-200 delay-300 motion-reduce:animate-none" />
                       </div>
                     </div>
                   </div>
                 ) : filteredProblems.length === 0 ? (
-                  <div className="m-4 grid min-h-[clamp(26rem,58dvh,46rem)] flex-1 place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                  <div className="relative m-3 grid min-h-[clamp(26rem,58dvh,46rem)] flex-1 place-items-center overflow-hidden rounded-[20px] bg-[radial-gradient(circle_at_50%_42%,rgba(14,165,233,0.08),transparent_34%),linear-gradient(to_bottom,#f8fafc_0%,#ffffff_72%)] p-6 text-sm text-slate-500 ring-1 ring-inset ring-slate-100 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(56,189,248,0.09),transparent_34%),linear-gradient(to_bottom,#0f172a_0%,#020617_72%)] dark:text-slate-400 dark:ring-white/5">
                     <div className="flex max-w-md flex-col items-center text-center">
-                      <span className="grid size-12 place-items-center rounded-2xl bg-sky-50 text-sky-600 ring-1 ring-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/20">
-                        <BookOpen className="size-5" />
+                      <span className="grid size-14 place-items-center rounded-[18px] bg-white text-sky-600 shadow-[0_12px_35px_rgba(14,165,233,0.14)] ring-1 ring-sky-100 dark:bg-slate-950 dark:text-sky-300 dark:ring-sky-500/20">
+                        <BookOpen className="size-6" strokeWidth={1.8} />
                       </span>
-                      <p className="mt-4 text-base font-semibold text-slate-800 dark:text-slate-100">
+                      <p className="mt-5 text-lg font-semibold tracking-[-0.02em] text-slate-900 dark:text-slate-100">
                         {problems.length === 0
                           ? locale === 'zh-CN'
                             ? '题库还没有题目'
@@ -2261,7 +2261,7 @@ export function CourseProblemBankView({
                             ? '当前筛选下没有题目'
                             : 'No problems match this filter'}
                       </p>
-                      <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                      <p className="mt-2 max-w-sm text-[13px] leading-6 text-slate-500 dark:text-slate-400">
                         {problems.length === 0
                           ? locale === 'zh-CN'
                             ? canEditProblems
@@ -2281,7 +2281,7 @@ export function CourseProblemBankView({
                             setImportMode('pdf');
                             setImportOpen(true);
                           }}
-                          className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                          className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white shadow-[0_8px_22px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-[0_12px_26px_rgba(15,23,42,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 motion-reduce:hover:translate-y-0 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                         >
                           <FileUp className="size-4" />
                           {locale === 'zh-CN' ? '上传题目' : 'Upload problems'}
