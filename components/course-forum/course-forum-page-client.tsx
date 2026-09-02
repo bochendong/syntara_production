@@ -661,18 +661,20 @@ export function CourseForumPageClient({
             <>
               <Button
                 variant="outline"
-                className="h-8 rounded-lg"
+                size="sm"
+                className="h-7 rounded-md px-2 text-[11px] font-semibold"
                 onClick={() => void load({ postId: selectedPostId, quiet: true })}
                 disabled={refreshing}
               >
-                <RefreshCw className={cn('mr-1.5 size-4', refreshing && 'animate-spin')} />
+                <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
                 刷新
               </Button>
               <Button
-                className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700"
+                size="sm"
+                className="h-7 rounded-md bg-emerald-600 px-2 text-[11px] font-semibold hover:bg-emerald-700"
                 onClick={() => setNewPostOpen(true)}
               >
-                <Plus className="mr-1.5 size-4" />
+                <Plus className="size-3.5" />
                 发布问题
               </Button>
             </>
