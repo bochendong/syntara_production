@@ -287,6 +287,7 @@ export function CourseForumPageClient({
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const [selectedPostId, setSelectedPostId] = useState(initialSnapshot?.selectedPost?.id || '');
+  const selectedPostIdRef = useRef(initialSnapshot?.selectedPost?.id || '');
   const [loading, setLoading] = useState(!initialSnapshot);
   const [refreshing, setRefreshing] = useState(false);
   const [accessRevoked, setAccessRevoked] = useState(false);
@@ -301,6 +302,11 @@ export function CourseForumPageClient({
   const lastProfileSyncKeyRef = useRef('');
   const accessCheckInFlightRef = useRef(false);
   const mockAsTeacher = initialSnapshot?.viewer.accessRole === 'owner';
+
+  const commitSelectedPostId = useCallback((postId: string) => {
+    selectedPostIdRef.current = postId;
+    setSelectedPostId(postId);
+  }, []);
 
   const load = useCallback(
     async (options?: {
@@ -325,7 +331,7 @@ export function CourseForumPageClient({
             asTeacher: mockAsTeacher,
           });
           setSnapshot(next);
-          setSelectedPostId(next.selectedPost?.id || '');
+          commitSelectedPostId(next.selectedPost?.id || '');
           setError('');
           return;
         }
@@ -337,7 +343,7 @@ export function CourseForumPageClient({
           { timeoutMs: 45_000 },
         );
         setSnapshot(next);
-        setSelectedPostId(next.selectedPost?.id || '');
+        commitSelectedPostId(next.selectedPost?.id || '');
         setAccessRevoked(false);
         setError('');
       } catch (loadError) {
@@ -356,17 +362,17 @@ export function CourseForumPageClient({
         setRefreshing(false);
       }
     },
-    [courseId, filter, mockAsTeacher, mockMode, search],
+    [commitSelectedPostId, courseId, filter, mockAsTeacher, mockMode, search],
   );
 
   useEffect(() => {
     if (mockMode) {
-      void load({ postId: selectedPostId, quiet: true, status: filter });
+      void load({ postId: selectedPostIdRef.current, quiet: true, status: filter });
       return;
     }
     if (initialSnapshot) return;
-    void load();
-  }, [filter, initialSnapshot, load, mockMode, search, selectedPostId]);
+    void load({ postId: selectedPostIdRef.current });
+  }, [filter, initialSnapshot, load, mockMode, search]);
 
   useEffect(() => {
     if (mockMode || accessRevoked) return;
@@ -421,7 +427,7 @@ export function CourseForumPageClient({
     : { courseTitle: '课程论坛', courseMeta: undefined };
 
   const openPost = (postId: string) => {
-    setSelectedPostId(postId);
+    commitSelectedPostId(postId);
     void load({ postId });
   };
 
@@ -450,7 +456,7 @@ export function CourseForumPageClient({
       setPostBody('');
       setPostImages([]);
       setFilter('all');
-      setSelectedPostId(payload.postId);
+      commitSelectedPostId(payload.postId);
       await load({ postId: payload.postId, quiet: true, status: 'all' });
     } catch (postError) {
       setError(postError instanceof Error ? postError.message : '发布问题失败');
