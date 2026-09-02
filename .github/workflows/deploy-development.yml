@@ -56,7 +56,9 @@ jobs:
   vercel:
     name: Deploy Vercel Development
     needs: verify
-    if: ${{ vars.VERCEL_AUTOMATIC_DEPLOY == 'true' }}
+    if: >-
+      vars.VERCEL_AUTOMATIC_DEPLOY == 'true' ||
+      contains(github.event.head_commit.message, '[deploy-development]')
     runs-on: ubuntu-latest
     environment: development
     env:
