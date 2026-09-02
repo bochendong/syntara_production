@@ -6,11 +6,14 @@ import {
   type UIMessage,
 } from 'ai';
 import type { ChatContextCompression, ChatMessageMetadata } from '@/lib/types/chat';
+import {
+  COURSE_CONTEXT_TOKEN_BUDGET,
+  estimateCourseContextTextTokens,
+} from '@/lib/chat/course-context-window';
 
 // This is the conversation-history budget, not the provider's full context
 // window. Compress at 75% so instructions, course evidence, tools, and the
 // answer still have headroom.
-export const COURSE_CONTEXT_TOKEN_BUDGET = 16_000;
 export const COURSE_CONTEXT_COMPRESSION_TRIGGER_TOKENS = Math.floor(
   COURSE_CONTEXT_TOKEN_BUDGET * 0.75,
 );
@@ -37,6 +40,9 @@ type PrepareCourseContextArgs = {
 
 export type PreparedCourseContext = {
   modelMessages: ModelMessage[];
+  /** Effective rolling conversation history prepared for this model turn. */
+  estimatedContextTokens: number;
+  contextTokenBudget: number;
   compression?: ChatContextCompression;
   summaryUsage?: {
     inputTokens: number;
@@ -62,13 +68,7 @@ function messageText(message: UIMessage<ChatMessageMetadata>): string {
  * A conservative mixed Chinese/Latin estimate. It is intentionally used as a
  * soft trigger, not as provider billing truth.
  */
-export function estimateCourseContextTokens(text: string): number {
-  const normalized = text.normalize('NFKC');
-  const hanLike =
-    normalized.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu)?.length ?? 0;
-  const other = Math.max(0, normalized.length - hanLike);
-  return Math.ceil(hanLike * 1.15 + other / 4);
-}
+export const estimateCourseContextTokens = estimateCourseContextTextTokens;
 
 export function estimateCourseMessagesTokens(messages: UIMessage<ChatMessageMetadata>[]): number {
   return messages.reduce(
@@ -213,6 +213,8 @@ export async function prepareCourseConversationContext(
       modelMessages: previousSummary
         ? [summarySystemMessage(previousSummary), ...converted]
         : converted,
+      estimatedContextTokens: estimatedTokens,
+      contextTokenBudget: COURSE_CONTEXT_TOKEN_BUDGET,
     };
   }
 
@@ -265,6 +267,8 @@ export async function prepareCourseConversationContext(
   const converted = await convertToModelMessages(retainedMessages);
   return {
     modelMessages: [summarySystemMessage(summary), ...converted],
+    estimatedContextTokens: compression.estimatedTokensAfter,
+    contextTokenBudget: COURSE_CONTEXT_TOKEN_BUDGET,
     compression,
     summaryUsage,
   };

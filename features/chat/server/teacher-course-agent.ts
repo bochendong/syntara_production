@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { ToolLoopAgent, stepCountIs, tool, type LanguageModel } from 'ai';
 import { z } from 'zod';
 import type {
+  CourseChatTeachingMode,
   PublicReplyProgressStep,
   StatelessChatRequest,
   StatelessEvent,
@@ -332,6 +333,7 @@ function courseAgentInstructions(args: {
   access: TrustedCourseAccess;
   inventory: TeacherCourseInventory;
   mode: CourseAgentMode;
+  teachingMode: CourseChatTeachingMode;
   courseRulePrompt?: string;
   courseRuleGuidance?: string;
 }): string {
@@ -346,6 +348,20 @@ function courseAgentInstructions(args: {
     : ['（无）'];
 
   const isStudent = args.mode === 'student';
+  const teachingModeRules =
+    args.teachingMode === 'guided'
+      ? [
+          '本轮教学方式：引导模式。',
+          '1. 当用户在解决题目、证明、代码或推导时，不要在第一步直接给出完整答案、完整证明或可直接提交的成品代码。',
+          '2. 先判断用户已经做到哪里；信息不足时，用一个聚焦问题确认思路。随后一次只给一个关键提示、一个可执行的小步骤，并用问题邀请用户继续。',
+          '3. 用户已经展示尝试时，明确指出其中一个正确点和下一个需要修正的点；随着用户继续作答逐步增加帮助。',
+          '4. 普通知识查询、课程管理操作和不需要解题过程的事实问题仍可直接回答；不要为了“引导”而拖延简单事实。',
+          '5. 即使用户要求更多帮助，也优先提供下一层提示和局部示范；只有在安全、课程规则或用户明确需要核对最终结果时，才在解释思路后给出完整结果。',
+        ]
+      : [
+          '本轮教学方式：回复模式。',
+          '直接、完整地回答用户的问题；涉及题目时给出必要步骤、结论与易错点，不要故意把关键答案留到下一轮。',
+        ];
   return [
     isStudent
       ? `你是 ${args.access.course.name} 的学生课程助理。当前用户是已选修这门课的学生。`
@@ -354,6 +370,8 @@ function courseAgentInstructions(args: {
     isStudent
       ? '你的职责：结合老师已开放的课程笔记本和当前学生自己的学习记录，提供清晰、耐心、因材施教的中文辅导。可以讲概念、步骤和例子，也可以帮助学生查看自己的近期提问、学习状态与日历。'
       : '你的职责：帮助课程 owner 查阅课程资料、了解某位已选课学生的近期问题和学习状态，并归纳班级近期的共同问题。回答使用清晰、直接的中文，并区分原始记录与基于证据的判断。',
+    '',
+    ...teachingModeRules,
     '',
     '当前课程事实：',
     `- 课程 ID：${args.access.course.id}`,
@@ -1004,6 +1022,14 @@ async function runCourseNotebookAgentTurn(
       ...currentProgress,
     ]);
   }
+  await args.onEvent({
+    type: 'context_usage',
+    data: {
+      usedTokens: preparedContext.estimatedContextTokens,
+      limitTokens: preparedContext.contextTokenBudget,
+      estimated: true,
+    },
+  });
   if (
     preparedContext.summaryUsage &&
     preparedContext.summaryUsage.totalTokens > 0 &&
@@ -1039,6 +1065,7 @@ async function runCourseNotebookAgentTurn(
       access: args.access,
       inventory,
       mode: args.mode,
+      teachingMode: args.body.config.teachingMode === 'guided' ? 'guided' : 'reply',
       courseRulePrompt: courseRuleContext.prompt,
       courseRuleGuidance: preflightRuleGuidance,
     }),

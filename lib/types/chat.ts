@@ -24,6 +24,16 @@ export interface PublicReplyProgressStep {
 
 export type ChatContextCompressionTrigger = 'token_budget' | 'message_count';
 
+export type CourseChatTeachingMode = 'reply' | 'guided';
+
+export interface CourseChatContextUsage {
+  /** Effective rolling conversation history sent into the course assistant. */
+  usedTokens: number;
+  /** Product-level conversation-history budget before rolling compression. */
+  limitTokens: number;
+  estimated: true;
+}
+
 /**
  * A user-visible rolling summary of older chat turns.
  *
@@ -869,6 +879,8 @@ export interface StatelessChatRequest {
     agentIds: string[];
     sessionType?: 'qa' | 'discussion';
     surface?: 'classroom' | 'course-chat' | 'teacher-course-chat' | 'student-course-chat';
+    /** User-selected response style for the current course chat turn. */
+    teachingMode?: CourseChatTeachingMode;
     /** Discussion topic (for agent-initiated discussions) */
     discussionTopic?: string;
     /** Discussion prompt (for agent-initiated discussions) */
@@ -976,6 +988,11 @@ export type StatelessEvent =
       /** The server replaced older model context with a user-visible rolling summary. */
       type: 'context_compression';
       data: ChatContextCompression & { messageId: string };
+    }
+  | {
+      /** User-visible effective conversation-window usage for this turn. */
+      type: 'context_usage';
+      data: CourseChatContextUsage;
     }
   | { type: 'cue_user'; data: { fromAgentId?: string; prompt?: string } }
   | {

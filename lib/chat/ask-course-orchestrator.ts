@@ -5,8 +5,10 @@ import { COURSE_ORCHESTRATOR_ID, COURSE_ORCHESTRATOR_NAME } from '@/lib/constant
 import { runCourseSideChatLoop } from '@/lib/chat/run-course-side-chat-loop';
 import type {
   ChatMessageMetadata,
+  CourseChatContextUsage,
   CourseChatContext,
   CourseChatEvidenceSummary,
+  CourseChatTeachingMode,
   StatelessChatRequest,
 } from '@/lib/types/chat';
 import type { Scene } from '@/lib/types/stage';
@@ -24,8 +26,10 @@ export type AskCourseOrchestratorOptions = {
   answererHandoff?: CourseChatContext['answererHandoff'];
   userProfile?: { nickname?: string; bio?: string };
   surface?: 'course-chat' | 'teacher-course-chat' | 'student-course-chat';
+  teachingMode?: CourseChatTeachingMode;
   signal?: AbortSignal;
   onMessages?: (messages: UIMessage<ChatMessageMetadata>[]) => void;
+  onContextUsage?: (usage: CourseChatContextUsage) => void;
 };
 
 export type CourseChatImageAttachment = {
@@ -48,6 +52,7 @@ export type AskCourseOrchestratorResult = {
   messages: UIMessage<ChatMessageMetadata>[];
   courseContext: CourseChatContext;
   courseEvidence: CourseChatEvidenceSummary[];
+  contextUsage: CourseChatContextUsage | null;
 };
 
 function messageText(message: UIMessage<ChatMessageMetadata>): string {
@@ -174,6 +179,7 @@ export async function askCourseOrchestrator(
     }),
     userProfile: options.userProfile,
     surface: options.surface ?? 'course-chat',
+    teachingMode: options.teachingMode,
     courseContext,
     trustedLearnAnswererHandoffToken: options.answererHandoff?.trustedToken,
     apiKey: modelConfig.apiKey,
@@ -184,6 +190,7 @@ export async function askCourseOrchestrator(
       messages = nextMessages;
       options.onMessages?.(nextMessages);
     },
+    onContextUsage: options.onContextUsage,
   });
 
   return {
@@ -191,5 +198,6 @@ export async function askCourseOrchestrator(
     messages,
     courseContext,
     courseEvidence: runResult.courseEvidence,
+    contextUsage: runResult.contextUsage,
   };
 }

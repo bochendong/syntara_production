@@ -19,6 +19,7 @@ import {
   BookOpen,
   BookOpenCheck,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
@@ -195,14 +196,20 @@ import {
 import type {
   ChatContextCompression,
   ChatMessageMetadata,
+  CourseChatContextUsage,
   CourseChatContext,
   CourseChatEvidenceSummary,
+  CourseChatTeachingMode,
   LearnActivityPlanTask,
   LearnAnswerEvidenceSource,
   LearnArtifact,
   LearnCalendarDraftItem,
   LearningAction,
 } from '@/lib/types/chat';
+import {
+  COURSE_CONTEXT_TOKEN_BUDGET,
+  estimateCourseContextTextTokens,
+} from '@/lib/chat/course-context-window';
 import type { ParsedPdfContent } from '@/lib/types/pdf';
 import {
   deletePracticePlan,
@@ -1328,6 +1335,7 @@ const MAX_SYLLABUS_DOCUMENT_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_SYLLABUS_IMAGE_FILE_BYTES = 12 * 1024 * 1024;
 const LEARN_LEFT_RAIL_COLLAPSED_STORAGE_KEY = 'syntara-learn-left-rail-collapsed';
 const LEARN_RIGHT_RAIL_COLLAPSED_STORAGE_KEY = 'syntara-learn-right-rail-collapsed';
+const LEARN_TEACHING_MODE_STORAGE_PREFIX = 'syntara-learn-teaching-mode:v1';
 const LEARN_DELETED_PRACTICE_PLAN_IDS_PREFIX = 'syntara-learn-deleted-practice-plan-ids:v1';
 
 type LearnSessionListState = {
@@ -1452,6 +1460,13 @@ function getInitialLearnRailCollapsed(storageKey: string): boolean {
   } catch {
     return false;
   }
+}
+
+function formatCompactTokenCount(value: number): string {
+  const safeValue = Math.max(0, Math.round(value));
+  if (safeValue < 1_000) return String(safeValue);
+  const decimals = safeValue < 10_000 ? 1 : 0;
+  return `${(safeValue / 1_000).toFixed(decimals).replace(/\.0$/, '')}k`;
 }
 
 function pruneDuplicateBlankLearnSessions(
@@ -3053,6 +3068,30 @@ function learnMessagesForCourseAnswerer(
       },
     };
   });
+}
+
+function estimateLearnConversationContextTokens(messages: LearnMessage[]): number {
+  const contextualMessages = learnMessagesForCourseAnswerer(messages);
+  const latestCompression = contextualMessages
+    .slice()
+    .reverse()
+    .find((message) => message.metadata?.contextCompression?.summary.trim())
+    ?.metadata?.contextCompression;
+  const messageTokens = contextualMessages.reduce((total, message) => {
+    const text = message.parts
+      .map((part) => {
+        if (part.type === 'text') return part.text;
+        if (part.type === 'file') return `[附件：${part.filename || part.mediaType || '文件'}]`;
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n');
+    return total + estimateCourseContextTextTokens(text) + 8;
+  }, 0);
+  return (
+    messageTokens +
+    (latestCompression ? estimateCourseContextTextTokens(latestCompression.summary.trim()) : 0)
+  );
 }
 
 function publicTraceFromCourseAnswererMessages(
@@ -7281,6 +7320,11 @@ export function LearnPageClient() {
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<LearnImageAttachment[]>([]);
   const [sending, setSending] = useState(false);
+  const [chatTeachingMode, setChatTeachingMode] = useState<CourseChatTeachingMode>('reply');
+  const [chatContextUsageState, setChatContextUsageState] = useState<{
+    key: string;
+    usage: CourseChatContextUsage;
+  } | null>(null);
   const [retryTurn, setRetryTurn] = useState<LearnRetryTurn | null>(null);
   const [sourceUploadingCourseId, setSourceUploadingCourseId] = useState<string | null>(null);
   const [sourceUploadPanelOpen, setSourceUploadPanelOpen] = useState(false);
@@ -7623,6 +7667,46 @@ export function LearnPageClient() {
     () => (messageStoreKey === activeMessageStoreKey && activeMessageStoreKey ? messages : []),
     [activeMessageStoreKey, messageStoreKey, messages],
   );
+  const teachingModeStorageKey = activeCourseId
+    ? `${LEARN_TEACHING_MODE_STORAGE_PREFIX}:${localUserId}:${activeCourseId}`
+    : '';
+  useEffect(() => {
+    if (!teachingModeStorageKey) {
+      setChatTeachingMode('reply');
+      return;
+    }
+    try {
+      setChatTeachingMode(
+        localStorage.getItem(teachingModeStorageKey) === 'guided' ? 'guided' : 'reply',
+      );
+    } catch {
+      setChatTeachingMode('reply');
+    }
+  }, [teachingModeStorageKey]);
+  const selectChatTeachingMode = useCallback(
+    (mode: CourseChatTeachingMode) => {
+      setChatTeachingMode(mode);
+      if (!teachingModeStorageKey) return;
+      try {
+        localStorage.setItem(teachingModeStorageKey, mode);
+      } catch {
+        // The selected mode remains active in this tab when storage is unavailable.
+      }
+    },
+    [teachingModeStorageKey],
+  );
+  const localContextUsedTokens = useMemo(
+    () => estimateLearnConversationContextTokens(visibleMessages),
+    [visibleMessages],
+  );
+  const serverContextUsage =
+    chatContextUsageState?.key === activeMessageStoreKey ? chatContextUsageState.usage : null;
+  const displayedContextUsedTokens = Math.max(
+    localContextUsedTokens,
+    serverContextUsage?.usedTokens ?? 0,
+  );
+  const displayedContextLimitTokens =
+    serverContextUsage?.limitTokens ?? COURSE_CONTEXT_TOKEN_BUDGET;
   const handleConversationScroll = useCallback(() => {
     const container = conversationScrollContainerRef.current;
     if (!container) return;
@@ -14268,7 +14352,12 @@ export function LearnPageClient() {
             orchestratorAvatarUrl: activeCourse.avatarUrl,
             userProfile: { nickname: userName },
             surface: isTeacherCourseChat ? 'teacher-course-chat' : 'student-course-chat',
+            teachingMode: chatTeachingMode,
             signal: controller.signal,
+            onContextUsage: (usage) => {
+              if (!canCommitTurn()) return;
+              setChatContextUsageState({ key: turnStoreKey, usage });
+            },
             onMessages: (nextMessages) => {
               if (!canCommitTurn()) return;
               const streamedAnswer = streamedCourseAnswerFromMessages(
@@ -15019,6 +15108,7 @@ export function LearnPageClient() {
       addAssistantPlan,
       attachments,
       buildSelectedProblemPracticePlan,
+      chatTeachingMode,
       syncedCourseSourceUploads,
       draft,
       handleLearningActionConfirm,
@@ -18439,6 +18529,87 @@ export function LearnPageClient() {
             className="relative z-20"
             actions={
               <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      role="status"
+                      tabIndex={0}
+                      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border border-slate-200/80 bg-white px-2.5 text-[11px] font-medium text-slate-600 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                      aria-label={`当前有效对话上下文约 ${displayedContextUsedTokens} / ${displayedContextLimitTokens} tokens`}
+                      data-testid="learn-context-window-usage"
+                    >
+                      <Brain className="size-3.5 text-slate-400" strokeWidth={1.9} />
+                      <span className="hidden sm:inline">上下文</span>
+                      <span className="font-mono text-[10px] text-slate-500 dark:text-slate-300">
+                        {formatCompactTokenCount(displayedContextUsedTokens)} /{' '}
+                        {formatCompactTokenCount(displayedContextLimitTokens)}
+                      </span>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="end" className="max-w-72 leading-5">
+                    当前会话送入课程助理的有效历史（估算）。达到预算后会自动整理较早对话，完整聊天记录不会被删除。
+                  </TooltipContent>
+                </Tooltip>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={sending}
+                      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border border-slate-200/80 bg-white px-2.5 text-[11px] font-semibold text-slate-700 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                      aria-label={`教学方式：${chatTeachingMode === 'guided' ? '引导模式' : '回复模式'}`}
+                      data-testid="learn-teaching-mode-trigger"
+                    >
+                      {chatTeachingMode === 'guided' ? (
+                        <Sparkles className="size-3.5 text-violet-500" strokeWidth={1.9} />
+                      ) : (
+                        <MessageCircle className="size-3.5 text-emerald-600" strokeWidth={1.9} />
+                      )}
+                      {chatTeachingMode === 'guided' ? '引导模式' : '回复模式'}
+                      <ChevronDown className="size-3 text-slate-400" strokeWidth={2} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    sideOffset={8}
+                    className="w-72 rounded-[14px] p-1.5"
+                  >
+                    <DropdownMenuLabel>选择教学方式</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onSelect={() => selectChatTeachingMode('reply')}
+                      className="items-start gap-2 py-2"
+                      data-testid="learn-teaching-mode-reply"
+                    >
+                      <MessageCircle className="mt-0.5 size-4 text-emerald-600" strokeWidth={1.8} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold">回复模式</span>
+                        <span className="block text-[11px] leading-4 text-muted-foreground">
+                          直接给出完整解释、步骤和结论。
+                        </span>
+                      </span>
+                      {chatTeachingMode === 'reply' ? (
+                        <CheckCircle2 className="mt-0.5 size-4 text-emerald-600" />
+                      ) : null}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => selectChatTeachingMode('guided')}
+                      className="items-start gap-2 py-2"
+                      data-testid="learn-teaching-mode-guided"
+                    >
+                      <Sparkles className="mt-0.5 size-4 text-violet-500" strokeWidth={1.8} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold">引导模式</span>
+                        <span className="block text-[11px] leading-4 text-muted-foreground">
+                          一次给一个提示，用追问带你完成解题。
+                        </span>
+                      </span>
+                      {chatTeachingMode === 'guided' ? (
+                        <CheckCircle2 className="mt-0.5 size-4 text-violet-500" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 {activeCourseSourceHealthNotice && isTeacherCourseChat ? (
                   <button
                     type="button"

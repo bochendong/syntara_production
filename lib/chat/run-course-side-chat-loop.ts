@@ -11,8 +11,10 @@ import {
 } from '@/lib/chat/course-reply-progress';
 import type {
   ChatMessageMetadata,
+  CourseChatContextUsage,
   CourseChatContext,
   CourseChatEvidenceSummary,
+  CourseChatTeachingMode,
   DirectorState,
   LearningAction,
   LearningActionKind,
@@ -34,6 +36,7 @@ export interface RunCourseSideChatParams {
   getStoreState: () => StatelessChatRequest['storeState'];
   userProfile?: { nickname?: string; bio?: string };
   surface?: StatelessChatRequest['config']['surface'];
+  teachingMode?: CourseChatTeachingMode;
   courseContext?: CourseChatContext;
   trustedLearnAnswererHandoffToken?: string;
   apiKey: string;
@@ -41,10 +44,12 @@ export interface RunCourseSideChatParams {
   model: string;
   signal: AbortSignal;
   onMessages: (messages: UIMessage<ChatMessageMetadata>[]) => void;
+  onContextUsage?: (usage: CourseChatContextUsage) => void;
 }
 
 export interface RunCourseSideChatResult {
   courseEvidence: CourseChatEvidenceSummary[];
+  contextUsage: CourseChatContextUsage | null;
 }
 
 function cloneMessages(m: UIMessage<ChatMessageMetadata>[]) {
@@ -123,9 +128,11 @@ async function consumeOneResponse(
   onMessages: (m: UIMessage<ChatMessageMetadata>[]) => void,
   taskId?: string,
   initialProgressMessageId?: string | null,
+  onContextUsage?: (usage: CourseChatContextUsage) => void,
 ): Promise<{
   cueUserReceived: boolean;
   courseEvidence: CourseChatEvidenceSummary[];
+  contextUsage: CourseChatContextUsage | null;
   doneData: {
     totalAgents: number;
     agentHadContent?: boolean;
@@ -150,6 +157,7 @@ async function consumeOneResponse(
   let pendingProgressMessageId: string | null = initialProgressMessageId ?? null;
   let cueUserReceived = false;
   let courseEvidence: CourseChatEvidenceSummary[] = [];
+  let contextUsage: CourseChatContextUsage | null = null;
   const streamingStartedMessageIds = new Set<string>();
   let pendingTextPublishTimer: ReturnType<typeof setTimeout> | null = null;
   let doneData: {
@@ -347,6 +355,11 @@ async function consumeOneResponse(
             flushTextUpdate();
             break;
           }
+          case 'context_usage': {
+            contextUsage = event.data;
+            onContextUsage?.(event.data);
+            break;
+          }
           case 'agent_start': {
             const { messageId, agentId, agentName, agentAvatar, agentColor } = event.data;
             currentMessageId = messageId;
@@ -513,7 +526,7 @@ async function consumeOneResponse(
     reader.releaseLock();
   }
 
-  return { cueUserReceived, courseEvidence, doneData };
+  return { cueUserReceived, courseEvidence, contextUsage, doneData };
 }
 
 function summarizeChatPrompt(messages: UIMessage<ChatMessageMetadata>[]) {
@@ -551,6 +564,7 @@ async function runCourseSideChatLoopUnqueued(
     getStoreState,
     userProfile,
     surface,
+    teachingMode,
     courseContext,
     trustedLearnAnswererHandoffToken,
     apiKey,
@@ -558,6 +572,7 @@ async function runCourseSideChatLoopUnqueued(
     model,
     signal,
     onMessages,
+    onContextUsage,
   } = params;
 
   const settingsState = useSettingsStore.getState();
@@ -578,6 +593,7 @@ async function runCourseSideChatLoopUnqueued(
   const working = cloneMessages(initialMessages);
   let consecutiveEmptyTurns = 0;
   let courseEvidence: CourseChatEvidenceSummary[] = [];
+  let contextUsage: CourseChatContextUsage | null = null;
 
   const addQueuedProgressMessage = () => {
     const progress = buildCourseReplyProgress({ phase: 'queued' });
@@ -618,6 +634,7 @@ async function runCourseSideChatLoopUnqueued(
       agentIds,
       sessionType: 'qa',
       surface,
+      teachingMode: teachingMode === 'guided' ? 'guided' : 'reply',
     };
     if (agentConfigs && agentConfigs.length > 0) {
       config.agentConfigs = agentConfigs;
@@ -674,12 +691,14 @@ async function runCourseSideChatLoopUnqueued(
         onMessages,
         taskId,
         queuedProgressMessageId,
+        onContextUsage,
       );
       cueUserReceived = consumed.cueUserReceived;
       if (consumed.courseEvidence.length > 0) {
         courseEvidence = consumed.courseEvidence;
       }
       doneData = consumed.doneData;
+      if (consumed.contextUsage) contextUsage = consumed.contextUsage;
     } catch (error) {
       if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
         removeQueuedProgressMessage(queuedProgressMessageId);
@@ -719,5 +738,5 @@ async function runCourseSideChatLoopUnqueued(
     }
   }
 
-  return { courseEvidence };
+  return { courseEvidence, contextUsage };
 }
