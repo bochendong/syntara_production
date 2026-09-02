@@ -582,7 +582,11 @@ async function loadCourseSources(args: {
     ]);
     return {
       sources: records.filter(
-        (source) => source.allQuestionUpload !== true && source.kind !== 'problem_bank',
+        (source) =>
+          source.ingestStatus === 'ready' &&
+          source.indexStatus === 'ready' &&
+          source.allQuestionUpload !== true &&
+          source.kind !== 'problem_bank',
       ),
       snippets: retrieval?.snippets || [],
       failed: retrieval === null,

@@ -3,6 +3,11 @@ import path from 'node:path';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+const onlineTeacherStudio = read('lib/teacher/online-course-studio.ts');
+const teacherSourceUploadBlock = onlineTeacherStudio.slice(
+  onlineTeacherStudio.indexOf('export async function uploadOnlineTeacherSources'),
+  onlineTeacherStudio.indexOf('export async function getOnlineTeacherSourcePreview'),
+);
 const checks = [
   {
     name: 'browser upload chunks stay below Vercel request limit',
@@ -17,7 +22,7 @@ const checks = [
     ),
   },
   {
-    name: 'teacher sources persist app-owned chunks before AI queue processing',
+    name: 'teacher source upload saves the original without starting AI processing',
     pass:
       read('app/api/teacher/courses/[courseId]/sources/route.ts').includes(
         "ingestStatus: 'uploading'",
@@ -28,8 +33,9 @@ const checks = [
       read(
         'app/api/teacher/courses/[courseId]/source-uploads/[sourceId]/complete/route.ts',
       ).includes("ingestStatus: 'uploaded'") &&
-      read('lib/teacher/online-course-studio.ts').includes(
-        'await processOnlineSource(args.courseId, savedSourceId)',
+      !teacherSourceUploadBlock.includes('processOnlineSource(') &&
+      read('components/teacher/teacher-course-studio-client.tsx').includes(
+        'await processOnlineSource(courseId, assetId)',
       ) &&
       !read('app/api/teacher/courses/[courseId]/sources/route.ts').includes(
         'downloadOpenAIUserFile',
@@ -51,6 +57,16 @@ const checks = [
         'convertOfficeSourceToPdf',
       ) &&
       read('lib/server/office-source-pdf.ts').includes('new PDFDocument'),
+  },
+  {
+    name: 'course chat only receives AI-ready source records',
+    pass:
+      read('lib/chat/course-chat-context.ts').includes("source.ingestStatus === 'ready'") &&
+      read('lib/chat/course-chat-context.ts').includes("source.indexStatus === 'ready'") &&
+      read('lib/chat/server-course-question-context.ts').includes(
+        "source.ingestStatus === 'ready'",
+      ) &&
+      read('lib/chat/server-course-question-context.ts').includes("source.indexStatus === 'ready'"),
   },
   {
     name: 'teacher problem import failures are visible in the AI queue',

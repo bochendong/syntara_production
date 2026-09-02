@@ -179,7 +179,7 @@ async function readCourseContentState(
           COUNT(*)::bigint AS "sourceCount",
           MAX("updatedAt") AS "sourceUpdatedAt",
           COUNT(*) FILTER (
-            WHERE "ingestStatus" = 'processing'
+            WHERE "ingestStatus" IN ('uploading', 'uploaded', 'processing')
           )::bigint AS "sourceProcessingCount",
           COUNT(*) FILTER (
             WHERE "ingestStatus" = 'error'
@@ -193,10 +193,11 @@ async function readCourseContentState(
               AND "indexStatus" = 'error'
           )::bigint AS "sourceIndexErrorCount",
           MIN("updatedAt") FILTER (
-            WHERE "ingestStatus" = 'processing'
+            WHERE "ingestStatus" IN ('uploading', 'uploaded', 'processing')
           ) AS "sourceOldestProcessingAt"
         FROM "CourseSource"
         WHERE "courseId" = ${courseId}
+          AND "removedAt" IS NULL
       ) AS source_state
       WHERE course."id" = ${courseId}
       LIMIT 1

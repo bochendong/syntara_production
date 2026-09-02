@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@/lib/server/generated-prisma';
 
-export type CourseSourceIngestStatus = 'processing' | 'ready' | 'error';
+export type CourseSourceIngestStatus = 'uploading' | 'uploaded' | 'processing' | 'ready' | 'error';
 export type CourseSourceIndexStatus = 'pending' | 'indexing' | 'ready' | 'error';
 
 export type StoredCourseSource = {

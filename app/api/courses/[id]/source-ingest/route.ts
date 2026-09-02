@@ -1019,7 +1019,7 @@ async function duplicateCourseSourceResponse(
   source: {
     courseId: string;
     sourceHash: string;
-    ingestStatus: 'processing' | 'ready' | 'error';
+    ingestStatus: 'uploading' | 'uploaded' | 'processing' | 'ready' | 'error';
     indexStatus: 'pending' | 'indexing' | 'ready' | 'error';
     errorReason: string | null;
     openaiFileId?: string | null;
@@ -1028,11 +1028,13 @@ async function duplicateCourseSourceResponse(
   transientOpenAIFileId?: string | null,
 ): Promise<NextResponse> {
   const error =
-    source.ingestStatus === 'processing'
-      ? 'The same source is already being ingested. Wait for it to finish before trying again.'
-      : source.ingestStatus === 'ready'
-        ? 'The same source is already in this course. Delete the existing source before uploading it again.'
-        : 'The same source has a retained failure record. Delete that source record before retrying the upload.';
+    source.ingestStatus === 'uploading' || source.ingestStatus === 'uploaded'
+      ? 'The same source has already been saved and is waiting for the teacher to start processing.'
+      : source.ingestStatus === 'processing'
+        ? 'The same source is already being ingested. Wait for it to finish before trying again.'
+        : source.ingestStatus === 'ready'
+          ? 'The same source is already in this course. Delete the existing source before uploading it again.'
+          : 'The same source has a retained failure record. Delete that source record before retrying the upload.';
   const transientFileId = transientOpenAIFileId?.trim() || '';
   const retainedOpenAIFileIds = new Set(
     [source.openaiFileId || '', ...(source.openaiFileIds || [])].filter(Boolean),

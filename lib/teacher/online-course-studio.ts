@@ -308,7 +308,6 @@ export async function uploadOnlineTeacherSources(args: {
       // of creating a duplicate or reporting a false failure.
       upload = await initializeUpload();
     }
-    let savedSourceId = upload.sourceId;
     let saved = false;
     try {
       for (let partIndex = 0; partIndex < upload.partCount; partIndex += 1) {
@@ -331,11 +330,10 @@ export async function uploadOnlineTeacherSources(args: {
           throw new Error(payload?.error || `文件分片 ${partIndex + 1} 保存失败。`);
         }
       }
-      const completed = await backendJson<{ sourceId: string; saved: true }>(
+      await backendJson<{ sourceId: string; saved: true }>(
         `/api/teacher/courses/${encodeURIComponent(args.courseId)}/source-uploads/${encodeURIComponent(upload.sourceId)}/complete`,
         { method: 'POST', timeoutMs: 60_000 },
       );
-      savedSourceId = completed.sourceId;
       saved = true;
     } catch (error) {
       if (!saved) {
@@ -345,13 +343,6 @@ export async function uploadOnlineTeacherSources(args: {
         ).catch(() => undefined);
       }
       throw error;
-    }
-
-    try {
-      await processOnlineSource(args.courseId, savedSourceId);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : '未知错误';
-      throw new Error(`文件已保存，但加入 AI 队列失败：${detail}`);
     }
   }
 }

@@ -175,7 +175,13 @@ async function runSourceProcessing(args: {
       await Promise.all([
         prisma.courseSource.update({
           where: { id: source.id },
-          data: { ingestStatus: 'ready', ingestedAt: new Date(), errorReason: null },
+          data: {
+            ingestStatus: 'ready',
+            indexStatus: 'ready',
+            ingestedAt: new Date(),
+            indexedAt: new Date(),
+            errorReason: null,
+          },
         }),
         prisma.agentTask.update({
           where: { id: args.taskId },
@@ -202,7 +208,9 @@ async function runSourceProcessing(args: {
       where: { id: source.id },
       data: {
         ingestStatus: 'ready',
+        indexStatus: 'ready',
         ingestedAt: new Date(),
+        indexedAt: new Date(),
         errorReason: null,
       },
     });

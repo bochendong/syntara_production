@@ -206,7 +206,7 @@ requirePattern(
 );
 requirePattern(
   learnPage,
-  /activeCourseSourceHealthNotice \? \([\s\S]{0,400}onClick=\{openSourceUploadPanel\}[\s\S]{0,1800}data-testid="learn-source-health-warning"/,
+  /activeCourseSourceHealthNotice && isTeacherCourseChat \? \([\s\S]{0,400}onClick=\{openSourceUploadPanel\}[\s\S]{0,1800}data-testid="learn-source-health-warning"/,
   'abnormal aggregate source health may open, but must not prefetch, the source panel',
 );
 forbidPattern(

@@ -51,7 +51,11 @@ async function loadCourseSources(courseId: string): Promise<{
       timeoutMs: SOURCE_CONTEXT_TIMEOUT_MS,
     });
     const textSources = sources.filter(
-      (source) => source.allQuestionUpload !== true && source.kind !== 'problem_bank',
+      (source) =>
+        source.ingestStatus === 'ready' &&
+        source.indexStatus === 'ready' &&
+        source.allQuestionUpload !== true &&
+        source.kind !== 'problem_bank',
     );
     const textSectionCount = textSources.reduce(
       (total, source) =>

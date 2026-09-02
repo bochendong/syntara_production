@@ -13,7 +13,7 @@ export type CourseSourceUploadRecord = {
   coverImagePath: string | null;
   coverStatus: string | null;
   allQuestionUpload: boolean | null;
-  ingestStatus: 'processing' | 'ready' | 'error';
+  ingestStatus: 'uploading' | 'uploaded' | 'processing' | 'ready' | 'error';
   indexStatus: 'pending' | 'indexing' | 'ready' | 'error';
   errorReason: string | null;
   contentVersion: number;

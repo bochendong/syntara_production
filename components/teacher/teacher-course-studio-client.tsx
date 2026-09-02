@@ -179,7 +179,7 @@ function queueStageLabel(job: TeacherStudioTask): string {
   if (job.stage === 'writing_knowledge') return '写入课程知识';
   if (job.stage === 'generating_notebook') return '生成 Markdown 笔记本';
   if (job.stage === 'creating_notebook_reference') return '创建笔记本引用';
-  if (job.stage === 'completed') return '已加入 AI 知识库';
+  if (job.stage === 'completed') return '笔记本已生成';
   if (job.stage === 'failed') return '处理失败';
   return '等待处理';
 }
@@ -1794,48 +1794,37 @@ export function TeacherCourseStudioClient({
                     {selectedSourceCategoryMeta.description}
                   </p>
                 </div>
-                {sourceCategory === 'problem_bank' ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      router.push(
-                        `/course/${encodeURIComponent(courseId)}/problem-bank${
-                          mockMode ? '?upload=1&mock=1&asTeacher=1' : '?upload=1'
-                        }`,
-                      )
-                    }
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
-                  >
+                <label
+                  className={`inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white dark:bg-white dark:text-slate-950 ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+                >
+                  {uploading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : sourceCategory === 'problem_bank' ? (
                     <Library className="size-4" />
-                    上传题目
-                  </button>
-                ) : (
-                  <label
-                    className={`inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white dark:bg-white dark:text-slate-950 ${uploading ? 'pointer-events-none opacity-60' : ''}`}
-                  >
-                    {uploading ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Upload className="size-4" />
-                    )}
-                    {uploading ? '正在保存…' : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`}
-                    <input
-                      type="file"
-                      multiple
-                      accept={COURSE_SOURCE_ACCEPT}
-                      className="sr-only"
-                      onChange={(event) => {
-                        const files = Array.from(event.target.files ?? []);
-                        event.target.value = '';
-                        void handleUpload(files);
-                      }}
-                    />
-                  </label>
-                )}
+                  ) : (
+                    <Upload className="size-4" />
+                  )}
+                  {uploading
+                    ? '正在保存…'
+                    : sourceCategory === 'problem_bank'
+                      ? '上传题目'
+                      : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`}
+                  <input
+                    type="file"
+                    multiple
+                    accept={COURSE_SOURCE_ACCEPT}
+                    className="sr-only"
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files ?? []);
+                      event.target.value = '';
+                      void handleUpload(files);
+                    }}
+                  />
+                </label>
               </div>
-              {tab === 'sources' && sourceCategory !== 'problem_bank' ? (
+              {tab === 'sources' ? (
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  支持 {COURSE_SOURCE_SUPPORTED_FORMATS}，单个文件不超过 50MB。
+                  上传后只保存原文件。支持 {COURSE_SOURCE_SUPPORTED_FORMATS}，单个文件不超过 50MB。
                 </p>
               ) : null}
               <div className={STUDIO_PANEL_BODY_CLASS}>
@@ -1847,6 +1836,8 @@ export function TeacherCourseStudioClient({
                       const pending = job?.status === 'queued' || job?.status === 'running';
                       const categoryMeta =
                         SOURCE_CATEGORY_META[resolveCourseSourceCategory(source)];
+                      const isProblemBankSource =
+                        resolveCourseSourceCategory(source) === 'problem_bank';
                       const CategoryIcon = categoryMeta.Icon;
                       const linkedNotebook = notebooks.find(
                         (notebook) =>
@@ -1886,7 +1877,7 @@ export function TeacherCourseStudioClient({
                             </div>
                           </div>
                           <div className="flex shrink-0 flex-wrap items-center gap-2">
-                            {resolveCourseSourceCategory(source) !== 'problem_bank' ? (
+                            {!isProblemBankSource ? (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1898,7 +1889,7 @@ export function TeacherCourseStudioClient({
                                     ? '思维导图已经生成，请前往笔记本库查看'
                                     : job?.status === 'completed'
                                       ? undefined
-                                      : '请先将讲义加入 AI 知识库并生成笔记本'
+                                      : '请先生成笔记本'
                                 }
                                 onClick={() => job && void handleGenerateMindMap(source, job)}
                               >
@@ -1942,7 +1933,7 @@ export function TeacherCourseStudioClient({
                             {job?.status === 'completed' ? (
                               <span className="inline-flex items-center gap-1.5 px-2 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
                                 <CheckCircle2 className="size-4" />
-                                已入库
+                                {isProblemBankSource ? '已导入题库' : '已生成笔记本'}
                               </span>
                             ) : job?.status === 'failed' ? (
                               <Button
@@ -1957,7 +1948,7 @@ export function TeacherCourseStudioClient({
                               <Button
                                 size="sm"
                                 disabled={pending || processingSourceIds.has(source.id)}
-                                aria-label={`将 ${source.title} 加入 AI 知识库`}
+                                aria-label={`${isProblemBankSource ? '导入题库' : '生成笔记本'}：${source.title}`}
                                 onClick={() => void handleEnqueue(source.id)}
                               >
                                 {pending || processingSourceIds.has(source.id) ? (
@@ -1967,7 +1958,9 @@ export function TeacherCourseStudioClient({
                                 )}
                                 {pending || processingSourceIds.has(source.id)
                                   ? '处理中'
-                                  : '加入 AI 知识库'}
+                                  : isProblemBankSource
+                                    ? '导入题库'
+                                    : '生成笔记本'}
                               </Button>
                             )}
                           </div>
@@ -1977,7 +1970,8 @@ export function TeacherCourseStudioClient({
                   </StudioList>
                 ) : (
                   <StudioEmptyPlaceholder>
-                    还没有{selectedSourceCategoryMeta.label}。上传成功后会自动进入 AI 队列。
+                    还没有{selectedSourceCategoryMeta.label}。上传后文件只会保存；请再手动点击 “
+                    {sourceCategory === 'problem_bank' ? '导入题库' : '生成笔记本'}”。
                   </StudioEmptyPlaceholder>
                 )}
               </div>
@@ -2062,8 +2056,8 @@ export function TeacherCourseStudioClient({
                                 ? '思维导图'
                                 : job.kind === 'problem_bank_import'
                                   ? '题库导入'
-                                  : '知识库',
-                              '自动处理',
+                                  : '笔记本生成',
+                              '老师触发',
                             ].map((label) => (
                               <StudioItemTag key={label} tone="neutral">
                                 {label}
@@ -2163,7 +2157,7 @@ export function TeacherCourseStudioClient({
               <div className="grid min-h-[320px] place-items-center rounded-2xl border border-dashed border-slate-200 text-center text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
                 <div>
                   <FileText className="mx-auto size-9 text-slate-300 dark:text-slate-600" />
-                  <p className="mt-3">队列为空。请在源文件旁点击“加入 AI 知识库”。</p>
+                  <p className="mt-3">队列为空。请在源文件旁点击“生成笔记本”或“导入题库”。</p>
                 </div>
               </div>
             )}

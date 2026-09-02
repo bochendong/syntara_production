@@ -26,6 +26,7 @@ import {
   Copy,
   Eraser,
   FileText,
+  Clock3,
   LibraryBig,
   Loader2,
   Maximize2,
@@ -833,7 +834,7 @@ function courseSourceHealthNotice(
 
   const details: string[] = [];
   if (source.processingCount > 0) {
-    details.push(`${source.processingCount} 份正在入库`);
+    details.push(`${source.processingCount} 份尚未同步`);
   }
   if (source.indexPendingCount > 0) {
     details.push(`${source.indexPendingCount} 份等待索引`);
@@ -845,14 +846,18 @@ function courseSourceHealthNotice(
     details.push(`${source.indexErrorCount} 份索引失败`);
   }
   if (source.oldestProcessingAt) {
-    details.push(`最早处理任务：${source.oldestProcessingAt}`);
+    details.push(`最早未同步资料：${source.oldestProcessingAt}`);
   }
 
   return {
     tone: failureCount > 0 ? 'error' : 'pending',
     label: failureCount > 0 ? '资料同步异常' : '资料同步未完成',
-    detail: `${details.join('；')}。点击查看原始讲义库。`,
+    detail: `${details.join('；')}。`,
   };
+}
+
+function courseSourceUploadIsKnowledgeReady(upload: CourseSourceUploadRecord) {
+  return upload.ingestStatus === 'ready' && upload.indexStatus === 'ready';
 }
 
 type SharedCourseContentState = {
@@ -2522,7 +2527,7 @@ function persistedSourceUploadTileState(upload: CourseSourceUploadRecord): {
       error: upload.errorReason || '原始讲义入库失败，服务端没有返回更多原因。',
     };
   }
-  if (upload.ingestStatus === 'processing') {
+  if (upload.ingestStatus === 'uploading' || upload.ingestStatus === 'processing') {
     if (ageMs >= COURSE_SOURCE_PROCESSING_HARD_TIMEOUT_MS) {
       return {
         status: 'failed',
@@ -2533,6 +2538,9 @@ function persistedSourceUploadTileState(upload: CourseSourceUploadRecord): {
       status: ageMs >= COURSE_SOURCE_PROCESSING_SLOW_MS ? 'ingesting_slow' : 'ingesting',
       error: null,
     };
+  }
+  if (upload.ingestStatus === 'uploaded') {
+    return { status: 'stored', error: null };
   }
   if (upload.indexStatus === 'error') {
     return {
@@ -7664,6 +7672,10 @@ export function LearnPageClient() {
     () => courseSourceUploads.filter((upload) => upload.courseId === activeCourseId),
     [activeCourseId, courseSourceUploads],
   );
+  const syncedCourseSourceUploads = useMemo(
+    () => activeCourseSourceUploads.filter(courseSourceUploadIsKnowledgeReady),
+    [activeCourseSourceUploads],
+  );
   const updateComposerDraft = useCallback(
     (value: string) => {
       setDraft(value);
@@ -11933,7 +11945,7 @@ export function LearnPageClient() {
           problems,
           problemBankActiveCountHint:
             problemsLoadState.status === 'idle' ? activityContentState?.problems.count : undefined,
-          sourceUploads: activeCourseSourceUploads,
+          sourceUploads: syncedCourseSourceUploads,
           resourceStates: {
             notebooks: planningResourceStatusFromContentOrList({
               listState: notebooksLoadState,
@@ -12008,7 +12020,7 @@ export function LearnPageClient() {
     },
     [
       activeCourse,
-      activeCourseSourceUploads,
+      syncedCourseSourceUploads,
       isResearchCourse,
       localUserId,
       messages,
@@ -13899,7 +13911,7 @@ export function LearnPageClient() {
           problems,
           problemBankActiveCountHint:
             problemsLoadState.status === 'idle' ? pendingContentState?.problems.count : undefined,
-          sourceUploads: activeCourseSourceUploads,
+          sourceUploads: syncedCourseSourceUploads,
           resourceStates: {
             notebooks: planningResourceStatusFromContentOrList({
               listState: notebooksLoadState,
@@ -13972,7 +13984,7 @@ export function LearnPageClient() {
       activeCourse,
       addAssistantPlan,
       buildEvidenceBasedPlan,
-      activeCourseSourceUploads,
+      syncedCourseSourceUploads,
       ensureProblemsLoaded,
       messages,
       modelId,
@@ -14478,7 +14490,7 @@ export function LearnPageClient() {
             turnProblems.some((problem) => problem.status !== 'archived') || listProblemsSettled
               ? undefined
               : turnContentState?.problems.count,
-          sourceUploads: activeCourseSourceUploads,
+          sourceUploads: syncedCourseSourceUploads,
           resourceStates: {
             notebooks: planningResourceStatusFromContentOrList({
               listState: notebooksLoadState,
@@ -15007,7 +15019,7 @@ export function LearnPageClient() {
       addAssistantPlan,
       attachments,
       buildSelectedProblemPracticePlan,
-      activeCourseSourceUploads,
+      syncedCourseSourceUploads,
       draft,
       handleLearningActionConfirm,
       ensureProblemsLoaded,
@@ -15044,14 +15056,14 @@ export function LearnPageClient() {
 
   const sourceBackedNotebookIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const upload of activeCourseSourceUploads) {
+    for (const upload of syncedCourseSourceUploads) {
       for (const notebookId of upload.notebookIds) ids.add(notebookId);
     }
     return ids;
-  }, [activeCourseSourceUploads]);
+  }, [syncedCourseSourceUploads]);
 
   const sourceLibraryTiles = useMemo<SourceLibraryTile[]>(() => {
-    const uploadTiles = activeCourseSourceUploads.map((upload) => {
+    const uploadTiles = syncedCourseSourceUploads.map((upload) => {
       const isProblemBank = upload.allQuestionUpload === true || upload.kind === 'problem_bank';
       const sectionCount = upload.stats.sectionCount || upload.sectionIds.length;
       const problemCount = upload.stats.problemCount || upload.problemIds.length;
@@ -15114,7 +15126,7 @@ export function LearnPageClient() {
       }));
 
     return [...uploadTiles, ...notebookTiles].sort((a, b) => b.updatedAt - a.updatedAt);
-  }, [activeCourseId, activeCourseSourceUploads, notebooks, sourceBackedNotebookIds]);
+  }, [activeCourseId, notebooks, sourceBackedNotebookIds, syncedCourseSourceUploads]);
 
   const transientSourceUploadTiles = useMemo<SourceLibraryTile[]>(
     () =>
@@ -15810,12 +15822,11 @@ export function LearnPageClient() {
         },
   ];
   void learnSurfaceStatusItems;
-  // Students consume the teacher-published notebook projection and cannot read
-  // or repair the teacher's private source catalog. Keep source-ingest/index
-  // health actionable by showing it only in the teacher course-chat surface.
-  const activeCourseSourceHealthNotice = isTeacherCourseChat
-    ? courseSourceHealthNotice(activeCourseContentState?.sources)
-    : null;
+  // Students cannot open the teacher's private source catalog, but both roles
+  // need to know when the course material has not finished syncing.
+  const activeCourseSourceHealthNotice = courseSourceHealthNotice(
+    activeCourseContentState?.sources,
+  );
   const activeCourseContentWatchError =
     courseContentWatchError && courseContentWatchError.courseId === activeCourse?.id
       ? courseContentWatchError.message
@@ -18599,7 +18610,7 @@ export function LearnPageClient() {
                     </span>
                   </button>
                 ) : null}
-                {activeCourseSourceHealthNotice ? (
+                {activeCourseSourceHealthNotice && isTeacherCourseChat ? (
                   <button
                     type="button"
                     onClick={openSourceUploadPanel}
@@ -18616,13 +18627,30 @@ export function LearnPageClient() {
                     {activeCourseSourceHealthNotice.tone === 'error' ? (
                       <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
                     ) : (
-                      <Loader2
-                        className="size-3 shrink-0 animate-spin motion-reduce:animate-none"
-                        aria-hidden="true"
-                      />
+                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
                     )}
                     <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
                   </button>
+                ) : activeCourseSourceHealthNotice ? (
+                  <div
+                    role="status"
+                    className={cn(
+                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium',
+                      activeCourseSourceHealthNotice.tone === 'error'
+                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100'
+                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100',
+                    )}
+                    title={activeCourseSourceHealthNotice.detail}
+                    aria-label={activeCourseSourceHealthNotice.label}
+                    data-testid="learn-source-health-warning"
+                  >
+                    {activeCourseSourceHealthNotice.tone === 'error' ? (
+                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                    ) : (
+                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
+                    )}
+                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
+                  </div>
                 ) : null}
               </div>
             ) : null}
