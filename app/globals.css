@@ -6,6 +6,13 @@
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/code/dist/*.js";
 
+/* Streamdown reserves 200px for every off-screen code block by default. Keep
+ * that optimization, but use the compact one-line block height as its estimate
+ * so code-heavy lessons do not become artificially tall while scrolling. */
+[data-streamdown='code-block'] {
+  contain-intrinsic-size: auto 80px !important;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

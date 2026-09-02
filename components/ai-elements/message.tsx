@@ -14,6 +14,21 @@ import { Streamdown } from 'streamdown';
 
 const math = createMathPlugin({ singleDollarTextMath: true });
 
+const compactCodeBlockClassName = cn(
+  '[&_[data-streamdown=code-block]]:my-3 [&_[data-streamdown=code-block]]:gap-0 [&_[data-streamdown=code-block]]:overflow-hidden',
+  '[&_[data-streamdown=code-block]]:rounded-xl [&_[data-streamdown=code-block]]:border-border [&_[data-streamdown=code-block]]:bg-muted/35 [&_[data-streamdown=code-block]]:p-0',
+  '[&_[data-streamdown=code-block-header]]:h-8 [&_[data-streamdown=code-block-header]]:border-b [&_[data-streamdown=code-block-header]]:border-border/70',
+  '[&_[data-streamdown=code-block-header]]:px-3 [&_[data-streamdown=code-block-header]]:text-[11px] [&_[data-streamdown=code-block-header]_span]:ml-0',
+  '[&_[data-streamdown=code-block-header]+div]:top-0 [&_[data-streamdown=code-block-header]+div]:-mt-8 [&_[data-streamdown=code-block-header]+div]:h-8 [&_[data-streamdown=code-block-header]+div]:pr-2',
+  '[&_[data-streamdown=code-block-actions]]:gap-0.5 [&_[data-streamdown=code-block-actions]]:rounded-md [&_[data-streamdown=code-block-actions]]:border-0',
+  '[&_[data-streamdown=code-block-actions]]:bg-transparent [&_[data-streamdown=code-block-actions]]:px-0 [&_[data-streamdown=code-block-actions]]:py-0 [&_[data-streamdown=code-block-actions]]:shadow-none',
+  '[&_[data-streamdown=code-block-body]]:rounded-none [&_[data-streamdown=code-block-body]]:border-0 [&_[data-streamdown=code-block-body]]:bg-transparent',
+  '[&_[data-streamdown=code-block-body]]:px-3 [&_[data-streamdown=code-block-body]]:py-2.5 [&_[data-streamdown=code-block-body]]:text-[13px] [&_[data-streamdown=code-block-body]]:leading-5',
+  '[&_[data-streamdown=code-block-body]_pre]:m-0 [&_[data-streamdown=code-block-body]_pre]:overflow-x-auto [&_[data-streamdown=code-block-body]_pre]:bg-transparent [&_[data-streamdown=code-block-body]_pre]:p-0',
+  '[&_[data-streamdown=code-block-body]_code]:rounded-none [&_[data-streamdown=code-block-body]_code]:bg-transparent [&_[data-streamdown=code-block-body]_code]:p-0',
+  '[&_[data-streamdown=code-block-copy-button]]:rounded-md [&_[data-streamdown=code-block-download-button]]:rounded-md',
+);
+
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage['role'];
 };
@@ -278,6 +293,7 @@ export const MessageResponse = memo(
         'size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
         '[&_.katex-display]:max-w-full [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden [&_.katex-display]:py-1',
         className,
+        compactCodeBlockClassName,
       )}
       plugins={{ code, math, ...plugins }}
       {...props}

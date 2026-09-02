@@ -117,6 +117,44 @@
 
 final result: passed
 
+---
+
+# Compact shared code block Design QA — 2026-09-03
+
+- Source visual truth: `/Users/dongpochen/Desktop/截屏2026-09-02 下午10.46.37.png` (`2184 × 1002` px), showing the previous oversized single-line Racket code blocks.
+- Browser-rendered implementation: `/private/tmp/compact-code-block-implementation.png` at `1280 × 720` CSS px.
+- Side-by-side comparison: `/private/tmp/compact-code-block-comparison.png`.
+- State: local course-forum Markdown preview with one single-line Racket block and one four-line Python block; this exercises the shared `MessageResponse` renderer used across chat, forum, teacher, QA, and problem-bank surfaces.
+
+## Findings
+
+- No actionable P0/P1/P2 differences remain for the requested compacting scope.
+- The single-line block now measures 78 px total: 32 px language/action bar plus a 44 px code body. It no longer reserves a large empty editor-like canvas.
+- A four-line block measures 150 px and grows with its content, preserving readability instead of imposing a fixed short height.
+- Language, download, and copy controls share one slim header row. The nested double-card appearance and excessive body padding are removed.
+- Long code remains horizontally scrollable; syntax highlighting, line numbers, copy, and download behavior remain connected to Streamdown.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing monospace syntax-highlighted code and application typography are preserved; code uses a compact 13 px / 20 px rhythm.
+- Spacing and layout rhythm: code blocks use 12 px outer vertical rhythm, an 8 px header, and 10 px body padding without empty minimum height.
+- Colors and visual tokens: existing border, muted surface, foreground, and dark-mode tokens are reused.
+- Copy and content: source code and language labels are unchanged; no code normalization or semantic transformation was introduced.
+
+## Interaction and runtime evidence
+
+- Single-line and multi-line fenced Markdown rendered in the real forum editor preview.
+- Copy and download actions remained visible and aligned in the compact header.
+- Browser DOM measurement confirmed 78 px for the single-line block and 150 px for the four-line block.
+- Focused ESLint, TypeScript typecheck, Prettier, and `git diff --check` passed.
+
+## Comparison history
+
+1. Source — single-line blocks rendered as large nested cards with substantial unused vertical space.
+2. Final — shared compact renderer removes nested padding, reduces the off-screen intrinsic estimate from 200 px to 80 px, and lets each block grow naturally with its line count. No remaining actionable P0/P1/P2 findings.
+
+final result: passed
+
 ## 2026-08-31 Problem-bank empty state and course header QA
 
 **Source visual truth**
@@ -678,4 +716,3 @@ final result: passed
 - None required for this scoped change.
 
 final result: passed
-
