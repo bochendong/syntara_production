@@ -9,6 +9,8 @@ const problemBank = read('components/problem-bank/course-problem-bank-view.tsx')
 const problemBankPage = read('app/course/[id]/problem-bank/page.tsx');
 const problemBankController = read('components/problem-bank/use-course-problem-bank-controller.ts');
 const teacherStudio = read('components/teacher/teacher-course-studio-client.tsx');
+const forum = read('components/course-forum/course-forum-page-client.tsx');
+const headerCache = read('lib/course-space/course-space-header-cache.ts');
 
 const checks = [
   {
@@ -29,13 +31,29 @@ const checks = [
       problemBank.includes('题库还没有题目'),
   },
   {
-    name: 'teacher source library opens the problem upload dialog',
+    name: 'teacher source library stores problem files through the shared upload flow',
     pass:
-      teacherStudio.includes("'?upload=1'") &&
+      teacherStudio.includes("sourceCategory === 'problem_bank'") &&
       teacherStudio.includes('上传题目') &&
+      teacherStudio.includes('void handleUpload(files)') &&
       problemBankPage.includes('initialImportOpen') &&
-      problemBankController.includes('initialImportOpenPendingRef.current') &&
-      problemBankController.includes('if (canEditProblems)'),
+      problemBankController.includes('initialImportOpenPendingRef.current'),
+  },
+  {
+    name: 'course tab transitions keep the shared header while destination content loads',
+    pass:
+      header.includes('useSyncExternalStore') &&
+      header.includes('readCourseSpaceHeaderCache') &&
+      headerCache.includes('window.sessionStorage') &&
+      forum.includes('courseTitle="课程论坛"') &&
+      forum.includes('正在打开课程论坛'),
+  },
+  {
+    name: 'problem bank loading state fills the workspace instead of a thin row',
+    pass:
+      problemBank.includes('正在加载课程题库') &&
+      problemBank.includes('题目、章节与作答记录准备好后会显示在这里。') &&
+      problemBank.includes('aria-busy="true"'),
   },
 ];
 

@@ -1,9 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { BookOpenText, Home, Library, MessageCircleMore, MessagesSquare } from 'lucide-react';
 import { COURSE_SPACE_HEADER_SURFACE_CLASS } from '@/lib/course-space/format-course-space-header';
+import {
+  isCourseSpaceHeaderPlaceholder,
+  readCourseSpaceHeaderCache,
+  subscribeCourseSpaceHeaderCache,
+  writeCourseSpaceHeaderCache,
+} from '@/lib/course-space/course-space-header-cache';
 import { CourseSpaceAvatar } from '@/components/course-space/course-space-avatar';
 import { cn } from '@/lib/utils';
 
@@ -185,6 +191,39 @@ export function CourseSpaceHeader({
   /** Rounded card chrome shared across teacher course-space pages. */
   surface?: boolean;
 }) {
+  const placeholder = isCourseSpaceHeaderPlaceholder(courseTitle);
+  const subscribeToCachedHeader = useCallback(
+    (onStoreChange: () => void) => subscribeCourseSpaceHeaderCache(courseId, onStoreChange),
+    [courseId],
+  );
+  const readCachedHeader = useCallback(() => readCourseSpaceHeaderCache(courseId), [courseId]);
+  const cachedHeader = useSyncExternalStore(subscribeToCachedHeader, readCachedHeader, () => null);
+
+  useEffect(() => {
+    if (placeholder) return;
+    writeCourseSpaceHeaderCache({
+      courseId,
+      courseTitle,
+      courseMeta,
+      courseAvatarUrl,
+      role,
+      problemCount,
+      forumCount,
+    });
+  }, [
+    courseAvatarUrl,
+    courseId,
+    courseMeta,
+    courseTitle,
+    forumCount,
+    placeholder,
+    problemCount,
+    role,
+  ]);
+
+  const displayedHeader = placeholder && cachedHeader ? cachedHeader : null;
+  const displayedRole = displayedHeader?.role ?? role;
+
   return (
     <header
       data-course-space-header
@@ -206,14 +245,17 @@ export function CourseSpaceHeader({
           >
             <Home className="size-4 shrink-0" strokeWidth={1.9} />
           </Link>
-          <CourseSpaceAvatar courseId={courseId} avatarUrl={courseAvatarUrl} />
+          <CourseSpaceAvatar
+            courseId={courseId}
+            avatarUrl={displayedHeader?.courseAvatarUrl ?? courseAvatarUrl}
+          />
           <div className="flex min-w-0 items-baseline gap-2">
             <h1 className="truncate text-sm font-bold tracking-[-0.02em] sm:text-[15px]">
-              {courseTitle}
+              {displayedHeader?.courseTitle ?? courseTitle}
             </h1>
-            {courseMeta ? (
+            {(displayedHeader?.courseMeta ?? courseMeta) ? (
               <p className="hidden truncate text-[10px] font-medium text-slate-400 md:block">
-                {courseMeta}
+                {displayedHeader?.courseMeta ?? courseMeta}
               </p>
             ) : null}
           </div>
@@ -228,10 +270,10 @@ export function CourseSpaceHeader({
           {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
           <CourseSpaceNavigation
             courseId={courseId}
-            role={role}
+            role={displayedRole}
             active={active}
-            problemCount={problemCount}
-            forumCount={forumCount}
+            problemCount={problemCount ?? displayedHeader?.problemCount}
+            forumCount={forumCount ?? displayedHeader?.forumCount}
             previewMode={previewMode}
             className="max-w-full"
           />

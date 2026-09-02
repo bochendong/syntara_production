@@ -2221,9 +2221,30 @@ export function CourseProblemBankView({
 
               <div className="flex min-h-0 flex-1 flex-col overflow-auto">
                 {loading ? (
-                  <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-slate-500">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {locale === 'zh-CN' ? '正在加载课程题库...' : 'Loading course problem bank...'}
+                  <div
+                    className="m-4 grid min-h-[clamp(26rem,58dvh,46rem)] flex-1 place-items-center rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-6 text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400"
+                    role="status"
+                    aria-live="polite"
+                    aria-busy="true"
+                  >
+                    <div className="flex max-w-sm flex-col items-center text-center">
+                      <span className="grid size-12 place-items-center rounded-2xl bg-white text-sky-600 shadow-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:text-sky-300 dark:ring-slate-700">
+                        <Loader2 className="size-5 animate-spin" />
+                      </span>
+                      <p className="mt-4 text-base font-semibold text-slate-800 dark:text-slate-100">
+                        {locale === 'zh-CN' ? '正在加载课程题库' : 'Loading course problem bank'}
+                      </p>
+                      <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                        {locale === 'zh-CN'
+                          ? '题目、章节与作答记录准备好后会显示在这里。'
+                          : 'Problems, chapters, and attempt history will appear here when ready.'}
+                      </p>
+                      <div className="mt-6 grid w-full grid-cols-3 gap-2" aria-hidden="true">
+                        <span className="h-2.5 animate-pulse rounded-full bg-slate-200 motion-reduce:animate-none dark:bg-slate-700" />
+                        <span className="h-2.5 animate-pulse rounded-full bg-slate-200 motion-reduce:animate-none dark:bg-slate-700" />
+                        <span className="h-2.5 animate-pulse rounded-full bg-slate-200 motion-reduce:animate-none dark:bg-slate-700" />
+                      </div>
+                    </div>
                   </div>
                 ) : filteredProblems.length === 0 ? (
                   <div className="m-4 grid min-h-[clamp(26rem,58dvh,46rem)] flex-1 place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">

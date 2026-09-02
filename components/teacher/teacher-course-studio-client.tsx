@@ -104,6 +104,40 @@ type CourseHardRuleRecord = {
 };
 const STUDIO_PAGE_SIZE = 8;
 
+function TeacherCourseStudioLoading({
+  courseId,
+  mockMode,
+}: {
+  courseId: string;
+  mockMode: boolean;
+}) {
+  return (
+    <CourseSpacePageFrame>
+      <CourseSpaceHeader
+        courseId={courseId}
+        courseTitle="课程"
+        role="teacher"
+        active="resources"
+        previewMode={mockMode}
+      />
+      <section
+        className={cn(
+          COURSE_SPACE_BODY_SURFACE_CLASS,
+          'grid min-h-[clamp(30rem,68dvh,54rem)] flex-1 place-items-center bg-slate-50/70',
+        )}
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <span className="flex items-center gap-2 text-sm text-slate-500">
+          <Loader2 className="size-4 animate-spin" />
+          正在加载课程工作台…
+        </span>
+      </section>
+    </CourseSpacePageFrame>
+  );
+}
+
 const SOURCE_CATEGORIES: Array<{
   value: CourseSourceCategory;
   label: string;
@@ -1125,21 +1159,18 @@ export function TeacherCourseStudioClient({
     };
   }, [mindMapImageReloadKey, mindMapOpen, selectedMindMapAssetUrl]);
 
-  if (!hydrated || !isLoggedIn || role !== 'TEACHER') return null;
+  if (!hydrated) {
+    return <TeacherCourseStudioLoading courseId={courseId} mockMode={mockMode} />;
+  }
+
+  if (!isLoggedIn || role !== 'TEACHER') return null;
 
   if (accessRevoked) {
     return <CourseAccessClosedCard returnHref="/teacher" returnLabel="返回教师工作台" />;
   }
 
   if (loading) {
-    return (
-      <div className="grid min-h-full place-items-center bg-slate-50 text-sm text-slate-500 dark:bg-slate-950">
-        <span className="flex items-center gap-2">
-          <Loader2 className="size-4 animate-spin" />
-          正在加载课程工作台…
-        </span>
-      </div>
-    );
+    return <TeacherCourseStudioLoading courseId={courseId} mockMode={mockMode} />;
   }
 
   if (!course) {

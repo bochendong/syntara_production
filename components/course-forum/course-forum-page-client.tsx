@@ -595,12 +595,36 @@ export function CourseForumPageClient({
 
   if (loading && !snapshot) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-slate-50 text-sm text-slate-500">
-        <span className="inline-flex items-center gap-2">
-          <Loader2 className="size-4 animate-spin" />
-          正在打开课程论坛…
-        </span>
-      </div>
+      <CourseSpacePageFrame>
+        <CourseSpaceHeader
+          courseId={courseId}
+          courseTitle="课程论坛"
+          role="student"
+          active="forum"
+          previewMode={mockMode}
+        />
+        <section
+          className={cn(
+            COURSE_SPACE_BODY_SURFACE_CLASS,
+            'grid min-h-[clamp(30rem,68dvh,54rem)] flex-1 place-items-center bg-slate-50/70',
+          )}
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="flex max-w-sm flex-col items-center px-6 text-center text-slate-500">
+            <span className="grid size-12 place-items-center rounded-2xl bg-white text-violet-600 shadow-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:text-violet-300 dark:ring-slate-700">
+              <Loader2 className="size-5 animate-spin" />
+            </span>
+            <p className="mt-4 text-base font-semibold text-slate-800 dark:text-slate-100">
+              正在打开课程论坛
+            </p>
+            <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400">
+              帖子与回复准备好后会显示在这里。
+            </p>
+          </div>
+        </section>
+      </CourseSpacePageFrame>
     );
   }
 
