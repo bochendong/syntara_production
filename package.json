@@ -64,6 +64,7 @@
     "test:course-space-problem-bank-ui-contracts": "node scripts/maintenance/verify-course-space-problem-bank-ui-contracts.mjs",
     "test:course-forum-selection-contracts": "node scripts/maintenance/verify-course-forum-selection-contracts.mjs",
     "test:course-forum-attachment-contracts": "node scripts/maintenance/verify-course-forum-attachment-contracts.mjs",
+    "test:course-forum-moderation-contracts": "node scripts/maintenance/verify-course-forum-moderation-contracts.mjs",
     "test:problem-import-idempotency": "node scripts/maintenance/verify-problem-import-commit-idempotency.mjs",
     "test:learn-core-contracts": "node scripts/learn/run-learn-core-contract-checks.mjs",
     "test:learn-core-compat": "node scripts/learn/run-learn-core-compat-checks.mjs",

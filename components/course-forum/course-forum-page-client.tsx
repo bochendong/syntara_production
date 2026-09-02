@@ -13,6 +13,7 @@ import {
   MessageCircle,
   MessageSquareReply,
   Paperclip,
+  Pencil,
   Pin,
   PinOff,
   Plus,
@@ -24,6 +25,16 @@ import {
   UserRoundCheck,
   X,
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
 import { CourseSpacePageFrame } from '@/components/course-space/course-space-page-frame';
@@ -58,6 +69,11 @@ import { buildCourseForumMockSnapshot } from '@/features/course-forum/mock/cours
 import { cn } from '@/lib/utils';
 import { BackendApiError, backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { useUserProfileStore } from '@/lib/store/user-profile';
+
+type ForumDeleteTarget =
+  | { kind: 'post'; id: string; label: string }
+  | { kind: 'answer'; id: string; label: string }
+  | { kind: 'comment'; id: string; label: string };
 
 function initials(name: string) {
   const compact = name.trim();
@@ -296,6 +312,10 @@ export function CourseForumPageClient({
   const [postTitle, setPostTitle] = useState('');
   const [postBody, setPostBody] = useState('');
   const [postImages, setPostImages] = useState<File[]>([]);
+  const [editPostOpen, setEditPostOpen] = useState(false);
+  const [editPostTitle, setEditPostTitle] = useState('');
+  const [editPostBody, setEditPostBody] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<ForumDeleteTarget | null>(null);
   const [answerBody, setAnswerBody] = useState('');
   const [commentBody, setCommentBody] = useState('');
   const [savingAction, setSavingAction] = useState('');
@@ -417,6 +437,14 @@ export function CourseForumPageClient({
 
   const selected = snapshot?.selectedPost || null;
   const isTeacher = snapshot?.viewer.accessRole === 'owner';
+  const canEditSelectedPost = Boolean(
+    selected && !selected.isWelcome && selected.author.id === snapshot?.viewer.id,
+  );
+  const canDeleteSelectedPost = Boolean(
+    selected &&
+    !selected.isWelcome &&
+    (selected.author.id === snapshot?.viewer.id || snapshot?.viewer.accessRole === 'owner'),
+  );
   const courseHeading = snapshot
     ? resolveCourseSpaceHeaderFields({
         code: snapshot.course.code,
@@ -460,6 +488,52 @@ export function CourseForumPageClient({
       await load({ postId: payload.postId, quiet: true, status: 'all' });
     } catch (postError) {
       setError(postError instanceof Error ? postError.message : '发布问题失败');
+    } finally {
+      setSavingAction('');
+    }
+  };
+
+  const openEditPost = () => {
+    if (!selected || !canEditSelectedPost) return;
+    setEditPostTitle(selected.title);
+    setEditPostBody(selected.bodyMarkdown);
+    setEditPostOpen(true);
+  };
+
+  const updatePost = async () => {
+    if (
+      !selected ||
+      !canEditSelectedPost ||
+      !editPostTitle.trim() ||
+      !editPostBody.trim() ||
+      savingAction
+    ) {
+      return;
+    }
+    if (mockMode) {
+      setError('Mock 模式仅用于 UI 预览，编辑不会写入服务器。');
+      return;
+    }
+    setSavingAction(`edit:${selected.id}`);
+    setError('');
+    try {
+      const response = await backendFetch(
+        `/api/course-forum/${encodeURIComponent(courseId)}/posts/${encodeURIComponent(selected.id)}`,
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            title: editPostTitle.trim(),
+            bodyMarkdown: editPostBody.trim(),
+          }),
+          timeoutMs: 30_000,
+        },
+      );
+      if (!response.ok) throw new Error(await requestError(response, '保存帖子失败'));
+      setEditPostOpen(false);
+      await load({ postId: selected.id, quiet: true });
+    } catch (editError) {
+      setError(editError instanceof Error ? editError.message : '保存帖子失败');
     } finally {
       setSavingAction('');
     }
@@ -571,23 +645,36 @@ export function CourseForumPageClient({
     }
   };
 
-  const deleteComment = async (commentId: string) => {
-    if (!selected || savingAction || !window.confirm('确定删除这条评论吗？')) return;
+  const confirmDelete = async () => {
+    if (!selected || !deleteTarget || savingAction) return;
     if (mockMode) {
       setError('Mock 模式仅用于 UI 预览，删除不会写入服务器。');
+      setDeleteTarget(null);
       return;
     }
-    setSavingAction(`delete:${commentId}`);
+    const target = deleteTarget;
+    const endpoint =
+      target.kind === 'post'
+        ? `/api/course-forum/${encodeURIComponent(courseId)}/posts/${encodeURIComponent(target.id)}`
+        : target.kind === 'answer'
+          ? `/api/course-forum/${encodeURIComponent(courseId)}/answers/${encodeURIComponent(target.id)}`
+          : `/api/course-forum/${encodeURIComponent(courseId)}/comments/${encodeURIComponent(target.id)}`;
+    const nextPostId =
+      target.kind === 'post'
+        ? [...(snapshot?.posts || []), ...(snapshot?.pinnedPosts || [])].find(
+            (post) => post.id !== target.id,
+          )?.id || ''
+        : selected.id;
+    setSavingAction(`delete:${target.kind}:${target.id}`);
     setError('');
     try {
-      const response = await backendFetch(
-        `/api/course-forum/${encodeURIComponent(courseId)}/comments/${encodeURIComponent(commentId)}`,
-        { method: 'DELETE', timeoutMs: 20_000 },
-      );
-      if (!response.ok) throw new Error(await requestError(response, '删除评论失败'));
-      await load({ postId: selected.id, quiet: true });
+      const response = await backendFetch(endpoint, { method: 'DELETE', timeoutMs: 20_000 });
+      if (!response.ok) throw new Error(await requestError(response, '删除失败'));
+      setDeleteTarget(null);
+      commitSelectedPostId(nextPostId);
+      await load({ postId: nextPostId, quiet: true });
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : '删除评论失败');
+      setError(deleteError instanceof Error ? deleteError.message : '删除失败');
     } finally {
       setSavingAction('');
     }
@@ -820,6 +907,18 @@ export function CourseForumPageClient({
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
+                      {canEditSelectedPost ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl text-xs"
+                          disabled={Boolean(savingAction)}
+                          onClick={openEditPost}
+                        >
+                          <Pencil className="size-3.5" />
+                          编辑帖子
+                        </Button>
+                      ) : null}
                       {isTeacher ? (
                         <Button
                           size="sm"
@@ -836,6 +935,28 @@ export function CourseForumPageClient({
                             <Pin className="mr-1.5 size-3.5" />
                           )}
                           {selected.pinned ? '取消置顶' : '置顶帖子'}
+                        </Button>
+                      ) : null}
+                      {canDeleteSelectedPost ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="rounded-xl text-xs text-slate-500 hover:bg-rose-50 hover:text-rose-600 dark:text-slate-400 dark:hover:bg-rose-400/10 dark:hover:text-rose-300"
+                          disabled={Boolean(savingAction)}
+                          onClick={() =>
+                            setDeleteTarget({
+                              kind: 'post',
+                              id: selected.id,
+                              label: `帖子「${selected.title}」`,
+                            })
+                          }
+                        >
+                          {savingAction === `delete:post:${selected.id}` ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-3.5" />
+                          )}
+                          删除帖子
                         </Button>
                       ) : null}
                       <AuthorLine
@@ -888,27 +1009,51 @@ export function CourseForumPageClient({
                             time={answer.createdAt}
                             label="回答者"
                           />
-                          {answer.accepted ? (
-                            <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
-                              <UserRoundCheck className="size-3" />
-                              老师采纳
-                            </Badge>
-                          ) : isTeacher ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="rounded-lg text-xs"
-                              disabled={Boolean(savingAction)}
-                              onClick={() => void acceptAnswer(answer.id)}
-                            >
-                              {savingAction === `accept:${answer.id}` ? (
-                                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                              ) : (
-                                <CheckCircle2 className="mr-1.5 size-3.5" />
-                              )}
-                              采纳此解答
-                            </Button>
-                          ) : null}
+                          <div className="flex items-center gap-2">
+                            {answer.accepted ? (
+                              <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
+                                <UserRoundCheck className="size-3" />
+                                老师采纳
+                              </Badge>
+                            ) : isTeacher ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-lg text-xs"
+                                disabled={Boolean(savingAction)}
+                                onClick={() => void acceptAnswer(answer.id)}
+                              >
+                                {savingAction === `accept:${answer.id}` ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="size-3.5" />
+                                )}
+                                采纳此解答
+                              </Button>
+                            ) : null}
+                            {isTeacher ? (
+                              <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                className="shrink-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-400/10 dark:hover:text-rose-300"
+                                onClick={() =>
+                                  setDeleteTarget({
+                                    kind: 'answer',
+                                    id: answer.id,
+                                    label: `${answer.author.name} 的回答`,
+                                  })
+                                }
+                                disabled={Boolean(savingAction)}
+                                aria-label={`删除 ${answer.author.name} 的回答`}
+                              >
+                                {savingAction === `delete:answer:${answer.id}` ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="size-3.5" />
+                                )}
+                              </Button>
+                            ) : null}
+                          </div>
                         </div>
                         <div className="mt-4">
                           <ForumMarkdown>{answer.bodyMarkdown}</ForumMarkdown>
@@ -1013,11 +1158,17 @@ export function CourseForumPageClient({
                             size="icon-sm"
                             variant="ghost"
                             className="shrink-0 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                            onClick={() => void deleteComment(comment.id)}
+                            onClick={() =>
+                              setDeleteTarget({
+                                kind: 'comment',
+                                id: comment.id,
+                                label: `${comment.author.name} 的评论`,
+                              })
+                            }
                             disabled={Boolean(savingAction)}
                             aria-label={`删除 ${comment.author.name} 的评论`}
                           >
-                            {savingAction === `delete:${comment.id}` ? (
+                            {savingAction === `delete:comment:${comment.id}` ? (
                               <Loader2 className="size-3.5 animate-spin" />
                             ) : (
                               <Trash2 className="size-3.5" />
@@ -1133,6 +1284,110 @@ export function CourseForumPageClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={editPostOpen} onOpenChange={setEditPostOpen}>
+        <DialogContent
+          showCloseButton={false}
+          className="flex h-[96dvh] max-h-[1100px] w-[min(98vw,1540px)] max-w-none flex-col overflow-hidden p-0"
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>编辑帖子</DialogTitle>
+            <DialogDescription>修改帖子标题和正文，已经上传的图片会继续保留。</DialogDescription>
+          </DialogHeader>
+          <div className="relative min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="absolute top-4 right-4 z-10 size-8 shrink-0 rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+              aria-label="关闭编辑"
+              onClick={() => setEditPostOpen(false)}
+              disabled={savingAction.startsWith('edit:')}
+            >
+              <X className="size-4" />
+            </Button>
+            <div className="pr-12">
+              <label className="text-sm font-medium">标题</label>
+              <Input
+                value={editPostTitle}
+                onChange={(event) => setEditPostTitle(event.target.value)}
+                placeholder="一句话说明你遇到的问题"
+                maxLength={200}
+                className="mt-2 rounded-xl"
+              />
+            </div>
+            <ForumMarkdownEditor
+              value={editPostBody}
+              onChange={setEditPostBody}
+              placeholder="支持 Markdown、代码块和数学公式…"
+              className="min-h-[620px] lg:h-[calc(96dvh-300px)] lg:max-h-[760px]"
+            />
+            {selected?.attachments.length ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs leading-5 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                帖子中已有 {selected.attachments.length} 张图片；本次编辑会保留这些图片。
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter className="shrink-0 border-t border-slate-200 px-6 py-4 dark:border-white/10">
+            <Button
+              variant="outline"
+              onClick={() => setEditPostOpen(false)}
+              disabled={savingAction.startsWith('edit:')}
+            >
+              取消
+            </Button>
+            <Button
+              className="bg-violet-600 hover:bg-violet-700"
+              disabled={
+                !editPostTitle.trim() || !editPostBody.trim() || savingAction.startsWith('edit:')
+              }
+              onClick={() => void updatePost()}
+            >
+              {savingAction.startsWith('edit:') ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Pencil className="size-4" />
+              )}
+              保存修改
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open && !savingAction.startsWith('delete:')) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteTarget?.kind === 'post'
+                ? '删除这个帖子？'
+                : deleteTarget?.kind === 'answer'
+                  ? '删除这个回答？'
+                  : '删除这条评论？'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.label || '这项内容'}将被永久删除，无法恢复。
+              {deleteTarget?.kind === 'post' ? ' 帖子下的回答、评论和图片也会一并删除。' : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={savingAction.startsWith('delete:')}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-rose-600 text-white hover:bg-rose-700"
+              disabled={savingAction.startsWith('delete:')}
+              onClick={() => void confirmDelete()}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </CourseSpacePageFrame>
   );
 }
