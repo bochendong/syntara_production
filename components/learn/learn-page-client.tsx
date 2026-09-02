@@ -18439,6 +18439,49 @@ export function LearnPageClient() {
             className="relative z-20"
             actions={
               <>
+                {activeCourseSourceHealthNotice && isTeacherCourseChat ? (
+                  <button
+                    type="button"
+                    onClick={openSourceUploadPanel}
+                    className={cn(
+                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
+                      activeCourseSourceHealthNotice.tone === 'error'
+                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15'
+                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15',
+                    )}
+                    title={activeCourseSourceHealthNotice.detail}
+                    aria-label={`${activeCourseSourceHealthNotice.label}，打开原始讲义库`}
+                    data-testid="learn-source-health-warning"
+                  >
+                    {activeCourseSourceHealthNotice.tone === 'error' ? (
+                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                    ) : (
+                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
+                    )}
+                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
+                  </button>
+                ) : activeCourseSourceHealthNotice ? (
+                  <div
+                    role="status"
+                    className={cn(
+                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium',
+                      activeCourseSourceHealthNotice.tone === 'error'
+                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100'
+                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100',
+                    )}
+                    title={activeCourseSourceHealthNotice.detail}
+                    aria-label={activeCourseSourceHealthNotice.label}
+                    data-testid="learn-source-health-warning"
+                  >
+                    {activeCourseSourceHealthNotice.tone === 'error' ? (
+                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                    ) : (
+                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
+                    )}
+                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
+                  </div>
+                ) : null}
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -18588,7 +18631,7 @@ export function LearnPageClient() {
                   </p>
                 </div>
               </header>
-            ) : hasCourseSyncError || activeCourseSourceHealthNotice ? (
+            ) : hasCourseSyncError ? (
               <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200/80 bg-white/80 px-6 py-2 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/80">
                 {hasCourseSyncError ? (
                   <button
@@ -18609,48 +18652,6 @@ export function LearnPageClient() {
                         : '部分内容同步失败，点击重试'}
                     </span>
                   </button>
-                ) : null}
-                {activeCourseSourceHealthNotice && isTeacherCourseChat ? (
-                  <button
-                    type="button"
-                    onClick={openSourceUploadPanel}
-                    className={cn(
-                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
-                      activeCourseSourceHealthNotice.tone === 'error'
-                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15'
-                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15',
-                    )}
-                    title={activeCourseSourceHealthNotice.detail}
-                    aria-label={`${activeCourseSourceHealthNotice.label}，打开原始讲义库`}
-                    data-testid="learn-source-health-warning"
-                  >
-                    {activeCourseSourceHealthNotice.tone === 'error' ? (
-                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
-                    ) : (
-                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
-                    )}
-                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
-                  </button>
-                ) : activeCourseSourceHealthNotice ? (
-                  <div
-                    role="status"
-                    className={cn(
-                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium',
-                      activeCourseSourceHealthNotice.tone === 'error'
-                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100'
-                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100',
-                    )}
-                    title={activeCourseSourceHealthNotice.detail}
-                    aria-label={activeCourseSourceHealthNotice.label}
-                    data-testid="learn-source-health-warning"
-                  >
-                    {activeCourseSourceHealthNotice.tone === 'error' ? (
-                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
-                    ) : (
-                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
-                    )}
-                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
-                  </div>
                 ) : null}
               </div>
             ) : null}
