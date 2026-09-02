@@ -7,6 +7,19 @@ function safeFileName(value: string) {
   return value.replace(/[\r\n"\\/]/g, '_').slice(0, 180) || 'forum-image';
 }
 
+function encodedFileName(value: string) {
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+}
+
+function contentDisposition(fileName: string, download: boolean) {
+  const safeName = safeFileName(fileName);
+  const asciiFallback = safeName.replace(/[^\x20-\x7e]/g, '_');
+  return `${download ? 'attachment' : 'inline'}; filename="${asciiFallback}"; filename*=UTF-8''${encodedFileName(safeName)}`;
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ courseId: string; attachmentId: string }> },
@@ -27,7 +40,7 @@ export async function GET(
     return new Response(attachment.data, {
       headers: {
         'Content-Type': attachment.mimeType,
-        'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename="${safeFileName(attachment.fileName)}"`,
+        'Content-Disposition': contentDisposition(attachment.fileName, download),
         'Cache-Control': 'private, max-age=3600',
         ETag: `"${attachment.contentSha}"`,
         'X-Content-Type-Options': 'nosniff',
