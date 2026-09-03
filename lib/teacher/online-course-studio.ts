@@ -341,7 +341,7 @@ export async function uploadOnlineTeacherSources(args: {
     } catch (error) {
       if (!saved) {
         await backendFetch(
-          `/api/teacher/courses/${encodeURIComponent(args.courseId)}/sources/${encodeURIComponent(upload.sourceId)}`,
+          `/api/teacher/courses/${encodeURIComponent(args.courseId)}/sources/${encodeURIComponent(upload.sourceId)}?uploadCleanup=1`,
           { method: 'DELETE', timeoutMs: 20_000 },
         ).catch(() => undefined);
       }

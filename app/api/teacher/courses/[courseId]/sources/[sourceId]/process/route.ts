@@ -117,6 +117,15 @@ async function runSourceProcessing(args: {
       originalFile &&
       (sourceKind === 'pdf' || sourceKind === 'markdown' || sourceKind === 'plain_text');
     const extracted = await (async () => {
+      // Problem-bank PDFs are read by OpenAI from the original file below. Running the
+      // general PDF parser here used to extract every embedded image, convert it to PNG,
+      // and retain all Base64 copies in memory even though the import never consumed
+      // them. Image-heavy exam PDFs could therefore exhaust a Vercel function before
+      // the OpenAI import started. Keep the database-backed original as the source of
+      // truth and skip that redundant, memory-heavy local pass.
+      if (directOriginalFileInput && sourceKind === 'pdf') {
+        return { text: '', pageCount: 1 };
+      }
       if (!officeSource && source.extractedText?.trim()) {
         return { text: source.extractedText, pageCount: 1 };
       }
@@ -227,14 +236,20 @@ async function runSourceProcessing(args: {
         });
       }
       const extractedProblems = openaiFileId
-        ? await llmExtractProblemDraftsFromOpenAIFile({
-            fileId: openaiFileId,
-            fileName: openAIInputFileName,
-            mimeType: openAIInputMimeType,
-            source: 'pdf',
-            model,
-            language: 'zh-CN',
-          })
+        ? await (async () => {
+            await prisma.agentTask.update({
+              where: { id: args.taskId },
+              data: { stage: 'extracting_questions', progress: 40 },
+            });
+            return llmExtractProblemDraftsFromOpenAIFile({
+              fileId: openaiFileId,
+              fileName: openAIInputFileName,
+              mimeType: openAIInputMimeType,
+              source: 'pdf',
+              model,
+              language: 'zh-CN',
+            });
+          })()
         : await extractProblemDraftsFromText({
             text,
             source: 'pdf',
@@ -334,6 +349,9 @@ export async function POST(
     }
     if (!source.fileData && !source.extractedText) {
       return NextResponse.json({ error: '源文件没有可处理的数据库内容' }, { status: 409 });
+    }
+    if (source.ingestStatus === 'uploading') {
+      return NextResponse.json({ error: '源文件尚未上传完成，请稍后再处理。' }, { status: 409 });
     }
 
     const isProblemBank = source.sourceCategory === 'problem_bank';

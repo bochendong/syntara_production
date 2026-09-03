@@ -7,6 +7,9 @@ import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 
 const MIND_MAP_TASK_STALE_MS = 6 * 60 * 1000;
 const STALE_MIND_MAP_ERROR = '任务超过服务器执行时限，已自动结束，请重新生成。';
+const PROBLEM_BANK_TASK_STALE_MS = 6 * 60 * 1000;
+const STALE_PROBLEM_BANK_ERROR =
+  '题库导入超过服务器执行时限，已自动结束。原文件已保留，请重新处理。';
 
 function jsonRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -195,6 +198,24 @@ export async function GET(_request: Request, context: { params: Promise<{ course
           now - task.updatedAt.getTime() > MIND_MAP_TASK_STALE_MS,
       )
       .map((task) => task.id);
+    const staleProblemBankTasks = tasks
+      .filter(
+        (task) =>
+          task.taskType === 'teacher_problem_bank_import' &&
+          (task.status === 'queued' || task.status === 'running') &&
+          now - task.updatedAt.getTime() > PROBLEM_BANK_TASK_STALE_MS,
+      )
+      .map((task) => {
+        const request = jsonRecord(task.request);
+        return {
+          taskId: task.id,
+          sourceId: typeof request.sourceId === 'string' ? request.sourceId : null,
+        };
+      });
+    const staleProblemBankTaskIds = staleProblemBankTasks.map((task) => task.taskId);
+    const staleProblemBankSourceIds = staleProblemBankTasks
+      .map((task) => task.sourceId)
+      .filter((sourceId): sourceId is string => Boolean(sourceId));
 
     await Promise.all([
       completedMindMapTaskIds.length
@@ -219,9 +240,33 @@ export async function GET(_request: Request, context: { params: Promise<{ course
             },
           })
         : Promise.resolve(),
+      staleProblemBankTaskIds.length
+        ? prisma.agentTask.updateMany({
+            where: { id: { in: staleProblemBankTaskIds } },
+            data: {
+              status: 'failed',
+              stage: 'failed',
+              progress: 100,
+              error: STALE_PROBLEM_BANK_ERROR,
+            },
+          })
+        : Promise.resolve(),
+      staleProblemBankSourceIds.length
+        ? prisma.courseSource.updateMany({
+            where: {
+              id: { in: staleProblemBankSourceIds },
+              courseId,
+              ownerId: teacher.userId,
+              ingestStatus: 'processing',
+            },
+            data: { ingestStatus: 'error', errorReason: STALE_PROBLEM_BANK_ERROR },
+          })
+        : Promise.resolve(),
     ]);
 
     const staleMindMapTaskIdSet = new Set(staleMindMapTaskIds);
+    const staleProblemBankTaskIdSet = new Set(staleProblemBankTaskIds);
+    const staleProblemBankSourceIdSet = new Set(staleProblemBankSourceIds);
 
     return NextResponse.json({
       storage: 'postgresql',
@@ -247,7 +292,7 @@ export async function GET(_request: Request, context: { params: Promise<{ course
             ? (jsonRecord(source.metadataJson).size as number)
             : 0),
         sourceCategory: sourceCategory(source.sourceCategory, source.metadataJson),
-        ingestStatus: source.ingestStatus,
+        ingestStatus: staleProblemBankSourceIdSet.has(source.id) ? 'error' : source.ingestStatus,
         removedAt: source.removedAt?.getTime() ?? null,
         fileUrl: `/api/teacher/courses/${encodeURIComponent(courseId)}/sources/${encodeURIComponent(source.id)}/file`,
         createdAt: source.createdAt.getTime(),
@@ -280,20 +325,20 @@ export async function GET(_request: Request, context: { params: Promise<{ course
       })),
       tasks: tasks.map((task) => {
         const request = jsonRecord(task.request);
+        const staleTask =
+          staleMindMapTaskIdSet.has(task.id) || staleProblemBankTaskIdSet.has(task.id);
         const reconciledStatus = completedMindMapTaskIdSet.has(task.id)
           ? 'completed'
-          : staleMindMapTaskIdSet.has(task.id)
+          : staleTask
             ? 'failed'
             : task.status;
         const reconciledStage = completedMindMapTaskIdSet.has(task.id)
           ? 'completed'
-          : staleMindMapTaskIdSet.has(task.id)
+          : staleTask
             ? 'failed'
             : task.stage;
         const reconciledProgress =
-          completedMindMapTaskIdSet.has(task.id) || staleMindMapTaskIdSet.has(task.id)
-            ? 100
-            : task.progress;
+          completedMindMapTaskIdSet.has(task.id) || staleTask ? 100 : task.progress;
         return {
           id: task.id,
           notebookId: task.notebookId || undefined,
@@ -323,7 +368,9 @@ export async function GET(_request: Request, context: { params: Promise<{ course
           persistenceStorage: reconciledStatus === 'completed' ? 'postgresql' : undefined,
           errorReason: staleMindMapTaskIdSet.has(task.id)
             ? STALE_MIND_MAP_ERROR
-            : task.error || undefined,
+            : staleProblemBankTaskIdSet.has(task.id)
+              ? STALE_PROBLEM_BANK_ERROR
+              : task.error || undefined,
           createdAt: task.createdAt.getTime(),
           updatedAt: task.updatedAt.getTime(),
         };

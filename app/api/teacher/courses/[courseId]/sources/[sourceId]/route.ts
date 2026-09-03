@@ -11,7 +11,7 @@ const updateSchema = z.object({ action: z.enum(['remove', 'restore']) });
 async function ownedSource(userId: string, courseId: string, sourceId: string) {
   return prisma.courseSource.findFirst({
     where: { id: sourceId, courseId, ownerId: userId },
-    select: { id: true },
+    select: { id: true, ingestStatus: true },
   });
 }
 
@@ -40,7 +40,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ courseId: string; sourceId: string }> },
 ) {
   return safeRoute(async () => {
@@ -50,8 +50,18 @@ export async function DELETE(
     if (!(await hasTeacherCourseAccess(prisma, teacher.userId, courseId))) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
-    if (!(await ownedSource(teacher.userId, courseId, sourceId))) {
+    const source = await ownedSource(teacher.userId, courseId, sourceId);
+    if (!source) {
       return NextResponse.json({ error: 'Source not found' }, { status: 404 });
+    }
+    if (
+      new URL(request.url).searchParams.get('uploadCleanup') === '1' &&
+      source.ingestStatus !== 'uploading'
+    ) {
+      return NextResponse.json(
+        { error: '文件已完成上传或已进入处理，不再执行上传清理。' },
+        { status: 409 },
+      );
     }
     await prisma.$transaction([
       prisma.asset.deleteMany({ where: { path: `/course-source-previews/${sourceId}.pdf` } }),
