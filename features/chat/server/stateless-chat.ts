@@ -85,6 +85,7 @@ export async function handleStatelessChatRequest(req: NextRequest) {
     } = await resolveModel(
       {
         modelString: parsedBody.model,
+        responseStrength: parsedBody.config.responseStrength,
         apiKey: parsedBody.apiKey,
         baseUrl: parsedBody.baseUrl,
         providerType: parsedBody.providerType,

@@ -3,38 +3,34 @@ import path from 'node:path';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const route = read('app/api/courses/[id]/problems/auto-archive/route.ts');
-const service = read('lib/server/notebook-problems/service.ts');
+const legacyRoute = read('app/api/courses/[id]/problems/auto-archive/route.ts');
+const organizeRoute = read('app/api/courses/[id]/problem-tags/organize/route.ts');
+const service = read('features/problem-tags/server/problem-tag-service.ts');
 const controller = read('components/problem-bank/use-course-problem-bank-controller.ts');
 const view = read('components/problem-bank/course-problem-bank-view.tsx');
 
 const checks = [
   {
-    name: 'AI only considers active problems without a notebook assignment',
-    pass:
-      route.includes("where: { courseId, notebookId: null, status: { not: 'archived' } }") &&
-      route.includes('MIN_ASSIGNMENT_CONFIDENCE'),
+    name: 'legacy notebook auto-archive endpoint is retired',
+    pass: legacyRoute.includes('status: 410') && legacyRoute.includes('AI 整理标签'),
   },
   {
-    name: 'AI assignment output is structured and validated against real IDs',
-    pass:
-      route.includes('Output.object') &&
-      route.includes('validProblemIds.has') &&
-      route.includes('validNotebookIds.has'),
+    name: 'AI taxonomy output is structured and limited to real problem ids',
+    pass: organizeRoute.includes('Output.object') && organizeRoute.includes('validProblemIds.has'),
   },
   {
-    name: 'bulk persistence cannot overwrite a concurrent or existing assignment',
+    name: 'low-confidence AI assignments remain pending and manual decisions are preserved',
     pass:
-      service.includes('assignUnassignedCourseProblemsToNotebooks') &&
-      service.includes('notebookId: null') &&
-      service.includes("status: { not: 'archived' }"),
+      service.includes('PROBLEM_TAG_AUTO_APPLY_CONFIDENCE') &&
+      service.includes("source: 'manual', status: 'applied'") &&
+      service.includes("status: applied ? 'applied' : 'pending'"),
   },
   {
-    name: 'teacher problem bank exposes the AI auto archive action',
+    name: 'teacher problem bank exposes AI tag organization and knowledge-tree management',
     pass:
-      controller.includes('handleAutoArchiveUnassignedProblems') &&
-      view.includes('AI 自动归档') &&
-      view.includes('unassignedProblemCount'),
+      controller.includes('organizeCourseProblemTags') &&
+      view.includes('AI 整理标签') &&
+      view.includes('管理知识树'),
   },
 ];
 

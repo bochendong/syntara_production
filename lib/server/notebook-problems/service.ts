@@ -31,6 +31,7 @@ import {
 } from '@/lib/server/repositories/course-enrollment-repository';
 import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-repository';
 import { maybeWriteProblemAttemptMemorySignal } from '@/lib/server/problem-attempt-memory-signals';
+import { seedProblemTagsFromProblem } from '@/features/problem-tags/server/problem-tag-service';
 import { verifyNotebookCodeDraftReferenceAnswer } from './judge';
 
 const prismaDb = prisma;
@@ -82,6 +83,8 @@ type ProblemRow = {
 type ProblemInlineProgressRow = {
   status: string;
   score: number | null;
+  attemptedCount: number;
+  passedCount: number;
   lastAttemptAt: Date | null;
   latestAttempt: {
     id: string;
@@ -98,6 +101,8 @@ type ProblemAttemptRow = {
   score: number | null;
   answerJson: unknown;
   resultJson: unknown;
+  activeDurationMs: number | null;
+  timingSource: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -190,6 +195,8 @@ type FlatCourseProblemRow = {
   latestAttemptStatus: string | null;
   latestAttemptScore: number | null;
   latestAttemptCreatedAt: Date | null;
+  attemptedCount: number | null;
+  passedCount: number | null;
 };
 
 type PreparedPublishProblemWrite = {
@@ -283,6 +290,8 @@ function mapAttemptRow(row: ProblemAttemptRow): NotebookProblemAttemptRecord {
     score: row.score,
     answer: row.answerJson,
     result: row.resultJson ?? undefined,
+    activeDurationMs: row.activeDurationMs,
+    timingSource: row.timingSource,
     createdAt: row.createdAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
   });
@@ -291,6 +300,7 @@ function mapAttemptRow(row: ProblemAttemptRow): NotebookProblemAttemptRecord {
 function mapProblemRow(
   row: ProblemRow,
   latestAttempt?: Pick<ProblemAttemptRow, 'id' | 'status' | 'score' | 'createdAt'> | null,
+  attemptStats?: { attemptedCount: number; passedCount: number } | null,
 ): NotebookProblemSummaryForUser {
   const resolvedCourseId = row.courseId ?? row.notebook?.courseId ?? null;
   const problem = notebookProblemSummarySchema.parse({
@@ -322,6 +332,7 @@ function mapProblemRow(
     sourceMeta: row.sourceMeta ?? {},
     createdAt: row.createdAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
+    attemptStats: attemptStats ?? null,
     latestAttempt: latestAttempt
       ? {
           id: latestAttempt.id,
@@ -939,8 +950,16 @@ async function recordProblemImportBatchPersistedCountTx(
 async function listLatestAttemptsForUser(
   userId: string,
   problemIds: string[],
-): Promise<Map<string, ProblemAttemptRow>> {
-  if (problemIds.length === 0) return new Map<string, ProblemAttemptRow>();
+): Promise<
+  Map<
+    string,
+    {
+      attempt: ProblemAttemptRow;
+      attemptStats: { attemptedCount: number; passedCount: number };
+    }
+  >
+> {
+  if (problemIds.length === 0) return new Map();
 
   const progressRows = await prismaDb.notebookProblemProgress.findMany({
     where: {
@@ -950,6 +969,8 @@ async function listLatestAttemptsForUser(
     select: {
       problemId: true,
       latestAttemptId: true,
+      attemptedCount: true,
+      passedCount: true,
     },
   });
 
@@ -967,10 +988,24 @@ async function listLatestAttemptsForUser(
         )
       : new Map<string, ProblemAttemptRow>();
 
-  const latestByProblemId = new Map<string, ProblemAttemptRow>();
+  const latestByProblemId = new Map<
+    string,
+    {
+      attempt: ProblemAttemptRow;
+      attemptStats: { attemptedCount: number; passedCount: number };
+    }
+  >();
   for (const row of progressRows) {
     const attempt = row.latestAttemptId ? attemptsById.get(row.latestAttemptId) : null;
-    if (attempt) latestByProblemId.set(row.problemId, attempt);
+    if (attempt) {
+      latestByProblemId.set(row.problemId, {
+        attempt,
+        attemptStats: {
+          attemptedCount: row.attemptedCount,
+          passedCount: row.passedCount,
+        },
+      });
+    }
   }
 
   const missingProblemIds = problemIds.filter((problemId) => !latestByProblemId.has(problemId));
@@ -984,9 +1019,22 @@ async function listLatestAttemptsForUser(
     orderBy: [{ createdAt: 'desc' }],
   })) as unknown as ProblemAttemptRow[];
 
+  const fallbackCounts = new Map<string, { attemptedCount: number; passedCount: number }>();
+  for (const attempt of attempts) {
+    const counts = fallbackCounts.get(attempt.problemId) ?? { attemptedCount: 0, passedCount: 0 };
+    counts.attemptedCount += 1;
+    if (attempt.status === 'passed') counts.passedCount += 1;
+    fallbackCounts.set(attempt.problemId, counts);
+  }
   for (const attempt of attempts) {
     if (!latestByProblemId.has(attempt.problemId)) {
-      latestByProblemId.set(attempt.problemId, attempt);
+      latestByProblemId.set(attempt.problemId, {
+        attempt,
+        attemptStats: fallbackCounts.get(attempt.problemId) ?? {
+          attemptedCount: 1,
+          passedCount: attempt.status === 'passed' ? 1 : 0,
+        },
+      });
     }
   }
   return latestByProblemId;
@@ -1103,6 +1151,8 @@ async function loadProblemsWithNotebook(args: {
               select: {
                 status: true,
                 score: true,
+                attemptedCount: true,
+                passedCount: true,
                 lastAttemptAt: true,
                 latestAttempt: {
                   select: {
@@ -1168,7 +1218,9 @@ async function loadCourseProblemsForUserFast(args: {
         a."id" AS "latestAttemptId",
         g."status"::text AS "latestAttemptStatus",
         g."score" AS "latestAttemptScore",
-        COALESCE(g."lastAttemptAt", a."createdAt") AS "latestAttemptCreatedAt"
+        COALESCE(g."lastAttemptAt", a."createdAt") AS "latestAttemptCreatedAt",
+        g."attemptedCount" AS "attemptedCount",
+        g."passedCount" AS "passedCount"
       FROM "NotebookProblem" p
       JOIN "Course" c ON c."id" = p."courseId"
       LEFT JOIN "Notebook" n ON n."id" = p."notebookId"
@@ -1257,6 +1309,9 @@ async function loadCourseProblemsForUserFast(args: {
             score: row.latestAttemptScore,
             createdAt: row.latestAttemptCreatedAt,
           }
+        : null,
+      row.attemptedCount !== null && row.passedCount !== null
+        ? { attemptedCount: row.attemptedCount, passedCount: row.passedCount }
         : null,
     ),
   );
@@ -1469,13 +1524,14 @@ export async function listNotebookProblemsForUser(
     where: { notebookId },
     includeSecret: notebook.accessRole === 'owner',
   });
-  const latestByProblemId = await listLatestAttemptsForUser(
+  const progressByProblemId = await listLatestAttemptsForUser(
     userId,
     problems.map((problem) => problem.id),
   );
-  return problems.map((problem) =>
-    mapProblemRow(problem, latestByProblemId.get(problem.id) ?? null),
-  );
+  return problems.map((problem) => {
+    const progress = progressByProblemId.get(problem.id);
+    return mapProblemRow(problem, progress?.attempt ?? null, progress?.attemptStats ?? null);
+  });
 }
 
 export async function listCourseProblemsForUser(
@@ -1525,7 +1581,16 @@ export async function listCourseProblemsByIdsForUser(
   const byId = new Map(
     problems.map((problem) => [
       problem.id,
-      mapProblemRow(problem, latestAttemptFromProgress(problem.progress?.[0])),
+      mapProblemRow(
+        problem,
+        latestAttemptFromProgress(problem.progress?.[0]),
+        problem.progress?.[0]
+          ? {
+              attemptedCount: problem.progress[0].attemptedCount,
+              passedCount: problem.progress[0].passedCount,
+            }
+          : null,
+      ),
     ]),
   );
   return uniqueProblemIds
@@ -2026,6 +2091,42 @@ type CreateNotebookProblemsFromDraftsArgs = {
   importBatchLeaseToken?: string | null;
 };
 
+async function seedInsertedProblemTags(args: {
+  courseId: string;
+  problems: NotebookProblemSummaryForUser[];
+  insertedProblemIds: string[];
+  tagPathsByProblemId: Map<string, NotebookProblemImportDraft['tagPaths']>;
+}) {
+  const insertedIds = new Set(args.insertedProblemIds);
+  for (const problem of args.problems) {
+    if (!insertedIds.has(problem.id)) continue;
+    try {
+      await seedProblemTagsFromProblem({
+        prisma: prismaDb,
+        courseId: args.courseId,
+        problem: {
+          id: problem.id,
+          title: problem.title,
+          type: problem.type,
+          difficulty: problem.difficulty,
+          tags: problem.tags,
+          publicContent: problem.publicContent,
+          sourceMeta: problem.sourceMeta,
+          notebookId: problem.notebookId,
+          notebookName: problem.notebookName,
+          tagPaths: args.tagPathsByProblemId.get(problem.id),
+        },
+      });
+    } catch (error) {
+      console.warn('[problem-import] tag projection failed after problem commit', {
+        courseId: args.courseId,
+        problemId: problem.id,
+        error,
+      });
+    }
+  }
+}
+
 async function createNotebookProblemsFromDraftsInternal(
   args: CreateNotebookProblemsFromDraftsArgs,
 ): Promise<NotebookProblemDraftWriteResult> {
@@ -2041,6 +2142,7 @@ async function createNotebookProblemsFromDraftsInternal(
   const reusedProblemIds = new Set<string>();
   const skippedDraftIds: string[] = [];
   const reusedDrafts: ProblemDraftWriteSummary['reusedDrafts'] = [];
+  const tagPathsByProblemId = new Map<string, NotebookProblemImportDraft['tagPaths']>();
 
   await prismaDb.$transaction(
     async (tx: Prisma.TransactionClient) => {
@@ -2075,6 +2177,7 @@ async function createNotebookProblemsFromDraftsInternal(
           problemNumber: firstProblemNumber + insertedProblemIds.length,
         });
         insertedProblemIds.push(created.id);
+        tagPathsByProblemId.set(created.id, draft.tagPaths);
         if (dedupeKey) existingProblemIdByKey.set(dedupeKey, created.id);
       }
       const writeSummary: ProblemDraftWriteSummary = {
@@ -2103,8 +2206,17 @@ async function createNotebookProblemsFromDraftsInternal(
     },
   );
 
+  const problems = await listNotebookProblemsForUser(args.userId, args.notebookId);
+  if (notebook.courseId && insertedProblemIds.length > 0) {
+    await seedInsertedProblemTags({
+      courseId: notebook.courseId,
+      problems,
+      insertedProblemIds,
+      tagPathsByProblemId,
+    });
+  }
   return {
-    problems: await listNotebookProblemsForUser(args.userId, args.notebookId),
+    problems,
     writeSummary: {
       requestedCount: args.drafts.length,
       insertedProblemIds,
@@ -2249,6 +2361,7 @@ async function createCourseProblemsFromDraftsInternal(
   const reusedProblemIds = new Set<string>();
   const skippedDraftIds: string[] = [];
   const reusedDrafts: ProblemDraftWriteSummary['reusedDrafts'] = [];
+  const tagPathsByProblemId = new Map<string, NotebookProblemImportDraft['tagPaths']>();
 
   await prismaDb.$transaction(
     async (tx: Prisma.TransactionClient) => {
@@ -2291,6 +2404,7 @@ async function createCourseProblemsFromDraftsInternal(
           problemNumber: firstProblemNumber + insertedProblemIds.length,
         });
         insertedProblemIds.push(created.id);
+        tagPathsByProblemId.set(created.id, draft.tagPaths);
         existingProblemIdByKey.set(dedupeKey, created.id);
         if (notebookId) touchedNotebookIds.add(notebookId);
       }
@@ -2319,10 +2433,27 @@ async function createCourseProblemsFromDraftsInternal(
     },
   );
 
-  const problems =
+  let problems =
     args.returnProblems === false
       ? []
       : await listCourseProblemsForUser(args.userId, args.courseId);
+  if (insertedProblemIds.length > 0) {
+    const insertedProblems =
+      problems.length > 0
+        ? problems.filter((problem) => insertedProblemIds.includes(problem.id))
+        : await listCourseProblemsByIdsForUser(args.userId, args.courseId, insertedProblemIds, {
+            skipMaintenance: true,
+          });
+    await seedInsertedProblemTags({
+      courseId: args.courseId,
+      problems: insertedProblems,
+      insertedProblemIds,
+      tagPathsByProblemId,
+    });
+    if (args.returnProblems !== false) {
+      problems = await listCourseProblemsForUser(args.userId, args.courseId);
+    }
+  }
   return {
     problems,
     writeSummary: {
@@ -2811,6 +2942,8 @@ export async function createNotebookProblemAttempt(args: {
   score?: number | null;
   answer: NotebookProblemAttemptAnswer;
   result?: NotebookProblemAttemptResult;
+  activeDurationMs?: number | null;
+  timingSource?: string | null;
 }): Promise<NotebookProblemAttemptRecord> {
   const created = (await prismaDb.$transaction(async (tx: Prisma.TransactionClient) => {
     const attempt = await tx.notebookProblemAttempt.create({
@@ -2822,6 +2955,8 @@ export async function createNotebookProblemAttempt(args: {
         score: args.score ?? null,
         answerJson: toPrismaJson(args.answer),
         resultJson: args.result ? toPrismaJson(args.result) : undefined,
+        activeDurationMs: args.activeDurationMs ?? null,
+        timingSource: args.timingSource ?? null,
       },
     });
 

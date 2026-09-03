@@ -1,17 +1,20 @@
 /**
- * Built-in course hero backgrounds. These reuse the platform's generated visual
- * language from slide backgrounds while keeping course pages fully local.
+ * Built-in course hero backgrounds. These live in `public/course_background/`
+ * so course pages can keep a local, generated visual language.
  */
 const COURSE_BACKGROUND_FILES: readonly string[] = [
-  '/slide-backgrounds/academy-watercolor.png',
-  '/slide-backgrounds/academic-blueprint-photo.png',
-  '/slide-backgrounds/lecture-hall-photo.png',
-  '/slide-backgrounds/workspace-desk-photo.png',
-  '/slide-backgrounds/science-lab-photo.png',
-  '/slide-backgrounds/magazine-courtyard-photo.png',
-  '/slide-backgrounds/city-strategy-photo.png',
-  '/slide-backgrounds/forest-path-photo.png',
+  '/course_background/lecture-hall-photo.png',
+  '/course_background/workspace-desk-photo.png',
+  '/course_background/science-lab-photo.png',
+  '/course_background/dark-tech-neural.png',
+  '/course_background/city-strategy-photo.png',
+  '/course_background/product-launch-dark.png',
+  '/course_background/magazine-courtyard.png',
+  '/course_background/forest-path-photo.png',
+  '/course_background/cinematic-stage.png',
 ] as const;
+
+const COURSE_BACKGROUND_FALLBACK = '/course_background/workspace-desk-photo.png';
 
 function hashStringToUint32(s: string): number {
   let h = 2166136261;
@@ -27,9 +30,9 @@ function hashStringToUint32(s: string): number {
  * background while keeping the selected image stable across refreshes.
  */
 export function pickStableCourseBackgroundUrl(seed: string): string {
-  if (COURSE_BACKGROUND_FILES.length === 0) return '/slide-backgrounds/academy-watercolor.png';
+  if (COURSE_BACKGROUND_FILES.length === 0) return COURSE_BACKGROUND_FALLBACK;
   const i = hashStringToUint32(seed) % COURSE_BACKGROUND_FILES.length;
-  return COURSE_BACKGROUND_FILES[i];
+  return COURSE_BACKGROUND_FILES[i] ?? COURSE_BACKGROUND_FALLBACK;
 }
 
 export function resolveCourseBackgroundDisplayUrl(courseId: string | null | undefined): string {

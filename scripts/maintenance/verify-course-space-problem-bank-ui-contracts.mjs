@@ -8,6 +8,7 @@ const header = read('components/course-space/course-space-header.tsx');
 const problemBank = read('components/problem-bank/course-problem-bank-view.tsx');
 const problemBankPage = read('app/course/[id]/problem-bank/page.tsx');
 const problemBankController = read('components/problem-bank/use-course-problem-bank-controller.ts');
+const problemBankHelpers = read('components/problem-bank/course-problem-bank-helpers.tsx');
 const problemDraftForm = read('components/problem-bank/problem-draft-form.tsx');
 const problemEvaluator = read('lib/server/notebook-problems/evaluate.ts');
 const teacherStudio = read('components/teacher/teacher-course-studio-client.tsx');
@@ -22,8 +23,8 @@ const checks = [
       !header.includes("const showProblemBank = typeof problemCount === 'number'"),
   },
   {
-    name: 'teacher course header does not expose student management',
-    pass: !header.includes("label: '学生管理'"),
+    name: 'teacher course header exposes student management',
+    pass: header.includes("label: '学生管理'"),
   },
   {
     name: 'empty problem bank keeps a full workspace placeholder',
@@ -56,6 +57,36 @@ const checks = [
       problemBank.includes('正在加载课程题库') &&
       problemBank.includes('题目、章节与作答记录准备好后会显示在这里。') &&
       problemBank.includes('aria-busy="true"'),
+  },
+  {
+    name: 'student review filters expose completed and retry-focused learning states',
+    pass:
+      problemBank.includes("'做题进度筛选'") &&
+      problemBank.includes('practiceFilterOptions.map') &&
+      problemBankHelpers.includes("review: '尝试过但没做对'") &&
+      problemBankHelpers.includes("wrong: '已完成但做错'") &&
+      problemBankHelpers.includes("unattempted: '未完成'") &&
+      problemBankHelpers.includes("mastered: '已完成'") &&
+      problemBankHelpers.includes('attemptedCount > 0 && passedCount === 0'),
+  },
+  {
+    name: 'problem bank sidebar spans the content height and reports tag completion',
+    pass:
+      problemBank.includes('ProblemBankStatsSidebar') &&
+      problemBank.includes('self-stretch xl:flex') &&
+      problemBank.includes("'标签完成度'") &&
+      problemBank.includes('item.attemptedCount') &&
+      problemBank.includes('item.totalCount') &&
+      problemBankController.includes('.slice(0, 8)') &&
+      problemBankController.includes('tagProgressByName'),
+  },
+  {
+    name: 'empty problem banks show guidance instead of a zero-percent chart',
+    pass:
+      problemBank.includes('stats.total === 0') &&
+      problemBank.includes("'暂无题目可统计'") &&
+      problemBank.includes("'有题目后才计算完成率'") &&
+      problemBank.includes("canEditProblems\n                  ? '导入第一批题目后"),
   },
   {
     name: 'fill-blank problems have numbered inputs, structured submission, and grading support',

@@ -10,12 +10,16 @@ export const metadata: Metadata = {
 
 export default async function TeacherCourseStudentsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ mock?: string }>;
 }) {
   const { id } = await params;
-  if ((await currentCoursePageAccess(id)) === null) {
+  const query = await searchParams;
+  const mockMode = query.mock === '1';
+  if (!mockMode && (await currentCoursePageAccess(id)) === null) {
     return <CourseAccessClosedCard returnHref="/teacher" returnLabel="返回教师工作台" />;
   }
-  return <TeacherCourseStudentsClient courseId={id} />;
+  return <TeacherCourseStudentsClient courseId={id} mockMode={mockMode} />;
 }

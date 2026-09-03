@@ -15,15 +15,17 @@ import {
   type ProblemContentLanguage,
 } from '@/lib/problem-bank';
 import {
-  autoArchiveUnassignedCourseProblems,
+  organizeCourseProblemTags,
   deleteCourseProblem,
   listNotebookProblemAttempts,
+  listCourseProblemTags,
   listCourseProblemsByIds,
   listCourseProblems,
   runNotebookCodeProblem,
   submitNotebookProblem,
   updateCourseProblem,
   type NotebookProblemClientRecord,
+  type CourseProblemTagTreeNode,
 } from '@/lib/utils/notebook-problem-api';
 import type { StageListItem } from '@/lib/utils/stage-storage';
 import { getCourse } from '@/lib/utils/course-storage';
@@ -65,6 +67,7 @@ import {
   type ProblemInfoTab,
   type TextAnswerMode,
 } from '@/components/problem-bank/course-problem-bank-helpers';
+import { useProblemActiveTimer } from '@/components/problem-bank/use-problem-active-timer';
 
 type CourseProblemBankControllerArgs = {
   courseId: string;
@@ -211,6 +214,8 @@ export function useCourseProblemBankController({
   const [moveNotebookId, setMoveNotebookId] = useState<string>('__unassigned__');
   const [savingAssignment, setSavingAssignment] = useState(false);
   const [autoArchiving, setAutoArchiving] = useState(false);
+  const [problemTagTree, setProblemTagTree] = useState<CourseProblemTagTreeNode[]>([]);
+  const [knowledgeTagFilter, setKnowledgeTagFilter] = useState('all');
   const [deletingProblem, setDeletingProblem] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [answerModes, setAnswerModes] = useState<Record<string, TextAnswerMode>>({});
@@ -368,6 +373,29 @@ export function useCourseProblemBankController({
   }, [loadAll]);
 
   useEffect(() => {
+    if (!courseId || isLocalDemoProblemBankCourse(courseId)) {
+      setProblemTagTree([]);
+      return;
+    }
+    let cancelled = false;
+    void listCourseProblemTags(courseId)
+      .then((result) => {
+        if (!cancelled) setProblemTagTree(result.tree);
+      })
+      .catch((error) => console.warn('Failed to load problem knowledge tree', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId]);
+
+  const reloadProblemTagTree = useCallback(async () => {
+    if (!courseId || isLocalDemoProblemBankCourse(courseId)) return;
+    const result = await listCourseProblemTags(courseId);
+    setProblemTagTree(result.tree);
+    await loadAll();
+  }, [courseId, loadAll]);
+
+  useEffect(() => {
     initialPracticeAnswersRef.current = initialPracticeAnswers;
   }, [initialPracticeAnswers]);
 
@@ -479,6 +507,15 @@ export function useCourseProblemBankController({
         return false;
       }
       if (initialNotebookId && problem.notebookId !== initialNotebookId) return false;
+      if (knowledgeTagFilter !== 'all') {
+        const [level, id] = knowledgeTagFilter.split(':', 2);
+        const matches = (problem.tagAssignments || []).some(
+          (assignment) =>
+            assignment.status === 'applied' &&
+            (level === 'area' ? assignment.areaId === id : assignment.id === id),
+        );
+        if (!matches) return false;
+      }
       if (query) {
         const problemNumber = problem.problemNumber ?? problem.order + 1;
         const zhContent = getLocalizedProblemContent(problem.publicContent, 'zh-CN');
@@ -502,6 +539,7 @@ export function useCourseProblemBankController({
   }, [
     difficultyFilter,
     initialNotebookId,
+    knowledgeTagFilter,
     notebookFilter,
     practiceFilter,
     problems,
@@ -515,6 +553,7 @@ export function useCourseProblemBankController({
   }, [
     difficultyFilter,
     initialNotebookId,
+    knowledgeTagFilter,
     notebookFilter,
     practiceFilter,
     searchQuery,
@@ -641,7 +680,7 @@ export function useCourseProblemBankController({
 
   const practiceFilterOptions = useMemo<FilterSelectOption[]>(
     () =>
-      (['all', 'review', 'wrong', 'unattempted', 'mastered'] as PracticeFilter[]).map((value) => ({
+      (['all', 'mastered', 'unattempted', 'wrong', 'review'] as PracticeFilter[]).map((value) => ({
         value,
         label: practiceFilterLabel(value, locale),
       })),
@@ -708,79 +747,36 @@ export function useCourseProblemBankController({
       activeProblems.length > 0
         ? Math.round((stateCounts.mastered / activeProblems.length) * 100)
         : 0;
-    const allTopics = new Set<string>();
-    const masteredTopics = new Set<string>();
-    const notebookNameById = new Map(notebooks.map((notebook) => [notebook.id, notebook.name]));
-    const chapterPracticeCounts = new Map<
+    const tagProgressByName = new Map<
       string,
-      { topic: string; count: number; total: number; order: number }
-    >(
-      notebooks.map((notebook, index) => [
-        notebook.id,
-        { topic: notebook.name, count: 0, total: 0, order: index },
-      ]),
-    );
-    let unassignedOrder = notebooks.length;
+      { tag: string; attemptedCount: number; totalCount: number }
+    >();
     for (const problem of activeProblems) {
       const state = problemPracticeState(problem);
-      for (const topic of problemTopics(problem)) {
-        if (topic !== '未标注') {
-          allTopics.add(topic);
-          if (state === 'mastered') masteredTopics.add(topic);
-        }
-      }
-
-      if (state !== 'unattempted') {
-        const notebookKey = problem.notebookId || `__unassigned__:${problem.notebookName || ''}`;
-        const notebookName =
-          problem.notebookName ||
-          (problem.notebookId ? notebookNameById.get(problem.notebookId) : null) ||
-          (locale === 'zh-CN' ? '未归属笔记本' : 'Unassigned notebook');
-        const current = chapterPracticeCounts.get(notebookKey) ?? {
-          topic: notebookName,
-          count: 0,
-          total: 0,
-          order: unassignedOrder++,
+      for (const tag of problemTopics(problem)) {
+        if (tag === '未标注') continue;
+        const current = tagProgressByName.get(tag) ?? {
+          tag,
+          attemptedCount: 0,
+          totalCount: 0,
         };
-        current.count += 1;
-        chapterPracticeCounts.set(notebookKey, current);
+        current.totalCount += 1;
+        if (state !== 'unattempted') current.attemptedCount += 1;
+        tagProgressByName.set(tag, current);
       }
-
-      const notebookKey = problem.notebookId || `__unassigned__:${problem.notebookName || ''}`;
-      const notebookName =
-        problem.notebookName ||
-        (problem.notebookId ? notebookNameById.get(problem.notebookId) : null) ||
-        (locale === 'zh-CN' ? '未归属笔记本' : 'Unassigned notebook');
-      const current = chapterPracticeCounts.get(notebookKey) ?? {
-        topic: notebookName,
-        count: 0,
-        total: 0,
-        order: unassignedOrder++,
-      };
-      current.total += 1;
-      chapterPracticeCounts.set(notebookKey, current);
     }
-    const coveredNotebookCount = new Set(
-      activeProblems.map((problem) => problem.notebookId).filter(Boolean),
-    ).size;
-    const maxChapterPracticeCount = Math.max(
-      1,
-      ...Array.from(chapterPracticeCounts.values()).map((item) => item.count),
-    );
-    const leastPracticedChapters = Array.from(chapterPracticeCounts.values())
+    const tagProgress = Array.from(tagProgressByName.values())
       .sort(
         (a, b) =>
-          a.count - b.count ||
-          b.total - a.total ||
-          a.order - b.order ||
-          a.topic.localeCompare(b.topic),
+          b.totalCount - a.totalCount ||
+          a.attemptedCount / Math.max(1, a.totalCount) -
+            b.attemptedCount / Math.max(1, b.totalCount) ||
+          a.tag.localeCompare(b.tag),
       )
-      .slice(0, 5)
+      .slice(0, 8)
       .map((item) => ({
-        topic: item.topic,
-        count: item.count,
-        total: item.total,
-        percent: Math.min(100, Math.round((item.count / maxChapterPracticeCount) * 100)),
+        ...item,
+        percent: Math.round((item.attemptedCount / Math.max(1, item.totalCount)) * 100),
       }));
     return {
       total: activeProblems.length,
@@ -790,18 +786,19 @@ export function useCourseProblemBankController({
       wrong: stateCounts.wrong,
       unattempted: stateCounts.unattempted,
       masteryPercent,
-      coveredNotebookCount,
-      notebookCount: notebooks.length,
-      masteredTopicCount: masteredTopics.size,
-      topicCount: allTopics.size,
-      weakTopics: leastPracticedChapters,
+      tagProgress,
     };
-  }, [activeProblems, locale, notebooks]);
+  }, [activeProblems]);
 
   const selectedProblem =
     filteredProblems.find((problem) => problem.id === selectedProblemId) ||
     problems.find((problem) => problem.id === selectedProblemId) ||
     null;
+  const problemActiveTimer = useProblemActiveTimer({
+    courseId,
+    problemId: selectedProblem?.id ?? null,
+    enabled: isPracticeMode && !previewMode,
+  });
   const selectedProblemContent = selectedProblem
     ? getLocalizedProblemContent(selectedProblem.publicContent, problemLanguage)
     : null;
@@ -1187,6 +1184,7 @@ export function useCourseProblemBankController({
     difficultyFilter !== 'all',
     notebookFilter !== 'all',
     statusFilter !== 'all',
+    knowledgeTagFilter !== 'all',
   ].filter(Boolean).length;
 
   useEffect(() => {
@@ -1471,8 +1469,10 @@ export function useCourseProblemBankController({
         notebookId: selectedProblem.notebookId,
         problemId: selectedProblem.id,
         language: locale,
+        activeDurationMs: problemActiveTimer.getActiveDuration(),
         ...payload,
       });
+      problemActiveTimer.reset();
       if (selectedProblem.type === 'code') {
         setCodeAnswers((prev) => ({
           ...prev,
@@ -1565,6 +1565,7 @@ export function useCourseProblemBankController({
     selectedProblemTitle,
     selectedAnswerMode,
     onPracticeAttemptResolved,
+    problemActiveTimer,
     submittingAnswer,
     textAnswers,
   ]);
@@ -1594,6 +1595,7 @@ export function useCourseProblemBankController({
       }
 
       setRunningCode(true);
+      problemActiveTimer.markActive();
       setRunningCodeTarget(target);
       try {
         const { attempt, result } = await runNotebookCodeProblem({
@@ -1689,42 +1691,40 @@ export function useCourseProblemBankController({
         setRunningCodeTarget(null);
       }
     },
-    [codeAnswers, locale, runningCode, selectedProblem, selectedProblemContent],
+    [codeAnswers, locale, problemActiveTimer, runningCode, selectedProblem, selectedProblemContent],
   );
 
   const handleAutoArchiveUnassignedProblems = useCallback(async () => {
     if (!canEditProblems || autoArchiving) return;
-    if (unassignedProblemCount === 0) {
-      toast.info(locale === 'zh-CN' ? '当前没有未归档题目。' : 'No unassigned problems.');
-      return;
-    }
     if (isLocalDemoProblemBankCourse(courseId)) {
       toast.info(locale === 'zh-CN' ? '预览课程不会写入归档结果。' : 'Preview data is read-only.');
       return;
     }
     setAutoArchiving(true);
     try {
-      const result = await autoArchiveUnassignedCourseProblems(courseId);
+      const result = await organizeCourseProblemTags(courseId);
       await loadAll();
-      if (result.assignedCount > 0) {
+      const tagResult = await listCourseProblemTags(courseId);
+      setProblemTagTree(tagResult.tree);
+      if (result.appliedCount > 0) {
         toast.success(
           locale === 'zh-CN'
-            ? `AI 已将 ${result.assignedCount} 道题归档到合适章节${result.remainingCount > 0 ? `，还有 ${result.remainingCount} 道暂未归档` : ''}。`
-            : `AI assigned ${result.assignedCount} problems${result.remainingCount > 0 ? `; ${result.remainingCount} remain unassigned` : ''}.`,
+            ? `AI 已整理 ${result.appliedCount} 道题的知识标签${result.pendingCount > 0 ? `，${result.pendingCount} 道进入待确认` : ''}。`
+            : `AI organized ${result.appliedCount} problems${result.pendingCount > 0 ? `; ${result.pendingCount} need review` : ''}.`,
         );
       } else {
         toast.info(
           locale === 'zh-CN'
-            ? 'AI 没有找到足够可靠的章节匹配，题目仍保持未归档。'
-            : 'AI found no sufficiently reliable chapter matches.',
+            ? '没有可自动应用的标签，低置信度结果已保留为待确认。'
+            : 'No tags were auto-applied; low-confidence results remain pending.',
         );
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'AI 自动归档失败');
+      toast.error(error instanceof Error ? error.message : 'AI 整理标签失败');
     } finally {
       setAutoArchiving(false);
     }
-  }, [autoArchiving, canEditProblems, courseId, loadAll, locale, unassignedProblemCount]);
+  }, [autoArchiving, canEditProblems, courseId, loadAll, locale]);
 
   return {
     activeBankFilterCount,
@@ -1761,6 +1761,7 @@ export function useCourseProblemBankController({
     handleUpdateProblem,
     insertFormulaIntoAnswer,
     isPracticeMode,
+    knowledgeTagFilter,
     loading,
     locale,
     moveDialogOpen,
@@ -1781,6 +1782,8 @@ export function useCourseProblemBankController({
     previousPracticeIsChapterJump,
     previousPracticeTarget,
     problemInfoTab,
+    problemTagTree,
+    reloadProblemTagTree,
     problemLanguage,
     problemPageCount,
     problems,
@@ -1816,6 +1819,7 @@ export function useCourseProblemBankController({
     setMoveDialogOpen,
     setMoveNotebookId,
     setNotebookFilter,
+    setKnowledgeTagFilter,
     setPracticeFilter,
     setProblemLanguage,
     setProblemPage,

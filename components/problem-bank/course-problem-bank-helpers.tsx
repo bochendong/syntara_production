@@ -678,6 +678,12 @@ function normalizeProblemTopic(value: string): string {
 }
 
 function problemTopics(problem: NotebookProblemClientRecord): string[] {
+  const assignedTags = (problem.tagAssignments ?? [])
+    .filter((assignment) => assignment.status === 'applied')
+    .map((assignment) => `${assignment.area} / ${assignment.concept}`)
+    .map(normalizeProblemTopic)
+    .filter(Boolean);
+  if (assignedTags.length > 0) return Array.from(new Set(assignedTags)).slice(0, 6);
   const tags = problemConceptTopics(problem).map(normalizeProblemTopic).filter(Boolean);
   if (tags.length > 0) return Array.from(new Set(tags)).slice(0, 6);
   return ['未标注'];
@@ -694,35 +700,48 @@ function problemPracticeState(problem: NotebookProblemClientRecord): ProblemPrac
 function matchesPracticeFilter(problem: NotebookProblemClientRecord, filter: PracticeFilter) {
   if (filter === 'all') return true;
   const state = problemPracticeState(problem);
-  if (filter === 'review')
-    return state === 'unattempted' || state === 'wrong' || state === 'review';
+  if (filter === 'review') {
+    if (state === 'mastered') return false;
+    const attemptedCount = problem.attemptStats?.attemptedCount;
+    const passedCount = problem.attemptStats?.passedCount;
+    if (typeof attemptedCount === 'number' && typeof passedCount === 'number') {
+      return attemptedCount > 0 && passedCount === 0;
+    }
+    return state === 'wrong' || state === 'review';
+  }
+  if (filter === 'mastered') {
+    if (state === 'mastered') return true;
+    if (typeof problem.attemptStats?.passedCount === 'number') {
+      return problem.attemptStats.passedCount > 0;
+    }
+  }
   return state === filter;
 }
 
 function practiceFilterLabel(filter: PracticeFilter, locale: 'zh-CN' | 'en-US') {
   const zh = {
     all: '全部',
-    review: '待复习',
-    wrong: '错题',
-    unattempted: '未做',
-    mastered: '已掌握',
+    review: '尝试过但没做对',
+    wrong: '已完成但做错',
+    unattempted: '未完成',
+    mastered: '已完成',
   } as const;
   const en = {
     all: 'All',
-    review: 'To review',
-    wrong: 'Wrong',
-    unattempted: 'Untried',
-    mastered: 'Mastered',
+    review: 'Tried, not solved',
+    wrong: 'Completed incorrectly',
+    unattempted: 'Not completed',
+    mastered: 'Completed correctly',
   } as const;
   return locale === 'zh-CN' ? zh[filter] : en[filter];
 }
 
 function practiceStateLabel(problem: NotebookProblemClientRecord, locale: 'zh-CN' | 'en-US') {
   const state = problemPracticeState(problem);
-  if (state === 'wrong') return locale === 'zh-CN' ? '需复习' : 'Review';
-  if (state === 'mastered') return locale === 'zh-CN' ? '已掌握' : 'Mastered';
-  if (state === 'unattempted') return locale === 'zh-CN' ? '未做' : 'Untried';
-  return locale === 'zh-CN' ? '进行中' : 'In progress';
+  if (state === 'wrong') return locale === 'zh-CN' ? '已完成但做错' : 'Completed incorrectly';
+  if (state === 'mastered') return locale === 'zh-CN' ? '已完成' : 'Completed';
+  if (state === 'unattempted') return locale === 'zh-CN' ? '未完成' : 'Not completed';
+  return locale === 'zh-CN' ? '尝试中' : 'In progress';
 }
 
 function practiceStateClassName(problem: NotebookProblemClientRecord) {
@@ -871,11 +890,6 @@ function latestScoreLabel(problem: NotebookProblemClientRecord, locale: 'zh-CN' 
     return `${problem.latestAttempt.score}/${problem.points}`;
   }
   return locale === 'zh-CN' ? '未提交' : 'No score';
-}
-
-function weakTopicBarClass(index: number): string {
-  const classes = ['bg-rose-500', 'bg-amber-500', 'bg-emerald-500', 'bg-sky-500', 'bg-violet-500'];
-  return classes[index % classes.length];
 }
 
 type FilterSelectOption = {
@@ -1941,7 +1955,6 @@ export {
   statusLabel,
   supportsPhotoAnswer,
   typeLabel,
-  weakTopicBarClass,
 };
 
 export type {

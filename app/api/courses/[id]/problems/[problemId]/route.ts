@@ -14,6 +14,7 @@ import {
   getCourseProblemForUser,
   updateCourseProblem,
 } from '@/features/problems/server/service';
+import { getProblemTagAssignments } from '@/features/problem-tags/server/problem-tag-service';
 
 const updateProblemSchema = z.object({
   notebookId: z.string().trim().min(1).nullable().optional(),
@@ -31,6 +32,9 @@ const updateProblemSchema = z.object({
 function toClientProblem(
   problem: Awaited<ReturnType<typeof getCourseProblemForUser>>['problem'],
   secretJudge?: Awaited<ReturnType<typeof getCourseProblemForUser>>['secretJudge'],
+  tagAssignments: Awaited<ReturnType<typeof getProblemTagAssignments>> extends Map<string, infer T>
+    ? T
+    : never = [],
 ) {
   return {
     id: problem.id,
@@ -45,6 +49,7 @@ function toClientProblem(
     problemNumber: problem.problemNumber ?? null,
     points: problem.points,
     tags: problem.tags,
+    tagAssignments,
     difficulty: problem.difficulty,
     publicContent: problem.publicContent,
     grading: problem.grading,
@@ -71,7 +76,10 @@ export async function GET(
       // Keep an explicit escape hatch for maintenance/debugging callers.
       skipMaintenance: url.searchParams.get('maintenance') !== '1',
     });
-    return NextResponse.json({ problem: toClientProblem(problem, secretJudge) });
+    const assignments = await getProblemTagAssignments(prisma, id, [problem.id]);
+    return NextResponse.json({
+      problem: toClientProblem(problem, secretJudge, assignments.get(problem.id) || []),
+    });
   });
 }
 
@@ -119,7 +127,10 @@ export async function PATCH(
       ownerId: auth.userId,
       reason: 'course_problem_updated',
     });
-    return NextResponse.json({ problem: toClientProblem(problem, problem.secretJudge) });
+    const assignments = await getProblemTagAssignments(prisma, id, [problem.id]);
+    return NextResponse.json({
+      problem: toClientProblem(problem, problem.secretJudge, assignments.get(problem.id) || []),
+    });
   });
 }
 

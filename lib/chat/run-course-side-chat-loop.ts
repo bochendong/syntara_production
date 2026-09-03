@@ -25,6 +25,7 @@ import { useSettingsStore } from '@/lib/store/settings';
 import { createLogger } from '@/lib/logger';
 import { runQueuedAiTask, updateQueuedAiTask } from '@/lib/store/ai-task-queue';
 import { backendFetch } from '@/lib/utils/backend-api';
+import type { ChatResponseStrength } from '@/lib/ai/chat-response-strength';
 
 const log = createLogger('CourseSideChat');
 
@@ -37,6 +38,7 @@ export interface RunCourseSideChatParams {
   userProfile?: { nickname?: string; bio?: string };
   surface?: StatelessChatRequest['config']['surface'];
   teachingMode?: CourseChatTeachingMode;
+  responseStrength?: ChatResponseStrength;
   courseContext?: CourseChatContext;
   trustedLearnAnswererHandoffToken?: string;
   apiKey: string;
@@ -561,6 +563,7 @@ async function runCourseSideChatLoopUnqueued(
     userProfile,
     surface,
     teachingMode,
+    responseStrength,
     courseContext,
     trustedLearnAnswererHandoffToken,
     apiKey,
@@ -631,6 +634,7 @@ async function runCourseSideChatLoopUnqueued(
       sessionType: 'qa',
       surface,
       teachingMode: teachingMode === 'guided' ? 'guided' : 'reply',
+      responseStrength,
     };
     if (agentConfigs && agentConfigs.length > 0) {
       config.agentConfigs = agentConfigs;

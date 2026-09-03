@@ -20,6 +20,7 @@ const submitSchema = z.object({
   code: z.string().max(120000).optional(),
   images: z.array(notebookProblemAttemptImageSchema).max(4).optional(),
   language: z.enum(['zh-CN', 'en-US']).default('zh-CN'),
+  activeDurationMs: z.number().int().min(0).max(14_400_000).optional(),
 });
 
 export async function POST(
@@ -103,6 +104,8 @@ export async function POST(
       score: evaluated.score,
       answer,
       result: evaluated.result,
+      activeDurationMs: payload.data.activeDurationMs,
+      timingSource: payload.data.activeDurationMs === undefined ? undefined : 'client_active_v1',
     });
 
     return NextResponse.json({

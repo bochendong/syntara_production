@@ -29,6 +29,20 @@ export const notebookProblemAttemptStatusSchema = z.enum([
 
 export const notebookProblemSourceMetaSchema = z.record(z.string(), z.unknown()).default({});
 
+export const notebookProblemTagPathSchema = z.object({
+  area: z.string().trim().min(1).max(120),
+  concept: z.string().trim().min(1).max(120),
+});
+
+export const notebookProblemTagAssignmentSchema = notebookProblemTagPathSchema.extend({
+  id: z.string().trim().min(1),
+  areaId: z.string().trim().min(1),
+  source: z.string().trim().min(1).max(24),
+  status: z.enum(['applied', 'pending']),
+  confidence: z.number().min(0).max(1).nullable().optional(),
+  lockedByTeacher: z.boolean().default(false),
+});
+
 export const notebookProblemImageAssetSchema = z.object({
   id: z.string().trim().min(1).max(120),
   src: z.string().trim().min(1).max(8_000_000),
@@ -251,6 +265,7 @@ export const notebookProblemRecordSchema = z.object({
   problemNumber: z.number().int().positive().nullable().optional(),
   points: z.number().int().min(0).max(1000).default(1),
   tags: z.array(z.string().trim().min(1).max(30)).max(16).default([]),
+  tagAssignments: z.array(notebookProblemTagAssignmentSchema).max(16).default([]),
   difficulty: notebookProblemDifficultySchema.default('medium'),
   publicContent: notebookProblemPublicContentSchema,
   grading: notebookProblemGradingSchema,
@@ -260,6 +275,13 @@ export const notebookProblemRecordSchema = z.object({
 });
 
 export const notebookProblemSummarySchema = notebookProblemRecordSchema.extend({
+  attemptStats: z
+    .object({
+      attemptedCount: z.number().int().min(0),
+      passedCount: z.number().int().min(0),
+    })
+    .nullable()
+    .optional(),
   latestAttempt: z
     .object({
       id: z.string().trim().min(1),
@@ -332,6 +354,8 @@ export const notebookProblemAttemptRecordSchema = z.object({
   score: z.number().nullable().optional(),
   answer: notebookProblemAttemptAnswerSchema,
   result: notebookProblemAttemptResultSchema.optional(),
+  activeDurationMs: z.number().int().min(0).max(14_400_000).nullable().optional(),
+  timingSource: z.string().trim().min(1).max(32).nullable().optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -345,6 +369,7 @@ export const notebookProblemImportDraftSchema = z.object({
   source: notebookProblemSourceSchema.default('manual'),
   points: z.number().int().min(0).max(1000).default(1),
   tags: z.array(z.string().trim().min(1).max(30)).max(16).default([]),
+  tagPaths: z.array(notebookProblemTagPathSchema).max(8).optional(),
   difficulty: notebookProblemDifficultySchema.default('medium'),
   publicContent: notebookProblemPublicContentSchema,
   grading: notebookProblemGradingSchema,
@@ -372,6 +397,8 @@ export type NotebookProblemAttemptAnswer = z.infer<typeof notebookProblemAttempt
 export type NotebookProblemAttemptResult = z.infer<typeof notebookProblemAttemptResultSchema>;
 export type NotebookProblemAttemptRecord = z.infer<typeof notebookProblemAttemptRecordSchema>;
 export type NotebookProblemImportDraft = z.infer<typeof notebookProblemImportDraftSchema>;
+export type NotebookProblemTagPath = z.infer<typeof notebookProblemTagPathSchema>;
+export type NotebookProblemTagAssignment = z.infer<typeof notebookProblemTagAssignmentSchema>;
 export type NotebookProblemPublicChoice = z.infer<typeof notebookProblemPublicChoiceSchema>;
 export type NotebookProblemPublicFillBlank = z.infer<typeof notebookProblemPublicFillBlankSchema>;
 export type NotebookProblemPublicCalculation = z.infer<

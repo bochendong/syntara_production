@@ -29,16 +29,16 @@ type UsageSummary = {
 
 type GlobalLimit = {
   enabled: boolean;
-  monthlyCostLimitUsd: number | null;
-  monthlyRequestLimit: number | null;
+  weeklyCostLimitUsd: number | null;
+  weeklyRequestLimit: number | null;
   updatedBy: string | null;
   updatedAt: string | null;
 };
 
 type UserLimit = {
   userId: string;
-  monthlyCostLimitUsd: number | null;
-  monthlyRequestLimit: number | null;
+  weeklyCostLimitUsd: number | null;
+  weeklyRequestLimit: number | null;
   disabled: boolean;
   note: string | null;
   updatedBy: string | null;
@@ -134,8 +134,8 @@ export function AdminUsageLimitsSection() {
         setGlobalLimit(response.global.limit);
         setGlobalUsage(response.global.usage);
         setGlobalEnabled(response.global.limit.enabled);
-        setGlobalCost(response.global.limit.monthlyCostLimitUsd?.toString() ?? '');
-        setGlobalRequests(response.global.limit.monthlyRequestLimit?.toString() ?? '');
+        setGlobalCost(response.global.limit.weeklyCostLimitUsd?.toString() ?? '');
+        setGlobalRequests(response.global.limit.weeklyRequestLimit?.toString() ?? '');
       })
       .catch((error) => {
         if (!cancelled) toast.error(error instanceof Error ? error.message : String(error));
@@ -148,8 +148,8 @@ export function AdminUsageLimitsSection() {
 
   useEffect(() => {
     const limit = editingUser?.limit;
-    setUserCost(limit?.monthlyCostLimitUsd?.toString() ?? '');
-    setUserRequests(limit?.monthlyRequestLimit?.toString() ?? '');
+    setUserCost(limit?.weeklyCostLimitUsd?.toString() ?? '');
+    setUserRequests(limit?.weeklyRequestLimit?.toString() ?? '');
     setUserDisabled(Boolean(limit?.disabled));
     setUserNote(limit?.note ?? '');
   }, [editingUser]);
@@ -187,8 +187,8 @@ export function AdminUsageLimitsSection() {
         body: JSON.stringify({
           scope: 'global',
           enabled: globalEnabled,
-          monthlyCostLimitUsd: globalCost,
-          monthlyRequestLimit: globalRequests,
+          weeklyCostLimitUsd: globalCost,
+          weeklyRequestLimit: globalRequests,
         }),
       });
       setGlobalLimit(response.global.limit);
@@ -216,8 +216,8 @@ export function AdminUsageLimitsSection() {
           scope: 'user',
           userId: editingUser.id,
           disabled: userDisabled,
-          monthlyCostLimitUsd: userCost,
-          monthlyRequestLimit: userRequests,
+          weeklyCostLimitUsd: userCost,
+          weeklyRequestLimit: userRequests,
           note: userNote,
         }),
       });
@@ -259,8 +259,8 @@ export function AdminUsageLimitsSection() {
           targetRole: bulkTargetRole,
           userIds: selectedBulkUserIds,
           disabled: bulkDisabled,
-          monthlyCostLimitUsd: bulkCost,
-          monthlyRequestLimit: bulkRequests,
+          weeklyCostLimitUsd: bulkCost,
+          weeklyRequestLimit: bulkRequests,
           note: bulkNote,
         }),
       });
@@ -273,8 +273,8 @@ export function AdminUsageLimitsSection() {
             ...user,
             limit: {
               userId: user.id,
-              monthlyCostLimitUsd: bulkCost.trim() ? Number.parseFloat(bulkCost) : null,
-              monthlyRequestLimit: bulkRequests.trim() ? Number.parseInt(bulkRequests, 10) : null,
+              weeklyCostLimitUsd: bulkCost.trim() ? Number.parseFloat(bulkCost) : null,
+              weeklyRequestLimit: bulkRequests.trim() ? Number.parseInt(bulkRequests, 10) : null,
               disabled: bulkDisabled,
               note: bulkNote.trim() || null,
               updatedBy: null,
@@ -293,11 +293,11 @@ export function AdminUsageLimitsSection() {
 
   const globalCostStatus = limitStatus(
     globalUsage?.estimatedCostUsd ?? 0,
-    globalLimit?.monthlyCostLimitUsd,
+    globalLimit?.weeklyCostLimitUsd,
   );
   const globalRequestStatus = limitStatus(
     globalUsage?.requestCount ?? 0,
-    globalLimit?.monthlyRequestLimit,
+    globalLimit?.weeklyRequestLimit,
   );
   const filteredBulkUsers = useMemo(() => {
     const keyword = bulkSearch.trim().toLowerCase();
@@ -337,13 +337,13 @@ export function AdminUsageLimitsSection() {
             全站云端总上限
           </CardTitle>
           <CardDescription>
-            按云端数据库中的本月 API 用量统计，触顶后服务端会拒绝新的模型、图片和搜索调用。
+            按每周一 00:00 UTC 重置的 API 用量统计，触顶后服务端会拒绝新的模型、图片和搜索调用。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-3 md:grid-cols-4">
             <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">本月成本</p>
+              <p className="text-xs text-muted-foreground">本周成本</p>
               <p className="mt-1 text-lg font-semibold">
                 {formatUsd(globalUsage?.estimatedCostUsd)}
               </p>
@@ -354,11 +354,11 @@ export function AdminUsageLimitsSection() {
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">成本上限</p>
               <p className="mt-1 text-lg font-semibold">
-                {formatUsd(globalLimit?.monthlyCostLimitUsd)}
+                {formatUsd(globalLimit?.weeklyCostLimitUsd)}
               </p>
             </div>
             <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">本月请求</p>
+              <p className="text-xs text-muted-foreground">本周请求</p>
               <p className="mt-1 text-lg font-semibold">
                 {formatNumber(globalUsage?.requestCount)}
               </p>
@@ -369,7 +369,7 @@ export function AdminUsageLimitsSection() {
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">请求上限</p>
               <p className="mt-1 text-lg font-semibold">
-                {formatNumber(globalLimit?.monthlyRequestLimit)}
+                {formatNumber(globalLimit?.weeklyRequestLimit)}
               </p>
             </div>
           </div>
@@ -385,7 +385,7 @@ export function AdminUsageLimitsSection() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="global-cost">月成本上限 USD</Label>
+              <Label htmlFor="global-cost">每周成本上限 USD</Label>
               <Input
                 id="global-cost"
                 inputMode="decimal"
@@ -395,7 +395,7 @@ export function AdminUsageLimitsSection() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="global-requests">月请求数上限</Label>
+              <Label htmlFor="global-requests">每周请求数上限</Label>
               <Input
                 id="global-requests"
                 inputMode="numeric"
@@ -423,7 +423,8 @@ export function AdminUsageLimitsSection() {
             批量用户云端上限
           </CardTitle>
           <CardDescription>
-            选择一组账号后统一覆盖月成本、月请求数和暂停状态。留空表示不限。
+            选择一组账号后统一覆盖每周成本、每周请求数和暂停状态。留空表示不限；学生侧按 100 点 = 1
+            USD 显示剩余用量。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -460,7 +461,7 @@ export function AdminUsageLimitsSection() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="bulk-cost">月成本上限 USD</Label>
+              <Label htmlFor="bulk-cost">每周成本上限 USD</Label>
               <Input
                 id="bulk-cost"
                 inputMode="decimal"
@@ -470,7 +471,7 @@ export function AdminUsageLimitsSection() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="bulk-requests">月请求数上限</Label>
+              <Label htmlFor="bulk-requests">每周请求数上限</Label>
               <Input
                 id="bulk-requests"
                 inputMode="numeric"
@@ -615,7 +616,7 @@ export function AdminUsageLimitsSection() {
             <div className="space-y-5 px-6 py-5">
               <div className="grid gap-3 sm:grid-cols-4">
                 <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">本月成本</p>
+                  <p className="text-xs text-muted-foreground">本周成本</p>
                   <p className="mt-1 text-lg font-semibold">
                     {formatUsd(editingUser.usage.estimatedCostUsd)}
                   </p>
@@ -623,11 +624,11 @@ export function AdminUsageLimitsSection() {
                 <div className="rounded-lg border p-3">
                   <p className="text-xs text-muted-foreground">成本上限</p>
                   <p className="mt-1 text-lg font-semibold">
-                    {formatUsd(editingUser.limit?.monthlyCostLimitUsd)}
+                    {formatUsd(editingUser.limit?.weeklyCostLimitUsd)}
                   </p>
                 </div>
                 <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">本月请求</p>
+                  <p className="text-xs text-muted-foreground">本周请求</p>
                   <p className="mt-1 text-lg font-semibold">
                     {formatNumber(editingUser.usage.requestCount)}
                   </p>
@@ -635,7 +636,7 @@ export function AdminUsageLimitsSection() {
                 <div className="rounded-lg border p-3">
                   <p className="text-xs text-muted-foreground">请求上限</p>
                   <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(editingUser.limit?.monthlyRequestLimit)}
+                    {formatNumber(editingUser.limit?.weeklyRequestLimit)}
                   </p>
                 </div>
               </div>
@@ -652,7 +653,7 @@ export function AdminUsageLimitsSection() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="user-cost">月成本上限 USD</Label>
+                  <Label htmlFor="user-cost">每周成本上限 USD</Label>
                   <Input
                     id="user-cost"
                     inputMode="decimal"
@@ -662,7 +663,7 @@ export function AdminUsageLimitsSection() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="user-requests">月请求数上限</Label>
+                  <Label htmlFor="user-requests">每周请求数上限</Label>
                   <Input
                     id="user-requests"
                     inputMode="numeric"

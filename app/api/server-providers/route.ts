@@ -9,6 +9,7 @@ import {
 } from '@/lib/server/provider-config';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { createLogger } from '@/lib/logger';
+import { CHAT_RESPONSE_STRENGTH_CONFIG } from '@/lib/ai/chat-response-strength';
 
 const log = createLogger('ServerProviders');
 
@@ -19,10 +20,13 @@ export async function GET() {
     const systemLLM = await import('@/lib/server/system-llm-config').then((module) =>
       module.getSystemLLMConfigView(),
     );
-    const openaiModels =
-      openaiFromServer.models && openaiFromServer.models.length > 0
-        ? openaiFromServer.models
-        : [systemLLM.modelId];
+    const openaiModels = Array.from(
+      new Set([
+        ...Object.values(CHAT_RESPONSE_STRENGTH_CONFIG).map((tier) => tier.modelId),
+        ...(openaiFromServer.models || []),
+        systemLLM.modelId,
+      ]),
+    );
     const openaiBaseUrl =
       openaiFromServer.baseUrl ||
       systemLLM.baseUrl ||

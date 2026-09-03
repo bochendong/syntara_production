@@ -1,7 +1,7 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
-import { Loader2, MessageCircle, MoreHorizontal, Plus, Search, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { Gauge, Loader2, MessageCircle, MoreHorizontal, Plus, Search, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -11,6 +11,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { backendJson } from '@/lib/utils/backend-api';
+import { WEEKLY_USAGE_UPDATED_EVENT } from '@/lib/cloud-usage-events';
 
 export type LearnCourseSidebarCourse = {
   name: string;
@@ -35,6 +37,7 @@ export type LearnCourseSidebarProps = {
   hasMore?: boolean;
   error?: string | null;
   interactionDisabled?: boolean;
+  showWeeklyUsage?: boolean;
   className?: string;
   onCreateSession: () => void;
   onSelectSession: (session: LearnCourseSidebarSession) => void;
@@ -84,6 +87,7 @@ export function LearnCourseSidebar({
   hasMore: _hasMore = false,
   error,
   interactionDisabled = false,
+  showWeeklyUsage = false,
   className,
   onCreateSession,
   onSelectSession,
@@ -287,6 +291,138 @@ export function LearnCourseSidebar({
           </p>
         )}
       </nav>
+      {showWeeklyUsage ? <WeeklyUsageSummary /> : null}
     </div>
+  );
+}
+
+type WeeklyUsageResponse = {
+  success: true;
+  databaseEnabled: boolean;
+  period: { start: string; end: string };
+  usedCredits: number;
+  limitCredits: number | null;
+  remainingCredits: number | null;
+  requestCount: number;
+  requestLimit: number | null;
+  remainingRequests: number | null;
+  disabled: boolean;
+};
+
+function WeeklyUsageSummary() {
+  const [usage, setUsage] = useState<WeeklyUsageResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const response = await backendJson<WeeklyUsageResponse>('/api/profile/weekly-usage');
+      setUsage(response);
+    } catch {
+      setUsage(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const onUsageUpdated = () => void load();
+    window.addEventListener(WEEKLY_USAGE_UPDATED_EVENT, onUsageUpdated);
+    return () => window.removeEventListener(WEEKLY_USAGE_UPDATED_EVENT, onUsageUpdated);
+  }, [load]);
+
+  const limit = usage?.limitCredits ?? null;
+  const used = usage?.usedCredits ?? 0;
+  const requestLimit = usage?.requestLimit ?? null;
+  const hasCostLimit = limit != null;
+  const hasRequestLimit = requestLimit != null;
+  const progress = hasCostLimit
+    ? limit <= 0
+      ? 100
+      : Math.min(100, (used / limit) * 100)
+    : hasRequestLimit
+      ? requestLimit <= 0
+        ? 100
+        : Math.min(100, ((usage?.requestCount ?? 0) / requestLimit) * 100)
+      : 0;
+  const resetLabel = usage?.period.end
+    ? new Date(usage.period.end).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+    : null;
+
+  return (
+    <section
+      className="mx-3 mb-3 shrink-0 rounded-[12px] border border-slate-200/80 bg-white/90 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.05]"
+      aria-label="本周剩余用量"
+      data-testid="learn-weekly-usage"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-800 dark:text-slate-100">
+          <Gauge className="size-3.5 text-emerald-600" strokeWidth={1.9} />
+          本周剩余用量
+        </div>
+        {loading ? <Loader2 className="size-3 animate-spin text-slate-400" /> : null}
+      </div>
+
+      {!loading && usage?.disabled ? (
+        <p className="mt-2 text-[11px] font-medium text-rose-600 dark:text-rose-300">
+          管理员已暂停 AI 调用
+        </p>
+      ) : !loading && usage && !usage.databaseEnabled ? (
+        <p className="mt-2 text-[11px] text-slate-500">当前环境未启用云端用量统计</p>
+      ) : !loading && usage && (hasCostLimit || hasRequestLimit) ? (
+        <>
+          <div className="mt-2 flex items-end justify-between gap-2">
+            <p className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
+              {(hasCostLimit ? usage.remainingCredits : usage.remainingRequests)?.toLocaleString(
+                'zh-CN',
+              ) ?? 0}
+              <span className="ml-1 text-[10px] font-medium text-slate-400">
+                {hasCostLimit ? '点' : '次'}
+              </span>
+            </p>
+            <p className="pb-0.5 text-[10px] text-slate-400">
+              已用{' '}
+              {hasCostLimit
+                ? used.toLocaleString('zh-CN')
+                : usage.requestCount.toLocaleString('zh-CN')}{' '}
+              / {(hasCostLimit ? limit : requestLimit)?.toLocaleString('zh-CN')}
+            </p>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+            <div
+              className={cn(
+                'h-full rounded-full transition-[width]',
+                progress >= 100
+                  ? 'bg-rose-500'
+                  : progress >= 80
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500',
+              )}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="mt-2 text-[10px] leading-4 text-slate-400">
+            {hasCostLimit ? '按模型实际开销扣减' : '按 AI 请求次数扣减'}
+            {hasCostLimit && hasRequestLimit
+              ? ` · 请求 ${usage.requestCount.toLocaleString('zh-CN')} / ${requestLimit.toLocaleString('zh-CN')}`
+              : ''}
+            {resetLabel ? ` · ${resetLabel} 重置` : ''}
+          </p>
+        </>
+      ) : !loading && usage ? (
+        <>
+          <p className="mt-2 text-[12px] font-medium text-slate-600 dark:text-slate-300">
+            管理员尚未设置每周限额
+          </p>
+          <p className="mt-1 text-[10px] text-slate-400">
+            本周已用 {used.toLocaleString('zh-CN')} 点
+          </p>
+        </>
+      ) : !loading ? (
+        <button type="button" onClick={() => void load()} className="mt-2 text-[11px] text-sky-600">
+          用量暂不可用，点击重试
+        </button>
+      ) : null}
+    </section>
   );
 }

@@ -10,6 +10,7 @@ import type {
   NotebookProblemGrading,
   NotebookProblemPublicContent,
   NotebookProblemSecretJudge,
+  NotebookProblemTagAssignment,
 } from '@/lib/problem-bank';
 import type { ReviewProblemInsertInput } from '@/lib/problem-bank/review-problem-insert';
 
@@ -26,6 +27,7 @@ export type NotebookProblemClientRecord = {
   problemNumber?: number | null;
   points: number;
   tags: string[];
+  tagAssignments?: NotebookProblemTagAssignment[];
   difficulty: 'easy' | 'medium' | 'hard';
   publicContent: NotebookProblemPublicContent;
   grading: NotebookProblemGrading;
@@ -33,6 +35,10 @@ export type NotebookProblemClientRecord = {
   sourceMeta: Record<string, unknown>;
   createdAt: number;
   updatedAt: number;
+  attemptStats?: {
+    attemptedCount: number;
+    passedCount: number;
+  } | null;
   latestAttempt?: {
     id: string;
     status: 'pending' | 'passed' | 'failed' | 'partial' | 'error';
@@ -53,6 +59,7 @@ export type CourseProblemClientSummary = Pick<
   | 'tags'
   | 'difficulty'
   | 'updatedAt'
+  | 'attemptStats'
   | 'latestAttempt'
 >;
 
@@ -88,10 +95,12 @@ export async function listNotebookProblems(
 
 export async function listCourseProblems(
   courseId: string,
-  options?: { lean?: boolean } & BackendLoadOptions,
+  options?: { lean?: boolean; areaId?: string; conceptId?: string } & BackendLoadOptions,
 ): Promise<NotebookProblemClientRecord[]> {
   const params = new URLSearchParams();
   if (options?.lean) params.set('lean', '1');
+  if (options?.areaId) params.set('areaId', options.areaId);
+  if (options?.conceptId) params.set('conceptId', options.conceptId);
   const query = params.toString();
   const data = await backendJson<{ problems: NotebookProblemClientRecord[] }>(
     `/api/courses/${encodeURIComponent(courseId)}/problems${query ? `?${query}` : ''}`,
@@ -181,25 +190,80 @@ export async function listCourseProblemSummaries(
   return data.problems;
 }
 
-export type CourseProblemAutoArchiveResult = {
-  candidateCount: number;
-  assignedCount: number;
-  remainingCount: number;
-  skippedLowConfidenceCount: number;
-  truncated: boolean;
-  notebookCounts?: Record<string, number>;
+export type CourseProblemTagTreeNode = {
+  id: string;
+  name: string;
+  aliases: string[];
+  source: string;
+  status: string;
+  confidence: number | null;
+  lockedByTeacher: boolean;
+  problemCount: number;
+  concepts: Array<Omit<CourseProblemTagTreeNode, 'concepts'>>;
 };
 
-export async function autoArchiveUnassignedCourseProblems(
+export async function listCourseProblemTags(courseId: string) {
+  return backendJson<{ tree: CourseProblemTagTreeNode[]; canManage: boolean }>(
+    `/api/courses/${encodeURIComponent(courseId)}/problem-tags`,
+  );
+}
+
+export type CourseProblemTagOrganizeResult = {
+  candidateCount: number;
+  appliedCount: number;
+  pendingCount: number;
+  unassignedCount: number;
+  truncated: boolean;
+};
+
+export async function organizeCourseProblemTags(
   courseId: string,
-): Promise<CourseProblemAutoArchiveResult> {
-  return backendJson<CourseProblemAutoArchiveResult>(
-    `/api/courses/${encodeURIComponent(courseId)}/problems/auto-archive`,
+): Promise<CourseProblemTagOrganizeResult> {
+  return backendJson<CourseProblemTagOrganizeResult>(
+    `/api/courses/${encodeURIComponent(courseId)}/problem-tags/organize`,
     {
       method: 'POST',
       headers: withModelHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({}),
       timeoutMs: 300_000,
+    },
+  );
+}
+
+export async function updateCourseProblemTag(args: {
+  courseId: string;
+  tagId: string;
+  name?: string;
+  parentId?: string;
+  aliases?: string[];
+  confirmAssignments?: boolean;
+}) {
+  return backendJson<{ tag: unknown }>(
+    `/api/courses/${encodeURIComponent(args.courseId)}/problem-tags/${encodeURIComponent(args.tagId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: args.name,
+        parentId: args.parentId,
+        aliases: args.aliases,
+        confirmAssignments: args.confirmAssignments,
+      }),
+    },
+  );
+}
+
+export async function mergeCourseProblemTags(args: {
+  courseId: string;
+  sourceId: string;
+  targetId: string;
+}) {
+  return backendJson<{ ok: true }>(
+    `/api/courses/${encodeURIComponent(args.courseId)}/problem-tags/merge`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceId: args.sourceId, targetId: args.targetId }),
     },
   );
 }
@@ -436,6 +500,7 @@ export async function submitNotebookProblem(args: {
   code?: string;
   images?: NotebookProblemAttemptAnswer['images'];
   language: 'zh-CN' | 'en-US';
+  activeDurationMs?: number;
 }) {
   return runQueuedAiTask(
     {
@@ -468,6 +533,7 @@ export async function submitCourseProblem(args: {
   code?: string;
   images?: NotebookProblemAttemptAnswer['images'];
   language: 'zh-CN' | 'en-US';
+  activeDurationMs?: number;
 }) {
   return runQueuedAiTask(
     {

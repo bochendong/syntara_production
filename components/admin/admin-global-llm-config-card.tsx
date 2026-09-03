@@ -8,6 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { backendJson } from '@/lib/utils/backend-api';
+import {
+  CHAT_RESPONSE_STRENGTH_CONFIG,
+  CHAT_RESPONSE_STRENGTHS,
+} from '@/lib/ai/chat-response-strength';
 
 type SystemConfig = {
   providerId: 'openai';
@@ -21,7 +25,7 @@ type SystemConfig = {
 
 export function AdminGlobalLlmConfigCard() {
   const [config, setConfig] = useState<SystemConfig | null>(null);
-  const [modelId, setModelId] = useState('gpt-5.6-terra');
+  const [modelId, setModelId] = useState('gpt-5.6-luna');
   const [baseUrl, setBaseUrl] = useState('https://api.openai.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(true);
@@ -68,10 +72,10 @@ export function AdminGlobalLlmConfigCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="size-4 text-emerald-600" />
-          全站 OpenAI API Key 与默认模型
+          全站 OpenAI API Key 与回复强度模型
         </CardTitle>
         <CardDescription>
-          保存后供全站 OpenAI 语言、图像和语音能力统一使用。Key
+          学生聊天按低、中、高三档使用受控的 GPT-5.6 模型；其他 AI 功能继续使用兜底模型。Key
           会加密保存且只在服务端解密，浏览器只能看到掩码。
         </CardDescription>
       </CardHeader>
@@ -97,7 +101,7 @@ export function AdminGlobalLlmConfigCard() {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="system-model-id">模型 ID</Label>
+                <Label htmlFor="system-model-id">其他 AI 功能兜底模型</Label>
                 <Input
                   id="system-model-id"
                   value={modelId}
@@ -112,6 +116,25 @@ export function AdminGlobalLlmConfigCard() {
                   onChange={(event) => setBaseUrl(event.target.value)}
                 />
               </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {CHAT_RESPONSE_STRENGTHS.map((strength) => {
+                const tier = CHAT_RESPONSE_STRENGTH_CONFIG[strength];
+                return (
+                  <div key={strength} className="rounded-xl border bg-muted/20 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold">{tier.label}强度</p>
+                      <span className="text-xs text-muted-foreground">
+                        约 {tier.relativeCost}× 用量
+                      </span>
+                    </div>
+                    <p className="mt-1 font-mono text-xs text-foreground">{tier.modelId}</p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      {tier.description}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
             <div className="space-y-2">
               <Label htmlFor="system-api-key">OpenAI API Key</Label>

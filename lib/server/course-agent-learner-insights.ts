@@ -7,6 +7,11 @@ import {
 } from '@/lib/server/memory-learner-analytics';
 import type { MemorySearchIntent, MemorySearchIntentKind } from '@/lib/server/memory-search-intent';
 import { findCourseAccessRole } from '@/lib/server/repositories/course-enrollment-repository';
+import {
+  loadCourseLearningOverview,
+  loadCourseStudentLearningDetail,
+  type LearningRange,
+} from '@/features/teacher-analytics/server/course-learning-analytics';
 
 export type CourseAgentLearningFocus = 'questions' | 'status' | 'weakness' | 'all';
 
@@ -192,7 +197,63 @@ export async function loadTeacherStudentInsight(args: {
     focus: args.focus,
     timeScope: args.timeScope,
   });
-  return { found: true as const, student, analytics };
+  const range = analyticsRange(args.timeScope);
+  const problemLearning = await loadCourseStudentLearningDetail({
+    prisma: args.prisma,
+    courseId: args.courseId,
+    studentId: student.userId,
+    range,
+  });
+  const since = problemLearning?.from ? new Date(problemLearning.from) : null;
+  const forumQuestions = await args.prisma.courseForumPost.findMany({
+    where: {
+      courseId: args.courseId,
+      authorId: student.userId,
+      problemId: { not: null },
+      ...(since ? { createdAt: { gte: since } } : {}),
+    },
+    select: { id: true, title: true, problemId: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+    take: 30,
+  });
+  return {
+    found: true as const,
+    student,
+    analytics,
+    statistics: problemLearning
+      ? {
+          timeRange: { scope: range, from: problemLearning.from, to: problemLearning.to },
+          submissionCount: problemLearning.student.submissionCount,
+          attemptedProblemCount: problemLearning.student.attemptedProblemCount,
+          passRate: problemLearning.student.passRate,
+          averageActiveDurationMs: problemLearning.student.averageActiveDurationMs,
+          timingSampleCount: problemLearning.student.timingSampleCount,
+          problems: problemLearning.problems
+            .filter((problem) => problem.latestAttempt)
+            .map((problem) => ({
+              ...problem,
+              href: `/teacher/courses/${args.courseId}/students/${student.userId}`,
+              problemHref: `/course/${args.courseId}/problem-bank/${problem.problemId}`,
+            })),
+          weakProblems: problemLearning.problems.filter(
+            (problem) =>
+              problem.latestAttempt && ['failed', 'partial', 'error'].includes(problem.status),
+          ),
+          forumQuestions: forumQuestions.map((post) => ({
+            ...post,
+            createdAt: post.createdAt.toISOString(),
+            href: `/course/${args.courseId}/forum?postId=${post.id}`,
+          })),
+        }
+      : null,
+  };
+}
+
+function analyticsRange(scope: LearnerAnalyticsTimeScope): LearningRange {
+  if (scope === 'month') return '30d';
+  if (scope === 'term') return 'term';
+  if (scope === 'all') return 'all';
+  return '7d';
 }
 
 function sinceForScope(scope: LearnerAnalyticsTimeScope, courseCreatedAt: Date): Date | null {
@@ -228,23 +289,6 @@ export async function loadTeacherClassOverview(args: {
   const students = await enrolledStudents(args.prisma, args.courseId);
   const userIds = students.map((student) => student.userId);
   const since = sinceForScope(args.timeScope, course.createdAt);
-  if (userIds.length === 0) {
-    return {
-      found: true as const,
-      timeScope: args.timeScope,
-      since: since?.toISOString() || null,
-      enrolledStudentCount: 0,
-      activeStudentCount: 0,
-      questionCount: 0,
-      attemptCount: 0,
-      recentQuestions: [],
-      attemptStatus: { passed: 0, failed: 0, partial: 0, other: 0 },
-      weakTags: [],
-      learnerSignals: [],
-      sampled: false,
-    };
-  }
-
   const questionLimit = 120;
   const attemptLimit = 160;
   const memoryLimit = 80;
@@ -309,6 +353,11 @@ export async function loadTeacherClassOverview(args: {
     }
   }
 
+  const learning = await loadCourseLearningOverview({
+    prisma: args.prisma,
+    courseId: args.courseId,
+    range: analyticsRange(args.timeScope),
+  });
   return {
     found: true as const,
     timeScope: args.timeScope,
@@ -337,6 +386,101 @@ export async function loadTeacherClassOverview(args: {
       questions.length === questionLimit ||
       attempts.length === attemptLimit ||
       memories.length === memoryLimit,
+    statistics: {
+      timeRange: { scope: learning.range, from: learning.from, to: learning.to },
+      sample: learning.sample,
+      metrics: learning.metrics,
+      weakTagPaths: learning.weakTagPaths,
+      difficultProblems: learning.difficultProblems.map((problem) => ({
+        ...problem,
+        href: `/course/${args.courseId}/problem-bank/${problem.problemId}`,
+      })),
+      classHref: `/teacher/courses/${args.courseId}/students`,
+    },
+  };
+}
+
+export async function loadTeacherProblemInsight(args: {
+  prisma: PrismaClient;
+  courseId: string;
+  problemQuery: string;
+  timeScope: LearnerAnalyticsTimeScope;
+}) {
+  const needle = normalized(args.problemQuery);
+  const problems = await args.prisma.notebookProblem.findMany({
+    where: {
+      status: { not: 'archived' },
+      OR: [{ courseId: args.courseId }, { notebook: { courseId: args.courseId } }],
+    },
+    select: { id: true, title: true, problemNumber: true },
+    take: 500,
+  });
+  const matches = problems.filter((problem) =>
+    [problem.id, problem.title, problem.problemNumber == null ? '' : String(problem.problemNumber)]
+      .map(normalized)
+      .some((value) => value === needle || value.includes(needle)),
+  );
+  if (matches.length !== 1) {
+    return {
+      found: false as const,
+      reason: matches.length
+        ? '匹配到多道题，请提供题号或更完整标题。'
+        : '没有找到本课程中的题目。',
+      candidates: matches.slice(0, 12),
+    };
+  }
+  const overview = await loadCourseLearningOverview({
+    prisma: args.prisma,
+    courseId: args.courseId,
+    range: analyticsRange(args.timeScope),
+  });
+  const problem = matches[0];
+  const statistic = overview.difficultProblems.find((item) => item.problemId === problem.id) || {
+    problemId: problem.id,
+    title: problem.title,
+    problemNumber: problem.problemNumber,
+    affectedStudentCount: 0,
+    failureRate: 0,
+    attemptCount: 0,
+    forumQuestionCount: 0,
+    averageActiveDurationMs: null,
+    timingSampleCount: 0,
+  };
+  const from = overview.from ? new Date(overview.from) : null;
+  const courseStudents = await enrolledStudents(args.prisma, args.courseId);
+  const attempts = await args.prisma.notebookProblemAttempt.findMany({
+    where: {
+      problemId: problem.id,
+      userId: { in: courseStudents.map((student) => student.userId) },
+      kind: { in: ['submit', 'answer'] },
+      ...(from ? { createdAt: { gte: from } } : {}),
+    },
+    select: { userId: true, status: true, user: { select: { name: true, email: true } } },
+  });
+  const affected = new Map<string, { userId: string; name: string; statuses: Set<string> }>();
+  for (const attempt of attempts.filter((item) => item.status !== 'passed')) {
+    const item = affected.get(attempt.userId) || {
+      userId: attempt.userId,
+      name: attempt.user.name?.trim() || attempt.user.email?.split('@')[0] || '未命名学生',
+      statuses: new Set<string>(),
+    };
+    item.statuses.add(attempt.status);
+    affected.set(attempt.userId, item);
+  }
+  return {
+    found: true as const,
+    timeRange: { scope: overview.range, from: overview.from, to: overview.to },
+    sample: {
+      attemptCount: statistic.attemptCount,
+      timingSampleCount: statistic.timingSampleCount,
+    },
+    problem: statistic,
+    affectedStudents: Array.from(affected.values()).map((student) => ({
+      ...student,
+      statuses: Array.from(student.statuses),
+      href: `/teacher/courses/${args.courseId}/students/${student.userId}`,
+    })),
+    href: `/course/${args.courseId}/problem-bank/${problem.id}`,
   };
 }
 

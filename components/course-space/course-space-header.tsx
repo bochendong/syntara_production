@@ -2,7 +2,14 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from 'react';
-import { BookOpenText, Home, Library, MessageCircleMore, MessagesSquare } from 'lucide-react';
+import {
+  BookOpenText,
+  Home,
+  Library,
+  MessageCircleMore,
+  MessagesSquare,
+  Users,
+} from 'lucide-react';
 import { COURSE_SPACE_HEADER_SURFACE_CLASS } from '@/lib/course-space/format-course-space-header';
 import {
   isCourseSpaceHeaderPlaceholder,
@@ -92,6 +99,16 @@ function navigationItems({
       Icon: MessagesSquare,
       count: forumCount,
     },
+    ...(role === 'teacher'
+      ? [
+          {
+            key: 'students' as const,
+            label: '学生管理',
+            href: `/teacher/courses/${encodedCourseId}/students${previewMode ? '?mock=1' : ''}`,
+            Icon: Users,
+          },
+        ]
+      : []),
   ];
 }
 

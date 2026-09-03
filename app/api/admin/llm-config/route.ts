@@ -1,10 +1,7 @@
 import { NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
-import {
-  getSystemLLMConfigView,
-  updateSystemLLMConfig,
-} from '@/lib/server/system-llm-config';
+import { getSystemLLMConfigView, updateSystemLLMConfig } from '@/lib/server/system-llm-config';
 
 export async function GET() {
   const admin = await requireAdmin();
@@ -39,7 +36,7 @@ export async function POST(req: NextRequest) {
     const baseUrl = body.baseUrl?.trim() || undefined;
 
     if (!modelId) {
-      return apiError('MISSING_REQUIRED_FIELD', 400, '请填写固定模型 ID（modelId）');
+      return apiError('MISSING_REQUIRED_FIELD', 400, '请填写其他 AI 功能的兜底模型 ID（modelId）');
     }
 
     const saved = await updateSystemLLMConfig({

@@ -27,6 +27,7 @@ import {
   Copy,
   Eraser,
   FileText,
+  Gauge,
   Clock3,
   LibraryBig,
   Loader2,
@@ -112,6 +113,12 @@ import { normalizeLooseMathDelimiters } from '@/lib/math-engine';
 import { useAuthStore } from '@/lib/store/auth';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
 import { useSettingsStore } from '@/lib/store/settings';
+import {
+  CHAT_RESPONSE_STRENGTH_CONFIG,
+  DEFAULT_CHAT_RESPONSE_STRENGTH,
+  type ChatResponseStrength,
+} from '@/lib/ai/chat-response-strength';
+import { dispatchWeeklyUsageUpdated } from '@/lib/cloud-usage-events';
 import {
   addMemoryActivity,
   dismissMemoryActivity,
@@ -1337,6 +1344,7 @@ const MAX_SYLLABUS_IMAGE_FILE_BYTES = 12 * 1024 * 1024;
 const LEARN_LEFT_RAIL_COLLAPSED_STORAGE_KEY = 'syntara-learn-left-rail-collapsed';
 const LEARN_RIGHT_RAIL_COLLAPSED_STORAGE_KEY = 'syntara-learn-right-rail-collapsed';
 const LEARN_TEACHING_MODE_STORAGE_PREFIX = 'syntara-learn-teaching-mode:v1';
+const LEARN_RESPONSE_STRENGTH_STORAGE_PREFIX = 'syntara-learn-response-strength:v1';
 const LEARN_DELETED_PRACTICE_PLAN_IDS_PREFIX = 'syntara-learn-deleted-practice-plan-ids:v1';
 
 type LearnSessionListState = {
@@ -7152,6 +7160,9 @@ export function LearnPageClient() {
   const searchParams = useSearchParams();
   const urlSessionId = searchParams.get('session')?.trim() || '';
   const urlCourseId = searchParams.get('courseId')?.trim() || '';
+  const teacherContextStudentId = searchParams.get('studentId')?.trim() || '';
+  const teacherContextProblemId = searchParams.get('problemId')?.trim() || '';
+  const teacherContextRange = searchParams.get('range')?.trim() || '';
   const debugNoCourses = searchParams.get('debugNoCourses') === '1';
   const uiPreviewMode = searchParams.get('uiPreview') === '1';
   const previewLearnHome =
@@ -7189,6 +7200,7 @@ export function LearnPageClient() {
     sessionId: string;
   } | null>(null);
   const composerDraftRef = useRef('');
+  const appliedTeacherContextRef = useRef('');
   const composerAttachmentsRef = useRef<LearnImageAttachment[]>([]);
   const composerAttachmentsBySessionRef = useRef(new Map<string, LearnImageAttachment[]>());
   const hydratedAttachmentUrlsRef = useRef(new Set<string>());
@@ -7328,6 +7340,9 @@ export function LearnPageClient() {
   const [attachments, setAttachments] = useState<LearnImageAttachment[]>([]);
   const [sending, setSending] = useState(false);
   const [chatTeachingMode, setChatTeachingMode] = useState<CourseChatTeachingMode>('reply');
+  const [chatResponseStrength, setChatResponseStrength] = useState<ChatResponseStrength>(
+    DEFAULT_CHAT_RESPONSE_STRENGTH,
+  );
   const [chatContextUsageState, setChatContextUsageState] = useState<{
     key: string;
     usage: CourseChatContextUsage;
@@ -7702,6 +7717,35 @@ export function LearnPageClient() {
     },
     [teachingModeStorageKey],
   );
+  const responseStrengthStorageKey = activeCourseId
+    ? `${LEARN_RESPONSE_STRENGTH_STORAGE_PREFIX}:${localUserId}:${activeCourseId}`
+    : '';
+  useEffect(() => {
+    if (!responseStrengthStorageKey) {
+      setChatResponseStrength(DEFAULT_CHAT_RESPONSE_STRENGTH);
+      return;
+    }
+    try {
+      const stored = localStorage.getItem(responseStrengthStorageKey);
+      setChatResponseStrength(
+        stored === 'low' || stored === 'high' ? stored : DEFAULT_CHAT_RESPONSE_STRENGTH,
+      );
+    } catch {
+      setChatResponseStrength(DEFAULT_CHAT_RESPONSE_STRENGTH);
+    }
+  }, [responseStrengthStorageKey]);
+  const selectChatResponseStrength = useCallback(
+    (strength: ChatResponseStrength) => {
+      setChatResponseStrength(strength);
+      if (!responseStrengthStorageKey) return;
+      try {
+        localStorage.setItem(responseStrengthStorageKey, strength);
+      } catch {
+        // The selected strength remains active in this tab when storage is unavailable.
+      }
+    },
+    [responseStrengthStorageKey],
+  );
   const localContextUsedTokens = useMemo(
     () => estimateLearnConversationContextTokens(visibleMessages),
     [visibleMessages],
@@ -7833,6 +7877,39 @@ export function LearnPageClient() {
     setDraft(nextDraft);
     setAttachments(nextAttachments);
   }, [activeCourseId, activeMessageStoreKey, activeSessionId, localUserId]);
+
+  useEffect(() => {
+    if (!isTeacherCourseChat || !activeMessageStoreKey || !teacherContextRange) return;
+    const contextKey = [
+      activeMessageStoreKey,
+      teacherContextStudentId,
+      teacherContextProblemId,
+      teacherContextRange,
+    ].join(':');
+    if (appliedTeacherContextRef.current === contextKey || composerDraftRef.current.trim()) return;
+    const rangeLabel =
+      teacherContextRange === '30d'
+        ? '最近 30 天'
+        : teacherContextRange === 'term'
+          ? '本学期'
+          : teacherContextRange === 'all'
+            ? '全部时间'
+            : '最近 7 天';
+    const contextPrompt = teacherContextStudentId
+      ? `请分析本课程学生 ID ${teacherContextStudentId} 在${rangeLabel}的做题情况、平均有效做题时间、薄弱知识点和遇到问题的证据。`
+      : teacherContextProblemId
+        ? `请分析本课程题目 ID ${teacherContextProblemId} 在${rangeLabel}的作答困难、受影响学生、平均有效用时和论坛提问。`
+        : `请分析本班在${rangeLabel}的整体做题情况、困难题排行和薄弱知识点。`;
+    appliedTeacherContextRef.current = contextKey;
+    updateComposerDraft(contextPrompt);
+  }, [
+    activeMessageStoreKey,
+    isTeacherCourseChat,
+    teacherContextProblemId,
+    teacherContextRange,
+    teacherContextStudentId,
+    updateComposerDraft,
+  ]);
 
   useEffect(() => {
     activeMessageStoreKeyRef.current = activeMessageStoreKey;
@@ -11759,6 +11836,7 @@ export function LearnPageClient() {
             syllabusEvents,
           }),
           userProfile: { nickname: userName },
+          responseStrength: chatResponseStrength,
         });
         const answer = normalizeCourseAssistantAnswer(
           latestAssistantText(result.messages) ||
@@ -11840,11 +11918,13 @@ export function LearnPageClient() {
         });
       } finally {
         window.clearTimeout(timeoutId);
+        dispatchWeeklyUsageUpdated();
       }
     },
     [
       activeCourse,
       activePracticeSession,
+      chatResponseStrength,
       learnSessions,
       localUserId,
       notebooks,
@@ -14278,6 +14358,7 @@ export function LearnPageClient() {
             userProfile: { nickname: userName },
             surface: isTeacherCourseChat ? 'teacher-course-chat' : 'student-course-chat',
             teachingMode: chatTeachingMode,
+            responseStrength: chatResponseStrength,
             signal: controller.signal,
             onContextUsage: (usage) => {
               if (!canCommitTurn()) return;
@@ -14388,6 +14469,7 @@ export function LearnPageClient() {
           );
         } finally {
           await cleanupCourseChatAttachments(ephemeralCleanupTokens);
+          dispatchWeeklyUsageUpdated();
           finishTurn();
         }
         return;
@@ -14891,6 +14973,7 @@ export function LearnPageClient() {
             syllabusEvents,
           }),
           userProfile: { nickname: userName },
+          responseStrength: chatResponseStrength,
           signal: controller.signal,
           onMessages: (nextMessages) => {
             if (!canCommitTurn()) return;
@@ -15023,6 +15106,7 @@ export function LearnPageClient() {
         );
       } finally {
         await cleanupCourseChatAttachments(ephemeralCleanupTokens);
+        dispatchWeeklyUsageUpdated();
         finishTurn();
       }
     },
@@ -15034,6 +15118,7 @@ export function LearnPageClient() {
       attachments,
       buildSelectedProblemPracticePlan,
       chatTeachingMode,
+      chatResponseStrength,
       syncedCourseSourceUploads,
       draft,
       handleLearningActionConfirm,
@@ -18122,6 +18207,7 @@ export function LearnPageClient() {
         hasMore={activeLearnSessionListState.hasMore}
         error={activeLearnSessionListState.error}
         interactionDisabled={sending}
+        showWeeklyUsage={isStudentCourseChat && !uiPreviewMode}
         onCreateSession={createNewLearnSession}
         onSelectSession={(session) => selectLearnSession(session.id)}
         onDeleteSession={(session) => {
@@ -18534,6 +18620,58 @@ export function LearnPageClient() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+
+                {isStudentCourseChat ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={sending}
+                        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border border-slate-200/80 bg-white px-2.5 text-[11px] font-semibold text-slate-700 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                        aria-label={`回复强度：${CHAT_RESPONSE_STRENGTH_CONFIG[chatResponseStrength].label}`}
+                        data-testid="learn-response-strength-trigger"
+                      >
+                        <Gauge className="size-3.5 text-sky-600" strokeWidth={1.9} />
+                        回复强度 · {CHAT_RESPONSE_STRENGTH_CONFIG[chatResponseStrength].label}
+                        <ChevronDown className="size-3 text-slate-400" strokeWidth={2} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      sideOffset={8}
+                      className="w-80 rounded-[14px] p-1.5"
+                    >
+                      <DropdownMenuLabel>选择回复强度</DropdownMenuLabel>
+                      {(['low', 'medium', 'high'] as const).map((strength) => {
+                        const option = CHAT_RESPONSE_STRENGTH_CONFIG[strength];
+                        return (
+                          <DropdownMenuItem
+                            key={strength}
+                            onSelect={() => selectChatResponseStrength(strength)}
+                            className="items-start gap-2 py-2"
+                            data-testid={`learn-response-strength-${strength}`}
+                          >
+                            <Gauge className="mt-0.5 size-4 text-sky-600" strokeWidth={1.8} />
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-semibold">
+                                {option.label}强度
+                                <span className="ml-2 font-normal text-muted-foreground">
+                                  约 {option.relativeCost}× 用量
+                                </span>
+                              </span>
+                              <span className="block text-[11px] leading-4 text-muted-foreground">
+                                {option.description}
+                              </span>
+                            </span>
+                            {chatResponseStrength === strength ? (
+                              <CheckCircle2 className="mt-0.5 size-4 text-sky-600" />
+                            ) : null}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
 
                 {activeCourseSourceHealthNotice && isTeacherCourseChat ? (
                   <button

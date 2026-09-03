@@ -388,6 +388,7 @@ model Course {
   hardRules              CourseHardRule[]
   rulePacks              CourseRulePack[]
   forumPosts             CourseForumPost[]
+  problemTagNodes        CourseProblemTagNode[]
   externalBinding        ExternalCourseBinding?
 
   createdAt DateTime @default(now())
@@ -658,11 +659,13 @@ model NotebookProblem {
   sourceMeta        Json?
   dedupeKey         String?
 
-  course   Course?                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  notebook Notebook?                 @relation(fields: [notebookId], references: [id], onDelete: SetNull)
-  secret   NotebookProblemSecret?
-  attempts NotebookProblemAttempt[]
-  progress NotebookProblemProgress[]
+  course         Course?                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  notebook       Notebook?                      @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+  secret         NotebookProblemSecret?
+  attempts       NotebookProblemAttempt[]
+  progress       NotebookProblemProgress[]
+  tagAssignments NotebookProblemTagAssignment[]
+  forumPosts     CourseForumPost[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -675,6 +678,53 @@ model NotebookProblem {
   @@index([notebookId, order])
   @@index([notebookId, problemNumber])
   @@index([notebookId, updatedAt(sort: Desc)])
+}
+
+/// A strict two-level, course-scoped problem taxonomy. Level 0 nodes are
+/// knowledge areas; level 1 nodes are assignable knowledge concepts.
+model CourseProblemTagNode {
+  id              String   @id @default(cuid())
+  courseId        String
+  parentId        String?
+  name            String   @db.VarChar(120)
+  normalizedName  String   @db.VarChar(120)
+  level           Int
+  aliases         String[]
+  source          String   @default("ai") @db.VarChar(24)
+  status          String   @default("active") @db.VarChar(24)
+  confidence      Float?
+  position        Int      @default(0)
+  lockedByTeacher Boolean  @default(false)
+
+  course      Course                         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  parent      CourseProblemTagNode?          @relation("CourseProblemTagTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    CourseProblemTagNode[]         @relation("CourseProblemTagTree")
+  assignments NotebookProblemTagAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseId, level, normalizedName])
+  @@index([courseId, parentId, position])
+  @@index([courseId, status, level])
+}
+
+model NotebookProblemTagAssignment {
+  problemId  String
+  tagId      String
+  source     String @default("ai") @db.VarChar(24)
+  status     String @default("applied") @db.VarChar(24)
+  confidence Float?
+
+  problem NotebookProblem      @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  tag     CourseProblemTagNode @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([problemId, tagId])
+  @@index([tagId, status, problemId])
+  @@index([problemId, status])
 }
 
 model ProblemImportBatch {
@@ -756,14 +806,16 @@ model NotebookProblemSecret {
 }
 
 model NotebookProblemAttempt {
-  id         String                       @id @default(cuid())
-  problemId  String
-  userId     String
-  kind       NotebookProblemAttemptKind
-  answerJson Json
-  resultJson Json?
-  score      Float?
-  status     NotebookProblemAttemptStatus @default(pending)
+  id               String                       @id @default(cuid())
+  problemId        String
+  userId           String
+  kind             NotebookProblemAttemptKind
+  answerJson       Json
+  resultJson       Json?
+  score            Float?
+  status           NotebookProblemAttemptStatus @default(pending)
+  activeDurationMs Int?
+  timingSource     String?                      @db.VarChar(32)
 
   problem NotebookProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
   user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1378,15 +1430,17 @@ model ExternalCourseMembership {
 }
 
 model CourseForumPost {
-  id           String    @id @default(cuid())
-  courseId     String
-  authorId     String
-  title        String    @db.VarChar(200)
-  bodyMarkdown String    @db.Text
-  resolvedAt   DateTime?
-  pinnedAt     DateTime?
-  pinnedById   String?
-  systemKey    String?   @db.VarChar(80)
+  id                  String    @id @default(cuid())
+  courseId            String
+  authorId            String
+  title               String    @db.VarChar(200)
+  bodyMarkdown        String    @db.Text
+  resolvedAt          DateTime?
+  pinnedAt            DateTime?
+  pinnedById          String?
+  systemKey           String?   @db.VarChar(80)
+  problemId           String?
+  problemSnapshotJson Json?
 
   course      Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   author      User                    @relation("CourseForumPostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
@@ -1394,6 +1448,7 @@ model CourseForumPost {
   answers     CourseForumAnswer[]
   comments    CourseForumComment[]
   attachments CourseForumAttachment[]
+  problem     NotebookProblem?        @relation(fields: [problemId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1402,6 +1457,7 @@ model CourseForumPost {
   @@index([courseId, resolvedAt, updatedAt(sort: Desc)])
   @@index([courseId, pinnedAt(sort: Desc)])
   @@index([authorId, createdAt(sort: Desc)])
+  @@index([courseId, problemId, createdAt(sort: Desc)])
 }
 
 model CourseForumAnswer {
@@ -1587,23 +1643,23 @@ model CreditTransaction {
 }
 
 model CloudUsageGlobalLimit {
-  id                  String   @id @default("global")
-  enabled             Boolean  @default(false)
-  monthlyCostLimitUsd Decimal? @db.Decimal(12, 6)
-  monthlyRequestLimit Int?
-  periodTimezone      String   @default("UTC")
-  updatedBy           String?
-  updatedAt           DateTime @default(now())
+  id                 String   @id @default("global")
+  enabled            Boolean  @default(false)
+  weeklyCostLimitUsd Decimal? @db.Decimal(12, 6)
+  weeklyRequestLimit Int?
+  periodTimezone     String   @default("UTC")
+  updatedBy          String?
+  updatedAt          DateTime @default(now())
 }
 
 model CloudUsageUserLimit {
-  userId              String   @id
-  monthlyCostLimitUsd Decimal? @db.Decimal(12, 6)
-  monthlyRequestLimit Int?
-  disabled            Boolean  @default(false)
-  note                String?
-  updatedBy           String?
-  updatedAt           DateTime @default(now())
+  userId             String   @id
+  weeklyCostLimitUsd Decimal? @db.Decimal(12, 6)
+  weeklyRequestLimit Int?
+  disabled           Boolean  @default(false)
+  note               String?
+  updatedBy          String?
+  updatedAt          DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

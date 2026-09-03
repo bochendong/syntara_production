@@ -9,6 +9,11 @@ import {
 } from '@/features/course-forum/server/course-forum-access';
 import type { CourseForumStatusFilter } from '@/features/course-forum/domain/course-forum';
 import { ensureCourseForumWelcomePost } from '@/features/course-forum/server/course-forum-welcome';
+import {
+  loadForumProblemCard,
+  parseForumProblemSnapshot,
+} from '@/features/course-forum/server/forum-problem-card';
+import { toPrismaJson } from '@/lib/server/prisma-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,6 +107,8 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
           systemKey: true,
           createdAt: true,
           updatedAt: true,
+          problemId: true,
+          problemSnapshotJson: true,
           author: { select: authorSelect },
           _count: { select: { answers: true, comments: true, attachments: true } },
         },
@@ -119,6 +126,8 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
           systemKey: true,
           createdAt: true,
           updatedAt: true,
+          problemId: true,
+          problemSnapshotJson: true,
           author: { select: authorSelect },
           _count: { select: { answers: true, comments: true, attachments: true } },
         },
@@ -141,6 +150,8 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
             systemKey: true,
             createdAt: true,
             updatedAt: true,
+            problemId: true,
+            problemSnapshotJson: true,
             author: { select: authorSelect },
             attachments: { orderBy: { createdAt: 'asc' }, select: attachmentSelect },
             answers: {
@@ -169,6 +180,22 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
           },
         })
       : null;
+    const currentProblem = selected?.problemId
+      ? await loadForumProblemCard({
+          prisma,
+          courseId,
+          problemId: selected.problemId,
+          requirePublished: access.accessRole !== 'owner',
+        })
+      : null;
+    const fallbackProblem = selected?.problemSnapshotJson
+      ? parseForumProblemSnapshot(selected.problemSnapshotJson)
+      : null;
+    const selectedProblem = currentProblem
+      ? { ...currentProblem, isSnapshot: false }
+      : fallbackProblem
+        ? { ...fallbackProblem, isSnapshot: true }
+        : null;
 
     const mapSummary = (post: (typeof posts)[number]) => ({
       id: post.id,
@@ -184,6 +211,7 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
       attachmentCount: post._count.attachments,
       createdAt: post.createdAt.toISOString(),
       updatedAt: post.updatedAt.toISOString(),
+      hasProblem: Boolean(post.problemId || post.problemSnapshotJson),
     });
 
     const selectedSummary = selected
@@ -201,6 +229,7 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
           attachmentCount: selected._count.attachments,
           createdAt: selected.createdAt.toISOString(),
           updatedAt: selected.updatedAt.toISOString(),
+          hasProblem: Boolean(selected.problemId || selected.problemSnapshotJson),
         }
       : null;
 
@@ -247,6 +276,7 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
                   createdAt: comment.createdAt.toISOString(),
                   updatedAt: comment.updatedAt.toISOString(),
                 })),
+                problem: selectedProblem?.id ? selectedProblem : null,
               }
             : null,
       },
@@ -263,6 +293,7 @@ export async function POST(request: Request, context: { params: Promise<{ course
     const formData = await request.formData();
     const title = String(formData.get('title') || '').trim();
     const bodyMarkdown = String(formData.get('bodyMarkdown') || '').trim();
+    const problemId = String(formData.get('problemId') || '').trim() || null;
     if (!title || title.length > 200) {
       return NextResponse.json({ error: '标题需为 1–200 个字符' }, { status: 400 });
     }
@@ -270,12 +301,25 @@ export async function POST(request: Request, context: { params: Promise<{ course
       return NextResponse.json({ error: '帖子正文需为 1–30000 个字符' }, { status: 400 });
     }
     const images = await parseCourseForumImages(formData);
+    const problemSnapshot = problemId
+      ? await loadForumProblemCard({
+          prisma,
+          courseId,
+          problemId,
+          requirePublished: access.accessRole !== 'owner',
+        })
+      : null;
+    if (problemId && !problemSnapshot) {
+      return NextResponse.json({ error: '题目不存在或不属于当前课程' }, { status: 400 });
+    }
     const post = await prisma.courseForumPost.create({
       data: {
         courseId,
         authorId: access.userId,
         title,
         bodyMarkdown,
+        problemId,
+        problemSnapshotJson: problemSnapshot ? toPrismaJson(problemSnapshot) : undefined,
         attachments: images.length
           ? {
               create: images.map((image) => ({ ...image, uploaderId: access.userId })),

@@ -44,6 +44,7 @@ import {
   resolveCourseSpaceHeaderFields,
 } from '@/lib/course-space/format-course-space-header';
 import { cn } from '@/lib/utils';
+import { resolveCourseBackgroundDisplayUrl } from '@/lib/constants/course-backgrounds';
 import { CourseAccessClosedCard } from '@/components/course-access-closed-card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -1372,23 +1373,39 @@ export function TeacherCourseStudioClient({
             <section className={STUDIO_SECTION_CLASS}>
               <div className={STUDIO_PANEL_BODY_CLASS}>
                 <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-                  <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
-                    <p className="text-xs font-semibold tracking-wide text-slate-400">课程总览</p>
-                    <h2 className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">
-                      {course.code}
-                      {courseHeaderFields.courseMeta ? ` · ${courseHeaderFields.courseMeta}` : ''}
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                      {course.academicYear} {academicTermLabel(course.term)}
-                      {course.createdAt
-                        ? ` · 创建于 ${new Date(course.createdAt).toLocaleDateString('zh-CN')}`
-                        : ''}
-                    </p>
-                    {course.description ? (
-                      <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                        {course.description}
+                  <div className="relative min-h-[18rem] overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-100 shadow-sm dark:border-white/10 dark:bg-slate-950 sm:min-h-[20rem]">
+                    <img
+                      src={resolveCourseBackgroundDisplayUrl(course.id)}
+                      alt=""
+                      className="absolute inset-0 size-full object-cover brightness-[1.08] saturate-[1.06]"
+                      aria-hidden
+                    />
+                    <div
+                      className="absolute inset-0 bg-[linear-gradient(110deg,rgba(15,23,42,0.42)_0%,rgba(15,23,42,0.22)_52%,rgba(15,23,42,0.08)_100%)] dark:bg-[linear-gradient(110deg,rgba(8,13,24,0.74)_0%,rgba(8,13,24,0.52)_52%,rgba(8,13,24,0.24)_100%)]"
+                      aria-hidden
+                    />
+                    <div
+                      className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-slate-950/55 via-slate-950/18 to-transparent"
+                      aria-hidden
+                    />
+                    <div className="relative z-10 flex min-h-[18rem] flex-col justify-end p-5 sm:min-h-[20rem] sm:p-6">
+                      <p className="text-xs font-semibold tracking-wide text-white/75">课程总览</p>
+                      <h2 className="mt-1 text-xl font-semibold text-white drop-shadow-[0_1px_2px_rgba(15,23,42,0.38)]">
+                        {course.code}
+                        {courseHeaderFields.courseMeta ? ` · ${courseHeaderFields.courseMeta}` : ''}
+                      </h2>
+                      <p className="mt-1 text-sm text-white/80 drop-shadow-[0_1px_1px_rgba(15,23,42,0.28)]">
+                        {course.academicYear} {academicTermLabel(course.term)}
+                        {course.createdAt
+                          ? ` · 创建于 ${new Date(course.createdAt).toLocaleDateString('zh-CN')}`
+                          : ''}
                       </p>
-                    ) : null}
+                      {course.description ? (
+                        <p className="mt-3 line-clamp-3 text-sm leading-6 text-white/88 drop-shadow-[0_1px_1px_rgba(15,23,42,0.26)]">
+                          {course.description}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <OverviewStatCard

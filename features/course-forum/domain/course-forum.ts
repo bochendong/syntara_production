@@ -30,6 +30,18 @@ export type CourseForumPostSummary = {
   attachmentCount: number;
   createdAt: string;
   updatedAt: string;
+  hasProblem: boolean;
+};
+
+export type CourseForumProblemCard = {
+  id: string;
+  title: string;
+  type: string;
+  difficulty: string;
+  publicContent: unknown;
+  tagAssignments: Array<{ area: string; concept: string }>;
+  capturedAt: string;
+  isSnapshot: boolean;
 };
 
 export type CourseForumAnswerItem = {
@@ -56,6 +68,7 @@ export type CourseForumPostDetail = CourseForumPostSummary & {
   attachments: CourseForumAttachmentItem[];
   answers: CourseForumAnswerItem[];
   comments: CourseForumCommentItem[];
+  problem: CourseForumProblemCard | null;
 };
 
 export type CourseForumSnapshot = {

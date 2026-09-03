@@ -22,6 +22,7 @@ import { prepareCourseConversationContext } from '@/features/chat/server/course-
 import {
   loadCourseLearnerInsight,
   loadTeacherClassOverview,
+  loadTeacherProblemInsight,
   loadTeacherStudentInsight,
   recordCourseLearnerSignal,
 } from '@/lib/server/course-agent-learner-insights';
@@ -460,9 +461,10 @@ function courseAgentInstructions(args: {
           '5. 一轮最多提出一个日历变更草案；不要把同一变更拆成多个 proposal。',
         ]
       : [
-          '9. 查询个人学生时调用 get_course_student_insight；查询班级整体时调用 get_class_learning_overview。工具只会返回本课程中的学生记录。',
+          '9. 查询个人学生时调用 get_course_student_insight；查询班级整体时调用 get_class_learning_overview；查询某道题时调用 get_course_problem_insight。工具只会返回本课程中的记录。',
           '10. 班级概览默认匿名汇总；只有老师明确询问某位学生时才展示该学生的身份与个人记录。',
           '11. “最近问了什么”来自原始聊天记录；“薄弱点、掌握情况”属于基于提问、作答和学习记忆的证据判断，回答时不要混为一谈。',
+          '12. 学情回答必须注明统计时间范围、提交样本数与计时样本数，并附上工具返回的学生详情、题目或论坛链接。缺少有效计时时明确说“暂无数据”，不得用提交间隔推测。',
         ]),
     '',
     '数学排版规则：',
@@ -610,6 +612,13 @@ function toolProgressText(toolName: string, input: unknown, inventory: TeacherCo
       label: '汇总班级学习动态',
       description: '正在匿名汇总班级近期提问、作答和学习信号。',
       evidence: [String(values.timeScope || 'week')],
+    };
+  }
+  if (toolName === 'get_course_problem_insight') {
+    return {
+      label: '分析题目学习情况',
+      description: '正在核对这道题的失败学生、有效用时和论坛提问证据。',
+      evidence: [String(values.problemQuery || ''), String(values.timeScope || 'week')],
     };
   }
   const query = typeof values.query === 'string' ? values.query.trim() : '';
@@ -942,6 +951,21 @@ async function runCourseNotebookAgentTurn(
         loadTeacherClassOverview({
           prisma: db,
           courseId: args.access.course.id,
+          timeScope,
+        }),
+    }),
+    get_course_problem_insight: tool({
+      description:
+        'Resolve one problem in this course by id, number, or title and return its attempt difficulty, valid active-time samples, affected students, and forum evidence.',
+      inputSchema: z.object({
+        problemQuery: z.string().trim().min(1).max(240),
+        timeScope: z.enum(['week', 'month', 'term', 'all']).default('week'),
+      }),
+      execute: async ({ problemQuery, timeScope }) =>
+        loadTeacherProblemInsight({
+          prisma: db,
+          courseId: args.access.course.id,
+          problemQuery,
           timeScope,
         }),
     }),

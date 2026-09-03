@@ -8,6 +8,11 @@
 import type { NextRequest } from 'next/server';
 import { parseModelString } from '@/lib/ai/providers';
 import {
+  isChatResponseStrength,
+  resolveChatResponseModelId,
+  type ChatResponseStrength,
+} from '@/lib/ai/chat-response-strength';
+import {
   getServerModel,
   getServerOpenAIResponsesModel,
   type ModelWithInfo,
@@ -50,6 +55,7 @@ function requestModelOverridesEnabled(): boolean {
 export async function resolveModel(
   _params: {
     modelString?: string;
+    responseStrength?: ChatResponseStrength;
     apiKey?: string;
     baseUrl?: string;
     providerType?: string;
@@ -62,7 +68,13 @@ export async function resolveModel(
   let modelId = config.modelId;
   const requestedModelString = _params.modelString?.trim();
 
-  if (options.allowOpenAIModelOverride && requestModelOverridesEnabled() && requestedModelString) {
+  if (isChatResponseStrength(_params.responseStrength)) {
+    modelId = resolveChatResponseModelId(_params.responseStrength);
+  } else if (
+    options.allowOpenAIModelOverride &&
+    requestModelOverridesEnabled() &&
+    requestedModelString
+  ) {
     const requested = parseModelString(requestedModelString);
     if (requested.providerId === 'openai' && requested.modelId.trim()) {
       modelId = requested.modelId.trim();
@@ -95,6 +107,9 @@ export async function resolveModelFromHeaders(
   return resolveModel(
     {
       modelString: req.headers.get('x-model') || undefined,
+      responseStrength: isChatResponseStrength(req.headers.get('x-response-strength'))
+        ? (req.headers.get('x-response-strength') as ChatResponseStrength)
+        : undefined,
       apiKey: req.headers.get('x-api-key') || undefined,
       baseUrl: req.headers.get('x-base-url') || undefined,
       providerType: req.headers.get('x-provider-type') || undefined,

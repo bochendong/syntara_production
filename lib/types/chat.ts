@@ -6,6 +6,7 @@
  */
 
 import type { UIMessage } from 'ai';
+import type { ChatResponseStrength } from '@/lib/ai/chat-response-strength';
 
 // Session Types
 export type SessionType = 'qa' | 'discussion' | 'lecture';
@@ -881,6 +882,8 @@ export interface StatelessChatRequest {
     surface?: 'classroom' | 'course-chat' | 'teacher-course-chat' | 'student-course-chat';
     /** User-selected response style for the current course chat turn. */
     teachingMode?: CourseChatTeachingMode;
+    /** Server-approved model tier; callers cannot provide an arbitrary model ID. */
+    responseStrength?: ChatResponseStrength;
     /** Discussion topic (for agent-initiated discussions) */
     discussionTopic?: string;
     /** Discussion prompt (for agent-initiated discussions) */

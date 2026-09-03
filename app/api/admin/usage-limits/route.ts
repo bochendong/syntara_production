@@ -126,8 +126,8 @@ export async function PUT(request: Request) {
     targetRole?: 'STUDENT' | 'TEACHER' | 'ALL';
     enabled?: boolean;
     disabled?: boolean;
-    monthlyCostLimitUsd?: unknown;
-    monthlyRequestLimit?: unknown;
+    weeklyCostLimitUsd?: unknown;
+    weeklyRequestLimit?: unknown;
     note?: string;
   };
 
@@ -137,28 +137,28 @@ export async function PUT(request: Request) {
     return apiError('INVALID_REQUEST', 400, '请求体不是有效 JSON');
   }
 
-  const monthlyCostLimitUsd = normalizeNullableNumber(body.monthlyCostLimitUsd);
-  const monthlyRequestLimit = normalizeNullableInt(body.monthlyRequestLimit);
+  const weeklyCostLimitUsd = normalizeNullableNumber(body.weeklyCostLimitUsd);
+  const weeklyRequestLimit = normalizeNullableInt(body.weeklyRequestLimit);
 
   try {
     if (body.scope === 'global') {
       await prisma.$executeRaw(
         Prisma.sql`
           INSERT INTO "CloudUsageGlobalLimit" (
-            "id", "enabled", "monthlyCostLimitUsd", "monthlyRequestLimit", "updatedBy", "updatedAt"
+            "id", "enabled", "weeklyCostLimitUsd", "weeklyRequestLimit", "updatedBy", "updatedAt"
           )
           VALUES (
             'global',
             ${Boolean(body.enabled)},
-            ${monthlyCostLimitUsd},
-            ${monthlyRequestLimit},
+            ${weeklyCostLimitUsd},
+            ${weeklyRequestLimit},
             ${admin.identity.email ?? admin.identity.userId},
             CURRENT_TIMESTAMP
           )
           ON CONFLICT ("id") DO UPDATE SET
             "enabled" = EXCLUDED."enabled",
-            "monthlyCostLimitUsd" = EXCLUDED."monthlyCostLimitUsd",
-            "monthlyRequestLimit" = EXCLUDED."monthlyRequestLimit",
+            "weeklyCostLimitUsd" = EXCLUDED."weeklyCostLimitUsd",
+            "weeklyRequestLimit" = EXCLUDED."weeklyRequestLimit",
             "updatedBy" = EXCLUDED."updatedBy",
             "updatedAt" = CURRENT_TIMESTAMP
         `,
@@ -184,20 +184,20 @@ export async function PUT(request: Request) {
       await prisma.$executeRaw(
         Prisma.sql`
           INSERT INTO "CloudUsageUserLimit" (
-            "userId", "monthlyCostLimitUsd", "monthlyRequestLimit", "disabled", "note", "updatedBy", "updatedAt"
+            "userId", "weeklyCostLimitUsd", "weeklyRequestLimit", "disabled", "note", "updatedBy", "updatedAt"
           )
           VALUES (
             ${userId},
-            ${monthlyCostLimitUsd},
-            ${monthlyRequestLimit},
+            ${weeklyCostLimitUsd},
+            ${weeklyRequestLimit},
             ${Boolean(body.disabled)},
             ${body.note?.trim() || null},
             ${admin.identity.email ?? admin.identity.userId},
             CURRENT_TIMESTAMP
           )
           ON CONFLICT ("userId") DO UPDATE SET
-            "monthlyCostLimitUsd" = EXCLUDED."monthlyCostLimitUsd",
-            "monthlyRequestLimit" = EXCLUDED."monthlyRequestLimit",
+            "weeklyCostLimitUsd" = EXCLUDED."weeklyCostLimitUsd",
+            "weeklyRequestLimit" = EXCLUDED."weeklyRequestLimit",
             "disabled" = EXCLUDED."disabled",
             "note" = EXCLUDED."note",
             "updatedBy" = EXCLUDED."updatedBy",
@@ -244,20 +244,20 @@ export async function PUT(request: Request) {
           prisma.$executeRaw(
             Prisma.sql`
               INSERT INTO "CloudUsageUserLimit" (
-                "userId", "monthlyCostLimitUsd", "monthlyRequestLimit", "disabled", "note", "updatedBy", "updatedAt"
+                "userId", "weeklyCostLimitUsd", "weeklyRequestLimit", "disabled", "note", "updatedBy", "updatedAt"
               )
               VALUES (
                 ${user.id},
-                ${monthlyCostLimitUsd},
-                ${monthlyRequestLimit},
+                ${weeklyCostLimitUsd},
+                ${weeklyRequestLimit},
                 ${Boolean(body.disabled)},
                 ${body.note?.trim() || null},
                 ${updatedBy},
                 CURRENT_TIMESTAMP
               )
               ON CONFLICT ("userId") DO UPDATE SET
-                "monthlyCostLimitUsd" = EXCLUDED."monthlyCostLimitUsd",
-                "monthlyRequestLimit" = EXCLUDED."monthlyRequestLimit",
+                "weeklyCostLimitUsd" = EXCLUDED."weeklyCostLimitUsd",
+                "weeklyRequestLimit" = EXCLUDED."weeklyRequestLimit",
                 "disabled" = EXCLUDED."disabled",
                 "note" = EXCLUDED."note",
                 "updatedBy" = EXCLUDED."updatedBy",

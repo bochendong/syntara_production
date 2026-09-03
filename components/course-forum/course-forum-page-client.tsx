@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { useRouter } from 'next/navigation';
 import {
   CheckCircle2,
+  BookOpen,
   Download,
   Eye,
   FileImage,
@@ -68,6 +69,9 @@ import { buildCourseForumMockSnapshot } from '@/features/course-forum/mock/cours
 import { cn } from '@/lib/utils';
 import { BackendApiError, backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { useUserProfileStore } from '@/lib/store/user-profile';
+import { notebookProblemPublicContentSchema } from '@/lib/problem-bank';
+import { ProblemRichText } from '@/components/problem-bank/problem-rich-text';
+import { renderProblemContentStem } from '@/components/problem-bank/course-problem-bank-helpers';
 
 type ForumDeleteTarget =
   | { kind: 'post'; id: string; label: string }
@@ -302,6 +306,7 @@ export function CourseForumPageClient({
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const [selectedPostId, setSelectedPostId] = useState(initialSnapshot?.selectedPost?.id || '');
+  const [problemPreviewOpen, setProblemPreviewOpen] = useState(false);
   const selectedPostIdRef = useRef(initialSnapshot?.selectedPost?.id || '');
   const [loading, setLoading] = useState(!initialSnapshot);
   const [accessRevoked, setAccessRevoked] = useState(false);
@@ -949,6 +954,30 @@ export function CourseForumPageClient({
                     <ForumMarkdown>{selected.bodyMarkdown}</ForumMarkdown>
                     <ForumAttachmentGallery items={selected.attachments} />
                   </div>
+                  {selected.problem ? (
+                    <button
+                      type="button"
+                      onClick={() => setProblemPreviewOpen(true)}
+                      className="mt-5 flex w-full items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-4 text-left transition hover:border-sky-300 hover:bg-sky-50 dark:border-sky-500/25 dark:bg-sky-500/10"
+                    >
+                      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-sky-600 text-white">
+                        <BookOpen className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-semibold text-sky-600">
+                          关联题目{selected.problem.isSnapshot ? ' · 已使用发布时快照' : ''}
+                        </span>
+                        <span className="mt-1 block truncate font-semibold text-slate-900 dark:text-white">
+                          {selected.problem.title}
+                        </span>
+                        <span className="mt-1 block text-xs text-slate-500">
+                          {selected.problem.tagAssignments
+                            .map((tag) => `${tag.area} / ${tag.concept}`)
+                            .join(' · ') || selected.problem.difficulty}
+                        </span>
+                      </span>
+                    </button>
+                  ) : null}
                 </article>
 
                 <section className="mt-8 rounded-[24px] border border-violet-200/70 bg-violet-50/40 p-5 dark:border-violet-400/20 dark:bg-violet-400/[0.06] sm:p-6">
@@ -1196,6 +1225,51 @@ export function CourseForumPageClient({
           </section>
         </div>
       </section>
+
+      <Dialog open={problemPreviewOpen} onOpenChange={setProblemPreviewOpen}>
+        <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selected?.problem?.title || '关联题目'}</DialogTitle>
+            <DialogDescription>
+              {selected?.problem?.isSnapshot
+                ? '原题已删除或不可见，当前展示发布时保存的公开题面。'
+                : '只读公开题面，不包含答案、评分规则、隐藏测试或学生提交。'}
+            </DialogDescription>
+          </DialogHeader>
+          {selected?.problem
+            ? (() => {
+                const parsed = notebookProblemPublicContentSchema.safeParse(
+                  selected.problem.publicContent,
+                );
+                return parsed.success ? (
+                  <div className="space-y-4">
+                    <ProblemRichText content={renderProblemContentStem(parsed.data)} />
+                    <div className="flex flex-wrap gap-1.5">
+                      {selected.problem.tagAssignments.map((tag) => (
+                        <Badge key={`${tag.area}:${tag.concept}`} variant="outline">
+                          {tag.area} / {tag.concept}
+                        </Badge>
+                      ))}
+                    </div>
+                    {!selected.problem.isSnapshot ? (
+                      <Button
+                        onClick={() =>
+                          router.push(
+                            `/course/${encodeURIComponent(courseId)}/problem-bank/${encodeURIComponent(selected.problem!.id)}`,
+                          )
+                        }
+                      >
+                        去做这道题
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">题面暂时无法显示。</p>
+                );
+              })()
+            : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={newPostOpen} onOpenChange={setNewPostOpen}>
         <DialogContent

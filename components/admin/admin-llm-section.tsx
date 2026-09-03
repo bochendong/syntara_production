@@ -147,8 +147,9 @@ export function AdminLLMSection() {
             系统模型配置
           </CardTitle>
           <CardDescription>
-            服务端为全站统一提供语言模型与凭据，普通用户不能切换或覆盖。补充配置来自项目根目录
-            server-providers.yml 与 .env，修改后需重启服务。
+            服务端为全站统一提供语言模型与凭据。学生聊天只能在管理员批准的低、中、高三档间选择，
+            不能提交任意模型 ID。补充配置来自项目根目录 server-providers.yml 与
+            .env，修改后需重启服务。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

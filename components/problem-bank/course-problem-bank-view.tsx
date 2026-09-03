@@ -18,6 +18,7 @@ import {
   Search,
   Sparkles,
   SlidersHorizontal,
+  Tag,
   Terminal,
   Trash2,
   Type,
@@ -44,6 +45,8 @@ import {
 import { AnswerComposer, AnswerComposerToolbar } from '@/components/problem-bank/answer-composer';
 import { ProblemDraftForm } from '@/components/problem-bank/problem-draft-form';
 import { ProblemLanguageToggle } from '@/components/problem-bank/problem-language-toggle';
+import { ProblemTagManagerDialog } from '@/components/problem-bank/problem-tag-manager-dialog';
+import { ProblemForumPublishDialog } from '@/components/problem-bank/problem-forum-publish-dialog';
 import { CodeAnswerEditor, highlightPython } from '@/components/problem-bank/code-answer-editor';
 import { CodeProblemStatement } from '@/components/problem-bank/code-problem-statement';
 import {
@@ -78,7 +81,6 @@ import {
   renderProblemContentStem,
   supportsPhotoAnswer,
   typeLabel,
-  weakTopicBarClass,
   type AnswerPanelTab,
   type ProblemInfoTab,
 } from '@/components/problem-bank/course-problem-bank-helpers';
@@ -110,6 +112,298 @@ type CodeTestFile = {
   fileName: string;
   code: string;
 };
+
+type ProblemBankStats = {
+  total: number;
+  attempted: number;
+  mastered: number;
+  review: number;
+  wrong: number;
+  unattempted: number;
+  masteryPercent: number;
+  tagProgress: Array<{
+    tag: string;
+    attemptedCount: number;
+    totalCount: number;
+    percent: number;
+  }>;
+};
+
+function tagProgressBarClass(percent: number): string {
+  if (percent >= 80) return 'bg-emerald-500';
+  if (percent >= 50) return 'bg-sky-500';
+  if (percent > 0) return 'bg-amber-500';
+  return 'bg-slate-300 dark:bg-slate-600';
+}
+
+function ProblemBankStatsSidebar({
+  stats,
+  loading,
+  canEditProblems,
+  locale,
+}: {
+  stats: ProblemBankStats;
+  loading: boolean;
+  canEditProblems: boolean;
+  locale: 'zh-CN' | 'en-US';
+}) {
+  if (loading) {
+    return (
+      <aside
+        className="order-2 hidden w-[304px] shrink-0 self-stretch xl:flex"
+        aria-label={locale === 'zh-CN' ? '题库学习统计' : 'Problem bank learning stats'}
+      >
+        <div
+          className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60"
+          aria-busy="true"
+        >
+          <div className="h-44 animate-pulse rounded-2xl bg-slate-100 motion-reduce:animate-none dark:bg-slate-900" />
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {[0, 1, 2, 3].map((item) => (
+              <div
+                key={item}
+                className="h-[76px] animate-pulse rounded-xl bg-slate-100 motion-reduce:animate-none dark:bg-slate-900"
+              />
+            ))}
+          </div>
+          <div className="mt-6 h-4 w-24 animate-pulse rounded bg-slate-100 motion-reduce:animate-none dark:bg-slate-900" />
+          <div className="mt-4 space-y-4">
+            {[0, 1, 2, 3].map((item) => (
+              <div
+                key={item}
+                className="h-9 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none dark:bg-slate-900"
+              />
+            ))}
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
+  if (stats.total === 0) {
+    return (
+      <aside
+        className="order-2 hidden w-[304px] shrink-0 self-stretch xl:flex"
+        aria-label={locale === 'zh-CN' ? '题库学习统计' : 'Problem bank learning stats'}
+      >
+        <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <span className="grid size-8 place-items-center rounded-xl bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-300">
+              <Tag className="size-4" />
+            </span>
+            {locale === 'zh-CN' ? '学习进度' : 'Learning progress'}
+          </div>
+          <div className="flex min-h-[24rem] flex-1 flex-col items-center justify-center text-center">
+            <span className="relative grid size-20 place-items-center rounded-[24px] bg-[linear-gradient(145deg,#f0f9ff,#eef2ff)] text-sky-600 shadow-[0_18px_45px_rgba(14,165,233,0.14)] ring-1 ring-sky-100 dark:bg-[linear-gradient(145deg,rgba(14,165,233,0.14),rgba(99,102,241,0.12))] dark:text-sky-300 dark:ring-sky-500/20">
+              <BookOpen className="size-8" strokeWidth={1.7} />
+            </span>
+            <p className="mt-6 text-base font-semibold text-slate-900 dark:text-slate-100">
+              {locale === 'zh-CN' ? '暂无题目可统计' : 'No problems to summarize'}
+            </p>
+            <p className="mt-2 max-w-[14rem] text-xs leading-5 text-slate-500 dark:text-slate-400">
+              {locale === 'zh-CN'
+                ? canEditProblems
+                  ? '导入第一批题目后，这里会自动生成完成率、练习状态和标签进度。'
+                  : '老师发布题目后，这里会自动展示你的练习进度。'
+                : canEditProblems
+                  ? 'Import the first problems to generate completion, practice, and tag insights.'
+                  : 'Your learning progress will appear after the teacher publishes problems.'}
+            </p>
+          </div>
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-3 text-center text-[11px] text-slate-400 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-500">
+            {locale === 'zh-CN' ? '有题目后才计算完成率' : 'Completion starts when problems exist'}
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
+  const overviewItems = [
+    {
+      label: locale === 'zh-CN' ? '已做完' : 'Completed',
+      count: stats.mastered,
+      Icon: CheckCircle2,
+      className:
+        'border-emerald-100 bg-emerald-50/70 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200',
+    },
+    {
+      label: locale === 'zh-CN' ? '已尝试' : 'Attempted',
+      count: stats.attempted,
+      Icon: Play,
+      className:
+        'border-sky-100 bg-sky-50/70 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-200',
+    },
+    {
+      label: locale === 'zh-CN' ? '错题' : 'Incorrect',
+      count: stats.wrong,
+      Icon: AlertCircle,
+      className:
+        'border-rose-100 bg-rose-50/70 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200',
+    },
+    {
+      label: locale === 'zh-CN' ? '未完成' : 'Not completed',
+      count: stats.unattempted,
+      Icon: BookOpen,
+      className:
+        'border-slate-200 bg-slate-50/80 text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300',
+    },
+  ];
+
+  return (
+    <aside
+      className="order-2 hidden w-[304px] shrink-0 self-stretch xl:flex"
+      aria-label={locale === 'zh-CN' ? '题库学习统计' : 'Problem bank learning stats'}
+    >
+      <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60">
+        <div className="relative overflow-hidden bg-[linear-gradient(145deg,#082f49_0%,#0f4c81_52%,#4338ca_120%)] px-5 pb-5 pt-4 text-white dark:bg-[linear-gradient(145deg,#020617_0%,#0c4a6e_58%,#312e81_120%)]">
+          <div className="pointer-events-none absolute -right-12 -top-14 size-36 rounded-full bg-cyan-300/20 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-16 -left-10 size-32 rounded-full bg-indigo-300/20 blur-2xl" />
+          <div className="relative flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-100/80">
+                {locale === 'zh-CN' ? '学习进度' : 'Learning progress'}
+              </p>
+              <p className="mt-1 text-sm font-semibold">
+                {locale === 'zh-CN' ? '题库总完成度' : 'Overall completion'}
+              </p>
+            </div>
+            <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-medium text-sky-50 backdrop-blur-sm">
+              {stats.mastered}/{stats.total}
+            </span>
+          </div>
+          <div className="relative mt-4 flex items-center gap-4">
+            <div
+              className="grid size-[112px] shrink-0 place-items-center rounded-full p-[9px] shadow-[0_18px_42px_rgba(2,6,23,0.28)]"
+              style={{
+                background: `conic-gradient(#6ee7b7 0deg ${stats.masteryPercent * 3.6}deg, rgba(255,255,255,0.14) ${stats.masteryPercent * 3.6}deg 360deg)`,
+              }}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={stats.masteryPercent}
+              aria-label={locale === 'zh-CN' ? '题库完成率' : 'Problem bank completion'}
+            >
+              <div className="grid size-full place-items-center rounded-full bg-slate-950/90 text-center ring-1 ring-white/10">
+                <div>
+                  <span className="text-[30px] font-bold leading-none tracking-[-0.05em]">
+                    {stats.masteryPercent}
+                  </span>
+                  <span className="ml-0.5 text-sm font-semibold text-emerald-200">%</span>
+                  <p className="mt-1 text-[10px] font-medium text-slate-300">
+                    {locale === 'zh-CN' ? '已正确完成' : 'solved'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xl font-semibold tracking-[-0.03em]">
+                {stats.masteryPercent >= 80
+                  ? locale === 'zh-CN'
+                    ? '状态很好'
+                    : 'Great progress'
+                  : stats.masteryPercent >= 40
+                    ? locale === 'zh-CN'
+                      ? '稳步推进'
+                      : 'Building momentum'
+                    : locale === 'zh-CN'
+                      ? '继续积累'
+                      : 'Keep going'}
+              </p>
+              <p className="mt-1 text-[11px] leading-5 text-sky-100/75">
+                {locale === 'zh-CN'
+                  ? `还有 ${stats.total - stats.mastered} 道题等待掌握`
+                  : `${stats.total - stats.mastered} problems left to master`}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <dl className="grid grid-cols-2 gap-2 p-4 pb-3">
+          {overviewItems.map(({ label, count, Icon, className }) => (
+            <div key={label} className={cn('rounded-xl border p-3', className)}>
+              <dt className="flex items-center gap-1.5 text-[11px] font-medium opacity-80">
+                <Icon className="size-3.5" />
+                {label}
+              </dt>
+              <dd className="mt-2 text-2xl font-bold leading-none tracking-[-0.04em]">{count}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="mx-4 border-t border-slate-100 dark:border-slate-800" />
+        <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-3">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <Tag className="size-3.5 text-sky-600 dark:text-sky-300" />
+                {locale === 'zh-CN' ? '标签完成度' : 'Progress by tag'}
+              </p>
+              <p className="mt-1 text-[10px] leading-4 text-slate-400 dark:text-slate-500">
+                {locale === 'zh-CN'
+                  ? '按题目较多的标签展示已尝试比例'
+                  : 'Attempt rate for tags with the most problems'}
+              </p>
+            </div>
+            <span className="shrink-0 text-[10px] font-medium text-slate-400">
+              {locale === 'zh-CN'
+                ? `前 ${stats.tagProgress.length} 个`
+                : `Top ${stats.tagProgress.length}`}
+            </span>
+          </div>
+
+          <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+            {stats.tagProgress.length > 0 ? (
+              <div className="space-y-4">
+                {stats.tagProgress.map((item) => (
+                  <div key={item.tag}>
+                    <div className="flex items-center justify-between gap-3 text-[11px]">
+                      <span
+                        className="min-w-0 truncate font-medium text-slate-700 dark:text-slate-200"
+                        title={item.tag}
+                      >
+                        {item.tag}
+                      </span>
+                      <span className="shrink-0 font-semibold tabular-nums text-slate-500 dark:text-slate-400">
+                        {item.percent}%
+                      </span>
+                    </div>
+                    <div
+                      className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={item.percent}
+                      aria-label={`${item.tag} ${item.percent}%`}
+                    >
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none',
+                          tagProgressBarClass(item.percent),
+                        )}
+                        style={{ width: `${item.percent}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                      {locale === 'zh-CN'
+                        ? `已尝试 ${item.attemptedCount} / ${item.totalCount} 道`
+                        : `${item.attemptedCount} of ${item.totalCount} attempted`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid min-h-32 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 text-center text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
+                {locale === 'zh-CN'
+                  ? '题目还没有知识标签，整理标签后会在这里显示进度。'
+                  : 'Tag progress will appear after knowledge tags are organized.'}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
 
 export type CourseProblemPracticeHeaderState = {
   problemId: string;
@@ -907,6 +1201,7 @@ export function CourseProblemBankView({
     handleUpdateProblem,
     insertFormulaIntoAnswer,
     isPracticeMode,
+    knowledgeTagFilter,
     loading,
     locale,
     moveDialogOpen,
@@ -919,10 +1214,14 @@ export function CourseProblemBankView({
     pageStartIndex,
     paginatedProblems,
     photoAnswers,
+    practiceFilter,
+    practiceFilterOptions,
     practiceNavigationProblemCount,
     previousPracticeIsChapterJump,
     previousPracticeTarget,
     problemLanguage,
+    problemTagTree,
+    reloadProblemTagTree,
     problemPageCount,
     problems,
     router,
@@ -955,6 +1254,8 @@ export function CourseProblemBankView({
     setMoveDialogOpen,
     setMoveNotebookId,
     setProblemLanguage,
+    setKnowledgeTagFilter,
+    setPracticeFilter,
     setProblemPage,
     setSearchQuery,
     setSelectedProblemId,
@@ -965,12 +1266,12 @@ export function CourseProblemBankView({
     statusFilter,
     statusFilterOptions,
     submittingAnswer,
-    unassignedProblemCount,
     textAnswers,
     typeFilter,
     typeFilterOptions,
     visibleProblemPreviewDraft,
   } = view;
+  const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [practicePaneTabs, setPracticePaneTabs] = useState<PracticePaneTabs>(() => ({
     left: [...DEFAULT_PRACTICE_PANE_TABS.left],
     right: [...DEFAULT_PRACTICE_PANE_TABS.right],
@@ -1533,6 +1834,14 @@ export function CourseProblemBankView({
         ) : null}
         {activeTab === 'answer' || activeCodeRunTarget ? (
           <div className="ml-auto flex shrink-0 items-center gap-2">
+            {selectedProblem && courseAccessRole !== 'owner' && !previewMode ? (
+              <ProblemForumPublishDialog
+                courseId={courseId}
+                problemId={selectedProblem.id}
+                problemTitle={selectedProblemTitle || selectedProblem.title}
+                locale={locale}
+              />
+            ) : null}
             {activeCodeRunTarget ? (
               <Button
                 type="button"
@@ -1586,6 +1895,22 @@ export function CourseProblemBankView({
               >
                 <ProblemTitleText content={selectedProblemTitle} />
               </h1>
+              {(selectedProblem.tagAssignments || []).some(
+                (assignment) => assignment.status === 'applied',
+              ) ? (
+                <div className="mb-4 flex flex-wrap gap-1.5">
+                  {(selectedProblem.tagAssignments || [])
+                    .filter((assignment) => assignment.status === 'applied')
+                    .map((assignment) => (
+                      <span
+                        key={assignment.id}
+                        className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200"
+                      >
+                        {assignment.area} / {assignment.concept}
+                      </span>
+                    ))}
+                </div>
+              ) : null}
               {selectedProblemContent?.type === 'code' ? (
                 <CodeProblemStatement content={selectedProblemContent} locale={locale} />
               ) : selectedProblemContent && renderProblemContentStem(selectedProblemContent) ? (
@@ -2130,6 +2455,20 @@ export function CourseProblemBankView({
                       </span>
                     ) : null}
                     <select
+                      value={practiceFilter}
+                      onChange={(event) =>
+                        setPracticeFilter(event.target.value as typeof practiceFilter)
+                      }
+                      className="h-9 max-w-[180px] rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                      aria-label={locale === 'zh-CN' ? '做题进度筛选' : 'Practice progress filter'}
+                    >
+                      {practiceFilterOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select
                       value={statusFilter}
                       onChange={(event) =>
                         setStatusFilter(event.target.value as typeof statusFilter)
@@ -2168,22 +2507,53 @@ export function CourseProblemBankView({
                         </option>
                       ))}
                     </select>
+                    <select
+                      value={knowledgeTagFilter}
+                      onChange={(event) => setKnowledgeTagFilter(event.target.value)}
+                      className="h-9 max-w-[210px] rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                      aria-label={locale === 'zh-CN' ? '知识树筛选' : 'Knowledge tree filter'}
+                    >
+                      <option value="all">
+                        {locale === 'zh-CN' ? '全部知识领域' : 'All knowledge areas'}
+                      </option>
+                      {problemTagTree.flatMap((area) => [
+                        <option key={`area:${area.id}`} value={`area:${area.id}`}>
+                          {area.name} · {area.problemCount}
+                        </option>,
+                        ...area.concepts.map((concept) => (
+                          <option key={`concept:${concept.id}`} value={`concept:${concept.id}`}>
+                            {'　'}
+                            {area.name} / {concept.name} · {concept.problemCount}
+                          </option>
+                        )),
+                      ])}
+                    </select>
                   </div>
                   {canEditProblems ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleAutoArchiveUnassignedProblems()}
-                      disabled={autoArchiving || unassignedProblemCount === 0}
-                      className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50/90 px-2.5 text-xs font-semibold text-violet-700 shadow-none transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-55 dark:border-violet-500/25 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15"
-                    >
-                      {autoArchiving ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-3.5 w-3.5" />
-                      )}
-                      {locale === 'zh-CN' ? 'AI 自动归档' : 'AI auto-assign'}
-                      <span className="font-normal opacity-75">· {unassignedProblemCount}</span>
-                    </button>
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 text-xs"
+                        onClick={() => setTagManagerOpen(true)}
+                      >
+                        {locale === 'zh-CN' ? '管理知识树' : 'Manage tree'}
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => void handleAutoArchiveUnassignedProblems()}
+                        disabled={autoArchiving || problems.length === 0}
+                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50/90 px-2.5 text-xs font-semibold text-violet-700 shadow-none transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-55 dark:border-violet-500/25 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15"
+                      >
+                        {autoArchiving ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" />
+                        )}
+                        {locale === 'zh-CN' ? 'AI 整理标签' : 'AI organize tags'}
+                      </button>
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -2493,10 +2863,21 @@ export function CourseProblemBankView({
                                 className="line-clamp-1 text-sm font-semibold text-slate-950 dark:text-white"
                               />
                               <p className="mt-[3px] min-w-0 truncate text-xs text-slate-400">
-                                {problem.tags?.length
-                                  ? problem.tags.slice(0, 3).join(' · ')
-                                  : problem.notebookName ||
-                                    (locale === 'zh-CN' ? '未标注标签' : 'No tags')}
+                                {problem.tagAssignments?.some(
+                                  (assignment) => assignment.status === 'applied',
+                                )
+                                  ? problem.tagAssignments
+                                      .filter((assignment) => assignment.status === 'applied')
+                                      .slice(0, 2)
+                                      .map(
+                                        (assignment) =>
+                                          `${assignment.area} / ${assignment.concept}`,
+                                      )
+                                      .join(' · ')
+                                  : problem.tags?.length
+                                    ? problem.tags.slice(0, 3).join(' · ')
+                                    : problem.notebookName ||
+                                      (locale === 'zh-CN' ? '未标注标签' : 'No tags')}
                               </p>
                             </div>
                             <div className="min-w-0 truncate text-xs text-slate-500 dark:text-slate-400">
@@ -2585,146 +2966,12 @@ export function CourseProblemBankView({
               </div>
             </div>
 
-            <aside className="hidden">
-              <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    {locale === 'zh-CN' ? '掌握概览' : 'Mastery overview'}
-                  </p>
-                  <AlertCircle className="h-3.5 w-3.5 text-slate-400" />
-                </div>
-                <div className="mt-4 flex items-center gap-4">
-                  <div
-                    className="grid size-[88px] shrink-0 place-items-center rounded-full"
-                    style={{
-                      background: `conic-gradient(#22c55e 0deg ${
-                        (bankStats.mastered / Math.max(1, bankStats.total)) * 360
-                      }deg, #f59e0b ${(bankStats.mastered / Math.max(1, bankStats.total)) * 360}deg ${
-                        ((bankStats.mastered + bankStats.review) / Math.max(1, bankStats.total)) *
-                        360
-                      }deg, #ef4444 ${
-                        ((bankStats.mastered + bankStats.review) / Math.max(1, bankStats.total)) *
-                        360
-                      }deg ${
-                        ((bankStats.mastered + bankStats.review + bankStats.wrong) /
-                          Math.max(1, bankStats.total)) *
-                        360
-                      }deg, #e2e8f0 ${
-                        ((bankStats.mastered + bankStats.review + bankStats.wrong) /
-                          Math.max(1, bankStats.total)) *
-                        360
-                      }deg 360deg)`,
-                    }}
-                  >
-                    <div className="grid size-[62px] place-items-center rounded-full bg-white text-center shadow-inner dark:bg-slate-950">
-                      <span className="text-xl font-bold leading-none text-slate-950 dark:text-white">
-                        {bankStats.masteryPercent}%
-                      </span>
-                      <span className="-mt-2 text-[10px] font-medium text-slate-400">
-                        {locale === 'zh-CN' ? '总体掌握' : 'mastered'}
-                      </span>
-                    </div>
-                  </div>
-                  <dl className="min-w-0 flex-1 space-y-2 text-xs">
-                    {[
-                      {
-                        label: locale === 'zh-CN' ? '掌握良好' : 'Mastered',
-                        count: bankStats.mastered,
-                        className: 'bg-emerald-500',
-                      },
-                      {
-                        label: locale === 'zh-CN' ? '待复习' : 'To review',
-                        count: bankStats.review,
-                        className: 'bg-amber-500',
-                      },
-                      {
-                        label: locale === 'zh-CN' ? '错题' : 'Wrong',
-                        count: bankStats.wrong,
-                        className: 'bg-rose-500',
-                      },
-                      {
-                        label: locale === 'zh-CN' ? '未练习' : 'Untried',
-                        count: bankStats.unattempted,
-                        className: 'bg-slate-300',
-                      },
-                    ].map((item) => (
-                      <div key={item.label} className="flex items-center justify-between gap-2">
-                        <dt className="flex min-w-0 items-center gap-2 text-slate-500 dark:text-slate-400">
-                          <span className={cn('size-2 rounded-full', item.className)} />
-                          <span className="truncate">{item.label}</span>
-                        </dt>
-                        <dd className="font-semibold text-slate-800 dark:text-slate-100">
-                          {item.count}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-center text-xs dark:border-slate-800">
-                  <div>
-                    <div className="font-semibold text-sky-600 dark:text-sky-300">
-                      {bankStats.attempted}/{bankStats.total || 0}
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-slate-400">
-                      {locale === 'zh-CN' ? '已练习' : 'Practiced'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-sky-600 dark:text-sky-300">
-                      {bankStats.coveredNotebookCount}/{Math.max(1, bankStats.notebookCount)}
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-slate-400">
-                      {locale === 'zh-CN' ? '题库覆盖' : 'Coverage'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-sky-600 dark:text-sky-300">
-                      {bankStats.masteredTopicCount}/{bankStats.topicCount || 0}
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-slate-400">
-                      {locale === 'zh-CN' ? '知识点' : 'Concepts'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {locale === 'zh-CN' ? '做题最少章节 TOP5' : 'Least practiced chapters TOP5'}
-                </p>
-                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                  {locale === 'zh-CN'
-                    ? '按已做题目数量升序统计'
-                    : 'Sorted by attempted problem count'}
-                </p>
-                <div className="mt-4 space-y-3">
-                  {bankStats.weakTopics.length > 0 ? (
-                    bankStats.weakTopics.map((item, index) => (
-                      <div key={item.topic} className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2 text-xs">
-                          <span className="min-w-0 truncate font-medium text-slate-700 dark:text-slate-200">
-                            {item.topic}
-                          </span>
-                          <span className="shrink-0 font-semibold text-slate-500 dark:text-slate-400">
-                            {locale === 'zh-CN' ? `已做 ${item.count} 题` : `${item.count} done`}
-                          </span>
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div
-                            className={cn('h-full rounded-full', weakTopicBarClass(index))}
-                            style={{ width: `${item.percent}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
-                      {locale === 'zh-CN' ? '暂无章节刷题数据。' : 'No chapter practice data yet.'}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </aside>
+            <ProblemBankStatsSidebar
+              stats={bankStats}
+              loading={loading}
+              canEditProblems={canEditProblems}
+              locale={locale}
+            />
           </>
         ) : null}
 
@@ -2823,6 +3070,14 @@ export function CourseProblemBankView({
           </div>
         ) : null}
       </div>
+      <ProblemTagManagerDialog
+        open={tagManagerOpen}
+        onOpenChange={setTagManagerOpen}
+        courseId={courseId}
+        tree={problemTagTree}
+        locale={locale}
+        onChanged={reloadProblemTagTree}
+      />
     </div>
   );
 }

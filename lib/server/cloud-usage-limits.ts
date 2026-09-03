@@ -15,8 +15,8 @@ export type CloudUsageSummary = {
 
 export type CloudUsageGlobalLimit = {
   enabled: boolean;
-  monthlyCostLimitUsd: number | null;
-  monthlyRequestLimit: number | null;
+  weeklyCostLimitUsd: number | null;
+  weeklyRequestLimit: number | null;
   periodTimezone: string;
   updatedBy: string | null;
   updatedAt: string | null;
@@ -24,8 +24,8 @@ export type CloudUsageGlobalLimit = {
 
 export type CloudUsageUserLimit = {
   userId: string;
-  monthlyCostLimitUsd: number | null;
-  monthlyRequestLimit: number | null;
+  weeklyCostLimitUsd: number | null;
+  weeklyRequestLimit: number | null;
   disabled: boolean;
   note: string | null;
   updatedBy: string | null;
@@ -34,8 +34,8 @@ export type CloudUsageUserLimit = {
 
 type LimitRow = {
   enabled?: boolean;
-  monthlyCostLimitUsd: Prisma.Decimal | number | string | null;
-  monthlyRequestLimit: number | null;
+  weeklyCostLimitUsd: Prisma.Decimal | number | string | null;
+  weeklyRequestLimit: number | null;
   periodTimezone?: string | null;
   disabled?: boolean;
   note?: string | null;
@@ -69,18 +69,22 @@ function toNullableNumber(
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function monthWindow(now = new Date()): { start: Date; end: Date } {
-  return {
-    start: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0)),
-    end: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0, 0)),
-  };
+export function getCloudUsageWeekWindow(now = new Date()): { start: Date; end: Date } {
+  const start = new Date(now);
+  const day = start.getUTCDay();
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+  start.setUTCDate(start.getUTCDate() - daysSinceMonday);
+  start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 7);
+  return { start, end };
 }
 
 function normalizeGlobalLimit(row: LimitRow | null | undefined): CloudUsageGlobalLimit {
   return {
     enabled: Boolean(row?.enabled),
-    monthlyCostLimitUsd: toNullableNumber(row?.monthlyCostLimitUsd),
-    monthlyRequestLimit: row?.monthlyRequestLimit ?? null,
+    weeklyCostLimitUsd: toNullableNumber(row?.weeklyCostLimitUsd),
+    weeklyRequestLimit: row?.weeklyRequestLimit ?? null,
     periodTimezone: row?.periodTimezone || 'UTC',
     updatedBy: row?.updatedBy ?? null,
     updatedAt: row?.updatedAt ? new Date(row.updatedAt).toISOString() : null,
@@ -94,8 +98,8 @@ function normalizeUserLimit(
   if (!row) return null;
   return {
     userId,
-    monthlyCostLimitUsd: toNullableNumber(row.monthlyCostLimitUsd),
-    monthlyRequestLimit: row.monthlyRequestLimit ?? null,
+    weeklyCostLimitUsd: toNullableNumber(row.weeklyCostLimitUsd),
+    weeklyRequestLimit: row.weeklyRequestLimit ?? null,
     disabled: Boolean(row.disabled),
     note: row.note ?? null,
     updatedBy: row.updatedBy ?? null,
@@ -120,15 +124,15 @@ function assertWithinLimit(args: {
   if (overCostLimit(args.summary, args.costLimit)) {
     throw new Error(
       args.scope === 'global'
-        ? '全站云端月成本上限已达到，API 调用已暂停'
-        : '该用户云端月成本上限已达到，API 调用已暂停',
+        ? '全站云端每周成本上限已达到，API 调用已暂停'
+        : '你的本周 AI 用量已用完，将在下周一恢复',
     );
   }
   if (overRequestLimit(args.summary, args.requestLimit)) {
     throw new Error(
       args.scope === 'global'
-        ? '全站云端月请求数上限已达到，API 调用已暂停'
-        : '该用户云端月请求数上限已达到，API 调用已暂停',
+        ? '全站云端每周请求数上限已达到，API 调用已暂停'
+        : '你的本周 AI 请求次数已用完，将在下周一恢复',
     );
   }
 }
@@ -136,7 +140,7 @@ function assertWithinLimit(args: {
 export async function getCloudUsageGlobalLimit(db: DbClient): Promise<CloudUsageGlobalLimit> {
   const rows = await db.$queryRaw<LimitRow[]>(
     Prisma.sql`
-      SELECT "enabled", "monthlyCostLimitUsd", "monthlyRequestLimit", "periodTimezone", "updatedBy", "updatedAt"
+      SELECT "enabled", "weeklyCostLimitUsd", "weeklyRequestLimit", "periodTimezone", "updatedBy", "updatedAt"
       FROM "CloudUsageGlobalLimit"
       WHERE "id" = 'global'
       LIMIT 1
@@ -151,7 +155,7 @@ export async function getCloudUsageUserLimit(
 ): Promise<CloudUsageUserLimit | null> {
   const rows = await db.$queryRaw<LimitRow[]>(
     Prisma.sql`
-      SELECT "monthlyCostLimitUsd", "monthlyRequestLimit", "disabled", "note", "updatedBy", "updatedAt"
+      SELECT "weeklyCostLimitUsd", "weeklyRequestLimit", "disabled", "note", "updatedBy", "updatedAt"
       FROM "CloudUsageUserLimit"
       WHERE "userId" = ${userId}
       LIMIT 1
@@ -164,7 +168,7 @@ export async function summarizeCloudUsage(
   db: DbClient,
   userId?: string | null,
 ): Promise<CloudUsageSummary> {
-  const { start, end } = monthWindow();
+  const { start, end } = getCloudUsageWeekWindow();
   const llmRows = userId
     ? await db.$queryRaw<LLMUsageCostRow[]>(
         Prisma.sql`
@@ -239,8 +243,8 @@ export async function assertCloudUsageAllowed(userId?: string | null): Promise<v
         assertWithinLimit({
           scope: 'global',
           summary: globalSummary,
-          costLimit: globalLimit.monthlyCostLimitUsd,
-          requestLimit: globalLimit.monthlyRequestLimit,
+          costLimit: globalLimit.weeklyCostLimitUsd,
+          requestLimit: globalLimit.weeklyRequestLimit,
         });
       }
 
@@ -257,8 +261,8 @@ export async function assertCloudUsageAllowed(userId?: string | null): Promise<v
       assertWithinLimit({
         scope: 'user',
         summary: userSummary,
-        costLimit: userLimit.monthlyCostLimitUsd,
-        requestLimit: userLimit.monthlyRequestLimit,
+        costLimit: userLimit.weeklyCostLimitUsd,
+        requestLimit: userLimit.weeklyRequestLimit,
       });
     });
   } catch (error) {

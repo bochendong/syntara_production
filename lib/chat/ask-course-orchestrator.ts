@@ -13,6 +13,7 @@ import type {
 } from '@/lib/types/chat';
 import type { Scene } from '@/lib/types/stage';
 import { getCurrentModelConfig } from '@/lib/utils/model-config';
+import type { ChatResponseStrength } from '@/lib/ai/chat-response-strength';
 
 export type AskCourseOrchestratorOptions = {
   courseId: string;
@@ -27,6 +28,7 @@ export type AskCourseOrchestratorOptions = {
   userProfile?: { nickname?: string; bio?: string };
   surface?: 'course-chat' | 'teacher-course-chat' | 'student-course-chat';
   teachingMode?: CourseChatTeachingMode;
+  responseStrength?: ChatResponseStrength;
   signal?: AbortSignal;
   onMessages?: (messages: UIMessage<ChatMessageMetadata>[]) => void;
   onContextUsage?: (usage: CourseChatContextUsage) => void;
@@ -180,6 +182,7 @@ export async function askCourseOrchestrator(
     userProfile: options.userProfile,
     surface: options.surface ?? 'course-chat',
     teachingMode: options.teachingMode,
+    responseStrength: options.responseStrength,
     courseContext,
     trustedLearnAnswererHandoffToken: options.answererHandoff?.trustedToken,
     apiKey: modelConfig.apiKey,
