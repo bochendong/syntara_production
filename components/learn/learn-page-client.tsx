@@ -18621,57 +18621,55 @@ export function LearnPageClient() {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {isStudentCourseChat ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        disabled={sending}
-                        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border border-slate-200/80 bg-white px-2.5 text-[11px] font-semibold text-slate-700 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-                        aria-label={`回复强度：${CHAT_RESPONSE_STRENGTH_CONFIG[chatResponseStrength].label}`}
-                        data-testid="learn-response-strength-trigger"
-                      >
-                        <Gauge className="size-3.5 text-sky-600" strokeWidth={1.9} />
-                        回复强度 · {CHAT_RESPONSE_STRENGTH_CONFIG[chatResponseStrength].label}
-                        <ChevronDown className="size-3 text-slate-400" strokeWidth={2} />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      sideOffset={8}
-                      className="w-80 rounded-[14px] p-1.5"
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={sending}
+                      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border border-slate-200/80 bg-white px-2.5 text-[11px] font-semibold text-slate-700 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                      aria-label={`回复强度：${CHAT_RESPONSE_STRENGTH_CONFIG[chatResponseStrength].label}`}
+                      data-testid="learn-response-strength-trigger"
                     >
-                      <DropdownMenuLabel>选择回复强度</DropdownMenuLabel>
-                      {(['low', 'medium', 'high'] as const).map((strength) => {
-                        const option = CHAT_RESPONSE_STRENGTH_CONFIG[strength];
-                        return (
-                          <DropdownMenuItem
-                            key={strength}
-                            onSelect={() => selectChatResponseStrength(strength)}
-                            className="items-start gap-2 py-2"
-                            data-testid={`learn-response-strength-${strength}`}
-                          >
-                            <Gauge className="mt-0.5 size-4 text-sky-600" strokeWidth={1.8} />
-                            <span className="min-w-0 flex-1">
-                              <span className="block font-semibold">
-                                {option.label}强度
-                                <span className="ml-2 font-normal text-muted-foreground">
-                                  约 {option.relativeCost}× 用量
-                                </span>
-                              </span>
-                              <span className="block text-[11px] leading-4 text-muted-foreground">
-                                {option.description}
+                      <Gauge className="size-3.5 text-sky-600" strokeWidth={1.9} />
+                      回复强度 · {CHAT_RESPONSE_STRENGTH_CONFIG[chatResponseStrength].label}
+                      <ChevronDown className="size-3 text-slate-400" strokeWidth={2} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    sideOffset={8}
+                    className="w-80 rounded-[14px] p-1.5"
+                  >
+                    <DropdownMenuLabel>选择回复强度</DropdownMenuLabel>
+                    {(['low', 'medium', 'high'] as const).map((strength) => {
+                      const option = CHAT_RESPONSE_STRENGTH_CONFIG[strength];
+                      return (
+                        <DropdownMenuItem
+                          key={strength}
+                          onSelect={() => selectChatResponseStrength(strength)}
+                          className="items-start gap-2 py-2"
+                          data-testid={`learn-response-strength-${strength}`}
+                        >
+                          <Gauge className="mt-0.5 size-4 text-sky-600" strokeWidth={1.8} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-semibold">
+                              {option.label}强度
+                              <span className="ml-2 font-normal text-muted-foreground">
+                                约 {option.relativeCost}× 用量
                               </span>
                             </span>
-                            {chatResponseStrength === strength ? (
-                              <CheckCircle2 className="mt-0.5 size-4 text-sky-600" />
-                            ) : null}
-                          </DropdownMenuItem>
-                        );
-                      })}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : null}
+                            <span className="block text-[11px] leading-4 text-muted-foreground">
+                              {option.description}
+                            </span>
+                          </span>
+                          {chatResponseStrength === strength ? (
+                            <CheckCircle2 className="mt-0.5 size-4 text-sky-600" />
+                          ) : null}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 {activeCourseSourceHealthNotice && isTeacherCourseChat ? (
                   <button

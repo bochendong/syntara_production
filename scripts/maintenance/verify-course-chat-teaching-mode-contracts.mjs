@@ -71,7 +71,13 @@ assert.match(learn, /data-testid="learn-context-window-usage"/);
 assert.match(learn, /data-testid="learn-teaching-mode-trigger"/);
 assert.match(learn, /data-testid="learn-teaching-mode-reply"/);
 assert.match(learn, /data-testid="learn-teaching-mode-guided"/);
+assert.match(learn, /data-testid="learn-response-strength-trigger"/);
+assert.doesNotMatch(
+  learn,
+  /\{isStudentCourseChat \? \(\s*<DropdownMenu>[\s\S]{0,1600}data-testid="learn-response-strength-trigger"/,
+);
 assert.match(learn, /teachingMode: chatTeachingMode/);
+assert.match(learn, /responseStrength: chatResponseStrength/);
 assert.match(learn, /setChatContextUsageState\(\{ key: turnStoreKey, usage \}\)/);
 assert.doesNotMatch(learn, /if \(action\.kind === 'web\.search'\)/);
 assert.doesNotMatch(learn, /'\/api\/web-search'/);
