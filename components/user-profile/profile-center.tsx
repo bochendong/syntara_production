@@ -11,6 +11,7 @@ import { UserProfileCard } from './profile-card';
 import { ProfileUsageCard } from './profile-usage-card';
 import { NotificationCenterUsageCard } from './notification-center-usage-card';
 import { ProfileLearningUsageStats } from './profile-learning-usage-stats';
+import { ProfilePhoneEditor } from './profile-phone-editor';
 
 type ProfileSection = 'account' | 'appearance' | 'usage';
 
@@ -149,17 +150,18 @@ export function ProfileCenter() {
                 className="rounded-xl border border-slate-200 bg-white shadow-sm backdrop-blur-none"
               />
               <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between gap-6 px-4 py-3.5 text-sm">
+                  <span className="font-medium text-slate-800">账户邮箱</span>
+                  <span className="truncate text-slate-500">{email || '未绑定邮箱'}</span>
+                </div>
+                <ProfilePhoneEditor />
                 {[
-                  ['账户邮箱', email || '未绑定邮箱'],
-                  ['资料同步', '当前设备'],
-                  ['隐私状态', '仅自己可见'],
-                ].map(([label, value], index) => (
+                  ['资料同步', '当前账户'],
+                  ['隐私状态', '完整手机号仅自己可见'],
+                ].map(([label, value]) => (
                   <div
                     key={label}
-                    className={cn(
-                      'flex items-center justify-between gap-6 px-4 py-3.5 text-sm',
-                      index > 0 && 'border-t border-slate-100',
-                    )}
+                    className="flex items-center justify-between gap-6 border-t border-slate-100 px-4 py-3.5 text-sm"
                   >
                     <span className="font-medium text-slate-800">{label}</span>
                     <span className="truncate text-slate-500">{value}</span>

@@ -1,0 +1,114 @@
+[
+  {
+    "id": "student-list-notebooks",
+    "role": "student",
+    "question": "这门课现在开放了哪些笔记本？",
+    "expectedTools": ["list_course_notebooks"],
+    "confirmation": false
+  },
+  {
+    "id": "student-search-course-explanation",
+    "role": "student",
+    "question": "老师在链表删除这一节是怎么讲的？",
+    "expectedTools": ["search_course_notebooks"],
+    "confirmation": false
+  },
+  {
+    "id": "student-simpler-course-explanation",
+    "role": "student",
+    "question": "结合课程里的例子，换个简单方式解释递归。",
+    "expectedTools": ["search_course_notebooks"],
+    "confirmation": false
+  },
+  {
+    "id": "student-learning-context",
+    "role": "student",
+    "question": "我这周主要错在哪些知识点？",
+    "expectedTools": ["get_my_learning_context"],
+    "confirmation": false
+  },
+  {
+    "id": "student-personal-review-plan",
+    "role": "student",
+    "question": "根据我的情况安排一个二十分钟复习。",
+    "expectedTools": ["get_my_learning_context", "search_course_notebooks"],
+    "confirmation": false
+  },
+  {
+    "id": "student-real-problem-bank",
+    "role": "student",
+    "question": "从课程题库找三道链表题给我练。",
+    "expectedTools": ["search_course_problem_bank"],
+    "confirmation": false
+  },
+  {
+    "id": "student-list-calendar",
+    "role": "student",
+    "question": "我今天有什么学习安排？",
+    "expectedTools": ["list_calendar_events"],
+    "confirmation": false
+  },
+  {
+    "id": "student-propose-calendar-change",
+    "role": "student",
+    "question": "把明晚七点的链表复习加到日历。",
+    "expectedTools": ["propose_calendar_change"],
+    "confirmation": true
+  },
+  {
+    "id": "student-current-external-fact",
+    "role": "student",
+    "question": "Next.js 最近的变化会影响课程里的写法吗？",
+    "expectedTools": ["web_search", "search_course_notebooks"],
+    "confirmation": false
+  },
+  {
+    "id": "teacher-list-notebooks",
+    "role": "teacher",
+    "question": "这门课有哪些笔记本，分别覆盖什么？",
+    "expectedTools": ["list_course_notebooks"],
+    "confirmation": false
+  },
+  {
+    "id": "teacher-lesson-sequence",
+    "role": "teacher",
+    "question": "概括第三章，并设计下节课的讲解顺序。",
+    "expectedTools": ["search_course_notebooks"],
+    "confirmation": false
+  },
+  {
+    "id": "teacher-student-insight",
+    "role": "teacher",
+    "question": "小王最近主要卡在哪里？",
+    "expectedTools": ["get_course_learning_insight"],
+    "toolInput": { "scope": "student" },
+    "confirmation": false
+  },
+  {
+    "id": "teacher-class-insight",
+    "role": "teacher",
+    "question": "全班这周最常见的三个问题是什么？",
+    "expectedTools": ["get_course_learning_insight"],
+    "toolInput": { "scope": "class" },
+    "confirmation": false
+  },
+  {
+    "id": "teacher-problem-insight",
+    "role": "teacher",
+    "question": "哪道题错误率最高，学生通常错在哪里？",
+    "expectedTools": ["get_course_learning_insight"],
+    "toolInput": { "scope": "problem" },
+    "confirmation": false
+  },
+  {
+    "id": "teacher-schedule-and-priority",
+    "role": "teacher",
+    "question": "结合下周日程和全班薄弱点，我应该先讲什么？",
+    "expectedTools": [
+      "list_calendar_events",
+      "get_course_learning_insight",
+      "search_course_notebooks"
+    ],
+    "confirmation": false
+  }
+]

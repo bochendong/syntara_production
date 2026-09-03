@@ -31,12 +31,18 @@ for (const activeActions of [courseChatActions, generatedLearnActions]) {
   assert.doesNotMatch(activeActions, /'image\.propose_generation'/);
 }
 
-const calendarToolBlock = agent.match(
-  /const calendarTools = \{([\s\S]*?)\n  \};\n  const latestStudentMessage/,
+const calendarReadToolBlock = agent.match(
+  /const calendarReadTools = \{([\s\S]*?)\n  \};\n  const calendarMutationTools/,
 )?.[1];
-assert.ok(calendarToolBlock, 'missing student calendar tool registry');
+const calendarMutationToolBlock = agent.match(
+  /const calendarMutationTools = \{([\s\S]*?)\n  \};\n  const learningReadTools/,
+)?.[1];
+assert.ok(calendarReadToolBlock, 'missing shared calendar read tool registry');
+assert.ok(calendarMutationToolBlock, 'missing student calendar mutation proposal registry');
 assert.deepEqual(
-  [...calendarToolBlock.matchAll(/^    ([a-z_]+): tool\(/gm)].map((match) => match[1]),
+  [calendarReadToolBlock, calendarMutationToolBlock].flatMap((block) =>
+    [...block.matchAll(/^    ([a-z_]+): tool\(/gm)].map((match) => match[1]),
+  ),
   ['list_calendar_events', 'propose_calendar_change'],
 );
 

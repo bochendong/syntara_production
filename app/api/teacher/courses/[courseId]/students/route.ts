@@ -5,6 +5,7 @@ import { safeRoute } from '@/lib/server/json-error-response';
 import { prisma } from '@/lib/server/prisma';
 import { requireTeacher } from '@/lib/server/teacher-auth';
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
+import { phoneLastFour } from '@/lib/profile/phone';
 
 const updateProgressLimitSchema = z.object({
   userId: z.string().trim().min(1).max(200),
@@ -52,7 +53,7 @@ export async function GET(_request: Request, context: { params: Promise<{ course
       select: {
         joinedAt: true,
         notebookAccessLimit: true,
-        user: { select: { id: true, name: true, email: true, image: true } },
+        user: { select: { id: true, name: true, phone: true, image: true } },
       },
     });
 
@@ -68,8 +69,8 @@ export async function GET(_request: Request, context: { params: Promise<{ course
       },
       students: enrollments.map((enrollment) => ({
         userId: enrollment.user.id,
-        name: enrollment.user.name?.trim() || enrollment.user.email?.split('@')[0] || '未命名学生',
-        email: enrollment.user.email || '未提供',
+        name: enrollment.user.name?.trim() || '未命名学生',
+        phoneLast4: phoneLastFour(enrollment.user.phone),
         avatarUrl: enrollment.user.image || undefined,
         notebookAccessLimit: enrollment.notebookAccessLimit,
         grantedAt: enrollment.joinedAt.getTime(),

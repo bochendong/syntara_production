@@ -17,6 +17,7 @@ export type TeacherStudioCourse = {
   description?: string;
   academicYear: number;
   term: AcademicTerm;
+  studentCount: number;
   problemCount: number;
   createdAt: number;
   updatedAt: number;
@@ -108,6 +109,7 @@ type StudioPayload = {
     courseCode?: string | null;
     academicYear?: number | null;
     academicTerm?: AcademicTerm | null;
+    studentCount: number;
     problemCount: number;
     createdAt: number;
     updatedAt: number;
@@ -232,6 +234,7 @@ export async function loadOnlineTeacherStudio(args: { courseId: string; teacherI
       description: payload.course.description || undefined,
       academicYear: payload.course.academicYear ?? new Date().getFullYear(),
       term: payload.course.academicTerm ?? currentTerm(),
+      studentCount: payload.course.studentCount,
       problemCount: payload.course.problemCount,
       createdAt: payload.course.createdAt,
       updatedAt: payload.course.updatedAt,

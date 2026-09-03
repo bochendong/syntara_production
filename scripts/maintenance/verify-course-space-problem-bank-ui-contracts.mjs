@@ -14,6 +14,7 @@ const problemEvaluator = read('lib/server/notebook-problems/evaluate.ts');
 const teacherStudio = read('components/teacher/teacher-course-studio-client.tsx');
 const forum = read('components/course-forum/course-forum-page-client.tsx');
 const headerCache = read('lib/course-space/course-space-header-cache.ts');
+const localDemoProblemBank = read('lib/teacher/local-demo-problem-bank.ts');
 
 const checks = [
   {
@@ -70,15 +71,31 @@ const checks = [
       problemBankHelpers.includes('attemptedCount > 0 && passedCount === 0'),
   },
   {
+    name: 'local problem bank demo includes structured knowledge tags and a filterable tree',
+    pass:
+      localDemoProblemBank.includes('tagAssignments: [CSC148_DEMO_TAGS.objects]') &&
+      localDemoProblemBank.includes('tagAssignments: [CSC148_DEMO_TAGS.recursionDesign]') &&
+      localDemoProblemBank.includes('listLocalDemoProblemTagTree') &&
+      problemBankController.includes('listLocalDemoProblemTagTree(courseId)'),
+  },
+  {
     name: 'problem bank sidebar spans the content height and reports tag completion',
     pass:
       problemBank.includes('ProblemBankStatsSidebar') &&
-      problemBank.includes('self-stretch xl:flex') &&
+      problemBank.includes('absolute inset-y-0 right-0') &&
+      problemBank.includes('xl:mr-[312px]') &&
       problemBank.includes("'标签完成度'") &&
-      problemBank.includes('item.attemptedCount') &&
-      problemBank.includes('item.totalCount') &&
-      problemBankController.includes('.slice(0, 8)') &&
+      problemBank.includes('item.percent') &&
+      problemBankController.includes('item.attemptedCount / Math.max(1, item.totalCount)') &&
+      problemBankController.includes('.slice(0, 5)') &&
       problemBankController.includes('tagProgressByName'),
+  },
+  {
+    name: 'problem bank sidebar stays compact without an internal scroll region',
+    pass:
+      problemBank.includes('grid grid-cols-4 gap-1.5 p-3') &&
+      problemBank.includes('mt-3 min-h-0 flex-1 overflow-hidden') &&
+      !problemBank.includes('mt-4 min-h-0 flex-1 overflow-y-auto'),
   },
   {
     name: 'empty problem banks show guidance instead of a zero-percent chart',
@@ -89,9 +106,11 @@ const checks = [
       problemBank.includes("canEditProblems\n                  ? '导入第一批题目后"),
   },
   {
-    name: 'fill-blank problems have numbered inputs, structured submission, and grading support',
+    name: 'fill-blank problems have inline inputs, symbol entry, submission, and grading support',
     pass:
-      problemBank.includes('fill-blank-${selectedProblem.id}-${blank.id}') &&
+      problemBank.includes('InlineFillBlankPrompt') &&
+      problemBank.includes('fill-blank-${selectedProblem.id}-${selectedActiveBlank.id}') &&
+      problemBank.includes('CommonMathSymbols') &&
       problemBank.includes('setBlankAnswers') &&
       problemBankController.includes('blanks: selectedBlankAnswers') &&
       problemDraftForm.includes("currentType === 'fill_blank'") &&

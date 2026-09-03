@@ -4,21 +4,12 @@ import { apiError } from '@/lib/server/api-response';
 import { createLogger } from '@/lib/logger';
 import { resolveModel } from '@/lib/server/resolve-model';
 import { runWithRequestContext } from '@/lib/server/request-context';
-import { buildTrustedCourseQuestionContext } from '@/lib/chat/server-course-question-context';
 import {
-  attachTrustedServerCourseContext,
-  latestTrustedCourseUserText,
   resolveTrustedCourseTurn,
   runTrustedCourseTurn,
   TrustedCourseTurnError,
 } from '@/features/chat/server/trusted-course-turn';
-import { shouldUseDirectCourseAnswerFastPath } from '@/features/learn-core/server/decision-chain';
-import { verifyTrustedLearnAnswererHandoff } from '@/features/learn-core/server/trusted-answerer-handoff';
-import { inferMemorySearchIntent } from '@/lib/server/memory-search-intent';
-import {
-  runStudentCourseTurn,
-  runTeacherCourseTurn,
-} from '@/features/chat/server/teacher-course-agent';
+import { runCourseTurn } from '@/features/chat/server/teacher-course-agent';
 import {
   COURSE_DATABASE_UNAVAILABLE_MESSAGE,
   isDatabaseUnavailableError,
@@ -64,7 +55,9 @@ function requestHasOpenAIFileInput(body: StatelessChatRequest): boolean {
 
 function usesNativeCourseAgent(body: StatelessChatRequest): boolean {
   return (
-    body.config.surface === 'teacher-course-chat' || body.config.surface === 'student-course-chat'
+    body.config.surface === 'course-chat' ||
+    body.config.surface === 'teacher-course-chat' ||
+    body.config.surface === 'student-course-chat'
   );
 }
 
@@ -135,104 +128,45 @@ export async function handleStatelessChatRequest(req: NextRequest) {
           req,
           '/api/chat',
           async () => {
-            if (body.config.surface === 'teacher-course-chat') {
-              if (!trusted.courseAccess || trusted.courseAccess.role !== 'owner') {
+            const courseAgentMode =
+              body.config.surface === 'teacher-course-chat'
+                ? 'teacher'
+                : body.config.surface === 'student-course-chat'
+                  ? 'student'
+                  : body.config.surface === 'course-chat' && trusted.courseAccess
+                    ? trusted.courseAccess.role === 'owner'
+                      ? 'teacher'
+                      : 'student'
+                    : null;
+            if (courseAgentMode) {
+              const requiredRole = courseAgentMode === 'teacher' ? 'owner' : 'enrolled';
+              if (!trusted.courseAccess || trusted.courseAccess.role !== requiredRole) {
                 throw new TrustedCourseTurnError(
                   'unauthorized',
                   403,
-                  'Teacher course chat requires verified course owner access.',
+                  courseAgentMode === 'teacher'
+                    ? 'Teacher course chat requires verified course owner access.'
+                    : 'Student course chat requires verified enrollment access.',
                 );
               }
-              await runTeacherCourseTurn({
+              await runCourseTurn({
                 body: stripTrustedLearnHandoffToken(body),
                 signal,
                 languageModel,
                 modelString,
                 providerId,
                 access: trusted.courseAccess,
+                mode: courseAgentMode,
                 onEvent: async (event) => {
                   if (signal.aborted) return;
                   await writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
                 },
               });
               return;
-            }
-            if (body.config.surface === 'student-course-chat') {
-              if (!trusted.courseAccess || trusted.courseAccess.role !== 'enrolled') {
-                throw new TrustedCourseTurnError(
-                  'unauthorized',
-                  403,
-                  'Student course chat requires verified enrollment access.',
-                );
-              }
-              await runStudentCourseTurn({
-                body: stripTrustedLearnHandoffToken(body),
-                signal,
-                languageModel,
-                modelString,
-                providerId,
-                access: trusted.courseAccess,
-                onEvent: async (event) => {
-                  if (signal.aborted) return;
-                  await writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-                },
-              });
-              return;
-            }
-
-            let trustedBody = body;
-            if (
-              body.config.surface === 'course-chat' &&
-              trusted.contextSource !== 'development_mock'
-            ) {
-              if (!trusted.authenticatedUserId || !trusted.courseId) {
-                throw new TrustedCourseTurnError(
-                  'unauthorized',
-                  401,
-                  'Authenticated course context is required.',
-                );
-              }
-              const latestQuestion = latestTrustedCourseUserText(body);
-              const directAnswerFastPath = shouldUseDirectCourseAnswerFastPath({
-                question: latestQuestion,
-                courseId: trusted.courseId,
-              });
-              const trustedPlannerHandoff = verifyTrustedLearnAnswererHandoff({
-                token: body.trustedLearnAnswererHandoffToken,
-                userId: trusted.authenticatedUserId,
-                courseId: trusted.courseId,
-                question: latestQuestion,
-              });
-              const serverContext = await buildTrustedCourseQuestionContext({
-                userId: trusted.authenticatedUserId,
-                courseId: trusted.courseId,
-                question: latestQuestion,
-                searchIntent: directAnswerFastPath
-                  ? inferMemorySearchIntent(latestQuestion, 'course')
-                  : undefined,
-                trustedAccess: trusted.courseAccess,
-                trustedPlannerHandoff,
-                model: languageModel,
-              });
-              await writer.write(
-                encoder.encode(
-                  `data: ${JSON.stringify({
-                    type: 'course_evidence',
-                    data: {
-                      courseId: trusted.courseId,
-                      items: serverContext.evidence,
-                    },
-                  } satisfies StatelessEvent)}\n\n`,
-                ),
-              );
-              trustedBody = attachTrustedServerCourseContext({
-                resolved: trusted,
-                serverCourseContext: serverContext.courseContext,
-              });
             }
 
             await runTrustedCourseTurn({
-              body: stripTrustedLearnHandoffToken(trustedBody),
+              body: stripTrustedLearnHandoffToken(body),
               signal,
               languageModel,
               onEvent: async (event) => {

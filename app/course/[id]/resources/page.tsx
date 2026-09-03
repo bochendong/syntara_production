@@ -7,6 +7,7 @@ type CourseResourceLibraryPageProps = {
 
 type CourseResourceLibrarySearchParams = {
   tab?: string | string[];
+  notebookId?: string | string[];
 };
 
 export default async function CourseResourceLibraryPage({
@@ -20,5 +21,14 @@ export default async function CourseResourceLibraryPage({
   const initialTab = Array.isArray(resolvedSearchParams.tab)
     ? resolvedSearchParams.tab[0]
     : resolvedSearchParams.tab;
-  return <CourseResourceLibraryPageClient courseId={id} initialTab={initialTab} />;
+  const initialNotebookId = Array.isArray(resolvedSearchParams.notebookId)
+    ? resolvedSearchParams.notebookId[0]
+    : resolvedSearchParams.notebookId;
+  return (
+    <CourseResourceLibraryPageClient
+      courseId={id}
+      initialTab={initialTab}
+      initialNotebookId={initialNotebookId}
+    />
+  );
 }

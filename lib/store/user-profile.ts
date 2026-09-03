@@ -51,6 +51,7 @@ export interface UserProfileState {
   avatar: string;
   nickname: string;
   bio: string;
+  phone: string;
   /** 通知横幅配色：`auto` 为按通知类型，否则为固定主色 */
   notificationCardStyle: NotificationCardStyleChoice;
   /** 通知弹层/预览使用的舞台动效（与 `NOTIFICATION_BAR_STAGE_OPTIONS` 一致） */
@@ -64,6 +65,7 @@ export interface UserProfileState {
   setAvatar: (avatar: string) => void;
   setNickname: (nickname: string) => void;
   setBio: (bio: string) => void;
+  setPhone: (phone: string) => void;
   setNotificationCardStyle: (choice: NotificationCardStyleChoice) => void;
   setNotificationBarStageId: (id: NotificationBarStageId) => void;
   setLeftRailBarStageId: (id: LeftRailBarStageChoice) => void;
@@ -77,6 +79,7 @@ export const useUserProfileStore = create<UserProfileState>()(
       avatar: DEFAULT_USER_PRESET_AVATAR,
       nickname: '',
       bio: '',
+      phone: '',
       notificationCardStyle: 'auto',
       notificationBarStageId: 'soft-aurora',
       leftRailBarStageId: 'default',
@@ -85,6 +88,7 @@ export const useUserProfileStore = create<UserProfileState>()(
       setAvatar: (avatar) => set({ avatar }),
       setNickname: (nickname) => set({ nickname }),
       setBio: (bio) => set({ bio }),
+      setPhone: (phone) => set({ phone }),
       setNotificationCardStyle: (choice) =>
         set(
           isValidNotificationStyleChoice(choice)

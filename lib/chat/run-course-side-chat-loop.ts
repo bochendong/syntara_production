@@ -82,11 +82,6 @@ const LEARNING_ACTION_KINDS = new Set<LearningActionKind>([
   'calendar.propose_add',
   'calendar.propose_update',
   'calendar.propose_delete',
-  'calendar.search',
-  'calendar.start_recent',
-  'memory.search',
-  'classroom.propose_temporary_explanation',
-  'memory.propose_write',
 ]);
 
 function toLearningActionKind(actionName: string): LearningActionKind | null {
@@ -105,16 +100,13 @@ function makeLearningAction(
   const label = typeof rawLabel === 'string' ? rawLabel : event.data.actionName;
   const rawSummary = params.summary || params.reason;
   const summary = typeof rawSummary === 'string' ? rawSummary : undefined;
-  const requiresConfirmation =
-    params.requiresConfirmation === true ||
-    (kind !== 'calendar.search' && params.requiresConfirmation !== false);
   return {
     id: event.data.actionId,
     kind,
     label,
     summary,
     status: 'proposed',
-    confirmation: requiresConfirmation ? 'required' : 'none',
+    confirmation: 'required',
     payload: params,
   };
 }
@@ -575,13 +567,15 @@ async function runCourseSideChatLoopUnqueued(
   } = params;
 
   const settingsState = useSettingsStore.getState();
-  const notebookAgentSingleTurn =
-    surface === 'teacher-course-chat' || surface === 'student-course-chat';
-  const defaultMaxTurns = notebookAgentSingleTurn || agentIds.length <= 1 ? 1 : 10;
+  const courseAgentSingleTurn =
+    surface === 'course-chat' ||
+    surface === 'teacher-course-chat' ||
+    surface === 'student-course-chat';
+  const defaultMaxTurns = courseAgentSingleTurn || agentIds.length <= 1 ? 1 : 10;
   // The course notebook server already runs its tools inside one
   // ToolLoopAgent request. Re-entering the outer director loop repeats the
   // same user question and can create up to ten near-duplicate replies.
-  const maxTurns = notebookAgentSingleTurn
+  const maxTurns = courseAgentSingleTurn
     ? 1
     : settingsState.maxTurns
       ? parseInt(settingsState.maxTurns, 10) || defaultMaxTurns

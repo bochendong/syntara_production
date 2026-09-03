@@ -3,7 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Bot, Clock3, Loader2, Mail, School, Search, ShieldCheck, Users } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Bot,
+  Clock3,
+  Loader2,
+  Search,
+  ShieldCheck,
+  Users,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -15,12 +25,8 @@ import {
   resolveCourseSpaceHeaderFields,
 } from '@/lib/course-space/format-course-space-header';
 import { findLocalDemoTeacherHomeCourse } from '@/lib/teacher/local-demo-fixtures';
-import {
-  StudioItemTag,
-  StudioList,
-  StudioListItem,
-  StudioPagination,
-} from '@/components/teacher/studio-list';
+import { LOCAL_DEMO_STUDENT_ROSTER } from '@/lib/teacher/local-demo-student-roster';
+import { StudioList, StudioListItem, StudioPagination } from '@/components/teacher/studio-list';
 import { academicTermLabel, type AcademicTerm } from '@/lib/teacher/online-course-studio';
 import { cn } from '@/lib/utils';
 import { BackendApiError, backendJson } from '@/lib/utils/backend-api';
@@ -37,7 +43,7 @@ type TeacherCourseSummary = {
 type CourseStudentRosterItem = {
   userId: string;
   name: string;
-  email: string;
+  phoneLast4: string | null;
   avatarUrl?: string;
   notebookAccessLimit: number | null;
   grantedAt: number;
@@ -50,34 +56,18 @@ type CourseLearningOverview = {
   sample: { submissionCount: number; timingSampleCount: number };
   metrics: {
     enrolledStudentCount: number;
-    activeStudentCount: number;
     submissionCount: number;
     passRate: number | null;
     averageActiveDurationMs: number | null;
   };
   students: Array<{
     userId: string;
-    active: boolean;
     attemptedProblemCount: number;
     submissionCount: number;
     passRate: number | null;
     averageActiveDurationMs: number | null;
     timingSampleCount: number;
     lastSubmissionAt: number | null;
-  }>;
-  weakTagPaths: Array<{
-    area: string;
-    concept: string;
-    affectedStudentCount: number;
-    failedAttempts: number;
-  }>;
-  difficultProblems: Array<{
-    problemId: string;
-    title: string;
-    affectedStudentCount: number;
-    failureRate: number;
-    forumQuestionCount: number;
-    timingSampleCount: number;
   }>;
 };
 
@@ -88,7 +78,53 @@ function formatDuration(value: number | null) {
   return minutes ? `${minutes}分${seconds}秒` : `${seconds}秒`;
 }
 
+type StudentSortKey = 'attempted' | 'passRate' | 'duration' | 'joinedAt';
+
+const STUDENT_TABLE_GRID =
+  'grid min-w-[52rem] grid-cols-[minmax(12rem,1.3fr)_minmax(6.5rem,0.7fr)_minmax(6.5rem,0.7fr)_minmax(8.5rem,0.9fr)_9rem_auto] items-center gap-4';
+
+function compareSortValues(left: number | null, right: number | null, direction: 'asc' | 'desc') {
+  if (left == null && right == null) return 0;
+  if (left == null) return 1;
+  if (right == null) return -1;
+  if (left === right) return 0;
+  const order = left < right ? -1 : 1;
+  return direction === 'asc' ? order : -order;
+}
+
+function SortableColumnHeader({
+  label,
+  column,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  column: StudentSortKey;
+  sortKey: StudentSortKey | null;
+  sortDir: 'asc' | 'desc';
+  onSort: (column: StudentSortKey) => void;
+}) {
+  const active = sortKey === column;
+  const Icon = !active ? ArrowUpDown : sortDir === 'asc' ? ArrowUp : ArrowDown;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(column)}
+      aria-pressed={active}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md text-left outline-none transition hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-emerald-500/30 dark:hover:text-slate-100',
+        active ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500',
+      )}
+    >
+      {label}
+      <Icon className={cn('size-3.5 shrink-0', active ? 'opacity-80' : 'opacity-35')} />
+    </button>
+  );
+}
+
 const STUDENT_PAGE_SIZE = 20;
+const LEARNING_RANGE = '7d' as const;
 
 const STUDENTS_SECTION_CLASS = cn(
   COURSE_SPACE_BODY_SURFACE_CLASS,
@@ -100,17 +136,6 @@ function localDemoCourseStudents(courseId: string): {
   students: CourseStudentRosterItem[];
 } {
   const demo = findLocalDemoTeacherHomeCourse(courseId);
-  const roster: Array<[string, string, string, number | null]> = [
-    ['stu-li-wei', '李维', 'li.wei@mail.utoronto.ca', null],
-    ['stu-wang-min', '王敏', 'wang.min@mail.utoronto.ca', 3],
-    ['stu-chen-hao', '陈浩', 'hao.chen@mail.utoronto.ca', 2],
-    ['stu-zhao-lin', '赵琳', 'lin.zhao@mail.utoronto.ca', null],
-    ['stu-sun-yue', '孙悦', 'yue.sun@mail.utoronto.ca', 1],
-    ['stu-zhou-qi', '周琪', 'qi.zhou@mail.utoronto.ca', null],
-    ['stu-wu-fang', '吴芳', 'fang.wu@mail.utoronto.ca', 3],
-    ['stu-zheng-kai', '郑凯', 'kai.zheng@mail.utoronto.ca', null],
-  ];
-
   return {
     course: {
       id: courseId,
@@ -120,11 +145,8 @@ function localDemoCourseStudents(courseId: string): {
       term: demo?.academicTerm ?? 'summer',
       notebookCount: demo?.notebookCount ?? 12,
     },
-    students: roster.map(([userId, name, email, notebookAccessLimit], index) => ({
-      userId,
-      name,
-      email,
-      notebookAccessLimit,
+    students: LOCAL_DEMO_STUDENT_ROSTER.map((student, index) => ({
+      ...student,
       grantedAt: Date.UTC(2026, 7, 10, 9, 0, 0) - index * 86_400_000,
     })),
   };
@@ -144,14 +166,12 @@ function localDemoCourseLearning(
     sample: { submissionCount: 46, timingSampleCount: 31 },
     metrics: {
       enrolledStudentCount: students.length,
-      activeStudentCount: 6,
       submissionCount: 46,
       passRate: 0.67,
       averageActiveDurationMs: 412_000,
     },
     students: students.map((student, index) => ({
       userId: student.userId,
-      active: index < 6,
       attemptedProblemCount: Math.max(0, 11 - index),
       submissionCount: Math.max(0, 16 - index * 2),
       passRate: index < 7 ? Math.max(0.35, 0.86 - index * 0.07) : null,
@@ -159,20 +179,6 @@ function localDemoCourseLearning(
       timingSampleCount: index < 6 ? 5 - Math.floor(index / 2) : 0,
       lastSubmissionAt: index < 6 ? Date.now() - index * 7_200_000 : null,
     })),
-    weakTagPaths: [
-      { area: '算法分析', concept: '递归复杂度', affectedStudentCount: 4, failedAttempts: 9 },
-      { area: '数据结构', concept: '树遍历', affectedStudentCount: 3, failedAttempts: 6 },
-    ],
-    difficultProblems: [
-      {
-        problemId: 'csc148-mock-problem-4',
-        title: '递归树复杂度分析',
-        affectedStudentCount: 4,
-        failureRate: 0.62,
-        forumQuestionCount: 3,
-        timingSampleCount: 8,
-      },
-    ],
   };
 }
 
@@ -196,13 +202,13 @@ export function TeacherCourseStudentsClient({
   const [students, setStudents] = useState<CourseStudentRosterItem[]>([]);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState<StudentSortKey | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [accessRevoked, setAccessRevoked] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(0);
-  const [savingProgressUserId, setSavingProgressUserId] = useState<string | null>(null);
-  const [range, setRange] = useState<'7d' | '30d' | 'term' | 'all'>('7d');
   const [learning, setLearning] = useState<CourseLearningOverview | null>(null);
   const loadingRef = useRef(false);
 
@@ -228,13 +234,13 @@ export function TeacherCourseStudentsClient({
                 students: CourseStudentRosterItem[];
               }>(`/api/teacher/courses/${encodeURIComponent(courseId)}/students`),
               backendJson<CourseLearningOverview>(
-                `/api/teacher/courses/${encodeURIComponent(courseId)}/learning?range=${range}`,
+                `/api/teacher/courses/${encodeURIComponent(courseId)}/learning?range=${LEARNING_RANGE}`,
               ),
             ]);
         setCourse(payload.course);
         setStudents(payload.students);
         if (mockMode) {
-          setLearning(localDemoCourseLearning(payload.students, range));
+          setLearning(localDemoCourseLearning(payload.students, LEARNING_RANGE));
         } else {
           setLearning(learningPayload);
         }
@@ -257,7 +263,7 @@ export function TeacherCourseStudentsClient({
         loadingRef.current = false;
       }
     },
-    [courseId, mockMode, range, teacherId],
+    [courseId, mockMode, teacherId],
   );
 
   useEffect(() => {
@@ -278,59 +284,58 @@ export function TeacherCourseStudentsClient({
     };
   }, [accessRevoked, hydrated, isLoggedIn, loadStudents, mockMode, role, teacherId]);
 
+  const learningByStudentId = useMemo(
+    () => new Map((learning?.students || []).map((student) => [student.userId, student])),
+    [learning],
+  );
   const filteredStudents = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('zh-CN');
-    if (!normalizedQuery) return students;
-    return students.filter((student) =>
-      [student.name, student.email, student.userId].some((value) =>
-        value?.toLocaleLowerCase('zh-CN').includes(normalizedQuery),
-      ),
-    );
-  }, [query, students]);
+    const matched = !normalizedQuery
+      ? students
+      : students.filter((student) =>
+          [student.name, student.phoneLast4].some((value) =>
+            value?.toLocaleLowerCase('zh-CN').includes(normalizedQuery),
+          ),
+        );
+    if (!sortKey) return matched;
+    return [...matched].sort((left, right) => {
+      const leftStats = learningByStudentId.get(left.userId);
+      const rightStats = learningByStudentId.get(right.userId);
+      const byColumn =
+        sortKey === 'attempted'
+          ? compareSortValues(
+              leftStats?.attemptedProblemCount ?? 0,
+              rightStats?.attemptedProblemCount ?? 0,
+              sortDir,
+            )
+          : sortKey === 'passRate'
+            ? compareSortValues(leftStats?.passRate ?? null, rightStats?.passRate ?? null, sortDir)
+            : sortKey === 'duration'
+              ? compareSortValues(
+                  leftStats?.averageActiveDurationMs ?? null,
+                  rightStats?.averageActiveDurationMs ?? null,
+                  sortDir,
+                )
+              : compareSortValues(left.grantedAt, right.grantedAt, sortDir);
+      if (byColumn !== 0) return byColumn;
+      return left.name.localeCompare(right.name, 'zh-CN');
+    });
+  }, [learningByStudentId, query, sortDir, sortKey, students]);
   const pageCount = Math.max(1, Math.ceil(filteredStudents.length / STUDENT_PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
   const visibleStudents = filteredStudents.slice(
     (safePage - 1) * STUDENT_PAGE_SIZE,
     safePage * STUDENT_PAGE_SIZE,
   );
-  const learningByStudentId = useMemo(
-    () => new Map((learning?.students || []).map((student) => [student.userId, student])),
-    [learning],
-  );
-
-  const updateNotebookAccessLimit = useCallback(
-    async (student: CourseStudentRosterItem, notebookAccessLimit: number | null) => {
-      setSavingProgressUserId(student.userId);
-      try {
-        if (!mockMode) {
-          await backendJson(`/api/teacher/courses/${encodeURIComponent(courseId)}/students`, {
-            method: 'PATCH',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ userId: student.userId, notebookAccessLimit }),
-          });
-        }
-        setStudents((current) =>
-          current.map((item) =>
-            item.userId === student.userId ? { ...item, notebookAccessLimit } : item,
-          ),
-        );
-        setError('');
-      } catch (saveError) {
-        if (
-          saveError instanceof BackendApiError &&
-          (saveError.status === 403 || saveError.status === 404)
-        ) {
-          setCourse(null);
-          setStudents([]);
-          setAccessRevoked(true);
-        }
-        setError(saveError instanceof Error ? saveError.message : '进度限制保存失败');
-      } finally {
-        setSavingProgressUserId(null);
-      }
-    },
-    [courseId, mockMode],
-  );
+  const toggleSort = (column: StudentSortKey) => {
+    setPage(1);
+    if (sortKey === column) {
+      setSortDir((current) => (current === 'desc' ? 'asc' : 'desc'));
+      return;
+    }
+    setSortKey(column);
+    setSortDir('desc');
+  };
 
   if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId) return null;
 
@@ -423,21 +428,11 @@ export function TeacherCourseStudentsClient({
                 <h2 className="mr-auto text-base font-semibold text-slate-950 dark:text-white">
                   班级总览
                 </h2>
-                <select
-                  value={range}
-                  onChange={(event) => setRange(event.target.value as typeof range)}
-                  className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs dark:border-slate-700 dark:bg-slate-900"
-                >
-                  <option value="7d">最近 7 天</option>
-                  <option value="30d">最近 30 天</option>
-                  <option value="term">本学期</option>
-                  <option value="all">全部</option>
-                </select>
                 <Button
                   size="sm"
                   onClick={() =>
                     router.push(
-                      `/learn?courseId=${encodeURIComponent(courseId)}&from=teacher&range=${range}`,
+                      `/learn?courseId=${encodeURIComponent(courseId)}&from=teacher&range=${LEARNING_RANGE}`,
                     )
                   }
                 >
@@ -454,16 +449,11 @@ export function TeacherCourseStudentsClient({
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-5">
+            <div className="grid gap-3 sm:grid-cols-4">
               <StudentSummaryCard
                 icon={<Users className="size-4" />}
                 label="课程学生"
                 value={`${students.length} 人`}
-              />
-              <StudentSummaryCard
-                icon={<Users className="size-4" />}
-                label="活跃学生"
-                value={`${learning?.metrics.activeStudentCount ?? 0} 人`}
               />
               <StudentSummaryCard
                 icon={<ShieldCheck className="size-4" />}
@@ -478,11 +468,6 @@ export function TeacherCourseStudentsClient({
                 icon={<Clock3 className="size-4" />}
                 label="平均有效时长"
                 value={formatDuration(learning?.metrics.averageActiveDurationMs ?? null)}
-              />
-              <StudentSummaryCard
-                icon={<School className="size-4" />}
-                label="名单来源"
-                value={mockMode ? '本地预览' : '管理员数据库'}
               />
               <StudentSummaryCard
                 icon={
@@ -505,76 +490,8 @@ export function TeacherCourseStudentsClient({
               />
             </div>
 
-            {learning ? (
-              <div className="grid gap-3 lg:grid-cols-2">
-                <section className="rounded-2xl border bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <h3 className="font-semibold">困难题排行</h3>
-                  <div className="mt-3 space-y-2">
-                    {learning.difficultProblems.slice(0, 5).map((item, index) => (
-                      <div
-                        key={item.problemId}
-                        className="flex items-center gap-1 rounded-lg bg-slate-50 p-1 dark:bg-slate-800"
-                      >
-                        <button
-                          onClick={() =>
-                            router.push(
-                              `/course/${encodeURIComponent(courseId)}/problem-bank/${encodeURIComponent(item.problemId)}`,
-                            )
-                          }
-                          className="flex min-w-0 flex-1 items-center gap-3 p-1.5 text-left text-sm"
-                        >
-                          <span className="font-semibold text-slate-400">{index + 1}</span>
-                          <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                          <span className="text-xs text-slate-500">
-                            {item.affectedStudentCount} 人 · 失败{' '}
-                            {Math.round(item.failureRate * 100)}% · 论坛 {item.forumQuestionCount}
-                          </span>
-                        </button>
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-label={`向 AI 询问 ${item.title}`}
-                          onClick={() =>
-                            router.push(
-                              `/learn?courseId=${encodeURIComponent(courseId)}&from=teacher&problemId=${encodeURIComponent(item.problemId)}&range=${range}`,
-                            )
-                          }
-                        >
-                          <Bot className="size-3.5" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-                <section className="rounded-2xl border bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <h3 className="font-semibold">薄弱知识点</h3>
-                  <div className="mt-3 space-y-2">
-                    {learning.weakTagPaths.slice(0, 5).map((item) => (
-                      <div
-                        key={`${item.area}:${item.concept}`}
-                        className="flex items-center justify-between rounded-lg bg-slate-50 p-2.5 text-sm dark:bg-slate-800"
-                      >
-                        <span>
-                          {item.area} / {item.concept}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {item.affectedStudentCount} 人 · {item.failedAttempts} 次
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              </div>
-            ) : null}
-
             <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-slate-50/80 dark:border-white/10 dark:bg-slate-950/70">
-              <div className="flex flex-col gap-4 border-b border-slate-200/80 bg-white px-4 py-4 dark:border-white/10 dark:bg-white/[0.03] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <div>
-                  <h2 className="font-semibold text-slate-950 dark:text-white">学生名单</h2>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    当前显示 {filteredStudents.length} 位具有课程访问权限的学生
-                  </p>
-                </div>
+              <div className="border-b border-slate-200/80 bg-white px-4 py-4 dark:border-white/10 dark:bg-white/[0.03] sm:px-5">
                 <div className="relative w-full sm:w-80">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                   <Input
@@ -584,117 +501,110 @@ export function TeacherCourseStudentsClient({
                       setPage(1);
                     }}
                     className="h-10 rounded-xl border-slate-200 bg-white pl-9 shadow-none dark:border-white/10 dark:bg-white/5"
-                    placeholder="搜索姓名、手机号或学号"
+                    placeholder="搜索姓名或手机号后四位"
                     aria-label="搜索课程学生"
                   />
                 </div>
               </div>
 
-              <div className="p-4 sm:p-5">
+              <div className="overflow-x-auto p-4 sm:p-5">
                 {visibleStudents.length ? (
                   <StudioList>
-                    <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(150px,0.75fr)_minmax(140px,0.65fr)_minmax(150px,0.7fr)_130px] gap-4 bg-slate-50/80 px-5 py-3 text-xs font-semibold text-slate-500 dark:bg-white/[0.035] lg:grid">
-                      <span>学生</span>
-                      <span>邮箱</span>
-                      <span>账户 ID</span>
-                      <span>笔记本进度限制</span>
-                      <span>加入时间</span>
+                    <div
+                      className={cn(
+                        STUDENT_TABLE_GRID,
+                        'bg-slate-50/80 px-5 py-2.5 text-xs font-semibold dark:bg-white/[0.035]',
+                      )}
+                    >
+                      <span className="text-slate-500">学生</span>
+                      <SortableColumnHeader
+                        label="已做题目"
+                        column="attempted"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={toggleSort}
+                      />
+                      <SortableColumnHeader
+                        label="通过率"
+                        column="passRate"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={toggleSort}
+                      />
+                      <SortableColumnHeader
+                        label="平均做题时间"
+                        column="duration"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={toggleSort}
+                      />
+                      <SortableColumnHeader
+                        label="加入时间"
+                        column="joinedAt"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={toggleSort}
+                      />
+                      <span className="text-right text-slate-500">操作</span>
                     </div>
-                    {visibleStudents.map((student) => (
-                      <StudioListItem
-                        key={student.userId}
-                        className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(150px,0.75fr)_minmax(140px,0.65fr)_minmax(150px,0.7fr)_130px] lg:items-center lg:gap-4"
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <Avatar size="lg" className="ring-1 ring-slate-200 dark:ring-white/10">
-                            {student.avatarUrl ? (
-                              <AvatarImage src={student.avatarUrl} alt={student.name} />
-                            ) : null}
-                            <AvatarFallback className="bg-sky-50 font-semibold text-sky-700 dark:bg-sky-400/10 dark:text-sky-200">
-                              {student.name.trim().slice(0, 1).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
-                              {student.name}
-                            </p>
-                            <StudioItemTag className="mt-1 w-fit rounded-full">学生</StudioItemTag>
-                          </div>
-                        </div>
-                        <a
-                          href={student.email === '未提供' ? undefined : `mailto:${student.email}`}
-                          className="inline-flex min-w-0 items-center gap-2 text-sm text-slate-600 dark:text-slate-300"
+                    {visibleStudents.map((student) => {
+                      const stats = learningByStudentId.get(student.userId);
+                      return (
+                        <StudioListItem
+                          key={student.userId}
+                          density="compact"
+                          className={STUDENT_TABLE_GRID}
                         >
-                          <Mail className="size-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">{student.email}</span>
-                        </a>
-                        <span className="truncate text-sm text-slate-500 dark:text-slate-400">
-                          {student.userId}
-                        </span>
-                        <label className="flex items-center gap-2 text-xs text-slate-500">
-                          <ShieldCheck className="size-3.5 shrink-0 text-emerald-600" />
-                          <select
-                            aria-label={`${student.name} 的笔记本进度限制`}
-                            value={
-                              student.notebookAccessLimit === null
-                                ? 'all'
-                                : String(student.notebookAccessLimit)
-                            }
-                            disabled={savingProgressUserId === student.userId}
-                            onChange={(event) =>
-                              void updateNotebookAccessLimit(
-                                student,
-                                event.target.value === 'all' ? null : Number(event.target.value),
+                          <div className="flex min-w-0 items-center gap-3">
+                            <Avatar className="ring-1 ring-slate-200 dark:ring-white/10">
+                              {student.avatarUrl ? (
+                                <AvatarImage src={student.avatarUrl} alt={student.name} />
+                              ) : null}
+                              <AvatarFallback className="bg-sky-50 font-semibold text-sky-700 dark:bg-sky-400/10 dark:text-sky-200">
+                                {student.name.trim().slice(0, 1).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
+                                {student.name}
+                              </p>
+                              <p className="mt-0.5 truncate text-xs text-slate-400">
+                                {student.phoneLast4
+                                  ? `手机号尾号 ${student.phoneLast4}`
+                                  : '手机号未填写'}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-sm tabular-nums text-slate-700 dark:text-slate-200">
+                            {stats?.attemptedProblemCount ?? 0} 题
+                          </span>
+                          <span className="text-sm tabular-nums text-slate-700 dark:text-slate-200">
+                            {stats?.passRate == null
+                              ? '暂无数据'
+                              : `${Math.round(stats.passRate * 100)}%`}
+                          </span>
+                          <span className="text-sm tabular-nums text-slate-700 dark:text-slate-200">
+                            {formatDuration(stats?.averageActiveDurationMs ?? null)}
+                          </span>
+                          <span className="text-xs tabular-nums text-slate-400">
+                            {new Date(student.grantedAt).toLocaleString('zh-CN')}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-fit shrink-0 justify-self-end px-2.5 text-xs"
+                            onClick={() =>
+                              router.push(
+                                `/teacher/courses/${encodeURIComponent(courseId)}/students/${encodeURIComponent(student.userId)}${mockMode ? '?mock=1' : ''}`,
                               )
                             }
-                            className="h-9 min-w-32 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
                           >
-                            <option value="all">全部开放</option>
-                            {Array.from({ length: course.notebookCount + 1 }, (_, index) => (
-                              <option key={index} value={index}>
-                                前 {index} 本
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <span className="text-xs tabular-nums text-slate-400">
-                          {new Date(student.grantedAt).toLocaleString('zh-CN')}
-                        </span>
-                        {(() => {
-                          const stats = learningByStudentId.get(student.userId);
-                          return (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                router.push(
-                                  `/teacher/courses/${encodeURIComponent(courseId)}/students/${encodeURIComponent(student.userId)}${mockMode ? '?mock=1' : ''}`,
-                                )
-                              }
-                              className="col-span-full flex flex-wrap gap-3 text-left text-xs text-sky-700 lg:col-span-5"
-                            >
-                              <span>查看逐题详情</span>
-                              <span>{stats?.active ? '活跃' : '近期未活跃'}</span>
-                              <span>已做 {stats?.attemptedProblemCount ?? 0} 题</span>
-                              <span>
-                                通过率{' '}
-                                {stats?.passRate == null
-                                  ? '暂无数据'
-                                  : `${Math.round(stats.passRate * 100)}%`}
-                              </span>
-                              <span>
-                                平均 {formatDuration(stats?.averageActiveDurationMs ?? null)}
-                              </span>
-                              <span>
-                                最近提交{' '}
-                                {stats?.lastSubmissionAt
-                                  ? new Date(stats.lastSubmissionAt).toLocaleString('zh-CN')
-                                  : '暂无提交'}
-                              </span>
-                            </button>
-                          );
-                        })()}
-                      </StudioListItem>
-                    ))}
+                            查看逐题详情
+                          </Button>
+                        </StudioListItem>
+                      );
+                    })}
                   </StudioList>
                 ) : (
                   <div className="grid min-h-64 place-items-center text-center text-sm text-slate-500 dark:text-slate-400">

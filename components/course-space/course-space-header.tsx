@@ -67,18 +67,18 @@ function navigationItems({
   const problemBankHref = `/course/${encodedCourseId}/problem-bank${
     previewMode ? `?mock=1${role === 'teacher' ? '&asTeacher=1' : ''}` : ''
   }`;
+  const resourceLibraryHref =
+    role === 'teacher'
+      ? `/teacher/courses/${encodedCourseId}${previewMode ? '?mock=1' : ''}`
+      : `/course/${encodedCourseId}/resources${previewMode ? '?mock=1' : ''}`;
 
   return [
-    ...(role === 'teacher'
-      ? [
-          {
-            key: 'resources' as const,
-            label: '资料库',
-            href: `/teacher/courses/${encodedCourseId}${previewMode ? '?mock=1' : ''}`,
-            Icon: BookOpenText,
-          },
-        ]
-      : []),
+    {
+      key: 'resources' as const,
+      label: '资料库',
+      href: resourceLibraryHref,
+      Icon: BookOpenText,
+    },
     {
       key: 'chat' as const,
       label: '聊天',
@@ -134,7 +134,7 @@ export function CourseSpaceNavigation({
       {items.map(({ key, label, href, Icon, count, disabled }) => {
         const selected = active === key;
         const itemClassName = cn(
-          'inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-500/30',
+          'inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-primary/30',
           selected
             ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200/70 dark:bg-white/10 dark:text-white dark:ring-white/10'
             : 'text-slate-500 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.07] dark:hover:text-white',
@@ -143,10 +143,7 @@ export function CourseSpaceNavigation({
         const content = (
           <>
             <Icon
-              className={cn(
-                'size-3.5 shrink-0',
-                selected ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-400',
-              )}
+              className={cn('size-3.5 shrink-0', selected ? 'text-primary' : 'text-slate-400')}
               strokeWidth={1.9}
             />
             <span>{label}</span>
@@ -276,7 +273,7 @@ export function CourseSpaceHeader({
           </h1>
           <Link
             href={courseSpaceAllCoursesHref(role, previewMode)}
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500/30 dark:text-slate-400 dark:hover:bg-white/[0.07] dark:hover:text-white"
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-primary/30 dark:text-slate-400 dark:hover:bg-white/[0.07] dark:hover:text-white"
             aria-label="所有课程"
             title="所有课程"
           >

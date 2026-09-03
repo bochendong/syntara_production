@@ -2,16 +2,53 @@
   --syntara-font-sans:
     Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI',
     'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --syntara-color-canvas: #f8fafc;
+  --syntara-color-canvas: #f7fafc;
   --syntara-color-panel: #ffffff;
-  --syntara-color-text: #0f172a;
-  --syntara-color-text-secondary: #475569;
-  --syntara-color-text-muted: #64748b;
-  --syntara-color-border: rgb(15 23 42 / 8%);
-  --syntara-color-border-strong: rgb(15 23 42 / 12%);
-  --syntara-color-focus: rgb(56 189 248 / 52%);
-  --syntara-color-brand: #722ed1;
-  --syntara-color-accent: #0284c7;
+  --syntara-color-text: #061b33;
+  --syntara-color-text-secondary: #40566d;
+  --syntara-color-text-muted: #64788c;
+  --syntara-color-border: rgb(1 30 70 / 9%);
+  --syntara-color-border-strong: rgb(1 30 70 / 14%);
+  --syntara-color-focus: rgb(3 160 175 / 48%);
+  --syntara-color-brand-50: #effcfd;
+  --syntara-color-brand-100: #d5f6f8;
+  --syntara-color-brand-200: #aaedf1;
+  --syntara-color-brand-300: #70dce3;
+  --syntara-color-brand-400: #2fc4cf;
+  --syntara-color-brand-500: #03a0af;
+  --syntara-color-brand-600: #087f8c;
+  --syntara-color-brand-700: #076672;
+  --syntara-color-brand-800: #07515b;
+  --syntara-color-brand-900: #083f49;
+  --syntara-color-brand-950: #032c34;
+  --syntara-color-ink-50: #eff6ff;
+  --syntara-color-ink-100: #dceafa;
+  --syntara-color-ink-200: #b9d5f2;
+  --syntara-color-ink-300: #83b4e5;
+  --syntara-color-ink-400: #4a8cd0;
+  --syntara-color-ink-500: #2169b1;
+  --syntara-color-ink-600: #114f91;
+  --syntara-color-ink-700: #0a3c73;
+  --syntara-color-ink-800: #052d59;
+  --syntara-color-ink-900: #011e46;
+  --syntara-color-ink-950: #00142f;
+  --syntara-color-gold-50: #fffbeb;
+  --syntara-color-gold-100: #fef3c7;
+  --syntara-color-gold-200: #fde68a;
+  --syntara-color-gold-300: #fbd75d;
+  --syntara-color-gold-400: #f9ca10;
+  --syntara-color-gold-500: #fab206;
+  --syntara-color-gold-600: #d99000;
+  --syntara-color-gold-700: #ad6b00;
+  --syntara-color-gold-800: #875307;
+  --syntara-color-gold-900: #70440c;
+  --syntara-color-gold-950: #412305;
+  --syntara-color-brand: #087f8c;
+  --syntara-color-brand-strong: #076672;
+  --syntara-color-brand-soft: #e9f8fa;
+  --syntara-color-ink: #011e46;
+  --syntara-color-accent: #fab206;
+  --syntara-color-accent-strong: #d99000;
   --syntara-radius-control: 10px;
   --syntara-radius-card: 16px;
   --syntara-radius-panel: 22px;
@@ -22,4 +59,21 @@
   --syntara-dialog-height: min(760px, 86dvh);
   --syntara-dialog-height-sm: min(780px, 86dvh);
   --syntara-motion-enter: 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark {
+  --syntara-color-canvas: #061422;
+  --syntara-color-panel: #0b1c2d;
+  --syntara-color-text: #eef9fb;
+  --syntara-color-text-secondary: #bed0d9;
+  --syntara-color-text-muted: #9bb0bf;
+  --syntara-color-border: rgb(151 197 207 / 16%);
+  --syntara-color-border-strong: rgb(151 197 207 / 24%);
+  --syntara-color-focus: rgb(34 199 211 / 56%);
+  --syntara-color-brand: #22c7d3;
+  --syntara-color-brand-strong: #70dce3;
+  --syntara-color-brand-soft: #10323b;
+  --syntara-color-ink: #e7f4f6;
+  --syntara-color-accent: #f9ca10;
+  --syntara-color-accent-strong: #fab206;
 }

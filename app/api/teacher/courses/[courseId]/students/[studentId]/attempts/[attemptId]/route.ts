@@ -38,10 +38,59 @@ export async function GET(
         activeDurationMs: true,
         timingSource: true,
         createdAt: true,
-        problem: { select: { id: true, title: true, problemNumber: true } },
+        problem: {
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            difficulty: true,
+            points: true,
+            publicContentJson: true,
+            tagAssignments: {
+              where: { status: 'applied' },
+              select: {
+                tag: {
+                  select: { id: true, name: true, parent: { select: { id: true, name: true } } },
+                },
+              },
+            },
+          },
+        },
       },
     });
     if (!attempt) return NextResponse.json({ error: 'Attempt not found' }, { status: 404 });
-    return NextResponse.json({ attempt: { ...attempt, createdAt: attempt.createdAt.getTime() } });
+    return NextResponse.json({
+      attempt: {
+        id: attempt.id,
+        kind: attempt.kind,
+        status: attempt.status,
+        score: attempt.score,
+        answer: attempt.answerJson,
+        result: attempt.resultJson,
+        activeDurationMs: attempt.activeDurationMs,
+        timingSource: attempt.timingSource,
+        createdAt: attempt.createdAt.getTime(),
+        problem: {
+          id: attempt.problem.id,
+          title: attempt.problem.title,
+          type: attempt.problem.type,
+          difficulty: attempt.problem.difficulty,
+          points: attempt.problem.points,
+          publicContent: attempt.problem.publicContentJson,
+          tagAssignments: attempt.problem.tagAssignments.flatMap((assignment) =>
+            assignment.tag.parent
+              ? [
+                  {
+                    id: assignment.tag.id,
+                    areaId: assignment.tag.parent.id,
+                    area: assignment.tag.parent.name,
+                    concept: assignment.tag.name,
+                  },
+                ]
+              : [],
+          ),
+        },
+      },
+    });
   });
 }

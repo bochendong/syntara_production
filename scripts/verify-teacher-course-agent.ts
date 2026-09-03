@@ -82,9 +82,10 @@ const model = new MockLanguageModelV3({
           chunks: [
             {
               type: 'tool-call' as const,
-              toolCallId: 'tool-read-notebook',
-              toolName: 'read_course_notebook',
-              input: '{"notebookId":"nb-python"}',
+              toolCallId: 'tool-read-notebook-detail',
+              toolName: 'search_course_notebooks',
+              input:
+                '{"query":"Python 变量","notebookId":"nb-python","detail":"full","maxResults":3}',
             },
             {
               type: 'finish' as const,
@@ -145,6 +146,7 @@ const fakeDb = {
         tags: ['local-school'],
         sectionCount: 2,
         sceneCount: 0,
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
         updatedAt: new Date('2026-08-02T00:00:00.000Z'),
         _count: { markdownSections: 2, pages: 0, scenes: 0 },
       },
@@ -156,6 +158,7 @@ const fakeDb = {
         tags: ['local-school'],
         sectionCount: 1,
         sceneCount: 0,
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
         updatedAt: new Date('2026-08-01T00:00:00.000Z'),
         _count: { markdownSections: 1, pages: 0, scenes: 0 },
       },
@@ -299,9 +302,12 @@ if (firstPromptImage?.type !== 'file' || !(firstPromptImage.data instanceof Uint
 }
 const toolNames = (firstCall.tools || []).map((entry) => entry.name).sort();
 const expectedToolNames = [
+  'get_course_learning_insight',
+  'list_calendar_events',
   'list_course_notebooks',
-  'read_course_notebook',
+  'search_course_problem_bank',
   'search_course_notebooks',
+  'web_search',
 ];
 if (JSON.stringify(toolNames) !== JSON.stringify(expectedToolNames)) {
   throw new Error(`Unexpected teacher tools: ${toolNames.join(', ')}`);
@@ -310,8 +316,12 @@ const promptText = JSON.stringify(firstCall.prompt);
 if (!promptText.includes('Hard Rules') || !promptText.includes('回答必须引用课程笔记本')) {
   throw new Error('Hard Rule instructions were not injected');
 }
-if (/problem_bank|calendar|memory\.propose_write/.test(toolNames.join(' '))) {
-  throw new Error('A forbidden student-side tool leaked into the teacher agent');
+if (
+  /propose_calendar_change|record_my_learning_signal|memory\.propose_write/.test(
+    toolNames.join(' '),
+  )
+) {
+  throw new Error('A mutation-capable student-side tool leaked into the teacher agent');
 }
 const inventoryProgress = events.find(
   (event): event is Extract<StatelessEvent, { type: 'public_progress' }> =>

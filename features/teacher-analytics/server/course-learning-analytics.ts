@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@/lib/server/generated-prisma';
+import { phoneLastFour } from '@/lib/profile/phone';
 
 export type LearningRange = '7d' | '30d' | 'term' | 'all';
 
@@ -64,7 +65,7 @@ export async function loadCourseLearningOverview(args: {
             : {}),
         },
       },
-      select: { userId: true, user: { select: { name: true, email: true, image: true } } },
+      select: { userId: true, user: { select: { name: true, phone: true, image: true } } },
     }),
     args.prisma.courseForumPost.groupBy({
       by: ['problemId'],
@@ -169,10 +170,9 @@ export async function loadCourseLearningOverview(args: {
     );
     return {
       userId: enrollment.userId,
-      name: enrollment.user.name?.trim() || enrollment.user.email?.split('@')[0] || '未命名学生',
-      email: enrollment.user.email || '未提供',
+      name: enrollment.user.name?.trim() || '未命名学生',
+      phoneLast4: phoneLastFour(enrollment.user.phone),
       avatarUrl: enrollment.user.image || undefined,
-      active: rows.length > 0,
       attemptedProblemCount: new Set(rows.map((row) => row.problemId)).size,
       submissionCount: rows.length,
       passRate: rows.length ? passed / rows.length : null,
@@ -188,7 +188,6 @@ export async function loadCourseLearningOverview(args: {
     sample: { submissionCount: attempts.length, timingSampleCount: timed.length },
     metrics: {
       enrolledStudentCount: enrollments.length,
-      activeStudentCount: new Set(attempts.map((attempt) => attempt.userId)).size,
       submissionCount: attempts.length,
       passRate: attempts.length ? successful / attempts.length : null,
       averageActiveDurationMs: average(timed),
@@ -227,11 +226,10 @@ export async function loadCourseStudentLearningDetail(args: {
       status: { not: 'archived' },
       OR: [{ courseId: args.courseId }, { notebook: { courseId: args.courseId } }],
     },
-    orderBy: [{ problemNumber: 'asc' }, { order: 'asc' }],
+    orderBy: { title: 'asc' },
     select: {
       id: true,
       title: true,
-      problemNumber: true,
       difficulty: true,
       tagAssignments: {
         where: { status: 'applied' },
@@ -266,25 +264,29 @@ export async function loadCourseStudentLearningDetail(args: {
     from: overview.from,
     to: overview.to,
     student,
-    problems: problems.map((problem) => {
-      const rows = byProblem.get(problem.id) || [];
-      const timed = rows.flatMap((row) =>
-        row.activeDurationMs == null ? [] : [row.activeDurationMs],
-      );
-      return {
-        problemId: problem.id,
-        title: problem.title,
-        problemNumber: problem.problemNumber,
-        difficulty: problem.difficulty,
-        status: rows[0]?.status || 'unattempted',
-        attemptCount: rows.length,
-        averageActiveDurationMs: average(timed),
-        timingSampleCount: timed.length,
-        latestAttempt: rows[0] ? { ...rows[0], createdAt: rows[0].createdAt.getTime() } : null,
-        tagPaths: problem.tagAssignments
-          .filter((item) => item.tag.parent)
-          .map((item) => ({ area: item.tag.parent!.name, concept: item.tag.name })),
-      };
-    }),
+    problems: problems
+      .flatMap((problem) => {
+        const rows = byProblem.get(problem.id) || [];
+        if (!rows[0]) return [];
+        const timed = rows.flatMap((row) =>
+          row.activeDurationMs == null ? [] : [row.activeDurationMs],
+        );
+        return [
+          {
+            problemId: problem.id,
+            title: problem.title,
+            difficulty: problem.difficulty,
+            status: rows[0].status,
+            attemptCount: rows.length,
+            averageActiveDurationMs: average(timed),
+            timingSampleCount: timed.length,
+            latestAttempt: { ...rows[0], createdAt: rows[0].createdAt.getTime() },
+            tagPaths: problem.tagAssignments
+              .filter((item) => item.tag.parent)
+              .map((item) => ({ area: item.tag.parent!.name, concept: item.tag.name })),
+          },
+        ];
+      })
+      .sort((left, right) => right.latestAttempt.createdAt - left.latestAttempt.createdAt),
   };
 }

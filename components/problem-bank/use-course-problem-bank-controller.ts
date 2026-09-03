@@ -36,6 +36,7 @@ import { problemRecordToDraft } from '@/lib/problem-bank/editor';
 import {
   isLocalDemoProblemBankCourse,
   listLocalDemoProblemBank,
+  listLocalDemoProblemTagTree,
   resolveLocalDemoProblemBankCourse,
 } from '@/lib/teacher/local-demo-problem-bank';
 import {
@@ -373,8 +374,13 @@ export function useCourseProblemBankController({
   }, [loadAll]);
 
   useEffect(() => {
-    if (!courseId || isLocalDemoProblemBankCourse(courseId)) {
+    if (!courseId) {
       setProblemTagTree([]);
+      return;
+    }
+    const localDemoTree = listLocalDemoProblemTagTree(courseId);
+    if (localDemoTree) {
+      setProblemTagTree(localDemoTree);
       return;
     }
     let cancelled = false;
@@ -389,7 +395,12 @@ export function useCourseProblemBankController({
   }, [courseId]);
 
   const reloadProblemTagTree = useCallback(async () => {
-    if (!courseId || isLocalDemoProblemBankCourse(courseId)) return;
+    if (!courseId) return;
+    const localDemoTree = listLocalDemoProblemTagTree(courseId);
+    if (localDemoTree) {
+      setProblemTagTree(localDemoTree);
+      return;
+    }
     const result = await listCourseProblemTags(courseId);
     setProblemTagTree(result.tree);
     await loadAll();
@@ -773,7 +784,7 @@ export function useCourseProblemBankController({
             b.attemptedCount / Math.max(1, b.totalCount) ||
           a.tag.localeCompare(b.tag),
       )
-      .slice(0, 8)
+      .slice(0, 5)
       .map((item) => ({
         ...item,
         percent: Math.round((item.attemptedCount / Math.max(1, item.totalCount)) * 100),

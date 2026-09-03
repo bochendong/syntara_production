@@ -137,20 +137,7 @@ import {
   prepareCourseChatAttachmentsForModel,
 } from '@/lib/chat/ephemeral-course-chat-attachments';
 import { buildProblemExplainPrompt } from '@/lib/chat/problem-explain-prompt';
-import {
-  answererHandoffFromLearnTurn,
-  planningDecisionFromLearnTurn,
-  type LearnTurnClientResponse,
-} from '@/features/learn-core/client-adapters';
-import { explicitPracticeTarget } from '@/features/learn-core/domain/practice-target';
-import {
-  createLearnActionExecutionResult,
-  filterLearningActionsForQuestion,
-  latestLearningActionsForTurn,
-  learnActionRequiresConfirmation,
-  learnActionToClientAction,
-  neutralizeUnconfirmedMemoryWriteClaim,
-} from '@/features/learn-core/client-actions';
+import { createLearnActionExecutionResult } from '@/features/learn-core/client-actions';
 import {
   applyLearningCalendarDelete,
   applyLearningCalendarUpdate,
@@ -182,7 +169,6 @@ import {
 } from '@/lib/utils/mini-lecture-storage';
 import {
   createCalendarAddActionFromArtifacts,
-  latestLearnArtifactsForTurn,
   matchingCalendarAddActionForArtifact,
   visibleLearningActionsForArtifacts,
 } from '@/features/learn-core/client-artifacts';
@@ -191,11 +177,6 @@ import {
   type LearnPendingCourseAction as PendingCourseAction,
   type LearnProgressProposal as ProgressProposal,
 } from '@/features/learn-core/client-progress';
-import type {
-  LearnProblemBankMatch,
-  LearnProblemBankSearchResult,
-  LearnTurnMessage,
-} from '@/features/learn-core/domain/types';
 import {
   buildCourseReplyProgress,
   dispatchCourseReplyProgress,
@@ -205,9 +186,7 @@ import type {
   ChatMessageMetadata,
   CourseChatContextUsage,
   CourseChatContext,
-  CourseChatEvidenceSummary,
   CourseChatTeachingMode,
-  LearnActivityPlanTask,
   LearnAnswerEvidenceSource,
   LearnArtifact,
   LearnCalendarDraftItem,
@@ -246,16 +225,8 @@ import {
   type LearnerMemoryCorrectionMode,
 } from '@/lib/learning/confirmed-memory-shadow-state';
 import {
-  applyQuestionLearningFocus,
-  questionLearningFocusConcept,
-} from '@/lib/learning/question-learning-focus';
-import {
   normalizePracticeSelectionText,
   practicePlanTopicFocusLine,
-  practiceProblemMatchScore,
-  practiceProblemReason,
-  practiceSelectionTerms,
-  selectedProblemPracticeRationale,
 } from '@/lib/learning/practice-problem-selection';
 import {
   deletePracticeSession,
@@ -697,15 +668,6 @@ function resourceSurfaceStatusFromContentOrList(args: {
 }
 
 /** Prefer full-list status once hydrated; otherwise derive ready/empty from content-state. */
-function planningResourceStatusFromContentOrList(args: {
-  listState: ResourceLoadState;
-  contentCount: number | null;
-}): ResourceLoadStatus {
-  if (args.listState.status !== 'idle') return args.listState.status;
-  if (args.contentCount === null) return 'idle';
-  return args.contentCount > 0 ? 'ready' : 'empty';
-}
-
 function courseResourceQueueErrorNeedsCooldown(error: unknown): boolean {
   if (error instanceof BackendApiError) {
     if (error.kind === 'aborted') return false;
@@ -3280,259 +3242,10 @@ function normalizeAssistantMarkdown(text: string): string {
     .trim();
 }
 
-function buildNoCourseProblemBankAnswer(args: {
-  course: CourseRecord;
-  questionText: string;
-  notebooks: StageListItem[];
-  notebooksLoadState: ResourceLoadState;
-}): string {
-  const courseLabel = args.course.courseCode || args.course.name;
-  const topic =
-    args.questionText
-      .replace(/给我|帮我|请|从题库|题库|选|挑|抽|找|道|题|。|，|,/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 40) || '这个主题';
-  return [
-    `${courseLabel} 这门课当前没有可用的课程题库，所以我不能假装“从题库里选 3 道”。`,
-    '',
-    args.notebooksLoadState.status === 'ready' || args.notebooksLoadState.status === 'empty'
-      ? args.notebooks.length
-        ? `课程资料库里有 ${args.notebooks.length} 份正文材料，但学习计划不会用资料临时补造「${topic}」题。`
-        : `课程资料库也已确认为空，暂时没有可用于定位「${topic}」的材料。`
-      : args.notebooks.length
-        ? `当前已显示 ${args.notebooks.length} 份缓存资料，但资料库尚未完成核对；我不会据此判断全部课程材料。`
-        : `课程资料状态尚未确认${args.notebooksLoadState.error ? `：${args.notebooksLoadState.error}` : ''}，因此这里不对资料库是否为空下结论。`,
-    '',
-    '请先导入或发布这门课的题库；题库可用后，我会逐题给出可点击的作答链接。',
-  ].join('\n');
-}
-
-function buildProblemBankSelectionFailedAnswer(args: {
-  course: CourseRecord;
-  questionText: string;
-  activeProblemCount: number;
-}): string {
-  const courseLabel = args.course.courseCode || args.course.name;
-  const topic =
-    args.questionText
-      .replace(/我想|我要|我需要|帮我|请|练题目?|做题|刷题|练习|复习|题库|题目|：|:|。|，|,/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 60) || '这个主题';
-  return [
-    `${courseLabel} 当前有 ${args.activeProblemCount} 道可用题库题，但我没有选出严格适合「${topic}」的题。`,
-    '我没有把这次请求降级成自生成练习，也没有为了凑数量混入相邻专题。',
-    '如果你想放宽范围，可以直接说“范围放宽一点”；否则请先向题库补充并发布对应专题的题目。',
-  ].join('\n\n');
-}
-
-function learnMessagesForPlanningIntent(messages: LearnMessage[]): LearnTurnMessage[] {
-  return messages
-    .slice(-8)
-    .map((message) => ({
-      role: message.role,
-      text: message.text.trim().slice(0, 2200),
-    }))
-    .filter((message) => message.text.length > 0);
-}
-
-function classifyLearnTurnPlannerError(error: unknown): {
-  message: string;
-  blockedTitle: string;
-  blockedDetail: string;
-} {
-  const rawMessage =
-    error instanceof Error ? error.message : typeof error === 'string' ? error : '学习路由失败';
-  if (
-    /Cannot connect to API|Connect Timeout|timeout|ETIMEDOUT|ECONN|ENOTFOUND|fetch failed|network|rate limit|API key|Unauthorized|401|403|429|AI 路由模型连接超时|AI 路由模型不可用/i.test(
-      rawMessage,
-    )
-  ) {
-    return {
-      message: 'AI 路由模型连接超时或不可用，暂时没有得到结构化学习决定',
-      blockedTitle: 'AI 路由模型不可用',
-      blockedDetail:
-        '模型/API 调用没有成功完成；为了避免硬编码兜底误导，这次没有继续生成回复、计划或题目。',
-    };
-  }
-  if (/review_plan must include|复习计划结构不完整|复习结构不完整/i.test(rawMessage)) {
-    return {
-      message: 'AI 返回的复习计划结构不完整',
-      blockedTitle: '复习计划结构不合格',
-      blockedDetail: '路由返回了复习计划意图，但缺少必要的学习目标、重点或自测结构，所以停止展示。',
-    };
-  }
-  if (
-    /AI semantic router failed to produce a valid decision|AI semantic router/i.test(rawMessage)
-  ) {
-    return {
-      message: 'AI 路由没有返回合法的结构化学习决定',
-      blockedTitle: '路由没有返回可执行结构',
-      blockedDetail: '没有拿到合法的结构化学习决定，所以停止生成回复、计划或题目。',
-    };
-  }
-  return {
-    message: rawMessage,
-    blockedTitle: '学习路由没有完成',
-    blockedDetail: '这次学习路由没有成功完成，所以没有继续生成回复、计划或题目。',
-  };
-}
-
-async function planLearnTurn(args: {
-  question: string;
-  messages: LearnMessage[];
-  attachments?: LearnImageAttachment[];
-  course: CourseRecord;
-  snapshot: LearnerCourseSnapshot | null;
-  calendarEvents: SyllabusCalendarEvent[];
-  recentActivities?: StatusCalendarActivity[];
-  recentPlans: PracticePlan[];
-  problems: CourseProblemClientSummary[];
-  /** When full problem list is deferred, content-state count keeps availability truthful. */
-  problemBankActiveCountHint?: number;
-  sourceUploads: CourseSourceUploadRecord[];
-  resourceStates?: {
-    notebooks: ResourceLoadStatus;
-    problems: ResourceLoadStatus;
-    sources: ResourceLoadStatus;
-  };
-  providerId: ProviderId;
-  modelId: string;
-  signal?: AbortSignal;
-}): Promise<LearnTurnClientResponse | null> {
-  const activeProblems = args.problems.filter((problem) => problem.status !== 'archived');
-  const problemBankActiveCount = Math.max(
-    activeProblems.length,
-    Math.max(0, args.problemBankActiveCountHint ?? 0),
-  );
-  try {
-    return await backendJson<LearnTurnClientResponse>('/api/learn/turn', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(args.providerId === 'openai' && args.modelId
-          ? { 'x-model': `openai:${args.modelId}` }
-          : {}),
-      },
-      body: JSON.stringify({
-        question: args.question,
-        recentMessages: learnMessagesForPlanningIntent(args.messages),
-        attachments: (args.attachments || []).map((attachment) => ({
-          id: attachment.id,
-          name: attachment.name,
-          mimeType: attachment.mimeType,
-          size: attachment.size,
-        })),
-        courseId: args.course.id,
-        courseName: args.course.name,
-        courseCode: args.course.courseCode || undefined,
-        hasSyllabus: syllabusPlanningEvents(args.calendarEvents).length > 0,
-        progressKnown: Boolean(args.snapshot?.progressKnown),
-        learnerSnapshot: args.snapshot,
-        calendarEvents: args.calendarEvents.slice(0, 160).map((event) => ({
-          id: event.id,
-          title: event.title,
-          rawText: event.rawText,
-          kind: event.kind,
-          date: event.date,
-          sourceName: event.sourceName,
-          origin: event.origin || 'syllabus',
-          status: event.status,
-          durationMinutes: event.durationMinutes,
-        })),
-        recentPlans: args.recentPlans.slice(0, 4).map((plan) => ({
-          id: plan.id,
-          title: plan.title,
-          mode: plan.mode,
-          targetConcepts: plan.targetConcepts,
-          estimatedMinutes: plan.estimatedMinutes,
-          status: plan.status,
-        })),
-        recentArtifacts: latestLearnArtifactsForTurn(args.messages, 12),
-        recentActions: latestLearningActionsForTurn(args.messages, 10),
-        recentActivities: (args.recentActivities || []).slice(0, 6).map((activity) => ({
-          id: activity.id,
-          source: activity.source,
-          sourceId: activity.sourceId,
-          title: activity.title,
-          date: activity.date,
-          meta: activity.meta,
-          eventKind: activity.event?.kind,
-          durationMinutes: activity.event?.durationMinutes,
-          origin: activity.event?.origin,
-          rawText: activity.event?.rawText,
-        })),
-        problemBank: {
-          available: problemBankActiveCount > 0,
-          activeCount: problemBankActiveCount,
-          samples: activeProblems.slice(0, 8).map((problem) => ({
-            id: problem.id,
-            title: problem.title,
-            notebookName: problem.notebookName,
-            tags: problem.tags,
-          })),
-        },
-        resourceStates: args.resourceStates ?? {
-          notebooks: args.snapshot ? 'ready' : 'loading',
-          problems: problemBankActiveCount > 0 ? 'ready' : 'empty',
-          sources: args.sourceUploads.length > 0 ? 'ready' : 'empty',
-        },
-        sourceUploads: args.sourceUploads.slice(0, 12).map((source) => ({
-          id: source.sourceHash,
-          sourceHash: source.sourceHash,
-          title: source.title,
-          kind: source.kind,
-          topic: source.topic,
-          usageProfile: source.usageProfile,
-          createdAt: source.createdAt,
-          notebookIds: source.notebookIds,
-          problemIds: source.problemIds,
-          memoryIds: source.memoryIds,
-          ragEntryIds: source.ragEntryIds,
-          stats: source.stats,
-        })),
-      }),
-      signal: args.signal,
-    });
-  } catch (error) {
-    console.warn(
-      '[learn] AI learn turn planner unavailable:',
-      error instanceof Error ? error.message : error,
-    );
-    throw new Error(classifyLearnTurnPlannerError(error).message);
-  }
-}
-
 function payloadRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function learnAnswerModeLabel(mode?: LearnTurnClientResponse['answerMode']) {
-  if (mode === 'client_activity_plan') return '学习活动计划';
-  if (mode === 'client_practice_plan') return '题库练习';
-  if (mode === 'action_only') return '工具操作';
-  if (mode === 'course_answer') return '课程讲解';
-  return '学习回应';
-}
-
-function publicTraceToolIds(response: LearnTurnClientResponse | null): string[] {
-  const ids: string[] = [];
-  const trace = response?.trace;
-  const steps = Array.isArray(trace?.steps) ? trace.steps : [];
-  const toolCalls = Array.isArray(trace?.toolCalls) ? trace.toolCalls : [];
-  for (const step of steps) {
-    const selectedToolIds = payloadRecord(step.metadata).selectedToolIds;
-    if (Array.isArray(selectedToolIds)) ids.push(...selectedToolIds.map(String));
-  }
-  for (const call of toolCalls) {
-    if (call.toolId) ids.push(call.toolId);
-    const selectedToolIds = payloadRecord(call.metadata).selectedToolIds;
-    if (Array.isArray(selectedToolIds)) ids.push(...selectedToolIds.map(String));
-  }
-  return Array.from(new Set(ids.filter(Boolean)));
 }
 
 function makePublicTraceStep(
@@ -3554,23 +3267,23 @@ function makePublicTraceStep(
 function pendingPublicTraceForQuestion(question: string): LearnPublicTraceStep[] {
   return [
     makePublicTraceStep(
-      'classify',
-      '识别学习意图',
-      `判断这次是知识点复习、刷题、课程讲解、考试准备、预习还是进度确认：${question.slice(0, 80)}`,
+      'student-access',
+      '确认学生课程权限',
+      '由服务端确认当前账号已加入这门课，并只开放当前进度允许查看的课程资料。',
       undefined,
       'waiting',
     ),
     makePublicTraceStep(
-      'context',
-      '读取学习上下文',
-      '查看学习记忆、课程进度、近期活动、课程日程和题库可用性。',
+      'student-evidence',
+      '读取课程依据',
+      `根据问题选择课程笔记本、真实题库、个人学习记录或日历工具：${question.slice(0, 80)}`,
       undefined,
       'waiting',
     ),
     makePublicTraceStep(
-      'route',
-      '选择下一步动作',
-      '按上下文决定生成知识点复习、题库练习、课程讲解交接或进度确认。',
+      'student-answer',
+      '组织课程回复',
+      '课程学习助理会在同一个回合中依据工具结果完成回答；只有日历变更会等待确认。',
       undefined,
       'waiting',
     ),
@@ -3644,159 +3357,6 @@ function replaceLearnMessage(
   // Appending here would leak the old answer into the newly active session.
   if (index < 0) return messages;
   return messages.map((message) => (message.id === messageId ? replacement : message));
-}
-
-function removeLearnMessage(messages: LearnMessage[], messageId: string): LearnMessage[] {
-  return messages.filter((message) => message.id !== messageId);
-}
-
-function publicTraceFromLearnTurn(
-  response: LearnTurnClientResponse | null,
-  args: {
-    question: string;
-    progressKnown?: boolean;
-    calendarCount?: number;
-    problemCount?: number;
-  },
-): LearnPublicTraceStep[] {
-  if (!response) return [];
-  const steps: LearnPublicTraceStep[] = [];
-  const toolIds = publicTraceToolIds(response);
-  const focusTopics = (response.planningDecision?.focusTopics || [])
-    .map((topic) => topic.trim())
-    .filter(Boolean);
-  const answerMode = response.answerMode || 'course_answer';
-  const addStep = (step: LearnPublicTraceStep) => {
-    if (!steps.some((item) => item.id === step.id)) steps.push(step);
-  };
-
-  addStep(
-    makePublicTraceStep(
-      'classify',
-      '识别学习请求',
-      focusTopics.length
-        ? `识别为${learnAnswerModeLabel(answerMode)}，范围聚焦：${focusTopics.join('、')}。`
-        : `识别为${learnAnswerModeLabel(answerMode)}：${args.question.slice(0, 80)}`,
-    ),
-  );
-
-  if (toolIds.includes('search_memory')) {
-    addStep(
-      makePublicTraceStep(
-        'memory',
-        '查看学习记忆',
-        args.progressKnown
-          ? '读取当前进度、薄弱点、近期错题和下一步概念。'
-          : '检查是否已有进度、薄弱点和做题记录；当前没有把未知进度当作阻塞。',
-      ),
-    );
-  }
-  if (toolIds.includes('search_schedule')) {
-    addStep(
-      makePublicTraceStep(
-        'schedule',
-        '检查课程日程',
-        typeof args.calendarCount === 'number' && args.calendarCount > 0
-          ? `查看 ${args.calendarCount} 个 syllabus/日历事项，寻找考试、作业和复习窗口。`
-          : '检查 syllabus、考试、作业和近期活动；没有可用日程时不编造 deadline。',
-      ),
-    );
-  }
-  if (toolIds.includes('search_problem_bank')) {
-    addStep(
-      makePublicTraceStep(
-        'problem-bank',
-        '查看题库',
-        typeof args.problemCount === 'number' && args.problemCount > 0
-          ? `读取 ${args.problemCount} 道可用题，判断是否需要进入刷题/诊断。`
-          : '检查是否有可用题库；没有题库时不会假装抽题。',
-      ),
-    );
-  }
-  if (toolIds.includes('resolve_fixed_review_workflow')) {
-    addStep(
-      makePublicTraceStep(
-        'review-workflow',
-        '确认复习方式',
-        '识别到明确复习目标，但还需要先选择讲解、练题，还是两者都要。',
-      ),
-    );
-  }
-  if (toolIds.includes('search_course_materials')) {
-    addStep(
-      makePublicTraceStep(
-        'materials',
-        '查看课程资料',
-        '检查资料库正文和上传来源，决定是否需要基于原文讲解。',
-      ),
-    );
-  }
-  if (toolIds.includes('plan_review')) {
-    addStep(
-      makePublicTraceStep(
-        'plan-review',
-        '生成复习路线',
-        '把复习分成知识点梳理、自检和需要时的题库练习。',
-      ),
-    );
-  }
-  if (toolIds.includes('propose_practice_generation')) {
-    addStep(
-      makePublicTraceStep(
-        'practice',
-        '准备刷题方案',
-        '根据题库可用性准备练习/小测 proposal，执行前需要学生确认。',
-      ),
-    );
-  }
-  if (toolIds.includes('answer_course_question')) {
-    addStep(
-      makePublicTraceStep('answerer', '交给课程讲解', '把证据、缺口和回答要求交给课程答疑 agent。'),
-    );
-  }
-
-  const handoffs = Array.isArray(response.trace?.handoffs) ? response.trace?.handoffs : [];
-  for (const handoff of handoffs.slice(0, 2)) {
-    addStep(
-      makePublicTraceStep(
-        `handoff-${handoff.id || handoff.to || steps.length}`,
-        '交接给下一个 agent',
-        handoff.reasonSummary || '已把上下文、证据和行为要求交给下一个 agent。',
-        handoff.missingEvidence?.length
-          ? [`缺少证据：${handoff.missingEvidence.slice(0, 3).join('、')}`]
-          : undefined,
-      ),
-    );
-  }
-
-  const artifacts = response.artifacts || [];
-  const reviewPlan = artifacts.find((artifact) => artifact.kind === 'review_plan');
-  if (reviewPlan) {
-    const record = payloadRecord(reviewPlan);
-    const tasks = Array.isArray(record.tasks) ? record.tasks : [];
-    const focusPoints = Array.isArray(record.focusPoints) ? record.focusPoints : [];
-    const selfChecks = Array.isArray(record.selfChecks) ? record.selfChecks : [];
-    addStep(
-      makePublicTraceStep(
-        'review-artifact',
-        '产出知识点复习',
-        `${payloadString(record.title, '复习计划')}：${tasks.length || 1} 个任务，${focusPoints.length} 个重点，${selfChecks.length} 个自测。`,
-      ),
-    );
-  }
-  const calendarDraft = artifacts.find((artifact) => artifact.kind === 'calendar_draft');
-  if (calendarDraft) {
-    const items = payloadRecord(calendarDraft).items;
-    addStep(
-      makePublicTraceStep(
-        'calendar-artifact',
-        '产生日程草稿',
-        `生成 ${Array.isArray(items) ? items.length : 0} 个可加入日历的活动。`,
-      ),
-    );
-  }
-
-  return steps.slice(0, 8);
 }
 
 function planIntro(plan: PracticePlan): string {
@@ -4044,36 +3604,6 @@ function repairStalePracticeSelectionMessageText(text: string): string {
   if (/链表|linked\s*list|linkedlist/.test(normalized)) return text;
   const replacement = practicePlanTopicFocusLine(normalized, '当前复习点');
   return text.replace(staleLine, replacement);
-}
-
-function problemBankSearchNoMatchText(search: LearnProblemBankSearchResult): string {
-  const target = search.query || '这个主题';
-  const excludedLine = search.excluded.length
-    ? `我还排除了 ${search.excluded.length} 个相邻但不合适的候选，例如：${search.excluded
-        .slice(0, 2)
-        .map((item) => `「${item.title}」(${item.reason})`)
-        .join('；')}。`
-    : '';
-  const gaps = search.gaps.length
-    ? search.gaps.join('\n')
-    : `题库里没有严格命中「${target}」的题。`;
-  return [
-    `我查了题库全文，但没有找到严格适合「${target}」的练习题。`,
-    gaps,
-    excludedLine,
-    '我没有为了凑数量混入相邻专题。你可以放宽检索范围，或先向课程题库补充并发布对应题目。',
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-}
-
-function selectedPracticeDifficultyMix(count: number): PracticePlan['difficultyMix'] {
-  if (count <= 0) return { easy: 0, medium: 0, hard: 0 };
-  if (count === 1) return { easy: 1, medium: 0, hard: 0 };
-  if (count === 2) return { easy: 1, medium: 1, hard: 0 };
-  const easy = 1;
-  const hard = count >= 5 ? 1 : 0;
-  return { easy, medium: Math.max(0, count - easy - hard), hard };
 }
 
 function isProblemSelectionPlan(plan: PracticePlan): boolean {
@@ -4472,531 +4002,6 @@ function addCalendarDays(date: Date, days: number): Date {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
-}
-
-function validDraftDate(value: unknown): string | undefined {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())
-    ? value.trim()
-    : undefined;
-}
-
-function learnCalendarDraftItemFromRecord(
-  raw: Record<string, unknown>,
-  fallbackIndex = 0,
-): LearnCalendarDraftItem | null {
-  const title =
-    payloadString(raw.title) ||
-    payloadString(raw.label) ||
-    payloadString(raw.summary) ||
-    `学习安排 ${fallbackIndex + 1}`;
-  if (!title.trim()) return null;
-  const duration =
-    typeof raw.durationMinutes === 'number' && Number.isFinite(raw.durationMinutes)
-      ? Math.max(5, Math.round(raw.durationMinutes))
-      : undefined;
-  return {
-    id: payloadString(raw.id) || undefined,
-    eventId: payloadString(raw.eventId) || undefined,
-    title: title.slice(0, 120),
-    date: validDraftDate(raw.date) || validDraftDate(raw.day),
-    start: payloadString(raw.start) || undefined,
-    durationMinutes: duration,
-    courseId: payloadString(raw.courseId) || undefined,
-    reason: payloadString(raw.reason) || payloadString(raw.summary) || undefined,
-  };
-}
-
-function normalizeAnswerEvidenceSource(raw: unknown): LearnAnswerEvidenceSource | null {
-  const record = payloadRecord(raw);
-  const title = payloadString(record.title) || payloadString(record.sourceId) || '证据来源';
-  if (!title.trim()) return null;
-  const sourceType = payloadString(record.sourceType);
-  return {
-    sourceType:
-      sourceType === 'notebook' ||
-      sourceType === 'memory' ||
-      sourceType === 'problem_bank' ||
-      sourceType === 'calendar' ||
-      sourceType === 'web' ||
-      sourceType === 'user' ||
-      sourceType === 'system'
-        ? sourceType
-        : 'source',
-    id: payloadString(record.id) || undefined,
-    sourceId: payloadString(record.sourceId) || undefined,
-    notebookId: payloadString(record.notebookId) || null,
-    title: title.slice(0, 160),
-    previewText:
-      payloadString(record.previewText) ||
-      payloadString(record.renderedText).slice(0, 900) ||
-      payloadString(record.originalText).slice(0, 900) ||
-      undefined,
-    score: typeof record.score === 'number' ? record.score : undefined,
-    metadata: payloadRecord(record.metadata),
-  };
-}
-
-function normalizeLearnArtifact(raw: unknown): LearnArtifact | null {
-  const record = payloadRecord(raw);
-  const kind = payloadString(record.kind);
-  const id = payloadString(record.id) || makeClientId('artifact');
-
-  if (kind === 'activity_plan') {
-    const title = payloadString(record.title) || '学习活动计划';
-    const planType = payloadString(record.planType);
-    const tasks = Array.isArray(record.tasks)
-      ? record.tasks
-          .map((task) => payloadRecord(task))
-          .map((task, index) => {
-            const taskKind = payloadString(task.kind);
-            const normalizedKind: LearnActivityPlanTask['kind'] =
-              taskKind === 'review' ||
-              taskKind === 'preview' ||
-              taskKind === 'practice' ||
-              taskKind === 'reading' ||
-              taskKind === 'reflection' ||
-              taskKind === 'catch_up' ||
-              taskKind === 'other'
-                ? taskKind
-                : undefined;
-            return {
-              title: payloadString(task.title) || `活动 ${index + 1}`,
-              kind: normalizedKind,
-              concepts: Array.isArray(task.concepts)
-                ? task.concepts
-                    .map((item) => String(item))
-                    .filter(Boolean)
-                    .slice(0, 8)
-                : undefined,
-              minutes: typeof task.minutes === 'number' ? task.minutes : undefined,
-              reason: payloadString(task.reason) || undefined,
-            };
-          })
-          .filter((task) => task.title)
-          .slice(0, 16)
-      : [];
-    const calendarDraftItems = Array.isArray(record.calendarDraftItems)
-      ? record.calendarDraftItems
-          .map((item, index) => learnCalendarDraftItemFromRecord(payloadRecord(item), index))
-          .filter((item): item is LearnCalendarDraftItem => Boolean(item))
-      : undefined;
-    const evidence = Array.isArray(record.evidence)
-      ? record.evidence
-          .map((source) => normalizeAnswerEvidenceSource(source))
-          .filter(
-            (source): source is NonNullable<ReturnType<typeof normalizeAnswerEvidenceSource>> =>
-              Boolean(source),
-          )
-          .slice(0, 12)
-      : undefined;
-    const rawScope = payloadRecord(record.scope);
-    const scope = rawScope
-      ? {
-          label: payloadString(rawScope.label) || undefined,
-          startDate: payloadString(rawScope.startDate) || undefined,
-          endDate: payloadString(rawScope.endDate) || undefined,
-          eventIds: Array.isArray(rawScope.eventIds)
-            ? rawScope.eventIds
-                .map((item) => String(item))
-                .filter(Boolean)
-                .slice(0, 80)
-            : undefined,
-          rationale: payloadString(rawScope.rationale) || undefined,
-        }
-      : undefined;
-    if (!tasks.length && !calendarDraftItems?.length) return null;
-    return {
-      kind,
-      id,
-      title,
-      planType:
-        planType === 'preview' || planType === 'study' || planType === 'catch_up'
-          ? planType
-          : 'review',
-      tasks,
-      calendarDraftItems,
-      evidence,
-      scope,
-    };
-  }
-
-  if (kind === 'calendar_draft') {
-    const items = Array.isArray(record.items)
-      ? record.items
-          .map((item, index) => learnCalendarDraftItemFromRecord(payloadRecord(item), index))
-          .filter((item): item is LearnCalendarDraftItem => Boolean(item))
-      : [];
-    if (!items.length) return null;
-    return {
-      kind,
-      id,
-      title: payloadString(record.title) || '日历草稿',
-      items,
-      sourceArtifactId: payloadString(record.sourceArtifactId) || undefined,
-    };
-  }
-
-  if (kind === 'active_activity') {
-    const title = payloadString(record.title);
-    const date = payloadString(record.date);
-    if (!title || !date) return null;
-    const source = payloadString(record.source);
-    const eventKind = payloadString(record.eventKind);
-    const origin = payloadString(record.origin);
-    return {
-      kind,
-      id,
-      activityId: payloadString(record.activityId) || payloadString(record.sourceId) || id,
-      title,
-      date,
-      source: source === 'plan' || source === 'manual' ? source : 'calendar',
-      sourceId: payloadString(record.sourceId) || undefined,
-      courseId: payloadString(record.courseId) || undefined,
-      courseCode: payloadString(record.courseCode) || undefined,
-      courseName: payloadString(record.courseName) || undefined,
-      eventKind:
-        eventKind === 'assignment' ||
-        eventKind === 'exam' ||
-        eventKind === 'progress' ||
-        eventKind === 'tutorial' ||
-        eventKind === 'holiday' ||
-        eventKind === 'other'
-          ? eventKind
-          : undefined,
-      durationMinutes:
-        typeof record.durationMinutes === 'number' ? record.durationMinutes : undefined,
-      origin:
-        origin === 'syllabus' ||
-        origin === 'ai_plan' ||
-        origin === 'manual' ||
-        origin === 'practice' ||
-        origin === 'exam_prep'
-          ? origin
-          : undefined,
-      rawText: payloadString(record.rawText) || undefined,
-      startedAt: typeof record.startedAt === 'number' ? record.startedAt : undefined,
-    };
-  }
-
-  if (kind === 'image_prompt_draft') {
-    const prompt = payloadString(record.prompt);
-    if (!prompt) return null;
-    const aspectRatio = payloadString(record.aspectRatio);
-    return {
-      kind,
-      id,
-      prompt,
-      aspectRatio:
-        aspectRatio === '16:9' ||
-        aspectRatio === '4:3' ||
-        aspectRatio === '1:1' ||
-        aspectRatio === '9:16'
-          ? aspectRatio
-          : undefined,
-      sourceQuestion: payloadString(record.sourceQuestion) || undefined,
-      imageUrl: payloadString(record.imageUrl) || undefined,
-      width: typeof record.width === 'number' ? record.width : undefined,
-      height: typeof record.height === 'number' ? record.height : undefined,
-    };
-  }
-
-  if (kind === 'web_search_result') {
-    const query = payloadString(record.query);
-    if (!query) return null;
-    const sources = Array.isArray(record.sources)
-      ? record.sources
-          .map((source) => payloadRecord(source))
-          .map((source) => ({
-            title: payloadString(source.title) || payloadString(source.url) || '网页来源',
-            url: payloadString(source.url),
-            content: payloadString(source.content) || undefined,
-            score: typeof source.score === 'number' ? source.score : undefined,
-          }))
-          .filter((source) => source.url)
-          .slice(0, 8)
-      : [];
-    return {
-      kind,
-      id,
-      query,
-      sources,
-      answer: payloadString(record.answer) || undefined,
-      usedFor: payloadString(record.usedFor) || undefined,
-    };
-  }
-
-  if (kind === 'memory_candidate') {
-    const summary = payloadString(record.summary);
-    const memoryType = payloadString(record.memoryType);
-    if (!summary) return null;
-    return {
-      kind,
-      id,
-      memoryType:
-        memoryType === 'mastery' ||
-        memoryType === 'progress' ||
-        memoryType === 'preference' ||
-        memoryType === 'correction' ||
-        memoryType === 'next_step'
-          ? memoryType
-          : 'weakness',
-      summary,
-      evidence: Array.isArray(record.evidence)
-        ? record.evidence
-            .map((item) => String(item))
-            .filter(Boolean)
-            .slice(0, 8)
-        : undefined,
-    };
-  }
-
-  if (kind === 'answer_evidence') {
-    const sources = Array.isArray(record.sources)
-      ? record.sources
-          .map((source) => normalizeAnswerEvidenceSource(source))
-          .filter((source): source is LearnAnswerEvidenceSource => Boolean(source))
-          .slice(0, 16)
-      : [];
-    if (!sources.length) return null;
-    return {
-      kind,
-      id,
-      title: payloadString(record.title) || undefined,
-      usedFor: payloadString(record.usedFor) || undefined,
-      sources,
-    };
-  }
-
-  if (kind === 'review_plan') {
-    const title = payloadString(record.title) || '复习计划';
-    const learningGoal = payloadString(record.learningGoal);
-    const tasks = Array.isArray(record.tasks)
-      ? record.tasks
-          .map((task) => payloadRecord(task))
-          .map((task, index) => ({
-            title: payloadString(task.title) || `任务 ${index + 1}`,
-            concepts: Array.isArray(task.concepts)
-              ? task.concepts
-                  .map((item) => String(item))
-                  .filter(Boolean)
-                  .slice(0, 8)
-              : undefined,
-            minutes: typeof task.minutes === 'number' ? task.minutes : undefined,
-            reason: payloadString(task.reason) || undefined,
-          }))
-          .filter((task) => task.title)
-          .slice(0, 12)
-      : [];
-    const calendarDraftItems = Array.isArray(record.calendarDraftItems)
-      ? record.calendarDraftItems
-          .map((item, index) => learnCalendarDraftItemFromRecord(payloadRecord(item), index))
-          .filter((item): item is LearnCalendarDraftItem => Boolean(item))
-      : undefined;
-    const focusPoints = Array.isArray(record.focusPoints)
-      ? record.focusPoints
-          .map((item) => payloadRecord(item))
-          .map((item) => ({
-            title: payloadString(item.title),
-            explanation: payloadString(item.explanation),
-            checkQuestion: payloadString(item.checkQuestion),
-          }))
-          .filter((item) => item.title || item.explanation || item.checkQuestion)
-          .slice(0, 8)
-      : undefined;
-    const selfChecks = Array.isArray(record.selfChecks)
-      ? record.selfChecks
-          .map((item) => payloadRecord(item))
-          .map((item) => {
-            const difficulty = payloadString(item.difficulty);
-            const normalizedDifficulty: 'warmup' | 'core' | 'stretch' | undefined =
-              difficulty === 'warmup' || difficulty === 'core' || difficulty === 'stretch'
-                ? difficulty
-                : undefined;
-            return {
-              question: payloadString(item.question),
-              expectedAnswer: payloadString(item.expectedAnswer),
-              concept: payloadString(item.concept),
-              difficulty: normalizedDifficulty,
-            };
-          })
-          .filter((item) => item.question || item.expectedAnswer)
-          .slice(0, 8)
-      : undefined;
-    const rawPracticeBridge = payloadRecord(record.practiceBridge);
-    const practiceProblemIds = Array.isArray(rawPracticeBridge.problemIds)
-      ? rawPracticeBridge.problemIds
-          .map((item) => String(item))
-          .filter(Boolean)
-          .slice(0, 12)
-      : [];
-    // Parse the legacy field through the artifact schema, but never surface it as executable
-    // practice. Current review plans may only bridge to real problem-bank IDs.
-    const practiceGeneratedPrompts: string[] = [];
-    const practiceBridge =
-      payloadString(rawPracticeBridge.title) ||
-      payloadString(rawPracticeBridge.summary) ||
-      practiceProblemIds.length ||
-      practiceGeneratedPrompts.length
-        ? {
-            title: payloadString(rawPracticeBridge.title) || '练习衔接',
-            summary: payloadString(rawPracticeBridge.summary),
-            problemIds: practiceProblemIds,
-            generatedPrompts: practiceGeneratedPrompts,
-          }
-        : undefined;
-    const nextSteps = Array.isArray(record.nextSteps)
-      ? record.nextSteps
-          .map((item) => String(item))
-          .filter(Boolean)
-          .slice(0, 6)
-      : undefined;
-    if (!tasks.length && !calendarDraftItems?.length) return null;
-    return {
-      kind,
-      id,
-      title,
-      learningGoal: learningGoal || undefined,
-      tasks,
-      calendarDraftItems,
-      focusPoints,
-      selfChecks,
-      practiceBridge,
-      nextSteps,
-    };
-  }
-
-  return null;
-}
-
-function answerEvidenceArtifactFromCourseContext(args: {
-  courseContext?: CourseChatContext;
-  question: string;
-}): Extract<LearnArtifact, { kind: 'answer_evidence' }> | null {
-  const memory = args.courseContext?.layeredMemory;
-  if (!memory) return null;
-  const sources: LearnAnswerEvidenceSource[] = [];
-
-  for (const source of memory.sourceEvidence || []) {
-    const sourcePreview = (source.renderedText || source.originalText || '').trim();
-    if (
-      /学生消息|student message/i.test(source.title || '') ||
-      /助手回复|assistant reply/i.test(source.title || '') ||
-      /^学生消息[:：]/.test(sourcePreview) ||
-      /^助手回复[:：]/.test(sourcePreview)
-    ) {
-      continue;
-    }
-    sources.push({
-      sourceType: source.sourceType === 'problem' ? 'problem_bank' : 'source',
-      id: source.id,
-      sourceId: source.sourceId,
-      notebookId: source.notebookId ?? null,
-      title: source.title || '原文证据',
-      previewText: sourcePreview.slice(0, 900),
-      score: typeof source.score === 'number' ? source.score : undefined,
-      metadata: {
-        ...(source.metadata || {}),
-        evidenceType: source.sourceType,
-      },
-    });
-  }
-
-  for (const match of memory.knowledgeMatches || []) {
-    sources.push({
-      sourceType: 'problem_bank',
-      id: match.id,
-      title: match.title || '题库匹配',
-      previewText: (match.text || '').trim().slice(0, 700),
-      metadata: match.metadata || {},
-    });
-  }
-
-  for (const match of memory.semanticMatches || []) {
-    sources.push({
-      sourceType: 'memory',
-      id: match.id,
-      title: match.title || '语义记忆',
-      previewText: (match.summary || match.text || '').trim().slice(0, 700),
-      metadata: match.source ? { source: match.source } : undefined,
-    });
-  }
-
-  for (const cache of memory.knowledgeCache || []) {
-    sources.push({
-      sourceType:
-        cache.sourceType === 'problem' || cache.sourceType === 'problem_bank'
-          ? 'problem_bank'
-          : 'source',
-      id: cache.id,
-      sourceId: cache.sourceId,
-      notebookId: cache.notebookId ?? null,
-      title: cache.title || '知识缓存',
-      previewText: (cache.previewText || '').trim().slice(0, 700),
-      metadata: {
-        ...payloadRecord(cache.metadata),
-        sourceType: cache.sourceType,
-        courseId: cache.courseId,
-        hitCount: cache.hitCount,
-        lastAccessedAt: cache.lastAccessedAt,
-      },
-    });
-  }
-
-  const deduped = sources.filter(
-    (source, index, all) =>
-      all.findIndex(
-        (item) =>
-          item.sourceType === source.sourceType &&
-          (item.id || item.sourceId || item.title) ===
-            (source.id || source.sourceId || source.title),
-      ) === index,
-  );
-  if (!deduped.length) return null;
-  return {
-    kind: 'answer_evidence',
-    id: makeClientId('answer-evidence'),
-    title: '本次回答证据',
-    usedFor: args.question.slice(0, 160),
-    sources: deduped.slice(0, 16),
-  };
-}
-
-function answerEvidenceArtifactFromServerSummaries(args: {
-  evidence: CourseChatEvidenceSummary[];
-  question: string;
-}): Extract<LearnArtifact, { kind: 'answer_evidence' }> | null {
-  if (!args.evidence.length) return null;
-  const sources: LearnAnswerEvidenceSource[] = args.evidence.map((item) => {
-    const sourceType: LearnAnswerEvidenceSource['sourceType'] =
-      item.origin === 'problem_bank' || item.sourceType === 'problem'
-        ? 'problem_bank'
-        : item.origin === 'course_source' ||
-            /(?:source|document|markdown|upload)/i.test(item.sourceType)
-          ? 'source'
-          : 'memory';
-    return {
-      sourceType,
-      id: item.id,
-      sourceId: item.sourceId,
-      notebookId: item.notebookId ?? null,
-      title: item.title,
-      previewText: item.excerpt,
-      score: item.score,
-      metadata: {
-        origin: item.origin,
-        sourceType: item.sourceType,
-        courseId: item.courseId,
-        ...(item.sourceHash ? { sourceHash: item.sourceHash } : {}),
-      },
-    };
-  });
-  return {
-    kind: 'answer_evidence',
-    id: makeClientId('answer-evidence'),
-    title: '本次回答证据',
-    usedFor: args.question.slice(0, 160),
-    sources: sources.slice(0, 16),
-  };
 }
 
 function practicePlanCalendarDraftItems(plan: PracticePlan): LearnCalendarDraftItem[] {
@@ -5982,14 +4987,8 @@ function learnActionTitle(action: LearningAction): string {
       return '联网搜索';
     case 'review_mode.request_choice':
       return '选择复习方式';
-    case 'learner_progress.request_confirmation':
-      return '确认学习进度';
-    case 'practice.propose_generation':
-      return '从题库选题';
     case 'classroom.propose_temporary_explanation':
       return '生成临时课堂';
-    case 'image.propose_generation':
-      return '生成学习图片';
     case 'memory.propose_write':
       return '写入学习记忆';
     default:
@@ -6016,20 +5015,20 @@ function learnActionButtonLabel(action: LearningAction): string {
       return '确认删除';
     case 'review_mode.request_choice':
       return '选择';
-    case 'learner_progress.request_confirmation':
-      return '确认进度';
-    case 'practice.propose_generation':
-      return '确认选题';
     case 'classroom.propose_temporary_explanation':
       return '生成课堂';
-    case 'image.propose_generation':
-      return '确认生成';
     case 'memory.propose_write':
       return '确认写入';
     default:
       return '确认';
   }
 }
+
+const CONFIRMABLE_COURSE_CHAT_ACTIONS = new Set<LearningAction['kind']>([
+  'calendar.propose_add',
+  'calendar.propose_update',
+  'calendar.propose_delete',
+]);
 
 function reviewModeChoiceOptions(action: LearningAction) {
   const rawOptions = Array.isArray(action.payload?.options) ? action.payload.options : [];
@@ -6943,17 +5942,6 @@ function actionSummary(action: LearningAction): string {
   ).slice(0, 500);
 }
 
-function latestUserLearnMessageText(messages: LearnMessage[]): string {
-  return (
-    messages
-      .slice()
-      .reverse()
-      .find((message) => message.role === 'user')
-      ?.text.trim()
-      .slice(0, 1000) || ''
-  );
-}
-
 function memoryActionType(action: LearningAction): ConfirmedLearnerMemoryType {
   const value = payloadString(action.payload?.memoryType).toLowerCase();
   if (
@@ -7146,15 +6134,6 @@ function memoryWriteCandidateFromLearningAction(args: {
   };
 }
 
-function learningActionPreferredConcepts(action: LearningAction): string[] {
-  const payload = actionPayload(action);
-  const concepts = Array.isArray(payload.concepts) ? payload.concepts : [];
-  return concepts
-    .map((item) => payloadString(item))
-    .filter(Boolean)
-    .slice(0, 8);
-}
-
 export function LearnPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -7260,10 +6239,6 @@ export function LearnPageClient() {
   const providersConfig = useSettingsStore((state) => state.providersConfig);
   const pdfProviderId = useSettingsStore((state) => state.pdfProviderId);
   const pdfProvidersConfig = useSettingsStore((state) => state.pdfProvidersConfig);
-  const imageGenerationEnabled = useSettingsStore((state) => state.imageGenerationEnabled);
-  const imageProviderId = useSettingsStore((state) => state.imageProviderId);
-  const imageModelId = useSettingsStore((state) => state.imageModelId);
-  const imageProvidersConfig = useSettingsStore((state) => state.imageProvidersConfig);
   const fetchServerProviders = useSettingsStore((state) => state.fetchServerProviders);
   const memoryActivities = useMemoryActivityStore((state) => state.activities);
   const memoryHistoryRecords = useTaskHistoryStore((state) => state.records);
@@ -8182,21 +7157,17 @@ export function LearnPageClient() {
 
   const openNotebookLibraryPanel = useCallback(() => {
     if (!activeCourse) return;
-    setSelectedNotebookLibraryTileId(null);
-    setNotebookLibraryQuery('');
-    setNotebookLibraryDetailView('content');
-    setNotebookLibraryPanelOpen(true);
-  }, [activeCourse]);
+    router.push(`/course/${encodeURIComponent(activeCourse.id)}/resources`);
+  }, [activeCourse, router]);
 
   const openNotebookFromProgress = useCallback(
     (notebook: StageListItem) => {
       if (!activeCourse) return;
-      setNotebookLibraryQuery('');
-      setNotebookLibraryDetailView('content');
-      setNotebookLibraryPanelOpen(true);
-      setSelectedNotebookLibraryTileId(`notebook-library-${notebook.id}`);
+      router.push(
+        `/course/${encodeURIComponent(activeCourse.id)}/resources?notebookId=${encodeURIComponent(notebook.id)}`,
+      );
     },
-    [activeCourse],
+    [activeCourse, router],
   );
 
   const openMiniLectureDeck = useCallback((deck: MiniLectureDeck) => {
@@ -10951,55 +9922,6 @@ export function LearnPageClient() {
     });
   }, [activeCourse, notebooks, problems, userId]);
 
-  const recordQuestionLearningFocus = useCallback(
-    (concept: string) => {
-      if (!activeCourse || !concept) return;
-      const timestamp = Date.now();
-      const localUserId = userId || 'anonymous';
-      const currentState = loadLearnerCourseState({
-        userId: localUserId,
-        courseId: activeCourse.id,
-      });
-      const nextState = applyQuestionLearningFocus({
-        state: currentState,
-        concept,
-        timestamp,
-      });
-      saveLearnerCourseState(nextState);
-      setSnapshot(summarizeLearnerCourseState({ state: nextState, notebooks, problems }));
-
-      const activityId = addMemoryActivity({
-        courseId: activeCourse.id,
-        title: '正在理解你的学习关注点',
-        description: `你正在进一步理解「${concept}」，我会据此调整后续讲解和检查方式。`,
-        status: 'writing_study_memory',
-        layer: 'study_memory',
-        chips: ['课程', '学习关注点'],
-      });
-      void saveRemoteLearnerCourseState(nextState).then((saved) => {
-        if (saved) {
-          updateMemoryActivity(activityId, {
-            title: '已记录正在补强的知识点',
-            description: `正在补强：${concept}。这只是学习关注点，不会因为一次提问就直接标记为薄弱点。`,
-            status: 'completed',
-            layer: 'study_memory',
-            chips: ['课程', '学习关注点'],
-          });
-          return;
-        }
-        updateMemoryActivity(activityId, {
-          title: '学习关注点暂未同步',
-          description: `「${concept}」已保存在当前浏览器，但还没有同步到账号。`,
-          status: 'failed',
-          layer: 'study_memory',
-          chips: ['课程', '学习关注点', '同步失败'],
-          error: '学习关注点同步到账号失败',
-        });
-      });
-    },
-    [activeCourse, notebooks, problems, userId],
-  );
-
   const updateLearningPosition = useCallback(
     (selection: string) => {
       if (!activeCourse || !selection) return null;
@@ -12093,76 +11015,36 @@ export function LearnPageClient() {
         return;
       }
 
+      const activityQuestion = [
+        `开始日历活动：${event.title}`,
+        `日期：${event.date}`,
+        `类型：${scheduleEventLabel(event.kind, isResearchCourse)}`,
+        event.durationMinutes ? `预计时长：${event.durationMinutes} 分钟` : '',
+        event.rawText ? `来源内容：${event.rawText}` : '',
+        '请直接带我执行这个活动；需要课程资料、真实题库或日历信息时使用对应工具。',
+      ]
+        .filter(Boolean)
+        .join('\n');
       setSending(true);
       try {
-        const currentState = loadLearnerCourseState({
-          userId: localUserId,
+        const answererConversation = learnMessagesForCourseAnswerer(messages);
+        const historicalMessageIds = new Set(answererConversation.map((item) => item.id));
+        const result = await askCourseOrchestrator({
           courseId: activeCourse.id,
-        });
-        const currentSnapshot = summarizeLearnerCourseState({
-          state: currentState,
-          notebooks,
-          problems,
-        });
-        const activityQuestion = [
-          `开始日历活动：${event.title}`,
-          `日期：${event.date}`,
-          `类型：${scheduleEventLabel(event.kind, isResearchCourse)}`,
-          event.durationMinutes ? `预计时长：${event.durationMinutes} 分钟` : '',
-          event.rawText ? `来源内容：${event.rawText}` : '',
-          '请直接带我执行这个活动；如果需要题库、日历或记忆操作，请返回结构化 action/artifact。',
-        ]
-          .filter(Boolean)
-          .join('\n');
-        const activityContentState = courseContentStateRef.current.get(activeCourse.id);
-        const learnTurn = await planLearnTurn({
+          courseName: activeCourse.name,
           question: activityQuestion,
-          messages,
-          course: activeCourse,
-          snapshot: currentSnapshot,
-          calendarEvents: syllabusEvents,
-          recentActivities: statusCalendarActivities,
-          recentPlans,
-          problems,
-          problemBankActiveCountHint:
-            problemsLoadState.status === 'idle' ? activityContentState?.problems.count : undefined,
-          sourceUploads: syncedCourseSourceUploads,
-          resourceStates: {
-            notebooks: planningResourceStatusFromContentOrList({
-              listState: notebooksLoadState,
-              contentCount: activityContentState ? activityContentState.notebooks.count : null,
-            }),
-            problems: planningResourceStatusFromContentOrList({
-              listState: problemsLoadState,
-              contentCount: activityContentState ? activityContentState.problems.count : null,
-            }),
-            sources: sourcesLoadState.status,
-          },
-          providerId,
-          modelId,
+          conversation: answererConversation,
+          orchestratorAvatarUrl: activeCourse.avatarUrl,
+          userProfile: { nickname: userName },
+          surface: 'student-course-chat',
+          teachingMode: chatTeachingMode,
+          responseStrength: chatResponseStrength,
         });
         if (activeMessageStoreKeyRef.current !== activityStoreKey) return;
-        const artifacts = [
-          activeArtifact,
-          ...(learnTurn?.artifacts || [])
-            .map(normalizeLearnArtifact)
-            .filter((artifact): artifact is LearnArtifact => Boolean(artifact)),
-        ];
-        const learningActions = [
-          ...(learnTurn?.proposals || []),
-          ...(learnTurn?.directCalls || []),
-        ].map((learnAction) =>
-          learnActionToClientAction({
-            action: learnAction,
-            id: makeClientId('learn-action'),
-            defaultConfirmation: learnActionRequiresConfirmation(learnAction.kind)
-              ? 'required'
-              : 'none',
-          }),
-        );
-        const text = learnTurn?.replyText?.trim() || '';
-        if (!text && artifacts.length <= 1 && !learningActions.length) {
-          throw new Error('AI 没有返回可展示的活动执行内容。');
+        const answer = streamedCourseAnswerFromMessages(result.messages, historicalMessageIds);
+        const text = answer?.text.trim() || '';
+        if (!text && !answer?.learningActions?.length) {
+          throw new Error('课程学习助理没有返回可展示的活动执行内容。');
         }
         setMessages((current) => [
           ...current,
@@ -12171,14 +11053,10 @@ export function LearnPageClient() {
             role: 'assistant',
             text,
             createdAt: Date.now(),
-            learningActions: learningActions.length ? learningActions : undefined,
-            artifacts,
-            publicTrace: publicTraceFromLearnTurn(learnTurn, {
-              question: activityQuestion,
-              progressKnown: currentSnapshot.progressKnown,
-              calendarCount: syllabusEvents.length,
-              problemCount: problems.length,
-            }),
+            learningActions: answer?.learningActions,
+            artifacts: [activeArtifact],
+            publicTrace: answer?.publicTrace,
+            contextCompression: answer?.contextCompression,
           },
         ]);
         refreshLearnerSnapshot();
@@ -12201,25 +11079,18 @@ export function LearnPageClient() {
     },
     [
       activeCourse,
-      syncedCourseSourceUploads,
+      chatResponseStrength,
+      chatTeachingMode,
       isResearchCourse,
-      localUserId,
       messages,
-      modelId,
-      notebooks,
-      notebooksLoadState,
       openPracticePlan,
       openPracticeSession,
-      problems,
-      problemsLoadState,
-      providerId,
       recentPlans,
       refreshLearnerSnapshot,
       setMessages,
       sending,
-      statusCalendarActivities,
-      sourcesLoadState.status,
       syllabusEvents,
+      userName,
     ],
   );
 
@@ -12790,166 +11661,6 @@ export function LearnPageClient() {
     [refreshLearnerSnapshot, setMessages],
   );
 
-  const buildSelectedProblemPracticePlan = useCallback(
-    (args: {
-      mode: PracticePlanMode;
-      prompt?: string;
-      targetCount?: number;
-      preferredConcepts?: string[];
-      preferredProblemIds?: string[];
-      stateOverride?: LearnerCourseState;
-      problemBankSearch?: LearnProblemBankSearchResult | null;
-      problemsOverride?: CourseProblemClientSummary[];
-    }): PracticePlan | null => {
-      if (!activeCourse) return null;
-      const availableProblems = args.problemsOverride || problems;
-      const activeProblems = availableProblems.filter((problem) => problem.status !== 'archived');
-      if (!activeProblems.length) return null;
-      const terms = practiceSelectionTerms({
-        prompt: args.prompt,
-        preferredConcepts: args.preferredConcepts,
-        course: activeCourse,
-      });
-      const targetCount = Math.max(1, Math.min(args.targetCount ?? 5, 8));
-      const activeProblemById = new Map(activeProblems.map((problem) => [problem.id, problem]));
-      const preferredProblemIds = new Set(args.preferredProblemIds || []);
-      const selected: Array<{
-        problem: CourseProblemClientSummary;
-        score: number;
-        searchMatch?: LearnProblemBankMatch;
-      }> = args.problemBankSearch
-        ? args.problemBankSearch.matches
-            .map((match) => {
-              const problem = activeProblemById.get(match.problemId);
-              return problem ? { problem, score: match.score, searchMatch: match } : null;
-            })
-            .filter(
-              (
-                item,
-              ): item is {
-                problem: CourseProblemClientSummary;
-                score: number;
-                searchMatch: LearnProblemBankMatch;
-              } => Boolean(item),
-            )
-            .slice(0, targetCount)
-        : (() => {
-            const ranked = activeProblems
-              .map((problem) => ({
-                problem,
-                score:
-                  (preferredProblemIds.has(problem.id) ? 100 : 0) +
-                  practiceProblemMatchScore(problem, terms),
-              }))
-              .sort((a, b) => b.score - a.score || a.problem.title.localeCompare(b.problem.title));
-            return ranked.some((item) => item.score > 0) && terms.length
-              ? ranked.filter((item) => item.score > 0).slice(0, targetCount)
-              : ranked.slice(0, targetCount);
-          })();
-      if (!selected.length) return null;
-
-      const planState =
-        args.stateOverride ||
-        seedLearnerCourseStateFromCourse({
-          userId: userId || 'anonymous',
-          course: activeCourse,
-          notebooks,
-          problems: availableProblems,
-        });
-      const recentProblemIds = new Set(
-        planState.recentProblemAttempts.slice(0, 20).map((item) => item.problemId),
-      );
-      const selectedProblems = selected.map((item) => item.problem);
-      const targetConcepts = uniquePlanStrings(
-        [
-          ...(args.preferredConcepts || []),
-          args.problemBankSearch?.query,
-          ...terms.filter((term) => !/^(node|nodes|next|head|_first|_node)$/i.test(term)),
-          ...selectedProblems.flatMap((problem) => problem.tags),
-          activeCourse.courseCode,
-        ],
-        6,
-      );
-      const primaryConcept =
-        targetConcepts.find((concept) => /linked\s*list|linkedlist/i.test(concept)) ||
-        targetConcepts[0] ||
-        '题库练习';
-      const rationale = selectedProblemPracticeRationale({
-        primaryConcept,
-        selectedProblems,
-        terms,
-      });
-      const searchRationale = args.problemBankSearch
-        ? uniquePlanStrings(
-            [
-              ...args.problemBankSearch.rationale,
-              ...args.problemBankSearch.gaps,
-              args.problemBankSearch.excluded.length
-                ? `已排除 ${args.problemBankSearch.excluded.length} 个相邻但不符合本轮目标的候选。`
-                : '',
-            ],
-            4,
-          )
-        : rationale;
-      const now = Date.now();
-      return {
-        version: 1,
-        id: makeClientId(args.mode === 'quiz' ? 'quiz-selection' : 'practice-selection'),
-        userId: userId || 'anonymous',
-        courseId: activeCourse.id,
-        courseName: activeCourse.name,
-        mode: args.mode,
-        title: `已选好 ${selectedProblems.length} 道 ${primaryConcept} 练习`,
-        targetConcepts: targetConcepts.length ? targetConcepts : [primaryConcept],
-        problemIds: selectedProblems.map((problem) => problem.id),
-        questions: selected.map(({ problem, searchMatch }) => ({
-          problemId: problem.id,
-          title: problem.title,
-          href: `/course/${encodeURIComponent(activeCourse.id)}/problem-bank/${encodeURIComponent(problem.id)}`,
-          reason: searchMatch?.reason || practiceProblemReason(problem, terms),
-          difficulty: problem.difficulty,
-          tags: problem.tags,
-        })),
-        estimatedMinutes:
-          args.mode === 'quiz'
-            ? Math.max(12, selectedProblems.length * 3)
-            : Math.max(10, selectedProblems.length * 2),
-        difficultyMix: selectedPracticeDifficultyMix(selectedProblems.length),
-        createdFrom: {
-          currentNotebookId: undefined,
-          currentNotebookName: undefined,
-          weakPoints: [],
-          recentAttemptProblemIds: Array.from(recentProblemIds).slice(0, 8),
-          prompt: args.prompt?.trim().slice(0, 600),
-        },
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-        evidence: {
-          decisionId: PRACTICE_PROBLEM_SELECTION_DECISION_ID,
-          rationale: searchRationale,
-          gaps: args.problemBankSearch?.gaps || [],
-          items: selected.slice(0, 6).map(({ problem, searchMatch }) => ({
-            id: `problem-${problem.id}`,
-            sourceType: 'problem_bank',
-            sourceId: problem.id,
-            title: problem.title,
-            reason: searchMatch?.reason || practiceProblemReason(problem, terms),
-            excerpt:
-              searchMatch?.excerpt ||
-              [
-                problem.notebookName ? `来源：${problem.notebookName}` : '',
-                problem.tags.length ? `标签：${problem.tags.slice(0, 5).join('、')}` : '',
-              ]
-                .filter(Boolean)
-                .join('；'),
-          })),
-        },
-      };
-    },
-    [activeCourse, notebooks, problems, userId],
-  );
-
   const actionResult = useCallback(
     (
       action: LearningAction,
@@ -13009,6 +11720,11 @@ export function LearnPageClient() {
       if (!actionStoreKey) return;
       if (localConversationReadyKey !== actionStoreKey) {
         toast.info('会话仍在本地恢复，请稍后再执行学习操作。');
+        return;
+      }
+      if (!CONFIRMABLE_COURSE_CHAT_ACTIONS.has(action.kind)) {
+        markLearningActionStatus(action.id, 'cancelled');
+        toast.info('这类旧学习操作已停用；当前聊天只允许确认日历变更。');
         return;
       }
       const actionStillBelongsToVisibleSession = () =>
@@ -13324,180 +12040,6 @@ export function LearnPageClient() {
           return;
         }
 
-        if (action.kind === 'learner_progress.request_confirmation') {
-          setMessages((current) => [
-            ...current,
-            {
-              id: makeClientId('assistant-progress-action'),
-              role: 'assistant',
-              text: '先确认一下学习进度；确认后我会按这个位置继续安排计划和复习。',
-              createdAt: Date.now(),
-              progressProposal: {
-                selection: '',
-                label: action.label || '确认学习进度',
-                title: '确认学习进度',
-                reason: actionSummary(action),
-                confirmLabel: '确认进度',
-                writeMode: 'progress',
-              },
-            },
-          ]);
-          setRightRailCollapsed(false);
-          setRightRailView('overview');
-          markLearningActionStatus(
-            action.id,
-            'completed',
-            actionResult(action, {
-              status: 'completed',
-              summary: '已打开学习进度确认卡。',
-              input: { payload: action.payload || {} },
-              output: { pendingAction: 'progress_confirmation' },
-            }),
-          );
-          return;
-        }
-
-        if (action.kind === 'practice.propose_generation') {
-          let selectionProblems = problems;
-          let selectionProblemsState = problemsLoadState;
-          try {
-            selectionProblems = await ensureProblemsLoaded();
-            selectionProblemsState = settledResourceLoadState({
-              courseId: activeCourse.id,
-              itemCount: selectionProblems.length,
-            });
-          } catch (resourceError) {
-            selectionProblemsState = failedResourceLoadState({
-              courseId: activeCourse.id,
-              error: resourceError,
-              usingCachedData: selectionProblems.length > 0,
-            });
-          }
-          const activeProblemCount = selectionProblems.filter(
-            (problem) => problem.status !== 'archived',
-          ).length;
-          const actionPayloadData = actionPayload(action);
-          const summaryText = actionSummary(action);
-          // Historical actions may still request generated/self-generated sources.
-          // Their execution contract is now selection-only: never create replacement questions.
-          if (
-            selectionProblemsState.status === 'idle' ||
-            selectionProblemsState.status === 'loading' ||
-            (selectionProblemsState.status === 'error' && activeProblemCount === 0)
-          ) {
-            const reason = selectionProblemsState.error || '题库仍在加载';
-            setMessages((current) => [
-              ...current,
-              {
-                id: makeClientId('assistant-problem-resource-unresolved'),
-                role: 'assistant',
-                text: `暂时无法执行题库选题：${reason}。资源状态明确前，我不会把它当成“无题库”。请重试题库加载。`,
-                createdAt: Date.now(),
-              },
-            ]);
-            markLearningActionStatus(
-              action.id,
-              'failed',
-              actionResult(action, {
-                status: 'failed',
-                summary: '题库状态尚未确认，未执行选题。',
-                input: { payload: action.payload || {} },
-                error: reason,
-              }),
-            );
-            return;
-          }
-          if (!activeProblemCount) {
-            setMessages((current) => [
-              ...current,
-              {
-                id: makeClientId('assistant-no-course-bank-confirm'),
-                role: 'assistant',
-                text: buildNoCourseProblemBankAnswer({
-                  course: activeCourse,
-                  questionText: summaryText,
-                  notebooks,
-                  notebooksLoadState,
-                }),
-                createdAt: Date.now(),
-              },
-            ]);
-            markLearningActionStatus(
-              action.id,
-              'completed',
-              actionResult(action, {
-                status: 'completed',
-                summary: '没有可用题库，已改为说明缺失而不是生成题库题。',
-                input: { payload: action.payload || {} },
-                output: { generatedPlan: false, missingEvidence: ['problem_bank'] },
-              }),
-            );
-            return;
-          }
-          if (activeProblemCount > 0) {
-            const currentState = loadLearnerCourseState({
-              userId: localUserId,
-              courseId: activeCourseId,
-            });
-            const selectedPlan = buildSelectedProblemPracticePlan({
-              mode: 'practice',
-              prompt: summaryText,
-              targetCount:
-                typeof actionPayloadData.count === 'number' ? actionPayloadData.count : undefined,
-              preferredConcepts: learningActionPreferredConcepts(action),
-              stateOverride: currentState,
-              problemsOverride: selectionProblems,
-            });
-            if (selectedPlan) {
-              addAssistantPlan(selectedPlan);
-              markLearningActionStatus(
-                action.id,
-                'completed',
-                actionResult(action, {
-                  status: 'completed',
-                  summary: `已从题库选择 ${selectedPlan.problemIds.length} 道练习题。`,
-                  input: { payload: action.payload || {} },
-                  output: {
-                    generatedPlan: true,
-                    source: 'problem_bank',
-                    planId: selectedPlan.id,
-                    selectedProblemIds: selectedPlan.problemIds,
-                  },
-                }),
-              );
-              return;
-            }
-            setMessages((current) => [
-              ...current,
-              {
-                id: makeClientId('assistant-practice-bank-no-match'),
-                role: 'assistant',
-                text: buildProblemBankSelectionFailedAnswer({
-                  course: activeCourse,
-                  questionText: summaryText,
-                  activeProblemCount,
-                }),
-                createdAt: Date.now(),
-              },
-            ]);
-            markLearningActionStatus(
-              action.id,
-              'completed',
-              actionResult(action, {
-                status: 'completed',
-                summary: '题库没有严格命中，未降级为自生成练习。',
-                input: { payload: action.payload || {} },
-                output: {
-                  generatedPlan: false,
-                  source: 'problem_bank',
-                  missingEvidence: ['strict_problem_bank_match'],
-                },
-              }),
-            );
-            return;
-          }
-        }
-
         if (action.kind === 'classroom.propose_temporary_explanation') {
           const topic = payloadString(action.payload?.topic) || action.label || '临时课堂讲解';
           const answer = actionSummary(action);
@@ -13526,117 +12068,6 @@ export function LearnPageClient() {
               output: { hasLecturePrompt: Boolean(lecturePrompt), topic },
             }),
           );
-          return;
-        }
-
-        if (action.kind === 'image.propose_generation') {
-          if (!imageGenerationEnabled) {
-            markLearningActionStatus(
-              action.id,
-              'failed',
-              actionResult(action, {
-                status: 'failed',
-                summary: '图片生成未执行：功能未开启。',
-                input: { payload: action.payload || {} },
-                error: 'Image generation is disabled.',
-              }),
-            );
-            toast.error('图片生成功能还没有开启，请先到设置里启用图片生成。');
-            return;
-          }
-          const prompt = payloadString(action.payload?.prompt) || actionSummary(action);
-          if (!prompt) {
-            markLearningActionStatus(
-              action.id,
-              'failed',
-              actionResult(action, {
-                status: 'failed',
-                summary: '图片生成未执行：缺少 prompt。',
-                input: { payload: action.payload || {} },
-                error: 'Missing image prompt.',
-              }),
-            );
-            toast.error('这个图片生成操作缺少 prompt。');
-            return;
-          }
-          const aspectRatio = payloadString(action.payload?.aspectRatio) || '16:9';
-          const imageConfig = imageProvidersConfig[imageProviderId];
-          const data = await backendJson<{
-            result?: {
-              url?: string;
-              base64?: string;
-              width?: number;
-              height?: number;
-            };
-          }>('/api/generate/image', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-image-provider': imageProviderId,
-              'x-image-model': imageModelId,
-              'x-api-key': imageConfig?.apiKey || '',
-              'x-base-url': imageConfig?.baseUrl || '',
-            },
-            body: JSON.stringify({
-              prompt,
-              aspectRatio:
-                aspectRatio === '4:3' ||
-                aspectRatio === '1:1' ||
-                aspectRatio === '9:16' ||
-                aspectRatio === '16:9'
-                  ? aspectRatio
-                  : '16:9',
-              notebookContext: {
-                courseId: activeCourseId || undefined,
-                courseName: activeCourse.name,
-              },
-            }),
-          });
-          if (!actionStillBelongsToVisibleSession()) return;
-          const imageUrl = data.result?.url || data.result?.base64 || '';
-          if (!imageUrl) throw new Error('图片生成完成，但响应里没有可展示图片。');
-          const artifact: LearnArtifact = {
-            kind: 'image_prompt_draft',
-            id: makeClientId('image-artifact'),
-            prompt,
-            aspectRatio:
-              aspectRatio === '4:3' ||
-              aspectRatio === '1:1' ||
-              aspectRatio === '9:16' ||
-              aspectRatio === '16:9'
-                ? aspectRatio
-                : '16:9',
-            sourceQuestion: latestUserLearnMessageText(messages),
-            imageUrl,
-            width: data.result?.width,
-            height: data.result?.height,
-          };
-          setMessages((current) => [
-            ...current,
-            {
-              id: makeClientId('assistant-image-result'),
-              role: 'assistant',
-              text: '图片已生成。',
-              createdAt: Date.now(),
-              artifacts: [artifact],
-            },
-          ]);
-          markLearningActionStatus(
-            action.id,
-            'completed',
-            actionResult(action, {
-              status: 'completed',
-              summary: '图片已生成。',
-              input: { prompt, aspectRatio },
-              output: {
-                artifactId: artifact.id,
-                hasImageUrl: Boolean(imageUrl),
-                width: artifact.width,
-                height: artifact.height,
-              },
-            }),
-          );
-          toast.success('图片已生成。');
           return;
         }
 
@@ -13789,26 +12220,16 @@ export function LearnPageClient() {
       activeCourseId,
       activeSessionId,
       actionResult,
-      addAssistantPlan,
-      buildSelectedProblemPracticePlan,
       calendarReferenceDate,
       createCalendarEvents,
       deleteCalendarEvent,
-      ensureProblemsLoaded,
-      imageGenerationEnabled,
-      imageModelId,
-      imageProviderId,
-      imageProvidersConfig,
       localUserId,
       markLearningActionStatus,
       mergeLoadedCalendarEvents,
-      messages,
       setMessages,
       modelId,
       notebooks,
-      notebooksLoadState,
       problems,
-      problemsLoadState,
       providerId,
       reloadCalendarEvents,
       localConversationReadyKey,
@@ -13988,52 +12409,24 @@ export function LearnPageClient() {
         action.kind === 'preview_plan' ? 'assistant-preview-plan' : 'assistant-review-plan';
 
       try {
-        const pendingContentState = courseContentStateRef.current.get(activeCourse.id);
-        const learnTurn = await planLearnTurn({
+        const answererConversation = learnMessagesForCourseAnswerer(messages);
+        const historicalMessageIds = new Set(answererConversation.map((item) => item.id));
+        const result = await askCourseOrchestrator({
+          courseId: activeCourse.id,
+          courseName: activeCourse.name,
           question: action.prompt,
-          messages,
-          course: activeCourse,
-          snapshot: nextSnapshot,
-          calendarEvents: syllabusEvents,
-          recentActivities: statusCalendarActivities,
-          recentPlans,
-          problems,
-          problemBankActiveCountHint:
-            problemsLoadState.status === 'idle' ? pendingContentState?.problems.count : undefined,
-          sourceUploads: syncedCourseSourceUploads,
-          resourceStates: {
-            notebooks: planningResourceStatusFromContentOrList({
-              listState: notebooksLoadState,
-              contentCount: pendingContentState ? pendingContentState.notebooks.count : null,
-            }),
-            problems: planningResourceStatusFromContentOrList({
-              listState: problemsLoadState,
-              contentCount: pendingContentState ? pendingContentState.problems.count : null,
-            }),
-            sources: sourcesLoadState.status,
-          },
-          providerId,
-          modelId,
+          conversation: answererConversation,
+          orchestratorAvatarUrl: activeCourse.avatarUrl,
+          userProfile: { nickname: userName },
+          surface: 'student-course-chat',
+          teachingMode: chatTeachingMode,
+          responseStrength: chatResponseStrength,
         });
         if (activeMessageStoreKeyRef.current !== pendingStoreKey) return;
-        const artifacts = (learnTurn?.artifacts || [])
-          .map(normalizeLearnArtifact)
-          .filter((artifact): artifact is LearnArtifact => Boolean(artifact));
-        const learningActions = [
-          ...(learnTurn?.proposals || []),
-          ...(learnTurn?.directCalls || []),
-        ].map((learnAction) =>
-          learnActionToClientAction({
-            action: learnAction,
-            id: makeClientId('learn-action'),
-            defaultConfirmation: learnActionRequiresConfirmation(learnAction.kind)
-              ? 'required'
-              : 'none',
-          }),
-        );
-        const text = learnTurn?.replyText?.trim() || '';
-        if (!text && !artifacts.length && !learningActions.length) {
-          throw new Error('AI 没有返回可展示的计划草稿。');
+        const answer = streamedCourseAnswerFromMessages(result.messages, historicalMessageIds);
+        const text = answer?.text.trim() || '';
+        if (!text && !answer?.learningActions?.length) {
+          throw new Error('课程学习助理没有返回可展示的计划草稿。');
         }
         setMessages((current) => [
           ...current,
@@ -14042,26 +12435,21 @@ export function LearnPageClient() {
             role: 'assistant',
             text,
             createdAt: Date.now(),
-            artifacts: artifacts.length ? artifacts : undefined,
-            learningActions: learningActions.length ? learningActions : undefined,
-            publicTrace: publicTraceFromLearnTurn(learnTurn, {
-              question: action.prompt,
-              progressKnown: nextSnapshot.progressKnown,
-              calendarCount: syllabusEvents.length,
-              problemCount: problems.length,
-            }),
+            learningActions: answer?.learningActions,
+            publicTrace: answer?.publicTrace,
+            contextCompression: answer?.contextCompression,
           },
         ]);
         refreshLearnerSnapshot();
       } catch (error) {
         if (activeMessageStoreKeyRef.current !== pendingStoreKey) return;
-        const plannerError = classifyLearnTurnPlannerError(error);
+        const message = error instanceof Error ? error.message : '课程学习助理没有完成计划草稿';
         setMessages((current) => [
           ...current,
           {
-            id: makeClientId('assistant-learn-router-error'),
+            id: makeClientId('assistant-course-agent-error'),
             role: 'assistant',
-            text: `${plannerError.message}。我没有使用本地兜底计划，请稍后重试或换一个模型。`,
+            text: `${message}。请稍后重试或换一个模型。`,
             createdAt: Date.now(),
           },
         ]);
@@ -14073,20 +12461,15 @@ export function LearnPageClient() {
       activeCourse,
       addAssistantPlan,
       buildEvidenceBasedPlan,
-      syncedCourseSourceUploads,
+      chatResponseStrength,
+      chatTeachingMode,
       ensureProblemsLoaded,
       messages,
-      modelId,
-      notebooksLoadState,
       problems,
       problemsLoadState,
-      providerId,
-      recentPlans,
       refreshLearnerSnapshot,
       setMessages,
-      statusCalendarActivities,
-      sourcesLoadState.status,
-      syllabusEvents,
+      userName,
     ],
   );
 
@@ -14254,7 +12637,6 @@ export function LearnPageClient() {
         return;
       }
       const questionText = text || '请阅读我上传的附件，结合课程内容帮我分析。';
-      const turnCourseId = activeCourse.id;
       const controller = new AbortController();
       let didTimeout = false;
       const turnRequest = {
@@ -14335,7 +12717,7 @@ export function LearnPageClient() {
         }
       }
 
-      if (isTeacherCourseChat || isStudentCourseChat) {
+      {
         const answererConversation = learnMessagesForCourseAnswerer(messages);
         const historicalAnswererMessageIds = new Set(
           answererConversation.map((message) => message.id),
@@ -14474,682 +12856,27 @@ export function LearnPageClient() {
         }
         return;
       }
-
-      let turnProblems = problems;
-      let turnNotebooks = notebooks;
-      let turnProblemsState = problemsLoadState;
-      const turnContentState = courseContentStateRef.current.get(turnCourseId);
-      if ((turnContentState?.notebooks.count || 0) > 0) {
-        turnNotebooks = await ensureNotebooksLoaded();
-        if (!canCommitTurn()) return;
-        if (turnNotebooks.length === 0) {
-          setError('课程笔记本目录尚未加载完成，已停止本次回答，避免 AI 丢失学习范围。请重试。');
-          finishTurn();
-          return;
-        }
-      }
-      const progressSave = progressSavePromiseRef.current;
-      const progressSaved =
-        !progressSave || progressSave.courseId !== turnCourseId ? true : await progressSave.promise;
-      if (!canCommitTurn()) return;
-      if (!progressSaved) {
-        setError('学习进度尚未同步到账号，已停止本次回答，避免 AI 使用旧进度。请重试。');
-        finishTurn();
-        return;
-      }
-      if (explicitPracticeTarget(questionText)) {
-        try {
-          turnProblems = await ensureProblemsLoaded();
-          turnProblemsState = settledResourceLoadState({
-            courseId: turnCourseId,
-            itemCount: turnProblems.length,
-          });
-        } catch (resourceError) {
-          if (!canCommitTurn()) return;
-          turnProblemsState = failedResourceLoadState({
-            courseId: turnCourseId,
-            error: resourceError,
-            usingCachedData: turnProblems.length > 0,
-          });
-        }
-        if (!canCommitTurn()) return;
-        const problemTruthUnavailable =
-          turnProblemsState.status === 'idle' ||
-          turnProblemsState.status === 'loading' ||
-          (turnProblemsState.status === 'error' && turnProblems.length === 0);
-        if (problemTruthUnavailable) {
-          const reason = turnProblemsState.error || '题库资源尚未加载完成';
-          const resourceMessage: LearnMessage = {
-            id: makeClientId('assistant-problem-resource-error'),
-            role: 'assistant',
-            text: `我暂时不能判断这门课有没有可用题库：${reason}。请先重试题库加载；资源状态明确前，我不会把它当成“无题库”。`,
-            createdAt: Date.now(),
-            publicTrace: publicTraceForBlockedQuestion(
-              questionText,
-              makePublicTraceStep(
-                'problem-bank-resource-unresolved',
-                '题库状态尚未确认',
-                reason,
-                undefined,
-                'blocked',
-              ),
-            ),
-          };
-          setMessages((current) =>
-            pendingWorkflowMessageId
-              ? replaceLearnMessage(current, pendingWorkflowMessageId, resourceMessage)
-              : [...current, resourceMessage],
-          );
-          finishTurn();
-          return;
-        }
-      } else if (turnContentState) {
-        // Non-practice turns only need lightweight availability from content-state.
-        turnProblemsState = settledResourceLoadState({
-          courseId: turnCourseId,
-          itemCount: turnContentState.problems.count,
-        });
-      }
-
-      const questionState = recordLearnerQuestion({
-        userId: userId || 'anonymous',
-        courseId: activeCourse.id,
-        text: hasAttachments
-          ? `${questionText}\n[学生上传了 ${outgoingAttachments.length} 个临时附件]`
-          : questionText,
-      });
-      const questionSnapshot = summarizeLearnerCourseState({
-        state: questionState,
-        notebooks: turnNotebooks,
-        problems: turnProblems,
-      });
-      setSnapshot(questionSnapshot);
-      setProgressSelection(progressSelectionFromSnapshot(questionSnapshot));
-      void saveRemoteLearnerCourseState(questionState);
-
-      let learnTurn: LearnTurnClientResponse | null = null;
-      try {
-        const listProblemsSettled =
-          problemsLoadStateRef.current.status === 'ready' ||
-          problemsLoadStateRef.current.status === 'empty';
-        learnTurn = await planLearnTurn({
-          question: questionText,
-          messages: [...messages, userMessage],
-          attachments: outgoingAttachments,
-          course: activeCourse,
-          snapshot: questionSnapshot,
-          calendarEvents: syllabusEvents,
-          recentActivities: statusCalendarActivities,
-          recentPlans,
-          problems: turnProblems,
-          problemBankActiveCountHint:
-            turnProblems.some((problem) => problem.status !== 'archived') || listProblemsSettled
-              ? undefined
-              : turnContentState?.problems.count,
-          sourceUploads: syncedCourseSourceUploads,
-          resourceStates: {
-            notebooks: planningResourceStatusFromContentOrList({
-              listState: notebooksLoadState,
-              contentCount: turnContentState ? turnContentState.notebooks.count : null,
-            }),
-            problems: turnProblemsState.status,
-            sources: sourcesLoadState.status,
-          },
-          providerId,
-          modelId,
-          signal: controller.signal,
-        });
-      } catch (error) {
-        if (!canCommitTurn()) return;
-        const plannerError = classifyLearnTurnPlannerError(error);
-        const stoppedByUser = turnRequest.stoppedByUser;
-        const errorMessage: LearnMessage = {
-          id: makeClientId('assistant-learn-router-error'),
-          role: 'assistant',
-          text: stoppedByUser
-            ? '已停止生成。你可以原样重新发送上一条消息。'
-            : didTimeout
-              ? `学习路由在 ${Math.round(LEARN_TURN_TIMEOUT_MS / 1000)} 秒内没有完成，已停止本次请求。你可以直接重试。`
-              : `${plannerError.message}。我没有使用本地兜底计划，请稍后重试或换一个模型。`,
-          createdAt: Date.now(),
-          publicTrace: publicTraceForBlockedQuestion(
-            questionText,
-            makePublicTraceStep(
-              'router-blocked',
-              stoppedByUser ? '已由你停止' : plannerError.blockedTitle,
-              stoppedByUser ? '本次学习路由和后续回答均已取消。' : plannerError.blockedDetail,
-              undefined,
-              'blocked',
-            ),
-          ),
-        };
-        setRetryTurn({ text: questionText, attachments: outgoingAttachments });
-        setMessages((current) =>
-          replaceLearnMessage(current, pendingWorkflowMessageId, errorMessage),
-        );
-        finishTurn();
-        return;
-      }
-      if (!canCommitTurn()) return;
-      const learnTurnAnswerMode = learnTurn?.answerMode || 'course_answer';
-      const shouldContinueToCourseAnswer = learnTurnAnswerMode === 'course_answer';
-      const actionPlanArtifacts = (learnTurn?.artifacts || [])
-        .map(normalizeLearnArtifact)
-        .filter((artifact): artifact is LearnArtifact => Boolean(artifact));
-      const learnTurnPlanningDecision = planningDecisionFromLearnTurn(learnTurn, questionText);
-      const completedProblemSearch =
-        learnTurnPlanningDecision?.problemBankSearch?.source === 'problem_bank_full_text';
-      if (learnTurnPlanningDecision?.intent.kind === 'practice_plan' && !completedProblemSearch) {
-        let latestProblemState = problemsLoadStateRef.current;
-        if (
-          latestProblemState.status === 'idle' ||
-          latestProblemState.status === 'loading' ||
-          latestProblemState.status === 'error'
-        ) {
-          try {
-            turnProblems = await ensureProblemsLoaded();
-            if (!canCommitTurn()) return;
-            latestProblemState = settledResourceLoadState({
-              courseId: turnCourseId,
-              itemCount: turnProblems.length,
-            });
-            turnProblemsState = latestProblemState;
-          } catch (resourceError) {
-            if (!canCommitTurn()) return;
-            latestProblemState = failedResourceLoadState({
-              courseId: turnCourseId,
-              error: resourceError,
-              usingCachedData: turnProblems.length > 0,
-            });
-            turnProblemsState = latestProblemState;
-          }
-        }
-        if (
-          latestProblemState.status === 'idle' ||
-          latestProblemState.status === 'loading' ||
-          (latestProblemState.status === 'error' && turnProblems.length === 0)
-        ) {
-          const reason = latestProblemState.error || '题库仍在加载';
-          const resourceMessage: LearnMessage = {
-            id: makeClientId('assistant-problem-resource-unresolved'),
-            role: 'assistant',
-            text: `这次请求需要核对题库，但题库状态还没有完成：${reason}。我已停止生成“无题库”或“没有匹配题”的结论，请重试题库加载后再试。`,
-            createdAt: Date.now(),
-            publicTrace: publicTraceForBlockedQuestion(
-              questionText,
-              makePublicTraceStep(
-                'problem-bank-resource-unresolved',
-                '题库状态尚未确认',
-                reason,
-                undefined,
-                'blocked',
-              ),
-            ),
-          };
-          setMessages((current) =>
-            pendingWorkflowMessageId
-              ? replaceLearnMessage(current, pendingWorkflowMessageId, resourceMessage)
-              : [...current, resourceMessage],
-          );
-          finishTurn();
-          return;
-        }
-      }
-      const answererHandoff = answererHandoffFromLearnTurn(learnTurn);
-      const proposalActions = filterLearningActionsForQuestion(
-        (learnTurn?.proposals || []).map((action) =>
-          learnActionToClientAction({
-            action,
-            id: makeClientId('learn-action'),
-            defaultConfirmation: learnActionRequiresConfirmation(action.kind) ? 'required' : 'none',
-          }),
-        ),
-        questionText,
-      );
-      const directActions = (learnTurn?.directCalls || []).map((action) =>
-        learnActionToClientAction({
-          action,
-          id: makeClientId('learn-action'),
-          defaultConfirmation: 'none',
-        }),
-      );
-      const deferredAnswerActions = shouldContinueToCourseAnswer
-        ? proposalActions.filter(
-            (action) =>
-              action.kind === 'memory.propose_write' ||
-              action.kind === 'classroom.propose_temporary_explanation',
-          )
-        : [];
-      const blockingProposalActions = shouldContinueToCourseAnswer
-        ? proposalActions.filter(
-            (action) =>
-              action.kind !== 'memory.propose_write' &&
-              action.kind !== 'classroom.propose_temporary_explanation',
-          )
-        : proposalActions;
-      const deferredAnswerArtifacts = shouldContinueToCourseAnswer ? actionPlanArtifacts : [];
-      const visibleActionPlanArtifacts = shouldContinueToCourseAnswer ? [] : actionPlanArtifacts;
-      const visibleBlockingProposalActions = blockingProposalActions;
-      const visibleDirectActions = directActions;
-      const visibleArtifacts = visibleActionPlanArtifacts;
-      const actionPlanText =
-        shouldContinueToCourseAnswer &&
-        !visibleBlockingProposalActions.length &&
-        !visibleArtifacts.length
-          ? ''
-          : learnTurn?.replyText?.trim() || '';
-      if (actionPlanText || visibleBlockingProposalActions.length || visibleArtifacts.length) {
-        const actionPlanMessage: LearnMessage = {
-          id: shouldContinueToCourseAnswer
-            ? pendingWorkflowMessageId
-            : makeClientId('assistant-action-plan'),
-          role: 'assistant',
-          text: actionPlanText,
-          createdAt: Date.now(),
-          learningActions: visibleBlockingProposalActions.length
-            ? visibleBlockingProposalActions
-            : undefined,
-          artifacts: visibleArtifacts.length ? visibleArtifacts : undefined,
-          publicTrace: publicTraceFromLearnTurn(learnTurn, {
-            question: questionText,
-            progressKnown: questionSnapshot.progressKnown,
-            calendarCount: syllabusEvents.length,
-            problemCount: turnProblems.length,
-          }),
-        };
-        setMessages((current) =>
-          pendingWorkflowMessageId
-            ? replaceLearnMessage(current, pendingWorkflowMessageId, actionPlanMessage)
-            : [...current, actionPlanMessage],
-        );
-      }
-      if (visibleDirectActions.length) {
-        for (const action of visibleDirectActions) {
-          if (!canCommitTurn()) return;
-          await handleLearningActionConfirm(action);
-        }
-        if (!canCommitTurn()) return;
-        if (!actionPlanText && !visibleBlockingProposalActions.length && !visibleArtifacts.length) {
-          const actionOnlyMessage: LearnMessage = {
-            id: makeClientId('assistant-action-plan'),
-            role: 'assistant',
-            text: '已完成这次结构化学习操作。',
-            createdAt: Date.now(),
-            publicTrace: publicTraceFromLearnTurn(learnTurn, {
-              question: questionText,
-              progressKnown: questionSnapshot.progressKnown,
-              calendarCount: syllabusEvents.length,
-              problemCount: turnProblems.length,
-            }),
-          };
-          setMessages((current) =>
-            pendingWorkflowMessageId
-              ? replaceLearnMessage(current, pendingWorkflowMessageId, actionOnlyMessage)
-              : [...current, actionOnlyMessage],
-          );
-        }
-      }
-      const emptyTerminalRoute =
-        (learnTurnAnswerMode === 'action_only' || learnTurnAnswerMode === 'none') &&
-        !actionPlanText &&
-        !visibleBlockingProposalActions.length &&
-        !visibleArtifacts.length &&
-        !visibleDirectActions.length;
-      if (emptyTerminalRoute) {
-        const emptyRouteMessage: LearnMessage = {
-          id: pendingWorkflowMessageId,
-          role: 'assistant',
-          text: '这次学习路由没有返回可展示的回答或操作。你可以原样重试，或把问题补充得更具体一些。',
-          createdAt: Date.now(),
-          publicTrace: publicTraceForBlockedQuestion(
-            questionText,
-            makePublicTraceStep(
-              'empty-route-blocked',
-              '学习路由没有产生结果',
-              '路由结束了本次处理，但没有返回回答、工具操作或可展示卡片，因此没有静默吞掉这条消息。',
-              undefined,
-              'blocked',
-            ),
-          ),
-        };
-        setRetryTurn({ text: questionText, attachments: outgoingAttachments });
-        setMessages((current) =>
-          replaceLearnMessage(current, pendingWorkflowMessageId, emptyRouteMessage),
-        );
-        finishTurn();
-        return;
-      }
-      if (
-        visibleDirectActions.length ||
-        visibleBlockingProposalActions.length ||
-        visibleArtifacts.length ||
-        learnTurnAnswerMode === 'action_only' ||
-        learnTurnAnswerMode === 'none'
-      ) {
-        finishTurn();
-        return;
-      }
-
-      const planningDecision = learnTurnPlanningDecision;
-
-      const planningIntent = planningDecision?.intent ?? null;
-      const planningPrompt = planningDecision?.resolvedPrompt || questionText;
-
-      if (planningIntent && planningDecision) {
-        if (planningIntent.kind === 'practice_plan') {
-          const selectedPlan = buildSelectedProblemPracticePlan({
-            mode: planningIntent.mode,
-            prompt: planningPrompt,
-            preferredConcepts: planningDecision.focusTopics,
-            stateOverride: questionState,
-            problemBankSearch: planningDecision.problemBankSearch,
-            problemsOverride: turnProblems,
-          });
-          if (selectedPlan) {
-            if (pendingWorkflowMessageId) {
-              setMessages((current) => removeLearnMessage(current, pendingWorkflowMessageId));
-            }
-            addAssistantPlan(selectedPlan);
-            finishTurn();
-            return;
-          }
-          if (planningDecision.problemBankSearch) {
-            const noMatchMessage: LearnMessage = {
-              id: makeClientId('assistant-practice-no-bank-match'),
-              role: 'assistant',
-              text: problemBankSearchNoMatchText(planningDecision.problemBankSearch),
-              createdAt: Date.now(),
-              publicTrace: publicTraceFromLearnTurn(learnTurn, {
-                question: questionText,
-                progressKnown: questionSnapshot.progressKnown,
-                calendarCount: syllabusEvents.length,
-                problemCount: turnProblems.length,
-              }),
-            };
-            setMessages((current) =>
-              pendingWorkflowMessageId
-                ? replaceLearnMessage(current, pendingWorkflowMessageId, noMatchMessage)
-                : [...current, noMatchMessage],
-            );
-            finishTurn();
-            return;
-          }
-          const activeProblemCount = turnProblems.filter(
-            (problem) => problem.status !== 'archived',
-          ).length;
-          const noSearchMessage: LearnMessage = {
-            id: makeClientId('assistant-practice-bank-unresolved'),
-            role: 'assistant',
-            text: activeProblemCount
-              ? [
-                  `我识别到这是题库练习请求，但这次没有拿到可审计的题库检索结果。`,
-                  '我没有用普通计划卡替代真实题目，也没有生成题目补位。',
-                  '请重试一次，或先放宽题库检索范围。',
-                ].join('\n\n')
-              : buildNoCourseProblemBankAnswer({
-                  course: activeCourse,
-                  questionText: planningPrompt,
-                  notebooks: turnNotebooks,
-                  notebooksLoadState,
-                }),
-            createdAt: Date.now(),
-            publicTrace: publicTraceForBlockedQuestion(
-              questionText,
-              makePublicTraceStep(
-                'problem-bank-search-missing',
-                '题库检索结果缺失',
-                '已经识别为题库练习请求，但 planning decision 没有提供 problemBankSearch，因此停止且不生成题目。',
-                undefined,
-                'blocked',
-              ),
-            ),
-          };
-          setMessages((current) =>
-            pendingWorkflowMessageId
-              ? replaceLearnMessage(current, pendingWorkflowMessageId, noSearchMessage)
-              : [...current, noSearchMessage],
-          );
-          finishTurn();
-          return;
-        }
-
-        const missingArtifactMessage: LearnMessage = {
-          id: makeClientId('assistant-ai-plan-missing-artifact'),
-          role: 'assistant',
-          text: 'AI 已识别这是学习计划请求，但没有返回可展示的计划草稿。我没有使用本地计划兜底，请重试一次或换一个模型。',
-          createdAt: Date.now(),
-          publicTrace: publicTraceForBlockedQuestion(
-            questionText,
-            makePublicTraceStep(
-              'artifact-blocked',
-              '计划草稿不可展示',
-              '路由给出了计划意图，但没有返回合格的 plan artifact。',
-              undefined,
-              'blocked',
-            ),
-          ),
-        };
-        setMessages((current) =>
-          pendingWorkflowMessageId
-            ? replaceLearnMessage(current, pendingWorkflowMessageId, missingArtifactMessage)
-            : [...current, missingArtifactMessage],
-        );
-        finishTurn();
-        return;
-      }
-
-      const answererConversation = learnMessagesForCourseAnswerer(messages);
-      const historicalAnswererMessageIds = new Set(
-        answererConversation.map((message) => message.id),
-      );
-      const plannerPublicTrace = publicTraceFromLearnTurn(learnTurn, {
-        question: questionText,
-        progressKnown: questionSnapshot.progressKnown,
-        calendarCount: syllabusEvents.length,
-        problemCount: turnProblems.length,
-      });
-      let latestAnswererPublicTrace: LearnPublicTraceStep[] | undefined;
-      let ephemeralCleanupTokens: string[] = [];
-
-      try {
-        const preparedAttachments = await prepareCourseChatAttachmentsForModel(
-          outgoingAttachmentPayloads,
-          { signal: controller.signal },
-        );
-        ephemeralCleanupTokens = preparedAttachments.cleanupTokens;
-        const result = await askCourseOrchestrator({
-          courseId: activeCourse.id,
-          courseName: activeCourse.name,
-          question: questionText,
-          conversation: answererConversation,
-          attachments: preparedAttachments.attachments,
-          orchestratorAvatarUrl: activeCourse.avatarUrl,
-          answererHandoff,
-          learnerContext: buildLearnerChatContext({
-            snapshot: questionSnapshot,
-            state: questionState,
-            notebooks,
-            plans: recentPlans,
-            syllabusEvents,
-          }),
-          userProfile: { nickname: userName },
-          responseStrength: chatResponseStrength,
-          signal: controller.signal,
-          onMessages: (nextMessages) => {
-            if (!canCommitTurn()) return;
-            const streamedAnswer = streamedCourseAnswerFromMessages(
-              nextMessages,
-              historicalAnswererMessageIds,
-            );
-            if (!streamedAnswer) return;
-            if (streamedAnswer.publicTrace?.length) {
-              latestAnswererPublicTrace = streamedAnswer.publicTrace;
-            }
-            setMessages((current) => {
-              const existing = current.find((message) => message.id === pendingWorkflowMessageId);
-              if (!existing) return current;
-              const publicTrace = [
-                ...plannerPublicTrace.slice(0, 3),
-                ...(streamedAnswer.publicTrace ||
-                  latestAnswererPublicTrace ||
-                  existing.publicTrace ||
-                  []),
-              ].slice(0, 8);
-              return replaceLearnMessage(current, pendingWorkflowMessageId, {
-                id: pendingWorkflowMessageId,
-                role: 'assistant',
-                text: streamedAnswer.text || existing.text,
-                createdAt: existing.createdAt,
-                publicTrace: publicTrace.length ? publicTrace : undefined,
-                contextCompression:
-                  streamedAnswer.contextCompression || existing.contextCompression,
-                transient: true,
-              });
-            });
-          },
-        });
-        if (!canCommitTurn()) return;
-        if (controller.signal.aborted) {
-          throw controller.signal.reason instanceof Error
-            ? controller.signal.reason
-            : new DOMException('课程回答已中止', 'AbortError');
-        }
-        const currentTurnAnswer = streamedCourseAnswerFromMessages(
-          result.messages,
-          historicalAnswererMessageIds,
-        );
-        if (!currentTurnAnswer?.text.trim()) {
-          throw new Error('课程回答没有返回新的内容');
-        }
-        const rawAnswer = normalizeCourseAssistantAnswer(currentTurnAnswer.text);
-        const learningActions = filterLearningActionsForQuestion(
-          [...(currentTurnAnswer.learningActions || []), ...deferredAnswerActions],
-          questionText,
-        );
-        const answer = neutralizeUnconfirmedMemoryWriteClaim(rawAnswer, learningActions);
-        const lecturePrompt = buildMiniLecturePrompt({
-          question: questionText,
-          answer,
-          course: activeCourse,
-        });
-        const evidenceArtifact =
-          answerEvidenceArtifactFromServerSummaries({
-            evidence: result.courseEvidence,
-            question: questionText,
-          }) ||
-          answerEvidenceArtifactFromCourseContext({
-            courseContext: result.courseContext,
-            question: questionText,
-          });
-        const artifacts = [
-          ...(evidenceArtifact ? [evidenceArtifact] : []),
-          ...deferredAnswerArtifacts,
-        ];
-        const answerMessage: LearnMessage = {
-          id: pendingWorkflowMessageId,
-          role: 'assistant',
-          text: answer,
-          createdAt: Date.now(),
-          lecturePrompt,
-          learningActions: learningActions.length ? learningActions : undefined,
-          artifacts: artifacts.length ? artifacts : undefined,
-          publicTrace: finalizePublicTraceSteps(
-            [
-              ...plannerPublicTrace.slice(0, 3),
-              ...(currentTurnAnswer.publicTrace || latestAnswererPublicTrace || []),
-            ].slice(0, 8),
-          ),
-          contextCompression: currentTurnAnswer.contextCompression,
-        };
-        setMessages((current) =>
-          replaceLearnMessage(current, pendingWorkflowMessageId, answerMessage),
-        );
-        const learningFocusConcept = questionLearningFocusConcept({
-          question: questionText,
-          focusTopics: learnTurn?.planningDecision?.focusTopics || [],
-          answerMode: learnTurnAnswerMode,
-        });
-        if (isStudentCourseChat && learningFocusConcept) {
-          recordQuestionLearningFocus(learningFocusConcept);
-        }
-        setRetryTurn(null);
-        refreshLearnerSnapshot();
-      } catch (err) {
-        if (!canCommitTurn()) return;
-        const message = err instanceof Error ? err.message : '课程回复失败';
-        const stoppedByUser = turnRequest.stoppedByUser;
-        const errorMessage: LearnMessage = {
-          id: pendingWorkflowMessageId,
-          role: 'assistant',
-          text: stoppedByUser
-            ? '已停止生成。你可以原样重新发送上一条消息。'
-            : didTimeout
-              ? `课程回复在 ${Math.round(LEARN_TURN_TIMEOUT_MS / 1000)} 秒内没有完成，已停止本次请求。你可以直接重试。`
-              : `${message}。我没有生成本地兜底回答，请稍后重试或换一个模型。`,
-          createdAt: Date.now(),
-          publicTrace: publicTraceForBlockedQuestion(
-            questionText,
-            makePublicTraceStep(
-              'answer-blocked',
-              stoppedByUser ? '已由你停止' : '课程讲解没有完成',
-              stoppedByUser
-                ? '回答流已取消，未完成的内容不会当作正式回答保存。'
-                : '已经进入课程讲解路径，但回答生成没有成功完成。',
-              undefined,
-              'blocked',
-            ),
-          ),
-        };
-        setRetryTurn({ text: questionText, attachments: outgoingAttachments });
-        setMessages((current) =>
-          replaceLearnMessage(current, pendingWorkflowMessageId, errorMessage),
-        );
-      } finally {
-        await cleanupCourseChatAttachments(ephemeralCleanupTokens);
-        dispatchWeeklyUsageUpdated();
-        finishTurn();
-      }
     },
     [
       activeCourse,
       activeMessageStoreKey,
       activeSessionId,
-      addAssistantPlan,
       attachments,
-      buildSelectedProblemPracticePlan,
       chatTeachingMode,
       chatResponseStrength,
-      syncedCourseSourceUploads,
       draft,
-      handleLearningActionConfirm,
-      ensureProblemsLoaded,
       isTeacherCourseChat,
-      isStudentCourseChat,
-      ensureNotebooksLoaded,
       localUserId,
       messages,
       messageStoreKey,
-      modelId,
-      notebooks,
-      notebooksLoadState,
-      problems,
-      problemsLoadState,
-      providerId,
       setMessages,
-      refreshLearnerSnapshot,
-      recordQuestionLearningFocus,
-      statusCalendarActivities,
-      recentPlans,
       localConversationReadyKey,
       selectedKnownNoVision,
       sending,
       sourceUploading,
-      sourcesLoadState.status,
-      syllabusEvents,
       updateComposerAttachments,
       updateComposerDraft,
       uiPreviewMode,
-      userId,
       userName,
     ],
   );
@@ -18417,38 +16144,6 @@ export function LearnPageClient() {
                   }}
                   onOpenNotebook={openNotebookFromProgress}
                 />
-              </section>
-
-              <section className={cn(rightRailCardClassName, 'mt-3 p-3')}>
-                <div className="flex items-center gap-2">
-                  <LibraryBig className="size-4 text-muted-foreground" strokeWidth={1.8} />
-                  <p className="text-sm font-semibold text-foreground">资料库</p>
-                </div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  查看这门课已经开放的笔记本与学习资料。
-                </p>
-                <button
-                  type="button"
-                  onClick={openNotebookLibraryPanel}
-                  className={cn(
-                    rightRailRowClassName,
-                    'mt-3 flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100 dark:hover:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-sky-300/20',
-                  )}
-                >
-                  <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-white text-slate-600 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
-                    <BookOpen className="size-4" strokeWidth={1.8} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs font-semibold text-foreground">打开资料库</span>
-                    <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                      {resourceCountText(notebooksLoadState, notebooks.length)} 本课程笔记
-                    </span>
-                  </span>
-                  <ChevronRight
-                    className="size-3.5 shrink-0 text-muted-foreground"
-                    strokeWidth={1.8}
-                  />
-                </button>
               </section>
 
               {activeCourse && canManageCourseContent ? (

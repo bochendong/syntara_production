@@ -187,6 +187,7 @@ model User {
   name                   String?
   email                  String?   @unique
   emailVerified          DateTime?
+  phone                  String?   @db.VarChar(24)
   image                  String?
   role                   UserRole  @default(USER)
   isActive               Boolean   @default(true)

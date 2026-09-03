@@ -32,6 +32,7 @@ import {
   type NotebookProblemAttemptAnswer,
   type NotebookProblemAttemptRecord,
   type NotebookProblemPublicContent,
+  type NotebookProblemPublicFillBlank,
 } from '@/lib/problem-bank';
 import { Button } from '@/components/ui/button';
 import { MessageResponse } from '@/components/ai-elements/message';
@@ -49,6 +50,7 @@ import { ProblemTagManagerDialog } from '@/components/problem-bank/problem-tag-m
 import { ProblemForumPublishDialog } from '@/components/problem-bank/problem-forum-publish-dialog';
 import { CodeAnswerEditor, highlightPython } from '@/components/problem-bank/code-answer-editor';
 import { CodeProblemStatement } from '@/components/problem-bank/code-problem-statement';
+import { CommonMathSymbols } from '@/components/problem-bank/common-math-symbols';
 import {
   ProblemImageAssets,
   ProblemRichText,
@@ -113,6 +115,63 @@ type CodeTestFile = {
   code: string;
 };
 
+function InlineFillBlankPrompt({
+  content,
+  values,
+  disabled,
+  locale,
+  onFocusBlank,
+  onChangeBlank,
+}: {
+  content: NotebookProblemPublicFillBlank;
+  values: Record<string, string>;
+  disabled: boolean;
+  locale: 'zh-CN' | 'en-US';
+  onFocusBlank: (blankId: string) => void;
+  onChangeBlank: (blankId: string, value: string) => void;
+}) {
+  const parts = content.stemTemplate.split(/(\{\{\s*[^{}]+?\s*\}\})/g).filter(Boolean);
+
+  return (
+    <div className="text-[15px] leading-9 text-slate-800 dark:text-slate-200">
+      {parts.map((part, partIndex) => {
+        const marker = part.match(/^\{\{\s*([^{}]+?)\s*\}\}$/);
+        if (!marker) {
+          return (
+            <ProblemRichText
+              key={`${partIndex}-${part}`}
+              content={part}
+              className="inline text-[15px] leading-9 [&_p]:inline"
+            />
+          );
+        }
+
+        const blankId = marker[1].trim();
+        const blankIndex = content.blanks.findIndex((blank) => blank.id === blankId);
+        const blank = content.blanks[blankIndex];
+        if (!blank) return <span key={`${partIndex}-${part}`}>______</span>;
+
+        const label =
+          blank.placeholder?.trim() ||
+          (locale === 'zh-CN' ? `第 ${blankIndex + 1} 空` : `Blank ${blankIndex + 1}`);
+        return (
+          <Input
+            key={blank.id}
+            value={values[blank.id] ?? ''}
+            disabled={disabled}
+            aria-label={label}
+            title={label}
+            placeholder={locale === 'zh-CN' ? `空 ${blankIndex + 1}` : `Blank ${blankIndex + 1}`}
+            onFocus={() => onFocusBlank(blank.id)}
+            onChange={(event) => onChangeBlank(blank.id, event.target.value)}
+            className="mx-1 inline-flex h-8 w-24 rounded-md border-sky-200 bg-sky-50/70 px-2 text-center text-sm font-semibold align-middle text-slate-900 shadow-none focus-visible:bg-white dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-white dark:focus-visible:bg-slate-950"
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 type ProblemBankStats = {
   total: number;
   attempted: number;
@@ -150,24 +209,24 @@ function ProblemBankStatsSidebar({
   if (loading) {
     return (
       <aside
-        className="order-2 hidden w-[304px] shrink-0 self-stretch xl:flex"
+        className="absolute inset-y-0 right-0 hidden min-h-0 w-[304px] xl:flex"
         aria-label={locale === 'zh-CN' ? '题库学习统计' : 'Problem bank learning stats'}
       >
         <div
           className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60"
           aria-busy="true"
         >
-          <div className="h-44 animate-pulse rounded-2xl bg-slate-100 motion-reduce:animate-none dark:bg-slate-900" />
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="h-36 animate-pulse rounded-2xl bg-slate-100 motion-reduce:animate-none dark:bg-slate-900" />
+          <div className="mt-3 grid grid-cols-4 gap-1.5">
             {[0, 1, 2, 3].map((item) => (
               <div
                 key={item}
-                className="h-[76px] animate-pulse rounded-xl bg-slate-100 motion-reduce:animate-none dark:bg-slate-900"
+                className="h-16 animate-pulse rounded-xl bg-slate-100 motion-reduce:animate-none dark:bg-slate-900"
               />
             ))}
           </div>
-          <div className="mt-6 h-4 w-24 animate-pulse rounded bg-slate-100 motion-reduce:animate-none dark:bg-slate-900" />
-          <div className="mt-4 space-y-4">
+          <div className="mt-5 h-4 w-24 animate-pulse rounded bg-slate-100 motion-reduce:animate-none dark:bg-slate-900" />
+          <div className="mt-3 space-y-3">
             {[0, 1, 2, 3].map((item) => (
               <div
                 key={item}
@@ -183,7 +242,7 @@ function ProblemBankStatsSidebar({
   if (stats.total === 0) {
     return (
       <aside
-        className="order-2 hidden w-[304px] shrink-0 self-stretch xl:flex"
+        className="absolute inset-y-0 right-0 hidden min-h-0 w-[304px] xl:flex"
         aria-label={locale === 'zh-CN' ? '题库学习统计' : 'Problem bank learning stats'}
       >
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60">
@@ -251,11 +310,11 @@ function ProblemBankStatsSidebar({
 
   return (
     <aside
-      className="order-2 hidden w-[304px] shrink-0 self-stretch xl:flex"
+      className="absolute inset-y-0 right-0 hidden min-h-0 w-[304px] xl:flex"
       aria-label={locale === 'zh-CN' ? '题库学习统计' : 'Problem bank learning stats'}
     >
       <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60">
-        <div className="relative overflow-hidden bg-[linear-gradient(145deg,#082f49_0%,#0f4c81_52%,#4338ca_120%)] px-5 pb-5 pt-4 text-white dark:bg-[linear-gradient(145deg,#020617_0%,#0c4a6e_58%,#312e81_120%)]">
+        <div className="relative overflow-hidden bg-[linear-gradient(145deg,#082f49_0%,#0f4c81_52%,#4338ca_120%)] px-4 pb-4 pt-3.5 text-white dark:bg-[linear-gradient(145deg,#020617_0%,#0c4a6e_58%,#312e81_120%)]">
           <div className="pointer-events-none absolute -right-12 -top-14 size-36 rounded-full bg-cyan-300/20 blur-2xl" />
           <div className="pointer-events-none absolute -bottom-16 -left-10 size-32 rounded-full bg-indigo-300/20 blur-2xl" />
           <div className="relative flex items-center justify-between">
@@ -271,9 +330,9 @@ function ProblemBankStatsSidebar({
               {stats.mastered}/{stats.total}
             </span>
           </div>
-          <div className="relative mt-4 flex items-center gap-4">
+          <div className="relative mt-3 flex items-center gap-3">
             <div
-              className="grid size-[112px] shrink-0 place-items-center rounded-full p-[9px] shadow-[0_18px_42px_rgba(2,6,23,0.28)]"
+              className="grid size-[86px] shrink-0 place-items-center rounded-full p-[7px] shadow-[0_14px_34px_rgba(2,6,23,0.25)]"
               style={{
                 background: `conic-gradient(#6ee7b7 0deg ${stats.masteryPercent * 3.6}deg, rgba(255,255,255,0.14) ${stats.masteryPercent * 3.6}deg 360deg)`,
               }}
@@ -285,18 +344,18 @@ function ProblemBankStatsSidebar({
             >
               <div className="grid size-full place-items-center rounded-full bg-slate-950/90 text-center ring-1 ring-white/10">
                 <div>
-                  <span className="text-[30px] font-bold leading-none tracking-[-0.05em]">
+                  <span className="text-[25px] font-bold leading-none tracking-[-0.05em]">
                     {stats.masteryPercent}
                   </span>
                   <span className="ml-0.5 text-sm font-semibold text-emerald-200">%</span>
-                  <p className="mt-1 text-[10px] font-medium text-slate-300">
+                  <p className="mt-0.5 text-[9px] font-medium text-slate-300">
                     {locale === 'zh-CN' ? '已正确完成' : 'solved'}
                   </p>
                 </div>
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xl font-semibold tracking-[-0.03em]">
+              <p className="text-lg font-semibold tracking-[-0.03em]">
                 {stats.masteryPercent >= 80
                   ? locale === 'zh-CN'
                     ? '状态很好'
@@ -318,20 +377,23 @@ function ProblemBankStatsSidebar({
           </div>
         </div>
 
-        <dl className="grid grid-cols-2 gap-2 p-4 pb-3">
+        <dl className="grid grid-cols-4 gap-1.5 p-3">
           {overviewItems.map(({ label, count, Icon, className }) => (
-            <div key={label} className={cn('rounded-xl border p-3', className)}>
-              <dt className="flex items-center gap-1.5 text-[11px] font-medium opacity-80">
-                <Icon className="size-3.5" />
-                {label}
+            <div
+              key={label}
+              className={cn('min-w-0 rounded-xl border px-1 py-2 text-center', className)}
+            >
+              <dt className="flex items-center justify-center gap-1 whitespace-nowrap text-[10px] font-medium opacity-80">
+                <Icon className="size-3 shrink-0" />
+                <span>{label}</span>
               </dt>
-              <dd className="mt-2 text-2xl font-bold leading-none tracking-[-0.04em]">{count}</dd>
+              <dd className="mt-1.5 text-xl font-bold leading-none tracking-[-0.04em]">{count}</dd>
             </div>
           ))}
         </dl>
 
-        <div className="mx-4 border-t border-slate-100 dark:border-slate-800" />
-        <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-3">
+        <div className="mx-3 border-t border-slate-100 dark:border-slate-800" />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-3 pt-3">
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -351,9 +413,9 @@ function ProblemBankStatsSidebar({
             </span>
           </div>
 
-          <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="mt-3 min-h-0 flex-1 overflow-hidden">
             {stats.tagProgress.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {stats.tagProgress.map((item) => (
                   <div key={item.tag}>
                     <div className="flex items-center justify-between gap-3 text-[11px]">
@@ -368,7 +430,7 @@ function ProblemBankStatsSidebar({
                       </span>
                     </div>
                     <div
-                      className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                      className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
                       role="progressbar"
                       aria-valuemin={0}
                       aria-valuemax={100}
@@ -383,11 +445,6 @@ function ProblemBankStatsSidebar({
                         style={{ width: `${item.percent}%` }}
                       />
                     </div>
-                    <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
-                      {locale === 'zh-CN'
-                        ? `已尝试 ${item.attemptedCount} / ${item.totalCount} 道`
-                        : `${item.attemptedCount} of ${item.totalCount} attempted`}
-                    </p>
                   </div>
                 ))}
               </div>
@@ -1272,6 +1329,8 @@ export function CourseProblemBankView({
     visibleProblemPreviewDraft,
   } = view;
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
+  const [activeFillBlankId, setActiveFillBlankId] = useState<string | null>(null);
+  const fillBlankAnswerInputRef = useRef<HTMLInputElement>(null);
   const [practicePaneTabs, setPracticePaneTabs] = useState<PracticePaneTabs>(() => ({
     left: [...DEFAULT_PRACTICE_PANE_TABS.left],
     right: [...DEFAULT_PRACTICE_PANE_TABS.right],
@@ -1314,6 +1373,52 @@ export function CourseProblemBankView({
     selectedProblemContent,
     textAnswers,
   ]);
+  const selectedFillBlankContent =
+    selectedProblem?.type === 'fill_blank' && selectedProblemContent?.type === 'fill_blank'
+      ? selectedProblemContent
+      : null;
+  const selectedActiveBlank = selectedFillBlankContent
+    ? (selectedFillBlankContent.blanks.find((blank) => blank.id === activeFillBlankId) ??
+      selectedFillBlankContent.blanks[0])
+    : null;
+
+  const updateSelectedFillBlankAnswer = useCallback(
+    (blankId: string, value: string) => {
+      if (!selectedProblem || selectedProblem.type !== 'fill_blank') return;
+      setBlankAnswers((prev) => ({
+        ...prev,
+        [selectedProblem.id]: {
+          ...(prev[selectedProblem.id] ?? {}),
+          [blankId]: value,
+        },
+      }));
+      setAnswerFeedbackByProblemId((prev) => {
+        if (!prev[selectedProblem.id]) return prev;
+        const next = { ...prev };
+        delete next[selectedProblem.id];
+        return next;
+      });
+    },
+    [selectedProblem, setAnswerFeedbackByProblemId, setBlankAnswers],
+  );
+
+  const insertSymbolIntoActiveBlank = useCallback(
+    (symbol: string) => {
+      if (!selectedProblem || !selectedActiveBlank) return;
+      const currentValue = blankAnswers[selectedProblem.id]?.[selectedActiveBlank.id] ?? '';
+      const input = fillBlankAnswerInputRef.current;
+      const selectionStart = input?.selectionStart ?? currentValue.length;
+      const selectionEnd = input?.selectionEnd ?? selectionStart;
+      const nextValue = `${currentValue.slice(0, selectionStart)}${symbol}${currentValue.slice(selectionEnd)}`;
+      const nextCaret = selectionStart + symbol.length;
+      updateSelectedFillBlankAnswer(selectedActiveBlank.id, nextValue);
+      window.setTimeout(() => {
+        fillBlankAnswerInputRef.current?.focus();
+        fillBlankAnswerInputRef.current?.setSelectionRange(nextCaret, nextCaret);
+      }, 0);
+    },
+    [blankAnswers, selectedActiveBlank, selectedProblem, updateSelectedFillBlankAnswer],
+  );
   const latestPracticeDraftSignatureRef = useRef('');
 
   useEffect(() => {
@@ -1494,14 +1599,43 @@ export function CourseProblemBankView({
   ]);
 
   const courseSpaceHeaderActions = useMemo(() => {
-    if (
-      !isPracticeMode ||
-      !showCourseNavigation ||
-      !selectedProblem ||
-      practiceHeaderPlacement === 'external'
-    ) {
+    if (!showCourseNavigation) {
       return null;
     }
+
+    if (!isPracticeMode) {
+      if (!canEditProblems) return null;
+
+      return (
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-lg border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 shadow-none hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            onClick={() => setTagManagerOpen(true)}
+          >
+            {locale === 'zh-CN' ? '管理知识树' : 'Manage tree'}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void handleAutoArchiveUnassignedProblems()}
+            disabled={autoArchiving || problems.length === 0}
+            className="h-8 gap-1.5 rounded-lg bg-primary px-2.5 text-xs font-semibold text-primary-foreground shadow-none hover:bg-primary/90"
+          >
+            {autoArchiving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            {locale === 'zh-CN' ? 'AI 整理标签' : 'AI organize tags'}
+          </Button>
+        </div>
+      );
+    }
+
+    if (!selectedProblem || practiceHeaderPlacement === 'external') return null;
 
     return (
       <div className="flex shrink-0 items-center gap-1">
@@ -1550,7 +1684,10 @@ export function CourseProblemBankView({
       </div>
     );
   }, [
+    autoArchiving,
+    canEditProblems,
     handlePracticeTargetChange,
+    handleAutoArchiveUnassignedProblems,
     headerNextPracticeTarget,
     headerPreviousPracticeTarget,
     isPracticeMode,
@@ -1558,6 +1695,7 @@ export function CourseProblemBankView({
     nextPracticeHeaderLabel,
     practiceHeaderPlacement,
     previousPracticeHeaderLabel,
+    problems.length,
     selectedProblem,
     showCourseNavigation,
   ]);
@@ -1913,6 +2051,15 @@ export function CourseProblemBankView({
               ) : null}
               {selectedProblemContent?.type === 'code' ? (
                 <CodeProblemStatement content={selectedProblemContent} locale={locale} />
+              ) : selectedFillBlankContent ? (
+                <InlineFillBlankPrompt
+                  content={selectedFillBlankContent}
+                  values={blankAnswers[selectedProblem.id] ?? {}}
+                  disabled={submittingAnswer}
+                  locale={locale}
+                  onFocusBlank={setActiveFillBlankId}
+                  onChangeBlank={updateSelectedFillBlankAnswer}
+                />
               ) : selectedProblemContent && renderProblemContentStem(selectedProblemContent) ? (
                 <ProblemRichText content={renderProblemContentStem(selectedProblemContent)} />
               ) : (
@@ -2037,50 +2184,70 @@ export function CourseProblemBankView({
               <div className="space-y-3">
                 <div className="rounded-md border border-fuchsia-200 bg-fuchsia-50/60 px-3 py-2 text-xs leading-5 text-fuchsia-900 dark:border-fuchsia-500/25 dark:bg-fuchsia-500/10 dark:text-fuchsia-100">
                   {locale === 'zh-CN'
-                    ? `请按题面中的空格编号填写；共 ${selectedProblemContent.blanks.length} 个空。`
-                    : `Complete the numbered blanks in the prompt (${selectedProblemContent.blanks.length} total).`}
+                    ? '可以直接在左侧题面填写，也可以在这里集中作答；两边内容会实时同步。'
+                    : 'Answer directly in the prompt or use this focused editor; both stay in sync.'}
                 </div>
-                {selectedProblemContent.blanks.map((blank, index) => (
-                  <div
-                    key={blank.id}
-                    className="grid gap-2 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-950 sm:grid-cols-[2.25rem_minmax(0,1fr)] sm:items-center"
-                  >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-fuchsia-100 text-sm font-semibold text-fuchsia-700 dark:bg-fuchsia-500/15 dark:text-fuchsia-200">
-                      {index + 1}
-                    </span>
-                    <div className="min-w-0 space-y-1.5">
+                <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-950">
+                  <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                    {selectedProblemContent.blanks.map((blank, index) => {
+                      const active = selectedActiveBlank?.id === blank.id;
+                      const hasValue = Boolean(
+                        blankAnswers[selectedProblem.id]?.[blank.id]?.trim(),
+                      );
+                      return (
+                        <button
+                          key={blank.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveFillBlankId(blank.id);
+                            window.setTimeout(() => fillBlankAnswerInputRef.current?.focus(), 0);
+                          }}
+                          className={cn(
+                            'inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium transition',
+                            active
+                              ? 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-200'
+                              : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400',
+                          )}
+                        >
+                          <span>{index + 1}</span>
+                          <span>
+                            {blank.placeholder?.trim() ||
+                              (locale === 'zh-CN' ? `第 ${index + 1} 空` : `Blank ${index + 1}`)}
+                          </span>
+                          {hasValue ? <CheckCircle2 className="size-3" /> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedActiveBlank ? (
+                    <div className="space-y-2">
                       <label
-                        htmlFor={`fill-blank-${selectedProblem.id}-${blank.id}`}
-                        className="block truncate text-xs font-medium text-slate-600 dark:text-slate-300"
+                        htmlFor={`fill-blank-${selectedProblem.id}-${selectedActiveBlank.id}`}
+                        className="block text-xs font-medium text-slate-600 dark:text-slate-300"
                       >
-                        {blank.placeholder?.trim() ||
-                          (locale === 'zh-CN' ? `第 ${index + 1} 空` : `Blank ${index + 1}`)}
+                        {selectedActiveBlank.placeholder?.trim() ||
+                          (locale === 'zh-CN' ? '当前空格' : 'Current blank')}
                       </label>
                       <Input
-                        id={`fill-blank-${selectedProblem.id}-${blank.id}`}
-                        value={blankAnswers[selectedProblem.id]?.[blank.id] ?? ''}
+                        ref={fillBlankAnswerInputRef}
+                        id={`fill-blank-${selectedProblem.id}-${selectedActiveBlank.id}`}
+                        value={blankAnswers[selectedProblem.id]?.[selectedActiveBlank.id] ?? ''}
                         disabled={submittingAnswer}
                         placeholder={locale === 'zh-CN' ? '输入答案' : 'Enter answer'}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setBlankAnswers((prev) => ({
-                            ...prev,
-                            [selectedProblem.id]: {
-                              ...(prev[selectedProblem.id] ?? {}),
-                              [blank.id]: value,
-                            },
-                          }));
-                          setAnswerFeedbackByProblemId((prev) => {
-                            if (!prev[selectedProblem.id]) return prev;
-                            const next = { ...prev };
-                            delete next[selectedProblem.id];
-                            return next;
-                          });
-                        }}
+                        onChange={(event) =>
+                          updateSelectedFillBlankAnswer(selectedActiveBlank.id, event.target.value)
+                        }
+                        className="h-10 text-base shadow-none"
                       />
                     </div>
+                  ) : null}
+                  <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
+                    <p className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      {locale === 'zh-CN' ? '常用数学符号' : 'Common math symbols'}
+                    </p>
+                    <CommonMathSymbols locale={locale} onInsert={insertSymbolIntoActiveBlank} />
                   </div>
-                ))}
+                </div>
               </div>
             ) : selectedProblem.type === 'code' && selectedProblemContent?.type === 'code' ? (
               <CodeAnswerWorkspace
@@ -2401,7 +2568,7 @@ export function CourseProblemBankView({
 
       <div
         className={cn(
-          'flex min-h-0 w-full flex-1 items-stretch gap-2',
+          'relative flex min-h-0 w-full flex-1 items-stretch gap-2',
           isPracticeMode && 'h-full min-h-0',
           showCourseNavigation && COURSE_SPACE_BODY_SURFACE_CLASS,
           showChromeBackground
@@ -2414,7 +2581,7 @@ export function CourseProblemBankView({
       >
         {!isPracticeMode ? (
           <>
-            <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col self-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white/92 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/55">
+            <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col self-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white/92 shadow-[0_16px_40px_rgba(15,23,42,0.05)] xl:mr-[312px] dark:border-slate-800 dark:bg-slate-950/55">
               <div className="grid gap-2.5 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
                 <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                   {showCourseTitle && !showCourseNavigation ? (
@@ -2529,32 +2696,6 @@ export function CourseProblemBankView({
                       ])}
                     </select>
                   </div>
-                  {canEditProblems ? (
-                    <div className="ml-auto flex items-center gap-1.5">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-9 text-xs"
-                        onClick={() => setTagManagerOpen(true)}
-                      >
-                        {locale === 'zh-CN' ? '管理知识树' : 'Manage tree'}
-                      </Button>
-                      <button
-                        type="button"
-                        onClick={() => void handleAutoArchiveUnassignedProblems()}
-                        disabled={autoArchiving || problems.length === 0}
-                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50/90 px-2.5 text-xs font-semibold text-violet-700 shadow-none transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-55 dark:border-violet-500/25 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15"
-                      >
-                        {autoArchiving ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-3.5 w-3.5" />
-                        )}
-                        {locale === 'zh-CN' ? 'AI 整理标签' : 'AI organize tags'}
-                      </button>
-                    </div>
-                  ) : null}
                 </div>
               </div>
 

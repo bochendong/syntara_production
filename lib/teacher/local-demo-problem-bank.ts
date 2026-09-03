@@ -1,5 +1,11 @@
-import type { NotebookProblemPublicCode } from '@/lib/problem-bank/schema';
-import type { NotebookProblemClientRecord } from '@/lib/utils/notebook-problem-api';
+import type {
+  NotebookProblemPublicCode,
+  NotebookProblemTagAssignment,
+} from '@/lib/problem-bank/schema';
+import type {
+  CourseProblemTagTreeNode,
+  NotebookProblemClientRecord,
+} from '@/lib/utils/notebook-problem-api';
 import type { CourseRecord } from '@/lib/utils/database';
 
 const LOCAL_DEMO_PROBLEM_BANK_COURSE_IDS = new Set(['demo-csc148']);
@@ -33,6 +39,99 @@ const CSC148_NOTEBOOKS = {
 
 const LOCAL_DEMO_PROBLEM_NOW = Date.UTC(2026, 7, 11, 9, 0, 0);
 
+function demoKnowledgeTag(
+  areaId: string,
+  area: string,
+  conceptId: string,
+  concept: string,
+): NotebookProblemTagAssignment {
+  return {
+    id: conceptId,
+    areaId,
+    area,
+    concept,
+    source: 'ai',
+    status: 'applied',
+    confidence: 0.96,
+    lockedByTeacher: false,
+  };
+}
+
+const CSC148_DEMO_TAGS = {
+  objects: demoKnowledgeTag(
+    'demo-tag-area-python',
+    'Python 语言基础',
+    'demo-tag-concept-objects',
+    '对象与引用',
+  ),
+  shallowCopy: demoKnowledgeTag(
+    'demo-tag-area-python',
+    'Python 语言基础',
+    'demo-tag-concept-shallow-copy',
+    '引用与浅拷贝',
+  ),
+  representationInvariant: demoKnowledgeTag(
+    'demo-tag-area-oop',
+    '面向对象设计',
+    'demo-tag-concept-representation-invariant',
+    '表示不变式',
+  ),
+  inheritance: demoKnowledgeTag(
+    'demo-tag-area-oop',
+    '面向对象设计',
+    'demo-tag-concept-inheritance',
+    '继承与重写',
+  ),
+  linkedList: demoKnowledgeTag(
+    'demo-tag-area-data-structures',
+    '数据结构',
+    'demo-tag-concept-linked-list',
+    '链表',
+  ),
+  bstSearch: demoKnowledgeTag(
+    'demo-tag-area-data-structures',
+    '数据结构',
+    'demo-tag-concept-bst-search',
+    '二叉搜索树',
+  ),
+  stack: demoKnowledgeTag(
+    'demo-tag-area-data-structures',
+    '数据结构',
+    'demo-tag-concept-stack',
+    '栈',
+  ),
+  adtContract: demoKnowledgeTag(
+    'demo-tag-area-data-structures',
+    '数据结构',
+    'demo-tag-concept-adt-contract',
+    'ADT 契约',
+  ),
+  bstDelete: demoKnowledgeTag(
+    'demo-tag-area-data-structures',
+    '数据结构',
+    'demo-tag-concept-bst-delete',
+    'BST 删除',
+  ),
+  recursionTrace: demoKnowledgeTag(
+    'demo-tag-area-algorithms',
+    '算法思维',
+    'demo-tag-concept-recursion-trace',
+    '递归追踪',
+  ),
+  iteration: demoKnowledgeTag(
+    'demo-tag-area-algorithms',
+    '算法思维',
+    'demo-tag-concept-iteration',
+    '迭代与累加',
+  ),
+  recursionDesign: demoKnowledgeTag(
+    'demo-tag-area-algorithms',
+    '算法思维',
+    'demo-tag-concept-recursion-design',
+    '递归设计',
+  ),
+} as const;
+
 function baseProblem(
   partial: Omit<NotebookProblemClientRecord, 'courseId' | 'createdAt' | 'updatedAt' | 'sourceMeta'>,
 ): NotebookProblemClientRecord {
@@ -58,6 +157,7 @@ const CSC148_DEMO_PROBLEMS: NotebookProblemClientRecord[] = [
     problemNumber: 1,
     points: 2,
     tags: ['对象三要素', '变量', 'id', '类型'],
+    tagAssignments: [CSC148_DEMO_TAGS.objects],
     difficulty: 'easy',
     publicContent: {
       type: 'choice',
@@ -89,6 +189,7 @@ const CSC148_DEMO_PROBLEMS: NotebookProblemClientRecord[] = [
     problemNumber: 2,
     points: 2,
     tags: ['代码追踪', '引用', '浅拷贝'],
+    tagAssignments: [CSC148_DEMO_TAGS.shallowCopy],
     difficulty: 'easy',
     publicContent: {
       type: 'choice',
@@ -143,6 +244,7 @@ print(id(a) == id(b), id(a) == id(c))
     problemNumber: 3,
     points: 4,
     tags: ['OOP', 'Representation Invariant', 'docstring'],
+    tagAssignments: [CSC148_DEMO_TAGS.representationInvariant],
     difficulty: 'medium',
     publicContent: {
       type: 'short_answer',
@@ -169,6 +271,7 @@ print(id(a) == id(b), id(a) == id(c))
     problemNumber: 4,
     points: 5,
     tags: ['Linked List', '证明', '有序链表'],
+    tagAssignments: [CSC148_DEMO_TAGS.linkedList],
     difficulty: 'medium',
     publicContent: {
       type: 'proof',
@@ -195,6 +298,7 @@ print(id(a) == id(b), id(a) == id(c))
     problemNumber: 5,
     points: 3,
     tags: ['BST', '复杂度', '比较次数'],
+    tagAssignments: [CSC148_DEMO_TAGS.bstSearch],
     difficulty: 'medium',
     publicContent: {
       type: 'calculation',
@@ -221,6 +325,7 @@ print(id(a) == id(b), id(a) == id(c))
     problemNumber: 6,
     points: 3,
     tags: ['递归', 'trace', '调用栈'],
+    tagAssignments: [CSC148_DEMO_TAGS.recursionTrace],
     difficulty: 'easy',
     publicContent: {
       type: 'calculation',
@@ -238,22 +343,31 @@ print(id(a) == id(b), id(a) == id(c))
     notebookId: CSC148_NOTEBOOKS.adt.id,
     notebookName: CSC148_NOTEBOOKS.adt.name,
     title: '栈操作结果',
-    type: 'short_answer',
+    type: 'fill_blank',
     status: 'published',
     source: 'manual',
     order: 7,
     problemNumber: 7,
     points: 2,
     tags: ['栈', 'ADT', 'LIFO'],
+    tagAssignments: [CSC148_DEMO_TAGS.stack],
     difficulty: 'easy',
     publicContent: {
-      type: 'short_answer',
-      stem: '对空栈依次执行 push(3)、push(7)、pop()、push(1)、pop() 后，栈顶元素和栈的大小分别是多少？',
+      type: 'fill_blank',
+      stemTemplate:
+        '对空栈依次执行 `push(3)`、`push(7)`、`pop()`、`push(1)`、`pop()` 后，栈顶元素是 {{top}}，栈的大小是 {{size}}。',
+      blanks: [
+        { id: 'top', placeholder: '栈顶元素' },
+        { id: 'size', placeholder: '栈的大小' },
+      ],
       explanation: 'pop 两次后栈中仅剩 3，因此 top=3，size=1。',
     },
     grading: {
-      type: 'short_answer',
-      referenceAnswer: '栈顶元素为 3，栈的大小为 1。',
+      type: 'fill_blank',
+      blanks: [
+        { id: 'top', acceptedAnswers: ['3'], caseSensitive: false },
+        { id: 'size', acceptedAnswers: ['1', '一'], caseSensitive: false },
+      ],
     },
   }),
   baseProblem({
@@ -268,6 +382,7 @@ print(id(a) == id(b), id(a) == id(c))
     problemNumber: 8,
     points: 2,
     tags: ['BST', '中序遍历', '有序性'],
+    tagAssignments: [CSC148_DEMO_TAGS.bstSearch],
     difficulty: 'easy',
     publicContent: {
       type: 'short_answer',
@@ -291,6 +406,7 @@ print(id(a) == id(b), id(a) == id(c))
     problemNumber: 9,
     points: 5,
     tags: ['Linked List', '迭代', '函数设计'],
+    tagAssignments: [CSC148_DEMO_TAGS.iteration],
     difficulty: 'medium',
     publicContent: {
       type: 'code',
@@ -342,6 +458,7 @@ print(id(a) == id(b), id(a) == id(c))
     problemNumber: 10,
     points: 5,
     tags: ['递归', '字符串', 'base case'],
+    tagAssignments: [CSC148_DEMO_TAGS.recursionDesign],
     difficulty: 'medium',
     publicContent: {
       type: 'code',
@@ -386,6 +503,7 @@ print(id(a) == id(b), id(a) == id(c))
     problemNumber: 11,
     points: 2,
     tags: ['继承', '方法重写', 'super'],
+    tagAssignments: [CSC148_DEMO_TAGS.inheritance],
     difficulty: 'medium',
     publicContent: {
       type: 'choice',
@@ -417,6 +535,7 @@ print(id(a) == id(b), id(a) == id(c))
     problemNumber: 12,
     points: 3,
     tags: ['异常', '栈', '契约'],
+    tagAssignments: [CSC148_DEMO_TAGS.adtContract],
     difficulty: 'easy',
     publicContent: {
       type: 'short_answer',
@@ -441,6 +560,7 @@ print(id(a) == id(b), id(a) == id(c))
     problemNumber: 13,
     points: 4,
     tags: ['BST', '删除', '草稿'],
+    tagAssignments: [CSC148_DEMO_TAGS.bstDelete],
     difficulty: 'hard',
     publicContent: {
       type: 'proof',
@@ -463,7 +583,53 @@ export function isLocalDemoProblemBankCourse(courseId: string): boolean {
 
 export function listLocalDemoProblemBank(courseId: string): NotebookProblemClientRecord[] | null {
   if (!isLocalDemoProblemBankCourse(courseId)) return null;
-  return CSC148_DEMO_PROBLEMS.map((problem) => ({ ...problem }));
+  return CSC148_DEMO_PROBLEMS.map((problem) => ({
+    ...problem,
+    tags: [...problem.tags],
+    tagAssignments: problem.tagAssignments?.map((assignment) => ({ ...assignment })),
+  }));
+}
+
+export function listLocalDemoProblemTagTree(courseId: string): CourseProblemTagTreeNode[] | null {
+  if (!isLocalDemoProblemBankCourse(courseId)) return null;
+
+  const areas = new Map<string, CourseProblemTagTreeNode>();
+  for (const problem of CSC148_DEMO_PROBLEMS) {
+    if (problem.status === 'archived') continue;
+    for (const assignment of problem.tagAssignments ?? []) {
+      if (assignment.status !== 'applied') continue;
+      const area = areas.get(assignment.areaId) ?? {
+        id: assignment.areaId,
+        name: assignment.area,
+        aliases: [],
+        source: assignment.source,
+        status: 'applied',
+        confidence: assignment.confidence ?? null,
+        lockedByTeacher: assignment.lockedByTeacher,
+        problemCount: 0,
+        concepts: [],
+      };
+      area.problemCount += 1;
+      const concept = area.concepts.find((item) => item.id === assignment.id);
+      if (concept) {
+        concept.problemCount += 1;
+      } else {
+        area.concepts.push({
+          id: assignment.id,
+          name: assignment.concept,
+          aliases: [],
+          source: assignment.source,
+          status: assignment.status,
+          confidence: assignment.confidence ?? null,
+          lockedByTeacher: assignment.lockedByTeacher,
+          problemCount: 1,
+        });
+      }
+      areas.set(area.id, area);
+    }
+  }
+
+  return Array.from(areas.values());
 }
 
 export function resolveLocalDemoProblemBankCourse(

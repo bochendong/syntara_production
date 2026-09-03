@@ -30,7 +30,8 @@ assert.match(teacherAttemptRoute, /teacherCourseAccessWhere/);
 assert.match(teacherAttemptRoute, /userId: studentId/);
 
 const teacherAgent = read('features/chat/server/teacher-course-agent.ts');
-assert.match(teacherAgent, /get_course_problem_insight/);
+assert.match(teacherAgent, /get_course_learning_insight/);
+assert.match(teacherAgent, /search_course_problem_bank/);
 assert.match(teacherAgent, /计时样本数/);
 
 console.log('Problem learning system contract checks passed.');

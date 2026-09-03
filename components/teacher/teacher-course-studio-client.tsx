@@ -8,6 +8,7 @@ import {
   AlertCircle,
   ArrowDown,
   ArrowLeft,
+  ArrowUpRight,
   ArrowUp,
   BookOpenText,
   Brain,
@@ -35,9 +36,11 @@ import {
   ShieldCheck,
   Trash2,
   Upload,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
+import { CourseSpaceImageCard } from '@/components/course-space/course-space-image-card';
 import { CourseSpacePageFrame } from '@/components/course-space/course-space-page-frame';
 import {
   COURSE_SPACE_BODY_SURFACE_CLASS,
@@ -191,42 +194,90 @@ function OverviewStatCard({
   value,
   hint,
   onClick,
+  tone = 'slate',
+  eyebrow = '课程概览',
+  className,
 }: {
   Icon: typeof FileText;
   label: string;
   value: string | number;
   hint?: string;
   onClick?: () => void;
+  tone?: 'brand' | 'cyan' | 'violet' | 'emerald' | 'amber' | 'sky' | 'rose' | 'slate';
+  eyebrow?: string;
+  className?: string;
 }) {
-  const className = cn(
-    'flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-sm dark:border-white/10 dark:bg-white/[0.04]',
+  const toneClass = {
+    brand: 'border-primary/20 bg-primary/[0.055]',
+    cyan: 'border-cyan-200/70 bg-cyan-50/60 dark:border-cyan-400/20 dark:bg-cyan-500/10',
+    violet: 'border-violet-200/70 bg-violet-50/60 dark:border-violet-400/20 dark:bg-violet-500/10',
+    emerald:
+      'border-emerald-200/70 bg-emerald-50/60 dark:border-emerald-400/20 dark:bg-emerald-500/10',
+    amber: 'border-amber-200/70 bg-amber-50/60 dark:border-amber-400/20 dark:bg-amber-500/10',
+    sky: 'border-sky-200/70 bg-sky-50/60 dark:border-sky-400/20 dark:bg-sky-500/10',
+    rose: 'border-rose-200/70 bg-rose-50/60 dark:border-rose-400/20 dark:bg-rose-500/10',
+    slate: 'border-slate-200/80 bg-white dark:border-white/10 dark:bg-white/[0.04]',
+  }[tone];
+  const iconClass = {
+    brand: 'bg-primary/10 text-primary',
+    cyan: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-400/15 dark:text-cyan-200',
+    violet: 'bg-violet-100 text-violet-700 dark:bg-violet-400/15 dark:text-violet-200',
+    emerald: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200',
+    amber: 'bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-200',
+    sky: 'bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-200',
+    rose: 'bg-rose-100 text-rose-700 dark:bg-rose-400/15 dark:text-rose-200',
+    slate: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300',
+  }[tone];
+  const cardClassName = cn(
+    'group relative flex min-h-[7.75rem] flex-col rounded-xl border p-3.5 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)]',
+    toneClass,
     onClick &&
-      'transition hover:border-slate-300 hover:bg-slate-50/80 hover:shadow-md dark:hover:border-white/20 dark:hover:bg-white/[0.07]',
+      'transition duration-200 hover:border-slate-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:hover:border-white/20 dark:focus-visible:ring-offset-slate-950',
+    className,
   );
   const inner = (
     <>
-      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-        <span className="grid size-9 place-items-center rounded-xl bg-slate-50 text-slate-700 dark:bg-white/10 dark:text-slate-200">
-          <Icon className="size-4" strokeWidth={1.75} />
-        </span>
-        <span className="text-sm font-medium">{label}</span>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={cn('grid size-7 shrink-0 place-items-center rounded-lg', iconClass)}>
+            <Icon className="size-3.5" strokeWidth={1.8} />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+              {label}
+            </p>
+            <p className="truncate text-[10px] text-slate-400 dark:text-slate-500">{eyebrow}</p>
+          </div>
+        </div>
+        {onClick ? (
+          <ArrowUpRight
+            className="mt-0.5 size-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            aria-hidden
+          />
+        ) : null}
       </div>
-      <p className="text-3xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-white">
-        {value}
-      </p>
-      {hint ? <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">{hint}</p> : null}
+      <div className="mt-auto flex items-end justify-between gap-3 pt-3">
+        <p className="text-2xl font-semibold tabular-nums tracking-tight text-slate-950 dark:text-white">
+          {value}
+        </p>
+        {hint ? (
+          <p className="line-clamp-2 max-w-[68%] text-right text-[11px] leading-4 text-slate-500 dark:text-slate-400">
+            {hint}
+          </p>
+        ) : null}
+      </div>
     </>
   );
 
   if (onClick) {
     return (
-      <button type="button" className={className} onClick={onClick}>
+      <button type="button" className={cardClassName} onClick={onClick}>
         {inner}
       </button>
     );
   }
 
-  return <div className={className}>{inner}</div>;
+  return <div className={cardClassName}>{inner}</div>;
 }
 
 const TYPE_META: Record<CourseContentType, { label: string; icon: typeof FileText }> = {
@@ -641,10 +692,6 @@ export function TeacherCourseStudioClient({
       failed: queueJobs.filter((job) => job.status === 'failed').length,
     }),
     [queueJobs],
-  );
-  const mindMapCount = useMemo(
-    () => notebooks.filter((notebook) => Boolean(notebook.mindMap)).length,
-    [notebooks],
   );
   const sourceCategoryCounts = useMemo(
     () =>
@@ -1373,67 +1420,127 @@ export function TeacherCourseStudioClient({
             <section className={STUDIO_SECTION_CLASS}>
               <div className={STUDIO_PANEL_BODY_CLASS}>
                 <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-                  <div className="relative min-h-[18rem] overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-100 shadow-sm dark:border-white/10 dark:bg-slate-950 sm:min-h-[20rem]">
-                    <img
-                      src={resolveCourseBackgroundDisplayUrl(course.id)}
-                      alt=""
-                      className="absolute inset-0 size-full object-cover brightness-[1.08] saturate-[1.06]"
-                      aria-hidden
-                    />
-                    <div
-                      className="absolute inset-0 bg-[linear-gradient(110deg,rgba(15,23,42,0.42)_0%,rgba(15,23,42,0.22)_52%,rgba(15,23,42,0.08)_100%)] dark:bg-[linear-gradient(110deg,rgba(8,13,24,0.74)_0%,rgba(8,13,24,0.52)_52%,rgba(8,13,24,0.24)_100%)]"
-                      aria-hidden
-                    />
-                    <div
-                      className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-slate-950/55 via-slate-950/18 to-transparent"
-                      aria-hidden
-                    />
-                    <div className="relative z-10 flex min-h-[18rem] flex-col justify-end p-5 sm:min-h-[20rem] sm:p-6">
-                      <p className="text-xs font-semibold tracking-wide text-white/75">课程总览</p>
-                      <h2 className="mt-1 text-xl font-semibold text-white drop-shadow-[0_1px_2px_rgba(15,23,42,0.38)]">
-                        {course.code}
-                        {courseHeaderFields.courseMeta ? ` · ${courseHeaderFields.courseMeta}` : ''}
-                      </h2>
-                      <p className="mt-1 text-sm text-white/80 drop-shadow-[0_1px_1px_rgba(15,23,42,0.28)]">
-                        {course.academicYear} {academicTermLabel(course.term)}
-                        {course.createdAt
-                          ? ` · 创建于 ${new Date(course.createdAt).toLocaleDateString('zh-CN')}`
-                          : ''}
+                  <CourseSpaceImageCard
+                    imageUrl={resolveCourseBackgroundDisplayUrl(course.id)}
+                    priority
+                  >
+                    <p className="text-xs font-semibold tracking-wide text-white/75">课程总览</p>
+                    <h2 className="mt-1 text-xl font-semibold text-white drop-shadow-[0_1px_2px_rgba(15,23,42,0.38)]">
+                      {course.code}
+                      {courseHeaderFields.courseMeta ? ` · ${courseHeaderFields.courseMeta}` : ''}
+                    </h2>
+                    <p className="mt-1 text-sm text-white/80 drop-shadow-[0_1px_1px_rgba(15,23,42,0.28)]">
+                      {course.academicYear} {academicTermLabel(course.term)}
+                      {course.createdAt
+                        ? ` · 创建于 ${new Date(course.createdAt).toLocaleDateString('zh-CN')}`
+                        : ''}
+                    </p>
+                    {course.description ? (
+                      <p className="mt-3 line-clamp-3 text-sm leading-6 text-white/88 drop-shadow-[0_1px_1px_rgba(15,23,42,0.26)]">
+                        {course.description}
                       </p>
-                      {course.description ? (
-                        <p className="mt-3 line-clamp-3 text-sm leading-6 text-white/88 drop-shadow-[0_1px_1px_rgba(15,23,42,0.26)]">
-                          {course.description}
-                        </p>
-                      ) : null}
-                    </div>
+                    ) : null}
+                  </CourseSpaceImageCard>
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      课程仪表盘
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      数据随课程内容与学生名单实时更新
+                    </p>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
                     <OverviewStatCard
-                      Icon={FileText}
-                      label="源文件"
-                      value={sources.length}
-                      hint={`学校 ${sourceCategoryCounts.school_teacher_notes} · 速成 ${sourceCategoryCounts.crash_course_teacher_notes} · 题库 ${sourceCategoryCounts.problem_bank}`}
-                      onClick={() => switchTab('sources')}
-                    />
-                    <OverviewStatCard
-                      Icon={BookOpenText}
-                      label="笔记本"
-                      value={notebooks.length}
-                      hint={mindMapCount > 0 ? `${mindMapCount} 本已生图` : '还没有生成思维导图'}
-                      onClick={() => switchTab('notebooks')}
-                    />
-                    <OverviewStatCard
-                      Icon={ListChecks}
-                      label="题库"
-                      value={course.problemCount}
-                      hint={
-                        sourceCategoryCounts.problem_bank > 0
-                          ? `${sourceCategoryCounts.problem_bank} 份题库资料`
-                          : '还没有题库资料'
-                      }
+                      Icon={Users}
+                      label="学生"
+                      value={course.studentCount}
+                      hint="当前有效课程成员"
+                      tone="brand"
+                      eyebrow="学习成员"
+                      className="lg:col-span-3"
                       onClick={() =>
                         router.push(
-                          `/course/${encodeURIComponent(courseId)}/problem-bank${
+                          `/teacher/courses/${encodeURIComponent(courseId)}/students${
+                            mockMode ? '?mock=1' : ''
+                          }`,
+                        )
+                      }
+                    />
+                    <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-white/[0.04] sm:col-span-2 lg:col-span-6">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="grid size-7 place-items-center rounded-lg bg-cyan-100 text-cyan-700 dark:bg-cyan-400/15 dark:text-cyan-200">
+                            <Library className="size-3.5" strokeWidth={1.8} />
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                              内容资产
+                            </p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                              课程知识与练习资源
+                            </p>
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium tabular-nums text-slate-500 dark:bg-white/10 dark:text-slate-400">
+                          共 {sources.length + notebooks.length + course.problemCount}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 divide-x divide-slate-200/80 dark:divide-white/10">
+                        {[
+                          {
+                            label: '源文件',
+                            value: sources.length,
+                            Icon: FileText,
+                            action: () => switchTab('sources'),
+                          },
+                          {
+                            label: '笔记本',
+                            value: notebooks.length,
+                            Icon: BookOpenText,
+                            action: () => switchTab('notebooks'),
+                          },
+                          {
+                            label: '题库',
+                            value: course.problemCount,
+                            Icon: ListChecks,
+                            action: () =>
+                              router.push(
+                                `/course/${encodeURIComponent(courseId)}/problem-bank${
+                                  mockMode ? '?mock=1&asTeacher=1' : ''
+                                }`,
+                              ),
+                          },
+                        ].map((item) => (
+                          <button
+                            key={item.label}
+                            type="button"
+                            className="group flex min-w-0 items-center gap-2 px-3 text-left first:pl-0 last:pr-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            onClick={item.action}
+                          >
+                            <item.Icon className="size-3.5 shrink-0 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200" />
+                            <span className="min-w-0">
+                              <span className="block text-lg font-semibold tabular-nums leading-5 text-slate-950 dark:text-white">
+                                {item.value}
+                              </span>
+                              <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">
+                                {item.label}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <OverviewStatCard
+                      Icon={MessagesSquare}
+                      label="论坛待处理"
+                      value={unresolvedForumCount}
+                      hint="未解决的学生帖"
+                      tone="rose"
+                      eyebrow="教学互动"
+                      className="lg:col-span-3"
+                      onClick={() =>
+                        router.push(
+                          `/course/${encodeURIComponent(courseId)}/forum${
                             mockMode ? '?mock=1&asTeacher=1' : ''
                           }`,
                         )
@@ -1444,6 +1551,9 @@ export function TeacherCourseStudioClient({
                       label="Hard Rule"
                       value={hardRulesLoading && !hardRulesLoaded ? '…' : hardRules.length}
                       hint={`已用 ${hardRules.length} / 30`}
+                      tone="amber"
+                      eyebrow="教学约束"
+                      className="lg:col-span-4"
                       onClick={() => switchTab('hard_rules')}
                     />
                     <OverviewStatCard
@@ -1451,6 +1561,9 @@ export function TeacherCourseStudioClient({
                       label="AI 队列"
                       value={counts.queued}
                       hint={`排队 ${counts.queued} · 已完成 ${counts.completed} · 失败 ${counts.failed}`}
+                      tone="sky"
+                      eyebrow="自动化任务"
+                      className="lg:col-span-5"
                       onClick={() => switchTab('queue')}
                     />
                     <OverviewStatCard
@@ -1458,20 +1571,10 @@ export function TeacherCourseStudioClient({
                       label="已移除"
                       value={removedContent.length}
                       hint="可从资料库恢复或永久删除"
+                      tone="slate"
+                      eyebrow="资料回收站"
+                      className="lg:col-span-3"
                       onClick={() => switchTab('removed')}
-                    />
-                    <OverviewStatCard
-                      Icon={MessagesSquare}
-                      label="论坛待处理"
-                      value={unresolvedForumCount}
-                      hint="未解决的学生帖"
-                      onClick={() =>
-                        router.push(
-                          `/course/${encodeURIComponent(courseId)}/forum${
-                            mockMode ? '?mock=1&asTeacher=1' : ''
-                          }`,
-                        )
-                      }
                     />
                   </div>
                 </div>

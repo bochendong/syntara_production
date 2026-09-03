@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
   BookOpen,
+  BookOpenText,
   Brain,
   Calculator,
   ChevronLeft,
@@ -35,6 +36,12 @@ import {
   type NodeProps as FlowNodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import {
+  COURSE_SPACE_BODY_SURFACE_CLASS,
+  CourseSpaceHeader,
+  resolveCourseSpaceHeaderFields,
+} from '@/components/course-space/course-space-header';
+import { CourseSpaceImageCard } from '@/components/course-space/course-space-image-card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -76,15 +83,16 @@ import {
   listCourseProblems,
   type NotebookProblemClientRecord,
 } from '@/lib/utils/notebook-problem-api';
-import type { StageListItem } from '@/lib/utils/stage-storage';
+import { listStagesByCourseOrThrow, type StageListItem } from '@/lib/utils/stage-storage';
 import { listStudyMemoryRecords, type StudyMemoryApiRecord } from '@/lib/utils/study-memory-api';
 
 type CourseResourceLibraryPageClientProps = {
   courseId: string;
   initialTab?: string | null;
+  initialNotebookId?: string | null;
 };
 
-type ResourceLibraryTab = 'search' | 'sources' | 'memory' | 'problems' | 'knowledge';
+type ResourceLibraryTab = 'notebooks' | 'search' | 'sources' | 'memory' | 'problems' | 'knowledge';
 
 type ResourceRequestStatus = 'loading' | 'ready' | 'error';
 type CourseRequestStatus = ResourceRequestStatus | 'not_found';
@@ -3610,6 +3618,54 @@ function LibraryChip({ children, className }: { children: ReactNode; className?:
   );
 }
 
+function formatNotebookLibraryDate(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '';
+  return new Date(value).toLocaleDateString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function NotebookLibraryCardFace({ notebook }: { notebook: StageListItem }) {
+  const typeLabel = (notebook.notebookKind ?? 'image') === 'markdown' ? 'Markdown' : '讲义';
+  const sectionLabel = `${notebook.sectionCount ?? notebook.sceneCount ?? 0} 章节`;
+
+  return (
+    <div className="relative size-full text-left">
+      <span className="absolute inset-y-1 left-0 z-[3] flex w-[18px] flex-col items-center justify-evenly rounded-l-[10px] bg-[linear-gradient(90deg,#1e3a5f_0%,#2b4d78_55%,#243f63_100%)] shadow-[inset_-1px_0_0_rgba(255,255,255,0.18),inset_1px_0_0_rgba(0,0,0,0.18)]">
+        {[0, 1, 2].map((index) => (
+          <span
+            key={index}
+            className="size-2 rounded-full bg-[radial-gradient(circle_at_35%_30%,#f8fafc_0%,#94a3b8_45%,#475569_100%)] shadow-[0_0_0_1px_rgba(15,23,42,0.25),inset_0_1px_1px_rgba(255,255,255,0.55)]"
+          />
+        ))}
+      </span>
+      <span className="absolute bottom-2 right-0 top-2 z-[1] w-2.5 rounded-r-lg bg-[repeating-linear-gradient(180deg,#fff_0_2px,#e2e8f0_2px_3px)] shadow-[2px_0_0_#f1f5f9,4px_0_0_#e2e8f0,6px_0_8px_rgba(15,23,42,0.08)]" />
+      <span
+        className="absolute bottom-0 left-3.5 right-1.5 top-0 z-[2] grid grid-rows-[auto_1fr_auto_auto] gap-2.5 overflow-hidden rounded-r-[14px] border border-l-0 border-slate-400/35 px-3.5 pb-3.5 pl-4 pt-4 shadow-[0_12px_28px_rgba(15,23,42,0.12),inset_0_2px_0_rgba(255,255,255,0.70),-2px_0_6px_rgba(15,23,42,0.08)] transition group-hover:shadow-[0_18px_34px_rgba(15,23,42,0.16),inset_0_2px_0_rgba(255,255,255,0.70),-2px_0_6px_rgba(15,23,42,0.10)]"
+        style={{
+          background:
+            'linear-gradient(90deg,rgba(15,23,42,.06) 0 1px,transparent 1px 100%),linear-gradient(180deg,transparent 0,transparent 28px,rgba(148,163,184,.22) 28px,rgba(148,163,184,.22) 29px),repeating-linear-gradient(180deg,transparent 0 27px,rgba(148,163,184,.18) 27px 28px),linear-gradient(145deg,#f7fafc 0%,#eef4f8 48%,#e8eef4 100%)',
+        }}
+      >
+        <span className="w-fit rounded border border-blue-600/20 bg-white/70 px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.06em] text-slate-700">
+          {typeLabel}
+        </span>
+        <strong className="line-clamp-4 text-sm font-bold leading-[1.4] tracking-[0.01em] text-slate-900">
+          {notebook.name}
+        </strong>
+        <span className="grid gap-0.5 text-[11px] leading-[1.35] text-slate-500">
+          <span className="truncate">{sectionLabel}</span>
+          <span className="truncate">{formatNotebookLibraryDate(notebook.updatedAt)}</span>
+        </span>
+        <span className="inline-flex w-fit min-w-[4.25rem] items-center justify-center rounded-lg bg-blue-700 px-[11px] py-1.5 text-xs font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]">
+          打开
+        </span>
+      </span>
+    </div>
+  );
+}
+
 function memoryScopeChipClassName(scopeLabel: string): string {
   if (scopeLabel === '私有') {
     return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-300/20 dark:bg-amber-500/10 dark:text-amber-100';
@@ -3866,16 +3922,23 @@ function ResourceLoadErrorNotice({
 }
 
 function normalizeResourceLibraryTab(value: string | null): ResourceLibraryTab {
-  if (value === 'notebooks') return 'sources';
-  if (value === 'sources' || value === 'memory' || value === 'problems' || value === 'knowledge') {
+  if (
+    value === 'notebooks' ||
+    value === 'search' ||
+    value === 'sources' ||
+    value === 'memory' ||
+    value === 'problems' ||
+    value === 'knowledge'
+  ) {
     return value;
   }
-  return 'search';
+  return 'notebooks';
 }
 
 export function CourseResourceLibraryPageClient({
   courseId,
   initialTab: initialTabParam,
+  initialNotebookId,
 }: CourseResourceLibraryPageClientProps) {
   const router = useRouter();
   const initialTab = normalizeResourceLibraryTab(initialTabParam ?? null);
@@ -3883,6 +3946,14 @@ export function CourseResourceLibraryPageClient({
   const [courseLoadStatus, setCourseLoadStatus] = useState<CourseRequestStatus>('loading');
   const [courseLoadError, setCourseLoadError] = useState<string | null>(null);
   const [courseReloadKey, setCourseReloadKey] = useState(0);
+  const [courseNotebooks, setCourseNotebooks] = useState<StageListItem[]>([]);
+  const [notebooksLoadStatus, setNotebooksLoadStatus] = useState<ResourceRequestStatus>('loading');
+  const [notebooksLoadError, setNotebooksLoadError] = useState<string | null>(null);
+  const [notebooksReloadKey, setNotebooksReloadKey] = useState(0);
+  const [notebookQuery, setNotebookQuery] = useState('');
+  const [selectedNotebookId, setSelectedNotebookId] = useState<string | null>(
+    initialNotebookId ?? null,
+  );
   const [problems, setProblems] = useState<NotebookProblemClientRecord[]>([]);
   const [problemsLoadStatus, setProblemsLoadStatus] = useState<ResourceRequestStatus>('loading');
   const [problemsReloadKey, setProblemsReloadKey] = useState(0);
@@ -3930,11 +4001,25 @@ export function CourseResourceLibraryPageClient({
     () => buildCompatibleNotebookMetadata({ courseId, sourceUploads, problems }),
     [courseId, problems, sourceUploads],
   );
+  const filteredCourseNotebooks = useMemo(() => {
+    const terms = notebookQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return courseNotebooks;
+    return courseNotebooks.filter((notebook) => {
+      const haystack = [notebook.name, notebook.description, ...(notebook.tags ?? [])]
+        .filter(Boolean)
+        .join('\n')
+        .toLowerCase();
+      return terms.every((term) => haystack.includes(term));
+    });
+  }, [courseNotebooks, notebookQuery]);
+  const selectedCourseNotebook =
+    courseNotebooks.find((notebook) => notebook.id === selectedNotebookId) ?? null;
 
   useEffect(() => {
     if (resourceCourseIdRef.current === courseId) return;
     resourceCourseIdRef.current = courseId;
     setProblems([]);
+    setCourseNotebooks([]);
     setSourceUploads([]);
     setDbCourseMemories([]);
     setDbNotebookMemories([]);
@@ -3942,10 +4027,48 @@ export function CourseResourceLibraryPageClient({
     setSelectedSearchItemId(null);
     setSelectedMemoryItemId(null);
     setSelectedKnowledgeNodeId(null);
+    setSelectedNotebookId(initialNotebookId ?? null);
     setExpandedSourceTextHashes(new Set());
     setLoadedSourceTextHashes(new Set());
     setLoadingSourceTextHashes(new Set());
-  }, [courseId]);
+  }, [courseId, initialNotebookId]);
+
+  useEffect(() => {
+    let alive = true;
+    const controller = new AbortController();
+    setNotebooksLoadStatus('loading');
+    setNotebooksLoadError(null);
+    void listStagesByCourseOrThrow(courseId, {
+      signal: controller.signal,
+      timeoutMs: 90_000,
+    })
+      .then((loadedNotebooks) => {
+        if (!alive) return;
+        const sortedNotebooks = [...loadedNotebooks].sort(
+          (left, right) =>
+            (left.learningOrder ?? Number.MAX_SAFE_INTEGER) -
+              (right.learningOrder ?? Number.MAX_SAFE_INTEGER) ||
+            right.updatedAt - left.updatedAt ||
+            left.name.localeCompare(right.name, 'zh-CN'),
+        );
+        setCourseNotebooks(sortedNotebooks);
+        setSelectedNotebookId((current) =>
+          current && sortedNotebooks.some((notebook) => notebook.id === current)
+            ? current
+            : (sortedNotebooks[0]?.id ?? null),
+        );
+        setNotebooksLoadStatus('ready');
+      })
+      .catch((error) => {
+        if (!alive || controller.signal.aborted) return;
+        setNotebooksLoadStatus('error');
+        setNotebooksLoadError(error instanceof Error ? error.message : '笔记本读取失败，请重试。');
+      });
+    return () => {
+      alive = false;
+      controller.abort();
+    };
+  }, [courseId, notebooksReloadKey]);
 
   useEffect(() => {
     let alive = true;
@@ -5826,6 +5949,144 @@ export function CourseResourceLibraryPageClient({
     </article>
   );
 
+  const renderNotebookLibrary = () => (
+    <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white/90 shadow-[0_18px_58px_rgba(15,23,42,0.07)] dark:border-white/10 dark:bg-white/[0.06]">
+      <div className="flex flex-col gap-3 border-b border-slate-200/80 px-4 py-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[11px] font-bold text-blue-700 dark:text-blue-200">笔记本库</p>
+          <h2 className="mt-1 text-base font-semibold text-slate-950 dark:text-white">
+            课程笔记本 · {courseNotebooks.length} 本
+          </h2>
+        </div>
+        <label className="relative block w-full sm:max-w-sm">
+          <span className="sr-only">搜索笔记本名称</span>
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+            strokeWidth={1.8}
+          />
+          <input
+            type="search"
+            value={notebookQuery}
+            onChange={(event) => setNotebookQuery(event.target.value)}
+            placeholder="搜索笔记本名称"
+            className="h-10 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:focus:ring-blue-400/10"
+          />
+        </label>
+      </div>
+
+      {notebooksLoadStatus === 'loading' && courseNotebooks.length === 0 ? (
+        <div className="grid min-h-[24rem] place-items-center text-sm text-slate-500">
+          <span className="inline-flex items-center gap-2">
+            <Loader2 className="size-4 animate-spin" />
+            正在加载笔记本库…
+          </span>
+        </div>
+      ) : notebooksLoadStatus === 'error' && courseNotebooks.length === 0 ? (
+        <div className="p-4">
+          <ResourceLoadErrorNotice
+            title="笔记本暂时无法读取"
+            error={notebooksLoadError || '请稍后重试。'}
+            onRetry={() => setNotebooksReloadKey((current) => current + 1)}
+          />
+        </div>
+      ) : filteredCourseNotebooks.length === 0 ? (
+        <div className="grid min-h-[24rem] place-items-center px-6 text-center text-sm text-slate-500">
+          <div className="max-w-sm">
+            <BookOpen className="mx-auto size-8 text-slate-300" strokeWidth={1.6} />
+            <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">
+              {courseNotebooks.length ? '没有匹配的笔记本' : '这门课还没有开放笔记本'}
+            </p>
+            <p className="mt-1 text-xs leading-5">
+              {courseNotebooks.length ? '换个关键词再试。' : '老师发布课程资料后会显示在这里。'}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid min-h-[34rem] gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.72fr)]">
+          <div className="grid content-start grid-cols-[repeat(auto-fill,minmax(168px,1fr))] gap-x-7 gap-y-9 rounded-[20px] bg-slate-50/75 p-5 dark:bg-black/10">
+            {filteredCourseNotebooks.map((notebook) => (
+              <button
+                key={notebook.id}
+                type="button"
+                aria-label={`查看 ${notebook.name}`}
+                aria-pressed={selectedCourseNotebook?.id === notebook.id}
+                onClick={() => setSelectedNotebookId(notebook.id)}
+                className={cn(
+                  'group relative mx-auto block aspect-[3/4] min-h-[220px] w-full max-w-[210px] rounded-[16px] text-left transition duration-150 hover:-translate-y-1 hover:-rotate-[0.6deg] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300',
+                  selectedCourseNotebook?.id === notebook.id &&
+                    'ring-2 ring-blue-500 ring-offset-4 ring-offset-slate-50 dark:ring-offset-slate-950',
+                )}
+              >
+                <NotebookLibraryCardFace notebook={notebook} />
+              </button>
+            ))}
+          </div>
+
+          <aside className="flex min-h-[30rem] flex-col rounded-[20px] border border-slate-200/80 bg-white p-5 dark:border-white/10 dark:bg-white/[0.04]">
+            {selectedCourseNotebook ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+                  <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-700 dark:bg-blue-400/15 dark:text-blue-100">
+                    {(selectedCourseNotebook.notebookKind ?? 'image') === 'markdown'
+                      ? 'Markdown'
+                      : '讲义'}
+                  </span>
+                  <span className="text-slate-400">
+                    {selectedCourseNotebook.sectionCount ?? selectedCourseNotebook.sceneCount ?? 0}{' '}
+                    章节
+                  </span>
+                </div>
+                <h3 className="mt-4 text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                  {selectedCourseNotebook.name}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-300">
+                  {selectedCourseNotebook.description?.trim() ||
+                    '进入阅读器后查看完整笔记内容和课程讲义。'}
+                </p>
+
+                {selectedCourseNotebook.hasMindMap ? (
+                  <div className="mt-5 overflow-hidden rounded-[16px] border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-slate-900">
+                    <img
+                      src={`/api/student/courses/${encodeURIComponent(courseId)}/notebooks/${encodeURIComponent(selectedCourseNotebook.id)}/mind-map`}
+                      alt={`${selectedCourseNotebook.name} 思维导图`}
+                      className="max-h-[420px] w-full object-contain"
+                      loading="lazy"
+                    />
+                  </div>
+                ) : selectedCourseNotebook.coverImagePath ? (
+                  <div className="mt-5 overflow-hidden rounded-[16px] border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-slate-900">
+                    <img
+                      src={selectedCourseNotebook.coverImagePath}
+                      alt={`${selectedCourseNotebook.name} 封面`}
+                      className="max-h-[360px] w-full object-contain"
+                      loading="lazy"
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-5 grid min-h-52 place-items-center rounded-[16px] border border-dashed border-slate-200 bg-slate-50 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-black/10">
+                    <div>
+                      <BookOpen className="mx-auto size-8 text-slate-300" strokeWidth={1.6} />
+                      <p className="mt-3">可在阅读器中查看完整内容</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-auto flex justify-end pt-5">
+                  <Button asChild className="h-9 rounded-full px-4 text-xs">
+                    <Link href={`/classroom/${encodeURIComponent(selectedCourseNotebook.id)}`}>
+                      <BookOpen className="mr-1.5 size-3.5" aria-hidden="true" />
+                      进入阅读器
+                    </Link>
+                  </Button>
+                </div>
+              </>
+            ) : null}
+          </aside>
+        </div>
+      )}
+    </section>
+  );
+
   const renderSourceUploads = () => (
     <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white/90 shadow-[0_18px_58px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/[0.055]">
       <div className="flex flex-col gap-3 border-b border-slate-200/80 px-4 py-4 dark:border-white/10 md:flex-row md:items-center md:justify-between">
@@ -6483,68 +6744,65 @@ export function CourseResourceLibraryPageClient({
 
   const courseBackgroundUrl = resolveCourseBackgroundDisplayUrl(course.id);
   const courseAvatarUrl = resolveCourseAvatarDisplayUrl(course.id, course.avatarUrl);
+  const courseHeaderFields = resolveCourseSpaceHeaderFields(course);
 
   return (
     <main className="min-h-full bg-[#f3f6fb] text-slate-950 dark:bg-[#0e1117] dark:text-white">
       <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-4 px-3 py-4 md:px-5 lg:px-6">
-        <section className="relative min-h-[13.5rem] overflow-hidden rounded-[24px] border border-white/75 bg-slate-100 shadow-[0_18px_54px_rgba(15,23,42,0.11)] ring-1 ring-slate-900/[0.035] dark:border-white/10 dark:bg-slate-950 dark:shadow-[0_22px_60px_rgba(0,0,0,0.32)] md:min-h-[13rem]">
-          <img
-            src={courseBackgroundUrl}
-            alt=""
-            className="absolute inset-0 size-full object-cover brightness-[1.08] saturate-[1.06]"
-            aria-hidden
-          />
-          <div
-            className="absolute inset-0 bg-[linear-gradient(110deg,rgba(15,23,42,0.28)_0%,rgba(15,23,42,0.14)_52%,rgba(15,23,42,0.05)_100%)] dark:bg-[linear-gradient(110deg,rgba(8,13,24,0.74)_0%,rgba(8,13,24,0.52)_52%,rgba(8,13,24,0.24)_100%)]"
-            aria-hidden
-          />
-          <div
-            className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/30 via-slate-950/7 to-transparent dark:from-slate-950/76 dark:via-slate-950/18"
-            aria-hidden
-          />
-          <div className="relative z-10 flex min-h-[13.5rem] flex-col justify-between gap-4 p-4 md:min-h-[13rem] md:p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
-                <img
-                  src={courseAvatarUrl}
-                  alt=""
-                  className="size-[4.25rem] shrink-0 rounded-[22px] border border-white/80 bg-white object-cover shadow-[0_14px_34px_rgba(15,23,42,0.2)] ring-1 ring-slate-900/[0.04] dark:border-white/15 dark:bg-slate-900 md:size-16 md:rounded-[18px]"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex max-w-3xl items-center gap-3">
-                    <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold tracking-normal text-white drop-shadow-[0_1px_2px_rgba(15,23,42,0.38)] md:text-3xl">
-                      {course.name}
-                    </h1>
-                    <span className="rounded-full border border-sky-200/20 bg-sky-950/20 px-2.5 py-1 text-sky-50 shadow-sm backdrop-blur-md">
-                      课程资料库
-                    </span>
-                  </div>
-                  <div className="mt-2 flex max-w-4xl flex-wrap gap-1.5">
-                    {course.courseCode ? (
-                      <LibraryChip className="border-white/15 bg-slate-950/20 text-white shadow-sm backdrop-blur-md">
-                        {course.courseCode}
-                      </LibraryChip>
-                    ) : null}
-                    {course.university ? (
-                      <LibraryChip className="border-white/15 bg-slate-950/20 text-white shadow-sm backdrop-blur-md">
-                        {course.university}
-                      </LibraryChip>
-                    ) : null}
-                    <LibraryChip className="border-white/15 bg-slate-950/20 text-white shadow-sm backdrop-blur-md">
-                      {course.language === 'zh-CN' ? '中文' : 'English'}
-                    </LibraryChip>
-                    <LibraryChip className="border-white/15 bg-slate-950/20 text-white shadow-sm backdrop-blur-md">
-                      {dbAvailable ? '数据库记忆' : '本地默认记忆'}
-                    </LibraryChip>
-                  </div>
-                  <p className="mt-2 line-clamp-3 max-w-3xl text-sm leading-6 text-white/88 drop-shadow-[0_1px_1px_rgba(15,23,42,0.26)]">
-                    {course.description?.trim() || '这门课程暂时没有补充描述。'}
-                  </p>
+        <CourseSpaceHeader
+          courseId={courseId}
+          {...courseHeaderFields}
+          courseAvatarUrl={courseAvatarUrl}
+          role="student"
+          active="resources"
+          problemCount={problems.length}
+        />
+        <CourseSpaceImageCard
+          imageUrl={courseBackgroundUrl}
+          priority
+          contentClassName="justify-between gap-4"
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
+              <img
+                src={courseAvatarUrl}
+                alt=""
+                className="size-[4.25rem] shrink-0 rounded-[22px] border border-white/80 bg-white object-cover shadow-[0_14px_34px_rgba(15,23,42,0.2)] ring-1 ring-slate-900/[0.04] dark:border-white/15 dark:bg-slate-900 md:size-16 md:rounded-[18px]"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex max-w-3xl items-center gap-3">
+                  <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold tracking-normal text-white drop-shadow-[0_1px_2px_rgba(15,23,42,0.38)] md:text-3xl">
+                    {course.name}
+                  </h1>
+                  <span className="rounded-full border border-sky-200/20 bg-sky-950/20 px-2.5 py-1 text-sky-50 shadow-sm backdrop-blur-md">
+                    课程资料库
+                  </span>
                 </div>
+                <div className="mt-2 flex max-w-4xl flex-wrap gap-1.5">
+                  {course.courseCode ? (
+                    <LibraryChip className="border-white/15 bg-slate-950/20 text-white shadow-sm backdrop-blur-md">
+                      {course.courseCode}
+                    </LibraryChip>
+                  ) : null}
+                  {course.university ? (
+                    <LibraryChip className="border-white/15 bg-slate-950/20 text-white shadow-sm backdrop-blur-md">
+                      {course.university}
+                    </LibraryChip>
+                  ) : null}
+                  <LibraryChip className="border-white/15 bg-slate-950/20 text-white shadow-sm backdrop-blur-md">
+                    {course.language === 'zh-CN' ? '中文' : 'English'}
+                  </LibraryChip>
+                  <LibraryChip className="border-white/15 bg-slate-950/20 text-white shadow-sm backdrop-blur-md">
+                    {dbAvailable ? '数据库记忆' : '本地默认记忆'}
+                  </LibraryChip>
+                </div>
+                <p className="mt-2 line-clamp-3 max-w-3xl text-sm leading-6 text-white/88 drop-shadow-[0_1px_1px_rgba(15,23,42,0.26)]">
+                  {course.description?.trim() || '这门课程暂时没有补充描述。'}
+                </p>
               </div>
             </div>
           </div>
-        </section>
+        </CourseSpaceImageCard>
 
         {courseLoadError ? (
           <ResourceLoadErrorNotice
@@ -6554,12 +6812,19 @@ export function CourseResourceLibraryPageClient({
           />
         ) : null}
 
-        <Tabs defaultValue={initialTab} className="gap-4">
+        <Tabs
+          defaultValue={initialTab}
+          className={cn('gap-4', COURSE_SPACE_BODY_SURFACE_CLASS, 'p-3')}
+        >
           <div className="border-b border-slate-200/80 dark:border-white/10">
             <TabsList
               variant="line"
               className="h-11 w-full justify-start gap-2 overflow-x-auto rounded-none bg-transparent p-0"
             >
+              <TabsTrigger value="notebooks" className={RESOURCE_TAB_TRIGGER_CLASS}>
+                <BookOpenText className="size-4" strokeWidth={1.8} />
+                笔记本
+              </TabsTrigger>
               <TabsTrigger value="search" className={RESOURCE_TAB_TRIGGER_CLASS}>
                 <Search className="size-4" strokeWidth={1.8} />
                 搜索
@@ -6582,6 +6847,10 @@ export function CourseResourceLibraryPageClient({
               </TabsTrigger>
             </TabsList>
           </div>
+
+          <TabsContent value="notebooks" className="mt-0">
+            {renderNotebookLibrary()}
+          </TabsContent>
 
           <TabsContent value="search" className="mt-0">
             <ResourceListDetailLayout<SearchResourceItem>

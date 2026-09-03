@@ -92,13 +92,14 @@ export async function GET(_request: Request, context: { params: Promise<{ course
         academicYear: true,
         academicTerm: true,
         problemCount: true,
+        externalBinding: { select: { id: true } },
         createdAt: true,
         updatedAt: true,
       },
     });
     if (!course) return NextResponse.json({ error: 'Course not found' }, { status: 404 });
 
-    const [sources, notebooks, tasks] = await Promise.all([
+    const [sources, notebooks, tasks, studentCount] = await Promise.all([
       prisma.courseSource.findMany({
         where: { courseId, ownerId: teacher.userId, kind: 'teacher_upload' },
         orderBy: { createdAt: 'asc' },
@@ -146,6 +147,25 @@ export async function GET(_request: Request, context: { params: Promise<{ course
           error: true,
           createdAt: true,
           updatedAt: true,
+        },
+      }),
+      prisma.courseEnrollment.count({
+        where: {
+          courseId,
+          user: {
+            isActive: true,
+            ...(course.externalBinding
+              ? {
+                  externalCourseMemberships: {
+                    some: {
+                      bindingId: course.externalBinding.id,
+                      role: 'STUDENT',
+                      active: true,
+                    },
+                  },
+                }
+              : {}),
+          },
         },
       }),
     ]);
@@ -206,7 +226,14 @@ export async function GET(_request: Request, context: { params: Promise<{ course
     return NextResponse.json({
       storage: 'postgresql',
       course: {
-        ...course,
+        id: course.id,
+        name: course.name,
+        description: course.description,
+        courseCode: course.courseCode,
+        academicYear: course.academicYear,
+        academicTerm: course.academicTerm,
+        problemCount: course.problemCount,
+        studentCount,
         createdAt: course.createdAt.getTime(),
         updatedAt: course.updatedAt.getTime(),
       },

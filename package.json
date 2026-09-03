@@ -46,6 +46,7 @@
     "frontend:dev": "bash scripts/maintenance/start-frontend.sh",
     "frontend:dev:clean": "bash scripts/maintenance/start-frontend.sh --clean",
     "test:course-chat": "node scripts/maintenance/test-course-chat-services.mjs",
+    "test:course-chat-unified": "node scripts/maintenance/verify-course-chat-unified-contracts.mjs",
     "test:course-chat-teaching-mode-contracts": "node scripts/maintenance/verify-course-chat-teaching-mode-contracts.mjs",
     "test:course-knowledge-contracts": "node scripts/maintenance/verify-course-source-knowledge-contracts.mjs",
     "test:course-answer-contracts": "node scripts/maintenance/verify-course-answer-contracts.mjs",
