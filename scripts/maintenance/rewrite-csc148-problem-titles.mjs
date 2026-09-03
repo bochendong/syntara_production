@@ -258,7 +258,6 @@ function rawTextForQuestion(problem, sourceQuestion) {
     sourceQuestion?.solutionCode,
     sourceQuestion?.codeAnswer,
     content.stem,
-    content.stemTemplate,
     content.starterCode,
   ]
     .filter(Boolean)

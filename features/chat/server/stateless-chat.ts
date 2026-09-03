@@ -62,6 +62,12 @@ function requestHasOpenAIFileInput(body: StatelessChatRequest): boolean {
   );
 }
 
+function usesNativeCourseAgent(body: StatelessChatRequest): boolean {
+  return (
+    body.config.surface === 'teacher-course-chat' || body.config.surface === 'student-course-chat'
+  );
+}
+
 export async function handleStatelessChatRequest(req: NextRequest) {
   const encoder = new TextEncoder();
   try {
@@ -86,7 +92,8 @@ export async function handleStatelessChatRequest(req: NextRequest) {
       },
       {
         allowOpenAIModelOverride: true,
-        useOpenAIResponses: requestHasOpenAIFileInput(parsedBody),
+        useOpenAIResponses:
+          requestHasOpenAIFileInput(parsedBody) || usesNativeCourseAgent(parsedBody),
       },
     );
     const trusted = await resolveTrustedCourseTurn({ body: parsedBody });

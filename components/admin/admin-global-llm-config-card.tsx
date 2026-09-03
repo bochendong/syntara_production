@@ -68,10 +68,11 @@ export function AdminGlobalLlmConfigCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="size-4 text-emerald-600" />
-          全站默认模型与 API Key
+          全站 OpenAI API Key 与默认模型
         </CardTitle>
         <CardDescription>
-          保存后供老师端统一使用。Key 只在服务端解密，浏览器只能看到掩码。
+          保存后供全站 OpenAI 语言、图像和语音能力统一使用。Key
+          会加密保存且只在服务端解密，浏览器只能看到掩码。
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

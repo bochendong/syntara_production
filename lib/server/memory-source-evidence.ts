@@ -388,7 +388,7 @@ function renderProblemPublicContent(rawText: string): string {
   if (!parsed || typeof parsed !== 'object') return compact(String(parsed || rawText), 6000);
   const content = parsed as Record<string, unknown>;
   const lines: string[] = [];
-  const stem = stringField(content, ['stem', 'stemTemplate', 'statement', 'question', 'prompt']);
+  const stem = stringField(content, ['stem', 'statement', 'question', 'prompt']);
   if (stem) lines.push(`题干：\n${stem}`);
 
   if (content.type === 'choice' && Array.isArray(content.options)) {
@@ -406,19 +406,6 @@ function renderProblemPublicContent(rawText: string): string {
       lines.push(`选择方式：${mode}`);
       lines.push(`选项：\n${options.join('\n')}`);
     }
-  }
-
-  if (content.type === 'fill_blank' && Array.isArray(content.blanks)) {
-    const blanks = content.blanks
-      .map((blank) => {
-        if (!blank || typeof blank !== 'object') return '';
-        const raw = blank as Record<string, unknown>;
-        const id = typeof raw.id === 'string' ? raw.id.trim() : '';
-        const placeholder = typeof raw.placeholder === 'string' ? raw.placeholder.trim() : '';
-        return [id, placeholder ? `(${placeholder})` : ''].filter(Boolean).join(' ');
-      })
-      .filter(Boolean);
-    if (blanks.length > 0) lines.push(`空格：${blanks.join('、')}`);
   }
 
   if (content.type === 'calculation' && typeof content.unit === 'string' && content.unit.trim()) {

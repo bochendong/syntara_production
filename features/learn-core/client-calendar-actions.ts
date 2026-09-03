@@ -169,6 +169,13 @@ function validStartTime(value: unknown): string | undefined {
   return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(normalized) ? normalized : undefined;
 }
 
+function validEventKind(value: unknown): SyllabusEventKind | null {
+  return typeof value === 'string' &&
+    ['assignment', 'exam', 'progress', 'tutorial', 'holiday', 'other'].includes(value)
+    ? (value as SyllabusEventKind)
+    : null;
+}
+
 export function mergeSyllabusEvents(
   existingEvents: SyllabusCalendarEvent[],
   incomingEvents: SyllabusCalendarEvent[],
@@ -196,7 +203,7 @@ export function learningActionCalendarEvents(action: LearningAction): SyllabusCa
         payloadString(item.title) ||
         payloadString(item.label) ||
         `${action.label || '学习日程'} ${index + 1}`,
-      kind: 'progress',
+      kind: validEventKind(item.kind) || 'progress',
       date:
         validDateKey(item.date) ||
         validDateKey(item.day) ||
@@ -219,7 +226,7 @@ export function learningActionCalendarEvents(action: LearningAction): SyllabusCa
     {
       id: makeClientId('learning-action-event'),
       title: actionSummary(action),
-      kind: 'progress',
+      kind: validEventKind(payload.kind) || 'progress',
       date: validDateKey(payload.date) || localDayKey(new Date()),
       start: validStartTime(payload.start) || validStartTime(payload.startTime),
       sourceName: 'AI 学习动作',
@@ -378,6 +385,7 @@ export function applyLearningCalendarUpdate(args: {
     typeof updates.shiftByDays === 'number' && Number.isFinite(updates.shiftByDays)
       ? Math.round(updates.shiftByDays)
       : 0;
+  const hasStartUpdate = Object.prototype.hasOwnProperty.call(updates, 'start');
   const updated: SyllabusCalendarEvent = {
     ...target,
     title: payloadString(updates.title) || payloadString(payload.title) || target.title,
@@ -393,6 +401,11 @@ export function applyLearningCalendarUpdate(args: {
         : typeof payload.durationMinutes === 'number' && Number.isFinite(payload.durationMinutes)
           ? Math.max(5, Math.round(payload.durationMinutes))
           : target.durationMinutes,
+    start: hasStartUpdate
+      ? updates.start === null
+        ? undefined
+        : validStartTime(updates.start) || target.start
+      : target.start,
     status:
       updates.status === 'done' || updates.status === 'skipped' || updates.status === 'planned'
         ? updates.status

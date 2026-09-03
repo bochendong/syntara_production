@@ -8,18 +8,13 @@ import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import type { SettingsSection } from '@/lib/types/settings';
 import {
-  Settings,
-  Image as ImageIcon,
-  Volume2,
-  Mic,
   UserRound,
   ChevronRight,
   Wallpaper,
   ArrowLeft,
   Sparkles,
+  type LucideIcon,
 } from 'lucide-react';
-import { SystemLLMPanel } from './system-llm-panel';
-import { useSettingsStore } from '@/lib/store/settings';
 
 const settingsPanelLoading = () => (
   <div className="py-10 text-center text-sm text-slate-500" role="status">
@@ -27,23 +22,11 @@ const settingsPanelLoading = () => (
   </div>
 );
 
-const loadImageSettings = () => import('./image-settings').then((mod) => mod.ImageSettings);
-const loadTTSSettings = () => import('./tts-settings').then((mod) => mod.TTSSettings);
-const loadASRSettings = () => import('./asr-settings').then((mod) => mod.ASRSettings);
 const loadLive2dPresenterSettingsPanel = () =>
   import('./live2d-presenter-settings-panel').then((mod) => mod.Live2dPresenterSettingsPanel);
 const loadLearnBackgroundSettings = () =>
   import('./learn-background-settings').then((mod) => mod.LearnBackgroundSettings);
 
-const ImageSettings = dynamic(loadImageSettings, {
-  loading: settingsPanelLoading,
-});
-const TTSSettings = dynamic(loadTTSSettings, {
-  loading: settingsPanelLoading,
-});
-const ASRSettings = dynamic(loadASRSettings, {
-  loading: settingsPanelLoading,
-});
 const Live2dPresenterSettingsPanel = dynamic(loadLive2dPresenterSettingsPanel, {
   loading: settingsPanelLoading,
 });
@@ -51,13 +34,7 @@ const LearnBackgroundSettings = dynamic(loadLearnBackgroundSettings, {
   loading: settingsPanelLoading,
 });
 
-const PRELOADABLE_SETTINGS_SECTIONS: readonly SettingsSection[] = [
-  'image',
-  'tts',
-  'asr',
-  'live2d',
-  'background',
-];
+const PRELOADABLE_SETTINGS_SECTIONS: readonly SettingsSection[] = ['live2d', 'background'];
 
 interface SettingsDialogProps {
   open: boolean;
@@ -74,17 +51,11 @@ export function SettingsDialog({
   embedded = false,
 }: SettingsDialogProps) {
   const { t } = useI18n();
-  const imageProviderId = useSettingsStore((state) => state.imageProviderId);
-  const ttsProviderId = useSettingsStore((state) => state.ttsProviderId);
-  const asrProviderId = useSettingsStore((state) => state.asrProviderId);
 
   // Navigation
-  const [activeSection, setActiveSection] = useState<SettingsSection>('providers');
+  const [activeSection, setActiveSection] = useState<SettingsSection>('background');
   const preloadSection = useCallback((section: SettingsSection) => {
     const loaders: Partial<Record<SettingsSection, () => Promise<unknown>>> = {
-      image: loadImageSettings,
-      tts: loadTTSSettings,
-      asr: loadASRSettings,
       live2d: loadLive2dPresenterSettingsPanel,
       background: loadLearnBackgroundSettings,
     };
@@ -111,21 +82,9 @@ export function SettingsDialog({
   const navigationItems: Array<{
     id: SettingsSection;
     label: string;
-    Icon: typeof Settings;
+    Icon: LucideIcon;
     iconClassName: string;
   }> = [
-    {
-      id: 'providers',
-      label: t('settings.providers'),
-      Icon: Settings,
-      iconClassName: 'bg-[#8e8e93]',
-    },
-    {
-      id: 'image',
-      label: t('settings.imageSettings'),
-      Icon: ImageIcon,
-      iconClassName: 'bg-[#34c759]',
-    },
     {
       id: 'background',
       label: '学习背景',
@@ -138,18 +97,6 @@ export function SettingsDialog({
       Icon: UserRound,
       iconClassName: 'bg-[#af52de]',
     },
-    {
-      id: 'tts',
-      label: t('settings.ttsSettings'),
-      Icon: Volume2,
-      iconClassName: 'bg-[#ff9500]',
-    },
-    {
-      id: 'asr',
-      label: t('settings.asrSettings'),
-      Icon: Mic,
-      iconClassName: 'bg-[#ff3b30]',
-    },
   ];
 
   const activeNavigationItem =
@@ -158,12 +105,8 @@ export function SettingsDialog({
 
   const settingsPanel = (
     <>
-      {activeSection === 'providers' && <SystemLLMPanel />}
-      {activeSection === 'image' && <ImageSettings selectedProviderId={imageProviderId} />}
       {activeSection === 'background' && <LearnBackgroundSettings />}
       {activeSection === 'live2d' && <Live2dPresenterSettingsPanel />}
-      {activeSection === 'tts' && <TTSSettings selectedProviderId={ttsProviderId} />}
-      {activeSection === 'asr' && <ASRSettings selectedProviderId={asrProviderId} />}
     </>
   );
 
@@ -196,7 +139,7 @@ export function SettingsDialog({
           ))}
         </nav>
         <p className="learn-dock-profile-navigation-note">
-          设置管理日常语言、笔记本整理、图像、学习背景、Live2D 和语音偏好，不包含个人公开资料。
+          设置只管理你的学习背景和伴学角色。全站 AI 模型与服务由管理员统一配置。
         </p>
         <div className="learn-dock-profile-navigation-footer">
           <button type="button" onClick={() => onOpenChange(false)}>
@@ -242,7 +185,7 @@ export function SettingsDialog({
         <h1 className="px-2 text-2xl font-bold tracking-[-0.04em] text-slate-950">
           {t('settings.title')}
         </h1>
-        <p className="mt-1 px-2 text-xs leading-5 text-slate-500">模型、媒体与学习体验</p>
+        <p className="mt-1 px-2 text-xs leading-5 text-slate-500">学习背景与伴学体验</p>
 
         <div className="mt-5 space-y-1">
           {navigationItems.map(({ id, label, Icon, iconClassName }) => (

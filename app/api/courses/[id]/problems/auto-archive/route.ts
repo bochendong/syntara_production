@@ -42,7 +42,7 @@ function problemStem(publicContent: unknown): string {
     return '';
   }
   const record = publicContent as Record<string, unknown>;
-  const direct = [record.stem, record.stemTemplate, record.prompt, record.question].find(
+  const direct = [record.stem, record.prompt, record.question].find(
     (value) => typeof value === 'string' && value.trim(),
   );
   if (typeof direct === 'string') return compactText(direct, 700);

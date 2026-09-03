@@ -1033,9 +1033,6 @@ function rowFingerprint(row) {
 function validateDrafts() {
   const ids = new Set();
   for (const draft of drafts) {
-    if (draft.type === 'fill_blank') {
-      throw new Error(`${draft.title} is fill_blank; Final Review imports must use choice.`);
-    }
     if (draft.type !== 'choice') {
       throw new Error(`${draft.title} is ${draft.type}; expected choice.`);
     }

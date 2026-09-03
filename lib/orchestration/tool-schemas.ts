@@ -16,11 +16,7 @@ export const COURSE_CHAT_LEARNING_ACTIONS = [
   'calendar.search',
   'calendar.start_recent',
   'memory.search',
-  'web.search',
-  'learner_progress.request_confirmation',
-  'practice.propose_generation',
   'classroom.propose_temporary_explanation',
-  'image.propose_generation',
   'memory.propose_write',
 ] as const;
 
@@ -81,16 +77,8 @@ export function getActionDescriptions(allowedActions: string[]): string {
       'Start or open the most relevant existing recent/upcoming course calendar activity from the UI. Use when the learner says to start the latest, recent, next, or today activity. This must not create a new plan. Parameters: { label: string, activityId?: string, summary?: string }',
     'memory.search':
       'Search existing learner/course memory to answer what the system remembers, why a weakness was inferred, or what evidence exists. This is read-only. Parameters: { label: string, query: string, courseId?: string }',
-    'web.search':
-      'Run a web search for current or external information. This is read-only and may execute directly. Parameters: { label: string, query: string, usedFor?: string }',
-    'learner_progress.request_confirmation':
-      'Ask the UI to collect or confirm the learner progress that is needed before making a plan. Use when progress, exam date, available time, or mastery state is missing or ambiguous. Parameters: { label: string, fields: string[], summary?: string, courseId?: string }',
-    'practice.propose_generation':
-      'Legacy action ID for proposing selection of existing problem-bank questions. Use only when the learner explicitly asks for exercises, a targeted review set, quiz, or problem-bank selection and attached evidence contains strict real matches. Set source="problem_bank" and persistToProblemBank=false. If no usable match exists, explain the gap without emitting this action. Never invent or generate questions. Parameters: { label: string, summary?: string, source: "problem_bank", persistToProblemBank: false, topic?: string, count?: number, difficulty?: string, concepts?: string[], requiresConfirmation: true }',
     'classroom.propose_temporary_explanation':
       'Offer a temporary classroom-style explanation when the learner asks for a substantive explanation that could benefit from a guided mini-lesson. This never starts the classroom by itself; user confirmation is required. Parameters: { label: string, topic: string, summary?: string, estimatedMinutes?: number, requiresConfirmation: true }',
-    'image.propose_generation':
-      'Propose generating an image or visual explanation. This never executes by itself; user confirmation is required because it may spend credits and create media. Parameters: { label: string, prompt: string, aspectRatio?: "16:9"|"4:3"|"1:1"|"9:16", summary?: string, requiresConfirmation: true }',
     'memory.propose_write':
       'Propose writing or updating learner memory such as weakness, mastery, cause, next teaching move, or corrected memory. This never writes by itself; user confirmation is required when the update is evaluative or durable. Preserve teaching-control fields instead of flattening them into summary. Parameters: { label: string, summary: string, memoryType: "weakness"|"mastery"|"progress"|"preference"|"correction"|"next_step", courseId?: string, knowledgePoint?: string, masteredSignal?: string|null, stuckPoint?: string|null, cause?: string|null, nextTeachingMove?: string, evidence?: string[], requiresConfirmation: true }',
   };

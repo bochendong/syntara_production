@@ -102,7 +102,7 @@ export function deriveProblemTitle(text: string, type: NotebookProblemImportDraf
   const topic = inferTopicLabel(text, locale);
   const task = inferTaskLabel(text, type, locale);
   if (locale === 'zh-CN') {
-    return task === '选择题' || task === '填空' ? `${topic}${task}` : `${topic}的${task}`;
+    return task === '选择题' ? `${topic}${task}` : `${topic}的${task}`;
   }
   return task === 'Multiple Choice' || task === 'Fill Blank'
     ? `${topic} ${task}`
@@ -148,10 +148,12 @@ export function inferDifficulty(text: string): 'easy' | 'medium' | 'hard' {
 
 export function inferType(block: string): NotebookProblemImportDraft['type'] {
   if (/^MC\s*\d+[\.\)]?\s+/i.test(block)) return 'choice';
+  if (/____|填空|fill\s+(?:in|the).*blank/i.test(block)) {
+    return 'fill_blank';
+  }
   if (/```|python|def\s+\w+\s*\(|class\s+\w+\s*\(|public test|secret test|leetcode/i.test(block)) {
     return 'code';
   }
-  if (/____|填空|blank/i.test(block)) return 'fill_blank';
   if (/证明|prove|show that/i.test(block)) return 'proof';
   if (/计算|calculate|求值|求解|evaluate/i.test(block)) return 'calculation';
   if (/(?:^|\n)\s*[A-D][\.\):：]/m.test(block)) return 'choice';
@@ -351,23 +353,24 @@ export function buildHeuristicDraft(
       id: `blank_${index + 1}`,
       placeholder: `Blank ${index + 1}`,
     }));
+    const safeBlanks = blanks.length > 0 ? blanks : [{ id: 'blank_1', placeholder: 'Blank 1' }];
     return notebookProblemImportDraftSchema.parse({
       ...common,
       type,
       publicContent: {
         type,
         stemTemplate: stemText,
-        blanks,
+        blanks: safeBlanks,
       },
       grading: {
         type,
-        blanks: blanks.map((blank) => ({
+        blanks: safeBlanks.map((blank) => ({
           id: blank.id,
-          acceptedAnswers: [],
+          acceptedAnswers: ['TODO'],
           caseSensitive: false,
         })),
       },
-      validationErrors: [...validationWarnings, '需补充每个空的 accepted answers'],
+      validationErrors: [...validationWarnings, '需补充每个空格的标准答案'],
     });
   }
 

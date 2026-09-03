@@ -274,7 +274,6 @@ function cleanProblem(row, index) {
     codeAnswer: row.codeAnswer ?? null,
     publicTests: row.publicTests ?? null,
     secretTests: row.secretTests ?? null,
-    blanks: row.blanks ?? null,
     sourceMeta: {
       courseTemplateId: row.courseTemplateId ?? null,
       exportCourseTemplateId: row.exportCourseTemplateId ?? null,

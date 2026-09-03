@@ -197,7 +197,7 @@ export async function generateProblemDraftsFromPdfWithStructurePlan(args: {
 - publicContent.stem 必须是学生可见题面，不是 OCR dump；必须可独立作答。
 - 使用结构计划的 contextBlocks/subparts/sourceAnchors，但最终题干仍以 PDF 视觉内容为准。
 - 不要输出封面、考试说明、答题卡说明、additional work。
-- 非选择题不要生成参考答案；选择题如果没有答案表，可以根据题干和选项推断答案并标记 sourceMeta.answerSource。
+- 每一道题都要独立求解并生成完整 grading；忽略学生手写作答、勾选、分数和教师批注。选择、计算、简答、证明、填空和代码题都必须提供对应的评分答案，并标记 sourceMeta.answerSource="llm-solved"。
 
 ${structureContract}
 
@@ -215,7 +215,7 @@ Hard requirements:
 - publicContent.stem must be a student-facing statement, not an OCR dump, and must be independently answerable.
 - Use contextBlocks/subparts/sourceAnchors from the plan, but the final stem should still follow the visible PDF.
 - Ignore covers, exam instructions, answer-sheet directions, and additional-work pages.
-- Do not generate reference answers for non-choice problems; for choice problems without an answer key, solve from stem/options and mark sourceMeta.answerSource when inferred.
+- Independently solve every problem and generate complete grading data. Ignore student handwriting, selected bubbles, scores, and grader comments. Choice, calculation, short-answer, proof, fill-blank, and code problems must all include their corresponding grading answers and sourceMeta.answerSource="llm-solved".
 
 ${structureContract}
 

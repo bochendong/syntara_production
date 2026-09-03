@@ -23,27 +23,18 @@ function assertMatchCount(source, pattern, expectedCount, message) {
 }
 
 const store = read('lib/server/notebook-problems/import-batch-store.ts');
-const courseRoute = read('app/api/courses/[id]/problems/import-commit/route.ts');
 const notebookRoute = read('app/api/notebooks/[id]/problems/import-commit/route.ts');
 const problemService = read('lib/server/notebook-problems/service.ts');
 const problemDedupe = read('features/problems/domain/problem-dedupe.ts');
 const sourceIngestion = read('features/memory/server/source-upload-ingestion.ts');
-const coursePreviewRoute = read('app/api/courses/[id]/problems/import-preview/route.ts');
 const notebookDirectRoute = read('app/api/notebooks/[id]/problems/route.ts');
-const courseProblemController = read(
-  'components/problem-bank/use-course-problem-bank-controller.ts',
-);
 const schema = read('prisma/schema.prisma');
 const dedupeMigration = read(
   'prisma/migrations/20260727050000_add_course_problem_dedupe_key/migration.sql',
 );
 const client = read('lib/utils/notebook-problem-api.ts');
-const docs = read('docs/api/problem-bank.md');
 
-for (const [label, route] of [
-  ['course import commit', courseRoute],
-  ['notebook import commit', notebookRoute],
-]) {
+for (const [label, route] of [['notebook import commit', notebookRoute]]) {
   assertMatch(
     route,
     /request\.headers\.get\('idempotency-key'\)[\s\S]*?idempotencyKey !== importBatchId/,
@@ -105,7 +96,7 @@ assertMatchCount(
   problemService,
   /await assertProblemImportBatchCommitLeaseTx\(tx, args\);/g,
   2,
-  'both notebook and course writes must fence stale lease holders inside their insert transaction',
+  'notebook and source-ingestion course writes must fence stale lease holders inside their insert transaction',
 );
 assertMatch(
   problemDedupe,
@@ -133,16 +124,6 @@ assertMatch(
   'deduped commits must persist their exact result inside the fenced write transaction',
 );
 assertMatch(
-  coursePreviewRoute,
-  /previewCourseProblemDraftDedupe[\s\S]*?draftSnapshot: dedupe\.uniqueDrafts[\s\S]*?duplicateCount: dedupe\.duplicates\.length/,
-  'course preview must expose and remove existing or same-preview duplicates before commit',
-);
-assertMatch(
-  coursePreviewRoute,
-  /dedupe\.uniqueDrafts\.length === 0[\s\S]*?markProblemImportBatchCommitted[\s\S]*?requestedCount: result\.drafts\.length[\s\S]*?reusedProblemIds: dedupe\.reusedProblemIds/,
-  'an all-duplicate preview must finish as a committed no-op with reusable IDs',
-);
-assertMatch(
   sourceIngestion,
   /createCourseProblemsFromDraftsWithSummary[\s\S]*?atomicDuplicateMatches[\s\S]*?insertedProblemCount \+ atomicDuplicateMatches\.length[\s\S]*?duplicateMatches/,
   'source ingestion must reconcile preflight dedupe with the atomic database write result',
@@ -153,24 +134,14 @@ assertMatch(
   'a failed pre-write commit must be safely releasable',
 );
 assertMatch(
-  docs,
-  /Idempotency-Key: batch_[\s\S]*?previewed → committing → committed[\s\S]*?IDEMPOTENCY_PAYLOAD_MISMATCH[\s\S]*?五分钟租约[\s\S]*?replayed=true/,
-  'problem-bank docs must explain the retry contract',
-);
-assertMatch(
   client,
-  /commitNotebookProblemImport[\s\S]*?'Idempotency-Key': args\.importBatchId[\s\S]*?commitCourseProblemImport[\s\S]*?'Idempotency-Key': args\.importBatchId/,
-  'first-party commit clients must send the batch idempotency key',
+  /commitNotebookProblemImport[\s\S]*?'Idempotency-Key': args\.importBatchId/,
+  'the notebook import client must send the batch idempotency key',
 );
 assertMatch(
   notebookDirectRoute,
   /createNotebookProblemsFromDraftsWithSummary[\s\S]*?insertedCount:\s*writeResult\.writeSummary\.insertedProblemIds\.length[\s\S]*?reusedCount:\s*writeResult\.writeSummary\.reusedProblemIds\.length[\s\S]*?skippedCount:\s*writeResult\.writeSummary\.skippedDraftIds\.length/,
   'direct notebook inserts must report actual deduped write counts',
-);
-assertMatch(
-  courseProblemController,
-  /previewResult\.dedupe\.duplicateCount[\s\S]*?新增 0 道[\s\S]*?commitCourseProblemImportWithSummary[\s\S]*?importSummary\.insertedCount[\s\S]*?importSummary\.reusedCount/,
-  'course problem UI must surface preview and commit dedupe results',
 );
 assertMatch(
   schema,
@@ -188,7 +159,6 @@ process.stdout.write(
     {
       ok: true,
       checks: [
-        'course batch claim and replay',
         'notebook batch claim and replay',
         'lost-response reconciliation',
         'expired-lease recovery',
@@ -200,7 +170,7 @@ process.stdout.write(
         'inserted/skipped retry accounting',
         'course-level atomic fingerprint uniqueness',
         'legacy problem scope preservation',
-        'preview and source-ingest dedupe parity',
+        'source-ingest dedupe accounting',
       ],
     },
     null,

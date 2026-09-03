@@ -752,7 +752,6 @@ function questionStyle(problems: ReviewRouteCandidateProblem[]): string {
       if (problem.type === 'calculation') return '计算题';
       if (problem.type === 'proof') return '证明题';
       if (problem.type === 'code') return '代码题';
-      if (problem.type === 'fill_blank') return '填空题';
       return '简答题';
     }),
     3,

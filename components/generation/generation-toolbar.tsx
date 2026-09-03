@@ -19,7 +19,6 @@ import type { PDFProviderId } from '@/lib/pdf/types';
 import type { SettingsSection } from '@/lib/types/settings';
 import type { ProvidersConfig } from '@/lib/types/settings';
 import type { ProviderId } from '@/lib/ai/providers';
-import { Button } from '@/components/ui/button';
 import { getTTSVoices } from '@/lib/audio/constants';
 import { voiceRowBlurb } from '@/lib/audio/voice-display';
 import {
@@ -428,11 +427,9 @@ function SystemModelBadge({
 export function GenerationModelSelector({
   onSettingsOpen: _onSettingsOpen,
   triggerClassName,
-  readOnly = false,
 }: {
   onSettingsOpen: (section?: SettingsSection) => void;
   triggerClassName?: string;
-  readOnly?: boolean;
 }) {
   const providerId = useSettingsStore((s) => s.providerId);
   const currentModelId = useSettingsStore((s) => s.modelId);
@@ -445,14 +442,14 @@ export function GenerationModelSelector({
       providersConfig={providersConfig}
       onModelChange={setModel}
       triggerClassName={triggerClassName}
-      readOnly={readOnly}
+      readOnly
     />
   );
 }
 
 /** 朗读音色：与设置 → 语音合成中的 TTS 音色一致，可快速切换 */
 export function ComposerVoiceSelector({
-  onSettingsOpen,
+  onSettingsOpen: _onSettingsOpen,
   triggerClassName,
 }: {
   onSettingsOpen: (section?: SettingsSection) => void;
@@ -567,20 +564,6 @@ export function ComposerVoiceSelector({
               );
             })
           )}
-        </div>
-        <div className="border-t border-border/60 p-1.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-full text-xs text-muted-foreground"
-            onClick={() => {
-              setOpen(false);
-              onSettingsOpen('tts');
-            }}
-          >
-            {t('toolbar.advancedSettings')}…
-          </Button>
         </div>
       </PopoverContent>
     </Popover>

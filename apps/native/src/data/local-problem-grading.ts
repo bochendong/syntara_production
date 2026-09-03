@@ -3,7 +3,6 @@ import type { LocalProblem } from '../domain/models';
 export type LocalProblemAnswer =
   | { kind: 'choice'; selectedOptionIds: string[] }
   | { kind: 'text'; text: string }
-  | { kind: 'fill_blank'; blanks: Record<string, string> }
   | { kind: 'code'; code: string };
 
 export type LocalGradeResult = {
@@ -57,9 +56,6 @@ function textMatchesAccepted(answer: string, accepted: string[], caseSensitive =
 export function problemStem(problem: LocalProblem): string {
   const content = asRecord(problem.publicContent);
   if (typeof content.stem === 'string' && content.stem.trim()) return content.stem;
-  if (typeof content.stemTemplate === 'string' && content.stemTemplate.trim()) {
-    return content.stemTemplate;
-  }
   return problem.title;
 }
 
@@ -83,18 +79,6 @@ export function problemOptions(problem: LocalProblem): Array<{ id: string; label
 export function problemSelectionMode(problem: LocalProblem): 'single' | 'multiple' {
   const content = asRecord(problem.publicContent);
   return content.selectionMode === 'multiple' ? 'multiple' : 'single';
-}
-
-export function problemBlanks(problem: LocalProblem): Array<{ id: string; placeholder?: string }> {
-  const content = asRecord(problem.publicContent);
-  const blanks = Array.isArray(content.blanks) ? content.blanks : [];
-  return blanks.flatMap((blank) => {
-    if (!blank || typeof blank !== 'object') return [];
-    const record = blank as Record<string, unknown>;
-    const id = typeof record.id === 'string' ? record.id : '';
-    const placeholder = typeof record.placeholder === 'string' ? record.placeholder : undefined;
-    return id ? [{ id, placeholder }] : [];
-  });
 }
 
 export function problemStarterCode(problem: LocalProblem): string {
@@ -170,8 +154,6 @@ export function problemTypeLabel(type: string): string {
       return '证明题';
     case 'code':
       return '编程题';
-    case 'fill_blank':
-      return '填空题';
     default:
       return type || '题目';
   }
@@ -187,12 +169,6 @@ export function emptyAnswerForProblem(problem: LocalProblem): LocalProblemAnswer
   if (problem.type === 'choice') {
     return { kind: 'choice', selectedOptionIds: [] };
   }
-  if (problem.type === 'fill_blank') {
-    return {
-      kind: 'fill_blank',
-      blanks: Object.fromEntries(problemBlanks(problem).map((blank) => [blank.id, ''])),
-    };
-  }
   if (problem.type === 'code') {
     return { kind: 'code', code: problemStarterCode(problem) };
   }
@@ -202,9 +178,6 @@ export function emptyAnswerForProblem(problem: LocalProblem): LocalProblemAnswer
 export function answerHasContent(answer: LocalProblemAnswer | null | undefined): boolean {
   if (!answer) return false;
   if (answer.kind === 'choice') return answer.selectedOptionIds.length > 0;
-  if (answer.kind === 'fill_blank') {
-    return Object.values(answer.blanks).some((value) => value.trim().length > 0);
-  }
   if (answer.kind === 'code') return answer.code.trim().length > 0;
   return answer.text.trim().length > 0;
 }
@@ -248,52 +221,6 @@ export function gradeLocalProblem(
       status: 'failed',
       score: 0,
       feedback: '选项不正确。',
-      autoGraded: true,
-    };
-  }
-
-  if (problem.type === 'fill_blank' && answer.kind === 'fill_blank') {
-    const blanks = Array.isArray(grading.blanks) ? grading.blanks : [];
-    if (!blanks.length) {
-      return {
-        status: 'pending',
-        score: null,
-        feedback: '这道填空题没有本地标准答案，已记录作答。',
-        autoGraded: false,
-      };
-    }
-    let passed = 0;
-    for (const blank of blanks) {
-      const record = asRecord(blank);
-      const id = typeof record.id === 'string' ? record.id : '';
-      if (!id) continue;
-      const accepted = asStringArray(record.acceptedAnswers);
-      const caseSensitive = record.caseSensitive === true;
-      if (textMatchesAccepted(answer.blanks[id] || '', accepted, caseSensitive)) {
-        passed += 1;
-      }
-    }
-    const total = blanks.length;
-    if (passed === total) {
-      return {
-        status: 'passed',
-        score: 1,
-        feedback: '填空全部正确。',
-        autoGraded: true,
-      };
-    }
-    if (passed > 0) {
-      return {
-        status: 'partial',
-        score: passed / total,
-        feedback: `填对了 ${passed}/${total} 空。`,
-        autoGraded: true,
-      };
-    }
-    return {
-      status: 'failed',
-      score: 0,
-      feedback: '填空不正确。',
       autoGraded: true,
     };
   }

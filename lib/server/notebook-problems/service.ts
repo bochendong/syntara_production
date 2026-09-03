@@ -144,18 +144,6 @@ export class DuplicateCourseProblemError extends Error {
   }
 }
 
-export type CourseProblemDedupePreview = {
-  uniqueDrafts: NotebookProblemImportDraft[];
-  duplicates: Array<{
-    draftId: string;
-    title: string;
-    reason: 'same_preview' | 'existing_course';
-    existingProblemId: string | null;
-    dedupeKey: string;
-  }>;
-  reusedProblemIds: string[];
-};
-
 type ProblemCourseSummaryRow = {
   id: string;
   courseId: string | null;
@@ -766,78 +754,6 @@ async function ensureCourseProblemDedupeStateTx(
   }
 
   return problemIdByKey;
-}
-
-export async function previewCourseProblemDraftDedupe(args: {
-  userId: string;
-  courseId: string;
-  drafts: NotebookProblemImportDraft[];
-}): Promise<CourseProblemDedupePreview> {
-  await requireCourseOwnership(args.userId, args.courseId);
-  const rows = await prismaDb.notebookProblem.findMany({
-    where: {
-      OR: [{ courseId: args.courseId }, { courseId: null, notebook: { courseId: args.courseId } }],
-    },
-    select: {
-      id: true,
-      title: true,
-      type: true,
-      publicContentJson: true,
-    },
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-  });
-
-  const existingProblemIdByKey = new Map<string, string>();
-  for (const row of rows) {
-    const parsedContent = notebookProblemPublicContentSchema.safeParse(row.publicContentJson);
-    if (!parsedContent.success) continue;
-    const dedupeKey = courseProblemDedupeKey({
-      title: row.title,
-      type: row.type,
-      publicContent: parsedContent.data,
-    });
-    if (!existingProblemIdByKey.has(dedupeKey)) {
-      existingProblemIdByKey.set(dedupeKey, row.id);
-    }
-  }
-
-  const seenPreviewKeys = new Set<string>();
-  const uniqueDrafts: NotebookProblemImportDraft[] = [];
-  const duplicates: CourseProblemDedupePreview['duplicates'] = [];
-  const reusedProblemIds = new Set<string>();
-  for (const draft of args.drafts) {
-    const dedupeKey = courseProblemDedupeKey(draft);
-    if (seenPreviewKeys.has(dedupeKey)) {
-      duplicates.push({
-        draftId: draft.draftId,
-        title: draft.title,
-        reason: 'same_preview',
-        existingProblemId: null,
-        dedupeKey,
-      });
-      continue;
-    }
-    seenPreviewKeys.add(dedupeKey);
-    const existingProblemId = existingProblemIdByKey.get(dedupeKey) ?? null;
-    if (existingProblemId) {
-      reusedProblemIds.add(existingProblemId);
-      duplicates.push({
-        draftId: draft.draftId,
-        title: draft.title,
-        reason: 'existing_course',
-        existingProblemId,
-        dedupeKey,
-      });
-      continue;
-    }
-    uniqueDrafts.push(draft);
-  }
-
-  return {
-    uniqueDrafts,
-    duplicates,
-    reusedProblemIds: Array.from(reusedProblemIds).sort(),
-  };
 }
 
 async function refreshNotebookProblemSummaryFieldsTx(
@@ -1668,7 +1584,6 @@ export async function listReviewProblemCandidatesForUser(args: {
             CONCAT_WS(
               E'\n',
               p."publicContentJson"->>'stem',
-              p."publicContentJson"->>'stemTemplate',
               p."publicContentJson"#>>'{translations,zh-CN,stem}',
               p."publicContentJson"#>>'{translations,en-US,stem}'
             ),

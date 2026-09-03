@@ -113,9 +113,7 @@ function isPlanArtifact(artifact: Record<string, unknown>) {
 
 function hasClarificationOrConfirmationAction(output: LearnSemanticRouterOutput) {
   return [...output.directCalls, ...output.proposals].some(
-    (action) =>
-      action.kind === 'review_mode.request_choice' ||
-      action.kind === 'learner_progress.request_confirmation',
+    (action) => action.kind === 'review_mode.request_choice',
   );
 }
 
@@ -148,14 +146,9 @@ function validateSemanticRouterOutput(output: LearnSemanticRouterOutput) {
     );
   }
   if (output.planningDecision?.shouldAskProgressFirst) {
-    const hasProgressRequestAction = [...output.directCalls, ...output.proposals].some(
-      (action) => action.kind === 'learner_progress.request_confirmation',
+    throw new Error(
+      'AI semantic router must use an explicit draft default instead of a progress-confirmation action.',
     );
-    if (!hasProgressRequestAction) {
-      throw new Error(
-        'AI semantic router progress confirmation must use learner_progress.request_confirmation.',
-      );
-    }
   }
 
   const allActions = [...output.directCalls, ...output.proposals];
@@ -1056,7 +1049,7 @@ async function attachProblemBankSearchToSemanticPractice(args: {
     });
     const selectedToolIds: LearnSemanticRouterOutput['selectedToolIds'] = Array.from(
       new Set<LearnSemanticRouterOutput['selectedToolIds'][number]>([
-        ...args.output.selectedToolIds.filter((toolId) => toolId !== 'propose_practice_generation'),
+        ...args.output.selectedToolIds,
         'search_problem_bank',
       ]),
     );

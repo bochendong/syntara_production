@@ -67,7 +67,7 @@ function typeLabel(type: NotebookProblemClientRecord['type'], locale: 'zh-CN' | 
     proof: 'Proof',
     calculation: 'Calculation',
     code: 'Code',
-    fill_blank: 'Fill blank',
+    fill_blank: 'Fill in the blank',
   } as const;
   return locale === 'zh-CN' ? zh[type] : en[type];
 }
@@ -175,7 +175,7 @@ function estimateProblemCountFromText(text: string): number {
   if (!trimmed) return 0;
   const blocks = trimmed
     .split(
-      /\n(?=(?:\d+[\.\)]\s+|Q\d+[:.]|Question\s+\d+|题目\s*\d+|题\s*\d+[：:]|选择题|证明题|代码题|填空题|简答题|计算题))/,
+      /\n(?=(?:\d+[\.\)]\s+|Q\d+[:.]|Question\s+\d+|题目\s*\d+|题\s*\d+[：:]|选择题|证明题|代码题|简答题|计算题))/,
     )
     .map((block) => block.trim())
     .filter(Boolean);
@@ -200,14 +200,23 @@ function renderProblemStem(problem: NotebookProblemClientRecord): string {
 
 function renderProblemContentStem(content: NotebookProblemPublicContent): string {
   if ('stem' in content) return content.stem;
-  if ('stemTemplate' in content) return content.stemTemplate;
+  if (content.type === 'fill_blank') {
+    const blankNumberById = new Map(
+      content.blanks.map((blank, index) => [blank.id, index + 1] as const),
+    );
+    return content.stemTemplate.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_marker, rawId: string) => {
+      const id = rawId.trim();
+      const number = blankNumberById.get(id);
+      return number ? ` **[空 ${number}] ______** ` : ' **______** ';
+    });
+  }
   return '';
 }
 
 function renderDraftStem(draft: NotebookProblemImportDraft): string {
   const content = draft.publicContent;
   if ('stem' in content) return content.stem;
-  if ('stemTemplate' in content) return content.stemTemplate;
+  if (content.type === 'fill_blank') return content.stemTemplate;
   return '';
 }
 
@@ -246,6 +255,22 @@ function problemSolutionSections(
     }
   }
 
+  if (publicContent.type === 'fill_blank' && problem.grading.type === 'fill_blank') {
+    const blankById = new Map(publicContent.blanks.map((blank) => [blank.id, blank] as const));
+    const answers = problem.grading.blanks
+      .map((blank, index) => {
+        const label = blankById.get(blank.id)?.placeholder?.trim() || `Blank ${index + 1}`;
+        return `${index + 1}. ${label}: ${blank.acceptedAnswers.join(' / ')}`;
+      })
+      .filter((line) => !line.endsWith(': '));
+    if (answers.length > 0) {
+      sections.push({
+        title: locale === 'zh-CN' ? '参考答案' : 'Reference answers',
+        content: answers.join('\n'),
+      });
+    }
+  }
+
   const referenceAnswer =
     typeof grading.referenceAnswer === 'string' && grading.referenceAnswer.trim()
       ? grading.referenceAnswer.trim()
@@ -280,26 +305,6 @@ function problemSolutionSections(
       sections.push({
         title: locale === 'zh-CN' ? '可接受形式' : 'Accepted forms',
         content: acceptedForms,
-      });
-    }
-  }
-  if (Array.isArray(grading.blanks) && grading.blanks.length > 0) {
-    const blanks = grading.blanks
-      .map((blank) => {
-        if (!blank || typeof blank !== 'object') return '';
-        const row = blank as { id?: unknown; acceptedAnswers?: unknown };
-        const id = typeof row.id === 'string' ? row.id : '';
-        const answers = Array.isArray(row.acceptedAnswers)
-          ? row.acceptedAnswers.filter((answer): answer is string => typeof answer === 'string')
-          : [];
-        return id && answers.length ? `${id}: ${answers.join(', ')}` : '';
-      })
-      .filter(Boolean)
-      .join('\n');
-    if (blanks) {
-      sections.push({
-        title: locale === 'zh-CN' ? '填空答案' : 'Blank answers',
-        content: blanks,
       });
     }
   }
@@ -1402,24 +1407,6 @@ function AttemptAnswerPreview({
     );
   }
 
-  if (answer.blanks && Object.keys(answer.blanks).length > 0) {
-    return (
-      <div className="grid gap-2">
-        {Object.entries(answer.blanks).map(([blankId, value]) => (
-          <div
-            key={`${attempt.id}-${blankId}`}
-            className="rounded-md border border-slate-200 bg-white px-2.5 py-2 text-sm dark:border-slate-800 dark:bg-slate-950"
-          >
-            <span className="mr-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-              {blankId}
-            </span>
-            <span className="text-slate-800 dark:text-slate-100">{value || '-'}</span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   if (answer.code?.trim()) {
     return (
       <pre className="max-h-48 overflow-auto rounded-md bg-slate-950 p-3 text-xs leading-6 text-slate-50">
@@ -1697,24 +1684,6 @@ function ProblemDraftPreviewPanel({
               </div>
             </div>
           ))}
-        </section>
-      ) : null}
-
-      {content.type === 'fill_blank' ? (
-        <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-950">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            {locale === 'zh-CN' ? '填空项' : 'Blanks'}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {content.blanks.map((blank) => (
-              <span
-                key={blank.id}
-                className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-              >
-                {blank.placeholder || blank.id}
-              </span>
-            ))}
-          </div>
         </section>
       ) : null}
 

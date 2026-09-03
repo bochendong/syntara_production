@@ -37,7 +37,7 @@ function compactTitle(value) {
 
 function publicQuestionText(publicContent, fallback) {
   const content = asRecord(publicContent);
-  const direct = content.stem ?? content.stemTemplate ?? content.question ?? content.prompt;
+  const direct = content.stem ?? content.question ?? content.prompt;
   if (typeof direct === 'string' && direct.trim()) return compact(direct);
   return compact(fallback);
 }
@@ -47,10 +47,8 @@ function sanitizedPublicContent(value) {
   const allowedKeys = [
     'type',
     'stem',
-    'stemTemplate',
     'selectionMode',
     'options',
-    'blanks',
     'starterCode',
     'codeSnippet',
     'functionName',

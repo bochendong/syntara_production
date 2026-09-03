@@ -84,11 +84,12 @@ const checks = [
       read('features/chat/server/stateless-chat.ts').includes('useOpenAIResponses'),
   },
   {
-    name: 'course problem import clears notebook assignment at preview and commit',
+    name: 'course problem page has no standalone preview-and-commit import chain',
     pass:
-      read('app/api/courses/[id]/problems/import-preview/route.ts').includes('notebookId: null') &&
-      read('app/api/courses/[id]/problems/import-commit/route.ts').includes(
-        'const courseLevelDrafts',
+      !fs.existsSync(path.join(root, 'app/api/courses/[id]/problems/import-preview/route.ts')) &&
+      !fs.existsSync(path.join(root, 'app/api/courses/[id]/problems/import-commit/route.ts')) &&
+      !read('components/problem-bank/course-problem-bank-view.tsx').includes(
+        'CourseProblemImportDialog',
       ),
   },
   {
@@ -99,6 +100,22 @@ const checks = [
       ) &&
       read('app/api/teacher/courses/[courseId]/sources/[sourceId]/process/route.ts').includes(
         'notebookId: null',
+      ),
+  },
+  {
+    name: 'teacher problem-bank processing uploads the persisted source for OpenAI file input',
+    pass:
+      read('lib/server/openai-user-files.ts').includes(
+        'export async function uploadOpenAIUserFile',
+      ) &&
+      read('app/api/teacher/courses/[courseId]/sources/[sourceId]/process/route.ts').includes(
+        "stage: 'uploading_to_openai'",
+      ) &&
+      read('app/api/teacher/courses/[courseId]/sources/[sourceId]/process/route.ts').includes(
+        'openaiFileId = await uploadOpenAIUserFile(openAIFileInput)',
+      ) &&
+      read('app/api/teacher/courses/[courseId]/sources/[sourceId]/process/route.ts').includes(
+        'llmExtractProblemDraftsFromOpenAIFile',
       ),
   },
   {

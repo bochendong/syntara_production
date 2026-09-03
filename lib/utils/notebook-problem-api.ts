@@ -66,32 +66,6 @@ export type ProblemImportBatchClientRecord = {
   createdAt: string;
 };
 
-export type CourseProblemImportDedupeSummary = {
-  extractedCount: number;
-  uniqueCount: number;
-  duplicateCount: number;
-  reusedProblemIds: string[];
-  skipped: Array<{
-    draftId: string;
-    title: string;
-    reason: 'same_preview' | 'existing_course';
-    existingProblemId: string | null;
-    dedupeKey: string;
-  }>;
-};
-
-export type ProblemImportCommitSummary = {
-  batchId?: string;
-  status: 'committed';
-  replayed: boolean;
-  insertedCount: number;
-  persistedInsertedCount?: number;
-  reusedCount: number;
-  skippedCount: number;
-  problemIds: string[];
-  reusedProblemIds: string[];
-};
-
 function withModelHeaders(headers?: HeadersInit): Headers {
   const next = new Headers(headers || {});
   const mc = getCurrentModelConfig();
@@ -343,73 +317,6 @@ export async function previewNotebookProblemImport(args: {
   };
 }
 
-export async function previewCourseProblemImport(args: {
-  courseId: string;
-  source: 'chat' | 'pdf' | 'manual' | 'web';
-  text?: string;
-  searchQuery?: string;
-  webSearchApiKey?: string;
-  sourceFileName?: string;
-  sourceFileMime?: string;
-  language: 'zh-CN' | 'en-US';
-}): Promise<{
-  drafts: NotebookProblemImportDraft[];
-  usage: {
-    inputTokens: number;
-    outputTokens: number;
-    cachedInputTokens: number;
-    estimatedCostCredits: number | null;
-  } | null;
-  notebooks: Array<{ id: string; name: string }>;
-  webSearch: {
-    query: string;
-    sourceCount: number;
-    estimatedCostCredits: number;
-    sources: Array<{ title: string; url: string }>;
-  } | null;
-  importBatch?: ProblemImportBatchClientRecord;
-  dedupe: CourseProblemImportDedupeSummary;
-}> {
-  const response = await backendFetch(
-    `/api/courses/${encodeURIComponent(args.courseId)}/problems/import-preview`,
-    {
-      method: 'POST',
-      headers: withModelHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        source: args.source,
-        text: args.text || '',
-        searchQuery: args.searchQuery,
-        webSearchApiKey: args.webSearchApiKey,
-        sourceFileName: args.sourceFileName,
-        sourceFileMime: args.sourceFileMime,
-        language: args.language,
-      }),
-    },
-  );
-  if (!response.ok) {
-    const data = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(data.error || `HTTP ${response.status}`);
-  }
-  return (await response.json()) as {
-    drafts: NotebookProblemImportDraft[];
-    usage: {
-      inputTokens: number;
-      outputTokens: number;
-      cachedInputTokens: number;
-      estimatedCostCredits: number | null;
-    } | null;
-    notebooks: Array<{ id: string; name: string }>;
-    webSearch: {
-      query: string;
-      sourceCount: number;
-      estimatedCostCredits: number;
-      sources: Array<{ title: string; url: string }>;
-    } | null;
-    importBatch?: ProblemImportBatchClientRecord;
-    dedupe: CourseProblemImportDedupeSummary;
-  };
-}
-
 export async function commitNotebookProblemImport(args: {
   notebookId: string;
   drafts: NotebookProblemImportDraft[];
@@ -453,35 +360,6 @@ export async function updateNotebookProblem(args: {
     },
   );
   return data.problem;
-}
-
-export async function commitCourseProblemImport(args: {
-  courseId: string;
-  drafts: NotebookProblemImportDraft[];
-  importBatchId?: string | null;
-}): Promise<NotebookProblemClientRecord[]> {
-  return (await commitCourseProblemImportWithSummary(args)).problems;
-}
-
-export async function commitCourseProblemImportWithSummary(args: {
-  courseId: string;
-  drafts: NotebookProblemImportDraft[];
-  importBatchId?: string | null;
-}): Promise<{
-  problems: NotebookProblemClientRecord[];
-  import: ProblemImportCommitSummary | null;
-}> {
-  return backendJson<{
-    problems: NotebookProblemClientRecord[];
-    import: ProblemImportCommitSummary | null;
-  }>(`/api/courses/${encodeURIComponent(args.courseId)}/problems/import-commit`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(args.importBatchId ? { 'Idempotency-Key': args.importBatchId } : {}),
-    },
-    body: JSON.stringify({ drafts: args.drafts, importBatchId: args.importBatchId || undefined }),
-  });
 }
 
 export async function updateCourseProblem(args: {

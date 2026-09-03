@@ -23,7 +23,6 @@ import { AnswerComposer } from '@/components/problem-bank/answer-composer';
 import { ProblemRichText, ProblemTitleText } from '@/components/problem-bank/problem-rich-text';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type {
   NotebookProblemAttemptAnswer,
@@ -118,7 +117,6 @@ function makeProblem(args: {
 const WORKSPACE_PROBLEMS_ORDER = [
   'choice-enzyme',
   'choice-database',
-  'fill-chemistry',
   'calculation-finance',
   'short-design',
   'proof-linear',
@@ -185,34 +183,6 @@ const WORKSPACE_PROBLEMS: WorkspaceProblem[] = [
       type: 'choice',
       correctOptionIds: ['A', 'B', 'C'],
       analysis: '自增 id 不能消除语义上的函数依赖和冗余。',
-    },
-  }),
-  makeProblem({
-    id: 'fill-chemistry',
-    title: '酸碱缓冲溶液填空',
-    type: 'fill_blank',
-    difficulty: 'easy',
-    points: 5,
-    subject: '化学',
-    focus: '填空题 · 多输入',
-    tags: ['chemistry', 'buffer'],
-    publicContent: {
-      type: 'fill_blank',
-      stemTemplate:
-        '在 Henderson-Hasselbalch 方程中，$pH = pK_a + \\log\\frac{[A^-]}{[HA]}$。当 $[A^-] = [HA]$ 时，$pH = $ ____；若酸和共轭碱同时大量存在，该体系称为 ____ 溶液。',
-      blanks: [
-        { id: 'blank-1', placeholder: '第 1 空' },
-        { id: 'blank-2', placeholder: '第 2 空' },
-      ],
-      explanation: '填空题用于看输入框组、题干中的空位和数学公式显示。',
-    },
-    grading: {
-      type: 'fill_blank',
-      blanks: [
-        { id: 'blank-1', acceptedAnswers: ['pKa', 'pK_a', 'pKa值'], caseSensitive: false },
-        { id: 'blank-2', acceptedAnswers: ['缓冲', 'buffer'], caseSensitive: false },
-      ],
-      analysis: '比值为 1 时 log 项为 0。',
     },
   }),
   makeProblem({
@@ -501,18 +471,6 @@ function compareChoice(problem: WorkspaceProblem, selected: string[]) {
   return [...selected].sort().join('|') === correct;
 }
 
-function compareFillBlank(problem: WorkspaceProblem, blanks: Record<string, string>) {
-  if (problem.grading.type !== 'fill_blank') return { total: 0, passed: 0 };
-  const total = problem.grading.blanks.length;
-  const passed = problem.grading.blanks.filter((blank) => {
-    const value = (blanks[blank.id] || '').trim();
-    return blank.acceptedAnswers.some((answer) =>
-      blank.caseSensitive ? answer === value : answer.toLowerCase() === value.toLowerCase(),
-    );
-  }).length;
-  return { total, passed };
-}
-
 function textLooksSubstantial(value: string) {
   const stripped = value.replace(/<[^>]+>/g, '').trim();
   return stripped.length >= 24;
@@ -552,7 +510,6 @@ export default function ProblemWorkspaceTestClient() {
   const [choiceAnswer, setChoiceAnswer] = useState<Record<string, string[]>>({
     'choice-enzyme': ['A'],
   });
-  const [blankAnswer, setBlankAnswer] = useState<Record<string, Record<string, string>>>({});
   const [textAnswer, setTextAnswer] =
     useState<Record<string, string[] | string>>(initialTextAnswers);
   const [codeAnswer, setCodeAnswer] = useState<Record<string, string>>(initialCodeAnswers);
@@ -612,28 +569,6 @@ export default function ProblemWorkspaceTestClient() {
             correct: passed,
             earnedPoints: passed ? problem.points : 0,
             feedback: passed ? '选项正确。' : '当前选择还不完整，可以继续调整。',
-            publicCases: [],
-          },
-        }),
-      );
-      return;
-    }
-
-    if (problem.publicContent.type === 'fill_blank') {
-      const blanks = blankAnswer[problem.id] || {};
-      const { total, passed } = compareFillBlank(problem, blanks);
-      const score = total ? Math.round((problem.points * passed) / total) : 0;
-      addAttempt(
-        buildAttempt({
-          problem,
-          kind: 'answer',
-          answer: { blanks },
-          status: passed === total ? 'passed' : passed > 0 ? 'partial' : 'failed',
-          score,
-          result: {
-            correct: passed === total,
-            earnedPoints: score,
-            feedback: `填空命中 ${passed}/${total}。`,
             publicCases: [],
           },
         }),
@@ -834,10 +769,6 @@ export default function ProblemWorkspaceTestClient() {
                 onChoiceAnswerChange={(nextValue) =>
                   setChoiceAnswer((current) => ({ ...current, [selectedProblem.id]: nextValue }))
                 }
-                blankAnswer={blankAnswer[selectedProblem.id] || {}}
-                onBlankAnswerChange={(nextValue) =>
-                  setBlankAnswer((current) => ({ ...current, [selectedProblem.id]: nextValue }))
-                }
                 textAnswer={String(textAnswer[selectedProblem.id] || '')}
                 onTextAnswerChange={(nextValue) =>
                   setTextAnswer((current) => ({ ...current, [selectedProblem.id]: nextValue }))
@@ -862,8 +793,6 @@ function ProblemWorkspace(props: {
   attempts: NotebookProblemAttemptRecord[];
   choiceAnswer: string[];
   onChoiceAnswerChange: (value: string[]) => void;
-  blankAnswer: Record<string, string>;
-  onBlankAnswerChange: (value: Record<string, string>) => void;
   textAnswer: string;
   onTextAnswerChange: (value: string) => void;
   onSubmit: () => void;
@@ -900,8 +829,6 @@ function ProblemWorkspace(props: {
               problem={props.problem}
               choiceAnswer={props.choiceAnswer}
               onChoiceAnswerChange={props.onChoiceAnswerChange}
-              blankAnswer={props.blankAnswer}
-              onBlankAnswerChange={props.onBlankAnswerChange}
               textAnswer={props.textAnswer}
               onTextAnswerChange={props.onTextAnswerChange}
             />
@@ -971,8 +898,6 @@ function AnswerSurface(props: {
   problem: WorkspaceProblem;
   choiceAnswer: string[];
   onChoiceAnswerChange: (value: string[]) => void;
-  blankAnswer: Record<string, string>;
-  onBlankAnswerChange: (value: Record<string, string>) => void;
   textAnswer: string;
   onTextAnswerChange: (value: string) => void;
 }) {
@@ -1019,30 +944,6 @@ function AnswerSurface(props: {
             </label>
           );
         })}
-      </div>
-    );
-  }
-
-  if (content.type === 'fill_blank') {
-    return (
-      <div className="grid gap-4 sm:grid-cols-2">
-        {content.blanks.map((blank) => (
-          <label key={blank.id} className="grid gap-2">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              {blank.placeholder || blank.id}
-            </span>
-            <Input
-              value={props.blankAnswer[blank.id] || ''}
-              onChange={(event) =>
-                props.onBlankAnswerChange({
-                  ...props.blankAnswer,
-                  [blank.id]: event.target.value,
-                })
-              }
-              placeholder="输入答案"
-            />
-          </label>
-        ))}
       </div>
     );
   }
@@ -1419,6 +1320,5 @@ function buildCodeAttempt(args: {
 function problemStem(problem: WorkspaceProblem) {
   const content = problem.publicContent;
   if ('stem' in content) return content.stem;
-  if ('stemTemplate' in content) return content.stemTemplate;
   return problem.title;
 }

@@ -40893,32 +40893,20 @@
       "courseId": "course-csc108-local",
       "notebookId": null,
       "title": "Boolean Refactoring",
-      "type": "fill_blank",
+      "type": "short_answer",
       "status": "published",
       "difficulty": "medium",
       "tags": ["Python 基础", "表达式", "函数与控制", "return", "Boolean", "文件与数据结构"],
       "publicContent": {
-        "type": "fill_blank",
+        "type": "short_answer",
         "assets": {
           "images": []
         },
-        "blanks": [
-          {
-            "id": "blank_1",
-            "placeholder": "condition"
-          }
-        ],
-        "stemTemplate": "Rewrite the following statement without using the `or` operator:\n\n```python\nif (x > 5 or y <= 0):\n    print(\"Valid\")\n```\n\nComplete:\n\n```python\nif ____:\n    print(\"Valid\")\n```"
+        "stem": "Rewrite the following statement without using the `or` operator:\n\n```python\nif (x > 5 or y <= 0):\n    print(\"Valid\")\n```\n\nComplete:\n\n```python\nif ____:\n    print(\"Valid\")\n```"
       },
       "grading": {
-        "type": "fill_blank",
-        "blanks": [
-          {
-            "id": "blank_1",
-            "caseSensitive": false,
-            "acceptedAnswers": ["not (x <= 5 and y > 0)", "not(x <= 5 and y > 0)"]
-          }
-        ],
+        "type": "short_answer",
+        "referenceAnswer": "not (x <= 5 and y > 0)",
         "analysis": "Answer inferred from the boolean refactoring concept tested by the source PDF."
       },
       "createdAt": 1781349347102,
@@ -40929,32 +40917,20 @@
       "courseId": "course-csc108-local",
       "notebookId": null,
       "title": "Conditional Simplification",
-      "type": "fill_blank",
+      "type": "short_answer",
       "status": "published",
       "difficulty": "medium",
       "tags": ["Python 基础", "表达式", "函数与控制", "Boolean", "文件与数据结构", "File IO"],
       "publicContent": {
-        "type": "fill_blank",
+        "type": "short_answer",
         "assets": {
           "images": []
         },
-        "blanks": [
-          {
-            "id": "blank_1",
-            "placeholder": "boolean expression"
-          }
-        ],
-        "stemTemplate": "The code below is too long:\n\n```python\nif n % 2 == 0:\n    even = True\nelse:\n    even = False\n```\n\nRefactor the code. Rewrite it on one line below. You must use a boolean expression.\n\n```python\neven = ____\n```"
+        "stem": "The code below is too long:\n\n```python\nif n % 2 == 0:\n    even = True\nelse:\n    even = False\n```\n\nRefactor the code. Rewrite it on one line below. You must use a boolean expression.\n\n```python\neven = ____\n```"
       },
       "grading": {
-        "type": "fill_blank",
-        "blanks": [
-          {
-            "id": "blank_1",
-            "caseSensitive": false,
-            "acceptedAnswers": ["n % 2 == 0", "(n % 2 == 0)", "n%2==0"]
-          }
-        ],
+        "type": "short_answer",
+        "referenceAnswer": "n % 2 == 0",
         "analysis": "Answer inferred from the conditional simplification concept tested by the source PDF."
       },
       "createdAt": 1781349347140,
@@ -40965,50 +40941,20 @@
       "courseId": "course-csc108-local",
       "notebookId": null,
       "title": "Using a Helper Function",
-      "type": "fill_blank",
+      "type": "short_answer",
       "status": "published",
       "difficulty": "medium",
       "tags": ["字符串", "类型", "函数与控制", "return", "Boolean", "accumulator"],
       "publicContent": {
-        "type": "fill_blank",
+        "type": "short_answer",
         "assets": {
           "images": []
         },
-        "blanks": [
-          {
-            "id": "blank_1",
-            "placeholder": "first argument"
-          },
-          {
-            "id": "blank_2",
-            "placeholder": "second argument"
-          },
-          {
-            "id": "blank_3",
-            "placeholder": "third argument"
-          }
-        ],
-        "stemTemplate": "You are given the following helper function:\n\n```python\ndef exists_triangle(a: int, b: int, c: int) -> bool:\n    \"\"\"Return True if sides <a>, <b>, <c> form a triangle.\"\"\"\n```\n\nComplete the body of the function below so it returns whether the string `s` is a \"triangle string.\" A triangle string is formed by three consecutive groups of digits (all 1s, then 2s, then 3s). Each group may contain zero or more digits. For example, `\"1112223333\"` corresponds to sides `(3, 3, 4)`, which form a valid triangle. You may assume every input string `s` only contains the digits 1, 2, and 3.\n\n```python\ndef is_triangle_string(s: str) -> bool:\n    return exists_triangle(____, ____, ____)\n```"
+        "stem": "You are given the following helper function:\n\n```python\ndef exists_triangle(a: int, b: int, c: int) -> bool:\n    \"\"\"Return True if sides <a>, <b>, <c> form a triangle.\"\"\"\n```\n\nComplete the body of the function below so it returns whether the string `s` is a \"triangle string.\" A triangle string is formed by three consecutive groups of digits (all 1s, then 2s, then 3s). Each group may contain zero or more digits. For example, `\"1112223333\"` corresponds to sides `(3, 3, 4)`, which form a valid triangle. You may assume every input string `s` only contains the digits 1, 2, and 3.\n\n```python\ndef is_triangle_string(s: str) -> bool:\n    return exists_triangle(____, ____, ____)\n```"
       },
       "grading": {
-        "type": "fill_blank",
-        "blanks": [
-          {
-            "id": "blank_1",
-            "caseSensitive": false,
-            "acceptedAnswers": ["s.count(\"1\")", "s.count('1')"]
-          },
-          {
-            "id": "blank_2",
-            "caseSensitive": false,
-            "acceptedAnswers": ["s.count(\"2\")", "s.count('2')"]
-          },
-          {
-            "id": "blank_3",
-            "caseSensitive": false,
-            "acceptedAnswers": ["s.count(\"3\")", "s.count('3')"]
-          }
-        ],
+        "type": "short_answer",
+        "referenceAnswer": "s.count('1'), s.count('2'), s.count('3')",
         "analysis": "Answer inferred from the helper functions and string count concept tested by the source PDF."
       },
       "createdAt": 1781349347174,
@@ -41019,41 +40965,20 @@
       "courseId": "course-csc108-local",
       "notebookId": null,
       "title": "Range and Accumulator",
-      "type": "fill_blank",
+      "type": "short_answer",
       "status": "published",
       "difficulty": "medium",
       "tags": ["Boolean", "循环列表", "range", "accumulator", "Class OOP"],
       "publicContent": {
-        "type": "fill_blank",
+        "type": "short_answer",
         "assets": {
           "images": []
         },
-        "blanks": [
-          {
-            "id": "blank_1",
-            "placeholder": "range start"
-          },
-          {
-            "id": "blank_2",
-            "placeholder": "range stop"
-          }
-        ],
-        "stemTemplate": "Complete this loop. The loop computes the product of the numbers from 1 through 4.\n\n```python\ntotal = 1\n\nfor i in range(____, ____):\n    total *= i\n```"
+        "stem": "Complete this loop. The loop computes the product of the numbers from 1 through 4.\n\n```python\ntotal = 1\n\nfor i in range(____, ____):\n    total *= i\n```"
       },
       "grading": {
-        "type": "fill_blank",
-        "blanks": [
-          {
-            "id": "blank_1",
-            "caseSensitive": false,
-            "acceptedAnswers": ["1"]
-          },
-          {
-            "id": "blank_2",
-            "caseSensitive": false,
-            "acceptedAnswers": ["5"]
-          }
-        ],
+        "type": "short_answer",
+        "referenceAnswer": "1, 5",
         "analysis": "Answer inferred from the range and accumulation concept tested by the source PDF."
       },
       "createdAt": 1781349347210,

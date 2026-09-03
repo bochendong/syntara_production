@@ -8,8 +8,7 @@
  *
  * Headers:
  *   x-image-provider: ImageProviderId (default: 'seedream')
- *   x-api-key: string (optional, server fallback)
- *   x-base-url: string (optional, server fallback)
+ * Provider credentials are always resolved on the server.
  *
  * Body: { prompt, negativePrompt?, width?, height?, aspectRatio?, style? }
  * Response: { success: boolean, result?: ImageGenerationResult, error?: string }
@@ -18,6 +17,7 @@
 import { NextRequest } from 'next/server';
 import { generateImage, aspectRatioToDimensions } from '@/lib/media/image-providers';
 import { resolveImageApiKey, resolveImageBaseUrl } from '@/lib/server/provider-config';
+import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
 import type {
   ImageGenerationCostEstimate,
   ImageGenerationOptions,
@@ -32,7 +32,6 @@ import { assertUserHasCredits, chargeCreditsForImageGeneration } from '@/lib/ser
 import { recordLLMUsage } from '@/lib/server/llm-usage';
 import { getRequestContext, runWithRequestContext } from '@/lib/server/request-context';
 import { proxyFetch } from '@/lib/server/proxy-fetch';
-import { validateUrlForSSRF } from '@/lib/server/ssrf-guard';
 import { estimateOpenAIImageGenerationCost } from '@/lib/utils/openai-pricing';
 
 const log = createLogger('ImageGeneration API');
@@ -181,20 +180,9 @@ export async function POST(request: NextRequest) {
       }
 
       const providerId = (request.headers.get('x-image-provider') || 'seedream') as ImageProviderId;
-      const clientApiKey = request.headers.get('x-api-key') || undefined;
-      const clientBaseUrl = request.headers.get('x-base-url') || undefined;
       const clientModel = request.headers.get('x-image-model') || undefined;
-
-      if (clientBaseUrl && process.env.NODE_ENV === 'production') {
-        const ssrfError = validateUrlForSSRF(clientBaseUrl);
-        if (ssrfError) {
-          return apiError('INVALID_URL', 403, ssrfError);
-        }
-      }
-
-      const apiKey = clientBaseUrl
-        ? clientApiKey || ''
-        : resolveImageApiKey(providerId, clientApiKey);
+      const systemOpenAI = providerId === 'openai-image' ? await getSystemLLMRuntimeConfig() : null;
+      const apiKey = systemOpenAI?.apiKey || resolveImageApiKey(providerId) || '';
       if (!apiKey) {
         return apiError(
           'MISSING_API_KEY',
@@ -203,9 +191,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const baseUrl = clientBaseUrl
-        ? clientBaseUrl
-        : resolveImageBaseUrl(providerId, clientBaseUrl);
+      const baseUrl = systemOpenAI?.baseUrl || resolveImageBaseUrl(providerId);
 
       // Resolve dimensions from aspect ratio if not explicitly set
       if (!body.width && !body.height && body.aspectRatio) {

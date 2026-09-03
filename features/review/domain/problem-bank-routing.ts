@@ -27,7 +27,7 @@ function normalizeConcept(value: string): string {
 function getPublicStem(problem: NotebookProblemClientRecord): string {
   const content = problem.publicContent;
   if ('stem' in content) return normalizeText(content.stem);
-  if ('stemTemplate' in content) return normalizeText(content.stemTemplate);
+  if (content.type === 'fill_blank') return normalizeText(content.stemTemplate);
   return normalizeText(problem.title);
 }
 
@@ -132,11 +132,6 @@ function answerForOpenProblem(problem: NotebookProblemClientRecord): string | un
   if (grading.type === 'short_answer') return grading.referenceAnswer;
   if (grading.type === 'proof') return grading.referenceProof;
   if (grading.type === 'calculation') return grading.referenceAnswer ?? grading.acceptedForms[0];
-  if (grading.type === 'fill_blank') {
-    return grading.blanks
-      .map((blank) => `${blank.id}: ${blank.acceptedAnswers.join(' / ')}`)
-      .join('\n');
-  }
   return undefined;
 }
 
@@ -151,11 +146,6 @@ function commentPromptForProblem(problem: NotebookProblemClientRecord): string |
       grading.unit ? `单位：${grading.unit}` : '',
     ]
       .filter(Boolean)
-      .join('\n');
-  }
-  if (grading.type === 'fill_blank') {
-    return grading.blanks
-      .map((blank) => `${blank.id} 可接受答案：${blank.acceptedAnswers.join(' / ')}`)
       .join('\n');
   }
   return undefined;
@@ -219,10 +209,7 @@ export function notebookProblemToQuizQuestion(
   return {
     ...base,
     type: 'short_answer',
-    question:
-      content.type === 'fill_blank'
-        ? `${content.stemTemplate}\n\n请按空格顺序写出答案，并保留必要步骤。`
-        : getPublicStem(problem),
+    question: getPublicStem(problem),
     answer: answerForOpenProblem(problem),
     commentPrompt: commentPromptForProblem(problem),
   } as QuizQuestion;

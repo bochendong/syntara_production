@@ -372,10 +372,8 @@ function applyUpdate(content, update) {
   if (update.stem) {
     if (typeof next.stem === 'string') {
       next.stem = update.stem;
-    } else if (typeof next.stemTemplate === 'string') {
-      next.stemTemplate = update.stem;
     } else {
-      throw new Error('Problem content has no stem or stemTemplate.');
+      throw new Error('Problem content has no stem.');
     }
   }
 
@@ -401,8 +399,8 @@ function normalizeJson(value) {
 }
 
 function previewChange(before, after) {
-  const beforeStem = before.stem ?? before.stemTemplate ?? '';
-  const afterStem = after.stem ?? after.stemTemplate ?? '';
+  const beforeStem = before.stem ?? '';
+  const afterStem = after.stem ?? '';
   const lines = [];
   if (beforeStem !== afterStem) {
     lines.push(`  stem: ${beforeStem}`);
@@ -437,14 +435,14 @@ function hasNakedUnicodeMath(text) {
 
 function collectPublicText(content) {
   const texts = [];
-  for (const key of ['stem', 'stemTemplate', 'explanation']) {
+  for (const key of ['stem', 'explanation']) {
     if (typeof content?.[key] === 'string') texts.push(content[key]);
   }
   if (Array.isArray(content?.options)) {
     texts.push(...content.options.map((option) => option.label).filter(Boolean));
   }
   for (const translation of Object.values(content?.translations ?? {})) {
-    for (const key of ['stem', 'stemTemplate', 'explanation']) {
+    for (const key of ['stem', 'explanation']) {
       if (typeof translation?.[key] === 'string') texts.push(translation[key]);
     }
     if (Array.isArray(translation?.options)) {

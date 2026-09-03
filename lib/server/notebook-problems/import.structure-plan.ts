@@ -1,14 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { LanguageModel } from 'ai';
 import { jsonrepair } from 'jsonrepair';
-import { ZodError } from 'zod';
 import { callLLM } from '@/lib/ai/llm';
 import {
   notebookProblemImportDraftSchema,
   type NotebookProblemImportDraft,
   type NotebookProblemSource,
 } from '@/lib/problem-bank';
-import { estimateOpenAITextUsageRetailCostCredits } from '@/lib/utils/openai-pricing';
 
 import {
   breakStandaloneSubpartMarkers,

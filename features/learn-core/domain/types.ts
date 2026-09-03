@@ -244,7 +244,6 @@ export type LearnToolId =
   | 'plan_review'
   | 'propose_calendar_change'
   | 'propose_memory_write'
-  | 'propose_practice_generation'
   | 'answer_course_question';
 
 export type LearnToolContract = {

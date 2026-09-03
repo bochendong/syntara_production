@@ -250,7 +250,6 @@ function problemContentExcerpt(problem: ReviewProblemDetail): string {
     [
       typeof publicContent.stem === 'string' ? publicContent.stem : '',
       typeof publicContent.prompt === 'string' ? publicContent.prompt : '',
-      typeof publicContent.stemTemplate === 'string' ? publicContent.stemTemplate : '',
       typeof publicContent.functionSignature === 'string' ? publicContent.functionSignature : '',
     ]
       .filter(Boolean)

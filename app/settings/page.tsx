@@ -5,15 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { SettingsDialog } from '@/components/settings';
 import type { SettingsSection } from '@/lib/types/settings';
 
-const SECTION_KEYS = new Set<string>([
-  'providers',
-  'agents',
-  'tts',
-  'asr',
-  'image',
-  'background',
-  'live2d',
-]);
+const SECTION_KEYS = new Set<string>(['background', 'live2d']);
 
 function SettingsPageInner() {
   const router = useRouter();

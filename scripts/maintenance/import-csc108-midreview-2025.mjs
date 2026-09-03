@@ -1311,9 +1311,6 @@ function validateDrafts() {
   if (drafts.length !== questionNumber) {
     throw new Error(`Draft counter mismatch: ${drafts.length} vs ${questionNumber}`);
   }
-  if (drafts.some((draft) => draft.type === 'fill_blank')) {
-    throw new Error('This import must not create fill_blank drafts.');
-  }
   const invalidType = drafts.find((draft) => draft.type !== 'choice' && draft.type !== 'code');
   if (invalidType) {
     throw new Error(`Unsupported draft type: ${invalidType.type}`);

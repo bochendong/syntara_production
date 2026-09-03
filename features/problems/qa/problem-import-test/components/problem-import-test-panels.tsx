@@ -78,7 +78,7 @@ function typeLabel(type: NotebookProblemImportDraft['type']) {
 function draftStem(draft: NotebookProblemImportDraft): string {
   const content = draft.publicContent;
   if ('stem' in content) return content.stem;
-  if ('stemTemplate' in content) return content.stemTemplate;
+  if (content.type === 'fill_blank') return content.stemTemplate;
   return '';
 }
 
@@ -861,15 +861,6 @@ function GradingPreview({ grading }: { grading: NotebookProblemImportDraft['grad
   const blocks: Array<{ label: string; value: ReactNode }> = [];
   if (grading.type === 'choice') {
     blocks.push({ label: '正确选项', value: grading.correctOptionIds.join(', ') });
-    if (grading.analysis) blocks.push({ label: '解析', value: grading.analysis });
-  }
-  if (grading.type === 'fill_blank') {
-    blocks.push({
-      label: '填空答案',
-      value: grading.blanks
-        .map((blank) => `${blank.id}: ${blank.acceptedAnswers.join(' / ')}`)
-        .join('\n'),
-    });
     if (grading.analysis) blocks.push({ label: '解析', value: grading.analysis });
   }
   if (grading.type === 'calculation') {

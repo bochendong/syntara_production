@@ -29,13 +29,18 @@ export interface ResolvedModel extends ModelWithInfo {
 
 type ResolveModelOptions = {
   /**
-   * Allow per-request model overrides, but only for the system-managed OpenAI provider.
-   * API key and base URL still come from server-side system config.
+   * Allow explicit model overrides for internal QA and migration tools when the
+   * deployment also opts in with ALLOW_REQUEST_MODEL_OVERRIDE=true. Product
+   * traffic otherwise always uses the administrator-managed system model.
    */
   allowOpenAIModelOverride?: boolean;
   /** Use the native Responses API so OpenAI file_id inputs remain first-class. */
   useOpenAIResponses?: boolean;
 };
+
+function requestModelOverridesEnabled(): boolean {
+  return process.env.ALLOW_REQUEST_MODEL_OVERRIDE?.trim().toLowerCase() === 'true';
+}
 
 /**
  * Resolve a language model from explicit parameters.
@@ -57,7 +62,7 @@ export async function resolveModel(
   let modelId = config.modelId;
   const requestedModelString = _params.modelString?.trim();
 
-  if (options.allowOpenAIModelOverride && requestedModelString) {
+  if (options.allowOpenAIModelOverride && requestModelOverridesEnabled() && requestedModelString) {
     const requested = parseModelString(requestedModelString);
     if (requested.providerId === 'openai' && requested.modelId.trim()) {
       modelId = requested.modelId.trim();
@@ -107,7 +112,7 @@ export async function resolveOpenAIResponsesModelFromHeaders(
   const config = await getSystemLLMRuntimeConfig();
   let modelId = config.modelId;
   const requestedModelString = req.headers.get('x-model')?.trim();
-  if (options.allowOpenAIModelOverride && requestedModelString) {
+  if (options.allowOpenAIModelOverride && requestModelOverridesEnabled() && requestedModelString) {
     const requested = parseModelString(requestedModelString);
     if (requested.providerId === 'openai' && requested.modelId.trim()) {
       modelId = requested.modelId.trim();

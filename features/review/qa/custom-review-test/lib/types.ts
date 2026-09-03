@@ -53,7 +53,7 @@ export type PrivateMemoryPayload = {
 export type CandidateProblemPayload = {
   id: string;
   title: string;
-  type: 'choice' | 'short_answer' | 'proof' | 'calculation' | 'code' | 'fill_blank';
+  type: 'choice' | 'short_answer' | 'proof' | 'calculation' | 'code';
   concepts: string[];
   difficulty: 'easy' | 'medium' | 'hard';
   status: 'unattempted' | 'passed' | 'failed' | 'partial' | 'error';

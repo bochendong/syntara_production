@@ -6,6 +6,7 @@ import {
   publicApiSuccess,
   requireNativePlatformApi,
 } from '@/lib/server/public-api';
+import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
 
 export const runtime = 'nodejs';
 
@@ -13,7 +14,8 @@ export async function GET(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   const principal = await requireNativePlatformApi(request, requestId);
   if (principal instanceof NextResponse) return principal;
-  const available = Boolean(process.env.OPENAI_API_KEY?.trim());
+  const systemOpenAI = await getSystemLLMRuntimeConfig();
+  const available = Boolean(systemOpenAI.apiKey);
   const authMode = nativePlatformApiAuthMode();
 
   return publicApiSuccess(requestId, {
@@ -26,11 +28,7 @@ export async function GET(request: NextRequest) {
       bearerRequired: authMode !== 'shared-test',
       providerCredentials: 'server-only',
     },
-    models: [
-      { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', recommended: true },
-      { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
-      { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' },
-    ],
+    models: [{ id: systemOpenAI.modelId, label: systemOpenAI.modelId, recommended: true }],
     capabilities: {
       teachingTurn: available,
       miniLecture: available,

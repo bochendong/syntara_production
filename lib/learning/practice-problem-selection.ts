@@ -325,8 +325,6 @@ function practiceProblemTypeLabel(type: CourseProblemClientSummary['type']): str
       return '证明表达';
     case 'calculation':
       return '计算推导';
-    case 'fill_blank':
-      return '填空';
     case 'code':
       return '代码';
     case 'short_answer':

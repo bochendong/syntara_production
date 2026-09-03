@@ -10,7 +10,6 @@ import {
   subscribeCourseSpaceHeaderCache,
   writeCourseSpaceHeaderCache,
 } from '@/lib/course-space/course-space-header-cache';
-import { CourseSpaceAvatar } from '@/components/course-space/course-space-avatar';
 import { cn } from '@/lib/utils';
 
 export {
@@ -235,39 +234,13 @@ export function CourseSpaceHeader({
         className,
       )}
     >
-      <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <Link
-            href={courseSpaceAllCoursesHref(role, previewMode)}
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500/30 dark:text-slate-400 dark:hover:bg-white/[0.07] dark:hover:text-white"
-            aria-label="所有课程"
-            title="所有课程"
-          >
-            <Home className="size-4 shrink-0" strokeWidth={1.9} />
-          </Link>
-          <CourseSpaceAvatar
-            courseId={courseId}
-            avatarUrl={displayedHeader?.courseAvatarUrl ?? courseAvatarUrl}
-          />
-          <div className="flex min-w-0 items-baseline gap-2">
-            <h1 className="truncate text-sm font-bold tracking-[-0.02em] sm:text-[15px]">
-              {displayedHeader?.courseTitle ?? courseTitle}
-            </h1>
-            {(displayedHeader?.courseMeta ?? courseMeta) ? (
-              <p className="hidden truncate text-[10px] font-medium text-slate-400 md:block">
-                {displayedHeader?.courseMeta ?? courseMeta}
-              </p>
-            ) : null}
-          </div>
-        </div>
-
+      <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
         <div
           className={cn(
-            'flex w-full shrink-0 flex-wrap items-center justify-end sm:ml-auto sm:w-auto',
+            'flex min-w-0 flex-1 flex-wrap items-center',
             actions ? 'gap-3 lg:gap-4' : 'gap-1.5',
           )}
         >
-          {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
           <CourseSpaceNavigation
             courseId={courseId}
             role={displayedRole}
@@ -277,6 +250,21 @@ export function CourseSpaceHeader({
             previewMode={previewMode}
             className="max-w-full"
           />
+          {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+        </div>
+
+        <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5 sm:ml-auto">
+          <h1 className="truncate text-sm font-bold tracking-[-0.02em] sm:text-[15px]">
+            {displayedHeader?.courseTitle ?? courseTitle}
+          </h1>
+          <Link
+            href={courseSpaceAllCoursesHref(role, previewMode)}
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500/30 dark:text-slate-400 dark:hover:bg-white/[0.07] dark:hover:text-white"
+            aria-label="所有课程"
+            title="所有课程"
+          >
+            <Home className="size-4 shrink-0" strokeWidth={1.9} />
+          </Link>
         </div>
       </div>
     </header>

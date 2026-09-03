@@ -33,8 +33,7 @@ export function hasStructuredContextBlock(text: string): boolean {
 
 export function selfContainmentValidationErrors(draft: NotebookProblemImportDraft): string[] {
   const content = draft.publicContent;
-  const stem =
-    'stem' in content ? content.stem : 'stemTemplate' in content ? content.stemTemplate : '';
+  const stem = 'stem' in content ? content.stem : content.stemTemplate;
   const errors: string[] = [];
 
   if (/\bTable\s+[IVX]+\b|\btruth table\b/i.test(stem) && !hasMarkdownTable(stem)) {
@@ -110,7 +109,7 @@ export function normalizeDraftMathFields(
   }
   if ('stemTemplate' in publicContent && typeof publicContent.stemTemplate === 'string') {
     publicContent.stemTemplate = stripTopLevelQuestionLabel(
-      normalizeMathMarkdown(publicContent.stemTemplate),
+      normalizeFillBlankStemTemplate(publicContent.stemTemplate),
     );
   }
   if (typeof publicContent.explanation === 'string') {
@@ -164,59 +163,28 @@ export function normalizeDraftMathFields(
   };
 }
 
-export function withoutAnswerSourceMeta(
-  sourceMeta: NotebookProblemImportDraft['sourceMeta'],
-): NotebookProblemImportDraft['sourceMeta'] {
-  const next = { ...sourceMeta } as Record<string, unknown>;
-  delete next.answerSource;
-  return next as NotebookProblemImportDraft['sourceMeta'];
-}
-
-export function stripGeneratedAnswersForNonChoiceDraft(
-  draft: NotebookProblemImportDraft,
-): NotebookProblemImportDraft {
-  if (draft.type === 'choice') return draft;
-
-  const sourceMeta = withoutAnswerSourceMeta(draft.sourceMeta);
-  const publicContent = { ...draft.publicContent } as NotebookProblemImportDraft['publicContent'];
-  delete (publicContent as Record<string, unknown>).explanation;
-  if (draft.grading.type === 'proof') {
-    return {
-      ...draft,
-      publicContent,
-      sourceMeta,
-      grading: { type: 'proof' },
-    };
-  }
-  if (draft.grading.type === 'short_answer') {
-    return {
-      ...draft,
-      publicContent,
-      sourceMeta,
-      grading: { type: 'short_answer' },
-    };
-  }
-  if (draft.grading.type === 'calculation') {
-    return {
-      ...draft,
-      publicContent,
-      sourceMeta,
-      grading: { type: 'calculation', acceptedForms: [] },
-    };
-  }
-
-  return {
-    ...draft,
-    publicContent,
-    sourceMeta,
-  };
+/**
+ * Fill-blank markers are UI syntax, not mathematical set-builder notation.
+ * Shield them while normalizing surrounding prose and code so `{{blank_id}}`
+ * survives the import pipeline byte-for-byte.
+ */
+export function normalizeFillBlankStemTemplate(text: string): string {
+  const markers: string[] = [];
+  const protectedText = text.replace(/\{\{[A-Za-z0-9_-]+\}\}/g, (marker) => {
+    const index = markers.push(marker) - 1;
+    return `SyntaraFillBlankPlaceholder${index}Token`;
+  });
+  const normalized = normalizeMathMarkdown(protectedText);
+  return normalized.replace(/SyntaraFillBlankPlaceholder(\d+)Token/g, (placeholder, indexText) => {
+    const marker = markers[Number(indexText)];
+    return marker ?? placeholder;
+  });
 }
 
 export function problemStemText(draft: NotebookProblemImportDraft): string {
-  const content = draft.publicContent;
-  if ('stem' in content) return content.stem;
-  if ('stemTemplate' in content) return content.stemTemplate;
-  return '';
+  return 'stem' in draft.publicContent
+    ? draft.publicContent.stem
+    : draft.publicContent.stemTemplate;
 }
 
 export type SubpartSection = {
@@ -631,18 +599,18 @@ export function normalizeRawCandidate(
 
   if (
     publicContent.stemTemplate == null &&
+    type === 'fill_blank' &&
     pickFirstString(
-      publicContent.stemTemplate,
+      publicContent.stem,
       publicContent.statement,
       publicContent.question,
       base.stemTemplate,
       base.statement,
       base.question,
-    ) &&
-    type === 'fill_blank'
+    )
   ) {
     publicContent.stemTemplate = pickFirstString(
-      publicContent.stemTemplate,
+      publicContent.stem,
       publicContent.statement,
       publicContent.question,
       base.stemTemplate,
@@ -652,7 +620,7 @@ export function normalizeRawCandidate(
   }
 
   if (typeof publicContent.stemTemplate === 'string') {
-    publicContent.stemTemplate = normalizeMathMarkdown(publicContent.stemTemplate);
+    publicContent.stemTemplate = normalizeFillBlankStemTemplate(publicContent.stemTemplate);
   }
 
   if (
@@ -854,7 +822,7 @@ export function normalizeCandidateDraft(
 ): NotebookProblemImportDraft {
   const parsed = notebookProblemImportDraftSchema.safeParse(normalizeRawCandidate(raw, source));
   if (parsed.success) {
-    return stripGeneratedAnswersForNonChoiceDraft(normalizeDraftMathFields(parsed.data));
+    return normalizeDraftMathFields(parsed.data);
   }
 
   const fallbackText =
@@ -864,31 +832,29 @@ export function normalizeCandidateDraft(
         ? String((raw as { title?: unknown }).title || '')
         : JSON.stringify(raw);
 
-  return stripGeneratedAnswersForNonChoiceDraft(
-    normalizeDraftMathFields(
-      notebookProblemImportDraftSchema.parse({
-        draftId: randomUUID(),
-        title: normalizeTitle(fallbackText || 'Imported problem', 'short_answer'),
+  return normalizeDraftMathFields(
+    notebookProblemImportDraftSchema.parse({
+      draftId: randomUUID(),
+      title: normalizeTitle(fallbackText || 'Imported problem', 'short_answer'),
+      type: 'short_answer',
+      status: 'draft',
+      source,
+      points: 1,
+      tags: [],
+      difficulty: inferDifficulty(fallbackText),
+      publicContent: {
         type: 'short_answer',
-        status: 'draft',
-        source,
-        points: 1,
-        tags: [],
-        difficulty: inferDifficulty(fallbackText),
-        publicContent: {
-          type: 'short_answer',
-          stem: normalizeMathMarkdown(fallbackText || 'Imported problem'),
-        },
-        grading: {
-          type: 'short_answer',
-        },
-        sourceMeta: {
-          importMode: 'fallback',
-          raw,
-        },
-        validationErrors: formatImportValidationIssues(parsed.error),
-      }),
-    ),
+        stem: normalizeMathMarkdown(fallbackText || 'Imported problem'),
+      },
+      grading: {
+        type: 'short_answer',
+      },
+      sourceMeta: {
+        importMode: 'fallback',
+        raw,
+      },
+      validationErrors: formatImportValidationIssues(parsed.error),
+    }),
   );
 }
 

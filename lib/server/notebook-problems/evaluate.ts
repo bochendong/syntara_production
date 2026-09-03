@@ -251,6 +251,21 @@ export async function evaluateNotebookNonCodeProblem(args: {
       ...(problem.grading.referenceAnswer ? [problem.grading.referenceAnswer] : []),
       ...problem.grading.acceptedForms,
     ];
+    if (accepted.length === 0) {
+      return {
+        status: 'pending',
+        score: 0,
+        result: {
+          correct: null,
+          feedback:
+            args.language === 'zh-CN'
+              ? '这道计算题缺少标准答案，已记录作答并等待人工判分。'
+              : 'This calculation problem has no reference answer. The response was saved for manual grading.',
+          earnedPoints: 0,
+          publicCases: [],
+        },
+      };
+    }
     const directMatch = accepted.some(
       (candidate) => normalizeText(candidate) === normalizeText(submitted),
     );

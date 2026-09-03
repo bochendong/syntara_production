@@ -22,7 +22,6 @@ import {
   Search,
   Target,
   Trash2,
-  Type,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -1523,7 +1522,7 @@ function typeLabel(type: NotebookProblemClientRecord['type'], locale: 'zh-CN' | 
     proof: 'Proof',
     calculation: 'Calculation',
     code: 'Code',
-    fill_blank: 'Fill blank',
+    fill_blank: 'Fill in the blank',
   } as const;
   return locale === 'zh-CN' ? zh[type] : en[type];
 }
@@ -1601,13 +1600,6 @@ function problemTypeVisual(type: NotebookProblemClientRecord['type']): {
         'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100',
     };
   }
-  if (type === 'fill_blank') {
-    return {
-      Icon: Type,
-      className:
-        'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/10 dark:text-fuchsia-200',
-    };
-  }
   return {
     Icon: FileText,
     className:
@@ -1617,7 +1609,7 @@ function problemTypeVisual(type: NotebookProblemClientRecord['type']): {
 
 function renderProblemContentStem(content: NotebookProblemClientRecord['publicContent']): string {
   if ('stem' in content) return content.stem;
-  if ('stemTemplate' in content) return content.stemTemplate;
+  if (content.type === 'fill_blank') return content.stemTemplate;
   return '';
 }
 

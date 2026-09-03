@@ -111,7 +111,9 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
   const [avatar, setSelectedAvatar] = useState(profileAvatar);
   const [avatarPage, setAvatarPage] = useState(0);
   const [savedFlash, setSavedFlash] = useState(false);
-  const avatarPageSize = 10;
+  const avatarGridColumns = 6;
+  const avatarGridRows = 4;
+  const avatarPageSize = avatarGridColumns * avatarGridRows - 1;
   const avatarPageCount = Math.max(1, Math.ceil(USER_AVATAR_PRESET_URLS.length / avatarPageSize));
   const avatarsOnPage = useMemo(
     () =>
@@ -119,7 +121,7 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
         avatarPage * avatarPageSize,
         avatarPage * avatarPageSize + avatarPageSize,
       ),
-    [avatarPage],
+    [avatarPage, avatarPageSize],
   );
 
   const displayName = name.trim() || authName || '学习者';
@@ -164,7 +166,7 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
             </button>
           </nav>
           <p className="learn-dock-profile-navigation-note">
-            个人中心只管理头像、昵称、简介和学校；模型与界面偏好统一放在设置中。
+            个人中心只管理头像、昵称、简介和学校；学习背景与伴学角色统一放在设置中。
           </p>
           <div className="learn-dock-profile-navigation-footer">
             <button type="button" onClick={() => router.push('/settings')}>
@@ -183,14 +185,6 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
         </aside>
 
         <div className="learn-dock-profile-main">
-          <header className="learn-dock-profile-toolbar">
-            <div>
-              <h1>个人资料</h1>
-              <p>管理您的个人信息与资料</p>
-            </div>
-            <span className="learn-dock-profile-role">{roleLabel}</span>
-          </header>
-
           <div className="learn-dock-profile-content">
             <div className="learn-dock-profile-card">
               <aside className="learn-dock-profile-summary">

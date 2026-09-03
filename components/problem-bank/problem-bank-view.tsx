@@ -81,7 +81,7 @@ function typeLabel(type: NotebookProblemClientRecord['type'], locale: 'zh-CN' | 
     proof: 'Proof',
     calculation: 'Calculation',
     code: 'Code',
-    fill_blank: 'Fill blank',
+    fill_blank: 'Fill in the blank',
   } as const;
   return locale === 'zh-CN' ? zh[type] : en[type];
 }
@@ -359,7 +359,7 @@ function estimateProblemCountFromText(text: string): number {
   if (!trimmed) return 0;
   const blocks = trimmed
     .split(
-      /\n(?=(?:\d+[\.\)]\s+|Q\d+[:.]|Question\s+\d+|题目\s*\d+|题\s*\d+[：:]|选择题|证明题|代码题|填空题|简答题|计算题))/,
+      /\n(?=(?:\d+[\.\)]\s+|Q\d+[:.]|Question\s+\d+|题目\s*\d+|题\s*\d+[：:]|选择题|证明题|代码题|简答题|计算题))/,
     )
     .map((block) => block.trim())
     .filter(Boolean);
@@ -601,11 +601,11 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
     : '';
   const selectedProblemHasTranslation = hasProblemTranslation(selectedProblem);
   const choiceContent = selectedProblemContent?.type === 'choice' ? selectedProblemContent : null;
+  const codeContent = selectedProblemContent?.type === 'code' ? selectedProblemContent : null;
   const fillBlankContent =
     selectedProblemContent?.type === 'fill_blank' ? selectedProblemContent : null;
-  const codeContent = selectedProblemContent?.type === 'code' ? selectedProblemContent : null;
   const textLikeContent =
-    selectedProblemContent && !choiceContent && !fillBlankContent && !codeContent
+    selectedProblemContent && !choiceContent && !codeContent && !fillBlankContent
       ? selectedProblemContent
       : null;
   const latestDetailedAttempt = attempts[0] ?? null;
@@ -1095,7 +1095,6 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                 <option value="choice">{typeLabel('choice', locale)}</option>
                 <option value="proof">{typeLabel('proof', locale)}</option>
                 <option value="calculation">{typeLabel('calculation', locale)}</option>
-                <option value="fill_blank">{typeLabel('fill_blank', locale)}</option>
                 <option value="code">{typeLabel('code', locale)}</option>
               </select>
             </div>
@@ -1371,27 +1370,47 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                   </div>
                 ) : fillBlankContent ? (
                   <div className="space-y-4">
-                    <ProblemRichText content={fillBlankContent.stemTemplate} />
+                    <ProblemRichText
+                      content={fillBlankContent.stemTemplate.replace(
+                        /\{\{\s*([^{}]+?)\s*\}\}/g,
+                        (_marker, rawId: string) => {
+                          const index = fillBlankContent.blanks.findIndex(
+                            (blank) => blank.id === rawId.trim(),
+                          );
+                          return index >= 0 ? ` **[空 ${index + 1}] ______** ` : ' **______** ';
+                        },
+                      )}
+                    />
                     <ProblemImageAssets content={fillBlankContent} />
-                    {fillBlankContent.blanks.map((blank) => (
-                      <div key={blank.id} className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                          {blank.placeholder || blank.id}
-                        </label>
-                        <Input
-                          value={blankAnswer[selectedProblem.id]?.[blank.id] || ''}
-                          onChange={(event) =>
-                            setBlankAnswer((prev) => ({
-                              ...prev,
-                              [selectedProblem.id]: {
-                                ...(prev[selectedProblem.id] || {}),
-                                [blank.id]: event.target.value,
-                              },
-                            }))
-                          }
-                        />
-                      </div>
-                    ))}
+                    <div className="space-y-3">
+                      {fillBlankContent.blanks.map((blank, index) => (
+                        <div
+                          key={blank.id}
+                          className="grid gap-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700 sm:grid-cols-[2.25rem_minmax(0,1fr)] sm:items-center"
+                        >
+                          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-fuchsia-100 text-sm font-semibold text-fuchsia-700 dark:bg-fuchsia-500/15 dark:text-fuchsia-200">
+                            {index + 1}
+                          </span>
+                          <Input
+                            value={blankAnswer[selectedProblem.id]?.[blank.id] ?? ''}
+                            placeholder={
+                              blank.placeholder ||
+                              (locale === 'zh-CN' ? `第 ${index + 1} 空` : `Blank ${index + 1}`)
+                            }
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setBlankAnswer((prev) => ({
+                                ...prev,
+                                [selectedProblem.id]: {
+                                  ...(prev[selectedProblem.id] ?? {}),
+                                  [blank.id]: value,
+                                },
+                              }));
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ) : codeContent ? (
                   <div className="space-y-4">

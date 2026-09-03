@@ -98,6 +98,26 @@ function buildDefaultTypeState(type: NotebookProblemType, locale: Locale, stemHi
         },
         secretJudge: undefined,
       };
+    case 'fill_blank': {
+      const blankId = 'blank_1';
+      return {
+        publicContent: {
+          type,
+          stemTemplate: `${defaultStem} {{${blankId}}}`,
+          blanks: [
+            {
+              id: blankId,
+              placeholder: locale === 'zh-CN' ? '答案' : 'Answer',
+            },
+          ],
+        },
+        grading: {
+          type,
+          blanks: [{ id: blankId, acceptedAnswers: ['TODO'], caseSensitive: false }],
+        },
+        secretJudge: undefined,
+      };
+    }
     case 'choice':
       return {
         publicContent: {
@@ -118,33 +138,6 @@ function buildDefaultTypeState(type: NotebookProblemType, locale: Locale, stemHi
         grading: {
           type,
           correctOptionIds: ['A'],
-        },
-        secretJudge: undefined,
-      };
-    case 'fill_blank':
-      return {
-        publicContent: {
-          type,
-          stemTemplate:
-            locale === 'zh-CN'
-              ? `${defaultStem}\n例如：设 A = ____，则 |A| = ____。`
-              : `${defaultStem}\nExample: Let A = ____, then |A| = ____.`,
-          blanks: [
-            {
-              id: 'blank_1',
-              placeholder: locale === 'zh-CN' ? '第 1 空' : 'Blank 1',
-            },
-          ],
-        },
-        grading: {
-          type,
-          blanks: [
-            {
-              id: 'blank_1',
-              acceptedAnswers: [locale === 'zh-CN' ? '答案' : 'Answer'],
-              caseSensitive: false,
-            },
-          ],
         },
         secretJudge: undefined,
       };
@@ -235,45 +228,47 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
       : [];
   }
 
-  if (type === 'fill_blank') {
-    const blanks = Array.isArray(publicContent.blanks)
-      ? publicContent.blanks
-          .map((blank) => {
-            const row =
-              blank && typeof blank === 'object' ? (blank as Record<string, unknown>) : {};
-            return {
-              id: typeof row.id === 'string' ? row.id.trim() : '',
-              placeholder: typeof row.placeholder === 'string' ? row.placeholder.trim() : undefined,
-            };
-          })
-          .filter((blank) => blank.id)
-      : [];
-    publicContent.blanks = blanks;
-    grading.blanks = Array.isArray(grading.blanks)
-      ? (grading.blanks as unknown[])
-          .map((blank) => {
-            const row =
-              blank && typeof blank === 'object' ? (blank as Record<string, unknown>) : {};
-            return {
-              id: typeof row.id === 'string' ? row.id.trim() : '',
-              acceptedAnswers: Array.isArray(row.acceptedAnswers)
-                ? row.acceptedAnswers
-                    .map((answer) => (typeof answer === 'string' ? answer.trim() : ''))
-                    .filter((answer) => answer.length > 0)
-                : [],
-              caseSensitive: Boolean(row.caseSensitive),
-            };
-          })
-          .filter((blank) => blank.id && blank.acceptedAnswers.length > 0)
-      : [];
-  }
-
   if (type === 'calculation') {
     grading.acceptedForms = Array.isArray(grading.acceptedForms)
       ? (grading.acceptedForms as unknown[])
           .map((item) => (typeof item === 'string' ? item.trim() : ''))
           .filter((item) => item.length > 0)
       : [];
+  }
+
+  if (type === 'fill_blank') {
+    const blanks = Array.isArray(publicContent.blanks)
+      ? publicContent.blanks
+          .map((blank, index) => {
+            const row =
+              blank && typeof blank === 'object' ? (blank as Record<string, unknown>) : {};
+            return {
+              id:
+                typeof row.id === 'string' && row.id.trim() ? row.id.trim() : `blank_${index + 1}`,
+              placeholder:
+                typeof row.placeholder === 'string' && row.placeholder.trim()
+                  ? row.placeholder.trim()
+                  : undefined,
+            };
+          })
+          .slice(0, 12)
+      : [];
+    publicContent.blanks = blanks;
+    grading.blanks = blanks.map((blank) => {
+      const current = Array.isArray(grading.blanks)
+        ? (grading.blanks as Array<Record<string, unknown>>).find((row) => row.id === blank.id)
+        : undefined;
+      const acceptedAnswers = Array.isArray(current?.acceptedAnswers)
+        ? (current.acceptedAnswers as unknown[])
+            .map((answer) => (typeof answer === 'string' ? answer.trim() : ''))
+            .filter(Boolean)
+        : [];
+      return {
+        id: blank.id,
+        acceptedAnswers,
+        caseSensitive: current?.caseSensitive === true,
+      };
+    });
   }
 
   if (type === 'code') {
@@ -353,7 +348,7 @@ function labelForType(type: NotebookProblemType, locale: Locale) {
     proof: 'Proof',
     calculation: 'Calculation',
     code: 'Code',
-    fill_blank: 'Fill blank',
+    fill_blank: 'Fill in the blank',
   } as const;
   return locale === 'zh-CN' ? zh[type] : en[type];
 }
@@ -606,13 +601,23 @@ export function ProblemDraftForm({
       {currentType === 'fill_blank' ? (
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-            {locale === 'zh-CN' ? '题面模板' : 'Stem template'}
+            {locale === 'zh-CN' ? '题面模板' : 'Problem template'}
           </label>
           <Textarea
             className="min-h-[140px]"
             value={typeof publicContent.stemTemplate === 'string' ? publicContent.stemTemplate : ''}
             onChange={(event) => updatePublicContent('stemTemplate', event.target.value)}
+            placeholder={
+              locale === 'zh-CN'
+                ? '用 {{blank_1}} 这样的标记表示空格'
+                : 'Use markers such as {{blank_1}} for blanks'
+            }
           />
+          <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+            {locale === 'zh-CN'
+              ? '每个空格 id 必须在题面中以 {{id}} 出现。'
+              : 'Each blank id must appear in the template as {{id}}.'}
+          </p>
         </div>
       ) : null}
 
@@ -920,6 +925,171 @@ export function ProblemDraftForm({
         </>
       ) : null}
 
+      {currentType === 'fill_blank' ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                {locale === 'zh-CN' ? '空格与标准答案' : 'Blanks and accepted answers'}
+              </label>
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                {locale === 'zh-CN'
+                  ? '可为每个空格设置多个同义答案。'
+                  : 'Add multiple accepted variants for each blank.'}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={Array.isArray(publicContent.blanks) && publicContent.blanks.length >= 12}
+              onClick={() => {
+                const blanks = Array.isArray(publicContent.blanks)
+                  ? ([...publicContent.blanks] as Array<Record<string, unknown>>)
+                  : [];
+                const nextId = `blank_${blanks.length + 1}`;
+                updatePublicContent('blanks', [
+                  ...blanks,
+                  { id: nextId, placeholder: locale === 'zh-CN' ? '答案' : 'Answer' },
+                ]);
+                updatePublicContent(
+                  'stemTemplate',
+                  `${typeof publicContent.stemTemplate === 'string' ? publicContent.stemTemplate : ''} {{${nextId}}}`.trim(),
+                );
+                updateGrading('blanks', [
+                  ...(Array.isArray(grading.blanks) ? grading.blanks : []),
+                  { id: nextId, acceptedAnswers: ['TODO'], caseSensitive: false },
+                ]);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {locale === 'zh-CN' ? '添加空格' : 'Add blank'}
+            </Button>
+          </div>
+          {(Array.isArray(publicContent.blanks)
+            ? (publicContent.blanks as Array<Record<string, unknown>>)
+            : []
+          ).map((blank, index, blanks) => {
+            const blankId = typeof blank.id === 'string' ? blank.id : `blank_${index + 1}`;
+            const gradingBlanks = Array.isArray(grading.blanks)
+              ? (grading.blanks as Array<Record<string, unknown>>)
+              : [];
+            const blankGrading = gradingBlanks.find((row) => row.id === blankId) ?? {};
+            return (
+              <div
+                key={`${blankId}-${index}`}
+                className="grid gap-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700 md:grid-cols-[150px_minmax(0,1fr)_auto_auto] md:items-end"
+              >
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-medium text-slate-500">
+                    {locale === 'zh-CN' ? '空格 ID' : 'Blank ID'}
+                  </label>
+                  <Input
+                    value={blankId}
+                    onChange={(event) => {
+                      const nextId = event.target.value;
+                      updatePublicContent(
+                        'blanks',
+                        blanks.map((row, rowIndex) =>
+                          rowIndex === index ? { ...row, id: nextId } : row,
+                        ),
+                      );
+                      updatePublicContent(
+                        'stemTemplate',
+                        String(publicContent.stemTemplate ?? '').replaceAll(
+                          `{{${blankId}}}`,
+                          `{{${nextId}}}`,
+                        ),
+                      );
+                      updateGrading(
+                        'blanks',
+                        gradingBlanks.map((row) =>
+                          row.id === blankId ? { ...row, id: nextId } : row,
+                        ),
+                      );
+                    }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-medium text-slate-500">
+                    {locale === 'zh-CN'
+                      ? '可接受答案（用 | 分隔）'
+                      : 'Accepted answers (separate with |)'}
+                  </label>
+                  <Input
+                    value={
+                      Array.isArray(blankGrading.acceptedAnswers)
+                        ? (blankGrading.acceptedAnswers as string[]).join(' | ')
+                        : ''
+                    }
+                    onChange={(event) => {
+                      const acceptedAnswers = event.target.value
+                        .split('|')
+                        .map((answer) => answer.trim())
+                        .filter(Boolean);
+                      updateGrading(
+                        'blanks',
+                        gradingBlanks.map((row) =>
+                          row.id === blankId ? { ...row, acceptedAnswers } : row,
+                        ),
+                      );
+                    }}
+                  />
+                </div>
+                <label className="flex h-10 items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={blankGrading.caseSensitive === true}
+                    onChange={(event) =>
+                      updateGrading(
+                        'blanks',
+                        gradingBlanks.map((row) =>
+                          row.id === blankId
+                            ? { ...row, caseSensitive: event.target.checked }
+                            : row,
+                        ),
+                      )
+                    }
+                  />
+                  {locale === 'zh-CN' ? '区分大小写' : 'Case-sensitive'}
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={blanks.length <= 1}
+                  onClick={() => {
+                    updatePublicContent(
+                      'blanks',
+                      blanks.filter((_, rowIndex) => rowIndex !== index),
+                    );
+                    updatePublicContent(
+                      'stemTemplate',
+                      String(publicContent.stemTemplate ?? '').replaceAll(`{{${blankId}}}`, ''),
+                    );
+                    updateGrading(
+                      'blanks',
+                      gradingBlanks.filter((row) => row.id !== blankId),
+                    );
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          })}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+              {locale === 'zh-CN' ? '解析' : 'Analysis'}
+            </label>
+            <Textarea
+              value={typeof grading.analysis === 'string' ? grading.analysis : ''}
+              onChange={(event) => updateGrading('analysis', event.target.value)}
+            />
+          </div>
+        </div>
+      ) : null}
+
       {currentType === 'proof' ? (
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1.5">
@@ -1014,147 +1184,6 @@ export function ProblemDraftForm({
             </div>
           </div>
         </>
-      ) : null}
-
-      {currentType === 'fill_blank' ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '填空项' : 'Blanks'}
-            </label>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const blanks = Array.isArray(publicContent.blanks)
-                  ? ([...(publicContent.blanks as Array<Record<string, unknown>>)] as Array<
-                      Record<string, unknown>
-                    >)
-                  : [];
-                const gradingBlanks = Array.isArray(grading.blanks)
-                  ? ([...(grading.blanks as Array<Record<string, unknown>>)] as Array<
-                      Record<string, unknown>
-                    >)
-                  : [];
-                const nextId = `blank_${blanks.length + 1}`;
-                updatePublicContent('blanks', [
-                  ...blanks,
-                  {
-                    id: nextId,
-                    placeholder:
-                      locale === 'zh-CN'
-                        ? `第 ${blanks.length + 1} 空`
-                        : `Blank ${blanks.length + 1}`,
-                  },
-                ]);
-                updateGrading('blanks', [
-                  ...gradingBlanks,
-                  {
-                    id: nextId,
-                    acceptedAnswers: [locale === 'zh-CN' ? '答案' : 'Answer'],
-                    caseSensitive: false,
-                  },
-                ]);
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              {locale === 'zh-CN' ? '添加填空' : 'Add blank'}
-            </Button>
-          </div>
-          {Array.isArray(publicContent.blanks)
-            ? (publicContent.blanks as Array<Record<string, unknown>>).map((blank, index) => {
-                const gradingBlanks = Array.isArray(grading.blanks)
-                  ? (grading.blanks as Array<Record<string, unknown>>)
-                  : [];
-                const gradingBlank = gradingBlanks[index] || {};
-                const blankId = String(blank.id || `blank_${index + 1}`);
-                return (
-                  <div
-                    key={blankId}
-                    className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-[120px_1fr_1fr_auto] dark:border-slate-700"
-                  >
-                    <Input
-                      value={blankId}
-                      onChange={(event) => {
-                        const nextId = event.target.value;
-                        updatePublicContent(
-                          'blanks',
-                          (publicContent.blanks as Array<Record<string, unknown>>).map(
-                            (row, rowIndex) => (rowIndex === index ? { ...row, id: nextId } : row),
-                          ),
-                        );
-                        updateGrading(
-                          'blanks',
-                          gradingBlanks.map((row, rowIndex) =>
-                            rowIndex === index ? { ...row, id: nextId } : row,
-                          ),
-                        );
-                      }}
-                    />
-                    <Input
-                      value={typeof blank.placeholder === 'string' ? blank.placeholder : ''}
-                      onChange={(event) =>
-                        updatePublicContent(
-                          'blanks',
-                          (publicContent.blanks as Array<Record<string, unknown>>).map(
-                            (row, rowIndex) =>
-                              rowIndex === index
-                                ? { ...row, placeholder: event.target.value }
-                                : row,
-                          ),
-                        )
-                      }
-                      placeholder={locale === 'zh-CN' ? '占位提示' : 'Placeholder'}
-                    />
-                    <Input
-                      value={
-                        Array.isArray(gradingBlank.acceptedAnswers)
-                          ? (gradingBlank.acceptedAnswers as string[]).join(', ')
-                          : ''
-                      }
-                      onChange={(event) =>
-                        updateGrading(
-                          'blanks',
-                          gradingBlanks.map((row, rowIndex) =>
-                            rowIndex === index
-                              ? {
-                                  ...row,
-                                  acceptedAnswers: event.target.value
-                                    .split(',')
-                                    .map((item) => item.trim())
-                                    .filter(Boolean),
-                                }
-                              : row,
-                          ),
-                        )
-                      }
-                      placeholder={locale === 'zh-CN' ? '可接受答案，逗号分隔' : 'Accepted answers'}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        updatePublicContent(
-                          'blanks',
-                          (publicContent.blanks as Array<Record<string, unknown>>).filter(
-                            (_, rowIndex) => rowIndex !== index,
-                          ),
-                        );
-                        updateGrading(
-                          'blanks',
-                          gradingBlanks.filter((_, rowIndex) => rowIndex !== index),
-                        );
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                );
-              })
-            : null}
-        </div>
       ) : null}
 
       {currentType === 'code' ? (
@@ -1496,9 +1525,9 @@ export function ProblemDraftForm({
                 [
                   'short_answer',
                   'choice',
+                  'fill_blank',
                   'proof',
                   'calculation',
-                  'fill_blank',
                   'code',
                 ] as NotebookProblemType[]
               ).map((type) => (

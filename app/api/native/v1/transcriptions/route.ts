@@ -10,6 +10,7 @@ import {
   requireNativePlatformApi,
 } from '@/lib/server/public-api';
 import { resolveASRApiKey, resolveASRBaseUrl } from '@/lib/server/provider-config';
+import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
 import { withRequestContext } from '@/lib/server/request-context';
 
 export const runtime = 'nodejs';
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
       );
     }
     const providerId = 'openai-whisper' as const;
+    const systemOpenAI = await getSystemLLMRuntimeConfig();
     const result = await withRequestContext(
       {
         userId: principal.userId,
@@ -62,8 +64,8 @@ export async function POST(request: NextRequest) {
           {
             providerId,
             language: parsed.data.language,
-            apiKey: resolveASRApiKey(providerId) || process.env.OPENAI_API_KEY?.trim(),
-            baseUrl: resolveASRBaseUrl(providerId),
+            apiKey: systemOpenAI.apiKey || resolveASRApiKey(providerId),
+            baseUrl: systemOpenAI.baseUrl || resolveASRBaseUrl(providerId),
           },
           audio,
         ),

@@ -12,6 +12,7 @@ import {
   Moon,
   Plus,
   Settings,
+  ShieldCheck,
   ShoppingBag,
   Sun,
   type LucideIcon,
@@ -289,6 +290,12 @@ export function AppGlobalHeader({ showHomeControls = false }: { showHomeControls
             ) : null}
             <MoreMenuLink href="/my-courses" icon={GraduationCap} label="所有课程" />
             <DropdownMenuSeparator />
+            {portalRole === 'ADMIN' ? (
+              <>
+                <MoreMenuLink href="/admin" icon={ShieldCheck} label="管理员控制台" />
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
             <MoreMenuLink href="/settings" icon={Settings} label="设置" />
           </DropdownMenuContent>
         </DropdownMenu>

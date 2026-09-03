@@ -237,8 +237,8 @@ print(id(a) == id(b), id(a) == id(c))
     id: 'demo-csc148-problem-fill-adt',
     notebookId: CSC148_NOTEBOOKS.adt.id,
     notebookName: CSC148_NOTEBOOKS.adt.name,
-    title: '栈操作结果填空',
-    type: 'fill_blank',
+    title: '栈操作结果',
+    type: 'short_answer',
     status: 'published',
     source: 'manual',
     order: 7,
@@ -247,21 +247,13 @@ print(id(a) == id(b), id(a) == id(c))
     tags: ['栈', 'ADT', 'LIFO'],
     difficulty: 'easy',
     publicContent: {
-      type: 'fill_blank',
-      stemTemplate:
-        '对空栈依次执行 push(3)、push(7)、pop()、push(1)、pop() 后，栈顶元素是 {{top}}，栈的大小是 {{size}}。',
-      blanks: [
-        { id: 'top', placeholder: '栈顶' },
-        { id: 'size', placeholder: '大小' },
-      ],
+      type: 'short_answer',
+      stem: '对空栈依次执行 push(3)、push(7)、pop()、push(1)、pop() 后，栈顶元素和栈的大小分别是多少？',
       explanation: 'pop 两次后栈中仅剩 3，因此 top=3，size=1。',
     },
     grading: {
-      type: 'fill_blank',
-      blanks: [
-        { id: 'top', acceptedAnswers: ['3'], caseSensitive: false },
-        { id: 'size', acceptedAnswers: ['1'], caseSensitive: false },
-      ],
+      type: 'short_answer',
+      referenceAnswer: '栈顶元素为 3，栈的大小为 1。',
     },
   }),
   baseProblem({
@@ -269,7 +261,7 @@ print(id(a) == id(b), id(a) == id(c))
     notebookId: CSC148_NOTEBOOKS.trees.id,
     notebookName: CSC148_NOTEBOOKS.trees.name,
     title: 'BST 中序遍历性质',
-    type: 'fill_blank',
+    type: 'short_answer',
     status: 'published',
     source: 'manual',
     order: 8,
@@ -278,21 +270,13 @@ print(id(a) == id(b), id(a) == id(c))
     tags: ['BST', '中序遍历', '有序性'],
     difficulty: 'easy',
     publicContent: {
-      type: 'fill_blank',
-      stemTemplate:
-        '对一棵合法 BST 做中序遍历（inorder traversal），得到的键序列一定是 {{property}} 的。',
-      blanks: [{ id: 'property', placeholder: '性质' }],
+      type: 'short_answer',
+      stem: '对一棵合法 BST 做中序遍历（inorder traversal），得到的键序列具有什么性质？',
       explanation: 'BST 的中序遍历会按非降序输出所有键。',
     },
     grading: {
-      type: 'fill_blank',
-      blanks: [
-        {
-          id: 'property',
-          acceptedAnswers: ['非降序', '升序', 'sorted', 'non-decreasing'],
-          caseSensitive: false,
-        },
-      ],
+      type: 'short_answer',
+      referenceAnswer: '键序列按非降序排列。',
     },
   }),
   baseProblem({

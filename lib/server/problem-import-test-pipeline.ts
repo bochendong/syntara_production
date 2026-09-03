@@ -262,7 +262,7 @@ function previewTextDraft(args: {
   fixtureId: string;
   index: number;
   title: string;
-  type: Exclude<NotebookProblemImportDraft['type'], 'choice' | 'fill_blank' | 'code'>;
+  type: Exclude<NotebookProblemImportDraft['type'], 'choice' | 'code'>;
   source: NotebookProblemSource;
   stem: string;
   grading?: Partial<NotebookProblemImportDraft['grading']>;

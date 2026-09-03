@@ -20,9 +20,20 @@ import {
   llmExtractProblemDraftsFromOpenAIFile,
 } from '@/features/problems/server/import';
 import { createCourseProblemsFromDraftsWithSummary } from '@/features/problems/server/service';
+import { uploadOpenAIUserFile } from '@/lib/server/openai-user-files';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
+
+function jsonRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function derivedPdfFileName(fileName: string): string {
+  return /\.[^.]+$/.test(fileName) ? fileName.replace(/\.[^.]+$/, '.pdf') : `${fileName}.pdf`;
+}
 
 async function extractText(args: { title: string; mimeType: string; data: Buffer }) {
   const kind = courseSourceFileKind({ name: args.title, type: args.mimeType });
@@ -100,14 +111,31 @@ async function runSourceProcessing(args: {
         data: { stage: 'converting_to_pdf', progress: 12 },
       });
     }
-    const extracted =
-      officeSource || !source.extractedText?.trim()
-        ? await extractText({
-            title: source.title,
-            mimeType: source.fileMime || 'application/octet-stream',
-            data: Buffer.from(source.fileData!),
-          })
-        : { text: source.extractedText, pageCount: 1 };
+    const originalFile = source.fileData ? Buffer.from(source.fileData) : null;
+    const directOriginalFileInput =
+      source.sourceCategory === 'problem_bank' &&
+      originalFile &&
+      (sourceKind === 'pdf' || sourceKind === 'markdown' || sourceKind === 'plain_text');
+    const extracted = await (async () => {
+      if (!officeSource && source.extractedText?.trim()) {
+        return { text: source.extractedText, pageCount: 1 };
+      }
+      try {
+        return await extractText({
+          title: source.title,
+          mimeType: source.fileMime || 'application/octet-stream',
+          data: Buffer.from(source.fileData!),
+        });
+      } catch (error) {
+        // PDF question extraction uses the original OpenAI file input. Local
+        // parsing remains useful for indexing, but it must not block a valid
+        // visual PDF from reaching the model.
+        if (directOriginalFileInput && sourceKind === 'pdf') {
+          return { text: '', pageCount: 1 };
+        }
+        throw error;
+      }
+    })();
     if ('previewPdf' in extracted && extracted.previewPdf) {
       await persistCourseSourcePreviewPdf(source.id, extracted.previewPdf);
     }
@@ -118,8 +146,27 @@ async function runSourceProcessing(args: {
       .replace(/\u0000/g, '')
       .trim()
       .slice(0, 90_000);
+    const openAIFileInput = (() => {
+      if (source.sourceCategory !== 'problem_bank' || !originalFile) return null;
+      if (sourceKind === 'docx' || sourceKind === 'pptx') {
+        if (!('previewPdf' in extracted) || !extracted.previewPdf) return null;
+        return {
+          buffer: extracted.previewPdf,
+          fileName: derivedPdfFileName(source.title),
+          mimeType: 'application/pdf',
+        };
+      }
+      if (directOriginalFileInput) {
+        return {
+          buffer: originalFile,
+          fileName: source.title,
+          mimeType: source.fileMime || 'application/octet-stream',
+        };
+      }
+      return null;
+    })();
     const minimumTextLength = source.sourceCategory === 'problem_bank' ? 10 : 400;
-    if (text.length < minimumTextLength) {
+    if (text.length < minimumTextLength && !openAIFileInput && !source.openaiFileId) {
       throw new Error(
         source.sourceCategory === 'problem_bank'
           ? '源文件提取文字不足，无法导入课程题库'
@@ -129,7 +176,7 @@ async function runSourceProcessing(args: {
 
     await prisma.courseSource.update({
       where: { id: source.id },
-      data: { extractedText: text, ingestStatus: 'processing', errorReason: null },
+      data: { extractedText: text || null, ingestStatus: 'processing', errorReason: null },
     });
 
     if (source.sourceCategory === 'problem_bank') {
@@ -143,11 +190,47 @@ async function runSourceProcessing(args: {
         baseUrl: runtimeConfig.baseUrl,
         requiresApiKey: true,
       });
-      const extractedProblems = source.openaiFileId
+      let openaiFileId = source.openaiFileId;
+      const sourceMetadata = jsonRecord(source.metadataJson);
+      let openAIInputFileName =
+        typeof sourceMetadata.aiInputFileName === 'string'
+          ? sourceMetadata.aiInputFileName
+          : source.title;
+      let openAIInputMimeType =
+        typeof sourceMetadata.aiInputMimeType === 'string'
+          ? sourceMetadata.aiInputMimeType
+          : source.fileMime || 'application/octet-stream';
+      if (!openaiFileId && openAIFileInput) {
+        await prisma.agentTask.update({
+          where: { id: args.taskId },
+          data: { stage: 'uploading_to_openai', progress: 25 },
+        });
+        openaiFileId = await uploadOpenAIUserFile(openAIFileInput);
+        openAIInputFileName = openAIFileInput.fileName;
+        openAIInputMimeType = openAIFileInput.mimeType;
+        const existingOpenAIFileIds = Array.isArray(sourceMetadata.openaiFileIds)
+          ? sourceMetadata.openaiFileIds.filter(
+              (fileId): fileId is string => typeof fileId === 'string' && fileId.trim().length > 0,
+            )
+          : [];
+        await prisma.courseSource.update({
+          where: { id: source.id },
+          data: {
+            openaiFileId,
+            metadataJson: toPrismaJson({
+              ...sourceMetadata,
+              openaiFileIds: Array.from(new Set([...existingOpenAIFileIds, openaiFileId])),
+              aiInputFileName: openAIFileInput.fileName,
+              aiInputMimeType: openAIFileInput.mimeType,
+            }),
+          },
+        });
+      }
+      const extractedProblems = openaiFileId
         ? await llmExtractProblemDraftsFromOpenAIFile({
-            fileId: source.openaiFileId,
-            fileName: source.title,
-            mimeType: source.fileMime || 'application/octet-stream',
+            fileId: openaiFileId,
+            fileName: openAIInputFileName,
+            mimeType: openAIInputMimeType,
             source: 'pdf',
             model,
             language: 'zh-CN',

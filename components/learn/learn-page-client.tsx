@@ -3971,6 +3971,7 @@ function calendarEventPatch(
   if (before.title !== after.title) patch.title = after.title;
   if (before.kind !== after.kind) patch.kind = after.kind;
   if (before.date !== after.date) patch.date = after.date;
+  if (before.start !== after.start) patch.start = after.start ?? null;
   if (before.durationMinutes !== after.durationMinutes) {
     patch.durationMinutes = after.durationMinutes ?? null;
   }
@@ -7239,8 +7240,6 @@ export function LearnPageClient() {
   const providersConfig = useSettingsStore((state) => state.providersConfig);
   const pdfProviderId = useSettingsStore((state) => state.pdfProviderId);
   const pdfProvidersConfig = useSettingsStore((state) => state.pdfProvidersConfig);
-  const webSearchProviderId = useSettingsStore((state) => state.webSearchProviderId);
-  const webSearchProvidersConfig = useSettingsStore((state) => state.webSearchProvidersConfig);
   const imageGenerationEnabled = useSettingsStore((state) => state.imageGenerationEnabled);
   const imageProviderId = useSettingsStore((state) => state.imageProviderId);
   const imageModelId = useSettingsStore((state) => state.imageModelId);
@@ -13060,96 +13059,6 @@ export function LearnPageClient() {
           return;
         }
 
-        if (action.kind === 'web.search') {
-          const query = payloadString(action.payload?.query) || actionSummary(action);
-          const webConfig = webSearchProvidersConfig[webSearchProviderId];
-          const data = await backendJson<{
-            answer?: string;
-            sources?: Array<{ title: string; url: string; content?: string; score?: number }>;
-            query?: string;
-            skipped?: boolean;
-            reason?: string;
-          }>('/api/web-search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query,
-              apiKey: webConfig?.apiKey || undefined,
-              usageContext: {
-                courseId: activeCourseId || undefined,
-                courseName: activeCourse.name,
-                operationCode: 'learn_web_search',
-                chargeReason: '学习页联网搜索',
-                serviceLabel: 'Tavily Web Search',
-              },
-            }),
-          });
-          if (!actionStillBelongsToVisibleSession()) return;
-          if (data.skipped) {
-            setMessages((current) => [
-              ...current,
-              {
-                id: makeClientId('assistant-web-search-skipped'),
-                role: 'assistant',
-                text: '当前没有配置可用的网页搜索 API key，所以这次没有联网搜索。',
-                createdAt: Date.now(),
-              },
-            ]);
-            markLearningActionStatus(
-              action.id,
-              'failed',
-              actionResult(action, {
-                status: 'failed',
-                summary: '网页搜索未执行：没有可用 API key。',
-                input: { query },
-                error: data.reason || 'Web search provider was not configured.',
-              }),
-            );
-            return;
-          }
-          const artifact: LearnArtifact = {
-            kind: 'web_search_result',
-            id: makeClientId('web-search-artifact'),
-            query: data.query || query,
-            answer: data.answer || undefined,
-            usedFor: payloadString(action.payload?.usedFor) || undefined,
-            sources: (data.sources || []).slice(0, 8),
-          };
-          const sourceLines = artifact.sources
-            .slice(0, 4)
-            .map((source, index) => `${index + 1}. [${source.title}](${source.url})`)
-            .join('\n');
-          setMessages((current) => [
-            ...current,
-            {
-              id: makeClientId('assistant-web-search'),
-              role: 'assistant',
-              text: [
-                data.answer || `我查到了和「${query}」相关的网页来源。`,
-                sourceLines ? `\n来源：\n${sourceLines}` : '',
-              ]
-                .filter(Boolean)
-                .join('\n'),
-              createdAt: Date.now(),
-              artifacts: [artifact],
-            },
-          ]);
-          markLearningActionStatus(
-            action.id,
-            'completed',
-            actionResult(action, {
-              status: 'completed',
-              summary: `已完成网页搜索：${query}`,
-              input: { query },
-              output: {
-                sourceCount: artifact.sources.length,
-                artifactId: artifact.id,
-              },
-            }),
-          );
-          return;
-        }
-
         if (action.kind === 'calendar.propose_add') {
           const events = learningActionCalendarEvents(action).map((event, index) => {
             const clientEventId = `learning-action-${action.id}-${index}`.slice(0, 200);
@@ -13808,8 +13717,6 @@ export function LearnPageClient() {
       startStatusCalendarActivity,
       statusCalendarActivities,
       updateCalendarEvent,
-      webSearchProviderId,
-      webSearchProvidersConfig,
     ],
   );
 
@@ -18760,7 +18667,7 @@ export function LearnPageClient() {
             showRightRail &&
               !leftRailCollapsed &&
               !rightRailCollapsed &&
-              'lg:grid-cols-[18%_minmax(0,1fr)] xl:grid-cols-[18%_minmax(0,1fr)_22%]',
+              'lg:grid-cols-[255px_minmax(0,1fr)] xl:grid-cols-[255px_minmax(0,1fr)_22%]',
             showRightRail &&
               leftRailCollapsed &&
               !rightRailCollapsed &&
@@ -18768,12 +18675,12 @@ export function LearnPageClient() {
             showRightRail &&
               !leftRailCollapsed &&
               rightRailCollapsed &&
-              'lg:grid-cols-[18%_minmax(0,1fr)] xl:grid-cols-[18%_minmax(0,1fr)_4.5rem]',
+              'lg:grid-cols-[255px_minmax(0,1fr)] xl:grid-cols-[255px_minmax(0,1fr)_4.5rem]',
             showRightRail &&
               leftRailCollapsed &&
               rightRailCollapsed &&
               'lg:grid-cols-[4.5rem_minmax(0,1fr)] xl:grid-cols-[4.5rem_minmax(0,1fr)_4.5rem]',
-            !showRightRail && !leftRailCollapsed && 'lg:grid-cols-[18%_minmax(0,1fr)]',
+            !showRightRail && !leftRailCollapsed && 'lg:grid-cols-[255px_minmax(0,1fr)]',
             !showRightRail && leftRailCollapsed && 'lg:grid-cols-[4.5rem_minmax(0,1fr)]',
           )}
         >

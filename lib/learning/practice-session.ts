@@ -106,7 +106,6 @@ function answerHasContent(answer: NotebookProblemAttemptAnswer | null | undefine
   if (!answer) return false;
   if (typeof answer.text === 'string' && answer.text.trim()) return true;
   if (Array.isArray(answer.selectedOptionIds) && answer.selectedOptionIds.length > 0) return true;
-  if (answer.blanks && Object.values(answer.blanks).some((value) => value.trim())) return true;
   if (typeof answer.code === 'string' && answer.code.trim()) return true;
   if (Array.isArray(answer.images) && answer.images.length > 0) return true;
   return false;

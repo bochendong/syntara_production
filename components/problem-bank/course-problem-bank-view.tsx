@@ -10,7 +10,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
-  FileUp,
   ImagePlus,
   Loader2,
   Maximize2,
@@ -90,7 +89,6 @@ import {
   type CourseProblemBankInitialFilters,
   type CourseProblemPracticeAttemptResolvedEvent,
 } from '@/components/problem-bank/use-course-problem-bank-controller';
-import { CourseProblemImportDialog } from '@/components/problem-bank/course-problem-import-dialog';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
 import {
   COURSE_SPACE_BODY_SURFACE_CLASS,
@@ -818,16 +816,15 @@ function CodeRunOutputPanel({
 
 export function CourseProblemBankView({
   courseId,
-  initialImportOpen,
   initialNotebookId,
   initialProblemId,
   initialFilters,
   mode = 'bank',
-  practiceBackLabel,
+  practiceBackLabel: _practiceBackLabel,
   practiceHeaderPlacement = 'internal',
   practiceProblemIds,
   initialPracticeAnswers,
-  onPracticeBack,
+  onPracticeBack: _onPracticeBack,
   onPracticeProblemChange,
   onPracticeAnswerDraftChange,
   onPracticeAttemptResolved,
@@ -841,7 +838,6 @@ export function CourseProblemBankView({
   forumCount,
 }: {
   courseId: string;
-  initialImportOpen?: boolean;
   initialNotebookId?: string;
   initialProblemId?: string;
   initialFilters?: CourseProblemBankInitialFilters;
@@ -868,7 +864,6 @@ export function CourseProblemBankView({
 }) {
   const view = useCourseProblemBankController({
     courseId,
-    initialImportOpen,
     initialNotebookId,
     initialProblemId,
     initialFilters,
@@ -945,7 +940,6 @@ export function CourseProblemBankView({
     selectedProblemEditDraft,
     selectedProblemHasTranslation,
     selectedProblemId,
-    selectedProblemNotebook,
     selectedProblemNotebookLabel,
     selectedProblemPoints,
     selectedProblemSolutionSections,
@@ -958,8 +952,6 @@ export function CourseProblemBankView({
     setChoiceAnswers,
     setCodeAnswers,
     setDifficultyFilter,
-    setImportMode,
-    setImportOpen,
     setMoveDialogOpen,
     setMoveNotebookId,
     setProblemLanguage,
@@ -995,9 +987,7 @@ export function CourseProblemBankView({
   const selectedProblemSupportsPreviewTab =
     editingProblemPaneSelected ||
     !selectedProblem ||
-    (selectedProblem.type !== 'choice' &&
-      selectedProblem.type !== 'fill_blank' &&
-      selectedProblem.type !== 'code');
+    (selectedProblem.type !== 'choice' && selectedProblem.type !== 'code');
   const selectedProblemCurrentAnswer: NotebookProblemAttemptAnswer | null = useMemo(() => {
     if (!selectedProblem) return null;
     if (selectedProblem.type === 'choice') {
@@ -1719,28 +1709,51 @@ export function CourseProblemBankView({
               </div>
             ) : selectedProblem.type === 'fill_blank' &&
               selectedProblemContent?.type === 'fill_blank' ? (
-              <div className="space-y-2">
-                {selectedProblemContent.blanks.map((blank) => (
-                  <div key={blank.id}>
-                    <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
-                      {blank.id}
-                    </label>
-                    <Input
-                      value={blankAnswers[selectedProblem.id]?.[blank.id] ?? ''}
-                      placeholder={
-                        blank.placeholder ||
-                        (locale === 'zh-CN' ? '请输入答案' : 'Type your answer')
-                      }
-                      onChange={(event) =>
-                        setBlankAnswers((prev) => ({
-                          ...prev,
-                          [selectedProblem.id]: {
-                            ...(prev[selectedProblem.id] ?? {}),
-                            [blank.id]: event.target.value,
-                          },
-                        }))
-                      }
-                    />
+              <div className="space-y-3">
+                <div className="rounded-md border border-fuchsia-200 bg-fuchsia-50/60 px-3 py-2 text-xs leading-5 text-fuchsia-900 dark:border-fuchsia-500/25 dark:bg-fuchsia-500/10 dark:text-fuchsia-100">
+                  {locale === 'zh-CN'
+                    ? `请按题面中的空格编号填写；共 ${selectedProblemContent.blanks.length} 个空。`
+                    : `Complete the numbered blanks in the prompt (${selectedProblemContent.blanks.length} total).`}
+                </div>
+                {selectedProblemContent.blanks.map((blank, index) => (
+                  <div
+                    key={blank.id}
+                    className="grid gap-2 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-950 sm:grid-cols-[2.25rem_minmax(0,1fr)] sm:items-center"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-fuchsia-100 text-sm font-semibold text-fuchsia-700 dark:bg-fuchsia-500/15 dark:text-fuchsia-200">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 space-y-1.5">
+                      <label
+                        htmlFor={`fill-blank-${selectedProblem.id}-${blank.id}`}
+                        className="block truncate text-xs font-medium text-slate-600 dark:text-slate-300"
+                      >
+                        {blank.placeholder?.trim() ||
+                          (locale === 'zh-CN' ? `第 ${index + 1} 空` : `Blank ${index + 1}`)}
+                      </label>
+                      <Input
+                        id={`fill-blank-${selectedProblem.id}-${blank.id}`}
+                        value={blankAnswers[selectedProblem.id]?.[blank.id] ?? ''}
+                        disabled={submittingAnswer}
+                        placeholder={locale === 'zh-CN' ? '输入答案' : 'Enter answer'}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setBlankAnswers((prev) => ({
+                            ...prev,
+                            [selectedProblem.id]: {
+                              ...(prev[selectedProblem.id] ?? {}),
+                              [blank.id]: value,
+                            },
+                          }));
+                          setAnswerFeedbackByProblemId((prev) => {
+                            if (!prev[selectedProblem.id]) return prev;
+                            const next = { ...prev };
+                            delete next[selectedProblem.id];
+                            return next;
+                          });
+                        }}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1860,24 +1873,6 @@ export function CourseProblemBankView({
                 feedback={selectedAnswerFeedback}
                 locale={locale}
               />
-            ) : selectedProblem.type === 'fill_blank' &&
-              selectedProblem.publicContent.type === 'fill_blank' ? (
-              <div className="space-y-2">
-                {selectedProblem.publicContent.blanks.map((blank) => (
-                  <div
-                    key={blank.id}
-                    className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm dark:border-slate-700 dark:bg-slate-900/60"
-                  >
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {blank.id}
-                    </p>
-                    <p className="mt-1 text-slate-800 dark:text-slate-100">
-                      {blankAnswers[selectedProblem.id]?.[blank.id]?.trim() ||
-                        (locale === 'zh-CN' ? '未填写' : 'Empty')}
-                    </p>
-                  </div>
-                ))}
-              </div>
             ) : selectedProblem.type === 'code' && selectedProblem.publicContent.type === 'code' ? (
               <pre className="min-h-[180px] overflow-x-auto rounded-lg border border-slate-200 bg-slate-950 p-4 text-xs leading-6 text-slate-50 dark:border-slate-700">
                 {codeAnswers[selectedProblem.id] ??
@@ -2174,49 +2169,23 @@ export function CourseProblemBankView({
                       ))}
                     </select>
                   </div>
-                </div>
-                {canEditProblems ? (
-                  <div className="mt-3 grid grid-cols-2 gap-2 xl:hidden">
+                  {canEditProblems ? (
                     <button
                       type="button"
                       onClick={() => void handleAutoArchiveUnassignedProblems()}
                       disabled={autoArchiving || unassignedProblemCount === 0}
-                      className="col-span-2 rounded-xl border border-violet-200 bg-violet-50/90 px-3 py-2 text-center text-xs font-semibold text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-55 dark:border-violet-500/25 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15"
+                      className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50/90 px-2.5 text-xs font-semibold text-violet-700 shadow-none transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-55 dark:border-violet-500/25 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15"
                     >
                       {autoArchiving ? (
-                        <Loader2 className="mx-auto mb-1 h-4 w-4 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
-                        <Sparkles className="mx-auto mb-1 h-4 w-4" />
+                        <Sparkles className="h-3.5 w-3.5" />
                       )}
                       {locale === 'zh-CN' ? 'AI 自动归档' : 'AI auto-assign'}
-                      <span className="ml-1 font-normal opacity-75">
-                        · {unassignedProblemCount}
-                      </span>
+                      <span className="font-normal opacity-75">· {unassignedProblemCount}</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setImportMode('pdf');
-                        setImportOpen(true);
-                      }}
-                      className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-center text-xs font-semibold text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:border-sky-500/30 dark:hover:bg-sky-500/10"
-                    >
-                      <FileUp className="mx-auto mb-1 h-4 w-4 text-sky-600 dark:text-sky-300" />
-                      {locale === 'zh-CN' ? '导入题目' : 'Import'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setImportMode('web');
-                        setImportOpen(true);
-                      }}
-                      className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-center text-xs font-semibold text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:border-sky-500/30 dark:hover:bg-sky-500/10"
-                    >
-                      <Sparkles className="mx-auto mb-1 h-4 w-4 text-sky-600 dark:text-sky-300" />
-                      {locale === 'zh-CN' ? '智能生成' : 'Generate'}
-                    </button>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col overflow-auto">
@@ -2265,10 +2234,10 @@ export function CourseProblemBankView({
                         {problems.length === 0
                           ? locale === 'zh-CN'
                             ? canEditProblems
-                              ? '上传题目文件、粘贴题目文本，或使用 AI 智能生成题目。'
+                              ? '请前往课程资料库，在“题库”分类中上传原始文件并导入。'
                               : '老师上传题目后，会在这里显示课程题库。'
                             : canEditProblems
-                              ? 'Upload a file, paste problem text, or generate problems with AI.'
+                              ? 'Upload the source file from the Problem bank category in course resources.'
                               : 'Course problems will appear here after the teacher uploads them.'
                           : locale === 'zh-CN'
                             ? '尝试调整搜索词或筛选条件。'
@@ -2277,14 +2246,15 @@ export function CourseProblemBankView({
                       {problems.length === 0 && canEditProblems ? (
                         <button
                           type="button"
-                          onClick={() => {
-                            setImportMode('pdf');
-                            setImportOpen(true);
-                          }}
+                          onClick={() =>
+                            router.push(
+                              `/teacher/courses/${encodeURIComponent(courseId)}${previewMode ? '?mock=1' : ''}`,
+                            )
+                          }
                           className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white shadow-[0_8px_22px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-[0_12px_26px_rgba(15,23,42,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 motion-reduce:hover:translate-y-0 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                         >
-                          <FileUp className="size-4" />
-                          {locale === 'zh-CN' ? '上传题目' : 'Upload problems'}
+                          <BookOpen className="size-4" />
+                          {locale === 'zh-CN' ? '前往资料库' : 'Open resources'}
                         </button>
                       ) : null}
                     </div>
@@ -2749,57 +2719,6 @@ export function CourseProblemBankView({
                   )}
                 </div>
               </div>
-
-              {canEditProblems ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleAutoArchiveUnassignedProblems()}
-                    disabled={autoArchiving || unassignedProblemCount === 0}
-                    className="col-span-2 rounded-2xl border border-violet-200 bg-violet-50/90 p-3 text-center text-xs font-semibold text-violet-700 shadow-[0_16px_40px_rgba(76,29,149,0.06)] transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-55 dark:border-violet-500/25 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15"
-                  >
-                    {autoArchiving ? (
-                      <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
-                    ) : (
-                      <Sparkles className="mx-auto mb-2 h-5 w-5" />
-                    )}
-                    <span>{locale === 'zh-CN' ? 'AI 自动归档' : 'AI auto-assign'}</span>
-                    <span className="mt-1 block text-[10px] font-normal opacity-75">
-                      {locale === 'zh-CN'
-                        ? `${unassignedProblemCount} 道未归档题目`
-                        : `${unassignedProblemCount} unassigned`}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImportMode('pdf');
-                      setImportOpen(true);
-                    }}
-                    className="rounded-2xl border border-slate-200 bg-white/95 p-3 text-center text-xs font-semibold text-slate-700 shadow-[0_16px_40px_rgba(15,23,42,0.05)] transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:border-sky-500/30 dark:hover:bg-sky-500/10"
-                  >
-                    <FileUp className="mx-auto mb-2 h-5 w-5 text-sky-600 dark:text-sky-300" />
-                    <span>{locale === 'zh-CN' ? '导入题目' : 'Import'}</span>
-                    <span className="mt-1 block text-[10px] font-normal text-slate-400">
-                      {locale === 'zh-CN' ? 'PDF / LaTeX / 文本' : 'PDF / LaTeX / text'}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImportMode('web');
-                      setImportOpen(true);
-                    }}
-                    className="rounded-2xl border border-slate-200 bg-white/95 p-3 text-center text-xs font-semibold text-slate-700 shadow-[0_16px_40px_rgba(15,23,42,0.05)] transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:border-sky-500/30 dark:hover:bg-sky-500/10"
-                  >
-                    <Sparkles className="mx-auto mb-2 h-5 w-5 text-sky-600 dark:text-sky-300" />
-                    <span>{locale === 'zh-CN' ? '智能生成' : 'Generate'}</span>
-                    <span className="mt-1 block text-[10px] font-normal text-slate-400">
-                      {locale === 'zh-CN' ? '按知识点出题' : 'By concepts'}
-                    </span>
-                  </button>
-                </div>
-              ) : null}
             </aside>
           </>
         ) : null}
@@ -2898,8 +2817,6 @@ export function CourseProblemBankView({
             </div>
           </div>
         ) : null}
-
-        {canEditProblems ? <CourseProblemImportDialog view={view} /> : null}
       </div>
     </div>
   );

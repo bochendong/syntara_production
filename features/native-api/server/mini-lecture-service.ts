@@ -28,6 +28,7 @@ import {
 } from '@/lib/server/internal-request';
 import { resolveTTSApiKey, resolveTTSBaseUrl } from '@/lib/server/provider-config';
 import { resolveModelFromHeadersForNotebookStage } from '@/lib/server/resolve-model';
+import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
 import { POST as generateNotebookPageContentRoute } from '@/features/ppt-generation/server/notebook-page-content-route';
 import { POST as generateSceneActionsRoute } from '@/features/ppt-generation/server/scene-actions-route';
 import {
@@ -685,8 +686,8 @@ async function defaultSynthesizeSpeech(args: {
   text: string;
   voice: string;
 }): Promise<TTSGenerationResult> {
-  const apiKey =
-    resolveTTSApiKey(OPENAI_TTS_PROVIDER_ID) || process.env.OPENAI_API_KEY?.trim() || '';
+  const systemOpenAI = await getSystemLLMRuntimeConfig();
+  const apiKey = systemOpenAI.apiKey || resolveTTSApiKey(OPENAI_TTS_PROVIDER_ID);
   if (!apiKey) {
     throw new NativeMiniLectureServiceError({
       code: 'MISSING_PROVIDER_CONFIGURATION',
@@ -701,7 +702,7 @@ async function defaultSynthesizeSpeech(args: {
     {
       providerId: OPENAI_TTS_PROVIDER_ID,
       apiKey,
-      baseUrl: resolveTTSBaseUrl(OPENAI_TTS_PROVIDER_ID),
+      baseUrl: systemOpenAI.baseUrl || resolveTTSBaseUrl(OPENAI_TTS_PROVIDER_ID),
       voice: args.voice,
       speed: 1,
       format: 'mp3',

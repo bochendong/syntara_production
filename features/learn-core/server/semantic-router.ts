@@ -4,7 +4,7 @@ import type { LearnHandoffPacket, LearnRunContext, LearnToolId } from '../domain
 import { teachingWorkflowPromptSections } from '../../teaching-orchestrator/domain/fixed-workflows';
 import {
   extractJsonObject,
-  learnActionKindSchema,
+  generatedLearnActionKindSchema,
   learnArtifactKindSchema,
   learnTurnRequestSchema,
   learnTurnResponseSchema,
@@ -22,7 +22,6 @@ const learnRouterToolIdSchema = z.enum([
   'plan_review',
   'propose_calendar_change',
   'propose_memory_write',
-  'propose_practice_generation',
   'answer_course_question',
 ]);
 
@@ -148,7 +147,7 @@ const structuredActionPayloadSchema = z.object({
 });
 
 const structuredActionSchema = z.object({
-  kind: learnActionKindSchema,
+  kind: generatedLearnActionKindSchema,
   label: z.string(),
   summary: z.string(),
   payload: structuredActionPayloadSchema,
@@ -242,7 +241,6 @@ function toolVocabulary() {
     '- plan_review: create a review/preview/practice activity plan artifact.',
     '- propose_calendar_change: create a confirmation-required calendar add/update/delete proposal.',
     '- propose_memory_write: create a confirmation-required teaching memory write proposal.',
-    '- propose_practice_generation: legacy action ID for a confirmation-required selection of existing problem-bank questions; it never creates questions.',
     '- answer_course_question: hand off to the course answerer with explicit evidence and behavior requirements.',
   ].join('\n');
 }
@@ -301,7 +299,7 @@ export function buildLearnSemanticRouterPrompt(
     '- If the learner confirms an explanation-only concept review such as "我想听讲解：<target>", use answerMode="course_answer", planningDecision.intent="none", no review_plan/activity_plan/calendar artifact, selectedToolIds including search_memory, search_course_materials, and answer_course_question, and a non-null handoff. Required behavior: teach the target now in the chat in clear Chinese using this internal rhythm: plain intuition -> visible compact "复习地图" when the target is broad -> concrete tiny walk-through -> main operation/state change -> likely confusion or pitfall. For broad data-structure topics, do not stop after traversal/insertion/deletion; the map must include representation, traversal/search, insertion/deletion cases, complexity tradeoffs, variants/classic patterns, and pitfalls, then trace only the most central case in detail. If variants/classic patterns are not central in the attached course context, mention them as "了解层面" in one short bullet. For code topics, walk through the example before code. Forbidden behavior: do not greet by name, do not expose internal labels such as "核心心智模型" or "状态追踪", do not open with missing-context/source caveats, do not interrupt the core analogy/walk-through with citations, and do not offer classroom, calendar, practice, review_plan, or special UI blocks unless the learner explicitly asks for them.',
     '- If the learner confirms practice such as "我想练题目：<target>", use client_practice_plan only when the problem bank has strict usable matches: preserve focusTopics, do not ask for progress first, and let the client select real problem-bank items. If there is no active bank or no strict match, use action_only to explain the explicit bank gap with no proposal and no generated substitute. If the learner confirms "我想讲解和练题都有：<target>", include practice tasks only when they cite real problem IDs; otherwise keep the explanation and disclose the practice gap.',
     '- A review_plan artifact is not a schedule stub. It must begin the review now: include learningGoal, useful tasks, focusPoints with short explanations, selfChecks with expected answers, a practiceBridge that uses real problemIds only, and nextSteps. Keep generatedPrompts empty.',
-    '- If progress confirmation is truly required, return a learner_progress.request_confirmation proposal or directCall. Do not rely on shouldAskProgressFirst alone; the client will not synthesize a local progress-confirmation flow from that boolean.',
+    '- Never emit learner_progress.request_confirmation. Use explicit draft defaults for missing progress or time, and set shouldAskProgressFirst=false.',
     '- If the learner gives an execution constraint such as "three days", "三天后考试", "20 minutes per day", or a deadline, preserve it in planningDecision.scopeResolution.executionWindow and in the plan artifact calendarDraftItems. Do not fall back to 7 days when the learner gave a different window.',
     '- For answerMode="client_activity_plan", you must include a concise student-facing replyText and at least one durable artifact: activity_plan, review_plan, or calendar_draft. The artifact should contain id, title, planType when applicable, tasks, calendarDraftItems when dates are useful, and scope. For review_plan, also include the review-session fields above. Do not return only planningDecision for client-side reconstruction.',
     '- If the learner asks for exercises, a quiz, selected questions, or diagnostics, use client_practice_plan only when the problem bank has strict usable matches. When the bank has no usable matches or no active questions, return an explicit gap; never invent, generate, or persist replacement questions.',
@@ -309,9 +307,10 @@ export function buildLearnSemanticRouterPrompt(
     '- If the learner asks a normal course question, asks for explanation, or asks for uploaded-source/table/numeric evidence, use answerMode="course_answer". Include selectedToolIds that name the resources the answerer should use and provide a non-null handoff.',
     '- When Current message attachments is non-empty, the files are already attached to the learner turn. Do not ask the learner to upload them again. Route image-based course questions through course_answer unless the text clearly requests a different supported action.',
     '- If answerMode is "course_answer", replyText should usually be empty; the course_answerer will produce the content response.',
-    '- If the learner asks for current external facts, latest information, package/API/library status, or web evidence outside course materials, use action_only with a read-only web.search directCall.',
+    '- If the learner asks for current external facts, latest information, package/API/library status, or web evidence outside course materials, use answerMode="course_answer" with a non-null handoff. Require the course answerer to use OpenAI Responses web_search, ground time-sensitive claims in its results, and show clickable sources. Never emit a web.search learning action.',
     '- If the learner asks to read calendar, memory, syllabus, sources, or recent activity state, use action_only with the appropriate read-only directCall or course_answer handoff when a prose answer is needed.',
-    '- Calendar edits, memory writes, image generation, classroom generation, and legacy problem-bank selection actions are proposals unless the latest message clearly confirms a prior proposal.',
+    '- Calendar edits, memory writes, and classroom generation are proposals unless the latest message clearly confirms a prior proposal.',
+    '- Never emit practice.propose_generation or image.propose_generation. Practice plans use executed problem-bank search evidence directly; image generation is not available on this chat surface.',
     '- A dated review/study plan that the learner asks to add is a calendar workflow even when the latest message says "复习计划" instead of "日历". If replyText asks the learner to confirm adding it to the calendar, include exactly one calendar.propose_add proposal with the complete non-empty items array in the same turn; never emit a text-only confirmation request.',
     '- When the latest message explicitly confirms the most recent pending calendar.propose_add action, reuse that exact structured payload as a directCall so the client executes it. Never ask for a second confirmation.',
     '- Durable memory writes store teaching-control signals: mastery, weakness, cause, correction, evidence, and next teaching move. Do not store raw transcript as the main memory.',

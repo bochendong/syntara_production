@@ -43,13 +43,11 @@ export type CodePublicTest = {
 
 export type NotebookProblemPublicContent =
   | {
-      type: 'short_answer' | 'proof' | 'calculation' | 'choice' | 'fill_blank';
+      type: 'short_answer' | 'proof' | 'calculation' | 'choice';
       stem?: string;
-      stemTemplate?: string;
       explanation?: string;
       assets?: { images?: NotebookProblemImageAsset[] };
       options?: Array<{ id: string; label: string }>;
-      blanks?: Array<{ id: string; placeholder?: string }>;
       selectionMode?: 'single' | 'multiple';
     }
   | {

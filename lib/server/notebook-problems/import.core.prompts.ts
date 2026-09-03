@@ -54,14 +54,16 @@ export function directLlmProblemImportPrompt(args: {
 硬性要求：
 - 由你直接决定题目边界；不要照抄 Source Package 里的 roleHint 或本地 heuristic 结论。
 - 必须保留 PDF 原文语言：英文题继续输出英文，中文题继续输出中文；不要翻译、改写成另一种语言或把示例里的中文套进题面。
-- publicContent.stem 是忠实整理后的题面，只允许清理版式、恢复数学和补齐同题上下文；不要摘要化、讲解化或本地化。
+- publicContent.stem（填空题使用 stemTemplate）是忠实整理后的题面，只允许清理版式、恢复数学和补齐同题上下文；不要摘要化、讲解化或本地化。
 - 顶层题号是一道 draft；(a)/(b)/(i)/(ii) 等子问保留在同一 stem 中。
 - 不要输出封面、考试说明、空白页、additional work。
 - drafts 数量必须等于 structurePlan.topLevelProblems 数量，顺序一致。
 - 每个 draft.sourceMeta.scaffoldIndex 必须等于对应 topLevelProblems.index。
 - 每个 draft.sourceMeta.anchors 必须带页码；sourceMeta.structure 可以是对应 topLevelProblems 的简短副本。
-- 非选择题不要生成答案；只保留最小 grading。
-- 选择题若没有答案表，可以根据题干和选项解题并设置 correctOptionIds，同时在 sourceMeta.answerSource 写 "llm-solved"。
+- 必须为每道题独立解题并生成可评分答案；学生手写内容、勾选、分数和教师批注不是题面，也不能直接当作标准答案。
+- choice 填 correctOptionIds；calculation 填 referenceAnswer、至少一个仅含最终结果的 acceptedForms，并在适用时填 tolerance/unit；short_answer 填 referenceAnswer/rubric；proof 填 referenceProof/rubric；fill_blank 为每个 blank 填 acceptedAnswers；code 填 solutionCode 或 referenceAnswer，并尽量给出可运行测试。
+- 填空题使用 publicContent.stemTemplate，并用 {{blank_id}} 标记每个空；publicContent.blanks 与 grading.blanks 的 id 必须一一对应。
+- 所有模型推导答案都在 sourceMeta.answerSource 写 "llm-solved"；如果确实无法可靠求解，保留题目并在 validationErrors 明确标记，不得伪造答案。
 - 数学题面必须整理成可读 Markdown + LaTeX；不要输出 OCR 垃圾文本、Unicode 数学符号、裸数学、或被压扁的一整行公式。
 - 分段函数、矩阵、长积分、长极限等使用独立 $$...$$；行内短公式使用 $...$。
 - 不要把一条公式拆成多个相邻的 $...$ 片段；分段函数必须写成一个完整块，例如 $$f(x)=\\begin{cases} ... \\end{cases}$$。
@@ -107,14 +109,16 @@ Return shape:
 Hard requirements:
 - You decide the problem boundaries directly; do not copy local roleHint or heuristic conclusions.
 - Preserve the PDF's original language: English questions must remain English and Chinese questions must remain Chinese. Do not translate or localize stems, titles, options, or subparts.
-- publicContent.stem is a faithful cleaned statement. Only clean layout, recover math, and include same-problem context; do not summarize, explain, or rewrite in another language.
+- publicContent.stem (or stemTemplate for fill blanks) is a faithful cleaned statement. Only clean layout, recover math, and include same-problem context; do not summarize, explain, or rewrite in another language.
 - One top-level question number is one draft; keep subparts inside that stem.
 - Do not output covers, instructions, blank pages, or additional-work pages.
 - drafts count must equal structurePlan.topLevelProblems count, in the same order.
 - Every draft.sourceMeta.scaffoldIndex must match its topLevelProblems.index.
 - Every draft.sourceMeta.anchors must include page numbers.
-- Do not generate answers for non-choice problems; keep minimal grading.
-- For choice problems without an answer key, solve from stem/options and set sourceMeta.answerSource to "llm-solved".
+- Independently solve every problem and generate grading data. Student handwriting, selected bubbles, scores, and grader comments are not part of the problem statement and must not be copied as the authoritative answer.
+- For choice use correctOptionIds; for calculation use referenceAnswer plus at least one acceptedForms entry containing only the final result and include tolerance/unit when applicable; for short_answer use referenceAnswer/rubric; for proof use referenceProof/rubric; for fill_blank provide acceptedAnswers for every blank; for code provide solutionCode or referenceAnswer and runnable tests when possible.
+- Fill blanks use publicContent.stemTemplate with a {{blank_id}} marker for each blank. IDs in publicContent.blanks and grading.blanks must match exactly.
+- Set sourceMeta.answerSource to "llm-solved" for model-derived answers. If a problem truly cannot be solved reliably, keep it and add a precise validationErrors entry instead of inventing an answer.
 - Math stems must be readable Markdown + LaTeX; do not emit OCR garbage, Unicode math symbols, bare math, or flattened formulas.
 - Use $$...$$ for cases, matrices, long integrals, and long limits; use $...$ for short inline formulas.
 - Do not split one formula into many adjacent $...$ fragments. A piecewise function must be one complete display block, e.g. $$f(x)=\\begin{cases} ... \\end{cases}$$.
@@ -135,7 +139,7 @@ export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): stri
   1. 识别材料角色：封面、考试说明、页眉页脚、空白页、题目、共享材料、表格、图、代码块、数据、提示、评分说明。
   2. 建立题目层级：顶层题号是一道题；题内的子问、条件、案例、数据、图表、提示都是同一道题的内部结构。
   3. 重写成题库题面：保留所有作答所需信息，删掉版式噪音，把视觉层级转换成 markdown 段落、列表、表格或代码块。
-- publicContent.stem / stemTemplate 是“整理后的学生可见题面”，不是 OCR dump，不是摘要，也不是 prompt 解释。
+- publicContent.stem 是“整理后的学生可见题面”，不是 OCR dump，不是摘要，也不是 prompt 解释。
 - JSON 必须是严格 JSON；stem 字符串中的换行用 \n 或 \n\n 编码，但渲染后必须有真实分段。
 - 拆题原则：只按顶层题号拆 draft。子问编号、实验步骤、阅读材料问题、证明小问、案例小问都留在同一个 stem 里，并以清晰分段呈现。
 - 结构原则：任何枚举型材料都不能压成一段。条件、性质、假设、要求、步骤、案例事实、数据说明、可选项、提示、注释、定义块必须按原本语义整理成 markdown 列表、表格、代码块或独立段落。
@@ -148,7 +152,7 @@ export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): stri
   1. Identify material roles: cover, exam instructions, headers/footers, blank pages, problems, shared context, tables, diagrams, code blocks, datasets, hints, and grading notes.
   2. Build the problem hierarchy: a top-level question number is one problem; subparts, conditions, cases, datasets, figures, tables, hints, and code belong inside that problem.
   3. Rewrite into a problem-bank stem: preserve all information needed to answer, remove layout noise, and convert visual hierarchy into markdown paragraphs, lists, tables, or code blocks.
-- publicContent.stem / stemTemplate is the cleaned student-facing statement. It is not an OCR dump, not a summary, and not an explanation of your prompt.
+- publicContent.stem is the cleaned student-facing statement. It is not an OCR dump, not a summary, and not an explanation of your prompt.
 - The response must be strict JSON; encode line breaks inside stem strings as \n or \n\n, but the rendered stem must have real sections.
 - Splitting rule: split only by top-level question number. Subquestion labels, lab steps, reading-material questions, proof subparts, and case-study subparts stay inside one stem with clear sections.
 - Structure rule: enumerated material must not be flattened into one paragraph. Conditions, properties, assumptions, requirements, steps, case facts, data notes, options, hints, notes, definitions, and setup blocks must be represented as markdown lists, tables, code blocks, or separate paragraphs according to their meaning.
@@ -183,9 +187,9 @@ ${problemStemFormattingContract(language)}
 - 共享上下文必须复制进依赖它的题目，或整理成该题开头的“背景/材料/数据/定义”块
 - choice 题必须拆出 publicContent.options 与 grading.correctOptionIds
 - publicContent.options 必须是数组，形如 [{"id":"A","label":"完整选项文本"}, ...]；label 必须是完整可作答的选项内容，绝不能只写 "A" / "B" / "C" 这样的字母
-- 只有 choice 题需要生成答案：如果来源没有答案表，请你根据题干和选项自行解题，把推断出的正确答案写入 correctOptionIds，并在 sourceMeta.answerSource 写 "llm-solved"
-- 非 choice 题不要生成答案：proof / short_answer / calculation / code 等文字作答题不要输出 referenceProof、referenceAnswer、analysis、非空 acceptedForms 或模型自写解答
-- 非 choice 题的 grading 保持最小结构；proof/short_answer 用 {"type": "..."}，calculation 用 {"type":"calculation","acceptedForms":[]}，code 只保留必要的测试/发布字段
+- 每一道题都必须生成评分答案，并在 sourceMeta.answerSource 写 "llm-solved"；不要把学生作答、勾选、分数或教师批注当作权威答案，必须根据题面独立求解
+- choice 使用 correctOptionIds；calculation 使用 referenceAnswer、至少一个只包含最终结果的 acceptedForms，以及适用的 tolerance/unit；short_answer 使用 referenceAnswer/rubric；proof 使用 referenceProof/rubric；code 使用 solutionCode 或 referenceAnswer，并尽量生成可运行测试
+- fill_blank 使用 stemTemplate，并以 {{blank_id}} 标出空位；publicContent.blanks 与 grading.blanks 的 id 一一对应，每个 grading blank 都必须有 acceptedAnswers
 - 只有在题干缺少图表/前文等关键上下文、无法可靠解答时，才使用第一个选项 id 作为 schema 占位，并在 validationErrors 加入“未识别到正确答案”
 - code 题默认 language=python
 - 如果 code 题缺少 function signature / public tests / secret tests，也要保留，但写入 validationErrors
@@ -193,7 +197,7 @@ ${problemStemFormattingContract(language)}
 - publicContent / grading / choice option label 里的所有数学都必须包在 LaTeX delimiter 中
 - 不要输出裸数学、Unicode 数学符号或纯文本数学命令；例如不要写 "A ⊆ X"、"leq"、"subseteq"、"f: X → Y"，要写 "$A \\subseteq X$"、"$\\leq$"、"$\\subseteq$"、"$f: X \\to Y$"
 - 不要把已经是 LaTeX 的数学再额外用普通括号包起来
-- 不要为非 choice 题臆造答案；只有选择题在题干和选项足以解题时才给出模型推断答案`
+- 无法可靠求解时，在 validationErrors 写清原因，不要伪造答案`
     : `You are a university problem-bank extraction assistant. Convert the source material into an array of problem drafts and return strict JSON only.
 Each item should follow this shape as closely as possible:
 {
@@ -218,9 +222,9 @@ Requirements:
 - shared context must be copied into every problem that depends on it, or rewritten as a Background / Material / Data / Definitions block at the start of that stem
 - choice problems must include publicContent.options and grading.correctOptionIds
 - publicContent.options must be an array like [{"id":"A","label":"full option text"}, ...]; label must be the complete answer choice text and must never be only "A" / "B" / "C" / the option id
-- only choice problems need generated answers: if the source has no answer key, solve the problem from the stem/options, write the inferred answer to correctOptionIds, and set sourceMeta.answerSource to "llm-solved"
-- do not generate answers for non-choice problems: proof / short_answer / calculation / code and other written-response problems must not include referenceProof, referenceAnswer, analysis, non-empty acceptedForms, or model-written solutions
-- keep non-choice grading minimal; use {"type":"proof"} / {"type":"short_answer"} for proof and short answer, {"type":"calculation","acceptedForms":[]} for calculation, and only necessary test/publish fields for code
+- every problem must include grading answers and sourceMeta.answerSource="llm-solved"; do not treat student handwriting, selected bubbles, scores, or grader comments as authoritative answers; solve from the problem statement independently
+- choice uses correctOptionIds; calculation uses referenceAnswer, at least one acceptedForms entry containing only the final result, and tolerance/unit when applicable; short_answer uses referenceAnswer/rubric; proof uses referenceProof/rubric; code uses solutionCode or referenceAnswer and runnable tests when possible
+- fill_blank uses stemTemplate with a {{blank_id}} marker for each blank; publicContent.blanks and grading.blanks must have matching IDs and every grading blank must include acceptedAnswers
 - only if critical context is missing and the answer cannot be solved reliably, use the first option id as a schema placeholder and add "未识别到正确答案" to validationErrors
 - code problems default to python
 - if code problems miss function signature / public tests / secret tests, keep them as drafts and add validationErrors
@@ -228,5 +232,5 @@ Requirements:
 - every mathematical expression in publicContent / grading text / choice option labels must be wrapped in LaTeX delimiters
 - do not emit bare math, Unicode math symbols, or plain-text math commands; for example, never write "A ⊆ X", "leq", "subseteq", or "f: X → Y"; write "$A \\subseteq X$", "$\\leq$", "$\\subseteq$", and "$f: X \\to Y$"
 - do not wrap LaTeX math in additional ordinary prose parentheses
-- do not invent answers for non-choice problems; only provide model-inferred answers for choice questions when the stem/options are sufficient`;
+- if a problem cannot be solved reliably, explain why in validationErrors instead of inventing an answer`;
 }

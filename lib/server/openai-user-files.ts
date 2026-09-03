@@ -163,6 +163,41 @@ export async function cancelOpenAIUserUpload(uploadId: string): Promise<void> {
   });
 }
 
+export async function uploadOpenAIUserFile(args: {
+  buffer: Buffer;
+  fileName: string;
+  mimeType: string;
+}): Promise<string> {
+  const uploadId = await createOpenAIUserUpload({
+    fileName: args.fileName,
+    mimeType: args.mimeType,
+    bytes: args.buffer.byteLength,
+  });
+  try {
+    const partIds: string[] = [];
+    for (
+      let partIndex = 0, offset = 0;
+      offset < args.buffer.byteLength;
+      partIndex += 1, offset += OPENAI_BROWSER_UPLOAD_PART_BYTES
+    ) {
+      partIds.push(
+        await addOpenAIUserUploadPart({
+          uploadId,
+          partIndex,
+          chunk: args.buffer.subarray(
+            offset,
+            Math.min(args.buffer.byteLength, offset + OPENAI_BROWSER_UPLOAD_PART_BYTES),
+          ),
+        }),
+      );
+    }
+    return await completeOpenAIUserUpload({ uploadId, partIds });
+  } catch (error) {
+    await cancelOpenAIUserUpload(uploadId).catch(() => undefined);
+    throw error;
+  }
+}
+
 export async function downloadOpenAIUserFile(fileId: string): Promise<Buffer> {
   const config = await officialOpenAIConfig();
   let lastFailure = 'OpenAI 未返回错误说明';

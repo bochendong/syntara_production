@@ -128,6 +128,7 @@ type SystemAppAction =
   | 'calendar'
   | 'profile'
   | 'settings'
+  | 'admin'
   | 'create'
   | 'past_courses'
   | 'usage'
@@ -247,6 +248,13 @@ const TEACHER_HOME_GRID_SYSTEM_APPS: SystemApp[] = [
     action: 'sign_out',
   },
 ];
+
+const ADMIN_HOME_APP: SystemApp = {
+  label: '管理员控制台',
+  secondary: 'Site AI control',
+  iconSrc: '/learn/system-apps/用量统计.svg',
+  action: 'admin',
+};
 
 function courseHomeIconId(courseId: string): string {
   return `course:${courseId}`;
@@ -505,6 +513,7 @@ export function LearnHomeDashboard({
   onRetryCourseLoad,
 }: LearnHomeDashboardProps) {
   const userId = useAuthStore((state) => state.userId) || 'anonymous';
+  const portalRole = useAuthStore((state) => state.role);
   const learnBackgroundId = useSettingsStore((state) => state.learnBackgroundId);
   const [now, setNow] = useState<Date | null>(null);
   const [page, setPage] = useState(1);
@@ -514,8 +523,13 @@ export function LearnHomeDashboard({
     const timer = window.setTimeout(() => setNow(new Date()), 0);
     return () => window.clearTimeout(timer);
   }, []);
-  const homeGridSystemApps =
-    variant === 'teacher' ? TEACHER_HOME_GRID_SYSTEM_APPS : HOME_GRID_SYSTEM_APPS;
+  const homeGridSystemApps = useMemo(() => {
+    const base = variant === 'teacher' ? TEACHER_HOME_GRID_SYSTEM_APPS : HOME_GRID_SYSTEM_APPS;
+    if (portalRole !== 'ADMIN') return base;
+    const signOutIndex = base.findIndex((app) => app.action === 'sign_out');
+    if (signOutIndex < 0) return [...base, ADMIN_HOME_APP];
+    return [...base.slice(0, signOutIndex), ADMIN_HOME_APP, ...base.slice(signOutIndex)];
+  }, [portalRole, variant]);
   const orderedHomeIcons = useMemo(
     () => buildHomeIconItems(courses, homeGridSystemApps),
     [courses, homeGridSystemApps],
@@ -572,6 +586,10 @@ export function LearnHomeDashboard({
     }
     if (action === 'settings') {
       setActiveDockApp('settings');
+      return;
+    }
+    if (action === 'admin') {
+      window.location.assign('/admin');
       return;
     }
     if (action === 'create') {

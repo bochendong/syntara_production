@@ -127,17 +127,6 @@ export const LEARN_CORE_TOOL_CONTRACTS = [
     outputEvidenceSources: ['memory', 'user_message', 'problem_attempt'],
   },
   {
-    id: 'propose_practice_generation',
-    title: 'Propose problem-bank selection',
-    description:
-      'Legacy action ID that prepares a confirmation-required selection of existing problem-bank questions. It never creates questions.',
-    readsFrom: ['memory', 'problem_bank', 'problem_attempts'],
-    writesTo: ['practice'],
-    sideEffects: ['client-executor'],
-    needsApproval: 'always',
-    outputEvidenceSources: ['problem_bank', 'memory', 'problem_attempt'],
-  },
-  {
     id: 'answer_course_question',
     title: 'Answer course question',
     description:

@@ -3,14 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@/lib/notifications/client-toast';
 import { useRouter } from 'next/navigation';
-import { parsePdfForGeneration } from '@/lib/pdf/parse-for-generation';
 import { useI18n } from '@/lib/hooks/use-i18n';
-import { useSettingsStore } from '@/lib/store/settings';
 import {
   getLocalizedProblemContent,
   getLocalizedProblemTitle,
   hasProblemTranslation,
-  notebookProblemImportDraftSchema,
   type NotebookProblemAttemptAnswer,
   type NotebookProblemAttemptRecord,
   type NotebookProblemAttemptStatus,
@@ -19,12 +16,10 @@ import {
 } from '@/lib/problem-bank';
 import {
   autoArchiveUnassignedCourseProblems,
-  commitCourseProblemImportWithSummary,
   deleteCourseProblem,
   listNotebookProblemAttempts,
   listCourseProblemsByIds,
   listCourseProblems,
-  previewCourseProblemImport,
   runNotebookCodeProblem,
   submitNotebookProblem,
   updateCourseProblem,
@@ -47,11 +42,8 @@ import {
   PROBLEM_BANK_PAGE_SIZE,
   buildChoiceAnswerFeedback,
   compareProblemSequence,
-  createManualProblemDraft,
   difficultyLabel,
-  estimateProblemCountFromText,
   feedbackFromAttempt,
-  formatDraftValidationErrors,
   latestAttemptFromRecord,
   matchesPracticeFilter,
   practiceFilterLabel,
@@ -66,7 +58,6 @@ import {
   typeLabel,
   type AnswerPanelTab,
   type FilterSelectOption,
-  type ImportProcessingStage,
   type InlineAnswerFeedback,
   type PhotoAnswerDraft,
   type PracticeFilter,
@@ -77,7 +68,6 @@ import {
 
 type CourseProblemBankControllerArgs = {
   courseId: string;
-  initialImportOpen?: boolean;
   initialNotebookId?: string;
   initialProblemId?: string;
   initialFilters?: CourseProblemBankInitialFilters;
@@ -187,7 +177,6 @@ function attemptAnswerHasContent(answer: NotebookProblemAttemptAnswer | null | u
 
 export function useCourseProblemBankController({
   courseId,
-  initialImportOpen = false,
   initialNotebookId,
   initialProblemId,
   initialFilters,
@@ -201,12 +190,7 @@ export function useCourseProblemBankController({
   const router = useRouter();
   const isPracticeMode = mode === 'practice';
   const { locale } = useI18n();
-  const pdfProviderId = useSettingsStore((state) => state.pdfProviderId);
-  const pdfProvidersConfig = useSettingsStore((state) => state.pdfProvidersConfig);
-  const webSearchProviderId = useSettingsStore((state) => state.webSearchProviderId);
-  const webSearchProvidersConfig = useSettingsStore((state) => state.webSearchProvidersConfig);
   const initialPracticeAnswersRef = useRef(initialPracticeAnswers);
-  const initialImportOpenPendingRef = useRef(initialImportOpen);
 
   const [courseName, setCourseName] = useState('');
   const [courseCode, setCourseCode] = useState<string | undefined>();
@@ -268,40 +252,6 @@ export function useCourseProblemBankController({
     () => normalizeInitialStatusFilter(initialFilters?.statusFilter),
   );
 
-  const [importOpen, setImportOpen] = useState(false);
-  const [importMode, setImportMode] = useState<'text' | 'pdf' | 'web' | 'manual'>(() =>
-    initialImportOpen ? 'pdf' : 'text',
-  );
-  const [importText, setImportText] = useState('');
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [importWebQuery, setImportWebQuery] = useState('');
-  const [drafts, setDrafts] = useState<NotebookProblemImportDraft[]>([]);
-  const [includedDraftIds, setIncludedDraftIds] = useState<Record<string, boolean>>({});
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [commitLoading, setCommitLoading] = useState(false);
-  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
-  const [draftEditorText, setDraftEditorText] = useState('');
-  const [importProcessingStage, setImportProcessingStage] = useState<ImportProcessingStage>('idle');
-  const [importProcessingDetail, setImportProcessingDetail] = useState('');
-  const [importSummaryNote, setImportSummaryNote] = useState<string | null>(null);
-  const [importEstimatedProblemCount, setImportEstimatedProblemCount] = useState(0);
-  const [importProcessedProblemCount, setImportProcessedProblemCount] = useState(0);
-  const [importUsage, setImportUsage] = useState<{
-    inputTokens: number;
-    outputTokens: number;
-    cachedInputTokens: number;
-    estimatedCostCredits: number | null;
-  } | null>(null);
-  const [importWebSearchSummary, setImportWebSearchSummary] = useState<{
-    query: string;
-    sourceCount: number;
-    estimatedCostCredits: number;
-    sources: Array<{ title: string; url: string }>;
-  } | null>(null);
-  const [importBatchId, setImportBatchId] = useState<string | null>(null);
-  const [previewNotebookOptions, setPreviewNotebookOptions] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
   const scopedPracticeProblemIdKey = useMemo(
     () => Array.from(new Set(practiceProblemIds?.filter(Boolean) ?? [])).join('\u001f'),
     [practiceProblemIds],
@@ -410,7 +360,6 @@ export function useCourseProblemBankController({
     initialProblemId,
     isPracticeMode,
     previewAsTeacher,
-    previewMode,
     scopedPracticeProblemIds,
   ]);
 
@@ -484,15 +433,7 @@ export function useCourseProblemBankController({
   const canEditProblems = courseAccessRole === 'owner';
 
   useEffect(() => {
-    if (canEditProblems) {
-      if (initialImportOpenPendingRef.current) {
-        initialImportOpenPendingRef.current = false;
-        setImportMode('pdf');
-        setImportOpen(true);
-      }
-      return;
-    }
-    setImportOpen(false);
+    if (canEditProblems) return;
     setMoveDialogOpen(false);
     setProblemInfoTab((current) => (current === 'edit' ? 'description' : current));
   }, [canEditProblems]);
@@ -1272,292 +1213,6 @@ export function useCourseProblemBankController({
     setEditingPreviewDraft(selectedProblemEditDraft);
   }, [selectedProblemEditDraft]);
 
-  const notebookOptions = useMemo(
-    () =>
-      previewNotebookOptions.length > 0
-        ? previewNotebookOptions
-        : notebooks.map((notebook) => ({ id: notebook.id, name: notebook.name })),
-    [notebooks, previewNotebookOptions],
-  );
-
-  const handlePreviewImport = useCallback(async () => {
-    if (!canEditProblems) {
-      toast.error(
-        locale === 'zh-CN' ? '只有课程作者可以编辑题目。' : 'Only the author can edit problems.',
-      );
-      return;
-    }
-    setPreviewLoading(true);
-    setImportSummaryNote(null);
-    setImportUsage(null);
-    setImportWebSearchSummary(null);
-    setImportBatchId(null);
-    try {
-      if (importMode === 'manual') {
-        const manualDraft = createManualProblemDraft(locale, null);
-        setPreviewNotebookOptions(
-          notebooks.map((notebook) => ({ id: notebook.id, name: notebook.name })),
-        );
-        setImportEstimatedProblemCount(1);
-        setImportProcessedProblemCount(1);
-        setImportProcessingStage('preview-ready');
-        setImportProcessingDetail(
-          locale === 'zh-CN'
-            ? '已创建 1 道手动草稿，可以填写题目表单；题目会保存在当前课程下。'
-            : 'Created 1 manual draft. It will be saved at course level.',
-        );
-        setDrafts([manualDraft]);
-        setIncludedDraftIds({ [manualDraft.draftId]: true });
-        setEditingDraftId(manualDraft.draftId);
-        setDraftEditorText(JSON.stringify(manualDraft, null, 2));
-        setImportSummaryNote(
-          locale === 'zh-CN'
-            ? '已创建 1 道手动题目草稿。手动添加不触发导题扣费，补充完成后可直接写入课程题库。'
-            : 'Created 1 manual draft. Manual creation does not trigger import charges.',
-        );
-        return;
-      }
-
-      let text = importText.trim();
-      let source: 'manual' | 'pdf' | 'web' = 'manual';
-      let searchQuery = '';
-      if (importMode === 'pdf') {
-        if (!importFile) {
-          throw new Error(locale === 'zh-CN' ? '请先选择 PDF 文件' : 'Select a PDF first');
-        }
-        setImportProcessingStage('parsing');
-        setImportProcessingDetail(
-          locale === 'zh-CN' ? '正在解析 PDF，并提取可用于导题的文本…' : 'Parsing PDF…',
-        );
-        const providerCfg = pdfProvidersConfig[pdfProviderId];
-        const parsed = await parsePdfForGeneration({
-          pdfFile: importFile,
-          language: locale,
-          providerId: pdfProviderId,
-          providerConfig: {
-            apiKey: providerCfg?.apiKey,
-            baseUrl: providerCfg?.baseUrl,
-          },
-        });
-        text = parsed.pdfText.trim();
-        source = 'pdf';
-        setImportEstimatedProblemCount(estimateProblemCountFromText(text));
-        setImportProcessedProblemCount(0);
-      } else if (importMode === 'web') {
-        searchQuery = importWebQuery.trim();
-        if (!searchQuery) {
-          throw new Error(
-            locale === 'zh-CN'
-              ? '请先输入课程名或搜题关键词'
-              : 'Enter a course name or search query first',
-          );
-        }
-        source = 'web';
-        setImportProcessingStage('searching');
-        setImportProcessingDetail(
-          locale === 'zh-CN'
-            ? '正在联网搜索课程题目、往届试题和练习材料…'
-            : 'Searching the web for course problems and past exams…',
-        );
-      }
-
-      if (source !== 'web' && !text) {
-        throw new Error(locale === 'zh-CN' ? '请先输入题目内容' : 'Enter problem text first');
-      }
-      if (importMode === 'text') {
-        setImportEstimatedProblemCount(estimateProblemCountFromText(text));
-        setImportProcessedProblemCount(0);
-      }
-      if (source !== 'web') {
-        setImportProcessingStage('extracting');
-        setImportProcessingDetail(
-          locale === 'zh-CN' ? '正在从材料中拆分题目草稿…' : 'Extracting problem drafts…',
-        );
-      }
-
-      const previewResult = await previewCourseProblemImport({
-        courseId,
-        source,
-        text,
-        searchQuery,
-        webSearchApiKey: webSearchProvidersConfig[webSearchProviderId]?.apiKey || undefined,
-        sourceFileName: importFile?.name,
-        sourceFileMime: importFile?.type,
-        language: locale,
-      });
-
-      setPreviewNotebookOptions(previewResult.notebooks);
-      setImportUsage(previewResult.usage);
-      setImportWebSearchSummary(previewResult.webSearch);
-      setImportBatchId(
-        previewResult.drafts.length > 0 ? (previewResult.importBatch?.id ?? null) : null,
-      );
-      setImportProcessingStage('validating');
-      setImportProcessingDetail(
-        locale === 'zh-CN'
-          ? '正在校验题目 schema，并准备写入课程题库…'
-          : 'Validating drafts for the course problem bank…',
-      );
-
-      setImportProcessedProblemCount(previewResult.drafts.length);
-      setDrafts(previewResult.drafts);
-      setIncludedDraftIds(
-        Object.fromEntries(previewResult.drafts.map((draft) => [draft.draftId, true])),
-      );
-      if (previewResult.drafts[0]) {
-        setEditingDraftId(previewResult.drafts[0].draftId);
-        setDraftEditorText(JSON.stringify(previewResult.drafts[0], null, 2));
-      } else {
-        setEditingDraftId(null);
-        setDraftEditorText('');
-      }
-
-      const needsFixCount = previewResult.drafts.filter(
-        (draft) => draft.validationErrors.length > 0,
-      ).length;
-      const duplicateCount = previewResult.dedupe.duplicateCount;
-      const allReused = previewResult.drafts.length === 0 && duplicateCount > 0;
-      setImportProcessingStage(allReused ? 'completed' : 'preview-ready');
-      setImportProcessingDetail(
-        allReused
-          ? locale === 'zh-CN'
-            ? '这些题目已经在课程题库中，本次没有重复写入。'
-            : 'These problems already exist in the course. Nothing was inserted.'
-          : locale === 'zh-CN'
-            ? '草稿预览已生成；确认后会作为课程级题目写入题库。'
-            : 'Preview ready.',
-      );
-      setImportSummaryNote(
-        allReused
-          ? locale === 'zh-CN'
-            ? `识别到 ${previewResult.dedupe.extractedCount} 道题，已复用 ${duplicateCount} 道现有题，新增 0 道。`
-            : `${previewResult.dedupe.extractedCount} found, ${duplicateCount} reused, 0 new.`
-          : locale === 'zh-CN'
-            ? `可新增 ${previewResult.drafts.length} 道，已跳过 ${duplicateCount} 道重复题，其中 ${needsFixCount} 道需要修正。`
-            : `${previewResult.drafts.length} new, ${duplicateCount} duplicates skipped, ${needsFixCount} need fixes.`,
-      );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Import preview failed');
-      setImportProcessingStage('idle');
-      setImportProcessingDetail('');
-      setImportEstimatedProblemCount(0);
-      setImportProcessedProblemCount(0);
-      setImportBatchId(null);
-    } finally {
-      setPreviewLoading(false);
-    }
-  }, [
-    courseId,
-    canEditProblems,
-    importFile,
-    importMode,
-    importText,
-    importWebQuery,
-    initialNotebookId,
-    locale,
-    notebooks,
-    pdfProviderId,
-    pdfProvidersConfig,
-    webSearchProviderId,
-    webSearchProvidersConfig,
-  ]);
-
-  const handleSaveDraftEditor = useCallback(() => {
-    if (!editingDraftId) return;
-    try {
-      const parsedJson = JSON.parse(draftEditorText) as unknown;
-      const validated = notebookProblemImportDraftSchema.safeParse(parsedJson);
-      if (!validated.success) {
-        throw new Error(formatDraftValidationErrors(parsedJson).join('\n'));
-      }
-      setDrafts((prev) =>
-        prev.map((draft) => (draft.draftId === editingDraftId ? validated.data : draft)),
-      );
-      toast.success(locale === 'zh-CN' ? '草稿已更新' : 'Draft updated');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Invalid JSON');
-    }
-  }, [draftEditorText, editingDraftId, locale]);
-
-  const handleSaveManualDraft = useCallback(
-    (nextDraft: NotebookProblemImportDraft) => {
-      setDrafts((prev) =>
-        prev.map((draft) => (draft.draftId === nextDraft.draftId ? nextDraft : draft)),
-      );
-      setEditingDraftId(nextDraft.draftId);
-      setDraftEditorText(JSON.stringify(nextDraft, null, 2));
-      toast.success(locale === 'zh-CN' ? '草稿表单已保存' : 'Draft form saved');
-    },
-    [locale],
-  );
-
-  const handleCommitImport = useCallback(async () => {
-    if (!canEditProblems) {
-      toast.error(
-        locale === 'zh-CN' ? '只有课程作者可以编辑题目。' : 'Only the author can edit problems.',
-      );
-      return;
-    }
-    const selectedDrafts = drafts.filter((draft) => includedDraftIds[draft.draftId]);
-    if (selectedDrafts.length === 0) {
-      toast.error(locale === 'zh-CN' ? '请至少选择一条草稿' : 'Select at least one draft');
-      return;
-    }
-
-    setCommitLoading(true);
-    setImportProcessingStage('committing');
-    setImportProcessingDetail(
-      locale === 'zh-CN' ? '正在写入课程题库，并刷新列表…' : 'Committing to course problem bank…',
-    );
-    try {
-      const commitResult = await commitCourseProblemImportWithSummary({
-        courseId,
-        drafts: selectedDrafts,
-        importBatchId,
-      });
-      const nextProblems = commitResult.problems;
-      const importSummary = commitResult.import;
-      setProblems(nextProblems);
-      setSelectedProblemId(importSummary?.problemIds[0] ?? nextProblems[0]?.id ?? null);
-      setImportOpen(false);
-      setImportText('');
-      setImportFile(null);
-      setImportWebQuery('');
-      setImportBatchId(null);
-      setDrafts([]);
-      setImportProcessingStage('completed');
-      setImportProcessingDetail(
-        importSummary
-          ? locale === 'zh-CN'
-            ? `新增 ${importSummary.insertedCount} 道，复用 ${importSummary.reusedCount} 道，跳过 ${importSummary.skippedCount} 道重复题。`
-            : `${importSummary.insertedCount} inserted, ${importSummary.reusedCount} reused, ${importSummary.skippedCount} duplicates skipped.`
-          : locale === 'zh-CN'
-            ? '题目已经写入课程题库。'
-            : 'Problems imported.',
-      );
-      toast.success(
-        importSummary
-          ? locale === 'zh-CN'
-            ? `已新增 ${importSummary.insertedCount} 道，复用 ${importSummary.reusedCount} 道`
-            : `${importSummary.insertedCount} inserted, ${importSummary.reusedCount} reused`
-          : locale === 'zh-CN'
-            ? '题目已写入课程题库'
-            : 'Problems imported',
-      );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Import commit failed');
-      setImportProcessingStage('preview-ready');
-    } finally {
-      setCommitLoading(false);
-    }
-  }, [canEditProblems, courseId, drafts, importBatchId, includedDraftIds, locale]);
-
-  const editingDraft = drafts.find((draft) => draft.draftId === editingDraftId) || null;
-  const editingDraftIsManual =
-    editingDraft?.sourceMeta &&
-    typeof editingDraft.sourceMeta === 'object' &&
-    (editingDraft.sourceMeta as Record<string, unknown>).importMode === 'manual_create';
-
   const handleSaveAssignment = useCallback(async () => {
     if (!selectedProblem || savingAssignment) return;
     if (!canEditProblems) {
@@ -1773,6 +1428,15 @@ export function useCourseProblemBankController({
       toast.error(locale === 'zh-CN' ? '请先选择一个答案。' : 'Choose an answer first.');
       return false;
     }
+    const selectedBlankAnswers = blankAnswers[selectedProblem.id] ?? {};
+    if (
+      selectedProblem.type === 'fill_blank' &&
+      selectedProblemContent?.type === 'fill_blank' &&
+      selectedProblemContent.blanks.some((blank) => !selectedBlankAnswers[blank.id]?.trim())
+    ) {
+      toast.error(locale === 'zh-CN' ? '请填写所有空格。' : 'Fill in every blank first.');
+      return false;
+    }
     const immediateChoiceFeedback =
       selectedProblem.type === 'choice'
         ? buildChoiceAnswerFeedback(selectedProblem, selectedChoiceOptionIds, locale)
@@ -1797,7 +1461,7 @@ export function useCourseProblemBankController({
         selectedProblem.type === 'choice'
           ? { selectedOptionIds: selectedChoiceOptionIds }
           : selectedProblem.type === 'fill_blank'
-            ? { blanks: blankAnswers[selectedProblem.id] ?? {} }
+            ? { blanks: selectedBlankAnswers }
             : selectedProblem.type === 'code'
               ? { code: selectedCodeAnswer }
               : photoMode
@@ -2072,7 +1736,6 @@ export function useCourseProblemBankController({
     choiceAnswers,
     codeAnswers,
     codeRunResults,
-    commitLoading,
     courseAccessRole,
     courseAcademicTerm,
     courseAcademicYear,
@@ -2085,38 +1748,17 @@ export function useCourseProblemBankController({
     deletingProblem,
     difficultyFilter,
     difficultyFilterOptions,
-    draftEditorText,
-    drafts,
-    editingDraft,
-    editingDraftIsManual,
     filteredProblems,
     handleAddPhotoAnswerFiles,
     handleAutoArchiveUnassignedProblems,
-    handleCommitImport,
     handleDeleteProblem,
     handleEditingDraftChange,
-    handlePreviewImport,
     handleProblemInfoTabChange,
     handleRemovePhotoAnswer,
     handleRunCodeAnswer,
     handleSaveAssignment,
-    handleSaveDraftEditor,
-    handleSaveManualDraft,
     handleSubmitInlineAnswer,
     handleUpdateProblem,
-    importEstimatedProblemCount,
-    importFile,
-    importMode,
-    importOpen,
-    importProcessedProblemCount,
-    importProcessingDetail,
-    importProcessingStage,
-    importSummaryNote,
-    importText,
-    importUsage,
-    importWebQuery,
-    importWebSearchSummary,
-    includedDraftIds,
     insertFormulaIntoAnswer,
     isPracticeMode,
     loading,
@@ -2128,7 +1770,6 @@ export function useCourseProblemBankController({
     nextPracticeTarget,
     notebookFilter,
     notebookFilterOptions,
-    notebookOptions,
     notebooks,
     pageEndIndex,
     pageStartIndex,
@@ -2137,7 +1778,6 @@ export function useCourseProblemBankController({
     practiceFilter,
     practiceFilterOptions,
     practiceNavigationProblemCount,
-    previewLoading,
     previousPracticeIsChapterJump,
     previousPracticeTarget,
     problemInfoTab,
@@ -2173,15 +1813,6 @@ export function useCourseProblemBankController({
     setChoiceAnswers,
     setCodeAnswers,
     setDifficultyFilter,
-    setDraftEditorText,
-    setDrafts,
-    setEditingDraftId,
-    setImportFile,
-    setImportMode,
-    setImportOpen,
-    setImportText,
-    setImportWebQuery,
-    setIncludedDraftIds,
     setMoveDialogOpen,
     setMoveNotebookId,
     setNotebookFilter,
@@ -2202,8 +1833,6 @@ export function useCourseProblemBankController({
     typeFilterOptions,
     unassignedProblemCount,
     visibleProblemPreviewDraft,
-    webSearchProviderId,
-    webSearchProvidersConfig,
   };
 }
 

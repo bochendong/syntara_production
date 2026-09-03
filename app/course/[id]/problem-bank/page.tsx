@@ -13,7 +13,6 @@ type CourseProblemBankSearchParams = {
   type?: string | string[];
   difficulty?: string | string[];
   status?: string | string[];
-  upload?: string | string[];
 };
 
 function firstSearchParam(value: string | string[] | undefined): string | undefined {
@@ -55,7 +54,6 @@ export default async function CourseProblemBankPage({
         courseId={id}
         initialNotebookId={initialNotebookId}
         initialFilters={initialFilters}
-        initialImportOpen={firstSearchParam(resolvedSearchParams.upload) === '1'}
         showCourseNavigation
         showChromeBackground={false}
         previewMode={previewMode}

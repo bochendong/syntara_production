@@ -8,8 +8,7 @@
  * Headers:
  *   x-image-provider: ImageProviderId
  *   x-image-model: string (optional)
- *   x-api-key: string (optional, server fallback)
- *   x-base-url: string (optional, server fallback)
+ * Provider credentials are always resolved on the server.
  *
  * Response: { success: boolean, message: string }
  */
@@ -21,7 +20,7 @@ import type { ImageProviderId } from '@/lib/media/types';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { createLogger } from '@/lib/logger';
 import { proxyFetch } from '@/lib/server/proxy-fetch';
-import { validateUrlForSSRF } from '@/lib/server/ssrf-guard';
+import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
 
 const log = createLogger('VerifyImageProvider');
 
@@ -29,20 +28,9 @@ export async function POST(request: NextRequest) {
   try {
     const providerId = (request.headers.get('x-image-provider') || 'seedream') as ImageProviderId;
     const model = request.headers.get('x-image-model') || undefined;
-    const clientApiKey = request.headers.get('x-api-key') || undefined;
-    const clientBaseUrl = request.headers.get('x-base-url') || undefined;
-
-    if (clientBaseUrl && process.env.NODE_ENV === 'production') {
-      const ssrfError = validateUrlForSSRF(clientBaseUrl);
-      if (ssrfError) {
-        return apiError('INVALID_URL', 403, ssrfError);
-      }
-    }
-
-    const apiKey = clientBaseUrl
-      ? clientApiKey || ''
-      : resolveImageApiKey(providerId, clientApiKey);
-    const baseUrl = clientBaseUrl ? clientBaseUrl : resolveImageBaseUrl(providerId, clientBaseUrl);
+    const systemOpenAI = providerId === 'openai-image' ? await getSystemLLMRuntimeConfig() : null;
+    const apiKey = systemOpenAI?.apiKey || resolveImageApiKey(providerId) || '';
+    const baseUrl = systemOpenAI?.baseUrl || resolveImageBaseUrl(providerId);
 
     if (!apiKey) {
       return apiError('MISSING_API_KEY', 400, 'No API key configured');

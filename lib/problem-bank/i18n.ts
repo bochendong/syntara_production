@@ -45,8 +45,8 @@ export function getLocalizedProblemContent<T extends NotebookProblemPublicConten
   if ('stem' in next && translation.stem) {
     next.stem = translation.stem;
   }
-  if ('stemTemplate' in next && translation.stemTemplate) {
-    next.stemTemplate = translation.stemTemplate;
+  if (next.type === 'fill_blank' && translation.stem) {
+    next.stemTemplate = translation.stem;
   }
   if (translation.explanation) {
     next.explanation = translation.explanation;
@@ -70,9 +70,8 @@ export function hasProblemTranslation(
   const translation = problem.publicContent.translations?.[language];
   return Boolean(
     readTitleTranslation(problem.sourceMeta, language) ||
-      translation?.stem ||
-      translation?.stemTemplate ||
-      translation?.explanation ||
-      translation?.options?.length,
+    translation?.stem ||
+    translation?.explanation ||
+    translation?.options?.length,
   );
 }

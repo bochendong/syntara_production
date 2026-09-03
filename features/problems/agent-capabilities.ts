@@ -27,11 +27,10 @@ export const PROBLEM_BANK_AGENT_TOOLS = [
       'Parse a source file/text and return normalized problem drafts before persistence.',
     status: 'route-backed',
     inputContract:
-      'Target type/id, one source file or text block, import language, and parsing options.',
+      'Notebook id, one source file or text block, import language, and parsing options.',
     outputContract: 'Problem import drafts, quality report, warnings, usage, and import batch id.',
     entrypoints: [
       { kind: 'route', method: 'POST', ref: '/api/notebooks/[id]/problems/import-preview' },
-      { kind: 'route', method: 'POST', ref: '/api/courses/[id]/problems/import-preview' },
     ],
     sideEffects: ['llm', 'database-write'],
     requiresAuth: true,
@@ -42,13 +41,12 @@ export const PROBLEM_BANK_AGENT_TOOLS = [
     namespace: 'openmaic.problem_bank',
     feature: 'problems',
     title: 'Commit problem import',
-    description: 'Commit reviewed import drafts to a course or notebook problem bank.',
+    description: 'Commit reviewed import drafts to a notebook problem bank.',
     status: 'route-backed',
-    inputContract: 'Target type/id, import batch id, selected drafts, and commit options.',
+    inputContract: 'Notebook id, import batch id, selected drafts, and commit options.',
     outputContract: 'Created problem records and committed import-batch counters.',
     entrypoints: [
       { kind: 'route', method: 'POST', ref: '/api/notebooks/[id]/problems/import-commit' },
-      { kind: 'route', method: 'POST', ref: '/api/courses/[id]/problems/import-commit' },
     ],
     sideEffects: ['database-write'],
     requiresAuth: true,

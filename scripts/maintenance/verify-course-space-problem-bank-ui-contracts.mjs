@@ -8,6 +8,8 @@ const header = read('components/course-space/course-space-header.tsx');
 const problemBank = read('components/problem-bank/course-problem-bank-view.tsx');
 const problemBankPage = read('app/course/[id]/problem-bank/page.tsx');
 const problemBankController = read('components/problem-bank/use-course-problem-bank-controller.ts');
+const problemDraftForm = read('components/problem-bank/problem-draft-form.tsx');
+const problemEvaluator = read('lib/server/notebook-problems/evaluate.ts');
 const teacherStudio = read('components/teacher/teacher-course-studio-client.tsx');
 const forum = read('components/course-forum/course-forum-page-client.tsx');
 const headerCache = read('lib/course-space/course-space-header-cache.ts');
@@ -31,13 +33,13 @@ const checks = [
       problemBank.includes('题库还没有题目'),
   },
   {
-    name: 'teacher source library stores problem files through the shared upload flow',
+    name: 'teacher problem imports use only the shared source-library upload flow',
     pass:
       teacherStudio.includes("sourceCategory === 'problem_bank'") &&
       teacherStudio.includes('上传题目') &&
       teacherStudio.includes('void handleUpload(files)') &&
-      problemBankPage.includes('initialImportOpen') &&
-      problemBankController.includes('initialImportOpenPendingRef.current'),
+      !problemBankPage.includes('initialImportOpen') &&
+      !problemBankController.includes('handlePreviewImport'),
   },
   {
     name: 'course tab transitions keep the shared header while destination content loads',
@@ -54,6 +56,22 @@ const checks = [
       problemBank.includes('正在加载课程题库') &&
       problemBank.includes('题目、章节与作答记录准备好后会显示在这里。') &&
       problemBank.includes('aria-busy="true"'),
+  },
+  {
+    name: 'fill-blank problems have numbered inputs, structured submission, and grading support',
+    pass:
+      problemBank.includes('fill-blank-${selectedProblem.id}-${blank.id}') &&
+      problemBank.includes('setBlankAnswers') &&
+      problemBankController.includes('blanks: selectedBlankAnswers') &&
+      problemDraftForm.includes("currentType === 'fill_blank'") &&
+      problemDraftForm.includes('acceptedAnswers') &&
+      problemEvaluator.includes('isNotebookFillBlankProblemRecord(problem)'),
+  },
+  {
+    name: 'calculation problems without a reference answer wait for manual grading',
+    pass:
+      problemEvaluator.includes("status: 'pending'") &&
+      problemEvaluator.includes('这道计算题缺少标准答案'),
   },
 ];
 

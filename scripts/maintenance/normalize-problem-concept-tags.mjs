@@ -77,7 +77,7 @@ function topTags(problems, key = 'tags') {
 
 function noisyTags(tags) {
   return tags.filter(([tag]) =>
-    /midterm|mid[-_\s]?review|final|exam|202\d|choice|multiple_choice|mcq|code_tracing|short_answer|fill_blank|calculation|csc\d+|cpsc\d+|mat\d+|题库|pdf|^q\d+$|^p\d+$/i.test(
+    /midterm|mid[-_\s]?review|final|exam|202\d|choice|multiple_choice|mcq|code_tracing|short_answer|calculation|csc\d+|cpsc\d+|mat\d+|题库|pdf|^q\d+$|^p\d+$/i.test(
       tag,
     ),
   );

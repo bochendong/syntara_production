@@ -32,14 +32,6 @@ const flexibleCodeTestSchema = z.object({
   hidden: z.boolean().default(false),
 });
 
-const insertBlankSchema = z.object({
-  id: z.string().trim().min(1).max(64),
-  placeholder: z.string().trim().min(1).max(120).optional(),
-  acceptedAnswers: z.array(z.string().trim().min(1).max(1000)).min(1).max(16).optional(),
-  caseSensitive: z.boolean().default(false),
-});
-type InsertBlank = z.infer<typeof insertBlankSchema>;
-
 export const reviewProblemInsertSchema = z.object({
   id: z.string().trim().min(1).max(120).optional(),
   draftId: z.string().trim().min(1).max(120).optional(),
@@ -53,8 +45,8 @@ export const reviewProblemInsertSchema = z.object({
   difficulty: notebookProblemDifficultySchema.default('medium'),
   preview: optionalTextSchema,
   stem: optionalTextSchema,
-  stemTemplate: optionalTextSchema,
   prompt: optionalTextSchema,
+  stemTemplate: optionalTextSchema,
   answer: answerSchema.optional(),
   correctAnswer: answerSchema.optional(),
   referenceAnswer: optionalTextSchema,
@@ -64,9 +56,17 @@ export const reviewProblemInsertSchema = z.object({
   options: z.array(notebookChoiceOptionSchema).min(2).max(12).optional(),
   correctOptionIds: z.array(z.string().trim().min(1).max(64)).min(1).max(12).optional(),
   selectionMode: z.enum(['single', 'multiple']).optional(),
-  blanks: z.array(insertBlankSchema).max(12).optional(),
-  acceptedAnswers: z
-    .record(z.string(), z.union([z.string().trim().min(1), z.array(z.string().trim().min(1))]))
+  blanks: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(64),
+        placeholder: z.string().trim().min(1).max(200).optional(),
+        acceptedAnswers: z.array(z.string().trim().min(1).max(1000)).min(1).max(16),
+        caseSensitive: z.boolean().default(false),
+      }),
+    )
+    .min(1)
+    .max(12)
     .optional(),
   acceptedForms: z.array(z.string().trim().min(1).max(1000)).max(16).default([]),
   unit: z.string().trim().min(1).max(120).optional(),
@@ -156,16 +156,12 @@ function answerValues(value: ReviewProblemInsertInput['answer']): string[] {
 }
 
 function problemStem(problem: ReviewProblemInsertInput): string {
-  return (
-    firstText(problem.stem, problem.prompt, problem.preview, problem.stemTemplate, problem.title) ??
-    '未命名复习题'
-  );
+  return firstText(problem.stem, problem.prompt, problem.preview, problem.title) ?? '未命名复习题';
 }
 
 function problemTitle(problem: ReviewProblemInsertInput): string {
   return compactText(
-    firstText(problem.title, problem.preview, problem.stem, problem.prompt, problem.stemTemplate) ??
-      '未命名复习题',
+    firstText(problem.title, problem.preview, problem.stem, problem.prompt) ?? '未命名复习题',
     200,
   );
 }
@@ -205,12 +201,6 @@ function codeTestsForVisibility(
   hidden: boolean,
 ): z.infer<typeof flexibleCodeTestSchema>[] {
   return (tests ?? []).filter((test) => test.hidden === hidden);
-}
-
-function problemBlanks(problem: ReviewProblemInsertInput): InsertBlank[] {
-  return problem.blanks && problem.blanks.length > 0
-    ? problem.blanks
-    : [{ id: 'blank_1', caseSensitive: false }];
 }
 
 function buildSecretJudge(
@@ -256,19 +246,6 @@ function buildPublicContent(
         explanation,
       });
     }
-    case 'fill_blank': {
-      const blanks = problemBlanks(problem);
-      return notebookProblemPublicContentSchema.parse({
-        type,
-        stemTemplate:
-          firstText(problem.stemTemplate, problem.stem, problem.prompt) ?? problemTitle(problem),
-        blanks: blanks.map((blank) => ({
-          id: blank.id,
-          placeholder: blank.placeholder,
-        })),
-        explanation,
-      });
-    }
     case 'calculation':
       return notebookProblemPublicContentSchema.parse({
         type,
@@ -306,6 +283,15 @@ function buildPublicContent(
         stem: problemStem(problem),
         explanation,
       });
+    case 'fill_blank': {
+      const blanks = problem.blanks ?? fail('Fill-blank problems must include blanks.');
+      return notebookProblemPublicContentSchema.parse({
+        type,
+        stemTemplate: problem.stemTemplate ?? problemStem(problem),
+        blanks: blanks.map(({ id, placeholder }) => ({ id, placeholder })),
+        explanation,
+      });
+    }
   }
 }
 
@@ -327,25 +313,6 @@ function resolveCorrectOptionIds(
     12,
     64,
   );
-}
-
-function acceptedAnswersForBlank(
-  problem: ReviewProblemInsertInput,
-  blank: InsertBlank,
-  blankCount: number,
-): string[] {
-  if (blank.acceptedAnswers?.length) return uniqueTexts(blank.acceptedAnswers, 16, 1000);
-  const raw = problem.acceptedAnswers?.[blank.id];
-  if (Array.isArray(raw)) return uniqueTexts(raw, 16, 1000);
-  if (typeof raw === 'string') return uniqueTexts([raw], 16, 1000);
-  if (blankCount === 1) {
-    return uniqueTexts(
-      [...answerValues(problem.answer), ...answerValues(problem.correctAnswer)],
-      16,
-      1000,
-    );
-  }
-  return [];
 }
 
 function buildGrading(
@@ -371,18 +338,6 @@ function buildGrading(
         correctOptionIds: resolveCorrectOptionIds(problem, publicContent.options),
         analysis,
       });
-    case 'fill_blank': {
-      const blanks = problemBlanks(problem);
-      return notebookProblemGradingSchema.parse({
-        type,
-        blanks: blanks.map((blank) => ({
-          id: blank.id,
-          acceptedAnswers: acceptedAnswersForBlank(problem, blank, blanks.length),
-          caseSensitive: blank.caseSensitive,
-        })),
-        analysis,
-      });
-    }
     case 'calculation':
       return notebookProblemGradingSchema.parse({
         type,
@@ -415,6 +370,18 @@ function buildGrading(
         rubric: problem.rubric,
         analysis,
       });
+    case 'fill_blank': {
+      const blanks = problem.blanks ?? fail('Fill-blank grading requires blanks.');
+      return notebookProblemGradingSchema.parse({
+        type,
+        blanks: blanks.map(({ id, acceptedAnswers, caseSensitive }) => ({
+          id,
+          acceptedAnswers,
+          caseSensitive,
+        })),
+        analysis,
+      });
+    }
   }
 }
 

@@ -11,10 +11,10 @@ import crypto from 'node:crypto';
 import { NextRequest } from 'next/server';
 import { generateTTS } from '@/lib/audio/tts-providers';
 import { resolveTTSApiKey, resolveTTSBaseUrl } from '@/lib/server/provider-config';
+import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
 import type { TTSProviderId } from '@/lib/audio/types';
 import { createLogger } from '@/lib/logger';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
-import { validateUrlForSSRF } from '@/lib/server/ssrf-guard';
 import { verbalizeNarrationText } from '@/lib/audio/spoken-text';
 import { requireUserId } from '@/lib/server/api-auth';
 import { prisma } from '@/lib/server/prisma';
@@ -51,17 +51,14 @@ export async function POST(req: NextRequest) {
     const { userId } = auth;
 
     const body = await req.json();
-    const { text, audioId, ttsProviderId, ttsVoice, ttsSpeed, ttsApiKey, ttsBaseUrl, persist } =
-      body as {
-        text: string;
-        audioId: string;
-        ttsProviderId: TTSProviderId;
-        ttsVoice: string;
-        ttsSpeed?: number;
-        ttsApiKey?: string;
-        ttsBaseUrl?: string;
-        persist?: boolean;
-      };
+    const { text, audioId, ttsProviderId, ttsVoice, ttsSpeed, persist } = body as {
+      text: string;
+      audioId: string;
+      ttsProviderId: TTSProviderId;
+      ttsVoice: string;
+      ttsSpeed?: number;
+      persist?: boolean;
+    };
 
     // Validate required fields
     if (!text || !audioId || !ttsProviderId || !ttsVoice) {
@@ -77,20 +74,9 @@ export async function POST(req: NextRequest) {
       return apiError('INVALID_REQUEST', 400, 'browser-native-tts must be handled client-side');
     }
 
-    const clientBaseUrl = ttsBaseUrl || undefined;
-    if (clientBaseUrl && process.env.NODE_ENV === 'production') {
-      const ssrfError = validateUrlForSSRF(clientBaseUrl);
-      if (ssrfError) {
-        return apiError('INVALID_URL', 403, ssrfError);
-      }
-    }
-
-    const apiKey = clientBaseUrl
-      ? ttsApiKey || ''
-      : resolveTTSApiKey(ttsProviderId, ttsApiKey || undefined);
-    const baseUrl = clientBaseUrl
-      ? clientBaseUrl
-      : resolveTTSBaseUrl(ttsProviderId, ttsBaseUrl || undefined);
+    const systemOpenAI = ttsProviderId === 'openai-tts' ? await getSystemLLMRuntimeConfig() : null;
+    const apiKey = systemOpenAI?.apiKey || resolveTTSApiKey(ttsProviderId) || '';
+    const baseUrl = systemOpenAI?.baseUrl || resolveTTSBaseUrl(ttsProviderId);
 
     const spokenText = verbalizeNarrationText(text);
     const speed = ttsSpeed ?? 1.0;

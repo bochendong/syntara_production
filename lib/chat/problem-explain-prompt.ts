@@ -45,10 +45,6 @@ function formatAttemptAnswerForPrompt(answer: NotebookProblemAttemptAnswer | nul
   if (answer.selectedOptionIds?.length) {
     lines.push(`选择：${answer.selectedOptionIds.join('、')}`);
   }
-  const blankEntries = Object.entries(answer.blanks || {}).filter(([, value]) => value.trim());
-  if (blankEntries.length > 0) {
-    lines.push(`填空：${blankEntries.map(([key, value]) => `${key}: ${value}`).join('；')}`);
-  }
   if (answer.images?.length) {
     lines.push(`图片答案：${answer.images.length} 张（这里只提供数量，不提供图片内容）`);
   }
@@ -138,14 +134,6 @@ function formatProblemContentForPrompt(content: NotebookProblemPublicContent): s
         .join('\n')}`,
     );
   }
-  if (content.type === 'fill_blank') {
-    lines.push(`题干：${cleanPromptText(content.stemTemplate)}`);
-    lines.push(
-      `空格：${content.blanks
-        .map((blank) => `${blank.id}${blank.placeholder ? `（${blank.placeholder}）` : ''}`)
-        .join('、')}`,
-    );
-  }
   if (content.type === 'calculation' && content.unit) {
     lines.push(`单位：${content.unit}`);
   }
@@ -184,15 +172,6 @@ function formatGradingForPrompt(grading: NotebookProblemGrading): string {
     case 'choice':
       return [
         `正确选项：${grading.correctOptionIds.join('、')}`,
-        grading.analysis ? `解析：${cleanPromptText(grading.analysis)}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n');
-    case 'fill_blank':
-      return [
-        `参考答案：${grading.blanks
-          .map((blank) => `${blank.id}: ${blank.acceptedAnswers.join(' / ')}`)
-          .join('；')}`,
         grading.analysis ? `解析：${cleanPromptText(grading.analysis)}` : '',
       ]
         .filter(Boolean)

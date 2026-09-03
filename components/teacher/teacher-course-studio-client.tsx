@@ -84,7 +84,6 @@ import { BackendApiError, backendFetch, backendJson } from '@/lib/utils/backend-
 import { isLocalDemoUserId } from '@/lib/auth/local-demo';
 import {
   COURSE_SOURCE_ACCEPT,
-  COURSE_SOURCE_SUPPORTED_FORMATS,
   courseSourceFileValidationError,
 } from '@/lib/uploads/course-source-policy';
 import {
@@ -141,25 +140,21 @@ function TeacherCourseStudioLoading({
 const SOURCE_CATEGORIES: Array<{
   value: CourseSourceCategory;
   label: string;
-  description: string;
   Icon: typeof FileText;
 }> = [
   {
     value: 'school_teacher_notes',
     label: '学校老师讲义',
-    description: '课程大纲、课堂讲义与学校教师提供的资料',
     Icon: School,
   },
   {
     value: 'crash_course_teacher_notes',
     label: '速成老师讲义',
-    description: '冲刺课、速成班和考前复习资料',
     Icon: Rocket,
   },
   {
     value: 'problem_bank',
-    label: '题库',
-    description: '习题集、历年试题与题库原始文件',
+    label: '题库（测试版）',
     Icon: ListChecks,
   },
 ];
@@ -613,7 +608,6 @@ export function TeacherCourseStudioClient({
     [sourceCategory, sources],
   );
   const selectedSourceCategoryMeta = SOURCE_CATEGORY_META[sourceCategory];
-  const SelectedSourceCategoryIcon = selectedSourceCategoryMeta.Icon;
   const listTotal =
     tab === 'notebooks'
       ? notebooks.length
@@ -1766,80 +1760,33 @@ export function TeacherCourseStudioClient({
       {tab === 'sources' ? (
         <section className={STUDIO_SECTION_CLASS}>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50/80 dark:bg-slate-950 lg:flex-row">
-            <aside className="flex shrink-0 flex-col border-b border-slate-200/80 bg-white/90 p-4 dark:border-white/10 dark:bg-white/[0.035] lg:w-72 lg:border-r lg:border-b-0">
-              <div>
+            <aside className="flex shrink-0 flex-col border-b border-slate-200/80 bg-white/90 p-4 dark:border-white/10 dark:bg-white/[0.035] lg:w-[255px] lg:border-r lg:border-b-0">
+              <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-slate-950 dark:text-white">源文件分类</h2>
-                <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                  选择分类后在右侧管理文件
-                </p>
-              </div>
-              <div className="mt-4 space-y-2">
-                {SOURCE_CATEGORIES.map((category) => {
-                  const selected = sourceCategory === category.value;
-                  return (
-                    <button
-                      key={category.value}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => {
-                        setSourceCategory(category.value);
-                        setListPage(1);
-                      }}
-                      className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition ${selected ? 'bg-sky-50 text-sky-950 ring-1 ring-sky-200 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-400/20' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white'}`}
-                    >
-                      <span
-                        className={`grid size-9 shrink-0 place-items-center rounded-xl ${selected ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300'}`}
-                      >
-                        <category.Icon className="size-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="flex items-center gap-2 text-sm font-semibold">
-                          {category.label}
-                          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-                            {sourceCategoryCounts[category.value]}
-                          </span>
-                        </span>
-                        <span className="mt-1 block text-[11px] leading-4 text-slate-500">
-                          {category.description}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </aside>
-
-            <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex shrink-0 flex-col gap-3 border-b border-slate-200/80 bg-white/80 px-4 py-4 dark:border-white/10 dark:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <SelectedSourceCategoryIcon className="size-4 text-sky-600" />
-                    <h2 className="truncate text-sm font-semibold text-slate-950 dark:text-white">
-                      {selectedSourceCategoryMeta.label}
-                    </h2>
-                    <StudioItemTag tone="sky" className="rounded-full">
-                      {categorySources.length} 个文件
-                    </StudioItemTag>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {selectedSourceCategoryMeta.description}
-                  </p>
-                </div>
                 <label
-                  className={`inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white dark:bg-white dark:text-slate-950 ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+                  title={
+                    uploading
+                      ? '正在保存…'
+                      : sourceCategory === 'problem_bank'
+                        ? '上传题目'
+                        : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`
+                  }
+                  aria-label={
+                    uploading
+                      ? '正在保存…'
+                      : sourceCategory === 'problem_bank'
+                        ? '上传题目'
+                        : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`
+                  }
+                  className={`inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-slate-950 text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 ${uploading ? 'pointer-events-none opacity-60' : ''}`}
                 >
                   {uploading ? (
-                    <Loader2 className="size-4 animate-spin" />
+                    <Loader2 className="size-3.5 animate-spin" />
                   ) : sourceCategory === 'problem_bank' ? (
-                    <Library className="size-4" />
+                    <Library className="size-3.5" />
                   ) : (
-                    <Upload className="size-4" />
+                    <Upload className="size-3.5" />
                   )}
-                  {uploading
-                    ? '正在保存…'
-                    : sourceCategory === 'problem_bank'
-                      ? '上传题目'
-                      : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`}
                   <input
                     type="file"
                     multiple
@@ -1853,11 +1800,38 @@ export function TeacherCourseStudioClient({
                   />
                 </label>
               </div>
-              {tab === 'sources' ? (
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  上传后只保存原文件。支持 {COURSE_SOURCE_SUPPORTED_FORMATS}，单个文件不超过 50MB。
-                </p>
-              ) : null}
+              <div className="mt-4 space-y-2">
+                {SOURCE_CATEGORIES.map((category) => {
+                  const selected = sourceCategory === category.value;
+                  return (
+                    <button
+                      key={category.value}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => {
+                        setSourceCategory(category.value);
+                        setListPage(1);
+                      }}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${selected ? 'bg-sky-50 text-sky-950 ring-1 ring-sky-200 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-400/20' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white'}`}
+                    >
+                      <span
+                        className={`grid size-9 shrink-0 place-items-center rounded-xl ${selected ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300'}`}
+                      >
+                        <category.Icon className="size-4" />
+                      </span>
+                      <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                        {category.label}
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
+                          {sourceCategoryCounts[category.value]}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+
+            <div className="flex min-w-0 flex-1 flex-col">
               <div className={STUDIO_PANEL_BODY_CLASS}>
                 {categorySources.length ? (
                   <StudioList>

@@ -22,6 +22,20 @@ export const learnActionKindSchema = z.enum([
   'image.propose_generation',
 ]);
 
+// Actions that a new /learn router turn is allowed to generate. Retired action
+// kinds remain in learnActionKindSchema so historical conversations still load.
+export const generatedLearnActionKindSchema = z.enum([
+  'calendar.search',
+  'calendar.propose_add',
+  'calendar.propose_update',
+  'calendar.propose_delete',
+  'calendar.start_recent',
+  'memory.search',
+  'memory.propose_write',
+  'review_mode.request_choice',
+  'classroom.propose_temporary_explanation',
+]);
+
 function normalizeLearningActionKind(value: unknown) {
   if (typeof value !== 'string') return value;
   const normalized = value.toLowerCase().replace(/[\s-]+/g, '_');

@@ -17,7 +17,6 @@ import {
   Pin,
   PinOff,
   Plus,
-  RefreshCw,
   Search,
   Send,
   Sparkles,
@@ -305,7 +304,6 @@ export function CourseForumPageClient({
   const [selectedPostId, setSelectedPostId] = useState(initialSnapshot?.selectedPost?.id || '');
   const selectedPostIdRef = useRef(initialSnapshot?.selectedPost?.id || '');
   const [loading, setLoading] = useState(!initialSnapshot);
-  const [refreshing, setRefreshing] = useState(false);
   const [accessRevoked, setAccessRevoked] = useState(false);
   const [error, setError] = useState('');
   const [newPostOpen, setNewPostOpen] = useState(false);
@@ -336,8 +334,7 @@ export function CourseForumPageClient({
       status?: CourseForumStatusFilter;
     }) => {
       if (!options?.background) {
-        if (options?.quiet) setRefreshing(true);
-        else setLoading(true);
+        if (!options?.quiet) setLoading(true);
       }
       try {
         const status = options?.status || filter;
@@ -379,7 +376,6 @@ export function CourseForumPageClient({
         setError(loadError instanceof Error ? loadError.message : '论坛加载失败');
       } finally {
         setLoading(false);
-        setRefreshing(false);
       }
     },
     [commitSelectedPostId, courseId, filter, mockAsTeacher, mockMode, search],
@@ -745,26 +741,14 @@ export function CourseForumPageClient({
           forumCount={snapshot.unresolvedCount}
           previewMode={mockMode}
           actions={
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 rounded-md px-2 text-[11px] font-semibold"
-                onClick={() => void load({ postId: selectedPostId, quiet: true })}
-                disabled={refreshing}
-              >
-                <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
-                刷新
-              </Button>
-              <Button
-                size="sm"
-                className="h-7 rounded-md bg-emerald-600 px-2 text-[11px] font-semibold hover:bg-emerald-700"
-                onClick={() => setNewPostOpen(true)}
-              >
-                <Plus className="size-3.5" />
-                发布问题
-              </Button>
-            </>
+            <Button
+              size="sm"
+              className="h-7 rounded-md bg-emerald-600 px-2 text-[11px] font-semibold hover:bg-emerald-700"
+              onClick={() => setNewPostOpen(true)}
+            >
+              <Plus className="size-3.5" />
+              发布问题
+            </Button>
           }
         />
       ) : null}
@@ -959,11 +943,6 @@ export function CourseForumPageClient({
                           删除帖子
                         </Button>
                       ) : null}
-                      <AuthorLine
-                        author={selected.author}
-                        time={selected.createdAt}
-                        label="提问者"
-                      />
                     </div>
                   </div>
                   <div className="mt-4">

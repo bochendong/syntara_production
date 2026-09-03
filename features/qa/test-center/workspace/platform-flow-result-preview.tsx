@@ -770,16 +770,6 @@ function CompleteQuestionContent({ question }: { question: QuestionTestItem }) {
           ))}
         </div>
       ) : null}
-      {content.type === 'fill_blank' ? (
-        <div className="flex flex-wrap gap-2">
-          {content.blanks.map((blank) => (
-            <Badge key={blank.id} variant="outline" className="rounded-md bg-white">
-              空格 {blank.id}
-              {blank.placeholder ? ` · ${blank.placeholder}` : ''}
-            </Badge>
-          ))}
-        </div>
-      ) : null}
       {content.type === 'calculation' && content.unit ? (
         <div className="text-sm text-slate-600">
           <span className="font-semibold text-slate-800">答案单位：</span> {content.unit}

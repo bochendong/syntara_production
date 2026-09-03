@@ -16,7 +16,6 @@ import {
   difficultyLabel,
   emptyAnswerForProblem,
   gradeLocalProblem,
-  problemBlanks,
   problemIsCode,
   problemOptions,
   problemPublicContent,
@@ -70,17 +69,6 @@ function restoreAnswerFromAttempt(
       kind: 'choice',
       selectedOptionIds: record.selectedOptionIds.filter(
         (item): item is string => typeof item === 'string',
-      ),
-    };
-  }
-  if (record.kind === 'fill_blank' && record.blanks && typeof record.blanks === 'object') {
-    return {
-      kind: 'fill_blank',
-      blanks: Object.fromEntries(
-        Object.entries(record.blanks as Record<string, unknown>).map(([key, value]) => [
-          key,
-          typeof value === 'string' ? value : '',
-        ]),
       ),
     };
   }
@@ -181,7 +169,6 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   const codeContent = isCode ? asCodeContent(publicContent) : null;
   const stem = currentProblem ? problemStem(currentProblem) : '';
   const options = currentProblem ? problemOptions(currentProblem) : [];
-  const blanks = currentProblem ? problemBlanks(currentProblem) : [];
   const testcaseCode = currentProblem ? buildPublicTestsPython(currentProblem) : '';
 
   useEffect(() => {
@@ -509,28 +496,6 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                           </button>
                         );
                       })}
-                    </div>
-                  ) : null}
-
-                  {currentProblem.type === 'fill_blank' && answer?.kind === 'fill_blank' ? (
-                    <div className="native-problem-practice-blanks">
-                      {blanks.map((blank) => (
-                        <label key={blank.id}>
-                          <span>{blank.placeholder || blank.id}</span>
-                          <input
-                            value={answer.blanks[blank.id] || ''}
-                            onChange={(event) => {
-                              setFeedback(null);
-                              const value = event.target.value;
-                              setAnswer({
-                                kind: 'fill_blank',
-                                blanks: { ...answer.blanks, [blank.id]: value },
-                              });
-                            }}
-                            placeholder="填写答案"
-                          />
-                        </label>
-                      ))}
                     </div>
                   ) : null}
 

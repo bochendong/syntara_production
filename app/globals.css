@@ -537,41 +537,6 @@
   background: transparent;
 }
 
-.learn-dock-profile-toolbar {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 30px 38px 18px;
-}
-
-.learn-dock-profile-toolbar h1 {
-  margin: 0;
-  color: #111a3b;
-  font-size: clamp(25px, 2vw, 31px);
-  font-weight: 750;
-  letter-spacing: -0.025em;
-}
-
-.learn-dock-profile-toolbar p {
-  margin: 7px 0 0;
-  color: #71809e;
-  font-size: 13px;
-}
-
-.learn-dock-profile-role {
-  display: inline-flex;
-  align-items: center;
-  padding: 7px 11px;
-  border: 1px solid #e2e6f0;
-  border-radius: 999px;
-  color: #53627d;
-  background: rgb(255 255 255 / 72%);
-  font-size: 11px;
-  font-weight: 700;
-}
-
 .learn-dock-profile-content {
   min-height: 0;
   flex: 1;
@@ -582,7 +547,7 @@
 .learn-dock-profile-card {
   display: grid;
   grid-template-columns: minmax(360px, 34%) minmax(0, 1fr);
-  min-height: min(805px, calc(100dvh - 155px));
+  min-height: min(917px, calc(100dvh - 48px));
   overflow: hidden;
   border: 1px solid rgb(228 232 242 / 90%);
   border-radius: 22px;
@@ -593,7 +558,7 @@
 .learn-dock-profile-summary {
   display: flex;
   min-width: 0;
-  min-height: min(642px, calc(100dvh - 200px));
+  min-height: min(754px, calc(100dvh - 88px));
   align-self: start;
   flex-direction: column;
   align-items: center;
@@ -804,17 +769,20 @@
 
 .learn-dock-profile-avatar-grid {
   display: grid;
-  grid-template-columns: repeat(30, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, auto));
   gap: 11px;
 }
 
-.learn-dock-profile-avatar-option:nth-child(-n + 5) {
-  grid-column: span 6;
-}
-
-.learn-dock-profile-avatar-option:nth-child(n + 6),
+.learn-dock-profile-avatar-option,
 .learn-dock-profile-avatar-more {
-  grid-column: span 5;
+  aspect-ratio: 1;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  align-self: start;
+  overflow: hidden;
 }
 
 .learn-dock-profile-avatar-option {
@@ -831,6 +799,7 @@
 .learn-dock-profile-avatar-option img {
   display: block;
   width: 100%;
+  height: 100%;
   aspect-ratio: 1;
   object-fit: cover;
 }
@@ -856,16 +825,22 @@
 
 .learn-dock-profile-avatar-more {
   display: grid;
-  min-height: 70px;
   place-items: center;
   align-content: center;
-  gap: 4px;
-  border: 0;
+  gap: 2px;
+  padding: 0;
+  border: 2px solid transparent;
   border-radius: 13px;
   color: #7f8ba3;
   background: #f4f5f9;
   font-size: 10px;
+  line-height: 1.1;
   cursor: pointer;
+}
+
+.learn-dock-profile-avatar-more > svg {
+  width: 18px;
+  height: 18px;
 }
 
 .learn-dock-profile-actions {
@@ -899,6 +874,22 @@
 
 .learn-dock-settings-shell .learn-dock-profile-content {
   overflow: visible;
+}
+
+.learn-dock-profile-app .learn-dock-settings-shell {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.learn-dock-profile-app .learn-dock-settings-shell .learn-dock-profile-navigation {
+  position: static;
+  height: auto;
+}
+
+.learn-dock-profile-app .learn-dock-settings-shell .learn-dock-profile-content {
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .learn-dock-settings-card {
@@ -1082,7 +1073,6 @@
     display: none;
   }
 
-  .learn-dock-profile-toolbar,
   .learn-dock-profile-content {
     padding-right: 18px;
     padding-left: 18px;
@@ -1104,22 +1094,9 @@
     min-height: 460px;
     margin: 18px;
   }
-
-  .learn-dock-profile-avatar-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-
-  .learn-dock-profile-avatar-option,
-  .learn-dock-profile-avatar-more {
-    grid-column: auto;
-  }
 }
 
 @media (max-width: 560px) {
-  .learn-dock-profile-toolbar {
-    align-items: flex-start;
-  }
-
   .learn-dock-profile-navigation nav {
     grid-template-columns: repeat(5, 112px);
   }

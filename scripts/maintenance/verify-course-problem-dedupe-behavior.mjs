@@ -167,46 +167,6 @@ assertSemanticDifference(
   'calculation units must be part of the public question identity',
 );
 
-const fillBlankQuestion = {
-  type: 'fill_blank',
-  stemTemplate:
-    'For a differentiable function, the derivative at {{point}} is computed with the limit {{limit}}.',
-  blanks: [
-    { id: 'point', placeholder: 'evaluation point' },
-    { id: 'limit', placeholder: 'difference quotient' },
-  ],
-};
-
-assertSemanticDifference(
-  fillBlankQuestion,
-  {
-    ...fillBlankQuestion,
-    blanks: [
-      fillBlankQuestion.blanks[0],
-      { ...fillBlankQuestion.blanks[1], placeholder: 'derivative value' },
-    ],
-  },
-  'fill-blank placeholders must be part of the public question identity',
-);
-
-assertSemanticDifference(
-  fillBlankQuestion,
-  { ...fillBlankQuestion, blanks: fillBlankQuestion.blanks.slice(0, 1) },
-  'fill-blank count and position must be part of the public question identity',
-);
-
-assertSameQuestion(
-  fillBlankQuestion,
-  {
-    ...fillBlankQuestion,
-    blanks: fillBlankQuestion.blanks.map((blank, index) => ({
-      ...blank,
-      id: `regenerated-blank-${index + 1}`,
-    })),
-  },
-  'regenerated blank IDs must not change a semantic identity',
-);
-
 const codeQuestion = {
   type: 'code',
   stem: 'Implement binary_search so it returns the index of target in a sorted list or -1.',
@@ -398,7 +358,6 @@ process.stdout.write(
         'set/operator/arrow/decimal separation',
         'choice mode and volatile option IDs',
         'calculation units',
-        'fill-blank semantics and volatile IDs',
         'code constraints/tests/sampleIO/descriptions/sections/starter code',
         'prompt-bearing image assets',
         'localized prompt content',

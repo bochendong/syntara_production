@@ -24,7 +24,7 @@ import { AdminStudentsSection } from '@/components/admin/admin-students-section'
 import { AdminUsageLimitsSection } from '@/components/admin/admin-usage-limits-section';
 
 const SECTIONS = [
-  { id: 'llm', label: '语言模型', icon: Bot },
+  { id: 'llm', label: 'AI 模型与用量', icon: Bot },
   { id: 'students', label: '学生管理', icon: Users },
   { id: 'teachers', label: '老师管理', icon: Users },
   { id: 'usage-limits', label: '云端限额', icon: Gauge },
@@ -66,7 +66,7 @@ export function AdminConsole() {
             管理员控制台
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-            全站服务配置
+            全站 AI 与运营配置
           </h1>
         </div>
         <Button

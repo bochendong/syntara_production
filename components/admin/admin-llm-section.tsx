@@ -147,7 +147,7 @@ export function AdminLLMSection() {
             系统模型配置
           </CardTitle>
           <CardDescription>
-            服务端为全站提供的语言模型 Key（用户可在设置里覆盖）。配置来自项目根目录
+            服务端为全站统一提供语言模型与凭据，普通用户不能切换或覆盖。补充配置来自项目根目录
             server-providers.yml 与 .env，修改后需重启服务。
           </CardDescription>
         </CardHeader>

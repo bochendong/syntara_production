@@ -117,27 +117,22 @@ function choiceDraft(questionNumber, title, stem, options, correctOptionId, topi
   });
 }
 
-function fillBlankDraft(questionNumber, title, stemTemplate, blanks, topic) {
+function completionShortAnswerDraft(questionNumber, title, stem, answers, topic) {
   return baseDraft(questionNumber, `Q${questionNumber}`, {
     title: `Q${questionNumber}: ${title}`,
-    type: 'fill_blank',
+    type: 'short_answer',
     points: 2,
-    tags: ['CSC108', 'midterm', 'fall-2025', 'fill-blank'],
+    tags: ['CSC108', 'midterm', 'fall-2025', 'short-answer'],
     publicContent: {
-      type: 'fill_blank',
-      stemTemplate: cleanLines(stemTemplate),
-      blanks: blanks.map((blank, index) => ({
-        id: blank.id,
-        placeholder: blank.placeholder ?? `Blank ${index + 1}`,
-      })),
+      type: 'short_answer',
+      stem: cleanLines(stem),
     },
     grading: {
-      type: 'fill_blank',
-      blanks: blanks.map((blank) => ({
-        id: blank.id,
-        acceptedAnswers: blank.acceptedAnswers,
-        caseSensitive: blank.caseSensitive ?? false,
-      })),
+      type: 'short_answer',
+      referenceAnswer: answers
+        .map((answer) => `${answer.placeholder ?? answer.id}: ${answer.answers[0]}`)
+        .join('; '),
+      rubric: 'Grade each requested completion for correctness.',
       analysis: `Answer inferred from the ${topic} concept tested by the source PDF.`,
     },
     sourceMeta: {
@@ -146,7 +141,7 @@ function fillBlankDraft(questionNumber, title, stemTemplate, blanks, topic) {
       sourceQuestionId: `Q${questionNumber}`,
       sourceQuestionNumber: questionNumber,
       sourceQuestionLabel: `Q${questionNumber}`,
-      sourceCategory: 'fill-in-the-blanks-short-code',
+      sourceCategory: 'short-code-completion',
       sourceTopic: topic,
       answerSource: 'codex-solved-from-pdf',
     },
@@ -535,7 +530,7 @@ const drafts = [
     'C',
     'string replace and immutability',
   ),
-  fillBlankDraft(
+  completionShortAnswerDraft(
     23,
     'Boolean Refactoring',
     `Rewrite the following statement without using the ` +
@@ -545,12 +540,12 @@ const drafts = [
       {
         id: 'blank_1',
         placeholder: 'condition',
-        acceptedAnswers: ['not (x <= 5 and y > 0)', 'not(x <= 5 and y > 0)'],
+        answers: ['not (x <= 5 and y > 0)', 'not(x <= 5 and y > 0)'],
       },
     ],
     'boolean refactoring',
   ),
-  fillBlankDraft(
+  completionShortAnswerDraft(
     24,
     'Conditional Simplification',
     `The code below is too long:\n\n${block('if n % 2 == 0:\\n    even = True\\nelse:\\n    even = False')}\n\nRefactor the code. Rewrite it on one line below. You must use a boolean expression.\n\n${block('even = ____')}`,
@@ -558,12 +553,12 @@ const drafts = [
       {
         id: 'blank_1',
         placeholder: 'boolean expression',
-        acceptedAnswers: ['n % 2 == 0', '(n % 2 == 0)', 'n%2==0'],
+        answers: ['n % 2 == 0', '(n % 2 == 0)', 'n%2==0'],
       },
     ],
     'conditional simplification',
   ),
-  fillBlankDraft(
+  completionShortAnswerDraft(
     25,
     'Using a Helper Function',
     `You are given the following helper function:\n\n${block('def exists_triangle(a: int, b: int, c: int) -> bool:\\n    """Return True if sides <a>, <b>, <c> form a triangle."""')}\n\nComplete the body of the function below so it returns whether the string ` +
@@ -573,22 +568,22 @@ const drafts = [
       {
         id: 'blank_1',
         placeholder: 'first argument',
-        acceptedAnswers: ['s.count("1")', "s.count('1')"],
+        answers: ['s.count("1")', "s.count('1')"],
       },
       {
         id: 'blank_2',
         placeholder: 'second argument',
-        acceptedAnswers: ['s.count("2")', "s.count('2')"],
+        answers: ['s.count("2")', "s.count('2')"],
       },
       {
         id: 'blank_3',
         placeholder: 'third argument',
-        acceptedAnswers: ['s.count("3")', "s.count('3')"],
+        answers: ['s.count("3")', "s.count('3')"],
       },
     ],
     'helper functions and string count',
   ),
-  fillBlankDraft(
+  completionShortAnswerDraft(
     26,
     'Range and Accumulator',
     `Complete this loop. The loop computes the product of the numbers from 1 through 4.\n\n${block('total = 1\\n\\nfor i in range(____, ____):\\n    total *= i')}`,
@@ -596,12 +591,12 @@ const drafts = [
       {
         id: 'blank_1',
         placeholder: 'range start',
-        acceptedAnswers: ['1'],
+        answers: ['1'],
       },
       {
         id: 'blank_2',
         placeholder: 'range stop',
-        acceptedAnswers: ['5'],
+        answers: ['5'],
       },
     ],
     'range and accumulation',

@@ -240,7 +240,7 @@ function renderPublicProblemContent(rawText: string): string {
   try {
     const parsed = JSON.parse(rawText) as Record<string, unknown>;
     const lines: string[] = [];
-    for (const key of ['stem', 'stemTemplate', 'statement', 'question', 'prompt']) {
+    for (const key of ['stem', 'statement', 'question', 'prompt']) {
       const value = parsed[key];
       if (typeof value === 'string' && value.trim()) {
         lines.push(value.trim());

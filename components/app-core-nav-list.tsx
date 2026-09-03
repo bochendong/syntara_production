@@ -12,6 +12,7 @@ import {
   ListChecks,
   MessageCircle,
   Settings,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   UserRound,
@@ -107,8 +108,9 @@ const CHAT_RIGHT_RAIL_KEY_ORDER: Record<string, number> = {
   live2d: 8,
   profile: 10,
   settings: 11,
-  'contact-support': 12,
-  'report-issue': 13,
+  admin: 12,
+  'contact-support': 13,
+  'report-issue': 14,
 };
 
 function sortChatRightRailItems(items: CoreNavItem[]): CoreNavItem[] {
@@ -197,6 +199,7 @@ export function AppCoreNavList({
     pathname?.startsWith('/teacher/');
   const profileActive = pathname === '/profile' || pathname?.startsWith('/profile/');
   const settingsActive = pathname === '/settings' || pathname?.startsWith('/settings/');
+  const adminActive = pathname === '/admin' || pathname?.startsWith('/admin/');
 
   const courseStoreActive =
     pathname === '/store/courses' || pathname?.startsWith('/store/courses/');
@@ -311,6 +314,24 @@ export function AppCoreNavList({
         },
       ],
     },
+    ...(portalRole === 'ADMIN'
+      ? ([
+          {
+            key: 'administration',
+            label: '站点管理',
+            items: [
+              {
+                key: 'admin',
+                href: '/admin',
+                label: '管理员控制台',
+                tooltip: '管理全站 AI、用量与账户',
+                icon: ShieldCheck,
+                active: adminActive,
+              },
+            ],
+          },
+        ] satisfies CoreNavSection[])
+      : []),
     {
       key: 'support',
       label: '帮助与支持',

@@ -7,7 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { IMAGE_PROVIDERS } from '@/lib/media/image-providers';
 import { TTS_PROVIDERS } from '@/lib/audio/constants';
 import { WEB_SEARCH_PROVIDERS } from '@/lib/web-search/constants';
-import type { SiteProviderAdminRow, SiteProviderStatusResponse } from '@/lib/types/admin-site-providers';
+import type {
+  SiteProviderAdminRow,
+  SiteProviderStatusResponse,
+} from '@/lib/types/admin-site-providers';
 import { backendJson } from '@/lib/utils/backend-api';
 
 export type AdminSiteProviderKind = 'image' | 'tts' | 'web-search';
@@ -53,7 +56,7 @@ function titleFor(kind: AdminSiteProviderKind): string {
 function descriptionFor(kind: AdminSiteProviderKind): string {
   switch (kind) {
     case 'image':
-      return '服务端为全站提供的图像生成 Key（用户可在设置里覆盖）。配置来自项目根目录 server-providers.yml 与 .env，修改后需重启服务。';
+      return '服务端为全站统一提供图像生成服务，普通用户不能切换或覆盖。配置来自项目根目录 server-providers.yml 与 .env，修改后需重启服务。';
     case 'tts':
       return '服务端为全站提供的语音合成 Key。配置来源同上。';
     case 'web-search':
@@ -138,8 +141,10 @@ export function AdminSiteProvidersSection({ kind }: { kind: AdminSiteProviderKin
               <Info className="h-4 w-4" />
               <AlertTitle>检测到 TAVILY_API_KEY</AlertTitle>
               <AlertDescription>
-                根级环境变量 <code className="rounded bg-muted px-1 py-0.5 text-xs">TAVILY_API_KEY</code>{' '}
-                已设置；在未写入 <code className="rounded bg-muted px-1 py-0.5 text-xs">server-providers.yml</code>{' '}
+                根级环境变量{' '}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">TAVILY_API_KEY</code>{' '}
+                已设置；在未写入{' '}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">server-providers.yml</code>{' '}
                 时也会作为 Tavily 密钥使用。
               </AlertDescription>
             </Alert>
@@ -153,9 +158,7 @@ export function AdminSiteProvidersSection({ kind }: { kind: AdminSiteProviderKin
                   <th className="px-3 py-2 font-medium">ID</th>
                   <th className="px-3 py-2 font-medium">密钥</th>
                   <th className="px-3 py-2 font-medium">Base URL</th>
-                  {kind === 'image' ? (
-                    <th className="px-3 py-2 font-medium">模型列表</th>
-                  ) : null}
+                  {kind === 'image' ? <th className="px-3 py-2 font-medium">模型列表</th> : null}
                   <th className="px-3 py-2 font-medium">环境变量（参考）</th>
                 </tr>
               </thead>
@@ -209,7 +212,8 @@ export function AdminSiteProvidersSection({ kind }: { kind: AdminSiteProviderKin
 
           <p className="text-xs text-muted-foreground">
             修改 <code className="rounded bg-muted px-1">server-providers.yml</code> 或对应{' '}
-            <code className="rounded bg-muted px-1">.env.local</code> 后，请重启 Next 进程使配置生效。
+            <code className="rounded bg-muted px-1">.env.local</code> 后，请重启 Next
+            进程使配置生效。
           </p>
         </CardContent>
       </Card>

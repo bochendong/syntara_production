@@ -122,17 +122,6 @@ const generatedCodeSectionSchema = z.object({
   codeLanguage: z.string().trim().max(40).nullable(),
 });
 
-const generatedBlankSchema = z.object({
-  id: z.string().trim().min(1).max(64),
-  placeholder: z.string().trim().max(120).nullable(),
-});
-
-const generatedGradingBlankSchema = z.object({
-  id: z.string().trim().min(1).max(64),
-  acceptedAnswers: z.array(z.string().trim().min(1).max(1000)).min(1).max(16),
-  caseSensitive: z.boolean(),
-});
-
 const generatedQuestionOutputSchema = z
   .object({
     id: z
@@ -142,9 +131,8 @@ const generatedQuestionOutputSchema = z
     title: z.string().trim().min(1),
     difficulty: z.enum(['easy', 'medium', 'hard']),
     publicContent: z.object({
-      type: z.enum(['short_answer', 'choice', 'proof', 'calculation', 'code', 'fill_blank']),
+      type: z.enum(['short_answer', 'choice', 'proof', 'calculation', 'code']),
       stem: z.string().max(16_000),
-      stemTemplate: z.string().max(12_000).nullable(),
       selectionMode: z.enum(['single', 'multiple']).nullable(),
       options: z.array(generatedChoiceOptionSchema).max(12),
       unit: z.string().trim().max(120).nullable(),
@@ -157,10 +145,9 @@ const generatedQuestionOutputSchema = z
       sampleIO: z.array(generatedCodeSampleSchema).max(12),
       statementSections: z.array(generatedCodeSectionSchema).max(10),
       starterCodeDescription: z.string().trim().max(1000).nullable(),
-      blanks: z.array(generatedBlankSchema).max(12),
     }),
     grading: z.object({
-      type: z.enum(['short_answer', 'choice', 'proof', 'calculation', 'code', 'fill_blank']),
+      type: z.enum(['short_answer', 'choice', 'proof', 'calculation', 'code']),
       referenceAnswer: z.string().trim().max(40_000).nullable(),
       rubric: z.string().trim().max(12_000).nullable(),
       analysis: z.string().trim().max(12_000).nullable(),
@@ -169,7 +156,6 @@ const generatedQuestionOutputSchema = z
       acceptedForms: z.array(z.string().trim().min(1).max(1000)).max(16),
       tolerance: z.number().nonnegative().nullable(),
       unit: z.string().trim().max(120).nullable(),
-      blanks: z.array(generatedGradingBlankSchema).max(12),
       solutionCode: z.string().trim().max(40_000).nullable(),
       publishRequirementsMet: z.boolean(),
     }),
@@ -188,21 +174,11 @@ const generatedQuestionOutputSchema = z
         message: 'grading.type must match publicContent.type',
       });
     }
-    if (question.publicContent.type !== 'fill_blank' && !question.publicContent.stem.trim()) {
+    if (!question.publicContent.stem.trim()) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['publicContent', 'stem'],
         message: 'stem is required for this problem type',
-      });
-    }
-    if (
-      question.publicContent.type === 'fill_blank' &&
-      !question.publicContent.stemTemplate?.trim()
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['publicContent', 'stemTemplate'],
-        message: 'stemTemplate is required for fill_blank',
       });
     }
     if (question.publicContent.type === 'choice' && question.publicContent.options.length < 2) {
@@ -217,20 +193,6 @@ const generatedQuestionOutputSchema = z
         code: z.ZodIssueCode.custom,
         path: ['grading', 'correctOptionIds'],
         message: 'choice grading requires correctOptionIds',
-      });
-    }
-    if (question.publicContent.type === 'fill_blank' && !question.publicContent.blanks.length) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['publicContent', 'blanks'],
-        message: 'fill_blank requires blanks',
-      });
-    }
-    if (question.grading.type === 'fill_blank' && !question.grading.blanks.length) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['grading', 'blanks'],
-        message: 'fill_blank grading requires accepted answers',
       });
     }
   });
@@ -409,13 +371,6 @@ function normalizeLocalPublicContent(problem: LocalProblem): NotebookProblemPubl
         : {}),
       secretConfigPresent: false,
     };
-  } else if (type === 'fill_blank') {
-    candidate = {
-      ...common,
-      type: 'fill_blank',
-      stemTemplate: String(raw.stemTemplate ?? stem),
-      blanks: Array.isArray(raw.blanks) ? raw.blanks : [],
-    };
   } else if (type === 'proof' || type === 'calculation' || type === 'short_answer') {
     candidate = {
       ...common,
@@ -433,8 +388,7 @@ function normalizeLocalPublicContent(problem: LocalProblem): NotebookProblemPubl
 }
 
 function publicQuestionText(content: NotebookProblemPublicContent): string {
-  if (content.type === 'fill_blank') return content.stemTemplate;
-  return content.stem;
+  return content.type === 'fill_blank' ? content.stemTemplate : content.stem;
 }
 
 function formatIssues(error: z.ZodError): string[] {
@@ -535,16 +489,6 @@ function _materializeGeneratedQuestion(question: GeneratedQuestionOutput): Gener
         : {}),
       secretConfigPresent: false,
     };
-  } else if (content.type === 'fill_blank') {
-    publicContentInput = {
-      ...common,
-      type: 'fill_blank',
-      stemTemplate: content.stemTemplate,
-      blanks: content.blanks.map((blank) => ({
-        id: blank.id,
-        ...(blank.placeholder ? { placeholder: blank.placeholder } : {}),
-      })),
-    };
   } else {
     publicContentInput = {
       ...common,
@@ -577,12 +521,6 @@ function _materializeGeneratedQuestion(question: GeneratedQuestionOutput): Gener
       acceptedForms: grading.acceptedForms,
       ...(grading.tolerance !== null ? { tolerance: grading.tolerance } : {}),
       ...(grading.unit ? { unit: grading.unit } : {}),
-      ...(grading.analysis ? { analysis: grading.analysis } : {}),
-    };
-  } else if (grading.type === 'fill_blank') {
-    gradingInput = {
-      type: 'fill_blank',
-      blanks: grading.blanks,
       ...(grading.analysis ? { analysis: grading.analysis } : {}),
     };
   } else if (grading.type === 'code') {
@@ -715,8 +653,8 @@ ${args.notebookContent.trim() ? args.notebookContent.slice(0, 20_000) : '没有 
 5. generated ID 使用 generated-1、generated-2 等，不得冒充题库 ID。
 6. 每道题都要给出选择理由、覆盖点、组合价值和题源证据。
 7. 每道题必须使用正式 NotebookProblem 格式：difficulty 只能是 easy / medium / hard；publicContent.type 与 grading.type 必须一致。
-8. publicContent 按题型完整填写：choice 必须提供 selectionMode 和 2-12 个 {id,label} 选项；code 必须提供 Python stem，并在需要时提供 starterCode、constraints、publicTests 或 sampleIO；fill_blank 必须提供 stemTemplate 和 blanks；其余题型必须提供 stem。
-9. grading 必须能让该题实际判分：choice 给 correctOptionIds；fill_blank 给每空 acceptedAnswers；code 给 referenceAnswer 或 solutionCode；short_answer / proof / calculation 给参考答案、证明或分析中的至少一项。
+8. publicContent 按题型完整填写：choice 必须提供 selectionMode 和 2-12 个 {id,label} 选项；code 必须提供 Python stem，并在需要时提供 starterCode、constraints、publicTests 或 sampleIO；其余题型必须提供 stem。
+9. grading 必须能让该题实际判分：choice 给 correctOptionIds；code 给 referenceAnswer 或 solutionCode；short_answer / proof / calculation 给参考答案、证明或分析中的至少一项。
 10. 不得把选项、起始代码、约束、样例输入输出塞进一个简化 question 字符串来冒充结构化题目。
 11. 输出契约为了兼容模型接口是扁平结构：当前题型不用的字段也必须返回，字符串用 null、数组用 []；服务端会按 type 还原后再次用正式联合类型校验。
 12. 只返回结构化结果，不输出 Markdown。`;

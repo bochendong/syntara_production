@@ -303,7 +303,7 @@ function isMiniLectureCandidate(question: string, answer: string): boolean {
   const explanationSignal =
     /(讲解|解释|说明|为什么|怎么理解|怎么做|如何做|是什么|什么是|定义|原理|区别|关系|含义|例子|举例|题目|这道题|解题|求解|计算|证明|推导|公式|定理|概念|知识点|错在哪|哪里错|step|explain|why|how|prove|problem)/i;
   const problemSignal =
-    /(^|\s)(已知|若|设|求|解|证明|下列|选择题|填空题)|[=∫∑√∞]|\b(?:lim|sin|cos|tan|log)\b|\\(?:frac|sqrt|int|sum)\b/i;
+    /(^|\s)(已知|若|设|求|解|证明|下列|选择题)|[=∫∑√∞]|\b(?:lim|sin|cos|tan|log)\b|\\(?:frac|sqrt|int|sum)\b/i;
   const answerSignal =
     /(核心思路|解题步骤|第一步|首先|因此|所以|定义是|关键在于|可以理解为|证明如下)/i;
   return (
