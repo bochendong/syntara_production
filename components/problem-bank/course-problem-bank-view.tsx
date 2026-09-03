@@ -2076,7 +2076,7 @@ export function CourseProblemBankView({
 
       <div
         className={cn(
-          'flex min-h-0 w-full flex-1 gap-2',
+          'flex min-h-0 w-full flex-1 items-stretch gap-2',
           isPracticeMode && 'h-full min-h-0',
           showCourseNavigation && COURSE_SPACE_BODY_SURFACE_CLASS,
           showChromeBackground
@@ -2089,7 +2089,7 @@ export function CourseProblemBankView({
       >
         {!isPracticeMode ? (
           <>
-            <div className="order-1 flex h-full min-h-0 min-w-0 flex-1 flex-col self-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white/92 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/55">
+            <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col self-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white/92 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/55">
               <div className="grid gap-2.5 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
                 <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                   {showCourseTitle && !showCourseNavigation ? (
@@ -2188,10 +2188,15 @@ export function CourseProblemBankView({
                 </div>
               </div>
 
-              <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+              <div
+                className={cn(
+                  'flex min-h-0 flex-1 flex-col',
+                  loading || filteredProblems.length === 0 ? 'overflow-hidden' : 'overflow-auto',
+                )}
+              >
                 {loading ? (
                   <div
-                    className="relative m-3 grid min-h-[clamp(26rem,58dvh,46rem)] flex-1 place-items-center overflow-hidden rounded-[20px] bg-[radial-gradient(circle_at_50%_42%,rgba(14,165,233,0.08),transparent_34%),linear-gradient(to_bottom,#f8fafc_0%,#ffffff_72%)] p-6 text-slate-500 ring-1 ring-inset ring-slate-100 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(56,189,248,0.09),transparent_34%),linear-gradient(to_bottom,#0f172a_0%,#020617_72%)] dark:text-slate-400 dark:ring-white/5"
+                    className="relative m-3 grid min-h-0 flex-1 place-items-center overflow-hidden rounded-[20px] bg-[radial-gradient(circle_at_50%_42%,rgba(14,165,233,0.08),transparent_34%),linear-gradient(to_bottom,#f8fafc_0%,#ffffff_72%)] p-6 text-slate-500 ring-1 ring-inset ring-slate-100 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(56,189,248,0.09),transparent_34%),linear-gradient(to_bottom,#0f172a_0%,#020617_72%)] dark:text-slate-400 dark:ring-white/5"
                     role="status"
                     aria-live="polite"
                     aria-busy="true"
@@ -2216,7 +2221,7 @@ export function CourseProblemBankView({
                     </div>
                   </div>
                 ) : filteredProblems.length === 0 ? (
-                  <div className="relative m-3 grid min-h-[clamp(26rem,58dvh,46rem)] flex-1 place-items-center overflow-hidden rounded-[20px] bg-[radial-gradient(circle_at_50%_42%,rgba(14,165,233,0.08),transparent_34%),linear-gradient(to_bottom,#f8fafc_0%,#ffffff_72%)] p-6 text-sm text-slate-500 ring-1 ring-inset ring-slate-100 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(56,189,248,0.09),transparent_34%),linear-gradient(to_bottom,#0f172a_0%,#020617_72%)] dark:text-slate-400 dark:ring-white/5">
+                  <div className="relative m-3 grid min-h-0 flex-1 place-items-center overflow-hidden rounded-[20px] bg-[radial-gradient(circle_at_50%_42%,rgba(14,165,233,0.08),transparent_34%),linear-gradient(to_bottom,#f8fafc_0%,#ffffff_72%)] p-6 text-sm text-slate-500 ring-1 ring-inset ring-slate-100 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(56,189,248,0.09),transparent_34%),linear-gradient(to_bottom,#0f172a_0%,#020617_72%)] dark:text-slate-400 dark:ring-white/5">
                     <div className="flex max-w-md flex-col items-center text-center">
                       <span className="grid size-14 place-items-center rounded-[18px] bg-white text-sky-600 shadow-[0_12px_35px_rgba(14,165,233,0.14)] ring-1 ring-sky-100 dark:bg-slate-950 dark:text-sky-300 dark:ring-sky-500/20">
                         <BookOpen className="size-6" strokeWidth={1.8} />

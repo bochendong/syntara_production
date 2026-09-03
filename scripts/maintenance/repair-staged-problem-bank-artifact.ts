@@ -3,21 +3,16 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import Module from 'node:module';
 import path from 'node:path';
+import type { NotebookProblemImportDraft } from '../../lib/problem-bank';
 
 function usage(): never {
   console.error(
-    'Usage: jiti scripts/maintenance/stage-openai-problem-bank-file.ts <input.pdf> <output.json>',
+    'Usage: jiti scripts/maintenance/repair-staged-problem-bank-artifact.ts <input.json> <output.json>',
   );
   process.exit(1);
 }
 
-type ExtractedDraft = Awaited<
-  ReturnType<
-    (typeof import('../../lib/server/notebook-problems/import.core.llm'))['llmExtractProblemDraftsFromOpenAIFile']
-  >
->['drafts'][number];
-
-function hasAnswer(draft: ExtractedDraft): boolean {
+function hasAnswer(draft: NotebookProblemImportDraft): boolean {
   const grading = draft.grading;
   if (grading.type === 'choice') return grading.correctOptionIds.length > 0;
   if (grading.type === 'calculation') {
@@ -51,33 +46,21 @@ async function main() {
     return originalResolveFilename.call(this, resolvedRequest, parent, isMain, options);
   };
 
-  const [serverModel, openAIUserFiles, problemImport, requestContext] = await Promise.all([
+  const [serverModel, problemImport, requestContext] = await Promise.all([
     import('../../lib/ai/server-model'),
-    import('../../lib/server/openai-user-files'),
-    import('../../lib/server/notebook-problems/import.core.llm'),
+    import('../../lib/server/notebook-problems/import.core'),
     import('../../lib/server/request-context'),
   ]);
   const inputPath = path.resolve(inputPathArg);
   const outputPath = path.resolve(outputPathArg);
+  const artifact = JSON.parse(await readFile(inputPath, 'utf8')) as {
+    drafts: NotebookProblemImportDraft[];
+    usage?: unknown;
+    [key: string]: unknown;
+  };
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   const modelId = (process.env.DEFAULT_MODEL?.trim() || 'gpt-5.6-luna').replace(/^openai:/, '');
   if (!apiKey) throw new Error('OPENAI_API_KEY is required.');
-
-  const buffer = await readFile(inputPath);
-  const existingFileId = process.env.OPENAI_FILE_ID?.trim();
-  if (!existingFileId) {
-    console.log(
-      `Uploading ${path.basename(inputPath)} (${buffer.byteLength} bytes) to OpenAI Files...`,
-    );
-  }
-  const fileId =
-    existingFileId ??
-    (await openAIUserFiles.uploadOpenAIUserFile({
-      buffer,
-      fileName: path.basename(inputPath),
-      mimeType: 'application/pdf',
-    }));
-  console.log(`Uploaded file ${fileId}; extracting with ${modelId}...`);
 
   const { model } = serverModel.getServerOpenAIResponsesModel({
     providerId: 'openai',
@@ -87,42 +70,46 @@ async function main() {
     baseUrl: process.env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com/v1',
     requiresApiKey: true,
   });
-  const extracted = await requestContext.withRequestContext(
+  const repaired = await requestContext.withRequestContext(
     {
-      route: 'maintenance:stage-openai-problem-bank-file',
+      route: 'maintenance:repair-staged-problem-bank-artifact',
       skipCreditCharge: true,
     },
-    () =>
-      problemImport.llmExtractProblemDraftsFromOpenAIFile({
-        fileId,
-        fileName: path.basename(inputPath),
-        mimeType: 'application/pdf',
-        source: 'pdf',
+    async () => {
+      const answerResult = await problemImport.ensureImportedDraftAnswers({
+        drafts: artifact.drafts,
         model,
         language: 'zh-CN',
-      }),
+      });
+      const codeResult = await problemImport.ensureImportedCodeDraftsJudgeReady({
+        drafts: answerResult.drafts,
+        model,
+        language: 'zh-CN',
+      });
+      return {
+        drafts: codeResult.drafts,
+        usage: problemImport.mergeImportUsage(answerResult.usage, codeResult.usage),
+      };
+    },
   );
 
-  const answerCompleteCount = extracted.drafts.filter(hasAnswer).length;
   const byType = Object.fromEntries(
-    [...new Set(extracted.drafts.map((draft) => draft.type))]
+    [...new Set(repaired.drafts.map((draft) => draft.type))]
       .sort()
-      .map((type) => [type, extracted.drafts.filter((draft) => draft.type === type).length]),
+      .map((type) => [type, repaired.drafts.filter((draft) => draft.type === type).length]),
   );
-  const artifact = {
-    generatedAt: new Date().toISOString(),
-    sourceFile: inputPath,
-    openaiFileId: fileId,
-    modelId,
-    problemCount: extracted.drafts.length,
-    answerCompleteCount,
+  const output = {
+    ...artifact,
+    postProcessedAt: new Date().toISOString(),
+    problemCount: repaired.drafts.length,
+    answerCompleteCount: repaired.drafts.filter(hasAnswer).length,
     byType,
-    usage: extracted.usage,
-    drafts: extracted.drafts,
+    postProcessUsage: repaired.usage,
+    drafts: repaired.drafts,
   };
-  await writeFile(outputPath, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
+  await writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
   console.log(
-    `Wrote ${extracted.drafts.length} drafts (${answerCompleteCount} with answers) to ${outputPath}`,
+    `Wrote ${repaired.drafts.length} repaired drafts (${output.answerCompleteCount} with answers) to ${outputPath}`,
   );
 }
 

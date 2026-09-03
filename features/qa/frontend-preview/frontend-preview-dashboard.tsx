@@ -46,6 +46,13 @@ function previewSurfaces(role: PreviewRole, courseId: string): PreviewSurface[] 
         Icon: LayoutDashboard,
       },
       {
+        id: 'teacher-chat',
+        label: '教师聊天',
+        description: '确认卡片、动作卡片与产物卡片的本地演示对话',
+        href: `/learn?courseId=${encodedCourseId}&from=teacher&uiPreview=1`,
+        Icon: MessageCircle,
+      },
+      {
         id: 'teacher-forum',
         label: '教师论坛',
         description: '置顶、回答、已解决状态与发布弹窗',

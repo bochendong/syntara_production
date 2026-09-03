@@ -1,7 +1,13 @@
 import type { LanguageModel } from 'ai';
 import { jsonrepair } from 'jsonrepair';
 import { callLLM } from '@/lib/ai/llm';
-import type { NotebookProblemImportDraft, NotebookProblemSource } from '@/lib/problem-bank';
+import {
+  codeReferenceSolution,
+  withoutCodeReadinessErrors,
+  type NotebookProblemImportDraft,
+  type NotebookProblemSource,
+} from '@/lib/problem-bank';
+import { verifyNotebookCodeDraftReferenceAnswer } from './judge';
 import {
   problemStructurePlanSchema,
   type ImportUsageSummary,
@@ -113,7 +119,7 @@ function parseOpenAIFileStructurePlan(text: string): ProblemStructurePlan | null
   }
 }
 
-function draftHasCompleteAnswer(draft: NotebookProblemImportDraft): boolean {
+export function draftHasCompleteAnswer(draft: NotebookProblemImportDraft): boolean {
   if (draft.validationErrors.some((error) => error.includes('未识别到正确答案'))) return false;
   if (draft.grading.type === 'choice') return draft.grading.correctOptionIds.length > 0;
   if (draft.grading.type === 'calculation') {
@@ -124,10 +130,446 @@ function draftHasCompleteAnswer(draft: NotebookProblemImportDraft): boolean {
   if (draft.grading.type === 'fill_blank') {
     return (
       draft.grading.blanks.length > 0 &&
-      draft.grading.blanks.every((blank) => blank.acceptedAnswers.some((answer) => answer.trim()))
+      draft.grading.blanks.every(
+        (blank) =>
+          blank.acceptedAnswers.some((answer) => answer.trim()) &&
+          blank.acceptedAnswers.every(
+            (answer) =>
+              !/^(?:canonicalAnswer|acceptedAnswers|answer|[:,\]\[{}])$/i.test(answer.trim()) &&
+              !/\.replace\s*\($/.test(answer.trim()),
+          ),
+      )
     );
   }
-  return Boolean(draft.grading.solutionCode?.trim() || draft.grading.referenceAnswer?.trim());
+  // Batch completeness only establishes that the model solved the problem.
+  // Test count, interface shape, and actual execution are enforced by the
+  // dedicated code verification/repair pass after all batches are assembled.
+  return Boolean(codeReferenceSolution(draft));
+}
+
+function promoteFunctionImplementationDraft(
+  draft: NotebookProblemImportDraft,
+): NotebookProblemImportDraft {
+  if (
+    draft.type !== 'short_answer' ||
+    draft.publicContent.type !== 'short_answer' ||
+    draft.grading.type !== 'short_answer'
+  ) {
+    return draft;
+  }
+  const solutionCode = draft.grading.referenceAnswer?.trim() || '';
+  const asksForFunction =
+    /(?:实现|完成|编写|implement|complete|write)\s*(?:一个|the|a)?\s*(?:Python\s*)?(?:函数|function)\b/i.test(
+      draft.publicContent.stem,
+    ) || /(?:实现|完成|编写)函数/.test(draft.publicContent.stem);
+  const signature = solutionCode.match(
+    /^\s*(def\s+[A-Za-z_]\w*\s*\([^\n]*?\)(?:\s*->\s*[^:\n]+)?\s*:)/m,
+  )?.[1];
+  if (!asksForFunction || !signature) return draft;
+
+  return {
+    ...draft,
+    type: 'code',
+    publicContent: {
+      type: 'code',
+      stem: draft.publicContent.stem,
+      assets: draft.publicContent.assets,
+      language: 'python',
+      functionSignature: signature,
+      starterCode: `${signature}\n    pass`,
+      constraints: ['输入来自函数参数', '结果通过 return 返回', '不得使用 input、print 或文件读写'],
+      publicTests: [],
+      sampleIO: [],
+      secretConfigPresent: true,
+    },
+    grading: {
+      type: 'code',
+      solutionCode,
+      analysis: draft.grading.analysis || draft.grading.rubric,
+      publishRequirementsMet: false,
+    },
+    secretJudge: {
+      language: 'python',
+      secretTests: [],
+      timeoutMs: 5000,
+    },
+    sourceMeta: {
+      ...draft.sourceMeta,
+      promotedToCode: true,
+      promotedFromType: 'short_answer',
+    },
+  };
+}
+
+export function promoteFunctionImplementationDrafts(
+  drafts: NotebookProblemImportDraft[],
+): NotebookProblemImportDraft[] {
+  return drafts.map(promoteFunctionImplementationDraft);
+}
+
+function codeRepairDraftFromRaw(
+  raw: unknown,
+  original: NotebookProblemImportDraft,
+): NotebookProblemImportDraft | null {
+  if (
+    original.type !== 'code' ||
+    original.publicContent.type !== 'code' ||
+    original.grading.type !== 'code'
+  ) {
+    return null;
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  const publicPatch =
+    record.publicContent && typeof record.publicContent === 'object'
+      ? (record.publicContent as Record<string, unknown>)
+      : {};
+  const gradingPatch =
+    record.grading && typeof record.grading === 'object'
+      ? (record.grading as Record<string, unknown>)
+      : {};
+  const secretPatch =
+    record.secretJudge && typeof record.secretJudge === 'object'
+      ? (record.secretJudge as Record<string, unknown>)
+      : {};
+  const testsPatch =
+    record.tests && typeof record.tests === 'object'
+      ? (record.tests as Record<string, unknown>)
+      : {};
+  const publicTests = Array.isArray(publicPatch.publicTests)
+    ? publicPatch.publicTests
+    : Array.isArray(record.publicTests)
+      ? record.publicTests
+      : Array.isArray(testsPatch.public)
+        ? testsPatch.public
+        : original.publicContent.publicTests;
+  const secretTests = Array.isArray(secretPatch.secretTests)
+    ? secretPatch.secretTests
+    : Array.isArray(record.secretTests)
+      ? record.secretTests
+      : Array.isArray(testsPatch.secret)
+        ? testsPatch.secret
+        : (original.secretJudge?.secretTests ?? []);
+  const solutionCode =
+    (typeof gradingPatch.solutionCode === 'string' && gradingPatch.solutionCode) ||
+    (typeof gradingPatch.referenceAnswer === 'string' && gradingPatch.referenceAnswer) ||
+    (typeof record.solutionCode === 'string' && record.solutionCode) ||
+    (typeof record.referenceAnswer === 'string' && record.referenceAnswer) ||
+    codeReferenceSolution(original);
+  const functionSignature =
+    (typeof publicPatch.functionSignature === 'string' && publicPatch.functionSignature) ||
+    (typeof record.functionSignature === 'string' && record.functionSignature) ||
+    original.publicContent.functionSignature;
+
+  const merged = normalizeCandidateDraft(
+    {
+      ...original,
+      publicContent: {
+        ...original.publicContent,
+        ...publicPatch,
+        type: 'code',
+        functionSignature,
+        publicTests,
+        secretConfigPresent: true,
+      },
+      grading: {
+        ...original.grading,
+        ...gradingPatch,
+        type: 'code',
+        solutionCode,
+        publishRequirementsMet: false,
+      },
+      secretJudge: {
+        ...original.secretJudge,
+        ...secretPatch,
+        language: 'python',
+        secretTests,
+        timeoutMs: original.secretJudge?.timeoutMs ?? 5000,
+      },
+      validationErrors: withoutCodeReadinessErrors(original.validationErrors),
+    },
+    original.source,
+  );
+  return merged.type === 'code' ? merged : null;
+}
+
+export async function ensureImportedDraftAnswers(args: {
+  drafts: NotebookProblemImportDraft[];
+  model?: LanguageModel;
+  language: 'zh-CN' | 'en-US';
+}): Promise<{ drafts: NotebookProblemImportDraft[]; usage: ImportUsageSummary | null }> {
+  const choiceResult = await solveMissingChoiceAnswersWithLLM(args);
+  let drafts = choiceResult.drafts;
+  const candidates = drafts.filter(
+    (draft) => draft.type !== 'code' && !draftHasCompleteAnswer(draft),
+  );
+  if (!args.model || candidates.length === 0) {
+    return { drafts, usage: choiceResult.usage };
+  }
+
+  const prompt =
+    args.language === 'zh-CN'
+      ? `补全下面这些题目的标准答案。只返回与输入顺序一致的完整题目 draft JSON 数组，不要 markdown。
+
+要求：
+- 独立解题，不得使用学生手写、圈选、得分或阅卷批注作为答案来源。
+- 保持原题考点和大致难度；若当前题型不能稳定判分，可改成等价的受支持题型。
+- 优先选择题，只有改成选择题会明显降低难度时才用填空题。
+- 每题必须给出对应 grading：choice 给 correctOptionIds；calculation 给 referenceAnswer 或 acceptedForms；short_answer 给 referenceAnswer；proof 给 referenceProof；fill_blank 的每个 blank 给 acceptedAnswers。
+- fill_blank 的 acceptedAnswers 只能包含可直接接受的学生答案，不能混入 JSON 字段名、标点碎片、序列化辅助表达式或解释文字。
+- 保留 draftId、完整题干、选项、sourceMeta 和来源定位。不要要求老师确认。
+
+待补全题目：
+${JSON.stringify(candidates)}`
+      : `Complete the reference answers for these problems. Return a strict JSON array of complete problem drafts in the same order, without markdown.
+
+Requirements:
+- Solve independently. Student handwriting, marked choices, scores, and grader comments are not answer sources.
+- Preserve the assessed objective and approximate difficulty. You may choose an equivalent supported type when the current type cannot be graded reliably.
+- Prefer choice; use fill blanks only when conversion to choice would materially reduce difficulty.
+- Every grading object must contain its gradable answer: correctOptionIds for choice, referenceAnswer or acceptedForms for calculation, referenceAnswer for short_answer, referenceProof for proof, and acceptedAnswers for every fill_blank blank.
+- fill_blank acceptedAnswers must contain only answers a student may enter, never JSON keys, punctuation fragments, serialization helper expressions, or explanations.
+- Preserve draftId, complete prompt, options, sourceMeta, and source location. Do not request teacher confirmation.
+
+Drafts:
+${JSON.stringify(candidates)}`;
+
+  let result: Awaited<ReturnType<typeof callLLM>>;
+  try {
+    result = await callLLM(
+      {
+        model: args.model,
+        system:
+          args.language === 'zh-CN'
+            ? '你是科目无关的题库评测编译器。独立解题，并只输出机器可解析 JSON。'
+            : 'You are a subject-agnostic assessment compiler. Solve independently and output machine-readable JSON only.',
+        prompt: prompt.slice(0, 30000),
+        maxOutputTokens: 16000,
+      },
+      'problem-bank-import-answer-repair',
+    );
+  } catch {
+    return { drafts, usage: choiceResult.usage };
+  }
+
+  let repairedRaw: unknown[] = [];
+  try {
+    repairedRaw = parseProblemDraftArrayFromLLMText(result.text);
+  } catch {
+    repairedRaw = [];
+  }
+  const repairedByIndex = repairedRaw.map((raw, index) =>
+    normalizeCandidateDraft(raw, candidates[index]?.source ?? 'pdf'),
+  );
+  const repairedByDraftId = new Map(
+    repairedByIndex.map((draft) => [draft.draftId, draft] as const),
+  );
+  const candidatePositionByDraftId = new Map(
+    candidates.map((draft, index) => [draft.draftId, index] as const),
+  );
+  drafts = drafts.map((draft) => {
+    const candidatePosition = candidatePositionByDraftId.get(draft.draftId);
+    if (candidatePosition == null) return draft;
+    const repaired = repairedByDraftId.get(draft.draftId) ?? repairedByIndex[candidatePosition];
+    if (!repaired || !draftHasCompleteAnswer(repaired)) return draft;
+    return {
+      ...repaired,
+      draftId: draft.draftId,
+      notebookId: draft.notebookId,
+      source: draft.source,
+      sourceMeta: {
+        ...draft.sourceMeta,
+        ...repaired.sourceMeta,
+        answerSource: 'llm-solved',
+        answerRepairAttempted: true,
+      },
+      validationErrors: removeMissingAnswerValidationErrors(repaired.validationErrors),
+    };
+  });
+
+  return {
+    drafts,
+    usage: mergeImportUsage(choiceResult.usage, usageFromLLMResult(args.model, result)),
+  };
+}
+
+async function annotateCodeDraftVerification(
+  drafts: NotebookProblemImportDraft[],
+): Promise<NotebookProblemImportDraft[]> {
+  return Promise.all(
+    drafts.map(async (draft) => {
+      if (draft.type !== 'code') return draft;
+      const verification = await verifyNotebookCodeDraftReferenceAnswer(draft);
+      return {
+        ...draft,
+        status: verification.passed ? draft.status : 'draft',
+        grading:
+          draft.grading.type === 'code'
+            ? { ...draft.grading, publishRequirementsMet: verification.passed }
+            : draft.grading,
+        sourceMeta: {
+          ...draft.sourceMeta,
+          codeVerification: {
+            passed: verification.passed,
+            publicTestCount: verification.publicTestCount,
+            secretTestCount: verification.secretTestCount,
+            checkedBy: 'python-runner',
+          },
+        },
+        validationErrors: Array.from(
+          new Set([...withoutCodeReadinessErrors(draft.validationErrors), ...verification.errors]),
+        ),
+      } as NotebookProblemImportDraft;
+    }),
+  );
+}
+
+export async function ensureImportedCodeDraftsJudgeReady(args: {
+  drafts: NotebookProblemImportDraft[];
+  model?: LanguageModel;
+  language: 'zh-CN' | 'en-US';
+  repairAttempt?: number;
+}): Promise<{ drafts: NotebookProblemImportDraft[]; usage: ImportUsageSummary | null }> {
+  let drafts = await annotateCodeDraftVerification(
+    promoteFunctionImplementationDrafts(args.drafts),
+  );
+  const failedCodeDrafts = drafts.filter(
+    (draft) =>
+      draft.type === 'code' &&
+      (draft.sourceMeta.codeVerification as { passed?: unknown } | undefined)?.passed !== true,
+  );
+  if (!args.model || failedCodeDrafts.length === 0) return { drafts, usage: null };
+
+  const prompt =
+    args.language === 'zh-CN'
+      ? `修复下面这些代码题，使它们符合平台判题契约。只返回严格 JSON 数组，不要 markdown。
+
+返回最小补丁格式：
+[{"draftId":"原 draftId","functionSignature":"def name(...):","solutionCode":"完整 Python 代码","publicTests":[{"id":"...","expression":"name(...) ","expected":"JSON 或 Python 字面量"}],"secretTests":[...]}]
+
+平台契约：
+- 学生提交一个 Python 函数；输入只能来自函数参数，结果只能通过 return 返回。
+- 不支持 input、stdin、print 输出判分或文件读写。如果原题使用这些接口，等价改写函数签名和题面，保留核心考点。
+- 每题必须提供完整 solutionCode、有效 functionSignature、至少 2 个 publicTests 和 3 个 secretTests。
+- testcase 使用 expression + expected 的 pytest 风格：expression 调用目标函数，expected 是返回值；不得在测试中使用 print/input/open。
+- 测试覆盖普通情况、边界情况和容易写错的情况；public 与 secret 不重复。
+- 修复后的 solutionCode 必须能通过你返回的全部测试。
+- 如果运行错误显示参考实现符合题意而 expected 写错，应修正 testcase；如果实现不符合题意，应修正 solutionCode。不得为了让测试通过而改变考点。
+- 保留 draftId、原语言、核心考点和大致难度；不要要求老师确认。
+
+待修复题目与运行错误：
+${JSON.stringify(
+  failedCodeDrafts.map((draft) => ({
+    draft,
+    errors: draft.validationErrors,
+  })),
+)}`
+      : `Repair these code problems so they satisfy the platform judging contract. Return a strict JSON array only.
+
+Return minimal patches:
+[{"draftId":"original draftId","functionSignature":"def name(...):","solutionCode":"complete Python code","publicTests":[{"id":"...","expression":"name(...)","expected":"JSON or Python literal"}],"secretTests":[...]}]
+
+Contract:
+- A student submits a Python function. Inputs come only from function parameters and results are returned with return.
+- stdin, input(), print-based grading, and file I/O are unsupported. Adapt those interfaces while preserving the assessed concept.
+- Include complete solutionCode, a valid functionSignature, at least 2 publicTests, and at least 3 secretTests.
+- Tests use expression + expected in a pytest-like style. Each expression calls the target function; do not use print/input/open.
+- Cover normal, boundary, and plausible wrong-answer cases. Public and secret tests must not duplicate each other.
+- The returned solutionCode must pass every returned test.
+- If runner evidence shows the implementation matches the prompt but an expected value is wrong, fix the testcase; if the implementation violates the prompt, fix solutionCode. Never change the assessed objective merely to make tests pass.
+- Preserve draftId, source language, core objective, and approximate difficulty. No teacher confirmation is required.
+
+Drafts and runner errors:
+${JSON.stringify(
+  failedCodeDrafts.map((draft) => ({
+    draft,
+    errors: draft.validationErrors,
+  })),
+)}`;
+
+  let result: Awaited<ReturnType<typeof callLLM>>;
+  try {
+    result = await callLLM(
+      {
+        model: args.model,
+        system:
+          args.language === 'zh-CN'
+            ? '你是题库评测编译器和严谨的 Python 出题人。只输出机器可解析 JSON。'
+            : 'You are an assessment compiler and rigorous Python problem author. Output machine-readable JSON only.',
+        prompt: prompt.slice(0, 30000),
+        maxOutputTokens: 16000,
+      },
+      'problem-bank-import-code-repair',
+    );
+  } catch {
+    return { drafts, usage: null };
+  }
+
+  let repairedRaw: unknown[] = [];
+  try {
+    repairedRaw = parseProblemDraftArrayFromLLMText(result.text);
+  } catch {
+    repairedRaw = [];
+  }
+  const repairedByIndex = repairedRaw.map((raw, index) => {
+    const original = failedCodeDrafts[index];
+    return original ? codeRepairDraftFromRaw(raw, original) : null;
+  });
+  const repairedByDraftId = new Map(
+    repairedRaw.flatMap((raw, index) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+      const draftId =
+        typeof (raw as Record<string, unknown>).draftId === 'string'
+          ? String((raw as Record<string, unknown>).draftId)
+          : '';
+      const original =
+        failedCodeDrafts.find((draft) => draft.draftId === draftId) ?? failedCodeDrafts[index];
+      const repaired = original ? codeRepairDraftFromRaw(raw, original) : null;
+      return draftId && repaired ? ([[draftId, repaired]] as const) : [];
+    }),
+  );
+  const failedPositionByDraftId = new Map(
+    failedCodeDrafts.map((draft, index) => [draft.draftId, index] as const),
+  );
+  drafts = drafts.map((draft) => {
+    if (draft.type !== 'code') return draft;
+    const failedPosition = failedPositionByDraftId.get(draft.draftId);
+    if (failedPosition == null) return draft;
+    const repaired = repairedByDraftId.get(draft.draftId) ?? repairedByIndex[failedPosition];
+    if (!repaired || repaired.type !== 'code') return draft;
+    return {
+      ...repaired,
+      draftId: draft.draftId,
+      notebookId: draft.notebookId,
+      source: draft.source,
+      sourceMeta: {
+        ...draft.sourceMeta,
+        ...repaired.sourceMeta,
+        codeRepairAttempted: true,
+      },
+    };
+  });
+
+  const verifiedDrafts = await annotateCodeDraftVerification(drafts);
+  const usage = usageFromLLMResult(args.model, result);
+  const stillFailing = verifiedDrafts.some(
+    (draft) =>
+      draft.type === 'code' &&
+      (draft.sourceMeta.codeVerification as { passed?: unknown } | undefined)?.passed !== true,
+  );
+  if (!stillFailing || (args.repairAttempt ?? 0) >= 1) {
+    return { drafts: verifiedDrafts, usage };
+  }
+  const retry = await ensureImportedCodeDraftsJudgeReady({
+    drafts: verifiedDrafts,
+    model: args.model,
+    language: args.language,
+    repairAttempt: (args.repairAttempt ?? 0) + 1,
+  });
+  return {
+    drafts: retry.drafts,
+    usage: mergeImportUsage(usage, retry.usage),
+  };
 }
 
 function enrichFileDraftSourceMeta(
@@ -370,13 +812,18 @@ ${args.text}`.slice(0, 24000);
   const outputTokens = result.usage.outputTokens ?? 0;
   const cachedInputTokens = result.usage.cachedInputTokens ?? 0;
   const drafts = parsed.map((item) => normalizeCandidateDraft(item, args.source));
-  const answerResult = await solveMissingChoiceAnswersWithLLM({
+  const answerResult = await ensureImportedDraftAnswers({
     drafts,
     model: args.model,
     language: args.language,
   });
-  return {
+  const codeResult = await ensureImportedCodeDraftsJudgeReady({
     drafts: answerResult.drafts,
+    model: args.model,
+    language: args.language,
+  });
+  return {
+    drafts: codeResult.drafts,
     usage: mergeImportUsage(
       llmUsageFromResult({
         model: args.model,
@@ -384,7 +831,7 @@ ${args.text}`.slice(0, 24000);
         outputTokens,
         cachedInputTokens,
       }),
-      answerResult.usage,
+      mergeImportUsage(answerResult.usage, codeResult.usage),
     ),
   };
 }
@@ -405,7 +852,7 @@ export async function llmExtractProblemDraftsFromOpenAIFile(args: {
     args.language === 'zh-CN'
       ? `请通读附件的每一页，但本轮只生成题目结构目录，不要解题。返回严格 JSON 对象，不要 markdown。
 必须区分印刷的原始题面与学生手写答案、圈选气泡、阅卷批注、得分和评分反馈。后五者都不是题目。封面、参考页、答题卡和空白页必须放入 nonProblemRegions。
-每个最顶层题号只生成一个 topLevelProblems 条目，小问放入 subparts，不要把小问拆成新的顶层题。仔细识别选择题、填空题、计算题、简答题、证明题和代码题。
+默认按最顶层题号建立条目；共享同一推导的小问放入 subparts。表格逐行作答、逐段代码追踪等彼此独立且独立计分的重复单元，要分别建立 topLevelProblems 条目，并携带原题号与行号。仔细识别原题能力和适合平台交付的题型。
 JSON 格式：
 {
   "sourceSummary": "...",
@@ -417,7 +864,7 @@ JSON 格式：
 }`
       : `Read every page of the attached file, but in this pass create only a structural problem index; do not solve anything. Return one strict JSON object without markdown.
 Separate printed source questions from student handwriting, marked bubbles, grader annotations, scores, and grading feedback. The latter are not problems. Put covers, reference sheets, answer sheets, and blank pages in nonProblemRegions.
-Create exactly one topLevelProblems item per top-level question number. Keep its subparts inside subparts rather than splitting them into separate top-level questions. Distinguish choice, fill_blank, calculation, short_answer, proof, and code.
+Create items by top-level number by default and keep subparts that share one derivation together. Split independently answered and independently scored repeated units, such as table rows and code-tracing rows, into separate topLevelProblems items carrying the original number and row label. Identify both the source capability and the best supported delivery type.
 Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|additional_work|blank|header_footer|other","pageNumbers":[1],"reason":"..."}],"sharedContexts":[],"topLevelProblems":[{"index":1,"topLevelLabel":"1","title":"...","problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],"warnings":[],"generatedBy":"llm"}`;
   const structureResult = await callLLM(
     {
@@ -481,14 +928,22 @@ Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|
       ...normalizeCandidateDraft(item, args.source),
       notebookId: null,
     }));
-    const fallbackAnswers = await solveMissingChoiceAnswersWithLLM({
+    const fallbackAnswers = await ensureImportedDraftAnswers({
       drafts: fallbackDrafts,
       model: args.model,
       language: args.language,
     });
+    const fallbackCodeResult = await ensureImportedCodeDraftsJudgeReady({
+      drafts: fallbackAnswers.drafts,
+      model: args.model,
+      language: args.language,
+    });
     return {
-      drafts: fallbackAnswers.drafts.map((draft) => ({ ...draft, notebookId: null })),
-      usage: mergeImportUsage(usage, fallbackAnswers.usage),
+      drafts: fallbackCodeResult.drafts.map((draft) => ({ ...draft, notebookId: null })),
+      usage: mergeImportUsage(
+        usage,
+        mergeImportUsage(fallbackAnswers.usage, fallbackCodeResult.usage),
+      ),
     };
   }
 
@@ -525,22 +980,23 @@ Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|
           ? `现在只处理下列 ${batch.length} 道顶层题：${batchOutline}
 请回到附件指定页面，完整转写印刷题面，并独立解出每道题。忽略学生手写、勾选、阅卷痕迹、得分和评分反馈；不得把它们当成标准答案。
 必须恰好返回 ${batch.length} 个题目草稿，顺序与目录一致，小问保留在同一道题中。每题 sourceMeta.scaffoldIndex 填对应 index。
-每道题都必须有可判分答案：选择题填 correctOptionIds；计算题填 referenceAnswer 和 acceptedForms；填空题逐空填 acceptedAnswers；简答题填 referenceAnswer；证明题填 referenceProof；代码题填 solutionCode/referenceAnswer 并生成测试。
+每道题都必须有可判分答案。优先选择题、尽量少用填空题；代码输出预测和报错判断通常转成选择题。代码题只用于函数实现，必须使用参数输入、return 输出，提供完整 solutionCode、functionSignature、至少 2 个 public tests 和 3 个 secret tests，且参考答案能通过全部测试。input、stdin、print 判分和文件读写必须等价改写。
 只返回严格 JSON 数组。`
           : `Process only these ${batch.length} top-level problems: ${batchOutline}
 Return to the cited pages, transcribe the complete printed prompt, and independently solve every problem. Ignore handwriting, marked bubbles, grading marks, scores, and grader feedback; none is an answer source.
 Return exactly ${batch.length} drafts in the same order, with subparts kept in their top-level problem. Set sourceMeta.scaffoldIndex to the corresponding index.
-Every problem must have a gradable answer: correctOptionIds for choice; referenceAnswer and acceptedForms for calculation; acceptedAnswers for every fill blank; referenceAnswer for short answer; referenceProof for proof; solutionCode/referenceAnswer plus tests for code. Return a strict JSON array only.`;
+Every problem must have a gradable answer. Prefer choice and minimize fill blanks; code-output prediction and error diagnosis normally become choice. Code is only for function implementation with parameter inputs and return output, complete solutionCode, functionSignature, at least 2 public tests and 3 secret tests, and a solution that passes them all. Equivalently adapt input(), stdin, print-based grading, and file I/O. Return a strict JSON array only.`;
 
       let bestDrafts: NotebookProblemImportDraft[] = [];
       let batchUsage: ImportUsageSummary | null = null;
+      let retryReason = '';
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const retrySuffix =
           attempt === 0
             ? ''
             : args.language === 'zh-CN'
-              ? '\n上一次输出缺少题目或标准答案。请重新检查每题的 grading，返回修正后的完整数组。'
-              : '\nThe previous output omitted problems or reference answers. Recheck every grading object and return the complete corrected array.';
+              ? `\n上一次输出无法入库：${retryReason || '缺少题目或标准答案'}。请重新检查 JSON 转义和每题 grading，返回修正后的完整数组。`
+              : `\nThe previous output could not be imported: ${retryReason || 'missing problems or reference answers'}. Recheck JSON escaping and every grading object, then return the complete corrected array.`;
         const result = await callLLM(
           {
             model: args.model,
@@ -559,14 +1015,26 @@ Every problem must have a gradable answer: correctOptionIds for choice; referenc
                 ],
               },
             ],
-            maxOutputTokens: 16000,
+            maxOutputTokens: 24000,
           },
           attempt === 0
             ? 'problem-bank-import-openai-file-batch'
             : 'problem-bank-import-openai-file-batch-retry',
         );
         batchUsage = mergeImportUsage(batchUsage, usageFromLLMResult(args.model, result));
-        const rawDrafts = parseProblemDraftArrayFromLLMText(result.text).slice(0, batch.length);
+        let rawDrafts: unknown[];
+        try {
+          rawDrafts = parseProblemDraftArrayFromLLMText(result.text).slice(0, batch.length);
+        } catch (error) {
+          retryReason =
+            error instanceof Error ? `JSON 解析失败：${error.message}` : 'JSON 解析失败';
+          if (attempt === 0) continue;
+          throw new Error(
+            args.language === 'zh-CN'
+              ? `PDF 题目批次 ${batch[0]?.index}-${batch.at(-1)?.index} 连续两次返回无效 JSON：${retryReason}`
+              : `PDF batch ${batch[0]?.index}-${batch.at(-1)?.index} returned invalid JSON twice: ${retryReason}`,
+          );
+        }
         const normalized = rawDrafts.map((item, index) =>
           enrichFileDraftSourceMeta(
             normalizeCandidateDraft(item, args.source),
@@ -582,20 +1050,21 @@ Every problem must have a gradable answer: correctOptionIds for choice; referenc
           ),
         );
         if (
-          bestDrafts.length === 0 ||
-          normalized.filter(draftHasCompleteAnswer).length >
-            bestDrafts.filter(draftHasCompleteAnswer).length
+          normalized.length > bestDrafts.length ||
+          (normalized.length === bestDrafts.length &&
+            normalized.filter(draftHasCompleteAnswer).length >
+              bestDrafts.filter(draftHasCompleteAnswer).length)
         ) {
           bestDrafts = normalized;
         }
-        if (normalized.length === batch.length && normalized.every(draftHasCompleteAnswer)) break;
+        retryReason = `${normalized.length}/${batch.length} 题，${normalized.filter(draftHasCompleteAnswer).length}/${batch.length} 题答案与代码测试完整`;
+        if (normalized.length === batch.length) break;
       }
-      if (bestDrafts.length !== batch.length || !bestDrafts.every(draftHasCompleteAnswer)) {
-        const completeCount = bestDrafts.filter(draftHasCompleteAnswer).length;
+      if (bestDrafts.length !== batch.length) {
         throw new Error(
           args.language === 'zh-CN'
-            ? `PDF 题目批次 ${batch[0]?.index}-${batch.at(-1)?.index} 抽取不完整：期望 ${batch.length} 题，实际 ${bestDrafts.length} 题，其中 ${completeCount} 题有标准答案。`
-            : `Incomplete PDF batch ${batch[0]?.index}-${batch.at(-1)?.index}: expected ${batch.length} problems, received ${bestDrafts.length}, with ${completeCount} complete answers.`,
+            ? `PDF 题目批次 ${batch[0]?.index}-${batch.at(-1)?.index} 抽取不完整：期望 ${batch.length} 题，实际 ${bestDrafts.length} 题。`
+            : `Incomplete PDF batch ${batch[0]?.index}-${batch.at(-1)?.index}: expected ${batch.length} problems, received ${bestDrafts.length}.`,
         );
       }
       return { drafts: bestDrafts, usage: batchUsage };
@@ -604,12 +1073,17 @@ Every problem must have a gradable answer: correctOptionIds for choice; referenc
 
   let drafts = batchResults.flatMap((result) => result.drafts);
   for (const result of batchResults) usage = mergeImportUsage(usage, result.usage);
-  const answerResult = await solveMissingChoiceAnswersWithLLM({
+  const answerResult = await ensureImportedDraftAnswers({
     drafts,
     model: args.model,
     language: args.language,
   });
-  drafts = answerResult.drafts
+  const codeResult = await ensureImportedCodeDraftsJudgeReady({
+    drafts: answerResult.drafts,
+    model: args.model,
+    language: args.language,
+  });
+  drafts = codeResult.drafts
     .map((draft) => ({ ...draft, notebookId: null }))
     .sort((left, right) => {
       const leftIndex = Number(left.sourceMeta.scaffoldIndex ?? Number.MAX_SAFE_INTEGER);
@@ -618,6 +1092,6 @@ Every problem must have a gradable answer: correctOptionIds for choice; referenc
     });
   return {
     drafts,
-    usage: mergeImportUsage(usage, answerResult.usage),
+    usage: mergeImportUsage(usage, mergeImportUsage(answerResult.usage, codeResult.usage)),
   };
 }

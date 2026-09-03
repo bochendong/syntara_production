@@ -5,6 +5,7 @@ import { prisma } from '@/lib/server/prisma';
 import { toPrismaJson, toPrismaNullableJson } from '@/lib/server/prisma-json';
 import {
   buildLegacyProblemDraftsFromScene,
+  codeDraftReadinessErrors,
   notebookProblemAttemptRecordSchema,
   notebookProblemDifficultySchema,
   notebookProblemGradingSchema,
@@ -20,6 +21,7 @@ import {
   type NotebookProblemRecord,
   type NotebookProblemSecretJudge,
   type NotebookProblemSummary,
+  withoutCodeReadinessErrors,
 } from '@/lib/problem-bank';
 import type { Scene } from '@/lib/types/stage';
 import {
@@ -29,6 +31,7 @@ import {
 } from '@/lib/server/repositories/course-enrollment-repository';
 import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-repository';
 import { maybeWriteProblemAttemptMemorySignal } from '@/lib/server/problem-attempt-memory-signals';
+import { verifyNotebookCodeDraftReferenceAnswer } from './judge';
 
 const prismaDb = prisma;
 
@@ -368,10 +371,10 @@ function buildPublishDraftFromRow(row: ProblemWithSecretRow): NotebookProblemImp
   });
 }
 
-function prepareProblemRowsForPublish(rows: ProblemWithSecretRow[]): {
+async function prepareProblemRowsForPublish(rows: ProblemWithSecretRow[]): Promise<{
   result: PublishProblemBankResult;
   writes: PreparedPublishProblemWrite[];
-} {
+}> {
   const result: PublishProblemBankResult = {
     totalCount: rows.length,
     publishedCount: 0,
@@ -380,7 +383,8 @@ function prepareProblemRowsForPublish(rows: ProblemWithSecretRow[]): {
   const writes: PreparedPublishProblemWrite[] = [];
 
   for (const row of rows) {
-    const normalizedDraft = normalizeDraftForPersistence(buildPublishDraftFromRow(row), row.order);
+    const verifiedDraft = await withCodeReferenceVerification(buildPublishDraftFromRow(row));
+    const normalizedDraft = normalizeDraftForPersistence(verifiedDraft, row.order);
     const conceptTags = normalizeProblemConceptTags({
       courseId: row.courseId ?? row.notebook?.courseId ?? null,
       notebookId: row.notebookId,
@@ -573,15 +577,14 @@ function normalizeDraftForPersistence(
 ): NotebookProblemImportDraft {
   const draft = notebookProblemImportDraftSchema.parse(draftInput);
   const isCode = draft.type === 'code';
-  const hasSecretTests = (draft.secretJudge?.secretTests?.length ?? 0) > 0;
-  const hasFunctionSignature =
-    draft.publicContent.type === 'code'
-      ? Boolean(draft.publicContent.functionSignature?.trim())
-      : true;
-  const hasPublicTests =
-    draft.publicContent.type === 'code' ? (draft.publicContent.publicTests?.length ?? 0) > 0 : true;
+  const codeErrors = codeDraftReadinessErrors(draft);
+  const codeVerification =
+    draft.sourceMeta.codeVerification && typeof draft.sourceMeta.codeVerification === 'object'
+      ? (draft.sourceMeta.codeVerification as { passed?: unknown })
+      : undefined;
   const publishRequirementsMet =
-    !isCode || (hasSecretTests && hasFunctionSignature && hasPublicTests);
+    !isCode || (codeErrors.length === 0 && codeVerification?.passed !== false);
+  const hasSecretTests = (draft.secretJudge?.secretTests?.length ?? 0) > 0;
 
   return {
     ...draft,
@@ -605,12 +608,34 @@ function normalizeDraftForPersistence(
       ...draft.sourceMeta,
       normalizedOrder: order,
     },
-    validationErrors: [
-      ...draft.validationErrors,
-      ...(isCode && !hasFunctionSignature ? ['缺少 function signature'] : []),
-      ...(isCode && !hasPublicTests ? ['缺少 public tests'] : []),
-      ...(isCode && !hasSecretTests ? ['缺少 secret tests'] : []),
-    ],
+    validationErrors: [...withoutCodeReadinessErrors(draft.validationErrors), ...codeErrors],
+  };
+}
+
+async function withCodeReferenceVerification(
+  draft: NotebookProblemImportDraft,
+): Promise<NotebookProblemImportDraft> {
+  if (draft.type !== 'code') return draft;
+  const verification = await verifyNotebookCodeDraftReferenceAnswer(draft);
+  return {
+    ...draft,
+    status: verification.passed ? draft.status : 'draft',
+    grading:
+      draft.grading.type === 'code'
+        ? { ...draft.grading, publishRequirementsMet: verification.passed }
+        : draft.grading,
+    sourceMeta: {
+      ...draft.sourceMeta,
+      codeVerification: {
+        passed: verification.passed,
+        publicTestCount: verification.publicTestCount,
+        secretTestCount: verification.secretTestCount,
+        checkedBy: 'python-runner',
+      },
+    },
+    validationErrors: Array.from(
+      new Set([...withoutCodeReadinessErrors(draft.validationErrors), ...verification.errors]),
+    ),
   };
 }
 
@@ -1802,7 +1827,7 @@ export async function publishNotebookProblemBankForUser(args: {
     orderBy: [{ problemNumber: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
   })) as unknown as ProblemWithSecretRow[];
 
-  const prepared = prepareProblemRowsForPublish(rows);
+  const prepared = await prepareProblemRowsForPublish(rows);
   await publishPreparedProblemWrites(prepared.writes);
   await touchOwnersAfterProblemWrite({
     courseId: notebook.courseId,
@@ -1842,7 +1867,7 @@ export async function publishCourseProblemBankForUser(args: {
     orderBy: [{ problemNumber: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
   })) as unknown as ProblemWithSecretRow[];
 
-  const prepared = prepareProblemRowsForPublish(rows);
+  const prepared = await prepareProblemRowsForPublish(rows);
   await publishPreparedProblemWrites(prepared.writes);
   await touchOwnersAfterProblemWrite({
     courseId: args.courseId,
@@ -2362,22 +2387,24 @@ export async function updateNotebookProblem(args: {
         : current.secretJudge;
 
   const normalizedDraft = normalizeDraftForPersistence(
-    notebookProblemImportDraftSchema.parse({
-      draftId: current.problem.id,
-      notebookId: current.problem.notebookId ?? null,
-      title: args.patch.title ?? current.problem.title,
-      type: current.problem.type,
-      status,
-      source: current.problem.source,
-      points: args.patch.points ?? current.problem.points,
-      tags: args.patch.tags ?? current.problem.tags,
-      difficulty,
-      publicContent,
-      grading,
-      secretJudge: effectiveSecretJudge,
-      sourceMeta: current.problem.sourceMeta,
-      validationErrors: [],
-    }),
+    await withCodeReferenceVerification(
+      notebookProblemImportDraftSchema.parse({
+        draftId: current.problem.id,
+        notebookId: current.problem.notebookId ?? null,
+        title: args.patch.title ?? current.problem.title,
+        type: current.problem.type,
+        status,
+        source: current.problem.source,
+        points: args.patch.points ?? current.problem.points,
+        tags: args.patch.tags ?? current.problem.tags,
+        difficulty,
+        publicContent,
+        grading,
+        secretJudge: effectiveSecretJudge,
+        sourceMeta: current.problem.sourceMeta,
+        validationErrors: [],
+      }),
+    ),
     args.patch.order ?? current.problem.order,
   );
   const conceptTags = normalizeProblemConceptTags({
@@ -2529,22 +2556,24 @@ export async function updateCourseProblem(args: {
       : (current.problem.notebookId ?? null);
 
   const normalizedDraft = normalizeDraftForPersistence(
-    notebookProblemImportDraftSchema.parse({
-      draftId: current.problem.id,
-      notebookId: nextNotebookId,
-      title: args.patch.title ?? current.problem.title,
-      type: current.problem.type,
-      status,
-      source: current.problem.source,
-      points: args.patch.points ?? current.problem.points,
-      tags: args.patch.tags ?? current.problem.tags,
-      difficulty,
-      publicContent,
-      grading,
-      secretJudge: effectiveSecretJudge,
-      sourceMeta: current.problem.sourceMeta,
-      validationErrors: [],
-    }),
+    await withCodeReferenceVerification(
+      notebookProblemImportDraftSchema.parse({
+        draftId: current.problem.id,
+        notebookId: nextNotebookId,
+        title: args.patch.title ?? current.problem.title,
+        type: current.problem.type,
+        status,
+        source: current.problem.source,
+        points: args.patch.points ?? current.problem.points,
+        tags: args.patch.tags ?? current.problem.tags,
+        difficulty,
+        publicContent,
+        grading,
+        secretJudge: effectiveSecretJudge,
+        sourceMeta: current.problem.sourceMeta,
+        validationErrors: [],
+      }),
+    ),
     args.patch.order ?? current.problem.order,
   );
   const conceptTags = normalizeProblemConceptTags({

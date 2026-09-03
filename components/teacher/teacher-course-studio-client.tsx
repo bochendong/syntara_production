@@ -18,8 +18,10 @@ import {
   Eye,
   FileText,
   GripVertical,
+  LayoutDashboard,
   Library,
   ListChecks,
+  MessagesSquare,
   ListOrdered,
   Loader2,
   Network,
@@ -62,6 +64,7 @@ import {
   StudioStatusBadge,
 } from '@/components/teacher/studio-list';
 import {
+  academicTermLabel,
   generateOnlineMindMap,
   getOnlineTeacherSourcePreview,
   loadOnlineTeacherStudio,
@@ -91,7 +94,7 @@ import {
   getLocalDemoTeacherStudio,
 } from '@/lib/teacher/local-demo-fixtures';
 
-type StudioTab = 'notebooks' | 'hard_rules' | 'sources' | 'queue' | 'removed';
+type StudioTab = 'overview' | 'notebooks' | 'hard_rules' | 'sources' | 'queue' | 'removed';
 type CourseHardRuleRecord = {
   id: string;
   courseId: string;
@@ -164,7 +167,7 @@ const SOURCE_CATEGORY_META = Object.fromEntries(
 ) as Record<CourseSourceCategory, (typeof SOURCE_CATEGORIES)[number]>;
 const STUDIO_SECTION_CLASS = cn(
   COURSE_SPACE_BODY_SURFACE_CLASS,
-  'flex min-h-[min(706px,72dvh)] flex-col',
+  'flex min-h-[min(706px,72dvh)] flex-1 flex-col',
 );
 
 function teacherCourseAccessWasRevoked(error: unknown): error is BackendApiError {
@@ -179,6 +182,50 @@ function StudioEmptyPlaceholder({ children }: { children: ReactNode }) {
       {children}
     </div>
   );
+}
+
+function OverviewStatCard({
+  Icon,
+  label,
+  value,
+  hint,
+  onClick,
+}: {
+  Icon: typeof FileText;
+  label: string;
+  value: string | number;
+  hint?: string;
+  onClick?: () => void;
+}) {
+  const className = cn(
+    'flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-sm dark:border-white/10 dark:bg-white/[0.04]',
+    onClick &&
+      'transition hover:border-slate-300 hover:bg-slate-50/80 hover:shadow-md dark:hover:border-white/20 dark:hover:bg-white/[0.07]',
+  );
+  const inner = (
+    <>
+      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+        <span className="grid size-9 place-items-center rounded-xl bg-slate-50 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+          <Icon className="size-4" strokeWidth={1.75} />
+        </span>
+        <span className="text-sm font-medium">{label}</span>
+      </div>
+      <p className="text-3xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-white">
+        {value}
+      </p>
+      {hint ? <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">{hint}</p> : null}
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" className={className} onClick={onClick}>
+        {inner}
+      </button>
+    );
+  }
+
+  return <div className={className}>{inner}</div>;
 }
 
 const TYPE_META: Record<CourseContentType, { label: string; icon: typeof FileText }> = {
@@ -261,7 +308,7 @@ export function TeacherCourseStudioClient({
   const [hardRulesLoaded, setHardRulesLoaded] = useState(false);
   const [hardRulesLoading, setHardRulesLoading] = useState(false);
   const [savingHardRuleId, setSavingHardRuleId] = useState('');
-  const [tab, setTab] = useState<StudioTab>('sources');
+  const [tab, setTab] = useState<StudioTab>('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [accessRevoked, setAccessRevoked] = useState(false);
@@ -465,7 +512,13 @@ export function TeacherCourseStudioClient({
   }, [accessRevoked, hydrated, isLoggedIn, localDemo, refreshSharedCourseContent, role, teacherId]);
 
   useEffect(() => {
-    if (!hydrated || !isLoggedIn || role !== 'TEACHER' || !teacherId || tab !== 'hard_rules') {
+    if (
+      !hydrated ||
+      !isLoggedIn ||
+      role !== 'TEACHER' ||
+      !teacherId ||
+      (tab !== 'hard_rules' && tab !== 'overview')
+    ) {
       return;
     }
     if (!hasUnsavedHardRuleChanges) {
@@ -583,8 +636,14 @@ export function TeacherCourseStudioClient({
   const counts = useMemo(
     () => ({
       queued: queueJobs.filter((job) => job.status === 'queued' || job.status === 'running').length,
+      completed: queueJobs.filter((job) => job.status === 'completed').length,
+      failed: queueJobs.filter((job) => job.status === 'failed').length,
     }),
     [queueJobs],
+  );
+  const mindMapCount = useMemo(
+    () => notebooks.filter((notebook) => Boolean(notebook.mindMap)).length,
+    [notebooks],
   );
   const sourceCategoryCounts = useMemo(
     () =>
@@ -609,15 +668,17 @@ export function TeacherCourseStudioClient({
   );
   const selectedSourceCategoryMeta = SOURCE_CATEGORY_META[sourceCategory];
   const listTotal =
-    tab === 'notebooks'
-      ? notebooks.length
-      : tab === 'sources'
-        ? categorySources.length
-        : tab === 'hard_rules'
-          ? hardRules.length
-          : tab === 'queue'
-            ? queueJobs.length
-            : removedContent.length;
+    tab === 'overview'
+      ? 0
+      : tab === 'notebooks'
+        ? notebooks.length
+        : tab === 'sources'
+          ? categorySources.length
+          : tab === 'hard_rules'
+            ? hardRules.length
+            : tab === 'queue'
+              ? queueJobs.length
+              : removedContent.length;
   const listPageCount = Math.max(1, Math.ceil(listTotal / STUDIO_PAGE_SIZE));
   const safeListPage = Math.min(listPage, listPageCount);
   const listOffset = (safeListPage - 1) * STUDIO_PAGE_SIZE;
@@ -1199,466 +1260,40 @@ export function TeacherCourseStudioClient({
         problemCount={course.problemCount}
         forumCount={unresolvedForumCount}
         previewMode={mockMode}
-      />
-
-      {localDemo ? (
-        <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-100">
-          <Database className="mt-0.5 size-4 shrink-0" />
-          本地预览模式：课程与用量数据来自演示夹具，可直接调整和检查教师
-          UI；上传、删除等真实写入仍需数据库恢复后验证。
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">
-          <AlertCircle className="mt-0.5 size-4 shrink-0" />
-          {error}
-        </div>
-      ) : null}
-
-      <nav
-        className="rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1.5 dark:border-white/10 dark:bg-white/[0.04]"
-        aria-label="课程工作台分区"
-      >
-        <div className="flex flex-wrap gap-1">
-          {(
-            [
-              ['sources', '源文件', FileText, null],
-              ['notebooks', '笔记本库', BookOpenText, null],
-              ['hard_rules', 'Hard Rule', ShieldCheck, hardRules.length || null],
-              ['queue', 'AI 队列', Brain, counts.queued || null],
-              ['removed', '已移除', Trash2, removedContent.length || null],
-            ] as const
-          ).map(([value, label, Icon, count]) => {
-            const active = tab === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => switchTab(value)}
-                aria-current={active ? 'page' : undefined}
-                className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium outline-none transition-all focus-visible:ring-2 focus-visible:ring-emerald-500/35 sm:min-w-[7.5rem] sm:flex-none sm:justify-start sm:px-3.5 ${
-                  active
-                    ? 'bg-white text-slate-950 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_4px_12px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/80 dark:bg-white/[0.1] dark:text-white dark:ring-white/10'
-                    : 'text-slate-500 hover:bg-white/70 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white'
-                }`}
-              >
-                <Icon
-                  className={`size-4 shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-500'}`}
-                  strokeWidth={1.9}
-                />
-                <span className="truncate">{label}</span>
-                {typeof count === 'number' ? (
-                  <span
-                    className={`inline-flex min-w-5 shrink-0 items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums leading-4 ${
-                      active
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200'
-                        : 'bg-slate-200/80 text-slate-600 dark:bg-white/10 dark:text-slate-300'
-                    }`}
-                  >
-                    {count > 99 ? '99+' : count}
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
-
-      {resourceLibraryKind ? (
-        <section
-          className={
-            selectedLibraryResource && resourceLibraryKind === 'notebook'
-              ? cn(COURSE_SPACE_BODY_SURFACE_CLASS, 'flex flex-col overflow-visible')
-              : STUDIO_SECTION_CLASS
-          }
-        >
-          {selectedLibraryResource ? (
-            <div className="flex flex-col bg-slate-50/80 dark:bg-slate-950">
-              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200/80 bg-white px-5 py-3 dark:border-white/10 dark:bg-slate-950">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedResourceReferenceId('');
-                    setSelectedNotebookSectionId('');
-                    setMindMapOpen(false);
-                  }}
-                >
-                  <ArrowLeft className="mr-1.5 size-3.5" />
-                  返回列表
-                </Button>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                  {TYPE_META[selectedLibraryResource.type].label}
-                </span>
-                {selectedLibraryResource.type === 'notebook' ? (
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${persistedNotebookIds.has(selectedLibraryResource.id) ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200' : 'bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-200'}`}
-                  >
-                    <Database className="size-3" />
-                    {persistedNotebookIds.has(selectedLibraryResource.id)
-                      ? '已保存到共享数据库'
-                      : '持久化状态未确认'}
-                  </span>
-                ) : null}
-                {selectedLibraryResource.reference.inheritedFromCourseId ? (
-                  <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 dark:bg-sky-400/10 dark:text-sky-200">
-                    历史引用
-                  </span>
-                ) : null}
-                <div className="ml-auto flex items-center gap-2">
-                  {selectedLibraryResource.type === 'notebook' ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openNotebookRename(selectedLibraryResource)}
-                      >
-                        <Pencil className="mr-1.5 size-3.5" />
-                        重命名
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setMindMapOpen(true)}>
-                        <Network className="mr-1.5 size-3.5" />
-                        查看思维导图
-                      </Button>
-                    </>
-                  ) : null}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-slate-500 hover:text-rose-600"
-                    disabled={actionReferenceId === selectedLibraryResource.reference.id}
-                    onClick={() => void handleHideContent(selectedLibraryResource)}
-                  >
-                    {actionReferenceId === selectedLibraryResource.reference.id ? (
-                      <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="mr-1.5 size-3.5" />
-                    )}
-                    删除
-                  </Button>
-                </div>
-              </div>
-
-              {selectedLibraryResource.type === 'notebook' ? (
-                <div className="p-4 sm:p-6">
-                  <div className="w-full">
-                    <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                      {selectedLibraryResource.title}
-                    </h2>
-                    {selectedLibraryResource.description &&
-                    selectedLibraryResource.notebookSections?.length ? (
-                      <p className="mt-2 text-sm leading-6 text-slate-500">
-                        {selectedLibraryResource.description}
-                      </p>
-                    ) : null}
-                    {selectedLibraryResource.generation ? (
-                      <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
-                        <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
-                          质量 {selectedLibraryResource.generation.qualityScore}/100
-                        </span>
-                        <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
-                          {selectedLibraryResource.generation.totalTokens.toLocaleString('zh-CN')}{' '}
-                          tokens
-                        </span>
-                      </div>
-                    ) : null}
-
-                    {selectedLibraryResource.notebookSections?.length ? (
-                      <div className="mt-5 grid rounded-2xl border border-slate-200/80 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-slate-900 md:grid-cols-[300px_minmax(0,1fr)] md:items-start">
-                        <aside className="border-b border-slate-200/80 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/[0.03] md:border-r md:border-b-0">
-                          <p className="px-2 py-1 text-xs font-semibold text-slate-500">章节</p>
-                          <div className="mt-1 space-y-1.5">
-                            {selectedLibraryResource.notebookSections.map((section) => (
-                              <button
-                                key={section.id}
-                                type="button"
-                                onClick={() => setSelectedNotebookSectionId(section.id)}
-                                className={`w-full rounded-xl px-3 py-2.5 text-left transition ${selectedNotebookSection?.id === section.id ? 'bg-white text-sky-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-sky-100 dark:ring-white/10' : 'text-slate-600 hover:bg-white/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white'}`}
-                              >
-                                <span className="block text-sm font-semibold leading-5">
-                                  {section.title}
-                                </span>
-                                {section.summary ? (
-                                  <span className="mt-1.5 block line-clamp-2 text-xs leading-5 text-slate-400">
-                                    {section.summary}
-                                  </span>
-                                ) : null}
-                              </button>
-                            ))}
-                          </div>
-                        </aside>
-                        <article className="min-w-0 p-5 sm:p-7">
-                          <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
-                            {selectedNotebookSection?.title}
-                          </h3>
-                          {selectedNotebookSection?.sourcePages.length ? (
-                            <p className="mt-1 text-xs text-slate-400">
-                              来源页码：{selectedNotebookSection.sourcePages.join('、')}
-                            </p>
-                          ) : null}
-                          <MessageResponse className="mt-5 text-sm leading-7">
-                            {selectedNotebookSection?.markdown || '该章节没有可预览内容。'}
-                          </MessageResponse>
-                        </article>
-                      </div>
-                    ) : (
-                      <article className="mt-5 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-900 sm:p-7">
-                        {notebookFallbackLoading ? (
-                          <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-slate-500">
-                            <Loader2 className="size-4 animate-spin" />
-                            正在读取关联源文件…
-                          </div>
-                        ) : notebookFallbackText ? (
-                          <MessageResponse className="text-sm leading-7">
-                            {notebookFallbackText}
-                          </MessageResponse>
-                        ) : selectedLibraryResource.description ? (
-                          <MessageResponse className="text-sm leading-7">
-                            {selectedLibraryResource.description}
-                          </MessageResponse>
-                        ) : (
-                          <p className="text-center text-sm text-slate-500">
-                            这本笔记本还没有可预览内容。
-                          </p>
-                        )}
-                        {notebookFallbackError ? (
-                          <p className="mt-5 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700 dark:bg-amber-400/10 dark:text-amber-200">
-                            {notebookFallbackError}
-                          </p>
-                        ) : null}
-                      </article>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50/80 dark:bg-slate-950 lg:flex-row">
-              <aside className="flex max-h-72 shrink-0 flex-col border-b border-slate-200/80 bg-white/90 p-3 dark:border-white/10 dark:bg-white/[0.035] sm:p-4 lg:max-h-none lg:w-72 lg:border-r lg:border-b-0">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
-                      课程顺序
-                    </h2>
-                    <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                      AI 与学生进度条按此顺序读取
-                    </p>
-                  </div>
-                  {!editingNotebookOrder ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="shrink-0 rounded-xl px-2.5"
-                      disabled={orderedNotebooks.length === 0}
-                      onClick={beginNotebookOrderAdjustment}
-                    >
-                      <ListOrdered className="mr-1.5 size-3.5" />
-                      调整顺序
-                    </Button>
-                  ) : null}
-                </div>
-
-                {editingNotebookOrder ? (
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 rounded-xl"
-                      disabled={savingNotebookOrder}
-                      onClick={cancelNotebookOrderAdjustment}
-                    >
-                      取消
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="flex-1 rounded-xl"
-                      disabled={savingNotebookOrder}
-                      onClick={() => void saveNotebookOrder()}
-                    >
-                      {savingNotebookOrder ? (
-                        <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                      ) : (
-                        <ListOrdered className="mr-1.5 size-3.5" />
-                      )}
-                      保存顺序
-                    </Button>
-                  </div>
-                ) : null}
-
-                <div className="mt-3 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
-                  {visibleNotebookOrder.map((notebook, index) =>
-                    editingNotebookOrder ? (
-                      <div
-                        key={notebook.reference.id}
-                        className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 px-2 py-2 dark:border-white/10 dark:bg-white/5"
-                      >
-                        <GripVertical className="size-3.5 shrink-0 text-slate-300" />
-                        <span className="grid size-5 shrink-0 place-items-center rounded-md bg-white text-[10px] font-bold text-slate-500 ring-1 ring-slate-200/80 dark:bg-white/10 dark:ring-white/10">
-                          {index + 1}
-                        </span>
-                        <span
-                          className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700 dark:text-slate-200"
-                          title={notebook.title}
-                        >
-                          {notebook.title}
-                        </span>
-                        <span className="flex shrink-0 gap-0.5">
-                          <button
-                            type="button"
-                            className="grid size-6 place-items-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-white/10 dark:hover:text-white"
-                            aria-label={`将 ${notebook.title} 上移`}
-                            disabled={index === 0 || savingNotebookOrder}
-                            onClick={() => moveNotebookOrderItem(notebook.id, -1)}
-                          >
-                            <ArrowUp className="size-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            className="grid size-6 place-items-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-white/10 dark:hover:text-white"
-                            aria-label={`将 ${notebook.title} 下移`}
-                            disabled={
-                              index === visibleNotebookOrder.length - 1 || savingNotebookOrder
-                            }
-                            onClick={() => moveNotebookOrderItem(notebook.id, 1)}
-                          >
-                            <ArrowDown className="size-3.5" />
-                          </button>
-                        </span>
-                      </div>
-                    ) : (
-                      <button
-                        key={notebook.reference.id}
-                        type="button"
-                        onClick={() => openResourceDetail(notebook)}
-                        className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
-                      >
-                        <span className="grid size-5 shrink-0 place-items-center rounded-md bg-slate-100 text-[10px] font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">
-                          {index + 1}
-                        </span>
-                        <span
-                          className="min-w-0 flex-1 truncate text-xs font-medium"
-                          title={notebook.title}
-                        >
-                          {notebook.title}
-                        </span>
-                      </button>
-                    ),
-                  )}
-                  {visibleNotebookOrder.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-slate-200 px-3 py-5 text-center text-xs text-slate-400 dark:border-white/10">
-                      还没有上传笔记本
-                    </p>
-                  ) : null}
-                </div>
-              </aside>
-
-              <div className={`${STUDIO_PANEL_BODY_CLASS} min-w-0`}>
-                <div className="mx-auto flex h-full w-full max-w-6xl min-h-0 flex-1 flex-col">
-                  {libraryResources.length ? (
-                    <StudioList className="dark:bg-white/[0.02]">
-                      {pagedLibraryResources.map((item) => {
-                        const sectionCount = item.notebookSections?.length ?? 0;
-                        const persisted = persistedNotebookIds.has(item.id);
-                        return (
-                          <StudioListItem
-                            key={item.reference.id}
-                            className="flex flex-col gap-3 sm:flex-row sm:items-center"
-                          >
-                            <StudioItemIcon tone="sky">
-                              <BookOpenText className="size-4" />
-                            </StudioItemIcon>
-                            <button
-                              type="button"
-                              className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-                              onClick={() => openResourceDetail(item)}
-                            >
-                              <span className="flex flex-wrap items-center gap-2">
-                                <span className="truncate text-sm font-semibold text-slate-950 dark:text-white">
-                                  {item.title}
-                                </span>
-                                <StudioItemTag tone="sky" className="rounded-full">
-                                  {sectionCount ? `${sectionCount} 章节` : '课程笔记本'}
-                                </StudioItemTag>
-                                <StudioItemTag
-                                  tone={persisted ? 'emerald' : 'amber'}
-                                  className="rounded-full"
-                                >
-                                  <Database className="size-3" />
-                                  {persisted ? '已保存' : '状态未确认'}
-                                </StudioItemTag>
-                                {item.reference.inheritedFromCourseId ? (
-                                  <StudioItemTag tone="violet" className="rounded-full">
-                                    历史引用
-                                  </StudioItemTag>
-                                ) : null}
-                              </span>
-                              <span className="mt-1 block truncate text-xs text-slate-500">
-                                {item.description || '该笔记本暂无简介'} · 更新于{' '}
-                                {new Date(item.updatedAt).toLocaleDateString('zh-CN')}
-                              </span>
-                            </button>
-                            <div className="flex shrink-0 flex-wrap items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openResourceDetail(item)}
-                              >
-                                <Eye className="mr-1.5 size-3.5" />
-                                查看
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openNotebookRename(item)}
-                              >
-                                <Pencil className="mr-1.5 size-3.5" />
-                                重命名
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-slate-500 hover:text-rose-600"
-                                aria-label={`删除 ${item.title}`}
-                                disabled={actionReferenceId === item.reference.id}
-                                onClick={() => void handleHideContent(item)}
-                              >
-                                {actionReferenceId === item.reference.id ? (
-                                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                                ) : (
-                                  <Trash2 className="mr-1.5 size-3.5" />
-                                )}
-                                移除
-                              </Button>
-                            </div>
-                          </StudioListItem>
-                        );
-                      })}
-                    </StudioList>
-                  ) : (
-                    <StudioEmptyPlaceholder>还没有笔记本。</StudioEmptyPlaceholder>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          {resourceLibraryKind === 'notebook' ? (
-            <StudioPagination
-              page={safeListPage}
-              pageCount={listPageCount}
-              total={listTotal}
-              onPage={setListPage}
-            />
-          ) : null}
-        </section>
-      ) : null}
-
-      {tab === 'hard_rules' ? (
-        <section className="flex min-h-[calc(100dvh-300px)] flex-1 flex-col pt-6 sm:pt-8">
-          <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
+        actions={
+          tab === 'sources' ? (
+            <label
+              title={
+                uploading
+                  ? '正在保存…'
+                  : sourceCategory === 'problem_bank'
+                    ? '上传题目'
+                    : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`
+              }
+              aria-label={uploading ? '正在保存…' : '上传资料'}
+              className={`inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-slate-950 px-2.5 text-xs font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+            >
+              {uploading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : sourceCategory === 'problem_bank' ? (
+                <Library className="size-3.5" />
+              ) : (
+                <Upload className="size-3.5" />
+              )}
+              {uploading ? '正在保存…' : '上传资料'}
+              <input
+                type="file"
+                multiple
+                accept={COURSE_SOURCE_ACCEPT}
+                className="sr-only"
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? []);
+                  event.target.value = '';
+                  void handleUpload(files);
+                }}
+              />
+            </label>
+          ) : tab === 'hard_rules' ? (
             <Button
               type="button"
               size="sm"
@@ -1669,305 +1304,616 @@ export function TeacherCourseStudioClient({
               <Plus className="mr-1.5 size-3.5" />
               添加规则
             </Button>
-          </div>
-          <div className="min-h-0 flex-1">
-            {hardRulesLoading && !hardRulesLoaded ? (
-              <StudioEmptyPlaceholder>
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="size-4 animate-spin" />
-                  正在读取 Hard Rule…
-                </span>
-              </StudioEmptyPlaceholder>
-            ) : hardRules.length ? (
-              <StudioList className="dark:bg-white/[0.02]">
-                {pagedHardRules.map((rule, index) => {
-                  const draft = hardRuleDrafts[rule.id] ?? rule.content;
-                  const changed = draft.trim() !== rule.content.trim();
-                  return (
-                    <StudioListItem
-                      key={rule.id}
-                      density="compact"
-                      className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-4 lg:min-h-[52px] lg:gap-6"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <StudioItemIcon
-                          compact
-                          round
-                          tone={changed ? 'amber' : 'violet'}
-                          className="text-xs font-bold"
-                        >
-                          {listOffset + index + 1}
-                        </StudioItemIcon>
-                        <div className="flex min-w-0 flex-1 items-center gap-2">
-                          <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-950 dark:text-white">
-                            {draft || '（空规则）'}
-                          </h3>
-                          <div className="flex shrink-0 items-center gap-1 overflow-hidden">
-                            <StudioItemTag tone="neutral">{draft.length}/1000</StudioItemTag>
-                            <StudioItemTag tone="violet">强制规则</StudioItemTag>
-                          </div>
-                        </div>
-                      </div>
+          ) : null
+        }
+      />
 
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:flex-nowrap sm:justify-end">
-                        <StudioStatusBadge tone={changed ? 'amber' : 'emerald'}>
-                          {changed ? (
-                            <Clock3 className="size-3" />
-                          ) : (
-                            <ShieldCheck className="size-3" />
-                          )}
-                          {changed ? '未保存' : '已注入 Agent'}
-                        </StudioStatusBadge>
-                        <StudioStatusBadge tone="indigo">
-                          <Database className="size-3" />
-                          已持久化
-                        </StudioStatusBadge>
-                        <p className="shrink-0 text-[10px] text-slate-400 lg:text-right">
-                          {new Date(rule.updatedAt).toLocaleString('zh-CN')}
-                        </p>
+      {error ? (
+        <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          {error}
+        </div>
+      ) : null}
+
+      <div className="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5 lg:flex-row lg:items-stretch">
+        <nav
+          className="flex w-fit shrink-0 flex-col rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1.5 dark:border-white/10 dark:bg-white/[0.04] lg:self-stretch"
+          aria-label="课程工作台分区"
+        >
+          <div className="flex flex-wrap gap-1 lg:flex-col lg:flex-nowrap">
+            {(
+              [
+                ['overview', '总览', LayoutDashboard, null],
+                ['sources', '源文件', FileText, null],
+                ['notebooks', '笔记本库', BookOpenText, null],
+                ['hard_rules', 'Hard Rule', ShieldCheck, hardRules.length || null],
+                ['queue', 'AI 队列', Brain, counts.queued || null],
+                ['removed', '已移除', Trash2, removedContent.length || null],
+              ] as const
+            ).map(([value, label, Icon, count]) => {
+              const active = tab === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => switchTab(value)}
+                  aria-label={label}
+                  title={label}
+                  aria-current={active ? 'page' : undefined}
+                  className={`relative inline-flex size-10 items-center justify-center rounded-xl outline-none transition-all focus-visible:ring-2 focus-visible:ring-emerald-500/35 ${
+                    active
+                      ? 'bg-white text-slate-950 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_4px_12px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/80 dark:bg-white/[0.1] dark:text-white dark:ring-white/10'
+                      : 'text-slate-500 hover:bg-white/70 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white'
+                  }`}
+                >
+                  <Icon
+                    className={`size-5 shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-500'}`}
+                    strokeWidth={1.9}
+                  />
+                  {typeof count === 'number' ? (
+                    <span
+                      className={`absolute right-0.5 top-0.5 inline-flex min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold tabular-nums leading-3 ${
+                        active
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200'
+                          : 'bg-slate-200 text-slate-600 dark:bg-white/15 dark:text-slate-300'
+                      }`}
+                    >
+                      {count > 99 ? '99+' : count}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 sm:gap-5">
+          {tab === 'overview' ? (
+            <section className={STUDIO_SECTION_CLASS}>
+              <div className={STUDIO_PANEL_BODY_CLASS}>
+                <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+                  <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
+                    <p className="text-xs font-semibold tracking-wide text-slate-400">课程总览</p>
+                    <h2 className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">
+                      {course.code}
+                      {courseHeaderFields.courseMeta ? ` · ${courseHeaderFields.courseMeta}` : ''}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {course.academicYear} {academicTermLabel(course.term)}
+                      {course.createdAt
+                        ? ` · 创建于 ${new Date(course.createdAt).toLocaleDateString('zh-CN')}`
+                        : ''}
+                    </p>
+                    {course.description ? (
+                      <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                        {course.description}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <OverviewStatCard
+                      Icon={FileText}
+                      label="源文件"
+                      value={sources.length}
+                      hint={`学校 ${sourceCategoryCounts.school_teacher_notes} · 速成 ${sourceCategoryCounts.crash_course_teacher_notes} · 题库 ${sourceCategoryCounts.problem_bank}`}
+                      onClick={() => switchTab('sources')}
+                    />
+                    <OverviewStatCard
+                      Icon={BookOpenText}
+                      label="笔记本"
+                      value={notebooks.length}
+                      hint={mindMapCount > 0 ? `${mindMapCount} 本已生图` : '还没有生成思维导图'}
+                      onClick={() => switchTab('notebooks')}
+                    />
+                    <OverviewStatCard
+                      Icon={ListChecks}
+                      label="题库"
+                      value={course.problemCount}
+                      hint={
+                        sourceCategoryCounts.problem_bank > 0
+                          ? `${sourceCategoryCounts.problem_bank} 份题库资料`
+                          : '还没有题库资料'
+                      }
+                      onClick={() =>
+                        router.push(
+                          `/course/${encodeURIComponent(courseId)}/problem-bank${
+                            mockMode ? '?mock=1&asTeacher=1' : ''
+                          }`,
+                        )
+                      }
+                    />
+                    <OverviewStatCard
+                      Icon={ShieldCheck}
+                      label="Hard Rule"
+                      value={hardRulesLoading && !hardRulesLoaded ? '…' : hardRules.length}
+                      hint={`已用 ${hardRules.length} / 30`}
+                      onClick={() => switchTab('hard_rules')}
+                    />
+                    <OverviewStatCard
+                      Icon={Brain}
+                      label="AI 队列"
+                      value={counts.queued}
+                      hint={`排队 ${counts.queued} · 已完成 ${counts.completed} · 失败 ${counts.failed}`}
+                      onClick={() => switchTab('queue')}
+                    />
+                    <OverviewStatCard
+                      Icon={Trash2}
+                      label="已移除"
+                      value={removedContent.length}
+                      hint="可从资料库恢复或永久删除"
+                      onClick={() => switchTab('removed')}
+                    />
+                    <OverviewStatCard
+                      Icon={MessagesSquare}
+                      label="论坛待处理"
+                      value={unresolvedForumCount}
+                      hint="未解决的学生帖"
+                      onClick={() =>
+                        router.push(
+                          `/course/${encodeURIComponent(courseId)}/forum${
+                            mockMode ? '?mock=1&asTeacher=1' : ''
+                          }`,
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {resourceLibraryKind ? (
+            <section
+              className={
+                selectedLibraryResource && resourceLibraryKind === 'notebook'
+                  ? cn(COURSE_SPACE_BODY_SURFACE_CLASS, 'flex flex-col overflow-visible')
+                  : STUDIO_SECTION_CLASS
+              }
+            >
+              {selectedLibraryResource ? (
+                <div className="flex flex-col bg-slate-50/80 dark:bg-slate-950">
+                  <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200/80 bg-white px-5 py-3 dark:border-white/10 dark:bg-slate-950">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedResourceReferenceId('');
+                        setSelectedNotebookSectionId('');
+                        setMindMapOpen(false);
+                      }}
+                    >
+                      <ArrowLeft className="mr-1.5 size-3.5" />
+                      返回列表
+                    </Button>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                      {TYPE_META[selectedLibraryResource.type].label}
+                    </span>
+                    {selectedLibraryResource.type === 'notebook' ? (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${persistedNotebookIds.has(selectedLibraryResource.id) ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200' : 'bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-200'}`}
+                      >
+                        <Database className="size-3" />
+                        {persistedNotebookIds.has(selectedLibraryResource.id)
+                          ? '已保存到共享数据库'
+                          : '持久化状态未确认'}
+                      </span>
+                    ) : null}
+                    {selectedLibraryResource.reference.inheritedFromCourseId ? (
+                      <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 dark:bg-sky-400/10 dark:text-sky-200">
+                        历史引用
+                      </span>
+                    ) : null}
+                    <div className="ml-auto flex items-center gap-2">
+                      {selectedLibraryResource.type === 'notebook' ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openNotebookRename(selectedLibraryResource)}
+                          >
+                            <Pencil className="mr-1.5 size-3.5" />
+                            重命名
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setMindMapOpen(true)}>
+                            <Network className="mr-1.5 size-3.5" />
+                            查看思维导图
+                          </Button>
+                        </>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-slate-500 hover:text-rose-600"
+                        disabled={actionReferenceId === selectedLibraryResource.reference.id}
+                        onClick={() => void handleHideContent(selectedLibraryResource)}
+                      >
+                        {actionReferenceId === selectedLibraryResource.reference.id ? (
+                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="mr-1.5 size-3.5" />
+                        )}
+                        删除
+                      </Button>
+                    </div>
+                  </div>
+
+                  {selectedLibraryResource.type === 'notebook' ? (
+                    <div className="p-4 sm:p-6">
+                      <div className="w-full">
+                        <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                          {selectedLibraryResource.title}
+                        </h2>
+                        {selectedLibraryResource.description &&
+                        selectedLibraryResource.notebookSections?.length ? (
+                          <p className="mt-2 text-sm leading-6 text-slate-500">
+                            {selectedLibraryResource.description}
+                          </p>
+                        ) : null}
+                        {selectedLibraryResource.generation ? (
+                          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
+                            <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
+                              质量 {selectedLibraryResource.generation.qualityScore}/100
+                            </span>
+                            <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
+                              {selectedLibraryResource.generation.totalTokens.toLocaleString(
+                                'zh-CN',
+                              )}{' '}
+                              tokens
+                            </span>
+                          </div>
+                        ) : null}
+
+                        {selectedLibraryResource.notebookSections?.length ? (
+                          <div className="mt-5 grid rounded-2xl border border-slate-200/80 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-slate-900 md:grid-cols-[300px_minmax(0,1fr)] md:items-start">
+                            <aside className="border-b border-slate-200/80 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/[0.03] md:border-r md:border-b-0">
+                              <p className="px-2 py-1 text-xs font-semibold text-slate-500">章节</p>
+                              <div className="mt-1 space-y-1.5">
+                                {selectedLibraryResource.notebookSections.map((section) => (
+                                  <button
+                                    key={section.id}
+                                    type="button"
+                                    onClick={() => setSelectedNotebookSectionId(section.id)}
+                                    className={`w-full rounded-xl px-3 py-2.5 text-left transition ${selectedNotebookSection?.id === section.id ? 'bg-white text-sky-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-sky-100 dark:ring-white/10' : 'text-slate-600 hover:bg-white/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white'}`}
+                                  >
+                                    <span className="block text-sm font-semibold leading-5">
+                                      {section.title}
+                                    </span>
+                                    {section.summary ? (
+                                      <span className="mt-1.5 block line-clamp-2 text-xs leading-5 text-slate-400">
+                                        {section.summary}
+                                      </span>
+                                    ) : null}
+                                  </button>
+                                ))}
+                              </div>
+                            </aside>
+                            <article className="min-w-0 p-5 sm:p-7">
+                              <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
+                                {selectedNotebookSection?.title}
+                              </h3>
+                              {selectedNotebookSection?.sourcePages.length ? (
+                                <p className="mt-1 text-xs text-slate-400">
+                                  来源页码：{selectedNotebookSection.sourcePages.join('、')}
+                                </p>
+                              ) : null}
+                              <MessageResponse className="mt-5 text-sm leading-7">
+                                {selectedNotebookSection?.markdown || '该章节没有可预览内容。'}
+                              </MessageResponse>
+                            </article>
+                          </div>
+                        ) : (
+                          <article className="mt-5 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-900 sm:p-7">
+                            {notebookFallbackLoading ? (
+                              <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-slate-500">
+                                <Loader2 className="size-4 animate-spin" />
+                                正在读取关联源文件…
+                              </div>
+                            ) : notebookFallbackText ? (
+                              <MessageResponse className="text-sm leading-7">
+                                {notebookFallbackText}
+                              </MessageResponse>
+                            ) : selectedLibraryResource.description ? (
+                              <MessageResponse className="text-sm leading-7">
+                                {selectedLibraryResource.description}
+                              </MessageResponse>
+                            ) : (
+                              <p className="text-center text-sm text-slate-500">
+                                这本笔记本还没有可预览内容。
+                              </p>
+                            )}
+                            {notebookFallbackError ? (
+                              <p className="mt-5 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700 dark:bg-amber-400/10 dark:text-amber-200">
+                                {notebookFallbackError}
+                              </p>
+                            ) : null}
+                          </article>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50/80 dark:bg-slate-950 lg:flex-row">
+                  <aside className="flex max-h-72 shrink-0 flex-col border-b border-slate-200/80 bg-white/90 p-3 dark:border-white/10 dark:bg-white/[0.035] sm:p-4 lg:order-2 lg:max-h-none lg:w-72 lg:border-b-0 lg:border-l">
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 className="min-w-0 text-sm font-semibold text-slate-950 dark:text-white">
+                        课程顺序
+                      </h2>
+                      {!editingNotebookOrder ? (
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
-                          className="h-7 shrink-0 px-2.5 text-xs"
-                          onClick={() => openEditHardRuleDialog(rule)}
+                          className="shrink-0 rounded-xl px-2.5"
+                          disabled={orderedNotebooks.length === 0}
+                          onClick={beginNotebookOrderAdjustment}
                         >
-                          <Pencil className="mr-1 size-3" />
-                          编辑
+                          <ListOrdered className="mr-1.5 size-3.5" />
+                          调整顺序
+                        </Button>
+                      ) : null}
+                    </div>
+
+                    {editingNotebookOrder ? (
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 rounded-xl"
+                          disabled={savingNotebookOrder}
+                          onClick={cancelNotebookOrderAdjustment}
+                        >
+                          取消
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="flex-1 rounded-xl"
+                          disabled={savingNotebookOrder}
+                          onClick={() => void saveNotebookOrder()}
+                        >
+                          {savingNotebookOrder ? (
+                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                          ) : (
+                            <ListOrdered className="mr-1.5 size-3.5" />
+                          )}
+                          保存顺序
                         </Button>
                       </div>
-                    </StudioListItem>
-                  );
-                })}
-              </StudioList>
-            ) : (
-              <StudioEmptyPlaceholder>
-                还没有 Hard Rule。添加后，下一次课程聊天就会自动遵循。
-              </StudioEmptyPlaceholder>
-            )}
-          </div>
-          {hardRules.length ? (
-            <StudioPagination
-              page={safeListPage}
-              pageCount={listPageCount}
-              total={listTotal}
-              onPage={setListPage}
-            />
+                    ) : null}
+
+                    <div className="mt-3 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+                      {visibleNotebookOrder.map((notebook, index) =>
+                        editingNotebookOrder ? (
+                          <div
+                            key={notebook.reference.id}
+                            className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 px-2 py-2 dark:border-white/10 dark:bg-white/5"
+                          >
+                            <GripVertical className="size-3.5 shrink-0 text-slate-300" />
+                            <span className="grid size-5 shrink-0 place-items-center rounded-md bg-white text-[10px] font-bold text-slate-500 ring-1 ring-slate-200/80 dark:bg-white/10 dark:ring-white/10">
+                              {index + 1}
+                            </span>
+                            <span
+                              className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700 dark:text-slate-200"
+                              title={notebook.title}
+                            >
+                              {notebook.title}
+                            </span>
+                            <span className="flex shrink-0 gap-0.5">
+                              <button
+                                type="button"
+                                className="grid size-6 place-items-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-white/10 dark:hover:text-white"
+                                aria-label={`将 ${notebook.title} 上移`}
+                                disabled={index === 0 || savingNotebookOrder}
+                                onClick={() => moveNotebookOrderItem(notebook.id, -1)}
+                              >
+                                <ArrowUp className="size-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                className="grid size-6 place-items-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-white/10 dark:hover:text-white"
+                                aria-label={`将 ${notebook.title} 下移`}
+                                disabled={
+                                  index === visibleNotebookOrder.length - 1 || savingNotebookOrder
+                                }
+                                onClick={() => moveNotebookOrderItem(notebook.id, 1)}
+                              >
+                                <ArrowDown className="size-3.5" />
+                              </button>
+                            </span>
+                          </div>
+                        ) : (
+                          <button
+                            key={notebook.reference.id}
+                            type="button"
+                            onClick={() => openResourceDetail(notebook)}
+                            className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                          >
+                            <span className="grid size-5 shrink-0 place-items-center rounded-md bg-slate-100 text-[10px] font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">
+                              {index + 1}
+                            </span>
+                            <span
+                              className="min-w-0 flex-1 truncate text-xs font-medium"
+                              title={notebook.title}
+                            >
+                              {notebook.title}
+                            </span>
+                          </button>
+                        ),
+                      )}
+                      {visibleNotebookOrder.length === 0 ? (
+                        <p className="rounded-xl border border-dashed border-slate-200 px-3 py-5 text-center text-xs text-slate-400 dark:border-white/10">
+                          还没有上传笔记本
+                        </p>
+                      ) : null}
+                    </div>
+                  </aside>
+
+                  <div className={`${STUDIO_PANEL_BODY_CLASS} min-w-0 lg:order-1`}>
+                    <div className="mx-auto flex h-full w-full max-w-6xl min-h-0 flex-1 flex-col">
+                      {libraryResources.length ? (
+                        <StudioList className="dark:bg-white/[0.02]">
+                          {pagedLibraryResources.map((item) => {
+                            const sectionCount = item.notebookSections?.length ?? 0;
+                            const persisted = persistedNotebookIds.has(item.id);
+                            return (
+                              <StudioListItem
+                                key={item.reference.id}
+                                className="flex flex-col gap-3 sm:flex-row sm:items-center"
+                              >
+                                <button
+                                  type="button"
+                                  className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                                  onClick={() => openResourceDetail(item)}
+                                >
+                                  <span className="flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden">
+                                    <span className="min-w-0 truncate text-sm font-semibold text-slate-950 dark:text-white">
+                                      {item.title}
+                                    </span>
+                                    <StudioItemTag tone="sky" className="rounded-full">
+                                      {sectionCount ? `${sectionCount} 章节` : '课程笔记本'}
+                                    </StudioItemTag>
+                                    <StudioItemTag
+                                      tone={persisted ? 'emerald' : 'amber'}
+                                      className="rounded-full"
+                                    >
+                                      <Database className="size-3" />
+                                      {persisted ? '已保存' : '状态未确认'}
+                                    </StudioItemTag>
+                                    {item.reference.inheritedFromCourseId ? (
+                                      <StudioItemTag tone="violet" className="rounded-full">
+                                        历史引用
+                                      </StudioItemTag>
+                                    ) : null}
+                                  </span>
+                                  <span className="mt-1 block truncate text-xs text-slate-500">
+                                    {item.description || '该笔记本暂无简介'} · 更新于{' '}
+                                    {new Date(item.updatedAt).toLocaleDateString('zh-CN')}
+                                  </span>
+                                </button>
+                                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                  <Button
+                                    size="icon-sm"
+                                    variant="outline"
+                                    aria-label={`查看 ${item.title}`}
+                                    title="查看"
+                                    onClick={() => openResourceDetail(item)}
+                                  >
+                                    <Eye className="size-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openNotebookRename(item)}
+                                  >
+                                    <Pencil className="mr-1.5 size-3.5" />
+                                    重命名
+                                  </Button>
+                                  <Button
+                                    size="icon-sm"
+                                    variant="ghost"
+                                    className="text-slate-500 hover:text-rose-600"
+                                    aria-label={`删除 ${item.title}`}
+                                    title="移除"
+                                    disabled={actionReferenceId === item.reference.id}
+                                    onClick={() => void handleHideContent(item)}
+                                  >
+                                    {actionReferenceId === item.reference.id ? (
+                                      <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="size-3.5" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </StudioListItem>
+                            );
+                          })}
+                        </StudioList>
+                      ) : (
+                        <StudioEmptyPlaceholder>还没有笔记本。</StudioEmptyPlaceholder>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {resourceLibraryKind === 'notebook' ? (
+                <StudioPagination
+                  page={safeListPage}
+                  pageCount={listPageCount}
+                  total={listTotal}
+                  onPage={setListPage}
+                />
+              ) : null}
+            </section>
           ) : null}
-        </section>
-      ) : null}
 
-      {tab === 'sources' ? (
-        <section className={STUDIO_SECTION_CLASS}>
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50/80 dark:bg-slate-950 lg:flex-row">
-            <aside className="flex shrink-0 flex-col border-b border-slate-200/80 bg-white/90 p-4 dark:border-white/10 dark:bg-white/[0.035] lg:w-[255px] lg:border-r lg:border-b-0">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-950 dark:text-white">源文件分类</h2>
-                <label
-                  title={
-                    uploading
-                      ? '正在保存…'
-                      : sourceCategory === 'problem_bank'
-                        ? '上传题目'
-                        : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`
-                  }
-                  aria-label={
-                    uploading
-                      ? '正在保存…'
-                      : sourceCategory === 'problem_bank'
-                        ? '上传题目'
-                        : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`
-                  }
-                  className={`inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-slate-950 text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 ${uploading ? 'pointer-events-none opacity-60' : ''}`}
-                >
-                  {uploading ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : sourceCategory === 'problem_bank' ? (
-                    <Library className="size-3.5" />
-                  ) : (
-                    <Upload className="size-3.5" />
-                  )}
-                  <input
-                    type="file"
-                    multiple
-                    accept={COURSE_SOURCE_ACCEPT}
-                    className="sr-only"
-                    onChange={(event) => {
-                      const files = Array.from(event.target.files ?? []);
-                      event.target.value = '';
-                      void handleUpload(files);
-                    }}
-                  />
-                </label>
-              </div>
-              <div className="mt-4 space-y-2">
-                {SOURCE_CATEGORIES.map((category) => {
-                  const selected = sourceCategory === category.value;
-                  return (
-                    <button
-                      key={category.value}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => {
-                        setSourceCategory(category.value);
-                        setListPage(1);
-                      }}
-                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${selected ? 'bg-sky-50 text-sky-950 ring-1 ring-sky-200 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-400/20' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white'}`}
-                    >
-                      <span
-                        className={`grid size-9 shrink-0 place-items-center rounded-xl ${selected ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300'}`}
-                      >
-                        <category.Icon className="size-4" />
-                      </span>
-                      <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-                        {category.label}
-                        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-                          {sourceCategoryCounts[category.value]}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </aside>
-
-            <div className="flex min-w-0 flex-1 flex-col">
+          {tab === 'hard_rules' ? (
+            <section className={STUDIO_SECTION_CLASS}>
               <div className={STUDIO_PANEL_BODY_CLASS}>
-                {categorySources.length ? (
-                  <StudioList>
-                    {visibleSources.map((source) => {
-                      const job = knowledgeJobsByAsset.get(source.id);
-                      const mindMapJob = mindMapJobsByAsset.get(source.id);
-                      const pending = job?.status === 'queued' || job?.status === 'running';
-                      const categoryMeta =
-                        SOURCE_CATEGORY_META[resolveCourseSourceCategory(source)];
-                      const isProblemBankSource =
-                        resolveCourseSourceCategory(source) === 'problem_bank';
-                      const CategoryIcon = categoryMeta.Icon;
-                      const linkedNotebook = notebooks.find(
-                        (notebook) =>
-                          notebook.id === job?.notebookId ||
-                          notebook.id === `teacher-notebook:${source.id}` ||
-                          notebook.sourceFileId === source.id,
-                      );
-                      const hasMindMap = Boolean(linkedNotebook?.mindMap);
-                      const generatingMindMap =
-                        !hasMindMap &&
-                        (mindMapSourceAssetId === source.id ||
-                          mindMapJob?.status === 'queued' ||
-                          mindMapJob?.status === 'running');
+                {hardRulesLoading && !hardRulesLoaded ? (
+                  <StudioEmptyPlaceholder>
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="size-4 animate-spin" />
+                      正在读取 Hard Rule…
+                    </span>
+                  </StudioEmptyPlaceholder>
+                ) : hardRules.length ? (
+                  <StudioList className="dark:bg-white/[0.02]">
+                    {pagedHardRules.map((rule, index) => {
+                      const draft = hardRuleDrafts[rule.id] ?? rule.content;
+                      const changed = draft.trim() !== rule.content.trim();
                       return (
                         <StudioListItem
-                          key={source.reference.id}
-                          className="flex flex-col gap-3 sm:flex-row sm:items-center"
+                          key={rule.id}
+                          density="compact"
+                          className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-4 lg:min-h-[52px] lg:gap-6"
                         >
-                          <StudioItemIcon>
-                            <CategoryIcon className="size-4" />
-                          </StudioItemIcon>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="truncate text-sm font-semibold">{source.title}</h3>
-                              <StudioItemTag className="rounded-full">
-                                {categoryMeta.label}
-                              </StudioItemTag>
-                              <StudioItemTag className="rounded-full" tone="emerald">
-                                <Database className="size-3" />
-                                已保存到共享数据库
-                              </StudioItemTag>
-                              {source.reference.inheritedFromCourseId ? (
-                                <StudioItemTag tone="sky" className="rounded-full">
-                                  历史引用
-                                </StudioItemTag>
-                              ) : null}
+                          <div className="flex min-w-0 items-center gap-3">
+                            <StudioItemIcon
+                              compact
+                              round
+                              tone={changed ? 'amber' : 'violet'}
+                              className="text-xs font-bold"
+                            >
+                              {listOffset + index + 1}
+                            </StudioItemIcon>
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-950 dark:text-white">
+                                {draft || '（空规则）'}
+                              </h3>
+                              <div className="flex shrink-0 items-center gap-1 overflow-hidden">
+                                <StudioItemTag tone="neutral">{draft.length}/1000</StudioItemTag>
+                              </div>
                             </div>
                           </div>
-                          <div className="flex shrink-0 flex-wrap items-center gap-2">
-                            {!isProblemBankSource ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={
-                                  job?.status !== 'completed' || generatingMindMap || hasMindMap
-                                }
-                                title={
-                                  hasMindMap
-                                    ? '思维导图已经生成，请前往笔记本库查看'
-                                    : job?.status === 'completed'
-                                      ? undefined
-                                      : '请先生成笔记本'
-                                }
-                                onClick={() => job && void handleGenerateMindMap(source, job)}
-                              >
-                                {generatingMindMap ? (
-                                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                                ) : hasMindMap ? (
-                                  <CheckCircle2 className="mr-1.5 size-3.5" />
-                                ) : (
-                                  <Network className="mr-1.5 size-3.5" />
-                                )}
-                                {generatingMindMap
-                                  ? '正在生成…'
-                                  : hasMindMap
-                                    ? '已生成思维导图'
-                                    : '生成思维导图'}
-                              </Button>
-                            ) : null}
+
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:flex-nowrap sm:justify-end">
+                            <StudioStatusBadge tone={changed ? 'amber' : 'emerald'}>
+                              {changed ? (
+                                <Clock3 className="size-3" />
+                              ) : (
+                                <ShieldCheck className="size-3" />
+                              )}
+                              {changed ? '未保存' : '已注入 Agent'}
+                            </StudioStatusBadge>
+                            <StudioStatusBadge tone="indigo">
+                              <Database className="size-3" />
+                              已持久化
+                            </StudioStatusBadge>
+                            <p className="shrink-0 text-[10px] text-slate-400 lg:text-right">
+                              {new Date(rule.updatedAt).toLocaleString('zh-CN')}
+                            </p>
                             <Button
+                              type="button"
                               size="sm"
                               variant="outline"
-                              aria-label={`在线预览 ${source.title}`}
-                              onClick={() => void handlePreviewSource(source)}
+                              className="h-7 shrink-0 px-2.5 text-xs"
+                              onClick={() => openEditHardRuleDialog(rule)}
                             >
-                              <Eye className="mr-1.5 size-3.5" />
-                              在线预览
+                              <Pencil className="mr-1 size-3" />
+                              编辑
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-slate-500 hover:text-rose-600"
-                              disabled={actionReferenceId === source.reference.id}
-                              onClick={() => void handleHideContent(source)}
-                            >
-                              {actionReferenceId === source.reference.id ? (
-                                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="mr-1.5 size-3.5" />
-                              )}
-                              移除
-                            </Button>
-                            {job?.status === 'completed' ? (
-                              <span className="inline-flex items-center gap-1.5 px-2 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
-                                <CheckCircle2 className="size-4" />
-                                {isProblemBankSource ? '已导入题库' : '已生成笔记本'}
-                              </span>
-                            ) : job?.status === 'failed' ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => void handleRetry(job.id)}
-                              >
-                                <RefreshCw className="mr-1.5 size-3.5" />
-                                重试
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                disabled={pending || processingSourceIds.has(source.id)}
-                                aria-label={`${isProblemBankSource ? '导入题库' : '生成笔记本'}：${source.title}`}
-                                onClick={() => void handleEnqueue(source.id)}
-                              >
-                                {pending || processingSourceIds.has(source.id) ? (
-                                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                                ) : (
-                                  <Brain className="mr-1.5 size-3.5" />
-                                )}
-                                {pending || processingSourceIds.has(source.id)
-                                  ? '处理中'
-                                  : isProblemBankSource
-                                    ? '导入题库'
-                                    : '生成笔记本'}
-                              </Button>
-                            )}
                           </div>
                         </StudioListItem>
                       );
@@ -1975,282 +1921,476 @@ export function TeacherCourseStudioClient({
                   </StudioList>
                 ) : (
                   <StudioEmptyPlaceholder>
-                    还没有{selectedSourceCategoryMeta.label}。上传后文件只会保存；请再手动点击 “
-                    {sourceCategory === 'problem_bank' ? '导入题库' : '生成笔记本'}”。
+                    还没有 Hard Rule。添加后，下一次课程聊天就会自动遵循。
                   </StudioEmptyPlaceholder>
                 )}
               </div>
-            </div>
-          </div>
-          <StudioPagination
-            page={safeListPage}
-            pageCount={listPageCount}
-            total={listTotal}
-            onPage={setListPage}
-          />
-        </section>
-      ) : null}
+              {hardRules.length ? (
+                <StudioPagination
+                  page={safeListPage}
+                  pageCount={listPageCount}
+                  total={listTotal}
+                  onPage={setListPage}
+                />
+              ) : null}
+            </section>
+          ) : null}
 
-      {tab === 'queue' ? (
-        <section className="flex min-h-[calc(100dvh-300px)] flex-1 flex-col pt-6 sm:pt-8">
-          <div className="min-h-0 flex-1">
-            {queueJobs.length ? (
-              <StudioList className="dark:bg-white/[0.02]">
-                {pagedJobs.map((job) => {
-                  const source = content.find((item) => item.id === job.sourceAssetId);
-                  const sourceTitle = source?.title || job.sourceFileId;
-                  const persistenceTask = persistenceTasksById.get(job.id);
-                  const persistedArtifact =
-                    job.persistenceStatus === 'complete' ||
-                    Boolean(
-                      job.notebookId &&
-                      persistedNotebookIds.has(job.notebookId) &&
-                      (job.kind !== 'mind_map' ||
-                        content.find((item) => item.id === job.notebookId)?.mindMap),
-                    );
-                  const persistenceStatus =
-                    persistenceTask?.persistenceStatus ??
-                    (persistedArtifact ? 'complete' : 'unconfirmed');
-                  const isCompleted = job.status === 'completed';
-                  const isFailed = job.status === 'failed';
-                  const isRunning = job.status === 'running';
-                  const statusLabel = isCompleted
-                    ? '已完成'
-                    : isFailed
-                      ? '失败'
-                      : isRunning
-                        ? '处理中'
-                        : '等待中';
-                  const progress = Math.max(0, Math.min(100, job.progress));
-                  return (
-                    <StudioListItem
-                      key={job.id}
-                      density="compact"
-                      className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4 sm:gap-y-2 lg:min-h-[52px] lg:grid-cols-[minmax(300px,1fr)_minmax(260px,1.15fr)_minmax(345px,0.9fr)] lg:items-center lg:gap-4 xl:gap-6"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <StudioItemIcon
-                          compact
-                          round
-                          tone={isCompleted ? 'emerald' : isFailed ? 'rose' : 'sky'}
+          {tab === 'sources' ? (
+            <section className={STUDIO_SECTION_CLASS}>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50/80 dark:bg-slate-950 lg:flex-row">
+                <aside className="flex shrink-0 flex-col border-b border-slate-200/80 bg-white/90 p-4 dark:border-white/10 dark:bg-white/[0.035] lg:order-2 lg:w-[255px] lg:border-b-0 lg:border-l">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
+                      源文件分类
+                    </h2>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {SOURCE_CATEGORIES.map((category) => {
+                      const selected = sourceCategory === category.value;
+                      return (
+                        <button
+                          key={category.value}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => {
+                            setSourceCategory(category.value);
+                            setListPage(1);
+                          }}
+                          className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${selected ? 'bg-sky-50 text-sky-950 ring-1 ring-sky-200 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-400/20' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white'}`}
                         >
-                          {isCompleted ? (
-                            <CheckCircle2 className="size-4.5" strokeWidth={1.8} />
-                          ) : isFailed ? (
-                            <AlertCircle className="size-4.5" strokeWidth={1.8} />
-                          ) : job.kind === 'mind_map' ? (
-                            <Network
-                              className={`size-4.5 ${isRunning ? 'animate-pulse' : ''}`}
-                              strokeWidth={1.8}
-                            />
-                          ) : (
-                            <Brain
-                              className={`size-4.5 ${isRunning ? 'animate-pulse' : ''}`}
-                              strokeWidth={1.8}
-                            />
-                          )}
-                        </StudioItemIcon>
-                        <div className="flex min-w-0 flex-1 items-center gap-2">
-                          <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-950 dark:text-white">
-                            {sourceTitle}
-                          </h3>
-                          <div className="flex shrink-0 items-center gap-1 overflow-hidden">
-                            {[
-                              queueFileTypeLabel(sourceTitle),
-                              job.kind === 'mind_map'
-                                ? '思维导图'
-                                : job.kind === 'problem_bank_import'
-                                  ? '题库导入'
-                                  : '笔记本生成',
-                              '老师触发',
-                            ].map((label) => (
-                              <StudioItemTag key={label} tone="neutral">
-                                {label}
-                              </StudioItemTag>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="min-w-0 sm:col-span-2 sm:row-start-2 lg:col-span-1 lg:col-start-auto lg:row-start-auto">
-                        <div className="flex items-center justify-between gap-3 text-xs font-medium">
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <span
-                              className={`shrink-0 ${isFailed ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}
-                            >
-                              {queueStageLabel(job)}
-                            </span>
-                            {job.errorReason ? (
-                              <span
-                                className="min-w-0 truncate text-[11px] font-normal text-slate-400 dark:text-slate-500"
-                                title={queueErrorLabel(job.errorReason)}
-                              >
-                                · {queueErrorLabel(job.errorReason)}
-                              </span>
-                            ) : null}
-                          </div>
                           <span
-                            className={`shrink-0 tabular-nums ${isCompleted ? 'text-emerald-700 dark:text-emerald-300' : isFailed ? 'text-rose-700 dark:text-rose-300' : 'text-sky-700 dark:text-sky-300'}`}
+                            className={`grid size-9 shrink-0 place-items-center rounded-xl ${selected ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300'}`}
                           >
-                            {progress}%
+                            <category.Icon className="size-4" />
                           </span>
-                        </div>
-                        <div
-                          className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-200/70 dark:bg-white/10"
-                          aria-label={`处理进度 ${progress}%`}
-                        >
-                          <div
-                            className={`relative h-full rounded-full transition-[width] duration-500 ease-out ${isFailed ? 'bg-rose-500' : isCompleted ? 'bg-emerald-500' : 'bg-sky-500'}`}
-                            style={{ width: `${progress}%` }}
-                          >
-                            {isRunning ? (
-                              <span className="absolute inset-0 animate-pulse bg-white/20" />
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
+                          <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                            {category.label}
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
+                              {sourceCategoryCounts[category.value]}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </aside>
 
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:col-start-2 sm:row-start-1 sm:flex-nowrap sm:justify-end lg:col-start-auto lg:row-start-auto">
-                        <div className="flex shrink-0 gap-1.5">
-                          <StudioStatusBadge
-                            tone={isCompleted ? 'emerald' : isFailed ? 'rose' : 'sky'}
-                          >
-                            {statusLabel}
-                          </StudioStatusBadge>
-                          <StudioStatusBadge
-                            tone={
-                              persistenceStatus === 'complete'
-                                ? 'indigo'
-                                : persistenceStatus === 'failed'
-                                  ? 'rose'
-                                  : persistenceStatus === 'pending'
-                                    ? 'amber'
-                                    : 'neutral'
-                            }
-                          >
-                            <Database className="size-3" />
-                            {persistenceStatus === 'complete'
-                              ? '已持久化'
-                              : persistenceStatus === 'failed'
-                                ? '持久化失败'
-                                : persistenceStatus === 'pending'
-                                  ? '正在持久化'
-                                  : '持久化未确认'}
-                          </StudioStatusBadge>
-                        </div>
-                        <p className="shrink-0 text-[10px] text-slate-400 lg:text-right">
-                          {job.attemptCount > 1 ? `已尝试 ${job.attemptCount} 次 · ` : ''}
-                          {new Date(job.updatedAt).toLocaleString('zh-CN')}
-                        </p>
-                        {isFailed ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 shrink-0 px-2.5 text-xs"
-                            onClick={() => void handleRetry(job.id)}
-                          >
-                            <RefreshCw className="mr-1 size-3" />
-                            重新处理
-                          </Button>
-                        ) : null}
-                      </div>
-                    </StudioListItem>
-                  );
-                })}
-              </StudioList>
-            ) : (
-              <div className="grid min-h-[320px] place-items-center rounded-2xl border border-dashed border-slate-200 text-center text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
-                <div>
-                  <FileText className="mx-auto size-9 text-slate-300 dark:text-slate-600" />
-                  <p className="mt-3">队列为空。请在源文件旁点击“生成笔记本”或“导入题库”。</p>
+                <div className="flex min-w-0 flex-1 flex-col lg:order-1">
+                  <div className={STUDIO_PANEL_BODY_CLASS}>
+                    {categorySources.length ? (
+                      <StudioList>
+                        {visibleSources.map((source) => {
+                          const job = knowledgeJobsByAsset.get(source.id);
+                          const mindMapJob = mindMapJobsByAsset.get(source.id);
+                          const pending = job?.status === 'queued' || job?.status === 'running';
+                          const categoryMeta =
+                            SOURCE_CATEGORY_META[resolveCourseSourceCategory(source)];
+                          const isProblemBankSource =
+                            resolveCourseSourceCategory(source) === 'problem_bank';
+                          const linkedNotebook = notebooks.find(
+                            (notebook) =>
+                              notebook.id === job?.notebookId ||
+                              notebook.id === `teacher-notebook:${source.id}` ||
+                              notebook.sourceFileId === source.id,
+                          );
+                          const hasMindMap = Boolean(linkedNotebook?.mindMap);
+                          const generatingMindMap =
+                            !hasMindMap &&
+                            (mindMapSourceAssetId === source.id ||
+                              mindMapJob?.status === 'queued' ||
+                              mindMapJob?.status === 'running');
+                          return (
+                            <StudioListItem
+                              key={source.reference.id}
+                              className="flex flex-col gap-3 sm:flex-row sm:items-center"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="truncate text-sm font-semibold">{source.title}</h3>
+                                  <StudioItemTag className="rounded-full">
+                                    {categoryMeta.label}
+                                  </StudioItemTag>
+                                  <StudioItemTag className="rounded-full" tone="emerald">
+                                    <Database className="size-3" />
+                                    已保存到共享数据库
+                                  </StudioItemTag>
+                                  {source.reference.inheritedFromCourseId ? (
+                                    <StudioItemTag tone="sky" className="rounded-full">
+                                      历史引用
+                                    </StudioItemTag>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                {job?.status === 'completed' ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
+                                    <CheckCircle2 className="size-4" />
+                                    {isProblemBankSource ? '已导入题库' : '已入库'}
+                                  </span>
+                                ) : job?.status === 'failed' ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => void handleRetry(job.id)}
+                                  >
+                                    <RefreshCw className="mr-1.5 size-3.5" />
+                                    重试
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    disabled={pending || processingSourceIds.has(source.id)}
+                                    aria-label={`${isProblemBankSource ? '导入题库' : '添加到AI'}：${source.title}`}
+                                    onClick={() => void handleEnqueue(source.id)}
+                                  >
+                                    {pending || processingSourceIds.has(source.id) ? (
+                                      <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                                    ) : (
+                                      <Brain className="mr-1.5 size-3.5" />
+                                    )}
+                                    {pending || processingSourceIds.has(source.id)
+                                      ? '处理中'
+                                      : isProblemBankSource
+                                        ? '导入题库'
+                                        : '添加到AI'}
+                                  </Button>
+                                )}
+                                {!isProblemBankSource ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                      job?.status !== 'completed' || generatingMindMap || hasMindMap
+                                    }
+                                    title={
+                                      hasMindMap
+                                        ? '思维导图已经生成，请前往笔记本库查看'
+                                        : job?.status === 'completed'
+                                          ? undefined
+                                          : '请先生成笔记本'
+                                    }
+                                    onClick={() => job && void handleGenerateMindMap(source, job)}
+                                  >
+                                    {generatingMindMap ? (
+                                      <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                                    ) : hasMindMap ? (
+                                      <CheckCircle2 className="mr-1.5 size-3.5" />
+                                    ) : (
+                                      <Network className="mr-1.5 size-3.5" />
+                                    )}
+                                    {generatingMindMap
+                                      ? '正在生成…'
+                                      : hasMindMap
+                                        ? '已生图'
+                                        : '生图'}
+                                  </Button>
+                                ) : null}
+                                <Button
+                                  size="icon-sm"
+                                  variant="outline"
+                                  aria-label={`查看 ${source.title}`}
+                                  title="查看"
+                                  onClick={() => void handlePreviewSource(source)}
+                                >
+                                  <Eye className="size-3.5" />
+                                </Button>
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  className="text-slate-500 hover:text-rose-600"
+                                  aria-label={`删除 ${source.title}`}
+                                  title="删除"
+                                  disabled={actionReferenceId === source.reference.id}
+                                  onClick={() => void handleHideContent(source)}
+                                >
+                                  {actionReferenceId === source.reference.id ? (
+                                    <Loader2 className="size-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="size-3.5" />
+                                  )}
+                                </Button>
+                              </div>
+                            </StudioListItem>
+                          );
+                        })}
+                      </StudioList>
+                    ) : (
+                      <StudioEmptyPlaceholder>
+                        还没有{selectedSourceCategoryMeta.label}。上传后文件只会保存；请再手动点击 “
+                        {sourceCategory === 'problem_bank' ? '导入题库' : '添加到AI'}”。
+                      </StudioEmptyPlaceholder>
+                    )}
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-          <div className="mt-auto pt-12">
-            <StudioPagination
-              page={safeListPage}
-              pageCount={listPageCount}
-              total={listTotal}
-              onPage={setListPage}
-            />
-          </div>
-        </section>
-      ) : null}
+              <StudioPagination
+                page={safeListPage}
+                pageCount={listPageCount}
+                total={listTotal}
+                onPage={setListPage}
+              />
+            </section>
+          ) : null}
 
-      {tab === 'removed' ? (
-        <section className="flex min-h-[calc(100dvh-300px)] flex-1 flex-col pt-6 sm:pt-8">
-          <div className="min-h-0 flex-1">
-            {removedContent.length ? (
-              <StudioList className="dark:bg-white/[0.02]">
-                {pagedRemovedContent.map((item) => {
-                  const meta = TYPE_META[item.type];
-                  return (
-                    <StudioListItem
-                      key={item.reference.id}
-                      className="flex flex-col gap-3 sm:flex-row sm:items-center"
-                    >
-                      <StudioItemIcon>
-                        <meta.icon className="size-4" />
-                      </StudioItemIcon>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-sm font-semibold">{item.title}</h3>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {meta.label}
-                          {item.reference.hiddenAt
-                            ? ` · ${new Date(item.reference.hiddenAt).toLocaleString('zh-CN')} 移除`
-                            : ''}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={
-                            item.reference.status === 'superseded' ||
-                            actionReferenceId === item.reference.id
-                          }
-                          onClick={() => void handleRestoreContent(item)}
+          {tab === 'queue' ? (
+            <section className={STUDIO_SECTION_CLASS}>
+              <div className={STUDIO_PANEL_BODY_CLASS}>
+                {queueJobs.length ? (
+                  <StudioList className="dark:bg-white/[0.02]">
+                    {pagedJobs.map((job) => {
+                      const source = content.find((item) => item.id === job.sourceAssetId);
+                      const sourceTitle = source?.title || job.sourceFileId;
+                      const persistenceTask = persistenceTasksById.get(job.id);
+                      const persistedArtifact =
+                        job.persistenceStatus === 'complete' ||
+                        Boolean(
+                          job.notebookId &&
+                          persistedNotebookIds.has(job.notebookId) &&
+                          (job.kind !== 'mind_map' ||
+                            content.find((item) => item.id === job.notebookId)?.mindMap),
+                        );
+                      const persistenceStatus =
+                        persistenceTask?.persistenceStatus ??
+                        (persistedArtifact ? 'complete' : 'unconfirmed');
+                      const isCompleted = job.status === 'completed';
+                      const isFailed = job.status === 'failed';
+                      const isRunning = job.status === 'running';
+                      const statusLabel = isCompleted
+                        ? '已完成'
+                        : isFailed
+                          ? '失败'
+                          : isRunning
+                            ? '处理中'
+                            : '等待中';
+                      const progress = Math.max(0, Math.min(100, job.progress));
+                      return (
+                        <StudioListItem
+                          key={job.id}
+                          density="compact"
+                          className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4 sm:gap-y-2 lg:min-h-[52px] lg:grid-cols-[minmax(300px,1fr)_minmax(260px,1.15fr)_minmax(345px,0.9fr)] lg:items-center lg:gap-4 xl:gap-6"
                         >
-                          {actionReferenceId === item.reference.id &&
-                          permanentDeleteReferenceId !== item.reference.id ? (
-                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                          ) : (
-                            <RotateCcw className="mr-1.5 size-3.5" />
-                          )}
-                          {item.reference.status === 'superseded' ? '已被新版本替换' : '恢复显示'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-rose-200 text-rose-600 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-400/25 dark:text-rose-300 dark:hover:bg-rose-400/10"
-                          disabled={actionReferenceId === item.reference.id}
-                          onClick={() => setPendingPermanentDeleteItem(item)}
+                          <div className="flex min-w-0 items-center gap-3">
+                            <StudioItemIcon
+                              compact
+                              round
+                              tone={isCompleted ? 'emerald' : isFailed ? 'rose' : 'sky'}
+                            >
+                              {isCompleted ? (
+                                <CheckCircle2 className="size-4.5" strokeWidth={1.8} />
+                              ) : isFailed ? (
+                                <AlertCircle className="size-4.5" strokeWidth={1.8} />
+                              ) : job.kind === 'mind_map' ? (
+                                <Network
+                                  className={`size-4.5 ${isRunning ? 'animate-pulse' : ''}`}
+                                  strokeWidth={1.8}
+                                />
+                              ) : (
+                                <Brain
+                                  className={`size-4.5 ${isRunning ? 'animate-pulse' : ''}`}
+                                  strokeWidth={1.8}
+                                />
+                              )}
+                            </StudioItemIcon>
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-950 dark:text-white">
+                                {sourceTitle}
+                              </h3>
+                              <div className="flex shrink-0 items-center gap-1 overflow-hidden">
+                                {[
+                                  queueFileTypeLabel(sourceTitle),
+                                  job.kind === 'mind_map'
+                                    ? '思维导图'
+                                    : job.kind === 'problem_bank_import'
+                                      ? '题库导入'
+                                      : '笔记本生成',
+                                ].map((label) => (
+                                  <StudioItemTag key={label} tone="neutral">
+                                    {label}
+                                  </StudioItemTag>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="min-w-0 sm:col-span-2 sm:row-start-2 lg:col-span-1 lg:col-start-auto lg:row-start-auto">
+                            <div className="flex items-center justify-between gap-3 text-xs font-medium">
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                <span
+                                  className={`shrink-0 ${isFailed ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}
+                                >
+                                  {queueStageLabel(job)}
+                                </span>
+                                {job.errorReason ? (
+                                  <span
+                                    className="min-w-0 truncate text-[11px] font-normal text-slate-400 dark:text-slate-500"
+                                    title={queueErrorLabel(job.errorReason)}
+                                  >
+                                    · {queueErrorLabel(job.errorReason)}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <span
+                                className={`shrink-0 tabular-nums ${isCompleted ? 'text-emerald-700 dark:text-emerald-300' : isFailed ? 'text-rose-700 dark:text-rose-300' : 'text-sky-700 dark:text-sky-300'}`}
+                              >
+                                {progress}%
+                              </span>
+                            </div>
+                            <div
+                              className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-200/70 dark:bg-white/10"
+                              aria-label={`处理进度 ${progress}%`}
+                            >
+                              <div
+                                className={`relative h-full rounded-full transition-[width] duration-500 ease-out ${isFailed ? 'bg-rose-500' : isCompleted ? 'bg-emerald-500' : 'bg-sky-500'}`}
+                                style={{ width: `${progress}%` }}
+                              >
+                                {isRunning ? (
+                                  <span className="absolute inset-0 animate-pulse bg-white/20" />
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:col-start-2 sm:row-start-1 sm:flex-nowrap sm:justify-end lg:col-start-auto lg:row-start-auto">
+                            <div className="flex shrink-0 gap-1.5">
+                              <StudioStatusBadge
+                                tone={isCompleted ? 'emerald' : isFailed ? 'rose' : 'sky'}
+                              >
+                                {statusLabel}
+                              </StudioStatusBadge>
+                              <StudioStatusBadge
+                                tone={
+                                  persistenceStatus === 'complete'
+                                    ? 'indigo'
+                                    : persistenceStatus === 'failed'
+                                      ? 'rose'
+                                      : persistenceStatus === 'pending'
+                                        ? 'amber'
+                                        : 'neutral'
+                                }
+                              >
+                                <Database className="size-3" />
+                                {persistenceStatus === 'complete'
+                                  ? '已持久化'
+                                  : persistenceStatus === 'failed'
+                                    ? '持久化失败'
+                                    : persistenceStatus === 'pending'
+                                      ? '正在持久化'
+                                      : '持久化未确认'}
+                              </StudioStatusBadge>
+                            </div>
+                            <p className="shrink-0 text-[10px] text-slate-400 lg:text-right">
+                              {job.attemptCount > 1 ? `已尝试 ${job.attemptCount} 次 · ` : ''}
+                              {new Date(job.updatedAt).toLocaleString('zh-CN')}
+                            </p>
+                            {isFailed ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 shrink-0 px-2.5 text-xs"
+                                onClick={() => void handleRetry(job.id)}
+                              >
+                                <RefreshCw className="mr-1 size-3" />
+                                重新处理
+                              </Button>
+                            ) : null}
+                          </div>
+                        </StudioListItem>
+                      );
+                    })}
+                  </StudioList>
+                ) : (
+                  <div className="grid min-h-[320px] place-items-center rounded-2xl border border-dashed border-slate-200 text-center text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
+                    <div>
+                      <FileText className="mx-auto size-9 text-slate-300 dark:text-slate-600" />
+                      <p className="mt-3">队列为空。请在源文件旁点击“添加到AI”或“导入题库”。</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <StudioPagination
+                page={safeListPage}
+                pageCount={listPageCount}
+                total={listTotal}
+                onPage={setListPage}
+              />
+            </section>
+          ) : null}
+
+          {tab === 'removed' ? (
+            <section className={STUDIO_SECTION_CLASS}>
+              <div className={STUDIO_PANEL_BODY_CLASS}>
+                {removedContent.length ? (
+                  <StudioList className="dark:bg-white/[0.02]">
+                    {pagedRemovedContent.map((item) => {
+                      const meta = TYPE_META[item.type];
+                      return (
+                        <StudioListItem
+                          key={item.reference.id}
+                          className="flex flex-col gap-3 sm:flex-row sm:items-center"
                         >
-                          {permanentDeleteReferenceId === item.reference.id ? (
-                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="mr-1.5 size-3.5" />
-                          )}
-                          彻底删除
-                        </Button>
-                      </div>
-                    </StudioListItem>
-                  );
-                })}
-              </StudioList>
-            ) : (
-              <StudioEmptyPlaceholder>没有已移除的课程内容。</StudioEmptyPlaceholder>
-            )}
-          </div>
-          <StudioPagination
-            page={safeListPage}
-            pageCount={listPageCount}
-            total={listTotal}
-            onPage={setListPage}
-          />
-        </section>
-      ) : null}
+                          <div className="min-w-0 flex-1">
+                            <h3 className="truncate text-sm font-semibold">{item.title}</h3>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {meta.label}
+                              {item.reference.hiddenAt
+                                ? ` · ${new Date(item.reference.hiddenAt).toLocaleString('zh-CN')} 移除`
+                                : ''}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={
+                                item.reference.status === 'superseded' ||
+                                actionReferenceId === item.reference.id
+                              }
+                              onClick={() => void handleRestoreContent(item)}
+                            >
+                              {actionReferenceId === item.reference.id &&
+                              permanentDeleteReferenceId !== item.reference.id ? (
+                                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                              ) : (
+                                <RotateCcw className="mr-1.5 size-3.5" />
+                              )}
+                              {item.reference.status === 'superseded'
+                                ? '已被新版本替换'
+                                : '恢复显示'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-rose-200 text-rose-600 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-400/25 dark:text-rose-300 dark:hover:bg-rose-400/10"
+                              disabled={actionReferenceId === item.reference.id}
+                              onClick={() => setPendingPermanentDeleteItem(item)}
+                            >
+                              {permanentDeleteReferenceId === item.reference.id ? (
+                                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="mr-1.5 size-3.5" />
+                              )}
+                              彻底删除
+                            </Button>
+                          </div>
+                        </StudioListItem>
+                      );
+                    })}
+                  </StudioList>
+                ) : (
+                  <StudioEmptyPlaceholder>没有已移除的课程内容。</StudioEmptyPlaceholder>
+                )}
+              </div>
+              <StudioPagination
+                page={safeListPage}
+                pageCount={listPageCount}
+                total={listTotal}
+                onPage={setListPage}
+              />
+            </section>
+          ) : null}
+        </div>
+      </div>
 
       <Dialog
         open={hardRuleDialogOpen}
@@ -2262,14 +2402,14 @@ export function TeacherCourseStudioClient({
           setHardRuleDialogOpen(true);
         }}
       >
-        <DialogContent className="max-w-lg rounded-3xl">
-          <DialogHeader>
+        <DialogContent className="flex max-w-lg flex-col rounded-3xl">
+          <DialogHeader className="shrink-0">
             <DialogTitle>{editingHardRuleId ? '编辑 Hard Rule' : '添加新的 Hard Rule'}</DialogTitle>
             <DialogDescription>
               规则会注入课程聊天的 system prompt。每门课程最多 30 条，每条最多 1000 字。
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-1">
+          <div className="mt-1 flex min-h-0 flex-1 flex-col">
             {(() => {
               const editingRule = editingHardRuleId
                 ? hardRules.find((rule) => rule.id === editingHardRuleId)
@@ -2286,8 +2426,7 @@ export function TeacherCourseStudioClient({
                     id="course-hard-rule-dialog"
                     value={dialogValue}
                     maxLength={1000}
-                    rows={4}
-                    className="min-h-28 resize-y rounded-xl border-violet-200 bg-violet-50/40 shadow-none dark:border-violet-400/20 dark:bg-violet-400/[0.06]"
+                    className="min-h-0 flex-1 resize-none field-sizing-fixed rounded-xl border-violet-200 bg-violet-50/40 shadow-none dark:border-violet-400/20 dark:bg-violet-400/[0.06]"
                     placeholder="例如：讲解代码时必须先解释运行结果，再展示实现；不得直接给出作业最终答案。"
                     onChange={(event) => {
                       const value = event.target.value;
@@ -2306,7 +2445,7 @@ export function TeacherCourseStudioClient({
                       setNewHardRule(value);
                     }}
                   />
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
                     <span className="text-xs tabular-nums text-slate-400">
                       {dialogValue.length}/1000 · {hardRules.length}/30 条
                     </span>
@@ -2475,7 +2614,7 @@ export function TeacherCourseStudioClient({
               </div>
             ) : (
               <div className="grid min-h-64 place-items-center text-sm text-slate-500">
-                这本笔记本还没有思维导图。请在对应讲义旁点击“生成思维导图”。
+                这本笔记本还没有思维导图。请在对应讲义旁点击“生图”。
               </div>
             )}
           </div>

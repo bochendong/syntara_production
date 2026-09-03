@@ -275,6 +275,7 @@ import {
   resolveCourseSpaceHeaderFields,
 } from '@/lib/course-space/format-course-space-header';
 import { findLocalDemoTeacherHomeCourse } from '@/lib/teacher/local-demo-fixtures';
+import { buildTeacherChatCardGalleryMessages } from '@/features/qa/frontend-preview/teacher-chat-card-gallery';
 import { cn } from '@/lib/utils';
 import {
   COURSE_SOURCE_ACCEPT,
@@ -5245,14 +5246,14 @@ export function MiniLectureInviteCard({
     <div className={cn(learnAssistantActionCardWidthClassName, 'mt-3.5')}>
       <div
         className={cn(
-          'relative grid grid-cols-[38px_minmax(130px,1fr)_auto] items-center gap-2.5 overflow-hidden rounded-[17px] border p-3 shadow-[0_14px_34px_rgba(14,116,144,0.10)]',
+          'relative grid grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-x-2.5 overflow-hidden rounded-[17px] border p-3 shadow-[0_14px_34px_rgba(14,116,144,0.10)]',
           deck
             ? 'border-sky-400/25 bg-[radial-gradient(circle_at_12%_0%,rgba(125,211,252,0.24),transparent_38%),linear-gradient(135deg,#fbfdff_0%,#effaff_54%,#effcf9_100%)]'
             : 'border-dashed border-violet-600/25 bg-[radial-gradient(circle_at_9%_16%,rgba(167,139,250,0.16),transparent_32%),linear-gradient(135deg,#faf5ff_0%,#fff_56%,#f0f9ff_100%)]',
         )}
       >
         <span
-          className="z-[1] grid size-[38px] place-items-center rounded-xl bg-[#172033] text-white shadow-[0_8px_20px_rgba(15,23,42,0.20)]"
+          className="z-[1] grid size-[38px] place-items-center self-center rounded-xl bg-[#172033] text-white shadow-[0_8px_20px_rgba(15,23,42,0.20)]"
           aria-hidden
         >
           {generating ? (
@@ -5262,24 +5263,28 @@ export function MiniLectureInviteCard({
           )}
         </span>
         <span className="z-[1] flex min-w-0 flex-col gap-[3px]">
-          <strong className="truncate text-xs font-bold tracking-[-0.01em] text-[#172033]">
-            {generating
-              ? '正在生成课堂讲解'
-              : deck
-                ? deck.title || '课堂讲解已生成'
-                : '把这段回答变成课堂讲解'}
-          </strong>
-          <small className="truncate text-[9px] text-[#607086]">
-            {deck ? '图片、语音与动态聚焦均已准备好' : '生成图片式课件，恢复遮罩区域并配课堂语音'}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <strong className="min-w-0 truncate text-xs font-bold tracking-[-0.01em] text-[#172033]">
+              {generating
+                ? '正在生成课堂讲解'
+                : deck
+                  ? deck.title || '课堂讲解已生成'
+                  : '把这段回答变成课堂讲解'}
+            </strong>
+            <span className="shrink-0 rounded-full border border-sky-400/20 bg-white/75 px-[7px] py-[3px] text-[8px] font-bold text-[#0878a4]">
+              {generating ? '处理中' : deck ? '已就绪' : '1–2 页'}
+            </span>
+          </span>
+          <small className="text-[9px] leading-[1.45] text-[#607086]">
+            {deck
+              ? '图片、语音与动态聚焦均已准备好'
+              : '生成图片式课件，恢复遮罩区域并配课堂语音。预计生成时间是两分钟。'}
           </small>
-        </span>
-        <span className="z-[1] self-start rounded-full border border-sky-400/20 bg-white/75 px-[7px] py-[3px] text-[8px] font-bold text-[#0878a4]">
-          {generating ? '处理中' : deck ? '已就绪' : '1–2 页'}
         </span>
         <Button
           type="button"
           size="sm"
-          className="z-[1] col-[2/4] h-[30px] w-max gap-1.5 rounded-full bg-[#172033] px-3 text-[10px] font-semibold text-white shadow-[0_7px_16px_rgba(15,23,42,0.14)] hover:bg-[#273750]"
+          className="z-[1] h-[30px] w-max shrink-0 justify-self-end gap-1.5 rounded-full bg-[#172033] px-3 text-[10px] font-semibold text-white shadow-[0_7px_16px_rgba(15,23,42,0.14)] hover:bg-[#273750]"
           onClick={deck ? () => onOpen(deck) : onGenerate}
           disabled={disabled || generating}
         >
@@ -5719,11 +5724,44 @@ export function PlanActionCard({
               <BookOpenCheck className="size-[15px]" strokeWidth={1.9} />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-slate-900">{plan.title}</p>
-              <p className="mt-[3px] text-[9px] text-slate-500">
-                {isSelectionPlan ? '题库选题' : plan.mode === 'quiz' ? '课程测验' : '刷题计划'} ·{' '}
-                {planMeta}
-              </p>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <p className="min-w-0 truncate text-xs font-bold text-slate-900">{plan.title}</p>
+                {plan.targetConcepts.length ? (
+                  <div className="flex shrink-0 flex-wrap gap-1">
+                    {plan.targetConcepts.slice(0, 5).map((concept) => (
+                      <span
+                        key={concept}
+                        className={cn(
+                          'rounded-full border px-2 py-1 text-[8px] font-semibold',
+                          planChipClassName,
+                        )}
+                      >
+                        {concept}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <div className="mt-[3px] flex min-w-0 flex-wrap items-center gap-1.5">
+                <p className="text-[9px] text-slate-500">
+                  {isSelectionPlan ? '题库选题' : plan.mode === 'quiz' ? '课程测验' : '刷题计划'} ·{' '}
+                  {planMeta}
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  <span className={planMetricPillClassName}>
+                    <strong className="text-foreground">{plan.difficultyMix.easy}</strong>
+                    <span className="text-muted-foreground">基础</span>
+                  </span>
+                  <span className={planMetricPillClassName}>
+                    <strong className="text-foreground">{plan.difficultyMix.medium}</strong>
+                    <span className="text-muted-foreground">中等</span>
+                  </span>
+                  <span className={planMetricPillClassName}>
+                    <strong className="text-foreground">{plan.difficultyMix.hard}</strong>
+                    <span className="text-muted-foreground">挑战</span>
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
           <Button
@@ -5735,36 +5773,6 @@ export function PlanActionCard({
             <Play className="size-3" />
             {actionLabel}
           </Button>
-        </div>
-
-        <div className="mt-2.5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-          <div className="flex min-w-0 flex-wrap gap-1">
-            {plan.targetConcepts.slice(0, 5).map((concept) => (
-              <span
-                key={concept}
-                className={cn(
-                  'rounded-full border px-2 py-1 text-[8px] font-semibold',
-                  planChipClassName,
-                )}
-              >
-                {concept}
-              </span>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-1 text-center sm:justify-end">
-            <span className={planMetricPillClassName}>
-              <strong className="text-foreground">{plan.difficultyMix.easy}</strong>
-              <span className="text-muted-foreground">基础</span>
-            </span>
-            <span className={planMetricPillClassName}>
-              <strong className="text-foreground">{plan.difficultyMix.medium}</strong>
-              <span className="text-muted-foreground">中等</span>
-            </span>
-            <span className={planMetricPillClassName}>
-              <strong className="text-foreground">{plan.difficultyMix.hard}</strong>
-              <span className="text-muted-foreground">挑战</span>
-            </span>
-          </div>
         </div>
 
         {questionLinks.length ? (
@@ -6170,7 +6178,7 @@ export function LearnLearningActionCards({
           return (
             <article
               key={action.id}
-              className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-start gap-2 px-2.5 py-[9px]"
+              className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-[9px]"
             >
               <span className="grid size-7 place-items-center rounded-[9px] bg-violet-50 text-violet-700">
                 <Sparkles className="size-[15px]" />
@@ -8992,7 +9000,15 @@ export function LearnPageClient() {
       );
     };
     const localMessages = readCurrentTabMessages();
-    replaceMessagesFromRead(nextStoreKey, localMessages);
+    const previewCourse = findLocalDemoTeacherHomeCourse(activeCourseId);
+    const seededMessages =
+      uiPreviewMode && teacherChatMode
+        ? (buildTeacherChatCardGalleryMessages({
+            courseId: activeCourseId,
+            courseName: previewCourse?.name || previewCourse?.courseCode || activeCourseId,
+          }) as LearnMessage[])
+        : localMessages;
+    replaceMessagesFromRead(nextStoreKey, seededMessages);
     setLocalConversationReadyKey(nextStoreKey);
     hydrateRestoredAttachments(localMessages);
 
@@ -9019,6 +9035,8 @@ export function LearnPageClient() {
     replaceDeletedSessionWithFallback,
     replaceMessagesFromRead,
     setMessages,
+    teacherChatMode,
+    uiPreviewMode,
     urlCourseId,
     urlSessionId,
   ]);
@@ -14127,7 +14145,7 @@ export function LearnPageClient() {
           {
             id: makeClientId('preview-assistant'),
             role: 'assistant',
-            text: '这是免登录前端测试模式的本地演示回复。你可以继续检查消息排版、Markdown、公式、附件缩略图和长内容滚动；该消息不会调用 AI，也不会写入真实课程数据库。',
+            text: '这是免登录前端测试模式的本地演示回复。上面已经放了全部确认卡片和动作卡片；继续发送只会追加这条示意文字，不会调用 AI，也不会写入真实课程数据库。',
             createdAt: now + 1,
           },
         ]);
@@ -18737,7 +18755,7 @@ export function LearnPageClient() {
             <div
               ref={conversationScrollContainerRef}
               onScroll={handleConversationScroll}
-              className="min-h-0 flex-1 overflow-y-auto bg-white/62 px-6 py-5 dark:bg-slate-950/62"
+              className="min-h-0 flex-1 overflow-y-auto bg-white/62 px-6 py-5 pb-32 dark:bg-slate-950/62"
             >
               <div className="flex min-h-full w-full flex-col gap-4">
                 {remoteConversationMessagePage?.hasMore || remoteConversationMessagePage?.error ? (
@@ -19080,8 +19098,8 @@ export function LearnPageClient() {
               </div>
             </div>
 
-            <footer className="shrink-0 bg-transparent px-6 pb-4 pt-3">
-              <div className="w-full">
+            <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-white/55 via-white/20 to-transparent px-6 pb-4 pt-10 dark:from-slate-950/55 dark:via-slate-950/20">
+              <div className="pointer-events-auto w-full">
                 <div
                   className={cn(
                     composerInputShellClassName,

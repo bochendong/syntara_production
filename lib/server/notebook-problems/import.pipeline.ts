@@ -4,6 +4,7 @@ import { jsonrepair } from 'jsonrepair';
 import { ZodError } from 'zod';
 import { callLLM } from '@/lib/ai/llm';
 import {
+  codeDraftReadinessErrors,
   notebookProblemImportDraftSchema,
   type NotebookProblemImportDraft,
   type NotebookProblemImageAsset,
@@ -15,6 +16,9 @@ import {
   buildProblemImportSystemPrompt,
   directLlmProblemImportPrompt,
   directLlmStructurePlanFromDrafts,
+  draftHasCompleteAnswer,
+  ensureImportedDraftAnswers,
+  ensureImportedCodeDraftsJudgeReady,
   heuristicExtractProblemDrafts,
   ImportUsageSummary,
   isLikelyPdfInstructionDraft,
@@ -36,7 +40,6 @@ import {
   problemStemFormattingContract,
   problemStemText,
   ProblemStructurePlan,
-  solveMissingChoiceAnswersWithLLM,
   STANDALONE_SUBPART_MARKER_RE,
   trimPdfScaffoldTextToProblemRegion,
   withCoverageFallbackDrafts,
@@ -259,8 +262,13 @@ ${coverageScaffold}`;
     ),
     args.sourcePackage,
   );
-  const answerResult = await solveMissingChoiceAnswersWithLLM({
+  const answerResult = await ensureImportedDraftAnswers({
     drafts,
+    model: args.model,
+    language: args.language,
+  });
+  const codeResult = await ensureImportedCodeDraftsJudgeReady({
+    drafts: answerResult.drafts,
     model: args.model,
     language: args.language,
   });
@@ -271,10 +279,10 @@ ${coverageScaffold}`;
       outputTokens: result.usage.outputTokens ?? 0,
       cachedInputTokens: result.usage.cachedInputTokens ?? 0,
     }),
-    answerResult.usage,
+    mergeImportUsage(answerResult.usage, codeResult.usage),
   );
   return {
-    drafts: answerResult.drafts,
+    drafts: codeResult.drafts,
     usage,
     warnings: [],
   };
@@ -306,8 +314,8 @@ export async function runDirectLlmProblemImportPipeline(args: {
       model: args.model,
       system:
         args.language === 'zh-CN'
-          ? '你是大学课程题库导入专家。你直接阅读 PDF 视觉内容，识别题目边界并输出严格 JSON。'
-          : 'You are an expert university problem-bank importer. Read the PDF visually, identify problem boundaries, and return strict JSON.',
+          ? '你是科目无关的题库评测编译器。你直接阅读 PDF，保持考点和难度，把原题编译成平台可稳定作答和判分的题目，并输出严格 JSON。'
+          : 'You are a subject-agnostic assessment compiler. Read the PDF, preserve objectives and difficulty, compile source questions into reliably gradable platform problems, and return strict JSON.',
       maxOutputTokens: 24000,
       timeout: args.timeoutMs,
       abortSignal: args.abortSignal,
@@ -360,8 +368,13 @@ export async function runDirectLlmProblemImportPipeline(args: {
     })),
     sourcePackage,
   );
-  const answerResult = await solveMissingChoiceAnswersWithLLM({
+  const answerResult = await ensureImportedDraftAnswers({
     drafts: enrichedDrafts,
+    model: args.model,
+    language: args.language,
+  });
+  const codeResult = await ensureImportedCodeDraftsJudgeReady({
+    drafts: answerResult.drafts,
     model: args.model,
     language: args.language,
   });
@@ -372,10 +385,10 @@ export async function runDirectLlmProblemImportPipeline(args: {
       outputTokens: result.usage.outputTokens ?? 0,
       cachedInputTokens: result.usage.cachedInputTokens ?? 0,
     }),
-    answerResult.usage,
+    mergeImportUsage(answerResult.usage, codeResult.usage),
   );
   const draftResult: ProblemDraftGenerationResult = {
-    drafts: answerResult.drafts,
+    drafts: codeResult.drafts,
     usage,
     warnings: [
       'Direct LLM pipeline used: model decided boundaries and generated drafts in one call.',
@@ -466,7 +479,30 @@ export function buildProblemImportQualityReport(args: {
     })
     .filter((index): index is number => typeof index === 'number');
   const sourceHasImages = args.sourcePackage.sourceImages.some((image) => image.src?.trim());
+  const codeNotReadyIndexes = args.drafts
+    .map((draft, index) => {
+      if (draft.type !== 'code') return null;
+      const verification = draft.sourceMeta.codeVerification as { passed?: unknown } | undefined;
+      return codeDraftReadinessErrors(draft).length === 0 && verification?.passed === true
+        ? null
+        : index + 1;
+    })
+    .filter((index): index is number => typeof index === 'number');
+  const missingAnswerIndexes = args.drafts
+    .map((draft, index) => (draftHasCompleteAnswer(draft) ? null : index + 1))
+    .filter((index): index is number => typeof index === 'number');
 
+  checks.push(
+    qualityCheck(
+      'gradable-answers',
+      '每道题都有可判分标准答案',
+      missingAnswerIndexes.length === 0 ? 'pass' : 'fail',
+      missingAnswerIndexes.length
+        ? [`缺少标准答案的题号：${missingAnswerIndexes.join(', ')}`]
+        : ['Every draft has a gradable reference answer.'],
+      missingAnswerIndexes,
+    ),
+  );
   checks.push(
     qualityCheck(
       'source-package',
@@ -537,6 +573,17 @@ export function buildProblemImportQualityReport(args: {
         ? [`选项缺失或 label 只有字母的题号：${badChoiceIndexes.join(', ')}`]
         : ['Choice options are populated.'],
       badChoiceIndexes,
+    ),
+  );
+  checks.push(
+    qualityCheck(
+      'code-judge-ready',
+      '代码题参考答案和测试已通过运行校验',
+      codeNotReadyIndexes.length === 0 ? 'pass' : 'fail',
+      codeNotReadyIndexes.length
+        ? [`未通过代码题号：${codeNotReadyIndexes.join(', ')}`]
+        : ['Every code draft is judge-ready.'],
+      codeNotReadyIndexes,
     ),
   );
   checks.push(
@@ -697,14 +744,19 @@ export async function extractProblemDraftsFromText(args: {
     drafts: NotebookProblemImportDraft[],
     usage: ImportUsageSummary | null,
   ) => {
-    const answerResult = await solveMissingChoiceAnswersWithLLM({
+    const answerResult = await ensureImportedDraftAnswers({
       drafts,
       model: args.model,
       language: args.language,
     });
-    return {
+    const codeResult = await ensureImportedCodeDraftsJudgeReady({
       drafts: answerResult.drafts,
-      usage: mergeImportUsage(usage, answerResult.usage),
+      model: args.model,
+      language: args.language,
+    });
+    return {
+      drafts: codeResult.drafts,
+      usage: mergeImportUsage(usage, mergeImportUsage(answerResult.usage, codeResult.usage)),
     };
   };
 

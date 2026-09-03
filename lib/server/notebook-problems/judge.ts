@@ -6,10 +6,15 @@ import path from 'node:path';
 import type {
   NotebookProblemAttemptAnswer,
   NotebookProblemAttemptResult,
+  NotebookProblemImportDraft,
   NotebookProblemRecord,
   NotebookProblemSecretJudge,
 } from '@/lib/problem-bank';
-import { isNotebookCodeProblemRecord } from '@/lib/problem-bank';
+import {
+  codeDraftReadinessErrors,
+  codeReferenceSolution,
+  isNotebookCodeProblemRecord,
+} from '@/lib/problem-bank';
 import { validateCourseAnswerContract } from '@/features/memory/domain/course-answer-contract';
 import type { NotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 
@@ -286,6 +291,77 @@ async function executePythonPayload(args: {
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+export type CodeReferenceVerification = {
+  passed: boolean;
+  errors: string[];
+  publicTestCount: number;
+  secretTestCount: number;
+};
+
+export async function verifyNotebookCodeDraftReferenceAnswer(
+  draft: NotebookProblemImportDraft,
+): Promise<CodeReferenceVerification> {
+  const readinessErrors = codeDraftReadinessErrors(draft);
+  if (
+    draft.type !== 'code' ||
+    draft.publicContent.type !== 'code' ||
+    draft.grading.type !== 'code'
+  ) {
+    return {
+      passed: true,
+      errors: [],
+      publicTestCount: 0,
+      secretTestCount: 0,
+    };
+  }
+
+  const publicTests = draft.publicContent.publicTests;
+  const secretTests = draft.secretJudge?.secretTests ?? [];
+  if (readinessErrors.length > 0) {
+    return {
+      passed: false,
+      errors: readinessErrors,
+      publicTestCount: publicTests.length,
+      secretTestCount: secretTests.length,
+    };
+  }
+
+  try {
+    const allTests = [...publicTests, ...secretTests];
+    const results = completeRunnerCaseResults(
+      allTests,
+      await executePythonCases({
+        code: codeReferenceSolution(draft),
+        starterCode: draft.publicContent.starterCode,
+        testCases: allTests,
+        timeoutMs: draft.secretJudge?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      }),
+    );
+    const failed = results.filter((result) => !result.passed);
+    const expectedById = new Map(allTests.map((testCase) => [testCase.id, testCase.expected]));
+    return {
+      passed: failed.length === 0,
+      errors: failed.map(
+        (result) =>
+          `参考答案未通过 testcase ${result.id}${
+            result.error
+              ? `：${result.error}`
+              : `：actual=${result.actual ?? 'unknown'}；expected=${expectedById.get(result.id) ?? 'unknown'}`
+          }`,
+      ),
+      publicTestCount: publicTests.length,
+      secretTestCount: secretTests.length,
+    };
+  } catch (error) {
+    return {
+      passed: false,
+      errors: [`参考答案未通过运行校验：${error instanceof Error ? error.message : String(error)}`],
+      publicTestCount: publicTests.length,
+      secretTestCount: secretTests.length,
+    };
   }
 }
 

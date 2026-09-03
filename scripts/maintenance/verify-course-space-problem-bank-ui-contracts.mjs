@@ -29,7 +29,7 @@ const checks = [
     name: 'empty problem bank keeps a full workspace placeholder',
     pass:
       problemBank.includes('min-h-[calc(100dvh-3rem)]') &&
-      problemBank.includes('min-h-[clamp(26rem,58dvh,46rem)]') &&
+      problemBank.includes('min-h-0 flex-1 place-items-center') &&
       problemBank.includes('题库还没有题目'),
   },
   {
