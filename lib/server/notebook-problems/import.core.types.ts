@@ -59,6 +59,7 @@ export interface ProblemStructureItem {
   index: number;
   topLevelLabel: string;
   title: string;
+  points?: number;
   problemTypeHint:
     | 'choice'
     | 'proof'
@@ -163,6 +164,7 @@ export const problemStructurePlanSchema = z.object({
         index: z.number().int().positive(),
         topLevelLabel: z.string().trim().min(1).max(80),
         title: z.string().trim().min(1).max(200),
+        points: z.number().int().min(0).max(1000).optional(),
         problemTypeHint: z
           .enum(['choice', 'proof', 'calculation', 'short_answer', 'code', 'fill_blank', 'unknown'])
           .default('unknown'),

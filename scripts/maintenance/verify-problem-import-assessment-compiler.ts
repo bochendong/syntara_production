@@ -141,6 +141,63 @@ async function main() {
   assert.equal(promoted?.publicContent.type, 'code');
   assert.equal(promoted?.grading.type, 'code');
 
+  const repairedAnswerDraft = {
+    ...functionShortAnswer,
+    title: 'Model-rewritten title',
+    points: 1,
+    tags: [],
+    grading: {
+      type: 'short_answer' as const,
+      referenceAnswer: 'def add(a, b):\n    return a + b',
+    },
+  };
+  const originalScoredDraft = {
+    ...functionShortAnswer,
+    title: 'Original scored problem',
+    points: 13,
+    tags: ['functions', 'assessment'],
+  };
+  const mergedAnswerDraft = importLlm.mergeAnswerRepairDraft(
+    originalScoredDraft,
+    repairedAnswerDraft,
+  );
+  assert.equal(mergedAnswerDraft.title, 'Original scored problem');
+  assert.equal(mergedAnswerDraft.points, 13);
+  assert.deepEqual(mergedAnswerDraft.tags, ['functions', 'assessment']);
+
+  assert.equal(
+    importLlm.resolveStructureItemPoints({
+      index: 1,
+      topLevelLabel: 'Q1',
+      title: 'Scored problem',
+      points: 13,
+      problemTypeHint: 'short_answer',
+      sourceAnchors: [],
+      subparts: [],
+      contextBlocks: [],
+      visualRefs: [],
+      confidence: 1,
+    }),
+    13,
+  );
+  assert.equal(
+    importLlm.resolveStructureItemPoints({
+      index: 2,
+      topLevelLabel: 'Q2',
+      title: 'Scored subparts',
+      problemTypeHint: 'code',
+      sourceAnchors: [],
+      subparts: [
+        { label: 'a', prompt: 'Part a', points: 2 },
+        { label: 'b', prompt: 'Part b', points: 4 },
+      ],
+      contextBlocks: [],
+      visualRefs: [],
+      confidence: 1,
+    }),
+    6,
+  );
+
   const corruptFillBlank = {
     ...validDraft,
     draftId: 'corrupt-fill-blank',

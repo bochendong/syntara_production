@@ -207,6 +207,30 @@ export function promoteFunctionImplementationDrafts(
   return drafts.map(promoteFunctionImplementationDraft);
 }
 
+export function mergeAnswerRepairDraft(
+  original: NotebookProblemImportDraft,
+  repaired: NotebookProblemImportDraft,
+): NotebookProblemImportDraft {
+  return {
+    ...repaired,
+    draftId: original.draftId,
+    notebookId: original.notebookId,
+    title: original.title,
+    status: original.status,
+    source: original.source,
+    points: original.points,
+    tags: original.tags,
+    difficulty: original.difficulty,
+    sourceMeta: {
+      ...original.sourceMeta,
+      ...repaired.sourceMeta,
+      answerSource: 'llm-solved',
+      answerRepairAttempted: true,
+    },
+    validationErrors: removeMissingAnswerValidationErrors(repaired.validationErrors),
+  };
+}
+
 function codeRepairDraftFromRaw(
   raw: unknown,
   original: NotebookProblemImportDraft,
@@ -372,19 +396,7 @@ ${JSON.stringify(candidates)}`;
     if (candidatePosition == null) return draft;
     const repaired = repairedByDraftId.get(draft.draftId) ?? repairedByIndex[candidatePosition];
     if (!repaired || !draftHasCompleteAnswer(repaired)) return draft;
-    return {
-      ...repaired,
-      draftId: draft.draftId,
-      notebookId: draft.notebookId,
-      source: draft.source,
-      sourceMeta: {
-        ...draft.sourceMeta,
-        ...repaired.sourceMeta,
-        answerSource: 'llm-solved',
-        answerRepairAttempted: true,
-      },
-      validationErrors: removeMissingAnswerValidationErrors(repaired.validationErrors),
-    };
+    return mergeAnswerRepairDraft(draft, repaired);
   });
 
   return {
@@ -577,9 +589,11 @@ function enrichFileDraftSourceMeta(
   structureItem: ProblemStructureItem | undefined,
 ): NotebookProblemImportDraft {
   if (!structureItem) return { ...draft, notebookId: null };
+  const structurePoints = resolveStructureItemPoints(structureItem);
   return {
     ...draft,
     notebookId: null,
+    points: structurePoints ?? draft.points,
     sourceMeta: {
       ...draft.sourceMeta,
       scaffoldIndex: structureItem.index,
@@ -590,6 +604,19 @@ function enrichFileDraftSourceMeta(
       structureConfidence: structureItem.confidence,
     },
   };
+}
+
+export function resolveStructureItemPoints(
+  structureItem: ProblemStructureItem,
+): number | undefined {
+  if (typeof structureItem.points === 'number') return structureItem.points;
+  if (
+    structureItem.subparts.length > 0 &&
+    structureItem.subparts.every((subpart) => typeof subpart.points === 'number')
+  ) {
+    return structureItem.subparts.reduce((total, subpart) => total + (subpart.points ?? 0), 0);
+  }
+  return undefined;
 }
 
 async function mapWithConcurrency<T, R>(
@@ -858,14 +885,14 @@ JSON 格式：
   "sourceSummary": "...",
   "nonProblemRegions": [{"kind":"cover|instructions|additional_work|blank|header_footer|other","pageNumbers":[1],"reason":"..."}],
   "sharedContexts": [{"id":"...","title":"...","pageNumbers":[1],"summary":"..."}],
-  "topLevelProblems": [{"index":1,"topLevelLabel":"1","title":"...","problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],
+  "topLevelProblems": [{"index":1,"topLevelLabel":"1","title":"...","points":3,"problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],
   "warnings": [],
   "generatedBy": "llm"
 }`
       : `Read every page of the attached file, but in this pass create only a structural problem index; do not solve anything. Return one strict JSON object without markdown.
 Separate printed source questions from student handwriting, marked bubbles, grader annotations, scores, and grading feedback. The latter are not problems. Put covers, reference sheets, answer sheets, and blank pages in nonProblemRegions.
 Create items by top-level number by default and keep subparts that share one derivation together. Split independently answered and independently scored repeated units, such as table rows and code-tracing rows, into separate topLevelProblems items carrying the original number and row label. Identify both the source capability and the best supported delivery type.
-Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|additional_work|blank|header_footer|other","pageNumbers":[1],"reason":"..."}],"sharedContexts":[],"topLevelProblems":[{"index":1,"topLevelLabel":"1","title":"...","problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],"warnings":[],"generatedBy":"llm"}`;
+Record the printed total points for every problem as points. Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|additional_work|blank|header_footer|other","pageNumbers":[1],"reason":"..."}],"sharedContexts":[],"topLevelProblems":[{"index":1,"topLevelLabel":"1","title":"...","points":3,"problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],"warnings":[],"generatedBy":"llm"}`;
   const structureResult = await callLLM(
     {
       model: args.model,
@@ -967,6 +994,7 @@ Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|
           index: item.index,
           topLevelLabel: item.topLevelLabel,
           title: item.title,
+          points: item.points,
           problemTypeHint: item.problemTypeHint,
           pageStart: item.pageStart,
           pageEnd: item.pageEnd,
@@ -979,12 +1007,12 @@ Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|
         args.language === 'zh-CN'
           ? `现在只处理下列 ${batch.length} 道顶层题：${batchOutline}
 请回到附件指定页面，完整转写印刷题面，并独立解出每道题。忽略学生手写、勾选、阅卷痕迹、得分和评分反馈；不得把它们当成标准答案。
-必须恰好返回 ${batch.length} 个题目草稿，顺序与目录一致，小问保留在同一道题中。每题 sourceMeta.scaffoldIndex 填对应 index。
+必须恰好返回 ${batch.length} 个题目草稿，顺序与目录一致，小问保留在同一道题中。每题 sourceMeta.scaffoldIndex 填对应 index，并保留目录中的原卷分值。
 每道题都必须有可判分答案。优先选择题、尽量少用填空题；代码输出预测和报错判断通常转成选择题。代码题只用于函数实现，必须使用参数输入、return 输出，提供完整 solutionCode、functionSignature、至少 2 个 public tests 和 3 个 secret tests，且参考答案能通过全部测试。input、stdin、print 判分和文件读写必须等价改写。
 只返回严格 JSON 数组。`
           : `Process only these ${batch.length} top-level problems: ${batchOutline}
 Return to the cited pages, transcribe the complete printed prompt, and independently solve every problem. Ignore handwriting, marked bubbles, grading marks, scores, and grader feedback; none is an answer source.
-Return exactly ${batch.length} drafts in the same order, with subparts kept in their top-level problem. Set sourceMeta.scaffoldIndex to the corresponding index.
+Return exactly ${batch.length} drafts in the same order, with subparts kept in their top-level problem. Set sourceMeta.scaffoldIndex to the corresponding index and preserve the printed points from the outline.
 Every problem must have a gradable answer. Prefer choice and minimize fill blanks; code-output prediction and error diagnosis normally become choice. Code is only for function implementation with parameter inputs and return output, complete solutionCode, functionSignature, at least 2 public tests and 3 secret tests, and a solution that passes them all. Equivalently adapt input(), stdin, print-based grading, and file I/O. Return a strict JSON array only.`;
 
       let bestDrafts: NotebookProblemImportDraft[] = [];
