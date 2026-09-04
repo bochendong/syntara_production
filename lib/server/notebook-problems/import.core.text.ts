@@ -30,8 +30,7 @@ export function protectMarkdownCodeSegments(text: string): ProtectedMarkdownCode
 
 export function restoreMarkdownCodeSegments(protectedCode: ProtectedMarkdownCode): string {
   return protectedCode.segments.reduce(
-    (current, segment, index) =>
-      current.replaceAll(`\uE000SYNTARA_CODE_${index}\uE001`, segment),
+    (current, segment, index) => current.replaceAll(`\uE000SYNTARA_CODE_${index}\uE001`, segment),
     protectedCode.text,
   );
 }

@@ -128,15 +128,15 @@ export function draftHasCompleteAnswer(draft: NotebookProblemImportDraft): boole
   if (draft.grading.type === 'short_answer') {
     return Boolean(
       draft.grading.referenceAnswer?.trim() &&
-        (draft.publicContent.contractVersion !== 'syntara.problem.v1' ||
-          draft.grading.rubricCriteria?.length),
+      (draft.publicContent.contractVersion !== 'syntara.problem.v1' ||
+        draft.grading.rubricCriteria?.length),
     );
   }
   if (draft.grading.type === 'proof') {
     return Boolean(
       draft.grading.referenceProof?.trim() &&
-        (draft.publicContent.contractVersion !== 'syntara.problem.v1' ||
-          draft.grading.rubricCriteria?.length),
+      (draft.publicContent.contractVersion !== 'syntara.problem.v1' ||
+        draft.grading.rubricCriteria?.length),
     );
   }
   if (draft.grading.type === 'fill_blank') {

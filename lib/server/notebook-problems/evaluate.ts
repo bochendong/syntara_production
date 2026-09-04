@@ -322,8 +322,7 @@ export async function evaluateNotebookNonCodeProblem(args: {
         if (userNumeric == null || expectedNumeric == null) return false;
         const difference = Math.abs(userNumeric - expectedNumeric);
         const absoluteMatch =
-          typeof problem.grading.tolerance === 'number' &&
-          difference <= problem.grading.tolerance;
+          typeof problem.grading.tolerance === 'number' && difference <= problem.grading.tolerance;
         const relativeMatch =
           typeof problem.grading.relativeTolerance === 'number' &&
           difference <= Math.abs(expectedNumeric) * problem.grading.relativeTolerance;
