@@ -9,6 +9,8 @@ const problemBank = read('components/problem-bank/course-problem-bank-view.tsx')
 const problemBankPage = read('app/course/[id]/problem-bank/page.tsx');
 const problemBankController = read('components/problem-bank/use-course-problem-bank-controller.ts');
 const problemBankHelpers = read('components/problem-bank/course-problem-bank-helpers.tsx');
+const problemBankApi = read('lib/utils/notebook-problem-api.ts');
+const problemBankService = read('lib/server/notebook-problems/service.ts');
 const problemDraftForm = read('components/problem-bank/problem-draft-form.tsx');
 const problemEvaluator = read('lib/server/notebook-problems/evaluate.ts');
 const teacherStudio = read('components/teacher/teacher-course-studio-client.tsx');
@@ -95,6 +97,24 @@ const checks = [
       problemBank.includes('grid grid-cols-4 gap-1.5 p-3') &&
       problemBank.includes('mt-3 min-h-0 flex-1 overflow-hidden') &&
       !problemBank.includes('mt-4 min-h-0 flex-1 overflow-y-auto'),
+  },
+  {
+    name: 'each problem bank list item exposes class pass rate and teacher deletion',
+    pass:
+      problemBank.includes("'全班通过率'") &&
+      problemBank.includes('classPassRatePresentation(problem, locale)') &&
+      problemBank.includes('handleDeleteProblem(problem)') &&
+      problemBank.includes('deletingProblemId === problem.id') &&
+      problemBankController.includes('setDeletingProblemId(targetProblem.id)'),
+  },
+  {
+    name: 'problem bank list loads one server-filtered page instead of the full payload',
+    pass:
+      problemBankController.includes('listCourseProblemPage(courseId') &&
+      problemBankController.includes('pageSize: PROBLEM_BANK_PAGE_SIZE') &&
+      problemBankApi.includes('export async function listCourseProblemPage(') &&
+      problemBankService.includes('COUNT(*) OVER()::int AS "filteredCount"') &&
+      problemBankService.includes('LIMIT ${pageSize} OFFSET ${offset}'),
   },
   {
     name: 'empty problem banks show guidance instead of a zero-percent chart',

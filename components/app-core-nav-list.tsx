@@ -9,6 +9,7 @@ import {
   Coins,
   LifeBuoy,
   LibraryBig,
+  LayoutDashboard,
   ListChecks,
   MessageCircle,
   Settings,
@@ -16,7 +17,6 @@ import {
   ShoppingBag,
   Sparkles,
   UserRound,
-  UsersRound,
   Workflow,
 } from 'lucide-react';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
@@ -370,9 +370,9 @@ export function AppCoreNavList({
                   {
                     key: 'agent-teams',
                     href: agentTeamsHref,
-                    label: '课程主页',
-                    tooltip: '课程主页',
-                    icon: UsersRound,
+                    label: 'Dashboard',
+                    tooltip: '学习 Dashboard',
+                    icon: LayoutDashboard,
                     active: agentTeamsActive,
                   },
                   {

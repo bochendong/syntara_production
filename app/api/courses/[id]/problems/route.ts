@@ -3,6 +3,7 @@ import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
 import {
   listCourseProblemsByIdsForUser,
+  listCourseProblemPageForUser,
   listCourseProblemSummariesForUser,
   listCourseProblemsForUser,
 } from '@/features/problems/server/service';
@@ -30,6 +31,7 @@ function toClientProblem(problem: Awaited<ReturnType<typeof listCourseProblemsFo
     createdAt: problem.createdAt,
     updatedAt: problem.updatedAt,
     attemptStats: problem.attemptStats ?? null,
+    classStats: problem.classStats ?? null,
     latestAttempt: problem.latestAttempt ?? null,
     ...(problem.secretJudge ? { secretJudge: problem.secretJudge } : {}),
   };
@@ -76,6 +78,34 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       });
       return NextResponse.json({
         problems: problems.map((item) => toClientProblem(item)),
+      });
+    }
+
+    const requestedPage = Number.parseInt(url.searchParams.get('page') || '', 10);
+    if (Number.isFinite(requestedPage) && requestedPage > 0) {
+      const pageSize = Number.parseInt(url.searchParams.get('pageSize') || '10', 10);
+      const result = await listCourseProblemPageForUser(auth.userId, id, {
+        page: requestedPage,
+        pageSize: Number.isFinite(pageSize) ? pageSize : 10,
+        skipMaintenance,
+        filters: {
+          searchQuery: url.searchParams.get('q') || undefined,
+          practiceFilter: (url.searchParams.get('practice') || 'all') as
+            | 'all'
+            | 'review'
+            | 'wrong'
+            | 'unattempted'
+            | 'mastered',
+          typeFilter: url.searchParams.get('type') || undefined,
+          difficultyFilter: url.searchParams.get('difficulty') || undefined,
+          chapterFilter: url.searchParams.get('chapter') || undefined,
+          statusFilter: url.searchParams.get('status') || undefined,
+          notebookId: url.searchParams.get('notebookId') || undefined,
+        },
+      });
+      return NextResponse.json({
+        ...result,
+        problems: result.problems.map((item) => toClientProblem(item)),
       });
     }
 

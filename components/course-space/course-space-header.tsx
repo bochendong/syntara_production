@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   BookOpenText,
   Home,
+  LayoutDashboard,
   Library,
   MessageCircleMore,
   MessagesSquare,
@@ -30,7 +31,13 @@ export {
 } from '@/lib/course-space/format-course-space-header';
 
 export type CourseSpaceRole = 'teacher' | 'student';
-export type CourseSpaceSection = 'resources' | 'chat' | 'problem-bank' | 'forum' | 'students';
+export type CourseSpaceSection =
+  | 'dashboard'
+  | 'resources'
+  | 'chat'
+  | 'problem-bank'
+  | 'forum'
+  | 'students';
 
 type CourseSpaceNavItem = {
   key: CourseSpaceSection;
@@ -75,6 +82,12 @@ function navigationItems({
       : `/course/${encodedCourseId}/resources${previewMode ? '?mock=1' : ''}`;
 
   return [
+    {
+      key: 'dashboard' as const,
+      label: 'Dashboard',
+      href: `/course/${encodedCourseId}${previewMode ? '?mock=1' : ''}`,
+      Icon: LayoutDashboard,
+    },
     {
       key: 'resources' as const,
       label: '资料库',

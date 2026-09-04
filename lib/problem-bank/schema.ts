@@ -18,6 +18,30 @@ export const notebookProblemSourceSchema = z.enum([
   'legacy_quiz_scene',
 ]);
 export const notebookProblemDifficultySchema = z.enum(['easy', 'medium', 'hard']);
+export const notebookProblemContractVersionSchema = z.literal('syntara.problem.v1');
+export const notebookProblemStatementFormatSchema = z.literal('syntara-markdown-v1');
+export const notebookProblemTaskKindSchema = z.enum([
+  'concept',
+  'code_reading',
+  'calculation',
+  'proof',
+  'implementation',
+]);
+export const notebookProblemResponseKindSchema = z.enum([
+  'short_text',
+  'long_text',
+  'choice',
+  'math_expression',
+  'fill_blank',
+  'code_submission',
+]);
+export const notebookProblemGraderKindSchema = z.enum([
+  'rubric',
+  'exact_choice',
+  'numeric_or_exact',
+  'blank_match',
+  'code_runner',
+]);
 export const notebookProblemAttemptKindSchema = z.enum(['run', 'submit', 'answer']);
 export const notebookProblemAttemptStatusSchema = z.enum([
   'pending',
@@ -51,6 +75,7 @@ export const notebookProblemAssetsSchema = z
 export const notebookChoiceOptionSchema = z.object({
   id: z.string().trim().min(1).max(64),
   label: z.string().trim().min(1).max(4000),
+  format: z.literal('syntara-markdown-inline-v1').optional(),
 });
 
 export const notebookProblemLocalizedContentSchema = z.object({
@@ -69,6 +94,8 @@ export const notebookProblemTranslationsSchema = z
   .optional();
 
 const notebookProblemPublicBaseSchema = z.object({
+  contractVersion: notebookProblemContractVersionSchema.optional(),
+  statementFormat: notebookProblemStatementFormatSchema.optional(),
   explanation: z.string().trim().min(1).max(8000).optional(),
   assets: notebookProblemAssetsSchema.optional(),
   translations: notebookProblemTranslationsSchema,
@@ -76,11 +103,15 @@ const notebookProblemPublicBaseSchema = z.object({
 
 export const notebookProblemPublicShortAnswerSchema = notebookProblemPublicBaseSchema.extend({
   type: z.literal('short_answer'),
+  taskKind: notebookProblemTaskKindSchema.optional(),
+  responseKind: z.literal('short_text').optional(),
   stem: z.string().trim().min(1).max(12000),
 });
 
 export const notebookProblemPublicChoiceSchema = notebookProblemPublicBaseSchema.extend({
   type: z.literal('choice'),
+  taskKind: notebookProblemTaskKindSchema.optional(),
+  responseKind: z.literal('choice').optional(),
   stem: z.string().trim().min(1).max(12000),
   selectionMode: z.enum(['single', 'multiple']).default('single'),
   options: z.array(notebookChoiceOptionSchema).min(2).max(12),
@@ -88,23 +119,31 @@ export const notebookProblemPublicChoiceSchema = notebookProblemPublicBaseSchema
 
 export const notebookProblemPublicProofSchema = notebookProblemPublicBaseSchema.extend({
   type: z.literal('proof'),
+  taskKind: z.literal('proof').optional(),
+  responseKind: z.literal('long_text').optional(),
   stem: z.string().trim().min(1).max(12000),
 });
 
 export const notebookProblemPublicCalculationSchema = notebookProblemPublicBaseSchema.extend({
   type: z.literal('calculation'),
+  taskKind: z.literal('calculation').optional(),
+  responseKind: z.literal('math_expression').optional(),
   stem: z.string().trim().min(1).max(12000),
   unit: z.string().trim().min(1).max(120).optional(),
+  showWork: z.boolean().optional(),
 });
 
 export const notebookProblemPublicFillBlankSchema = notebookProblemPublicBaseSchema.extend({
   type: z.literal('fill_blank'),
+  taskKind: notebookProblemTaskKindSchema.optional(),
+  responseKind: z.literal('fill_blank').optional(),
   stemTemplate: z.string().trim().min(1).max(12000),
   blanks: z
     .array(
       z.object({
         id: z.string().trim().min(1).max(64),
         placeholder: z.string().trim().min(1).max(120).optional(),
+        answerKind: z.enum(['text', 'number', 'math_expression', 'code_token']).optional(),
       }),
     )
     .min(1)
@@ -150,8 +189,11 @@ export const notebookCodeStatementSectionSchema = z
 
 export const notebookProblemPublicCodeSchema = notebookProblemPublicBaseSchema.extend({
   type: z.literal('code'),
+  taskKind: z.literal('implementation').optional(),
+  responseKind: z.literal('code_submission').optional(),
   stem: z.string().trim().min(1).max(16000),
-  language: z.literal('python').default('python'),
+  language: z.string().trim().min(1).max(40).default('python'),
+  runnerAdapter: z.string().trim().min(1).max(80).optional(),
   starterCode: z.string().max(40000).optional(),
   functionSignature: z.string().trim().min(1).max(4000).optional(),
   constraints: z.array(z.string().trim().min(1).max(500)).max(16).default([]),
@@ -173,41 +215,69 @@ export const notebookProblemPublicContentSchema = z.discriminatedUnion('type', [
 
 export const notebookProblemGradingShortAnswerSchema = z.object({
   type: z.literal('short_answer'),
+  graderKind: z.literal('rubric').optional(),
   referenceAnswer: z.string().trim().min(1).max(12000).optional(),
   rubric: z.string().trim().min(1).max(12000).optional(),
+  rubricCriteria: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(64),
+        description: z.string().trim().min(1).max(1000),
+        points: z.number().nonnegative().max(1000),
+      }),
+    )
+    .max(24)
+    .optional(),
   analysis: z.string().trim().min(1).max(12000).optional(),
 });
 
 export const notebookProblemGradingChoiceSchema = z.object({
   type: z.literal('choice'),
-  correctOptionIds: z.array(z.string().trim().min(1).max(64)).min(1).max(12),
+  graderKind: z.literal('exact_choice').optional(),
+  correctOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).default([]),
   analysis: z.string().trim().min(1).max(12000).optional(),
 });
 
 export const notebookProblemGradingProofSchema = z.object({
   type: z.literal('proof'),
+  graderKind: z.literal('rubric').optional(),
   referenceProof: z.string().trim().min(1).max(16000).optional(),
   rubric: z.string().trim().min(1).max(12000).optional(),
+  rubricCriteria: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(64),
+        description: z.string().trim().min(1).max(1000),
+        points: z.number().nonnegative().max(1000),
+      }),
+    )
+    .max(24)
+    .optional(),
   analysis: z.string().trim().min(1).max(12000).optional(),
 });
 
 export const notebookProblemGradingCalculationSchema = z.object({
   type: z.literal('calculation'),
+  graderKind: z.literal('numeric_or_exact').optional(),
   referenceAnswer: z.string().trim().min(1).max(4000).optional(),
   acceptedForms: z.array(z.string().trim().min(1).max(1000)).max(16).default([]),
   tolerance: z.number().nonnegative().optional(),
+  relativeTolerance: z.number().nonnegative().optional(),
   unit: z.string().trim().min(1).max(120).optional(),
   analysis: z.string().trim().min(1).max(12000).optional(),
 });
 
 export const notebookProblemGradingFillBlankSchema = z.object({
   type: z.literal('fill_blank'),
+  graderKind: z.literal('blank_match').optional(),
   blanks: z
     .array(
       z.object({
         id: z.string().trim().min(1).max(64),
         acceptedAnswers: z.array(z.string().trim().min(1).max(1000)).min(1).max(16),
         caseSensitive: z.boolean().default(false),
+        matcher: z.enum(['exact', 'normalized_exact', 'numeric_tolerance']).optional(),
+        tolerance: z.number().nonnegative().optional(),
       }),
     )
     .min(1)
@@ -217,6 +287,7 @@ export const notebookProblemGradingFillBlankSchema = z.object({
 
 export const notebookProblemGradingCodeSchema = z.object({
   type: z.literal('code'),
+  graderKind: z.literal('code_runner').optional(),
   referenceAnswer: z.string().trim().min(1).max(40000).optional(),
   solutionCode: z.string().trim().min(1).max(40000).optional(),
   analysis: z.string().trim().min(1).max(12000).optional(),
@@ -233,7 +304,8 @@ export const notebookProblemGradingSchema = z.discriminatedUnion('type', [
 ]);
 
 export const notebookProblemSecretJudgeSchema = z.object({
-  language: z.literal('python').default('python'),
+  language: z.string().trim().min(1).max(40).default('python'),
+  runnerAdapter: z.string().trim().min(1).max(80).optional(),
   secretTests: z.array(notebookCodeTestSchema).max(48).default([]),
   timeoutMs: z.number().int().positive().max(20000).default(5000),
 });
@@ -266,6 +338,14 @@ export const notebookProblemSummarySchema = notebookProblemRecordSchema.extend({
     .object({
       attemptedCount: z.number().int().min(0),
       passedCount: z.number().int().min(0),
+    })
+    .nullable()
+    .optional(),
+  classStats: z
+    .object({
+      studentCount: z.number().int().min(0),
+      attemptedStudentCount: z.number().int().min(0),
+      passedStudentCount: z.number().int().min(0),
     })
     .nullable()
     .optional(),

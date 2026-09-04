@@ -247,7 +247,7 @@ function protectFencedCodeBlocks(text: string): { text: string; blocks: string[]
       index += 1;
     }
 
-    const token = `@@OPENMAIC_FENCED_CODE_${blocks.length}@@`;
+    const token = `@@SYNTARA_FENCED_CODE_${blocks.length}@@`;
     blocks.push(blockLines.join('\n'));
     output.push(token);
   }
@@ -257,7 +257,7 @@ function protectFencedCodeBlocks(text: string): { text: string; blocks: string[]
 
 function restoreFencedCodeBlocks(text: string, blocks: string[]): string {
   return blocks.reduce(
-    (current, block, index) => current.replaceAll(`@@OPENMAIC_FENCED_CODE_${index}@@`, block),
+    (current, block, index) => current.replaceAll(`@@SYNTARA_FENCED_CODE_${index}@@`, block),
     text,
   );
 }

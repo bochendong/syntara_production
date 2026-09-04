@@ -147,9 +147,50 @@ function buildDefaultTypeState(type: NotebookProblemType, locale: Locale, stemHi
           type,
           stem: defaultStem,
           language: 'python' as const,
-          starterCode: 'def solve():\n    pass\n',
-          functionSignature: 'def solve():',
+          contractVersion: 'syntara.problem.v1' as const,
+          statementFormat: 'syntara-markdown-v1' as const,
+          taskKind: 'implementation' as const,
+          responseKind: 'code_submission' as const,
+          runnerAdapter: 'python-unittest',
+          starterCode:
+            'def solve(value: int) -> int:\n    """Return the result for value.\n\n    Preconditions:\n        - value satisfies the constraints in the problem statement.\n    """\n    pass\n',
+          functionSignature: 'def solve(value: int) -> int:',
           constraints: [],
+          statementSections: [
+            {
+              id: 'overview',
+              title: locale === 'zh-CN' ? '描述' : 'Description',
+              kind: 'overview' as const,
+              body: defaultStem,
+              items: [],
+            },
+            {
+              id: 'requirements',
+              title: locale === 'zh-CN' ? '要求' : 'Requirements',
+              kind: 'requirements' as const,
+              items: [locale === 'zh-CN' ? '实现指定函数并返回结果。' : 'Implement the function.'],
+            },
+            {
+              id: 'interface',
+              title: locale === 'zh-CN' ? '函数接口' : 'Function interface',
+              kind: 'interface' as const,
+              code: 'def solve(value: int) -> int:',
+              codeLanguage: 'python',
+              items: [],
+            },
+            {
+              id: 'examples',
+              title: locale === 'zh-CN' ? '示例' : 'Examples',
+              kind: 'examples' as const,
+              items: [locale === 'zh-CN' ? '请补充公开示例。' : 'Add a public example.'],
+            },
+            {
+              id: 'constraints',
+              title: locale === 'zh-CN' ? '约束' : 'Constraints',
+              kind: 'constraints' as const,
+              items: [locale === 'zh-CN' ? '请补充输入约束。' : 'Add input constraints.'],
+            },
+          ],
           publicTests: [
             {
               id: 'public-1',
@@ -163,10 +204,12 @@ function buildDefaultTypeState(type: NotebookProblemType, locale: Locale, stemHi
         },
         grading: {
           type,
+          graderKind: 'code_runner' as const,
           publishRequirementsMet: false,
         },
         secretJudge: {
           language: 'python' as const,
+          runnerAdapter: 'python-unittest',
           secretTests: [],
           timeoutMs: 5000,
         },
@@ -203,6 +246,44 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
       ? ({ ...(draft.grading as Record<string, unknown>), type } as Record<string, unknown>)
       : { type };
 
+  publicContent.contractVersion = 'syntara.problem.v1';
+  publicContent.statementFormat = 'syntara-markdown-v1';
+
+  if (type === 'short_answer') {
+    publicContent.taskKind =
+      publicContent.taskKind === 'code_reading' || publicContent.taskKind === 'calculation'
+        ? publicContent.taskKind
+        : 'concept';
+    publicContent.responseKind = 'short_text';
+    grading.graderKind = 'rubric';
+  } else if (type === 'choice') {
+    publicContent.taskKind =
+      publicContent.taskKind === 'code_reading' || publicContent.taskKind === 'calculation'
+        ? publicContent.taskKind
+        : 'concept';
+    publicContent.responseKind = 'choice';
+    grading.graderKind = 'exact_choice';
+  } else if (type === 'proof') {
+    publicContent.taskKind = 'proof';
+    publicContent.responseKind = 'long_text';
+    grading.graderKind = 'rubric';
+  } else if (type === 'calculation') {
+    publicContent.taskKind = 'calculation';
+    publicContent.responseKind = 'math_expression';
+    grading.graderKind = 'numeric_or_exact';
+  } else if (type === 'fill_blank') {
+    publicContent.taskKind =
+      publicContent.taskKind === 'code_reading' || publicContent.taskKind === 'calculation'
+        ? publicContent.taskKind
+        : 'concept';
+    publicContent.responseKind = 'fill_blank';
+    grading.graderKind = 'blank_match';
+  } else if (type === 'code') {
+    publicContent.taskKind = 'implementation';
+    publicContent.responseKind = 'code_submission';
+    grading.graderKind = 'code_runner';
+  }
+
   if (type === 'choice') {
     const options = Array.isArray(publicContent.options)
       ? publicContent.options
@@ -212,6 +293,7 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
             return {
               id: typeof row.id === 'string' ? row.id.trim() : '',
               label: typeof row.label === 'string' ? row.label.trim() : '',
+              format: 'syntara-markdown-inline-v1',
             };
           })
           .filter((option) => option.id && option.label)
@@ -245,6 +327,12 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
                 typeof row.placeholder === 'string' && row.placeholder.trim()
                   ? row.placeholder.trim()
                   : undefined,
+              answerKind:
+                row.answerKind === 'number' ||
+                row.answerKind === 'math_expression' ||
+                row.answerKind === 'code_token'
+                  ? row.answerKind
+                  : 'text',
             };
           })
           .slice(0, 12)
@@ -263,11 +351,27 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
         id: blank.id,
         acceptedAnswers,
         caseSensitive: current?.caseSensitive === true,
+        matcher:
+          current?.matcher === 'exact' || current?.matcher === 'numeric_tolerance'
+            ? current.matcher
+            : 'normalized_exact',
+        tolerance:
+          typeof current?.tolerance === 'number' && Number.isFinite(current.tolerance)
+            ? Math.max(0, current.tolerance)
+            : undefined,
       };
     });
   }
 
   if (type === 'code') {
+    const language =
+      typeof publicContent.language === 'string' && publicContent.language.trim()
+        ? publicContent.language.trim().toLowerCase()
+        : 'python';
+    publicContent.language = language;
+    if (language === 'python') {
+      publicContent.runnerAdapter = 'python-unittest';
+    }
     publicContent.constraints = Array.isArray(publicContent.constraints)
       ? (publicContent.constraints as unknown[])
           .map((item) => (typeof item === 'string' ? item.trim() : ''))
@@ -291,6 +395,10 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
       draft.secretJudge && typeof draft.secretJudge === 'object'
         ? ({ ...(draft.secretJudge as Record<string, unknown>) } as Record<string, unknown>)
         : { language: 'python', secretTests: [], timeoutMs: 5000 };
+    secretJudge.language = language;
+    if (language === 'python') {
+      secretJudge.runnerAdapter = 'python-unittest';
+    }
     secretJudge.secretTests = Array.isArray(secretJudge.secretTests)
       ? (secretJudge.secretTests as unknown[])
           .map((test) => {

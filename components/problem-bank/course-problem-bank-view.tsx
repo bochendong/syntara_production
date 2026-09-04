@@ -107,6 +107,27 @@ type CodeTestFile = {
   code: string;
 };
 
+function classPassRatePresentation(
+  problem: NotebookProblemClientRecord,
+  locale: 'zh-CN' | 'en-US',
+) {
+  const stats = problem.classStats;
+  if (!stats || stats.studentCount === 0) {
+    return {
+      value: '—',
+      detail: locale === 'zh-CN' ? '暂无班级学生数据' : 'No class data yet',
+    };
+  }
+  const percent = Math.round((stats.passedStudentCount / stats.studentCount) * 100);
+  return {
+    value: `${percent}%`,
+    detail:
+      locale === 'zh-CN'
+        ? `全班 ${stats.passedStudentCount}/${stats.studentCount} 人已通过，${stats.attemptedStudentCount} 人作答过`
+        : `${stats.passedStudentCount}/${stats.studentCount} students passed; ${stats.attemptedStudentCount} attempted`,
+  };
+}
+
 function InlineFillBlankPrompt({
   content,
   values,
@@ -491,7 +512,7 @@ const ANSWER_PANE_TABS = [
   'history',
 ] as const satisfies readonly AnswerPanelTab[];
 const CODE_PRACTICE_TABS: CodePracticeTab[] = ['testcase', 'secret', 'code', 'output'];
-const PRACTICE_TAB_DRAG_TYPE = 'application/x-openmaic-practice-tab';
+const PRACTICE_TAB_DRAG_TYPE = 'application/x-syntara-practice-tab';
 const DEFAULT_PRACTICE_PANE_TABS: PracticePaneTabs = {
   left: ['description', FORMULA_PRACTICE_TAB, 'edit'],
   right: ['answer', 'preview', 'history'],
@@ -1232,12 +1253,14 @@ export function CourseProblemBankView({
     courseCode,
     courseHasTranslations,
     courseName,
+    courseProblemCount,
     currentFilteredProblemPosition,
     currentProblemPage,
-    deletingProblem,
+    deletingProblemId,
     difficultyFilter,
     difficultyFilterOptions,
     filteredProblems,
+    filteredProblemCount,
     handleAddPhotoAnswerFiles,
     handleAiFileUnfiledProblems,
     handleChangeProblemChapter,
@@ -2578,7 +2601,7 @@ export function CourseProblemBankView({
                       />
                     ) : null}
                     <span className="text-xs font-medium text-slate-400">
-                      {filteredProblems.length}/{problems.length}
+                      {filteredProblemCount}/{courseProblemCount}
                     </span>
                     <SlidersHorizontal className="h-3.5 w-3.5 text-sky-600 dark:text-sky-300" />
                     {activeBankFilterCount > 0 ? (
@@ -2744,6 +2767,7 @@ export function CourseProblemBankView({
                           problemLanguage,
                         );
                         const localizedTitle = getLocalizedProblemTitle(problem, problemLanguage);
+                        const classPassRate = classPassRatePresentation(problem, locale);
                         return (
                           <div
                             key={problem.id}
@@ -2776,6 +2800,12 @@ export function CourseProblemBankView({
                                     )}
                                   >
                                     {practiceStateLabel(problem, locale)}
+                                  </span>
+                                  <span
+                                    className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
+                                    title={classPassRate.detail}
+                                  >
+                                    {locale === 'zh-CN' ? '全班' : 'Class'} {classPassRate.value}
                                   </span>
                                   <span
                                     className={cn(
@@ -2821,7 +2851,7 @@ export function CourseProblemBankView({
                                     type="button"
                                     variant="destructive"
                                     size="icon-sm"
-                                    disabled={deletingProblem}
+                                    disabled={Boolean(deletingProblemId)}
                                     aria-label={
                                       locale === 'zh-CN'
                                         ? `删除题目「${localizedTitle}」`
@@ -2833,7 +2863,7 @@ export function CourseProblemBankView({
                                       void handleDeleteProblem(problem);
                                     }}
                                   >
-                                    {deletingProblem ? (
+                                    {deletingProblemId === problem.id ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
                                       <Trash2 className="h-4 w-4" />
@@ -2906,8 +2936,8 @@ export function CourseProblemBankView({
                       <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
                         <span>
                           {locale === 'zh-CN'
-                            ? `显示 ${pageStartIndex + 1}-${pageEndIndex} / ${filteredProblems.length} 道`
-                            : `Showing ${pageStartIndex + 1}-${pageEndIndex} of ${filteredProblems.length}`}
+                            ? `显示 ${pageStartIndex + 1}-${pageEndIndex} / ${filteredProblemCount} 道`
+                            : `Showing ${pageStartIndex + 1}-${pageEndIndex} of ${filteredProblemCount}`}
                         </span>
                         <div className="flex items-center justify-between gap-2 min-[420px]:justify-end">
                           <Button
@@ -2954,11 +2984,13 @@ export function CourseProblemBankView({
                         <span>{locale === 'zh-CN' ? '题型' : 'Type'}</span>
                         <span>{locale === 'zh-CN' ? '章节' : 'Chapter'}</span>
                         <span>{locale === 'zh-CN' ? '状态' : 'State'}</span>
+                        <span>{locale === 'zh-CN' ? '全班通过率' : 'Class pass'}</span>
                         <span />
                       </div>
                       {paginatedProblems.map((problem) => {
                         const selected = selectedProblemId === problem.id;
                         const localizedTitle = getLocalizedProblemTitle(problem, problemLanguage);
+                        const classPassRate = classPassRatePresentation(problem, locale);
                         return (
                           <div
                             key={problem.id}
@@ -3042,6 +3074,12 @@ export function CourseProblemBankView({
                             <div className="text-xs text-slate-500 dark:text-slate-400">
                               {problem.status}
                             </div>
+                            <div
+                              className="text-xs font-semibold text-emerald-700 dark:text-emerald-300"
+                              title={classPassRate.detail}
+                            >
+                              {classPassRate.value}
+                            </div>
                             <div className="flex items-center gap-1.5">
                               <Button
                                 type="button"
@@ -3062,7 +3100,7 @@ export function CourseProblemBankView({
                                   type="button"
                                   variant="destructive"
                                   size="icon-sm"
-                                  disabled={deletingProblem}
+                                  disabled={Boolean(deletingProblemId)}
                                   aria-label={
                                     locale === 'zh-CN'
                                       ? `删除题目「${localizedTitle}」`
@@ -3074,7 +3112,7 @@ export function CourseProblemBankView({
                                     void handleDeleteProblem(problem);
                                   }}
                                 >
-                                  {deletingProblem ? (
+                                  {deletingProblemId === problem.id ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                   ) : (
                                     <Trash2 className="h-4 w-4" />
@@ -3099,8 +3137,8 @@ export function CourseProblemBankView({
                         </Button>
                         <span className="min-w-[7rem] text-center font-semibold text-slate-500 dark:text-slate-300">
                           {locale === 'zh-CN'
-                            ? `${pageStartIndex + 1}-${pageEndIndex} / ${filteredProblems.length}`
-                            : `${pageStartIndex + 1}-${pageEndIndex} / ${filteredProblems.length}`}
+                            ? `${pageStartIndex + 1}-${pageEndIndex} / ${filteredProblemCount}`
+                            : `${pageStartIndex + 1}-${pageEndIndex} / ${filteredProblemCount}`}
                         </span>
                         <Button
                           type="button"

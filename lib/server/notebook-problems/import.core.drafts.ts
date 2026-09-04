@@ -31,6 +31,128 @@ export function hasStructuredContextBlock(text: string): boolean {
   return hasMarkdownTable(text) || /\n\s*(?:[-*]|\d+[\.)])\s+\S/.test(text);
 }
 
+function fencedCodeLanguage(text: string): string | null {
+  return text.match(/(?:^|\n)```([A-Za-z0-9_+-]*)\s*\n/)?.[1]?.toLowerCase() || null;
+}
+
+function markdownFenceValidationErrors(text: string): string[] {
+  const fenceLines = text.match(/^(?:```|~~~)/gm) ?? [];
+  const errors: string[] = [];
+  if (fenceLines.length % 2 !== 0) errors.push('题面包含未闭合的 Markdown 代码块');
+  if (/```(?:python|py)\s*\n[\s\S]*?\$[A-Za-z_]\w*[\s\S]*?```/i.test(text)) {
+    errors.push('Python 代码块疑似被数学定界符污染');
+  }
+  return errors;
+}
+
+function deliveryContractValidationErrors(draft: NotebookProblemImportDraft): string[] {
+  const content = draft.publicContent;
+  const grading = draft.grading;
+  const stem = 'stem' in content ? content.stem : content.stemTemplate;
+  const errors = markdownFenceValidationErrors(stem);
+  const usesDeliveryContract = content.contractVersion === 'syntara.problem.v1';
+
+  if (usesDeliveryContract && content.statementFormat !== 'syntara-markdown-v1') {
+    errors.push('题目交付协议要求使用 syntara-markdown-v1 题面');
+  }
+
+  if (usesDeliveryContract) {
+    const expectedResponseKind = {
+      short_answer: 'short_text',
+      choice: 'choice',
+      proof: 'long_text',
+      calculation: 'math_expression',
+      fill_blank: 'fill_blank',
+      code: 'code_submission',
+    }[content.type];
+    const expectedGraderKind = {
+      short_answer: 'rubric',
+      choice: 'exact_choice',
+      proof: 'rubric',
+      calculation: 'numeric_or_exact',
+      fill_blank: 'blank_match',
+      code: 'code_runner',
+    }[grading.type];
+    if (content.responseKind !== expectedResponseKind) {
+      errors.push(`题型 ${content.type} 的 responseKind 必须是 ${expectedResponseKind}`);
+    }
+    if (grading.graderKind !== expectedGraderKind) {
+      errors.push(`题型 ${grading.type} 的 graderKind 必须是 ${expectedGraderKind}`);
+    }
+  }
+
+  if (content.taskKind === 'code_reading' && !fencedCodeLanguage(stem)) {
+    errors.push('代码阅读题必须使用带语言标记的 fenced code block');
+  }
+  if (content.type !== 'code' && content.taskKind === 'implementation') {
+    errors.push('函数实现任务必须使用 code_submission 作答控件');
+  }
+  if (content.type === 'calculation' && content.showWork) {
+    errors.push(
+      '需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria',
+    );
+  }
+
+  if (content.type === 'choice' && grading.type === 'choice') {
+    const optionIds = new Set(content.options.map((option) => option.id));
+    if (content.options.some((option) => option.label.trim() === option.id.trim())) {
+      errors.push('选择题选项必须包含完整内容，不能只写选项编号');
+    }
+    if (grading.correctOptionIds.some((id) => !optionIds.has(id))) {
+      errors.push('选择题正确答案引用了不存在的选项');
+    }
+    if (grading.correctOptionIds.length === 0) {
+      errors.push('选择题缺少可评分的正确答案');
+    }
+    if (content.selectionMode === 'single' && grading.correctOptionIds.length !== 1) {
+      errors.push('单选题必须且只能有一个正确选项');
+    }
+  }
+
+  if (content.type === 'fill_blank' && grading.type === 'fill_blank') {
+    const publicIds = content.blanks.map((blank) => blank.id);
+    const gradingIds = grading.blanks.map((blank) => blank.id);
+    const markerIds = [...content.stemTemplate.matchAll(/\{\{([A-Za-z0-9_-]+)\}\}/g)].map(
+      (match) => match[1],
+    );
+    if (
+      new Set(publicIds).size !== publicIds.length ||
+      new Set(gradingIds).size !== gradingIds.length ||
+      new Set(markerIds).size !== markerIds.length
+    ) {
+      errors.push('填空题的 blank id 和题面标记必须唯一');
+    }
+    if (
+      publicIds.length !== gradingIds.length ||
+      publicIds.length !== markerIds.length ||
+      publicIds.some((id) => !gradingIds.includes(id) || !markerIds.includes(id))
+    ) {
+      errors.push('填空题题面、作答框和评分规则的 blank id 必须一一对应');
+    }
+  }
+
+  if (grading.type === 'short_answer' || grading.type === 'proof') {
+    if (usesDeliveryContract && !grading.rubricCriteria?.length) {
+      errors.push('开放题必须提供结构化 rubricCriteria，不能只给一段笼统评分说明');
+      return errors;
+    }
+    if (!grading.rubricCriteria?.length) return errors;
+    const criterionIds = grading.rubricCriteria.map((criterion) => criterion.id);
+    const rubricPoints = grading.rubricCriteria.reduce(
+      (total, criterion) => total + criterion.points,
+      0,
+    );
+    if (new Set(criterionIds).size !== criterionIds.length) {
+      errors.push('评分量表 criterion id 必须唯一');
+    }
+    if (Math.abs(rubricPoints - draft.points) > 0.0001) {
+      errors.push(`评分量表总分 ${rubricPoints} 必须等于题目分值 ${draft.points}`);
+    }
+  }
+
+  return errors;
+}
+
 export function selfContainmentValidationErrors(draft: NotebookProblemImportDraft): string[] {
   const content = draft.publicContent;
   const stem = 'stem' in content ? content.stem : content.stemTemplate;
@@ -154,6 +276,11 @@ export function normalizeDraftMathFields(
           grading,
         }),
         ...equationConsistencyValidationErrors({
+          ...draft,
+          publicContent,
+          grading,
+        }),
+        ...deliveryContractValidationErrors({
           ...draft,
           publicContent,
           grading,
@@ -545,6 +672,8 @@ export function normalizeRawCandidate(
       ? ({ ...(base.publicContent as Record<string, unknown>) } as Record<string, unknown>)
       : {};
   publicContent.type = type;
+  publicContent.contractVersion = 'syntara.problem.v1';
+  publicContent.statementFormat = 'syntara-markdown-v1';
 
   const grading =
     typeof base.grading === 'object' && base.grading
@@ -672,8 +801,102 @@ export function normalizeRawCandidate(
           pickFirstString(row.label, row.text, singleEntry?.[1], row.value) ||
             String.fromCharCode(65 + index),
         ),
+        format: 'syntara-markdown-inline-v1',
       };
     });
+  }
+
+  const deliveryStem = pickFirstString(publicContent.stem, publicContent.stemTemplate) || '';
+  const hasCodeBlock = /```(?:[A-Za-z0-9_+-]+)?\s*\n[\s\S]*?```/.test(deliveryStem);
+  const suppliedTaskKind =
+    typeof publicContent.taskKind === 'string' &&
+    ['concept', 'code_reading', 'calculation', 'proof'].includes(publicContent.taskKind)
+      ? publicContent.taskKind
+      : null;
+  publicContent.taskKind =
+    type === 'code'
+      ? 'implementation'
+      : type === 'proof'
+        ? 'proof'
+        : type === 'calculation'
+          ? 'calculation'
+          : (suppliedTaskKind ?? (hasCodeBlock ? 'code_reading' : 'concept'));
+  publicContent.responseKind =
+    type === 'code'
+      ? 'code_submission'
+      : type === 'choice'
+        ? 'choice'
+        : type === 'fill_blank'
+          ? 'fill_blank'
+          : type === 'calculation'
+            ? 'math_expression'
+            : type === 'proof'
+              ? 'long_text'
+              : 'short_text';
+
+  grading.graderKind =
+    type === 'code'
+      ? 'code_runner'
+      : type === 'choice'
+        ? 'exact_choice'
+        : type === 'fill_blank'
+          ? 'blank_match'
+          : type === 'calculation'
+            ? 'numeric_or_exact'
+            : 'rubric';
+
+  if (type === 'code') {
+    const codeLanguage =
+      typeof publicContent.language === 'string' ? publicContent.language.toLowerCase() : 'python';
+    publicContent.runnerAdapter =
+      typeof publicContent.runnerAdapter === 'string'
+        ? publicContent.runnerAdapter
+        : codeLanguage === 'java'
+          ? 'java-junit5'
+          : 'python-unittest';
+
+    if (base.secretJudge && typeof base.secretJudge === 'object') {
+      const secretJudge = { ...(base.secretJudge as Record<string, unknown>) };
+      secretJudge.language =
+        typeof secretJudge.language === 'string' ? secretJudge.language : codeLanguage;
+      secretJudge.runnerAdapter =
+        typeof secretJudge.runnerAdapter === 'string'
+          ? secretJudge.runnerAdapter
+          : publicContent.runnerAdapter;
+      base.secretJudge = secretJudge;
+    }
+  }
+
+  if (type === 'fill_blank') {
+    const answerKindById = new Map<string, string>();
+    if (Array.isArray(publicContent.blanks)) {
+      publicContent.blanks = publicContent.blanks.map((blank) => {
+        if (!blank || typeof blank !== 'object') return blank;
+        const row = blank as Record<string, unknown>;
+        const id = typeof row.id === 'string' ? row.id : '';
+        const answerKind =
+          typeof row.answerKind === 'string' &&
+          ['text', 'number', 'math_expression', 'code_token'].includes(row.answerKind)
+            ? row.answerKind
+            : 'text';
+        if (id) answerKindById.set(id, answerKind);
+        return { ...row, answerKind };
+      });
+    }
+    if (Array.isArray(grading.blanks)) {
+      grading.blanks = grading.blanks.map((blank) => {
+        if (!blank || typeof blank !== 'object') return blank;
+        const row = blank as Record<string, unknown>;
+        const answerKind = answerKindById.get(String(row.id ?? ''));
+        const matcher =
+          typeof row.matcher === 'string'
+            ? row.matcher
+            : answerKind === 'number'
+              ? 'numeric_tolerance'
+              : 'normalized_exact';
+        return { ...row, matcher };
+      });
+    }
   }
 
   if (Array.isArray(grading.rubric)) {
@@ -754,19 +977,10 @@ export function normalizeRawCandidate(
         : [];
     const correctOptionIds = baseAnswers.map((value) => String(value ?? '').trim()).filter(Boolean);
     grading.correctOptionIds = correctOptionIds;
-    if (
-      correctOptionIds.length === 0 &&
-      Array.isArray(publicContent.options) &&
-      publicContent.options.length > 0
-    ) {
-      const firstOption = publicContent.options[0];
-      if (firstOption && typeof firstOption === 'object') {
-        const fallbackId =
-          pickFirstString((firstOption as { id?: unknown }).id) || String(publicContent.options[0]);
-        grading.correctOptionIds = [fallbackId];
-        if (!validationErrors.some((error) => error.includes('未识别到正确答案'))) {
-          validationErrors.push('未识别到正确答案');
-        }
+    if (correctOptionIds.length === 0) {
+      grading.correctOptionIds = [];
+      if (!validationErrors.some((error) => error.includes('未识别到正确答案'))) {
+        validationErrors.push('未识别到正确答案');
       }
     }
   }

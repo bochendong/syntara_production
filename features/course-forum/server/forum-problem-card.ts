@@ -15,12 +15,10 @@ export async function loadForumProblemCard(args: {
   prisma: PrismaClient;
   courseId: string;
   problemId: string;
-  requirePublished: boolean;
 }) {
   const problem = await args.prisma.notebookProblem.findFirst({
     where: {
       id: args.problemId,
-      ...(args.requirePublished ? { status: 'published' } : {}),
       OR: [{ courseId: args.courseId }, { notebook: { courseId: args.courseId } }],
     },
     select: {

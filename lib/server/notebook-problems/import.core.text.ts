@@ -7,6 +7,35 @@ export function stripCodeFences(text: string): string {
     .trim();
 }
 
+type ProtectedMarkdownCode = {
+  text: string;
+  segments: string[];
+};
+
+/**
+ * Math cleanup is intentionally aggressive for noisy PDF text. Markdown code is
+ * executable/source material, though, and must remain byte-for-byte unchanged.
+ */
+export function protectMarkdownCodeSegments(text: string): ProtectedMarkdownCode {
+  const segments: string[] = [];
+  const protectedText = text.replace(
+    /```[^\n]*\n[\s\S]*?```|~~~[^\n]*\n[\s\S]*?~~~|`[^`\n]+`/g,
+    (segment) => {
+      const index = segments.push(segment) - 1;
+      return `\uE000SYNTARA_CODE_${index}\uE001`;
+    },
+  );
+  return { text: protectedText, segments };
+}
+
+export function restoreMarkdownCodeSegments(protectedCode: ProtectedMarkdownCode): string {
+  return protectedCode.segments.reduce(
+    (current, segment, index) =>
+      current.replaceAll(`\uE000SYNTARA_CODE_${index}\uE001`, segment),
+    protectedCode.text,
+  );
+}
+
 export const MATH_SYMBOL_PATTERN = /[=<>≤≥∈∉⊆⊂⊇⊃∪∩∅∀∃∑∏√∞±×÷→↔⇒⇔]/;
 export const CONTROL_TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
   [/\u000crac/g, '\\frac'],
@@ -482,9 +511,12 @@ export function repairOverEagerMathMarkdown(text: string): string {
 }
 
 export function normalizeMathMarkdown(text: string): string {
+  const protectedCode = protectMarkdownCodeSegments(text);
   const cleaned = normalizeInlineStructuralMarkdown(
     repairParenthesizedPlainMathOutsideDelimitedMath(
-      repairCommonPdfMathText(repairSetBuilderGlyphs(cleanExtractedTextArtifacts(text))),
+      repairCommonPdfMathText(
+        repairSetBuilderGlyphs(cleanExtractedTextArtifacts(protectedCode.text)),
+      ),
     ),
   );
   const withLatexDelimiters = replaceLatexDelimiters(repairMalformedMathDollarRuns(cleaned));
@@ -501,11 +533,14 @@ export function normalizeMathMarkdown(text: string): string {
   const repaired = repairMalformedMathDollarRuns(withDisplayLines)
     .replace(/\$\$\s+/g, '$$')
     .replace(/\s+\$\$/g, '$$');
-  return repairOverEagerMathMarkdown(
-    spaceInlineMathMarkdownBoundaries(
-      spaceMathMarkdownBoundaries(normalizeInlineDollarMath(repaired)),
+  return restoreMarkdownCodeSegments({
+    ...protectedCode,
+    text: repairOverEagerMathMarkdown(
+      spaceInlineMathMarkdownBoundaries(
+        spaceMathMarkdownBoundaries(normalizeInlineDollarMath(repaired)),
+      ),
     ),
-  );
+  });
 }
 
 export function stripTopLevelQuestionLabel(text: string): string {

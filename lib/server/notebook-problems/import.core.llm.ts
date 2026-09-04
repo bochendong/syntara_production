@@ -125,8 +125,20 @@ export function draftHasCompleteAnswer(draft: NotebookProblemImportDraft): boole
   if (draft.grading.type === 'calculation') {
     return Boolean(draft.grading.referenceAnswer?.trim() || draft.grading.acceptedForms.length > 0);
   }
-  if (draft.grading.type === 'short_answer') return Boolean(draft.grading.referenceAnswer?.trim());
-  if (draft.grading.type === 'proof') return Boolean(draft.grading.referenceProof?.trim());
+  if (draft.grading.type === 'short_answer') {
+    return Boolean(
+      draft.grading.referenceAnswer?.trim() &&
+        (draft.publicContent.contractVersion !== 'syntara.problem.v1' ||
+          draft.grading.rubricCriteria?.length),
+    );
+  }
+  if (draft.grading.type === 'proof') {
+    return Boolean(
+      draft.grading.referenceProof?.trim() &&
+        (draft.publicContent.contractVersion !== 'syntara.problem.v1' ||
+          draft.grading.rubricCriteria?.length),
+    );
+  }
   if (draft.grading.type === 'fill_blank') {
     return (
       draft.grading.blanks.length > 0 &&
@@ -284,6 +296,15 @@ function codeRepairDraftFromRaw(
     (typeof publicPatch.functionSignature === 'string' && publicPatch.functionSignature) ||
     (typeof record.functionSignature === 'string' && record.functionSignature) ||
     original.publicContent.functionSignature;
+  const starterCode =
+    (typeof publicPatch.starterCode === 'string' && publicPatch.starterCode) ||
+    (typeof record.starterCode === 'string' && record.starterCode) ||
+    original.publicContent.starterCode;
+  const statementSections = Array.isArray(publicPatch.statementSections)
+    ? publicPatch.statementSections
+    : Array.isArray(record.statementSections)
+      ? record.statementSections
+      : original.publicContent.statementSections;
 
   const merged = normalizeCandidateDraft(
     {
@@ -293,6 +314,13 @@ function codeRepairDraftFromRaw(
         ...publicPatch,
         type: 'code',
         functionSignature,
+        starterCode,
+        statementSections,
+        contractVersion: 'syntara.problem.v1',
+        statementFormat: 'syntara-markdown-v1',
+        taskKind: 'implementation',
+        responseKind: 'code_submission',
+        runnerAdapter: 'python-unittest',
         publicTests,
         secretConfigPresent: true,
       },
@@ -300,6 +328,7 @@ function codeRepairDraftFromRaw(
         ...original.grading,
         ...gradingPatch,
         type: 'code',
+        graderKind: 'code_runner',
         solutionCode,
         publishRequirementsMet: false,
       },
@@ -307,6 +336,7 @@ function codeRepairDraftFromRaw(
         ...original.secretJudge,
         ...secretPatch,
         language: 'python',
+        runnerAdapter: 'python-unittest',
         secretTests,
         timeoutMs: original.secretJudge?.timeoutMs ?? 5000,
       },
@@ -338,8 +368,10 @@ export async function ensureImportedDraftAnswers(args: {
 要求：
 - 独立解题，不得使用学生手写、圈选、得分或阅卷批注作为答案来源。
 - 保持原题考点和大致难度；若当前题型不能稳定判分，可改成等价的受支持题型。
-- 优先选择题，只有改成选择题会明显降低难度时才用填空题。
-- 每题必须给出对应 grading：choice 给 correctOptionIds；calculation 给 referenceAnswer 或 acceptedForms；short_answer 给 referenceAnswer；proof 给 referenceProof；fill_blank 的每个 blank 给 acceptedAnswers。
+- 保持原题的作答方式与认知要求；只有原交互无法稳定展示或评分时才改成其他题型。
+- 每题必须给出对应 grading：choice 给 correctOptionIds；calculation 给 referenceAnswer 和 acceptedForms；short_answer 给 referenceAnswer；proof 给 referenceProof；fill_blank 的每个 blank 给 acceptedAnswers。
+- short_answer 和 proof 必须给 rubricCriteria=[{id,description,points}]，每项是可独立核验的得分点，points 总和必须等于题目 points；不能只给一段笼统 rubric。
+- fill_blank 必须为每个空格选择 answerKind 与 matcher；数值空格使用 numeric_tolerance，并在需要时给 tolerance。
 - fill_blank 的 acceptedAnswers 只能包含可直接接受的学生答案，不能混入 JSON 字段名、标点碎片、序列化辅助表达式或解释文字。
 - 保留 draftId、完整题干、选项、sourceMeta 和来源定位。不要要求老师确认。
 
@@ -350,8 +382,10 @@ ${JSON.stringify(candidates)}`
 Requirements:
 - Solve independently. Student handwriting, marked choices, scores, and grader comments are not answer sources.
 - Preserve the assessed objective and approximate difficulty. You may choose an equivalent supported type when the current type cannot be graded reliably.
-- Prefer choice; use fill blanks only when conversion to choice would materially reduce difficulty.
-- Every grading object must contain its gradable answer: correctOptionIds for choice, referenceAnswer or acceptedForms for calculation, referenceAnswer for short_answer, referenceProof for proof, and acceptedAnswers for every fill_blank blank.
+- Preserve the original response demand and cognitive load; change the delivery type only when the original interaction cannot be rendered or graded reliably.
+- Every grading object must contain its gradable answer: correctOptionIds for choice, referenceAnswer and acceptedForms for calculation, referenceAnswer for short_answer, referenceProof for proof, and acceptedAnswers for every fill_blank blank.
+- short_answer and proof require rubricCriteria=[{id,description,points}] with independently verifiable criteria whose points sum exactly to the problem points; a single vague rubric paragraph is insufficient.
+- Every fill_blank blank requires an answerKind and matcher. Use numeric_tolerance for numeric blanks and include tolerance when needed.
 - fill_blank acceptedAnswers must contain only answers a student may enter, never JSON keys, punctuation fragments, serialization helper expressions, or explanations.
 - Preserve draftId, complete prompt, options, sourceMeta, and source location. Do not request teacher confirmation.
 
@@ -365,8 +399,8 @@ ${JSON.stringify(candidates)}`;
         model: args.model,
         system:
           args.language === 'zh-CN'
-            ? '你是科目无关的题库评测编译器。独立解题，并只输出机器可解析 JSON。'
-            : 'You are a subject-agnostic assessment compiler. Solve independently and output machine-readable JSON only.',
+            ? '你是运行在 Syntara 题库中的科目无关评测编译器，不是聊天助手。独立解题，并只输出机器可解析 JSON。'
+            : 'You are the subject-agnostic assessment compiler inside Syntara, not a chat assistant. Solve independently and output machine-readable JSON only.',
         prompt: prompt.slice(0, 30000),
         maxOutputTokens: 16000,
       },
@@ -457,13 +491,15 @@ export async function ensureImportedCodeDraftsJudgeReady(args: {
       ? `修复下面这些代码题，使它们符合平台判题契约。只返回严格 JSON 数组，不要 markdown。
 
 返回最小补丁格式：
-[{"draftId":"原 draftId","functionSignature":"def name(...):","solutionCode":"完整 Python 代码","publicTests":[{"id":"...","expression":"name(...) ","expected":"JSON 或 Python 字面量"}],"secretTests":[...]}]
+[{"draftId":"原 draftId","functionSignature":"def name(arg: Type) -> ReturnType:","starterCode":"含类型注解、docstring 和 pass 的代码","statementSections":[{"id":"overview","title":"描述","kind":"overview","body":"..."},{"id":"requirements","title":"要求","kind":"requirements","items":["..."]},{"id":"interface","title":"函数接口","kind":"interface","code":"def name(arg: Type) -> ReturnType:","codeLanguage":"python"},{"id":"examples","title":"示例","kind":"examples","body":"..."},{"id":"constraints","title":"约束","kind":"constraints","items":["..."]}],"solutionCode":"完整 Python 代码","publicTests":[{"id":"有意义的 snake_case 场景名","description":"...","expression":"name(...) ","expected":"JSON 或 Python 字面量"}],"secretTests":[...]}]
 
 平台契约：
 - 学生提交一个 Python 函数；输入只能来自函数参数，结果只能通过 return 返回。
 - 不支持 input、stdin、print 输出判分或文件读写。如果原题使用这些接口，等价改写函数签名和题面，保留核心考点。
 - 每题必须提供完整 solutionCode、有效 functionSignature、至少 2 个 publicTests 和 3 个 secretTests。
-- testcase 使用 expression + expected 的 pytest 风格：expression 调用目标函数，expected 是返回值；不得在测试中使用 print/input/open。
+- testcase 是固定 unittest 文件的结构化输入：expression 只能是一条目标函数调用，expected 是返回值；不得在测试中使用 assert、print、input、open、导入或多行代码。
+- publicTests 会编译为 public_tests.py / PublicTests，secretTests 会编译为 secret_tests.py / SecretTests；两者都使用 from submission import *、self.assertEqual(...) 和 unittest.main()。
+- starterCode 必须包含参数与返回类型注解、完整 docstring 和 pass；题面必须使用 LeetCode 式 statementSections，覆盖描述、要求、接口、示例和约束。
 - 测试覆盖普通情况、边界情况和容易写错的情况；public 与 secret 不重复。
 - 修复后的 solutionCode 必须能通过你返回的全部测试。
 - 如果运行错误显示参考实现符合题意而 expected 写错，应修正 testcase；如果实现不符合题意，应修正 solutionCode。不得为了让测试通过而改变考点。
@@ -479,13 +515,15 @@ ${JSON.stringify(
       : `Repair these code problems so they satisfy the platform judging contract. Return a strict JSON array only.
 
 Return minimal patches:
-[{"draftId":"original draftId","functionSignature":"def name(...):","solutionCode":"complete Python code","publicTests":[{"id":"...","expression":"name(...)","expected":"JSON or Python literal"}],"secretTests":[...]}]
+[{"draftId":"original draftId","functionSignature":"def name(arg: Type) -> ReturnType:","starterCode":"annotated signature, complete docstring, and pass","statementSections":[{"id":"overview","title":"Description","kind":"overview","body":"..."},{"id":"requirements","title":"Requirements","kind":"requirements","items":["..."]},{"id":"interface","title":"Function interface","kind":"interface","code":"def name(arg: Type) -> ReturnType:","codeLanguage":"python"},{"id":"examples","title":"Examples","kind":"examples","body":"..."},{"id":"constraints","title":"Constraints","kind":"constraints","items":["..."]}],"solutionCode":"complete Python code","publicTests":[{"id":"meaningful_snake_case_scenario","description":"...","expression":"name(...) ","expected":"JSON or Python literal"}],"secretTests":[...]}]
 
 Contract:
 - A student submits a Python function. Inputs come only from function parameters and results are returned with return.
 - stdin, input(), print-based grading, and file I/O are unsupported. Adapt those interfaces while preserving the assessed concept.
 - Include complete solutionCode, a valid functionSignature, at least 2 publicTests, and at least 3 secretTests.
-- Tests use expression + expected in a pytest-like style. Each expression calls the target function; do not use print/input/open.
+- Testcases are structured inputs for fixed unittest files. expression is one target-function call and expected is the returned value; do not use assert, print, input, open, imports, or multiline code.
+- publicTests compile to public_tests.py / PublicTests and secretTests compile to secret_tests.py / SecretTests using from submission import *, self.assertEqual(...), and unittest.main().
+- starterCode must contain annotated parameter and return types, a complete docstring, and pass. Use LeetCode-style statementSections for overview, requirements, interface, examples, and constraints.
 - Cover normal, boundary, and plausible wrong-answer cases. Public and secret tests must not duplicate each other.
 - The returned solutionCode must pass every returned test.
 - If runner evidence shows the implementation matches the prompt but an expected value is wrong, fix the testcase; if the implementation violates the prompt, fix solutionCode. Never change the assessed objective merely to make tests pass.
@@ -506,8 +544,8 @@ ${JSON.stringify(
         model: args.model,
         system:
           args.language === 'zh-CN'
-            ? '你是题库评测编译器和严谨的 Python 出题人。只输出机器可解析 JSON。'
-            : 'You are an assessment compiler and rigorous Python problem author. Output machine-readable JSON only.',
+            ? '你是运行在 Syntara 题库中的评测编译器和严谨的 Python 出题人，不是聊天助手。只输出机器可解析 JSON。'
+            : 'You are the assessment compiler inside Syntara and a rigorous Python problem author, not a chat assistant. Output machine-readable JSON only.',
         prompt: prompt.slice(0, 30000),
         maxOutputTokens: 16000,
       },
@@ -1008,12 +1046,12 @@ Record the printed total points for every problem as points. Return: {"sourceSum
           ? `现在只处理下列 ${batch.length} 道顶层题：${batchOutline}
 请回到附件指定页面，完整转写印刷题面，并独立解出每道题。忽略学生手写、勾选、阅卷痕迹、得分和评分反馈；不得把它们当成标准答案。
 必须恰好返回 ${batch.length} 个题目草稿，顺序与目录一致，小问保留在同一道题中。每题 sourceMeta.scaffoldIndex 填对应 index，并保留目录中的原卷分值。
-每道题都必须有可判分答案。优先选择题、尽量少用填空题；代码输出预测和报错判断通常转成选择题。代码题只用于函数实现，必须使用参数输入、return 输出，提供完整 solutionCode、functionSignature、至少 2 个 public tests 和 3 个 secret tests，且参考答案能通过全部测试。input、stdin、print 判分和文件读写必须等价改写。
+每道题都必须有可判分答案。保持原题的作答方式与认知要求；代码输出预测和报错判断属于 code_reading，不得误做成代码编辑器题。代码题只用于函数实现，必须使用参数输入、return 输出，提供 LeetCode 式题面、带类型注解和 docstring 的 starterCode、完整 solutionCode、functionSignature、至少 2 个 public tests 和 3 个 secret tests，且参考答案能通过全部 unittest。input、stdin、print 判分和文件读写必须等价改写。
 只返回严格 JSON 数组。`
           : `Process only these ${batch.length} top-level problems: ${batchOutline}
 Return to the cited pages, transcribe the complete printed prompt, and independently solve every problem. Ignore handwriting, marked bubbles, grading marks, scores, and grader feedback; none is an answer source.
 Return exactly ${batch.length} drafts in the same order, with subparts kept in their top-level problem. Set sourceMeta.scaffoldIndex to the corresponding index and preserve the printed points from the outline.
-Every problem must have a gradable answer. Prefer choice and minimize fill blanks; code-output prediction and error diagnosis normally become choice. Code is only for function implementation with parameter inputs and return output, complete solutionCode, functionSignature, at least 2 public tests and 3 secret tests, and a solution that passes them all. Equivalently adapt input(), stdin, print-based grading, and file I/O. Return a strict JSON array only.`;
+Every problem must have a gradable answer. Preserve the original response demand and cognitive load; code-output prediction and error diagnosis are code_reading, not code-editor tasks. Code is only for function implementation with parameter inputs and return output, a LeetCode-style statement, annotated starterCode with a docstring, complete solutionCode, functionSignature, at least 2 public tests and 3 secret tests, and a solution that passes all unittests. Equivalently adapt input(), stdin, print-based grading, and file I/O. Return a strict JSON array only.`;
 
       let bestDrafts: NotebookProblemImportDraft[] = [];
       let batchUsage: ImportUsageSummary | null = null;

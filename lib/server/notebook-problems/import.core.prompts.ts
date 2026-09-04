@@ -62,10 +62,10 @@ export function directLlmProblemImportPrompt(args: {
 - 每个 draft.sourceMeta.anchors 必须带页码；sourceMeta.structure 可以是对应 topLevelProblems 的简短副本。
 - tags 必须保持为空数组，不要输出 tagPaths、知识标签或知识树分类；章节归档由老师建立章节后单独完成。
 - 必须为每道题独立解题并生成可评分答案；学生手写内容、勾选、分数和教师批注不是题面，也不能直接当作标准答案。
-- 题型优先级：在不明显降低难度时优先 choice；代码输出预测、报错判断和表格逐行作答通常拆成独立 choice。只有改成 choice 会显著降低回忆、推导或作答难度时，才使用 fill_blank 或开放题型。
-- choice 填 correctOptionIds；calculation 填 referenceAnswer、至少一个仅含最终结果的 acceptedForms，并在适用时填 tolerance/unit；short_answer 填 referenceAnswer/rubric；proof 填 referenceProof/rubric；fill_blank 为每个 blank 填 acceptedAnswers。
+- 保持原题的作答方式与认知要求；代码输出预测、报错判断属于 code_reading，可按原题使用 choice、fill_blank 或 short_answer。只有原交互无法稳定展示或评分时才适配题型。
+- choice 填 correctOptionIds；calculation 填 referenceAnswer、至少一个仅含最终结果的 acceptedForms，并在适用时填 tolerance/unit；short_answer 填 referenceAnswer/rubric/rubricCriteria；proof 填 referenceProof/rubric/rubricCriteria；fill_blank 为每个 blank 填 answerKind、acceptedAnswers 与 matcher。
 - code 只用于让学生实现函数的题目。题目必须使用函数参数输入并通过 return 返回结果；不得依赖 input、stdin、print 判分或文件读写。原题若使用这些接口，等价改写接口并在 sourceMeta.adaptation 记录改动，但不要求老师确认。
-- 每道 code 必须填完整 solutionCode、functionSignature、至少 2 个互不重复的 publicTests 和至少 3 个互不重复的 secretTests。测试采用 expression + expected 的 pytest 风格，expression 必须调用目标函数并只检查返回值；solutionCode 必须能通过全部测试。
+- 每道 code 必须填完整 solutionCode、带类型注解和 docstring 的 starterCode、functionSignature、LeetCode 式 statementSections、至少 2 个互不重复的 publicTests 和至少 3 个互不重复的 secretTests。testcase 是编译 unittest 文件的结构化输入：expression 只能调用目标函数，expected 是返回值；solutionCode 必须通过全部测试。
 - sourceMeta.adaptation 使用 {"status":"exact|adapted","originalKind":"...","deliveryType":"...","changes":[],"preservedObjectives":[]} 记录转换。不能保持考点和难度时，选择更合适的非代码题型，不要生成平台无法判分的题。
 - 填空题使用 publicContent.stemTemplate，并用 {{blank_id}} 标记每个空；publicContent.blanks 与 grading.blanks 的 id 必须一一对应。
 - 所有模型推导答案都在 sourceMeta.answerSource 写 "llm-solved"；如果确实无法可靠求解，保留题目并在 validationErrors 明确标记，不得伪造答案。
@@ -122,10 +122,10 @@ Hard requirements:
 - Every draft.sourceMeta.anchors must include page numbers.
 - Keep tags as an empty array. Do not output tagPaths, knowledge tags, or taxonomy categories; chapter filing happens separately after the teacher creates chapters.
 - Independently solve every problem and generate grading data. Student handwriting, selected bubbles, scores, and grader comments are not part of the problem statement and must not be copied as the authoritative answer.
-- Prefer choice whenever it does not materially reduce difficulty. Code-output prediction, error diagnosis, and independently answered table rows normally become separate choice problems. Use fill_blank or open response only when options would materially reduce recall, derivation, or construction difficulty.
-- For choice use correctOptionIds; for calculation use referenceAnswer plus at least one acceptedForms entry containing only the final result and include tolerance/unit when applicable; for short_answer use referenceAnswer/rubric; for proof use referenceProof/rubric; for fill_blank provide acceptedAnswers for every blank.
+- Preserve the source response mode and cognitive demand. Code-output prediction and error diagnosis are code_reading tasks and may use choice, fill_blank, or short_answer according to the source. Adapt a type only when the original interaction cannot be rendered or graded reliably.
+- For choice use correctOptionIds; for calculation use referenceAnswer plus at least one acceptedForms entry containing only the final result and include tolerance/unit when applicable; for short_answer use referenceAnswer/rubric/rubricCriteria; for proof use referenceProof/rubric/rubricCriteria; for every fill_blank blank provide answerKind, acceptedAnswers, and matcher.
 - Use code only for function-implementation tasks. Inputs must be function parameters and results must be returned with return. Do not rely on input(), stdin, print-based grading, or file I/O. Adapt unsupported source interfaces and record the change in sourceMeta.adaptation without requiring teacher confirmation.
-- Every code problem must include complete solutionCode, functionSignature, at least 2 distinct publicTests, and at least 3 distinct secretTests. Tests use expression + expected in a pytest-like form; every expression calls the target function and checks its return value. The solution must pass all tests.
+- Every code problem must include complete solutionCode, annotated starterCode with a docstring, functionSignature, LeetCode-style statementSections, at least 2 distinct publicTests, and at least 3 distinct secretTests. Testcases are structured inputs for fixed unittest files: expression is one target-function call and expected is its return value. The solution must pass every test.
 - Record transformations in sourceMeta.adaptation as {"status":"exact|adapted","originalKind":"...","deliveryType":"...","changes":[],"preservedObjectives":[]}. If the objective and difficulty cannot be preserved as code, choose a supported non-code type rather than emitting an ungradable problem.
 - Fill blanks use publicContent.stemTemplate with a {{blank_id}} marker for each blank. IDs in publicContent.blanks and grading.blanks must match exactly.
 - Set sourceMeta.answerSource to "llm-solved" for model-derived answers. If a problem truly cannot be solved reliably, keep it and add a precise validationErrors entry instead of inventing an answer.
@@ -143,45 +143,70 @@ ${compactSource}`;
 
 export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): string {
   return language === 'zh-CN'
-    ? String.raw`题库抽取任务模型（科目无关）：
-- 你的任务不是“复制 PDF 文本”，而是把原始材料转换成可进入题库的 problem draft。题库题面必须让学生脱离原 PDF 也能直接作答。
-- 在输出 JSON 前，先在内部完成这三步，不要把分析过程输出出来：
-  1. 识别材料角色：封面、考试说明、页眉页脚、空白页、题目、共享材料、表格、图、代码块、数据、提示、评分说明。
-  2. 建立可评分单元：默认保留顶层题号；但表格逐行作答、逐段代码追踪等彼此独立且独立计分的重复单元，要拆成多道题，共享材料复制到每题。
-  3. 编译成平台题面：保持核心考点、认知要求和大致难度，保留所有作答所需信息，并把不支持的交互接口改成可稳定展示和判分的形式。
-- publicContent.stem 是“整理后的学生可见题面”，不是 OCR dump，不是摘要，也不是 prompt 解释。
-- JSON 必须是严格 JSON；stem 字符串中的换行用 \n 或 \n\n 编码，但渲染后必须有真实分段。
-- 拆题原则：依赖共同推导过程的子问保留在同一 stem；彼此独立作答和计分的重复行/项拆成独立 draft。
-- 结构原则：任何枚举型材料都不能压成一段。条件、性质、假设、要求、步骤、案例事实、数据说明、可选项、提示、注释、定义块必须按原本语义整理成 markdown 列表、表格、代码块或独立段落。
-- 题型适配：不明显降低难度时优先选择题，尽量少用填空题；代码输出预测和报错判断优先转成选择题。只有选项会明显降低回忆、推导或构造难度时才使用填空或开放题型。
-- 代码题边界：只生成“实现一个函数”的 Python 代码题。输入来自函数参数，结果通过 return 返回；不支持 input、stdin、print 判分和文件读写。原题使用不支持接口时等价改写，保留考点。
-- 代码题质量：必须有完整参考答案、functionSignature、至少 2 个 public tests 和 3 个 secret tests；每个测试调用目标函数并比较返回值，参考答案必须通过全部测试。
-- 科目适配：数学保留定义、符号和证明目标；计算机保留算法、约束和测试语义；理科保留单位、实验条件、图表数据；人文社科保留材料、引文、案例事实和具体问法。不要用某一科目的模板强套所有题。
-- 在 sourceMeta.adaptation 记录 exact/adapted、原始形态、交付题型、保留考点和接口改动。适配是自动完成的，不要求老师确认。
-- 如果题目依赖图片/图形/表格/代码/共享材料，必须把可读出的关系、数据、节点、边、列、行、代码或上下文写入同一道 stem。不能只写“见图”“如上”“front page”“Table I”。
-- sourceMeta.structure 应简短记录你识别到的结构，例如 topLevelLabel、subparts、contextBlocks、visualRefs；这用于调试，不要替代 stem。`
-    : String.raw`Subject-agnostic problem extraction model:
-- Your job is not to copy PDF text. Convert source material into problem-bank drafts. A student must be able to answer each imported problem without opening the original PDF.
-- Before returning JSON, perform these internal steps. Do not output the analysis:
-  1. Identify material roles: cover, exam instructions, headers/footers, blank pages, problems, shared context, tables, diagrams, code blocks, datasets, hints, and grading notes.
-  2. Build gradable units: preserve top-level numbering by default, but split independently answered and independently scored repeated units such as table rows and code-tracing rows into separate problems, copying shared context into each.
-  3. Compile into a platform problem: preserve the objective, cognitive demand, and approximate difficulty while adapting unsupported interaction interfaces into reliably rendered and gradable forms.
-- publicContent.stem is the cleaned student-facing statement. It is not an OCR dump, not a summary, and not an explanation of your prompt.
-- The response must be strict JSON; encode line breaks inside stem strings as \n or \n\n, but the rendered stem must have real sections.
-- Splitting rule: subparts that share one derivation remain in one stem; independently answered and scored repeated rows/items become separate drafts.
-- Structure rule: enumerated material must not be flattened into one paragraph. Conditions, properties, assumptions, requirements, steps, case facts, data notes, options, hints, notes, definitions, and setup blocks must be represented as markdown lists, tables, code blocks, or separate paragraphs according to their meaning.
-- Type adaptation: prefer choice when it does not materially reduce difficulty and minimize fill blanks. Code-output prediction and error diagnosis normally become choice. Use fill blanks or open response only when options would materially reduce recall, derivation, or construction difficulty.
-- Code boundary: emit Python code problems only for function implementation. Inputs are function parameters and results use return. input(), stdin, print-based grading, and file I/O are unsupported and must be equivalently adapted while preserving the assessed concept.
-- Code quality: include a complete reference solution, functionSignature, at least 2 public tests and 3 secret tests. Every test calls the target function and compares the return value, and the reference solution must pass every test.
-- Subject adaptation: for math, preserve definitions, symbols, and proof goals; for computer science, preserve algorithms, constraints, and test semantics; for science, preserve units, experimental conditions, and graph/table data; for humanities/social science, preserve source material, quotations, case facts, and exact prompts. Do not force every subject into a math-specific template.
-- Record exact/adapted status, original form, delivery type, preserved objectives, and interface changes in sourceMeta.adaptation. Adaptation is automatic and does not require teacher confirmation.
-- If a problem depends on an image, diagram, table, code, or shared context, transcribe the readable relationships, data, nodes, edges, columns, rows, code, or context into the same stem. Never leave only "see figure", "above", "front page", or "Table I".
-- sourceMeta.structure should briefly record the structure you recognized, such as topLevelLabel, subparts, contextBlocks, and visualRefs; this is for debugging and must not replace the stem.`;
+    ? String.raw`Syntara 题库交付协议 v1（科目无关）：
+- 你的角色是“题库编译器”，不是聊天助手、讲课助手或自由写作助手。你要把原始材料编译成学生可以直接阅读、作答且系统可以稳定评分的题目。
+- 平台把题目分成三层：taskKind 表示考查任务，responseKind 表示学生作答控件，graderKind 表示评分器。不要因为考查代码就一律生成代码编辑器题。
+- taskKind 只能是 concept、code_reading、calculation、proof、implementation。代码追踪、输出预测和报错分析属于 code_reading；只有要求学生实现函数才属于 implementation。
+- publicContent 必须写 contractVersion="syntara.problem.v1"、statementFormat="syntara-markdown-v1"、合适的 taskKind 和与题型一致的 responseKind。grading 必须写与题型一致的 graderKind。
+
+学生题面 Markdown 契约：
+- publicContent.stem（填空题为 stemTemplate）是最终直接渲染给学生的 Markdown，不是 OCR dump、摘要、JSON 说明、答案或评分规则。
+- 普通文字使用段落；条件/步骤/性质使用 Markdown 列表；数据矩阵、真值表和表格使用 GFM Markdown 表格；代码必须放入带语言名的 fenced code block。
+- 行内函数名、变量名、文件名和代码片段使用反引号，例如 \`len(items)\`。代码块和行内代码内部绝不能插入数学定界符。
+- 只有数学表达式使用 LaTeX：短公式使用 $...$；矩阵、分段函数、长积分、长极限和多行推导使用独立 $$...$$。不要把普通文字或程序代码放进 $...$。
+- 题目必须脱离原 PDF 独立作答。共享材料复制到依赖它的题目；不能只写“见上表”“见图”“如上”或 “Table I”。
+- 默认保持原题的作答方式和认知要求。只有原交互无法稳定展示或评分时才适配题型，并在 sourceMeta.adaptation 记录原因；不得全局优先改成选择题。
+
+题型交付契约：
+- choice：publicContent.responseKind="choice"，taskKind 根据实际任务填写，selectionMode 为 single 或 multiple；options 是 2-12 个 {id,label,format:"syntara-markdown-inline-v1"}。stem 不得重复选项；label 必须是完整 Markdown 选项，不能只写 A/B/C。grading.graderKind="exact_choice"，correctOptionIds 必须引用真实选项；单选恰好一个正确答案。干扰项应对应可信的常见错误，不得随机编造。
+- fill_blank：publicContent.responseKind="fill_blank"；stemTemplate 用 {{blank_id}} 标记每个输入框；每个 publicContent.blanks 项包含相同 id、answerKind=text|number|math_expression|code_token。grading.graderKind="blank_match"；每个 grading blank 的 id 必须一一对应，包含 acceptedAnswers、matcher=exact|normalized_exact|numeric_tolerance，数值匹配可给 tolerance。不得把解释文字、JSON 字段名或标点碎片放入 acceptedAnswers。
+- calculation：只用于“提交最终数学结果并自动比对”的题，publicContent.taskKind="calculation"、responseKind="math_expression"、showWork=false；grading.graderKind="numeric_or_exact"，必须给 referenceAnswer 和至少一个只含最终结果的 acceptedForms，需要时给 tolerance、relativeTolerance 和 unit。若解题过程计分，必须改用 short_answer + taskKind="calculation" + graderKind="rubric" + rubricCriteria，让学生提交完整过程，不能仍用 calculation 的最终值比较器。
+- short_answer：publicContent.responseKind="short_text"，可用 taskKind=concept、code_reading 或 calculation（需要按过程评分时）。grading.graderKind="rubric"，必须给 referenceAnswer 和 rubricCriteria=[{id,description,points}]；每项是独立可核验得分点，criteria 总分等于题目 points。
+- proof：publicContent.taskKind="proof"、responseKind="long_text"。题面明确给出已知条件与证明目标。grading.graderKind="rubric"，必须给 referenceProof 和 rubricCriteria；每个 criterion 是独立可核验的得分点，criteria 总分等于题目 points。
+- code：只用于 implementation。当前可执行适配器为 language="python"、runnerAdapter="python-unittest"。题面采用 LeetCode 式结构，statementSections 至少包含 overview、requirements、interface、examples、constraints；明确参数、返回值、前置条件、边界和示例。starterCode 必须包含带参数与返回类型注解的 function signature、完整 docstring 和 pass；solutionCode 是完整参考实现。
+
+Python 测试文件契约：
+- publicTests 是学生可见的基础行为与题面示例，至少 2 个；secretTests 是学生不可见、老师可查看的边界与常见错误测试，至少 3 个；两组不得重复。
+- 每个内部 testcase 使用 {id,description,expression,expected}。id 是有意义的 snake_case 场景名；expression 只是一条目标函数调用；expected 是返回值字面量。不得输出 assert、print、input、open、多行代码或导入。
+- 平台会把 publicTests 确定性编译为以下固定文件，不要生成 pytest：
+  # public_tests.py
+  import unittest
+  from submission import *
+
+  class PublicTests(unittest.TestCase):
+      def test_<scenario>(self):
+          self.assertEqual(<expression>, <expected>)
+
+  if __name__ == "__main__":
+      unittest.main()
+- secretTests 同样编译为 secret_tests.py，类名固定为 SecretTests。参考答案必须通过两个文件中的全部测试。
+- 语言与 runnerAdapter 是可扩展边界；不要假设所有未来语言都使用 Python 测试格式。只有任务明确选择 Java/JUnit 适配器时才能输出 Java 语言包。
+
+编译流程要求：
+- 先识别材料角色和可独立评分单元，再选择 taskKind、responseKind、graderKind，最后填充对应 schema。
+- 依赖同一推导的子问保留在一题；彼此独立作答和计分的重复行/项拆开。
+- 独立求解并生成评分数据；学生手写、勾选、分数和批注不是权威答案。
+- 无法可靠识别或求解时保留题目，在 validationErrors 写清楚原因，不得伪造答案或偷偷使用第一个选项充当正确答案。`
+    : String.raw`Syntara problem delivery contract v1 (subject agnostic):
+- You are a problem compiler, not a chat assistant or a free-form author. Compile source material into a student-readable, directly answerable, reliably gradable problem.
+- Separate taskKind (concept, code_reading, calculation, proof, implementation), responseKind, and graderKind. Code tracing/output/error diagnosis is code_reading; only function implementation uses implementation/code_submission.
+- Add contractVersion="syntara.problem.v1" and statementFormat="syntara-markdown-v1" to publicContent. Add the matching taskKind/responseKind and graderKind.
+- The stem is final student-facing Markdown, not OCR, metadata, an answer, or prompt commentary. Use paragraphs, Markdown lists, GFM tables, and language-labelled fenced code blocks according to meaning. Use backticks for identifiers. Never add math delimiters inside code. Use $...$ only for inline math and $$...$$ for standalone/structured math.
+- Preserve the original response demand and cognitive load. Adapt the response type only when the source interaction cannot be rendered or graded reliably; do not globally prefer multiple choice.
+- choice: responseKind="choice", 2-12 complete Markdown options, valid single/multiple mode, graderKind="exact_choice", and correctOptionIds referencing existing options. Distractors must represent plausible misconceptions.
+- fill_blank: use one {{blank_id}} marker per public blank; answerKind is text|number|math_expression|code_token. The grading blank IDs must match exactly and use matcher exact|normalized_exact|numeric_tolerance with acceptedAnswers and optional tolerance.
+- calculation is only for final-result auto-matching: taskKind="calculation", responseKind="math_expression", showWork=false, graderKind="numeric_or_exact", referenceAnswer, final-only acceptedForms, and applicable tolerance/relativeTolerance/unit. If solution steps earn credit, use short_answer + taskKind="calculation" + graderKind="rubric" + rubricCriteria so the student can submit the full derivation.
+- short_answer/proof: graderKind="rubric"; a reference answer/proof and point-valued rubricCriteria are mandatory, every criterion must be independently verifiable, and the total must equal problem points. Proof stems state givens and the target explicitly.
+- code: only function implementation. The active adapter is language="python", runnerAdapter="python-unittest". Use LeetCode-style statementSections covering overview, requirements, interface, examples, and constraints. starterCode contains an annotated signature, a complete docstring, and pass; solutionCode is complete.
+- publicTests contain at least 2 visible examples/basic behaviors. secretTests contain at least 3 hidden boundary and misconception tests. They must not overlap. Each testcase is {id,description,expression,expected}; id is a meaningful snake_case scenario, expression is one target-function call, and expected is the returned literal. Never put assert, print, input, open, imports, or multiline code in a testcase.
+- The platform deterministically compiles those cases to public_tests.py / PublicTests and secret_tests.py / SecretTests using unittest, from submission import *, self.assertEqual(...), and the standard unittest.main() block. Do not generate pytest.
+- Language and runnerAdapter are extension boundaries. Never assume a future Java/JUnit adapter uses Python test syntax.
+- Keep shared derivations together and split independently answered/scored repeated units. Make every problem self-contained. Solve independently; handwriting, bubbles, scores, and grader comments are not authoritative answers. If uncertain, add a precise validationErrors entry rather than inventing content.`;
 }
 
 export function buildProblemImportSystemPrompt(language: 'zh-CN' | 'en-US'): string {
   return language === 'zh-CN'
-    ? `你是大学课程题库抽取助手。请把输入材料拆成一组题目草稿，并返回严格 JSON 数组，不要返回 markdown。
+    ? `你是运行在 Syntara 题库中的评测编译器，不是聊天助手。请把输入材料编译成一组可直接展示、作答和评分的题目草稿，并返回严格 JSON 数组，不要返回 markdown。
 每个数组元素都必须尽量贴近以下结构：
 {
   "title": string,
@@ -207,11 +232,11 @@ ${problemStemFormattingContract(language)}
 - choice 题必须拆出 publicContent.options 与 grading.correctOptionIds
 - publicContent.options 必须是数组，形如 [{"id":"A","label":"完整选项文本"}, ...]；label 必须是完整可作答的选项内容，绝不能只写 "A" / "B" / "C" 这样的字母
 - 每一道题都必须生成评分答案，并在 sourceMeta.answerSource 写 "llm-solved"；不要把学生作答、勾选、分数或教师批注当作权威答案，必须根据题面独立求解
-- choice 使用 correctOptionIds；calculation 使用 referenceAnswer、至少一个只包含最终结果的 acceptedForms，以及适用的 tolerance/unit；short_answer 使用 referenceAnswer/rubric；proof 使用 referenceProof/rubric
-- 不明显降低难度时优先 choice，代码输出预测和报错判断通常改成 choice；尽量少用 fill_blank
-- code 只用于函数实现题，必须提供完整 solutionCode、functionSignature、至少 2 个 public tests 和 3 个 secret tests；参考答案必须通过全部测试
-- fill_blank 使用 stemTemplate，并以 {{blank_id}} 标出空位；publicContent.blanks 与 grading.blanks 的 id 一一对应，每个 grading blank 都必须有 acceptedAnswers
-- 只有在题干缺少图表/前文等关键上下文、无法可靠解答时，才使用第一个选项 id 作为 schema 占位，并在 validationErrors 加入“未识别到正确答案”
+- choice 使用 correctOptionIds；calculation 使用 referenceAnswer、至少一个只包含最终结果的 acceptedForms，以及适用的 tolerance/unit；short_answer 使用 referenceAnswer/rubric/rubricCriteria；proof 使用 referenceProof/rubric/rubricCriteria，且 criteria 总分必须等于题目 points
+- 保持原题的作答方式与认知要求；只有原交互无法稳定展示或评分时才适配题型
+- code 只用于函数实现题，必须提供 LeetCode 式 statementSections、带类型注解和 docstring 的 starterCode、完整 solutionCode、functionSignature、至少 2 个 public tests 和 3 个 secret tests；参考答案必须通过全部 unittest
+- fill_blank 使用 stemTemplate，并以 {{blank_id}} 标出空位；publicContent.blanks 与 grading.blanks 的 id 一一对应，每个 blank 都必须有 answerKind、acceptedAnswers 和 matcher
+- 题干缺少图表或前文等关键上下文、无法可靠解答时，在 validationErrors 写清原因；不得使用第一个选项作为伪造答案
 - code 题默认 language=python
 - code 只能接收函数参数并通过 return 返回结果；不得使用 input、stdin、print 判分或文件读写。不支持的原题接口必须自动等价改写
 - 直接输出 LaTeX 数学源码：行内数学使用 $...$，较长或独立公式使用 $$...$$
@@ -219,7 +244,7 @@ ${problemStemFormattingContract(language)}
 - 不要输出裸数学、Unicode 数学符号或纯文本数学命令；例如不要写 "A ⊆ X"、"leq"、"subseteq"、"f: X → Y"，要写 "$A \\subseteq X$"、"$\\leq$"、"$\\subseteq$"、"$f: X \\to Y$"
 - 不要把已经是 LaTeX 的数学再额外用普通括号包起来
 - 无法可靠求解时，在 validationErrors 写清原因，不要伪造答案`
-    : `You are a university problem-bank extraction assistant. Convert the source material into an array of problem drafts and return strict JSON only.
+    : `You are the assessment compiler inside Syntara, not a chat assistant. Compile the source material into student-readable, answerable, gradable problem drafts and return strict JSON only.
 Each item should follow this shape as closely as possible:
 {
   "title": string,
@@ -245,11 +270,11 @@ Requirements:
 - choice problems must include publicContent.options and grading.correctOptionIds
 - publicContent.options must be an array like [{"id":"A","label":"full option text"}, ...]; label must be the complete answer choice text and must never be only "A" / "B" / "C" / the option id
 - every problem must include grading answers and sourceMeta.answerSource="llm-solved"; do not treat student handwriting, selected bubbles, scores, or grader comments as authoritative answers; solve from the problem statement independently
-- choice uses correctOptionIds; calculation uses referenceAnswer, at least one acceptedForms entry containing only the final result, and tolerance/unit when applicable; short_answer uses referenceAnswer/rubric; proof uses referenceProof/rubric
-- prefer choice when it does not materially reduce difficulty; code-output prediction and error diagnosis normally become choice; minimize fill_blank
-- code is only for function implementation and must include complete solutionCode, functionSignature, at least 2 public tests, and at least 3 secret tests; the reference solution must pass every test
-- fill_blank uses stemTemplate with a {{blank_id}} marker for each blank; publicContent.blanks and grading.blanks must have matching IDs and every grading blank must include acceptedAnswers
-- only if critical context is missing and the answer cannot be solved reliably, use the first option id as a schema placeholder and add "未识别到正确答案" to validationErrors
+- choice uses correctOptionIds; calculation uses referenceAnswer, at least one acceptedForms entry containing only the final result, and tolerance/unit when applicable; short_answer uses referenceAnswer/rubric/rubricCriteria; proof uses referenceProof/rubric/rubricCriteria, and criteria points must sum to the problem points
+- preserve the original response demand and cognitive load; adapt the type only when the source interaction cannot be rendered or graded reliably
+- code is only for function implementation and must include LeetCode-style statementSections, annotated starterCode with a docstring, complete solutionCode, functionSignature, at least 2 public tests, and at least 3 secret tests; the reference solution must pass every unittest
+- fill_blank uses stemTemplate with a {{blank_id}} marker for each blank; publicContent.blanks and grading.blanks must have matching IDs and every blank must include answerKind, acceptedAnswers, and matcher
+- if critical context is missing and the answer cannot be solved reliably, explain it in validationErrors; never use the first option as a fabricated answer
 - code problems default to python
 - code accepts inputs only as function parameters and returns results with return; input(), stdin, print-based grading, and file I/O must be automatically and equivalently adapted
 - Output LaTeX math source directly: use $...$ for inline math and $$...$$ for long or standalone formulas

@@ -39,6 +39,11 @@ export type NotebookProblemClientRecord = {
     attemptedCount: number;
     passedCount: number;
   } | null;
+  classStats?: {
+    studentCount: number;
+    attemptedStudentCount: number;
+    passedStudentCount: number;
+  } | null;
   latestAttempt?: {
     id: string;
     status: 'pending' | 'passed' | 'failed' | 'partial' | 'error';
@@ -62,6 +67,7 @@ export type CourseProblemClientSummary = Pick<
   | 'difficulty'
   | 'updatedAt'
   | 'attemptStats'
+  | 'classStats'
   | 'latestAttempt'
 >;
 
@@ -108,6 +114,69 @@ export async function listCourseProblems(
     { signal: options?.signal, timeoutMs: options?.timeoutMs },
   );
   return data.problems;
+}
+
+export type CourseProblemPageClientResult = {
+  problems: NotebookProblemClientRecord[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  bankStats: {
+    allProblemCount: number;
+    total: number;
+    attempted: number;
+    mastered: number;
+    review: number;
+    wrong: number;
+    unattempted: number;
+    masteryPercent: number;
+    unfiledCount: number;
+    hasTranslations: boolean;
+    difficultyCounts: { easy: number; medium: number; hard: number };
+    chapterProgress: Array<{
+      chapter: string;
+      attemptedCount: number;
+      totalCount: number;
+      percent: number;
+    }>;
+  };
+};
+
+export async function listCourseProblemPage(
+  courseId: string,
+  options: {
+    page: number;
+    pageSize?: number;
+    searchQuery?: string;
+    practiceFilter?: string;
+    typeFilter?: string;
+    difficultyFilter?: string;
+    chapterFilter?: string;
+    statusFilter?: string;
+    notebookId?: string;
+  } & BackendLoadOptions,
+): Promise<CourseProblemPageClientResult> {
+  const params = new URLSearchParams({
+    page: String(options.page),
+    pageSize: String(options.pageSize ?? 10),
+    lean: '1',
+  });
+  const optionalParams = {
+    q: options.searchQuery?.trim(),
+    practice: options.practiceFilter,
+    type: options.typeFilter,
+    difficulty: options.difficultyFilter,
+    chapter: options.chapterFilter,
+    status: options.statusFilter,
+    notebookId: options.notebookId,
+  };
+  for (const [key, value] of Object.entries(optionalParams)) {
+    if (value && value !== 'all') params.set(key, value);
+  }
+  return backendJson<CourseProblemPageClientResult>(
+    `/api/courses/${encodeURIComponent(courseId)}/problems?${params.toString()}`,
+    { signal: options.signal, timeoutMs: options.timeoutMs },
+  );
 }
 
 export async function getCourseProblem(
@@ -310,6 +379,16 @@ export async function listNotebookProblemAttempts(
   return data.attempts;
 }
 
+export async function listCourseProblemAttempts(
+  courseId: string,
+  problemId: string,
+): Promise<NotebookProblemAttemptRecord[]> {
+  const data = await backendJson<{ attempts: NotebookProblemAttemptRecord[] }>(
+    `/api/courses/${encodeURIComponent(courseId)}/problems/${encodeURIComponent(problemId)}/attempts`,
+  );
+  return data.attempts;
+}
+
 export async function previewNotebookProblemImport(args: {
   notebookId: string;
   source: 'chat' | 'pdf' | 'manual' | 'web';
@@ -476,6 +555,26 @@ export async function runNotebookCodeProblem(args: {
     result: NotebookProblemAttemptRecord['result'];
   }>(
     `/api/notebooks/${encodeURIComponent(args.notebookId)}/problems/${encodeURIComponent(args.problemId)}/attempts/run`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: args.code, target: args.target, language: args.language }),
+    },
+  );
+}
+
+export async function runCourseCodeProblem(args: {
+  courseId: string;
+  problemId: string;
+  code: string;
+  target?: 'code' | 'public' | 'secret';
+  language?: 'zh-CN' | 'en-US';
+}) {
+  return backendJson<{
+    attempt: NotebookProblemAttemptRecord;
+    result: NotebookProblemAttemptRecord['result'];
+  }>(
+    `/api/courses/${encodeURIComponent(args.courseId)}/problems/${encodeURIComponent(args.problemId)}/attempts/run`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

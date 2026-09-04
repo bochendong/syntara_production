@@ -31,6 +31,7 @@ import {
 import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-repository';
 import { maybeWriteProblemAttemptMemorySignal } from '@/lib/server/problem-attempt-memory-signals';
 import { verifyNotebookCodeDraftReferenceAnswer } from './judge';
+import { normalizeDraftMathFields } from './import.core.drafts';
 
 const prismaDb = prisma;
 
@@ -207,6 +208,58 @@ type FlatCourseProblemRow = {
   latestAttemptCreatedAt: Date | null;
   attemptedCount: number | null;
   passedCount: number | null;
+  classStudentCount: number;
+  classAttemptedStudentCount: number;
+  classPassedStudentCount: number;
+  filteredCount: number;
+};
+
+export type CourseProblemPageFilters = {
+  searchQuery?: string;
+  practiceFilter?: 'all' | 'review' | 'wrong' | 'unattempted' | 'mastered';
+  typeFilter?: string;
+  difficultyFilter?: string;
+  chapterFilter?: string;
+  statusFilter?: string;
+  notebookId?: string;
+};
+
+export type CourseProblemPageResult = {
+  problems: NotebookProblemSummaryForUser[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  bankStats: CourseProblemBankAggregateStats;
+};
+
+export type CourseProblemBankAggregateStats = {
+  allProblemCount: number;
+  total: number;
+  attempted: number;
+  mastered: number;
+  review: number;
+  wrong: number;
+  unattempted: number;
+  masteryPercent: number;
+  unfiledCount: number;
+  hasTranslations: boolean;
+  difficultyCounts: { easy: number; medium: number; hard: number };
+  chapterProgress: Array<{
+    chapter: string;
+    attemptedCount: number;
+    totalCount: number;
+    percent: number;
+  }>;
+};
+
+type CourseProblemBankStatsRow = Omit<
+  CourseProblemBankAggregateStats,
+  'difficultyCounts' | 'chapterProgress'
+> & {
+  easyCount: number;
+  mediumCount: number;
+  hardCount: number;
+  chapterProgress: unknown;
 };
 
 type PreparedPublishProblemWrite = {
@@ -313,6 +366,11 @@ function mapProblemRow(
   row: ProblemRow,
   latestAttempt?: Pick<ProblemAttemptRow, 'id' | 'status' | 'score' | 'createdAt'> | null,
   attemptStats?: { attemptedCount: number; passedCount: number } | null,
+  classStats?: {
+    studentCount: number;
+    attemptedStudentCount: number;
+    passedStudentCount: number;
+  } | null,
 ): NotebookProblemSummaryForUser {
   const resolvedCourseId = row.courseId ?? row.notebook?.courseId ?? null;
   const problem = notebookProblemSummarySchema.parse({
@@ -337,6 +395,7 @@ function mapProblemRow(
     createdAt: row.createdAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
     attemptStats: attemptStats ?? null,
+    classStats: classStats ?? null,
     latestAttempt: latestAttempt
       ? {
           id: latestAttempt.id,
@@ -579,7 +638,7 @@ function normalizeDraftForPersistence(
   draftInput: NotebookProblemImportDraft,
   order: number,
 ): NotebookProblemImportDraft {
-  const draft = notebookProblemImportDraftSchema.parse(draftInput);
+  const draft = normalizeDraftMathFields(notebookProblemImportDraftSchema.parse(draftInput));
   const isCode = draft.type === 'code';
   const codeErrors = codeDraftReadinessErrors(draft);
   const codeVerification =
@@ -587,7 +646,8 @@ function normalizeDraftForPersistence(
       ? (draft.sourceMeta.codeVerification as { passed?: unknown })
       : undefined;
   const publishRequirementsMet =
-    !isCode || (codeErrors.length === 0 && codeVerification?.passed !== false);
+    draft.validationErrors.length === 0 &&
+    (!isCode || (codeErrors.length === 0 && codeVerification?.passed !== false));
   const hasSecretTests = (draft.secretJudge?.secretTests?.length ?? 0) > 0;
 
   return {
@@ -1158,14 +1218,133 @@ async function loadProblemsWithNotebook(args: {
   })) as unknown as ProblemRow[];
 }
 
+function buildCourseProblemPageFilterSql(filters?: CourseProblemPageFilters): Prisma.Sql {
+  const conditions: Prisma.Sql[] = [Prisma.sql`TRUE`];
+  const searchQuery = filters?.searchQuery?.trim();
+  if (searchQuery) {
+    const pattern = `%${searchQuery}%`;
+    conditions.push(Prisma.sql`(
+      p."title" ILIKE ${pattern}
+      OR p."publicContentJson"::text ILIKE ${pattern}
+      OR COALESCE(n."name", '') ILIKE ${pattern}
+      OR COALESCE(chapter."name", '') ILIKE ${pattern}
+      OR COALESCE(p."problemNumber"::text, (p."order" + 1)::text) ILIKE ${pattern}
+    )`);
+  }
+  if (filters?.typeFilter && filters.typeFilter !== 'all') {
+    conditions.push(Prisma.sql`p."type"::text = ${filters.typeFilter}`);
+  }
+  if (filters?.difficultyFilter && filters.difficultyFilter !== 'all') {
+    conditions.push(Prisma.sql`p."difficulty"::text = ${filters.difficultyFilter}`);
+  }
+  if (filters?.statusFilter && filters.statusFilter !== 'all') {
+    conditions.push(Prisma.sql`p."status"::text = ${filters.statusFilter}`);
+  }
+  if (filters?.notebookId) {
+    conditions.push(Prisma.sql`p."notebookId" = ${filters.notebookId}`);
+  }
+  if (filters?.chapterFilter === '__unfiled__') {
+    conditions.push(Prisma.sql`p."chapterId" IS NULL`);
+  } else if (filters?.chapterFilter && filters.chapterFilter !== 'all') {
+    conditions.push(Prisma.sql`p."chapterId" = ${filters.chapterFilter}`);
+  }
+  if (filters?.practiceFilter === 'unattempted') {
+    conditions.push(Prisma.sql`COALESCE(g."attemptedCount", 0) = 0`);
+  } else if (filters?.practiceFilter === 'mastered') {
+    conditions.push(Prisma.sql`COALESCE(g."passedCount", 0) > 0`);
+  } else if (filters?.practiceFilter === 'review') {
+    conditions.push(
+      Prisma.sql`COALESCE(g."attemptedCount", 0) > 0 AND COALESCE(g."passedCount", 0) = 0`,
+    );
+  } else if (filters?.practiceFilter === 'wrong') {
+    conditions.push(Prisma.sql`g."status"::text IN ('failed', 'partial', 'error')`);
+  }
+  return Prisma.join(conditions, ' AND ');
+}
+
 async function loadCourseProblemsForUserFast(args: {
   userId: string;
   courseId: string;
-}): Promise<NotebookProblemSummaryForUser[]> {
+  filters?: CourseProblemPageFilters;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ problems: NotebookProblemSummaryForUser[]; totalCount: number }> {
+  const filterSql = buildCourseProblemPageFilterSql(args.filters);
+  const hasPagination = typeof args.page === 'number' && typeof args.pageSize === 'number';
+  const page = Math.max(1, Math.floor(args.page ?? 1));
+  const pageSize = Math.min(50, Math.max(1, Math.floor(args.pageSize ?? 10)));
+  const offset = (page - 1) * pageSize;
+  const paginationSql = hasPagination
+    ? Prisma.sql`LIMIT ${pageSize} OFFSET ${offset}`
+    : Prisma.empty;
   const rows = await withCourseEnrollmentSchemaFallback(
     prismaDb,
     () =>
       prismaDb.$queryRaw<FlatCourseProblemRow[]>`
+      WITH "courseStudentCandidates" AS (
+        SELECT e."userId"
+        FROM "CourseEnrollment" e
+        WHERE e."courseId" = ${args.courseId}
+          AND (
+            NOT EXISTS (
+              SELECT 1 FROM "ExternalCourseBinding" b WHERE b."courseId" = e."courseId"
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM "ExternalCourseBinding" b
+              JOIN "ExternalCourseMembership" m ON m."bindingId" = b."id"
+              WHERE b."courseId" = e."courseId"
+                AND m."userId" = e."userId"
+                AND m."role" = 'STUDENT'::"ExternalCourseMemberRole"
+                AND m."active" = true
+            )
+          )
+        UNION
+        SELECT m."userId"
+        FROM "ExternalCourseBinding" b
+        JOIN "ExternalCourseMembership" m ON m."bindingId" = b."id"
+        WHERE b."courseId" = ${args.courseId}
+          AND m."role" = 'STUDENT'::"ExternalCourseMemberRole"
+          AND m."active" = true
+        UNION
+        SELECT cp."buyerId" AS "userId"
+        FROM "CoursePurchase" cp
+        WHERE cp."sourceCourseId" = ${args.courseId}
+          AND NOT EXISTS (
+            SELECT 1 FROM "ExternalCourseBinding" b WHERE b."courseId" = cp."sourceCourseId"
+          )
+      ),
+      "courseStudents" AS (
+        SELECT DISTINCT candidate."userId"
+        FROM "courseStudentCandidates" candidate
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM "Course" enrolledCourse
+          WHERE enrolledCourse."id" = ${args.courseId}
+            AND enrolledCourse."ownerId" = candidate."userId"
+        )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM "ExternalCourseBinding" b
+            JOIN "ExternalCourseMembership" m ON m."bindingId" = b."id"
+            WHERE b."courseId" = ${args.courseId}
+              AND m."userId" = candidate."userId"
+              AND m."role" = 'TEACHER'::"ExternalCourseMemberRole"
+              AND m."active" = true
+          )
+      ),
+      "classTotals" AS (
+        SELECT COUNT(*)::int AS "studentCount" FROM "courseStudents"
+      ),
+      "classProblemProgress" AS (
+        SELECT
+          progress."problemId",
+          COUNT(*) FILTER (WHERE progress."attemptedCount" > 0)::int AS "attemptedStudentCount",
+          COUNT(*) FILTER (WHERE progress."passedCount" > 0)::int AS "passedStudentCount"
+        FROM "NotebookProblemProgress" progress
+        JOIN "courseStudents" student ON student."userId" = progress."userId"
+        GROUP BY progress."problemId"
+      )
       SELECT
         p."id",
         p."courseId",
@@ -1211,7 +1390,13 @@ async function loadCourseProblemsForUserFast(args: {
         g."score" AS "latestAttemptScore",
         COALESCE(g."lastAttemptAt", a."createdAt") AS "latestAttemptCreatedAt",
         g."attemptedCount" AS "attemptedCount",
-        g."passedCount" AS "passedCount"
+        g."passedCount" AS "passedCount",
+        "classTotals"."studentCount" AS "classStudentCount",
+        COALESCE("classProblemProgress"."attemptedStudentCount", 0)::int
+          AS "classAttemptedStudentCount",
+        COALESCE("classProblemProgress"."passedStudentCount", 0)::int
+          AS "classPassedStudentCount",
+        COUNT(*) OVER()::int AS "filteredCount"
       FROM "NotebookProblem" p
       JOIN "Course" c ON c."id" = p."courseId"
       LEFT JOIN "Notebook" n ON n."id" = p."notebookId"
@@ -1220,7 +1405,10 @@ async function loadCourseProblemsForUserFast(args: {
       LEFT JOIN "NotebookProblemProgress" g
         ON g."problemId" = p."id" AND g."userId" = ${args.userId}
       LEFT JOIN "NotebookProblemAttempt" a ON a."id" = g."latestAttemptId"
+      CROSS JOIN "classTotals"
+      LEFT JOIN "classProblemProgress" ON "classProblemProgress"."problemId" = p."id"
       WHERE p."courseId" = ${args.courseId}
+        AND ${filterSql}
         AND (
           (
             NOT EXISTS (SELECT 1 FROM "ExternalCourseBinding" b WHERE b."courseId" = c."id")
@@ -1261,10 +1449,11 @@ async function loadCourseProblemsForUserFast(args: {
           )
         )
       ORDER BY p."order" ASC, p."createdAt" ASC
+      ${paginationSql}
     `,
   );
 
-  return rows.map((row) =>
+  const problems = rows.map((row) =>
     mapProblemRow(
       {
         id: row.id,
@@ -1313,8 +1502,135 @@ async function loadCourseProblemsForUserFast(args: {
       row.attemptedCount !== null && row.passedCount !== null
         ? { attemptedCount: row.attemptedCount, passedCount: row.passedCount }
         : null,
+      {
+        studentCount: row.classStudentCount,
+        attemptedStudentCount: row.classAttemptedStudentCount,
+        passedStudentCount: row.classPassedStudentCount,
+      },
     ),
   );
+  return {
+    problems,
+    totalCount: rows[0]?.filteredCount ?? 0,
+  };
+}
+
+async function loadCourseProblemBankStatsForUser(
+  userId: string,
+  courseId: string,
+): Promise<CourseProblemBankAggregateStats> {
+  const rows = await prismaDb.$queryRaw<CourseProblemBankStatsRow[]>`
+    WITH "problemStates" AS (
+      SELECT
+        p."id",
+        p."chapterId",
+        chapter."name" AS "chapterName",
+        p."difficulty"::text AS "difficulty",
+        CASE
+          WHEN COALESCE(progress."attemptedCount", 0) = 0 THEN 'unattempted'
+          WHEN progress."status"::text = 'passed' THEN 'mastered'
+          WHEN progress."status"::text IN ('failed', 'partial', 'error') THEN 'wrong'
+          ELSE 'review'
+        END AS "practiceState",
+        (p."publicContentJson" -> 'translations') IS NOT NULL AS "hasTranslations"
+      FROM "NotebookProblem" p
+      LEFT JOIN "CourseProblemChapter" chapter ON chapter."id" = p."chapterId"
+      LEFT JOIN "NotebookProblemProgress" progress
+        ON progress."problemId" = p."id" AND progress."userId" = ${userId}
+      WHERE p."courseId" = ${courseId}
+        AND p."status"::text <> 'archived'
+    ),
+    "chapterRows" AS (
+      SELECT
+        "chapterId",
+        "chapterName",
+        COUNT(*)::int AS "totalCount",
+        COUNT(*) FILTER (WHERE "practiceState" <> 'unattempted')::int AS "attemptedCount"
+      FROM "problemStates"
+      WHERE "chapterId" IS NOT NULL AND "chapterName" IS NOT NULL
+      GROUP BY "chapterId", "chapterName"
+    ),
+    "topChapters" AS (
+      SELECT COALESCE(
+        jsonb_agg(
+          jsonb_build_object(
+            'chapter', ranked."chapterName",
+            'attemptedCount', ranked."attemptedCount",
+            'totalCount', ranked."totalCount",
+            'percent', ROUND(
+              ranked."attemptedCount"::numeric * 100 / GREATEST(1, ranked."totalCount")
+            )::int
+          )
+          ORDER BY ranked."totalCount" DESC,
+            ranked."attemptedCount"::numeric / GREATEST(1, ranked."totalCount") ASC,
+            ranked."chapterName" ASC
+        ),
+        '[]'::jsonb
+      ) AS "chapterProgress"
+      FROM (
+        SELECT * FROM "chapterRows"
+        ORDER BY "totalCount" DESC,
+          "attemptedCount"::numeric / GREATEST(1, "totalCount") ASC,
+          "chapterName" ASC
+        LIMIT 5
+      ) ranked
+    )
+    SELECT
+      (SELECT COUNT(*)::int FROM "NotebookProblem" allProblems
+        WHERE allProblems."courseId" = ${courseId}) AS "allProblemCount",
+      COUNT(*)::int AS "total",
+      COUNT(*) FILTER (WHERE "practiceState" <> 'unattempted')::int AS "attempted",
+      COUNT(*) FILTER (WHERE "practiceState" = 'mastered')::int AS "mastered",
+      COUNT(*) FILTER (WHERE "practiceState" = 'review')::int AS "review",
+      COUNT(*) FILTER (WHERE "practiceState" = 'wrong')::int AS "wrong",
+      COUNT(*) FILTER (WHERE "practiceState" = 'unattempted')::int AS "unattempted",
+      CASE
+        WHEN COUNT(*) = 0 THEN 0
+        ELSE ROUND(
+          COUNT(*) FILTER (WHERE "practiceState" = 'mastered')::numeric * 100 / COUNT(*)
+        )::int
+      END AS "masteryPercent",
+      COUNT(*) FILTER (WHERE "chapterId" IS NULL)::int AS "unfiledCount",
+      COALESCE(BOOL_OR("hasTranslations"), false) AS "hasTranslations",
+      COUNT(*) FILTER (WHERE "difficulty" = 'easy')::int AS "easyCount",
+      COUNT(*) FILTER (WHERE "difficulty" = 'medium')::int AS "mediumCount",
+      COUNT(*) FILTER (WHERE "difficulty" = 'hard')::int AS "hardCount",
+      (SELECT "chapterProgress" FROM "topChapters") AS "chapterProgress"
+    FROM "problemStates"
+  `;
+  const row = rows[0];
+  const chapterProgress = Array.isArray(row?.chapterProgress)
+    ? row.chapterProgress
+        .filter(
+          (item): item is Record<string, unknown> =>
+            Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+        )
+        .map((item) => ({
+          chapter: typeof item.chapter === 'string' ? item.chapter : '',
+          attemptedCount: Number(item.attemptedCount) || 0,
+          totalCount: Number(item.totalCount) || 0,
+          percent: Number(item.percent) || 0,
+        }))
+        .filter((item) => item.chapter)
+    : [];
+  return {
+    allProblemCount: row?.allProblemCount ?? 0,
+    total: row?.total ?? 0,
+    attempted: row?.attempted ?? 0,
+    mastered: row?.mastered ?? 0,
+    review: row?.review ?? 0,
+    wrong: row?.wrong ?? 0,
+    unattempted: row?.unattempted ?? 0,
+    masteryPercent: row?.masteryPercent ?? 0,
+    unfiledCount: row?.unfiledCount ?? 0,
+    hasTranslations: row?.hasTranslations ?? false,
+    difficultyCounts: {
+      easy: row?.easyCount ?? 0,
+      medium: row?.mediumCount ?? 0,
+      hard: row?.hardCount ?? 0,
+    },
+    chapterProgress,
+  };
 }
 
 function reviewProblemTargetAccessSql(args: {
@@ -1540,7 +1856,7 @@ export async function listCourseProblemsForUser(
   options: { skipMaintenance?: boolean } = {},
 ): Promise<NotebookProblemSummaryForUser[]> {
   if (options.skipMaintenance) {
-    const problems = await loadCourseProblemsForUserFast({ userId, courseId });
+    const { problems } = await loadCourseProblemsForUserFast({ userId, courseId });
     if (problems.length === 0) {
       await requireCourseReadAccess(userId, courseId);
     }
@@ -1553,7 +1869,44 @@ export async function listCourseProblemsForUser(
     await ensureProblemNumbersBackfilledForCourse(userId, courseId);
   }
 
-  return loadCourseProblemsForUserFast({ userId, courseId });
+  return (await loadCourseProblemsForUserFast({ userId, courseId })).problems;
+}
+
+export async function listCourseProblemPageForUser(
+  userId: string,
+  courseId: string,
+  args: {
+    page: number;
+    pageSize: number;
+    filters?: CourseProblemPageFilters;
+    skipMaintenance?: boolean;
+  },
+): Promise<CourseProblemPageResult> {
+  const accessRole = await requireCourseReadAccess(userId, courseId);
+  if (!args.skipMaintenance) {
+    if (accessRole === 'owner') {
+      await ensureLegacyProblemsBackfilledForCourse(userId, courseId);
+      await ensureProblemNumbersBackfilledForCourse(userId, courseId);
+    }
+  }
+  const page = Math.max(1, Math.floor(args.page));
+  const pageSize = Math.min(50, Math.max(1, Math.floor(args.pageSize)));
+  const [result, bankStats] = await Promise.all([
+    loadCourseProblemsForUserFast({
+      userId,
+      courseId,
+      filters: args.filters,
+      page,
+      pageSize,
+    }),
+    loadCourseProblemBankStatsForUser(userId, courseId),
+  ]);
+  return {
+    ...result,
+    bankStats,
+    page,
+    pageSize,
+  };
 }
 
 export async function listCourseProblemsByIdsForUser(
@@ -2963,6 +3316,25 @@ export async function listNotebookProblemAttempts(args: {
   problemId: string;
 }): Promise<NotebookProblemAttemptRecord[]> {
   await getNotebookProblemForUser(args.userId, args.notebookId, args.problemId);
+  const rows = (await prismaDb.notebookProblemAttempt.findMany({
+    where: {
+      userId: args.userId,
+      problemId: args.problemId,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 30,
+  })) as unknown as ProblemAttemptRow[];
+  return rows.map(mapAttemptRow);
+}
+
+export async function listCourseProblemAttempts(args: {
+  userId: string;
+  courseId: string;
+  problemId: string;
+}): Promise<NotebookProblemAttemptRecord[]> {
+  await getCourseProblemForUser(args.userId, args.courseId, args.problemId, {
+    skipMaintenance: true,
+  });
   const rows = (await prismaDb.notebookProblemAttempt.findMany({
     where: {
       userId: args.userId,

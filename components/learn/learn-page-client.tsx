@@ -5414,25 +5414,25 @@ function answerEvidenceSourceLink(
     };
   }
   if (source.sourceType === 'memory') {
-    return {
-      href: notebookId
-        ? `/classroom/${encodeURIComponent(notebookId)}/memory`
-        : `/course/${encodedCourseId}/resources?tab=memory`,
-      external: false,
-      label: '打开记忆来源',
-    };
+    return notebookId
+      ? {
+          href: `/classroom/${encodeURIComponent(notebookId)}`,
+          external: false,
+          label: '打开关联笔记本',
+        }
+      : null;
   }
   if (source.sourceType === 'calendar') {
     return { href: '/calendar', external: false, label: '打开学习日历' };
   }
   if (source.sourceType === 'source') {
-    return {
-      href: notebookId
-        ? `/classroom/${encodeURIComponent(notebookId)}`
-        : `/course/${encodedCourseId}/resources?tab=sources`,
-      external: false,
-      label: notebookId ? '打开来源笔记' : '打开课程资料',
-    };
+    return notebookId
+      ? {
+          href: `/classroom/${encodeURIComponent(notebookId)}`,
+          external: false,
+          label: '打开来源笔记',
+        }
+      : null;
   }
   return null;
 }

@@ -7,6 +7,7 @@ export const MIN_TOTAL_CODE_TESTS = MIN_PUBLIC_CODE_TESTS + MIN_SECRET_CODE_TEST
 const UNSUPPORTED_CODE_IO_RE = /\b(?:input|print|open)\s*\(|\bsys\s*\.\s*stdin\b/;
 const UNSAFE_TEST_EXPRESSION_RE =
   /(?:__|\b(?:import|exec|eval|compile|globals|locals|os|sys|subprocess|pathlib|tempfile)\b|[;\r\n])/;
+const GENERIC_TEST_ID_RE = /^(?:public|secret|test|case)[_-]?\d+$/i;
 
 export function codeReferenceSolution(draft: NotebookProblemImportDraft): string {
   if (draft.grading.type !== 'code') return '';
@@ -33,12 +34,57 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
   const secretTests = draft.secretJudge?.secretTests ?? [];
   const solution = codeReferenceSolution(draft);
   const functionSignature = content.functionSignature?.trim() || '';
+  const runnerAdapter =
+    content.runnerAdapter ?? (content.language === 'python' ? 'python-unittest' : '');
   const interfaceCode = [functionSignature, content.starterCode, solution]
     .filter(Boolean)
     .join('\n');
 
+  if (content.language !== 'python' || runnerAdapter !== 'python-unittest') {
+    errors.push(
+      `代码题语言包 ${content.language}/${runnerAdapter || '未指定'} 尚未配置可执行适配器；当前仅支持 python/python-unittest`,
+    );
+  }
+  if (
+    draft.secretJudge &&
+    (draft.secretJudge.language !== content.language ||
+      (draft.secretJudge.runnerAdapter ?? runnerAdapter) !== runnerAdapter)
+  ) {
+    errors.push('代码题公开语言包与隐藏测试必须使用同一个 runner adapter');
+  }
+  if (content.language !== 'python' || runnerAdapter !== 'python-unittest') {
+    return Array.from(new Set(errors));
+  }
+
   if (!functionSignature || !/^\s*(?:async\s+)?def\s+[A-Za-z_]\w*\s*\(/m.test(functionSignature)) {
     errors.push('代码题缺少有效的 Python function signature');
+  }
+  if (functionSignature && !/->\s*[^:]+\s*:/.test(functionSignature)) {
+    errors.push('Python function signature 必须包含返回类型注解');
+  }
+  if (!content.starterCode?.trim()) {
+    errors.push('代码题缺少学生编辑器 starterCode');
+  } else {
+    if (!/^[\s\S]*def\s+[A-Za-z_]\w*\s*\([^)]*:[^)]*\)[\s\S]*->/m.test(content.starterCode)) {
+      errors.push('starterCode 必须包含参数类型和返回类型注解');
+    }
+    if (!/(?:"""[\s\S]+?"""|'''[\s\S]+?''')/.test(content.starterCode)) {
+      errors.push('starterCode 必须包含说明参数、返回值和行为的 docstring');
+    }
+  }
+  const statementKinds = new Set(
+    (content.statementSections ?? []).map((section) => section.kind ?? 'overview'),
+  );
+  const requiredStatementKinds = [
+    'overview',
+    'requirements',
+    'interface',
+    'examples',
+    'constraints',
+  ] as const;
+  const missingStatementKinds = requiredStatementKinds.filter((kind) => !statementKinds.has(kind));
+  if (missingStatementKinds.length > 0) {
+    errors.push(`代码题缺少 LeetCode 式题面部分：${missingStatementKinds.join(', ')}`);
   }
   if (!solution) {
     errors.push('代码题缺少参考答案');
@@ -62,6 +108,9 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
   const ids = allTests.map((testCase) => testCase.id);
   if (new Set(ids).size !== ids.length) {
     errors.push('代码题的 testcase id 必须唯一');
+  }
+  if (ids.some((id) => GENERIC_TEST_ID_RE.test(id))) {
+    errors.push('代码题的 testcase id 必须描述测试场景，不能只写 public_1 或 secret_1');
   }
   const keys = allTests.map(normalizedTestKey);
   if (new Set(keys).size !== keys.length) {

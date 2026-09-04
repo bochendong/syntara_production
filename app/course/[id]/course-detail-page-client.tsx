@@ -7,10 +7,12 @@ import {
   AlertCircle,
   BookOpen,
   CalendarCheck,
+  BarChart3,
   ChevronLeft,
   ChevronRight,
   Flame,
   HardDrive,
+  LayoutDashboard,
   Loader2,
   MessageCircle,
   Pencil,
@@ -27,8 +29,12 @@ import {
   notebookAssetListGridClassName,
 } from '@/components/course-gallery-card';
 import { CreateCourseForm } from '@/components/courses/create-course-form';
-import { CourseMaterialsPanel } from '@/components/courses/course-materials-panel';
 import { EditNotebookForm } from '@/components/courses/edit-notebook-form';
+import {
+  CourseSpaceHeader,
+  resolveCourseSpaceHeaderFields,
+} from '@/components/course-space/course-space-header';
+import { CourseSpaceImageCard } from '@/components/course-space/course-space-image-card';
 import { CourseWorkspaceLoadingContent } from '@/components/loading/app-page-skeletons';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -296,7 +302,7 @@ function getNotebookPracticeProgress(
   }, {});
 }
 
-type CourseWorkspaceTab = 'notebooks' | 'classmates' | 'materials';
+type CourseWorkspaceTab = 'dashboard' | 'classmates';
 
 type CourseClassmateProfile = {
   id: string;
@@ -590,7 +596,7 @@ export default function CourseDetailPageClient() {
   const [courseProblems, setCourseProblems] = useState<CourseProblemClientSummary[]>([]);
   const [moveTargets, setMoveTargets] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
-  const [workspaceTab, setWorkspaceTab] = useState<CourseWorkspaceTab>('notebooks');
+  const [workspaceTab, setWorkspaceTab] = useState<CourseWorkspaceTab>('dashboard');
   const [notebookPage, setNotebookPage] = useState(0);
   const [classmateQuery, setClassmateQuery] = useState('');
   const [classmatePage, setClassmatePage] = useState(0);
@@ -775,6 +781,16 @@ export default function CourseDetailPageClient() {
       }),
     [authName, course, courseProblemStats, sortedNotebooks],
   );
+  const classAverageAccuracy = useMemo(
+    () =>
+      classmateProfiles.length > 0
+        ? Math.round(
+            classmateProfiles.reduce((total, profile) => total + profile.accuracy, 0) /
+              classmateProfiles.length,
+          )
+        : 0,
+    [classmateProfiles],
+  );
   const normalizedClassmateQuery = classmateQuery.trim().toLowerCase();
   const filteredClassmateProfiles = useMemo(() => {
     if (!normalizedClassmateQuery) return classmateProfiles;
@@ -891,7 +907,7 @@ export default function CourseDetailPageClient() {
   }, [sortedNotebooks.length]);
 
   useEffect(() => {
-    if (loading || workspaceTab !== 'notebooks') return;
+    if (loading || workspaceTab !== 'dashboard') return;
     const missingPreviewIds = pagedNotebooks
       .filter(
         (notebook) =>
@@ -1348,190 +1364,188 @@ export default function CourseDetailPageClient() {
           <CourseWorkspaceLoadingContent />
         ) : (
           <>
-            <section className="relative mb-4 h-[18.5rem] overflow-hidden rounded-[24px] border border-white/75 bg-slate-100 shadow-[0_18px_54px_rgba(15,23,42,0.11)] ring-1 ring-slate-900/[0.035] dark:border-white/10 dark:bg-slate-950 dark:shadow-[0_22px_60px_rgba(0,0,0,0.32)] sm:h-[17rem] md:mb-5 md:h-[15.5rem] lg:h-[15.75rem] xl:h-[15rem]">
-              <img
-                src={courseBackgroundUrl}
-                alt=""
-                className="absolute inset-0 size-full object-cover brightness-[1.1] saturate-[1.06]"
-                aria-hidden
-              />
-              <div
-                className="absolute inset-0 bg-[linear-gradient(110deg,rgba(15,23,42,0.2)_0%,rgba(15,23,42,0.11)_50%,rgba(15,23,42,0.04)_100%)] dark:bg-[linear-gradient(110deg,rgba(8,13,24,0.72)_0%,rgba(8,13,24,0.5)_52%,rgba(8,13,24,0.22)_100%)]"
-                aria-hidden
-              />
-              <div
-                className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/24 via-slate-950/5 to-transparent dark:from-slate-950/72 dark:via-slate-950/18"
-                aria-hidden
-              />
-              <div className="relative z-10 flex h-full min-h-0 flex-col justify-start gap-3.5 p-4 sm:p-5 md:p-5">
-                <div className="flex min-h-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
-                    <img
-                      src={resolveCourseAvatarDisplayUrl(course.id, course.avatarUrl)}
-                      alt=""
-                      className="size-[4.25rem] shrink-0 rounded-[22px] border border-white/80 bg-white object-cover shadow-[0_14px_34px_rgba(15,23,42,0.2)] ring-1 ring-slate-900/[0.04] dark:border-white/15 dark:bg-slate-900 md:size-16 md:rounded-[18px]"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-start gap-2 xl:block">
-                        <h1
-                          id="course-detail-title"
-                          className="min-w-0 flex-1 truncate text-xl font-semibold leading-[1.12] tracking-normal text-white drop-shadow-[0_1px_2px_rgba(15,23,42,0.38)] md:text-[1.7rem] xl:max-w-[44rem]"
+            <CourseSpaceHeader
+              courseId={id}
+              {...resolveCourseSpaceHeaderFields(course)}
+              courseAvatarUrl={resolveCourseAvatarDisplayUrl(course.id, course.avatarUrl)}
+              role="student"
+              active="dashboard"
+              problemCount={courseProblemStats.total}
+              className="mb-4"
+            />
+            <CourseSpaceImageCard
+              imageUrl={courseBackgroundUrl}
+              priority
+              className="mb-4 min-h-[15rem]"
+              contentClassName="justify-start gap-3.5"
+            >
+              <div className="flex min-h-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
+                  <img
+                    src={resolveCourseAvatarDisplayUrl(course.id, course.avatarUrl)}
+                    alt=""
+                    className="size-[4.25rem] shrink-0 rounded-[22px] border border-white/80 bg-white object-cover shadow-[0_14px_34px_rgba(15,23,42,0.2)] ring-1 ring-slate-900/[0.04] dark:border-white/15 dark:bg-slate-900 md:size-16 md:rounded-[18px]"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-start gap-2 xl:block">
+                      <h1
+                        id="course-detail-title"
+                        className="min-w-0 flex-1 truncate text-xl font-semibold leading-[1.12] tracking-normal text-white drop-shadow-[0_1px_2px_rgba(15,23,42,0.38)] md:text-[1.7rem] xl:max-w-[44rem]"
+                      >
+                        {course.name}
+                      </h1>
+                      {isCourseOwner ? (
+                        <div
+                          className="flex shrink-0 items-center gap-1 xl:hidden"
+                          data-course-actions-compact
                         >
-                          {course.name}
-                        </h1>
-                        {isCourseOwner ? (
-                          <div
-                            className="flex shrink-0 items-center gap-1 xl:hidden"
-                            data-course-actions-compact
+                          <Button
+                            asChild
+                            size="icon-sm"
+                            variant="outline"
+                            className="size-8 rounded-full border-white/15 bg-slate-950/22 text-white shadow-sm backdrop-blur-md hover:bg-slate-950/34 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
+                            title="资料库"
                           >
-                            <Button
-                              asChild
-                              size="icon-sm"
-                              variant="outline"
-                              className="size-8 rounded-full border-white/15 bg-slate-950/22 text-white shadow-sm backdrop-blur-md hover:bg-slate-950/34 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
-                              title="资料库"
+                            <Link
+                              href={`/course/${encodeURIComponent(id)}/resources`}
+                              aria-label="资料库"
                             >
-                              <Link
-                                href={`/course/${encodeURIComponent(id)}/resources`}
-                                aria-label="资料库"
-                              >
-                                <HardDrive className="size-4" strokeWidth={1.85} />
-                              </Link>
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon-sm"
-                              variant="outline"
-                              className="size-8 rounded-full border-white/15 bg-slate-950/22 text-white shadow-sm backdrop-blur-md hover:bg-slate-950/34 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
-                              aria-label="编辑课程"
-                              title="编辑课程"
-                              onClick={() => setEditCourseOpen(true)}
-                            >
-                              <Pencil className="size-4" strokeWidth={1.85} />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon-sm"
-                              variant="outline"
-                              className="size-8 rounded-full border-white/15 bg-slate-950/22 text-white shadow-sm backdrop-blur-md hover:bg-slate-950/34 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
-                              aria-label={coursePublishActionLabel}
-                              title={coursePublishActionLabel}
-                              disabled={
-                                coursePublishActionDisabled || storeVisibilityBusyId === 'course'
-                              }
-                              onClick={() => void handleTogglePublishCourse()}
-                            >
-                              <Store className="size-4" strokeWidth={1.85} />
-                            </Button>
-                            <Button
-                              asChild
-                              size="icon-sm"
-                              className="size-8 rounded-full bg-slate-950 text-white shadow-[0_10px_22px_rgba(15,23,42,0.25)] hover:bg-slate-800 dark:bg-white dark:text-slate-900"
-                              title="新建笔记本"
-                            >
-                              <Link href={createNotebookHref(id)} aria-label="新建笔记本">
-                                <Plus className="size-4" strokeWidth={1.9} />
-                              </Link>
-                            </Button>
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="mt-2 flex max-h-[5.25rem] flex-wrap items-center gap-1.5 overflow-hidden text-xs text-white/90 md:mt-2.5 md:max-h-[4.75rem]">
-                        <span className="rounded-full border border-white/15 bg-slate-950/20 px-2.5 py-1 shadow-sm backdrop-blur-md">
-                          {course.language === 'zh-CN' ? '中文' : 'English'}
-                        </span>
-                        <span className="rounded-full border border-white/15 bg-slate-950/20 px-2.5 py-1 shadow-sm backdrop-blur-md">
-                          {purposeLabel(course.purpose)}
-                        </span>
-                        {course.purpose === 'university' &&
-                        (course.university || course.courseCode) ? (
-                          <span className="rounded-full border border-white/15 bg-slate-950/20 px-2.5 py-1 shadow-sm backdrop-blur-md">
-                            {[course.university, course.courseCode].filter(Boolean).join(' · ')}
-                          </span>
-                        ) : null}
-                        {course.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-full border border-sky-200/20 bg-sky-950/20 px-2.5 py-1 text-[11px] font-medium text-sky-50 shadow-sm backdrop-blur-md"
+                              <HardDrive className="size-4" strokeWidth={1.85} />
+                            </Link>
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="outline"
+                            className="size-8 rounded-full border-white/15 bg-slate-950/22 text-white shadow-sm backdrop-blur-md hover:bg-slate-950/34 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
+                            aria-label="编辑课程"
+                            title="编辑课程"
+                            onClick={() => setEditCourseOpen(true)}
                           >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
+                            <Pencil className="size-4" strokeWidth={1.85} />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="outline"
+                            className="size-8 rounded-full border-white/15 bg-slate-950/22 text-white shadow-sm backdrop-blur-md hover:bg-slate-950/34 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
+                            aria-label={coursePublishActionLabel}
+                            title={coursePublishActionLabel}
+                            disabled={
+                              coursePublishActionDisabled || storeVisibilityBusyId === 'course'
+                            }
+                            onClick={() => void handleTogglePublishCourse()}
+                          >
+                            <Store className="size-4" strokeWidth={1.85} />
+                          </Button>
+                          <Button
+                            asChild
+                            size="icon-sm"
+                            className="size-8 rounded-full bg-slate-950 text-white shadow-[0_10px_22px_rgba(15,23,42,0.25)] hover:bg-slate-800 dark:bg-white dark:text-slate-900"
+                            title="新建笔记本"
+                          >
+                            <Link href={createNotebookHref(id)} aria-label="新建笔记本">
+                              <Plus className="size-4" strokeWidth={1.9} />
+                            </Link>
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                  {isCourseOwner ? (
-                    <div
-                      className="hidden shrink-0 flex-wrap items-center gap-2 xl:flex xl:max-w-[28rem] xl:justify-end xl:pt-0.5"
-                      data-course-actions
-                    >
-                      <Button
-                        asChild
-                        variant="outline"
-                        className="h-8 min-h-0 gap-1.5 rounded-full border-white/15 bg-slate-950/20 px-3 text-xs text-white shadow-sm backdrop-blur-md hover:bg-slate-950/30 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
-                      >
-                        <Link href={`/course/${encodeURIComponent(id)}/resources`}>
-                          <HardDrive className="size-3.5" strokeWidth={1.8} />
-                          资料库
-                        </Link>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-8 min-h-0 rounded-full border-white/15 bg-slate-950/20 px-3 text-xs text-white shadow-sm backdrop-blur-md hover:bg-slate-950/30 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
-                        onClick={() => setEditCourseOpen(true)}
-                      >
-                        编辑课程
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-8 min-h-0 rounded-full border-white/15 bg-slate-950/20 px-3 text-xs leading-tight text-white shadow-sm backdrop-blur-md hover:bg-slate-950/30 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
-                        disabled={coursePublishActionDisabled || storeVisibilityBusyId === 'course'}
-                        onClick={() => void handleTogglePublishCourse()}
-                      >
-                        {coursePublishActionLabel}
-                      </Button>
-                      {course.listedInCourseStore ? (
-                        <span className="inline-flex h-8 min-h-0 items-center justify-center rounded-full border border-emerald-200/20 bg-emerald-950/20 px-3 text-xs font-medium text-emerald-50 shadow-sm backdrop-blur-md dark:border-emerald-300/20 dark:bg-emerald-500/12 dark:text-emerald-100">
-                          已在商城
+                    <div className="mt-2 flex max-h-[5.25rem] flex-wrap items-center gap-1.5 overflow-hidden text-xs text-white/90 md:mt-2.5 md:max-h-[4.75rem]">
+                      <span className="rounded-full border border-white/15 bg-slate-950/20 px-2.5 py-1 shadow-sm backdrop-blur-md">
+                        {course.language === 'zh-CN' ? '中文' : 'English'}
+                      </span>
+                      <span className="rounded-full border border-white/15 bg-slate-950/20 px-2.5 py-1 shadow-sm backdrop-blur-md">
+                        {purposeLabel(course.purpose)}
+                      </span>
+                      {course.purpose === 'university' &&
+                      (course.university || course.courseCode) ? (
+                        <span className="rounded-full border border-white/15 bg-slate-950/20 px-2.5 py-1 shadow-sm backdrop-blur-md">
+                          {[course.university, course.courseCode].filter(Boolean).join(' · ')}
                         </span>
                       ) : null}
-                      <Button
-                        asChild
-                        className="h-8 min-h-0 rounded-full bg-slate-950 px-3.5 text-xs text-white shadow-[0_14px_28px_rgba(15,23,42,0.22)] hover:bg-slate-800 dark:bg-white dark:text-slate-900"
-                      >
-                        <Link href={createNotebookHref(id)}>新建笔记本</Link>
-                      </Button>
+                      {course.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full border border-sky-200/20 bg-sky-950/20 px-2.5 py-1 text-[11px] font-medium text-sky-50 shadow-sm backdrop-blur-md"
+                        >
+                          {tag}
+                        </span>
+                      ))}
                     </div>
-                  ) : (
-                    <div className="flex shrink-0 flex-col gap-2 rounded-2xl border border-emerald-200/80 bg-emerald-50/78 px-3 py-2 text-sm text-emerald-800 shadow-sm backdrop-blur-md dark:border-emerald-300/20 dark:bg-emerald-500/12 dark:text-emerald-100 sm:flex-row sm:items-center">
-                      <span>已加入课程，内容由创建者维护；你的做题记录和私有记忆会单独保存。</span>
-                      <Button
-                        asChild
-                        variant="outline"
-                        className="h-8 gap-1.5 rounded-lg border-emerald-200 bg-white/72 px-2.5 text-xs font-semibold text-emerald-800 hover:bg-white dark:border-emerald-300/25 dark:bg-white/8 dark:text-emerald-100 dark:hover:bg-white/12"
-                      >
-                        <Link href={`/course/${encodeURIComponent(id)}/resources`}>
-                          <HardDrive className="size-3.5" strokeWidth={1.8} />
-                          资料库
-                        </Link>
-                      </Button>
-                    </div>
-                  )}
+                  </div>
                 </div>
-                {course.description ? (
-                  <p className="line-clamp-4 max-w-[68rem] text-[13px] leading-5 text-white/90 drop-shadow-[0_1px_2px_rgba(15,23,42,0.42)] sm:line-clamp-4 md:text-[13.5px]">
-                    {course.description}
-                  </p>
-                ) : null}
-                {isCourseOwner && courseHasPurchasedNotebook && !course.listedInCourseStore ? (
-                  <p className="rounded-xl border border-amber-200/80 bg-amber-50/86 px-3 py-2 text-sm text-amber-800 shadow-sm backdrop-blur-md dark:border-amber-300/20 dark:bg-amber-500/12 dark:text-amber-100">
-                    当前课程包含从商城购买的笔记本副本，因此不能发布到商城。
-                  </p>
-                ) : null}
+                {isCourseOwner ? (
+                  <div
+                    className="hidden shrink-0 flex-wrap items-center gap-2 xl:flex xl:max-w-[28rem] xl:justify-end xl:pt-0.5"
+                    data-course-actions
+                  >
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-8 min-h-0 gap-1.5 rounded-full border-white/15 bg-slate-950/20 px-3 text-xs text-white shadow-sm backdrop-blur-md hover:bg-slate-950/30 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
+                    >
+                      <Link href={`/course/${encodeURIComponent(id)}/resources`}>
+                        <HardDrive className="size-3.5" strokeWidth={1.8} />
+                        资料库
+                      </Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-8 min-h-0 rounded-full border-white/15 bg-slate-950/20 px-3 text-xs text-white shadow-sm backdrop-blur-md hover:bg-slate-950/30 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
+                      onClick={() => setEditCourseOpen(true)}
+                    >
+                      编辑课程
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-8 min-h-0 rounded-full border-white/15 bg-slate-950/20 px-3 text-xs leading-tight text-white shadow-sm backdrop-blur-md hover:bg-slate-950/30 dark:border-white/20 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/12"
+                      disabled={coursePublishActionDisabled || storeVisibilityBusyId === 'course'}
+                      onClick={() => void handleTogglePublishCourse()}
+                    >
+                      {coursePublishActionLabel}
+                    </Button>
+                    {course.listedInCourseStore ? (
+                      <span className="inline-flex h-8 min-h-0 items-center justify-center rounded-full border border-emerald-200/20 bg-emerald-950/20 px-3 text-xs font-medium text-emerald-50 shadow-sm backdrop-blur-md dark:border-emerald-300/20 dark:bg-emerald-500/12 dark:text-emerald-100">
+                        已在商城
+                      </span>
+                    ) : null}
+                    <Button
+                      asChild
+                      className="h-8 min-h-0 rounded-full bg-slate-950 px-3.5 text-xs text-white shadow-[0_14px_28px_rgba(15,23,42,0.22)] hover:bg-slate-800 dark:bg-white dark:text-slate-900"
+                    >
+                      <Link href={createNotebookHref(id)}>新建笔记本</Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex shrink-0 flex-col gap-2 rounded-2xl border border-emerald-200/80 bg-emerald-50/78 px-3 py-2 text-sm text-emerald-800 shadow-sm backdrop-blur-md dark:border-emerald-300/20 dark:bg-emerald-500/12 dark:text-emerald-100 sm:flex-row sm:items-center">
+                    <span>已加入课程，内容由创建者维护；你的做题记录和私有记忆会单独保存。</span>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-8 gap-1.5 rounded-lg border-emerald-200 bg-white/72 px-2.5 text-xs font-semibold text-emerald-800 hover:bg-white dark:border-emerald-300/25 dark:bg-white/8 dark:text-emerald-100 dark:hover:bg-white/12"
+                    >
+                      <Link href={`/course/${encodeURIComponent(id)}/resources`}>
+                        <HardDrive className="size-3.5" strokeWidth={1.8} />
+                        资料库
+                      </Link>
+                    </Button>
+                  </div>
+                )}
               </div>
-            </section>
+              {course.description ? (
+                <p className="line-clamp-4 max-w-[68rem] text-[13px] leading-5 text-white/90 drop-shadow-[0_1px_2px_rgba(15,23,42,0.42)] sm:line-clamp-4 md:text-[13.5px]">
+                  {course.description}
+                </p>
+              ) : null}
+              {isCourseOwner && courseHasPurchasedNotebook && !course.listedInCourseStore ? (
+                <p className="rounded-xl border border-amber-200/80 bg-amber-50/86 px-3 py-2 text-sm text-amber-800 shadow-sm backdrop-blur-md dark:border-amber-300/20 dark:bg-amber-500/12 dark:text-amber-100">
+                  当前课程包含从商城购买的笔记本副本，因此不能发布到商城。
+                </p>
+              ) : null}
+            </CourseSpaceImageCard>
 
             <Tabs
               value={workspaceTab}
@@ -1545,15 +1559,12 @@ export default function CourseDetailPageClient() {
                   className="h-12 w-full justify-start gap-6 rounded-none bg-transparent p-0 text-slate-500"
                 >
                   <TabsTrigger
-                    value="notebooks"
-                    onClick={() => setWorkspaceTab('notebooks')}
+                    value="dashboard"
+                    onClick={() => setWorkspaceTab('dashboard')}
                     className="h-12 flex-none gap-2 rounded-none px-0 text-base font-semibold data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none data-[state=active]:after:bg-blue-600 data-[state=active]:after:opacity-100 dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-blue-300"
                   >
-                    <BookOpen className="size-4" strokeWidth={1.8} />
-                    笔记本
-                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs leading-none text-blue-600 dark:bg-blue-500/10 dark:text-blue-200">
-                      {notebooks.length}
-                    </span>
+                    <LayoutDashboard className="size-4" strokeWidth={1.8} />
+                    Dashboard
                   </TabsTrigger>
                   <TabsTrigger
                     value="classmates"
@@ -1566,23 +1577,28 @@ export default function CourseDetailPageClient() {
                       {classmateProfiles.length}
                     </span>
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="materials"
-                    onClick={() => setWorkspaceTab('materials')}
-                    className="h-12 flex-none gap-2 rounded-none px-0 text-base font-semibold data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none data-[state=active]:after:bg-blue-600 data-[state=active]:after:opacity-100 dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-blue-300"
-                  >
-                    <HardDrive className="size-4" strokeWidth={1.8} />
-                    课程资料
-                  </TabsTrigger>
                 </TabsList>
               </div>
 
-              <TabsContent value="notebooks" className="mt-0">
+              <TabsContent value="dashboard" className="mt-0">
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_270px]">
                   <section aria-labelledby="course-notebooks-heading" className="min-w-0">
-                    <h2 id="course-notebooks-heading" className="sr-only">
-                      笔记本列表
-                    </h2>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-600 dark:text-blue-300">
+                          Learning overview
+                        </p>
+                        <h2
+                          id="course-notebooks-heading"
+                          className="mt-1 text-lg font-semibold text-slate-950 dark:text-white"
+                        >
+                          最近学习的笔记本
+                        </h2>
+                      </div>
+                      <Button asChild variant="outline" size="sm" className="rounded-xl">
+                        <Link href={`/course/${encodeURIComponent(id)}/resources`}>查看资料库</Link>
+                      </Button>
+                    </div>
                     <ul className={notebookAssetListGridClassName}>
                       {sortedNotebooks.length > 0 ? (
                         pagedNotebooks.map((nb, i) => (
@@ -1826,6 +1842,65 @@ export default function CourseDetailPageClient() {
                     </section>
 
                     <section className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            同班学习对比
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            你的总体掌握率与班级平均水平
+                          </p>
+                        </div>
+                        <BarChart3 className="size-4 shrink-0 text-blue-500" strokeWidth={1.9} />
+                      </div>
+                      {courseProblemStats.total > 0 ? (
+                        <div className="mt-4 space-y-4">
+                          {[
+                            {
+                              label: '我的掌握率',
+                              value: courseProblemStats.masteryPercent,
+                              tone: 'bg-blue-600 dark:bg-sky-400',
+                            },
+                            {
+                              label: '班级平均',
+                              value: classAverageAccuracy,
+                              tone: 'bg-slate-300 dark:bg-slate-600',
+                            },
+                          ].map((item) => (
+                            <div key={item.label}>
+                              <div className="mb-1.5 flex items-center justify-between text-xs">
+                                <span className="font-medium text-slate-600 dark:text-slate-300">
+                                  {item.label}
+                                </span>
+                                <span className="font-bold tabular-nums text-slate-900 dark:text-white">
+                                  {item.value}%
+                                </span>
+                              </div>
+                              <div className="h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                                <div
+                                  className={cn(
+                                    'h-full rounded-full transition-[width]',
+                                    item.tone,
+                                  )}
+                                  style={{ width: `${Math.max(2, item.value)}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                          <p className="rounded-xl bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700 dark:bg-sky-400/10 dark:text-sky-200">
+                            {courseProblemStats.masteryPercent >= classAverageAccuracy
+                              ? `当前高于班级平均 ${courseProblemStats.masteryPercent - classAverageAccuracy} 个百分点。`
+                              : `距离班级平均还有 ${classAverageAccuracy - courseProblemStats.masteryPercent} 个百分点。`}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs leading-5 text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+                          完成课程练习后，这里会显示你与同班同学的对比。
+                        </p>
+                      )}
+                    </section>
+
+                    <section className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60">
                       <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                         做题最少章节 TOP5
                       </p>
@@ -2014,10 +2089,6 @@ export default function CourseDetailPageClient() {
                     </div>
                   )}
                 </section>
-              </TabsContent>
-
-              <TabsContent value="materials" className="mt-0">
-                <CourseMaterialsPanel courseId={id} />
               </TabsContent>
             </Tabs>
             <Dialog open={editCourseOpen} onOpenChange={setEditCourseOpen}>

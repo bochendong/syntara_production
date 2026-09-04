@@ -91,12 +91,17 @@ export async function gradeNotebookTextProblem(args: {
         : 'short-answer question';
   const systemPrompt =
     args.language === 'zh-CN'
-      ? `你是一位专业的教育评估专家。你正在评分一道${questionTypeLabel}。请根据题目、参考信息和学生答案进行评分并给出简短评语。
+      ? `你是一位专业的教育评估专家。你正在评分一道${questionTypeLabel}。请逐项核对评分量表，再根据题目、参考信息和学生答案评分并给出简短评语。
 必须以如下 JSON 格式回复（不要包含其他内容）：
-{"score": <0到${args.problem.points}的整数>, "comment": "<一两句评语>"}`
-      : `You are a professional educational assessor. You are grading a ${questionTypeLabel}. Grade the student's answer using the problem and reference material, then provide brief feedback.
+{"score": <0到${args.problem.points}的数字>, "criteria": [{"id":"<评分点 id>","earnedPoints":<得分>,"evidence":"<学生答案中的依据>"}], "comment": "<一两句评语>"}`
+      : `You are a professional educational assessor. You are grading a ${questionTypeLabel}. Check each rubric criterion before assigning a score, then give brief feedback.
 You must reply in the following JSON format only:
-{"score": <integer from 0 to ${args.problem.points}>, "comment": "<one or two sentences of feedback>"}`;
+{"score": <number from 0 to ${args.problem.points}>, "criteria": [{"id":"<criterion id>","earnedPoints":<points>,"evidence":"<evidence from the response>"}], "comment": "<one or two sentences of feedback>"}`;
+
+  const rubricCriteria =
+    grading.type === 'short_answer' || grading.type === 'proof'
+      ? (grading.rubricCriteria ?? [])
+      : [];
 
   const rubricBits = [
     grading.type === 'short_answer' ? grading.rubric : undefined,
@@ -104,6 +109,11 @@ You must reply in the following JSON format only:
     grading.type === 'short_answer' ? grading.referenceAnswer : undefined,
     grading.type === 'proof' ? grading.referenceProof : undefined,
     grading.analysis,
+    rubricCriteria.length > 0
+      ? `${args.language === 'zh-CN' ? '结构化评分点' : 'Structured rubric'}:\n${JSON.stringify(
+          rubricCriteria,
+        )}`
+      : undefined,
   ].filter(Boolean);
 
   const prompt = `${args.language === 'zh-CN' ? '题目' : 'Problem'}: ${
@@ -126,8 +136,29 @@ ${rubricBits.length > 0 ? `${args.language === 'zh-CN' ? '评分参考' : 'Refer
       'notebook-problem-text-grade',
     );
     const match = llm.text.trim().match(/\{[\s\S]*\}/);
-    const parsed = match ? (JSON.parse(match[0]) as { score?: unknown; comment?: unknown }) : {};
-    const score = Math.max(0, Math.min(args.problem.points, Math.round(Number(parsed.score) || 0)));
+    const parsed = match
+      ? (JSON.parse(match[0]) as {
+          score?: unknown;
+          comment?: unknown;
+          criteria?: Array<{ id?: unknown; earnedPoints?: unknown; evidence?: unknown }>;
+        })
+      : {};
+    const criterionMaxById = new Map(
+      rubricCriteria.map((criterion) => [criterion.id, criterion.points] as const),
+    );
+    const criterionScores = Array.isArray(parsed.criteria)
+      ? parsed.criteria.flatMap((criterion) => {
+          const id = String(criterion.id ?? '');
+          const maximum = criterionMaxById.get(id);
+          if (maximum == null) return [];
+          return [Math.max(0, Math.min(maximum, Number(criterion.earnedPoints) || 0))];
+        })
+      : [];
+    const rawScore =
+      rubricCriteria.length > 0 && criterionScores.length === rubricCriteria.length
+        ? criterionScores.reduce((total, value) => total + value, 0)
+        : Number(parsed.score) || 0;
+    const score = Math.max(0, Math.min(args.problem.points, rawScore));
     return {
       status: scoreToStatus(score, args.problem.points),
       score,
@@ -221,11 +252,21 @@ export async function evaluateNotebookNonCodeProblem(args: {
     const filled = answer.blanks ?? {};
     const correctBlanks = problem.grading.blanks.filter((blank) => {
       const userValue = filled[blank.id] || '';
-      return blank.acceptedAnswers.some((candidate) =>
-        blank.caseSensitive
-          ? userValue.trim() === candidate
-          : normalizeText(userValue) === normalizeText(candidate),
-      );
+      return blank.acceptedAnswers.some((candidate) => {
+        if (blank.matcher === 'numeric_tolerance') {
+          const actual = extractNumericValue(userValue);
+          const expected = extractNumericValue(candidate);
+          return (
+            actual != null &&
+            expected != null &&
+            Math.abs(actual - expected) <= (blank.tolerance ?? 0)
+          );
+        }
+        if (blank.matcher === 'exact' || blank.caseSensitive) {
+          return userValue.trim() === candidate.trim();
+        }
+        return normalizeText(userValue) === normalizeText(candidate);
+      });
     }).length;
     const total = problem.grading.blanks.length;
     const score = total > 0 ? (problem.points * correctBlanks) / total : 0;
@@ -270,12 +311,23 @@ export async function evaluateNotebookNonCodeProblem(args: {
       (candidate) => normalizeText(candidate) === normalizeText(submitted),
     );
     let numericMatch = false;
-    if (!directMatch && typeof problem.grading.tolerance === 'number') {
+    if (
+      !directMatch &&
+      (typeof problem.grading.tolerance === 'number' ||
+        typeof problem.grading.relativeTolerance === 'number')
+    ) {
       const userNumeric = extractNumericValue(submitted);
       numericMatch = accepted.some((candidate) => {
         const expectedNumeric = extractNumericValue(candidate);
         if (userNumeric == null || expectedNumeric == null) return false;
-        return Math.abs(userNumeric - expectedNumeric) <= problem.grading.tolerance!;
+        const difference = Math.abs(userNumeric - expectedNumeric);
+        const absoluteMatch =
+          typeof problem.grading.tolerance === 'number' &&
+          difference <= problem.grading.tolerance;
+        const relativeMatch =
+          typeof problem.grading.relativeTolerance === 'number' &&
+          difference <= Math.abs(expectedNumeric) * problem.grading.relativeTolerance;
+        return absoluteMatch || relativeMatch;
       });
     }
     const correct = directMatch || numericMatch;

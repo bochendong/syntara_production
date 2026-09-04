@@ -185,7 +185,6 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
           prisma,
           courseId,
           problemId: selected.problemId,
-          requirePublished: access.accessRole !== 'owner',
         })
       : null;
     const fallbackProblem = selected?.problemSnapshotJson
@@ -306,7 +305,6 @@ export async function POST(request: Request, context: { params: Promise<{ course
           prisma,
           courseId,
           problemId,
-          requirePublished: access.accessRole !== 'owner',
         })
       : null;
     if (problemId && !problemSnapshot) {

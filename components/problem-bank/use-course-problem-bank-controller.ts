@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@/lib/notifications/client-toast';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/hooks/use-i18n';
@@ -18,12 +18,14 @@ import {
   archiveCourseProblems,
   deleteCourseProblem,
   listCourseProblemChapters,
-  listNotebookProblemAttempts,
+  listCourseProblemAttempts,
+  listCourseProblemPage,
   listCourseProblemsByIds,
   listCourseProblems,
-  runNotebookCodeProblem,
-  submitNotebookProblem,
+  runCourseCodeProblem,
+  submitCourseProblem,
   updateCourseProblem,
+  type CourseProblemPageClientResult,
   type NotebookProblemClientRecord,
   type CourseProblemChapter,
 } from '@/lib/utils/notebook-problem-api';
@@ -200,6 +202,11 @@ export function useCourseProblemBankController({
   const [courseAcademicTerm, setCourseAcademicTerm] = useState<CourseRecord['academicTerm']>();
   const [courseAccessRole, setCourseAccessRole] = useState<CourseRecord['accessRole']>();
   const [problems, setProblems] = useState<NotebookProblemClientRecord[]>([]);
+  const [serverFilteredProblemCount, setServerFilteredProblemCount] = useState(0);
+  const [courseProblemCount, setCourseProblemCount] = useState(0);
+  const [serverBankStats, setServerBankStats] = useState<
+    CourseProblemPageClientResult['bankStats'] | null
+  >(null);
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
   const [problemLanguage, setProblemLanguage] = useState<ProblemContentLanguage>(
     locale === 'zh-CN' ? 'zh-CN' : 'en-US',
@@ -212,7 +219,7 @@ export function useCourseProblemBankController({
   const [savingChapterProblemId, setSavingChapterProblemId] = useState<string | null>(null);
   const [autoArchiving, setAutoArchiving] = useState(false);
   const [problemChapters, setProblemChapters] = useState<CourseProblemChapter[]>([]);
-  const [deletingProblem, setDeletingProblem] = useState(false);
+  const [deletingProblemId, setDeletingProblemId] = useState<string | null>(null);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [answerModes, setAnswerModes] = useState<Record<string, TextAnswerMode>>({});
   const [textAnswers, setTextAnswers] = useState<Record<string, string>>({});
@@ -252,6 +259,8 @@ export function useCourseProblemBankController({
   const [statusFilter, setStatusFilter] = useState<'all' | NotebookProblemClientRecord['status']>(
     () => normalizeInitialStatusFilter(initialFilters?.statusFilter),
   );
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const usesServerPagination = !isPracticeMode && !isLocalDemoProblemBankCourse(courseId);
 
   const scopedPracticeProblemIdKey = useMemo(
     () => Array.from(new Set(practiceProblemIds?.filter(Boolean) ?? [])).join('\u001f'),
@@ -277,6 +286,8 @@ export function useCourseProblemBankController({
         setCourseAcademicTerm(localDemoCourse?.academicTerm);
         setCourseAccessRole(localDemoCourse?.accessRole);
         setProblems(localDemoProblems);
+        setCourseProblemCount(localDemoProblems.length);
+        setServerBankStats(null);
         if (isPracticeMode) {
           const preferred =
             localDemoProblems.find((problem) => problem.id === initialProblemId)?.id ??
@@ -322,20 +333,36 @@ export function useCourseProblemBankController({
       }
 
       const course = await getCourse(courseId);
-      // Course.problemCount is maintained by every problem mutation. Avoid a
-      // second PostgreSQL round-trip for courses with no published problems; on the
-      // single-connection development pool that otherwise queues behind the
-      // course read and can hit the 45-second UI timeout.
+      const pageResult = usesServerPagination
+        ? await listCourseProblemPage(courseId, {
+            page: problemPage,
+            pageSize: PROBLEM_BANK_PAGE_SIZE,
+            searchQuery: deferredSearchQuery,
+            practiceFilter,
+            typeFilter,
+            difficultyFilter,
+            chapterFilter,
+            statusFilter,
+            notebookId: initialNotebookId,
+            timeoutMs: 45_000,
+          })
+        : null;
       const courseProblems =
-        course?.problemCount === 0
+        pageResult?.problems ??
+        (course?.problemCount === 0
           ? []
-          : await listCourseProblems(courseId, { lean: true, timeoutMs: 45_000 });
+          : await listCourseProblems(courseId, { lean: true, timeoutMs: 45_000 }));
       setCourseName(course?.name || '');
       setCourseCode(course?.courseCode);
       setCourseAcademicYear(course?.academicYear);
       setCourseAcademicTerm(course?.academicTerm);
       setCourseAccessRole(course?.accessRole);
       setProblems(courseProblems);
+      setCourseProblemCount(
+        pageResult?.bankStats.allProblemCount ?? course?.problemCount ?? courseProblems.length,
+      );
+      setServerFilteredProblemCount(pageResult?.totalCount ?? courseProblems.length);
+      setServerBankStats(pageResult?.bankStats ?? null);
       if (isPracticeMode) {
         const preferred =
           courseProblems.find((problem) => problem.id === initialProblemId)?.id ??
@@ -356,12 +383,20 @@ export function useCourseProblemBankController({
       setLoading(false);
     }
   }, [
+    chapterFilter,
     courseId,
+    deferredSearchQuery,
+    difficultyFilter,
     initialNotebookId,
     initialProblemId,
     isPracticeMode,
+    practiceFilter,
     previewAsTeacher,
+    problemPage,
     scopedPracticeProblemIds,
+    statusFilter,
+    typeFilter,
+    usesServerPagination,
   ]);
 
   useEffect(() => {
@@ -496,6 +531,7 @@ export function useCourseProblemBankController({
   }, [courseId, isPracticeMode, problems]);
 
   const filteredProblems = useMemo(() => {
+    if (usesServerPagination) return problems;
     const query = searchQuery.trim().toLowerCase();
     return problems.filter((problem) => {
       if (typeFilter !== 'all' && problem.type !== typeFilter) return false;
@@ -539,6 +575,7 @@ export function useCourseProblemBankController({
     searchQuery,
     statusFilter,
     typeFilter,
+    usesServerPagination,
   ]);
 
   useEffect(() => {
@@ -553,7 +590,10 @@ export function useCourseProblemBankController({
     typeFilter,
   ]);
 
-  const problemPageCount = Math.max(1, Math.ceil(filteredProblems.length / PROBLEM_BANK_PAGE_SIZE));
+  const filteredProblemCount = usesServerPagination
+    ? serverFilteredProblemCount
+    : filteredProblems.length;
+  const problemPageCount = Math.max(1, Math.ceil(filteredProblemCount / PROBLEM_BANK_PAGE_SIZE));
 
   useEffect(() => {
     setProblemPage((current) => Math.min(Math.max(current, 1), problemPageCount));
@@ -562,10 +602,13 @@ export function useCourseProblemBankController({
   const currentProblemPage = Math.min(Math.max(problemPage, 1), problemPageCount);
   const pageStartIndex = (currentProblemPage - 1) * PROBLEM_BANK_PAGE_SIZE;
   const paginatedProblems = useMemo(
-    () => filteredProblems.slice(pageStartIndex, pageStartIndex + PROBLEM_BANK_PAGE_SIZE),
-    [filteredProblems, pageStartIndex],
+    () =>
+      usesServerPagination
+        ? filteredProblems
+        : filteredProblems.slice(pageStartIndex, pageStartIndex + PROBLEM_BANK_PAGE_SIZE),
+    [filteredProblems, pageStartIndex, usesServerPagination],
   );
-  const pageEndIndex = Math.min(pageStartIndex + paginatedProblems.length, filteredProblems.length);
+  const pageEndIndex = Math.min(pageStartIndex + paginatedProblems.length, filteredProblemCount);
   const buildProblemBankFilterSearchParams = useCallback(() => {
     const params = new URLSearchParams();
     const query = searchQuery.trim();
@@ -615,22 +658,33 @@ export function useCourseProblemBankController({
     () => problems.filter((problem) => problem.status !== 'archived'),
     [problems],
   );
-  const unfiledProblemCount = useMemo(
+  const clientUnfiledProblemCount = useMemo(
     () => activeProblems.filter((problem) => !problem.chapterId).length,
     [activeProblems],
   );
-  const courseHasTranslations = useMemo(
+  const clientCourseHasTranslations = useMemo(
     () => problems.some((problem) => hasProblemTranslation(problem)),
     [problems],
   );
+  const unfiledProblemCount =
+    usesServerPagination && serverBankStats
+      ? serverBankStats.unfiledCount
+      : clientUnfiledProblemCount;
+  const courseHasTranslations =
+    usesServerPagination && serverBankStats
+      ? serverBankStats.hasTranslations
+      : clientCourseHasTranslations;
 
   const difficultyOptions = useMemo(
     () =>
       (['easy', 'medium', 'hard'] as NotebookProblemClientRecord['difficulty'][]).map((value) => ({
         value,
-        count: activeProblems.filter((problem) => problem.difficulty === value).length,
+        count:
+          usesServerPagination && serverBankStats
+            ? serverBankStats.difficultyCounts[value]
+            : activeProblems.filter((problem) => problem.difficulty === value).length,
       })),
-    [activeProblems],
+    [activeProblems, serverBankStats, usesServerPagination],
   );
 
   const practiceFilterOptions = useMemo<FilterSelectOption[]>(
@@ -697,7 +751,7 @@ export function useCourseProblemBankController({
     [locale],
   );
 
-  const bankStats = useMemo(() => {
+  const clientBankStats = useMemo(() => {
     const stateCounts = activeProblems.reduce(
       (counts, problem) => {
         counts[problemPracticeState(problem)] += 1;
@@ -750,6 +804,7 @@ export function useCourseProblemBankController({
       chapterProgress,
     };
   }, [activeProblems]);
+  const bankStats = usesServerPagination && serverBankStats ? serverBankStats : clientBankStats;
 
   const selectedProblem =
     filteredProblems.find((problem) => problem.id === selectedProblemId) ||
@@ -768,7 +823,6 @@ export function useCourseProblemBankController({
     : '';
   const selectedProblemHasTranslation = hasProblemTranslation(selectedProblem);
   const selectedProblemRef = useRef<NotebookProblemClientRecord | null>(null);
-  const selectedProblemNotebookId = selectedProblem?.notebookId ?? null;
   const selectedProblemChapterLabel = selectedProblem
     ? selectedProblem.chapterName || (locale === 'zh-CN' ? '未归档' : 'Unfiled')
     : '';
@@ -881,20 +935,14 @@ export function useCourseProblemBankController({
     [locale, selectedAnswerController, selectedAnswerMode, selectedProblem],
   );
   useEffect(() => {
-    if (!isPracticeMode || !selectedProblemId || !selectedProblemNotebookId) return;
+    if (!isPracticeMode || !selectedProblemId) return;
     if (answerPanelTab !== 'history' || selectedProblemAttemptsLoaded) return;
     const problem = selectedProblemRef.current;
-    if (
-      !problem ||
-      problem.id !== selectedProblemId ||
-      problem.notebookId !== selectedProblemNotebookId
-    ) {
-      return;
-    }
+    if (!problem || problem.id !== selectedProblemId) return;
 
     let cancelled = false;
     setAttemptHistoryLoadingProblemId(selectedProblemId);
-    void listNotebookProblemAttempts(selectedProblemNotebookId, selectedProblemId)
+    void listCourseProblemAttempts(courseId, selectedProblemId)
       .then((attempts) => {
         if (cancelled) return;
         setAttemptsByProblemId((prev) => ({
@@ -979,11 +1027,11 @@ export function useCourseProblemBankController({
     };
   }, [
     answerPanelTab,
+    courseId,
     isPracticeMode,
     locale,
     selectedProblemId,
     selectedProblemAttemptsLoaded,
-    selectedProblemNotebookId,
   ]);
   const navigateToPracticeProblem = useCallback(
     (problem: NotebookProblemClientRecord) => {
@@ -1178,7 +1226,7 @@ export function useCourseProblemBankController({
   const handleDeleteProblem = useCallback(
     async (problemToDelete?: NotebookProblemClientRecord) => {
       const targetProblem = problemToDelete ?? selectedProblem;
-      if (!targetProblem || deletingProblem) return;
+      if (!targetProblem || deletingProblemId) return;
       if (!canEditProblems) {
         toast.error(
           locale === 'zh-CN' ? '只有课程作者可以编辑题目。' : 'Only the author can edit problems.',
@@ -1192,7 +1240,7 @@ export function useCourseProblemBankController({
       );
       if (!confirmed) return;
 
-      setDeletingProblem(true);
+      setDeletingProblemId(targetProblem.id);
       try {
         await deleteCourseProblem({
           courseId,
@@ -1201,6 +1249,15 @@ export function useCourseProblemBankController({
         const deletedSelectedProblem = selectedProblem?.id === targetProblem.id;
         const replacementProblem = deletedSelectedProblem ? deleteReplacementPracticeTarget : null;
         setProblems((prev) => prev.filter((problem) => problem.id !== targetProblem.id));
+        if (usesServerPagination) {
+          setServerFilteredProblemCount((current) => Math.max(0, current - 1));
+          setCourseProblemCount((current) => Math.max(0, current - 1));
+          if (problems.length === 1 && problemPage > 1) {
+            setProblemPage((current) => Math.max(1, current - 1));
+          } else {
+            await loadAll();
+          }
+        }
         setSelectedProblemId((current) =>
           current === targetProblem.id ? (replacementProblem?.id ?? null) : current,
         );
@@ -1219,33 +1276,29 @@ export function useCourseProblemBankController({
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Delete failed');
       } finally {
-        setDeletingProblem(false);
+        setDeletingProblemId(null);
       }
     },
     [
       canEditProblems,
       courseId,
       deleteReplacementPracticeTarget,
-      deletingProblem,
+      deletingProblemId,
       getPracticeProblemHref,
       getProblemBankHref,
       isPracticeMode,
+      loadAll,
       locale,
+      problemPage,
+      problems.length,
       router,
       selectedProblem,
+      usesServerPagination,
     ],
   );
 
   const handleSubmitInlineAnswer = useCallback(async () => {
     if (!selectedProblem || submittingAnswer) return false;
-    if (!selectedProblem.notebookId) {
-      toast.error(
-        locale === 'zh-CN'
-          ? '请先为这道题设置归属章节并保存，才能作答。'
-          : 'Assign this problem to a notebook and save before submitting.',
-      );
-      return false;
-    }
     const photoMode = supportsPhotoAnswer(selectedProblem) && selectedAnswerMode === 'photo';
     const selectedPhotos = photoAnswers[selectedProblem.id] ?? [];
     if (photoMode && selectedPhotos.length === 0) {
@@ -1296,8 +1349,8 @@ export function useCourseProblemBankController({
               : photoMode
                 ? { images: selectedPhotos }
                 : { text: textAnswers[selectedProblem.id] ?? '' };
-      const { attempt, result } = await submitNotebookProblem({
-        notebookId: selectedProblem.notebookId,
+      const { attempt, result } = await submitCourseProblem({
+        courseId,
         problemId: selectedProblem.id,
         language: locale,
         activeDurationMs: problemActiveTimer.getActiveDuration(),
@@ -1352,12 +1405,14 @@ export function useCourseProblemBankController({
         score,
         feedback,
       });
-      queueProblemAttemptWorkingMemoryUpdate({
-        notebookId: selectedProblem.notebookId,
-        notebookName: selectedProblem.notebookName,
-        problem: selectedProblem,
-        attempt,
-      });
+      if (selectedProblem.notebookId) {
+        queueProblemAttemptWorkingMemoryUpdate({
+          notebookId: selectedProblem.notebookId,
+          notebookName: selectedProblem.notebookName,
+          problem: selectedProblem,
+          attempt,
+        });
+      }
       return true;
     } catch (error) {
       setAnswerFeedbackByProblemId((prev) => ({
@@ -1383,6 +1438,7 @@ export function useCourseProblemBankController({
     blankAnswers,
     choiceAnswers,
     codeAnswers,
+    courseId,
     locale,
     photoAnswers,
     selectedProblem,
@@ -1399,14 +1455,6 @@ export function useCourseProblemBankController({
     async (target: CourseCodeRunTarget = 'public') => {
       if (!selectedProblem || runningCode) return false;
       if (selectedProblem.type !== 'code' || selectedProblemContent?.type !== 'code') return false;
-      if (!selectedProblem.notebookId) {
-        toast.error(
-          locale === 'zh-CN'
-            ? '请先为这道题设置归属章节并保存，才能运行代码。'
-            : 'Assign this problem to a notebook and save before running code.',
-        );
-        return false;
-      }
       if (target === 'secret' && (selectedProblem.secretJudge?.secretTests?.length ?? 0) === 0) {
         toast.error(locale === 'zh-CN' ? '暂无隐藏测试。' : 'No secret tests available.');
         return false;
@@ -1423,8 +1471,8 @@ export function useCourseProblemBankController({
       problemActiveTimer.markActive();
       setRunningCodeTarget(target);
       try {
-        const { attempt, result } = await runNotebookCodeProblem({
-          notebookId: selectedProblem.notebookId,
+        const { attempt, result } = await runCourseCodeProblem({
+          courseId,
           problemId: selectedProblem.id,
           code: selectedCodeAnswer,
           target,
@@ -1516,7 +1564,15 @@ export function useCourseProblemBankController({
         setRunningCodeTarget(null);
       }
     },
-    [codeAnswers, locale, problemActiveTimer, runningCode, selectedProblem, selectedProblemContent],
+    [
+      codeAnswers,
+      courseId,
+      locale,
+      problemActiveTimer,
+      runningCode,
+      selectedProblem,
+      selectedProblemContent,
+    ],
   );
 
   const handleAiFileUnfiledProblems = useCallback(async () => {
@@ -1576,12 +1632,14 @@ export function useCourseProblemBankController({
     courseHasTranslations,
     courseId,
     courseName,
+    courseProblemCount,
     currentFilteredProblemPosition,
     currentProblemPage,
-    deletingProblem,
+    deletingProblemId,
     difficultyFilter,
     difficultyFilterOptions,
     filteredProblems,
+    filteredProblemCount,
     handleAddPhotoAnswerFiles,
     handleAiFileUnfiledProblems,
     handleDeleteProblem,
