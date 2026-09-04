@@ -82,12 +82,16 @@ function navigationItems({
       : `/course/${encodedCourseId}/resources${previewMode ? '?mock=1' : ''}`;
 
   return [
-    {
-      key: 'dashboard' as const,
-      label: 'Dashboard',
-      href: `/course/${encodedCourseId}${previewMode ? '?mock=1' : ''}`,
-      Icon: LayoutDashboard,
-    },
+    ...(role === 'student'
+      ? [
+          {
+            key: 'dashboard' as const,
+            label: 'Dashboard',
+            href: `/course/${encodedCourseId}${previewMode ? '?mock=1' : ''}`,
+            Icon: LayoutDashboard,
+          },
+        ]
+      : []),
     {
       key: 'resources' as const,
       label: '资料库',

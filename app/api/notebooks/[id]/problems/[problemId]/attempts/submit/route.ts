@@ -8,10 +8,18 @@ import { evaluateNotebookNonCodeProblem } from '@/features/problems/server/evalu
 import { judgeNotebookCodeProblem } from '@/features/problems/server/judge';
 import { notebookProblemAttemptImageSchema } from '@/features/problems';
 import {
+  countNotebookProblemSubmissions,
   createNotebookProblemAttempt,
   getNotebookProblemForUser,
 } from '@/features/problems/server/service';
 import { resolveNotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
+import {
+  applySubmissionScorePolicy,
+  hasLimitedSubmissions,
+  LIMITED_SUBMISSION_COUNT,
+  remainingSubmissions,
+  STANDARD_PROBLEM_POINTS,
+} from '@/lib/problem-bank/scoring-policy';
 
 const submitSchema = z.object({
   text: z.string().max(40000).optional(),
@@ -41,6 +49,22 @@ export async function POST(
     }
 
     const loaded = await getNotebookProblemForUser(auth.userId, id, problemId);
+    const limitedSubmissions = hasLimitedSubmissions(loaded.problem.type);
+    const previousSubmissionCount = limitedSubmissions
+      ? await countNotebookProblemSubmissions({ userId: auth.userId, problemId })
+      : 0;
+    if (limitedSubmissions && previousSubmissionCount >= LIMITED_SUBMISSION_COUNT) {
+      return NextResponse.json(
+        {
+          code: 'ATTEMPT_LIMIT_REACHED',
+          error: `这道题最多只能提交 ${LIMITED_SUBMISSION_COUNT} 次。`,
+          remainingSubmissions: 0,
+        },
+        { status: 409 },
+      );
+    }
+    const attemptNumber = previousSubmissionCount + 1;
+    const scoringProblem = { ...loaded.problem, points: STANDARD_PROBLEM_POINTS };
     const courseIdentity = await resolveNotebookProblemCourseIdentity({
       courseId: loaded.problem.courseId,
       notebookId: loaded.problem.notebookId ?? id,
@@ -59,7 +83,7 @@ export async function POST(
       async () => {
         if (loaded.problem.type === 'code') {
           return judgeNotebookCodeProblem({
-            problem: loaded.problem,
+            problem: scoringProblem,
             secretJudge: loaded.secretJudge,
             kind: 'submit',
             userAnswer: answer,
@@ -78,7 +102,7 @@ export async function POST(
             !(answer.text ?? '').trim())
         ) {
           return evaluateNotebookNonCodeProblem({
-            problem: loaded.problem,
+            problem: scoringProblem,
             answer,
             language: payload.data.language,
           });
@@ -88,29 +112,38 @@ export async function POST(
           allowOpenAIModelOverride: true,
         });
         return evaluateNotebookNonCodeProblem({
-          problem: loaded.problem,
+          problem: scoringProblem,
           answer,
           model,
           language: payload.data.language,
         });
       },
     );
+    const scored = applySubmissionScorePolicy({
+      type: loaded.problem.type,
+      attemptNumber,
+      score: evaluated.score,
+      result: evaluated.result,
+      language: payload.data.language,
+    });
 
     const attempt = await createNotebookProblemAttempt({
       userId: auth.userId,
       problemId,
       kind: loaded.problem.type === 'code' ? 'submit' : 'answer',
       status: evaluated.status,
-      score: evaluated.score,
+      score: scored.score,
       answer,
-      result: evaluated.result,
+      result: scored.result,
       activeDurationMs: payload.data.activeDurationMs,
       timingSource: payload.data.activeDurationMs === undefined ? undefined : 'client_active_v1',
     });
 
     return NextResponse.json({
       attempt,
-      result: evaluated.result,
+      result: scored.result,
+      attemptNumber: limitedSubmissions ? attemptNumber : null,
+      remainingSubmissions: limitedSubmissions ? remainingSubmissions(attemptNumber) : null,
     });
   });
 }

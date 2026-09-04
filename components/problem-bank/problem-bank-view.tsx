@@ -377,7 +377,7 @@ function createManualProblemDraft(
     type: 'short_answer',
     status: 'draft',
     source: 'manual',
-    points: 1,
+    points: 100,
     tags: [],
     difficulty: 'medium',
     publicContent: {

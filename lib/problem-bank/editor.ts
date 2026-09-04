@@ -12,7 +12,7 @@ export function problemRecordToDraft(
     type: problem.type,
     status: problem.status,
     source: problem.source,
-    points: problem.points,
+    points: 100,
     tags: [],
     difficulty: problem.difficulty,
     publicContent: problem.publicContent,
@@ -43,7 +43,7 @@ export function problemDraftToPatch(draft: NotebookProblemImportDraft) {
   } = {
     title: draft.title,
     status: draft.status,
-    points: draft.points,
+    points: 100,
     difficulty: draft.difficulty,
     publicContent: draft.publicContent,
     grading: draft.grading,

@@ -398,9 +398,9 @@ function buildChoiceAnswerFeedback(
         ? '回答正确。'
         : 'Correct.'
       : locale === 'zh-CN'
-        ? `回答不正确。正确选项：${correctOptionIds.join(', ')}`
-        : `Incorrect. Correct answer: ${correctOptionIds.join(', ')}`,
-    correctOptionIds,
+        ? '回答不正确，请检查后再尝试。'
+        : 'Incorrect. Review your answer and try again.',
+    correctOptionIds: correct ? correctOptionIds : undefined,
     selectedOptionIds,
     saving: true,
   };
@@ -1869,7 +1869,7 @@ function createManualProblemDraft(
     type: 'short_answer',
     status: 'draft',
     source: 'manual',
-    points: 1,
+    points: 100,
     tags: [],
     difficulty: 'medium',
     publicContent: {

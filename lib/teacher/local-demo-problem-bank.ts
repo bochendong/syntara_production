@@ -59,7 +59,7 @@ const CSC148_DEMO_PROBLEMS: NotebookProblemClientRecord[] = [
     source: 'manual',
     order: 1,
     problemNumber: 1,
-    points: 2,
+    points: 100,
     tags: ['对象三要素', '变量', 'id', '类型'],
     difficulty: 'easy',
     publicContent: {
@@ -90,7 +90,7 @@ const CSC148_DEMO_PROBLEMS: NotebookProblemClientRecord[] = [
     source: 'manual',
     order: 2,
     problemNumber: 2,
-    points: 2,
+    points: 100,
     tags: ['代码追踪', '引用', '浅拷贝'],
     difficulty: 'easy',
     publicContent: {
@@ -144,7 +144,7 @@ print(id(a) == id(b), id(a) == id(c))
     source: 'manual',
     order: 3,
     problemNumber: 3,
-    points: 4,
+    points: 100,
     tags: ['OOP', 'Representation Invariant', 'docstring'],
     difficulty: 'medium',
     publicContent: {
@@ -170,7 +170,7 @@ print(id(a) == id(b), id(a) == id(c))
     source: 'manual',
     order: 4,
     problemNumber: 4,
-    points: 5,
+    points: 100,
     tags: ['Linked List', '证明', '有序链表'],
     difficulty: 'medium',
     publicContent: {
@@ -196,7 +196,7 @@ print(id(a) == id(b), id(a) == id(c))
     source: 'manual',
     order: 5,
     problemNumber: 5,
-    points: 3,
+    points: 100,
     tags: ['BST', '复杂度', '比较次数'],
     difficulty: 'medium',
     publicContent: {
@@ -222,7 +222,7 @@ print(id(a) == id(b), id(a) == id(c))
     source: 'manual',
     order: 6,
     problemNumber: 6,
-    points: 3,
+    points: 100,
     tags: ['递归', 'trace', '调用栈'],
     difficulty: 'easy',
     publicContent: {
@@ -246,7 +246,7 @@ print(id(a) == id(b), id(a) == id(c))
     source: 'manual',
     order: 7,
     problemNumber: 7,
-    points: 2,
+    points: 100,
     tags: ['栈', 'ADT', 'LIFO'],
     difficulty: 'easy',
     publicContent: {
@@ -277,7 +277,7 @@ print(id(a) == id(b), id(a) == id(c))
     source: 'manual',
     order: 8,
     problemNumber: 8,
-    points: 2,
+    points: 100,
     tags: ['BST', '中序遍历', '有序性'],
     difficulty: 'easy',
     publicContent: {
@@ -300,7 +300,7 @@ print(id(a) == id(b), id(a) == id(c))
     source: 'manual',
     order: 9,
     problemNumber: 9,
-    points: 5,
+    points: 100,
     tags: ['Linked List', '迭代', '函数设计'],
     difficulty: 'medium',
     publicContent: {
@@ -351,7 +351,7 @@ print(id(a) == id(b), id(a) == id(c))
     source: 'manual',
     order: 10,
     problemNumber: 10,
-    points: 5,
+    points: 100,
     tags: ['递归', '字符串', 'base case'],
     difficulty: 'medium',
     publicContent: {
@@ -395,7 +395,7 @@ print(id(a) == id(b), id(a) == id(c))
     source: 'manual',
     order: 11,
     problemNumber: 11,
-    points: 2,
+    points: 100,
     tags: ['继承', '方法重写', 'super'],
     difficulty: 'medium',
     publicContent: {
@@ -426,7 +426,7 @@ print(id(a) == id(b), id(a) == id(c))
     source: 'manual',
     order: 12,
     problemNumber: 12,
-    points: 3,
+    points: 100,
     tags: ['异常', '栈', '契约'],
     difficulty: 'easy',
     publicContent: {
@@ -450,7 +450,7 @@ print(id(a) == id(b), id(a) == id(c))
     source: 'manual',
     order: 13,
     problemNumber: 13,
-    points: 4,
+    points: 100,
     tags: ['BST', '删除', '草稿'],
     difficulty: 'hard',
     publicContent: {

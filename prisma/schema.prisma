@@ -654,7 +654,7 @@ model NotebookProblem {
   source            NotebookProblemSource     @default(manual)
   order             Int
   problemNumber     Int?
-  points            Int                       @default(1)
+  points            Int                       @default(100)
   tags              String[]
   difficulty        NotebookProblemDifficulty @default(medium)
   publicContentJson Json

@@ -7,6 +7,7 @@ import {
   createNotebookProblemAttempt,
   getNotebookProblemForUser,
 } from '@/features/problems/server/service';
+import { STANDARD_PROBLEM_POINTS } from '@/lib/problem-bank/scoring-policy';
 
 const runSchema = z.object({
   code: z.string().trim().min(1).max(120000),
@@ -40,7 +41,7 @@ export async function POST(
     }
 
     const judged = await judgeNotebookCodeProblem({
-      problem: loaded.problem,
+      problem: { ...loaded.problem, points: STANDARD_PROBLEM_POINTS },
       secretJudge: loaded.secretJudge,
       kind: 'run',
       runTarget: payload.data.target,

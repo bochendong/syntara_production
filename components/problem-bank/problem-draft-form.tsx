@@ -235,6 +235,7 @@ function cloneDraft(draft: NotebookProblemImportDraft) {
 function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
   const draft = JSON.parse(JSON.stringify(rawDraft)) as Record<string, unknown>;
   draft.tags = [];
+  draft.points = 100;
 
   const type = typeof draft.type === 'string' ? draft.type : 'short_answer';
   const publicContent =
@@ -256,6 +257,8 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
         : 'concept';
     publicContent.responseKind = 'short_text';
     grading.graderKind = 'rubric';
+    delete grading.rubric;
+    delete grading.rubricCriteria;
   } else if (type === 'choice') {
     publicContent.taskKind =
       publicContent.taskKind === 'code_reading' || publicContent.taskKind === 'calculation'
@@ -267,6 +270,8 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
     publicContent.taskKind = 'proof';
     publicContent.responseKind = 'long_text';
     grading.graderKind = 'rubric';
+    delete grading.rubric;
+    delete grading.rubricCriteria;
   } else if (type === 'calculation') {
     publicContent.taskKind = 'calculation';
     publicContent.responseKind = 'math_expression';
@@ -997,6 +1002,11 @@ export function ProblemDraftForm({
 
       {currentType === 'short_answer' ? (
         <>
+          <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200">
+            {locale === 'zh-CN'
+              ? '本题采用统一 100 分制，由 AI 根据答案的准确性、完整性、推理和表达自动评分，无需设置评分细则。'
+              : 'This problem uses a standard 100-point scale. AI grades accuracy, completeness, reasoning, and clarity automatically; no rubric setup is required.'}
+          </div>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
               {locale === 'zh-CN' ? '参考答案' : 'Reference answer'}
@@ -1006,25 +1016,14 @@ export function ProblemDraftForm({
               onChange={(event) => updateGrading('referenceAnswer', event.target.value)}
             />
           </div>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '评分规则' : 'Rubric'}
-              </label>
-              <Textarea
-                value={typeof grading.rubric === 'string' ? grading.rubric : ''}
-                onChange={(event) => updateGrading('rubric', event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '解析' : 'Analysis'}
-              </label>
-              <Textarea
-                value={typeof grading.analysis === 'string' ? grading.analysis : ''}
-                onChange={(event) => updateGrading('analysis', event.target.value)}
-              />
-            </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+              {locale === 'zh-CN' ? '解析（可选）' : 'Analysis (optional)'}
+            </label>
+            <Textarea
+              value={typeof grading.analysis === 'string' ? grading.analysis : ''}
+              onChange={(event) => updateGrading('analysis', event.target.value)}
+            />
           </div>
         </>
       ) : null}
@@ -1195,30 +1194,31 @@ export function ProblemDraftForm({
       ) : null}
 
       {currentType === 'proof' ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '参考证明' : 'Reference proof'}
-            </label>
-            <Textarea
-              value={typeof grading.referenceProof === 'string' ? grading.referenceProof : ''}
-              onChange={(event) => updateGrading('referenceProof', event.target.value)}
-            />
+        <div className="space-y-3">
+          <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200">
+            {locale === 'zh-CN'
+              ? '本题采用统一 100 分制，由 AI 根据证明的正确性、完整性、推理和表达自动评分，无需设置评分细则。'
+              : 'This proof uses a standard 100-point scale and is graded automatically by AI; no rubric setup is required.'}
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '评分规则 / 解析' : 'Rubric / analysis'}
-            </label>
-            <Textarea
-              value={`${typeof grading.rubric === 'string' ? grading.rubric : ''}${
-                grading.analysis ? `\n\n${String(grading.analysis)}` : ''
-              }`}
-              onChange={(event) => {
-                const value = event.target.value;
-                updateGrading('rubric', value);
-                updateGrading('analysis', value);
-              }}
-            />
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                {locale === 'zh-CN' ? '参考证明' : 'Reference proof'}
+              </label>
+              <Textarea
+                value={typeof grading.referenceProof === 'string' ? grading.referenceProof : ''}
+                onChange={(event) => updateGrading('referenceProof', event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                {locale === 'zh-CN' ? '解析（可选）' : 'Analysis (optional)'}
+              </label>
+              <Textarea
+                value={typeof grading.analysis === 'string' ? grading.analysis : ''}
+                onChange={(event) => updateGrading('analysis', event.target.value)}
+              />
+            </div>
           </div>
         </div>
       ) : null}
@@ -1678,12 +1678,9 @@ export function ProblemDraftForm({
             <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
               {locale === 'zh-CN' ? '分值' : 'Points'}
             </label>
-            <Input
-              type="number"
-              min={0}
-              value={typeof workingDraft.points === 'number' ? String(workingDraft.points) : '1'}
-              onChange={(event) => updateRoot('points', Number(event.target.value || 0))}
-            />
+            <div className="flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+              {locale === 'zh-CN' ? '100 分（统一满分）' : '100 points (standard)'}
+            </div>
           </div>
         </div>
       </div>

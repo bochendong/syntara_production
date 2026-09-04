@@ -323,7 +323,7 @@ export const notebookProblemRecordSchema = z.object({
   source: notebookProblemSourceSchema,
   order: z.number().int().min(0),
   problemNumber: z.number().int().positive().nullable().optional(),
-  points: z.number().int().min(0).max(1000).default(1),
+  points: z.number().int().min(0).max(1000).default(100),
   tags: z.array(z.string().trim().min(1).max(30)).max(16).default([]),
   difficulty: notebookProblemDifficultySchema.default('medium'),
   publicContent: notebookProblemPublicContentSchema,
@@ -434,7 +434,7 @@ export const notebookProblemImportDraftSchema = z.object({
   type: notebookProblemTypeSchema,
   status: notebookProblemStatusSchema.default('draft'),
   source: notebookProblemSourceSchema.default('manual'),
-  points: z.number().int().min(0).max(1000).default(1),
+  points: z.number().int().min(0).max(1000).default(100),
   tags: z.array(z.string().trim().min(1).max(30)).max(16).default([]),
   difficulty: notebookProblemDifficultySchema.default('medium'),
   publicContent: notebookProblemPublicContentSchema,
@@ -578,7 +578,7 @@ function normalizeQuizChoiceType(question: QuizQuestion): NotebookProblemImportD
     type: 'choice',
     status: 'published',
     source: 'legacy_quiz_scene',
-    points: question.points ?? 1,
+    points: 100,
     tags: [],
     difficulty: 'medium',
     publicContent: {
@@ -628,7 +628,7 @@ export function buildLegacyProblemDraftFromQuizQuestion(
       type: 'short_answer',
       status: 'published',
       source: 'legacy_quiz_scene',
-      points: question.points ?? 1,
+      points: 100,
       tags: [],
       difficulty: 'medium',
       publicContent: {
@@ -663,7 +663,7 @@ export function buildLegacyProblemDraftFromQuizQuestion(
       type: 'proof',
       status: 'published',
       source: 'legacy_quiz_scene',
-      points: question.points ?? 1,
+      points: 100,
       tags: [],
       difficulty: 'hard',
       publicContent: {
@@ -711,7 +711,7 @@ export function buildLegacyProblemDraftFromQuizQuestion(
       type: 'code',
       status: publishable ? 'published' : 'draft',
       source: 'legacy_quiz_scene',
-      points: question.points ?? 1,
+      points: 100,
       tags: [],
       difficulty: 'hard',
       publicContent: {
@@ -774,7 +774,7 @@ export function buildLegacyProblemDraftFromQuizQuestion(
       type: 'short_answer',
       status: 'published',
       source: 'legacy_quiz_scene',
-      points: question.points ?? 1,
+      points: 100,
       tags: [],
       difficulty: 'medium',
       publicContent: {

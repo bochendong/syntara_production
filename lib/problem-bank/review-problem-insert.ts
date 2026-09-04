@@ -38,7 +38,7 @@ export const reviewProblemInsertSchema = z.object({
   type: notebookProblemTypeSchema.optional(),
   status: notebookProblemStatusSchema.default('published'),
   source: notebookProblemSourceSchema.default('manual'),
-  points: z.number().int().min(0).max(1000).default(1),
+  points: z.number().int().min(0).max(1000).default(100),
   concepts: z.array(z.string().trim().min(1).max(80)).max(16).default([]),
   difficulty: notebookProblemDifficultySchema.default('medium'),
   preview: optionalTextSchema,

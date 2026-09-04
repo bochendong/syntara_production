@@ -3,6 +3,7 @@ import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { prisma } from '@/lib/server/prisma';
 import { requireTeacher } from '@/lib/server/teacher-auth';
+import { STANDARD_PROBLEM_POINTS } from '@/lib/problem-bank/scoring-policy';
 
 function submissionLimit(request: Request) {
   const value = Number.parseInt(new URL(request.url).searchParams.get('limit') || '20', 10);
@@ -105,7 +106,7 @@ export async function GET(
           title: problem.title,
           type: problem.type,
           difficulty: problem.difficulty,
-          points: problem.points,
+          points: STANDARD_PROBLEM_POINTS,
           publicContent: problem.publicContentJson,
           chapterName: problem.chapter?.name ?? null,
         },

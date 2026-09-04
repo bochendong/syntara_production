@@ -91,29 +91,17 @@ export async function gradeNotebookTextProblem(args: {
         : 'short-answer question';
   const systemPrompt =
     args.language === 'zh-CN'
-      ? `你是一位专业的教育评估专家。你正在评分一道${questionTypeLabel}。请逐项核对评分量表，再根据题目、参考信息和学生答案评分并给出简短评语。
+      ? `你是一位专业的教育评估专家。你正在用统一 100 分制评分一道${questionTypeLabel}。不依赖教师另行编写评分细则，请根据题目本身自动判断答案质量：内容准确性 45 分、关键知识与完整性 25 分、推理过程 20 分、表达清晰度 10 分。若某一维度不适用于题目，可以合理调整，但必须保持总分为 100 分。
 必须以如下 JSON 格式回复（不要包含其他内容）：
-{"score": <0到${args.problem.points}的数字>, "criteria": [{"id":"<评分点 id>","earnedPoints":<得分>,"evidence":"<学生答案中的依据>"}], "comment": "<一两句评语>"}`
-      : `You are a professional educational assessor. You are grading a ${questionTypeLabel}. Check each rubric criterion before assigning a score, then give brief feedback.
+{"score": <0到100的数字>, "comment": "<一两句具体评语>"}`
+      : `You are a professional educational assessor grading a ${questionTypeLabel} on a standard 100-point scale. Do not depend on a teacher-authored rubric. Assess the response automatically using accuracy (45), coverage of key knowledge (25), reasoning (20), and clarity (10). You may rebalance dimensions that do not apply while keeping the total at 100.
 You must reply in the following JSON format only:
-{"score": <number from 0 to ${args.problem.points}>, "criteria": [{"id":"<criterion id>","earnedPoints":<points>,"evidence":"<evidence from the response>"}], "comment": "<one or two sentences of feedback>"}`;
+{"score": <number from 0 to 100>, "comment": "<one or two specific sentences of feedback>"}`;
 
-  const rubricCriteria =
-    grading.type === 'short_answer' || grading.type === 'proof'
-      ? (grading.rubricCriteria ?? [])
-      : [];
-
-  const rubricBits = [
-    grading.type === 'short_answer' ? grading.rubric : undefined,
-    grading.type === 'proof' ? grading.rubric : undefined,
+  const referenceBits = [
     grading.type === 'short_answer' ? grading.referenceAnswer : undefined,
     grading.type === 'proof' ? grading.referenceProof : undefined,
     grading.analysis,
-    rubricCriteria.length > 0
-      ? `${args.language === 'zh-CN' ? '结构化评分点' : 'Structured rubric'}:\n${JSON.stringify(
-          rubricCriteria,
-        )}`
-      : undefined,
   ].filter(Boolean);
 
   const prompt = `${args.language === 'zh-CN' ? '题目' : 'Problem'}: ${
@@ -121,8 +109,8 @@ You must reply in the following JSON format only:
       ? args.problem.publicContent.stem
       : ''
   }
-${args.language === 'zh-CN' ? '满分' : 'Full marks'}: ${args.problem.points}
-${rubricBits.length > 0 ? `${args.language === 'zh-CN' ? '评分参考' : 'Reference'}:\n${rubricBits.join('\n\n')}\n` : ''}${
+${args.language === 'zh-CN' ? '满分' : 'Full marks'}: 100
+${referenceBits.length > 0 ? `${args.language === 'zh-CN' ? '可选参考信息' : 'Optional reference material'}:\n${referenceBits.join('\n\n')}\n` : ''}${
     args.language === 'zh-CN' ? '学生答案' : 'Student answer'
   }: ${userAnswer}`;
 
@@ -140,24 +128,9 @@ ${rubricBits.length > 0 ? `${args.language === 'zh-CN' ? '评分参考' : 'Refer
       ? (JSON.parse(match[0]) as {
           score?: unknown;
           comment?: unknown;
-          criteria?: Array<{ id?: unknown; earnedPoints?: unknown; evidence?: unknown }>;
         })
       : {};
-    const criterionMaxById = new Map(
-      rubricCriteria.map((criterion) => [criterion.id, criterion.points] as const),
-    );
-    const criterionScores = Array.isArray(parsed.criteria)
-      ? parsed.criteria.flatMap((criterion) => {
-          const id = String(criterion.id ?? '');
-          const maximum = criterionMaxById.get(id);
-          if (maximum == null) return [];
-          return [Math.max(0, Math.min(maximum, Number(criterion.earnedPoints) || 0))];
-        })
-      : [];
-    const rawScore =
-      rubricCriteria.length > 0 && criterionScores.length === rubricCriteria.length
-        ? criterionScores.reduce((total, value) => total + value, 0)
-        : Number(parsed.score) || 0;
+    const rawScore = Number(parsed.score) || 0;
     const score = Math.max(0, Math.min(args.problem.points, rawScore));
     return {
       status: scoreToStatus(score, args.problem.points),

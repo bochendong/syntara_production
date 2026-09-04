@@ -32,6 +32,7 @@ import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-r
 import { maybeWriteProblemAttemptMemorySignal } from '@/lib/server/problem-attempt-memory-signals';
 import { verifyNotebookCodeDraftReferenceAnswer } from './judge';
 import { normalizeDraftMathFields } from './import.core.drafts';
+import { STANDARD_PROBLEM_POINTS } from '@/lib/problem-bank/scoring-policy';
 
 const prismaDb = prisma;
 
@@ -652,6 +653,7 @@ function normalizeDraftForPersistence(
 
   return {
     ...draft,
+    points: STANDARD_PROBLEM_POINTS,
     status:
       draft.status === 'archived' ? 'archived' : publishRequirementsMet ? draft.status : 'draft',
     publicContent:
@@ -3308,6 +3310,19 @@ export async function createNotebookProblemAttempt(args: {
   }
 
   return attempt;
+}
+
+export async function countNotebookProblemSubmissions(args: {
+  userId: string;
+  problemId: string;
+}): Promise<number> {
+  return prismaDb.notebookProblemAttempt.count({
+    where: {
+      userId: args.userId,
+      problemId: args.problemId,
+      kind: { in: ['submit', 'answer'] },
+    },
+  });
 }
 
 export async function listNotebookProblemAttempts(args: {

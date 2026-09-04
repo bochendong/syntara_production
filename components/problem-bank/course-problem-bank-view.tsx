@@ -93,6 +93,11 @@ import {
   resolveCourseSpaceHeaderFields,
 } from '@/lib/course-space/format-course-space-header';
 import { findLocalDemoTeacherHomeCourse } from '@/lib/teacher/local-demo-fixtures';
+import {
+  hasLimitedSubmissions,
+  maxScoreForAttempt,
+  remainingSubmissions,
+} from '@/lib/problem-bank/scoring-policy';
 import { isLocalDemoProblemBankCourse } from '@/lib/teacher/local-demo-problem-bank';
 import type { NotebookProblemClientRecord } from '@/lib/utils/notebook-problem-api';
 
@@ -1304,6 +1309,7 @@ export function CourseProblemBankView({
     selectedAnswerFeedback,
     selectedProblem,
     selectedProblemAttempts,
+    selectedProblemAttemptsLoaded,
     selectedProblemAttemptsLoading,
     selectedProblemContent,
     selectedProblemEditDraft,
@@ -1452,6 +1458,18 @@ export function CourseProblemBankView({
     selectedProblemCurrentAnswer,
   ]);
   const selectedProblemLatestDetailedAttempt = selectedProblemAttempts[0] ?? null;
+  const selectedProblemSubmissionCount = selectedProblemAttempts.filter(
+    (attempt) => attempt.kind === 'submit' || attempt.kind === 'answer',
+  ).length;
+  const selectedProblemHasLimitedSubmissions = selectedProblem
+    ? hasLimitedSubmissions(selectedProblem.type)
+    : false;
+  const selectedProblemRemainingSubmissions = remainingSubmissions(selectedProblemSubmissionCount);
+  const selectedProblemSubmissionLimitReached =
+    selectedProblemHasLimitedSubmissions &&
+    selectedProblemAttemptsLoaded &&
+    selectedProblemRemainingSubmissions === 0;
+  const selectedProblemNextAttemptNumber = Math.min(3, selectedProblemSubmissionCount + 1);
   const selectedProblemCodeTabs: CodePracticeTab[] =
     selectedProblem?.type === 'code' && selectedProblemContent?.type === 'code'
       ? canEditProblems && (selectedProblem.secretJudge?.secretTests?.length ?? 0) > 0
@@ -1975,6 +1993,21 @@ export function CourseProblemBankView({
         ) : null}
         {activeTab === 'answer' || activeCodeRunTarget ? (
           <div className="ml-auto flex shrink-0 items-center gap-2">
+            {selectedProblemHasLimitedSubmissions ? (
+              <span className="hidden whitespace-nowrap text-[11px] font-medium text-slate-500 min-[480px]:inline dark:text-slate-400">
+                {selectedProblemAttemptsLoaded
+                  ? selectedProblemSubmissionLimitReached
+                    ? locale === 'zh-CN'
+                      ? '3 次机会已用完'
+                      : 'No attempts remaining'
+                    : locale === 'zh-CN'
+                      ? `剩余 ${selectedProblemRemainingSubmissions} 次 · 下次最高 ${maxScoreForAttempt(selectedProblemNextAttemptNumber)} 分`
+                      : `${selectedProblemRemainingSubmissions} left · next max ${maxScoreForAttempt(selectedProblemNextAttemptNumber)}`
+                  : locale === 'zh-CN'
+                    ? '正在读取尝试次数…'
+                    : 'Checking attempts...'}
+              </span>
+            ) : null}
             {selectedProblem && courseAccessRole !== 'owner' && !previewMode ? (
               <ProblemForumPublishDialog
                 courseId={courseId}
@@ -2004,7 +2037,12 @@ export function CourseProblemBankView({
             {activeTab === 'answer' || activeTab === 'code' ? (
               <Button
                 onClick={handleSubmitAndShowHistory}
-                disabled={submittingAnswer || runningCode}
+                disabled={
+                  submittingAnswer ||
+                  runningCode ||
+                  (selectedProblemHasLimitedSubmissions &&
+                    (!selectedProblemAttemptsLoaded || selectedProblemSubmissionLimitReached))
+                }
                 className={cn(
                   'h-8 shrink-0 rounded-md px-3 text-xs font-semibold',
                   PROBLEM_BANK_EMERALD_ACTION_BUTTON_CLASS,

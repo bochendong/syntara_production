@@ -367,14 +367,18 @@ export function AppCoreNavList({
           items: [
             ...(inCourseContext
               ? [
-                  {
-                    key: 'agent-teams',
-                    href: agentTeamsHref,
-                    label: 'Dashboard',
-                    tooltip: '学习 Dashboard',
-                    icon: LayoutDashboard,
-                    active: agentTeamsActive,
-                  },
+                  ...(portalRole === 'STUDENT'
+                    ? [
+                        {
+                          key: 'agent-teams',
+                          href: agentTeamsHref,
+                          label: 'Dashboard',
+                          tooltip: '学习 Dashboard',
+                          icon: LayoutDashboard,
+                          active: agentTeamsActive,
+                        },
+                      ]
+                    : []),
                   {
                     key: 'course-resource-library',
                     href: `/course/${encodeURIComponent(courseId ?? '')}/resources`,
