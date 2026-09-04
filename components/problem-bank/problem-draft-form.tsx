@@ -191,11 +191,7 @@ function cloneDraft(draft: NotebookProblemImportDraft) {
 
 function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
   const draft = JSON.parse(JSON.stringify(rawDraft)) as Record<string, unknown>;
-  draft.tags = Array.isArray(draft.tags)
-    ? draft.tags
-        .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
-        .filter((tag) => tag.length > 0)
-    : [];
+  draft.tags = [];
 
   const type = typeof draft.type === 'string' ? draft.type : 'short_answer';
   const publicContent =
@@ -1579,27 +1575,6 @@ export function ProblemDraftForm({
               min={0}
               value={typeof workingDraft.points === 'number' ? String(workingDraft.points) : '1'}
               onChange={(event) => updateRoot('points', Number(event.target.value || 0))}
-            />
-          </div>
-
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '标签' : 'Tags'}
-            </label>
-            <Input
-              value={
-                Array.isArray(workingDraft.tags) ? (workingDraft.tags as string[]).join(', ') : ''
-              }
-              onChange={(event) =>
-                updateRoot(
-                  'tags',
-                  event.target.value
-                    .split(',')
-                    .map((item) => item.trim())
-                    .filter(Boolean),
-                )
-              }
-              placeholder={locale === 'zh-CN' ? '用逗号分隔，例如 集合, 证明' : 'Comma separated'}
             />
           </div>
         </div>

@@ -7,7 +7,7 @@ export type ForumProblemSnapshot = {
   type: string;
   difficulty: string;
   publicContent: unknown;
-  tagAssignments: Array<{ area: string; concept: string }>;
+  chapterName: string | null;
   capturedAt: string;
 };
 
@@ -29,10 +29,7 @@ export async function loadForumProblemCard(args: {
       type: true,
       difficulty: true,
       publicContentJson: true,
-      tagAssignments: {
-        where: { status: 'applied' },
-        include: { tag: { include: { parent: true } } },
-      },
+      chapter: { select: { name: true } },
     },
   });
   if (!problem) return null;
@@ -44,12 +41,7 @@ export async function loadForumProblemCard(args: {
     type: problem.type,
     difficulty: problem.difficulty,
     publicContent: publicContent.data,
-    tagAssignments: problem.tagAssignments
-      .filter((assignment) => assignment.tag.parent)
-      .map((assignment) => ({
-        area: assignment.tag.parent!.name,
-        concept: assignment.tag.name,
-      })),
+    chapterName: problem.chapter?.name ?? null,
     capturedAt: new Date().toISOString(),
   } satisfies ForumProblemSnapshot;
 }
@@ -66,7 +58,7 @@ export function parseForumProblemSnapshot(value: unknown): ForumProblemSnapshot 
     type: item.type,
     difficulty: item.difficulty,
     publicContent: publicContent.data,
-    tagAssignments: Array.isArray(item.tagAssignments) ? item.tagAssignments : [],
+    chapterName: typeof item.chapterName === 'string' ? item.chapterName : null,
     capturedAt: item.capturedAt || '',
   };
 }

@@ -39,7 +39,7 @@ export type CourseForumProblemCard = {
   type: string;
   difficulty: string;
   publicContent: unknown;
-  tagAssignments: Array<{ area: string; concept: string }>;
+  chapterName: string | null;
   capturedAt: string;
   isSnapshot: boolean;
 };

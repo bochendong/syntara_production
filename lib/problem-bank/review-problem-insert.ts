@@ -16,7 +16,6 @@ import {
   type NotebookProblemPublicContent,
   type NotebookProblemSecretJudge,
 } from './schema';
-import { normalizeProblemConceptTags } from './concept-tags.mjs';
 
 const optionalTextSchema = z.string().trim().min(1).optional();
 const answerSchema = z.union([z.string().trim().min(1), z.array(z.string().trim().min(1))]);
@@ -40,7 +39,6 @@ export const reviewProblemInsertSchema = z.object({
   status: notebookProblemStatusSchema.default('published'),
   source: notebookProblemSourceSchema.default('manual'),
   points: z.number().int().min(0).max(1000).default(1),
-  tags: z.array(z.string().trim().min(1).max(30)).max(16).default([]),
   concepts: z.array(z.string().trim().min(1).max(80)).max(16).default([]),
   difficulty: notebookProblemDifficultySchema.default('medium'),
   preview: optionalTextSchema,
@@ -394,21 +392,6 @@ export function buildNotebookProblemDraftFromReviewProblem(
   const grading = buildGrading(problem, type, publicContent, secretJudge);
   const concepts = uniqueTexts(problem.concepts, 16, 80);
   const title = problemTitle(problem);
-  const tags = uniqueTexts(
-    normalizeProblemConceptTags({
-      title,
-      type,
-      tags: [...problem.tags, ...concepts],
-      difficulty: problem.difficulty,
-      publicContent,
-      sourceMeta: {
-        ...problem.sourceMeta,
-        ...(concepts.length > 0 ? { concepts } : {}),
-      },
-    }),
-    16,
-    30,
-  );
 
   return notebookProblemImportDraftSchema.parse({
     draftId: problem.draftId ?? problem.id ?? crypto.randomUUID(),
@@ -418,7 +401,7 @@ export function buildNotebookProblemDraftFromReviewProblem(
     status: problem.status,
     source: problem.source,
     points: problem.points,
-    tags,
+    tags: [],
     difficulty: problem.difficulty,
     publicContent,
     grading,

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 
-/** @deprecated Use /api/courses/:courseId/problem-tags/organize. */
+/** @deprecated Use /api/courses/:courseId/problem-chapters/archive. */
 export async function POST() {
   return NextResponse.json(
     {
-      error: 'AI 自动归档已停用，请使用 AI 整理标签。',
-      replacement: '../problem-tags/organize',
+      error: '旧版自动归档已停用，请使用章节 AI 归档。',
+      replacement: '../problem-chapters/archive',
     },
     { status: 410 },
   );

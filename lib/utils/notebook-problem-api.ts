@@ -10,7 +10,6 @@ import type {
   NotebookProblemGrading,
   NotebookProblemPublicContent,
   NotebookProblemSecretJudge,
-  NotebookProblemTagAssignment,
 } from '@/lib/problem-bank';
 import type { ReviewProblemInsertInput } from '@/lib/problem-bank/review-problem-insert';
 
@@ -19,6 +18,8 @@ export type NotebookProblemClientRecord = {
   courseId?: string | null;
   notebookId?: string | null;
   notebookName?: string;
+  chapterId?: string | null;
+  chapterName?: string;
   title: string;
   type: NotebookProblemPublicContent['type'];
   status: 'draft' | 'published' | 'archived';
@@ -27,7 +28,6 @@ export type NotebookProblemClientRecord = {
   problemNumber?: number | null;
   points: number;
   tags: string[];
-  tagAssignments?: NotebookProblemTagAssignment[];
   difficulty: 'easy' | 'medium' | 'hard';
   publicContent: NotebookProblemPublicContent;
   grading: NotebookProblemGrading;
@@ -53,6 +53,8 @@ export type CourseProblemClientSummary = Pick<
   | 'courseId'
   | 'notebookId'
   | 'notebookName'
+  | 'chapterId'
+  | 'chapterName'
   | 'title'
   | 'type'
   | 'status'
@@ -95,12 +97,11 @@ export async function listNotebookProblems(
 
 export async function listCourseProblems(
   courseId: string,
-  options?: { lean?: boolean; areaId?: string; conceptId?: string } & BackendLoadOptions,
+  options?: { lean?: boolean; chapterId?: string } & BackendLoadOptions,
 ): Promise<NotebookProblemClientRecord[]> {
   const params = new URLSearchParams();
   if (options?.lean) params.set('lean', '1');
-  if (options?.areaId) params.set('areaId', options.areaId);
-  if (options?.conceptId) params.set('conceptId', options.conceptId);
+  if (options?.chapterId) params.set('chapterId', options.chapterId);
   const query = params.toString();
   const data = await backendJson<{ problems: NotebookProblemClientRecord[] }>(
     `/api/courses/${encodeURIComponent(courseId)}/problems${query ? `?${query}` : ''}`,
@@ -190,80 +191,73 @@ export async function listCourseProblemSummaries(
   return data.problems;
 }
 
-export type CourseProblemTagTreeNode = {
+export type CourseProblemChapter = {
   id: string;
   name: string;
-  aliases: string[];
-  source: string;
-  status: string;
-  confidence: number | null;
-  lockedByTeacher: boolean;
+  description: string;
+  position: number;
   problemCount: number;
-  concepts: Array<Omit<CourseProblemTagTreeNode, 'concepts'>>;
 };
 
-export async function listCourseProblemTags(courseId: string) {
-  return backendJson<{ tree: CourseProblemTagTreeNode[]; canManage: boolean }>(
-    `/api/courses/${encodeURIComponent(courseId)}/problem-tags`,
+export async function listCourseProblemChapters(courseId: string) {
+  return backendJson<{ chapters: CourseProblemChapter[]; canManage: boolean }>(
+    `/api/courses/${encodeURIComponent(courseId)}/problem-chapters`,
   );
 }
 
-export type CourseProblemTagOrganizeResult = {
+export async function createCourseProblemChapter(args: {
+  courseId: string;
+  name: string;
+  description: string;
+}) {
+  return backendJson<{ chapter: CourseProblemChapter }>(
+    `/api/courses/${encodeURIComponent(args.courseId)}/problem-chapters`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: args.name, description: args.description }),
+    },
+  );
+}
+
+export async function updateCourseProblemChapter(args: {
+  courseId: string;
+  chapterId: string;
+  name: string;
+  description: string;
+}) {
+  return backendJson<{ chapter: CourseProblemChapter }>(
+    `/api/courses/${encodeURIComponent(args.courseId)}/problem-chapters/${encodeURIComponent(args.chapterId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: args.name, description: args.description }),
+    },
+  );
+}
+
+export async function deleteCourseProblemChapter(args: { courseId: string; chapterId: string }) {
+  return backendJson<{ ok: true }>(
+    `/api/courses/${encodeURIComponent(args.courseId)}/problem-chapters/${encodeURIComponent(args.chapterId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+export type CourseProblemArchiveResult = {
   candidateCount: number;
-  appliedCount: number;
-  pendingCount: number;
-  unassignedCount: number;
+  archivedCount: number;
+  unfiledCount: number;
   truncated: boolean;
 };
 
-export async function organizeCourseProblemTags(
-  courseId: string,
-): Promise<CourseProblemTagOrganizeResult> {
-  return backendJson<CourseProblemTagOrganizeResult>(
-    `/api/courses/${encodeURIComponent(courseId)}/problem-tags/organize`,
+export async function archiveCourseProblems(courseId: string): Promise<CourseProblemArchiveResult> {
+  return backendJson<CourseProblemArchiveResult>(
+    `/api/courses/${encodeURIComponent(courseId)}/problem-chapters/archive`,
     {
       method: 'POST',
       headers: withModelHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({}),
       timeoutMs: 300_000,
-    },
-  );
-}
-
-export async function updateCourseProblemTag(args: {
-  courseId: string;
-  tagId: string;
-  name?: string;
-  parentId?: string;
-  aliases?: string[];
-  confirmAssignments?: boolean;
-}) {
-  return backendJson<{ tag: unknown }>(
-    `/api/courses/${encodeURIComponent(args.courseId)}/problem-tags/${encodeURIComponent(args.tagId)}`,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: args.name,
-        parentId: args.parentId,
-        aliases: args.aliases,
-        confirmAssignments: args.confirmAssignments,
-      }),
-    },
-  );
-}
-
-export async function mergeCourseProblemTags(args: {
-  courseId: string;
-  sourceId: string;
-  targetId: string;
-}) {
-  return backendJson<{ ok: true }>(
-    `/api/courses/${encodeURIComponent(args.courseId)}/problem-tags/merge`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sourceId: args.sourceId, targetId: args.targetId }),
     },
   );
 }
@@ -408,7 +402,6 @@ export async function updateNotebookProblem(args: {
     status?: 'draft' | 'published' | 'archived';
     points?: number;
     order?: number;
-    tags?: string[];
     difficulty?: 'easy' | 'medium' | 'hard';
     publicContent?: unknown;
     grading?: unknown;
@@ -431,11 +424,11 @@ export async function updateCourseProblem(args: {
   problemId: string;
   patch: {
     notebookId?: string | null;
+    chapterId?: string | null;
     title?: string;
     status?: 'draft' | 'published' | 'archived';
     points?: number;
     order?: number;
-    tags?: string[];
     difficulty?: 'easy' | 'medium' | 'hard';
     publicContent?: unknown;
     grading?: unknown;

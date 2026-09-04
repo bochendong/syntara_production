@@ -40,7 +40,7 @@ type StudentDetail = {
       activeDurationMs: number | null;
       createdAt: number;
     };
-    tagPaths: Array<{ area: string; concept: string }>;
+    chapterName: string | null;
   }>;
 };
 
@@ -91,10 +91,7 @@ function localDetail(courseId: string, studentId: string): StudentDetail {
         activeDurationMs: 260_000 + index * 70_000,
         createdAt: DEMO_NOW - index * 3_600_000,
       },
-      tagPaths: (problem.tagAssignments || []).map((item) => ({
-        area: item.area,
-        concept: item.concept,
-      })),
+      chapterName: problem.chapterName ?? null,
     })),
   };
 }
@@ -140,7 +137,7 @@ function localAttemptDetail(
       difficulty: problem.difficulty,
       points: problem.points,
       publicContent: problem.publicContent,
-      tagAssignments: problem.tagAssignments || [],
+      chapterName: problem.chapterName ?? null,
     },
   };
 }
@@ -287,8 +284,7 @@ export function TeacherCourseStudentDetailClient(props: {
               <span className="min-w-0">
                 <span className="block truncate font-medium">{problem.title}</span>
                 <span className="block truncate text-xs text-slate-500">
-                  {problem.tagPaths.map((tag) => `${tag.area} / ${tag.concept}`).join(' · ') ||
-                    '未标注'}
+                  {problem.chapterName || '未归档'}
                 </span>
               </span>
               <span>

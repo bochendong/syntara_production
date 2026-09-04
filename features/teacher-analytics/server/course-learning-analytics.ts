@@ -39,10 +39,7 @@ export async function loadCourseLearningOverview(args: {
       id: true,
       title: true,
       problemNumber: true,
-      tagAssignments: {
-        where: { status: 'applied' },
-        include: { tag: { include: { parent: true } } },
-      },
+      chapter: { select: { id: true, name: true } },
     },
   });
   const problemIds = problems.map((problem) => problem.id);
@@ -142,25 +139,21 @@ export async function loadCourseLearningOverview(args: {
     )
     .slice(0, 20);
 
-  const weakPathMap = new Map<
+  const weakChapterMap = new Map<
     string,
-    { area: string; concept: string; failedStudentIds: Set<string>; failedAttempts: number }
+    { chapter: string; failedStudentIds: Set<string>; failedAttempts: number }
   >();
   for (const attempt of attempts.filter((item) => item.status !== 'passed')) {
     const problem = problemById.get(attempt.problemId);
-    for (const assignment of problem?.tagAssignments || []) {
-      if (!assignment.tag.parent) continue;
-      const key = `${assignment.tag.parent.id}:${assignment.tag.id}`;
-      const current = weakPathMap.get(key) || {
-        area: assignment.tag.parent.name,
-        concept: assignment.tag.name,
-        failedStudentIds: new Set<string>(),
-        failedAttempts: 0,
-      };
-      current.failedStudentIds.add(attempt.userId);
-      current.failedAttempts += 1;
-      weakPathMap.set(key, current);
-    }
+    if (!problem?.chapter) continue;
+    const current = weakChapterMap.get(problem.chapter.id) || {
+      chapter: problem.chapter.name,
+      failedStudentIds: new Set<string>(),
+      failedAttempts: 0,
+    };
+    current.failedStudentIds.add(attempt.userId);
+    current.failedAttempts += 1;
+    weakChapterMap.set(problem.chapter.id, current);
   }
   const students = enrollments.map((enrollment) => {
     const rows = attemptsByStudent.get(enrollment.userId) || [];
@@ -192,7 +185,7 @@ export async function loadCourseLearningOverview(args: {
       passRate: attempts.length ? successful / attempts.length : null,
       averageActiveDurationMs: average(timed),
     },
-    weakTagPaths: Array.from(weakPathMap.values())
+    weakChapters: Array.from(weakChapterMap.values())
       .map((item) => ({
         ...item,
         affectedStudentCount: item.failedStudentIds.size,
@@ -231,10 +224,7 @@ export async function loadCourseStudentLearningDetail(args: {
       id: true,
       title: true,
       difficulty: true,
-      tagAssignments: {
-        where: { status: 'applied' },
-        include: { tag: { include: { parent: true } } },
-      },
+      chapter: { select: { name: true } },
     },
   });
   const from = overview.from ? new Date(overview.from) : null;
@@ -281,9 +271,7 @@ export async function loadCourseStudentLearningDetail(args: {
             averageActiveDurationMs: average(timed),
             timingSampleCount: timed.length,
             latestAttempt: { ...rows[0], createdAt: rows[0].createdAt.getTime() },
-            tagPaths: problem.tagAssignments
-              .filter((item) => item.tag.parent)
-              .map((item) => ({ area: item.tag.parent!.name, concept: item.tag.name })),
+            chapterName: problem.chapter?.name ?? null,
           },
         ];
       })

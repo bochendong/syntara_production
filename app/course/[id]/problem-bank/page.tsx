@@ -7,7 +7,7 @@ type CourseProblemBankSearchParams = {
   mock?: string | string[];
   asTeacher?: string | string[];
   notebookId?: string | string[];
-  notebookFilter?: string | string[];
+  chapter?: string | string[];
   q?: string | string[];
   practice?: string | string[];
   type?: string | string[];
@@ -27,7 +27,7 @@ function initialFiltersFromSearchParams(
     practiceFilter: firstSearchParam(params.practice),
     typeFilter: firstSearchParam(params.type),
     difficultyFilter: firstSearchParam(params.difficulty),
-    notebookFilter: firstSearchParam(params.notebookFilter),
+    chapterFilter: firstSearchParam(params.chapter),
     statusFilter: firstSearchParam(params.status),
   };
 }

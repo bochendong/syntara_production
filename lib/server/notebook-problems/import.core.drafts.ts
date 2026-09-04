@@ -453,7 +453,7 @@ export function mergeDuplicateScaffoldGroup(
       title: scaffoldIndex ? `Question ${scaffoldIndex}` : first.title,
       type,
       points: drafts.reduce((sum, draft) => sum + draft.points, 0),
-      tags: Array.from(new Set(drafts.flatMap((draft) => draft.tags))).slice(0, 16),
+      tags: [],
       difficulty: hardestDifficulty(drafts),
       publicContent: openResponsePublicContent(type, stem),
       grading: mergeOpenResponseGrading(type),
@@ -786,10 +786,10 @@ export function normalizeRawCandidate(
     draftId: randomUUID(),
     status: 'draft',
     points: 1,
-    tags: [],
     difficulty: 'medium',
     sourceMeta: {},
     ...base,
+    tags: [],
     validationErrors,
     title: normalizeTitle(
       typeof base.title === 'string'

@@ -390,7 +390,7 @@ export async function loadTeacherClassOverview(args: {
       timeRange: { scope: learning.range, from: learning.from, to: learning.to },
       sample: learning.sample,
       metrics: learning.metrics,
-      weakTagPaths: learning.weakTagPaths,
+      weakChapters: learning.weakChapters,
       difficultProblems: learning.difficultProblems.map((problem) => ({
         ...problem,
         href: `/course/${args.courseId}/problem-bank/${problem.problemId}`,

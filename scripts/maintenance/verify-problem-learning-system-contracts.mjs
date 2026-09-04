@@ -6,8 +6,8 @@ const root = process.cwd();
 const read = (path) => readFileSync(resolve(root, path), 'utf8');
 
 const schema = read('prisma/schema.prisma');
-assert.match(schema, /model CourseProblemTagNode/);
-assert.match(schema, /model NotebookProblemTagAssignment/);
+assert.match(schema, /model CourseProblemChapter/);
+assert.match(schema, /chapterId\s+String\?/);
 assert.match(schema, /activeDurationMs\s+Int\?/);
 assert.match(schema, /problemSnapshotJson\s+Json\?/);
 

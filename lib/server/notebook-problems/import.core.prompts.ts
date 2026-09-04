@@ -43,7 +43,6 @@ export function directLlmProblemImportPrompt(args: {
       "points": 1,
       "difficulty": "easy|medium|hard",
       "tags": [],
-      "tagPaths": [{"area":"知识领域","concept":"具体知识点"}],
       "publicContent": {"type":"short_answer","stem":"学生可见题面，Markdown + LaTeX"},
       "grading": {"type":"short_answer"},
       "sourceMeta": {"scaffoldIndex":1,"structure":{"topLevelLabel":"1"},"anchors":[{"pageNumber":2}]},
@@ -61,7 +60,7 @@ export function directLlmProblemImportPrompt(args: {
 - drafts 数量必须等于 structurePlan.topLevelProblems 数量，顺序一致。
 - 每个 draft.sourceMeta.scaffoldIndex 必须等于对应 topLevelProblems.index。
 - 每个 draft.sourceMeta.anchors 必须带页码；sourceMeta.structure 可以是对应 topLevelProblems 的简短副本。
-- 每道题输出 1-3 个 tagPaths；area 是稳定的知识领域，concept 是可评估的具体知识点。不要用题型、题号、年份或考试名当标签。
+- tags 必须保持为空数组，不要输出 tagPaths、知识标签或知识树分类；章节归档由老师建立章节后单独完成。
 - 必须为每道题独立解题并生成可评分答案；学生手写内容、勾选、分数和教师批注不是题面，也不能直接当作标准答案。
 - 题型优先级：在不明显降低难度时优先 choice；代码输出预测、报错判断和表格逐行作答通常拆成独立 choice。只有改成 choice 会显著降低回忆、推导或作答难度时，才使用 fill_blank 或开放题型。
 - choice 填 correctOptionIds；calculation 填 referenceAnswer、至少一个仅含最终结果的 acceptedForms，并在适用时填 tolerance/unit；short_answer 填 referenceAnswer/rubric；proof 填 referenceProof/rubric；fill_blank 为每个 blank 填 acceptedAnswers。
@@ -121,7 +120,7 @@ Hard requirements:
 - drafts count must equal structurePlan.topLevelProblems count, in the same order.
 - Every draft.sourceMeta.scaffoldIndex must match its topLevelProblems.index.
 - Every draft.sourceMeta.anchors must include page numbers.
-- Every draft must include 1-3 tagPaths. area is a stable knowledge domain and concept is a concrete assessable concept; never use problem type, number, year, or exam name as a tag.
+- Keep tags as an empty array. Do not output tagPaths, knowledge tags, or taxonomy categories; chapter filing happens separately after the teacher creates chapters.
 - Independently solve every problem and generate grading data. Student handwriting, selected bubbles, scores, and grader comments are not part of the problem statement and must not be copied as the authoritative answer.
 - Prefer choice whenever it does not materially reduce difficulty. Code-output prediction, error diagnosis, and independently answered table rows normally become separate choice problems. Use fill_blank or open response only when options would materially reduce recall, derivation, or construction difficulty.
 - For choice use correctOptionIds; for calculation use referenceAnswer plus at least one acceptedForms entry containing only the final result and include tolerance/unit when applicable; for short_answer use referenceAnswer/rubric; for proof use referenceProof/rubric; for fill_blank provide acceptedAnswers for every blank.
@@ -189,8 +188,7 @@ export function buildProblemImportSystemPrompt(language: 'zh-CN' | 'en-US'): str
   "type": "short_answer" | "choice" | "proof" | "calculation" | "code" | "fill_blank",
   "points": number,
   "difficulty": "easy" | "medium" | "hard",
-  "tags": string[],
-  "tagPaths": [{"area": string, "concept": string}],
+  "tags": [],
   "publicContent": {...},
   "grading": {...},
   "secretJudge": {...optional...},
@@ -202,7 +200,7 @@ ${problemStemFormattingContract(language)}
 - 默认按顶层题号组织；彼此独立作答和计分的表格行、代码追踪行或重复单元拆成多个对象
 - 不要拆开共享同一推导过程的证明题或复合题；只有可独立作答和计分的单元才拆分
 - title 必须是简洁、稳定、概念导向的题目名，优先概括知识点与任务，不要直接复制整句题面，不要把公式原样塞进 title
-- 每题给出 1-3 个 tagPaths；area 是稳定知识领域，concept 是可评估的叶子知识点，不得使用题型、题号、年份、考试名或“练习题”等噪声标签
+- tags 必须保持为空数组，不要输出 tagPaths、知识标签或知识树分类；章节归档由老师建立章节后单独完成
 - 每道题的 publicContent 必须能独立作答；不要只写“见上表 / 见图 / front page / Table I / Diagram II”
 - 按材料语义选择 stem 表达方式：枚举/步骤/条件用列表；数据矩阵/表格/真值表用 markdown 表格；代码用 fenced code block；图形/流程/关系图用可读的节点、边、状态、箭头或邻接关系列表
 - 共享上下文必须复制进依赖它的题目，或整理成该题开头的“背景/材料/数据/定义”块
@@ -228,8 +226,7 @@ Each item should follow this shape as closely as possible:
   "type": "short_answer" | "choice" | "proof" | "calculation" | "code" | "fill_blank",
   "points": number,
   "difficulty": "easy" | "medium" | "hard",
-  "tags": string[],
-  "tagPaths": [{"area": string, "concept": string}],
+  "tags": [],
   "publicContent": {...},
   "grading": {...},
   "secretJudge": {...optional...},
@@ -241,7 +238,7 @@ Requirements:
 - organize by top-level number by default; split independently answered and scored table rows, code-tracing rows, or repeated units into separate objects
 - do not split proof or compound parts that share one derivation; split only independently answerable and scored units
 - title must be concise, concept-focused, and stable; summarize the topic/task instead of copying the whole stem, and avoid dumping raw formulas into the title
-- include 1-3 tagPaths per problem; area is a stable knowledge domain and concept is a concrete assessable leaf concept, never a problem type, number, year, exam name, or generic exercise label
+- keep tags as an empty array; do not output tagPaths, knowledge tags, or taxonomy categories because chapter filing happens separately after the teacher creates chapters
 - every publicContent item must be independently answerable; do not leave references like "see above", "front page", "Table I", or "Diagram II" without the referenced content
 - choose the stem representation by material semantics: enumerations, steps, and conditions become lists; data matrices, tables, and truth tables become markdown tables; code becomes fenced code blocks; diagrams, flows, and relationship graphs become readable node/edge/state/arrow/adjacency lists
 - shared context must be copied into every problem that depends on it, or rewritten as a Background / Material / Data / Definitions block at the start of that stem

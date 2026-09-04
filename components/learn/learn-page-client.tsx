@@ -810,21 +810,11 @@ function courseSourceHealthNotice(
   if (failureCount === 0 && incompleteCount === 0) return null;
 
   const details: string[] = [];
-  if (source.processingCount > 0) {
-    details.push(`${source.processingCount} 份尚未同步`);
-  }
-  if (source.indexPendingCount > 0) {
-    details.push(`${source.indexPendingCount} 份等待索引`);
-  }
-  if (source.ingestErrorCount > 0) {
-    details.push(`${source.ingestErrorCount} 份入库失败`);
-  }
-  if (source.indexErrorCount > 0) {
-    details.push(`${source.indexErrorCount} 份索引失败`);
-  }
-  if (source.oldestProcessingAt) {
-    details.push(`最早未同步资料：${source.oldestProcessingAt}`);
-  }
+  if (source.processingCount > 0) details.push(`${source.processingCount} 份尚未同步`);
+  if (source.indexPendingCount > 0) details.push(`${source.indexPendingCount} 份等待索引`);
+  if (source.ingestErrorCount > 0) details.push(`${source.ingestErrorCount} 份入库失败`);
+  if (source.indexErrorCount > 0) details.push(`${source.indexErrorCount} 份索引失败`);
+  if (source.oldestProcessingAt) details.push(`最早未同步资料：${source.oldestProcessingAt}`);
 
   return {
     tone: failureCount > 0 ? 'error' : 'pending',
@@ -13649,8 +13639,6 @@ export function LearnPageClient() {
         },
   ];
   void learnSurfaceStatusItems;
-  // Students cannot open the teacher's private source catalog, but both roles
-  // need to know when the course material has not finished syncing.
   const activeCourseSourceHealthNotice = courseSourceHealthNotice(
     activeCourseContentState?.sources,
   );
@@ -16235,6 +16223,49 @@ export function LearnPageClient() {
             className="relative z-20"
             actions={
               <>
+                {activeCourseSourceHealthNotice && isTeacherCourseChat ? (
+                  <button
+                    type="button"
+                    onClick={openSourceUploadPanel}
+                    className={cn(
+                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
+                      activeCourseSourceHealthNotice.tone === 'error'
+                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15'
+                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15',
+                    )}
+                    title={activeCourseSourceHealthNotice.detail}
+                    aria-label={`${activeCourseSourceHealthNotice.label}，打开原始讲义库`}
+                    data-testid="learn-source-health-warning"
+                  >
+                    {activeCourseSourceHealthNotice.tone === 'error' ? (
+                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                    ) : (
+                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
+                    )}
+                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
+                  </button>
+                ) : activeCourseSourceHealthNotice ? (
+                  <div
+                    role="status"
+                    className={cn(
+                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium',
+                      activeCourseSourceHealthNotice.tone === 'error'
+                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100'
+                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100',
+                    )}
+                    title={activeCourseSourceHealthNotice.detail}
+                    aria-label={activeCourseSourceHealthNotice.label}
+                    data-testid="learn-source-health-warning"
+                  >
+                    {activeCourseSourceHealthNotice.tone === 'error' ? (
+                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                    ) : (
+                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
+                    )}
+                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
+                  </div>
+                ) : null}
+
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
@@ -16365,49 +16396,6 @@ export function LearnPageClient() {
                     })}
                   </DropdownMenuContent>
                 </DropdownMenu>
-
-                {activeCourseSourceHealthNotice && isTeacherCourseChat ? (
-                  <button
-                    type="button"
-                    onClick={openSourceUploadPanel}
-                    className={cn(
-                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
-                      activeCourseSourceHealthNotice.tone === 'error'
-                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15'
-                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15',
-                    )}
-                    title={activeCourseSourceHealthNotice.detail}
-                    aria-label={`${activeCourseSourceHealthNotice.label}，打开原始讲义库`}
-                    data-testid="learn-source-health-warning"
-                  >
-                    {activeCourseSourceHealthNotice.tone === 'error' ? (
-                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
-                    ) : (
-                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
-                    )}
-                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
-                  </button>
-                ) : activeCourseSourceHealthNotice ? (
-                  <div
-                    role="status"
-                    className={cn(
-                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium',
-                      activeCourseSourceHealthNotice.tone === 'error'
-                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100'
-                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100',
-                    )}
-                    title={activeCourseSourceHealthNotice.detail}
-                    aria-label={activeCourseSourceHealthNotice.label}
-                    data-testid="learn-source-health-warning"
-                  >
-                    {activeCourseSourceHealthNotice.tone === 'error' ? (
-                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
-                    ) : (
-                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
-                    )}
-                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
-                  </div>
-                ) : null}
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

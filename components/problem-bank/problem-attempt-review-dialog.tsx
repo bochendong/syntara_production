@@ -36,7 +36,7 @@ export type TeacherStudentAttemptDetail = {
     difficulty: string;
     points: number;
     publicContent: unknown;
-    tagAssignments: Array<{ id: string; areaId: string; area: string; concept: string }>;
+    chapterName?: string | null;
   };
 };
 
@@ -210,13 +210,11 @@ export function ProblemAttemptReviewDialog(props: {
         {attempt ? (
           <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] lg:overflow-hidden">
             <section className="min-w-0 space-y-5 border-b border-slate-200 p-5 lg:overflow-y-auto lg:border-b-0 lg:border-r dark:border-white/10">
-              <div className="flex flex-wrap gap-1.5">
-                {attempt.problem.tagAssignments.map((tag) => (
-                  <Badge key={tag.id} variant="outline">
-                    {tag.area} / {tag.concept}
-                  </Badge>
-                ))}
-              </div>
+              {attempt.problem.chapterName ? (
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant="outline">{attempt.problem.chapterName}</Badge>
+                </div>
+              ) : null}
               {content?.type === 'code' ? (
                 <CodeProblemStatement content={content} locale="zh-CN" />
               ) : content ? (

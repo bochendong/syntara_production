@@ -14,15 +14,14 @@ import {
   getCourseProblemForUser,
   updateCourseProblem,
 } from '@/features/problems/server/service';
-import { getProblemTagAssignments } from '@/features/problem-tags/server/problem-tag-service';
 
 const updateProblemSchema = z.object({
   notebookId: z.string().trim().min(1).nullable().optional(),
+  chapterId: z.string().trim().min(1).nullable().optional(),
   title: z.string().trim().min(1).max(200).optional(),
   status: z.enum(['draft', 'published', 'archived']).optional(),
   points: z.number().int().min(0).max(1000).optional(),
   order: z.number().int().min(0).optional(),
-  tags: z.array(z.string().trim().min(1).max(30)).max(16).optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
   publicContent: notebookProblemPublicContentSchema.optional(),
   grading: notebookProblemGradingSchema.optional(),
@@ -32,15 +31,14 @@ const updateProblemSchema = z.object({
 function toClientProblem(
   problem: Awaited<ReturnType<typeof getCourseProblemForUser>>['problem'],
   secretJudge?: Awaited<ReturnType<typeof getCourseProblemForUser>>['secretJudge'],
-  tagAssignments: Awaited<ReturnType<typeof getProblemTagAssignments>> extends Map<string, infer T>
-    ? T
-    : never = [],
 ) {
   return {
     id: problem.id,
     courseId: problem.courseId ?? null,
     notebookId: problem.notebookId,
     notebookName: problem.notebookName,
+    chapterId: problem.chapterId ?? null,
+    chapterName: problem.chapterName,
     title: problem.title,
     type: problem.type,
     status: problem.status,
@@ -49,7 +47,6 @@ function toClientProblem(
     problemNumber: problem.problemNumber ?? null,
     points: problem.points,
     tags: problem.tags,
-    tagAssignments,
     difficulty: problem.difficulty,
     publicContent: problem.publicContent,
     grading: problem.grading,
@@ -76,9 +73,8 @@ export async function GET(
       // Keep an explicit escape hatch for maintenance/debugging callers.
       skipMaintenance: url.searchParams.get('maintenance') !== '1',
     });
-    const assignments = await getProblemTagAssignments(prisma, id, [problem.id]);
     return NextResponse.json({
-      problem: toClientProblem(problem, secretJudge, assignments.get(problem.id) || []),
+      problem: toClientProblem(problem, secretJudge),
     });
   });
 }
@@ -127,9 +123,8 @@ export async function PATCH(
       ownerId: auth.userId,
       reason: 'course_problem_updated',
     });
-    const assignments = await getProblemTagAssignments(prisma, id, [problem.id]);
     return NextResponse.json({
-      problem: toClientProblem(problem, problem.secretJudge, assignments.get(problem.id) || []),
+      problem: toClientProblem(problem, problem.secretJudge),
     });
   });
 }

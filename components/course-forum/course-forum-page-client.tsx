@@ -971,9 +971,7 @@ export function CourseForumPageClient({
                           {selected.problem.title}
                         </span>
                         <span className="mt-1 block text-xs text-slate-500">
-                          {selected.problem.tagAssignments
-                            .map((tag) => `${tag.area} / ${tag.concept}`)
-                            .join(' · ') || selected.problem.difficulty}
+                          {selected.problem.chapterName || selected.problem.difficulty}
                         </span>
                       </span>
                     </button>
@@ -1244,13 +1242,11 @@ export function CourseForumPageClient({
                 return parsed.success ? (
                   <div className="space-y-4">
                     <ProblemRichText content={renderProblemContentStem(parsed.data)} />
-                    <div className="flex flex-wrap gap-1.5">
-                      {selected.problem.tagAssignments.map((tag) => (
-                        <Badge key={`${tag.area}:${tag.concept}`} variant="outline">
-                          {tag.area} / {tag.concept}
-                        </Badge>
-                      ))}
-                    </div>
+                    {selected.problem.chapterName ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge variant="outline">{selected.problem.chapterName}</Badge>
+                      </div>
+                    ) : null}
                     {!selected.problem.isSnapshot ? (
                       <Button
                         onClick={() =>

@@ -389,6 +389,7 @@ model Course {
   hardRules              CourseHardRule[]
   rulePacks              CourseRulePack[]
   forumPosts             CourseForumPost[]
+  problemChapters        CourseProblemChapter[]
   problemTagNodes        CourseProblemTagNode[]
   externalBinding        ExternalCourseBinding?
 
@@ -646,6 +647,7 @@ model NotebookProblem {
   id                String                    @id @default(cuid())
   courseId          String?
   notebookId        String?
+  chapterId         String?
   title             String
   type              NotebookProblemType
   status            NotebookProblemStatus     @default(draft)
@@ -662,6 +664,7 @@ model NotebookProblem {
 
   course         Course?                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   notebook       Notebook?                      @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+  chapter        CourseProblemChapter?          @relation(fields: [chapterId], references: [id], onDelete: SetNull)
   secret         NotebookProblemSecret?
   attempts       NotebookProblemAttempt[]
   progress       NotebookProblemProgress[]
@@ -674,11 +677,30 @@ model NotebookProblem {
   @@unique([courseId, dedupeKey], map: "NotebookProblem_course_dedupe_key")
   @@index([courseId, order])
   @@index([courseId, problemNumber])
+  @@index([courseId, chapterId, problemNumber])
   @@index([courseId, status, order])
   @@index([courseId, updatedAt(sort: Desc)])
   @@index([notebookId, order])
   @@index([notebookId, problemNumber])
   @@index([notebookId, updatedAt(sort: Desc)])
+}
+
+/// Teacher-managed course structure used exclusively for organizing the problem bank.
+model CourseProblemChapter {
+  id          String  @id @default(cuid())
+  courseId    String
+  name        String  @db.VarChar(160)
+  description String? @db.Text
+  position    Int     @default(0)
+
+  course   Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  problems NotebookProblem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseId, name])
+  @@index([courseId, position, createdAt])
 }
 
 /// A strict two-level, course-scoped problem taxonomy. Level 0 nodes are

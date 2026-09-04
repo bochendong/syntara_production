@@ -46,14 +46,7 @@ export async function GET(
             difficulty: true,
             points: true,
             publicContentJson: true,
-            tagAssignments: {
-              where: { status: 'applied' },
-              select: {
-                tag: {
-                  select: { id: true, name: true, parent: { select: { id: true, name: true } } },
-                },
-              },
-            },
+            chapter: { select: { name: true } },
           },
         },
       },
@@ -77,18 +70,7 @@ export async function GET(
           difficulty: attempt.problem.difficulty,
           points: attempt.problem.points,
           publicContent: attempt.problem.publicContentJson,
-          tagAssignments: attempt.problem.tagAssignments.flatMap((assignment) =>
-            assignment.tag.parent
-              ? [
-                  {
-                    id: assignment.tag.id,
-                    areaId: assignment.tag.parent.id,
-                    area: assignment.tag.parent.name,
-                    concept: assignment.tag.name,
-                  },
-                ]
-              : [],
-          ),
+          chapterName: attempt.problem.chapter?.name ?? null,
         },
       },
     });

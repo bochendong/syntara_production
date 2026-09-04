@@ -786,7 +786,6 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
       title?: string;
       status?: 'draft' | 'published' | 'archived';
       points?: number;
-      tags?: string[];
       difficulty?: 'easy' | 'medium' | 'hard';
       publicContent?: unknown;
       grading?: unknown;

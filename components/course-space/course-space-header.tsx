@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import {
+  ArrowLeft,
   BookOpenText,
   Home,
   Library,
@@ -204,7 +206,9 @@ export function CourseSpaceHeader({
   /** Rounded card chrome shared across teacher course-space pages. */
   surface?: boolean;
 }) {
+  const router = useRouter();
   const placeholder = isCourseSpaceHeaderPlaceholder(courseTitle);
+  const allCoursesHref = courseSpaceAllCoursesHref(role, previewMode);
   const subscribeToCachedHeader = useCallback(
     (onStoreChange: () => void) => subscribeCourseSpaceHeaderCache(courseId, onStoreChange),
     [courseId],
@@ -236,6 +240,13 @@ export function CourseSpaceHeader({
 
   const displayedHeader = placeholder && cachedHeader ? cachedHeader : null;
   const displayedRole = displayedHeader?.role ?? role;
+  const handleBack = useCallback(() => {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push(allCoursesHref);
+  }, [allCoursesHref, router]);
 
   return (
     <header
@@ -255,6 +266,15 @@ export function CourseSpaceHeader({
             actions ? 'gap-3 lg:gap-4' : 'gap-1.5',
           )}
         >
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-primary/30 dark:text-slate-400 dark:hover:bg-white/[0.07] dark:hover:text-white"
+            aria-label="返回上一页"
+            title="返回"
+          >
+            <ArrowLeft className="size-4 shrink-0" strokeWidth={1.9} />
+          </button>
           <CourseSpaceNavigation
             courseId={courseId}
             role={displayedRole}
@@ -272,7 +292,7 @@ export function CourseSpaceHeader({
             {displayedHeader?.courseTitle ?? courseTitle}
           </h1>
           <Link
-            href={courseSpaceAllCoursesHref(role, previewMode)}
+            href={allCoursesHref}
             className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-primary/30 dark:text-slate-400 dark:hover:bg-white/[0.07] dark:hover:text-white"
             aria-label="所有课程"
             title="所有课程"

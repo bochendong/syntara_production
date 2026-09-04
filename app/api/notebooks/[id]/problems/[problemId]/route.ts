@@ -20,7 +20,6 @@ const updateProblemSchema = z.object({
   status: z.enum(['draft', 'published', 'archived']).optional(),
   points: z.number().int().min(0).max(1000).optional(),
   order: z.number().int().min(0).optional(),
-  tags: z.array(z.string().trim().min(1).max(30)).max(16).optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
   publicContent: notebookProblemPublicContentSchema.optional(),
   grading: notebookProblemGradingSchema.optional(),

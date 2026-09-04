@@ -386,7 +386,7 @@ Office hour 本周四仍是 2–4pm，地点不变。`,
               type: 'proof' as const,
               stem: '使用数学归纳法证明：对所有整数 $n \\ge 1$，$$1+3+5+\\cdots+(2n-1)=n^2.$$ ',
             },
-            tagAssignments: [{ area: '离散数学', concept: '数学归纳法' }],
+            chapterName: '数学归纳法',
             capturedAt: iso(3 * HOUR),
             isSnapshot: false,
           }

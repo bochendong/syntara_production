@@ -37,7 +37,6 @@ import {
   type NotebookProblemImportDraft,
   type NotebookProblemPublicContent,
 } from '@/lib/problem-bank';
-import { problemConceptTopics } from '@/lib/problem-bank/concept-tags.mjs';
 import { renderHtmlWithLatex } from '@/lib/render-html-with-latex';
 import { cn } from '@/lib/utils';
 import type { NotebookProblemClientRecord } from '@/lib/utils/notebook-problem-api';
@@ -357,7 +356,7 @@ const PROBLEM_BANK_EMERALD_ACTION_BUTTON_CLASS =
 const PROBLEM_BANK_EMERALD_OUTLINE_BUTTON_CLASS =
   'border border-emerald-200 bg-white text-emerald-700 shadow-none hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-500/30 dark:bg-slate-950 dark:text-emerald-200 dark:hover:border-emerald-400/50 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-100';
 const PROBLEM_BANK_LIST_GRID_CLASS =
-  'grid grid-cols-[3.5rem_3.5rem_minmax(12rem,1.8fr)_6.5rem_5rem_4.75rem] gap-2.5';
+  'grid grid-cols-[3rem_3rem_minmax(11rem,1.6fr)_6rem_9rem_5rem_4.75rem] gap-2.5';
 const PROBLEM_BANK_PAGE_SIZE = 10;
 
 function supportsPhotoAnswer(problem: NotebookProblemClientRecord | null): boolean {
@@ -672,22 +671,6 @@ function formatFileSize(bytes: number, locale: 'zh-CN' | 'en-US') {
 
 type PracticeFilter = 'all' | 'review' | 'wrong' | 'unattempted' | 'mastered';
 type ProblemPracticeState = Exclude<PracticeFilter, 'all'>;
-
-function normalizeProblemTopic(value: string): string {
-  return value.trim().replace(/\s+/g, ' ').slice(0, 48);
-}
-
-function problemTopics(problem: NotebookProblemClientRecord): string[] {
-  const assignedTags = (problem.tagAssignments ?? [])
-    .filter((assignment) => assignment.status === 'applied')
-    .map((assignment) => `${assignment.area} / ${assignment.concept}`)
-    .map(normalizeProblemTopic)
-    .filter(Boolean);
-  if (assignedTags.length > 0) return Array.from(new Set(assignedTags)).slice(0, 6);
-  const tags = problemConceptTopics(problem).map(normalizeProblemTopic).filter(Boolean);
-  if (tags.length > 0) return Array.from(new Set(tags)).slice(0, 6);
-  return ['未标注'];
-}
 
 function problemPracticeState(problem: NotebookProblemClientRecord): ProblemPracticeState {
   const status = problem.latestAttempt?.status ?? null;
@@ -1947,7 +1930,6 @@ export {
   problemMetaChips,
   problemPracticeState,
   problemSolutionSections,
-  problemTopics,
   problemTypeVisual,
   readFileAsDataUrl,
   renderProblemContentStem,

@@ -14,7 +14,6 @@ const problemEvaluator = read('lib/server/notebook-problems/evaluate.ts');
 const teacherStudio = read('components/teacher/teacher-course-studio-client.tsx');
 const forum = read('components/course-forum/course-forum-page-client.tsx');
 const headerCache = read('lib/course-space/course-space-header-cache.ts');
-const localDemoProblemBank = read('lib/teacher/local-demo-problem-bank.ts');
 
 const checks = [
   {
@@ -71,24 +70,24 @@ const checks = [
       problemBankHelpers.includes('attemptedCount > 0 && passedCount === 0'),
   },
   {
-    name: 'local problem bank demo includes structured knowledge tags and a filterable tree',
+    name: 'problem bank uses teacher-defined chapters with an unfiled filter',
     pass:
-      localDemoProblemBank.includes('tagAssignments: [CSC148_DEMO_TAGS.objects]') &&
-      localDemoProblemBank.includes('tagAssignments: [CSC148_DEMO_TAGS.recursionDesign]') &&
-      localDemoProblemBank.includes('listLocalDemoProblemTagTree') &&
-      problemBankController.includes('listLocalDemoProblemTagTree(courseId)'),
+      problemBank.includes("'管理章节'") &&
+      problemBank.includes('chapterFilterOptions.map') &&
+      problemBankController.includes("value: '__unfiled__'") &&
+      problemBankController.includes('problem.chapterId !== chapterFilter'),
   },
   {
-    name: 'problem bank sidebar spans the content height and reports tag completion',
+    name: 'problem bank sidebar spans the content height and reports chapter completion',
     pass:
       problemBank.includes('ProblemBankStatsSidebar') &&
       problemBank.includes('absolute inset-y-0 right-0') &&
       problemBank.includes('xl:mr-[312px]') &&
-      problemBank.includes("'标签完成度'") &&
+      problemBank.includes("'章节完成度'") &&
       problemBank.includes('item.percent') &&
       problemBankController.includes('item.attemptedCount / Math.max(1, item.totalCount)') &&
       problemBankController.includes('.slice(0, 5)') &&
-      problemBankController.includes('tagProgressByName'),
+      problemBankController.includes('chapterProgressById'),
   },
   {
     name: 'problem bank sidebar stays compact without an internal scroll region',

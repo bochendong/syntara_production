@@ -18,7 +18,6 @@ import {
   Search,
   Sparkles,
   SlidersHorizontal,
-  Tag,
   Terminal,
   Trash2,
   Type,
@@ -36,17 +35,10 @@ import {
 } from '@/lib/problem-bank';
 import { Button } from '@/components/ui/button';
 import { MessageResponse } from '@/components/ai-elements/message';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { AnswerComposer, AnswerComposerToolbar } from '@/components/problem-bank/answer-composer';
 import { ProblemDraftForm } from '@/components/problem-bank/problem-draft-form';
 import { ProblemLanguageToggle } from '@/components/problem-bank/problem-language-toggle';
-import { ProblemTagManagerDialog } from '@/components/problem-bank/problem-tag-manager-dialog';
+import { ProblemChapterManagerDialog } from '@/components/problem-bank/problem-chapter-manager-dialog';
 import { ProblemForumPublishDialog } from '@/components/problem-bank/problem-forum-publish-dialog';
 import { CodeAnswerEditor, highlightPython } from '@/components/problem-bank/code-answer-editor';
 import { CodeProblemStatement } from '@/components/problem-bank/code-problem-statement';
@@ -180,15 +172,15 @@ type ProblemBankStats = {
   wrong: number;
   unattempted: number;
   masteryPercent: number;
-  tagProgress: Array<{
-    tag: string;
+  chapterProgress: Array<{
+    chapter: string;
     attemptedCount: number;
     totalCount: number;
     percent: number;
   }>;
 };
 
-function tagProgressBarClass(percent: number): string {
+function chapterProgressBarClass(percent: number): string {
   if (percent >= 80) return 'bg-emerald-500';
   if (percent >= 50) return 'bg-sky-500';
   if (percent > 0) return 'bg-amber-500';
@@ -248,7 +240,7 @@ function ProblemBankStatsSidebar({
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/60">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
             <span className="grid size-8 place-items-center rounded-xl bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-300">
-              <Tag className="size-4" />
+              <BookOpen className="size-4" />
             </span>
             {locale === 'zh-CN' ? '学习进度' : 'Learning progress'}
           </div>
@@ -262,10 +254,10 @@ function ProblemBankStatsSidebar({
             <p className="mt-2 max-w-[14rem] text-xs leading-5 text-slate-500 dark:text-slate-400">
               {locale === 'zh-CN'
                 ? canEditProblems
-                  ? '导入第一批题目后，这里会自动生成完成率、练习状态和标签进度。'
+                  ? '导入第一批题目后，这里会自动生成完成率、练习状态和章节进度。'
                   : '老师发布题目后，这里会自动展示你的练习进度。'
                 : canEditProblems
-                  ? 'Import the first problems to generate completion, practice, and tag insights.'
+                  ? 'Import the first problems to generate completion, practice, and chapter insights.'
                   : 'Your learning progress will appear after the teacher publishes problems.'}
             </p>
           </div>
@@ -397,33 +389,33 @@ function ProblemBankStatsSidebar({
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                <Tag className="size-3.5 text-sky-600 dark:text-sky-300" />
-                {locale === 'zh-CN' ? '标签完成度' : 'Progress by tag'}
+                <BookOpen className="size-3.5 text-sky-600 dark:text-sky-300" />
+                {locale === 'zh-CN' ? '章节完成度' : 'Progress by chapter'}
               </p>
               <p className="mt-1 text-[10px] leading-4 text-slate-400 dark:text-slate-500">
                 {locale === 'zh-CN'
-                  ? '按题目较多的标签展示已尝试比例'
-                  : 'Attempt rate for tags with the most problems'}
+                  ? '按章节展示题目的已尝试比例'
+                  : 'Attempt rate for each chapter'}
               </p>
             </div>
             <span className="shrink-0 text-[10px] font-medium text-slate-400">
               {locale === 'zh-CN'
-                ? `前 ${stats.tagProgress.length} 个`
-                : `Top ${stats.tagProgress.length}`}
+                ? `前 ${stats.chapterProgress.length} 个`
+                : `Top ${stats.chapterProgress.length}`}
             </span>
           </div>
 
           <div className="mt-3 min-h-0 flex-1 overflow-hidden">
-            {stats.tagProgress.length > 0 ? (
+            {stats.chapterProgress.length > 0 ? (
               <div className="space-y-3">
-                {stats.tagProgress.map((item) => (
-                  <div key={item.tag}>
+                {stats.chapterProgress.map((item) => (
+                  <div key={item.chapter}>
                     <div className="flex items-center justify-between gap-3 text-[11px]">
                       <span
                         className="min-w-0 truncate font-medium text-slate-700 dark:text-slate-200"
-                        title={item.tag}
+                        title={item.chapter}
                       >
-                        {item.tag}
+                        {item.chapter}
                       </span>
                       <span className="shrink-0 font-semibold tabular-nums text-slate-500 dark:text-slate-400">
                         {item.percent}%
@@ -435,12 +427,12 @@ function ProblemBankStatsSidebar({
                       aria-valuemin={0}
                       aria-valuemax={100}
                       aria-valuenow={item.percent}
-                      aria-label={`${item.tag} ${item.percent}%`}
+                      aria-label={`${item.chapter} ${item.percent}%`}
                     >
                       <div
                         className={cn(
                           'h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none',
-                          tagProgressBarClass(item.percent),
+                          chapterProgressBarClass(item.percent),
                         )}
                         style={{ width: `${item.percent}%` }}
                       />
@@ -451,8 +443,8 @@ function ProblemBankStatsSidebar({
             ) : (
               <div className="grid min-h-32 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 text-center text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
                 {locale === 'zh-CN'
-                  ? '题目还没有知识标签，整理标签后会在这里显示进度。'
-                  : 'Tag progress will appear after knowledge tags are organized.'}
+                  ? '题目归入章节后，会在这里显示章节进度。'
+                  : 'Chapter progress will appear after problems are filed.'}
               </div>
             )}
           </div>
@@ -1240,33 +1232,30 @@ export function CourseProblemBankView({
     courseCode,
     courseHasTranslations,
     courseName,
-    currentNotebookProblemPosition,
+    currentFilteredProblemPosition,
     currentProblemPage,
     deletingProblem,
     difficultyFilter,
     difficultyFilterOptions,
     filteredProblems,
     handleAddPhotoAnswerFiles,
-    handleAutoArchiveUnassignedProblems,
+    handleAiFileUnfiledProblems,
+    handleChangeProblemChapter,
     handleDeleteProblem,
     handleEditingDraftChange,
     handleProblemInfoTabChange,
     handleRemovePhotoAnswer,
     handleRunCodeAnswer,
-    handleSaveAssignment,
     handleSubmitInlineAnswer,
     handleUpdateProblem,
     insertFormulaIntoAnswer,
     isPracticeMode,
-    knowledgeTagFilter,
+    chapterFilter,
+    chapterFilterOptions,
     loading,
     locale,
-    moveDialogOpen,
-    moveNotebookId,
     navigateToPracticeProblem,
-    nextPracticeIsChapterJump,
     nextPracticeTarget,
-    notebooks,
     pageEndIndex,
     pageStartIndex,
     paginatedProblems,
@@ -1274,17 +1263,16 @@ export function CourseProblemBankView({
     practiceFilter,
     practiceFilterOptions,
     practiceNavigationProblemCount,
-    previousPracticeIsChapterJump,
     previousPracticeTarget,
     problemLanguage,
-    problemTagTree,
-    reloadProblemTagTree,
+    problemChapters,
+    reloadProblemChapters,
     problemPageCount,
     problems,
     router,
     runningCode,
     runningCodeTarget,
-    savingAssignment,
+    savingChapterProblemId,
     searchQuery,
     selectedAnswerMode,
     selectedAnswerController,
@@ -1296,7 +1284,7 @@ export function CourseProblemBankView({
     selectedProblemEditDraft,
     selectedProblemHasTranslation,
     selectedProblemId,
-    selectedProblemNotebookLabel,
+    selectedProblemChapterLabel,
     selectedProblemPoints,
     selectedProblemSolutionSections,
     selectedProblemTitle,
@@ -1308,10 +1296,8 @@ export function CourseProblemBankView({
     setChoiceAnswers,
     setCodeAnswers,
     setDifficultyFilter,
-    setMoveDialogOpen,
-    setMoveNotebookId,
+    setChapterFilter,
     setProblemLanguage,
-    setKnowledgeTagFilter,
     setPracticeFilter,
     setProblemPage,
     setSearchQuery,
@@ -1328,7 +1314,7 @@ export function CourseProblemBankView({
     typeFilterOptions,
     visibleProblemPreviewDraft,
   } = view;
-  const [tagManagerOpen, setTagManagerOpen] = useState(false);
+  const [chapterManagerOpen, setChapterManagerOpen] = useState(false);
   const [activeFillBlankId, setActiveFillBlankId] = useState<string | null>(null);
   const fillBlankAnswerInputRef = useRef<HTMLInputElement>(null);
   const [practicePaneTabs, setPracticePaneTabs] = useState<PracticePaneTabs>(() => ({
@@ -1500,8 +1486,8 @@ export function CourseProblemBankView({
   const practiceHeaderProgressCurrent =
     isReviewPracticeMode && reviewPracticeIndex >= 0
       ? reviewPracticeIndex + 1
-      : currentNotebookProblemPosition > 0
-        ? currentNotebookProblemPosition
+      : currentFilteredProblemPosition > 0
+        ? currentFilteredProblemPosition
         : 0;
   const practiceHeaderProgressTotal = isReviewPracticeMode
     ? reviewPracticeProblems.length
@@ -1522,27 +1508,13 @@ export function CourseProblemBankView({
         ? `${reviewPracticeIndex + 1}/${reviewPracticeProblems.length}`
         : '1/1';
     }
-    if (currentNotebookProblemPosition > 0) {
-      return `${currentNotebookProblemPosition}/${practiceNavigationProblemCount}`;
+    if (currentFilteredProblemPosition > 0) {
+      return `${currentFilteredProblemPosition}/${practiceNavigationProblemCount}`;
     }
-    return locale === 'zh-CN' ? '未归类' : 'Unassigned';
+    return '0/0';
   })();
-  const previousPracticeHeaderLabel =
-    !isReviewPracticeMode && previousPracticeIsChapterJump
-      ? locale === 'zh-CN'
-        ? '上一章'
-        : 'Prev chapter'
-      : locale === 'zh-CN'
-        ? '上一题'
-        : 'Prev';
-  const nextPracticeHeaderLabel =
-    !isReviewPracticeMode && nextPracticeIsChapterJump
-      ? locale === 'zh-CN'
-        ? '下一章'
-        : 'Next chapter'
-      : locale === 'zh-CN'
-        ? '下一题'
-        : 'Next';
+  const previousPracticeHeaderLabel = locale === 'zh-CN' ? '上一题' : 'Prev';
+  const nextPracticeHeaderLabel = locale === 'zh-CN' ? '下一题' : 'Next';
   const practiceHeaderState = useMemo<CourseProblemPracticeHeaderState | null>(() => {
     if (!isPracticeMode || !selectedProblem) return null;
     return {
@@ -1555,7 +1527,7 @@ export function CourseProblemBankView({
       progressLabel: practiceHeaderProgressLabel,
       progressCurrent: practiceHeaderProgressCurrent,
       progressTotal: practiceHeaderProgressTotal,
-      notebookLabel: selectedProblemNotebookLabel || null,
+      notebookLabel: selectedProblemChapterLabel || null,
       difficultyLabel: difficultyLabel(selectedProblem.difficulty, locale),
       difficultyClassName: difficultyTextClassName(selectedProblem.difficulty),
       previousLabel: previousPracticeHeaderLabel,
@@ -1594,7 +1566,7 @@ export function CourseProblemBankView({
     selectedProblemContent,
     selectedProblemCurrentAnswer,
     selectedProblemLatestDetailedAttempt,
-    selectedProblemNotebookLabel,
+    selectedProblemChapterLabel,
     selectedProblemTitle,
   ]);
 
@@ -1613,14 +1585,17 @@ export function CourseProblemBankView({
             variant="outline"
             size="sm"
             className="h-8 rounded-lg border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 shadow-none hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-            onClick={() => setTagManagerOpen(true)}
+            onClick={() => setChapterManagerOpen(true)}
           >
-            {locale === 'zh-CN' ? '管理知识树' : 'Manage tree'}
+            {locale === 'zh-CN' ? '管理章节' : 'Manage chapters'}
           </Button>
           <Button
             type="button"
             size="sm"
-            onClick={() => void handleAutoArchiveUnassignedProblems()}
+            onClick={() => {
+              if (problemChapters.length === 0) setChapterManagerOpen(true);
+              void handleAiFileUnfiledProblems();
+            }}
             disabled={autoArchiving || problems.length === 0}
             className="h-8 gap-1.5 rounded-lg bg-primary px-2.5 text-xs font-semibold text-primary-foreground shadow-none hover:bg-primary/90"
           >
@@ -1629,7 +1604,7 @@ export function CourseProblemBankView({
             ) : (
               <Sparkles className="h-3.5 w-3.5" />
             )}
-            {locale === 'zh-CN' ? 'AI 整理标签' : 'AI organize tags'}
+            {locale === 'zh-CN' ? 'AI 归档' : 'AI file'}
           </Button>
         </div>
       );
@@ -1687,7 +1662,7 @@ export function CourseProblemBankView({
     autoArchiving,
     canEditProblems,
     handlePracticeTargetChange,
-    handleAutoArchiveUnassignedProblems,
+    handleAiFileUnfiledProblems,
     headerNextPracticeTarget,
     headerPreviousPracticeTarget,
     isPracticeMode,
@@ -1695,6 +1670,7 @@ export function CourseProblemBankView({
     nextPracticeHeaderLabel,
     practiceHeaderPlacement,
     previousPracticeHeaderLabel,
+    problemChapters.length,
     problems.length,
     selectedProblem,
     showCourseNavigation,
@@ -2033,22 +2009,11 @@ export function CourseProblemBankView({
               >
                 <ProblemTitleText content={selectedProblemTitle} />
               </h1>
-              {(selectedProblem.tagAssignments || []).some(
-                (assignment) => assignment.status === 'applied',
-              ) ? (
-                <div className="mb-4 flex flex-wrap gap-1.5">
-                  {(selectedProblem.tagAssignments || [])
-                    .filter((assignment) => assignment.status === 'applied')
-                    .map((assignment) => (
-                      <span
-                        key={assignment.id}
-                        className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200"
-                      >
-                        {assignment.area} / {assignment.concept}
-                      </span>
-                    ))}
-                </div>
-              ) : null}
+              <div className="mb-4 flex flex-wrap gap-1.5">
+                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200">
+                  {selectedProblem.chapterName || (locale === 'zh-CN' ? '未归档' : 'Unfiled')}
+                </span>
+              </div>
               {selectedProblemContent?.type === 'code' ? (
                 <CodeProblemStatement content={selectedProblemContent} locale={locale} />
               ) : selectedFillBlankContent ? (
@@ -2597,8 +2562,8 @@ export function CourseProblemBankView({
                       onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder={
                         locale === 'zh-CN'
-                          ? '搜索题号、题目、知识点、来源'
-                          : 'Search numbers, problems, topics, sources'
+                          ? '搜索题号、题目、章节、来源'
+                          : 'Search numbers, problems, chapters, sources'
                       }
                       className="h-9 rounded-lg border-slate-200 bg-white pl-9 text-[13px] shadow-none"
                     />
@@ -2675,25 +2640,17 @@ export function CourseProblemBankView({
                       ))}
                     </select>
                     <select
-                      value={knowledgeTagFilter}
-                      onChange={(event) => setKnowledgeTagFilter(event.target.value)}
+                      value={chapterFilter}
+                      onChange={(event) => setChapterFilter(event.target.value)}
                       className="h-9 max-w-[210px] rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                      aria-label={locale === 'zh-CN' ? '知识树筛选' : 'Knowledge tree filter'}
+                      aria-label={locale === 'zh-CN' ? '章节筛选' : 'Chapter filter'}
                     >
-                      <option value="all">
-                        {locale === 'zh-CN' ? '全部知识领域' : 'All knowledge areas'}
-                      </option>
-                      {problemTagTree.flatMap((area) => [
-                        <option key={`area:${area.id}`} value={`area:${area.id}`}>
-                          {area.name} · {area.problemCount}
-                        </option>,
-                        ...area.concepts.map((concept) => (
-                          <option key={`concept:${concept.id}`} value={`concept:${concept.id}`}>
-                            {'　'}
-                            {area.name} / {concept.name} · {concept.problemCount}
-                          </option>
-                        )),
-                      ])}
+                      {chapterFilterOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                          {option.count == null ? '' : ` · ${option.count}`}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -2887,6 +2844,43 @@ export function CourseProblemBankView({
                             </div>
 
                             <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                              <div
+                                className="col-span-2 min-w-0"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <div className="text-[11px] font-medium text-slate-400">
+                                  {locale === 'zh-CN' ? '章节' : 'Chapter'}
+                                </div>
+                                {canEditProblems ? (
+                                  <select
+                                    value={problem.chapterId || '__unfiled__'}
+                                    disabled={savingChapterProblemId === problem.id}
+                                    onChange={(event) =>
+                                      void handleChangeProblemChapter(
+                                        problem.id,
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="mt-1 h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                  >
+                                    <option value="__unfiled__">
+                                      {locale === 'zh-CN' ? '未归档' : 'Unfiled'}
+                                    </option>
+                                    {problemChapters.map((chapter, index) => (
+                                      <option key={chapter.id} value={chapter.id}>
+                                        {locale === 'zh-CN'
+                                          ? `第 ${index + 1} 章 · ${chapter.name}`
+                                          : `Chapter ${index + 1} · ${chapter.name}`}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <div className="mt-1 truncate font-medium text-slate-700 dark:text-slate-200">
+                                    {problem.chapterName ||
+                                      (locale === 'zh-CN' ? '未归档' : 'Unfiled')}
+                                  </div>
+                                )}
+                              </div>
                               <div className="min-w-0">
                                 <div className="text-[11px] font-medium text-slate-400">
                                   {locale === 'zh-CN' ? '来源' : 'Source'}
@@ -2958,6 +2952,7 @@ export function CourseProblemBankView({
                         <span>{locale === 'zh-CN' ? '难度' : 'Level'}</span>
                         <span>{locale === 'zh-CN' ? '题目' : 'Problem'}</span>
                         <span>{locale === 'zh-CN' ? '题型' : 'Type'}</span>
+                        <span>{locale === 'zh-CN' ? '章节' : 'Chapter'}</span>
                         <span>{locale === 'zh-CN' ? '状态' : 'State'}</span>
                         <span />
                       </div>
@@ -3004,25 +2999,45 @@ export function CourseProblemBankView({
                                 className="line-clamp-1 text-sm font-semibold text-slate-950 dark:text-white"
                               />
                               <p className="mt-[3px] min-w-0 truncate text-xs text-slate-400">
-                                {problem.tagAssignments?.some(
-                                  (assignment) => assignment.status === 'applied',
-                                )
-                                  ? problem.tagAssignments
-                                      .filter((assignment) => assignment.status === 'applied')
-                                      .slice(0, 2)
-                                      .map(
-                                        (assignment) =>
-                                          `${assignment.area} / ${assignment.concept}`,
-                                      )
-                                      .join(' · ')
-                                  : problem.tags?.length
-                                    ? problem.tags.slice(0, 3).join(' · ')
-                                    : problem.notebookName ||
-                                      (locale === 'zh-CN' ? '未标注标签' : 'No tags')}
+                                {problem.notebookName ||
+                                  (locale === 'zh-CN' ? '无来源笔记本' : 'No source notebook')}
                               </p>
                             </div>
                             <div className="min-w-0 truncate text-xs text-slate-500 dark:text-slate-400">
                               {typeLabel(problem.type, locale)}
+                            </div>
+                            <div className="min-w-0" onClick={(event) => event.stopPropagation()}>
+                              {canEditProblems ? (
+                                <select
+                                  value={problem.chapterId || '__unfiled__'}
+                                  disabled={savingChapterProblemId === problem.id}
+                                  onChange={(event) =>
+                                    void handleChangeProblemChapter(problem.id, event.target.value)
+                                  }
+                                  aria-label={
+                                    locale === 'zh-CN'
+                                      ? `修改题目“${localizedTitle}”的章节`
+                                      : `Change chapter for “${localizedTitle}”`
+                                  }
+                                  className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                >
+                                  <option value="__unfiled__">
+                                    {locale === 'zh-CN' ? '未归档' : 'Unfiled'}
+                                  </option>
+                                  {problemChapters.map((chapter, index) => (
+                                    <option key={chapter.id} value={chapter.id}>
+                                      {locale === 'zh-CN'
+                                        ? `第 ${index + 1} 章 · ${chapter.name}`
+                                        : `Chapter ${index + 1} · ${chapter.name}`}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                                  {problem.chapterName ||
+                                    (locale === 'zh-CN' ? '未归档' : 'Unfiled')}
+                                </span>
+                              )}
                             </div>
                             <div className="text-xs text-slate-500 dark:text-slate-400">
                               {problem.status}
@@ -3142,56 +3157,6 @@ export function CourseProblemBankView({
                     {renderPracticePaneContent(visiblePracticePaneActive.right)}
                   </section>
                 </div>
-
-                {canEditProblems ? (
-                  <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
-                    <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-md overflow-y-auto rounded-2xl p-4 sm:w-full sm:p-6">
-                      <DialogHeader>
-                        <DialogTitle>
-                          {locale === 'zh-CN' ? '移动题目归属' : 'Move problem'}
-                        </DialogTitle>
-                        <DialogDescription>
-                          {locale === 'zh-CN'
-                            ? '选择要将当前题目归属到的笔记本。'
-                            : 'Choose the notebook to reassign this problem.'}
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3">
-                        <select
-                          value={moveNotebookId}
-                          onChange={(event) => setMoveNotebookId(event.target.value)}
-                          className="h-10 w-full rounded-md border border-slate-200 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                        >
-                          <option value="__unassigned__">
-                            {locale === 'zh-CN' ? '未归类题目' : 'Unassigned'}
-                          </option>
-                          {notebooks.map((notebook) => (
-                            <option key={notebook.id} value={notebook.id}>
-                              {notebook.name}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="flex justify-end">
-                          <Button
-                            onClick={handleSaveAssignment}
-                            disabled={savingAssignment}
-                            className={cn(
-                              'w-full min-[420px]:w-auto',
-                              PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
-                            )}
-                          >
-                            {savingAssignment ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <Save className="mr-2 h-4 w-4" />
-                            )}
-                            {locale === 'zh-CN' ? '确认移动' : 'Move'}
-                          </Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                ) : null}
               </div>
             )}
           </div>
@@ -3211,13 +3176,13 @@ export function CourseProblemBankView({
           </div>
         ) : null}
       </div>
-      <ProblemTagManagerDialog
-        open={tagManagerOpen}
-        onOpenChange={setTagManagerOpen}
+      <ProblemChapterManagerDialog
+        open={chapterManagerOpen}
+        onOpenChange={setChapterManagerOpen}
         courseId={courseId}
-        tree={problemTagTree}
+        chapters={problemChapters}
         locale={locale}
-        onChanged={reloadProblemTagTree}
+        onChanged={reloadProblemChapters}
       />
     </div>
   );

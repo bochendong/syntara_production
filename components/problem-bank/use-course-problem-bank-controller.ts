@@ -15,19 +15,18 @@ import {
   type ProblemContentLanguage,
 } from '@/lib/problem-bank';
 import {
-  organizeCourseProblemTags,
+  archiveCourseProblems,
   deleteCourseProblem,
+  listCourseProblemChapters,
   listNotebookProblemAttempts,
-  listCourseProblemTags,
   listCourseProblemsByIds,
   listCourseProblems,
   runNotebookCodeProblem,
   submitNotebookProblem,
   updateCourseProblem,
   type NotebookProblemClientRecord,
-  type CourseProblemTagTreeNode,
+  type CourseProblemChapter,
 } from '@/lib/utils/notebook-problem-api';
-import type { StageListItem } from '@/lib/utils/stage-storage';
 import { getCourse } from '@/lib/utils/course-storage';
 import { queueProblemAttemptWorkingMemoryUpdate } from '@/lib/learning/working-memory-tasks';
 import type { CourseRecord } from '@/lib/utils/database';
@@ -36,7 +35,7 @@ import { problemRecordToDraft } from '@/lib/problem-bank/editor';
 import {
   isLocalDemoProblemBankCourse,
   listLocalDemoProblemBank,
-  listLocalDemoProblemTagTree,
+  listLocalDemoProblemChapters,
   resolveLocalDemoProblemBankCourse,
 } from '@/lib/teacher/local-demo-problem-bank';
 import {
@@ -52,7 +51,6 @@ import {
   practiceFilterLabel,
   problemPracticeState,
   problemSolutionSections,
-  problemTopics,
   readFileAsDataUrl,
   renderProblemContentStem,
   renderProblemStem,
@@ -107,7 +105,7 @@ export type CourseProblemBankInitialFilters = {
   practiceFilter?: string;
   typeFilter?: string;
   difficultyFilter?: string;
-  notebookFilter?: string;
+  chapterFilter?: string;
   statusFilter?: string;
 };
 
@@ -158,7 +156,7 @@ function normalizeInitialDifficultyFilter(
   return hasStringValue(DIFFICULTY_FILTER_VALUES, next) ? next : 'all';
 }
 
-function normalizeInitialNotebookFilter(value: string | undefined): string {
+function normalizeInitialChapterFilter(value: string | undefined): string {
   return normalizeInitialFilterValue(value) || 'all';
 }
 
@@ -211,12 +209,9 @@ export function useCourseProblemBankController({
   const [editingPreviewDraft, setEditingPreviewDraft] = useState<NotebookProblemImportDraft | null>(
     null,
   );
-  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
-  const [moveNotebookId, setMoveNotebookId] = useState<string>('__unassigned__');
-  const [savingAssignment, setSavingAssignment] = useState(false);
+  const [savingChapterProblemId, setSavingChapterProblemId] = useState<string | null>(null);
   const [autoArchiving, setAutoArchiving] = useState(false);
-  const [problemTagTree, setProblemTagTree] = useState<CourseProblemTagTreeNode[]>([]);
-  const [knowledgeTagFilter, setKnowledgeTagFilter] = useState('all');
+  const [problemChapters, setProblemChapters] = useState<CourseProblemChapter[]>([]);
   const [deletingProblem, setDeletingProblem] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [answerModes, setAnswerModes] = useState<Record<string, TextAnswerMode>>({});
@@ -251,8 +246,8 @@ export function useCourseProblemBankController({
   const [difficultyFilter, setDifficultyFilter] = useState<
     'all' | NotebookProblemClientRecord['difficulty']
   >(() => normalizeInitialDifficultyFilter(initialFilters?.difficultyFilter));
-  const [notebookFilter, setNotebookFilter] = useState(() =>
-    normalizeInitialNotebookFilter(initialFilters?.notebookFilter || initialNotebookId),
+  const [chapterFilter, setChapterFilter] = useState(() =>
+    normalizeInitialChapterFilter(initialFilters?.chapterFilter),
   );
   const [statusFilter, setStatusFilter] = useState<'all' | NotebookProblemClientRecord['status']>(
     () => normalizeInitialStatusFilter(initialFilters?.statusFilter),
@@ -375,34 +370,32 @@ export function useCourseProblemBankController({
 
   useEffect(() => {
     if (!courseId) {
-      setProblemTagTree([]);
+      setProblemChapters([]);
       return;
     }
-    const localDemoTree = listLocalDemoProblemTagTree(courseId);
-    if (localDemoTree) {
-      setProblemTagTree(localDemoTree);
+    if (isLocalDemoProblemBankCourse(courseId)) {
+      setProblemChapters(listLocalDemoProblemChapters(courseId));
       return;
     }
     let cancelled = false;
-    void listCourseProblemTags(courseId)
+    void listCourseProblemChapters(courseId)
       .then((result) => {
-        if (!cancelled) setProblemTagTree(result.tree);
+        if (!cancelled) setProblemChapters(result.chapters);
       })
-      .catch((error) => console.warn('Failed to load problem knowledge tree', error));
+      .catch((error) => console.warn('Failed to load problem chapters', error));
     return () => {
       cancelled = true;
     };
   }, [courseId]);
 
-  const reloadProblemTagTree = useCallback(async () => {
+  const reloadProblemChapters = useCallback(async () => {
     if (!courseId) return;
-    const localDemoTree = listLocalDemoProblemTagTree(courseId);
-    if (localDemoTree) {
-      setProblemTagTree(localDemoTree);
+    if (isLocalDemoProblemBankCourse(courseId)) {
+      setProblemChapters(listLocalDemoProblemChapters(courseId));
       return;
     }
-    const result = await listCourseProblemTags(courseId);
-    setProblemTagTree(result.tree);
+    const result = await listCourseProblemChapters(courseId);
+    setProblemChapters(result.chapters);
     await loadAll();
   }, [courseId, loadAll]);
 
@@ -473,7 +466,6 @@ export function useCourseProblemBankController({
 
   useEffect(() => {
     if (canEditProblems) return;
-    setMoveDialogOpen(false);
     setProblemInfoTab((current) => (current === 'edit' ? 'description' : current));
   }, [canEditProblems]);
 
@@ -512,20 +504,11 @@ export function useCourseProblemBankController({
         return false;
       }
       if (difficultyFilter !== 'all' && problem.difficulty !== difficultyFilter) return false;
-      if (notebookFilter === '__unassigned__') {
-        if (problem.notebookId) return false;
-      } else if (notebookFilter !== 'all' && problem.notebookId !== notebookFilter) {
-        return false;
-      }
       if (initialNotebookId && problem.notebookId !== initialNotebookId) return false;
-      if (knowledgeTagFilter !== 'all') {
-        const [level, id] = knowledgeTagFilter.split(':', 2);
-        const matches = (problem.tagAssignments || []).some(
-          (assignment) =>
-            assignment.status === 'applied' &&
-            (level === 'area' ? assignment.areaId === id : assignment.id === id),
-        );
-        if (!matches) return false;
+      if (chapterFilter === '__unfiled__') {
+        if (problem.chapterId) return false;
+      } else if (chapterFilter !== 'all' && problem.chapterId !== chapterFilter) {
+        return false;
       }
       if (query) {
         const problemNumber = problem.problemNumber ?? problem.order + 1;
@@ -539,7 +522,7 @@ export function useCourseProblemBankController({
           renderProblemStem(problem),
           renderProblemContentStem(zhContent),
           problem.notebookName ?? '',
-          ...problem.tags,
+          problem.chapterName ?? '',
         ]
           .join(' ')
           .toLowerCase();
@@ -550,8 +533,7 @@ export function useCourseProblemBankController({
   }, [
     difficultyFilter,
     initialNotebookId,
-    knowledgeTagFilter,
-    notebookFilter,
+    chapterFilter,
     practiceFilter,
     problems,
     searchQuery,
@@ -564,8 +546,7 @@ export function useCourseProblemBankController({
   }, [
     difficultyFilter,
     initialNotebookId,
-    knowledgeTagFilter,
-    notebookFilter,
+    chapterFilter,
     practiceFilter,
     searchQuery,
     statusFilter,
@@ -589,7 +570,7 @@ export function useCourseProblemBankController({
     const params = new URLSearchParams();
     const query = searchQuery.trim();
     const scopedNotebookId = normalizeInitialFilterValue(initialNotebookId);
-    const normalizedNotebookFilter = normalizeInitialNotebookFilter(notebookFilter);
+    const normalizedChapterFilter = normalizeInitialChapterFilter(chapterFilter);
 
     if (query) params.set('q', query);
     if (practiceFilter !== 'all') params.set('practice', practiceFilter);
@@ -597,9 +578,7 @@ export function useCourseProblemBankController({
     if (difficultyFilter !== 'all') params.set('difficulty', difficultyFilter);
     if (statusFilter !== 'all') params.set('status', statusFilter);
     if (scopedNotebookId) params.set('notebookId', scopedNotebookId);
-    if (normalizedNotebookFilter !== 'all' && normalizedNotebookFilter !== scopedNotebookId) {
-      params.set('notebookFilter', normalizedNotebookFilter);
-    }
+    if (normalizedChapterFilter !== 'all') params.set('chapter', normalizedChapterFilter);
     if (previewMode || isLocalDemoProblemBankCourse(courseId)) {
       params.set('mock', '1');
       if (previewAsTeacher) params.set('asTeacher', '1');
@@ -609,7 +588,7 @@ export function useCourseProblemBankController({
   }, [
     difficultyFilter,
     initialNotebookId,
-    notebookFilter,
+    chapterFilter,
     practiceFilter,
     previewAsTeacher,
     previewMode,
@@ -636,26 +615,10 @@ export function useCourseProblemBankController({
     () => problems.filter((problem) => problem.status !== 'archived'),
     [problems],
   );
-  const unassignedProblemCount = useMemo(
-    () => activeProblems.filter((problem) => !problem.notebookId).length,
+  const unfiledProblemCount = useMemo(
+    () => activeProblems.filter((problem) => !problem.chapterId).length,
     [activeProblems],
   );
-  const notebooks = useMemo<StageListItem[]>(() => {
-    const notebookById = new Map<string, StageListItem>();
-    for (const problem of problems) {
-      const notebookId = problem.notebookId?.trim();
-      if (!notebookId || notebookById.has(notebookId)) continue;
-      notebookById.set(notebookId, {
-        id: notebookId,
-        name:
-          problem.notebookName?.trim() || (locale === 'zh-CN' ? '未知笔记本' : 'Unknown notebook'),
-        sceneCount: 0,
-        createdAt: 0,
-        updatedAt: 0,
-      });
-    }
-    return Array.from(notebookById.values());
-  }, [locale, problems]);
   const courseHasTranslations = useMemo(
     () => problems.some((problem) => hasProblemTranslation(problem)),
     [problems],
@@ -669,25 +632,6 @@ export function useCourseProblemBankController({
       })),
     [activeProblems],
   );
-
-  const bankNotebookOptions = useMemo(() => {
-    const counts = new Map<string, { id: string; name: string; count: number }>();
-    for (const problem of activeProblems) {
-      const id = problem.notebookId || '__unassigned__';
-      const name = problem.notebookName || (locale === 'zh-CN' ? '未归类' : 'Unassigned');
-      const current = counts.get(id);
-      counts.set(id, { id, name, count: (current?.count ?? 0) + 1 });
-    }
-    for (const notebook of notebooks) {
-      if (!counts.has(notebook.id))
-        counts.set(notebook.id, { id: notebook.id, name: notebook.name, count: 0 });
-    }
-    return Array.from(counts.values()).sort((a, b) => {
-      if (a.id === '__unassigned__') return 1;
-      if (b.id === '__unassigned__') return -1;
-      return b.count - a.count || a.name.localeCompare(b.name);
-    });
-  }, [activeProblems, locale, notebooks]);
 
   const practiceFilterOptions = useMemo<FilterSelectOption[]>(
     () =>
@@ -710,16 +654,24 @@ export function useCourseProblemBankController({
     [difficultyOptions, locale],
   );
 
-  const notebookFilterOptions = useMemo<FilterSelectOption[]>(
+  const chapterFilterOptions = useMemo<FilterSelectOption[]>(
     () => [
-      { value: 'all', label: locale === 'zh-CN' ? '全部笔记本' : 'All notebooks' },
-      ...bankNotebookOptions.map((option) => ({
-        value: option.id,
-        label: option.name,
-        count: option.count,
+      { value: 'all', label: locale === 'zh-CN' ? '全部章节' : 'All chapters' },
+      {
+        value: '__unfiled__',
+        label: locale === 'zh-CN' ? '未归档' : 'Unfiled',
+        count: unfiledProblemCount,
+      },
+      ...problemChapters.map((chapter, index) => ({
+        value: chapter.id,
+        label:
+          locale === 'zh-CN'
+            ? `第 ${index + 1} 章 · ${chapter.name}`
+            : `Chapter ${index + 1} · ${chapter.name}`,
+        count: chapter.problemCount,
       })),
     ],
-    [bankNotebookOptions, locale],
+    [locale, problemChapters, unfiledProblemCount],
   );
 
   const typeFilterOptions = useMemo<FilterSelectOption[]>(
@@ -758,31 +710,29 @@ export function useCourseProblemBankController({
       activeProblems.length > 0
         ? Math.round((stateCounts.mastered / activeProblems.length) * 100)
         : 0;
-    const tagProgressByName = new Map<
+    const chapterProgressById = new Map<
       string,
-      { tag: string; attemptedCount: number; totalCount: number }
+      { chapter: string; attemptedCount: number; totalCount: number }
     >();
     for (const problem of activeProblems) {
+      if (!problem.chapterId || !problem.chapterName) continue;
       const state = problemPracticeState(problem);
-      for (const tag of problemTopics(problem)) {
-        if (tag === '未标注') continue;
-        const current = tagProgressByName.get(tag) ?? {
-          tag,
-          attemptedCount: 0,
-          totalCount: 0,
-        };
-        current.totalCount += 1;
-        if (state !== 'unattempted') current.attemptedCount += 1;
-        tagProgressByName.set(tag, current);
-      }
+      const current = chapterProgressById.get(problem.chapterId) ?? {
+        chapter: problem.chapterName,
+        attemptedCount: 0,
+        totalCount: 0,
+      };
+      current.totalCount += 1;
+      if (state !== 'unattempted') current.attemptedCount += 1;
+      chapterProgressById.set(problem.chapterId, current);
     }
-    const tagProgress = Array.from(tagProgressByName.values())
+    const chapterProgress = Array.from(chapterProgressById.values())
       .sort(
         (a, b) =>
           b.totalCount - a.totalCount ||
           a.attemptedCount / Math.max(1, a.totalCount) -
             b.attemptedCount / Math.max(1, b.totalCount) ||
-          a.tag.localeCompare(b.tag),
+          a.chapter.localeCompare(b.chapter),
       )
       .slice(0, 5)
       .map((item) => ({
@@ -797,7 +747,7 @@ export function useCourseProblemBankController({
       wrong: stateCounts.wrong,
       unattempted: stateCounts.unattempted,
       masteryPercent,
-      tagProgress,
+      chapterProgress,
     };
   }, [activeProblems]);
 
@@ -819,170 +769,32 @@ export function useCourseProblemBankController({
   const selectedProblemHasTranslation = hasProblemTranslation(selectedProblem);
   const selectedProblemRef = useRef<NotebookProblemClientRecord | null>(null);
   const selectedProblemNotebookId = selectedProblem?.notebookId ?? null;
-  const selectedProblemNotebook = useMemo(() => {
-    if (!selectedProblemNotebookId) return null;
-    return notebooks.find((notebook) => notebook.id === selectedProblemNotebookId) ?? null;
-  }, [notebooks, selectedProblemNotebookId]);
-  const selectedProblemNotebookLabel = useMemo(() => {
-    if (!selectedProblem) return '';
-    if (!selectedProblem.notebookId) {
-      return (
-        selectedProblem.notebookName ||
-        (locale === 'zh-CN' ? '未归属笔记本' : 'Unassigned notebook')
-      );
-    }
-    return (
-      selectedProblemNotebook?.name ||
-      selectedProblem.notebookName ||
-      (locale === 'zh-CN' ? '未知笔记本' : 'Unknown notebook')
-    );
-  }, [locale, selectedProblem, selectedProblemNotebook?.name]);
+  const selectedProblemChapterLabel = selectedProblem
+    ? selectedProblem.chapterName || (locale === 'zh-CN' ? '未归档' : 'Unfiled')
+    : '';
   useEffect(() => {
     selectedProblemRef.current = selectedProblem;
   }, [selectedProblem]);
-  const notebookProblemGroups = useMemo(() => {
-    const notebookNameById = new Map(notebooks.map((notebook) => [notebook.id, notebook.name]));
-    const groupsByNotebook = new Map<string, NotebookProblemClientRecord[]>();
-
-    for (const problem of problems) {
-      if (problem.status === 'archived' || !problem.notebookId) continue;
-      const group = groupsByNotebook.get(problem.notebookId) ?? [];
-      group.push(problem);
-      groupsByNotebook.set(problem.notebookId, group);
-    }
-
-    for (const group of groupsByNotebook.values()) {
-      group.sort(compareProblemSequence);
-    }
-
-    const orderedNotebookIds = [
-      ...notebooks
-        .map((notebook) => notebook.id)
-        .filter((notebookId) => groupsByNotebook.has(notebookId)),
-      ...Array.from(groupsByNotebook.keys()).filter(
-        (notebookId) => !notebookNameById.has(notebookId),
-      ),
-    ];
-
-    return orderedNotebookIds.map((notebookId) => ({
-      id: notebookId,
-      name:
-        notebookNameById.get(notebookId) ||
-        groupsByNotebook.get(notebookId)?.[0]?.notebookName ||
-        (locale === 'zh-CN' ? '未知笔记本' : 'Unknown notebook'),
-      problems: groupsByNotebook.get(notebookId) ?? [],
-    }));
-  }, [locale, notebooks, problems]);
-  const sameNotebookProblems = useMemo(() => {
-    if (!selectedProblem?.notebookId) return [];
-    return problems
-      .filter(
-        (problem) =>
-          problem.status !== 'archived' && problem.notebookId === selectedProblem.notebookId,
-      )
-      .sort(compareProblemSequence);
-  }, [problems, selectedProblem?.notebookId]);
-  const hasActivePracticeNavigationFilters = useMemo(
-    () =>
-      Boolean(searchQuery.trim()) ||
-      Boolean(normalizeInitialFilterValue(initialNotebookId)) ||
-      practiceFilter !== 'all' ||
-      typeFilter !== 'all' ||
-      difficultyFilter !== 'all' ||
-      notebookFilter !== 'all' ||
-      statusFilter !== 'all',
-    [
-      difficultyFilter,
-      initialNotebookId,
-      notebookFilter,
-      practiceFilter,
-      searchQuery,
-      statusFilter,
-      typeFilter,
-    ],
+  const filteredSequenceProblems = useMemo(
+    () => [...filteredProblems].sort(compareProblemSequence),
+    [filteredProblems],
   );
-  const filteredPracticeProblemIndex = useMemo(() => {
+  const currentFilteredProblemIndex = useMemo(() => {
     if (!selectedProblem) return -1;
-    return filteredProblems.findIndex((problem) => problem.id === selectedProblem.id);
-  }, [filteredProblems, selectedProblem]);
-  const hasFilteredPracticeNavigation =
-    hasActivePracticeNavigationFilters && filteredPracticeProblemIndex >= 0;
-  const previousFilteredPracticeProblem =
-    hasFilteredPracticeNavigation && filteredPracticeProblemIndex > 0
-      ? filteredProblems[filteredPracticeProblemIndex - 1]
+    return filteredSequenceProblems.findIndex((problem) => problem.id === selectedProblem.id);
+  }, [filteredSequenceProblems, selectedProblem]);
+  const previousPracticeTarget =
+    currentFilteredProblemIndex > 0
+      ? filteredSequenceProblems[currentFilteredProblemIndex - 1]
       : null;
-  const nextFilteredPracticeProblem =
-    hasFilteredPracticeNavigation && filteredPracticeProblemIndex >= 0
-      ? (filteredProblems[filteredPracticeProblemIndex + 1] ?? null)
+  const nextPracticeTarget =
+    currentFilteredProblemIndex >= 0
+      ? (filteredSequenceProblems[currentFilteredProblemIndex + 1] ?? null)
       : null;
-  const nextNotebookProblem = useMemo(() => {
-    if (!selectedProblem || sameNotebookProblems.length === 0) return null;
-    const currentIndex = sameNotebookProblems.findIndex(
-      (problem) => problem.id === selectedProblem.id,
-    );
-    return currentIndex >= 0 ? (sameNotebookProblems[currentIndex + 1] ?? null) : null;
-  }, [sameNotebookProblems, selectedProblem]);
-  const previousNotebookProblem = useMemo(() => {
-    if (!selectedProblem || sameNotebookProblems.length === 0) return null;
-    const currentIndex = sameNotebookProblems.findIndex(
-      (problem) => problem.id === selectedProblem.id,
-    );
-    return currentIndex > 0 ? sameNotebookProblems[currentIndex - 1] : null;
-  }, [sameNotebookProblems, selectedProblem]);
-  const nextChapterProblem = useMemo(() => {
-    if (!selectedProblem?.notebookId || nextNotebookProblem) return null;
-    const currentNotebookIndex = notebookProblemGroups.findIndex(
-      (group) => group.id === selectedProblem.notebookId,
-    );
-    if (currentNotebookIndex < 0) return null;
-    for (const group of notebookProblemGroups.slice(currentNotebookIndex + 1)) {
-      if (group.problems.length > 0) return group.problems[0];
-    }
-    return null;
-  }, [nextNotebookProblem, notebookProblemGroups, selectedProblem?.notebookId]);
-  const previousChapterProblem = useMemo(() => {
-    if (!selectedProblem?.notebookId || previousNotebookProblem) return null;
-    const currentNotebookIndex = notebookProblemGroups.findIndex(
-      (group) => group.id === selectedProblem.notebookId,
-    );
-    if (currentNotebookIndex <= 0) return null;
-    for (let index = currentNotebookIndex - 1; index >= 0; index -= 1) {
-      const group = notebookProblemGroups[index];
-      if (group.problems.length > 0) return group.problems[group.problems.length - 1];
-    }
-    return null;
-  }, [notebookProblemGroups, previousNotebookProblem, selectedProblem?.notebookId]);
-  const previousPracticeTarget = hasFilteredPracticeNavigation
-    ? previousFilteredPracticeProblem
-    : (previousNotebookProblem ?? previousChapterProblem);
-  const nextPracticeTarget = hasFilteredPracticeNavigation
-    ? nextFilteredPracticeProblem
-    : (nextNotebookProblem ?? nextChapterProblem);
-  const previousPracticeIsChapterJump = hasFilteredPracticeNavigation
-    ? false
-    : !previousNotebookProblem && Boolean(previousChapterProblem);
-  const nextPracticeIsChapterJump = hasFilteredPracticeNavigation
-    ? false
-    : !nextNotebookProblem && Boolean(nextChapterProblem);
-  const currentNotebookProblemPosition = useMemo(() => {
-    if (hasFilteredPracticeNavigation) return filteredPracticeProblemIndex + 1;
-    if (!selectedProblem || sameNotebookProblems.length === 0) return 0;
-    const currentIndex = sameNotebookProblems.findIndex(
-      (problem) => problem.id === selectedProblem.id,
-    );
-    return currentIndex >= 0 ? currentIndex + 1 : 0;
-  }, [
-    filteredPracticeProblemIndex,
-    hasFilteredPracticeNavigation,
-    sameNotebookProblems,
-    selectedProblem,
-  ]);
-  const practiceNavigationProblemCount = hasFilteredPracticeNavigation
-    ? filteredProblems.length
-    : sameNotebookProblems.length;
-  const deleteReplacementPracticeTarget = hasFilteredPracticeNavigation
-    ? (nextFilteredPracticeProblem ?? previousFilteredPracticeProblem)
-    : (nextPracticeTarget ?? previousPracticeTarget);
+  const currentFilteredProblemPosition =
+    currentFilteredProblemIndex >= 0 ? currentFilteredProblemIndex + 1 : 0;
+  const practiceNavigationProblemCount = filteredSequenceProblems.length;
+  const deleteReplacementPracticeTarget = nextPracticeTarget ?? previousPracticeTarget;
   const selectedProblemEditDraft = useMemo(
     () => (selectedProblem ? problemRecordToDraft(selectedProblem) : null),
     [selectedProblem],
@@ -1193,9 +1005,8 @@ export function useCourseProblemBankController({
     practiceFilter !== 'all',
     typeFilter !== 'all',
     difficultyFilter !== 'all',
-    notebookFilter !== 'all',
     statusFilter !== 'all',
-    knowledgeTagFilter !== 'all',
+    chapterFilter !== 'all',
   ].filter(Boolean).length;
 
   useEffect(() => {
@@ -1210,10 +1021,6 @@ export function useCourseProblemBankController({
   }, [selectedProblemId]);
 
   useEffect(() => {
-    setMoveNotebookId(selectedProblem?.notebookId || '__unassigned__');
-  }, [selectedProblem?.id, selectedProblem?.notebookId]);
-
-  useEffect(() => {
     setProblemInfoTab('description');
     setAnswerPanelTab('answer');
   }, [selectedProblem?.id]);
@@ -1222,33 +1029,47 @@ export function useCourseProblemBankController({
     setEditingPreviewDraft(selectedProblemEditDraft);
   }, [selectedProblemEditDraft]);
 
-  const handleSaveAssignment = useCallback(async () => {
-    if (!selectedProblem || savingAssignment) return;
-    if (!canEditProblems) {
-      toast.error(
-        locale === 'zh-CN' ? '只有课程作者可以编辑题目。' : 'Only the author can edit problems.',
-      );
-      return;
-    }
-    setSavingAssignment(true);
-    try {
-      const updated = await updateCourseProblem({
-        courseId,
-        problemId: selectedProblem.id,
-        patch: {
-          notebookId: moveNotebookId === '__unassigned__' ? null : moveNotebookId,
-        },
-      });
-      setProblems((prev) => prev.map((problem) => (problem.id === updated.id ? updated : problem)));
-      setMoveNotebookId(updated.notebookId ?? '__unassigned__');
-      setMoveDialogOpen(false);
-      toast.success(locale === 'zh-CN' ? '题目归属已更新' : 'Problem assignment updated');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Assignment update failed');
-    } finally {
-      setSavingAssignment(false);
-    }
-  }, [canEditProblems, courseId, locale, moveNotebookId, savingAssignment, selectedProblem]);
+  const handleChangeProblemChapter = useCallback(
+    async (problemId: string, chapterId: string) => {
+      if (savingChapterProblemId) return;
+      if (!canEditProblems) {
+        toast.error(
+          locale === 'zh-CN' ? '只有课程作者可以编辑题目。' : 'Only the author can edit problems.',
+        );
+        return;
+      }
+      const previousChapterId =
+        problems.find((problem) => problem.id === problemId)?.chapterId ?? null;
+      setSavingChapterProblemId(problemId);
+      try {
+        const updated = await updateCourseProblem({
+          courseId,
+          problemId,
+          patch: {
+            chapterId: chapterId === '__unfiled__' ? null : chapterId,
+          },
+        });
+        setProblems((prev) =>
+          prev.map((problem) => (problem.id === updated.id ? updated : problem)),
+        );
+        setProblemChapters((current) =>
+          current.map((chapter) => ({
+            ...chapter,
+            problemCount:
+              chapter.problemCount +
+              (updated.chapterId === chapter.id ? 1 : 0) -
+              (previousChapterId === chapter.id ? 1 : 0),
+          })),
+        );
+        toast.success(locale === 'zh-CN' ? '题目章节已更新' : 'Problem chapter updated');
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Chapter update failed');
+      } finally {
+        setSavingChapterProblemId(null);
+      }
+    },
+    [canEditProblems, courseId, locale, problems, savingChapterProblemId],
+  );
 
   const handleAddPhotoAnswerFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -1332,7 +1153,6 @@ export function useCourseProblemBankController({
       title?: string;
       status?: 'draft' | 'published' | 'archived';
       points?: number;
-      tags?: string[];
       difficulty?: 'easy' | 'medium' | 'hard';
       publicContent?: unknown;
       grading?: unknown;
@@ -1524,16 +1344,10 @@ export function useCourseProblemBankController({
         },
       }));
       setAnswerPanelTab('history');
-      const attemptConcepts = problemTopics(selectedProblem).filter(
-        (topic) => topic.trim() && topic !== '未标注',
-      );
       onPracticeAttemptResolved?.({
         problemId: selectedProblem.id,
         problemTitle: selectedProblemTitle || selectedProblem.title,
-        concepts:
-          attemptConcepts.length > 0
-            ? attemptConcepts
-            : [selectedProblemTitle || selectedProblem.title],
+        concepts: [selectedProblem.chapterName || selectedProblemTitle || selectedProblem.title],
         status: attempt.status,
         score,
         feedback,
@@ -1705,37 +1519,45 @@ export function useCourseProblemBankController({
     [codeAnswers, locale, problemActiveTimer, runningCode, selectedProblem, selectedProblemContent],
   );
 
-  const handleAutoArchiveUnassignedProblems = useCallback(async () => {
+  const handleAiFileUnfiledProblems = useCallback(async () => {
     if (!canEditProblems || autoArchiving) return;
+    if (problemChapters.length === 0) {
+      toast.error(
+        locale === 'zh-CN'
+          ? '请先在“管理章节”中添加至少一个章节，再使用 AI 归档。'
+          : 'Add at least one chapter before using AI filing.',
+      );
+      return;
+    }
     if (isLocalDemoProblemBankCourse(courseId)) {
       toast.info(locale === 'zh-CN' ? '预览课程不会写入归档结果。' : 'Preview data is read-only.');
       return;
     }
     setAutoArchiving(true);
     try {
-      const result = await organizeCourseProblemTags(courseId);
+      const result = await archiveCourseProblems(courseId);
       await loadAll();
-      const tagResult = await listCourseProblemTags(courseId);
-      setProblemTagTree(tagResult.tree);
-      if (result.appliedCount > 0) {
+      const chapterResult = await listCourseProblemChapters(courseId);
+      setProblemChapters(chapterResult.chapters);
+      if (result.archivedCount > 0) {
         toast.success(
           locale === 'zh-CN'
-            ? `AI 已整理 ${result.appliedCount} 道题的知识标签${result.pendingCount > 0 ? `，${result.pendingCount} 道进入待确认` : ''}。`
-            : `AI organized ${result.appliedCount} problems${result.pendingCount > 0 ? `; ${result.pendingCount} need review` : ''}.`,
+            ? `AI 已归档 ${result.archivedCount} 道题，仍有 ${result.unfiledCount} 道题未归档。`
+            : `AI filed ${result.archivedCount} problems; ${result.unfiledCount} remain unfiled.`,
         );
       } else {
         toast.info(
           locale === 'zh-CN'
-            ? '没有可自动应用的标签，低置信度结果已保留为待确认。'
-            : 'No tags were auto-applied; low-confidence results remain pending.',
+            ? '没有找到可以可靠归入现有章节的题目，题目仍保留为未归档。'
+            : 'No problems could be confidently filed into the existing chapters.',
         );
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'AI 整理标签失败');
+      toast.error(error instanceof Error ? error.message : 'AI 归档失败');
     } finally {
       setAutoArchiving(false);
     }
-  }, [autoArchiving, canEditProblems, courseId, loadAll, locale]);
+  }, [autoArchiving, canEditProblems, courseId, loadAll, locale, problemChapters.length]);
 
   return {
     activeBankFilterCount,
@@ -1754,35 +1576,30 @@ export function useCourseProblemBankController({
     courseHasTranslations,
     courseId,
     courseName,
-    currentNotebookProblemPosition,
+    currentFilteredProblemPosition,
     currentProblemPage,
     deletingProblem,
     difficultyFilter,
     difficultyFilterOptions,
     filteredProblems,
     handleAddPhotoAnswerFiles,
-    handleAutoArchiveUnassignedProblems,
+    handleAiFileUnfiledProblems,
     handleDeleteProblem,
+    handleChangeProblemChapter,
     handleEditingDraftChange,
     handleProblemInfoTabChange,
     handleRemovePhotoAnswer,
     handleRunCodeAnswer,
-    handleSaveAssignment,
     handleSubmitInlineAnswer,
     handleUpdateProblem,
     insertFormulaIntoAnswer,
     isPracticeMode,
-    knowledgeTagFilter,
+    chapterFilter,
+    chapterFilterOptions,
     loading,
     locale,
-    moveDialogOpen,
-    moveNotebookId,
     navigateToPracticeProblem,
-    nextPracticeIsChapterJump,
     nextPracticeTarget,
-    notebookFilter,
-    notebookFilterOptions,
-    notebooks,
     pageEndIndex,
     pageStartIndex,
     paginatedProblems,
@@ -1790,19 +1607,17 @@ export function useCourseProblemBankController({
     practiceFilter,
     practiceFilterOptions,
     practiceNavigationProblemCount,
-    previousPracticeIsChapterJump,
     previousPracticeTarget,
     problemInfoTab,
-    problemTagTree,
-    reloadProblemTagTree,
+    problemChapters,
+    reloadProblemChapters,
     problemLanguage,
     problemPageCount,
     problems,
     router,
     runningCode,
     runningCodeTarget,
-    sameNotebookProblems,
-    savingAssignment,
+    savingChapterProblemId,
     searchQuery,
     selectedAnswerMode,
     selectedAnswerController,
@@ -1814,8 +1629,7 @@ export function useCourseProblemBankController({
     selectedProblemEditDraft,
     selectedProblemHasTranslation,
     selectedProblemId,
-    selectedProblemNotebook,
-    selectedProblemNotebookLabel,
+    selectedProblemChapterLabel,
     selectedProblemPoints,
     selectedProblemSolutionSections,
     selectedProblemTitle,
@@ -1827,10 +1641,7 @@ export function useCourseProblemBankController({
     setChoiceAnswers,
     setCodeAnswers,
     setDifficultyFilter,
-    setMoveDialogOpen,
-    setMoveNotebookId,
-    setNotebookFilter,
-    setKnowledgeTagFilter,
+    setChapterFilter,
     setPracticeFilter,
     setProblemLanguage,
     setProblemPage,
@@ -1846,7 +1657,7 @@ export function useCourseProblemBankController({
     textAnswers,
     typeFilter,
     typeFilterOptions,
-    unassignedProblemCount,
+    unfiledProblemCount,
     visibleProblemPreviewDraft,
   };
 }

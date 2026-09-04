@@ -1,5 +1,4 @@
 import { Prisma } from '@/lib/server/generated-prisma';
-import { normalizeProblemConceptTags } from '@/lib/problem-bank/concept-tags.mjs';
 import { courseProblemDedupeKey } from '@/features/problems/domain/problem-dedupe';
 import { prisma } from '@/lib/server/prisma';
 import { toPrismaJson, toPrismaNullableJson } from '@/lib/server/prisma-json';
@@ -31,7 +30,6 @@ import {
 } from '@/lib/server/repositories/course-enrollment-repository';
 import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-repository';
 import { maybeWriteProblemAttemptMemorySignal } from '@/lib/server/problem-attempt-memory-signals';
-import { seedProblemTagsFromProblem } from '@/features/problem-tags/server/problem-tag-service';
 import { verifyNotebookCodeDraftReferenceAnswer } from './judge';
 
 const prismaDb = prisma;
@@ -55,6 +53,7 @@ type ProblemRow = {
   id: string;
   courseId: string | null;
   notebookId: string | null;
+  chapterId: string | null;
   title: string;
   type: string;
   status: string;
@@ -73,6 +72,10 @@ type ProblemRow = {
     id: string;
     name: string;
     courseId: string | null;
+  } | null;
+  chapter?: {
+    id: string;
+    name: string;
   } | null;
   secret?: {
     secretJudgeJson: unknown;
@@ -156,6 +159,7 @@ type ProblemCourseSummaryRow = {
   id: string;
   courseId: string | null;
   notebookId: string | null;
+  chapterId: string | null;
   title: string;
   type: string;
   status: string;
@@ -167,6 +171,10 @@ type ProblemCourseSummaryRow = {
     name: string;
     courseId: string | null;
   } | null;
+  chapter?: {
+    id: string;
+    name: string;
+  } | null;
   progress?: ProblemInlineProgressRow[];
 };
 
@@ -174,6 +182,7 @@ type FlatCourseProblemRow = {
   id: string;
   courseId: string | null;
   notebookId: string | null;
+  chapterId: string | null;
   title: string;
   type: string;
   status: string;
@@ -190,6 +199,7 @@ type FlatCourseProblemRow = {
   updatedAt: Date;
   notebookName: string | null;
   notebookCourseId: string | null;
+  chapterName: string | null;
   secretJudgeJson: unknown | null;
   latestAttemptId: string | null;
   latestAttemptStatus: string | null;
@@ -220,6 +230,8 @@ export type CourseProblemListSummary = {
   courseId: string | null;
   notebookId: string | null;
   notebookName?: string;
+  chapterId: string | null;
+  chapterName?: string;
   title: string;
   type: string;
   status: string;
@@ -308,6 +320,8 @@ function mapProblemRow(
     courseId: resolvedCourseId,
     notebookId: row.notebookId,
     notebookName: row.notebook?.name ?? undefined,
+    chapterId: row.chapterId,
+    chapterName: row.chapter?.name ?? undefined,
     title: row.title,
     type: row.type,
     status: row.status,
@@ -315,17 +329,7 @@ function mapProblemRow(
     order: row.order,
     problemNumber: row.problemNumber,
     points: row.points,
-    tags: normalizeProblemConceptTags({
-      courseId: resolvedCourseId,
-      notebookId: row.notebookId,
-      notebookName: row.notebook?.name,
-      title: row.title,
-      type: row.type,
-      tags: row.tags ?? [],
-      difficulty: row.difficulty,
-      publicContent: row.publicContentJson,
-      sourceMeta: row.sourceMeta ?? {},
-    }),
+    tags: row.tags ?? [],
     difficulty: row.difficulty,
     publicContent: row.publicContentJson,
     grading: row.gradingJson,
@@ -396,17 +400,6 @@ async function prepareProblemRowsForPublish(rows: ProblemWithSecretRow[]): Promi
   for (const row of rows) {
     const verifiedDraft = await withCodeReferenceVerification(buildPublishDraftFromRow(row));
     const normalizedDraft = normalizeDraftForPersistence(verifiedDraft, row.order);
-    const conceptTags = normalizeProblemConceptTags({
-      courseId: row.courseId ?? row.notebook?.courseId ?? null,
-      notebookId: row.notebookId,
-      notebookName: row.notebook?.name,
-      title: normalizedDraft.title,
-      type: normalizedDraft.type,
-      tags: normalizedDraft.tags,
-      difficulty: normalizedDraft.difficulty,
-      publicContent: normalizedDraft.publicContent,
-      sourceMeta: normalizedDraft.sourceMeta,
-    });
     if (normalizedDraft.status === 'published') {
       if (row.status !== 'published') result.publishedCount += 1;
     } else {
@@ -416,7 +409,7 @@ async function prepareProblemRowsForPublish(rows: ProblemWithSecretRow[]): Promi
     writes.push({
       id: row.id,
       status: normalizedDraft.status,
-      tags: conceptTags,
+      tags: normalizedDraft.tags,
       publicContentJson: toPrismaJson(normalizedDraft.publicContent),
       gradingJson: toPrismaJson(normalizedDraft.grading),
       sourceMeta: toPrismaNullableJson(normalizedDraft.sourceMeta),
@@ -659,16 +652,6 @@ async function createProblemFromDraftTx(args: {
   problemNumber?: number | null;
 }) {
   const normalized = normalizeDraftForPersistence(args.draft, args.order);
-  const conceptTags = normalizeProblemConceptTags({
-    courseId: args.courseId,
-    notebookId: args.notebookId,
-    title: normalized.title,
-    type: normalized.type,
-    tags: normalized.tags,
-    difficulty: normalized.difficulty,
-    publicContent: normalized.publicContent,
-    sourceMeta: normalized.sourceMeta,
-  });
   const created = await args.tx.notebookProblem.create({
     data: {
       title: normalized.title,
@@ -678,7 +661,7 @@ async function createProblemFromDraftTx(args: {
       order: args.order,
       problemNumber: args.problemNumber ?? null,
       points: normalized.points,
-      tags: conceptTags,
+      tags: normalized.tags,
       difficulty: normalized.difficulty,
       publicContentJson: toPrismaJson(normalized.publicContent),
       gradingJson: toPrismaJson(normalized.grading),
@@ -1142,6 +1125,12 @@ async function loadProblemsWithNotebook(args: {
           courseId: true,
         },
       },
+      chapter: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
       ...(args.includeSecret ? { secret: true } : {}),
       ...(args.latestAttemptUserId
         ? {
@@ -1181,6 +1170,7 @@ async function loadCourseProblemsForUserFast(args: {
         p."id",
         p."courseId",
         p."notebookId",
+        p."chapterId",
         p."title",
         p."type"::text AS "type",
         p."status"::text AS "status",
@@ -1197,6 +1187,7 @@ async function loadCourseProblemsForUserFast(args: {
         p."updatedAt",
         n."name" AS "notebookName",
         n."courseId" AS "notebookCourseId",
+        chapter."name" AS "chapterName",
         CASE
           WHEN (
             (
@@ -1224,6 +1215,7 @@ async function loadCourseProblemsForUserFast(args: {
       FROM "NotebookProblem" p
       JOIN "Course" c ON c."id" = p."courseId"
       LEFT JOIN "Notebook" n ON n."id" = p."notebookId"
+      LEFT JOIN "CourseProblemChapter" chapter ON chapter."id" = p."chapterId"
       LEFT JOIN "NotebookProblemSecret" s ON s."problemId" = p."id"
       LEFT JOIN "NotebookProblemProgress" g
         ON g."problemId" = p."id" AND g."userId" = ${args.userId}
@@ -1278,6 +1270,7 @@ async function loadCourseProblemsForUserFast(args: {
         id: row.id,
         courseId: row.courseId,
         notebookId: row.notebookId,
+        chapterId: row.chapterId,
         title: row.title,
         type: row.type,
         status: row.status,
@@ -1298,6 +1291,13 @@ async function loadCourseProblemsForUserFast(args: {
                 id: row.notebookId,
                 name: row.notebookName,
                 courseId: row.notebookCourseId,
+              }
+            : null,
+        chapter:
+          row.chapterId && row.chapterName
+            ? {
+                id: row.chapterId,
+                name: row.chapterName,
               }
             : null,
         secret: row.secretJudgeJson ? { secretJudgeJson: row.secretJudgeJson } : null,
@@ -1803,6 +1803,7 @@ export async function listCourseProblemSummariesForUser(
       id: true,
       courseId: true,
       notebookId: true,
+      chapterId: true,
       title: true,
       type: true,
       status: true,
@@ -1814,6 +1815,12 @@ export async function listCourseProblemSummariesForUser(
           id: true,
           name: true,
           courseId: true,
+        },
+      },
+      chapter: {
+        select: {
+          id: true,
+          name: true,
         },
       },
       progress: {
@@ -1842,16 +1849,12 @@ export async function listCourseProblemSummariesForUser(
       courseId: problem.courseId ?? problem.notebook?.courseId ?? null,
       notebookId: problem.notebookId,
       notebookName: problem.notebook?.name ?? undefined,
+      chapterId: problem.chapterId,
+      chapterName: problem.chapter?.name ?? undefined,
       title: problem.title,
       type: problem.type,
       status: problem.status,
-      tags: normalizeProblemConceptTags({
-        courseId: problem.courseId ?? problem.notebook?.courseId ?? courseId,
-        notebookId: problem.notebookId,
-        notebookName: problem.notebook?.name,
-        title: problem.title,
-        tags: problem.tags ?? [],
-      }),
+      tags: problem.tags ?? [],
       difficulty: problem.difficulty,
       updatedAt: problem.updatedAt.getTime(),
       latestAttempt: latestAttempt
@@ -1986,17 +1989,7 @@ export async function getNotebookProblemForUser(
       order: row.order,
       problemNumber: row.problemNumber,
       points: row.points,
-      tags: normalizeProblemConceptTags({
-        courseId: row.courseId ?? row.notebook?.courseId ?? notebookAccess.courseId,
-        notebookId: row.notebookId,
-        notebookName: row.notebook?.name,
-        title: row.title,
-        type: row.type,
-        tags: row.tags ?? [],
-        difficulty: row.difficulty,
-        publicContent: row.publicContentJson,
-        sourceMeta: row.sourceMeta ?? {},
-      }),
+      tags: row.tags ?? [],
       difficulty: row.difficulty,
       publicContent: row.publicContentJson,
       grading: row.gradingJson,
@@ -2059,17 +2052,7 @@ export async function getCourseProblemForUser(
       order: row.order,
       problemNumber: row.problemNumber,
       points: row.points,
-      tags: normalizeProblemConceptTags({
-        courseId: row.courseId ?? row.notebook?.courseId ?? courseId,
-        notebookId: row.notebookId,
-        notebookName: row.notebook?.name,
-        title: row.title,
-        type: row.type,
-        tags: row.tags ?? [],
-        difficulty: row.difficulty,
-        publicContent: row.publicContentJson,
-        sourceMeta: row.sourceMeta ?? {},
-      }),
+      tags: row.tags ?? [],
       difficulty: row.difficulty,
       publicContent: row.publicContentJson,
       grading: row.gradingJson,
@@ -2091,42 +2074,6 @@ type CreateNotebookProblemsFromDraftsArgs = {
   importBatchLeaseToken?: string | null;
 };
 
-async function seedInsertedProblemTags(args: {
-  courseId: string;
-  problems: NotebookProblemSummaryForUser[];
-  insertedProblemIds: string[];
-  tagPathsByProblemId: Map<string, NotebookProblemImportDraft['tagPaths']>;
-}) {
-  const insertedIds = new Set(args.insertedProblemIds);
-  for (const problem of args.problems) {
-    if (!insertedIds.has(problem.id)) continue;
-    try {
-      await seedProblemTagsFromProblem({
-        prisma: prismaDb,
-        courseId: args.courseId,
-        problem: {
-          id: problem.id,
-          title: problem.title,
-          type: problem.type,
-          difficulty: problem.difficulty,
-          tags: problem.tags,
-          publicContent: problem.publicContent,
-          sourceMeta: problem.sourceMeta,
-          notebookId: problem.notebookId,
-          notebookName: problem.notebookName,
-          tagPaths: args.tagPathsByProblemId.get(problem.id),
-        },
-      });
-    } catch (error) {
-      console.warn('[problem-import] tag projection failed after problem commit', {
-        courseId: args.courseId,
-        problemId: problem.id,
-        error,
-      });
-    }
-  }
-}
-
 async function createNotebookProblemsFromDraftsInternal(
   args: CreateNotebookProblemsFromDraftsArgs,
 ): Promise<NotebookProblemDraftWriteResult> {
@@ -2142,7 +2089,6 @@ async function createNotebookProblemsFromDraftsInternal(
   const reusedProblemIds = new Set<string>();
   const skippedDraftIds: string[] = [];
   const reusedDrafts: ProblemDraftWriteSummary['reusedDrafts'] = [];
-  const tagPathsByProblemId = new Map<string, NotebookProblemImportDraft['tagPaths']>();
 
   await prismaDb.$transaction(
     async (tx: Prisma.TransactionClient) => {
@@ -2177,7 +2123,6 @@ async function createNotebookProblemsFromDraftsInternal(
           problemNumber: firstProblemNumber + insertedProblemIds.length,
         });
         insertedProblemIds.push(created.id);
-        tagPathsByProblemId.set(created.id, draft.tagPaths);
         if (dedupeKey) existingProblemIdByKey.set(dedupeKey, created.id);
       }
       const writeSummary: ProblemDraftWriteSummary = {
@@ -2207,14 +2152,6 @@ async function createNotebookProblemsFromDraftsInternal(
   );
 
   const problems = await listNotebookProblemsForUser(args.userId, args.notebookId);
-  if (notebook.courseId && insertedProblemIds.length > 0) {
-    await seedInsertedProblemTags({
-      courseId: notebook.courseId,
-      problems,
-      insertedProblemIds,
-      tagPathsByProblemId,
-    });
-  }
   return {
     problems,
     writeSummary: {
@@ -2361,7 +2298,6 @@ async function createCourseProblemsFromDraftsInternal(
   const reusedProblemIds = new Set<string>();
   const skippedDraftIds: string[] = [];
   const reusedDrafts: ProblemDraftWriteSummary['reusedDrafts'] = [];
-  const tagPathsByProblemId = new Map<string, NotebookProblemImportDraft['tagPaths']>();
 
   await prismaDb.$transaction(
     async (tx: Prisma.TransactionClient) => {
@@ -2404,7 +2340,6 @@ async function createCourseProblemsFromDraftsInternal(
           problemNumber: firstProblemNumber + insertedProblemIds.length,
         });
         insertedProblemIds.push(created.id);
-        tagPathsByProblemId.set(created.id, draft.tagPaths);
         existingProblemIdByKey.set(dedupeKey, created.id);
         if (notebookId) touchedNotebookIds.add(notebookId);
       }
@@ -2433,27 +2368,10 @@ async function createCourseProblemsFromDraftsInternal(
     },
   );
 
-  let problems =
+  const problems =
     args.returnProblems === false
       ? []
       : await listCourseProblemsForUser(args.userId, args.courseId);
-  if (insertedProblemIds.length > 0) {
-    const insertedProblems =
-      problems.length > 0
-        ? problems.filter((problem) => insertedProblemIds.includes(problem.id))
-        : await listCourseProblemsByIdsForUser(args.userId, args.courseId, insertedProblemIds, {
-            skipMaintenance: true,
-          });
-    await seedInsertedProblemTags({
-      courseId: args.courseId,
-      problems: insertedProblems,
-      insertedProblemIds,
-      tagPathsByProblemId,
-    });
-    if (args.returnProblems !== false) {
-      problems = await listCourseProblemsForUser(args.userId, args.courseId);
-    }
-  }
   return {
     problems,
     writeSummary: {
@@ -2487,7 +2405,6 @@ export async function updateNotebookProblem(args: {
     status?: string;
     points?: number;
     order?: number;
-    tags?: string[];
     difficulty?: string;
     publicContent?: unknown;
     grading?: unknown;
@@ -2527,7 +2444,7 @@ export async function updateNotebookProblem(args: {
         status,
         source: current.problem.source,
         points: args.patch.points ?? current.problem.points,
-        tags: args.patch.tags ?? current.problem.tags,
+        tags: [],
         difficulty,
         publicContent,
         grading,
@@ -2538,17 +2455,6 @@ export async function updateNotebookProblem(args: {
     ),
     args.patch.order ?? current.problem.order,
   );
-  const conceptTags = normalizeProblemConceptTags({
-    courseId: current.problem.courseId,
-    notebookId: current.problem.notebookId,
-    notebookName: current.problem.notebookName,
-    title: normalizedDraft.title,
-    type: normalizedDraft.type,
-    tags: normalizedDraft.tags,
-    difficulty: normalizedDraft.difficulty,
-    publicContent: normalizedDraft.publicContent,
-    sourceMeta: normalizedDraft.sourceMeta,
-  });
 
   const updated = (await prismaDb.$transaction(async (tx: Prisma.TransactionClient) => {
     const courseId = notebook.courseId ?? current.problem.courseId ?? null;
@@ -2568,7 +2474,6 @@ export async function updateNotebookProblem(args: {
         status: normalizedDraft.status,
         order: args.patch.order ?? current.problem.order,
         points: normalizedDraft.points,
-        tags: conceptTags,
         difficulty: normalizedDraft.difficulty,
         publicContentJson: toPrismaJson(normalizedDraft.publicContent),
         gradingJson: toPrismaJson(normalizedDraft.grading),
@@ -2645,11 +2550,11 @@ export async function updateCourseProblem(args: {
   problemId: string;
   patch: {
     notebookId?: string | null;
+    chapterId?: string | null;
     title?: string;
     status?: string;
     points?: number;
     order?: number;
-    tags?: string[];
     difficulty?: string;
     publicContent?: unknown;
     grading?: unknown;
@@ -2685,6 +2590,15 @@ export async function updateCourseProblem(args: {
     args.patch.notebookId !== undefined
       ? normalizeAssignedNotebookId(args.patch.notebookId, allowedNotebookIds)
       : (current.problem.notebookId ?? null);
+  const nextChapterId =
+    args.patch.chapterId !== undefined ? args.patch.chapterId : (current.problem.chapterId ?? null);
+  if (nextChapterId) {
+    const chapter = await prismaDb.courseProblemChapter.findFirst({
+      where: { id: nextChapterId, courseId: args.courseId },
+      select: { id: true },
+    });
+    if (!chapter) throw new Error('所选章节不存在或不属于当前课程。');
+  }
 
   const normalizedDraft = normalizeDraftForPersistence(
     await withCodeReferenceVerification(
@@ -2696,7 +2610,7 @@ export async function updateCourseProblem(args: {
         status,
         source: current.problem.source,
         points: args.patch.points ?? current.problem.points,
-        tags: args.patch.tags ?? current.problem.tags,
+        tags: [],
         difficulty,
         publicContent,
         grading,
@@ -2707,17 +2621,6 @@ export async function updateCourseProblem(args: {
     ),
     args.patch.order ?? current.problem.order,
   );
-  const conceptTags = normalizeProblemConceptTags({
-    courseId: args.courseId,
-    notebookId: nextNotebookId,
-    notebookName: current.problem.notebookName,
-    title: normalizedDraft.title,
-    type: normalizedDraft.type,
-    tags: normalizedDraft.tags,
-    difficulty: normalizedDraft.difficulty,
-    publicContent: normalizedDraft.publicContent,
-    sourceMeta: normalizedDraft.sourceMeta,
-  });
 
   const updated = (await prismaDb.$transaction(async (tx: Prisma.TransactionClient) => {
     const dedupeKey = courseProblemDedupeKey(normalizedDraft);
@@ -2734,7 +2637,6 @@ export async function updateCourseProblem(args: {
         status: normalizedDraft.status,
         order: args.patch.order ?? current.problem.order,
         points: normalizedDraft.points,
-        tags: conceptTags,
         difficulty: normalizedDraft.difficulty,
         publicContentJson: toPrismaJson(normalizedDraft.publicContent),
         gradingJson: toPrismaJson(normalizedDraft.grading),
@@ -2742,6 +2644,7 @@ export async function updateCourseProblem(args: {
         dedupeKey,
         courseId: args.courseId,
         notebookId: nextNotebookId,
+        chapterId: nextChapterId,
       },
       include: {
         notebook: {
@@ -2749,6 +2652,12 @@ export async function updateCourseProblem(args: {
             id: true,
             name: true,
             courseId: true,
+          },
+        },
+        chapter: {
+          select: {
+            id: true,
+            name: true,
           },
         },
       },
@@ -2782,6 +2691,8 @@ export async function updateCourseProblem(args: {
     courseId: updated.courseId ?? updated.notebook?.courseId ?? args.courseId,
     notebookId: updated.notebookId,
     notebookName: updated.notebook?.name ?? undefined,
+    chapterId: updated.chapterId,
+    chapterName: updated.chapter?.name ?? undefined,
     title: updated.title,
     type: updated.type,
     status: updated.status,
