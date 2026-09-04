@@ -27,6 +27,7 @@ import {
 import { findLocalDemoTeacherHomeCourse } from '@/lib/teacher/local-demo-fixtures';
 import { LOCAL_DEMO_STUDENT_ROSTER } from '@/lib/teacher/local-demo-student-roster';
 import { StudioList, StudioListItem, StudioPagination } from '@/components/teacher/studio-list';
+import { TeacherTemporaryAiDialog } from '@/components/teacher/teacher-temporary-ai-dialog';
 import { academicTermLabel, type AcademicTerm } from '@/lib/teacher/online-course-studio';
 import { cn } from '@/lib/utils';
 import { BackendApiError, backendJson } from '@/lib/utils/backend-api';
@@ -210,6 +211,7 @@ export function TeacherCourseStudentsClient({
   const [accessRevoked, setAccessRevoked] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(0);
   const [learning, setLearning] = useState<CourseLearningOverview | null>(null);
+  const [temporaryAiOpen, setTemporaryAiOpen] = useState(false);
   const loadingRef = useRef(false);
 
   useEffect(() => {
@@ -428,14 +430,7 @@ export function TeacherCourseStudentsClient({
                 <h2 className="mr-auto text-base font-semibold text-slate-950 dark:text-white">
                   班级总览
                 </h2>
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    router.push(
-                      `/learn?courseId=${encodeURIComponent(courseId)}&from=teacher&range=${LEARNING_RANGE}`,
-                    )
-                  }
-                >
+                <Button size="sm" onClick={() => setTemporaryAiOpen(true)}>
                   <Bot className="mr-1.5 size-4" />问 AI
                 </Button>
               </div>
@@ -623,6 +618,12 @@ export function TeacherCourseStudentsClient({
           </div>
         </div>
       </section>
+      <TeacherTemporaryAiDialog
+        open={temporaryAiOpen}
+        onOpenChange={setTemporaryAiOpen}
+        courseId={courseId}
+        courseName={course.name}
+      />
     </CourseSpacePageFrame>
   );
 }

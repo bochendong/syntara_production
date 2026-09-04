@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
+  History,
   ImagePlus,
   Loader2,
   Maximize2,
@@ -40,6 +41,7 @@ import { ProblemDraftForm } from '@/components/problem-bank/problem-draft-form';
 import { ProblemLanguageToggle } from '@/components/problem-bank/problem-language-toggle';
 import { ProblemChapterManagerDialog } from '@/components/problem-bank/problem-chapter-manager-dialog';
 import { ProblemForumPublishDialog } from '@/components/problem-bank/problem-forum-publish-dialog';
+import { RecentProblemSubmissionsDialog } from '@/components/problem-bank/recent-problem-submissions-dialog';
 import { CodeAnswerEditor, highlightPython } from '@/components/problem-bank/code-answer-editor';
 import { CodeProblemStatement } from '@/components/problem-bank/code-problem-statement';
 import { CommonMathSymbols } from '@/components/problem-bank/common-math-symbols';
@@ -1338,6 +1340,8 @@ export function CourseProblemBankView({
     visibleProblemPreviewDraft,
   } = view;
   const [chapterManagerOpen, setChapterManagerOpen] = useState(false);
+  const [recentSubmissionsProblem, setRecentSubmissionsProblem] =
+    useState<NotebookProblemClientRecord | null>(null);
   const [activeFillBlankId, setActiveFillBlankId] = useState<string | null>(null);
   const fillBlankAnswerInputRef = useRef<HTMLInputElement>(null);
   const [practicePaneTabs, setPracticePaneTabs] = useState<PracticePaneTabs>(() => ({
@@ -2036,6 +2040,16 @@ export function CourseProblemBankView({
                 <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200">
                   {selectedProblem.chapterName || (locale === 'zh-CN' ? '未归档' : 'Unfiled')}
                 </span>
+                {canEditProblems ? (
+                  <button
+                    type="button"
+                    onClick={() => setRecentSubmissionsProblem(selectedProblem)}
+                    className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/30 dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-200 dark:hover:bg-violet-400/15"
+                  >
+                    <History className="size-3.5" />
+                    {locale === 'zh-CN' ? '最近提交' : 'Recent submissions'}
+                  </button>
+                ) : null}
               </div>
               {selectedProblemContent?.type === 'code' ? (
                 <CodeProblemStatement content={selectedProblemContent} locale={locale} />
@@ -2807,6 +2821,19 @@ export function CourseProblemBankView({
                                   >
                                     {locale === 'zh-CN' ? '全班' : 'Class'} {classPassRate.value}
                                   </span>
+                                  {canEditProblems ? (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setRecentSubmissionsProblem(problem);
+                                      }}
+                                      className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[11px] font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/30 dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-200 dark:hover:bg-violet-400/15"
+                                    >
+                                      <History className="size-3" />
+                                      {locale === 'zh-CN' ? '最近提交' : 'Recent'}
+                                    </button>
+                                  ) : null}
                                   <span
                                     className={cn(
                                       'inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold',
@@ -3026,10 +3053,25 @@ export function CourseProblemBankView({
                               />
                             </div>
                             <div className="min-w-0">
-                              <ProblemTitleText
-                                content={localizedTitle}
-                                className="line-clamp-1 text-sm font-semibold text-slate-950 dark:text-white"
-                              />
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                <ProblemTitleText
+                                  content={localizedTitle}
+                                  className="line-clamp-1 min-w-0 flex-1 text-sm font-semibold text-slate-950 dark:text-white"
+                                />
+                                {canEditProblems ? (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setRecentSubmissionsProblem(problem);
+                                    }}
+                                    className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 text-[10px] font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/30 dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-200 dark:hover:bg-violet-400/15"
+                                  >
+                                    <History className="size-3" />
+                                    {locale === 'zh-CN' ? '最近提交' : 'Recent'}
+                                  </button>
+                                ) : null}
+                              </div>
                               <p className="mt-[3px] min-w-0 truncate text-xs text-slate-400">
                                 {problem.notebookName ||
                                   (locale === 'zh-CN' ? '无来源笔记本' : 'No source notebook')}
@@ -3221,6 +3263,15 @@ export function CourseProblemBankView({
         chapters={problemChapters}
         locale={locale}
         onChanged={reloadProblemChapters}
+      />
+      <RecentProblemSubmissionsDialog
+        open={Boolean(recentSubmissionsProblem)}
+        onOpenChange={(open) => {
+          if (!open) setRecentSubmissionsProblem(null);
+        }}
+        courseId={courseId}
+        problem={recentSubmissionsProblem}
+        previewMode={previewMode}
       />
     </div>
   );

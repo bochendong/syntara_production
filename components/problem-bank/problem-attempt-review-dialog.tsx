@@ -63,7 +63,7 @@ function duration(value: number | null) {
   return minutes ? `${minutes} 分 ${seconds} 秒` : `${seconds} 秒`;
 }
 
-function StudentAnswer({ attempt }: { attempt: TeacherStudentAttemptDetail }) {
+export function ProblemAttemptAnswerView({ attempt }: { attempt: TeacherStudentAttemptDetail }) {
   const contentResult = notebookProblemPublicContentSchema.safeParse(attempt.problem.publicContent);
   const answerResult = notebookProblemAttemptAnswerSchema.safeParse(attempt.answer);
   const resultResult = notebookProblemAttemptResultSchema.safeParse(attempt.result);
@@ -234,7 +234,7 @@ export function ProblemAttemptReviewDialog(props: {
                   {attempt.score == null ? '暂无' : `${attempt.score} / ${attempt.problem.points}`}
                 </p>
               </div>
-              <StudentAnswer attempt={attempt} />
+              <ProblemAttemptAnswerView attempt={attempt} />
             </section>
           </div>
         ) : null}

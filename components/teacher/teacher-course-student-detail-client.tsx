@@ -11,6 +11,7 @@ import {
   ProblemAttemptReviewDialog,
   type TeacherStudentAttemptDetail,
 } from '@/components/problem-bank/problem-attempt-review-dialog';
+import { TeacherTemporaryAiDialog } from '@/components/teacher/teacher-temporary-ai-dialog';
 
 type StudentDetail = {
   range: string;
@@ -155,6 +156,7 @@ export function TeacherCourseStudentDetailClient(props: {
   const [loading, setLoading] = useState(!props.mockMode);
   const [attempt, setAttempt] = useState<TeacherStudentAttemptDetail | null>(null);
   const [loadingAttemptId, setLoadingAttemptId] = useState<string | null>(null);
+  const [temporaryAiOpen, setTemporaryAiOpen] = useState(false);
   useEffect(() => {
     if (props.mockMode) return;
     void backendJson<StudentDetail>(
@@ -208,13 +210,7 @@ export function TeacherCourseStudentDetailClient(props: {
             <option value="term">本学期</option>
             <option value="all">全部</option>
           </select>
-          <Button
-            onClick={() =>
-              router.push(
-                `/learn?courseId=${encodeURIComponent(props.courseId)}&from=teacher&studentId=${encodeURIComponent(props.studentId)}&range=${range}`,
-              )
-            }
-          >
+          <Button onClick={() => setTemporaryAiOpen(true)}>
             <Bot className="mr-1.5 h-4 w-4" />问 AI
           </Button>
         </div>
@@ -327,6 +323,20 @@ export function TeacherCourseStudentDetailClient(props: {
         open={Boolean(attempt)}
         onOpenChange={(open) => !open && setAttempt(null)}
         attempt={attempt}
+      />
+      <TeacherTemporaryAiDialog
+        open={temporaryAiOpen}
+        onOpenChange={setTemporaryAiOpen}
+        courseId={props.courseId}
+        title={`${detail.student.name} · 临时提问`}
+        introTitle={`想先了解${detail.student.name}的哪件事？`}
+        introDescription="AI 会结合这名学生在当前课程中的学习信号与近期作答来回答。"
+        contextPrompt={`请聚焦课程中的学生「${detail.student.name}」，结合${range === '7d' ? '最近 7 天' : range === '30d' ? '最近 30 天' : range === 'term' ? '本学期' : '全部时间'}的学习信号和作答记录回答。`}
+        quickQuestions={[
+          '这名学生最近最需要关注的薄弱点是什么？',
+          '总结这名学生最近的进步和卡点',
+          '我下一次应该怎样针对性辅导？',
+        ]}
       />
     </main>
   );
