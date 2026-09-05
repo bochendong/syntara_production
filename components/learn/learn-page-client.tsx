@@ -2940,7 +2940,10 @@ function learnMessagesForCourseAnswerer(
 ): UIMessage<ChatMessageMetadata>[] {
   const eligibleMessages = messages.filter(
     (message) =>
-      !message.transient && (Boolean(message.text.trim()) || Boolean(message.attachments?.length)),
+      !message.transient &&
+      (Boolean(message.text.trim()) ||
+        Boolean(message.attachments?.length) ||
+        Boolean(message.learningActions?.length)),
   );
   const latestCompressionIndex = eligibleMessages.findLastIndex((message) =>
     Boolean(message.contextCompression?.summary.trim()),
@@ -3006,6 +3009,7 @@ function learnMessagesForCourseAnswerer(
           size: attachment.size,
         })),
         contextCompression: message.contextCompression,
+        learningActions: message.learningActions,
       },
     };
   });
@@ -12947,6 +12951,7 @@ export function LearnPageClient() {
                   id: pendingWorkflowMessageId,
                   role: 'assistant',
                   text: streamedAnswer.text || existing.text,
+                  learningActions: streamedAnswer.learningActions || existing.learningActions,
                   createdAt: existing.createdAt,
                   publicTrace:
                     streamedAnswer.publicTrace || latestTeacherPublicTrace || existing.publicTrace,
@@ -12967,13 +12972,14 @@ export function LearnPageClient() {
             result.messages,
             historicalAnswererMessageIds,
           );
-          if (!currentTurnAnswer?.text.trim()) {
+          if (!currentTurnAnswer?.text.trim() && !currentTurnAnswer?.learningActions?.length) {
             throw new Error('教师课程助理没有返回新的内容');
           }
           const answerMessage: LearnMessage = {
             id: pendingWorkflowMessageId,
             role: 'assistant',
             text: normalizeCourseAssistantAnswer(currentTurnAnswer.text),
+            learningActions: currentTurnAnswer.learningActions,
             createdAt: Date.now(),
             publicTrace: finalizePublicTraceSteps(
               currentTurnAnswer.publicTrace || latestTeacherPublicTrace,
@@ -12992,12 +12998,13 @@ export function LearnPageClient() {
             /课程数据库暂时不可用|数据库连接暂时繁忙|无法可靠读取已持久化的课程资料/.test(
               errorText,
             );
-          const partialAnswer =
+          const partialMessage =
             activeMessagesRef.current?.key === turnStoreKey
-              ? activeMessagesRef.current.messages
-                  .find((message) => message.id === pendingWorkflowMessageId)
-                  ?.text.trim() || ''
-              : '';
+              ? activeMessagesRef.current.messages.find(
+                  (message) => message.id === pendingWorkflowMessageId,
+                )
+              : undefined;
+          const partialAnswer = partialMessage?.text.trim() || '';
           const interruptionNotice = stoppedByUser
             ? '已停止继续生成。上方是停止前已经收到的内容。'
             : didTimeout
@@ -13011,6 +13018,7 @@ export function LearnPageClient() {
             text: partialAnswer
               ? `${partialAnswer}\n\n> ${interruptionNotice}`
               : interruptionNotice,
+            learningActions: partialMessage?.learningActions,
             createdAt: Date.now(),
             publicTrace: publicTraceForBlockedQuestion(
               questionText,

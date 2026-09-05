@@ -1,8 +1,8 @@
-import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { runPythonJson } from '@/lib/server/python-runner';
 import type {
   NotebookProblemAttemptAnswer,
   NotebookProblemAttemptResult,
@@ -233,61 +233,24 @@ async function executePythonPayload(args: {
   const codePath = path.join(tempDir, 'submission.py');
   const runnerPath = path.join(tempDir, 'runner.py');
 
-  await mkdir(tempDir, { recursive: true });
-  await writeFile(
-    codePath,
-    [args.starterCode?.trim(), args.code.trim()].filter(Boolean).join('\n\n'),
-    'utf8',
-  );
-  await writeFile(runnerPath, PYTHON_RUNNER, 'utf8');
-
-  const payload = JSON.stringify({
-    codePath,
-    testCases: args.testCases,
-    mode: args.mode ?? 'tests',
-  });
-
   try {
-    return await new Promise<RawRunnerPayload>((resolve, reject) => {
-      const child = spawn('python3', [runnerPath, payload], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      let stdout = '';
-      let stderr = '';
-      let timedOut = false;
+    await mkdir(tempDir, { recursive: true });
+    await writeFile(
+      codePath,
+      [args.starterCode?.trim(), args.code.trim()].filter(Boolean).join('\n\n'),
+      'utf8',
+    );
+    await writeFile(runnerPath, PYTHON_RUNNER, 'utf8');
 
-      const timer = setTimeout(() => {
-        timedOut = true;
-        child.kill('SIGKILL');
-      }, args.timeoutMs);
-
-      child.stdout.on('data', (chunk) => {
-        stdout += chunk.toString();
-      });
-      child.stderr.on('data', (chunk) => {
-        stderr += chunk.toString();
-      });
-      child.on('error', (error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        if (timedOut) {
-          reject(new Error('Python runner timed out'));
-          return;
-        }
-        if (code !== 0) {
-          reject(new Error(stderr || `Python runner exited with code ${code}`));
-          return;
-        }
-        try {
-          const parsed = JSON.parse(stdout) as RawRunnerPayload;
-          resolve(parsed);
-        } catch (error) {
-          reject(error);
-        }
-      });
+    const payload = {
+      codePath,
+      testCases: args.testCases,
+      mode: args.mode ?? 'tests',
+    };
+    return await runPythonJson<RawRunnerPayload>({
+      runnerPath,
+      payload,
+      timeoutMs: args.timeoutMs,
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);

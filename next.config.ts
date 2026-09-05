@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   // makes localhost substantially slower than production.
   reactStrictMode: false,
   transpilePackages: ['mathml2omml', 'pptxgenjs'],
-  serverExternalPackages: ['@napi-rs/canvas'],
+  serverExternalPackages: ['@napi-rs/canvas', 'pyodide'],
   webpack(config, { isServer, webpack }) {
     if (!isServer) {
       config.plugins.push(
@@ -39,6 +39,14 @@ const nextConfig: NextConfig = {
     '/*': ['./assets/**/*', './OpenMAIC-org/**/*', './public/generated-notebooks/**/*'],
   },
   outputFileTracingIncludes: {
+    // The Python fallback loads its WASM and standard library inside a worker;
+    // those files are not visible to Next's static dependency tracing.
+    '/api/courses/*/problems': ['./node_modules/pyodide/*'],
+    '/api/courses/*/problems/**': ['./node_modules/pyodide/*'],
+    '/api/notebooks/*/problems': ['./node_modules/pyodide/*'],
+    '/api/notebooks/*/problems/**': ['./node_modules/pyodide/*'],
+    '/api/teacher/courses/*/sources/*/process': ['./node_modules/pyodide/*'],
+    '/api/quiz-code-run': ['./node_modules/pyodide/*'],
     '/*': [
       './node_modules/.pnpm/@prisma+client*/node_modules/.prisma/client/**/*',
       './node_modules/@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff2',

@@ -41,7 +41,9 @@ function evaluate(compiled, customRequire = require) {
 }
 
 const contract = evaluate(compile('features/memory/domain/course-answer-contract.ts'));
+const pythonRunner = evaluate(compile('lib/server/python-runner.ts'));
 const judge = evaluate(compile('lib/server/notebook-problems/judge.ts'), (specifier) => {
+  if (specifier === '@/lib/server/python-runner') return pythonRunner;
   if (specifier === '@/features/memory/domain/course-answer-contract') return contract;
   if (specifier === '@/lib/problem-bank') {
     return {

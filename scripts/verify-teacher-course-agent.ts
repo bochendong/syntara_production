@@ -1,6 +1,9 @@
 import { simulateReadableStream } from 'ai';
 import { MockLanguageModelV3 } from 'ai/test';
-import { runTeacherCourseTurn } from '@/features/chat/server/teacher-course-agent';
+import {
+  runTeacherCourseTurn,
+  runStudentCourseTurn,
+} from '@/features/chat/server/teacher-course-agent';
 import {
   resolveTrustedCourseTurn,
   TrustedCourseTurnError,
@@ -437,3 +440,79 @@ await runTeacherCourseTurn({
 });
 if (directCalls !== 1) throw new Error('Page-bound answer should require one model call');
 console.log('PASS: exact attempt is present before a single direct answer call.');
+
+// Exercise a real SDK tool call: a draft must emit an action even when the
+// answer has no text. No calendar write is available in this fixture.
+export const calendarRegressionEvents: StatelessEvent[] = [];
+let calendarModelCalls = 0;
+const calendarModel = new MockLanguageModelV3({
+  doStream: async () => ({
+    stream: simulateReadableStream({
+      chunks:
+        calendarModelCalls++ === 0
+          ? [
+              {
+                type: 'tool-call' as const,
+                toolCallId: 'calendar-draft-test',
+                toolName: 'propose_calendar_change',
+                input: JSON.stringify({
+                  operation: 'create',
+                  summary: '明天 09:00 考试，60 分钟',
+                  items: [
+                    {
+                      title: '考试',
+                      kind: 'exam',
+                      date: '2026-09-06',
+                      start: '09:00',
+                      durationMinutes: 60,
+                    },
+                  ],
+                }),
+              },
+              {
+                type: 'finish' as const,
+                finishReason: { unified: 'tool-calls' as 'tool-calls' | 'stop', raw: undefined },
+                usage,
+              },
+            ]
+          : [
+              {
+                type: 'finish' as const,
+                finishReason: { unified: 'stop' as const, raw: undefined },
+                usage,
+              },
+            ],
+    }),
+  }),
+});
+await runStudentCourseTurn({
+  body: {
+    ...body,
+    messages: [
+      {
+        id: 'calendar-user',
+        role: 'user',
+        parts: [{ type: 'text', text: '明天9:00考试，能帮我添加到日历吗' }],
+      },
+    ],
+  },
+  signal: new AbortController().signal,
+  languageModel: calendarModel,
+  access: { ...access, userId: 'student-calendar', role: 'enrolled' },
+  db: {
+    ...fakeDb,
+    course: { findUnique: async () => ({ ownerId, externalBinding: null }) },
+    $queryRaw: async () => [{ userId: 'student-calendar', notebookAccessLimit: null }],
+  } as unknown as PrismaClient,
+  onEvent: (event) => {
+    calendarRegressionEvents.push(event);
+  },
+});
+const draftEvents = calendarRegressionEvents.filter((event) => event.type === 'action');
+if (draftEvents.length !== 1 || draftEvents[0].data.actionName !== 'calendar.propose_add') {
+  throw new Error('Calendar tool must emit exactly one confirmation action');
+}
+if (draftEvents[0].data.params?.requiresConfirmation !== true) {
+  throw new Error('Calendar draft must require explicit confirmation');
+}
+console.log('PASS: student calendar tool emits a confirmation action without a database write.');

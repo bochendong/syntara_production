@@ -22,6 +22,8 @@ export type LearnerAnalyticsAttempt = {
   notebookName: string | null;
   status: string;
   score: number | null;
+  problemLanguage?: string | null;
+  feedback?: string;
   tags: string[];
   difficulty: string;
   createdAt: string;
@@ -309,10 +311,12 @@ export async function buildLearnerAnalytics(args: {
         problemId: true,
         status: true,
         score: true,
+        resultJson: true,
         createdAt: true,
         problem: {
           select: {
             title: true,
+            publicContentJson: true,
             notebookId: true,
             tags: true,
             difficulty: true,
@@ -371,6 +375,17 @@ export async function buildLearnerAnalytics(args: {
     notebookName: row.problem.notebook?.name || null,
     status: String(row.status),
     score: row.score,
+    problemLanguage:
+      row.problem.publicContentJson &&
+      typeof row.problem.publicContentJson === 'object' &&
+      'language' in row.problem.publicContentJson &&
+      typeof row.problem.publicContentJson.language === 'string'
+        ? row.problem.publicContentJson.language
+        : null,
+    feedback:
+      row.resultJson && typeof row.resultJson === 'object' && 'feedback' in row.resultJson
+        ? compact(String(row.resultJson.feedback || ''), 600)
+        : undefined,
     tags: row.problem.tags || [],
     difficulty: String(row.problem.difficulty),
     createdAt: iso(row.createdAt),

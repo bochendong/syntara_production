@@ -87,6 +87,32 @@ function inferTopicProfile(query: string): PracticeTopicProfile | null {
 const GENERIC_PRACTICE_WORDS_RE =
   /我想|请|帮我|给我|只用|真实|题库|练习|练题目?|刷题|做题|题目|问题|关于|相关|主题|中的|课程|优先|检验|刚才|暴露出|混淆|适合|推荐|mat\s*102/gi;
 
+// Use the same bilingual topic vocabulary for retrieval and the final filter.
+// Otherwise English questions retrieved for a Chinese request are discarded.
+const PRACTICE_TOPIC_ALIASES: Array<{ pattern: RegExp; terms: string[] }> = [
+  {
+    pattern: /字典|映射|\bdict(?:ionary|ionaries)?\b|\bmapping\b/i,
+    terms: ['字典', '映射', 'dictionary', 'dict', 'mapping'],
+  },
+  {
+    pattern: /嵌套列表|嵌套数组|\bnested\s+(?:list|array)s?\b/i,
+    terms: ['嵌套列表', 'nested list', 'nested array'],
+  },
+  { pattern: /递归|\brecurs(?:ion|ive)\b/i, terms: ['递归', 'recursion', 'recursive'] },
+  { pattern: /文件|\bfile\b/i, terms: ['文件', 'file'] },
+  { pattern: /排序|\bsort(?:ing)?\b/i, terms: ['排序', 'sort', 'sorting'] },
+];
+
+export function practiceTopicAliases(query: string): string[] {
+  return Array.from(
+    new Set(
+      PRACTICE_TOPIC_ALIASES.filter(({ pattern }) => pattern.test(query)).flatMap(
+        ({ terms }) => terms,
+      ),
+    ),
+  );
+}
+
 function genericTopicAnchors(query: string): string[] {
   const normalizedQuery = normalizeSearchText(query).toLowerCase();
   const cleaned = normalizedQuery
@@ -110,7 +136,7 @@ function genericTopicAnchors(query: string): string[] {
   if (/等价/.test(normalizedQuery)) anchors.push('等价', 'equivalence');
   if (/单射/.test(normalizedQuery)) anchors.push('单射', 'injective');
   if (/满射/.test(normalizedQuery)) anchors.push('满射', 'surjective');
-  return Array.from(new Set(anchors)).slice(0, 8);
+  return Array.from(new Set([...practiceTopicAliases(query), ...anchors])).slice(0, 24);
 }
 
 function metadataStrings(metadata: Record<string, unknown>): string[] {
@@ -205,7 +231,7 @@ function toExcludedCandidate(
   };
 }
 
-function applyTopicProfile(args: {
+export function applyTopicProfile(args: {
   matches: MemoryEvidencePacket[];
   profile: PracticeTopicProfile | null;
   query: string;
@@ -306,7 +332,7 @@ export async function searchLearnProblemBankForPractice(args: {
   const profile = inferTopicProfile(query);
   const rawMatches = await searchProblemSourceEvidence({
     prisma: args.prisma,
-    query,
+    query: [query, ...practiceTopicAliases(query)].join(' '),
     courseId: args.courseId,
     viewerUserId: args.userId,
     limit: Math.max(requestedCount * 3, 12),
@@ -318,7 +344,14 @@ export async function searchLearnProblemBankForPractice(args: {
   });
   const matches = accepted
     .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
-    .slice(0, requestedCount);
+    .slice(0, requestedCount)
+    .map((match) => ({
+      ...match,
+      metadata: {
+        ...match.metadata,
+        href: `/course/${encodeURIComponent(args.courseId!)}/problem-bank/${encodeURIComponent(match.problemId)}`,
+      },
+    }));
   const gaps: string[] = [];
   if (matches.length < requestedCount) {
     gaps.push(

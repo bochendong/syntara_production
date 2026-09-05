@@ -1,8 +1,8 @@
-import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { runPythonJson } from '@/lib/server/python-runner';
 
 import type { QuizCodeCaseResult, QuizCodeReport, QuizTestCase } from '@/lib/types/stage';
 
@@ -75,7 +75,8 @@ def main():
     payload = json.loads(sys.argv[1])
     spec = importlib.util.spec_from_file_location("quiz_submission", payload["codePath"])
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    with contextlib.redirect_stdout(io.StringIO()):
+        spec.loader.exec_module(module)
 
     results = []
     globals_dict = {"__builtins__": __builtins__}
@@ -134,62 +135,26 @@ async function runPythonJudge(payload: RunnerPayload): Promise<RunnerResult> {
   const runnerPath = path.join(os.tmpdir(), `quiz_runner_${randomUUID()}.py`);
   await writeFile(runnerPath, PYTHON_RUNNER, 'utf8');
 
-  return await new Promise<RunnerResult>((resolve, reject) => {
-    const child = spawn('python3', [runnerPath, JSON.stringify(payload)], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+  try {
+    const parsed = await runPythonJson<{ cases: Array<Record<string, unknown>> }>({
+      runnerPath,
+      payload,
+      timeoutMs: RUN_TIMEOUT_MS,
     });
-
-    let stdout = '';
-    let stderr = '';
-    let timedOut = false;
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill('SIGKILL');
-    }, RUN_TIMEOUT_MS);
-
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    child.on('error', (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (timedOut) {
-        reject(new Error('Python runner timed out'));
-        return;
-      }
-      if (code !== 0) {
-        reject(new Error(stderr || `Python runner exited with code ${code}`));
-        return;
-      }
-      try {
-        const parsed = JSON.parse(stdout) as { cases: Array<Record<string, unknown>> };
-        const cases: QuizCodeCaseResult[] = (parsed.cases || []).map((entry) => ({
-          id: String(entry.id || ''),
-          description: typeof entry.description === 'string' ? entry.description : undefined,
-          expression: String(entry.expression || ''),
-          expected: String(entry.expected || ''),
-          actual: typeof entry.actual === 'string' ? entry.actual : undefined,
-          passed: Boolean(entry.passed),
-          hidden: Boolean(entry.hidden),
-          error: typeof entry.error === 'string' ? entry.error : undefined,
-        }));
-        resolve({ cases });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }).finally(async () => {
+    const cases: QuizCodeCaseResult[] = (parsed.cases || []).map((entry) => ({
+      id: String(entry.id || ''),
+      description: typeof entry.description === 'string' ? entry.description : undefined,
+      expression: String(entry.expression || ''),
+      expected: String(entry.expected || ''),
+      actual: typeof entry.actual === 'string' ? entry.actual : undefined,
+      passed: Boolean(entry.passed),
+      hidden: Boolean(entry.hidden),
+      error: typeof entry.error === 'string' ? entry.error : undefined,
+    }));
+    return { cases };
+  } finally {
     await rm(runnerPath, { force: true }).catch(() => undefined);
-  });
+  }
 }
 
 export async function runQuizCodeSubmission(input: QuizCodeRunInput): Promise<QuizCodeReport> {
