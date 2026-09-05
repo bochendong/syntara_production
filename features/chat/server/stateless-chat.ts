@@ -1,3 +1,4 @@
+import { chatContextSelectionSchema } from '@/features/chat/domain/context-selection';
 import type { NextRequest } from 'next/server';
 import type { StatelessChatRequest, StatelessEvent } from '@/lib/types/chat';
 import { apiError } from '@/lib/server/api-response';
@@ -21,6 +22,10 @@ const HEARTBEAT_INTERVAL_MS = 15_000;
 export const CHAT_STREAM_MAX_DURATION_SECONDS = 60;
 
 function validateStatelessChatRequest(body: StatelessChatRequest) {
+  if (body.contextSelection && !chatContextSelectionSchema.safeParse(body.contextSelection).success)
+    return apiError('INVALID_REQUEST', 400, '页面上下文参数不完整或无效。');
+  if (body.memoryMode && body.memoryMode !== 'temporary' && body.memoryMode !== 'normal')
+    return apiError('INVALID_REQUEST', 400, '无效的记忆模式。');
   if (!body.messages || !Array.isArray(body.messages)) {
     return apiError('MISSING_REQUIRED_FIELD', 400, 'Missing required field: messages');
   }

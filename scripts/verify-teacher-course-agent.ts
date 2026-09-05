@@ -10,6 +10,13 @@ import type { PrismaClient } from '@/lib/server/generated-prisma';
 import { normalizeModelMessageInlineImages } from '@/lib/orchestration/model-image-content';
 import type { StatelessChatRequest, StatelessEvent } from '@/lib/types/chat';
 
+// This is a model/permission contract harness, never a live database test.
+process.env.DATABASE_URL = 'postgresql://test@127.0.0.1/teacher_agent_contract_test';
+globalThis.__synatraPrismaUrl__ = process.env.DATABASE_URL;
+globalThis.__synatraPrisma__ = {
+  account: { findFirst: async () => null },
+} as unknown as PrismaClient;
+
 const courseId = process.argv[2] || 'local-csc108-2026-summer';
 const ownerId = process.argv[3] || 'local-teacher-ada';
 const inlineImageDataUrl = `data:image/png;base64,${Buffer.from([
@@ -136,6 +143,7 @@ const access: TrustedCourseAccess = {
 };
 
 const fakeDb = {
+  studyMemory: { findMany: async () => [] },
   notebook: {
     findMany: async () => [
       {
@@ -305,10 +313,12 @@ const expectedToolNames = [
   'get_course_learning_insight',
   'list_calendar_events',
   'list_course_notebooks',
+  'read_selected_context',
+  'recall_conversation',
   'search_course_problem_bank',
   'search_course_notebooks',
   'web_search',
-];
+].sort();
 if (JSON.stringify(toolNames) !== JSON.stringify(expectedToolNames)) {
   throw new Error(`Unexpected teacher tools: ${toolNames.join(', ')}`);
 }
@@ -358,3 +368,72 @@ console.log(
     2,
   ),
 );
+
+// A page-bound submission must be available before the very first model call.
+let directCalls = 0;
+const directModel = new MockLanguageModelV3({
+  doStream: async (call) => {
+    directCalls += 1;
+    const prompt = JSON.stringify(call.prompt);
+    if (!prompt.includes('student_original_answer_42') || !prompt.includes('原始批改反馈_42')) {
+      throw new Error('Exact submission evidence was absent from the first prompt');
+    }
+    if (call.toolChoice?.type === 'required')
+      throw new Error('Prepared page context still forced a tool round');
+    return {
+      stream: simulateReadableStream({
+        chunks: [
+          { type: 'text-start' as const, id: 'direct-answer' },
+          { type: 'text-delta' as const, id: 'direct-answer', delta: '原始作答与批改反馈已核对。' },
+          { type: 'text-end' as const, id: 'direct-answer' },
+          {
+            type: 'finish' as const,
+            finishReason: { unified: 'stop' as const, raw: undefined },
+            usage,
+          },
+        ],
+      }),
+    };
+  },
+});
+await runTeacherCourseTurn({
+  body: {
+    ...trusted.body,
+    contextSelection: {
+      source: 'problem-attempt',
+      studentId: 'student-exact',
+      attemptId: 'attempt-exact',
+    },
+  },
+  signal: new AbortController().signal,
+  languageModel: directModel,
+  access,
+  db: {
+    ...fakeDb,
+    courseEnrollment: {
+      count: async () => 2,
+      findUnique: async () => ({ userId: 'student-exact', user: { isActive: true, name: '小林' } }),
+    },
+    notebookProblemAttempt: {
+      findFirst: async () => ({
+        id: 'attempt-exact',
+        problemId: 'problem-exact',
+        answerJson: { text: 'student_original_answer_42' },
+        resultJson: { feedback: '原始批改反馈_42' },
+        status: 'failed',
+        score: 0,
+        activeDurationMs: 30000,
+        createdAt: new Date(),
+        problem: {
+          title: '测试题目',
+          notebookId: 'nb-python',
+          publicContentJson: { stem: '测试题面' },
+        },
+      }),
+    },
+    notebookProblem: { findFirst: async () => ({ id: 'problem-exact' }) },
+  } as unknown as PrismaClient,
+  onEvent: async () => {},
+});
+if (directCalls !== 1) throw new Error('Page-bound answer should require one model call');
+console.log('PASS: exact attempt is present before a single direct answer call.');

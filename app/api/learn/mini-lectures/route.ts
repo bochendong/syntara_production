@@ -1,139 +1,123 @@
 import { NextRequest } from 'next/server';
+import { nativeMiniLectureRequestSchema } from '@/features/native-api/domain/mini-lecture';
 import {
-  nativeMiniLectureRequestSchema,
-  type NativeMiniLectureErrorBody,
-  type NativeMiniLectureSuccessBody,
-} from '@/features/native-api/domain/mini-lecture';
-import {
-  generateNativeMiniLecture,
-  NativeMiniLectureServiceError,
-} from '@/features/native-api/server/mini-lecture-service';
+  enqueueJob,
+  JobConflictError,
+  unpackResult,
+} from '@/features/background-jobs/server/store';
+import { findCourseConversationAccessRole } from '@/features/learn-conversations/server/course-conversation-repository';
 import { requireUserId } from '@/lib/server/api-auth';
-import { markInternalRequestHeaders } from '@/lib/server/internal-request';
-import { withRequestContext } from '@/lib/server/request-context';
+import { prisma } from '@/lib/server/prisma';
+import { safeRoute } from '@/lib/server/json-error-response';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300;
+export const maxDuration = 30;
+const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 
-function errorResponse(error: NativeMiniLectureErrorBody['error'], status: number): Response {
-  return Response.json({ ok: false, error } satisfies NativeMiniLectureErrorBody, {
-    status,
-    headers: {
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
-    },
+export async function POST(request: NextRequest): Promise<Response> {
+  return safeRoute(async () => {
+    const auth = await requireUserId();
+    if ('response' in auth) return auth.response;
+    const parsed = nativeMiniLectureRequestSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success || !parsed.data.idempotencyKey)
+      return Response.json({ error: '课堂参数不完整。' }, { status: 400 });
+    const input = parsed.data;
+    const courseId = typeof input.course === 'object' ? input.course.id : undefined;
+    if (courseId && !(await findCourseConversationAccessRole(prisma, auth.userId, courseId)))
+      return Response.json({ error: '课程不存在或没有访问权限。' }, { status: 404 });
+    try {
+      // The full confirmed question/answer and parameters are immutable in this job.
+      const job = await enqueueJob(prisma, {
+        ownerId: auth.userId,
+        courseId,
+        kind: 'mini-lecture',
+        key: `mini-lecture:${input.idempotencyKey}`,
+        payload: { input },
+      });
+      if (job.status === 'failed') {
+        await prisma.backgroundJob.updateMany({
+          where: { id: job.id, ownerId: auth.userId, status: 'failed' },
+          data: { status: 'queued', attempts: 0, availableAt: new Date(), error: null },
+        });
+        job.status = 'queued';
+      }
+      return Response.json({ ok: true, job }, { status: 202, headers });
+    } catch (error) {
+      if (error instanceof JobConflictError)
+        return Response.json({ error: error.message }, { status: 409, headers });
+      throw error;
+    }
   });
 }
 
-export async function POST(request: NextRequest): Promise<Response> {
-  const auth = await requireUserId();
-  if ('response' in auth) {
-    return auth.response ?? Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return errorResponse(
-      {
-        code: 'INVALID_REQUEST',
-        stage: 'validation',
-        message: 'Request body must be valid JSON.',
-        retryable: false,
-      },
-      400,
-    );
-  }
-
-  const parsed = nativeMiniLectureRequestSchema.safeParse(rawBody);
-  const idempotencyKey = parsed.success ? parsed.data.idempotencyKey : undefined;
-  if (!parsed.success || !idempotencyKey) {
-    return errorResponse(
-      {
-        code: 'INVALID_REQUEST',
-        stage: 'validation',
-        message: parsed.success
-          ? 'idempotencyKey is required.'
-          : 'Mini-lecture request validation failed.',
-        retryable: false,
-        details: parsed.success
-          ? undefined
-          : {
-              issues: parsed.error.issues.map((issue) => ({
-                path: issue.path.join('.'),
-                code: issue.code,
-                message: issue.message,
-              })),
-            },
-      },
-      400,
-    );
-  }
-
-  try {
-    const serviceHeaders = new Headers(request.headers);
-    serviceHeaders.set('x-user-id', auth.userId);
-    markInternalRequestHeaders(serviceHeaders);
-    const result = await withRequestContext(
-      {
-        userId: auth.userId,
-        route: '/api/learn/mini-lectures',
-        operationCode: 'learn_mini_lecture_generation',
-        chargeReason: '生成课程图片课堂讲解',
-      },
-      () =>
-        generateNativeMiniLecture({
-          context: {
-            requestUrl: request.url,
-            headers: serviceHeaders,
-          },
-          input: {
-            ...parsed.data,
-            idempotencyKey,
-          },
-        }),
-    );
-    const body: NativeMiniLectureSuccessBody = {
-      ok: true,
-      data: result.manifest,
-      meta: {
-        idempotency: {
-          key: idempotencyKey,
-          replayed: result.replayed,
-          scope: 'server-process',
-        },
-      },
-    };
-    return Response.json(body, {
-      status: result.replayed ? 200 : 201,
-      headers: {
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-        'X-Idempotent-Replay': result.replayed ? 'true' : 'false',
-      },
-    });
-  } catch (error) {
-    if (error instanceof NativeMiniLectureServiceError) {
-      return errorResponse(
+export async function GET(request: NextRequest): Promise<Response> {
+  return safeRoute(async () => {
+    const auth = await requireUserId();
+    if ('response' in auth) return auth.response;
+    const id = request.nextUrl.searchParams.get('id');
+    const keys = request.nextUrl.searchParams.get('keys');
+    if (keys) {
+      const requested = keys
+        .split(',')
+        .filter((k) => k.length <= 220)
+        .slice(0, 40)
+        .map((k) => `mini-lecture:${k}`);
+      const jobs = await prisma.backgroundJob.findMany({
+        where: { ownerId: auth.userId, kind: 'mini-lecture', dedupeKey: { in: requested } },
+        select: { id: true, status: true, dedupeKey: true },
+        take: 40,
+      });
+      return Response.json(
         {
-          code: error.code,
-          stage: error.stage,
-          message: error.message,
-          retryable: error.retryable,
-          details: error.details,
+          ok: true,
+          jobs: jobs.map((j) => ({
+            id: j.id,
+            status: j.status,
+            key: j.dedupeKey.slice('mini-lecture:'.length),
+          })),
         },
-        error.status,
+        { headers },
       );
     }
-    return errorResponse(
+    if (!id || id.length > 200) return Response.json({ error: '缺少任务编号。' }, { status: 400 });
+    const job = await prisma.backgroundJob.findFirst({
+      where: { id, ownerId: auth.userId, kind: 'mini-lecture' },
+    });
+    if (
+      !job ||
+      (job.courseId && !(await findCourseConversationAccessRole(prisma, auth.userId, job.courseId)))
+    )
+      return Response.json({ error: '找不到这个课堂任务。' }, { status: 404 });
+    const input = (
+      job.payload as {
+        input: {
+          message: string | { text: string };
+          answer: string | { text: string; title?: string };
+          course?: string | { name: string };
+        };
+      }
+    ).input;
+    const prompt = {
+      id: job.id,
+      title: typeof input.answer === 'object' ? input.answer.title || '课堂讲解' : '课堂讲解',
+      question: typeof input.message === 'string' ? input.message : input.message.text,
+      answer: typeof input.answer === 'string' ? input.answer : input.answer.text,
+      courseName: typeof input.course === 'string' ? input.course : input.course?.name || '',
+      createdAt: job.createdAt.getTime(),
+    };
+    return Response.json(
       {
-        code: 'INTERNAL_ERROR',
-        stage: 'internal',
-        message: error instanceof Error ? error.message : 'Unexpected mini-lecture error.',
-        retryable: false,
+        ok: true,
+        job: {
+          id: job.id,
+          status: job.status,
+          error: job.status === 'failed' ? '课堂生成失败，可点击重试。' : undefined,
+        },
+        ...(job.status === 'completed' && job.result
+          ? { data: unpackResult(job.result), prompt }
+          : {}),
       },
-      500,
+      { headers },
     );
-  }
+  });
 }

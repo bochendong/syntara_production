@@ -1,3 +1,4 @@
+import { readCourseAttempt } from '@/features/chat/server/turn-context';
 import { NextResponse } from 'next/server';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { prisma } from '@/lib/server/prisma';
@@ -22,35 +23,7 @@ export async function GET(
       select: { id: true },
     });
     if (!enrollment) return NextResponse.json({ error: 'Student not found' }, { status: 404 });
-    const attempt = await prisma.notebookProblemAttempt.findFirst({
-      where: {
-        id: attemptId,
-        userId: studentId,
-        problem: { OR: [{ courseId }, { notebook: { courseId } }] },
-      },
-      select: {
-        id: true,
-        kind: true,
-        status: true,
-        score: true,
-        answerJson: true,
-        resultJson: true,
-        activeDurationMs: true,
-        timingSource: true,
-        createdAt: true,
-        problem: {
-          select: {
-            id: true,
-            title: true,
-            type: true,
-            difficulty: true,
-            points: true,
-            publicContentJson: true,
-            chapter: { select: { name: true } },
-          },
-        },
-      },
-    });
+    const attempt = await readCourseAttempt(prisma, { courseId, studentId, attemptId });
     if (!attempt) return NextResponse.json({ error: 'Attempt not found' }, { status: 404 });
     return NextResponse.json({
       attempt: {

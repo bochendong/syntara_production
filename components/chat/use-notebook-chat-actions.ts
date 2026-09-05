@@ -7,7 +7,6 @@ import { storeChatAttachmentBlob } from '@/lib/utils/chat-attachment-blobs';
 import { loadContactMessages, saveContactMessages } from '@/lib/utils/contact-chat-storage';
 import { createAgentTask, updateAgentTask } from '@/lib/utils/agent-task-storage';
 import { getCurrentModelConfig } from '@/lib/utils/model-config';
-import { queueChatTurnWorkingMemoryUpdate } from '@/lib/learning/working-memory-tasks';
 import {
   commitNotebookProblemImport,
   previewNotebookProblemImport,
@@ -34,7 +33,6 @@ export function useNotebookChatActions({
   pendingAttachments,
   sending,
   nbThread,
-  notebookName,
   reloadNotebookScenes,
   setNbThread,
   setDraft,
@@ -557,13 +555,6 @@ export function useNotebookChatActions({
             detail: '已完成',
           });
         }
-        queueChatTurnWorkingMemoryUpdate({
-          notebookId,
-          notebookName,
-          sourceMessageId: clientMessageId,
-          studentMessage: text,
-          plan,
-        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         const errorMessage: NotebookChatMessage = {
@@ -595,7 +586,6 @@ export function useNotebookChatActions({
       draft,
       nbThread,
       notebookId,
-      notebookName,
       pendingAttachments,
       reloadNotebookScenes,
       sending,

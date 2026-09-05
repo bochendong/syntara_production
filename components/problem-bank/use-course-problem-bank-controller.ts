@@ -30,7 +30,6 @@ import {
   type CourseProblemChapter,
 } from '@/lib/utils/notebook-problem-api';
 import { getCourse } from '@/lib/utils/course-storage';
-import { queueProblemAttemptWorkingMemoryUpdate } from '@/lib/learning/working-memory-tasks';
 import type { CourseRecord } from '@/lib/utils/database';
 import { useAnswerComposerController } from '@/components/problem-bank/answer-composer';
 import { problemRecordToDraft } from '@/lib/problem-bank/editor';
@@ -1413,14 +1412,6 @@ export function useCourseProblemBankController({
         score,
         feedback,
       });
-      if (selectedProblem.notebookId) {
-        queueProblemAttemptWorkingMemoryUpdate({
-          notebookId: selectedProblem.notebookId,
-          notebookName: selectedProblem.notebookName,
-          problem: selectedProblem,
-          attempt,
-        });
-      }
       return true;
     } catch (error) {
       setAnswerFeedbackByProblemId((prev) => ({

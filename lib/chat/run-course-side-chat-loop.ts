@@ -40,6 +40,8 @@ export interface RunCourseSideChatParams {
   teachingMode?: CourseChatTeachingMode;
   responseStrength?: ChatResponseStrength;
   courseContext?: CourseChatContext;
+  contextSelection?: StatelessChatRequest['contextSelection'];
+  memoryMode?: StatelessChatRequest['memoryMode'];
   trustedLearnAnswererHandoffToken?: string;
   apiKey: string;
   baseUrl?: string;
@@ -650,6 +652,8 @@ async function runCourseSideChatLoopUnqueued(
           storeState,
           config,
           courseContext,
+          contextSelection: params.contextSelection,
+          memoryMode: params.memoryMode,
           trustedLearnAnswererHandoffToken,
           userProfile,
           directorState,

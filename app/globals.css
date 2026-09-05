@@ -3753,6 +3753,14 @@
   filter: saturate(1.18) contrast(1.04) drop-shadow(0 1px 2px rgba(15, 23, 42, 0.32));
 }
 
+.learn-memory-orb-button[data-memory-state='failed'] .learn-memory-orb-core {
+  box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.5);
+}
+
+.learn-memory-orb-button[data-memory-state='unavailable'] .learn-memory-orb-core {
+  filter: saturate(0.35);
+}
+
 .learn-memory-orb-ribbon,
 .learn-memory-orb-star {
   position: absolute;

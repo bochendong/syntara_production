@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, Clock3, ImageIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -177,6 +178,7 @@ export function ProblemAttemptReviewDialog(props: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   attempt: TeacherStudentAttemptDetail | null;
+  onAskAI?: () => void;
 }) {
   const attempt = props.attempt;
   const parsed = attempt
@@ -190,6 +192,11 @@ export function ProblemAttemptReviewDialog(props: {
         <DialogHeader className="border-b border-slate-200 px-5 py-4 pr-14 dark:border-white/10">
           <div className="flex flex-wrap items-center gap-2">
             <DialogTitle className="mr-auto">{attempt?.problem.title || '提交详情'}</DialogTitle>
+            {props.onAskAI ? (
+              <Button size="sm" variant="outline" onClick={props.onAskAI}>
+                询问 AI 这次作答
+              </Button>
+            ) : null}
             {attempt ? (
               <Badge variant="outline" className={STATUS_STYLES[attempt.status]}>
                 {STATUS_LABELS[attempt.status] || attempt.status}

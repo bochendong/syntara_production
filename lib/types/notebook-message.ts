@@ -46,7 +46,7 @@ export type NotebookMessagePlan = {
     update: NotebookUpdateOperation[];
     delete: NotebookDeleteOperation[];
   };
-  /** Evidence-gated learner-state diagnosis produced with the reply. */
+  /** Legacy metadata; new replies leave diagnosis to the background worker. */
   memoryDiagnosis?: QuestionMemoryDiagnosis;
 };
 
@@ -133,6 +133,8 @@ export type SendNotebookMessageRequest = {
 };
 
 export type SendNotebookMessageResponse = NotebookMessagePlan & {
+  memoryJob?: { id: string; status: string };
+  memoryIntake?: 'queued' | 'skipped' | 'unavailable';
   webSearchUsed?: boolean;
   prerequisiteHints?: string[];
   promptLogId?: string;

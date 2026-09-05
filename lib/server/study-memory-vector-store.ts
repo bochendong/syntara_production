@@ -223,8 +223,17 @@ export async function indexStudyMemoryRecord(
     embeddingDimensions: EMBEDDING_DIMENSIONS,
     embedding: vectorLiteral(embeddings[chunk.chunkIndex] || []),
   }));
-  await prisma.$transaction([
-    prisma.$executeRawUnsafe(
+  const indexed = await prisma.$transaction(async (tx) => {
+    // Embeddings were prepared outside the transaction. Lock and recheck the
+    // source before publishing so late indexing never restores deleted/stale text.
+    const source = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "StudyMemory" WHERE "id" = ${memory.id}
+        AND "ownerId" = ${memory.ownerId} AND "status" = 'active'
+        AND "text" = ${memory.text} AND "title" = ${memory.title}
+        AND "scope" = ${memory.scope} AND "targetType" = ${memory.targetType}
+      FOR UPDATE`;
+    if (!source.length) return false;
+    await tx.$executeRawUnsafe(
       `
         DELETE FROM "StudyMemoryChunk"
         WHERE "memoryId" = $1 AND "embeddingModel" = $2 AND "embeddingDimensions" = $3
@@ -232,8 +241,8 @@ export async function indexStudyMemoryRecord(
       memory.id,
       EMBEDDING_MODEL,
       EMBEDDING_DIMENSIONS,
-    ),
-    prisma.$executeRawUnsafe(
+    );
+    await tx.$executeRawUnsafe(
       `
         INSERT INTO "StudyMemoryChunk" (
           "id", "memoryId", "ownerId", "courseId", "notebookId",
@@ -273,10 +282,15 @@ export async function indexStudyMemoryRecord(
         )
       `,
       JSON.stringify(insertRows),
-    ),
-  ]);
+    );
+    return true;
+  });
 
-  return { indexed: true, chunks: chunks.length };
+  return {
+    indexed,
+    chunks: indexed ? chunks.length : 0,
+    reason: indexed ? undefined : 'source_changed',
+  };
 }
 
 export async function indexStudyMemoryRecords(

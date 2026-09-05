@@ -52,7 +52,9 @@ for (const source of [createMemory, updateMemory, deleteMemory, indexMemory]) {
 }
 
 assert.match(indexMemory, /jsonb_to_recordset\(\$1::jsonb\)/);
-assert.match(indexMemory, /await prisma\.\$transaction\(\[/);
+assert.match(indexMemory, /await prisma\.\$transaction\(async \(tx\) =>/);
+assert.match(indexMemory, /FOR UPDATE/);
+assert.match(indexMemory, /if \(!source\.length\) return false/);
 assert.doesNotMatch(
   indexMemory,
   /for\s*\([^)]*chunk[^)]*\)\s*\{[\s\S]*?INSERT INTO "StudyMemoryChunk"/,

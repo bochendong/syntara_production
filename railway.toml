@@ -11,5 +11,5 @@ buildCommand = "pnpm install && pnpm run build"
 # this command inside the service network with the configured DATABASE_URL.
 preDeployCommand = "npx prisma migrate deploy"
 # Use Node directly: Nixpacks runtime image may not have `pnpm` on PATH (catatonit: failed to exec pid1).
-startCommand = "node node_modules/next/dist/bin/next start"
+startCommand = "node scripts/workers/start-with-worker.mjs"
 restartPolicyType = "ON_FAILURE"

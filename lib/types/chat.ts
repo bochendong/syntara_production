@@ -908,6 +908,9 @@ export interface StatelessChatRequest {
   directorState?: DirectorState;
   /** Course-level context for the standalone /chat learning surface. */
   courseContext?: CourseChatContext;
+  contextSelection?: import('@/features/chat/domain/context-selection').ChatContextSelection;
+  /** Temporary page conversations never create cross-conversation memory. */
+  memoryMode?: 'normal' | 'temporary';
   /**
    * Opaque learn-core handoff signed by /api/learn/turn. The chat server must
    * verify it against the authenticated user, course, question, and expiry.

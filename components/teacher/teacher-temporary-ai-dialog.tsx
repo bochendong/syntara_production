@@ -15,6 +15,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { askCourseOrchestrator } from '@/lib/chat/ask-course-orchestrator';
 import type { ChatMessageMetadata } from '@/lib/types/chat';
+import type { ChatContextSelection } from '@/features/chat/domain/context-selection';
 import { cn } from '@/lib/utils';
 
 type TemporaryMessage = {
@@ -37,7 +38,7 @@ export function TeacherTemporaryAiDialog(props: {
   title?: string;
   introTitle?: string;
   introDescription?: string;
-  contextPrompt?: string;
+  contextSelection?: ChatContextSelection;
   quickQuestions?: string[];
 }) {
   const [question, setQuestion] = useState('');
@@ -57,6 +58,8 @@ export function TeacherTemporaryAiDialog(props: {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages, submitting]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   function resetConversation() {
     abortRef.current?.abort();
@@ -94,22 +97,34 @@ export function TeacherTemporaryAiDialog(props: {
       const result = await askCourseOrchestrator({
         courseId: props.courseId,
         courseName: props.courseName,
-        question: props.contextPrompt
-          ? `${props.contextPrompt.trim()}\n\n老师的临时问题：${nextQuestion}`
-          : nextQuestion,
+        question: nextQuestion,
         conversation,
+        contextSelection: props.contextSelection || { source: 'teacher-class' },
+        memoryMode: 'temporary',
         surface: 'teacher-course-chat',
         signal: controller.signal,
-      });
-      setConversation(result.messages);
-      setMessages((current) => [
-        ...current,
-        {
-          id: `temporary-assistant-${Date.now()}`,
-          role: 'assistant',
-          text: result.answer.trim() || '这次没有生成有效回答，请换一种问法再试一次。',
+        onMessages: (next) => {
+          if (controller.signal.aborted) return;
+          setMessages(
+            next
+              .filter(
+                (item) =>
+                  !item.metadata?.progressOnly &&
+                  (item.role === 'user' || item.role === 'assistant'),
+              )
+              .map((item) => ({
+                id: item.id,
+                role: item.role as 'user' | 'assistant',
+                text: item.parts
+                  .filter((part) => part.type === 'text')
+                  .map((part) => part.text)
+                  .join(''),
+              })),
+          );
         },
-      ]);
+      });
+      if (controller.signal.aborted) return;
+      setConversation(result.messages);
     } catch (cause) {
       if (controller.signal.aborted) return;
       setError(cause instanceof Error ? cause.message : '临时提问失败，请稍后重试。');

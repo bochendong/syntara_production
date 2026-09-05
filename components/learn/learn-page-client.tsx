@@ -1,6 +1,10 @@
 'use client';
 
 import {
+  waitForMiniLectureJob,
+  type MiniLectureJob,
+} from '@/features/learn-core/client-mini-lecture-jobs';
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -127,6 +131,12 @@ import {
   type MemoryActivityRecord,
 } from '@/lib/store/memory-activity';
 import { useTaskHistoryStore, type TaskHistoryRecord } from '@/lib/store/task-history';
+import { useMemoryJobActivities } from '@/features/background-jobs/client/use-memory-job-activities';
+import {
+  MEMORY_JOB_ACTIVITY_PREFIX,
+  memoryJobStatusLabel,
+  type MemoryJobActivity,
+} from '@/features/background-jobs/domain/memory-activity';
 import {
   askCourseOrchestrator,
   type CourseChatImageAttachment,
@@ -156,13 +166,13 @@ import {
   generatedManifestToMiniLectureDeck,
   MINI_LECTURE_CANVAS_HEIGHT,
   MINI_LECTURE_CANVAS_WIDTH,
-  type GeneratedMiniLectureManifest,
   type MiniLectureDeck,
   type MiniLecturePrompt,
   type MiniLectureRegion,
 } from '@/features/learn-core/client-mini-lecture';
 import {
   compactMiniLectureDeckForPersistence,
+  miniLectureDeckAssetsAreHydrated,
   readMiniLectureDeckLocally,
   saveMiniLectureDeckLocally,
 } from '@/lib/utils/mini-lecture-storage';
@@ -4215,12 +4225,13 @@ export function MiniLectureInviteCard({
   onOpen: (deck: MiniLectureDeck) => void;
 }) {
   if (!prompt && !deck) return null;
+  const ready = Boolean(deck && miniLectureDeckAssetsAreHydrated(deck));
   return (
     <div className={cn(learnAssistantActionCardWidthClassName, 'mt-3.5')}>
       <div
         className={cn(
           'relative grid grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-x-2.5 overflow-hidden rounded-[17px] border p-3 shadow-[0_14px_34px_rgba(14,116,144,0.10)]',
-          deck
+          ready
             ? 'border-sky-400/25 bg-[radial-gradient(circle_at_12%_0%,rgba(125,211,252,0.24),transparent_38%),linear-gradient(135deg,#fbfdff_0%,#effaff_54%,#effcf9_100%)]'
             : 'border-dashed border-violet-600/25 bg-[radial-gradient(circle_at_9%_16%,rgba(167,139,250,0.16),transparent_32%),linear-gradient(135deg,#faf5ff_0%,#fff_56%,#f0f9ff_100%)]',
         )}
@@ -4240,25 +4251,25 @@ export function MiniLectureInviteCard({
             <strong className="min-w-0 truncate text-xs font-bold tracking-[-0.01em] text-[#172033]">
               {generating
                 ? '正在生成课堂讲解'
-                : deck
-                  ? deck.title || '课堂讲解已生成'
+                : ready
+                  ? deck?.title || '课堂讲解已生成'
                   : '把这段回答变成课堂讲解'}
             </strong>
             <span className="shrink-0 rounded-full border border-sky-400/20 bg-white/75 px-[7px] py-[3px] text-[8px] font-bold text-[#0878a4]">
-              {generating ? '处理中' : deck ? '已就绪' : '1–2 页'}
+              {generating ? '处理中' : ready ? '已就绪' : '1–2 页'}
             </span>
           </span>
           <small className="text-[9px] leading-[1.45] text-[#607086]">
-            {deck
+            {ready
               ? '图片、语音与动态聚焦均已准备好'
-              : '生成图片式课件，恢复遮罩区域并配课堂语音。预计生成时间是两分钟。'}
+              : '生成 1–2 页图文讲解，配合语音讲授。完成后可随时查看。'}
           </small>
         </span>
         <Button
           type="button"
           size="sm"
           className="z-[1] h-[30px] w-max shrink-0 justify-self-end gap-1.5 rounded-full bg-[#172033] px-3 text-[10px] font-semibold text-white shadow-[0_7px_16px_rgba(15,23,42,0.14)] hover:bg-[#273750]"
-          onClick={deck ? () => onOpen(deck) : onGenerate}
+          onClick={ready && deck ? () => onOpen(deck) : onGenerate}
           disabled={disabled || generating}
         >
           {generating ? (
@@ -4266,7 +4277,7 @@ export function MiniLectureInviteCard({
           ) : (
             <Play className="size-[13px]" fill="currentColor" />
           )}
-          {generating ? '生成中…' : deck ? '查看讲解' : '生成课堂讲解'}
+          {generating ? '生成中…' : ready ? '查看讲解' : '生成课堂讲解'}
         </Button>
         <span
           className="pointer-events-none absolute -right-[30px] -top-11 size-[84px] rotate-[20deg] rounded-3xl border border-white/70"
@@ -4988,6 +4999,7 @@ const CONFIRMABLE_COURSE_CHAT_ACTIONS = new Set<LearningAction['kind']>([
   'calendar.propose_add',
   'calendar.propose_update',
   'calendar.propose_delete',
+  'classroom.propose_temporary_explanation',
 ]);
 
 function reviewModeChoiceOptions(action: LearningAction) {
@@ -6200,8 +6212,8 @@ export function LearnPageClient() {
   const pdfProviderId = useSettingsStore((state) => state.pdfProviderId);
   const pdfProvidersConfig = useSettingsStore((state) => state.pdfProvidersConfig);
   const fetchServerProviders = useSettingsStore((state) => state.fetchServerProviders);
-  const memoryActivities = useMemoryActivityStore((state) => state.activities);
-  const memoryHistoryRecords = useTaskHistoryStore((state) => state.records);
+  const localMemoryActivities = useMemoryActivityStore((state) => state.activities);
+  const localMemoryHistoryRecords = useTaskHistoryStore((state) => state.records);
 
   const [courses, setCourses] = useState<CourseRecord[]>(() =>
     urlCourseId
@@ -6608,6 +6620,20 @@ export function LearnPageClient() {
     searchParams.get('asStudent') === '1' || (uiPreviewMode && !teacherChatMode);
   const isTeacherCourseChat = !studentPreviewMode && (canManageCourseContent || teacherChatMode);
   const isStudentCourseChat = !isTeacherCourseChat;
+  const backgroundMemory = useMemoryJobActivities({
+    ownerId: authHydrated && isLoggedIn ? userId : null,
+    courseId: activeCourseId,
+    enabled: isStudentCourseChat && !uiPreviewMode,
+    dialogOpen: memoryActivityDialogOpen,
+  });
+  const memoryActivities = useMemo(
+    () => [...localMemoryActivities, ...backgroundMemory.activities],
+    [localMemoryActivities, backgroundMemory.activities],
+  );
+  const memoryHistoryRecords = useMemo(
+    () => [...localMemoryHistoryRecords, ...backgroundMemory.history],
+    [localMemoryHistoryRecords, backgroundMemory.history],
+  );
   // 学生在课程聊天内继续使用课程工具侧栏；教师聊天保持精简的双栏布局。
   const showRightRail = isStudentCourseChat;
   const draftSessionId = useMemo(
@@ -7135,6 +7161,17 @@ export function LearnPageClient() {
     setMiniLectureOpen(true);
   }, []);
 
+  const miniLectureWaitsRef = useRef(new Map<string, AbortController>());
+  const [recoveringMiniLectureIds, setRecoveringMiniLectureIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  useEffect(
+    () => () => {
+      for (const controller of miniLectureWaitsRef.current.values()) controller.abort();
+    },
+    [],
+  );
+
   const generateMiniLectureForMessage = useCallback(
     async (messageId: string) => {
       const messageStoreKey = activeMessageStoreKeyRef.current;
@@ -7144,9 +7181,9 @@ export function LearnPageClient() {
       }
       const message = messages.find((item) => item.id === messageId);
       if (!message) return;
-      if (message.lectureDeck) {
+      if (message.lectureDeck && miniLectureDeckAssetsAreHydrated(message.lectureDeck)) {
         openMiniLectureDeck(message.lectureDeck);
-        return;
+        return message.lectureDeck;
       }
       const messageIndex = messages.findIndex((item) => item.id === messageId);
       const prompt = miniLecturePromptForMessage({
@@ -7155,43 +7192,61 @@ export function LearnPageClient() {
         course: activeCourse,
       });
       if (!prompt) return;
+      const sourceMessage = messages
+        .slice(0, messageIndex)
+        .reverse()
+        .find((item) => item.role === 'user');
+      if (miniLectureWaitsRef.current.has(messageId)) return;
+      const controller = new AbortController();
+      miniLectureWaitsRef.current.set(messageId, controller);
       setGeneratingMiniLectureMessageId(messageId);
       try {
-        const response = await backendJson<{
-          ok: true;
-          data: GeneratedMiniLectureManifest;
-        }>('/api/learn/mini-lectures', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(providerId === 'openai' && modelId ? { 'x-model': `openai:${modelId}` } : {}),
-          },
-          body: JSON.stringify({
-            course: activeCourse
-              ? {
-                  id: activeCourse.id,
-                  name: activeCourse.name,
-                  courseCode: activeCourse.courseCode || undefined,
-                  purpose: activeCourse.purpose,
-                }
-              : prompt.courseName,
-            message: {
-              id: messageId,
-              text: prompt.question,
-            },
-            answer: {
-              id: messageId,
-              title: prompt.title,
-              text: prompt.answer,
-            },
-            pageCount: prompt.answer.length > 520 ? 2 : 1,
-            language: activeCourse?.language === 'en-US' ? 'en-US' : 'zh-CN',
-            ttsVoice: 'marin',
-            idempotencyKey: `learn-${messageId}`,
-          }),
-          timeoutMs: 300_000,
-        });
-        const deck = generatedManifestToMiniLectureDeck(response.data, prompt);
+        const restoredJobs = message.lectureDeck
+          ? await backendJson<{ jobs: MiniLectureJob[] }>(
+              `/api/learn/mini-lectures?keys=${encodeURIComponent(`learn-${messageId}`)}`,
+              { signal: controller.signal },
+            )
+          : null;
+        const restored = restoredJobs?.jobs.find((job) => job.status !== 'failed');
+        const response = restored
+          ? { job: restored }
+          : await backendJson<{
+              ok: true;
+              job: MiniLectureJob;
+            }>('/api/learn/mini-lectures', {
+              method: 'POST',
+              signal: controller.signal,
+              headers: {
+                'Content-Type': 'application/json',
+                ...(providerId === 'openai' && modelId ? { 'x-model': `openai:${modelId}` } : {}),
+              },
+              body: JSON.stringify({
+                course: activeCourse
+                  ? {
+                      id: activeCourse.id,
+                      name: activeCourse.name,
+                      courseCode: activeCourse.courseCode || undefined,
+                      purpose: activeCourse.purpose,
+                    }
+                  : prompt.courseName,
+                message: {
+                  id: sourceMessage?.id || messageId,
+                  text: prompt.question,
+                },
+                answer: {
+                  id: messageId,
+                  title: prompt.title,
+                  text: prompt.answer,
+                },
+                pageCount: prompt.answer.length > 520 ? 2 : 1,
+                language: activeCourse?.language === 'en-US' ? 'en-US' : 'zh-CN',
+                ttsVoice: 'marin',
+                idempotencyKey: `learn-${messageId}`,
+              }),
+              timeoutMs: 30_000,
+            });
+        const completed = await waitForMiniLectureJob(response.job.id, controller.signal);
+        const deck = generatedManifestToMiniLectureDeck(completed.manifest, completed.prompt);
         await saveMiniLectureDeckLocally({
           context: {
             ownerId: localUserId,
@@ -7201,6 +7256,7 @@ export function LearnPageClient() {
           },
           deck,
         });
+        if (activeMessageStoreKeyRef.current !== messageStoreKey) return deck;
         setMessages((current) =>
           current.map((item) =>
             item.id === messageId
@@ -7213,9 +7269,12 @@ export function LearnPageClient() {
         );
         setActiveMiniLectureDeck(deck);
         setMiniLectureOpen(true);
+        return deck;
       } catch (error) {
+        if (controller.signal.aborted) return;
         toast.error(error instanceof Error ? error.message : '图片课堂讲解生成失败，请重试。');
       } finally {
+        miniLectureWaitsRef.current.delete(messageId);
         setGeneratingMiniLectureMessageId((current) => (current === messageId ? null : current));
       }
     },
@@ -7231,6 +7290,150 @@ export function LearnPageClient() {
       setMessages,
     ],
   );
+
+  const miniLectureRecoveryKeys = messages
+    .filter(
+      (message) =>
+        message.role === 'assistant' && !miniLectureDeckAssetsAreHydrated(message.lectureDeck),
+    )
+    .slice(-40)
+    .map((message) => `learn-${message.id}`)
+    .join(',');
+  useEffect(() => {
+    if (
+      !miniLectureRecoveryKeys ||
+      !activeCourseId ||
+      localConversationReadyKey !== activeMessageStoreKey
+    )
+      return;
+    const controller = new AbortController();
+    const storeKey = activeMessageStoreKey;
+    void (async () => {
+      const result = await backendJson<{ jobs: Array<MiniLectureJob & { key: string }> }>(
+        `/api/learn/mini-lectures?keys=${encodeURIComponent(miniLectureRecoveryKeys)}`,
+        { signal: controller.signal },
+      );
+      const failedIds = new Set(
+        result.jobs
+          .filter((job) => job.status === 'failed')
+          .map((job) => job.key.slice('learn-'.length)),
+      );
+      if (!controller.signal.aborted && activeMessageStoreKeyRef.current === storeKey) {
+        setRecoveringMiniLectureIds(
+          new Set(
+            result.jobs
+              .filter((job) => job.status !== 'failed')
+              .map((job) => job.key.slice('learn-'.length)),
+          ),
+        );
+        if (failedIds.size)
+          setMessages((current) =>
+            current.map((message) =>
+              failedIds.has(message.id)
+                ? {
+                    ...message,
+                    learningActions: message.learningActions?.map((action) =>
+                      action.kind === 'classroom.propose_temporary_explanation' &&
+                      action.status === 'confirmed'
+                        ? { ...action, status: 'failed' as const }
+                        : action,
+                    ),
+                  }
+                : message,
+            ),
+          );
+      }
+      await Promise.allSettled(
+        result.jobs
+          .filter((job) => job.status !== 'failed')
+          .map(async (job) => {
+            const messageId = job.key.slice('learn-'.length);
+            try {
+              const completed = await waitForMiniLectureJob(job.id, controller.signal);
+              const deck = generatedManifestToMiniLectureDeck(completed.manifest, completed.prompt);
+              await saveMiniLectureDeckLocally({
+                context: {
+                  ownerId: localUserId,
+                  courseId: activeCourseId,
+                  sessionId: activeSessionId,
+                  messageId,
+                },
+                deck,
+              });
+              if (controller.signal.aborted || activeMessageStoreKeyRef.current !== storeKey)
+                return;
+              setRecoveringMiniLectureIds((current) => {
+                const next = new Set(current);
+                next.delete(messageId);
+                return next;
+              });
+              setMessages((current) =>
+                current.map((message) =>
+                  message.id === messageId
+                    ? {
+                        ...message,
+                        lecturePrompt: completed.prompt,
+                        lectureDeck: deck,
+                        learningActions: message.learningActions?.map((action) =>
+                          action.kind === 'classroom.propose_temporary_explanation' &&
+                          action.status === 'confirmed'
+                            ? { ...action, status: 'completed' as const }
+                            : action,
+                        ),
+                      }
+                    : message,
+                ),
+              );
+            } catch (error) {
+              if (
+                !controller.signal.aborted &&
+                activeMessageStoreKeyRef.current === storeKey &&
+                error instanceof Error &&
+                error.name === 'MiniLectureJobFailed'
+              ) {
+                setMessages((current) =>
+                  current.map((message) =>
+                    message.id === messageId
+                      ? {
+                          ...message,
+                          learningActions: message.learningActions?.map((action) =>
+                            action.kind === 'classroom.propose_temporary_explanation' &&
+                            action.status === 'confirmed'
+                              ? { ...action, status: 'failed' as const }
+                              : action,
+                          ),
+                        }
+                      : message,
+                  ),
+                );
+              }
+            } finally {
+              if (!controller.signal.aborted && activeMessageStoreKeyRef.current === storeKey)
+                setRecoveringMiniLectureIds((current) => {
+                  const next = new Set(current);
+                  next.delete(messageId);
+                  return next;
+                });
+            }
+          }),
+      );
+    })().catch((error) => {
+      if (!controller.signal.aborted)
+        console.warn(
+          '[mini-lecture] recovery unavailable',
+          error instanceof Error ? error.message : error,
+        );
+    });
+    return () => controller.abort();
+  }, [
+    miniLectureRecoveryKeys,
+    activeCourseId,
+    activeSessionId,
+    activeMessageStoreKey,
+    localConversationReadyKey,
+    localUserId,
+    setMessages,
+  ]);
 
   const updateSourceUploadItem = useCallback(
     (itemId: string, patch: Partial<Omit<LearnSourceUploadItem, 'id' | 'createdAt'>>) => {
@@ -7531,13 +7734,30 @@ export function LearnPageClient() {
       ),
     [activeCourseId, memoryActivities],
   );
-  const platformMemoryState = activeMemoryActivities.length
-    ? 'writing'
-    : completedMemoryActivities.length
-      ? 'completed'
-      : 'idle';
-  const platformMemoryBadgeCount =
-    activeMemoryActivities.length || completedMemoryActivities.length;
+  const failedMemoryActivities = useMemo(
+    () =>
+      memoryActivities.filter(
+        (activity) =>
+          (!activity.courseId || activity.courseId === activeCourseId) &&
+          shouldCountPlatformMemoryActivity(activity) &&
+          activity.status === 'failed',
+      ),
+    [activeCourseId, memoryActivities],
+  );
+  const platformMemoryState = backgroundMemory.unavailable
+    ? 'unavailable'
+    : activeMemoryActivities.length
+      ? 'writing'
+      : failedMemoryActivities.length
+        ? 'failed'
+        : completedMemoryActivities.length
+          ? 'completed'
+          : 'idle';
+  const platformMemoryBadgeCount = backgroundMemory.unavailable
+    ? 1
+    : activeMemoryActivities.length ||
+      failedMemoryActivities.length ||
+      completedMemoryActivities.length;
   const platformMemoryHistory = useMemo(
     () =>
       memoryHistoryRecords
@@ -7547,21 +7767,35 @@ export function LearnPageClient() {
             shouldShowPlatformMemoryRecord(record) &&
             (platformMemoryStatusMockMode !== 'off' || !isPlatformMemoryStatusMockRecord(record)),
         )
+        .sort((a, b) => {
+          const active = (record: TaskHistoryRecord) =>
+            record.status === 'running' || record.status === 'queued';
+          return Number(active(b)) - Number(active(a)) || b.updatedAt - a.updatedAt;
+        })
         .slice(0, 15),
     [activeCourseId, memoryHistoryRecords, platformMemoryStatusMockMode],
   );
   const platformMemoryButtonLabel =
-    platformMemoryState === 'writing'
-      ? `平台记忆正在更新，${platformMemoryBadgeCount} 条`
-      : platformMemoryState === 'completed'
-        ? `平台记忆刚更新了 ${platformMemoryBadgeCount} 条`
-        : '平台记忆动态';
+    platformMemoryState === 'unavailable'
+      ? '记忆动态暂时无法同步'
+      : platformMemoryState === 'writing'
+        ? `平台记忆正在整理，${platformMemoryBadgeCount} 项`
+        : platformMemoryState === 'failed'
+          ? `${platformMemoryBadgeCount} 项记忆整理未完成`
+          : platformMemoryState === 'completed'
+            ? `平台记忆刚完成了 ${platformMemoryBadgeCount} 项更新`
+            : '平台记忆动态';
   const platformMemoryTooltip =
-    platformMemoryState === 'writing'
-      ? '平台正在理解新的学习信息'
-      : platformMemoryState === 'completed'
-        ? '平台记忆刚刚有更新'
-        : '查看平台记忆写入历史';
+    platformMemoryState === 'unavailable'
+      ? '记忆动态暂时无法同步，稍后自动重连'
+      : platformMemoryState === 'writing'
+        ? activeMemoryActivities.find((a) => a.id.startsWith(MEMORY_JOB_ACTIVITY_PREFIX))?.title ||
+          '平台正在理解新的学习信息'
+        : platformMemoryState === 'failed'
+          ? '记忆整理未完成，点击查看详情'
+          : platformMemoryState === 'completed'
+            ? '平台记忆刚刚有更新'
+            : '查看平台记忆写入历史';
   const validSyllabusDraftEvents = useMemo(
     () =>
       syllabusDraftEvents
@@ -12001,31 +12235,19 @@ export function LearnPageClient() {
         }
 
         if (action.kind === 'classroom.propose_temporary_explanation') {
-          const topic = payloadString(action.payload?.topic) || action.label || '临时课堂讲解';
-          const answer = actionSummary(action);
-          const lecturePrompt = buildMiniLecturePrompt({
-            question: topic,
-            answer,
-            course: activeCourse,
-          });
-          setMessages((current) => [
-            ...current,
-            {
-              id: makeClientId('assistant-lecture-action'),
-              role: 'assistant',
-              text: lecturePrompt ? '已准备好临时课堂讲解。' : answer,
-              createdAt: Date.now(),
-              lecturePrompt,
-            },
-          ]);
+          const origin = messages.find((message) =>
+            message.learningActions?.some((item) => item.id === action.id),
+          );
+          if (!origin) throw new Error('找不到这张确认卡对应的原回答，请重新发起。');
+          const deck = await generateMiniLectureForMessage(origin.id);
+          if (!actionStillBelongsToVisibleSession()) return;
           markLearningActionStatus(
             action.id,
-            'completed',
+            deck ? 'completed' : 'failed',
             actionResult(action, {
-              status: 'completed',
-              summary: lecturePrompt ? `已准备临时课堂讲解：${topic}` : '已返回临时讲解文本。',
-              input: { payload: action.payload || {} },
-              output: { hasLecturePrompt: Boolean(lecturePrompt), topic },
+              status: deck ? 'completed' : 'failed',
+              summary: deck ? '课堂讲解已生成，可以开始学习。' : '课堂讲解未完成，请重试。',
+              output: deck ? { lectureId: deck.id, messageId: origin.id } : {},
             }),
           );
           return;
@@ -12176,6 +12398,8 @@ export function LearnPageClient() {
       }
     },
     [
+      generateMiniLectureForMessage,
+      messages,
       activeCourse,
       activeCourseId,
       activeSessionId,
@@ -15281,13 +15505,19 @@ export function LearnPageClient() {
           </p>
           <div className="mt-6 grid gap-2 text-sm">
             <div className="learn-memory-metric-row" data-tone="writing">
-              <span className="font-semibold">写入中</span>
+              <span className="font-semibold">处理中</span>
               <span className="tabular-nums">{activeMemoryActivities.length}</span>
             </div>
             <div className="learn-memory-metric-row" data-tone="completed">
               <span className="font-semibold">刚完成</span>
               <span className="tabular-nums">{completedMemoryActivities.length}</span>
             </div>
+            {failedMemoryActivities.length > 0 ? (
+              <div className="learn-memory-metric-row text-rose-700">
+                <span className="font-semibold">未完成</span>
+                <span className="tabular-nums">{failedMemoryActivities.length}</span>
+              </div>
+            ) : null}
           </div>
 
           <div className="learn-memory-sphere-stage mt-auto" aria-hidden="true">
@@ -15307,19 +15537,27 @@ export function LearnPageClient() {
             <div className="min-w-0">
               <p className="text-xs font-semibold text-slate-500 lg:hidden">平台记忆</p>
               <h2 className="truncate text-2xl font-semibold tracking-normal text-slate-950 sm:text-3xl">
-                最近写入
+                最近动态
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                只有与你本人相关的记忆写入后，平台才会在这里通知你。
+                查看记忆整理的进度与结果，完成后会在这里告诉你。
               </p>
             </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-7 pt-5">
+            {backgroundMemory.unavailable ? (
+              <p role="status" className="mb-4 text-sm text-amber-700">
+                记忆动态暂时无法同步，以下为上次读取的状态。稍后会自动重连。
+              </p>
+            ) : null}
             {platformMemoryHistory.length ? (
               <div className="learn-memory-list-surface">
                 {platformMemoryHistory.map((record) => {
-                  const statusLabel = memoryActivityStatusLabel(record.status);
+                  const isBackground = record.sourceId.startsWith(MEMORY_JOB_ACTIVITY_PREFIX);
+                  const statusLabel = isBackground
+                    ? memoryJobStatusLabel(record.status as MemoryJobActivity['status'])
+                    : memoryActivityStatusLabel(record.status);
                   const isRunning =
                     record.status === 'running' ||
                     record.status === 'queued' ||
@@ -15346,7 +15584,9 @@ export function LearnPageClient() {
                                   ? 'bg-amber-100/75 text-amber-800 ring-1 ring-amber-200/70'
                                   : isCompleted
                                     ? 'bg-sky-100/75 text-sky-800 ring-1 ring-sky-200/70'
-                                    : 'bg-slate-100/80 text-slate-600 ring-1 ring-slate-200/70',
+                                    : record.status === 'failed'
+                                      ? 'bg-rose-100/75 text-rose-800 ring-1 ring-rose-200/70'
+                                      : 'bg-slate-100/80 text-slate-600 ring-1 ring-slate-200/70',
                               )}
                             >
                               {statusLabel}
@@ -15361,10 +15601,14 @@ export function LearnPageClient() {
                             ))}
                           </div>
                           <p className="mt-2 text-sm font-semibold leading-5 text-slate-950">
-                            {memoryActivityStudentTitle(record.title, record.description)}
+                            {isBackground
+                              ? record.title
+                              : memoryActivityStudentTitle(record.title, record.description)}
                           </p>
                           <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">
-                            {memoryActivityStudentDescription(record)}
+                            {isBackground
+                              ? record.description
+                              : memoryActivityStudentDescription(record)}
                           </p>
                         </div>
                       </div>
@@ -16401,15 +16645,26 @@ export function LearnPageClient() {
                             'absolute -right-1.5 -top-1.5 z-20 grid min-w-5 place-items-center rounded-full border border-white px-1 text-[10px] font-bold leading-5 shadow-sm dark:border-slate-950',
                             platformMemoryState === 'writing'
                               ? 'bg-amber-400 text-amber-950'
-                              : 'bg-sky-500 text-white',
+                              : platformMemoryState === 'failed'
+                                ? 'bg-rose-500 text-white'
+                                : platformMemoryState === 'unavailable'
+                                  ? 'bg-slate-500 text-white'
+                                  : 'bg-sky-500 text-white',
                           )}
                           aria-hidden="true"
                         >
-                          {platformMemoryBadgeCount > 9 ? '9+' : platformMemoryBadgeCount}
+                          {platformMemoryState === 'unavailable'
+                            ? '!'
+                            : platformMemoryBadgeCount > 9
+                              ? '9+'
+                              : platformMemoryBadgeCount}
                         </span>
                       ) : null}
                     </Button>
                   </TooltipTrigger>
+                  <span className="sr-only" role="status" aria-live="polite">
+                    {platformMemoryButtonLabel}
+                  </span>
                   <TooltipContent side="bottom" align="end" className="font-medium">
                     {platformMemoryTooltip}
                   </TooltipContent>
@@ -16774,7 +17029,10 @@ export function LearnPageClient() {
                                   <MiniLectureInviteCard
                                     prompt={miniLecturePrompt}
                                     deck={message.lectureDeck}
-                                    generating={generatingMiniLectureMessageId === message.id}
+                                    generating={
+                                      generatingMiniLectureMessageId === message.id ||
+                                      recoveringMiniLectureIds.has(message.id)
+                                    }
                                     disabled={!conversationInteractive}
                                     onGenerate={() => generateMiniLectureForMessage(message.id)}
                                     onOpen={openMiniLectureDeck}

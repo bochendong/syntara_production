@@ -724,7 +724,7 @@ async function defaultResolveActionModel(
   return resolved.modelString;
 }
 
-const defaultDependencies: NativeMiniLectureServiceDependencies = {
+export const nativeMiniLectureDependencies: NativeMiniLectureServiceDependencies = {
   generatePage: defaultGeneratePage,
   generateActions: defaultGenerateActions,
   synthesizeSpeech: defaultSynthesizeSpeech,
@@ -1511,7 +1511,7 @@ export async function generateNativeMiniLecture(args: {
   input: NativeMiniLectureRequest & { idempotencyKey: string };
   dependencies?: Partial<NativeMiniLectureServiceDependencies>;
 }): Promise<NativeMiniLectureGenerationResult> {
-  const dependencies = { ...defaultDependencies, ...args.dependencies };
+  const dependencies = { ...nativeMiniLectureDependencies, ...args.dependencies };
   const requestHash = sha256Hex(
     stableJson({
       ...args.input,

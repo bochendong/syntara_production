@@ -207,6 +207,7 @@ model User {
   conversations             Conversation[]
   messages                  Message[]
   courseConversations       CourseConversation[]
+  backgroundJobs            BackgroundJob[]
   agentTasks                AgentTask[]
   agentEnvelopes            AgentEnvelope[]
   llmUsageLogs              LLMUsageLog[]
@@ -377,6 +378,7 @@ model Course {
   clonePurchase          CoursePurchase?           @relation("CoursePurchaseClone")
   enrollments            CourseEnrollment[]
   reviews                CourseReview[]
+  backgroundJobs         BackgroundJob[]
   studyMemories          StudyMemory[]
   studyMemoryChunks      StudyMemoryChunk[]
   knowledgeCache         MemoryKnowledgeCache[]
@@ -1858,4 +1860,42 @@ model NotebookReview {
   @@unique([notebookId, reviewerId])
   @@index([notebookId, createdAt(sort: Desc)])
   @@index([reviewerId, createdAt(sort: Desc)])
+}
+
+// Durable AI work. Payloads are immutable and scoped to an authenticated owner.
+model BackgroundJob {
+  id           String   @id @default(cuid())
+  ownerId      String
+  courseId     String?
+  kind         String
+  dedupeKey    String
+  inputHash    String
+  payload      Json
+  status       String   @default("queued")
+  attempts     Int      @default(0)
+  maxAttempts  Int      @default(3)
+  availableAt  DateTime @default(now())
+  leaseToken   String?
+  leaseUntil   DateTime?
+  result       Bytes?
+  error        String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  completedAt  DateTime?
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  steps BackgroundJobStep[]
+
+  @@unique([ownerId, dedupeKey])
+  @@index([status, availableAt, leaseUntil])
+  @@index([ownerId, courseId, kind, createdAt])
+}
+
+model BackgroundJobStep {
+  jobId String
+  key String
+  result Bytes
+  job BackgroundJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  @@id([jobId, key])
 }

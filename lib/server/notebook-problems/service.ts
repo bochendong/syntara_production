@@ -1,3 +1,4 @@
+import { enqueueJob } from '@/features/background-jobs/server/store';
 import { Prisma } from '@/lib/server/generated-prisma';
 import { courseProblemDedupeKey } from '@/features/problems/domain/problem-dedupe';
 import { prisma } from '@/lib/server/prisma';
@@ -29,7 +30,6 @@ import {
   withCourseEnrollmentSchemaFallback,
 } from '@/lib/server/repositories/course-enrollment-repository';
 import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-repository';
-import { maybeWriteProblemAttemptMemorySignal } from '@/lib/server/problem-attempt-memory-signals';
 import { verifyNotebookCodeDraftReferenceAnswer } from './judge';
 import { normalizeDraftMathFields } from './import.core.drafts';
 import { STANDARD_PROBLEM_POINTS } from '@/lib/problem-bank/scoring-policy';
@@ -3253,61 +3253,29 @@ export async function createNotebookProblemAttempt(args: {
       },
     });
 
+    if (args.kind !== 'run') {
+      const problem = await tx.notebookProblem.findUnique({
+        where: { id: args.problemId },
+        select: { courseId: true, notebookId: true, notebook: { select: { courseId: true } } },
+      });
+      const courseId = problem?.courseId || problem?.notebook?.courseId;
+      if (courseId)
+        await enqueueJob(tx, {
+          ownerId: args.userId,
+          courseId,
+          kind: 'learner-note',
+          key: `attempt:${attempt.id}`,
+          payload: {
+            attemptId: attempt.id,
+            ...(problem?.notebookId ? { notebookId: problem.notebookId } : {}),
+          },
+        });
+    }
+
     return attempt;
   })) as unknown as ProblemAttemptRow;
 
   const attempt = mapAttemptRow(created);
-
-  // Attempt/progress persistence above is the source of truth. Learner-memory
-  // projection is deliberately best-effort and runs only after that transaction
-  // commits, so an indexing or memory failure can never roll back the answer.
-  if (args.kind !== 'run') {
-    try {
-      const [problemRow, recentRows] = await Promise.all([
-        prismaDb.notebookProblem.findUnique({
-          where: { id: args.problemId },
-          include: {
-            notebook: {
-              select: {
-                id: true,
-                name: true,
-                courseId: true,
-              },
-            },
-          },
-        }) as unknown as Promise<ProblemRow | null>,
-        prismaDb.notebookProblemAttempt.findMany({
-          where: {
-            userId: args.userId,
-            problemId: args.problemId,
-            kind: { in: ['submit', 'answer'] },
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 30,
-        }) as unknown as Promise<ProblemAttemptRow[]>,
-      ]);
-
-      if (problemRow) {
-        const problem = mapProblemRow(problemRow);
-        await maybeWriteProblemAttemptMemorySignal({
-          prisma: prismaDb,
-          userId: args.userId,
-          courseId: problem.courseId,
-          notebookId: problem.notebookId,
-          problem,
-          attempt,
-          recentAttempts: recentRows.map(mapAttemptRow),
-        });
-      }
-    } catch (error) {
-      console.warn('[notebook-problem-attempt] learner-memory write failed after commit', {
-        attemptId: attempt.id,
-        problemId: args.problemId,
-        userId: args.userId,
-        error,
-      });
-    }
-  }
 
   return attempt;
 }

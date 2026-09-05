@@ -1,3 +1,4 @@
+import { enqueueJob } from '@/features/background-jobs/server/store';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { Prisma } from '@/lib/server/generated-prisma';
@@ -370,8 +371,8 @@ export async function POST(request: Request) {
     }
     try {
       const result = await prisma.$transaction(
-        (tx: Prisma.TransactionClient) =>
-          applyCourseConversationPatchInTransaction(tx, {
+        async (tx: Prisma.TransactionClient) => {
+          const patch = await applyCourseConversationPatchInTransaction(tx, {
             userId: auth.userId,
             courseId,
             sessionId,
@@ -380,7 +381,24 @@ export async function POST(request: Request) {
             clientRevision,
             messages: messages.map(messageWriteFromPayload),
             deletedMessageIds,
-          }),
+          });
+          if (
+            patch.accepted &&
+            !patch.deleted &&
+            patch.conversation &&
+            (patch.appliedMessageIds.length || patch.appliedDeletedMessageIds.length)
+          ) {
+            await enqueueJob(tx, {
+              ownerId: auth.userId,
+              courseId,
+              kind: 'conversation-memory',
+              key: `conversation:${patch.conversation.id}:${patch.currentRevision}`,
+              payload: { conversationId: patch.conversation.id },
+              delayMs: 15_000,
+            });
+          }
+          return patch;
+        },
         {
           maxWait: CONVERSATION_TRANSACTION_MAX_WAIT_MS,
           timeout: CONVERSATION_TRANSACTION_TIMEOUT_MS,

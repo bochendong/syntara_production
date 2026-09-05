@@ -619,6 +619,7 @@ export function TeacherCourseStudentsClient({
         </div>
       </section>
       <TeacherTemporaryAiDialog
+        contextSelection={{ source: 'teacher-class', range: LEARNING_RANGE }}
         open={temporaryAiOpen}
         onOpenChange={setTemporaryAiOpen}
         courseId={courseId}

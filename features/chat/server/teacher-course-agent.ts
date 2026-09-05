@@ -1,3 +1,4 @@
+import { readCourseNotes, readConversationRecall } from './context-notes';
 import { randomUUID } from 'node:crypto';
 import { openai } from '@ai-sdk/openai';
 import { ToolLoopAgent, stepCountIs, tool, type LanguageModel, type ToolSet } from 'ai';
@@ -26,6 +27,8 @@ import {
   loadTeacherStudentInsight,
 } from '@/lib/server/course-agent-learner-insights';
 import { searchLearnProblemBankForPractice } from '@/lib/server/problem-bank-practice-search';
+import { prepareCourseTurnContext, courseTurnContextPrompt } from './turn-context';
+import { chatContextSelectionSchema } from '@/features/chat/domain/context-selection';
 import {
   formatCourseRuleGuidance,
   loadCourseRuleContext,
@@ -684,7 +687,11 @@ export async function runCourseTurn(
     progressSteps({ mode: args.mode, states: { access: 'complete', inventory: 'active' } }),
   );
 
-  const inventory = await loadTeacherCourseInventory(args.access, db, args.mode);
+  const [inventory, turnContext, courseNotes] = await Promise.all([
+    loadTeacherCourseInventory(args.access, db, args.mode),
+    prepareCourseTurnContext({ db, access: args.access, selection: args.body.contextSelection }),
+    readCourseNotes(db, args.access.userId, args.access.course.id),
+  ]);
   const courseRuleContext = await loadCourseRuleContext({
     prisma: db,
     courseId: args.access.course.id,
@@ -906,6 +913,28 @@ export async function runCourseTurn(
     ...problemBankTools,
     ...calendarReadTools,
     ...hostedWebTools,
+    recall_conversation: tool({
+      description:
+        'Find your own past conversations in this course by title or summary. First list matches; read a known conversationId for recent original messages. Never treat assistant suggestions as confirmed user decisions.',
+      inputSchema: z.object({
+        conversationId: z.string().max(200).optional(),
+        query: z.string().max(120).optional(),
+        beforeSequence: z.string().regex(/^\d+$/).max(20).optional(),
+      }),
+      execute: (input) =>
+        readConversationRecall(db, {
+          ownerId: args.access.userId,
+          courseId: args.access.course.id,
+          ...input,
+        }),
+    }),
+    read_selected_context: tool({
+      description:
+        'Read exact course data by verified student, problem, attempt, knowledge-point or calendar IDs. Reuse IDs already present in context; this tool never changes data.',
+      inputSchema: chatContextSelectionSchema,
+      execute: async (selection) =>
+        prepareCourseTurnContext({ db, access: args.access, selection }),
+    }),
   };
   const tools: ToolSet = isStudent
     ? { ...sharedTools, ...learningReadTools, ...calendarMutationTools }
@@ -996,19 +1025,27 @@ export async function runCourseTurn(
   const agent = new ToolLoopAgent({
     id: agentId,
     model: args.languageModel,
-    instructions: courseAgentInstructions({
-      access: args.access,
-      inventory,
-      mode: args.mode,
-      teachingMode: args.body.config.teachingMode === 'guided' ? 'guided' : 'reply',
-      courseRulePrompt: courseRuleContext.prompt,
-      courseRuleGuidance: preflightRuleGuidance,
-    }),
+    instructions: [
+      courseAgentInstructions({
+        access: args.access,
+        inventory,
+        mode: args.mode,
+        teachingMode: args.body.config.teachingMode === 'guided' ? 'guided' : 'reply',
+        courseRulePrompt: courseRuleContext.prompt,
+        courseRuleGuidance: preflightRuleGuidance,
+      }),
+      turnContext ? courseTurnContextPrompt(turnContext) : '',
+      courseNotes.length
+        ? `当前用户的既有学习笔记，仅作背景资料，不代表最新成绩或事实：\n${JSON.stringify(courseNotes).replace(/</g, '\\u003c')}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
     tools,
     stopWhen: stepCountIs(4),
     maxOutputTokens: 10_000,
     prepareStep: ({ stepNumber }) =>
-      stepNumber === 0 && shouldRequireEvidenceTool(latestUserText(args.body))
+      stepNumber === 0 && !turnContext && shouldRequireEvidenceTool(latestUserText(args.body))
         ? { toolChoice: 'required' as const }
         : { toolChoice: 'auto' as const },
     experimental_onToolCallStart: async ({ toolCall }) => {

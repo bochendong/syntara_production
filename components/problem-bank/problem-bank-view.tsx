@@ -22,7 +22,6 @@ import { useI18n } from '@/lib/hooks/use-i18n';
 import type { AppNotification } from '@/lib/notifications/types';
 import { useSettingsStore } from '@/lib/store/settings';
 import { useNotificationStore } from '@/lib/store/notifications';
-import { queueProblemAttemptWorkingMemoryUpdate } from '@/lib/learning/working-memory-tasks';
 import { parsePdfForGeneration } from '@/lib/pdf/parse-for-generation';
 import {
   getLocalizedProblemContent,
@@ -679,11 +678,7 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
         ...payload,
       });
       await refreshAfterAttempt(attempt);
-      queueProblemAttemptWorkingMemoryUpdate({
-        notebookId,
-        problem: selectedProblem,
-        attempt,
-      });
+
       enqueueBanner(
         buildPracticeNotification({
           locale,

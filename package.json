@@ -8,9 +8,9 @@
   },
   "scripts": {
     "postinstall": "cd packages/mathml2omml && npm run build && cd ../pptxgenjs && npm run build",
-    "dev": "next dev --turbo",
+    "dev": "node scripts/workers/start-with-worker.mjs --dev",
     "build": "node scripts/deploy/run-vercel-migrations.mjs && prisma generate && next build --webpack",
-    "start": "next start",
+    "start": "node scripts/workers/start-with-worker.mjs",
     "lint": "eslint",
     "lint:changed": "node scripts/maintenance/check-changed-lint.mjs",
     "check": "prettier . --check",
@@ -75,7 +75,8 @@
     "test:learn-scenarios": "node scripts/learn/run-learn-scenarios.mjs",
     "test:learn-initial-cases": "node scripts/learn/run-learn-initial-cases.mjs",
     "test:image-gen": "dotenv -e .env.local -- node scripts/smoke/test-openai-image.mjs",
-    "test:tts-gen": "dotenv -e .env.local -- node scripts/smoke/test-openai-tts.mjs"
+    "test:tts-gen": "dotenv -e .env.local -- node scripts/smoke/test-openai-tts.mjs",
+    "worker:ai": "node scripts/workers/ai-worker.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.23",
@@ -122,6 +123,7 @@
     "html-to-image": "^1.11.13",
     "https-proxy-agent": "^7.0.6",
     "immer": "^11.1.3",
+    "jiti": "2.7.0",
     "js-yaml": "^4.1.1",
     "jsonrepair": "^3.13.2",
     "jszip": "^3.10.1",

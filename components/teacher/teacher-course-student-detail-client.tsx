@@ -157,6 +157,7 @@ export function TeacherCourseStudentDetailClient(props: {
   const [attempt, setAttempt] = useState<TeacherStudentAttemptDetail | null>(null);
   const [loadingAttemptId, setLoadingAttemptId] = useState<string | null>(null);
   const [temporaryAiOpen, setTemporaryAiOpen] = useState(false);
+  const [aiAttempt, setAiAttempt] = useState<{ id: string; problemId: string } | null>(null);
   useEffect(() => {
     if (props.mockMode) return;
     void backendJson<StudentDetail>(
@@ -323,20 +324,40 @@ export function TeacherCourseStudentDetailClient(props: {
         open={Boolean(attempt)}
         onOpenChange={(open) => !open && setAttempt(null)}
         attempt={attempt}
+        onAskAI={() => {
+          if (!attempt) return;
+          setAiAttempt({ id: attempt.id, problemId: attempt.problem.id });
+          setAttempt(null);
+          setTemporaryAiOpen(true);
+        }}
       />
       <TeacherTemporaryAiDialog
+        key={`${props.studentId}:${range}:${aiAttempt?.id || 'student'}`}
         open={temporaryAiOpen}
-        onOpenChange={setTemporaryAiOpen}
+        onOpenChange={(open) => {
+          setTemporaryAiOpen(open);
+          if (!open) setAiAttempt(null);
+        }}
         courseId={props.courseId}
         title={`${detail.student.name} · 临时提问`}
+        contextSelection={{
+          source: aiAttempt ? 'problem-attempt' : 'teacher-student',
+          studentId: props.studentId,
+          attemptId: aiAttempt?.id,
+          problemId: aiAttempt?.problemId,
+          range: range as '7d' | '30d' | 'term' | 'all',
+        }}
         introTitle={`想先了解${detail.student.name}的哪件事？`}
         introDescription="AI 会结合这名学生在当前课程中的学习信号与近期作答来回答。"
-        contextPrompt={`请聚焦课程中的学生「${detail.student.name}」，结合${range === '7d' ? '最近 7 天' : range === '30d' ? '最近 30 天' : range === 'term' ? '本学期' : '全部时间'}的学习信号和作答记录回答。`}
-        quickQuestions={[
-          '这名学生最近最需要关注的薄弱点是什么？',
-          '总结这名学生最近的进步和卡点',
-          '我下一次应该怎样针对性辅导？',
-        ]}
+        quickQuestions={
+          aiAttempt
+            ? ['这次作答具体错在哪里？', '他在哪个知识点上遇到了困难？', '我应该怎样引导他纠正？']
+            : [
+                '这名学生最近最需要关注的薄弱点是什么？',
+                '总结这名学生最近的进步和卡点',
+                '我下一次应该怎样针对性辅导？',
+              ]
+        }
       />
     </main>
   );

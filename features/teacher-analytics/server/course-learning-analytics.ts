@@ -23,13 +23,15 @@ export async function loadCourseLearningOverview(args: {
   prisma: PrismaClient;
   courseId: string;
   range: LearningRange;
+  window?: { from: Date; to: Date };
 }) {
   const course = await args.prisma.course.findUnique({
     where: { id: args.courseId },
     select: { createdAt: true, externalBinding: { select: { id: true } } },
   });
   if (!course) throw new Error('Course not found');
-  const from = rangeStart(args.range, course.createdAt);
+  const from = args.window?.from || rangeStart(args.range, course.createdAt);
+  const to = args.window?.to || new Date();
   const problems = await args.prisma.notebookProblem.findMany({
     where: {
       status: { not: 'archived' },
@@ -69,7 +71,7 @@ export async function loadCourseLearningOverview(args: {
       where: {
         courseId: args.courseId,
         problemId: { in: problemIds },
-        ...(from ? { createdAt: { gte: from } } : {}),
+        createdAt: { ...(from ? { gte: from } : {}), lte: to },
       },
       _count: { _all: true },
     }),
@@ -80,7 +82,7 @@ export async function loadCourseLearningOverview(args: {
       problemId: { in: problemIds },
       userId: { in: enrolledUserIds },
       kind: { in: ['submit', 'answer'] },
-      ...(from ? { createdAt: { gte: from } } : {}),
+      createdAt: { ...(from ? { gte: from } : {}), lte: to },
     },
     orderBy: { createdAt: 'desc' },
     select: {
@@ -177,7 +179,7 @@ export async function loadCourseLearningOverview(args: {
   return {
     range: args.range,
     from: from?.toISOString() || null,
-    to: new Date().toISOString(),
+    to: to.toISOString(),
     sample: { submissionCount: attempts.length, timingSampleCount: timed.length },
     metrics: {
       enrolledStudentCount: enrollments.length,

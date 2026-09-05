@@ -23,6 +23,8 @@ export type AskCourseOrchestratorOptions = {
   orchestratorAvatarUrl?: string | null;
   conversation?: UIMessage<ChatMessageMetadata>[];
   courseContext?: CourseChatContext;
+  contextSelection?: StatelessChatRequest['contextSelection'];
+  memoryMode?: StatelessChatRequest['memoryMode'];
   learnerContext?: CourseChatContext['learner'];
   answererHandoff?: CourseChatContext['answererHandoff'];
   userProfile?: { nickname?: string; bio?: string };
@@ -184,6 +186,8 @@ export async function askCourseOrchestrator(
     teachingMode: options.teachingMode,
     responseStrength: options.responseStrength,
     courseContext,
+    contextSelection: options.contextSelection,
+    memoryMode: options.memoryMode,
     trustedLearnAnswererHandoffToken: options.answererHandoff?.trustedToken,
     apiKey: modelConfig.apiKey,
     baseUrl: modelConfig.baseUrl || undefined,

@@ -1,3 +1,6 @@
+import { readNotebookReplyContext } from '@/features/chat/server/context-notes';
+import { enqueueJob, inputHash } from '@/features/background-jobs/server/store';
+import { prisma } from '@/lib/server/prisma';
 import { NextRequest } from 'next/server';
 import { parse as parsePartialJson, Allow } from 'partial-json';
 import { jsonrepair } from 'jsonrepair';
@@ -14,11 +17,8 @@ import type {
 import { searchWithTavily, formatSearchResultsAsContext } from '@/lib/web-search/tavily';
 import { resolveWebSearchApiKey } from '@/lib/server/provider-config';
 import { assertUserHasCredits, chargeCreditsForWebSearch } from '@/lib/server/credits';
-import { planMemorySearchIntent } from '@/lib/server/memory-search-intent';
 import type { CoursePurpose } from '@/lib/utils/database';
 import { getRequestContext, runWithRequestContext } from '@/lib/server/request-context';
-import { buildNotebookChatMemoryToolOutput } from '@/lib/server/notebook-chat-memory-tool';
-import { buildLayeredNotebookStudyMemoryPromptContext } from '@/features/memory/server/layered-memory-context';
 import { buildCoursePackPromptContext } from '@/lib/server/course-pack-context';
 import { recordLLMPromptSnapshot } from '@/lib/server/llm-prompt-log';
 import { buildReplyContextBundle } from '@/lib/chat/reply-context-loader';
@@ -30,16 +30,6 @@ import {
   type NotebookContentDocument,
 } from '@/lib/notebook-content';
 import {
-  applyCourseAnswerContractMemorySignal,
-  normalizeQuestionMemoryDiagnosis,
-} from '@/features/memory/domain/learner-memory-update';
-import {
-  normalizeNotebookChatKnowledgePointKey,
-  reconcilePendingNotebookChatDurableMemories,
-  writeNotebookChatDurableMemory,
-} from '@/lib/server/notebook-chat-durable-memory';
-import {
-  buildCourseAnswerContractMemorySignal,
   formatCourseAnswerContractValidationFailures,
   inferCourseAnswerContractTask,
   validateCourseAnswerContract,
@@ -94,7 +84,7 @@ function notebookStreamEvent(event: SendNotebookMessageStreamEvent): Uint8Array 
 function sanitizePlan(
   raw: unknown,
   language: 'zh-CN' | 'en-US' = 'zh-CN',
-  diagnosisContext?: {
+  _diagnosisContext?: {
     studentMessage: string;
     hasCourseSource: boolean;
     resolvedConversationTopic?: string | null;
@@ -170,15 +160,6 @@ function sanitizePlan(
         .filter((x) => x.order > 0)
         .slice(0, 8)
     : [];
-  const memoryDiagnosis = diagnosisContext
-    ? normalizeQuestionMemoryDiagnosis({
-        raw:
-          parsed.memoryDiagnosis && typeof parsed.memoryDiagnosis === 'object'
-            ? parsed.memoryDiagnosis
-            : {},
-        ...diagnosisContext,
-      })
-    : undefined;
 
   return {
     answer:
@@ -196,7 +177,6 @@ function sanitizePlan(
       update,
       delete: del,
     },
-    memoryDiagnosis,
   };
 }
 
@@ -794,25 +774,6 @@ function buildGeneralTeachingRules(language: 'zh-CN' | 'en-US'): string {
   ].join('\n');
 }
 
-function buildMemoryOrchestrationRules(language: 'zh-CN' | 'en-US'): string {
-  if (language === 'en-US') {
-    return [
-      '- Answer as the course controller, even when the chat is opened from a notebook.',
-      '- Use course_controller_memory first to choose the task type, course-wide rule, allowed template, and forbidden moves.',
-      '- Use current_notebook_specialist_memory for this lesson’s local template, examples, chapter limits, and common mistakes.',
-      '- Use cross_notebook_specialist_memory only when the question genuinely needs another notebook; do not let it override the current lesson without saying why.',
-      '- Keep private_learner_memory separate from public course facts.',
-    ].join('\n');
-  }
-  return [
-    '- 即使聊天入口来自某个笔记本，也要以课程总控身份回答。',
-    '- 先用 course_controller_memory 判断题型、课程级规则、允许的模板和禁止事项。',
-    '- 再用 current_notebook_specialist_memory 补当前章节的局部模板、例子、阶段限制和常见错误。',
-    '- 只有问题确实跨章节时，才使用 cross_notebook_specialist_memory；不要让它无说明地覆盖当前章节。',
-    '- private_learner_memory 只能用于个性化或薄弱点，不能当作公共课程事实。',
-  ].join('\n');
-}
-
 function compactPromptText(input: string | null | undefined, maxChars: number): string {
   const text = String(input || '')
     .replace(/\r\n?/g, '\n')
@@ -894,18 +855,6 @@ function buildNotebookUnitPrompt(
   return lines.join('\n') || 'N/A';
 }
 
-function compactMemoryIntentForLog(
-  memorySearchIntent: Awaited<ReturnType<typeof planMemorySearchIntent>>,
-) {
-  return {
-    kind: memorySearchIntent.kind,
-    scopeMode: memorySearchIntent.scopeMode,
-    answerMode: memorySearchIntent.plan.answerMode,
-    summary: compactPromptText(memorySearchIntent.plan.summary, 180),
-    rewrittenQueryPreview: compactPromptText(memorySearchIntent.rewrittenQuery, 220),
-  };
-}
-
 export async function POST(req: NextRequest) {
   return runWithRequestContext(req, '/api/notebooks/send-message', async () => {
     try {
@@ -921,22 +870,6 @@ export async function POST(req: NextRequest) {
         );
       }
       const requestContext = getRequestContext();
-      let durableMemoryReconciliation: Awaited<
-        ReturnType<typeof reconcilePendingNotebookChatDurableMemories>
-      > = {
-        attempted: 0,
-        syncedLocalMemoryIds: [],
-        results: [],
-      };
-      try {
-        durableMemoryReconciliation = await reconcilePendingNotebookChatDurableMemories({
-          userId: requestContext?.userId,
-          notebookId: body.notebook.id,
-          learnerDurableMemory: body.learnerDurableMemory,
-        });
-      } catch (error) {
-        log.warn('Pending local durable memory reconciliation failed:', error);
-      }
       const usageContext = {
         notebookId: body.notebook.id.trim(),
         notebookName: body.notebook.name?.trim() || undefined,
@@ -1002,36 +935,6 @@ export async function POST(req: NextRequest) {
           ? compactPromptText(resolvedConversationTopic, 300)
           : null,
       };
-      const courseContractMemorySignal =
-        enforceCourseAnswerContract && courseContractTask === 'code_review'
-          ? buildCourseAnswerContractMemorySignal(
-              validateCourseAnswerContract({
-                courseCode: body.course?.courseCode || coursePackContext.metadata.courseCode,
-                courseName: body.course?.name,
-                courseId: body.course?.id,
-                notebookId: body.notebook.id,
-                notebookName: body.notebook.name,
-                message: courseContractInputMessage,
-                answerText: courseContractInputMessage,
-                taskHint: 'grading',
-              }),
-            )
-          : null;
-      const withCourseContractMemorySignal = (
-        candidate: NotebookMessagePlan,
-      ): NotebookMessagePlan => {
-        if (!candidate.memoryDiagnosis || !courseContractMemorySignal) return candidate;
-        return {
-          ...candidate,
-          memoryDiagnosis: applyCourseAnswerContractMemorySignal({
-            diagnosis: candidate.memoryDiagnosis,
-            signal: courseContractMemorySignal,
-            studentMessage: courseContractInputMessage,
-            hasCourseSource: diagnosisContext.hasCourseSource,
-            resolvedConversationTopic: diagnosisContext.resolvedConversationTopic,
-          }),
-        };
-      };
       const codeBlockLanguage = isProgrammingQuestion
         ? detectCodeBlockLanguage(courseContractInputMessage)
         : '';
@@ -1041,19 +944,6 @@ export async function POST(req: NextRequest) {
       const generalTeachingRules = isProgrammingQuestion
         ? 'N/A'
         : buildGeneralTeachingRules(language);
-      const memoryOrchestrationRules = buildMemoryOrchestrationRules(language);
-      const learnerDiagnosisRules = [
-        'Learner-memory diagnosis is metadata, not a write operation.',
-        'Diagnose only what the latest student message itself supports; prior memory and your own answer are context, never proof of mastery.',
-        'Client short-term and durable learner memories are context only; never cite them as evidence for this turn or for a new memory write.',
-        'If current student evidence matches a learner-state knowledge point already present in client durable memory or layered server StudyMemory, reuse that exact knowledgePoint string and request revise; do not create a synonym duplicate. The old memory may locate the record but still cannot prove the current diagnosis.',
-        'A definition request or pasted problem may update short-term state but must set durableMemoryAction="skip".',
-        'Student-authored code, reasoning, or traceback may request create/revise only when it exposes a high-confidence reusable pattern.',
-        'For an ambiguous message without a resolvable prior topic, or a question outside this course, set both memory actions to skip.',
-        'masteredSignal must be null when the student message has no direct mastery evidence.',
-        'evidenceFromMessage must contain short verbatim excerpts from the latest student message only.',
-      ].join('\n- ');
-
       let webSearchContext = '';
       let webSearchUsed = false;
       const mayNeedPrerequisiteSearch =
@@ -1096,10 +986,10 @@ Programming quality checklist:
 ${programmingRules}
 
 Memory orchestration:
-${memoryOrchestrationRules}
+
 
 Learner diagnosis rules:
-- ${learnerDiagnosisRules}
+
 
 Reply only. Keep references empty and never create notebook write operations.`
         : `You are a notebook copilot and teacher.
@@ -1111,10 +1001,10 @@ Teaching quality checklist:
 ${generalTeachingRules}
 
 Memory orchestration:
-${memoryOrchestrationRules}
+
 
 Learner diagnosis rules:
-- ${learnerDiagnosisRules}
+
 
 Use the provided memory/notebook context when it directly supports the answer.
 If evidence is weak, say what was checked.
@@ -1142,24 +1032,35 @@ Do not create memory writes or notebook write operations.`;
           return `${line1}\n${line2}`;
         })
         .join('\n');
-      const memorySearchIntent = await planMemorySearchIntent({
-        query: body.message,
-        model,
-        targetType: 'notebook',
-      });
-      const studyMemoryContext = await buildLayeredNotebookStudyMemoryPromptContext({
+      const studyMemoryContext = await readNotebookReplyContext({
         notebookId: body.notebook.id,
-        courseId: body.course?.id,
-        userId: getRequestContext()?.userId,
-        question: memorySearchIntent.rewrittenQuery || body.message,
-        searchIntent: memorySearchIntent,
+        userId: requestContext?.userId,
+        question: body.message,
       });
-      const memoryToolOutput = buildNotebookChatMemoryToolOutput({
-        query: body.message,
-        context: studyMemoryContext,
-        mode: isProgrammingQuestion ? 'programming_help' : 'general',
-      });
-      const memoryAvailable = !/status:\s*unavailable/.test(memoryToolOutput);
+      let memoryJob: { id: string; status: string } | undefined;
+      let memoryIntake: 'queued' | 'skipped' | 'unavailable' = 'skipped';
+      if (requestContext?.userId && studyMemoryContext.courseId) {
+        try {
+          const sourceId =
+            body.clientMessageId || `message-${inputHash([body.notebook.id, body.message])}`;
+          memoryJob = await enqueueJob(prisma, {
+            ownerId: requestContext.userId,
+            courseId: studyMemoryContext.courseId,
+            kind: 'learner-note',
+            key: `notebook-note:${body.notebook.id}:${sourceId}`,
+            payload: { sourceId, notebookId: body.notebook.id, text: body.message.slice(0, 16000) },
+          });
+          memoryIntake = 'queued';
+        } catch (error) {
+          memoryIntake = 'unavailable';
+          log.warn(
+            'Background memory intake unavailable; continuing the reply',
+            error instanceof Error ? error.message : error,
+          );
+        }
+      }
+      const memoryToolOutput = JSON.stringify(studyMemoryContext);
+      const memoryAvailable = studyMemoryContext.available;
       const replyContextBundle = buildReplyContextBundle({
         message: body.message,
         courseCode: body.course?.courseCode,
@@ -1169,38 +1070,11 @@ Do not create memory writes or notebook write operations.`;
         memoryAvailable,
       });
       const optionalPrerequisiteContext = memoryToolOutput;
-      const clientWorkingMemoryContext = body.learnerWorkingMemory
-        ? JSON.stringify(body.learnerWorkingMemory, null, 2)
-        : 'N/A';
-      const clientDurableMemoryContext =
-        Array.isArray(body.learnerDurableMemory) && body.learnerDurableMemory.length > 0
-          ? JSON.stringify(
-              body.learnerDurableMemory.slice(0, 6).map((memory) => ({
-                id: compactPromptText(memory.id, 120),
-                kind: memory.kind,
-                knowledgePoint: compactPromptText(memory.knowledgePoint, 180),
-                masteredSignal: compactPromptText(memory.masteredSignal, 500) || undefined,
-                stuckPoint: compactPromptText(memory.stuckPoint, 500) || undefined,
-                cause: compactPromptText(memory.cause, 500) || undefined,
-                nextTeachingMove: compactPromptText(memory.nextTeachingMove, 500),
-                sourceMessageIds: Array.isArray(memory.sourceMessageIds)
-                  ? memory.sourceMessageIds
-                      .map((id) => compactPromptText(id, 120))
-                      .filter(Boolean)
-                      .slice(0, 6)
-                  : [],
-                updatedAt: Number(memory.updatedAt) || 0,
-              })),
-              null,
-              2,
-            )
-          : 'N/A';
-      const memoryDiagnosisShape = `"memoryDiagnosis":{"category":"definition|clarification|pasted_problem|code_review|error_debug|outside_course","courseRelevant":true,"knowledgePoint":"string","masteredSignal":null,"stuckPoint":"string|null","cause":"string|null","nextTeachingMove":"string","confidence":"low|medium|high","evidenceFromMessage":["verbatim excerpt"],"workingMemoryAction":"update|skip","durableMemoryAction":"create|revise|skip","durableMemoryReason":"string"}`;
       const compactSchema = isProgrammingQuestion
         ? `Return this JSON shape:
-{"answer":"string","answerDocument":{"version":1,"language":"${language}","profile":"code","blocks":[{"type":"paragraph","text":"string"},{"type":"bullet_list","items":["string"]},{"type":"code_block","language":"${codeBlockLanguage}","code":"string"},{"type":"callout","tone":"tip","title":"string","text":"string"}]},"references":[],${memoryDiagnosisShape}}`
+{"answer":"string","answerDocument":{"version":1,"language":"${language}","profile":"code","blocks":[{"type":"paragraph","text":"string"},{"type":"bullet_list","items":["string"]},{"type":"code_block","language":"${codeBlockLanguage}","code":"string"},{"type":"callout","tone":"tip","title":"string","text":"string"}]},"references":[]}`
         : `Return this JSON shape:
-{"answer":"string","answerDocument":{"version":1,"language":"${language}","profile":"general|math|code","blocks":[{"type":"heading","level":2,"text":"string"},{"type":"paragraph","text":"string"},{"type":"bullet_list","items":["string"]},{"type":"equation","latex":"string","display":true},{"type":"code_block","language":"python","code":"string"},{"type":"table","headers":["string"],"rows":[["string"]]},{"type":"callout","tone":"info","title":"string","text":"string"}]},"references":[{"order":1,"title":"string","why":"string"}],${memoryDiagnosisShape}}`;
+{"answer":"string","answerDocument":{"version":1,"language":"${language}","profile":"general|math|code","blocks":[{"type":"heading","level":2,"text":"string"},{"type":"paragraph","text":"string"},{"type":"bullet_list","items":["string"]},{"type":"equation","latex":"string","display":true},{"type":"code_block","language":"python","code":"string"},{"type":"table","headers":["string"],"rows":[["string"]]},{"type":"callout","tone":"info","title":"string","text":"string"}]},"references":[{"order":1,"title":"string","why":"string"}]}`;
       const userPrompt = isProgrammingQuestion
         ? `Student question:
 ${promptMessage}
@@ -1219,10 +1093,10 @@ Memory/context evidence:
 ${optionalPrerequisiteContext}
 
 Current client short-term learner state (context only, not evidence for this turn):
-${clientWorkingMemoryContext}
+N/A
 
 Active private durable learner memories (context only, not evidence for this turn):
-${clientDurableMemoryContext}
+N/A
 
 Recent conversation:
 ${conversationContext || 'N/A'}
@@ -1259,10 +1133,10 @@ Memory/notebook context:
 ${memoryToolOutput}
 
 Current client short-term learner state (context only, not evidence for this turn):
-${clientWorkingMemoryContext}
+N/A
 
 Active private durable learner memories (context only, not evidence for this turn):
-${clientDurableMemoryContext}
+N/A
 
 Web search context:
 ${webSearchContext || 'N/A'}
@@ -1299,20 +1173,10 @@ ${compactSchema}`;
         questionMode: isProgrammingQuestion ? 'programming_help' : 'general_notebook_help',
         allowWrite,
         webSearchUsed,
-        memorySearchIntent: compactMemoryIntentForLog(memorySearchIntent),
-        memoryOrchestration: {
-          responder: 'course_controller',
-          platformCount: studyMemoryContext.platformMemories.length,
-          courseControllerCount: studyMemoryContext.courseControllerMemories.length,
-          currentNotebookSpecialistCount: studyMemoryContext.currentNotebookMemories.length,
-          semanticSpecialistCount: studyMemoryContext.specialistMemories.length,
-          crossNotebookSpecialistCount: studyMemoryContext.specialistMemories.filter(
-            (memory) =>
-              memory.targetType === 'notebook' &&
-              memory.notebookId !== studyMemoryContext.scope.notebookId,
-          ).length,
-          directCount: studyMemoryContext.directCount,
-          semanticCount: studyMemoryContext.semanticCount,
+        memoryContext: {
+          available: studyMemoryContext.available,
+          noteCount: studyMemoryContext.notes.length,
+          sourceCount: studyMemoryContext.sections.length,
         },
         replyContext: {
           plan: replyContextBundle.plan,
@@ -1341,26 +1205,6 @@ ${compactSchema}`;
         metadata: promptSnapshotMetadata,
       });
       const promptLogId = promptSnapshot?.id;
-      const writeDurableMemoryForPlan = (plan: NotebookMessagePlan) => {
-        const knowledgePointKey = plan.memoryDiagnosis
-          ? normalizeNotebookChatKnowledgePointKey(plan.memoryDiagnosis.knowledgePoint)
-          : '';
-        const clientHasMatchingDurableMemory = Boolean(
-          knowledgePointKey &&
-          body.learnerDurableMemory?.some(
-            (memory) =>
-              normalizeNotebookChatKnowledgePointKey(memory.knowledgePoint) === knowledgePointKey,
-          ),
-        );
-        return writeNotebookChatDurableMemory({
-          userId: requestContext?.userId,
-          notebookId: body.notebook.id,
-          clientMessageId: body.clientMessageId,
-          studentMessage: courseContractMemorySignal ? courseContractInputMessage : body.message,
-          diagnosis: plan.memoryDiagnosis,
-          clientHasMatchingDurableMemory,
-        });
-      };
       const validateProgrammingPlanForCourse = (candidate: NotebookMessagePlan): string[] => {
         const generalFailures = asksForCompleteCode(courseContractInputMessage)
           ? programmingPlanValidationFailures(candidate, courseContractInputMessage)
@@ -1786,15 +1630,14 @@ ${compactSchema}`;
                   diagnosisContext,
                 );
                 const qualityResult = await maybeRepairProgrammingPlan(initialPlan, raw);
-                const finalPlan = withCourseContractMemorySignal(qualityResult.plan);
-                const durableMemoryWriteback = await writeDurableMemoryForPlan(finalPlan);
+                const finalPlan = qualityResult.plan;
                 const response: SendNotebookMessageResponse = {
                   ...finalPlan,
                   webSearchUsed,
                   prerequisiteHints: webSearchUsed ? ['used_web_search_for_prerequisites'] : [],
                   promptLogId: qualityResult.promptLogId,
-                  durableMemoryWriteback,
-                  durableMemoryReconciliation,
+                  memoryJob,
+                  memoryIntake,
                 };
                 controller.enqueue(notebookStreamEvent({ type: 'final', data: response }));
               } catch (error) {
@@ -1856,15 +1699,14 @@ ${compactSchema}`;
         diagnosisContext,
       );
       const qualityResult = await maybeRepairProgrammingPlan(initialPlan, llm.text);
-      const finalPlan = withCourseContractMemorySignal(qualityResult.plan);
-      const durableMemoryWriteback = await writeDurableMemoryForPlan(finalPlan);
+      const finalPlan = qualityResult.plan;
       const response: SendNotebookMessageResponse = {
         ...finalPlan,
         webSearchUsed,
         prerequisiteHints: webSearchUsed ? ['used_web_search_for_prerequisites'] : [],
         promptLogId: qualityResult.promptLogId,
-        durableMemoryWriteback,
-        durableMemoryReconciliation,
+        memoryJob,
+        memoryIntake,
       };
       return apiSuccess(response);
     } catch (error) {

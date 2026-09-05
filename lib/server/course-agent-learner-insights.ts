@@ -329,6 +329,7 @@ export async function loadTeacherClassOverview(args: {
         ownerId: { in: userIds },
         courseId: args.courseId,
         scope: 'private',
+        kind: { not: 'learning_preference' },
         status: 'active',
         ...(since ? { updatedAt: { gte: since } } : {}),
       },
