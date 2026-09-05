@@ -243,6 +243,38 @@ const deleted = await processMemoryJob(
 );
 assert.equal(deleted.skipped, 'deleted');
 assert.equal(summaryCalls, 1, 'Deleted sources never call a model');
+
+// The result retains the text that actually committed, so history can describe the change.
+const savedMemory = await processMemoryJob(
+  {
+    ...changedSourceDb,
+    $transaction: async (run) =>
+      run({
+        backgroundJob: { updateMany: async () => ({ count: 1 }) },
+        courseConversation: { updateMany: async () => ({ count: 1 }) },
+        studyMemory: { createMany: async () => ({ count: 1 }) },
+        $queryRaw: async () => [
+          {
+            id: 'index-job',
+            status: 'queued',
+            inputHash: store.inputHash({
+              kind: 'memory-index',
+              courseId: 'c1',
+              payload: {
+                memoryId: `note-${store.inputHash(['u1', 'c1', '边界条件']).slice(0, 32)}`,
+              },
+            }),
+          },
+        ],
+      }),
+  },
+  memoryJob,
+  { model: summaryModel },
+);
+assert.equal(savedMemory.updates[0].title, '边界条件');
+assert.equal(savedMemory.updates[0].text, '学生表示经常遗漏边界；下一步核对空输入。');
+assert.equal(savedMemory.updates[0].operation, 'created');
+assert.equal(savedMemory.summary, '正在学习边界条件');
 console.log('PASS background summary refuses changed/deleted source revisions before note writes');
 
 await jiti.import('./verify-teacher-course-agent.ts');

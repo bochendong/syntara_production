@@ -292,9 +292,9 @@ function page(args: {
 }
 
 function isMiniLectureCandidate(question: string, answer: string): boolean {
-  if (answer.trim().length < 120) return false;
+  if (answer.trim().length < 40) return false;
   if (
-    /(学到哪里|学习状态|当前状态|进度|复习计划|学习计划|刷题计划|小测|quiz|test|日程|安排|提醒|记忆里有什么)/i.test(
+    /(我.*(?:学到哪里|学习进度|学习状态)|(?:当前|目前|我的).*(?:进度|日程|状态)|(?:制定|生成|安排|调整|修改|添加|删除).*(?:计划|日程|提醒|测验|小测)|(?:复习|学习|刷题)计划|记忆里有什么|what.*(?:my progress|my schedule))/i.test(
       question,
     )
   ) {
@@ -305,11 +305,9 @@ function isMiniLectureCandidate(question: string, answer: string): boolean {
   const problemSignal =
     /(^|\s)(已知|若|设|求|解|证明|下列|选择题)|[=∫∑√∞]|\b(?:lim|sin|cos|tan|log)\b|\\(?:frac|sqrt|int|sum)\b/i;
   const answerSignal =
-    /(核心思路|解题步骤|第一步|首先|因此|所以|定义是|关键在于|可以理解为|证明如下)/i;
+    /(核心思路|解题步骤|第一步|首先|因此|所以|定义|关键在于|可以理解为|证明如下|是指|指的是|例如|比如|意味着|区别在于|\b(?:means|defined as|for example|because|therefore)\b)/i;
   return (
-    explanationSignal.test(question) ||
-    problemSignal.test(question) ||
-    (question.trim().length >= 18 && answerSignal.test(answer))
+    explanationSignal.test(question) || problemSignal.test(question) || answerSignal.test(answer)
   );
 }
 
@@ -317,12 +315,18 @@ export function buildMiniLecturePrompt(args: {
   question: string;
   answer: string;
   course: { name: string };
+  previousQuestion?: string;
 }): MiniLecturePrompt | undefined {
-  if (!isMiniLectureCandidate(args.question, args.answer)) return undefined;
+  const followup =
+    /^(?:好(?:的)?|是的|可以|继续(?:讲|讲解)?|接着(?:讲)?|详细(?:一点|说说)|展开(?:讲讲|说说)?|讲解|听讲解|yes|ok(?:ay)?|continue|go on)[。！!,.，\s]*$/i.test(
+      args.question.trim(),
+    );
+  const question = followup && args.previousQuestion ? args.previousQuestion : args.question;
+  if (!isMiniLectureCandidate(question, args.answer)) return undefined;
   return {
     id: makeClientId('mini-lecture-prompt'),
-    title: compactLectureText(args.question, 42) || '课堂讲解',
-    question: compactLectureText(args.question, 900),
+    title: compactLectureText(question, 42) || '课堂讲解',
+    question: compactLectureText(question, 900),
     answer: compactLectureText(args.answer, 2200),
     courseName: args.course.name,
     createdAt: Date.now(),

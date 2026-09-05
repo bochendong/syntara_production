@@ -7,7 +7,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 
 const require = createRequire(import.meta.url);
-const jiti = createJiti(import.meta.url, { alias: { '@': process.cwd() } });
+const jiti = createJiti(import.meta.url, {
+  alias: { '@': process.cwd() },
+  jsx: { runtime: 'automatic' },
+});
 const { calendarRegressionEvents } = await jiti.import('./verify-teacher-course-agent.ts');
 const learnPath = 'components/learn/learn-page-client.tsx';
 const learnText = readFileSync(learnPath, 'utf8');
@@ -162,7 +165,9 @@ const cardFunctions = functions(learnAst, [
   'memoryActionDetailRows',
   'LearnLearningActionCards',
 ]);
+const cardPresentation = await jiti.import('../components/learn/learn-confirmation-card.tsx');
 const Card = evaluate(`${cardFunctions}\nreturn LearnLearningActionCards;`, {
+  ...cardPresentation,
   Button,
   Sparkles: () => null,
   cn: (...values) => values.filter(Boolean).join(' '),
@@ -181,7 +186,8 @@ assert.match(html, /考试/);
 function clickConfirm(element) {
   if (!element || typeof element !== 'object') return;
   if (element.type === Button && element.props.children === '确认添加') element.props.onClick();
-  for (const child of [element.props?.children].flat(Infinity)) clickConfirm(child);
+  for (const child of [element.props?.children, element.props?.actions].flat(Infinity))
+    clickConfirm(child);
 }
 clickConfirm(element);
 assert.deepEqual(confirmed.payload.items, restored.learningActions[0].payload.items);
@@ -300,6 +306,7 @@ assert.match(
 const PracticeCard = evaluate(
   `${functions(learnAst, ['PlanActionCard', 'practiceSessionPlanMeta'])}\nreturn PlanActionCard;`,
   {
+    ...cardPresentation,
     isProblemSelectionPlan: () => true,
     practicePlanDisplayRationale: () => [],
     learnAssistantActionCardWidthClassName: '',

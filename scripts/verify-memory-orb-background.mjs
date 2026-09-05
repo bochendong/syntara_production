@@ -51,8 +51,8 @@ const summary = memoryJobActivity({
   ...done({ notes: [], conversationId: 'conversation-1' }),
   kind: 'conversation-memory',
 });
-assert.match(summary.title, /对话记忆/);
-assert.match(summary.description, /没有新增学习状态或偏好/);
+assert.match(summary.title, /对话摘要/);
+assert.match(summary.description, /具体内容已不可用/);
 assert.equal(memoryJobActivity({ ...base, status: 'completed' }).status, 'failed');
 assert.doesNotMatch(JSON.stringify(written), /private|payload|error|note-1|note-2/);
 
@@ -60,6 +60,16 @@ assert.doesNotMatch(JSON.stringify(written), /private|payload|error|note-1|note-
 let queries = 0;
 const activities = await readMemoryJobActivities(
   {
+    studyMemory: {
+      findMany: async ({ where }) => {
+        assert.equal(where.ownerId, 'student-a');
+        assert.equal(where.courseId, 'course-a');
+        assert.equal(where.scope, 'private');
+        assert.equal(where.status, 'active');
+        assert.deepEqual(where.id.in, ['note-1']);
+        return [{ id: 'note-1', title: '循环边界', text: '需要在循环结束时检查最后一个元素。' }];
+      },
+    },
     backgroundJob: {
       findMany: async ({ where, select, take }) => {
         queries++;
@@ -82,6 +92,32 @@ const activities = await readMemoryJobActivities(
 assert.equal(queries, 2);
 assert.equal(activities.length, 1);
 assert.equal(activities[0].status, 'completed');
+assert.match(activities[0].title, /当前内容.*循环边界/);
+assert.match(activities[0].description, /最后一个元素/);
+const detailed = memoryJobActivity(
+  done({
+    notes: ['note-1'],
+    updates: [
+      { title: '循环边界', text: '已掌握循环条件；仍需练习空输入的处理。', operation: 'updated' },
+    ],
+  }),
+);
+assert.equal(detailed.title, '更新 · 循环边界');
+assert.equal(detailed.description, '已掌握循环条件；仍需练习空输入的处理。');
+const summarized = memoryJobActivity(
+  done({
+    notes: [],
+    conversationId: 'conversation-1',
+    summary: '希望先看一个具体例子，再推导公式。',
+  }),
+);
+assert.match(summarized.description, /希望先看一个具体例子/);
+assert.doesNotMatch(JSON.stringify(detailed), /private source text|private provider error/);
+assert.equal(
+  projectMemoryActivities({ ownerId: 'student-a', activities: [detailed] }, now).history[0]
+    .description,
+  detailed.description,
+);
 
 const snapshot = { ownerId: 'student-a', activities: [written] };
 const first = projectMemoryActivities(snapshot, now);

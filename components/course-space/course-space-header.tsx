@@ -133,23 +133,26 @@ export function CourseSpaceNavigation({
     <nav
       aria-label="课程导航"
       className={cn(
-        'flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-lg border border-slate-200/80 bg-slate-100/75 p-0.5 dark:border-white/10 dark:bg-white/[0.045]',
+        'flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl border border-slate-200/70 bg-slate-100/65 p-1 dark:border-white/10 dark:bg-white/[0.045]',
         className,
       )}
     >
       {items.map(({ key, label, href, Icon, disabled }) => {
         const selected = active === key;
         const itemClassName = cn(
-          'inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-primary/30',
+          'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sky-400/40',
           selected
-            ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200/70 dark:bg-white/10 dark:text-white dark:ring-white/10'
+            ? 'bg-white text-sky-800 shadow-[0_1px_4px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 dark:bg-white/10 dark:text-sky-100 dark:ring-white/10'
             : 'text-slate-500 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.07] dark:hover:text-white',
           disabled && 'pointer-events-none opacity-45',
         );
         const content = (
           <>
             <Icon
-              className={cn('size-3.5 shrink-0', selected ? 'text-primary' : 'text-slate-400')}
+              className={cn(
+                'size-3.5 shrink-0',
+                selected ? 'text-sky-600 dark:text-sky-300' : 'text-slate-400',
+              )}
               strokeWidth={1.9}
             />
             <span>{label}</span>
@@ -311,7 +314,7 @@ export function CourseSpaceHeaderContent({
     <header
       data-course-space-header
       className={cn(
-        'shrink-0 bg-white/95 px-3 py-1.5 text-slate-950 backdrop-blur-xl dark:bg-slate-950/95 dark:text-white sm:px-4',
+        'shrink-0 bg-gradient-to-b from-white to-slate-50/75 px-3 py-2 text-slate-950 backdrop-blur-xl dark:from-slate-950 dark:to-slate-900/90 dark:text-white sm:px-4',
         surface
           ? COURSE_SPACE_HEADER_SURFACE_CLASS
           : 'border-b border-slate-200/80 dark:border-white/10',
@@ -320,17 +323,17 @@ export function CourseSpaceHeaderContent({
     >
       <div
         className={cn(
-          'flex min-w-0 flex-col gap-1.5',
+          'flex min-w-0 flex-col gap-2',
           trailingActions || actionTargets
             ? 'xl:flex-row xl:items-center xl:justify-between'
             : 'md:flex-row md:items-center md:justify-between',
         )}
       >
-        <div className="flex min-w-0 items-center gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:flex-nowrap">
           <button
             type="button"
             onClick={handleBack}
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-primary/30 dark:text-slate-400 dark:hover:bg-white/[0.07] dark:hover:text-white"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-500 outline-none transition hover:border-slate-200 hover:bg-white hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-sky-400/40 dark:text-slate-400 dark:hover:border-white/10 dark:hover:bg-white/[0.07] dark:hover:text-white"
             aria-label="返回上一页"
             title="返回"
           >
@@ -341,13 +344,13 @@ export function CourseSpaceHeaderContent({
             role={role}
             active={active}
             previewMode={previewMode}
-            className="max-w-full"
+            className="max-w-[calc(100%-2.5rem)]"
           />
           {actions || actionTargets ? (
             <div
               ref={actionTargets?.actions}
               data-course-header-actions
-              className="flex shrink-0 items-center gap-2 empty:hidden"
+              className="flex min-w-0 flex-wrap items-center gap-2 empty:hidden xl:flex-nowrap"
             >
               {actions}
             </div>
@@ -356,7 +359,7 @@ export function CourseSpaceHeaderContent({
 
         <div
           className={cn(
-            'flex min-w-0 items-center justify-end gap-1.5 md:ml-auto md:flex-1',
+            'flex min-w-0 items-center justify-end gap-2.5 md:ml-auto md:flex-1',
             (trailingActions || actionTargets) && 'flex-wrap xl:flex-nowrap',
           )}
         >
@@ -370,14 +373,14 @@ export function CourseSpaceHeaderContent({
             </div>
           ) : null}
           <h1
-            className="truncate text-sm font-bold tracking-[-0.02em] sm:text-[15px]"
+            className="truncate rounded-lg border border-slate-200/70 bg-white/80 px-2.5 py-1.5 text-sm font-semibold tracking-[-0.02em] shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-white/10 dark:bg-white/5 sm:text-[15px]"
             title={courseTitle}
           >
             {courseTitle}
           </h1>
           <Link
             href={allCoursesHref}
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-primary/30 dark:text-slate-400 dark:hover:bg-white/[0.07] dark:hover:text-white"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 outline-none transition hover:bg-white hover:text-sky-700 focus-visible:ring-2 focus-visible:ring-sky-400/40 dark:hover:bg-white/[0.07] dark:hover:text-sky-200"
             aria-label="所有课程"
             title="所有课程"
           >

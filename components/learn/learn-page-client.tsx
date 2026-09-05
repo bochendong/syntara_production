@@ -256,6 +256,12 @@ import type { NotebookProblemAttemptAnswer } from '@/lib/problem-bank';
 import type { ProviderId } from '@/lib/ai/providers';
 import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
+import {
+  LearnConfirmationCard,
+  LEARN_CONFIRMATION_SURFACE_CLASS,
+  LEARN_CONFIRMATION_PRIMARY_CLASS,
+  LEARN_CONFIRMATION_SECONDARY_CLASS,
+} from './learn-confirmation-card';
 import { CourseSpacePageFrame } from '@/components/course-space/course-space-page-frame';
 import {
   COURSE_SPACE_BODY_SURFACE_CLASS,
@@ -2740,22 +2746,28 @@ function miniLecturePromptForMessage(args: {
   course: { name: string } | null;
 }): MiniLecturePrompt | undefined {
   const message = args.messages[args.messageIndex];
-  if (!message || message.role !== 'assistant' || message.transient || message.lectureDeck) {
+  if (!message || message.role !== 'assistant' || message.transient) return undefined;
+  if (message.lectureDeck) {
     return message?.lecturePrompt;
   }
   if (message.lecturePrompt) return message.lecturePrompt;
   if (!args.course || !message.text.trim()) return undefined;
 
-  const question = args.messages
+  const questions = args.messages
     .slice(0, args.messageIndex)
     .reverse()
-    .find((candidate) => candidate.role === 'user' && candidate.text.trim());
+    .filter((candidate) => candidate.role === 'user' && candidate.text.trim());
+  const question = questions[0];
   if (!question) return undefined;
+  if (message.progressProposal || (message.plan && isProblemSelectionPlan(message.plan)))
+    return undefined;
 
   const inferred = buildMiniLecturePrompt({
     question: question.text,
     answer: message.text,
     course: args.course,
+    previousQuestion: questions.slice(1).find((candidate) => candidate.text.trim().length > 6)
+      ?.text,
   });
   return inferred
     ? {
@@ -4168,53 +4180,6 @@ function CourseAvatar({ course, className }: { course: CourseRecord; className?:
 }
 
 const learnAssistantActionCardWidthClassName = 'w-full max-w-none';
-const learnHomeGlowCardBaseClassName =
-  'relative overflow-hidden border border-[#A9E7FF]/45 bg-[#f7fbfd]/90 shadow-[0_22px_64px_rgba(47,143,201,0.14),0_2px_14px_rgba(16,56,50,0.06)] ring-1 ring-white/55 dark:border-white/10 dark:bg-slate-950 dark:ring-white/5';
-const learnHomeGlowSheenClassName =
-  'absolute inset-0 bg-[linear-gradient(115deg,rgba(255,255,255,0.42),rgba(255,255,255,0.2)_54%,rgba(255,255,255,0.04))] dark:bg-[linear-gradient(115deg,rgba(2,6,23,0.42),rgba(15,23,42,0.34)_54%,rgba(15,23,42,0.18))]';
-const learnHomeGlowSurfaceClassNames = {
-  lecture:
-    'bg-[radial-gradient(circle_at_18%_18%,rgba(169,231,255,0.58),transparent_34%),radial-gradient(circle_at_86%_22%,rgba(169,240,220,0.5),transparent_32%),radial-gradient(circle_at_76%_82%,rgba(206,198,255,0.3),transparent_36%),#f7fbfd] dark:bg-[radial-gradient(circle_at_18%_18%,rgba(169,231,255,0.18),transparent_36%),radial-gradient(circle_at_86%_22%,rgba(169,240,220,0.16),transparent_34%),radial-gradient(circle_at_76%_82%,rgba(206,198,255,0.14),transparent_36%),#020617]',
-  quiz: 'bg-[radial-gradient(circle_at_18%_18%,rgba(169,231,255,0.66),transparent_34%),radial-gradient(circle_at_84%_18%,rgba(206,198,255,0.52),transparent_32%),radial-gradient(circle_at_76%_84%,rgba(169,240,220,0.28),transparent_35%),#f7fbfd] dark:bg-[radial-gradient(circle_at_18%_18%,rgba(169,231,255,0.2),transparent_36%),radial-gradient(circle_at_84%_18%,rgba(206,198,255,0.19),transparent_34%),radial-gradient(circle_at_76%_84%,rgba(169,240,220,0.12),transparent_36%),#020617]',
-  practice:
-    'bg-[radial-gradient(circle_at_22%_20%,rgba(169,240,220,0.62),transparent_34%),radial-gradient(circle_at_82%_18%,rgba(169,231,255,0.48),transparent_32%),radial-gradient(circle_at_72%_82%,rgba(206,198,255,0.26),transparent_36%),#f7fbfd] dark:bg-[radial-gradient(circle_at_22%_20%,rgba(169,240,220,0.19),transparent_36%),radial-gradient(circle_at_82%_18%,rgba(169,231,255,0.16),transparent_34%),radial-gradient(circle_at_72%_82%,rgba(206,198,255,0.12),transparent_36%),#020617]',
-  progress:
-    'bg-[radial-gradient(circle_at_18%_24%,rgba(255,154,154,0.34),transparent_34%),radial-gradient(circle_at_84%_18%,rgba(206,198,255,0.5),transparent_32%),radial-gradient(circle_at_72%_78%,rgba(169,231,255,0.34),transparent_36%),#f7fbfd] dark:bg-[radial-gradient(circle_at_18%_24%,rgba(255,154,154,0.16),transparent_36%),radial-gradient(circle_at_84%_18%,rgba(206,198,255,0.18),transparent_34%),radial-gradient(circle_at_72%_78%,rgba(169,231,255,0.14),transparent_36%),#020617]',
-} as const;
-const learnHomeGlowBloomClassNames = {
-  lecture:
-    'bg-[radial-gradient(circle_at_16%_8%,rgba(169,231,255,0.94),transparent_34%),radial-gradient(circle_at_88%_10%,rgba(169,240,220,0.78),transparent_32%),radial-gradient(circle_at_78%_88%,rgba(206,198,255,0.5),transparent_38%)] dark:bg-[radial-gradient(circle_at_16%_8%,rgba(169,231,255,0.34),transparent_36%),radial-gradient(circle_at_88%_10%,rgba(169,240,220,0.26),transparent_34%),radial-gradient(circle_at_78%_88%,rgba(206,198,255,0.2),transparent_40%)]',
-  quiz: 'bg-[radial-gradient(circle_at_14%_6%,rgba(169,231,255,0.98),transparent_34%),radial-gradient(circle_at_88%_8%,rgba(206,198,255,0.84),transparent_34%),radial-gradient(circle_at_78%_88%,rgba(169,240,220,0.42),transparent_40%)] dark:bg-[radial-gradient(circle_at_14%_6%,rgba(169,231,255,0.36),transparent_36%),radial-gradient(circle_at_88%_8%,rgba(206,198,255,0.3),transparent_36%),radial-gradient(circle_at_78%_88%,rgba(169,240,220,0.16),transparent_42%)]',
-  practice:
-    'bg-[radial-gradient(circle_at_16%_8%,rgba(169,240,220,0.98),transparent_34%),radial-gradient(circle_at_86%_10%,rgba(169,231,255,0.78),transparent_34%),radial-gradient(circle_at_76%_88%,rgba(206,198,255,0.42),transparent_40%)] dark:bg-[radial-gradient(circle_at_16%_8%,rgba(169,240,220,0.34),transparent_36%),radial-gradient(circle_at_86%_10%,rgba(169,231,255,0.26),transparent_36%),radial-gradient(circle_at_76%_88%,rgba(206,198,255,0.16),transparent_42%)]',
-  progress:
-    'bg-[radial-gradient(circle_at_14%_12%,rgba(255,154,154,0.82),transparent_34%),radial-gradient(circle_at_88%_8%,rgba(206,198,255,0.9),transparent_34%),radial-gradient(circle_at_74%_86%,rgba(169,231,255,0.52),transparent_40%)] dark:bg-[radial-gradient(circle_at_14%_12%,rgba(255,154,154,0.28),transparent_36%),radial-gradient(circle_at_88%_8%,rgba(206,198,255,0.32),transparent_36%),radial-gradient(circle_at_74%_86%,rgba(169,231,255,0.2),transparent_42%)]',
-} as const;
-
-function LearnHomeGlowLayers({
-  variant,
-}: {
-  variant: keyof typeof learnHomeGlowSurfaceClassNames;
-}) {
-  return (
-    <>
-      <div
-        className={cn('absolute inset-0', learnHomeGlowSurfaceClassNames[variant])}
-        aria-hidden
-      />
-      <div
-        className={cn(
-          'absolute -inset-12 opacity-90 blur-2xl saturate-150',
-          learnHomeGlowBloomClassNames[variant],
-        )}
-        aria-hidden
-      />
-      <div className={learnHomeGlowSheenClassName} aria-hidden />
-      <div className="absolute inset-x-0 top-0 h-px bg-white/80 dark:bg-white/15" aria-hidden />
-    </>
-  );
-}
-
 function miniLectureRegionStyle(region: MiniLectureRegion) {
   const [x0, y0, x1, y1] = region.bbox;
   return {
@@ -4243,64 +4208,46 @@ export function MiniLectureInviteCard({
   if (!prompt && !deck) return null;
   const ready = Boolean(deck && miniLectureDeckAssetsAreHydrated(deck));
   return (
-    <div className={cn(learnAssistantActionCardWidthClassName, 'mt-3.5')}>
-      <div
-        className={cn(
-          'relative grid grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-x-2.5 overflow-hidden rounded-[17px] border p-3 shadow-[0_14px_34px_rgba(14,116,144,0.10)]',
-          ready
-            ? 'border-sky-400/25 bg-[radial-gradient(circle_at_12%_0%,rgba(125,211,252,0.24),transparent_38%),linear-gradient(135deg,#fbfdff_0%,#effaff_54%,#effcf9_100%)]'
-            : 'border-dashed border-violet-600/25 bg-[radial-gradient(circle_at_9%_16%,rgba(167,139,250,0.16),transparent_32%),linear-gradient(135deg,#faf5ff_0%,#fff_56%,#f0f9ff_100%)]',
-        )}
-      >
-        <span
-          className="z-[1] grid size-[38px] place-items-center self-center rounded-xl bg-[#172033] text-white shadow-[0_8px_20px_rgba(15,23,42,0.20)]"
-          aria-hidden
-        >
-          {generating ? (
-            <Loader2 className="size-[18px] animate-spin" />
-          ) : (
-            <BookOpenCheck className="size-[18px]" strokeWidth={1.8} />
-          )}
-        </span>
-        <span className="z-[1] flex min-w-0 flex-col gap-[3px]">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <strong className="min-w-0 truncate text-xs font-bold tracking-[-0.01em] text-[#172033]">
-              {generating
-                ? '正在生成课堂讲解'
-                : ready
-                  ? deck?.title || '课堂讲解已生成'
-                  : '把这段回答变成课堂讲解'}
-            </strong>
-            <span className="shrink-0 rounded-full border border-sky-400/20 bg-white/75 px-[7px] py-[3px] text-[8px] font-bold text-[#0878a4]">
-              {generating ? '处理中' : ready ? '已就绪' : '1–2 页'}
-            </span>
-          </span>
-          <small className="text-[9px] leading-[1.45] text-[#607086]">
-            {ready
-              ? '图片、语音与动态聚焦均已准备好'
-              : '生成 1–2 页图文讲解，配合语音讲授。完成后可随时查看。'}
-          </small>
-        </span>
+    <LearnConfirmationCard
+      className="mt-3"
+      busy={generating}
+      title={
+        generating
+          ? '正在生成课堂讲解'
+          : ready
+            ? deck?.title || '课堂讲解已生成'
+            : '要把这个知识点变成课堂讲解吗？'
+      }
+      description={
+        ready
+          ? '图片、语音与动态聚焦均已准备好，可随时回看。'
+          : '将刚才的讲解整理成 1–2 页图文课堂，配合语音与重点聚焦。'
+      }
+      icon={
+        generating ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <BookOpenCheck className="size-4" />
+        )
+      }
+      badge={generating ? '生成中' : ready ? '已就绪' : '1–2 页'}
+      actions={
         <Button
           type="button"
           size="sm"
-          className="z-[1] h-[30px] w-max shrink-0 justify-self-end gap-1.5 rounded-full bg-[#172033] px-3 text-[10px] font-semibold text-white shadow-[0_7px_16px_rgba(15,23,42,0.14)] hover:bg-[#273750]"
+          className={LEARN_CONFIRMATION_PRIMARY_CLASS}
           onClick={ready && deck ? () => onOpen(deck) : onGenerate}
           disabled={disabled || generating}
         >
           {generating ? (
-            <Loader2 className="size-[13px] animate-spin" />
+            <Loader2 className="size-3.5 animate-spin" />
           ) : (
-            <Play className="size-[13px]" fill="currentColor" />
+            <Play className="size-3.5" />
           )}
           {generating ? '生成中…' : ready ? '查看讲解' : '生成课堂讲解'}
         </Button>
-        <span
-          className="pointer-events-none absolute -right-[30px] -top-11 size-[84px] rotate-[20deg] rounded-3xl border border-white/70"
-          aria-hidden
-        />
-      </div>
-    </div>
+      }
+    />
   );
 }
 
@@ -4672,7 +4619,7 @@ export function PlanActionCard({
     ? 'border-sky-100 bg-sky-50 text-sky-700'
     : 'border-emerald-100 bg-emerald-50 text-emerald-700';
   const planMetricPillClassName =
-    'inline-flex items-center justify-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[8px] font-semibold text-slate-500';
+    'inline-flex items-center justify-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500';
   const isSelectionPlan = isProblemSelectionPlan(plan);
   const rationale = practicePlanDisplayRationale(plan).slice(0, 4);
   const gaps = plan.evidence?.gaps?.slice(0, 2) || [];
@@ -4709,7 +4656,8 @@ export function PlanActionCard({
     <div
       className={cn(
         learnAssistantActionCardWidthClassName,
-        'mt-3 overflow-hidden rounded-[18px] border border-slate-400/20 bg-white shadow-[0_16px_36px_rgba(15,23,42,0.07)]',
+        LEARN_CONFIRMATION_SURFACE_CLASS,
+        'mt-3',
       )}
     >
       <div className="px-3.5 py-3">
@@ -4732,7 +4680,7 @@ export function PlanActionCard({
                       <span
                         key={concept}
                         className={cn(
-                          'rounded-full border px-2 py-1 text-[8px] font-semibold',
+                          'rounded-full border px-2 py-1 text-[10px] font-semibold',
                           planChipClassName,
                         )}
                       >
@@ -4743,7 +4691,7 @@ export function PlanActionCard({
                 ) : null}
               </div>
               <div className="mt-[3px] flex min-w-0 flex-wrap items-center gap-1.5">
-                <p className="text-[9px] text-slate-500">
+                <p className="text-xs text-slate-500">
                   {isSelectionPlan ? '题库选题' : plan.mode === 'quiz' ? '课程测验' : '刷题计划'} ·{' '}
                   {planMeta}
                 </p>
@@ -4768,7 +4716,7 @@ export function PlanActionCard({
             type="button"
             onClick={() => onStart(plan)}
             disabled={disabled || !hasQuestions}
-            className="h-[30px] shrink-0 gap-1.5 rounded-full bg-slate-900 px-3 text-[9px] font-bold text-white shadow-sm hover:bg-slate-700"
+            className={LEARN_CONFIRMATION_PRIMARY_CLASS}
           >
             <Play className="size-3" />
             {actionLabel}
@@ -4777,7 +4725,7 @@ export function PlanActionCard({
 
         {questionLinks.length ? (
           <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
-            <p className="text-[9px] font-bold text-slate-900">题库选题 · 点击题目直接作答</p>
+            <p className="text-xs font-bold text-slate-900">题库选题 · 点击题目直接作答</p>
             {questionLinks.map((question, index) => (
               <button
                 key={question.problemId}
@@ -4785,22 +4733,22 @@ export function PlanActionCard({
                 disabled={disabled}
                 onClick={() => onStart(plan, question.problemId)}
                 className={cn(
-                  'group flex w-full items-center gap-2 rounded-[12px] border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-left text-[9px] transition-colors hover:border-emerald-200 hover:bg-emerald-50/50',
+                  'group flex w-full items-center gap-2 rounded-[12px] border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-left text-xs transition-colors hover:border-emerald-200 hover:bg-emerald-50/50',
                   disabled && 'pointer-events-none opacity-60',
                 )}
               >
-                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-slate-900 text-[9px] font-bold text-white">
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-slate-900 text-xs font-bold text-white">
                   {index + 1}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-bold text-slate-800">{question.title}</span>
                   {question.reason ? (
-                    <span className="mt-0.5 block truncate text-[8px] text-slate-500">
+                    <span className="mt-0.5 block truncate text-[10px] text-slate-500">
                       {question.reason}
                     </span>
                   ) : null}
                 </span>
-                <span className="shrink-0 text-[8px] font-bold text-emerald-700">做这道题</span>
+                <span className="shrink-0 text-[10px] font-bold text-emerald-700">做这道题</span>
                 <ChevronRight className="size-3 shrink-0 text-emerald-700 transition-transform group-hover:translate-x-0.5" />
               </button>
             ))}
@@ -4887,71 +4835,57 @@ function ProgressConfirmationCard({
 }) {
   const orderedNotebooks = orderedCourseNotebooks(notebooks);
   return (
-    <div
-      className={cn(
-        learnAssistantActionCardWidthClassName,
-        learnHomeGlowCardBaseClassName,
-        'mt-3 rounded-[16px] px-3.5 py-3 text-sm text-slate-800 dark:text-slate-50',
-      )}
+    <LearnConfirmationCard
+      className="mt-3"
+      title={
+        proposal.confirmed
+          ? proposal.writeMode === 'planning_scope'
+            ? '计划范围已确认'
+            : '学习进度已更新'
+          : (proposal.title ?? '确认学习进度')
+      }
+      description={proposal.reason}
+      icon={<Target className="size-4" />}
+      badge={proposal.confirmed ? '已确认' : '待确认'}
     >
-      <LearnHomeGlowLayers variant="progress" />
-      <div className="relative">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full border border-[#FF9A9A]/45 bg-white/72 text-[#DB544E] shadow-sm dark:border-[#FF9A9A]/22 dark:bg-white/8 dark:text-[#FF9A9A]">
-            <Target className="size-3.5" strokeWidth={1.9} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-slate-950 dark:text-slate-50">
-              {proposal.confirmed
-                ? proposal.writeMode === 'planning_scope'
-                  ? '计划范围已确认'
-                  : '学习进度已更新'
-                : (proposal.title ?? '确认学习进度')}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
-              {proposal.reason}
-            </p>
-          </div>
-        </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-          <select
-            value={proposal.selection}
-            onChange={(event) => onSelectionChange(event.target.value)}
-            disabled={disabled || proposal.confirmed}
-            className="h-9 min-w-0 rounded-[10px] border border-[#CEC6FF]/55 bg-white/72 px-3 text-sm text-foreground shadow-sm outline-none transition focus:border-[#A9E7FF] focus:ring-2 focus:ring-[#A9E7FF]/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-[#CEC6FF]/22 dark:bg-slate-950/70"
-            aria-label="确认学习进度"
-          >
-            <option value="">选择学习进度</option>
-            <option value={PROGRESS_SELECTION_NOT_STARTED}>还没开始</option>
-            {orderedNotebooks.map((notebook) => (
-              <option key={notebook.id} value={notebook.id}>
-                正在学习：{notebook.name}
-              </option>
-            ))}
-            {notebooks.length > 0 ? (
-              <option value={PROGRESS_SELECTION_COMPLETED_ALL}>已经学完整门课</option>
-            ) : null}
-          </select>
-          <Button
-            onClick={onConfirm}
-            disabled={disabled || !proposal.selection || proposal.confirmed}
-            className="h-9 rounded-[10px] bg-[#103832] px-4 text-sm text-white shadow-sm hover:bg-[#15574d] disabled:bg-slate-300 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
-          >
-            {proposal.confirmed ? '已确认' : (proposal.confirmLabel ?? '确认更新')}
-          </Button>
-          {onDismiss && !proposal.confirmed ? (
-            <Button
-              variant="ghost"
-              onClick={onDismiss}
-              disabled={disabled}
-              className="h-9 rounded-[10px] px-3 text-sm"
-            >
-              稍后再说
-            </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={proposal.selection}
+          onChange={(event) => onSelectionChange(event.target.value)}
+          disabled={disabled || proposal.confirmed}
+          className="h-8 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs outline-none focus:ring-2 focus:ring-sky-400/30 disabled:opacity-70 dark:border-white/15 dark:bg-slate-950"
+          aria-label="确认学习进度"
+        >
+          <option value="">选择学习进度</option>
+          <option value={PROGRESS_SELECTION_NOT_STARTED}>还没开始</option>
+          {orderedNotebooks.map((notebook) => (
+            <option key={notebook.id} value={notebook.id}>
+              正在学习：{notebook.name}
+            </option>
+          ))}
+          {notebooks.length > 0 ? (
+            <option value={PROGRESS_SELECTION_COMPLETED_ALL}>已经学完整门课</option>
           ) : null}
-        </div>
+        </select>
+        {onDismiss && !proposal.confirmed ? (
+          <Button
+            variant="outline"
+            onClick={onDismiss}
+            disabled={disabled}
+            className={LEARN_CONFIRMATION_SECONDARY_CLASS}
+          >
+            稍后再说
+          </Button>
+        ) : null}
+        <Button
+          onClick={onConfirm}
+          disabled={disabled || !proposal.selection || proposal.confirmed}
+          className={LEARN_CONFIRMATION_PRIMARY_CLASS}
+        >
+          {proposal.confirmed ? '已确认' : (proposal.confirmLabel ?? '确认更新')}
+        </Button>
       </div>
-    </div>
+    </LearnConfirmationCard>
   );
 }
 
@@ -5098,138 +5032,86 @@ export function LearnLearningActionCards({
 }) {
   if (!actions?.length) return null;
   return (
-    <section
-      className="mt-2.5 overflow-hidden rounded-[14px] border border-slate-400/20 bg-white/90"
-      aria-label="助教建议的下一步"
-    >
-      <header className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-2.5 py-2">
-        <span className="inline-flex items-center gap-1.5 text-[9px] font-bold text-violet-700">
-          <Sparkles className="size-3" />
-          建议的下一步
-        </span>
-        <small className="text-[8px] text-slate-400">执行前会明确确认</small>
-      </header>
-      <div className="divide-y divide-slate-100">
-        {actions.map((action) => {
-          const completed =
-            action.status === 'completed' ||
-            action.status === 'confirmed' ||
-            action.status === 'cancelled';
-          const requiresConfirmation = action.confirmation === 'required';
-          const memoryDetails = memoryActionDetailRows(action);
-          if (action.kind === 'review_mode.request_choice') {
-            const options = reviewModeChoiceOptions(action);
-            return (
-              <article
-                key={action.id}
-                className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2 px-2.5 py-[9px] sm:grid-cols-[28px_minmax(0,1fr)_auto]"
-              >
-                <span className="grid size-7 place-items-center rounded-[9px] bg-violet-50 text-violet-700">
-                  <Sparkles className="size-[15px]" />
-                </span>
-                <span className="grid min-w-0 gap-0.5">
-                  <strong className="truncate text-[9px] text-slate-700">
-                    {learnActionTitle(action)}
-                  </strong>
-                  <small className="truncate text-[8px] leading-[1.45] text-slate-500">
-                    {action.summary || action.label}
-                  </small>
-                </span>
-                <div className="col-[2/3] flex flex-wrap gap-1.5 sm:col-auto">
-                  {options.map((option) => (
+    <div className="mt-3 space-y-3" aria-label="助教建议的下一步">
+      {actions.map((action) => {
+        const completed = ['completed', 'confirmed', 'cancelled'].includes(
+          action.status ?? 'proposed',
+        );
+        const requiresConfirmation = action.confirmation === 'required';
+        const memoryDetails = memoryActionDetailRows(action);
+        const isChoice = action.kind === 'review_mode.request_choice';
+        return (
+          <LearnConfirmationCard
+            key={action.id}
+            title={learnActionTitle(action)}
+            description={memoryDetails.length ? undefined : action.summary || action.label}
+            icon={<Sparkles className="size-4" />}
+            badge={
+              completed
+                ? learnActionButtonLabel(action)
+                : requiresConfirmation
+                  ? '待确认'
+                  : undefined
+            }
+            actions={
+              <>
+                {requiresConfirmation && !completed ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={disabled}
+                    className={LEARN_CONFIRMATION_SECONDARY_CLASS}
+                    onClick={() => onCancel(action)}
+                  >
+                    取消
+                  </Button>
+                ) : null}
+                {isChoice ? (
+                  reviewModeChoiceOptions(action).map((option) => (
                     <Button
                       key={option.value}
                       type="button"
                       size="sm"
                       disabled={disabled || completed}
-                      className={cn(
-                        'h-7 rounded-full px-2.5 text-[8px] font-bold',
+                      className={
                         option.value === 'both'
-                          ? 'bg-violet-600 text-white hover:bg-violet-700'
-                          : 'border border-violet-200 bg-white text-violet-700 hover:bg-violet-50',
-                      )}
+                          ? LEARN_CONFIRMATION_PRIMARY_CLASS
+                          : LEARN_CONFIRMATION_SECONDARY_CLASS
+                      }
                       onClick={() => onReviewModeChoice?.(action, option)}
                     >
                       {option.label}
                     </Button>
-                  ))}
-                  {requiresConfirmation && !completed ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 rounded-full px-2 text-[8px] text-slate-400"
-                      disabled={disabled}
-                      onClick={() => onCancel(action)}
-                    >
-                      取消
-                    </Button>
-                  ) : null}
-                </div>
-              </article>
-            );
-          }
-          return (
-            <article
-              key={action.id}
-              className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-[9px]"
-            >
-              <span className="grid size-7 place-items-center rounded-[9px] bg-violet-50 text-violet-700">
-                <Sparkles className="size-[15px]" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-[9px] font-bold text-slate-700">
-                  {learnActionTitle(action)}
-                </p>
-                {memoryDetails.length ? (
-                  <dl className="mt-1.5 space-y-1 text-[8px] leading-[1.45] text-slate-600">
-                    {memoryDetails.map((row) => (
-                      <div key={row.label} className="grid grid-cols-[2.5rem_1fr] gap-1.5">
-                        <dt className="font-medium text-slate-400">{row.label}</dt>
-                        <dd className="min-w-0 whitespace-pre-wrap break-words">{row.value}</dd>
-                      </div>
-                    ))}
-                  </dl>
+                  ))
                 ) : (
-                  <p className="mt-0.5 truncate text-[8px] leading-[1.45] text-slate-500">
-                    {action.summary || action.label}
-                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={disabled || completed}
+                    className={LEARN_CONFIRMATION_PRIMARY_CLASS}
+                    onClick={() => onConfirm(action)}
+                  >
+                    {learnActionButtonLabel(action)}
+                  </Button>
                 )}
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={disabled || completed}
-                  className={cn(
-                    'h-7 shrink-0 rounded-full px-2 text-[8px] text-slate-400',
-                    requiresConfirmation ? '' : 'hidden',
-                  )}
-                  onClick={() => onCancel(action)}
-                >
-                  取消
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={disabled || completed}
-                  className={cn(
-                    'h-7 shrink-0 rounded-full px-2.5 text-[8px] font-bold',
-                    completed
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-violet-600 text-white hover:bg-violet-700',
-                  )}
-                  onClick={() => onConfirm(action)}
-                >
-                  {learnActionButtonLabel(action)}
-                </Button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
+              </>
+            }
+          >
+            {memoryDetails.length ? (
+              <dl className="space-y-1.5 text-xs leading-5 text-slate-600 dark:text-slate-300">
+                {memoryDetails.map((row) => (
+                  <div key={row.label} className="grid grid-cols-[3rem_1fr] gap-2">
+                    <dt className="font-medium text-slate-400">{row.label}</dt>
+                    <dd className="min-w-0 whitespace-pre-wrap break-words">{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+          </LearnConfirmationCard>
+        );
+      })}
+    </div>
   );
 }
 
@@ -5343,13 +5225,18 @@ function CalendarDraftPreview({
         />
       </div>
       <div className="flex items-center justify-end gap-2 border-t border-border/70 px-5 py-4">
-        <Button type="button" variant="ghost" className="rounded-[10px]" onClick={onClose}>
+        <Button
+          type="button"
+          variant="outline"
+          className={LEARN_CONFIRMATION_SECONDARY_CLASS}
+          onClick={onClose}
+        >
           关闭
         </Button>
         <Button
           type="button"
           disabled={disabled || !addAction || completed}
-          className="rounded-[10px] bg-[#103832] text-white hover:bg-[#15574d] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+          className={LEARN_CONFIRMATION_PRIMARY_CLASS}
           onClick={() => {
             if (!addAction || !onAddToCalendar) return;
             onAddToCalendar(addAction);
@@ -5579,16 +5466,19 @@ function LearnArtifactCards({
               <button
                 type="button"
                 onClick={() => setOpenCalendarDraftId(artifact.id)}
-                className="flex w-full items-center gap-3 rounded-lg border border-amber-100 bg-amber-50/70 px-3 py-2.5 text-left text-xs shadow-sm transition hover:border-amber-200 hover:bg-amber-50 dark:border-amber-300/15 dark:bg-amber-400/10 dark:hover:bg-amber-400/15"
+                className={cn(
+                  LEARN_CONFIRMATION_SURFACE_CLASS,
+                  'flex w-full items-center gap-3 p-3.5 text-left text-xs transition hover:border-sky-200 dark:hover:border-sky-300/25',
+                )}
               >
-                <span className="grid size-9 shrink-0 place-items-center rounded-[12px] border border-amber-200 bg-white text-amber-700 shadow-sm dark:border-amber-300/20 dark:bg-white/10 dark:text-amber-100">
+                <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-100 dark:bg-sky-400/10 dark:text-sky-200 dark:ring-sky-300/15">
                   <CalendarDays className="size-4" strokeWidth={1.9} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold text-amber-950 dark:text-amber-100">
+                  <span className="block text-[13px] font-semibold text-slate-900 dark:text-slate-100">
                     {artifact.title || '日程规划'}
                   </span>
-                  <span className="mt-0.5 block text-amber-800/75 dark:text-amber-100/70">
+                  <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
                     {artifact.items.length} 个活动 · 点击查看这次规划
                   </span>
                 </span>
@@ -15577,7 +15467,7 @@ export function LearnPageClient() {
                 最近动态
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                查看记忆整理的进度与结果，完成后会在这里告诉你。
+                查看新增或更新的学习记忆，以及记住的对话要点。
               </p>
             </div>
           </div>
@@ -15642,7 +15532,7 @@ export function LearnPageClient() {
                               ? record.title
                               : memoryActivityStudentTitle(record.title, record.description)}
                           </p>
-                          <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">
+                          <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 dark:text-slate-300">
                             {isBackground
                               ? record.description
                               : memoryActivityStudentDescription(record)}
@@ -16657,7 +16547,7 @@ export function LearnPageClient() {
                 </DropdownMenu>
               </>
             }
-            trailingActions={
+            beforeTitleActions={
               !isTeacherCourseChat ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -17080,6 +16970,10 @@ export function LearnPageClient() {
                                     actions={visibleLearningActionsForArtifacts(
                                       message.learningActions,
                                       message.artifacts,
+                                    )?.filter(
+                                      (action) =>
+                                        !(miniLecturePrompt || message.lectureDeck) ||
+                                        action.kind !== 'classroom.propose_temporary_explanation',
                                     )}
                                     disabled={!conversationInteractive}
                                     onConfirm={handleLearningActionConfirm}

@@ -184,6 +184,7 @@ export async function processMemoryJob(
     )
       return { skipped: 'deleted-attempt' };
     const saved: string[] = [];
+    const updates: Array<{ title: string; text: string; operation: 'created' | 'updated' }> = [];
     for (const note of acceptedNotes) {
       const existing = note.existingId ? notes.find((n) => n.id === note.existingId) : undefined;
       if (note.existingId && !existing) continue;
@@ -237,6 +238,11 @@ export async function processMemoryJob(
         if (!created.count) continue;
       }
       saved.push(id);
+      updates.push({
+        title: note.title,
+        text: note.text,
+        operation: existing ? 'updated' : 'created',
+      });
       await enqueueJob(tx, {
         ownerId: job.ownerId,
         courseId: job.courseId,
@@ -245,6 +251,11 @@ export async function processMemoryJob(
         payload: { memoryId: id },
       });
     }
-    return { notes: saved, conversationId: conversation?.id || null };
+    return {
+      notes: saved,
+      updates,
+      conversationId: conversation?.id || null,
+      summary: conversation ? output.summary : undefined,
+    };
   });
 }
