@@ -56,6 +56,7 @@ import {
   AnswerFeedbackSummaryBadge,
   AnswerPreviewPanel,
   AttemptHistoryPanel,
+  AttemptHistoryMenu,
   ChoiceAnswerPreviewPanel,
   FormulaReferencePanel,
   PROBLEM_BANK_EMERALD_ACTION_BUTTON_CLASS,
@@ -88,6 +89,7 @@ import {
   type CourseProblemPracticeAttemptResolvedEvent,
 } from '@/components/problem-bank/use-course-problem-bank-controller';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
+import { useCourseSpaceShell } from '@/components/course-space/course-space-shell-context';
 import {
   COURSE_SPACE_BODY_SURFACE_CLASS,
   resolveCourseSpaceHeaderFields,
@@ -1233,6 +1235,7 @@ export function CourseProblemBankView({
   previewAsTeacher?: boolean;
   forumCount?: number;
 }) {
+  const hasSharedShell = useCourseSpaceShell();
   const view = useCourseProblemBankController({
     courseId,
     initialNotebookId,
@@ -1470,6 +1473,40 @@ export function CourseProblemBankView({
     selectedProblemAttemptsLoaded &&
     selectedProblemRemainingSubmissions === 0;
   const selectedProblemNextAttemptNumber = Math.min(3, selectedProblemSubmissionCount + 1);
+  const problemSubmissionActions = (
+    <div
+      data-problem-submission-actions
+      className="flex min-w-0 flex-wrap items-center justify-end gap-2"
+    >
+      {selectedProblemHasLimitedSubmissions ? (
+        <span
+          aria-live="polite"
+          className="whitespace-nowrap text-[11px] font-medium text-slate-500 dark:text-slate-400"
+        >
+          {selectedProblemAttemptsLoaded
+            ? selectedProblemSubmissionLimitReached
+              ? locale === 'zh-CN'
+                ? '3 次机会已用完'
+                : 'No attempts remaining'
+              : locale === 'zh-CN'
+                ? `剩余 ${selectedProblemRemainingSubmissions} 次 · 下次最高 ${maxScoreForAttempt(selectedProblemNextAttemptNumber)} 分`
+                : `${selectedProblemRemainingSubmissions} left · next max ${maxScoreForAttempt(selectedProblemNextAttemptNumber)}`
+            : locale === 'zh-CN'
+              ? '正在读取尝试次数…'
+              : 'Checking attempts...'}
+        </span>
+      ) : null}
+      {selectedProblem && courseAccessRole !== 'owner' && !previewMode ? (
+        <ProblemForumPublishDialog
+          key={selectedProblem.id}
+          courseId={courseId}
+          problemId={selectedProblem.id}
+          problemTitle={selectedProblemTitle || selectedProblem.title}
+          locale={locale}
+        />
+      ) : null}
+    </div>
+  );
   const selectedProblemCodeTabs: CodePracticeTab[] =
     selectedProblem?.type === 'code' && selectedProblemContent?.type === 'code'
       ? canEditProblems && (selectedProblem.secretJudge?.secretTests?.length ?? 0) > 0
@@ -1732,15 +1769,11 @@ export function CourseProblemBankView({
   const handleSubmitAndShowHistory = async () => {
     const submitted = await handleSubmitInlineAnswer();
     if (!submitted) return;
-    setPracticePaneActive((prev) => {
-      if (visiblePracticePaneTabs.right.includes('history')) {
-        return { ...prev, right: 'history' };
-      }
-      if (visiblePracticePaneTabs.left.includes('history')) {
-        return { ...prev, left: 'history' };
-      }
-      return prev;
-    });
+    toast.success(
+      locale === 'zh-CN'
+        ? '答案已提交，可在「提交历史」查看详情。'
+        : 'Submitted. Open History to view details.',
+    );
   };
   const handleRunCodeAndShowOutput = async (pane: PracticePaneId, target: CourseCodeRunTarget) => {
     const ran = await handleRunCodeAnswer(target);
@@ -1966,6 +1999,17 @@ export function CourseProblemBankView({
         {visiblePracticePaneTabs[pane].map((tab) =>
           (() => {
             const { Icon, iconClassName, label } = practiceTabMeta(tab);
+            if (tab === 'history')
+              return (
+                <AttemptHistoryMenu
+                  key={`${selectedProblem?.id}-history`}
+                  attempts={selectedProblemAttempts}
+                  loading={selectedProblemAttemptsLoading}
+                  points={selectedProblem?.points ?? 100}
+                  locale={locale}
+                  className={practiceTabClassName(tab, false)}
+                />
+              );
             return (
               <button
                 key={tab}
@@ -1993,29 +2037,7 @@ export function CourseProblemBankView({
         ) : null}
         {activeTab === 'answer' || activeCodeRunTarget ? (
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            {selectedProblemHasLimitedSubmissions ? (
-              <span className="hidden whitespace-nowrap text-[11px] font-medium text-slate-500 min-[480px]:inline dark:text-slate-400">
-                {selectedProblemAttemptsLoaded
-                  ? selectedProblemSubmissionLimitReached
-                    ? locale === 'zh-CN'
-                      ? '3 次机会已用完'
-                      : 'No attempts remaining'
-                    : locale === 'zh-CN'
-                      ? `剩余 ${selectedProblemRemainingSubmissions} 次 · 下次最高 ${maxScoreForAttempt(selectedProblemNextAttemptNumber)} 分`
-                      : `${selectedProblemRemainingSubmissions} left · next max ${maxScoreForAttempt(selectedProblemNextAttemptNumber)}`
-                  : locale === 'zh-CN'
-                    ? '正在读取尝试次数…'
-                    : 'Checking attempts...'}
-              </span>
-            ) : null}
-            {selectedProblem && courseAccessRole !== 'owner' && !previewMode ? (
-              <ProblemForumPublishDialog
-                courseId={courseId}
-                problemId={selectedProblem.id}
-                problemTitle={selectedProblemTitle || selectedProblem.title}
-                locale={locale}
-              />
-            ) : null}
+            {!showCourseNavigation ? problemSubmissionActions : null}
             {activeCodeRunTarget ? (
               <Button
                 type="button"
@@ -2588,7 +2610,8 @@ export function CourseProblemBankView({
     <div
       className={cn(
         'flex h-full min-h-0 w-full flex-col gap-4 sm:gap-5',
-        showCourseNavigation && !isPracticeMode && 'min-h-[calc(100dvh-3rem)]',
+        showCourseNavigation && !isPracticeMode && !hasSharedShell && 'min-h-[calc(100dvh-3rem)]',
+        showCourseNavigation && hasSharedShell && 'flex-1',
         isPracticeMode && 'min-h-0',
         showChromeBackground ? 'bg-[#f5f5f5] dark:bg-slate-950' : 'bg-transparent',
       )}
@@ -2603,6 +2626,7 @@ export function CourseProblemBankView({
           forumCount={forumCount}
           previewMode={previewMode}
           actions={courseSpaceHeaderActions}
+          trailingActions={isPracticeMode ? problemSubmissionActions : undefined}
         />
       ) : null}
 

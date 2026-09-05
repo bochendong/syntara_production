@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runPythonJson } from '@/lib/server/python-runner';
+import { codeTestSummaryFeedback } from '@/lib/problem-bank/attempt-feedback';
 import type {
   NotebookProblemAttemptAnswer,
   NotebookProblemAttemptResult,
@@ -351,26 +352,11 @@ function codeCaseSummary(args: {
   locale: JudgeLocale;
 }) {
   const failed = Math.max(0, args.total - args.passed);
-  const label =
-    args.locale === 'zh-CN'
-      ? args.label === 'public'
-        ? '公开测试'
-        : '隐藏测试'
-      : args.label === 'public'
-        ? 'Public tests'
-        : 'Secret tests';
   return {
     total: args.total,
     passed: args.passed,
     failed,
-    failureSummary:
-      args.locale === 'zh-CN'
-        ? failed > 0
-          ? `${label} 有 ${failed} 个未通过。`
-          : `${label} 全部通过。`
-        : failed > 0
-          ? `${failed} ${args.label} test${failed === 1 ? '' : 's'} failed.`
-          : `All ${args.label} tests passed.`,
+    failureSummary: codeTestSummaryFeedback({ total: args.total, failed }, args.label, args.locale),
   };
 }
 

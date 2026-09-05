@@ -2303,12 +2303,16 @@ export async function getNotebookProblemForUser(
   userId: string,
   notebookId: string,
   problemId: string,
+  options: { includeSecretJudgeForEvaluation?: boolean } = {},
 ): Promise<{
   problem: NotebookProblemRecord;
   secretJudge?: NotebookProblemSecretJudge;
 }> {
   const notebookAccess = await requireNotebookReadAccess(userId, notebookId);
-  const canReadSecretJudge = notebookAccess.accessRole === 'owner';
+  // Server-side submissions need the tests even when the learner cannot view them.
+  // Detail routes must leave this option unset to keep their responses private.
+  const canReadSecretJudge =
+    notebookAccess.accessRole === 'owner' || options.includeSecretJudgeForEvaluation === true;
   if (notebookAccess.accessRole === 'owner') {
     await ensureLegacyProblemsBackfilled(userId, notebookId);
     await ensureProblemNumbersBackfilledForNotebook(userId, notebookId);
@@ -2362,13 +2366,15 @@ export async function getCourseProblemForUser(
   userId: string,
   courseId: string,
   problemId: string,
-  options: { skipMaintenance?: boolean } = {},
+  options: { skipMaintenance?: boolean; includeSecretJudgeForEvaluation?: boolean } = {},
 ): Promise<{
   problem: NotebookProblemRecord;
   secretJudge?: NotebookProblemSecretJudge;
 }> {
   const accessRole = await requireCourseReadAccess(userId, courseId);
-  const canReadSecretJudge = accessRole === 'owner';
+  // This opt-in is only for server-side evaluation, never for a detail response.
+  const canReadSecretJudge =
+    accessRole === 'owner' || options.includeSecretJudgeForEvaluation === true;
   if (accessRole === 'owner' && !options.skipMaintenance) {
     await ensureLegacyProblemsBackfilledForCourse(userId, courseId);
     await ensureProblemNumbersBackfilledForCourse(userId, courseId);
@@ -3278,6 +3284,28 @@ export async function createNotebookProblemAttempt(args: {
   const attempt = mapAttemptRow(created);
 
   return attempt;
+}
+
+/** Call after checking access to the problem. Match the exact submitted source. */
+export async function hasPassedPublicCodeRun(args: {
+  userId: string;
+  problemId: string;
+  code: string;
+}): Promise<boolean> {
+  const run = await prismaDb.notebookProblemAttempt.findFirst({
+    where: {
+      userId: args.userId,
+      problemId: args.problemId,
+      kind: 'run',
+      AND: [
+        { answerJson: { path: ['code'], equals: args.code } },
+        { resultJson: { path: ['runTarget'], equals: 'public' } },
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+    select: { status: true },
+  });
+  return run?.status === 'passed';
 }
 
 export async function countNotebookProblemSubmissions(args: {

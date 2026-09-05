@@ -1338,6 +1338,24 @@ export function useCourseProblemBankController({
       toast.error(locale === 'zh-CN' ? '请先填写代码。' : 'Code is required.');
       return false;
     }
+    if (
+      selectedProblem.type === 'code' &&
+      selectedProblemContent?.type === 'code' &&
+      selectedProblemContent.publicTests.length > 0 &&
+      (attemptsByProblemId[selectedProblem.id] ?? []).find(
+        (attempt) =>
+          attempt.kind === 'run' &&
+          attempt.result?.runTarget === 'public' &&
+          attempt.answer.code === selectedCodeAnswer,
+      )?.status !== 'passed'
+    ) {
+      toast.error(
+        locale === 'zh-CN'
+          ? '请先在「测试用例」中运行测试，当前代码通过全部公开测试后再提交。'
+          : 'Run tests in Testcase first. Your current code must pass all public tests before submitting.',
+      );
+      return false;
+    }
     if (immediateChoiceFeedback) {
       setAnswerFeedbackByProblemId((prev) => ({
         ...prev,
@@ -1434,6 +1452,7 @@ export function useCourseProblemBankController({
       setSubmittingAnswer(false);
     }
   }, [
+    attemptsByProblemId,
     blankAnswers,
     choiceAnswers,
     codeAnswers,

@@ -67,6 +67,7 @@
     "test:problem-auto-archive-contracts": "node scripts/maintenance/verify-problem-auto-archive-contracts.mjs",
     "test:problem-learning-system": "node scripts/maintenance/verify-problem-learning-system-contracts.mjs",
     "test:python-code-runner": "node scripts/maintenance/verify-python-code-runner.mjs",
+    "test:code-submission": "node scripts/maintenance/verify-code-submission-tests.mjs",
     "test:course-space-problem-bank-ui-contracts": "node scripts/maintenance/verify-course-space-problem-bank-ui-contracts.mjs",
     "test:course-forum-selection-contracts": "node scripts/maintenance/verify-course-forum-selection-contracts.mjs",
     "test:course-forum-attachment-contracts": "node scripts/maintenance/verify-course-forum-attachment-contracts.mjs",

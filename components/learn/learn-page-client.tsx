@@ -2943,7 +2943,8 @@ function learnMessagesForCourseAnswerer(
       !message.transient &&
       (Boolean(message.text.trim()) ||
         Boolean(message.attachments?.length) ||
-        Boolean(message.learningActions?.length)),
+        Boolean(message.learningActions?.length) ||
+        Boolean(message.plan)),
   );
   const latestCompressionIndex = eligibleMessages.findLastIndex((message) =>
     Boolean(message.contextCompression?.summary.trim()),
@@ -2988,6 +2989,14 @@ function learnMessagesForCourseAnswerer(
                 message.text.length <= 12_000
                   ? message.text
                   : `${message.text.slice(0, 6_000)}\n\n…（单条历史消息中间部分已省略）…\n\n${message.text.slice(-6_000)}`,
+            },
+          ]
+        : []),
+      ...(message.plan
+        ? [
+            {
+              type: 'text' as const,
+              text: `已展示题库练习卡片：${message.plan.questions?.map((question) => `${question.title}（${question.problemId}）`).join('；') || message.plan.title}`,
             },
           ]
         : []),
@@ -3074,6 +3083,7 @@ function streamedCourseAnswerFromMessages(
   historicalMessageIds: Set<string>,
 ): {
   text: string;
+  plan?: PracticePlan;
   learningActions?: LearningAction[];
   publicTrace?: LearnPublicTraceStep[];
   contextCompression?: ChatContextCompression;
@@ -3091,6 +3101,7 @@ function streamedCourseAnswerFromMessages(
   if (!assistantMessage && !publicTrace?.length) return null;
   return {
     text: assistantMessage ? messageText(assistantMessage) : '',
+    plan: assistantMessage?.metadata?.practicePlan,
     learningActions: assistantMessage?.metadata?.learningActions?.map((action) => ({
       ...action,
     })),
@@ -3371,7 +3382,7 @@ function normalizedPracticeAttemptScore(
 
 function practiceSessionPlanMeta(plan: PracticePlan, summary?: PracticeSessionSummary | null) {
   if (!summary || summary.attempted === 0) {
-    return `${plan.estimatedMinutes} 分钟 · ${plan.problemIds.length || 0} 题`;
+    return `${plan.estimatedMinutes > 0 ? `${plan.estimatedMinutes} 分钟 · ` : ''}${plan.problemIds.length || 0} 题`;
   }
   return summary.meta;
 }
@@ -3540,6 +3551,7 @@ function uniquePlanStrings(values: Array<string | undefined | null>, limit = 12)
 
 function practicePlanDisplayRationale(plan: PracticePlan): string[] {
   const raw = plan.evidence?.rationale || [];
+  if (!raw.length && plan.questions?.length) return [];
   const topicText = normalizePracticeSelectionText(
     [
       ...plan.targetConcepts,
@@ -4650,7 +4662,7 @@ export function PlanActionCard({
   sessionSummary?: PracticeSessionSummary | null;
   problemsState: ResourceLoadState;
   disabled?: boolean;
-  onStart: (plan: PracticePlan) => void;
+  onStart: (plan: PracticePlan, problemId?: string) => void;
 }) {
   const isQuizPlan = plan.mode === 'quiz';
   const planIconClassName = isQuizPlan
@@ -4767,14 +4779,13 @@ export function PlanActionCard({
           <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
             <p className="text-[9px] font-bold text-slate-900">题库选题 · 点击题目直接作答</p>
             {questionLinks.map((question, index) => (
-              <Link
+              <button
                 key={question.problemId}
-                href={question.href}
-                aria-disabled={disabled}
-                tabIndex={disabled ? -1 : undefined}
-                onClick={disabled ? (event) => event.preventDefault() : undefined}
+                type="button"
+                disabled={disabled}
+                onClick={() => onStart(plan, question.problemId)}
                 className={cn(
-                  'group flex items-center gap-2 rounded-[12px] border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-[9px] transition-colors hover:border-emerald-200 hover:bg-emerald-50/50',
+                  'group flex w-full items-center gap-2 rounded-[12px] border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-left text-[9px] transition-colors hover:border-emerald-200 hover:bg-emerald-50/50',
                   disabled && 'pointer-events-none opacity-60',
                 )}
               >
@@ -4791,7 +4802,7 @@ export function PlanActionCard({
                 </span>
                 <span className="shrink-0 text-[8px] font-bold text-emerald-700">做这道题</span>
                 <ChevronRight className="size-3 shrink-0 text-emerald-700 transition-transform group-hover:translate-x-0.5" />
-              </Link>
+              </button>
             ))}
           </div>
         ) : (
@@ -10687,17 +10698,28 @@ export function LearnPageClient() {
   ]);
 
   const openPracticePlan = useCallback(
-    (plan: PracticePlan) => {
+    (plan: PracticePlan, problemId?: string) => {
+      if (plan.courseId !== activeCourseId || plan.userId !== localUserId) {
+        toast.error('这组练习不属于当前课程或账号。');
+        return;
+      }
       if (plan.problemIds.length === 0) {
         toast.error('这组练习还没有题目。');
         return;
       }
-      const session = ensurePracticeSession({ plan, userId: localUserId });
+      const savedPlan = savePracticePlan(plan);
+      let session = ensurePracticeSession({ plan: savedPlan, userId: localUserId });
+      if (problemId && plan.problemIds.includes(problemId)) {
+        session = updatePracticeSessionCurrentProblem(session.id, problemId) || session;
+      }
       syncPracticeSessionState(session);
-      // Use the dedicated practice page (full problem solver), not the learn sidebar popup.
-      router.push(`/practice/${encodeURIComponent(plan.id)}`);
+      setPracticeHeaderState(null);
+      setPracticeProblemHelp(null);
+      setPracticeProblemHelpTabProblemId(null);
+      setPracticeProblemHelpTabActive(false);
+      setPracticePopupSessionId(session.id);
     },
-    [localUserId, router, syncPracticeSessionState],
+    [activeCourseId, localUserId, syncPracticeSessionState],
   );
 
   const openPracticeSession = useCallback(
@@ -12734,13 +12756,13 @@ export function LearnPageClient() {
   );
 
   const startPlan = useCallback(
-    (plan: PracticePlan) => {
+    (plan: PracticePlan, problemId?: string) => {
       const planStoreKey = activeMessageStoreKeyRef.current;
       if (!planStoreKey || localConversationReadyKey !== planStoreKey) {
         toast.info('会话仍在本地恢复，请稍后再开始练习。');
         return;
       }
-      openPracticePlan(plan);
+      openPracticePlan(plan, problemId);
     },
     [localConversationReadyKey, openPracticePlan],
   );
@@ -12952,6 +12974,7 @@ export function LearnPageClient() {
                   role: 'assistant',
                   text: streamedAnswer.text || existing.text,
                   learningActions: streamedAnswer.learningActions || existing.learningActions,
+                  plan: streamedAnswer.plan || existing.plan,
                   createdAt: existing.createdAt,
                   publicTrace:
                     streamedAnswer.publicTrace || latestTeacherPublicTrace || existing.publicTrace,
@@ -12972,7 +12995,11 @@ export function LearnPageClient() {
             result.messages,
             historicalAnswererMessageIds,
           );
-          if (!currentTurnAnswer?.text.trim() && !currentTurnAnswer?.learningActions?.length) {
+          if (
+            !currentTurnAnswer?.text.trim() &&
+            !currentTurnAnswer?.learningActions?.length &&
+            !currentTurnAnswer?.plan
+          ) {
             throw new Error('教师课程助理没有返回新的内容');
           }
           const answerMessage: LearnMessage = {
@@ -12980,6 +13007,7 @@ export function LearnPageClient() {
             role: 'assistant',
             text: normalizeCourseAssistantAnswer(currentTurnAnswer.text),
             learningActions: currentTurnAnswer.learningActions,
+            plan: currentTurnAnswer.plan,
             createdAt: Date.now(),
             publicTrace: finalizePublicTraceSteps(
               currentTurnAnswer.publicTrace || latestTeacherPublicTrace,
@@ -13019,6 +13047,7 @@ export function LearnPageClient() {
               ? `${partialAnswer}\n\n> ${interruptionNotice}`
               : interruptionNotice,
             learningActions: partialMessage?.learningActions,
+            plan: partialMessage?.plan,
             createdAt: Date.now(),
             publicTrace: publicTraceForBlockedQuestion(
               questionText,

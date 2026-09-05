@@ -6,6 +6,7 @@
  */
 
 import type { UIMessage } from 'ai';
+import type { PracticePlan } from '@/lib/learning/course-learner-state';
 import type { ChatResponseStrength } from '@/lib/ai/chat-response-strength';
 
 // Session Types
@@ -86,6 +87,7 @@ export interface ChatMessageMetadata {
   }>;
   actions?: MessageAction[];
   learningActions?: LearningAction[];
+  practicePlan?: PracticePlan;
   artifacts?: LearnArtifact[];
   /** 用户消息附带的文件（仅展示，不参与模型协议字段） */
   attachments?: Array<{
@@ -957,6 +959,7 @@ export type StatelessEvent =
     }
   | { type: 'agent_end'; data: { messageId: string; agentId: string } }
   | { type: 'text_delta'; data: { content: string; messageId?: string } }
+  | { type: 'practice_plan'; data: { messageId: string; plan: PracticePlan } }
   | {
       type: 'action';
       data: {

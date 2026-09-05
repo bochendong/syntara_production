@@ -3,7 +3,9 @@
 import type { ReactNode } from 'react';
 import { Suspense, useState, useLayoutEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { CourseSpaceShell } from '@/components/course-space/course-space-shell';
+import { resolveCourseSpaceRoute } from '@/lib/course-space/course-space-route';
 import { cn } from '@/lib/utils';
 import {
   CHAT_RIGHT_RAIL_COLLAPSED_STORAGE_KEY,
@@ -105,6 +107,8 @@ function MainShellNoRail({
 
 export function AppLayoutChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const courseSpaceRoute = resolveCourseSpaceRoute(pathname, searchParams);
   const isLogin = pathname === '/login' || pathname?.startsWith('/login/');
   const isTeacherLogin =
     pathname === '/teacher/login' || Boolean(pathname?.startsWith('/teacher/login/'));
@@ -162,6 +166,10 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   const isChatPage = pathname === '/chat';
   const hasRightRail = isChatPage;
   const hasGlobalHeader = false;
+  if (courseSpaceRoute) {
+    return <CourseSpaceShell route={courseSpaceRoute}>{children}</CourseSpaceShell>;
+  }
+
   if (isLogin || isTeacherLogin || isSpeedupSignedOut || isRegister || isLanding) {
     return <>{children}</>;
   }

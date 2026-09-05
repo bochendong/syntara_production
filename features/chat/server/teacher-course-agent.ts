@@ -1,4 +1,5 @@
 import { readCourseNotes, readConversationRecall } from './context-notes';
+import { practiceCardFromSearch } from './practice-card';
 import { randomUUID } from 'node:crypto';
 import { openai } from '@ai-sdk/openai';
 import { ToolLoopAgent, stepCountIs, tool, type LanguageModel, type ToolSet } from 'ai';
@@ -444,7 +445,7 @@ function courseAgentInstructions(args: {
     '8. 使用 web_search 得到的事实必须以搜索结果为依据，不要编造网页来源；回答末尾会自动附上可点击的联网来源。',
     '9. 用户要求课程题库中的真实练习题或选题时，调用 search_course_problem_bank。严格使用工具返回的 problemId；命中不足时保留缺口，不得自行生成替代题冒充题库题。',
     '9a. 继续上一轮薄弱点选题时，沿用真实作答记录中的题目语言和知识点，不要仅因某本讲义使用 Racket 就把 Python 练习改成 Racket。中英文题目名称可用同义词检索。零条命中只表示本次检索没有命中，不能声称课程没有这些题。',
-    '9b. 推荐题目时使用工具返回的 metadata.href 提供可点击的题名，并简述练习目的；不要展示内部题库 ID。检索结果是摘要，若要呈现完整题干、代码或选项，先用 read_selected_context 按真实 problemId 读取原题，不能补写缺失的题干和选项。',
+    '9b. 学生端 search_course_problem_bank 命中后，应用会自动显示可点击并弹出做题窗口的练习卡片。只需简短说明可以开始练习；不要重复罗列题名、链接、内部 ID、完整题干或提前透露解题提示。零命中时没有卡片，说明本次检索的缺口。教师端若需原题，可用 read_selected_context 按真实 problemId 读取，不能补写缺失的题干和选项。',
     '10. 查询当前用户在本课程中的日程时调用 list_calendar_events。',
     ...(isStudent
       ? [
@@ -667,6 +668,7 @@ export async function runCourseTurn(
   const agentId = isStudent ? 'student-course-agent' : 'teacher-course-agent';
   const agentName = isStudent ? '课程学习助理' : '课程助理';
   const messageId = `${agentId}-answer-${randomUUID()}`;
+  let practicePlanEmitted = false;
   const emitProgress = async (line: string, steps: PublicReplyProgressStep[]) => {
     await args.onEvent({
       type: 'public_progress',
@@ -895,14 +897,29 @@ export async function runCourseTurn(
         query: z.string().trim().min(1).max(500),
         requestedCount: z.number().int().min(1).max(12).default(5),
       }),
-      execute: async ({ query, requestedCount }) =>
-        searchLearnProblemBankForPractice({
+      execute: async ({ query, requestedCount }) => {
+        const result = await searchLearnProblemBankForPractice({
           prisma: db,
           userId: args.access.userId,
           courseId: args.access.course.id,
           query,
           requestedCount,
-        }),
+        });
+        if (isStudent) {
+          const plan = practiceCardFromSearch({
+            result,
+            id: `practice-${messageId}`,
+            userId: args.access.userId,
+            courseId: args.access.course.id,
+            courseName: args.access.course.name,
+          });
+          if (plan) {
+            await args.onEvent({ type: 'practice_plan', data: { messageId, plan } });
+            practicePlanEmitted = true;
+          }
+        }
+        return result;
+      },
     }),
   };
   const hostedWebTools = {
@@ -1243,7 +1260,12 @@ export async function runCourseTurn(
     });
   }
 
-  if (!args.signal.aborted && !streamedText.trim() && !calendarProposalEmitted) {
+  if (
+    !args.signal.aborted &&
+    !streamedText.trim() &&
+    !calendarProposalEmitted &&
+    !practicePlanEmitted
+  ) {
     throw new Error(`${agentName}没有返回可展示的回答。`);
   }
   if (!args.signal.aborted) {

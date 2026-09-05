@@ -60,6 +60,10 @@ import { ProblemEditDialog } from '@/components/problem-bank/problem-edit-dialog
 import { ProblemDraftForm } from '@/components/problem-bank/problem-draft-form';
 import { ProblemLanguageToggle } from '@/components/problem-bank/problem-language-toggle';
 import {
+  codeTestSummaryFeedback,
+  shouldShowAttemptFeedback,
+} from '@/lib/problem-bank/attempt-feedback';
+import {
   ProblemImageAssets,
   ProblemRichText,
   ProblemTitleText,
@@ -189,16 +193,6 @@ function latestAttemptTone(status?: string | null) {
   return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';
 }
 
-function shouldShowAttemptFeedback(attempt: NotebookProblemAttemptRecord): boolean {
-  if (!attempt.result?.feedback) return false;
-  const hasCodeTestSummary =
-    (attempt.kind === 'run' || attempt.kind === 'submit') &&
-    (attempt.result.publicSummary ||
-      attempt.result.secretSummary ||
-      (attempt.result.publicCases?.length ?? 0) > 0);
-  return !hasCodeTestSummary;
-}
-
 function AttemptSummary({
   attempt,
   locale,
@@ -259,11 +253,7 @@ function AttemptSummary({
           </p>
           {attempt.result.publicSummary.failureSummary ? (
             <p className="mt-1 text-slate-500 dark:text-slate-400">
-              {locale === 'zh-CN'
-                ? attempt.result.publicSummary.failureSummary
-                    .replaceAll('Public tests', '公开测试')
-                    .replaceAll('Secret tests', '隐藏测试')
-                : attempt.result.publicSummary.failureSummary}
+              {codeTestSummaryFeedback(attempt.result.publicSummary, 'public', locale)}
             </p>
           ) : null}
         </div>
@@ -318,11 +308,7 @@ function AttemptSummary({
           </p>
           {attempt.result.secretSummary.failureSummary ? (
             <p className="mt-1 text-slate-500 dark:text-slate-400">
-              {locale === 'zh-CN'
-                ? attempt.result.secretSummary.failureSummary
-                    .replaceAll('Public tests', '公开测试')
-                    .replaceAll('Secret tests', '隐藏测试')
-                : attempt.result.secretSummary.failureSummary}
+              {codeTestSummaryFeedback(attempt.result.secretSummary, 'secret', locale)}
             </p>
           ) : null}
         </div>

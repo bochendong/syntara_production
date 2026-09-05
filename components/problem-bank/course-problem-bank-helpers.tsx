@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlertCircle,
   Calculator,
@@ -18,6 +18,21 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
+import { highlightPython } from '@/components/problem-bank/code-answer-editor';
+import { toast } from '@/lib/notifications/client-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +55,10 @@ import {
 import { renderHtmlWithLatex } from '@/lib/render-html-with-latex';
 import { cn } from '@/lib/utils';
 import type { NotebookProblemClientRecord } from '@/lib/utils/notebook-problem-api';
+import {
+  codeTestSummaryFeedback,
+  shouldShowAttemptFeedback,
+} from '@/lib/problem-bank/attempt-feedback';
 
 type ImportProcessingStage =
   | 'idle'
@@ -1406,9 +1425,48 @@ function AttemptAnswerPreview({
 
   if (answer.code?.trim()) {
     return (
-      <pre className="max-h-48 overflow-auto rounded-md bg-slate-950 p-3 text-xs leading-6 text-slate-50">
-        {answer.code}
-      </pre>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
+          <span className="font-mono text-xs">
+            submission.py · {answer.code.split('\n').length} {locale === 'zh-CN' ? '行' : 'lines'}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(answer.code ?? '');
+                toast.success(locale === 'zh-CN' ? '代码已复制' : 'Code copied');
+              } catch {
+                toast.error(
+                  locale === 'zh-CN'
+                    ? '复制失败，请手动选择代码复制'
+                    : 'Copy failed. Select the code to copy it.',
+                );
+              }
+            }}
+          >
+            {locale === 'zh-CN' ? '复制代码' : 'Copy code'}
+          </Button>
+        </div>
+        <div
+          className="grid max-h-[55vh] grid-cols-[3rem_minmax(0,1fr)] overflow-auto font-mono text-[13px] leading-6"
+          style={{ tabSize: 4 }}
+        >
+          <pre
+            aria-hidden="true"
+            className="sticky left-0 select-none border-r border-slate-200 bg-slate-50 px-2 py-3 text-right text-slate-400"
+          >
+            {answer.code
+              .split('\n')
+              .map((_, i) => i + 1)
+              .join('\n')}
+          </pre>
+          <pre className="min-w-max whitespace-pre px-4 py-3">
+            <code>{highlightPython(answer.code)}</code>
+          </pre>
+        </div>
+      </div>
     );
   }
 
@@ -1515,19 +1573,15 @@ function CodeAttemptTestSummary({
               {label}
             </div>
             <p className="mt-1 font-medium">
-              {locale === 'zh-CN'
-                ? `通过 ${summary.passed}/${summary.total}，未通过 ${summary.failed} 个`
-                : `${summary.passed}/${summary.total} passed, ${summary.failed} failed`}
+              {summary.total === 0
+                ? locale === 'zh-CN'
+                  ? '未执行测试'
+                  : 'Tests not run'
+                : locale === 'zh-CN'
+                  ? `通过 ${summary.passed}/${summary.total}，未通过 ${summary.failed} 个`
+                  : `${summary.passed}/${summary.total} passed, ${summary.failed} failed`}
             </p>
-            {summary.failureSummary ? (
-              <p className="mt-1 opacity-80">
-                {locale === 'zh-CN'
-                  ? summary.failureSummary
-                      .replaceAll('Public tests', '公开测试')
-                      .replaceAll('Secret tests', '隐藏测试')
-                  : summary.failureSummary}
-              </p>
-            ) : null}
+            <p className="mt-1 opacity-80">{codeTestSummaryFeedback(summary, key, locale)}</p>
           </div>
         );
       })}
@@ -1535,22 +1589,119 @@ function CodeAttemptTestSummary({
   );
 }
 
-function shouldShowAttemptFeedback(attempt: NotebookProblemAttemptRecord): boolean {
-  if (!attempt.result?.feedback) return false;
-  const hasCodeTestSummary =
-    (attempt.kind === 'run' || attempt.kind === 'submit') &&
-    (attempt.result.publicSummary ||
-      attempt.result.secretSummary ||
-      (attempt.result.publicCases?.length ?? 0) > 0);
-  return !hasCodeTestSummary;
+export function AttemptHistoryMenu({
+  attempts,
+  loading,
+  points,
+  locale,
+  className,
+}: {
+  attempts: NotebookProblemAttemptRecord[];
+  loading: boolean;
+  points: number;
+  locale: 'zh-CN' | 'en-US';
+  className?: string;
+}) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const submissions = attempts.filter(
+    (attempt) => attempt.kind === 'submit' || attempt.kind === 'answer',
+  );
+  const selected = submissions.find((attempt) => attempt.id === selectedId);
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button ref={triggerRef} type="button" className={className}>
+            {locale === 'zh-CN' ? '提交历史' : 'History'} <span aria-hidden="true">⌄</span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="z-[1500] w-80 max-w-[calc(100vw-2rem)]"
+          align="end"
+          onCloseAutoFocus={(event) => {
+            if (selectedId) event.preventDefault();
+          }}
+        >
+          {loading || !submissions.length ? (
+            <DropdownMenuItem disabled>
+              {loading
+                ? locale === 'zh-CN'
+                  ? '正在加载…'
+                  : 'Loading…'
+                : locale === 'zh-CN'
+                  ? '还没有提交记录'
+                  : 'No submissions yet'}
+            </DropdownMenuItem>
+          ) : (
+            submissions.map((attempt, index) => (
+              <DropdownMenuItem
+                key={attempt.id}
+                onSelect={() => setSelectedId(attempt.id)}
+                className="flex items-center justify-between gap-3 py-3"
+              >
+                <span className="flex flex-col gap-1">
+                  <span>
+                    #{submissions.length - index} ·{' '}
+                    {attemptStatusLabel(attempt.status, locale, attempt.kind)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatAttemptTime(attempt.createdAt, locale)}
+                  </span>
+                </span>
+                <span className="font-mono text-xs">
+                  {typeof attempt.score === 'number' ? `${attempt.score}/${points}` : '—'}
+                </span>
+              </DropdownMenuItem>
+            ))
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Dialog
+        open={Boolean(selected)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedId(null);
+        }}
+      >
+        <DialogContent
+          className="max-h-[90dvh] w-[calc(100vw-2rem)] max-w-5xl overflow-y-auto"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            triggerRef.current?.focus();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {locale === 'zh-CN' ? '提交详情' : 'Submission details'} #
+              {submissions.length - submissions.findIndex((attempt) => attempt.id === selectedId)}
+            </DialogTitle>
+            <DialogDescription>
+              {selected ? formatAttemptTime(selected.createdAt, locale) : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {selected ? (
+            <AttemptHistoryPanel
+              attempts={[selected]}
+              loading={false}
+              points={points}
+              locale={locale}
+              hideNumber
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 function AttemptHistoryPanel({
+  hideNumber = false,
   attempts,
   loading,
   points,
   locale,
 }: {
+  hideNumber?: boolean;
   attempts: NotebookProblemAttemptRecord[];
   loading: boolean;
   points: number;
@@ -1582,7 +1733,10 @@ function AttemptHistoryPanel({
         >
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/50">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-950 dark:text-slate-300 dark:ring-slate-700">
+              <span
+                hidden={hideNumber}
+                className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-950 dark:text-slate-300 dark:ring-slate-700"
+              >
                 #{attempts.length - index}
               </span>
               <span

@@ -8,6 +8,7 @@ import { evaluateNotebookNonCodeProblem } from '@/features/problems/server/evalu
 import { judgeNotebookCodeProblem } from '@/features/problems/server/judge';
 import { notebookProblemAttemptImageSchema } from '@/features/problems';
 import {
+  hasPassedPublicCodeRun,
   countNotebookProblemSubmissions,
   createNotebookProblemAttempt,
   getCourseProblemForUser,
@@ -48,7 +49,29 @@ export async function POST(
       );
     }
 
-    const loaded = await getCourseProblemForUser(auth.userId, id, problemId);
+    const loaded = await getCourseProblemForUser(auth.userId, id, problemId, {
+      includeSecretJudgeForEvaluation: true,
+    });
+    if (
+      loaded.problem.publicContent.type === 'code' &&
+      loaded.problem.publicContent.publicTests.length > 0 &&
+      !(await hasPassedPublicCodeRun({
+        userId: auth.userId,
+        problemId,
+        code: payload.data.code ?? '',
+      }))
+    ) {
+      return NextResponse.json(
+        {
+          code: 'PUBLIC_TESTS_REQUIRED',
+          error:
+            payload.data.language === 'zh-CN'
+              ? '请先在「测试用例」中运行测试，当前代码通过全部公开测试后再提交。'
+              : 'Run tests in Testcase first. Your current code must pass all public tests before submitting.',
+        },
+        { status: 409 },
+      );
+    }
     const limitedSubmissions = hasLimitedSubmissions(loaded.problem.type);
     const previousSubmissionCount = limitedSubmissions
       ? await countNotebookProblemSubmissions({ userId: auth.userId, problemId })

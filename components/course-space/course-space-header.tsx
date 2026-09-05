@@ -21,6 +21,10 @@ import {
   writeCourseSpaceHeaderCache,
 } from '@/lib/course-space/course-space-header-cache';
 import { cn } from '@/lib/utils';
+import type { CourseSpaceRole, CourseSpaceSection } from '@/lib/course-space/course-space-route';
+import { useCourseSpaceShell } from './course-space-shell-context';
+
+export type { CourseSpaceRole, CourseSpaceSection } from '@/lib/course-space/course-space-route';
 
 export {
   COURSE_SPACE_BODY_SURFACE_CLASS,
@@ -30,21 +34,11 @@ export {
   resolveCourseSpaceHeaderFields,
 } from '@/lib/course-space/format-course-space-header';
 
-export type CourseSpaceRole = 'teacher' | 'student';
-export type CourseSpaceSection =
-  | 'dashboard'
-  | 'resources'
-  | 'chat'
-  | 'problem-bank'
-  | 'forum'
-  | 'students';
-
 type CourseSpaceNavItem = {
   key: CourseSpaceSection;
   label: string;
   href: string;
   Icon: typeof BookOpenText;
-  count?: number;
   disabled?: boolean;
 };
 
@@ -59,8 +53,6 @@ type CourseSpaceNavigationProps = {
   courseId: string;
   role: CourseSpaceRole;
   active: CourseSpaceSection;
-  problemCount?: number;
-  forumCount?: number;
   previewMode?: boolean;
   className?: string;
 };
@@ -68,8 +60,6 @@ type CourseSpaceNavigationProps = {
 function navigationItems({
   courseId,
   role,
-  problemCount,
-  forumCount,
   previewMode,
 }: Omit<CourseSpaceNavigationProps, 'active' | 'className'>): CourseSpaceNavItem[] {
   const encodedCourseId = encodeURIComponent(courseId);
@@ -109,14 +99,12 @@ function navigationItems({
       label: '题库',
       href: problemBankHref,
       Icon: Library,
-      count: problemCount,
     },
     {
       key: 'forum' as const,
       label: '论坛',
       href: `/course/${encodedCourseId}/forum${previewMode ? `?mock=1${role === 'teacher' ? '&asTeacher=1' : ''}` : ''}`,
       Icon: MessagesSquare,
-      count: forumCount,
     },
     ...(role === 'teacher'
       ? [
@@ -135,12 +123,10 @@ export function CourseSpaceNavigation({
   courseId,
   role,
   active,
-  problemCount,
-  forumCount,
   previewMode,
   className,
 }: CourseSpaceNavigationProps) {
-  const items = navigationItems({ courseId, role, problemCount, forumCount, previewMode });
+  const items = navigationItems({ courseId, role, previewMode });
 
   return (
     <nav
@@ -150,7 +136,7 @@ export function CourseSpaceNavigation({
         className,
       )}
     >
-      {items.map(({ key, label, href, Icon, count, disabled }) => {
+      {items.map(({ key, label, href, Icon, disabled }) => {
         const selected = active === key;
         const itemClassName = cn(
           'inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-primary/30',
@@ -166,11 +152,6 @@ export function CourseSpaceNavigation({
               strokeWidth={1.9}
             />
             <span>{label}</span>
-            {key === 'forum' && typeof count === 'number' && count > 0 ? (
-              <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-4 text-white">
-                {count > 99 ? '99+' : count}
-              </span>
-            ) : null}
           </>
         );
 
@@ -191,6 +172,7 @@ export function CourseSpaceNavigation({
           <Link
             key={key}
             href={href}
+            scroll={false}
             aria-current={selected ? 'page' : undefined}
             className={itemClassName}
           >
@@ -202,6 +184,18 @@ export function CourseSpaceNavigation({
   );
 }
 
+type CourseSpaceHeaderProps = CourseSpaceNavigationProps & {
+  courseTitle: string;
+  courseMeta?: string;
+  courseAvatarUrl?: string | null;
+  problemCount?: number;
+  forumCount?: number;
+  actions?: ReactNode;
+  trailingActions?: ReactNode;
+  surface?: boolean;
+};
+
+/** Supplies page metadata to the persistent header and keeps page actions in the content area. */
 export function CourseSpaceHeader({
   courseId,
   courseTitle,
@@ -216,18 +210,9 @@ export function CourseSpaceHeader({
   trailingActions,
   surface = true,
   className,
-}: CourseSpaceNavigationProps & {
-  courseTitle: string;
-  courseMeta?: string;
-  courseAvatarUrl?: string | null;
-  actions?: ReactNode;
-  trailingActions?: ReactNode;
-  /** Rounded card chrome shared across teacher course-space pages. */
-  surface?: boolean;
-}) {
-  const router = useRouter();
+}: CourseSpaceHeaderProps) {
+  const hasSharedShell = useCourseSpaceShell();
   const placeholder = isCourseSpaceHeaderPlaceholder(courseTitle);
-  const allCoursesHref = courseSpaceAllCoursesHref(role, previewMode);
   const subscribeToCachedHeader = useCallback(
     (onStoreChange: () => void) => subscribeCourseSpaceHeaderCache(courseId, onStoreChange),
     [courseId],
@@ -259,6 +244,51 @@ export function CourseSpaceHeader({
 
   const displayedHeader = placeholder && cachedHeader ? cachedHeader : null;
   const displayedRole = displayedHeader?.role ?? role;
+
+  if (hasSharedShell) {
+    return actions || trailingActions ? (
+      <div
+        data-course-space-actions
+        className="flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-2"
+      >
+        {actions ? (
+          <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>
+        ) : null}
+        {trailingActions ? (
+          <div className="ml-auto flex shrink-0 items-center gap-2">{trailingActions}</div>
+        ) : null}
+      </div>
+    ) : null;
+  }
+
+  return (
+    <CourseSpaceHeaderContent
+      courseId={courseId}
+      courseTitle={displayedHeader?.courseTitle ?? courseTitle}
+      role={displayedRole}
+      active={active}
+      previewMode={previewMode}
+      actions={actions}
+      trailingActions={trailingActions}
+      surface={surface}
+      className={className}
+    />
+  );
+}
+
+export function CourseSpaceHeaderContent({
+  courseId,
+  courseTitle,
+  role,
+  active,
+  previewMode,
+  actions,
+  trailingActions,
+  surface = true,
+  className,
+}: CourseSpaceHeaderProps) {
+  const router = useRouter();
+  const allCoursesHref = courseSpaceAllCoursesHref(role, previewMode);
   const handleBack = useCallback(() => {
     if (window.history.length > 1) {
       router.back();
@@ -278,13 +308,15 @@ export function CourseSpaceHeader({
         className,
       )}
     >
-      <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-        <div
-          className={cn(
-            'flex min-w-0 flex-1 flex-wrap items-center',
-            actions ? 'gap-3 lg:gap-4' : 'gap-1.5',
-          )}
-        >
+      <div
+        className={cn(
+          'flex min-w-0 flex-col gap-1.5',
+          trailingActions
+            ? 'xl:flex-row xl:items-center xl:justify-between'
+            : 'md:flex-row md:items-center md:justify-between',
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-1.5">
           <button
             type="button"
             onClick={handleBack}
@@ -296,19 +328,25 @@ export function CourseSpaceHeader({
           </button>
           <CourseSpaceNavigation
             courseId={courseId}
-            role={displayedRole}
+            role={role}
             active={active}
-            problemCount={problemCount ?? displayedHeader?.problemCount}
-            forumCount={forumCount ?? displayedHeader?.forumCount}
             previewMode={previewMode}
             className="max-w-full"
           />
           {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
         </div>
 
-        <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5 sm:ml-auto">
-          <h1 className="truncate text-sm font-bold tracking-[-0.02em] sm:text-[15px]">
-            {displayedHeader?.courseTitle ?? courseTitle}
+        <div
+          className={cn(
+            'flex min-w-0 items-center justify-end gap-1.5 md:ml-auto md:flex-1',
+            trailingActions && 'flex-wrap xl:flex-nowrap',
+          )}
+        >
+          <h1
+            className="truncate text-sm font-bold tracking-[-0.02em] sm:text-[15px]"
+            title={courseTitle}
+          >
+            {courseTitle}
           </h1>
           <Link
             href={allCoursesHref}

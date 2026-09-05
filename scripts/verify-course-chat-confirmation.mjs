@@ -238,3 +238,150 @@ assert.deepEqual(
 console.log(
   'PASS bilingual topic retrieval vocabulary and strict filter agree without admitting unrelated sorting',
 );
+
+// Real search results -> SSE -> persisted chat card -> existing solver session.
+const { practiceCardFromSearch } = await jiti.import('../features/chat/server/practice-card.ts');
+const fixture = {
+  id: 'practice-fixture',
+  userId: 'student',
+  courseId: 'course',
+  courseName: 'Python',
+  now: 1,
+  result: {
+    query: 'dictionary',
+    gaps: [],
+    matches: [
+      { problemId: 'p1', title: 'Dictionary Key', difficulty: 'easy', reason: '字典', tags: [] },
+      { problemId: 'p2', title: 'Dictionary Values', difficulty: 'medium', tags: [] },
+      { problemId: 'p1', title: 'Dictionary Key', difficulty: 'easy', tags: [] },
+    ],
+  },
+};
+const plan = practiceCardFromSearch(fixture);
+assert.deepEqual(plan.problemIds, ['p1', 'p2']);
+assert.equal(plan.questions[0].href, '/course/course/problem-bank/p1');
+assert.equal(
+  practiceCardFromSearch({ ...fixture, result: { ...fixture.result, matches: [] } }),
+  null,
+);
+const cardWire = [
+  {
+    type: 'agent_start',
+    data: { messageId: 'practice-answer', agentId: 'student-helper', agentName: '课程助理' },
+  },
+  { type: 'practice_plan', data: { messageId: 'practice-answer', plan } },
+]
+  .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+  .join('');
+let cardMessages;
+await consume(new Response(cardWire), new AbortController().signal, [], (messages) => {
+  cardMessages = messages;
+});
+assert.equal(cardMessages[0].metadata.practicePlan.id, plan.id);
+onMessages(cardMessages);
+assert.deepEqual(pageMessages[0].plan.problemIds, plan.problemIds);
+const cardAnswer = helpers.streamedCourseAnswerFromMessages(cardMessages, new Set());
+const savedCard = evaluate(
+  `${emptyGuard.getText(learnAst)}\nreturn (${finalMessageNode.getText(learnAst)});`,
+  {
+    currentTurnAnswer: cardAnswer,
+    pendingWorkflowMessageId: 'pending',
+    latestTeacherPublicTrace: undefined,
+    normalizeCourseAssistantAnswer: (text) => text,
+    finalizePublicTraceSteps: (steps) => steps,
+  },
+);
+const restoredCard = JSON.parse(JSON.stringify(savedCard));
+assert.deepEqual(restoredCard.plan.problemIds, ['p1', 'p2']);
+assert.match(
+  messageText(helpers.learnMessagesForCourseAnswerer([restoredCard])[0]),
+  /Dictionary Key/,
+);
+const PracticeCard = evaluate(
+  `${functions(learnAst, ['PlanActionCard', 'practiceSessionPlanMeta'])}\nreturn PlanActionCard;`,
+  {
+    isProblemSelectionPlan: () => true,
+    practicePlanDisplayRationale: () => [],
+    learnAssistantActionCardWidthClassName: '',
+    cn: (...values) => values.filter(Boolean).join(' '),
+    Button,
+    BookOpenCheck: () => null,
+    Play: () => null,
+    ChevronRight: () => null,
+  },
+);
+let picked;
+const tree = PracticeCard({
+  plan,
+  problemsState: { status: 'ready' },
+  onStart: (p, id) => {
+    picked = id;
+  },
+});
+const markup = renderToStaticMarkup(tree);
+assert.ok(!markup.includes('/course/'));
+assert.ok(!markup.includes('0 分钟'));
+function clickQuestion(node) {
+  if (!node || typeof node !== 'object') return;
+  if (node.type === 'button' && node.key === 'p2') node.props.onClick();
+  for (const child of [node.props?.children].flat(Infinity)) clickQuestion(child);
+}
+clickQuestion(tree);
+assert.equal(picked, 'p2');
+const storage = new Map();
+globalThis.window = {
+  localStorage: {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, value),
+    removeItem: (key) => storage.delete(key),
+  },
+};
+const sessions = await jiti.import('../lib/learning/practice-session.ts');
+const plans = await jiti.import('../lib/learning/course-learner-state.ts');
+let openNode;
+function findOpen(node) {
+  if (ts.isVariableDeclaration(node) && node.name.getText(learnAst) === 'openPracticePlan')
+    openNode = node.initializer.arguments[0];
+  ts.forEachChild(node, findOpen);
+}
+findOpen(learnAst);
+let popup;
+const openPlan = evaluate(`return (${openNode.getText(learnAst)});`, {
+  ...sessions,
+  savePracticePlan: plans.savePracticePlan,
+  localUserId: 'student',
+  activeCourseId: 'course',
+  toast: {
+    error: () => {
+      throw new Error('Unexpected rejection');
+    },
+  },
+  syncPracticeSessionState: () => {},
+  setPracticeHeaderState: () => {},
+  setPracticeProblemHelp: () => {},
+  setPracticeProblemHelpTabProblemId: () => {},
+  setPracticeProblemHelpTabActive: () => {},
+  setPracticePopupSessionId: (id) => {
+    popup = id;
+  },
+});
+openPlan(restoredCard.plan, picked);
+assert.equal(sessions.loadPracticeSession(popup).currentProblemId, 'p2');
+sessions.updatePracticeSessionAnswerDraft(popup, 'p2', { code: 'print({})' });
+sessions.recordPracticeSessionAttempt({
+  sessionId: popup,
+  problemId: 'p2',
+  status: 'passed',
+  score: 1,
+});
+sessions.pausePracticeSession(popup);
+openPlan(restoredCard.plan);
+const resumed = sessions.loadPracticeSession(popup);
+assert.equal(resumed.currentProblemId, 'p2');
+assert.equal(resumed.problemStates.p2.answer.code, 'print({})');
+assert.equal(resumed.problemStates.p2.latestAttemptStatus, 'passed');
+assert.equal(plans.loadPracticePlan(plan.id).questions[1].title, 'Dictionary Values');
+delete globalThis.window;
+console.log(
+  'PASS practice card SSE, text-free completion, history, actual card click and popup callback, draft and progress restore',
+);

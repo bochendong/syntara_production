@@ -320,6 +320,13 @@ async function consumeOneResponse(
         }
 
         switch (event.type) {
+          case 'practice_plan': {
+            const message = working.find((item) => item.id === event.data.messageId);
+            if (!message) break;
+            message.metadata = { ...message.metadata, practicePlan: event.data.plan };
+            flushTextUpdate();
+            break;
+          }
           case 'course_evidence': {
             courseEvidence = event.data.items;
             break;

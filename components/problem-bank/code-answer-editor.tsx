@@ -249,12 +249,62 @@ export function CodeAnswerEditor({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== 'Tab' || disabled) return;
-    event.preventDefault();
+    if (disabled || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey)
+      return;
 
     const target = event.currentTarget;
     const start = target.selectionStart;
     const end = target.selectionEnd;
+
+    const pairs: Record<string, string> = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    const replace = (text: string, cursor: number, selectionEnd = cursor) => {
+      event.preventDefault();
+      onChange(`${before}${text}${after}`);
+      updateSelection(target, cursor, selectionEnd);
+    };
+    if (
+      start === end &&
+      [')', ']', '}', '"', "'"].includes(event.key) &&
+      after.startsWith(event.key)
+    ) {
+      event.preventDefault();
+      updateSelection(target, start + 1);
+      return;
+    }
+    if (
+      pairs[event.key] &&
+      (start !== end || (!before.endsWith('\\') && (!after || /^[\s)\]}:,;]/.test(after))))
+    ) {
+      replace(event.key + value.slice(start, end) + pairs[event.key], start + 1, end + 1);
+      return;
+    }
+    if (
+      event.key === 'Backspace' &&
+      start === end &&
+      start > 0 &&
+      Boolean(pairs[before.at(-1)!]) &&
+      pairs[before.at(-1)!] === after[0]
+    ) {
+      event.preventDefault();
+      onChange(before.slice(0, -1) + after.slice(1));
+      updateSelection(target, start - 1);
+      return;
+    }
+    if (event.key === 'Enter') {
+      const line = before.slice(before.lastIndexOf('\n') + 1);
+      const indent = line.match(/^\s*/)?.[0] ?? '';
+      const extra = /[:([{]\s*$/.test(line) ? INDENT : '';
+      const paired = Boolean(pairs[before.at(-1)!]) && pairs[before.at(-1)!] === after[0] && extra;
+      replace(
+        `\n${indent}${extra}${paired ? `\n${indent}` : ''}`,
+        start + 1 + indent.length + extra.length,
+      );
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    event.preventDefault();
 
     if (start === end && !event.shiftKey) {
       onChange(`${value.slice(0, start)}${INDENT}${value.slice(end)}`);
