@@ -213,6 +213,7 @@ export function CourseSpaceHeader({
   forumCount,
   previewMode,
   actions,
+  trailingActions,
   surface = true,
   className,
 }: CourseSpaceNavigationProps & {
@@ -220,6 +221,7 @@ export function CourseSpaceHeader({
   courseMeta?: string;
   courseAvatarUrl?: string | null;
   actions?: ReactNode;
+  trailingActions?: ReactNode;
   /** Rounded card chrome shared across teacher course-space pages. */
   surface?: boolean;
 }) {
@@ -316,6 +318,9 @@ export function CourseSpaceHeader({
           >
             <Home className="size-4 shrink-0" strokeWidth={1.9} />
           </Link>
+          {trailingActions ? (
+            <div className="flex shrink-0 items-center gap-2">{trailingActions}</div>
+          ) : null}
         </div>
       </div>
     </header>

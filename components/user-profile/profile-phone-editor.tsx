@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/input';
 import { parsePhoneNumber, phoneLastFour } from '@/lib/profile/phone';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 import { backendJson } from '@/lib/utils/backend-api';
+import { cn } from '@/lib/utils';
 
 type MeProfile = {
   phone: string | null;
 };
 
-export function ProfilePhoneEditor() {
+export function ProfilePhoneEditor({ layout = 'row' }: { layout?: 'row' | 'stacked' }) {
   const { status } = useSession();
   const phone = useUserProfileStore((state) => state.phone);
   const setPhone = useUserProfileStore((state) => state.setPhone);
@@ -33,6 +34,7 @@ export function ProfilePhoneEditor() {
   }, [setPhone, status]);
 
   const save = async () => {
+    if (saving || status === 'loading') return;
     const parsed = parsePhoneNumber(draft);
     if (!parsed.ok) {
       setError(parsed.error);
@@ -62,8 +64,13 @@ export function ProfilePhoneEditor() {
   };
 
   return (
-    <div className="border-t border-slate-100 px-4 py-3.5">
-      <div className="flex min-w-0 items-center justify-between gap-6 text-sm">
+    <div className={layout === 'stacked' ? '' : 'border-t border-slate-100 px-4 py-3.5'}>
+      <div
+        className={cn(
+          'flex min-w-0 text-sm',
+          layout === 'stacked' ? 'flex-col gap-2' : 'items-center justify-between gap-6',
+        )}
+      >
         <div>
           <p className="font-medium text-slate-800">手机号</p>
           <p className="mt-0.5 text-xs text-slate-400">
@@ -75,7 +82,10 @@ export function ProfilePhoneEditor() {
             <Input
               autoFocus
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                setError('');
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void save();
                 if (event.key === 'Escape') {
@@ -85,15 +95,17 @@ export function ProfilePhoneEditor() {
                 }
               }}
               inputMode="tel"
+              disabled={saving || status === 'loading'}
               autoComplete="tel"
               placeholder="输入手机号"
               aria-label="手机号"
-              className="h-9 max-w-64"
+              className={cn('h-9', layout === 'row' && 'max-w-64')}
+              aria-invalid={Boolean(error)}
             />
             <Button
               size="icon-sm"
               onClick={() => void save()}
-              disabled={saving}
+              disabled={saving || status === 'loading'}
               aria-label="保存手机号"
             >
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
@@ -115,18 +127,28 @@ export function ProfilePhoneEditor() {
         ) : (
           <button
             type="button"
+            aria-label="编辑手机号"
+            disabled={status === 'loading'}
             onClick={() => {
               setDraft(phone);
               setEditing(true);
             }}
-            className="inline-flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-slate-500 transition hover:bg-slate-50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+            className={cn(
+              'inline-flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-slate-500 transition hover:bg-slate-50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25',
+              layout === 'stacked' &&
+                'justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3',
+            )}
           >
             <span className="truncate">{phone || '未填写'}</span>
             <Pencil className="size-3.5 shrink-0" />
           </button>
         )}
       </div>
-      {error ? <p className="mt-2 text-right text-xs text-rose-600">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="mt-2 text-right text-xs text-rose-600">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

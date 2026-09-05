@@ -28,7 +28,6 @@ import {
   Eraser,
   FileText,
   Gauge,
-  Clock3,
   LibraryBig,
   Loader2,
   Maximize2,
@@ -281,7 +280,6 @@ import {
 import {
   loadCourseContentState,
   type CourseContentState,
-  type CourseContentSourceState,
 } from '@/lib/utils/course-content-state-api';
 import { listStudyMemoryRecords } from '@/lib/utils/study-memory-api';
 import {
@@ -793,34 +791,6 @@ function courseContentStateFromBroadcast(
     return null;
   }
   return state as CourseContentState;
-}
-
-type CourseSourceHealthNotice = {
-  tone: 'pending' | 'error';
-  label: string;
-  detail: string;
-};
-
-function courseSourceHealthNotice(
-  source: CourseContentSourceState | null | undefined,
-): CourseSourceHealthNotice | null {
-  if (!source) return null;
-  const failureCount = source.ingestErrorCount + source.indexErrorCount;
-  const incompleteCount = source.processingCount + source.indexPendingCount;
-  if (failureCount === 0 && incompleteCount === 0) return null;
-
-  const details: string[] = [];
-  if (source.processingCount > 0) details.push(`${source.processingCount} 份尚未同步`);
-  if (source.indexPendingCount > 0) details.push(`${source.indexPendingCount} 份等待索引`);
-  if (source.ingestErrorCount > 0) details.push(`${source.ingestErrorCount} 份入库失败`);
-  if (source.indexErrorCount > 0) details.push(`${source.indexErrorCount} 份索引失败`);
-  if (source.oldestProcessingAt) details.push(`最早未同步资料：${source.oldestProcessingAt}`);
-
-  return {
-    tone: failureCount > 0 ? 'error' : 'pending',
-    label: failureCount > 0 ? '资料同步异常' : '资料同步未完成',
-    detail: `${details.join('；')}。`,
-  };
 }
 
 function courseSourceUploadIsKnowledgeReady(upload: CourseSourceUploadRecord) {
@@ -13639,9 +13609,6 @@ export function LearnPageClient() {
         },
   ];
   void learnSurfaceStatusItems;
-  const activeCourseSourceHealthNotice = courseSourceHealthNotice(
-    activeCourseContentState?.sources,
-  );
   const activeCourseContentWatchError =
     courseContentWatchError && courseContentWatchError.courseId === activeCourse?.id
       ? courseContentWatchError.message
@@ -16223,49 +16190,6 @@ export function LearnPageClient() {
             className="relative z-20"
             actions={
               <>
-                {activeCourseSourceHealthNotice && isTeacherCourseChat ? (
-                  <button
-                    type="button"
-                    onClick={openSourceUploadPanel}
-                    className={cn(
-                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2',
-                      activeCourseSourceHealthNotice.tone === 'error'
-                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15'
-                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-300 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/15',
-                    )}
-                    title={activeCourseSourceHealthNotice.detail}
-                    aria-label={`${activeCourseSourceHealthNotice.label}，打开原始讲义库`}
-                    data-testid="learn-source-health-warning"
-                  >
-                    {activeCourseSourceHealthNotice.tone === 'error' ? (
-                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
-                    ) : (
-                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
-                    )}
-                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
-                  </button>
-                ) : activeCourseSourceHealthNotice ? (
-                  <div
-                    role="status"
-                    className={cn(
-                      'inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-left text-[11px] font-medium',
-                      activeCourseSourceHealthNotice.tone === 'error'
-                        ? 'border-rose-200/80 bg-rose-50/80 text-rose-700 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100'
-                        : 'border-amber-200/80 bg-amber-50/80 text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100',
-                    )}
-                    title={activeCourseSourceHealthNotice.detail}
-                    aria-label={activeCourseSourceHealthNotice.label}
-                    data-testid="learn-source-health-warning"
-                  >
-                    {activeCourseSourceHealthNotice.tone === 'error' ? (
-                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
-                    ) : (
-                      <Clock3 className="size-3 shrink-0" aria-hidden="true" />
-                    )}
-                    <span className="truncate">{activeCourseSourceHealthNotice.label}</span>
-                  </div>
-                ) : null}
-
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
@@ -16450,46 +16374,47 @@ export function LearnPageClient() {
                     ) : null}
                   </DropdownMenuContent>
                 </DropdownMenu>
-
-                {!isTeacherCourseChat ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        onClick={() => setMemoryActivityDialogOpen(true)}
-                        className="learn-memory-orb-button size-8 rounded-full border-transparent p-0 text-white shadow-sm hover:text-white focus-visible:ring-sky-200"
-                        data-memory-state={platformMemoryState}
-                        aria-label={platformMemoryButtonLabel}
-                      >
-                        <span className="learn-memory-orb-core" aria-hidden="true">
-                          <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-a" />
-                          <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-b" />
-                          <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-c" />
-                          <span className="learn-memory-orb-star" />
-                        </span>
-                        {platformMemoryBadgeCount > 0 ? (
-                          <span
-                            className={cn(
-                              'absolute -right-1.5 -top-1.5 z-20 grid min-w-5 place-items-center rounded-full border border-white px-1 text-[10px] font-bold leading-5 shadow-sm dark:border-slate-950',
-                              platformMemoryState === 'writing'
-                                ? 'bg-amber-400 text-amber-950'
-                                : 'bg-sky-500 text-white',
-                            )}
-                            aria-hidden="true"
-                          >
-                            {platformMemoryBadgeCount > 9 ? '9+' : platformMemoryBadgeCount}
-                          </span>
-                        ) : null}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="font-medium">
-                      {platformMemoryTooltip}
-                    </TooltipContent>
-                  </Tooltip>
-                ) : null}
               </>
+            }
+            trailingActions={
+              !isTeacherCourseChat ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      onClick={() => setMemoryActivityDialogOpen(true)}
+                      className="learn-memory-orb-button size-8 rounded-full border-transparent p-0 text-white shadow-sm hover:text-white focus-visible:ring-sky-200"
+                      data-memory-state={platformMemoryState}
+                      aria-label={platformMemoryButtonLabel}
+                    >
+                      <span className="learn-memory-orb-core" aria-hidden="true">
+                        <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-a" />
+                        <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-b" />
+                        <span className="learn-memory-orb-ribbon learn-memory-orb-ribbon-c" />
+                        <span className="learn-memory-orb-star" />
+                      </span>
+                      {platformMemoryBadgeCount > 0 ? (
+                        <span
+                          className={cn(
+                            'absolute -right-1.5 -top-1.5 z-20 grid min-w-5 place-items-center rounded-full border border-white px-1 text-[10px] font-bold leading-5 shadow-sm dark:border-slate-950',
+                            platformMemoryState === 'writing'
+                              ? 'bg-amber-400 text-amber-950'
+                              : 'bg-sky-500 text-white',
+                          )}
+                          aria-hidden="true"
+                        >
+                          {platformMemoryBadgeCount > 9 ? '9+' : platformMemoryBadgeCount}
+                        </span>
+                      ) : null}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="end" className="font-medium">
+                    {platformMemoryTooltip}
+                  </TooltipContent>
+                </Tooltip>
+              ) : null
             }
           />
         ) : null}

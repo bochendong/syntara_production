@@ -199,20 +199,10 @@ requirePattern(
   /if \(!activeCourse \|\| !activeCourseCanLoadResources \|\| !sourceUploadPanelOpen\) return;[\s\S]{0,900}listCourseSourceUploads\(courseId/,
   'original lecture files must stay completely lazy until their panel opens',
 );
-requirePattern(
-  learnPage,
-  /function courseSourceHealthNotice[\s\S]{0,500}failureCount === 0 && incompleteCount === 0\) return null/,
-  'healthy source aggregates must remain invisible in the default course header',
-);
-requirePattern(
-  learnPage,
-  /activeCourseSourceHealthNotice && isTeacherCourseChat \? \([\s\S]{0,400}onClick=\{openSourceUploadPanel\}[\s\S]{0,1800}data-testid="learn-source-health-warning"/,
-  'abnormal aggregate source health may open, but must not prefetch, the source panel',
-);
 forbidPattern(
   learnPage,
-  /activeCourseSourceHealthNotice[\s\S]{0,500}listCourseSourceUploads\(/,
-  'rendering the source-health warning must not fetch source metadata or bodies',
+  /courseSourceHealthNotice|learn-source-health-warning|资料同步未完成|资料同步异常/,
+  'teacher and student chat headers must not display source-sync notices',
 );
 forbidPattern(
   learnPage,
@@ -458,7 +448,7 @@ process.stdout.write(
         'course-switch cancellation and stale-page guards for conversation metadata',
         'independent progressive problem and notebook loading',
         'panel-gated original lecture file loading',
-        'quiet healthy source state and aggregate-only abnormal warning',
+        'teacher and student chat headers omit source-sync notices',
         'success-only deferral for plans, learner state, memory, providers, and content state',
         'course entry and failed learner-state reads remain read-only',
         'course memory counts and default-memory persistence remain explicit and lazy',

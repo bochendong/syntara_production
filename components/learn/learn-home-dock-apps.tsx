@@ -8,9 +8,10 @@ import {
   Bell,
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Database,
   LogOut,
-  MoreHorizontal,
   Pencil,
   Save,
   Settings2,
@@ -21,6 +22,7 @@ import { USER_AVATAR_PRESET_URLS } from '@/lib/constants/user-avatars';
 import { useAuthSignOut } from '@/lib/hooks/use-auth-sign-out';
 import { useAuthStore } from '@/lib/store/auth';
 import { useUserProfileStore } from '@/lib/store/user-profile';
+import { ProfilePhoneEditor } from '@/components/user-profile/profile-phone-editor';
 import { listRemoteLearnSessionsPage } from '@/features/learn-conversations/client/remote-conversation-api';
 import type { CourseRecord } from '@/lib/utils/database';
 
@@ -111,9 +113,8 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
   const [avatar, setSelectedAvatar] = useState(profileAvatar);
   const [avatarPage, setAvatarPage] = useState(0);
   const [savedFlash, setSavedFlash] = useState(false);
-  const avatarGridColumns = 6;
-  const avatarGridRows = 4;
-  const avatarPageSize = avatarGridColumns * avatarGridRows - 1;
+  const [avatarGridColumns, setAvatarGridColumns] = useState(6);
+  const avatarPageSize = avatarGridColumns * 2;
   const avatarPageCount = Math.max(1, Math.ceil(USER_AVATAR_PRESET_URLS.length / avatarPageSize));
   const avatarsOnPage = useMemo(
     () =>
@@ -123,6 +124,17 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
       ),
     [avatarPage, avatarPageSize],
   );
+
+  useEffect(() => {
+    const narrowScreen = window.matchMedia('(max-width: 560px)');
+    const updateAvatarGrid = () => {
+      setAvatarGridColumns(narrowScreen.matches ? 3 : 6);
+      setAvatarPage(0);
+    };
+    updateAvatarGrid();
+    narrowScreen.addEventListener('change', updateAvatarGrid);
+    return () => narrowScreen.removeEventListener('change', updateAvatarGrid);
+  }, []);
 
   const displayName = name.trim() || authName || '学习者';
   const dirty =
@@ -166,7 +178,7 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
             </button>
           </nav>
           <p className="learn-dock-profile-navigation-note">
-            个人中心只管理头像、昵称、简介和学校；学习背景与伴学角色统一放在设置中。
+            在这里修改头像、昵称、简介、学校和手机号；学习背景与伴学角色统一放在设置中。
           </p>
           <div className="learn-dock-profile-navigation-footer">
             <button type="button" onClick={() => router.push('/settings')}>
@@ -277,13 +289,15 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
                   </span>
                 </label>
 
+                <ProfilePhoneEditor layout="stacked" />
+
                 <div className="learn-dock-profile-avatar-block" id="profile-avatar-picker">
                   <div className="learn-dock-profile-avatar-heading">
                     <span>头像选择</span>
                     <small>点击头像进行选择</small>
                   </div>
                   <div className="learn-dock-profile-avatar-grid">
-                    {avatarsOnPage.map((url) => {
+                    {avatarsOnPage.map((url, index) => {
                       const selected = avatar === url;
                       return (
                         <button
@@ -291,7 +305,7 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
                           key={url}
                           className={`learn-dock-profile-avatar-option${selected ? ' is-selected' : ''}`}
                           onClick={() => setSelectedAvatar(url)}
-                          aria-label="选择头像"
+                          aria-label={`选择头像 ${avatarPage * avatarPageSize + index + 1}`}
                           aria-pressed={selected}
                         >
                           <img src={url} alt="" draggable={false} />
@@ -299,15 +313,32 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
                         </button>
                       );
                     })}
+                  </div>
+                  <nav className="learn-dock-profile-avatar-pagination" aria-label="头像分页">
                     <button
                       type="button"
-                      className="learn-dock-profile-avatar-more"
-                      onClick={() => setAvatarPage((value) => (value + 1) % avatarPageCount)}
+                      onClick={() => setAvatarPage((value) => Math.max(0, value - 1))}
+                      disabled={avatarPage === 0}
+                      aria-label="上一页头像"
                     >
-                      <MoreHorizontal size={21} strokeWidth={1.8} />
-                      <span>更多</span>
+                      <ChevronLeft size={15} aria-hidden />
+                      上一页
                     </button>
-                  </div>
+                    <span aria-live="polite" aria-atomic="true">
+                      第 {avatarPage + 1} / {avatarPageCount} 页
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAvatarPage((value) => Math.min(avatarPageCount - 1, value + 1))
+                      }
+                      disabled={avatarPage === avatarPageCount - 1}
+                      aria-label="下一页头像"
+                    >
+                      下一页
+                      <ChevronRight size={15} aria-hidden />
+                    </button>
+                  </nav>
                 </div>
 
                 <div className="learn-dock-profile-actions">

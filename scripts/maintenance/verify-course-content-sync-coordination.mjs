@@ -134,20 +134,10 @@ assert.match(
   /sourceHealthCounts[\s\S]{0,400}processingCount[\s\S]{0,220}ingestErrorCount[\s\S]{0,220}indexPendingCount[\s\S]{0,220}indexErrorCount[\s\S]{0,500}oldestProcessingAt/,
   'Shared and broadcast content-state snapshots must validate every source-health field.',
 );
-assert.match(
+assert.doesNotMatch(
   learnPage,
-  /function courseSourceHealthNotice[\s\S]{0,500}failureCount === 0 && incompleteCount === 0\) return null/,
-  'A healthy source aggregate must not add a persistent header notice.',
-);
-assert.match(
-  learnPage,
-  /const activeCourseSourceHealthNotice = courseSourceHealthNotice\([\s\S]{0,80}activeCourseContentState\?\.sources[\s\S]{0,40}\)/,
-  'Both teacher and student headers must receive aggregate source-health warnings.',
-);
-assert.match(
-  learnPage,
-  /activeCourseSourceHealthNotice && isTeacherCourseChat \? \([\s\S]{0,400}onClick=\{openSourceUploadPanel\}[\s\S]{0,1800}data-testid="learn-source-health-warning"[\s\S]{0,1500}role="status"/,
-  'An abnormal source aggregate must open the lazy source panel for teachers and remain status-only for students.',
+  /courseSourceHealthNotice|learn-source-health-warning|资料同步未完成|资料同步异常/,
+  'Neither teacher nor student chat headers should display source-sync notices.',
 );
 assert.match(
   learnPage,
