@@ -27,12 +27,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -891,7 +885,13 @@ function latestScoreLabel(problem: NotebookProblemClientRecord, locale: 'zh-CN' 
   if (typeof problem.latestAttempt?.score === 'number') {
     return `${problem.latestAttempt.score}/${problem.points}`;
   }
-  return locale === 'zh-CN' ? '未提交' : 'No score';
+  return problem.latestAttempt
+    ? locale === 'zh-CN'
+      ? '已做 · 待评分'
+      : 'Attempted · ungraded'
+    : locale === 'zh-CN'
+      ? '没做过'
+      : 'Not attempted';
 }
 
 type FilterSelectOption = {
@@ -1589,7 +1589,7 @@ function CodeAttemptTestSummary({
   );
 }
 
-export function AttemptHistoryMenu({
+export function AttemptHistoryList({
   attempts,
   loading,
   points,
@@ -1610,53 +1610,68 @@ export function AttemptHistoryMenu({
   const selected = submissions.find((attempt) => attempt.id === selectedId);
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button ref={triggerRef} type="button" className={className}>
-            {locale === 'zh-CN' ? '提交历史' : 'History'} <span aria-hidden="true">⌄</span>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          className="z-[1500] w-80 max-w-[calc(100vw-2rem)]"
-          align="end"
-          onCloseAutoFocus={(event) => {
-            if (selectedId) event.preventDefault();
-          }}
-        >
-          {loading || !submissions.length ? (
-            <DropdownMenuItem disabled>
-              {loading
-                ? locale === 'zh-CN'
-                  ? '正在加载…'
-                  : 'Loading…'
-                : locale === 'zh-CN'
-                  ? '还没有提交记录'
-                  : 'No submissions yet'}
-            </DropdownMenuItem>
-          ) : (
-            submissions.map((attempt, index) => (
-              <DropdownMenuItem
-                key={attempt.id}
-                onSelect={() => setSelectedId(attempt.id)}
-                className="flex items-center justify-between gap-3 py-3"
-              >
-                <span className="flex flex-col gap-1">
-                  <span>
-                    #{submissions.length - index} ·{' '}
-                    {attemptStatusLabel(attempt.status, locale, attempt.kind)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatAttemptTime(attempt.createdAt, locale)}
-                  </span>
+      <div
+        role="menu"
+        aria-label={locale === 'zh-CN' ? '提交历史' : 'Submission history'}
+        className={cn(
+          'divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800',
+          className,
+        )}
+        onKeyDown={(event) => {
+          if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+          const items = Array.from(
+            event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+          );
+          if (!items.length) return;
+          event.preventDefault();
+          const index = items.indexOf(document.activeElement as HTMLButtonElement);
+          const nextIndex =
+            event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? items.length - 1
+                : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+          items[nextIndex]?.focus();
+        }}
+      >
+        {loading || !submissions.length ? (
+          <p role="status" className="px-4 py-8 text-center text-sm text-muted-foreground">
+            {loading
+              ? locale === 'zh-CN'
+                ? '正在加载…'
+                : 'Loading…'
+              : locale === 'zh-CN'
+                ? '还没有提交记录'
+                : 'No submissions yet'}
+          </p>
+        ) : (
+          submissions.map((attempt, index) => (
+            <button
+              key={attempt.id}
+              type="button"
+              role="menuitem"
+              onClick={(event) => {
+                triggerRef.current = event.currentTarget;
+                setSelectedId(attempt.id);
+              }}
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400 dark:hover:bg-slate-900 dark:focus-visible:bg-slate-900"
+            >
+              <span className="flex flex-col gap-1">
+                <span className="text-sm font-medium">
+                  #{submissions.length - index} ·{' '}
+                  {attemptStatusLabel(attempt.status, locale, attempt.kind)}
                 </span>
-                <span className="font-mono text-xs">
-                  {typeof attempt.score === 'number' ? `${attempt.score}/${points}` : '—'}
+                <span className="text-xs text-muted-foreground">
+                  {formatAttemptTime(attempt.createdAt, locale)}
                 </span>
-              </DropdownMenuItem>
-            ))
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              </span>
+              <span className="font-mono text-xs">
+                {typeof attempt.score === 'number' ? `${attempt.score}/${points}` : '—'}
+              </span>
+            </button>
+          ))
+        )}
+      </div>
       <Dialog
         open={Boolean(selected)}
         onOpenChange={(open) => {

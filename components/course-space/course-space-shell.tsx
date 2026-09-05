@@ -4,7 +4,9 @@ import {
   Suspense,
   useCallback,
   useLayoutEffect,
+  useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
@@ -41,13 +43,20 @@ export function CourseSpaceShell({
     (portalRole === 'TEACHER' || portalRole === 'ADMIN' ? 'teacher' : 'student');
   const headerFields = cachedHeader ?? resolveCourseSpaceHeaderFields({ id: courseId });
   const contentRef = useRef<HTMLDivElement>(null);
+  const [actions, setActions] = useState<HTMLDivElement | null>(null);
+  const [beforeTitle, setBeforeTitle] = useState<HTMLDivElement | null>(null);
+  const [trailingActions, setTrailingActions] = useState<HTMLDivElement | null>(null);
+  const headerSlots = useMemo(
+    () => ({ courseId, active, actions, beforeTitle, trailingActions }),
+    [courseId, active, actions, beforeTitle, trailingActions],
+  );
 
   useLayoutEffect(() => {
     contentRef.current?.scrollTo(0, 0);
   }, [courseId, active]);
 
   return (
-    <CourseSpaceShellContext.Provider value={true}>
+    <CourseSpaceShellContext.Provider value={headerSlots}>
       <div
         data-course-space-shell
         className="fixed inset-0 flex min-h-0 flex-col bg-white text-slate-950 dark:bg-slate-950 dark:text-white"
@@ -60,6 +69,11 @@ export function CourseSpaceShell({
               role={role}
               active={active}
               previewMode={previewMode}
+              actionTargets={{
+                actions: setActions,
+                beforeTitle: setBeforeTitle,
+                trailingActions: setTrailingActions,
+              }}
             />
           </div>
         </div>

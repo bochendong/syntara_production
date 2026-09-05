@@ -70,12 +70,38 @@ const pageHeader = createElement(CourseSpaceHeader, {
   actions: createElement('button', null, '发布问题'),
 });
 const contentMarkup = render(
-  createElement(CourseSpaceShellContext.Provider, { value: true }, pageHeader),
+  createElement(
+    CourseSpaceShellContext.Provider,
+    {
+      value: {
+        courseId: 'example-course',
+        active: 'forum',
+        actions: null,
+        beforeTitle: null,
+        trailingActions: null,
+      },
+    },
+    pageHeader,
+  ),
 );
 assert.doesNotMatch(contentMarkup, /<header|<nav/);
-assert.match(contentMarkup, /data-course-space-actions/);
-assert.match(contentMarkup, /发布问题/);
+assert.doesNotMatch(contentMarkup, /data-course-space-actions|发布问题/);
 assert.match(render(pageHeader), /data-course-space-header/);
+
+const practiceHeaderMarkup = render(
+  createElement(CourseSpaceHeaderContent, {
+    courseId: 'example-course',
+    courseTitle: 'BUS200 · 2026 Fall',
+    role: 'student',
+    active: 'problem-bank',
+    actions: createElement('button', null, '上一题'),
+    beforeTitleActions: createElement('span', null, '剩余 2 次 · 下次最高 60 分'),
+    trailingActions: createElement('button', null, '发布问题'),
+  }),
+);
+assert.ok(practiceHeaderMarkup.indexOf('上一题') < practiceHeaderMarkup.indexOf('剩余 2 次'));
+assert.ok(practiceHeaderMarkup.indexOf('剩余 2 次') < practiceHeaderMarkup.indexOf('<h1'));
+assert.ok(practiceHeaderMarkup.indexOf('发布问题') > practiceHeaderMarkup.indexOf('</h1>'));
 
 for (const href of [
   '/learn',

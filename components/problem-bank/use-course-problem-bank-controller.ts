@@ -195,6 +195,14 @@ export function useCourseProblemBankController({
   const isPracticeMode = mode === 'practice';
   const { locale } = useI18n();
   const initialPracticeAnswersRef = useRef(initialPracticeAnswers);
+  const initialProblemIdRef = useRef(initialProblemId);
+  const loadRequestIdRef = useRef(0);
+
+  // The popup echoes its current selection back as initialProblemId. That is
+  // not a reason to reload its question set or overwrite a newer local choice.
+  useEffect(() => {
+    initialProblemIdRef.current = initialProblemId;
+  }, [initialProblemId]);
 
   const [courseName, setCourseName] = useState('');
   const [courseCode, setCourseCode] = useState<string | undefined>();
@@ -271,6 +279,7 @@ export function useCourseProblemBankController({
     [scopedPracticeProblemIdKey],
   );
   const loadAll = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current;
     if (!courseId) {
       setLoading(false);
       return;
@@ -290,13 +299,15 @@ export function useCourseProblemBankController({
         setServerBankStats(null);
         if (isPracticeMode) {
           const preferred =
-            localDemoProblems.find((problem) => problem.id === initialProblemId)?.id ??
+            localDemoProblems.find((problem) => problem.id === initialProblemIdRef.current)?.id ??
             localDemoProblems.find((problem) =>
               initialNotebookId ? problem.notebookId === initialNotebookId : true,
             )?.id ??
             localDemoProblems[0]?.id ??
             null;
-          setSelectedProblemId(preferred);
+          setSelectedProblemId((current) =>
+            localDemoProblems.some((problem) => problem.id === current) ? current : preferred,
+          );
         } else {
           setSelectedProblemId((current) =>
             current && localDemoProblems.some((problem) => problem.id === current) ? current : null,
@@ -307,19 +318,23 @@ export function useCourseProblemBankController({
 
       if (isPracticeMode && scopedPracticeProblemIds.length > 0) {
         const courseProblems = await listCourseProblemsByIds(courseId, scopedPracticeProblemIds);
+        if (requestId !== loadRequestIdRef.current) return;
         setProblems(courseProblems);
         const preferred =
-          courseProblems.find((problem) => problem.id === initialProblemId)?.id ??
+          courseProblems.find((problem) => problem.id === initialProblemIdRef.current)?.id ??
           courseProblems.find((problem) =>
             initialNotebookId ? problem.notebookId === initialNotebookId : true,
           )?.id ??
           courseProblems[0]?.id ??
           null;
-        setSelectedProblemId(preferred);
+        setSelectedProblemId((current) =>
+          courseProblems.some((problem) => problem.id === current) ? current : preferred,
+        );
         setLoading(false);
 
         void getCourse(courseId)
           .then((course) => {
+            if (requestId !== loadRequestIdRef.current) return;
             setCourseName(course?.name || '');
             setCourseCode(course?.courseCode);
             setCourseAcademicYear(course?.academicYear);
@@ -333,6 +348,7 @@ export function useCourseProblemBankController({
       }
 
       const course = await getCourse(courseId);
+      if (requestId !== loadRequestIdRef.current) return;
       const pageResult = usesServerPagination
         ? await listCourseProblemPage(courseId, {
             page: problemPage,
@@ -352,6 +368,7 @@ export function useCourseProblemBankController({
         (course?.problemCount === 0
           ? []
           : await listCourseProblems(courseId, { lean: true, timeoutMs: 45_000 }));
+      if (requestId !== loadRequestIdRef.current) return;
       setCourseName(course?.name || '');
       setCourseCode(course?.courseCode);
       setCourseAcademicYear(course?.academicYear);
@@ -365,22 +382,25 @@ export function useCourseProblemBankController({
       setServerBankStats(pageResult?.bankStats ?? null);
       if (isPracticeMode) {
         const preferred =
-          courseProblems.find((problem) => problem.id === initialProblemId)?.id ??
+          courseProblems.find((problem) => problem.id === initialProblemIdRef.current)?.id ??
           courseProblems.find((problem) =>
             initialNotebookId ? problem.notebookId === initialNotebookId : true,
           )?.id ??
           courseProblems[0]?.id ??
           null;
-        setSelectedProblemId(preferred);
+        setSelectedProblemId((current) =>
+          courseProblems.some((problem) => problem.id === current) ? current : preferred,
+        );
       } else {
         setSelectedProblemId((current) =>
           current && courseProblems.some((problem) => problem.id === current) ? current : null,
         );
       }
     } catch (error) {
+      if (requestId !== loadRequestIdRef.current) return;
       toast.error(error instanceof Error ? error.message : 'Failed to load course problems');
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestIdRef.current) setLoading(false);
     }
   }, [
     chapterFilter,
@@ -388,7 +408,6 @@ export function useCourseProblemBankController({
     deferredSearchQuery,
     difficultyFilter,
     initialNotebookId,
-    initialProblemId,
     isPracticeMode,
     practiceFilter,
     previewAsTeacher,
@@ -401,7 +420,18 @@ export function useCourseProblemBankController({
 
   useEffect(() => {
     void loadAll();
+    return () => {
+      loadRequestIdRef.current += 1;
+    };
   }, [loadAll]);
+
+  useEffect(() => {
+    // Direct problem URLs may change while the page stays mounted. A scoped
+    // popup owns its selection locally; the parent only persists its progress.
+    if (isPracticeMode && scopedPracticeProblemIds.length === 0 && initialProblemId) {
+      setSelectedProblemId(initialProblemId);
+    }
+  }, [initialProblemId, isPracticeMode, scopedPracticeProblemIds.length]);
 
   useEffect(() => {
     if (!courseId) {

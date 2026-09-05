@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from 'react';
+import { useCallback, useEffect, useSyncExternalStore, type ReactNode, type Ref } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   BookOpenText,
@@ -22,7 +23,7 @@ import {
 } from '@/lib/course-space/course-space-header-cache';
 import { cn } from '@/lib/utils';
 import type { CourseSpaceRole, CourseSpaceSection } from '@/lib/course-space/course-space-route';
-import { useCourseSpaceShell } from './course-space-shell-context';
+import { useCourseSpaceHeaderSlots, useCourseSpaceShell } from './course-space-shell-context';
 
 export type { CourseSpaceRole, CourseSpaceSection } from '@/lib/course-space/course-space-route';
 
@@ -191,11 +192,17 @@ type CourseSpaceHeaderProps = CourseSpaceNavigationProps & {
   problemCount?: number;
   forumCount?: number;
   actions?: ReactNode;
+  beforeTitleActions?: ReactNode;
   trailingActions?: ReactNode;
+  actionTargets?: {
+    actions: Ref<HTMLDivElement>;
+    beforeTitle: Ref<HTMLDivElement>;
+    trailingActions: Ref<HTMLDivElement>;
+  };
   surface?: boolean;
 };
 
-/** Supplies page metadata to the persistent header and keeps page actions in the content area. */
+/** Supplies page metadata and portals each section's controls into the persistent header. */
 export function CourseSpaceHeader({
   courseId,
   courseTitle,
@@ -207,11 +214,13 @@ export function CourseSpaceHeader({
   forumCount,
   previewMode,
   actions,
+  beforeTitleActions,
   trailingActions,
   surface = true,
   className,
 }: CourseSpaceHeaderProps) {
   const hasSharedShell = useCourseSpaceShell();
+  const headerSlots = useCourseSpaceHeaderSlots(courseId, active);
   const placeholder = isCourseSpaceHeaderPlaceholder(courseTitle);
   const subscribeToCachedHeader = useCallback(
     (onStoreChange: () => void) => subscribeCourseSpaceHeaderCache(courseId, onStoreChange),
@@ -246,19 +255,17 @@ export function CourseSpaceHeader({
   const displayedRole = displayedHeader?.role ?? role;
 
   if (hasSharedShell) {
-    return actions || trailingActions ? (
-      <div
-        data-course-space-actions
-        className="flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-2"
-      >
-        {actions ? (
-          <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>
-        ) : null}
-        {trailingActions ? (
-          <div className="ml-auto flex shrink-0 items-center gap-2">{trailingActions}</div>
-        ) : null}
-      </div>
-    ) : null;
+    return (
+      <>
+        {headerSlots?.actions && actions ? createPortal(actions, headerSlots.actions) : null}
+        {headerSlots?.beforeTitle && beforeTitleActions
+          ? createPortal(beforeTitleActions, headerSlots.beforeTitle)
+          : null}
+        {headerSlots?.trailingActions && trailingActions
+          ? createPortal(trailingActions, headerSlots.trailingActions)
+          : null}
+      </>
+    );
   }
 
   return (
@@ -269,6 +276,7 @@ export function CourseSpaceHeader({
       active={active}
       previewMode={previewMode}
       actions={actions}
+      beforeTitleActions={beforeTitleActions}
       trailingActions={trailingActions}
       surface={surface}
       className={className}
@@ -283,7 +291,9 @@ export function CourseSpaceHeaderContent({
   active,
   previewMode,
   actions,
+  beforeTitleActions,
   trailingActions,
+  actionTargets,
   surface = true,
   className,
 }: CourseSpaceHeaderProps) {
@@ -311,7 +321,7 @@ export function CourseSpaceHeaderContent({
       <div
         className={cn(
           'flex min-w-0 flex-col gap-1.5',
-          trailingActions
+          trailingActions || actionTargets
             ? 'xl:flex-row xl:items-center xl:justify-between'
             : 'md:flex-row md:items-center md:justify-between',
         )}
@@ -333,15 +343,32 @@ export function CourseSpaceHeaderContent({
             previewMode={previewMode}
             className="max-w-full"
           />
-          {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+          {actions || actionTargets ? (
+            <div
+              ref={actionTargets?.actions}
+              data-course-header-actions
+              className="flex shrink-0 items-center gap-2 empty:hidden"
+            >
+              {actions}
+            </div>
+          ) : null}
         </div>
 
         <div
           className={cn(
             'flex min-w-0 items-center justify-end gap-1.5 md:ml-auto md:flex-1',
-            trailingActions && 'flex-wrap xl:flex-nowrap',
+            (trailingActions || actionTargets) && 'flex-wrap xl:flex-nowrap',
           )}
         >
+          {beforeTitleActions || actionTargets ? (
+            <div
+              ref={actionTargets?.beforeTitle}
+              data-course-header-before-title
+              className="flex shrink-0 items-center gap-2 empty:hidden"
+            >
+              {beforeTitleActions}
+            </div>
+          ) : null}
           <h1
             className="truncate text-sm font-bold tracking-[-0.02em] sm:text-[15px]"
             title={courseTitle}
@@ -356,8 +383,14 @@ export function CourseSpaceHeaderContent({
           >
             <Home className="size-4 shrink-0" strokeWidth={1.9} />
           </Link>
-          {trailingActions ? (
-            <div className="flex shrink-0 items-center gap-2">{trailingActions}</div>
+          {trailingActions || actionTargets ? (
+            <div
+              ref={actionTargets?.trailingActions}
+              data-course-header-trailing-actions
+              className="flex shrink-0 items-center gap-2 empty:hidden"
+            >
+              {trailingActions}
+            </div>
           ) : null}
         </div>
       </div>

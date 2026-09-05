@@ -56,7 +56,7 @@ import {
   AnswerFeedbackSummaryBadge,
   AnswerPreviewPanel,
   AttemptHistoryPanel,
-  AttemptHistoryMenu,
+  AttemptHistoryList,
   ChoiceAnswerPreviewPanel,
   FormulaReferencePanel,
   PROBLEM_BANK_EMERALD_ACTION_BUTTON_CLASS,
@@ -1473,29 +1473,30 @@ export function CourseProblemBankView({
     selectedProblemAttemptsLoaded &&
     selectedProblemRemainingSubmissions === 0;
   const selectedProblemNextAttemptNumber = Math.min(3, selectedProblemSubmissionCount + 1);
+  const problemSubmissionStatus = selectedProblemHasLimitedSubmissions ? (
+    <span
+      aria-live="polite"
+      className="whitespace-nowrap text-[11px] font-medium text-slate-500 dark:text-slate-400"
+    >
+      {selectedProblemAttemptsLoaded
+        ? selectedProblemSubmissionLimitReached
+          ? locale === 'zh-CN'
+            ? '3 次机会已用完'
+            : 'No attempts remaining'
+          : locale === 'zh-CN'
+            ? `剩余 ${selectedProblemRemainingSubmissions} 次 · 下次最高 ${maxScoreForAttempt(selectedProblemNextAttemptNumber)} 分`
+            : `${selectedProblemRemainingSubmissions} left · next max ${maxScoreForAttempt(selectedProblemNextAttemptNumber)}`
+        : locale === 'zh-CN'
+          ? '正在读取尝试次数…'
+          : 'Checking attempts...'}
+    </span>
+  ) : null;
   const problemSubmissionActions = (
     <div
       data-problem-submission-actions
       className="flex min-w-0 flex-wrap items-center justify-end gap-2"
     >
-      {selectedProblemHasLimitedSubmissions ? (
-        <span
-          aria-live="polite"
-          className="whitespace-nowrap text-[11px] font-medium text-slate-500 dark:text-slate-400"
-        >
-          {selectedProblemAttemptsLoaded
-            ? selectedProblemSubmissionLimitReached
-              ? locale === 'zh-CN'
-                ? '3 次机会已用完'
-                : 'No attempts remaining'
-              : locale === 'zh-CN'
-                ? `剩余 ${selectedProblemRemainingSubmissions} 次 · 下次最高 ${maxScoreForAttempt(selectedProblemNextAttemptNumber)} 分`
-                : `${selectedProblemRemainingSubmissions} left · next max ${maxScoreForAttempt(selectedProblemNextAttemptNumber)}`
-            : locale === 'zh-CN'
-              ? '正在读取尝试次数…'
-              : 'Checking attempts...'}
-        </span>
-      ) : null}
+      {!showCourseNavigation ? problemSubmissionStatus : null}
       {selectedProblem && courseAccessRole !== 'owner' && !previewMode ? (
         <ProblemForumPublishDialog
           key={selectedProblem.id}
@@ -1595,6 +1596,29 @@ export function CourseProblemBankView({
     }
     return '0/0';
   })();
+  const reviewPracticeProblemIdKey = reviewPracticeProblemIds.join('\u001f');
+  const handlePracticeStepChange = useCallback(
+    (step: -1 | 1) => {
+      if (isReviewPracticeMode) {
+        const ids = reviewPracticeProblemIdKey.split('\u001f');
+        setSelectedProblemId((current) => {
+          const index = ids.indexOf(current ?? '');
+          return index >= 0 ? (ids[index + step] ?? current) : current;
+        });
+        return;
+      }
+      const target = step === -1 ? headerPreviousPracticeTarget : headerNextPracticeTarget;
+      if (target) handlePracticeTargetChange(target);
+    },
+    [
+      isReviewPracticeMode,
+      reviewPracticeProblemIdKey,
+      setSelectedProblemId,
+      headerPreviousPracticeTarget,
+      headerNextPracticeTarget,
+      handlePracticeTargetChange,
+    ],
+  );
   const previousPracticeHeaderLabel = locale === 'zh-CN' ? '上一题' : 'Prev';
   const nextPracticeHeaderLabel = locale === 'zh-CN' ? '下一题' : 'Next';
   const practiceHeaderState = useMemo<CourseProblemPracticeHeaderState | null>(() => {
@@ -1626,15 +1650,11 @@ export function CourseProblemBankView({
           ? '没有下一题'
           : 'No next problem',
       nextDisabled: !headerNextPracticeTarget,
-      onPrevious: headerPreviousPracticeTarget
-        ? () => handlePracticeTargetChange(headerPreviousPracticeTarget)
-        : null,
-      onNext: headerNextPracticeTarget
-        ? () => handlePracticeTargetChange(headerNextPracticeTarget)
-        : null,
+      onPrevious: headerPreviousPracticeTarget ? () => handlePracticeStepChange(-1) : null,
+      onNext: headerNextPracticeTarget ? () => handlePracticeStepChange(1) : null,
     };
   }, [
-    handlePracticeTargetChange,
+    handlePracticeStepChange,
     headerNextPracticeTarget,
     headerPreviousPracticeTarget,
     isPracticeMode,
@@ -1704,7 +1724,7 @@ export function CourseProblemBankView({
           disabled={!headerPreviousPracticeTarget}
           onClick={() => {
             if (!headerPreviousPracticeTarget) return;
-            handlePracticeTargetChange(headerPreviousPracticeTarget);
+            handlePracticeStepChange(-1);
           }}
           title={
             headerPreviousPracticeTarget
@@ -1725,7 +1745,7 @@ export function CourseProblemBankView({
           disabled={!headerNextPracticeTarget}
           onClick={() => {
             if (!headerNextPracticeTarget) return;
-            handlePracticeTargetChange(headerNextPracticeTarget);
+            handlePracticeStepChange(1);
           }}
           title={
             headerNextPracticeTarget
@@ -1743,7 +1763,7 @@ export function CourseProblemBankView({
   }, [
     autoArchiving,
     canEditProblems,
-    handlePracticeTargetChange,
+    handlePracticeStepChange,
     handleAiFileUnfiledProblems,
     headerNextPracticeTarget,
     headerPreviousPracticeTarget,
@@ -1999,17 +2019,6 @@ export function CourseProblemBankView({
         {visiblePracticePaneTabs[pane].map((tab) =>
           (() => {
             const { Icon, iconClassName, label } = practiceTabMeta(tab);
-            if (tab === 'history')
-              return (
-                <AttemptHistoryMenu
-                  key={`${selectedProblem?.id}-history`}
-                  attempts={selectedProblemAttempts}
-                  loading={selectedProblemAttemptsLoading}
-                  points={selectedProblem?.points ?? 100}
-                  locale={locale}
-                  className={practiceTabClassName(tab, false)}
-                />
-              );
             return (
               <button
                 key={tab}
@@ -2465,12 +2474,22 @@ export function CourseProblemBankView({
             )}
           </div>
         ) : tab === 'history' ? (
-          <AttemptHistoryPanel
-            attempts={selectedProblemAttempts}
-            loading={selectedProblemAttemptsLoading}
-            points={selectedProblem.points}
-            locale={locale}
-          />
+          selectedProblem.type === 'code' ? (
+            <AttemptHistoryList
+              key={selectedProblem.id}
+              attempts={selectedProblemAttempts}
+              loading={selectedProblemAttemptsLoading}
+              points={selectedProblem.points}
+              locale={locale}
+            />
+          ) : (
+            <AttemptHistoryPanel
+              attempts={selectedProblemAttempts}
+              loading={selectedProblemAttemptsLoading}
+              points={selectedProblem.points}
+              locale={locale}
+            />
+          )
         ) : selectedProblemSolutionSections.length > 0 ? (
           <div className="space-y-4">
             {selectedProblemSolutionSections.map((section, index) => (
@@ -2626,6 +2645,7 @@ export function CourseProblemBankView({
           forumCount={forumCount}
           previewMode={previewMode}
           actions={courseSpaceHeaderActions}
+          beforeTitleActions={isPracticeMode ? problemSubmissionStatus : undefined}
           trailingActions={isPracticeMode ? problemSubmissionActions : undefined}
         />
       ) : null}
@@ -3176,7 +3196,7 @@ export function CourseProblemBankView({
                               )}
                             </div>
                             <div className="text-xs text-slate-500 dark:text-slate-400">
-                              {problem.status}
+                              {latestScoreLabel(problem, locale)}
                             </div>
                             <div
                               className="text-xs font-semibold text-emerald-700 dark:text-emerald-300"
