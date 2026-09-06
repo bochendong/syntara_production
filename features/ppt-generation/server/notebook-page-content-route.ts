@@ -24,7 +24,7 @@ import {
 } from '@/lib/server/internal-request';
 import type { ImageMapping, PdfImage, SceneOutline } from '@/lib/types/generation';
 import type { Scene, SceneGenerationDiagnostics, Stage } from '@/lib/types/stage';
-import { readApiErrorMessage } from '@/lib/create/api-errors';
+import { postNotebookGenerationJson } from './notebook-generation-dispatch';
 import type { AgentInfo, CoursePersonalizationContext } from '@/lib/generation/pipeline-types';
 
 export const maxDuration = 300;
@@ -120,20 +120,11 @@ function stageFromBody(body: NotebookPageContentRequestBody): Stage {
 
 async function postInternalJson<T>(
   req: NextRequest,
-  path: string,
+  path: Parameters<typeof postNotebookGenerationJson>[1],
   payload: unknown,
   headers = forwardJsonHeaders(req),
 ): Promise<T> {
-  const response = await fetch(new URL(path, req.url), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    const message = await readApiErrorMessage(response, `${path} failed`);
-    throw new Error(message || `${path} failed`);
-  }
-  return (await response.json()) as T;
+  return postNotebookGenerationJson<T>(req, path, payload, headers);
 }
 
 function diagnosticsByOutline(

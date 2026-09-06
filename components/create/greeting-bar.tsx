@@ -2,13 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  Check,
-  ChevronDown,
-  ImagePlus,
-  Pencil,
-  ChevronUp,
-} from 'lucide-react';
+import { Check, ChevronDown, ImagePlus, Pencil, ChevronUp } from 'lucide-react';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { Textarea as UITextarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -16,6 +10,7 @@ import { UserAvatarWithFrame } from '@/components/user-profile/user-avatar-with-
 import { useUserProfileStore, AVATAR_OPTIONS } from '@/lib/store/user-profile';
 import { toast } from '@/lib/notifications/client-toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useProfileName } from '@/lib/hooks/use-profile-name';
 
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
 
@@ -31,7 +26,7 @@ export function GreetingBar() {
   const nickname = useUserProfileStore((s) => s.nickname);
   const bio = useUserProfileStore((s) => s.bio);
   const setAvatar = useUserProfileStore((s) => s.setAvatar);
-  const setNickname = useUserProfileStore((s) => s.setNickname);
+  const { saveName, saving: savingName } = useProfileName();
   const setBio = useUserProfileStore((s) => s.setBio);
 
   const [open, setOpen] = useState(false);
@@ -63,9 +58,12 @@ export function GreetingBar() {
     setTimeout(() => nameInputRef.current?.focus(), 50);
   };
 
-  const commitName = () => {
-    setNickname(nameDraft.trim());
-    setEditingName(false);
+  const commitName = async () => {
+    try {
+      if (await saveName(nameDraft)) setEditingName(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '姓名保存失败，请重试。');
+    }
   };
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -199,6 +197,7 @@ export function GreetingBar() {
                       <input
                         ref={nameInputRef}
                         value={nameDraft}
+                        disabled={savingName}
                         onChange={(e) => setNameDraft(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') commitName();
@@ -206,14 +205,15 @@ export function GreetingBar() {
                             setEditingName(false);
                           }
                         }}
-                        onBlur={commitName}
-                        maxLength={20}
+                        maxLength={60}
                         placeholder={t('profile.defaultNickname')}
                         className="h-6 min-w-0 flex-1 border-b border-border/80 bg-transparent text-[13px] font-semibold text-foreground outline-none placeholder:text-muted-foreground/40"
                       />
                       <button
                         type="button"
                         onClick={commitName}
+                        disabled={savingName}
+                        aria-label="保存姓名"
                         className="flex size-5 shrink-0 items-center justify-center rounded text-violet-500 hover:bg-violet-100 dark:hover:bg-violet-900/30"
                       >
                         <Check className="size-3" />

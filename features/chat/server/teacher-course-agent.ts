@@ -464,6 +464,7 @@ function courseAgentInstructions(args: {
         ]
       : [
           '11. 查询个人学生、班级整体或某道题的学情时统一调用 get_course_learning_insight，并分别使用 scope=student、class 或 problem。工具只会返回本课程中的记录。',
+          '11a. 按姓名或手机号尾号找学生时，也必须调用 get_course_learning_insight，使用 scope=student、studentQuery=姓名或四位尾号。工具会读取最新课程名单，只返回手机号后四位；多位匹配时请用户确认，零匹配按工具原因说明，不能自行推断成没有权限。',
           '12. 班级概览默认匿名汇总；只有老师明确询问某位学生时才展示该学生的身份与个人记录。',
           '13. “最近问了什么”来自原始聊天记录；“薄弱点、掌握情况”属于基于提问、作答和已确认学习状态的证据判断，回答时不要混为一谈。',
           '14. 学情回答必须注明统计时间范围、提交样本数与计时样本数，并附上工具返回的学生详情、题目或论坛链接。缺少有效计时时明确说“暂无数据”，不得用提交间隔推测。',
@@ -849,7 +850,7 @@ export async function runCourseTurn(
   const teacherInsightTools = {
     get_course_learning_insight: tool({
       description:
-        'Read evidence-based learning insight for one student, the class, or one course problem. Use the matching scope; class results are anonymized.',
+        'Find a currently enrolled student by name, user ID, email, or phone last four digits (studentQuery, scope=student), and read their evidence-based learning insight. Also supports class or problem scope; class results are anonymized. Phone matches return only last four digits and may be ambiguous.',
       inputSchema: z.object({
         scope: z.enum(['student', 'class', 'problem']),
         studentQuery: z.string().trim().min(1).max(200).optional(),

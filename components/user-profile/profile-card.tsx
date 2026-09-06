@@ -8,6 +8,7 @@ import { useI18n } from '@/lib/hooks/use-i18n';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 import { cn } from '@/lib/utils';
 import { ProfileAvatarPicker } from './profile-avatar-picker';
+import { useProfileName } from '@/lib/hooks/use-profile-name';
 
 export function UserProfileCard({
   showAvatar = true,
@@ -19,7 +20,8 @@ export function UserProfileCard({
   const { t } = useI18n();
   const nickname = useUserProfileStore((s) => s.nickname);
   const bio = useUserProfileStore((s) => s.bio);
-  const setNickname = useUserProfileStore((s) => s.setNickname);
+  const { saveName, saving } = useProfileName();
+  const [nameError, setNameError] = useState('');
   const setBio = useUserProfileStore((s) => s.setBio);
 
   const [editingName, setEditingName] = useState(false);
@@ -33,13 +35,17 @@ export function UserProfileCard({
   const displayName = nickname || t('profile.defaultNickname');
 
   const startEditName = () => {
+    setNameError('');
     setNameDraft(nickname);
     setEditingName(true);
   };
 
-  const commitName = () => {
-    setNickname(nameDraft.trim());
-    setEditingName(false);
+  const commitName = async () => {
+    try {
+      if (await saveName(nameDraft)) setEditingName(false);
+    } catch (error) {
+      setNameError(error instanceof Error ? error.message : '姓名保存失败，请重试。');
+    }
   };
 
   return (
@@ -64,18 +70,20 @@ export function UserProfileCard({
               <input
                 ref={nameInputRef}
                 value={nameDraft}
+                disabled={saving}
                 onChange={(e) => setNameDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') commitName();
                   if (e.key === 'Escape') setEditingName(false);
                 }}
-                onBlur={commitName}
-                maxLength={20}
+                maxLength={60}
                 placeholder={t('profile.defaultNickname')}
                 className="flex-1 min-w-0 h-7 bg-transparent border-b-2 border-violet-400 dark:border-violet-500 text-sm font-semibold text-foreground outline-none placeholder:text-muted-foreground/40"
               />
               <button
                 type="button"
+                disabled={saving}
+                aria-label="保存姓名"
                 onClick={commitName}
                 className="shrink-0 size-6 rounded-md flex items-center justify-center text-violet-500 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
               >
@@ -92,6 +100,11 @@ export function UserProfileCard({
               <Pencil className="size-3 text-muted-foreground/40 opacity-0 group-hover/name:opacity-100 transition-opacity" />
             </button>
           )}
+          {nameError ? (
+            <p role="alert" className="mt-2 text-xs text-rose-600">
+              {nameError}
+            </p>
+          ) : null}
           <p className="text-[10px] text-muted-foreground/50 mt-0.5">{t('profile.avatarHint')}</p>
         </div>
       </div>

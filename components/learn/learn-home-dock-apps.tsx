@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { USER_AVATAR_PRESET_URLS } from '@/lib/constants/user-avatars';
 import { useAuthSignOut } from '@/lib/hooks/use-auth-sign-out';
+import { useProfileName } from '@/lib/hooks/use-profile-name';
 import { useAuthStore } from '@/lib/store/auth';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 import { ProfilePhoneEditor } from '@/components/user-profile/profile-phone-editor';
@@ -97,10 +98,11 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
   const profileNickname = useUserProfileStore((state) => state.nickname);
   const profileBio = useUserProfileStore((state) => state.bio);
   const setAvatar = useUserProfileStore((state) => state.setAvatar);
-  const setNickname = useUserProfileStore((state) => state.setNickname);
+  const { saveName, saving } = useProfileName();
+  const [saveError, setSaveError] = useState('');
   const setBio = useUserProfileStore((state) => state.setBio);
   const totals = useLearningTotals(courses);
-  const [name, setName] = useState(profileNickname || authName || '学习者');
+  const [name, setName] = useState<string | null>(null);
   const [signature, setSignature] = useState(profileBio);
   const [school, setSchool] = useState(() => {
     try {
@@ -136,7 +138,7 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
     return () => narrowScreen.removeEventListener('change', updateAvatarGrid);
   }, []);
 
-  const displayName = name.trim() || authName || '学习者';
+  const displayName = (name ?? profileNickname).trim() || authName || '学习者';
   const dirty =
     displayName !== (profileNickname || authName || '学习者') ||
     signature.trim() !== profileBio ||
@@ -145,8 +147,15 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
 
   const roleLabel = role === 'TEACHER' ? '教师账户' : role === 'ADMIN' ? '管理员账户' : '学生账户';
 
-  const saveProfile = () => {
-    setNickname(displayName);
+  const saveProfile = async () => {
+    setSaveError('');
+    try {
+      if (!(await saveName(name ?? displayName))) return;
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '姓名保存失败，请重试。');
+      return;
+    }
+    setName(null);
     setBio(signature.trim());
     setAvatar(avatar);
     try {
@@ -226,10 +235,11 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
                 </div>
                 <label className="learn-dock-profile-name">
                   <input
-                    value={name}
+                    value={name ?? displayName}
+                    disabled={saving}
                     onChange={(event) => setName(event.target.value)}
                     placeholder="你的显示名称"
-                    maxLength={40}
+                    maxLength={60}
                     aria-label="显示名称"
                   />
                   <Pencil size={14} strokeWidth={2} />
@@ -342,14 +352,19 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
                 </div>
 
                 <div className="learn-dock-profile-actions">
+                  {saveError ? (
+                    <p role="alert" className="text-sm text-rose-600">
+                      {saveError}
+                    </p>
+                  ) : null}
                   <button
                     type="button"
                     className="learn-dock-profile-save"
                     onClick={saveProfile}
-                    disabled={!dirty && !savedFlash}
+                    disabled={saving || (!dirty && !savedFlash)}
                   >
                     {savedFlash ? <Check size={15} /> : <Save size={15} />}
-                    {savedFlash ? '已保存' : '保存修改'}
+                    {saving ? '正在保存…' : savedFlash ? '已保存' : '保存修改'}
                   </button>
                 </div>
               </div>

@@ -232,7 +232,7 @@ export const authOptions: NextAuthOptions = {
           accountUser.role === 'ADMIN')
       );
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         const accountUser = user as {
           role?: string;
@@ -248,6 +248,16 @@ export const authOptions: NextAuthOptions = {
         token.isActive = accountUser.isActive !== false;
         if (accountUser.authSource === 'local-demo') token.authSource = 'local-demo';
         return token;
+      }
+      if (trigger === 'update' && token.sub && prismaClient && token.authSource !== 'local-demo') {
+        const profile = await prismaClient.user.findUnique({
+          where: { id: token.sub },
+          select: { name: true, image: true },
+        });
+        if (profile) {
+          token.name = profile.name;
+          token.picture = profile.image;
+        }
       }
       if (token.authSource === 'speedup' || token.authSource === 'local-demo') {
         token.isActive = true;

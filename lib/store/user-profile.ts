@@ -50,6 +50,7 @@ export interface UserProfileState {
   /** Local avatar path or data-URL (for custom uploads) */
   avatar: string;
   nickname: string;
+  nicknameOwnerId: string | null;
   bio: string;
   phone: string;
   /** 通知横幅配色：`auto` 为按通知类型，否则为固定主色 */
@@ -64,6 +65,7 @@ export interface UserProfileState {
   slideBackgroundStyleId: SlideBackgroundStyleId;
   setAvatar: (avatar: string) => void;
   setNickname: (nickname: string) => void;
+  setAccountNickname: (userId: string, nickname: string) => void;
   setBio: (bio: string) => void;
   setPhone: (phone: string) => void;
   setNotificationCardStyle: (choice: NotificationCardStyleChoice) => void;
@@ -78,6 +80,7 @@ export const useUserProfileStore = create<UserProfileState>()(
     (set) => ({
       avatar: DEFAULT_USER_PRESET_AVATAR,
       nickname: '',
+      nicknameOwnerId: null,
       bio: '',
       phone: '',
       notificationCardStyle: 'auto',
@@ -87,6 +90,7 @@ export const useUserProfileStore = create<UserProfileState>()(
       avatarFrameId: DEFAULT_USER_AVATAR_FRAME_ID,
       setAvatar: (avatar) => set({ avatar }),
       setNickname: (nickname) => set({ nickname }),
+      setAccountNickname: (nicknameOwnerId, nickname) => set({ nicknameOwnerId, nickname }),
       setBio: (bio) => set({ bio }),
       setPhone: (phone) => set({ phone }),
       setNotificationCardStyle: (choice) =>

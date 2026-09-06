@@ -92,6 +92,7 @@ type SceneActionsRoutePayload = {
 };
 
 type PageGenerationInput = {
+  generationAttempt: number;
   context: NativeMiniLectureRequestContext;
   outline: SceneOutline;
   allOutlines: SceneOutline[];
@@ -104,6 +105,7 @@ type PageGenerationInput = {
 };
 
 type ActionGenerationInput = {
+  generationAttempt: number;
   context: NativeMiniLectureRequestContext;
   outline: SceneOutline;
   allOutlines: SceneOutline[];
@@ -1236,6 +1238,7 @@ async function generateManifest(args: {
       let payload: NotebookPageRoutePayload;
       try {
         payload = await args.dependencies.generatePage({
+          generationAttempt: attempt,
           context: args.context,
           outline: requestedOutline,
           allOutlines: outlines,
@@ -1288,6 +1291,7 @@ async function generateManifest(args: {
       let actionPayload: SceneActionsRoutePayload;
       try {
         actionPayload = await args.dependencies.generateActions({
+          generationAttempt: attempt,
           context: args.context,
           outline: accepted.outline,
           allOutlines: accepted.allOutlinesForActions,

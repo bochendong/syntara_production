@@ -7,6 +7,7 @@ import {
 } from '@/lib/server/memory-learner-analytics';
 import type { MemorySearchIntent, MemorySearchIntentKind } from '@/lib/server/memory-search-intent';
 import { findCourseAccessRole } from '@/lib/server/repositories/course-enrollment-repository';
+import { phoneLastFour } from '@/lib/profile/phone';
 import {
   loadCourseLearningOverview,
   loadCourseStudentLearningDetail,
@@ -122,6 +123,7 @@ type EnrolledStudent = {
   userId: string;
   name: string;
   email: string | null;
+  phoneLast4: string | null;
 };
 
 async function enrolledStudents(
@@ -146,18 +148,27 @@ async function enrolledStudents(
           : {}),
       },
     },
-    select: { user: { select: { id: true, name: true, email: true } } },
+    select: { user: { select: { id: true, name: true, email: true, phone: true } } },
     orderBy: { joinedAt: 'desc' },
   });
   return rows.map(({ user }) => ({
     userId: user.id,
     name: user.name?.trim() || user.email?.split('@')[0] || '未命名学生',
     email: user.email || null,
+    phoneLast4: phoneLastFour(user.phone),
   }));
 }
 
 function resolveStudentMatches(students: EnrolledStudent[], query: string): EnrolledStudent[] {
   const needle = normalized(query);
+  // Accept both the tool's bare suffix and the user's natural-language request.
+  const suffix = /^\d{4}$/.test(needle)
+    ? needle
+    : /(?:手机(?:号)?|电话|尾号|后四位|后4位|last\s*(?:4|four)|ending)[^\d]*?(\d{4})(?!\d)/i.exec(
+        needle,
+      )?.[1];
+  if (suffix) return students.filter((student) => student.phoneLast4 === suffix);
+  if (!needle) return [];
   const exact = students.filter(
     (student) =>
       normalized(student.userId) === needle ||
@@ -185,7 +196,10 @@ export async function loadTeacherStudentInsight(args: {
   if (matches.length !== 1) {
     return {
       found: false as const,
-      reason: matches.length === 0 ? '没有找到这门课中的学生。' : '匹配到多位学生，请再明确一些。',
+      reason:
+        matches.length === 0
+          ? '本课程当前在读名单中没有匹配的姓名或手机号尾号；手机号未填写或学生不在本课程也不会命中。'
+          : '匹配到多位学生，请根据姓名或学生编号进一步确认。',
       candidates: matches.slice(0, 8),
     };
   }

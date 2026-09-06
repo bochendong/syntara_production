@@ -41,9 +41,9 @@ async function ensureUserForApiUncached(normalized: {
         select: { id: true, name: true },
       });
       if (existingByEmail?.id) {
-        if (normalized.name && normalized.name !== existingByEmail.name) {
-          await prisma.user.update({
-            where: { id: existingByEmail.id },
+        if (normalized.name && !existingByEmail.name?.trim()) {
+          await prisma.user.updateMany({
+            where: { id: existingByEmail.id, OR: [{ name: null }, { name: '' }] },
             data: { name: normalized.name },
           });
         }
@@ -61,7 +61,6 @@ async function ensureUserForApiUncached(normalized: {
       },
       update: {
         ...(normalizedEmail ? { email: normalizedEmail } : {}),
-        ...(normalized.name ? { name: normalized.name } : {}),
       },
     });
     await ensureUserCreditsInitialized(prisma, id);

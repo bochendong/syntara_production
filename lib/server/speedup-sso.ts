@@ -371,7 +371,7 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
           providerAccountId,
         },
       },
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, user: { select: { name: true } } },
     });
 
     if (existingAccount) {
@@ -387,7 +387,8 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
         prisma.user.update({
           where: { id: existingAccount.userId },
           data: {
-            name: identity.name,
+            // The local profile is authoritative after the account is created.
+            ...(!existingAccount.user.name?.trim() ? { name: identity.name } : {}),
             ...(identity.image ? { image: identity.image } : {}),
             role: identity.role,
             isActive: true,
