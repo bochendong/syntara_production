@@ -1,5 +1,7 @@
 'use client';
 
+import { useAiActivityStore } from '@/lib/store/ai-activity';
+
 import { BackendApiError, backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { courseSourceFileKind } from '@/lib/uploads/course-source-policy';
 
@@ -226,6 +228,11 @@ export async function loadOnlineTeacherStudio(args: { courseId: string; teacherI
     ...payload.notebooks.map((notebook) => notebookItem(args.courseId, notebook)),
   ];
   const tasks = payload.tasks.map((task) => taskItem(args.courseId, args.teacherId, task));
+  useAiActivityStore.getState().teacherSnapshot(
+    args.teacherId,
+    args.courseId,
+    tasks.some((task) => task.status === 'queued' || task.status === 'running'),
+  );
   return {
     course: {
       id: payload.course.id,

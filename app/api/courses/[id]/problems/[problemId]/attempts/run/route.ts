@@ -1,3 +1,4 @@
+import { createTeacherPreviewAttempt } from '@/lib/problem-bank/teacher-preview-attempt';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -54,6 +55,17 @@ export async function POST(
       language: payload.data.language,
       courseIdentity,
     });
+    if (loaded.isTeacherPreview) {
+      const attempt = createTeacherPreviewAttempt({
+        userId: auth.userId,
+        problemId,
+        kind: 'run',
+        status: judged.status,
+        answer: { code: payload.data.code },
+        result: judged.result,
+      });
+      return NextResponse.json({ attempt, result: attempt.result });
+    }
     const attempt = await createNotebookProblemAttempt({
       userId: auth.userId,
       problemId,

@@ -47,6 +47,9 @@ import {
   resolveCourseSpaceHeaderFields,
 } from '@/lib/course-space/format-course-space-header';
 import { cn } from '@/lib/utils';
+import { useReportAiActivity } from '@/lib/ai-progress/use-ai-activity';
+import { estimateTaskProgress, taskTimeEstimate } from '@/lib/ai-progress/estimate';
+import { useProgressClock } from '@/lib/ai-progress/use-progress-clock';
 import { resolveCourseBackgroundDisplayUrl } from '@/lib/constants/course-backgrounds';
 import { CourseAccessClosedCard } from '@/components/course-access-closed-card';
 import { Input } from '@/components/ui/input';
@@ -287,6 +290,11 @@ const TYPE_META: Record<CourseContentType, { label: string; icon: typeof FileTex
 };
 
 function queueStageLabel(job: TeacherStudioTask): string {
+  if (job.status === 'queued') return '等待开始';
+  if (job.stage === 'extracting_structure') return '分析资料结构';
+  if (job.stage === 'converting_to_pdf') return '转换文件格式';
+  if (job.stage === 'extracting_questions') return '识别题目与答案';
+  if (job.stage === 'persisting_notebook') return '保存笔记本';
   if (job.kind === 'mind_map') {
     if (job.stage === 'extracting') return '解析思维导图素材';
     if (job.stage === 'generating_mind_map') return '生成思维导图';
@@ -353,6 +361,10 @@ export function TeacherCourseStudioClient({
   const [content, setContent] = useState<CourseContentItem[]>([]);
   const [removedContent, setRemovedContent] = useState<CourseContentItem[]>([]);
   const [jobs, setJobs] = useState<TeacherStudioTask[]>([]);
+  const progressNow = useProgressClock(
+    jobs.some((job) => job.status === 'running' || job.status === 'queued'),
+  );
+  const [seenQueueTasks, setSeenQueueTasks] = useState<Record<string, number>>({});
   const [persistenceTasks, setPersistenceTasks] = useState<TeacherStudioTask[]>([]);
   const [hardRules, setHardRules] = useState<CourseHardRuleRecord[]>([]);
   const [hardRuleDrafts, setHardRuleDrafts] = useState<Record<string, string>>({});
@@ -361,6 +373,19 @@ export function TeacherCourseStudioClient({
   const [hardRulesLoading, setHardRulesLoading] = useState(false);
   const [savingHardRuleId, setSavingHardRuleId] = useState('');
   const [tab, setTab] = useState<StudioTab>('overview');
+  const unreadQueueCount = jobs.filter(
+    (job) =>
+      (job.status === 'running' || job.status === 'queued') &&
+      seenQueueTasks[job.id] !== job.attemptCount,
+  ).length;
+  useEffect(() => {
+    if (tab === 'queue') {
+      setSeenQueueTasks((seen) => ({
+        ...seen,
+        ...Object.fromEntries(jobs.map((job) => [job.id, job.attemptCount])),
+      }));
+    }
+  }, [tab, jobs]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [accessRevoked, setAccessRevoked] = useState(false);
@@ -368,6 +393,9 @@ export function TeacherCourseStudioClient({
   const [uploading, setUploading] = useState(false);
   const [processingSourceIds, setProcessingSourceIds] = useState<Set<string>>(() => new Set());
   const [mindMapSourceAssetId, setMindMapSourceAssetId] = useState('');
+  useReportAiActivity(
+    !localDemo && (uploading || processingSourceIds.size > 0 || Boolean(mindMapSourceAssetId)),
+  );
   const [actionReferenceId, setActionReferenceId] = useState('');
   const [permanentDeleteReferenceId, setPermanentDeleteReferenceId] = useState('');
   const [pendingPermanentDeleteItem, setPendingPermanentDeleteItem] =
@@ -1375,7 +1403,7 @@ export function TeacherCourseStudioClient({
                 ['sources', '源文件', FileText, null],
                 ['notebooks', '笔记本库', BookOpenText, null],
                 ['hard_rules', 'Hard Rule', ShieldCheck, hardRules.length || null],
-                ['queue', 'AI 队列', Brain, counts.queued || null],
+                ['queue', 'AI 队列', Brain, unreadQueueCount || counts.queued || null],
                 ['removed', '已移除', Trash2, removedContent.length || null],
               ] as const
             ).map(([value, label, Icon, count]) => {
@@ -1385,7 +1413,11 @@ export function TeacherCourseStudioClient({
                   key={value}
                   type="button"
                   onClick={() => switchTab(value)}
-                  aria-label={label}
+                  aria-label={
+                    value === 'queue' && unreadQueueCount
+                      ? `${label}，${unreadQueueCount} 个新任务`
+                      : label
+                  }
                   title={label}
                   aria-current={active ? 'page' : undefined}
                   className={`relative inline-flex size-10 items-center justify-center rounded-xl outline-none transition-all focus-visible:ring-2 focus-visible:ring-emerald-500/35 ${
@@ -1401,9 +1433,11 @@ export function TeacherCourseStudioClient({
                   {typeof count === 'number' ? (
                     <span
                       className={`absolute right-0.5 top-0.5 inline-flex min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold tabular-nums leading-3 ${
-                        active
-                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200'
-                          : 'bg-slate-200 text-slate-600 dark:bg-white/15 dark:text-slate-300'
+                        value === 'queue' && unreadQueueCount > 0
+                          ? 'bg-rose-600 text-white ring-2 ring-white dark:ring-slate-900'
+                          : active
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200'
+                            : 'bg-slate-200 text-slate-600 dark:bg-white/15 dark:text-slate-300'
                       }`}
                     >
                       {count > 99 ? '99+' : count}
@@ -1416,6 +1450,27 @@ export function TeacherCourseStudioClient({
         </nav>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 sm:gap-5">
+          {counts.queued > 0 && tab !== 'queue' ? (
+            <button
+              type="button"
+              onClick={() => switchTab('queue')}
+              className="flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-left text-xs text-sky-800 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-200"
+            >
+              <Loader2 className="size-4 shrink-0 animate-spin" />
+              <span>{counts.queued} 个 AI 任务正在处理，可继续备课。点击查看进度与预计耗时。</span>
+            </button>
+          ) : null}
+          {tab === 'sources' ? (
+            <p className="text-xs text-slate-500">
+              {
+                taskTimeEstimate(
+                  sourceCategory === 'problem_bank' ? 'problem_bank_import' : 'knowledge_notebook',
+                ).label
+              }{' '}
+              / 文件；大文件可能更久。上传后可在此查看处理进度。
+            </p>
+          ) : null}
+
           {tab === 'overview' ? (
             <section className={STUDIO_SECTION_CLASS}>
               <div className={STUDIO_PANEL_BODY_CLASS}>
@@ -2142,6 +2197,39 @@ export function TeacherCourseStudioClient({
                                   ) : null}
                                 </div>
                               </div>
+                              <div className="min-w-0 text-xs text-slate-500 sm:max-w-64">
+                                {(() => {
+                                  const activeJob =
+                                    generatingMindMap && mindMapJob
+                                      ? mindMapJob
+                                      : pending
+                                        ? job
+                                        : null;
+                                  if (!activeJob) return null;
+                                  const view = estimateTaskProgress(activeJob, progressNow);
+                                  return (
+                                    <div>
+                                      <p>
+                                        {queueStageLabel(activeJob)} · 约 {view.percent}%
+                                      </p>
+                                      <div
+                                        role="progressbar"
+                                        aria-label={`${source.title}处理进度（估算）`}
+                                        aria-valuemin={0}
+                                        aria-valuemax={100}
+                                        aria-valuenow={view.percent ?? undefined}
+                                        className="my-1.5 h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10"
+                                      >
+                                        <div
+                                          className="h-full bg-sky-500 transition-[width] duration-700 motion-reduce:transition-none"
+                                          style={{ width: `${view.percent ?? 0}%` }}
+                                        />
+                                      </div>
+                                      <p className="text-[11px] leading-5">{view.hint}</p>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
                               <div className="flex shrink-0 flex-wrap items-center gap-2">
                                 {job?.status === 'completed' ? (
                                   <span className="inline-flex items-center gap-1.5 px-2 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
@@ -2283,7 +2371,8 @@ export function TeacherCourseStudioClient({
                           : isRunning
                             ? '处理中'
                             : '等待中';
-                      const progress = Math.max(0, Math.min(100, job.progress));
+                      const progressView = estimateTaskProgress(job, progressNow);
+                      const progress = progressView.percent;
                       return (
                         <StudioListItem
                           key={job.id}
@@ -2353,22 +2442,33 @@ export function TeacherCourseStudioClient({
                               <span
                                 className={`shrink-0 tabular-nums ${isCompleted ? 'text-emerald-700 dark:text-emerald-300' : isFailed ? 'text-rose-700 dark:text-rose-300' : 'text-sky-700 dark:text-sky-300'}`}
                               >
-                                {progress}%
+                                {progress === null
+                                  ? '已中断'
+                                  : `${isCompleted ? '' : '约 '}${progress}%`}
                               </span>
                             </div>
                             <div
                               className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-200/70 dark:bg-white/10"
-                              aria-label={`处理进度 ${progress}%`}
+                              role="progressbar"
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-valuenow={progress ?? undefined}
+                              aria-label={`处理进度 ${progress === null ? '已中断' : `${isCompleted ? '' : '约 '}${progress}%`}`}
                             >
                               <div
-                                className={`relative h-full rounded-full transition-[width] duration-500 ease-out ${isFailed ? 'bg-rose-500' : isCompleted ? 'bg-emerald-500' : 'bg-sky-500'}`}
-                                style={{ width: `${progress}%` }}
+                                className={`relative h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none ${isFailed ? 'bg-rose-500' : isCompleted ? 'bg-emerald-500' : 'bg-sky-500'}`}
+                                style={{
+                                  width: `${progress ?? 0}%`,
+                                }}
                               >
                                 {isRunning ? (
                                   <span className="absolute inset-0 animate-pulse bg-white/20" />
                                 ) : null}
                               </div>
                             </div>
+                            <p className="mt-2 text-[11px] leading-5 text-slate-500">
+                              {progressView.hint}
+                            </p>
                           </div>
 
                           <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:col-start-2 sm:row-start-1 sm:flex-nowrap sm:justify-end lg:col-start-auto lg:row-start-auto">

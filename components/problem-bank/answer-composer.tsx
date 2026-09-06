@@ -22,11 +22,11 @@ import {
   Table2,
   Underline,
 } from 'lucide-react';
+import { MathSymbolPanel } from './math-symbol-panel';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-  MATH_SYMBOL_GROUPS,
   TABLE_PICKER_ROWS,
   TABLE_PICKER_COLS,
   FORMULA_EXAMPLES,
@@ -1069,27 +1069,11 @@ export function AnswerComposerToolbar({
             fillPanels ? 'min-h-0 flex-1' : 'max-h-[360px]',
           )}
         >
-          {MATH_SYMBOL_GROUPS.map((group) => (
-            <div key={group.zh} className="space-y-1">
-              <p className="px-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                {locale === 'zh-CN' ? group.zh : group.en}
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {group.symbols.map((symbol) => (
-                  <button
-                    key={`${group.zh}-${symbol}`}
-                    type="button"
-                    disabled={disabled}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => controller.applyEdit({ kind: 'insert', text: symbol })}
-                    className="h-7 min-w-7 rounded-md border border-slate-200 bg-slate-50 px-2 text-sm font-medium text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 disabled:pointer-events-none disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-sky-700 dark:hover:bg-sky-950/60 dark:hover:text-sky-200"
-                  >
-                    {symbol}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+          <MathSymbolPanel
+            locale={locale}
+            disabled={disabled}
+            onInsert={(symbol) => controller.applyEdit({ kind: 'insert', text: symbol })}
+          />
         </div>
       ) : null}
 

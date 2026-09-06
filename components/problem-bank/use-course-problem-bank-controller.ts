@@ -1,5 +1,7 @@
 'use client';
 
+import { notebookProblemImportDraftSchema } from '@/lib/problem-bank/schema';
+import { createTeacherPreviewAttempt } from '@/lib/problem-bank/teacher-preview-attempt';
 import { preparePhotoAnswer } from '@/lib/problem-bank/photo-answer';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@/lib/notifications/client-toast';
@@ -1227,6 +1229,7 @@ export function useCourseProblemBankController({
 
   const handleUpdateProblem = useCallback(
     async (patch: {
+      chapterId?: string | null;
       title?: string;
       status?: 'draft' | 'published' | 'archived';
       points?: number;
@@ -1241,6 +1244,25 @@ export function useCourseProblemBankController({
           locale === 'zh-CN' ? '只有课程作者可以编辑题目。' : 'Only the author can edit problems.',
         );
       }
+      if (isLocalDemoProblemBankCourse(courseId)) {
+        const draft = notebookProblemImportDraftSchema.parse({
+          ...problemRecordToDraft(selectedProblem),
+          ...patch,
+        });
+        const chapter = problemChapters.find((item) => item.id === patch.chapterId);
+        const updated: NotebookProblemClientRecord = {
+          ...selectedProblem,
+          ...patch,
+          publicContent: draft.publicContent,
+          grading: draft.grading,
+          secretJudge: draft.secretJudge,
+          chapterId: patch.chapterId === undefined ? selectedProblem.chapterId : patch.chapterId,
+          chapterName: patch.chapterId === undefined ? selectedProblem.chapterName : chapter?.name,
+          updatedAt: Date.now(),
+        };
+        setProblems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+        return;
+      }
       const updated = await updateCourseProblem({
         courseId,
         problemId: selectedProblem.id,
@@ -1249,7 +1271,7 @@ export function useCourseProblemBankController({
       setProblems((prev) => prev.map((problem) => (problem.id === updated.id ? updated : problem)));
       setSelectedProblemId(updated.id);
     },
-    [canEditProblems, courseId, locale, selectedProblem],
+    [canEditProblems, courseId, locale, selectedProblem, problemChapters],
   );
 
   const handleDeleteProblem = useCallback(
@@ -1361,9 +1383,11 @@ export function useCourseProblemBankController({
       return false;
     }
     if (
+      !canEditProblems &&
       selectedProblem.type === 'code' &&
       selectedProblemContent?.type === 'code' &&
-      selectedProblemContent.publicTests.length > 0 &&
+      (Boolean(selectedProblemContent.publicTestCode?.trim()) ||
+        selectedProblemContent.publicTests.length > 0) &&
       (attemptsByProblemId[selectedProblem.id] ?? []).find(
         (attempt) =>
           attempt.kind === 'run' &&
@@ -1381,7 +1405,10 @@ export function useCourseProblemBankController({
     if (immediateChoiceFeedback) {
       setAnswerFeedbackByProblemId((prev) => ({
         ...prev,
-        [selectedProblem.id]: immediateChoiceFeedback,
+        [selectedProblem.id]: {
+          ...immediateChoiceFeedback,
+          score: canEditProblems ? null : immediateChoiceFeedback.score,
+        },
       }));
     }
     setSubmittingAnswer(true);
@@ -1396,13 +1423,26 @@ export function useCourseProblemBankController({
               : photoMode
                 ? { images: selectedPhotos }
                 : { text: textAnswers[selectedProblem.id] ?? '' };
-      const { attempt, result } = await submitCourseProblem({
-        courseId,
-        problemId: selectedProblem.id,
-        language: locale,
-        activeDurationMs: problemActiveTimer.getActiveDuration(),
-        ...payload,
-      });
+      const demoTeacherAttempt =
+        canEditProblems && isLocalDemoProblemBankCourse(courseId) && immediateChoiceFeedback
+          ? createTeacherPreviewAttempt({
+              userId: 'local-demo-teacher-ui-mock',
+              problemId: selectedProblem.id,
+              kind: 'answer',
+              status: immediateChoiceFeedback.status,
+              answer: payload,
+              result: { feedback: immediateChoiceFeedback.feedback, publicCases: [] },
+            })
+          : null;
+      const { attempt, result } = demoTeacherAttempt
+        ? { attempt: demoTeacherAttempt, result: demoTeacherAttempt.result }
+        : await submitCourseProblem({
+            courseId,
+            problemId: selectedProblem.id,
+            language: locale,
+            activeDurationMs: problemActiveTimer.getActiveDuration(),
+            ...payload,
+          });
       problemActiveTimer.reset();
       if (selectedProblem.type === 'code') {
         setCodeAnswers((prev) => ({
@@ -1431,7 +1471,9 @@ export function useCourseProblemBankController({
         result?.feedback ||
         immediateChoiceFeedback?.feedback ||
         (locale === 'zh-CN' ? '答案已提交。' : 'Answer submitted.');
-      const score = attempt.score ?? immediateChoiceFeedback?.score ?? null;
+      const score = canEditProblems
+        ? null
+        : (attempt.score ?? immediateChoiceFeedback?.score ?? null);
       setAnswerFeedbackByProblemId((prev) => ({
         ...prev,
         [selectedProblem.id]: {
@@ -1443,15 +1485,16 @@ export function useCourseProblemBankController({
           saving: false,
         },
       }));
-      setAnswerPanelTab('history');
-      onPracticeAttemptResolved?.({
-        problemId: selectedProblem.id,
-        problemTitle: selectedProblemTitle || selectedProblem.title,
-        concepts: [selectedProblem.chapterName || selectedProblemTitle || selectedProblem.title],
-        status: attempt.status,
-        score,
-        feedback,
-      });
+      if (!canEditProblems) setAnswerPanelTab('history');
+      if (!canEditProblems)
+        onPracticeAttemptResolved?.({
+          problemId: selectedProblem.id,
+          problemTitle: selectedProblemTitle || selectedProblem.title,
+          concepts: [selectedProblem.chapterName || selectedProblemTitle || selectedProblem.title],
+          status: attempt.status,
+          score,
+          feedback,
+        });
       return true;
     } catch (error) {
       setAnswerFeedbackByProblemId((prev) => ({
@@ -1474,6 +1517,7 @@ export function useCourseProblemBankController({
       setSubmittingAnswer(false);
     }
   }, [
+    canEditProblems,
     attemptsByProblemId,
     blankAnswers,
     choiceAnswers,
@@ -1495,7 +1539,11 @@ export function useCourseProblemBankController({
     async (target: CourseCodeRunTarget = 'public') => {
       if (!selectedProblem || runningCode) return false;
       if (selectedProblem.type !== 'code' || selectedProblemContent?.type !== 'code') return false;
-      if (target === 'secret' && (selectedProblem.secretJudge?.secretTests?.length ?? 0) === 0) {
+      if (
+        target === 'secret' &&
+        !selectedProblem.secretJudge?.secretTestCode?.trim() &&
+        (selectedProblem.secretJudge?.secretTests?.length ?? 0) === 0
+      ) {
         toast.error(locale === 'zh-CN' ? '暂无隐藏测试。' : 'No secret tests available.');
         return false;
       }

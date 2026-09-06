@@ -1,6 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
+import { useAiActivityStore } from '@/lib/store/ai-activity';
 import { nanoid } from 'nanoid';
 import {
   getFullPageImageUrlFromScene,
@@ -341,3 +342,11 @@ export const useNotebookGenerationQueueStore = create<NotebookGenerationQueueSta
     },
   }),
 );
+
+// The notebook queue can wait before it creates an entry in the shared AI runner.
+useNotebookGenerationQueueStore.subscribe((state) => {
+  useAiActivityStore.getState().report(
+    'notebook-generation-queue',
+    state.tasks.some((task) => task.status === 'queued' || task.status === 'running'),
+  );
+});

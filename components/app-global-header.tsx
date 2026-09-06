@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { AiActivityLight } from '@/components/generation/ai-activity-light';
 import { usePathname } from 'next/navigation';
 import {
   Ellipsis,
@@ -230,7 +231,8 @@ export function AppGlobalHeader({ showHomeControls = false }: { showHomeControls
   }, [courseName, routeCourseId, setCurrentCourse, storedCourseId]);
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 rounded-[18px] border border-slate-200/80 bg-white/88 px-3 shadow-[0_14px_34px_rgba(15,23,42,0.055)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/68">
+    <header className="relative isolate flex h-12 shrink-0 items-center gap-2 rounded-[18px] border border-slate-200/80 bg-white/88 px-3 shadow-[0_14px_34px_rgba(15,23,42,0.055)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/68">
+      <AiActivityLight />
       {encodedCourseId ? (
         <Link
           href="/"

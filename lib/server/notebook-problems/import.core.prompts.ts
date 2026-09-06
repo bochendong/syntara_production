@@ -64,8 +64,8 @@ export function directLlmProblemImportPrompt(args: {
 - 必须为每道题独立解题并生成可评分答案；学生手写内容、勾选、分数和教师批注不是题面，也不能直接当作标准答案。
 - 保持原题的作答方式与认知要求；代码输出预测、报错判断属于 code_reading，可按原题使用 choice、fill_blank 或 short_answer。只有原交互无法稳定展示或评分时才适配题型。
 - choice 填 correctOptionIds；calculation 填 referenceAnswer、至少一个仅含最终结果的 acceptedForms，并在适用时填 tolerance/unit；short_answer 填 referenceAnswer/rubric/rubricCriteria；proof 填 referenceProof/rubric/rubricCriteria；fill_blank 为每个 blank 填 answerKind、acceptedAnswers 与 matcher。
-- code 只用于让学生实现函数的题目。题目必须使用函数参数输入并通过 return 返回结果；不得依赖 input、stdin、print 判分或文件读写。原题若使用这些接口，等价改写接口并在 sourceMeta.adaptation 记录改动，但不要求老师确认。
-- 每道 code 必须填完整 solutionCode、带类型注解和 docstring 的 starterCode、functionSignature、LeetCode 式 statementSections、至少 2 个互不重复的 publicTests 和至少 3 个互不重复的 secretTests。testcase 是编译 unittest 文件的结构化输入：expression 只能调用目标函数，expected 是返回值；solutionCode 必须通过全部测试。
+- code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
+- code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
 - sourceMeta.adaptation 使用 {"status":"exact|adapted","originalKind":"...","deliveryType":"...","changes":[],"preservedObjectives":[]} 记录转换。不能保持考点和难度时，选择更合适的非代码题型，不要生成平台无法判分的题。
 - 填空题使用 publicContent.stemTemplate，并用 {{blank_id}} 标记每个空；publicContent.blanks 与 grading.blanks 的 id 必须一一对应。
 - 所有模型推导答案都在 sourceMeta.answerSource 写 "llm-solved"；如果确实无法可靠求解，保留题目并在 validationErrors 明确标记，不得伪造答案。
@@ -125,7 +125,7 @@ Hard requirements:
 - Preserve the source response mode and cognitive demand. Code-output prediction and error diagnosis are code_reading tasks and may use choice, fill_blank, or short_answer according to the source. Adapt a type only when the original interaction cannot be rendered or graded reliably.
 - For choice use correctOptionIds; for calculation use referenceAnswer plus at least one acceptedForms entry containing only the final result and include tolerance/unit when applicable; for short_answer use referenceAnswer/rubric/rubricCriteria; for proof use referenceProof/rubric/rubricCriteria; for every fill_blank blank provide answerKind, acceptedAnswers, and matcher.
 - Use code only for function-implementation tasks. Inputs must be function parameters and results must be returned with return. Do not rely on input(), stdin, print-based grading, or file I/O. Adapt unsupported source interfaces and record the change in sourceMeta.adaptation without requiring teacher confirmation.
-- Every code problem must include complete solutionCode, annotated starterCode with a docstring, functionSignature, LeetCode-style statementSections, at least 2 distinct publicTests, and at least 3 distinct secretTests. Testcases are structured inputs for fixed unittest files: expression is one target-function call and expected is its return value. The solution must pass every test.
+- Code supports function and class implementations, including regex used inside functions. Generate publicContent.starterCode (imports, interface, docstrings), grading.solutionCode, publicContent.publicTestCode and secretJudge.secretTestCode together. Both test fields are complete Python unittest source strings with at least 2 public and 3 secret test_ methods. The platform saves the complete submission as submission.py. AI writes import unittest and from submission import the_interface_name in tests, matching starter and solution interfaces; AI includes re/typing imports in each file that uses them. Test object state, method sequences, exceptions and return values. Do not generate expression/expected arrays, pytest, third-party dependencies, empty tests, skips or expected failures. The reference must pass all tests; tests must reject the unimplemented starter. Cover valid, invalid and boundary examples.
 - Record transformations in sourceMeta.adaptation as {"status":"exact|adapted","originalKind":"...","deliveryType":"...","changes":[],"preservedObjectives":[]}. If the objective and difficulty cannot be preserved as code, choose a supported non-code type rather than emitting an ungradable problem.
 - Fill blanks use publicContent.stemTemplate with a {{blank_id}} marker for each blank. IDs in publicContent.blanks and grading.blanks must match exactly.
 - Set sourceMeta.answerSource to "llm-solved" for model-derived answers. If a problem truly cannot be solved reliably, keep it and add a precise validationErrors entry instead of inventing an answer.
@@ -163,24 +163,9 @@ export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): stri
 - calculation：只用于“提交最终数学结果并自动比对”的题，publicContent.taskKind="calculation"、responseKind="math_expression"、showWork=false；grading.graderKind="numeric_or_exact"，必须给 referenceAnswer 和至少一个只含最终结果的 acceptedForms，需要时给 tolerance、relativeTolerance 和 unit。若解题过程计分，必须改用 short_answer + taskKind="calculation" + graderKind="rubric" + rubricCriteria，让学生提交完整过程，不能仍用 calculation 的最终值比较器。
 - short_answer：publicContent.responseKind="short_text"，可用 taskKind=concept、code_reading 或 calculation（需要按过程评分时）。grading.graderKind="rubric"，必须给 referenceAnswer 和 rubricCriteria=[{id,description,points}]；每项是独立可核验得分点，criteria 总分等于题目 points。
 - proof：publicContent.taskKind="proof"、responseKind="long_text"。题面明确给出已知条件与证明目标。grading.graderKind="rubric"，必须给 referenceProof 和 rubricCriteria；每个 criterion 是独立可核验的得分点，criteria 总分等于题目 points。
-- code：只用于 implementation。当前可执行适配器为 language="python"、runnerAdapter="python-unittest"。题面采用 LeetCode 式结构，statementSections 至少包含 overview、requirements、interface、examples、constraints；明确参数、返回值、前置条件、边界和示例。starterCode 必须包含带参数与返回类型注解的 function signature、完整 docstring 和 pass；solutionCode 是完整参考实现。
+- code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
 
-Python 测试文件契约：
-- publicTests 是学生可见的基础行为与题面示例，至少 2 个；secretTests 是学生不可见、老师可查看的边界与常见错误测试，至少 3 个；两组不得重复。
-- 每个内部 testcase 使用 {id,description,expression,expected}。id 是有意义的 snake_case 场景名；expression 只是一条目标函数调用；expected 是返回值字面量。不得输出 assert、print、input、open、多行代码或导入。
-- 平台会把 publicTests 确定性编译为以下固定文件，不要生成 pytest：
-  # public_tests.py
-  import unittest
-  from submission import *
-
-  class PublicTests(unittest.TestCase):
-      def test_<scenario>(self):
-          self.assertEqual(<expression>, <expected>)
-
-  if __name__ == "__main__":
-      unittest.main()
-- secretTests 同样编译为 secret_tests.py，类名固定为 SecretTests。参考答案必须通过两个文件中的全部测试。
-- 语言与 runnerAdapter 是可扩展边界；不要假设所有未来语言都使用 Python 测试格式。只有任务明确选择 Java/JUnit 适配器时才能输出 Java 语言包。
+- code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
 
 编译流程要求：
 - 先识别材料角色和可独立评分单元，再选择 taskKind、responseKind、graderKind，最后填充对应 schema。
@@ -189,7 +174,7 @@ Python 测试文件契约：
 - 无法可靠识别或求解时保留题目，在 validationErrors 写清楚原因，不得伪造答案或偷偷使用第一个选项充当正确答案。`
     : String.raw`Syntara problem delivery contract v1 (subject agnostic):
 - You are a problem compiler, not a chat assistant or a free-form author. Compile source material into a student-readable, directly answerable, reliably gradable problem.
-- Separate taskKind (concept, code_reading, calculation, proof, implementation), responseKind, and graderKind. Code tracing/output/error diagnosis is code_reading; only function implementation uses implementation/code_submission.
+- Separate taskKind (concept, code_reading, calculation, proof, implementation), responseKind, and graderKind. Code tracing/output/error diagnosis is code_reading; only implementation tasks use implementation/code_submission.
 - Add contractVersion="syntara.problem.v1" and statementFormat="syntara-markdown-v1" to publicContent. Add the matching taskKind/responseKind and graderKind.
 - The stem is final student-facing Markdown, not OCR, metadata, an answer, or prompt commentary. Use paragraphs, Markdown lists, GFM tables, and language-labelled fenced code blocks according to meaning. Use backticks for identifiers. Never add math delimiters inside code. Use $...$ only for inline math and $$...$$ for standalone/structured math.
 - Preserve the original response demand and cognitive load. Adapt the response type only when the source interaction cannot be rendered or graded reliably; do not globally prefer multiple choice.
@@ -197,9 +182,7 @@ Python 测试文件契约：
 - fill_blank: use one {{blank_id}} marker per public blank; answerKind is text|number|math_expression|code_token. The grading blank IDs must match exactly and use matcher exact|normalized_exact|numeric_tolerance with acceptedAnswers and optional tolerance.
 - calculation is only for final-result auto-matching: taskKind="calculation", responseKind="math_expression", showWork=false, graderKind="numeric_or_exact", referenceAnswer, final-only acceptedForms, and applicable tolerance/relativeTolerance/unit. If solution steps earn credit, use short_answer + taskKind="calculation" + graderKind="rubric" + rubricCriteria so the student can submit the full derivation.
 - short_answer/proof: graderKind="rubric"; a reference answer/proof and point-valued rubricCriteria are mandatory, every criterion must be independently verifiable, and the total must equal problem points. Proof stems state givens and the target explicitly.
-- code: only function implementation. The active adapter is language="python", runnerAdapter="python-unittest". Use LeetCode-style statementSections covering overview, requirements, interface, examples, and constraints. starterCode contains an annotated signature, a complete docstring, and pass; solutionCode is complete.
-- publicTests contain at least 2 visible examples/basic behaviors. secretTests contain at least 3 hidden boundary and misconception tests. They must not overlap. Each testcase is {id,description,expression,expected}; id is a meaningful snake_case scenario, expression is one target-function call, and expected is the returned literal. Never put assert, print, input, open, imports, or multiline code in a testcase.
-- The platform deterministically compiles those cases to public_tests.py / PublicTests and secret_tests.py / SecretTests using unittest, from submission import *, self.assertEqual(...), and the standard unittest.main() block. Do not generate pytest.
+- Code supports function and class implementations, including regex used inside functions. Generate publicContent.starterCode (imports, interface, docstrings), grading.solutionCode, publicContent.publicTestCode and secretJudge.secretTestCode together. Both test fields are complete Python unittest source strings with at least 2 public and 3 secret test_ methods. The platform saves the complete submission as submission.py. AI writes import unittest and from submission import the_interface_name in tests, matching starter and solution interfaces; AI includes re/typing imports in each file that uses them. Test object state, method sequences, exceptions and return values. Do not generate expression/expected arrays, pytest, third-party dependencies, empty tests, skips or expected failures. The reference must pass all tests; tests must reject the unimplemented starter. Cover valid, invalid and boundary examples.
 - Language and runnerAdapter are extension boundaries. Never assume a future Java/JUnit adapter uses Python test syntax.
 - Keep shared derivations together and split independently answered/scored repeated units. Make every problem self-contained. Solve independently; handwriting, bubbles, scores, and grader comments are not authoritative answers. If uncertain, add a precise validationErrors entry rather than inventing content.`;
 }
@@ -234,11 +217,11 @@ ${problemStemFormattingContract(language)}
 - 每一道题都必须生成评分答案，并在 sourceMeta.answerSource 写 "llm-solved"；不要把学生作答、勾选、分数或教师批注当作权威答案，必须根据题面独立求解
 - choice 使用 correctOptionIds；calculation 使用 referenceAnswer、至少一个只包含最终结果的 acceptedForms，以及适用的 tolerance/unit；short_answer 使用 referenceAnswer/rubric/rubricCriteria；proof 使用 referenceProof/rubric/rubricCriteria，且 criteria 总分必须等于题目 points
 - 保持原题的作答方式与认知要求；只有原交互无法稳定展示或评分时才适配题型
-- code 只用于函数实现题，必须提供 LeetCode 式 statementSections、带类型注解和 docstring 的 starterCode、完整 solutionCode、functionSignature、至少 2 个 public tests 和 3 个 secret tests；参考答案必须通过全部 unittest
+- code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
 - fill_blank 使用 stemTemplate，并以 {{blank_id}} 标出空位；publicContent.blanks 与 grading.blanks 的 id 一一对应，每个 blank 都必须有 answerKind、acceptedAnswers 和 matcher
 - 题干缺少图表或前文等关键上下文、无法可靠解答时，在 validationErrors 写清原因；不得使用第一个选项作为伪造答案
 - code 题默认 language=python
-- code 只能接收函数参数并通过 return 返回结果；不得使用 input、stdin、print 判分或文件读写。不支持的原题接口必须自动等价改写
+- code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
 - 直接输出 LaTeX 数学源码：行内数学使用 $...$，较长或独立公式使用 $$...$$
 - publicContent / grading / choice option label 里的所有数学都必须包在 LaTeX delimiter 中
 - 不要输出裸数学、Unicode 数学符号或纯文本数学命令；例如不要写 "A ⊆ X"、"leq"、"subseteq"、"f: X → Y"，要写 "$A \\subseteq X$"、"$\\leq$"、"$\\subseteq$"、"$f: X \\to Y$"
@@ -272,11 +255,11 @@ Requirements:
 - every problem must include grading answers and sourceMeta.answerSource="llm-solved"; do not treat student handwriting, selected bubbles, scores, or grader comments as authoritative answers; solve from the problem statement independently
 - choice uses correctOptionIds; calculation uses referenceAnswer, at least one acceptedForms entry containing only the final result, and tolerance/unit when applicable; short_answer uses referenceAnswer/rubric/rubricCriteria; proof uses referenceProof/rubric/rubricCriteria, and criteria points must sum to the problem points
 - preserve the original response demand and cognitive load; adapt the type only when the source interaction cannot be rendered or graded reliably
-- code is only for function implementation and must include LeetCode-style statementSections, annotated starterCode with a docstring, complete solutionCode, functionSignature, at least 2 public tests, and at least 3 secret tests; the reference solution must pass every unittest
+- Code supports function and class implementations, including regex used inside functions. Generate publicContent.starterCode (imports, interface, docstrings), grading.solutionCode, publicContent.publicTestCode and secretJudge.secretTestCode together. Both test fields are complete Python unittest source strings with at least 2 public and 3 secret test_ methods. The platform saves the complete submission as submission.py. AI writes import unittest and from submission import the_interface_name in tests, matching starter and solution interfaces; AI includes re/typing imports in each file that uses them. Test object state, method sequences, exceptions and return values. Do not generate expression/expected arrays, pytest, third-party dependencies, empty tests, skips or expected failures. The reference must pass all tests; tests must reject the unimplemented starter. Cover valid, invalid and boundary examples.
 - fill_blank uses stemTemplate with a {{blank_id}} marker for each blank; publicContent.blanks and grading.blanks must have matching IDs and every blank must include answerKind, acceptedAnswers, and matcher
 - if critical context is missing and the answer cannot be solved reliably, explain it in validationErrors; never use the first option as a fabricated answer
 - code problems default to python
-- code accepts inputs only as function parameters and returns results with return; input(), stdin, print-based grading, and file I/O must be automatically and equivalently adapted
+- Code submissions are complete modules containing the required functions or classes; tests define the observable behavior. Do not require every implementation to contain return.
 - Output LaTeX math source directly: use $...$ for inline math and $$...$$ for long or standalone formulas
 - every mathematical expression in publicContent / grading text / choice option labels must be wrapped in LaTeX delimiters
 - do not emit bare math, Unicode math symbols, or plain-text math commands; for example, never write "A ⊆ X", "leq", "subseteq", or "f: X → Y"; write "$A \\subseteq X$", "$\\leq$", "$\\subseteq$", and "$f: X \\to Y$"

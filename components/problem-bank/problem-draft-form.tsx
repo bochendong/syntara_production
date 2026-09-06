@@ -1,51 +1,20 @@
 'use client';
+import { CodeAnswerEditor } from './code-answer-editor';
+import { buildCodeTestFile } from '@/lib/problem-bank/code-test-files';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Crop, ImagePlus, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   notebookProblemImportDraftSchema,
-  type NotebookProblemImageAsset,
   type NotebookProblemImportDraft,
   type NotebookProblemType,
 } from '@/lib/problem-bank';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ProblemImageCropDialog } from '@/components/problem-bank/problem-image-crop-dialog';
 
 type Locale = 'zh-CN' | 'en-US';
-
-const MAX_PROBLEM_IMAGE_COUNT = 8;
-const MAX_PROBLEM_IMAGE_BYTES = 4 * 1024 * 1024;
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') resolve(reader.result);
-      else reject(new Error('Failed to read image file.'));
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image file.'));
-    reader.readAsDataURL(file);
-  });
-}
-
-function imageAssetsFromPublicContent(
-  publicContent: Record<string, unknown>,
-): NotebookProblemImageAsset[] {
-  const assets =
-    publicContent.assets && typeof publicContent.assets === 'object'
-      ? (publicContent.assets as Record<string, unknown>)
-      : {};
-  return Array.isArray(assets.images)
-    ? (assets.images.filter(
-        (image) =>
-          image &&
-          typeof image === 'object' &&
-          typeof (image as { src?: unknown }).src === 'string',
-      ) as NotebookProblemImageAsset[])
-    : [];
-}
 
 function formatDraftValidationErrors(input: unknown): string[] {
   const parsed = notebookProblemImportDraftSchema.safeParse(input);
@@ -57,175 +26,6 @@ function formatDraftValidationErrors(input: unknown): string[] {
     }
     return `字段 ${path}: ${issue.message}`;
   });
-}
-
-function buildDefaultTypeState(type: NotebookProblemType, locale: Locale, stemHint = '') {
-  const defaultStem =
-    stemHint || (locale === 'zh-CN' ? '请在此输入题目内容。' : 'Enter the problem statement here.');
-
-  switch (type) {
-    case 'short_answer':
-      return {
-        publicContent: {
-          type,
-          stem: defaultStem,
-        },
-        grading: {
-          type,
-        },
-        secretJudge: undefined,
-      };
-    case 'proof':
-      return {
-        publicContent: {
-          type,
-          stem: defaultStem,
-        },
-        grading: {
-          type,
-        },
-        secretJudge: undefined,
-      };
-    case 'calculation':
-      return {
-        publicContent: {
-          type,
-          stem: defaultStem,
-        },
-        grading: {
-          type,
-          acceptedForms: [],
-        },
-        secretJudge: undefined,
-      };
-    case 'fill_blank': {
-      const blankId = 'blank_1';
-      return {
-        publicContent: {
-          type,
-          stemTemplate: `${defaultStem} {{${blankId}}}`,
-          blanks: [
-            {
-              id: blankId,
-              placeholder: locale === 'zh-CN' ? '答案' : 'Answer',
-            },
-          ],
-        },
-        grading: {
-          type,
-          blanks: [{ id: blankId, acceptedAnswers: ['TODO'], caseSensitive: false }],
-        },
-        secretJudge: undefined,
-      };
-    }
-    case 'choice':
-      return {
-        publicContent: {
-          type,
-          stem: defaultStem,
-          selectionMode: 'single' as const,
-          options: [
-            {
-              id: 'A',
-              label: locale === 'zh-CN' ? '选项 A' : 'Option A',
-            },
-            {
-              id: 'B',
-              label: locale === 'zh-CN' ? '选项 B' : 'Option B',
-            },
-          ],
-        },
-        grading: {
-          type,
-          correctOptionIds: ['A'],
-        },
-        secretJudge: undefined,
-      };
-    case 'code':
-      return {
-        publicContent: {
-          type,
-          stem: defaultStem,
-          language: 'python' as const,
-          contractVersion: 'syntara.problem.v1' as const,
-          statementFormat: 'syntara-markdown-v1' as const,
-          taskKind: 'implementation' as const,
-          responseKind: 'code_submission' as const,
-          runnerAdapter: 'python-unittest',
-          starterCode:
-            'def solve(value: int) -> int:\n    """Return the result for value.\n\n    Preconditions:\n        - value satisfies the constraints in the problem statement.\n    """\n    pass\n',
-          functionSignature: 'def solve(value: int) -> int:',
-          constraints: [],
-          statementSections: [
-            {
-              id: 'overview',
-              title: locale === 'zh-CN' ? '描述' : 'Description',
-              kind: 'overview' as const,
-              body: defaultStem,
-              items: [],
-            },
-            {
-              id: 'requirements',
-              title: locale === 'zh-CN' ? '要求' : 'Requirements',
-              kind: 'requirements' as const,
-              items: [locale === 'zh-CN' ? '实现指定函数并返回结果。' : 'Implement the function.'],
-            },
-            {
-              id: 'interface',
-              title: locale === 'zh-CN' ? '函数接口' : 'Function interface',
-              kind: 'interface' as const,
-              code: 'def solve(value: int) -> int:',
-              codeLanguage: 'python',
-              items: [],
-            },
-            {
-              id: 'examples',
-              title: locale === 'zh-CN' ? '示例' : 'Examples',
-              kind: 'examples' as const,
-              items: [locale === 'zh-CN' ? '请补充公开示例。' : 'Add a public example.'],
-            },
-            {
-              id: 'constraints',
-              title: locale === 'zh-CN' ? '约束' : 'Constraints',
-              kind: 'constraints' as const,
-              items: [locale === 'zh-CN' ? '请补充输入约束。' : 'Add input constraints.'],
-            },
-          ],
-          publicTests: [
-            {
-              id: 'public-1',
-              description: locale === 'zh-CN' ? '公开样例 1' : 'Public test 1',
-              expression: 'solve()',
-              expected: 'TODO',
-            },
-          ],
-          sampleIO: [],
-          secretConfigPresent: false,
-        },
-        grading: {
-          type,
-          graderKind: 'code_runner' as const,
-          publishRequirementsMet: false,
-        },
-        secretJudge: {
-          language: 'python' as const,
-          runnerAdapter: 'python-unittest',
-          secretTests: [],
-          timeoutMs: 5000,
-        },
-      };
-  }
-}
-
-function extractStemHint(draft: Record<string, unknown>): string {
-  const publicContent =
-    draft.publicContent && typeof draft.publicContent === 'object'
-      ? (draft.publicContent as Record<string, unknown>)
-      : null;
-  if (!publicContent) return '';
-  if (typeof publicContent.stem === 'string') return publicContent.stem;
-  if (typeof publicContent.stemTemplate === 'string') return publicContent.stemTemplate;
-  return '';
 }
 
 function cloneDraft(draft: NotebookProblemImportDraft) {
@@ -425,13 +225,8 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
       ? (secretJudge.secretTests as unknown[])
       : [];
     draft.secretJudge = secretJudge;
-    publicContent.secretConfigPresent = secretTests.length > 0;
-    grading.publishRequirementsMet =
-      typeof publicContent.functionSignature === 'string' &&
-      publicContent.functionSignature.trim().length > 0 &&
-      Array.isArray(publicContent.publicTests) &&
-      publicContent.publicTests.length > 0 &&
-      secretTests.length > 0;
+    publicContent.secretConfigPresent = Boolean(secretJudge.secretTestCode || secretTests.length);
+    grading.publishRequirementsMet = false;
   } else {
     delete draft.secretJudge;
   }
@@ -442,33 +237,17 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
   return draft;
 }
 
-function labelForType(type: NotebookProblemType, locale: Locale) {
-  const zh = {
-    short_answer: '简答题',
-    choice: '选择题',
-    proof: '证明题',
-    calculation: '计算题',
-    code: '代码题',
-    fill_blank: '填空题',
-  } as const;
-  const en = {
-    short_answer: 'Short answer',
-    choice: 'Choice',
-    proof: 'Proof',
-    calculation: 'Calculation',
-    code: 'Code',
-    fill_blank: 'Fill in the blank',
-  } as const;
-  return locale === 'zh-CN' ? zh[type] : en[type];
-}
-
 export function ProblemDraftForm({
   draft,
   locale,
   onSave,
   saveLabel,
   onDraftChange,
+  basicInfoSlot,
+  formId,
 }: {
+  formId?: string;
+  basicInfoSlot?: ReactNode;
   draft: NotebookProblemImportDraft;
   locale: Locale;
   onSave: (draft: NotebookProblemImportDraft) => void | Promise<void>;
@@ -479,10 +258,7 @@ export function ProblemDraftForm({
     cloneDraft(draft),
   );
   const [saveErrors, setSaveErrors] = useState<string[]>([]);
-  const [imageAssetError, setImageAssetError] = useState<string | null>(null);
-  const [croppingImageIndex, setCroppingImageIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const normalizedDraft = useMemo(() => normalizeDraftForValidation(workingDraft), [workingDraft]);
   const liveErrors = useMemo(
@@ -500,9 +276,6 @@ export function ProblemDraftForm({
     workingDraft.publicContent && typeof workingDraft.publicContent === 'object'
       ? (workingDraft.publicContent as Record<string, unknown>)
       : {};
-  const imageAssets = imageAssetsFromPublicContent(publicContent);
-  const croppingImage =
-    croppingImageIndex == null ? null : (imageAssets[croppingImageIndex] ?? null);
   const grading =
     workingDraft.grading && typeof workingDraft.grading === 'object'
       ? (workingDraft.grading as Record<string, unknown>)
@@ -528,29 +301,6 @@ export function ProblemDraftForm({
     }));
   };
 
-  const updateImageAssets = (images: NotebookProblemImageAsset[]) => {
-    setWorkingDraft((prev) => {
-      const prevPublicContent =
-        prev.publicContent && typeof prev.publicContent === 'object'
-          ? (prev.publicContent as Record<string, unknown>)
-          : {};
-      const prevAssets =
-        prevPublicContent.assets && typeof prevPublicContent.assets === 'object'
-          ? (prevPublicContent.assets as Record<string, unknown>)
-          : {};
-      return {
-        ...prev,
-        publicContent: {
-          ...prevPublicContent,
-          assets: {
-            ...prevAssets,
-            images,
-          },
-        },
-      };
-    });
-  };
-
   const updateGrading = (field: string, value: unknown) => {
     setWorkingDraft((prev) => ({
       ...prev,
@@ -566,6 +316,10 @@ export function ProblemDraftForm({
   const updateSecretJudge = (field: string, value: unknown) => {
     setWorkingDraft((prev) => ({
       ...prev,
+      sourceMeta: {
+        ...(prev.sourceMeta && typeof prev.sourceMeta === 'object' ? prev.sourceMeta : {}),
+        preserveExistingSecretJudge: false,
+      },
       secretJudge: {
         ...(prev.secretJudge && typeof prev.secretJudge === 'object'
           ? (prev.secretJudge as Record<string, unknown>)
@@ -575,36 +329,10 @@ export function ProblemDraftForm({
     }));
   };
 
-  const applyCroppedImage = (nextImage: NotebookProblemImageAsset) => {
-    if (croppingImageIndex == null) return;
-    updateImageAssets(
-      imageAssets.map((image, index) => (index === croppingImageIndex ? nextImage : image)),
-    );
-    setCroppingImageIndex(null);
-    setImageAssetError(null);
-  };
-
   const currentType = (workingDraft.type as NotebookProblemType) || 'short_answer';
 
-  const handleTypeChange = (nextType: NotebookProblemType) => {
-    const defaults = buildDefaultTypeState(nextType, locale, extractStemHint(workingDraft));
-    const existingAssets =
-      publicContent.assets && typeof publicContent.assets === 'object'
-        ? { assets: publicContent.assets }
-        : {};
-    setWorkingDraft((prev) => ({
-      ...prev,
-      type: nextType,
-      publicContent: {
-        ...defaults.publicContent,
-        ...existingAssets,
-      },
-      grading: defaults.grading,
-      secretJudge: defaults.secretJudge,
-    }));
-  };
-
   const handleSave = async () => {
+    if (saving) return;
     const parsed = notebookProblemImportDraftSchema.safeParse(normalizedDraft);
     if (!parsed.success) {
       setSaveErrors(formatDraftValidationErrors(normalizedDraft));
@@ -619,649 +347,162 @@ export function ProblemDraftForm({
     }
   };
 
-  const handleAddImage = async (files: FileList | null) => {
-    const file = Array.from(files || []).find((item) => item.type.startsWith('image/'));
-    if (!file) {
-      setImageAssetError(locale === 'zh-CN' ? '请选择图片文件。' : 'Choose an image file.');
-      return;
-    }
-    if (imageAssets.length >= MAX_PROBLEM_IMAGE_COUNT) {
-      setImageAssetError(
-        locale === 'zh-CN'
-          ? `每道题最多 ${MAX_PROBLEM_IMAGE_COUNT} 张图片。`
-          : `Each problem can have up to ${MAX_PROBLEM_IMAGE_COUNT} images.`,
-      );
-      return;
-    }
-    if (file.size > MAX_PROBLEM_IMAGE_BYTES) {
-      setImageAssetError(
-        locale === 'zh-CN'
-          ? `${file.name} 超过 4 MB，先压缩一下再上传。`
-          : `${file.name} is larger than 4 MB. Compress it before uploading.`,
-      );
-      return;
-    }
-
-    try {
-      const src = await readFileAsDataUrl(file);
-      const name = file.name.trim() || (locale === 'zh-CN' ? '题目图片' : 'Problem image');
-      updateImageAssets([
-        ...imageAssets,
-        {
-          id: `img_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-          src,
-          alt: name,
-          caption: name,
-          mimeType: file.type || 'image/*',
-          role: 'question',
-        },
-      ]);
-      setImageAssetError(null);
-    } catch (error) {
-      setImageAssetError(error instanceof Error ? error.message : 'Failed to read image file.');
-    }
-  };
-
+  const FormContainer = formId ? 'form' : 'div';
   return (
-    <div className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-            {locale === 'zh-CN' ? '手动题目编辑器' : 'Manual problem editor'}
-          </p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            {locale === 'zh-CN'
-              ? '通过表单填写题目，不需要手改 JSON。'
-              : 'Fill out the problem with form fields instead of editing JSON.'}
-          </p>
-        </div>
-        <Button type="button" onClick={handleSave} disabled={saving} className="ml-auto shrink-0">
-          {saveLabel || (locale === 'zh-CN' ? '保存表单草稿' : 'Save form draft')}
-        </Button>
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-          {locale === 'zh-CN' ? '题目标题' : 'Title'}
-        </label>
-        <Input
-          value={typeof workingDraft.title === 'string' ? workingDraft.title : ''}
-          onChange={(event) => updateRoot('title', event.target.value)}
-        />
-      </div>
-
-      {currentType === 'short_answer' ||
-      currentType === 'proof' ||
-      currentType === 'calculation' ||
-      currentType === 'code' ||
-      currentType === 'choice' ? (
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-            {locale === 'zh-CN' ? '题面' : 'Problem statement'}
-          </label>
-          <Textarea
-            className="min-h-[140px]"
-            value={typeof publicContent.stem === 'string' ? publicContent.stem : ''}
-            onChange={(event) => updatePublicContent('stem', event.target.value)}
-          />
-        </div>
-      ) : null}
-
-      {currentType === 'fill_blank' ? (
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-            {locale === 'zh-CN' ? '题面模板' : 'Problem template'}
-          </label>
-          <Textarea
-            className="min-h-[140px]"
-            value={typeof publicContent.stemTemplate === 'string' ? publicContent.stemTemplate : ''}
-            onChange={(event) => updatePublicContent('stemTemplate', event.target.value)}
-            placeholder={
-              locale === 'zh-CN'
-                ? '用 {{blank_1}} 这样的标记表示空格'
-                : 'Use markers such as {{blank_1}} for blanks'
-            }
-          />
-          <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">
-            {locale === 'zh-CN'
-              ? '每个空格 id 必须在题面中以 {{id}} 出现。'
-              : 'Each blank id must appear in the template as {{id}}.'}
-          </p>
-        </div>
-      ) : null}
-
-      <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-900/40">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '题目图片' : 'Problem images'}
-            </label>
-            <p className="mt-0.5 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
-              {locale === 'zh-CN'
-                ? '用于题面里的图表、原题截图或补充条件。'
-                : 'Use this for diagrams, source screenshots, or visual context.'}
-            </p>
-          </div>
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(event) => {
-              void handleAddImage(event.target.files);
-              event.target.value = '';
-            }}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => imageInputRef.current?.click()}
-            disabled={imageAssets.length >= MAX_PROBLEM_IMAGE_COUNT}
-          >
-            <ImagePlus className="mr-2 h-4 w-4" />
-            {locale === 'zh-CN' ? '添加图片' : 'Add image'}
+    <FormContainer
+      id={formId}
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void handleSave();
+      }}
+    >
+      {!formId ? (
+        <div className="flex justify-end">
+          <Button type="button" onClick={handleSave} disabled={saving}>
+            {saveLabel || (locale === 'zh-CN' ? '保存表单草稿' : 'Save form draft')}
           </Button>
         </div>
-
-        {imageAssetError ? (
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
-            {imageAssetError}
-          </p>
-        ) : null}
-
-        {imageAssets.length > 0 ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            {imageAssets.map((image, index) => (
-              <div
-                key={`${image.id}-${index}`}
-                className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950"
-              >
-                <button
-                  type="button"
-                  className="group relative flex min-h-[160px] w-full items-center justify-center bg-slate-100 p-2 text-left transition hover:bg-slate-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:bg-slate-900 dark:hover:bg-slate-800"
-                  onClick={() => setCroppingImageIndex(index)}
-                  aria-label={
-                    locale === 'zh-CN'
-                      ? `裁剪图片 ${image.caption || image.alt || image.id}`
-                      : `Crop image ${image.caption || image.alt || image.id}`
+      ) : null}
+      <Tabs defaultValue="basic" className="min-w-0">
+        <TabsList className="h-auto w-full flex-wrap justify-start">
+          <TabsTrigger value="basic">{locale === 'zh-CN' ? '基本信息' : 'Basic info'}</TabsTrigger>
+          <TabsTrigger value="statement">{locale === 'zh-CN' ? '题面' : 'Statement'}</TabsTrigger>
+          {currentType === 'choice' ? (
+            <TabsTrigger value="options">{locale === 'zh-CN' ? '选项' : 'Options'}</TabsTrigger>
+          ) : null}
+          <TabsTrigger value="analysis">{locale === 'zh-CN' ? '解析' : 'Analysis'}</TabsTrigger>
+          {currentType === 'code' ? (
+            <TabsTrigger value="starter">
+              {locale === 'zh-CN' ? '初始代码' : 'Starter code'}
+            </TabsTrigger>
+          ) : null}
+          {currentType === 'code' ? (
+            <TabsTrigger value="solution">
+              {locale === 'zh-CN' ? '参考实现' : 'Reference solution'}
+            </TabsTrigger>
+          ) : null}
+          {currentType === 'code' ? (
+            <TabsTrigger value="public">
+              {locale === 'zh-CN' ? '公开测试' : 'Public tests'}
+            </TabsTrigger>
+          ) : null}
+          {currentType === 'code' ? (
+            <TabsTrigger value="secret">
+              {locale === 'zh-CN' ? '隐藏测试' : 'Secret tests'}
+            </TabsTrigger>
+          ) : null}
+        </TabsList>
+        <TabsContent value="basic" className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+              {locale === 'zh-CN' ? '题目标题' : 'Title'}
+            </label>
+            <Input
+              value={typeof workingDraft.title === 'string' ? workingDraft.title : ''}
+              onChange={(event) => updateRoot('title', event.target.value)}
+            />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
+              {locale === 'zh-CN' ? '题目设置' : 'Problem settings'}
+            </p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {locale === 'zh-CN' ? '难度' : 'Difficulty'}
+                </label>
+                <select
+                  value={
+                    typeof workingDraft.difficulty === 'string' ? workingDraft.difficulty : 'medium'
                   }
+                  onChange={(event) => updateRoot('difficulty', event.target.value)}
+                  className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
                 >
-                  <img
-                    src={image.src}
-                    alt={image.alt || image.caption || image.id}
-                    className="max-h-[260px] w-full rounded-md object-contain"
-                  />
-                  <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-slate-950/75 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition group-hover:opacity-100 group-focus-visible:opacity-100">
-                    <Crop className="h-3.5 w-3.5" />
-                    {locale === 'zh-CN' ? '裁剪' : 'Crop'}
-                  </span>
-                </button>
-                <div className="space-y-2 p-3">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Input
-                      value={image.caption || ''}
-                      onChange={(event) => {
-                        const value = event.target.value.trim();
-                        updateImageAssets(
-                          imageAssets.map((row, rowIndex) =>
-                            rowIndex === index ? { ...row, caption: value || undefined } : row,
-                          ),
-                        );
-                      }}
-                      placeholder={locale === 'zh-CN' ? '图片说明' : 'Caption'}
-                    />
-                    <Input
-                      value={image.alt || ''}
-                      onChange={(event) => {
-                        const value = event.target.value.trim();
-                        updateImageAssets(
-                          imageAssets.map((row, rowIndex) =>
-                            rowIndex === index ? { ...row, alt: value || undefined } : row,
-                          ),
-                        );
-                      }}
-                      placeholder={locale === 'zh-CN' ? '替代文本' : 'Alt text'}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                    <span className="min-w-0 truncate">
-                      {image.sourceImageId ||
-                        image.mimeType ||
-                        (locale === 'zh-CN' ? '手动添加' : 'Manually added')}
-                      {image.pageNumber ? ` · page ${image.pageNumber}` : ''}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-300 dark:hover:bg-rose-950/30"
-                      onClick={() =>
-                        updateImageAssets(imageAssets.filter((_, rowIndex) => rowIndex !== index))
-                      }
-                    >
-                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                      {locale === 'zh-CN' ? '删除' : 'Remove'}
-                    </Button>
-                  </div>
-                </div>
+                  <option value="easy">{locale === 'zh-CN' ? '简单' : 'Easy'}</option>
+                  <option value="medium">{locale === 'zh-CN' ? '中等' : 'Medium'}</option>
+                  <option value="hard">{locale === 'zh-CN' ? '困难' : 'Hard'}</option>
+                </select>
               </div>
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-md border border-dashed border-slate-200 bg-white/70 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-400">
-            {locale === 'zh-CN'
-              ? '这道题目前没有绑定图片。'
-              : 'No images are attached to this problem.'}
-          </p>
-        )}
-      </div>
 
-      {currentType === 'choice' ? (
-        <>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '选择模式' : 'Selection mode'}
-            </label>
-            <select
-              value={publicContent.selectionMode === 'multiple' ? 'multiple' : 'single'}
-              onChange={(event) => updatePublicContent('selectionMode', event.target.value)}
-              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
-            >
-              <option value="single">{locale === 'zh-CN' ? '单选' : 'Single'}</option>
-              <option value="multiple">{locale === 'zh-CN' ? '多选' : 'Multiple'}</option>
-            </select>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '选项' : 'Options'}
-              </label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const options = Array.isArray(publicContent.options)
-                    ? ([...(publicContent.options as Array<Record<string, unknown>>)] as Array<
-                        Record<string, unknown>
-                      >)
-                    : [];
-                  const nextId = String.fromCharCode(65 + options.length);
-                  updatePublicContent('options', [
-                    ...options,
-                    {
-                      id: nextId,
-                      label: locale === 'zh-CN' ? `选项 ${nextId}` : `Option ${nextId}`,
-                    },
-                  ]);
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                {locale === 'zh-CN' ? '添加选项' : 'Add option'}
-              </Button>
+              {currentType === 'choice' ? (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {locale === 'zh-CN' ? '选择模式' : 'Selection mode'}
+                  </label>
+                  <select
+                    value={publicContent.selectionMode === 'multiple' ? 'multiple' : 'single'}
+                    onChange={(event) => updatePublicContent('selectionMode', event.target.value)}
+                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                  >
+                    <option value="single">{locale === 'zh-CN' ? '单选' : 'Single'}</option>
+                    <option value="multiple">{locale === 'zh-CN' ? '多选' : 'Multiple'}</option>
+                  </select>
+                </div>
+              ) : null}
             </div>
-            {Array.isArray(publicContent.options)
-              ? (publicContent.options as Array<Record<string, unknown>>).map((option, index) => {
-                  const correctOptionIds = Array.isArray(grading.correctOptionIds)
-                    ? (grading.correctOptionIds as string[])
-                    : [];
-                  return (
-                    <div
-                      key={`${String(option.id || index)}`}
-                      className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-[90px_1fr_auto_auto] dark:border-slate-700"
-                    >
-                      <Input
-                        value={typeof option.id === 'string' ? option.id : ''}
-                        onChange={(event) => {
-                          const nextId = event.target.value;
-                          const oldId = typeof option.id === 'string' ? option.id : '';
-                          updatePublicContent(
-                            'options',
-                            (publicContent.options as Array<Record<string, unknown>>).map(
-                              (row, rowIndex) =>
-                                rowIndex === index ? { ...row, id: nextId } : row,
-                            ),
-                          );
-                          updateGrading(
-                            'correctOptionIds',
-                            correctOptionIds.map((id) => (id === oldId ? nextId : id)),
-                          );
-                        }}
-                        placeholder="A"
-                      />
-                      <Input
-                        value={typeof option.label === 'string' ? option.label : ''}
-                        onChange={(event) =>
-                          updatePublicContent(
-                            'options',
-                            (publicContent.options as Array<Record<string, unknown>>).map(
-                              (row, rowIndex) =>
-                                rowIndex === index ? { ...row, label: event.target.value } : row,
-                            ),
-                          )
-                        }
-                      />
-                      <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                        <input
-                          type={publicContent.selectionMode === 'multiple' ? 'checkbox' : 'radio'}
-                          name={`correct-option-${draft.draftId}`}
-                          checked={correctOptionIds.includes(String(option.id || ''))}
-                          onChange={(event) => {
-                            const optionId = String(option.id || '');
-                            if (publicContent.selectionMode === 'multiple') {
-                              updateGrading(
-                                'correctOptionIds',
-                                event.target.checked
-                                  ? [...correctOptionIds, optionId]
-                                  : correctOptionIds.filter((id) => id !== optionId),
-                              );
-                            } else {
-                              updateGrading('correctOptionIds', [optionId]);
-                            }
-                          }}
-                        />
-                        {locale === 'zh-CN' ? '正确答案' : 'Correct'}
-                      </label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          const optionId = String(option.id || '');
-                          updatePublicContent(
-                            'options',
-                            (publicContent.options as Array<Record<string, unknown>>).filter(
-                              (_, rowIndex) => rowIndex !== index,
-                            ),
-                          );
-                          updateGrading(
-                            'correctOptionIds',
-                            correctOptionIds.filter((id) => id !== optionId),
-                          );
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  );
-                })
-              : null}
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '解析' : 'Analysis'}
-            </label>
-            <Textarea
-              value={typeof grading.analysis === 'string' ? grading.analysis : ''}
-              onChange={(event) => updateGrading('analysis', event.target.value)}
-            />
-          </div>
-        </>
-      ) : null}
-
-      {currentType === 'short_answer' ? (
-        <>
-          <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200">
-            {locale === 'zh-CN'
-              ? '本题采用统一 100 分制，由 AI 根据答案的准确性、完整性、推理和表达自动评分，无需设置评分细则。'
-              : 'This problem uses a standard 100-point scale. AI grades accuracy, completeness, reasoning, and clarity automatically; no rubric setup is required.'}
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '参考答案' : 'Reference answer'}
-            </label>
-            <Textarea
-              value={typeof grading.referenceAnswer === 'string' ? grading.referenceAnswer : ''}
-              onChange={(event) => updateGrading('referenceAnswer', event.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '解析（可选）' : 'Analysis (optional)'}
-            </label>
-            <Textarea
-              value={typeof grading.analysis === 'string' ? grading.analysis : ''}
-              onChange={(event) => updateGrading('analysis', event.target.value)}
-            />
-          </div>
-        </>
-      ) : null}
-
-      {currentType === 'fill_blank' ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
+          {basicInfoSlot}
+        </TabsContent>
+        <TabsContent value="statement" className="space-y-4">
+          {currentType === 'short_answer' ||
+          currentType === 'proof' ||
+          currentType === 'calculation' ||
+          currentType === 'code' ||
+          currentType === 'choice' ? (
+            <div className="space-y-1.5">
               <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '空格与标准答案' : 'Blanks and accepted answers'}
+                {locale === 'zh-CN' ? '题面' : 'Problem statement'}
               </label>
-              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              <Textarea
+                className={
+                  formId ? 'min-h-[320px] h-[calc(100dvh-240px)] lg:max-h-[760px]' : 'min-h-[320px]'
+                }
+                value={typeof publicContent.stem === 'string' ? publicContent.stem : ''}
+                onChange={(event) => updatePublicContent('stem', event.target.value)}
+              />
+            </div>
+          ) : null}
+          {currentType === 'fill_blank' ? (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                {locale === 'zh-CN' ? '题面模板' : 'Problem template'}
+              </label>
+              <Textarea
+                className={
+                  formId ? 'min-h-[320px] h-[calc(100dvh-240px)] lg:max-h-[760px]' : 'min-h-[320px]'
+                }
+                value={
+                  typeof publicContent.stemTemplate === 'string' ? publicContent.stemTemplate : ''
+                }
+                onChange={(event) => updatePublicContent('stemTemplate', event.target.value)}
+                placeholder={
+                  locale === 'zh-CN'
+                    ? '用 {{blank_1}} 这样的标记表示空格'
+                    : 'Use markers such as {{blank_1}} for blanks'
+                }
+              />
+              <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">
                 {locale === 'zh-CN'
-                  ? '可为每个空格设置多个同义答案。'
-                  : 'Add multiple accepted variants for each blank.'}
+                  ? '每个空格 id 必须在题面中以 {{id}} 出现。'
+                  : 'Each blank id must appear in the template as {{id}}.'}
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={Array.isArray(publicContent.blanks) && publicContent.blanks.length >= 12}
-              onClick={() => {
-                const blanks = Array.isArray(publicContent.blanks)
-                  ? ([...publicContent.blanks] as Array<Record<string, unknown>>)
-                  : [];
-                const nextId = `blank_${blanks.length + 1}`;
-                updatePublicContent('blanks', [
-                  ...blanks,
-                  { id: nextId, placeholder: locale === 'zh-CN' ? '答案' : 'Answer' },
-                ]);
-                updatePublicContent(
-                  'stemTemplate',
-                  `${typeof publicContent.stemTemplate === 'string' ? publicContent.stemTemplate : ''} {{${nextId}}}`.trim(),
-                );
-                updateGrading('blanks', [
-                  ...(Array.isArray(grading.blanks) ? grading.blanks : []),
-                  { id: nextId, acceptedAnswers: ['TODO'], caseSensitive: false },
-                ]);
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              {locale === 'zh-CN' ? '添加空格' : 'Add blank'}
-            </Button>
-          </div>
-          {(Array.isArray(publicContent.blanks)
-            ? (publicContent.blanks as Array<Record<string, unknown>>)
-            : []
-          ).map((blank, index, blanks) => {
-            const blankId = typeof blank.id === 'string' ? blank.id : `blank_${index + 1}`;
-            const gradingBlanks = Array.isArray(grading.blanks)
-              ? (grading.blanks as Array<Record<string, unknown>>)
-              : [];
-            const blankGrading = gradingBlanks.find((row) => row.id === blankId) ?? {};
-            return (
-              <div
-                key={`${blankId}-${index}`}
-                className="grid gap-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700 md:grid-cols-[150px_minmax(0,1fr)_auto_auto] md:items-end"
-              >
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-medium text-slate-500">
-                    {locale === 'zh-CN' ? '空格 ID' : 'Blank ID'}
-                  </label>
-                  <Input
-                    value={blankId}
-                    onChange={(event) => {
-                      const nextId = event.target.value;
-                      updatePublicContent(
-                        'blanks',
-                        blanks.map((row, rowIndex) =>
-                          rowIndex === index ? { ...row, id: nextId } : row,
-                        ),
-                      );
-                      updatePublicContent(
-                        'stemTemplate',
-                        String(publicContent.stemTemplate ?? '').replaceAll(
-                          `{{${blankId}}}`,
-                          `{{${nextId}}}`,
-                        ),
-                      );
-                      updateGrading(
-                        'blanks',
-                        gradingBlanks.map((row) =>
-                          row.id === blankId ? { ...row, id: nextId } : row,
-                        ),
-                      );
-                    }}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-medium text-slate-500">
-                    {locale === 'zh-CN'
-                      ? '可接受答案（用 | 分隔）'
-                      : 'Accepted answers (separate with |)'}
-                  </label>
-                  <Input
-                    value={
-                      Array.isArray(blankGrading.acceptedAnswers)
-                        ? (blankGrading.acceptedAnswers as string[]).join(' | ')
-                        : ''
-                    }
-                    onChange={(event) => {
-                      const acceptedAnswers = event.target.value
-                        .split('|')
-                        .map((answer) => answer.trim())
-                        .filter(Boolean);
-                      updateGrading(
-                        'blanks',
-                        gradingBlanks.map((row) =>
-                          row.id === blankId ? { ...row, acceptedAnswers } : row,
-                        ),
-                      );
-                    }}
-                  />
-                </div>
-                <label className="flex h-10 items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={blankGrading.caseSensitive === true}
-                    onChange={(event) =>
-                      updateGrading(
-                        'blanks',
-                        gradingBlanks.map((row) =>
-                          row.id === blankId
-                            ? { ...row, caseSensitive: event.target.checked }
-                            : row,
-                        ),
-                      )
-                    }
-                  />
-                  {locale === 'zh-CN' ? '区分大小写' : 'Case-sensitive'}
-                </label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={blanks.length <= 1}
-                  onClick={() => {
-                    updatePublicContent(
-                      'blanks',
-                      blanks.filter((_, rowIndex) => rowIndex !== index),
-                    );
-                    updatePublicContent(
-                      'stemTemplate',
-                      String(publicContent.stemTemplate ?? '').replaceAll(`{{${blankId}}}`, ''),
-                    );
-                    updateGrading(
-                      'blanks',
-                      gradingBlanks.filter((row) => row.id !== blankId),
-                    );
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            );
-          })}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '解析' : 'Analysis'}
-            </label>
-            <Textarea
-              value={typeof grading.analysis === 'string' ? grading.analysis : ''}
-              onChange={(event) => updateGrading('analysis', event.target.value)}
-            />
-          </div>
-        </div>
-      ) : null}
-
-      {currentType === 'proof' ? (
-        <div className="space-y-3">
-          <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200">
-            {locale === 'zh-CN'
-              ? '本题采用统一 100 分制，由 AI 根据证明的正确性、完整性、推理和表达自动评分，无需设置评分细则。'
-              : 'This proof uses a standard 100-point scale and is graded automatically by AI; no rubric setup is required.'}
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
+          ) : null}
+          {currentType === 'code' ? (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '参考证明' : 'Reference proof'}
-              </label>
-              <Textarea
-                value={typeof grading.referenceProof === 'string' ? grading.referenceProof : ''}
-                onChange={(event) => updateGrading('referenceProof', event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '解析（可选）' : 'Analysis (optional)'}
-              </label>
-              <Textarea
-                value={typeof grading.analysis === 'string' ? grading.analysis : ''}
-                onChange={(event) => updateGrading('analysis', event.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {currentType === 'calculation' ? (
-        <>
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '参考答案' : 'Reference answer'}
-              </label>
-              <Input
-                value={typeof grading.referenceAnswer === 'string' ? grading.referenceAnswer : ''}
-                onChange={(event) => updateGrading('referenceAnswer', event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '单位' : 'Unit'}
-              </label>
-              <Input
-                value={typeof publicContent.unit === 'string' ? publicContent.unit : ''}
-                onChange={(event) => {
-                  updatePublicContent('unit', event.target.value);
-                  updateGrading('unit', event.target.value);
-                }}
-              />
-            </div>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '可接受形式（每行一个）' : 'Accepted forms (one per line)'}
+                {locale === 'zh-CN' ? '约束（每行一个）' : 'Constraints (one per line)'}
               </label>
               <Textarea
                 value={
-                  Array.isArray(grading.acceptedForms)
-                    ? (grading.acceptedForms as string[]).join('\n')
+                  Array.isArray(publicContent.constraints)
+                    ? (publicContent.constraints as string[]).join('\n')
                     : ''
                 }
                 onChange={(event) =>
-                  updateGrading(
-                    'acceptedForms',
+                  updatePublicContent(
+                    'constraints',
                     event.target.value
                       .split('\n')
                       .map((item) => item.trim())
@@ -1270,330 +511,551 @@ export function ProblemDraftForm({
                 }
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '容差（可选）' : 'Tolerance (optional)'}
-              </label>
-              <Input
-                type="number"
-                step="any"
-                value={typeof grading.tolerance === 'number' ? String(grading.tolerance) : ''}
-                onChange={(event) =>
-                  updateGrading(
-                    'tolerance',
-                    event.target.value === '' ? undefined : Number(event.target.value),
-                  )
-                }
-              />
-            </div>
-          </div>
-        </>
-      ) : null}
-
-      {currentType === 'code' ? (
-        <>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                Python
-              </label>
-              <Input value="python" disabled />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '函数签名' : 'Function signature'}
-              </label>
-              <Input
-                value={
-                  typeof publicContent.functionSignature === 'string'
-                    ? publicContent.functionSignature
-                    : ''
-                }
-                onChange={(event) => updatePublicContent('functionSignature', event.target.value)}
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '起始代码' : 'Starter code'}
-            </label>
-            <Textarea
-              className="min-h-[180px] font-mono text-xs"
-              value={typeof publicContent.starterCode === 'string' ? publicContent.starterCode : ''}
-              onChange={(event) => updatePublicContent('starterCode', event.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '约束（每行一个）' : 'Constraints (one per line)'}
-            </label>
-            <Textarea
-              value={
-                Array.isArray(publicContent.constraints)
-                  ? (publicContent.constraints as string[]).join('\n')
-                  : ''
-              }
-              onChange={(event) =>
-                updatePublicContent(
-                  'constraints',
-                  event.target.value
-                    .split('\n')
-                    .map((item) => item.trim())
-                    .filter(Boolean),
-                )
-              }
-            />
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '公开测试' : 'Public tests'}
-              </label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const tests = Array.isArray(publicContent.publicTests)
-                    ? ([...(publicContent.publicTests as Array<Record<string, unknown>>)] as Array<
-                        Record<string, unknown>
-                      >)
-                    : [];
-                  updatePublicContent('publicTests', [
-                    ...tests,
-                    {
-                      id: `public-${tests.length + 1}`,
-                      description:
-                        locale === 'zh-CN'
-                          ? `公开测试 ${tests.length + 1}`
-                          : `Public test ${tests.length + 1}`,
-                      expression: 'solve()',
-                      expected: 'TODO',
-                    },
-                  ]);
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                {locale === 'zh-CN' ? '添加公开测试' : 'Add public test'}
-              </Button>
-            </div>
-            {Array.isArray(publicContent.publicTests)
-              ? (publicContent.publicTests as Array<Record<string, unknown>>).map((test, index) => (
-                  <div
-                    key={String(test.id || index)}
-                    className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-2 dark:border-slate-700"
-                  >
-                    <Input
-                      value={typeof test.id === 'string' ? test.id : ''}
-                      onChange={(event) =>
-                        updatePublicContent(
-                          'publicTests',
-                          (publicContent.publicTests as Array<Record<string, unknown>>).map(
-                            (row, rowIndex) =>
-                              rowIndex === index ? { ...row, id: event.target.value } : row,
-                          ),
-                        )
-                      }
-                      placeholder="public-1"
-                    />
-                    <Input
-                      value={typeof test.description === 'string' ? test.description : ''}
-                      onChange={(event) =>
-                        updatePublicContent(
-                          'publicTests',
-                          (publicContent.publicTests as Array<Record<string, unknown>>).map(
-                            (row, rowIndex) =>
-                              rowIndex === index
-                                ? { ...row, description: event.target.value }
-                                : row,
-                          ),
-                        )
-                      }
-                      placeholder={locale === 'zh-CN' ? '描述' : 'Description'}
-                    />
-                    <Input
-                      value={typeof test.expression === 'string' ? test.expression : ''}
-                      onChange={(event) =>
-                        updatePublicContent(
-                          'publicTests',
-                          (publicContent.publicTests as Array<Record<string, unknown>>).map(
-                            (row, rowIndex) =>
-                              rowIndex === index ? { ...row, expression: event.target.value } : row,
-                          ),
-                        )
-                      }
-                      placeholder="solve()"
-                    />
-                    <div className="flex gap-2">
-                      <Input
-                        value={typeof test.expected === 'string' ? test.expected : ''}
-                        onChange={(event) =>
-                          updatePublicContent(
-                            'publicTests',
-                            (publicContent.publicTests as Array<Record<string, unknown>>).map(
-                              (row, rowIndex) =>
-                                rowIndex === index ? { ...row, expected: event.target.value } : row,
-                            ),
-                          )
-                        }
-                        placeholder={locale === 'zh-CN' ? '期望输出' : 'Expected'}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() =>
-                          updatePublicContent(
-                            'publicTests',
-                            (publicContent.publicTests as Array<Record<string, unknown>>).filter(
-                              (_, rowIndex) => rowIndex !== index,
-                            ),
-                          )
-                        }
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              : null}
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '隐藏测试' : 'Secret tests'}
-              </label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const tests =
-                    secretJudge && Array.isArray(secretJudge.secretTests)
-                      ? ([...(secretJudge.secretTests as Array<Record<string, unknown>>)] as Array<
+          ) : null}
+        </TabsContent>
+        <TabsContent value="options" className="space-y-4">
+          {currentType === 'choice' ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {locale === 'zh-CN' ? '选项' : 'Options'}
+                </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const options = Array.isArray(publicContent.options)
+                      ? ([...(publicContent.options as Array<Record<string, unknown>>)] as Array<
                           Record<string, unknown>
                         >)
                       : [];
-                  updateSecretJudge('secretTests', [
-                    ...tests,
-                    {
-                      id: `secret-${tests.length + 1}`,
-                      description:
-                        locale === 'zh-CN'
-                          ? `隐藏测试 ${tests.length + 1}`
-                          : `Secret test ${tests.length + 1}`,
-                      expression: 'solve()',
-                      expected: 'TODO',
-                    },
-                  ]);
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                {locale === 'zh-CN' ? '添加隐藏测试' : 'Add secret test'}
-              </Button>
-            </div>
-            {secretJudge && Array.isArray(secretJudge.secretTests)
-              ? (secretJudge.secretTests as Array<Record<string, unknown>>).map((test, index) => (
-                  <div
-                    key={String(test.id || index)}
-                    className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-2 dark:border-slate-700"
-                  >
-                    <Input
-                      value={typeof test.id === 'string' ? test.id : ''}
-                      onChange={(event) =>
-                        updateSecretJudge(
-                          'secretTests',
-                          (secretJudge.secretTests as Array<Record<string, unknown>>).map(
-                            (row, rowIndex) =>
-                              rowIndex === index ? { ...row, id: event.target.value } : row,
-                          ),
-                        )
-                      }
-                      placeholder="secret-1"
-                    />
-                    <Input
-                      value={typeof test.description === 'string' ? test.description : ''}
-                      onChange={(event) =>
-                        updateSecretJudge(
-                          'secretTests',
-                          (secretJudge.secretTests as Array<Record<string, unknown>>).map(
-                            (row, rowIndex) =>
-                              rowIndex === index
-                                ? { ...row, description: event.target.value }
-                                : row,
-                          ),
-                        )
-                      }
-                      placeholder={locale === 'zh-CN' ? '描述' : 'Description'}
-                    />
-                    <Input
-                      value={typeof test.expression === 'string' ? test.expression : ''}
-                      onChange={(event) =>
-                        updateSecretJudge(
-                          'secretTests',
-                          (secretJudge.secretTests as Array<Record<string, unknown>>).map(
-                            (row, rowIndex) =>
-                              rowIndex === index ? { ...row, expression: event.target.value } : row,
-                          ),
-                        )
-                      }
-                      placeholder="solve()"
-                    />
-                    <div className="flex gap-2">
-                      <Input
-                        value={typeof test.expected === 'string' ? test.expected : ''}
-                        onChange={(event) =>
-                          updateSecretJudge(
-                            'secretTests',
-                            (secretJudge.secretTests as Array<Record<string, unknown>>).map(
-                              (row, rowIndex) =>
-                                rowIndex === index ? { ...row, expected: event.target.value } : row,
-                            ),
-                          )
-                        }
-                        placeholder={locale === 'zh-CN' ? '期望输出' : 'Expected'}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() =>
-                          updateSecretJudge(
-                            'secretTests',
-                            (secretJudge.secretTests as Array<Record<string, unknown>>).filter(
-                              (_, rowIndex) => rowIndex !== index,
-                            ),
-                          )
-                        }
+                    const nextId = String.fromCharCode(65 + options.length);
+                    updatePublicContent('options', [
+                      ...options,
+                      {
+                        id: nextId,
+                        label: locale === 'zh-CN' ? `选项 ${nextId}` : `Option ${nextId}`,
+                      },
+                    ]);
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  {locale === 'zh-CN' ? '添加选项' : 'Add option'}
+                </Button>
+              </div>
+              {Array.isArray(publicContent.options)
+                ? (publicContent.options as Array<Record<string, unknown>>).map((option, index) => {
+                    const correctOptionIds = Array.isArray(grading.correctOptionIds)
+                      ? (grading.correctOptionIds as string[])
+                      : [];
+                    return (
+                      <div
+                        key={`${String(option.id || index)}`}
+                        className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-[90px_1fr_auto_auto] dark:border-slate-700"
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                        <Input
+                          value={typeof option.id === 'string' ? option.id : ''}
+                          onChange={(event) => {
+                            const nextId = event.target.value;
+                            const oldId = typeof option.id === 'string' ? option.id : '';
+                            updatePublicContent(
+                              'options',
+                              (publicContent.options as Array<Record<string, unknown>>).map(
+                                (row, rowIndex) =>
+                                  rowIndex === index ? { ...row, id: nextId } : row,
+                              ),
+                            );
+                            updateGrading(
+                              'correctOptionIds',
+                              correctOptionIds.map((id) => (id === oldId ? nextId : id)),
+                            );
+                          }}
+                          placeholder="A"
+                        />
+                        <Input
+                          value={typeof option.label === 'string' ? option.label : ''}
+                          onChange={(event) =>
+                            updatePublicContent(
+                              'options',
+                              (publicContent.options as Array<Record<string, unknown>>).map(
+                                (row, rowIndex) =>
+                                  rowIndex === index ? { ...row, label: event.target.value } : row,
+                              ),
+                            )
+                          }
+                        />
+                        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                          <input
+                            type={publicContent.selectionMode === 'multiple' ? 'checkbox' : 'radio'}
+                            name={`correct-option-${draft.draftId}`}
+                            checked={correctOptionIds.includes(String(option.id || ''))}
+                            onChange={(event) => {
+                              const optionId = String(option.id || '');
+                              if (publicContent.selectionMode === 'multiple') {
+                                updateGrading(
+                                  'correctOptionIds',
+                                  event.target.checked
+                                    ? [...correctOptionIds, optionId]
+                                    : correctOptionIds.filter((id) => id !== optionId),
+                                );
+                              } else {
+                                updateGrading('correctOptionIds', [optionId]);
+                              }
+                            }}
+                          />
+                          {locale === 'zh-CN' ? '正确答案' : 'Correct'}
+                        </label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const optionId = String(option.id || '');
+                            updatePublicContent(
+                              'options',
+                              (publicContent.options as Array<Record<string, unknown>>).filter(
+                                (_, rowIndex) => rowIndex !== index,
+                              ),
+                            );
+                            updateGrading(
+                              'correctOptionIds',
+                              correctOptionIds.filter((id) => id !== optionId),
+                            );
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })
+                : null}
+            </div>
+          ) : null}
+        </TabsContent>
+        <TabsContent value="analysis" className="space-y-4">
+          {currentType === 'choice' ? (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                {locale === 'zh-CN' ? '解析' : 'Analysis'}
+              </label>
+              <Textarea
+                className={
+                  formId ? 'min-h-[320px] h-[calc(100dvh-240px)] lg:max-h-[760px]' : 'min-h-[320px]'
+                }
+                value={typeof grading.analysis === 'string' ? grading.analysis : ''}
+                onChange={(event) => updateGrading('analysis', event.target.value)}
+              />
+            </div>
+          ) : null}
+          {currentType === 'short_answer' ? (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                {locale === 'zh-CN' ? '参考答案' : 'Reference answer'}
+              </label>
+              <Textarea
+                value={typeof grading.referenceAnswer === 'string' ? grading.referenceAnswer : ''}
+                onChange={(event) => updateGrading('referenceAnswer', event.target.value)}
+              />
+            </div>
+          ) : null}
+          {currentType === 'short_answer' ? (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                {locale === 'zh-CN' ? '解析（可选）' : 'Analysis (optional)'}
+              </label>
+              <Textarea
+                className={
+                  formId ? 'min-h-[320px] h-[calc(100dvh-240px)] lg:max-h-[760px]' : 'min-h-[320px]'
+                }
+                value={typeof grading.analysis === 'string' ? grading.analysis : ''}
+                onChange={(event) => updateGrading('analysis', event.target.value)}
+              />
+            </div>
+          ) : null}
+          {currentType === 'fill_blank' ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {locale === 'zh-CN' ? '空格与标准答案' : 'Blanks and accepted answers'}
+                  </label>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    {locale === 'zh-CN'
+                      ? '可为每个空格设置多个同义答案。'
+                      : 'Add multiple accepted variants for each blank.'}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    Array.isArray(publicContent.blanks) && publicContent.blanks.length >= 12
+                  }
+                  onClick={() => {
+                    const blanks = Array.isArray(publicContent.blanks)
+                      ? ([...publicContent.blanks] as Array<Record<string, unknown>>)
+                      : [];
+                    const nextId = `blank_${blanks.length + 1}`;
+                    updatePublicContent('blanks', [
+                      ...blanks,
+                      { id: nextId, placeholder: locale === 'zh-CN' ? '答案' : 'Answer' },
+                    ]);
+                    updatePublicContent(
+                      'stemTemplate',
+                      `${typeof publicContent.stemTemplate === 'string' ? publicContent.stemTemplate : ''} {{${nextId}}}`.trim(),
+                    );
+                    updateGrading('blanks', [
+                      ...(Array.isArray(grading.blanks) ? grading.blanks : []),
+                      { id: nextId, acceptedAnswers: ['TODO'], caseSensitive: false },
+                    ]);
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  {locale === 'zh-CN' ? '添加空格' : 'Add blank'}
+                </Button>
+              </div>
+              {(Array.isArray(publicContent.blanks)
+                ? (publicContent.blanks as Array<Record<string, unknown>>)
+                : []
+              ).map((blank, index, blanks) => {
+                const blankId = typeof blank.id === 'string' ? blank.id : `blank_${index + 1}`;
+                const gradingBlanks = Array.isArray(grading.blanks)
+                  ? (grading.blanks as Array<Record<string, unknown>>)
+                  : [];
+                const blankGrading = gradingBlanks.find((row) => row.id === blankId) ?? {};
+                return (
+                  <div
+                    key={`${blankId}-${index}`}
+                    className="grid gap-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700 md:grid-cols-[150px_minmax(0,1fr)_auto_auto] md:items-end"
+                  >
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-medium text-slate-500">
+                        {locale === 'zh-CN' ? '空格 ID' : 'Blank ID'}
+                      </label>
+                      <Input
+                        value={blankId}
+                        onChange={(event) => {
+                          const nextId = event.target.value;
+                          updatePublicContent(
+                            'blanks',
+                            blanks.map((row, rowIndex) =>
+                              rowIndex === index ? { ...row, id: nextId } : row,
+                            ),
+                          );
+                          updatePublicContent(
+                            'stemTemplate',
+                            String(publicContent.stemTemplate ?? '').replaceAll(
+                              `{{${blankId}}}`,
+                              `{{${nextId}}}`,
+                            ),
+                          );
+                          updateGrading(
+                            'blanks',
+                            gradingBlanks.map((row) =>
+                              row.id === blankId ? { ...row, id: nextId } : row,
+                            ),
+                          );
+                        }}
+                      />
                     </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-medium text-slate-500">
+                        {locale === 'zh-CN'
+                          ? '可接受答案（用 | 分隔）'
+                          : 'Accepted answers (separate with |)'}
+                      </label>
+                      <Input
+                        value={
+                          Array.isArray(blankGrading.acceptedAnswers)
+                            ? (blankGrading.acceptedAnswers as string[]).join(' | ')
+                            : ''
+                        }
+                        onChange={(event) => {
+                          const acceptedAnswers = event.target.value
+                            .split('|')
+                            .map((answer) => answer.trim())
+                            .filter(Boolean);
+                          updateGrading(
+                            'blanks',
+                            gradingBlanks.map((row) =>
+                              row.id === blankId ? { ...row, acceptedAnswers } : row,
+                            ),
+                          );
+                        }}
+                      />
+                    </div>
+                    <label className="flex h-10 items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={blankGrading.caseSensitive === true}
+                        onChange={(event) =>
+                          updateGrading(
+                            'blanks',
+                            gradingBlanks.map((row) =>
+                              row.id === blankId
+                                ? { ...row, caseSensitive: event.target.checked }
+                                : row,
+                            ),
+                          )
+                        }
+                      />
+                      {locale === 'zh-CN' ? '区分大小写' : 'Case-sensitive'}
+                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={blanks.length <= 1}
+                      onClick={() => {
+                        updatePublicContent(
+                          'blanks',
+                          blanks.filter((_, rowIndex) => rowIndex !== index),
+                        );
+                        updatePublicContent(
+                          'stemTemplate',
+                          String(publicContent.stemTemplate ?? '').replaceAll(`{{${blankId}}}`, ''),
+                        );
+                        updateGrading(
+                          'blanks',
+                          gradingBlanks.filter((row) => row.id !== blankId),
+                        );
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-                ))
-              : null}
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '运行超时（毫秒）' : 'Timeout (ms)'}
-            </label>
-            <Input
-              type="number"
-              min={1}
-              max={20000}
-              value={
-                secretJudge && typeof secretJudge.timeoutMs === 'number'
-                  ? String(secretJudge.timeoutMs)
-                  : '5000'
-              }
-              onChange={(event) =>
-                updateSecretJudge('timeoutMs', Number(event.target.value || 5000))
-              }
-            />
-          </div>
-        </>
-      ) : null}
-
+                );
+              })}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {locale === 'zh-CN' ? '解析' : 'Analysis'}
+                </label>
+                <Textarea
+                  className={
+                    formId
+                      ? 'min-h-[320px] h-[calc(100dvh-240px)] lg:max-h-[760px]'
+                      : 'min-h-[320px]'
+                  }
+                  value={typeof grading.analysis === 'string' ? grading.analysis : ''}
+                  onChange={(event) => updateGrading('analysis', event.target.value)}
+                />
+              </div>
+            </div>
+          ) : null}
+          {currentType === 'proof' ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {locale === 'zh-CN' ? '参考证明' : 'Reference proof'}
+                  </label>
+                  <Textarea
+                    className="min-h-[220px] h-[calc((100dvh-280px)/2)] max-h-[360px]"
+                    value={typeof grading.referenceProof === 'string' ? grading.referenceProof : ''}
+                    onChange={(event) => updateGrading('referenceProof', event.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {locale === 'zh-CN' ? '解析（可选）' : 'Analysis (optional)'}
+                  </label>
+                  <Textarea
+                    className="min-h-[220px] h-[calc((100dvh-280px)/2)] max-h-[360px]"
+                    value={typeof grading.analysis === 'string' ? grading.analysis : ''}
+                    onChange={(event) => updateGrading('analysis', event.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {currentType === 'calculation' ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {locale === 'zh-CN' ? '参考答案' : 'Reference answer'}
+                </label>
+                <Input
+                  value={typeof grading.referenceAnswer === 'string' ? grading.referenceAnswer : ''}
+                  onChange={(event) => updateGrading('referenceAnswer', event.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {locale === 'zh-CN' ? '单位' : 'Unit'}
+                </label>
+                <Input
+                  value={typeof publicContent.unit === 'string' ? publicContent.unit : ''}
+                  onChange={(event) => {
+                    updatePublicContent('unit', event.target.value);
+                    updateGrading('unit', event.target.value);
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
+          {currentType === 'calculation' ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {locale === 'zh-CN' ? '可接受形式（每行一个）' : 'Accepted forms (one per line)'}
+                </label>
+                <Textarea
+                  value={
+                    Array.isArray(grading.acceptedForms)
+                      ? (grading.acceptedForms as string[]).join('\n')
+                      : ''
+                  }
+                  onChange={(event) =>
+                    updateGrading(
+                      'acceptedForms',
+                      event.target.value
+                        .split('\n')
+                        .map((item) => item.trim())
+                        .filter(Boolean),
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {locale === 'zh-CN' ? '容差（可选）' : 'Tolerance (optional)'}
+                </label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={typeof grading.tolerance === 'number' ? String(grading.tolerance) : ''}
+                  onChange={(event) =>
+                    updateGrading(
+                      'tolerance',
+                      event.target.value === '' ? undefined : Number(event.target.value),
+                    )
+                  }
+                />
+              </div>
+            </div>
+          ) : null}
+          {currentType === 'code' || currentType === 'calculation' ? (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">
+                {locale === 'zh-CN' ? '解析' : 'Analysis'}
+              </label>
+              <Textarea
+                className={
+                  formId ? 'min-h-[320px] h-[calc(100dvh-240px)] lg:max-h-[760px]' : 'min-h-[320px]'
+                }
+                value={typeof grading.analysis === 'string' ? grading.analysis : ''}
+                onChange={(event) => updateGrading('analysis', event.target.value)}
+              />
+            </div>
+          ) : null}
+        </TabsContent>
+        <TabsContent value="starter" className="space-y-4">
+          {currentType === 'code' ? (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500">submission.py</p>
+              <CodeAnswerEditor
+                locale={locale}
+                className="h-[calc(100dvh-280px)] min-h-[320px]"
+                value={
+                  typeof publicContent.starterCode === 'string' ? publicContent.starterCode : ''
+                }
+                onChange={(value) => updatePublicContent('starterCode', value)}
+              />
+            </div>
+          ) : null}
+        </TabsContent>
+        <TabsContent value="solution" className="space-y-4">
+          {currentType === 'code' ? (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500">submission.py</p>
+              <CodeAnswerEditor
+                locale={locale}
+                className="h-[calc(100dvh-280px)] min-h-[320px]"
+                value={
+                  typeof grading.solutionCode === 'string'
+                    ? grading.solutionCode
+                    : typeof grading.referenceAnswer === 'string'
+                      ? grading.referenceAnswer
+                      : ''
+                }
+                onChange={(value) => updateGrading('solutionCode', value)}
+              />
+            </div>
+          ) : null}
+        </TabsContent>
+        <TabsContent value="public" className="space-y-4">
+          {currentType === 'code' ? (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500">public_tests.py</p>
+              <CodeAnswerEditor
+                locale={locale}
+                className="h-[calc(100dvh-280px)] min-h-[320px]"
+                value={
+                  typeof publicContent.publicTestCode === 'string'
+                    ? publicContent.publicTestCode
+                    : buildCodeTestFile(
+                        (publicContent.publicTests ?? []) as Array<{
+                          id: string;
+                          expression: string;
+                          expected: string;
+                        }>,
+                        'public_tests.py',
+                        'PublicTests',
+                      )
+                }
+                onChange={(value) => updatePublicContent('publicTestCode', value)}
+              />
+            </div>
+          ) : null}
+        </TabsContent>
+        <TabsContent value="secret" className="space-y-4">
+          {currentType === 'code' ? (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500">secret_tests.py</p>
+              <CodeAnswerEditor
+                locale={locale}
+                className="h-[calc(100dvh-280px)] min-h-[320px]"
+                value={
+                  typeof secretJudge?.secretTestCode === 'string'
+                    ? secretJudge.secretTestCode
+                    : buildCodeTestFile(
+                        (secretJudge?.secretTests ?? []) as Array<{
+                          id: string;
+                          expression: string;
+                          expected: string;
+                        }>,
+                        'secret_tests.py',
+                        'SecretTests',
+                      )
+                }
+                onChange={(value) => updateSecretJudge('secretTestCode', value)}
+              />
+            </div>
+          ) : null}
+          {currentType === 'code' ? (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                {locale === 'zh-CN' ? '运行超时（毫秒）' : 'Timeout (ms)'}
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={20000}
+                value={
+                  secretJudge && typeof secretJudge.timeoutMs === 'number'
+                    ? String(secretJudge.timeoutMs)
+                    : '5000'
+                }
+                onChange={(event) =>
+                  updateSecretJudge('timeoutMs', Number(event.target.value || 5000))
+                }
+              />
+            </div>
+          ) : null}
+        </TabsContent>
+      </Tabs>
       {liveErrors.length > 0 || saveErrors.length > 0 ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
           <div className="font-medium">{locale === 'zh-CN' ? '待修正字段' : 'Fields to fix'}</div>
@@ -1603,97 +1065,7 @@ export function ProblemDraftForm({
             ))}
           </div>
         </div>
-      ) : (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200">
-          {locale === 'zh-CN'
-            ? '当前表单已通过 schema 校验，保存后可直接写入题库。'
-            : 'The current form passes schema validation and can be committed after saving.'}
-        </div>
-      )}
-
-      <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-900/40">
-        <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
-          {locale === 'zh-CN' ? '题目设置' : 'Problem settings'}
-        </p>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '题型' : 'Type'}
-            </label>
-            <select
-              value={currentType}
-              onChange={(event) => handleTypeChange(event.target.value as NotebookProblemType)}
-              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
-            >
-              {(
-                [
-                  'short_answer',
-                  'choice',
-                  'fill_blank',
-                  'proof',
-                  'calculation',
-                  'code',
-                ] as NotebookProblemType[]
-              ).map((type) => (
-                <option key={type} value={type}>
-                  {labelForType(type, locale)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '状态' : 'Status'}
-            </label>
-            <select
-              value={typeof workingDraft.status === 'string' ? workingDraft.status : 'draft'}
-              onChange={(event) => updateRoot('status', event.target.value)}
-              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
-            >
-              <option value="draft">{locale === 'zh-CN' ? '草稿' : 'Draft'}</option>
-              <option value="published">{locale === 'zh-CN' ? '已发布' : 'Published'}</option>
-              <option value="archived">{locale === 'zh-CN' ? '已归档' : 'Archived'}</option>
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '难度' : 'Difficulty'}
-            </label>
-            <select
-              value={
-                typeof workingDraft.difficulty === 'string' ? workingDraft.difficulty : 'medium'
-              }
-              onChange={(event) => updateRoot('difficulty', event.target.value)}
-              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
-            >
-              <option value="easy">{locale === 'zh-CN' ? '简单' : 'Easy'}</option>
-              <option value="medium">{locale === 'zh-CN' ? '中等' : 'Medium'}</option>
-              <option value="hard">{locale === 'zh-CN' ? '困难' : 'Hard'}</option>
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {locale === 'zh-CN' ? '分值' : 'Points'}
-            </label>
-            <div className="flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-              {locale === 'zh-CN' ? '100 分（统一满分）' : '100 points (standard)'}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <ProblemImageCropDialog
-        image={croppingImage}
-        open={croppingImage != null}
-        locale={locale}
-        onOpenChange={(open) => {
-          if (!open) setCroppingImageIndex(null);
-        }}
-        onApply={applyCroppedImage}
-      />
-    </div>
+      ) : null}
+    </FormContainer>
   );
 }

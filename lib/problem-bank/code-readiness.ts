@@ -56,22 +56,7 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
     return Array.from(new Set(errors));
   }
 
-  if (!functionSignature || !/^\s*(?:async\s+)?def\s+[A-Za-z_]\w*\s*\(/m.test(functionSignature)) {
-    errors.push('代码题缺少有效的 Python function signature');
-  }
-  if (functionSignature && !/->\s*[^:]+\s*:/.test(functionSignature)) {
-    errors.push('Python function signature 必须包含返回类型注解');
-  }
-  if (!content.starterCode?.trim()) {
-    errors.push('代码题缺少学生编辑器 starterCode');
-  } else {
-    if (!/^[\s\S]*def\s+[A-Za-z_]\w*\s*\([^)]*:[^)]*\)[\s\S]*->/m.test(content.starterCode)) {
-      errors.push('starterCode 必须包含参数类型和返回类型注解');
-    }
-    if (!/(?:"""[\s\S]+?"""|'''[\s\S]+?''')/.test(content.starterCode)) {
-      errors.push('starterCode 必须包含说明参数、返回值和行为的 docstring');
-    }
-  }
+  if (!content.starterCode?.trim()) errors.push('代码题缺少学生编辑器 starterCode');
   const statementKinds = new Set(
     (content.statementSections ?? []).map((section) => section.kind ?? 'overview'),
   );
@@ -88,8 +73,21 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
   }
   if (!solution) {
     errors.push('代码题缺少参考答案');
-  } else if (!/\breturn\b/.test(solution)) {
-    errors.push('代码题参考答案必须通过 return 返回结果');
+  }
+  if (content.publicTestCode !== undefined || draft.secretJudge?.secretTestCode !== undefined) {
+    if (
+      !(content.publicTestCode !== undefined
+        ? content.publicTestCode.trim()
+        : content.publicTests.length)
+    )
+      errors.push('代码题缺少公开测试代码');
+    if (
+      !(draft.secretJudge?.secretTestCode !== undefined
+        ? draft.secretJudge.secretTestCode.trim()
+        : secretTests.length)
+    )
+      errors.push('代码题缺少隐藏测试代码');
+    return Array.from(new Set(errors));
   }
   if (UNSUPPORTED_CODE_IO_RE.test(interfaceCode)) {
     errors.push('代码题不得依赖 input、print、stdin 或文件读写；请改写为参数输入和 return 输出');

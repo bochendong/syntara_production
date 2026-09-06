@@ -338,7 +338,7 @@ function problemSolutionSections(
 }
 
 type TextAnswerMode = 'text' | 'photo';
-type ProblemInfoTab = 'description' | 'formula' | 'edit';
+type ProblemInfoTab = 'description' | 'formula' | 'symbols' | 'edit';
 type AnswerPanelTab = 'answer' | 'preview' | 'solution' | 'history';
 type ChoiceProblemContent = Extract<NotebookProblemPublicContent, { type: 'choice' }>;
 
@@ -438,7 +438,13 @@ function answerFeedbackSummaryLabel(
   feedback: InlineAnswerFeedback,
   points: number,
   locale: 'zh-CN' | 'en-US',
+  showScore = true,
 ) {
+  if (!showScore && !feedback.saving) {
+    if (feedback.status === 'passed') return locale === 'zh-CN' ? '作答正确' : 'Answer correct';
+    if (feedback.status === 'failed') return locale === 'zh-CN' ? '作答错误' : 'Answer incorrect';
+    if (feedback.status === 'partial') return locale === 'zh-CN' ? '部分正确' : 'Partially correct';
+  }
   if (feedback.saving) return locale === 'zh-CN' ? '正在提交' : 'Submitting';
   const score =
     typeof feedback.score === 'number'
@@ -476,13 +482,15 @@ function AnswerFeedbackSummaryBadge({
   points,
   locale,
   className,
+  showScore = true,
 }: {
+  showScore?: boolean;
   feedback: InlineAnswerFeedback;
   points: number;
   locale: 'zh-CN' | 'en-US';
   className?: string;
 }) {
-  const label = answerFeedbackSummaryLabel(feedback, points, locale);
+  const label = answerFeedbackSummaryLabel(feedback, points, locale, showScore);
   return (
     <div
       className={cn(

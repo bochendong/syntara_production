@@ -649,7 +649,9 @@ function normalizeDraftForPersistence(
   const publishRequirementsMet =
     draft.validationErrors.length === 0 &&
     (!isCode || (codeErrors.length === 0 && codeVerification?.passed !== false));
-  const hasSecretTests = (draft.secretJudge?.secretTests?.length ?? 0) > 0;
+  const hasSecretTests = Boolean(
+    draft.secretJudge?.secretTestCode?.trim() || (draft.secretJudge?.secretTests?.length ?? 0) > 0,
+  );
 
   return {
     ...draft,
@@ -2368,6 +2370,7 @@ export async function getCourseProblemForUser(
   problemId: string,
   options: { skipMaintenance?: boolean; includeSecretJudgeForEvaluation?: boolean } = {},
 ): Promise<{
+  isTeacherPreview: boolean;
   problem: NotebookProblemRecord;
   secretJudge?: NotebookProblemSecretJudge;
 }> {
@@ -2401,6 +2404,7 @@ export async function getCourseProblemForUser(
   }
 
   return {
+    isTeacherPreview: accessRole === 'owner',
     problem: notebookProblemRecordSchema.parse({
       id: row.id,
       courseId: row.courseId ?? row.notebook?.courseId ?? courseId,

@@ -79,6 +79,70 @@ def main():
         })
         return
 
+    if payload.get("testCode") is not None:
+        import unittest
+        import types
+        capture = io.StringIO()
+        results = []
+        class Result(unittest.TestResult):
+            def startTest(self, test):
+                super().startTest(test)
+                self.current = {"id": test.id(), "description": test.shortDescription(), "passed": True}
+            def addSuccess(self, test):
+                super().addSuccess(test)
+            def addFailure(self, test, err):
+                super().addFailure(test, err)
+                self.current.update(passed=False, error=self._exc_info_to_string(err, test))
+            def addError(self, test, err):
+                super().addError(test, err)
+                if hasattr(self, "current"):
+                    self.current.update(passed=False, error=self._exc_info_to_string(err, test))
+                else:
+                    results.append({"id": str(test), "passed": False, "error": self._exc_info_to_string(err, test)})
+            def addSkip(self, test, reason):
+                super().addSkip(test, reason)
+                if hasattr(self, "current"):
+                    self.current.update(passed=False, error="Skipped: " + reason)
+                else:
+                    results.append({"id": str(test), "passed": False, "error": "Skipped: " + reason})
+            def addExpectedFailure(self, test, err):
+                super().addExpectedFailure(test, err)
+                self.current.update(passed=False, error="Expected failure is not a passing test")
+            def addUnexpectedSuccess(self, test):
+                super().addUnexpectedSuccess(test)
+                self.current.update(passed=False, error="Unexpected success")
+            def addSubTest(self, test, subtest, err):
+                super().addSubTest(test, subtest, err)
+                if err is not None:
+                    self.current.update(passed=False, error=self._exc_info_to_string(err, test))
+            def stopTest(self, test):
+                self.current["stdout"] = capture.getvalue()
+                capture.seek(0)
+                capture.truncate(0)
+                results.append(self.current)
+                del self.current
+                super().stopTest(test)
+        try:
+            with contextlib.redirect_stdout(capture), contextlib.redirect_stderr(capture):
+                spec = importlib.util.spec_from_file_location("submission", payload["codePath"])
+                module = importlib.util.module_from_spec(spec)
+                sys.modules["submission"] = module
+                spec.loader.exec_module(module)
+                tests = types.ModuleType("tests")
+                exec(compile(payload["testCode"], "tests.py", "exec"), tests.__dict__)
+                suite = unittest.defaultTestLoader.loadTestsFromModule(tests)
+                if suite.countTestCases() == 0:
+                    raise ValueError("No unittest tests discovered")
+                result = Result()
+                suite.run(result)
+                if not results:
+                    raise ValueError("No test results produced")
+            emit({"cases": results})
+        except BaseException as exc:
+            emit({"cases": [{"id": "test_suite_error", "passed": False,
+                "error": "".join(traceback.format_exception_only(type(exc), exc)).strip()}]})
+        return
+
     spec = importlib.util.spec_from_file_location("submission", payload["codePath"])
     module = importlib.util.module_from_spec(spec)
     module_stdout_capture = io.StringIO()
@@ -146,6 +210,7 @@ type CodeCase = {
   description?: string;
   expression: string;
   expected: string;
+  testCode?: string;
 };
 
 type RawRunnerCaseResult = {
@@ -190,20 +255,32 @@ function buildCodePayload(
     throw new Error('Only code problems can be judged');
   }
 
-  const publicCases = problem.publicContent.publicTests.map((testCase) => ({
-    id: testCase.id,
-    description: testCase.description,
-    expression: testCase.expression,
-    expected: testCase.expected,
-  }));
-  const secretCases =
-    kind === 'submit' || runTarget === 'secret'
-      ? (secretJudge?.secretTests ?? []).map((testCase) => ({
+  const publicCases =
+    problem.publicContent.publicTestCode !== undefined
+      ? [
+          {
+            id: '__suite__',
+            expression: '',
+            expected: '',
+            testCode: problem.publicContent.publicTestCode,
+          },
+        ]
+      : problem.publicContent.publicTests.map((testCase) => ({
           id: testCase.id,
           description: testCase.description,
           expression: testCase.expression,
           expected: testCase.expected,
-        }))
+        }));
+  const secretCases =
+    kind === 'submit' || runTarget === 'secret'
+      ? secretJudge?.secretTestCode !== undefined
+        ? [{ id: '__suite__', expression: '', expected: '', testCode: secretJudge.secretTestCode }]
+        : (secretJudge?.secretTests ?? []).map((testCase) => ({
+            id: testCase.id,
+            description: testCase.description,
+            expression: testCase.expression,
+            expected: testCase.expected,
+          }))
       : [];
 
   return {
@@ -236,22 +313,20 @@ async function executePythonPayload(args: {
 
   try {
     await mkdir(tempDir, { recursive: true });
-    await writeFile(
-      codePath,
-      [args.starterCode?.trim(), args.code.trim()].filter(Boolean).join('\n\n'),
-      'utf8',
-    );
+    await writeFile(codePath, args.code, 'utf8');
     await writeFile(runnerPath, PYTHON_RUNNER, 'utf8');
 
     const payload = {
       codePath,
       testCases: args.testCases,
       mode: args.mode ?? 'tests',
+      testCode: args.testCases[0]?.testCode,
     };
     return await runPythonJson<RawRunnerPayload>({
       runnerPath,
       payload,
       timeoutMs: args.timeoutMs,
+      isolated: true,
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
@@ -282,8 +357,28 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
     };
   }
 
-  const publicTests = draft.publicContent.publicTests;
-  const secretTests = draft.secretJudge?.secretTests ?? [];
+  const publicTests: CodeCase[] =
+    draft.publicContent.publicTestCode !== undefined
+      ? [
+          {
+            id: '__suite__',
+            expression: '',
+            expected: '',
+            testCode: draft.publicContent.publicTestCode,
+          },
+        ]
+      : draft.publicContent.publicTests;
+  const secretTests: CodeCase[] =
+    draft.secretJudge?.secretTestCode !== undefined
+      ? [
+          {
+            id: '__suite__',
+            expression: '',
+            expected: '',
+            testCode: draft.secretJudge.secretTestCode,
+          },
+        ]
+      : (draft.secretJudge?.secretTests ?? []);
   if (readinessErrors.length > 0) {
     return {
       passed: false,
@@ -294,30 +389,51 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
   }
 
   try {
+    const run = async (tests: CodeCase[]) =>
+      completeRunnerCaseResults(
+        tests,
+        await executePythonCases({
+          code: codeReferenceSolution(draft),
+          testCases: tests,
+          timeoutMs: draft.secretJudge?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        }),
+      );
+    const publicResults = await run(publicTests);
+    const secretResults = await run(secretTests);
     const allTests = [...publicTests, ...secretTests];
-    const results = completeRunnerCaseResults(
-      allTests,
-      await executePythonCases({
-        code: codeReferenceSolution(draft),
-        starterCode: draft.publicContent.starterCode,
-        testCases: allTests,
-        timeoutMs: draft.secretJudge?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-      }),
-    );
+    const results = [...publicResults, ...secretResults];
     const failed = results.filter((result) => !result.passed);
     const expectedById = new Map(allTests.map((testCase) => [testCase.id, testCase.expected]));
+    const errors = failed.map(
+      (result) =>
+        `参考答案未通过 testcase ${result.id}${
+          result.error
+            ? `：${result.error}`
+            : `：actual=${result.actual ?? 'unknown'}；expected=${expectedById.get(result.id) ?? 'unknown'}`
+        }`,
+    );
+    if (
+      draft.publicContent.publicTestCode !== undefined ||
+      draft.secretJudge?.secretTestCode !== undefined
+    ) {
+      if (publicResults.length < 2) errors.push('代码题至少需要 2 个公开测试');
+      if (secretResults.length < 3) errors.push('代码题至少需要 3 个隐藏测试');
+      if (errors.length === 0) {
+        const starterResults = await executePythonCases({
+          code: draft.publicContent.starterCode ?? '',
+          testCases: publicTests,
+          timeoutMs: draft.secretJudge?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        });
+        if (starterResults.length > 0 && starterResults.every((result) => result.passed)) {
+          errors.push('代码题公开测试未能拒绝初始空实现，请检查测试是否实际验证题目要求');
+        }
+      }
+    }
     return {
-      passed: failed.length === 0,
-      errors: failed.map(
-        (result) =>
-          `参考答案未通过 testcase ${result.id}${
-            result.error
-              ? `：${result.error}`
-              : `：actual=${result.actual ?? 'unknown'}；expected=${expectedById.get(result.id) ?? 'unknown'}`
-          }`,
-      ),
-      publicTestCount: publicTests.length,
-      secretTestCount: secretTests.length,
+      passed: errors.length === 0,
+      errors,
+      publicTestCount: publicResults.length,
+      secretTestCount: secretResults.length,
     };
   } catch (error) {
     return {
@@ -333,6 +449,7 @@ function completeRunnerCaseResults(
   expectedCases: CodeCase[],
   rawCases: RawRunnerCaseResult[],
 ): RawRunnerCaseResult[] {
+  if (expectedCases[0]?.testCode !== undefined) return rawCases;
   const rawCasesById = new Map(rawCases.map((caseResult) => [caseResult.id, caseResult]));
   return expectedCases.map(
     (testCase) =>

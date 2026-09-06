@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useObserveTeacherAiTasks } from '@/lib/ai-progress/use-ai-activity';
+import { AiActivityLight } from '@/components/generation/ai-activity-light';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useSyncExternalStore, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
@@ -301,6 +303,7 @@ export function CourseSpaceHeaderContent({
   className,
 }: CourseSpaceHeaderProps) {
   const router = useRouter();
+  useObserveTeacherAiTasks(courseId, role === 'teacher' && !previewMode && active !== 'resources');
   const allCoursesHref = courseSpaceAllCoursesHref(role, previewMode);
   const handleBack = useCallback(() => {
     if (window.history.length > 1) {
@@ -314,13 +317,14 @@ export function CourseSpaceHeaderContent({
     <header
       data-course-space-header
       className={cn(
-        'shrink-0 bg-gradient-to-b from-white to-slate-50/75 px-3 py-2 text-slate-950 backdrop-blur-xl dark:from-slate-950 dark:to-slate-900/90 dark:text-white sm:px-4',
+        'relative isolate shrink-0 bg-gradient-to-b from-white to-slate-50/75 px-3 py-2 text-slate-950 backdrop-blur-xl dark:from-slate-950 dark:to-slate-900/90 dark:text-white sm:px-4',
         surface
           ? COURSE_SPACE_HEADER_SURFACE_CLASS
           : 'border-b border-slate-200/80 dark:border-white/10',
         className,
       )}
     >
+      <AiActivityLight />
       <div
         className={cn(
           'flex min-w-0 flex-col gap-2',

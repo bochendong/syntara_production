@@ -66,7 +66,8 @@ export async function POST(
     });
     if (
       loaded.problem.publicContent.type === 'code' &&
-      loaded.problem.publicContent.publicTests.length > 0 &&
+      (Boolean(loaded.problem.publicContent.publicTestCode?.trim()) ||
+        loaded.problem.publicContent.publicTests.length > 0) &&
       !(await hasPassedPublicCodeRun({
         userId: auth.userId,
         problemId,

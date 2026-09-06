@@ -9,6 +9,7 @@ type PythonRunInput = {
   runnerPath: string;
   payload: { codePath: string };
   timeoutMs: number;
+  isolated?: boolean;
 };
 
 // Each fallback run owns a fresh interpreter and virtual filesystem. Keep the
@@ -141,7 +142,7 @@ function runNativePython(input: PythonRunInput): Promise<string> {
  * standard library so judging needs neither a system install nor a CDN fetch. */
 export async function runPythonJson<T>(input: PythonRunInput): Promise<T> {
   let stdout: string;
-  if (process.env.VERCEL === '1') {
+  if (input.isolated || process.env.VERCEL === '1') {
     stdout = await runBundledPython(input);
   } else {
     try {

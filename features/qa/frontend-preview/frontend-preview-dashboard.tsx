@@ -46,6 +46,13 @@ function previewSurfaces(role: PreviewRole, courseId: string): PreviewSurface[] 
         Icon: LayoutDashboard,
       },
       {
+        id: 'teacher-problem-bank',
+        label: '教师题库',
+        description: '各类示例题、题目编辑与评分规则预览',
+        href: `/course/${encodedCourseId}/problem-bank?mock=1&asTeacher=1`,
+        Icon: LayoutDashboard,
+      },
+      {
         id: 'teacher-chat',
         label: '教师聊天',
         description: '确认卡片、动作卡片与产物卡片的本地演示对话',

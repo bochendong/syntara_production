@@ -1,3 +1,4 @@
+import { createTeacherPreviewAttempt } from '@/lib/problem-bank/teacher-preview-attempt';
 import { isValidPhotoAnswerUpload } from '@/lib/problem-bank/photo-answer';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -65,8 +66,10 @@ export async function POST(
       includeSecretJudgeForEvaluation: true,
     });
     if (
+      !loaded.isTeacherPreview &&
       loaded.problem.publicContent.type === 'code' &&
-      loaded.problem.publicContent.publicTests.length > 0 &&
+      (Boolean(loaded.problem.publicContent.publicTestCode?.trim()) ||
+        loaded.problem.publicContent.publicTests.length > 0) &&
       !(await hasPassedPublicCodeRun({
         userId: auth.userId,
         problemId,
@@ -84,7 +87,8 @@ export async function POST(
         { status: 409 },
       );
     }
-    const limitedSubmissions = hasLimitedSubmissions(loaded.problem.type);
+    const limitedSubmissions =
+      !loaded.isTeacherPreview && hasLimitedSubmissions(loaded.problem.type);
     const previousSubmissionCount = limitedSubmissions
       ? await countNotebookProblemSubmissions({ userId: auth.userId, problemId })
       : 0;
@@ -155,6 +159,17 @@ export async function POST(
         { code: 'GRADING_FAILED', error: evaluated.result.feedback || 'AI 批改失败，请稍后重试。' },
         { status: 422 },
       );
+    }
+    if (loaded.isTeacherPreview) {
+      const attempt = createTeacherPreviewAttempt({
+        userId: auth.userId,
+        problemId,
+        kind: loaded.problem.type === 'code' ? 'submit' : 'answer',
+        status: evaluated.status,
+        answer,
+        result: evaluated.result,
+      });
+      return NextResponse.json({ attempt, result: attempt.result });
     }
     const scored = applySubmissionScorePolicy({
       type: loaded.problem.type,

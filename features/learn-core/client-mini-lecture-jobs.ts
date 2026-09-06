@@ -10,7 +10,9 @@ export type MiniLectureJob = { id: string; status: string; error?: string };
 export async function waitForMiniLectureJob(
   jobId: string,
   signal?: AbortSignal,
+  onStatus?: (job: MiniLectureJob) => void,
 ): Promise<{ manifest: GeneratedMiniLectureManifest; prompt: MiniLecturePrompt }> {
+  let lastStatus: string | undefined;
   // Waiting is UI observation only. Closing the page never cancels durable work.
   while (!signal?.aborted) {
     const result = await backendJson<{
@@ -18,6 +20,10 @@ export async function waitForMiniLectureJob(
       data?: GeneratedMiniLectureManifest;
       prompt?: MiniLecturePrompt;
     }>(`/api/learn/mini-lectures?id=${encodeURIComponent(jobId)}`, { signal });
+    if (lastStatus !== result.job.status) {
+      onStatus?.(result.job);
+      lastStatus = result.job.status;
+    }
     if (result.job.status === 'completed' && result.data && result.prompt)
       return { manifest: result.data, prompt: result.prompt };
     if (result.job.status === 'failed')

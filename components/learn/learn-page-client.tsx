@@ -1,5 +1,9 @@
 'use client';
 
+import { useAiActivityStore } from '@/lib/store/ai-activity';
+import { useReportAiActivity } from '@/lib/ai-progress/use-ai-activity';
+import { MiniLectureWaitProgress } from '@/components/generation/mini-lecture-wait-progress';
+
 import { LearningCalendarSurface } from '@/components/learn/learning-calendar-page';
 
 import {
@@ -4196,6 +4200,7 @@ export function MiniLectureInviteCard({
   prompt,
   deck,
   generating,
+  job,
   disabled = false,
   onGenerate,
   onOpen,
@@ -4203,6 +4208,7 @@ export function MiniLectureInviteCard({
   prompt?: MiniLecturePrompt;
   deck?: MiniLectureDeck;
   generating: boolean;
+  job?: MiniLectureJob;
   disabled?: boolean;
   onGenerate: () => void;
   onOpen: (deck: MiniLectureDeck) => void;
@@ -4223,7 +4229,7 @@ export function MiniLectureInviteCard({
       description={
         ready
           ? '图片、语音与动态聚焦均已准备好，可随时回看。'
-          : '将刚才的讲解整理成 1–2 页图文课堂，配合语音与重点聚焦。'
+          : '将刚才的讲解整理成 1–2 页图文课堂，配合语音与重点聚焦。预计 3–8 分钟，复杂内容可能更久。'
       }
       icon={
         generating ? (
@@ -4249,7 +4255,9 @@ export function MiniLectureInviteCard({
           {generating ? '生成中…' : ready ? '查看讲解' : '生成课堂讲解'}
         </Button>
       }
-    />
+    >
+      {generating ? <MiniLectureWaitProgress key={`${job?.id}-${job?.status}`} job={job} /> : null}
+    </LearnConfirmationCard>
   );
 }
 
@@ -7068,9 +7076,21 @@ export function LearnPageClient() {
     setMiniLectureOpen(true);
   }, []);
 
+  const [miniLectureJobStates, setMiniLectureJobStates] = useState<Record<string, MiniLectureJob>>(
+    {},
+  );
   const miniLectureWaitsRef = useRef(new Map<string, AbortController>());
   const [recoveringMiniLectureIds, setRecoveringMiniLectureIds] = useState<Set<string>>(
     () => new Set(),
+  );
+  useReportAiActivity(
+    sending ||
+      Boolean(sourceUploadingCourseId) ||
+      courseSourceUploads.some(
+        (upload) => upload.ingestStatus === 'uploading' || upload.ingestStatus === 'processing',
+      ) ||
+      Boolean(generatingMiniLectureMessageId) ||
+      recoveringMiniLectureIds.size > 0,
   );
   useEffect(
     () => () => {
@@ -7106,6 +7126,10 @@ export function LearnPageClient() {
       if (miniLectureWaitsRef.current.has(messageId)) return;
       const controller = new AbortController();
       miniLectureWaitsRef.current.set(messageId, controller);
+      setMiniLectureJobStates((current) => ({
+        ...current,
+        [messageId]: { id: messageId, status: 'queued' },
+      }));
       setGeneratingMiniLectureMessageId(messageId);
       try {
         const restoredJobs = message.lectureDeck
@@ -7152,7 +7176,14 @@ export function LearnPageClient() {
               }),
               timeoutMs: 30_000,
             });
-        const completed = await waitForMiniLectureJob(response.job.id, controller.signal);
+        useAiActivityStore.getState().miniLecture(response.job.id, localUserId, true);
+        const completed = await waitForMiniLectureJob(response.job.id, controller.signal, (job) => {
+          useAiActivityStore
+            .getState()
+            .miniLecture(job.id, localUserId, job.status === 'queued' || job.status === 'running');
+          if (!controller.signal.aborted)
+            setMiniLectureJobStates((current) => ({ ...current, [messageId]: job }));
+        });
         const deck = generatedManifestToMiniLectureDeck(completed.manifest, completed.prompt);
         await saveMiniLectureDeckLocally({
           context: {
@@ -7256,7 +7287,21 @@ export function LearnPageClient() {
           .map(async (job) => {
             const messageId = job.key.slice('learn-'.length);
             try {
-              const completed = await waitForMiniLectureJob(job.id, controller.signal);
+              const completed = await waitForMiniLectureJob(
+                job.id,
+                controller.signal,
+                (snapshot) => {
+                  useAiActivityStore
+                    .getState()
+                    .miniLecture(
+                      snapshot.id,
+                      localUserId,
+                      snapshot.status === 'queued' || snapshot.status === 'running',
+                    );
+                  if (!controller.signal.aborted)
+                    setMiniLectureJobStates((current) => ({ ...current, [messageId]: snapshot }));
+                },
+              );
               const deck = generatedManifestToMiniLectureDeck(completed.manifest, completed.prompt);
               await saveMiniLectureDeckLocally({
                 context: {
@@ -16814,6 +16859,7 @@ export function LearnPageClient() {
                                 {miniLecturePrompt || message.lectureDeck ? (
                                   <MiniLectureInviteCard
                                     prompt={miniLecturePrompt}
+                                    job={miniLectureJobStates[message.id]}
                                     deck={message.lectureDeck}
                                     generating={
                                       generatingMiniLectureMessageId === message.id ||

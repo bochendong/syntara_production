@@ -69,6 +69,9 @@ export const reviewProblemInsertSchema = z.object({
   acceptedForms: z.array(z.string().trim().min(1).max(1000)).max(16).default([]),
   unit: z.string().trim().min(1).max(120).optional(),
   starterCode: z.string().max(40000).optional(),
+  solutionCode: z.string().max(40000).optional(),
+  publicTestCode: z.string().max(80000).optional(),
+  secretTestCode: z.string().max(80000).optional(),
   functionSignature: z.string().trim().min(1).max(4000).optional(),
   constraints: z.array(z.string().trim().min(1).max(500)).max(16).default([]),
   publicTests: z.array(flexibleCodeTestSchema).max(24).optional(),
@@ -209,10 +212,11 @@ function buildSecretJudge(
     ...mapCodeTests(problem.secretTests, 'secret'),
     ...mapCodeTests(codeTestsForVisibility(problem.testCases, true), 'hidden'),
   ];
-  if (secretTests.length === 0) return undefined;
+  if (secretTests.length === 0 && problem.secretTestCode === undefined) return undefined;
   return notebookProblemSecretJudgeSchema.parse({
     language: 'python',
     secretTests,
+    secretTestCode: problem.secretTestCode,
     timeoutMs: problem.timeoutMs,
   });
 }
@@ -264,6 +268,7 @@ function buildPublicContent(
         functionSignature: problem.functionSignature,
         constraints: problem.constraints,
         publicTests,
+        publicTestCode: problem.publicTestCode,
         sampleIO: problem.sampleIO,
         secretConfigPresent: Boolean(secretJudge),
         explanation,
@@ -347,12 +352,12 @@ function buildGrading(
     case 'code':
       return notebookProblemGradingSchema.parse({
         type,
+        solutionCode: firstText(problem.solutionCode, answer) || undefined,
         analysis,
         publishRequirementsMet:
           Boolean(secretJudge) &&
           publicContent.type === 'code' &&
-          Boolean(publicContent.functionSignature) &&
-          publicContent.publicTests.length > 0,
+          Boolean(publicContent.publicTestCode?.trim() || publicContent.publicTests.length),
       });
     case 'proof':
       return notebookProblemGradingSchema.parse({

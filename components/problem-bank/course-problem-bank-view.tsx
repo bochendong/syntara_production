@@ -1,4 +1,5 @@
 'use client';
+import { buildCodeTestFile } from '@/lib/problem-bank/code-test-files';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import {
@@ -37,6 +38,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { AnswerComposer, AnswerComposerToolbar } from '@/components/problem-bank/answer-composer';
+import { ProblemEditDialog } from '@/components/problem-bank/problem-edit-dialog';
 import { ProblemDraftForm } from '@/components/problem-bank/problem-draft-form';
 import { ProblemLanguageToggle } from '@/components/problem-bank/problem-language-toggle';
 import { ProblemChapterManagerDialog } from '@/components/problem-bank/problem-chapter-manager-dialog';
@@ -44,7 +46,7 @@ import { ProblemForumPublishDialog } from '@/components/problem-bank/problem-for
 import { RecentProblemSubmissionsDialog } from '@/components/problem-bank/recent-problem-submissions-dialog';
 import { CodeAnswerEditor, highlightPython } from '@/components/problem-bank/code-answer-editor';
 import { CodeProblemStatement } from '@/components/problem-bank/code-problem-statement';
-import { CommonMathSymbols } from '@/components/problem-bank/common-math-symbols';
+import { MathSymbolPanel } from '@/components/problem-bank/math-symbol-panel';
 import {
   ProblemImageAssets,
   ProblemRichText,
@@ -512,6 +514,7 @@ const AI_HELP_PRACTICE_TAB = 'ai-help' satisfies PracticeAiHelpTab;
 const PROBLEM_INFO_TABS = [
   'description',
   FORMULA_PRACTICE_TAB,
+  'symbols',
   'edit',
 ] as const satisfies readonly ProblemInfoTab[];
 const ANSWER_PANE_TABS = [
@@ -523,7 +526,7 @@ const ANSWER_PANE_TABS = [
 const CODE_PRACTICE_TABS: CodePracticeTab[] = ['testcase', 'secret', 'code', 'output'];
 const PRACTICE_TAB_DRAG_TYPE = 'application/x-syntara-practice-tab';
 const DEFAULT_PRACTICE_PANE_TABS: PracticePaneTabs = {
-  left: ['description', FORMULA_PRACTICE_TAB, 'edit'],
+  left: ['description', FORMULA_PRACTICE_TAB, 'symbols', 'edit'],
   right: ['answer', 'preview', 'history'],
 };
 
@@ -611,8 +614,10 @@ function normalizePracticePaneTabs(
 
   if (supportsFormulaTab) {
     ensureLeftTabAfter(FORMULA_PRACTICE_TAB, 'description');
+    ensureLeftTabAfter('symbols', FORMULA_PRACTICE_TAB);
   } else {
     removeTab(FORMULA_PRACTICE_TAB);
+    removeTab('symbols');
   }
 
   if (canEditProblems && !hideEditTab) {
@@ -683,110 +688,27 @@ function normalizePracticePaneActive(
   };
 }
 
-function extractExecBody(expression: string) {
-  const match = expression.match(/exec\(("(?:(?:\\.)|[^"\\])*")\s*,/);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[1]) as string;
-  } catch {
-    return null;
-  }
-}
-
-function sanitizePythonIdentifier(value: string | undefined, fallback: string) {
-  const normalized = (value || fallback)
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  const safe = normalized || fallback;
-  const prefixed = /^[a-z_]/.test(safe) ? safe : `case_${safe}`;
-  return prefixed.startsWith('test_') ? prefixed : `test_${prefixed}`;
-}
-
-function pythonLiteral(value: unknown): string {
-  if (value === null) return 'None';
-  if (typeof value === 'boolean') return value ? 'True' : 'False';
-  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'None';
-  if (typeof value === 'string') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(pythonLiteral).join(', ')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.entries(value)
-      .map(([key, item]) => `${pythonLiteral(key)}: ${pythonLiteral(item)}`)
-      .join(', ')}}`;
-  }
-  return 'None';
-}
-
-function formatExpectedForPython(expected: string) {
-  try {
-    return pythonLiteral(JSON.parse(expected));
-  } catch {
-    return expected.trim() || 'None';
-  }
-}
-
-function indentPythonBlock(source: string, spaces = 8) {
-  const prefix = ' '.repeat(spaces);
-  return source
-    .trim()
-    .split(/\r?\n/)
-    .map((line) => (line.trim() ? `${prefix}${line}` : ''))
-    .join('\n');
-}
-
-function codeTestMethodSource(testCase: CodeProblemTestCase, index: number) {
-  const methodName = sanitizePythonIdentifier(
-    testCase.id || testCase.description,
-    `case_${index + 1}`,
-  );
-  const recoveredBody = extractExecBody(testCase.expression);
-  const body =
-    recoveredBody?.trim() ||
-    `self.assertEqual(${testCase.expression.trim()}, ${formatExpectedForPython(testCase.expected)})`;
-
-  return [`    def ${methodName}(self):`, indentPythonBlock(body)].join('\n');
-}
-
-function buildCodeTestFile(
-  testCases: CodeProblemTestCase[],
-  fileName: string,
-  className: 'PublicTests' | 'SecretTests',
-) {
-  if (testCases.length === 0) {
-    return [`# ${fileName}`, '', '# No tests available.'].join('\n');
-  }
-
-  return [
-    `# ${fileName}`,
-    'import unittest',
-    'from submission import *',
-    '',
-    '',
-    `class ${className}(unittest.TestCase):`,
-    testCases.map(codeTestMethodSource).join('\n\n'),
-    '',
-    '',
-    'if __name__ == "__main__":',
-    '    unittest.main()',
-  ].join('\n');
-}
-
 function buildCodeTestFiles(
   content: CodeProblemPublicContent,
   secretTests?: CodeProblemTestCase[],
+  secretTestCode?: string,
 ) {
   return {
     publicFile: {
       fileName: 'public_tests.py',
-      code: buildCodeTestFile(content.publicTests, 'public_tests.py', 'PublicTests'),
+      code:
+        content.publicTestCode ??
+        buildCodeTestFile(content.publicTests, 'public_tests.py', 'PublicTests'),
     },
-    secretFile: secretTests?.length
-      ? {
-          fileName: 'secret_tests.py',
-          code: buildCodeTestFile(secretTests, 'secret_tests.py', 'SecretTests'),
-        }
-      : undefined,
+    secretFile:
+      secretTestCode !== undefined || secretTests?.length
+        ? {
+            fileName: 'secret_tests.py',
+            code:
+              secretTestCode ??
+              buildCodeTestFile(secretTests ?? [], 'secret_tests.py', 'SecretTests'),
+          }
+        : undefined,
   };
 }
 
@@ -1348,6 +1270,7 @@ export function CourseProblemBankView({
     typeFilterOptions,
     visibleProblemPreviewDraft,
   } = view;
+  const [editProblemOpen, setEditProblemOpen] = useState(false);
   const [chapterManagerOpen, setChapterManagerOpen] = useState(false);
   const [recentSubmissionsProblem, setRecentSubmissionsProblem] =
     useState<NotebookProblemClientRecord | null>(null);
@@ -1363,7 +1286,9 @@ export function CourseProblemBankView({
   });
   const [draggingPracticeTab, setDraggingPracticeTab] = useState<PracticePanelTab | null>(null);
   const selectedProblemSupportsFormulaTab =
-    !selectedProblem || supportsPhotoAnswer(selectedProblem);
+    !selectedProblem ||
+    selectedProblem.type === 'fill_blank' ||
+    supportsPhotoAnswer(selectedProblem);
   const editingProblemPaneSelected =
     canEditProblems && (practicePaneActive.left === 'edit' || practicePaneActive.right === 'edit');
   const selectedProblemSupportsPreviewTab =
@@ -1441,6 +1366,18 @@ export function CourseProblemBankView({
     },
     [blankAnswers, selectedActiveBlank, selectedProblem, updateSelectedFillBlankAnswer],
   );
+  const insertMathIntoAnswer = (text: string) => {
+    if (submittingAnswer) return;
+    setPracticePaneActive((previous) => ({
+      ...previous,
+      [visiblePracticePaneTabs.left.includes('answer') ? 'left' : 'right']: 'answer',
+    }));
+    if (selectedProblem?.type === 'fill_blank') {
+      insertSymbolIntoActiveBlank(text);
+    } else {
+      insertFormulaIntoAnswer(text);
+    }
+  };
   const latestPracticeDraftSignatureRef = useRef('');
 
   useEffect(() => {
@@ -1464,9 +1401,8 @@ export function CourseProblemBankView({
   const selectedProblemSubmissionCount = selectedProblemAttempts.filter(
     (attempt) => attempt.kind === 'submit' || attempt.kind === 'answer',
   ).length;
-  const selectedProblemHasLimitedSubmissions = selectedProblem
-    ? hasLimitedSubmissions(selectedProblem.type)
-    : false;
+  const selectedProblemHasLimitedSubmissions =
+    selectedProblem && !canEditProblems ? hasLimitedSubmissions(selectedProblem.type) : false;
   const selectedProblemRemainingSubmissions = remainingSubmissions(selectedProblemSubmissionCount);
   const selectedProblemSubmissionLimitReached =
     selectedProblemHasLimitedSubmissions &&
@@ -1510,7 +1446,11 @@ export function CourseProblemBankView({
   );
   const selectedProblemCodeTabs: CodePracticeTab[] =
     selectedProblem?.type === 'code' && selectedProblemContent?.type === 'code'
-      ? canEditProblems && (selectedProblem.secretJudge?.secretTests?.length ?? 0) > 0
+      ? canEditProblems &&
+        Boolean(
+          selectedProblem.secretJudge?.secretTestCode ||
+          (selectedProblem.secretJudge?.secretTests?.length ?? 0) > 0,
+        )
         ? ['testcase', 'secret', 'code', 'output']
         : ['testcase', 'code', 'output']
       : [];
@@ -1520,7 +1460,7 @@ export function CourseProblemBankView({
     canEditProblems,
     selectedProblemSupportsPreviewTab,
     selectedProblemCodeTabs,
-    practiceHeaderPlacement === 'external',
+    true,
     true,
     Boolean(practiceAiHelp),
   );
@@ -1807,6 +1747,8 @@ export function CourseProblemBankView({
     switch (tab) {
       case 'description':
         return locale === 'zh-CN' ? '题目描述' : 'Description';
+      case 'symbols':
+        return locale === 'zh-CN' ? '符号表' : 'Symbols';
       case 'formula':
         return locale === 'zh-CN' ? '公式表' : 'Formula';
       case 'edit':
@@ -1848,6 +1790,7 @@ export function CourseProblemBankView({
           Icon: Type,
           iconClassName: 'text-sky-600 dark:text-sky-300',
         };
+      case 'symbols':
       case 'formula':
         return {
           label,
@@ -2153,7 +2096,13 @@ export function CourseProblemBankView({
             </div>
           </div>
         ) : tab === 'formula' ? (
-          <FormulaReferencePanel locale={locale} onInsert={insertFormulaIntoAnswer} />
+          <FormulaReferencePanel locale={locale} onInsert={insertMathIntoAnswer} />
+        ) : tab === 'symbols' ? (
+          <MathSymbolPanel
+            locale={locale}
+            disabled={submittingAnswer}
+            onInsert={insertMathIntoAnswer}
+          />
         ) : canEditProblems && selectedProblemEditDraft ? (
           <ProblemDraftForm
             key={`${selectedProblemEditDraft.draftId}-${selectedProblem.updatedAt}`}
@@ -2312,12 +2261,6 @@ export function CourseProblemBankView({
                       />
                     </div>
                   ) : null}
-                  <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
-                    <p className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {locale === 'zh-CN' ? '常用数学符号' : 'Common math symbols'}
-                    </p>
-                    <CommonMathSymbols locale={locale} onInsert={insertSymbolIntoActiveBlank} />
-                  </div>
                 </div>
               </div>
             ) : selectedProblem.type === 'code' && selectedProblemContent?.type === 'code' ? (
@@ -2398,6 +2341,7 @@ export function CourseProblemBankView({
                 </Button>
                 {selectedAnswerFeedback ? (
                   <AnswerFeedbackSummaryBadge
+                    showScore={!canEditProblems}
                     feedback={selectedAnswerFeedback}
                     points={selectedProblemPoints}
                     locale={locale}
@@ -2408,6 +2352,7 @@ export function CourseProblemBankView({
             ) : null}
             {selectedAnswerFeedback && !supportsPhotoAnswer(selectedProblem) ? (
               <AnswerFeedbackSummaryBadge
+                showScore={!canEditProblems}
                 feedback={selectedAnswerFeedback}
                 points={selectedProblemPoints}
                 locale={locale}
@@ -2553,6 +2498,7 @@ export function CourseProblemBankView({
     const testFiles = buildCodeTestFiles(
       selectedProblemContent,
       canEditProblems ? selectedProblem.secretJudge?.secretTests : undefined,
+      canEditProblems ? selectedProblem.secretJudge?.secretTestCode : undefined,
     );
     return (
       <CodeTestcasePanel
@@ -2645,7 +2591,19 @@ export function CourseProblemBankView({
           forumCount={forumCount}
           previewMode={previewMode}
           actions={courseSpaceHeaderActions}
-          beforeTitleActions={isPracticeMode ? problemSubmissionStatus : undefined}
+          beforeTitleActions={
+            isPracticeMode ? (
+              <div className="flex items-center gap-2">
+                {canEditProblems && selectedProblem ? (
+                  <Button variant="outline" size="sm" onClick={() => setEditProblemOpen(true)}>
+                    <SlidersHorizontal className="mr-1.5 size-3.5" />
+                    {locale === 'zh-CN' ? '编辑题目' : 'Edit problem'}
+                  </Button>
+                ) : null}
+                {problemSubmissionStatus}
+              </div>
+            ) : undefined
+          }
           trailingActions={isPracticeMode ? problemSubmissionActions : undefined}
         />
       ) : null}
@@ -3338,6 +3296,15 @@ export function CourseProblemBankView({
           </div>
         ) : null}
       </div>
+      <ProblemEditDialog
+        key={selectedProblem?.id ?? 'no-problem'}
+        open={editProblemOpen && canEditProblems && Boolean(selectedProblem)}
+        onOpenChange={setEditProblemOpen}
+        locale={locale}
+        problem={selectedProblem}
+        chapters={problemChapters}
+        onSave={handleUpdateProblem}
+      />
       <ProblemChapterManagerDialog
         open={chapterManagerOpen}
         onOpenChange={setChapterManagerOpen}

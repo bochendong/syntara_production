@@ -1,0 +1,9 @@
+.preview {
+  --ai-light-strength: 0.5;
+  min-height: 100dvh;
+  padding-bottom: 96px;
+}
+
+.preview[data-light-mode='bright'] {
+  --ai-light-strength: 1;
+}

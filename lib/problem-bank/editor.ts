@@ -54,8 +54,7 @@ export function problemDraftToPatch(draft: NotebookProblemImportDraft) {
     draft.sourceMeta.preserveExistingSecretJudge === true;
   const hasProvidedSecretTests =
     draft.secretJudge &&
-    Array.isArray(draft.secretJudge.secretTests) &&
-    draft.secretJudge.secretTests.length > 0;
+    (draft.secretJudge.secretTestCode !== undefined || draft.secretJudge.secretTests.length > 0);
 
   if (draft.type === 'code') {
     if (hasProvidedSecretTests) {

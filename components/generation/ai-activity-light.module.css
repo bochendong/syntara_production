@@ -1,0 +1,63 @@
+.light {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.light::before,
+.light::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  animation: light-pass 5.2s cubic-bezier(0.37, 0, 0.23, 1) infinite;
+  opacity: var(--ai-light-strength, 1);
+}
+
+/* A wide, translucent wake gives the thin beam a little depth. */
+.light::before {
+  background: linear-gradient(
+    105deg,
+    transparent 34%,
+    rgb(56 189 248 / 0.02) 39%,
+    rgb(45 212 191 / 0.14) 46%,
+    rgb(125 211 252 / 0.29) 51%,
+    rgb(167 139 250 / 0.12) 56%,
+    transparent 63%
+  );
+}
+
+.light::after {
+  top: auto;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 27%,
+    rgb(45 212 191 / 0.1) 35%,
+    #2dd4bf 45%,
+    #7dd3fc 51%,
+    #a78bfa 56%,
+    transparent 66%
+  );
+  box-shadow: 0 -2px 12px rgb(56 189 248 / 0.12);
+}
+
+@keyframes light-pass {
+  0% {
+    transform: translateX(-85%);
+  }
+  72%,
+  100% {
+    transform: translateX(85%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .light::before,
+  .light::after {
+    animation: none;
+    transform: none;
+  }
+}

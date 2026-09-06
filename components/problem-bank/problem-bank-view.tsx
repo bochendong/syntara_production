@@ -1405,7 +1405,16 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                         <code>{codeContent.functionSignature}</code>
                       </div>
                     ) : null}
-                    {codeContent.publicTests.length > 0 ? (
+                    {codeContent.publicTestCode !== undefined ? (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">
+                          {locale === 'zh-CN' ? '公开测试' : 'Public tests'}
+                        </p>
+                        <pre className="overflow-auto rounded-lg border p-3 text-xs">
+                          <code>{codeContent.publicTestCode}</code>
+                        </pre>
+                      </div>
+                    ) : codeContent.publicTests.length > 0 ? (
                       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-950/40">
                         <div className="mb-2 font-medium">
                           {locale === 'zh-CN' ? '公开测试' : 'Public tests'}

@@ -1,3 +1,4 @@
+import { LOCAL_DEMO_CODE_FIXTURES } from './local-demo-code-fixtures';
 import type { NotebookProblemPublicCode } from '@/lib/problem-bank/schema';
 import type {
   CourseProblemChapter,
@@ -49,6 +50,68 @@ function baseProblem(
 }
 
 const CSC148_DEMO_PROBLEMS: NotebookProblemClientRecord[] = [
+  ...LOCAL_DEMO_CODE_FIXTURES.map((fixture, index) =>
+    baseProblem({
+      id: `demo-csc148-problem-${fixture.slug}`,
+      notebookId: CSC148_NOTEBOOKS.memory.id,
+      notebookName: CSC148_NOTEBOOKS.memory.name,
+      title: fixture.title,
+      type: 'code',
+      status: 'published',
+      source: 'manual',
+      order: 15 + index,
+      points: 100,
+      difficulty: 'medium',
+      tags: [],
+      publicContent: {
+        type: 'code',
+        stem: fixture.stem,
+        language: 'python',
+        runnerAdapter: 'python-unittest',
+        starterCode: fixture.starterCode,
+        publicTestCode: fixture.publicTestCode,
+        publicTests: [],
+        constraints: [],
+        sampleIO: [],
+        secretConfigPresent: true,
+      },
+      grading: { type: 'code', solutionCode: fixture.solutionCode, publishRequirementsMet: true },
+      secretJudge: {
+        language: 'python',
+        secretTestCode: fixture.secretTestCode,
+        secretTests: [],
+        timeoutMs: 5000,
+      },
+    }),
+  ),
+  baseProblem({
+    id: 'demo-csc148-problem-choice-multiple',
+    notebookId: CSC148_NOTEBOOKS.memory.id,
+    notebookName: CSC148_NOTEBOOKS.memory.name,
+    title: '【多选】列表引用与可变对象',
+    type: 'choice',
+    status: 'published',
+    source: 'manual',
+    order: 14,
+    problemNumber: 14,
+    points: 10,
+    tags: ['多选', '引用', '可变对象'],
+    difficulty: 'medium',
+    publicContent: {
+      type: 'choice',
+      stem: '执行 `a = [[1], [2]]`、`b = a[:]` 后，下列说法哪些正确？请选择所有正确选项。',
+      selectionMode: 'multiple',
+      options: [
+        { id: 'a', label: '`a is b` 的结果为 `False`。' },
+        { id: 'b', label: '`a[0] is b[0]` 的结果为 `True`。' },
+        { id: 'c', label: '执行 `b[0].append(3)` 后，`a[0]` 仍为 `[1]`。' },
+        { id: 'd', label: '执行 `b.append([4])` 不会改变 `a` 的长度。' },
+      ],
+      explanation:
+        '切片创建新的外层列表，但内层列表仍共享引用。修改内层对象会影响两者，向外层列表追加元素则不会。',
+    },
+    grading: { type: 'choice', correctOptionIds: ['a', 'b', 'd'] },
+  }),
   baseProblem({
     id: 'demo-csc148-problem-choice-memory',
     notebookId: CSC148_NOTEBOOKS.memory.id,

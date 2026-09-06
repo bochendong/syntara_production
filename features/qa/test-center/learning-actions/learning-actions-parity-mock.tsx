@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import {
   LearnLearningActionCards,
   MiniLectureInviteCard,
@@ -55,6 +57,7 @@ const learningActions = [
 ] as unknown as LearningAction[];
 
 export function LearningActionsParityMock() {
+  const [lectureStatus, setLectureStatus] = useState('idle');
   return (
     <main className="min-h-screen bg-[#f5f5f5] p-6 text-slate-950">
       <div className="mx-auto grid max-w-[620px] gap-5">
@@ -62,10 +65,30 @@ export function LearningActionsParityMock() {
           <p className="mb-3 text-xs font-semibold text-slate-500">课堂讲解</p>
           <MiniLectureInviteCard
             prompt={lecturePrompt}
-            generating={false}
-            onGenerate={() => undefined}
+            generating={lectureStatus !== 'idle'}
+            job={{ id: 'qa-mini-lecture', status: lectureStatus }}
+            onGenerate={() => setLectureStatus('queued')}
             onOpen={() => undefined}
           />
+          <div className="mt-3 flex flex-wrap gap-3 text-xs">
+            {['idle', 'queued', 'running', 'completed'].map((status) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => setLectureStatus(status)}
+                className="rounded border px-2 py-1"
+              >
+                {
+                  {
+                    idle: '重置',
+                    queued: '模拟排队',
+                    running: '模拟生成',
+                    completed: '模拟准备播放',
+                  }[status]
+                }
+              </button>
+            ))}
+          </div>
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5">

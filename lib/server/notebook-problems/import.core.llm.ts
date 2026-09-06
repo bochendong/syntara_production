@@ -322,6 +322,10 @@ function codeRepairDraftFromRaw(
         responseKind: 'code_submission',
         runnerAdapter: 'python-unittest',
         publicTests,
+        publicTestCode:
+          publicPatch.publicTestCode ??
+          record.publicTestCode ??
+          original.publicContent.publicTestCode,
         secretConfigPresent: true,
       },
       grading: {
@@ -338,6 +342,10 @@ function codeRepairDraftFromRaw(
         language: 'python',
         runnerAdapter: 'python-unittest',
         secretTests,
+        secretTestCode:
+          secretPatch.secretTestCode ??
+          record.secretTestCode ??
+          original.secretJudge?.secretTestCode,
         timeoutMs: original.secretJudge?.timeoutMs ?? 5000,
       },
       validationErrors: withoutCodeReadinessErrors(original.validationErrors),
@@ -491,14 +499,11 @@ export async function ensureImportedCodeDraftsJudgeReady(args: {
       ? `修复下面这些代码题，使它们符合平台判题契约。只返回严格 JSON 数组，不要 markdown。
 
 返回最小补丁格式：
-[{"draftId":"原 draftId","functionSignature":"def name(arg: Type) -> ReturnType:","starterCode":"含类型注解、docstring 和 pass 的代码","statementSections":[{"id":"overview","title":"描述","kind":"overview","body":"..."},{"id":"requirements","title":"要求","kind":"requirements","items":["..."]},{"id":"interface","title":"函数接口","kind":"interface","code":"def name(arg: Type) -> ReturnType:","codeLanguage":"python"},{"id":"examples","title":"示例","kind":"examples","body":"..."},{"id":"constraints","title":"约束","kind":"constraints","items":["..."]}],"solutionCode":"完整 Python 代码","publicTests":[{"id":"有意义的 snake_case 场景名","description":"...","expression":"name(...) ","expected":"JSON 或 Python 字面量"}],"secretTests":[...]}]
+[{"draftId":"original draftId","starterCode":"complete student scaffold with imports","solutionCode":"complete reference module","publicTestCode":"import unittest ... complete test source importing from submission","secretTestCode":"import unittest ... complete hidden test source importing from submission","statementSections":[...]}]
 
 平台契约：
-- 学生提交一个 Python 函数；输入只能来自函数参数，结果只能通过 return 返回。
+- code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
 - 不支持 input、stdin、print 输出判分或文件读写。如果原题使用这些接口，等价改写函数签名和题面，保留核心考点。
-- 每题必须提供完整 solutionCode、有效 functionSignature、至少 2 个 publicTests 和 3 个 secretTests。
-- testcase 是固定 unittest 文件的结构化输入：expression 只能是一条目标函数调用，expected 是返回值；不得在测试中使用 assert、print、input、open、导入或多行代码。
-- publicTests 会编译为 public_tests.py / PublicTests，secretTests 会编译为 secret_tests.py / SecretTests；两者都使用 from submission import *、self.assertEqual(...) 和 unittest.main()。
 - starterCode 必须包含参数与返回类型注解、完整 docstring 和 pass；题面必须使用 LeetCode 式 statementSections，覆盖描述、要求、接口、示例和约束。
 - 测试覆盖普通情况、边界情况和容易写错的情况；public 与 secret 不重复。
 - 修复后的 solutionCode 必须能通过你返回的全部测试。
@@ -515,14 +520,11 @@ ${JSON.stringify(
       : `Repair these code problems so they satisfy the platform judging contract. Return a strict JSON array only.
 
 Return minimal patches:
-[{"draftId":"original draftId","functionSignature":"def name(arg: Type) -> ReturnType:","starterCode":"annotated signature, complete docstring, and pass","statementSections":[{"id":"overview","title":"Description","kind":"overview","body":"..."},{"id":"requirements","title":"Requirements","kind":"requirements","items":["..."]},{"id":"interface","title":"Function interface","kind":"interface","code":"def name(arg: Type) -> ReturnType:","codeLanguage":"python"},{"id":"examples","title":"Examples","kind":"examples","body":"..."},{"id":"constraints","title":"Constraints","kind":"constraints","items":["..."]}],"solutionCode":"complete Python code","publicTests":[{"id":"meaningful_snake_case_scenario","description":"...","expression":"name(...) ","expected":"JSON or Python literal"}],"secretTests":[...]}]
+[{"draftId":"original draftId","starterCode":"complete student scaffold with imports","solutionCode":"complete reference module","publicTestCode":"import unittest ... complete test source importing from submission","secretTestCode":"import unittest ... complete hidden test source importing from submission","statementSections":[...]}]
 
 Contract:
-- A student submits a Python function. Inputs come only from function parameters and results are returned with return.
+- Code supports function and class implementations, including regex used inside functions. Generate publicContent.starterCode (imports, interface, docstrings), grading.solutionCode, publicContent.publicTestCode and secretJudge.secretTestCode together. Both test fields are complete Python unittest source strings with at least 2 public and 3 secret test_ methods. The platform saves the complete submission as submission.py. AI writes import unittest and from submission import the_interface_name in tests, matching starter and solution interfaces; AI includes re/typing imports in each file that uses them. Test object state, method sequences, exceptions and return values. Do not generate expression/expected arrays, pytest, third-party dependencies, empty tests, skips or expected failures. The reference must pass all tests; tests must reject the unimplemented starter. Cover valid, invalid and boundary examples.
 - stdin, input(), print-based grading, and file I/O are unsupported. Adapt those interfaces while preserving the assessed concept.
-- Include complete solutionCode, a valid functionSignature, at least 2 publicTests, and at least 3 secretTests.
-- Testcases are structured inputs for fixed unittest files. expression is one target-function call and expected is the returned value; do not use assert, print, input, open, imports, or multiline code.
-- publicTests compile to public_tests.py / PublicTests and secretTests compile to secret_tests.py / SecretTests using from submission import *, self.assertEqual(...), and unittest.main().
 - starterCode must contain annotated parameter and return types, a complete docstring, and pass. Use LeetCode-style statementSections for overview, requirements, interface, examples, and constraints.
 - Cover normal, boundary, and plausible wrong-answer cases. Public and secret tests must not duplicate each other.
 - The returned solutionCode must pass every returned test.
@@ -1046,12 +1048,12 @@ Record the printed total points for every problem as points. Return: {"sourceSum
           ? `现在只处理下列 ${batch.length} 道顶层题：${batchOutline}
 请回到附件指定页面，完整转写印刷题面，并独立解出每道题。忽略学生手写、勾选、阅卷痕迹、得分和评分反馈；不得把它们当成标准答案。
 必须恰好返回 ${batch.length} 个题目草稿，顺序与目录一致，小问保留在同一道题中。每题 sourceMeta.scaffoldIndex 填对应 index，并保留目录中的原卷分值。
-每道题都必须有可判分答案。保持原题的作答方式与认知要求；代码输出预测和报错判断属于 code_reading，不得误做成代码编辑器题。代码题只用于函数实现，必须使用参数输入、return 输出，提供 LeetCode 式题面、带类型注解和 docstring 的 starterCode、完整 solutionCode、functionSignature、至少 2 个 public tests 和 3 个 secret tests，且参考答案能通过全部 unittest。input、stdin、print 判分和文件读写必须等价改写。
+每道题都必须有可判分答案。保持原题的作答方式与认知要求；代码输出预测和报错判断属于 code_reading，不得误做成代码编辑器题。代码题用于函数或 class 实现，AI 负责在初始代码、参考实现和测试文件中生成匹配的 imports 与接口，提供 LeetCode 式题面、带类型注解和 docstring 的 starterCode、完整 solutionCode、publicTestCode 和 secretTestCode 完整 unittest 文件，且参考答案能通过全部 unittest。input、stdin、print 判分和文件读写必须等价改写。
 只返回严格 JSON 数组。`
           : `Process only these ${batch.length} top-level problems: ${batchOutline}
 Return to the cited pages, transcribe the complete printed prompt, and independently solve every problem. Ignore handwriting, marked bubbles, grading marks, scores, and grader feedback; none is an answer source.
 Return exactly ${batch.length} drafts in the same order, with subparts kept in their top-level problem. Set sourceMeta.scaffoldIndex to the corresponding index and preserve the printed points from the outline.
-Every problem must have a gradable answer. Preserve the original response demand and cognitive load; code-output prediction and error diagnosis are code_reading, not code-editor tasks. Code is only for function implementation with parameter inputs and return output, a LeetCode-style statement, annotated starterCode with a docstring, complete solutionCode, functionSignature, at least 2 public tests and 3 secret tests, and a solution that passes all unittests. Equivalently adapt input(), stdin, print-based grading, and file I/O. Return a strict JSON array only.`;
+Every problem must have a gradable answer. Preserve the original response demand and cognitive load; code-output prediction and error diagnosis are code_reading, not code-editor tasks. Code supports function and class implementations with matching imports and interfaces, a LeetCode-style statement, annotated starterCode with a docstring, complete solutionCode, complete publicTestCode and secretTestCode unittest files, and a solution that passes all unittests. Equivalently adapt input(), stdin, print-based grading, and file I/O. Return a strict JSON array only.`;
 
       let bestDrafts: NotebookProblemImportDraft[] = [];
       let batchUsage: ImportUsageSummary | null = null;

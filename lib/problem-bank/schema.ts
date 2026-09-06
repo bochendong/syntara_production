@@ -197,6 +197,7 @@ export const notebookProblemPublicCodeSchema = notebookProblemPublicBaseSchema.e
   starterCode: z.string().max(40000).optional(),
   functionSignature: z.string().trim().min(1).max(4000).optional(),
   constraints: z.array(z.string().trim().min(1).max(500)).max(16).default([]),
+  publicTestCode: z.string().max(80000).optional(),
   publicTests: z.array(notebookCodeTestSchema).max(24).default([]),
   sampleIO: z.array(notebookCodeSampleIoSchema).max(12).default([]),
   statementSections: z.array(notebookCodeStatementSectionSchema).max(10).optional(),
@@ -306,6 +307,7 @@ export const notebookProblemGradingSchema = z.discriminatedUnion('type', [
 export const notebookProblemSecretJudgeSchema = z.object({
   language: z.string().trim().min(1).max(40).default('python'),
   runnerAdapter: z.string().trim().min(1).max(80).optional(),
+  secretTestCode: z.string().max(80000).optional(),
   secretTests: z.array(notebookCodeTestSchema).max(48).default([]),
   timeoutMs: z.number().int().positive().max(20000).default(5000),
 });
