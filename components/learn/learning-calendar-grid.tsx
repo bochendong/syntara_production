@@ -121,6 +121,7 @@ export function LearningCalendarGrid({
   maxVisibleItems = 3,
   className,
   onSelectEvent,
+  onSelectDate,
 }: {
   days: LearningCalendarDay[];
   plansByCalendarDay?: Map<string, PracticePlan[]>;
@@ -128,6 +129,7 @@ export function LearningCalendarGrid({
   isResearchCourse: boolean;
   maxVisibleItems?: number;
   className?: string;
+  onSelectDate?: (date: string) => void;
   onSelectEvent?: (event: SyllabusCalendarEvent) => void;
 }) {
   return (
@@ -163,18 +165,30 @@ export function LearningCalendarGrid({
               pillClassName: eventPillTone(event.kind),
             })),
           ];
-          const visibleItems = items.slice(0, maxVisibleItems);
+          const visibleItems = onSelectEvent ? items : items.slice(0, maxVisibleItems);
           const hiddenItemCount = items.length - visibleItems.length;
 
           return (
             <div
               key={day.key}
               className={cn(
-                'min-h-0 border-b border-r border-black/[0.07] px-2 py-2 last:border-r-0',
+                'flex min-h-0 flex-col border-b border-r border-black/[0.07] px-2 py-2 last:border-r-0',
                 !day.inMonth ? 'bg-[#f7f7fa]' : 'bg-white',
               )}
             >
-              <div className="flex justify-end">
+              <div className="flex shrink-0 items-center justify-between">
+                {onSelectDate ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelectDate(day.key)}
+                    aria-label={`在 ${day.key} 新建日程`}
+                    className="grid size-7 place-items-center rounded-full text-slate-400 hover:bg-sky-50 hover:text-sky-600"
+                  >
+                    +
+                  </button>
+                ) : (
+                  <span />
+                )}
                 <span
                   className={cn(
                     'grid size-7 place-items-center rounded-full text-sm font-semibold leading-none',
@@ -186,7 +200,7 @@ export function LearningCalendarGrid({
                 </span>
               </div>
 
-              <div className="mt-1 space-y-0.5 overflow-hidden">
+              <div className="mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
                 {visibleItems.map((item) => {
                   const itemClassName = cn(
                     'flex h-4 w-full min-w-0 items-center gap-1 rounded-[4px] px-1 text-left text-[8px] font-medium leading-none outline-none',

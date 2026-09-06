@@ -1,4 +1,5 @@
 'use client';
+import { notifyLearningCalendarChanged } from './calendar-changes';
 
 import type {
   SyllabusCalendarEvent,
@@ -374,7 +375,9 @@ export async function createLearningCalendarEvents(args: {
     signal: args.signal,
     timeoutMs: CALENDAR_API_TIMEOUT_MS,
   });
-  return parseMutationResponse(response, CALENDAR_API_PATH);
+  const result = parseMutationResponse(response, CALENDAR_API_PATH);
+  notifyLearningCalendarChanged();
+  return result;
 }
 
 export async function updateLearningCalendarEvent(args: {
@@ -395,7 +398,9 @@ export async function updateLearningCalendarEvent(args: {
     signal: args.signal,
     timeoutMs: CALENDAR_API_TIMEOUT_MS,
   });
-  return parseSingleMutationResponse(response, path);
+  const result = parseSingleMutationResponse(response, path);
+  notifyLearningCalendarChanged();
+  return result;
 }
 
 export async function deleteLearningCalendarEvent(args: {
@@ -412,7 +417,9 @@ export async function deleteLearningCalendarEvent(args: {
     signal: args.signal,
     timeoutMs: CALENDAR_API_TIMEOUT_MS,
   });
-  return parseDeleteResponse(response, path);
+  const result = parseDeleteResponse(response, path);
+  notifyLearningCalendarChanged();
+  return result;
 }
 
 function normalizedSearchTerms(query: string): string[] {

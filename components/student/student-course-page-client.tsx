@@ -1,6 +1,13 @@
 'use client';
 
+import { SYNTARA_DIALOG_VIEWPORT_STYLE } from '@/components/ui/syntara-dialog-style';
+
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
+const StudentNotebookDialog = dynamic(
+  () => import('./student-notebook-dialog').then((module) => module.StudentNotebookDialog),
+  { ssr: false },
+);
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -114,6 +121,9 @@ export function StudentCoursePageClient({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [unresolvedForumCount, setUnresolvedForumCount] = useState(0);
+  const [readingNotebook, setReadingNotebook] = useState<
+    StudentCoursePayload['notebooks'][number] | null
+  >(null);
   const [mindMapNotebook, setMindMapNotebook] = useState<
     StudentCoursePayload['notebooks'][number] | null
   >(null);
@@ -358,10 +368,7 @@ export function StudentCoursePageClient({
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {notebook.unlocked ? (
-                      <Button
-                        variant="outline"
-                        onClick={() => router.push(`/classroom/${encodeURIComponent(notebook.id)}`)}
-                      >
+                      <Button variant="outline" onClick={() => setReadingNotebook(notebook)}>
                         <BookOpen className="mr-2 size-4" />
                         查看笔记本
                       </Button>
@@ -389,6 +396,13 @@ export function StudentCoursePageClient({
         </section>
       </div>
 
+      {readingNotebook ? (
+        <StudentNotebookDialog
+          notebook={readingNotebook}
+          onClose={() => setReadingNotebook(null)}
+          preview={mockMode}
+        />
+      ) : null}
       {mindMapNotebook ? (
         <div
           className="fixed inset-0 z-[1700] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm"
@@ -396,7 +410,10 @@ export function StudentCoursePageClient({
           aria-modal="true"
           aria-label={`${mindMapNotebook.title} 思维导图`}
         >
-          <div className="flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+          <div
+            style={SYNTARA_DIALOG_VIEWPORT_STYLE}
+            className="flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+          >
             <div className="flex items-center justify-between border-b px-5 py-4">
               <div>
                 <p className="font-semibold">{mindMapNotebook.title}</p>

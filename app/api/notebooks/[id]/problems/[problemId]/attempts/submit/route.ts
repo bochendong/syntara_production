@@ -1,3 +1,5 @@
+import { isValidPhotoAnswerUpload } from '@/lib/problem-bank/photo-answer';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -22,12 +24,22 @@ import {
   STANDARD_PROBLEM_POINTS,
 } from '@/lib/problem-bank/scoring-policy';
 
+export const maxDuration = 300;
+
 const submitSchema = z.object({
   text: z.string().max(40000).optional(),
   selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
   blanks: z.record(z.string(), z.string().max(4000)).optional(),
   code: z.string().max(120000).optional(),
-  images: z.array(notebookProblemAttemptImageSchema).max(4).optional(),
+  images: z
+    .array(
+      notebookProblemAttemptImageSchema.refine(
+        isValidPhotoAnswerUpload,
+        '图片格式不支持或过大，请重新选择照片上传。',
+      ),
+    )
+    .max(4)
+    .optional(),
   language: z.enum(['zh-CN', 'en-US']).default('zh-CN'),
   activeDurationMs: z.number().int().min(0).max(14_400_000).optional(),
 });
@@ -118,11 +130,7 @@ export async function POST(
         if (
           loaded.problem.type === 'choice' ||
           loaded.problem.type === 'fill_blank' ||
-          ((loaded.problem.type === 'calculation' ||
-            loaded.problem.type === 'short_answer' ||
-            loaded.problem.type === 'proof') &&
-            (answer.images?.length ?? 0) > 0 &&
-            !(answer.text ?? '').trim())
+          (loaded.problem.type === 'calculation' && !answer.images?.length)
         ) {
           return evaluateNotebookNonCodeProblem({
             problem: scoringProblem,
@@ -142,6 +150,12 @@ export async function POST(
         });
       },
     );
+    if (evaluated.status === 'error' && loaded.problem.type !== 'code') {
+      return NextResponse.json(
+        { code: 'GRADING_FAILED', error: evaluated.result.feedback || 'AI 批改失败，请稍后重试。' },
+        { status: 422 },
+      );
+    }
     const scored = applySubmissionScorePolicy({
       type: loaded.problem.type,
       attemptNumber,

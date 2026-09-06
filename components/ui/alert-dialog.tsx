@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import {
   SYNTARA_COMPACT_DIALOG_CONTENT_CLASS,
   SYNTARA_DIALOG_OVERLAY_CLASS,
+  SYNTARA_DIALOG_VIEWPORT_STYLE,
 } from '@/components/ui/syntara-dialog-style';
 
 function AlertDialog({ ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
@@ -43,6 +44,7 @@ function AlertDialogOverlay({
 
 function AlertDialogContent({
   className,
+  style,
   size = 'default',
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
@@ -61,6 +63,7 @@ function AlertDialogContent({
           className,
         )}
         {...props}
+        style={{ ...style, ...SYNTARA_DIALOG_VIEWPORT_STYLE }}
       />
     </AlertDialogPortal>
   );
@@ -84,7 +87,7 @@ function AlertDialogFooter({ className, ...props }: React.ComponentProps<'div'>)
     <div
       data-slot="alert-dialog-footer"
       className={cn(
-        'flex flex-col-reverse gap-2 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end',
+        'mt-auto shrink-0 flex flex-col-reverse gap-2 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end',
         className,
       )}
       {...props}

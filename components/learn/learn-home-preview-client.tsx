@@ -1,5 +1,7 @@
 'use client';
 
+import { SYNTARA_DIALOG_VIEWPORT_STYLE } from '@/components/ui/syntara-dialog-style';
+
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import {
@@ -28,7 +30,10 @@ export function LearnHomePreviewClient() {
           aria-modal="true"
           aria-label={dialog === 'calendar' ? '学习日历预览' : '新建课程预览'}
         >
-          <div className="w-full max-w-sm rounded-[28px] border border-white/55 bg-white/88 p-6 text-slate-900 shadow-2xl backdrop-blur-2xl">
+          <div
+            style={SYNTARA_DIALOG_VIEWPORT_STYLE}
+            className="w-full max-w-sm rounded-[28px] border border-white/55 bg-white/88 p-6 text-slate-900 shadow-2xl backdrop-blur-2xl"
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-lg font-semibold">

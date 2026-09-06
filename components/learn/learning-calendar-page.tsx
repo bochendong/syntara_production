@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -46,6 +46,7 @@ import type {
 import { makeLearningCalendarIdempotencyKey } from '@/features/learning-calendar/client/calendar-api';
 import { useLearningCalendarRange } from '@/features/learning-calendar/client/use-learning-calendar-range';
 import { cn } from '@/lib/utils';
+import { listCoursesOrThrow } from '@/lib/utils/course-storage';
 
 const EVENT_KINDS: Array<{
   value: SyllabusEventKind;
@@ -66,6 +67,8 @@ type EventDraft = {
   date: string;
   kind: SyllabusEventKind;
   durationMinutes: string;
+  courseId: string;
+  start: string;
 };
 
 function localDateKey(date: Date): string {
@@ -81,6 +84,8 @@ function newDraft(date = new Date()): EventDraft {
     date: localDateKey(date),
     kind: 'progress',
     durationMinutes: '45',
+    courseId: '',
+    start: '',
   };
 }
 
@@ -151,7 +156,29 @@ export function LearningCalendarPage() {
   return <LearningCalendarSurface key={preview ? 'preview' : 'saved'} preview={preview} />;
 }
 
-function LearningCalendarSurface({ preview }: { preview: boolean }) {
+export function LearningCalendarSurface({
+  preview = false,
+  course,
+  onClose,
+}: {
+  preview?: boolean;
+  course?: { id: string; name: string };
+  onClose?: () => void;
+}) {
+  const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
+  const [courseError, setCourseError] = useState<string | null>(null);
+  const savingRef = useRef(false);
+  useEffect(() => {
+    if (preview || course) return;
+    const controller = new AbortController();
+    void listCoursesOrThrow({ signal: controller.signal })
+      .then(setCourses)
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setCourseError('课程列表加载失败；仍可添加个人日程，请刷新后重试课程日程。');
+      });
+    return () => controller.abort();
+  }, [course, preview]);
   const [referenceDate, setReferenceDate] = useState(() => new Date());
   const [previewSeed] = useState<SyllabusCalendarEvent[]>(() =>
     preview ? previewEvents(new Date()) : [],
@@ -175,6 +202,7 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
   } = useLearningCalendarRange({
     referenceDate,
     rangeMode: 'month',
+    courseId: course?.id,
     enabled: !preview,
     previewEvents: preview ? previewSeed : undefined,
   });
@@ -201,12 +229,12 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
       2,
       '0',
     )}`;
-    return visibleEvents.filter((event) => event.date.startsWith(prefix)).slice(0, 8);
+    return visibleEvents.filter((event) => event.date.startsWith(prefix));
   }, [referenceDate, visibleEvents]);
 
-  const openCreate = () => {
+  const openCreate = (date?: string) => {
     setMutationError(null);
-    setDraft(newDraft(referenceDate));
+    setDraft({ ...newDraft(referenceDate), ...(date ? { date } : {}), courseId: course?.id || '' });
     setDialogOpen(true);
   };
 
@@ -218,16 +246,26 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
       date: event.date,
       kind: event.kind,
       durationMinutes: String(event.durationMinutes || 45),
+      courseId: event.courseId || '',
+      start: event.start || '',
     });
     setDialogOpen(true);
   };
 
   const commitDraft = async () => {
     const title = draft.title.trim();
-    if (!title || !draft.date) return;
+    if (savingRef.current || !title || !draft.date) return;
     const duration = Number(draft.durationMinutes);
     const existing = draft.id ? events.find((event) => event.id === draft.id) : null;
-    const durationMinutes = Number.isFinite(duration) ? Math.max(5, Math.round(duration)) : 45;
+    if (!Number.isInteger(duration) || duration < 5 || duration > 1440) {
+      setMutationError('时长需要在 5 到 1440 分钟之间。');
+      return;
+    }
+    const durationMinutes = duration;
+    const courseId = course?.id || draft.courseId || null;
+    const sourceName =
+      course?.name || courses.find((item) => item.id === courseId)?.name || '个人日程';
+    savingRef.current = true;
     setSaving(true);
     setMutationError(null);
     try {
@@ -239,6 +277,9 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
             date: draft.date,
             kind: draft.kind,
             durationMinutes,
+            courseId,
+            ...(courseId !== (existing.courseId || null) ? { sourceName } : {}),
+            start: draft.start || null,
           },
           {
             idempotencyKey: makeLearningCalendarIdempotencyKey(
@@ -257,7 +298,9 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
               title,
               date: draft.date,
               kind: draft.kind,
-              sourceName: '我的学习',
+              sourceName,
+              courseId: courseId || undefined,
+              start: draft.start || undefined,
               origin: 'manual',
               sourceRef: { type: 'manual', id: 'account-calendar' },
               durationMinutes,
@@ -279,14 +322,16 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
         saveError instanceof Error ? saveError.message : '保存失败，请检查网络后重试。',
       );
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   const deleteDraft = async () => {
-    if (!draft.id) return;
+    if (savingRef.current || !draft.id) return;
     const existing = events.find((event) => event.id === draft.id);
     if (!existing) return;
+    savingRef.current = true;
     setSaving(true);
     setMutationError(null);
     try {
@@ -302,29 +347,39 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
         deleteError instanceof Error ? deleteError.message : '删除失败，请检查网络后重试。',
       );
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   return (
-    <div className="flex h-full min-h-[680px] w-full overflow-hidden bg-white text-slate-950 shadow-[0_0_0_1px_rgba(15,23,42,0.06)] max-[860px]:flex-col">
+    <div className="flex h-full min-h-0 w-full overflow-hidden bg-white text-slate-950 shadow-[0_0_0_1px_rgba(15,23,42,0.06)] max-[860px]:flex-col">
       <aside className="flex w-[230px] shrink-0 flex-col gap-[18px] border-r border-slate-200 bg-slate-50 px-4 py-[18px] max-[860px]:w-full max-[860px]:gap-3 max-[860px]:border-b max-[860px]:border-r-0 max-[860px]:p-3.5">
-        <Link
-          href="/learn"
-          className="inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-[7px] text-xs font-semibold text-slate-950 hover:bg-slate-50"
-        >
-          <ArrowLeft className="size-4" />
-          返回主屏
-        </Link>
+        {onClose ? (
+          <Button variant="outline" className="w-fit rounded-full" onClick={onClose}>
+            <ArrowLeft className="size-4" />
+            返回课程
+          </Button>
+        ) : (
+          <Link
+            href="/learn"
+            className="inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-[7px] text-xs font-semibold text-slate-950 hover:bg-slate-50"
+          >
+            <ArrowLeft className="size-4" />
+            返回主屏
+          </Link>
+        )}
 
         <div className="grid gap-1">
           <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
             <CalendarDays className="size-3.5" />
-            全局日历
+            {course ? '课程日历' : '全局日历'}
           </span>
-          <strong className="text-lg font-bold text-slate-950">全部课程安排</strong>
+          <strong className="text-lg font-bold text-slate-950">
+            {course?.name || '全部学习安排'}
+          </strong>
           <small className="text-xs leading-[1.45] text-slate-500">
-            汇总当前账号的课程学习日程。
+            课程日程与首页日历同步，点击事项可以修改或删除。
           </small>
         </div>
 
@@ -431,7 +486,7 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
             </div>
             <button
               type="button"
-              onClick={openCreate}
+              onClick={() => openCreate()}
               className="flex size-9 items-center justify-center gap-1.5 rounded-full bg-sky-600 text-sm font-semibold text-white outline-none hover:bg-sky-700 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 sm:w-auto sm:px-4"
               aria-label="新建"
             >
@@ -469,6 +524,7 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
           isResearchCourse={false}
           maxVisibleItems={3}
           onSelectEvent={openEdit}
+          onSelectDate={openCreate}
         />
       </main>
 
@@ -487,7 +543,7 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
             </DialogTitle>
             <DialogDescription>更改会同步到当前账号的全局学习日历。</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 p-5">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
             <div className="rounded-[14px] bg-white p-4 shadow-sm ring-1 ring-black/[0.04]">
               <Label htmlFor="calendar-event-title">标题</Label>
               <Input
@@ -498,8 +554,35 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
                 }
                 placeholder="例如：复习二叉树删除"
                 className="mt-2 border-0 bg-[#f2f2f7] shadow-none"
+                maxLength={500}
                 autoFocus
               />
+            </div>
+            <div className="rounded-[14px] bg-white p-4 shadow-sm ring-1 ring-black/[0.04]">
+              <Label htmlFor="calendar-event-course">所属日历</Label>
+              <Select
+                value={draft.courseId || 'personal'}
+                disabled={Boolean(course)}
+                onValueChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    courseId: value === 'personal' ? '' : value,
+                  }))
+                }
+              >
+                <SelectTrigger id="calendar-event-course" className="mt-2 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="personal">个人日程</SelectItem>
+                  {(course ? [course] : courses).map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {courseError ? <p className="mt-2 text-sm text-amber-700">{courseError}</p> : null}
             </div>
             <div className="grid gap-3 rounded-[14px] bg-white p-4 shadow-sm ring-1 ring-black/[0.04] sm:grid-cols-2">
               <div>
@@ -520,12 +603,25 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
                   id="calendar-event-duration"
                   type="number"
                   min={5}
+                  max={1440}
                   step={5}
                   value={draft.durationMinutes}
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, durationMinutes: event.target.value }))
                   }
                   className="mt-2 border-0 bg-[#f2f2f7] shadow-none"
+                />
+              </div>
+              <div>
+                <Label htmlFor="calendar-event-start">开始时间（可选）</Label>
+                <Input
+                  id="calendar-event-start"
+                  type="time"
+                  value={draft.start}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, start: event.target.value }))
+                  }
+                  className="mt-2"
                 />
               </div>
               <div className="sm:col-span-2">
@@ -555,7 +651,7 @@ function LearningCalendarSurface({ preview }: { preview: boolean }) {
               </p>
             ) : null}
           </div>
-          <div className="flex items-center justify-between border-t border-black/[0.07] bg-white/70 px-5 py-4">
+          <div className="flex shrink-0 items-center justify-between border-t border-black/[0.07] bg-white/70 px-5 py-4">
             {draft.id ? (
               <Button
                 type="button"

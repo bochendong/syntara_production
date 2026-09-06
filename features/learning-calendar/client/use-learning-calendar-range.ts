@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuthStore } from '@/lib/store/auth';
+import { subscribeLearningCalendarChanges } from './calendar-changes';
 import type { SyllabusCalendarEvent } from '@/features/learn-core/client-calendar-actions';
 import {
   createLearningCalendarEvents,
@@ -91,6 +93,7 @@ export function useLearningCalendarRange(args: {
   cacheTtlMs?: number;
 }) {
   const { courseId, enabled = true, previewEvents, cacheTtlMs = DEFAULT_RANGE_CACHE_TTL_MS } = args;
+  const ownerId = useAuthStore((state) => state.userId);
   const preview = Boolean(previewEvents);
   const range = useMemo<LearningCalendarRange>(
     () =>
@@ -99,7 +102,7 @@ export function useLearningCalendarRange(args: {
         : learningCalendarMonthRange(args.referenceDate),
     [args.rangeMode, args.referenceDate],
   );
-  const rangeKey = `${courseId || 'account'}:${range.start}:${range.end}`;
+  const rangeKey = `${ownerId}:${courseId || 'account'}:${range.start}:${range.end}`;
   const initialPreviewEvents = useMemo(
     () =>
       (previewEvents || []).map((event) => optimisticRemoteEvent(event, event.courseId ?? null)),
@@ -115,6 +118,11 @@ export function useLearningCalendarRange(args: {
   const [loadedRangeKey, setLoadedRangeKey] = useState(preview ? rangeKey : '');
   const loadAbortRef = useRef<AbortController | null>(null);
   const mutationQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const mutationRevisionRef = useRef(0);
+  const activeRangeRef = useRef(rangeKey);
+  useEffect(() => {
+    activeRangeRef.current = rangeKey;
+  }, [rangeKey]);
 
   const commitEvents = useCallback(
     (
@@ -123,6 +131,7 @@ export function useLearningCalendarRange(args: {
         | ((current: RemoteLearningCalendarEvent[]) => RemoteLearningCalendarEvent[]),
       options?: { cache?: boolean },
     ) => {
+      if (activeRangeRef.current !== rangeKey) return;
       const resolved = typeof next === 'function' ? next(eventsRef.current) : next;
       eventsRef.current = sortEvents(resolved);
       setEvents(eventsRef.current);
@@ -152,6 +161,7 @@ export function useLearningCalendarRange(args: {
     loadAbortRef.current?.abort();
     const controller = new AbortController();
     loadAbortRef.current = controller;
+    const mutationRevision = mutationRevisionRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -160,7 +170,8 @@ export function useLearningCalendarRange(args: {
         ...(courseId ? { courseId } : {}),
         signal: controller.signal,
       });
-      if (controller.signal.aborted) return eventsRef.current;
+      if (controller.signal.aborted || mutationRevision !== mutationRevisionRef.current)
+        return eventsRef.current;
       truncatedRef.current = result.truncated;
       setTruncated(result.truncated);
       commitEvents(result.events, { cache: true });
@@ -179,6 +190,31 @@ export function useLearningCalendarRange(args: {
       }
     }
   }, [commitEvents, courseId, preview, range, rangeKey]);
+
+  useEffect(() => {
+    if (preview) return;
+    let disposed = false;
+    const refresh = () => {
+      for (const key of calendarRangeCache.keys()) {
+        if (key.startsWith(`${ownerId}:`)) calendarRangeCache.delete(key);
+      }
+      loadAbortRef.current?.abort();
+      if (enabled)
+        void mutationQueueRef.current
+          .catch(() => undefined)
+          .then(() => (disposed ? undefined : load()))
+          .catch(() => undefined);
+    };
+    const unsubscribe = subscribeLearningCalendarChanges((changedOwnerId) => {
+      if (changedOwnerId === ownerId) refresh();
+    });
+    window.addEventListener('focus', refresh);
+    return () => {
+      disposed = true;
+      unsubscribe();
+      window.removeEventListener('focus', refresh);
+    };
+  }, [enabled, load, ownerId, preview]);
 
   useEffect(() => {
     if (!enabled || preview) return;
@@ -201,6 +237,8 @@ export function useLearningCalendarRange(args: {
   }, [cacheTtlMs, commitEvents, enabled, load, preview, rangeKey]);
 
   const enqueueMutation = useCallback(<T>(mutation: () => Promise<T>): Promise<T> => {
+    mutationRevisionRef.current += 1;
+    loadAbortRef.current?.abort();
     const queued = mutationQueueRef.current
       .catch(() => undefined)
       .then(async () => {
@@ -396,7 +434,7 @@ export function useLearningCalendarRange(args: {
   );
 
   return {
-    events,
+    events: loadedRangeKey === rangeKey ? events : [],
     loading,
     mutating: mutationCount > 0,
     error,

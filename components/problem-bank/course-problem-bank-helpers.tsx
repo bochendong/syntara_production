@@ -1,5 +1,6 @@
 'use client';
 
+import { MAX_PHOTO_SOURCE_BYTES } from '@/lib/problem-bank/photo-answer';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlertCircle,
@@ -359,7 +360,7 @@ type InlineAnswerFeedback = {
 };
 
 const MAX_PHOTO_ANSWER_FILES = 4;
-const MAX_PHOTO_ANSWER_BYTES = 4 * 1024 * 1024;
+const MAX_PHOTO_ANSWER_BYTES = MAX_PHOTO_SOURCE_BYTES;
 const PROBLEM_BANK_PRIMARY_BUTTON_CLASS =
   'bg-sky-600 text-white shadow-sm shadow-sky-100/70 hover:bg-sky-700 dark:bg-sky-500 dark:text-slate-950 dark:shadow-none dark:hover:bg-sky-400';
 const PROBLEM_BANK_OUTLINE_BLUE_BUTTON_CLASS =
@@ -1983,8 +1984,8 @@ function PhotoAnswerUploader({
         </span>
         <span className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
           {locale === 'zh-CN'
-            ? `点击选择或拖入图片，最多 ${MAX_PHOTO_ANSWER_FILES} 张，每张不超过 4 MB。`
-            : `Choose or drop images. Up to ${MAX_PHOTO_ANSWER_FILES} photos, 4 MB each.`}
+            ? `点击选择或拖入图片，最多 ${MAX_PHOTO_ANSWER_FILES} 张，每张不超过 12 MB。上传时自动优化，提交后 AI 批改并保存照片和得分。`
+            : `Choose or drop images. Up to ${MAX_PHOTO_ANSWER_FILES} photos, 12 MB each. Optimized photos and AI grades are saved.`}
         </span>
       </label>
 

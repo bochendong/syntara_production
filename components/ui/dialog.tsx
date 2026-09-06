@@ -10,6 +10,7 @@ import {
   SYNTARA_ACTION_DIALOG_CONTENT_CLASS,
   SYNTARA_COMPACT_DIALOG_CONTENT_CLASS,
   SYNTARA_DIALOG_OVERLAY_CLASS,
+  SYNTARA_DIALOG_VIEWPORT_STYLE,
 } from '@/components/ui/syntara-dialog-style';
 
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
@@ -47,6 +48,7 @@ function DialogOverlay({
 
 function DialogContent({
   className,
+  style,
   children,
   showCloseButton = true,
   showOverlay = true,
@@ -73,6 +75,7 @@ function DialogContent({
           className,
         )}
         {...props}
+        style={{ ...style, ...SYNTARA_DIALOG_VIEWPORT_STYLE }}
       >
         {children}
         {showCloseButton && (
@@ -94,7 +97,11 @@ function DialogContent({
 
 function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
-    <div data-slot="dialog-header" className={cn('gap-2 flex flex-col', className)} {...props} />
+    <div
+      data-slot="dialog-header"
+      className={cn('shrink-0 gap-2 flex flex-col', className)}
+      {...props}
+    />
   );
 }
 
@@ -109,7 +116,10 @@ function DialogFooter({
   return (
     <div
       data-slot="dialog-footer"
-      className={cn('gap-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
+      className={cn(
+        'mt-auto shrink-0 gap-2 flex flex-col-reverse sm:flex-row sm:justify-end',
+        className,
+      )}
       {...props}
     >
       {children}

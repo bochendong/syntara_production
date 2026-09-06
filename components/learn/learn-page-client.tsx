@@ -1,5 +1,7 @@
 'use client';
 
+import { LearningCalendarSurface } from '@/components/learn/learning-calendar-page';
+
 import {
   waitForMiniLectureJob,
   type MiniLectureJob,
@@ -7398,19 +7400,6 @@ export function LearnPageClient() {
     };
   }, [platformMemoryStatusMockMode]);
 
-  const showPreviousCalendarMonth = useCallback(() => {
-    setCalendarReferenceDate(
-      (current) => new Date(current.getFullYear(), current.getMonth() - 1, 1),
-    );
-  }, []);
-  const showNextCalendarMonth = useCallback(() => {
-    setCalendarReferenceDate(
-      (current) => new Date(current.getFullYear(), current.getMonth() + 1, 1),
-    );
-  }, []);
-  const showCurrentCalendarMonth = useCallback(() => {
-    setCalendarReferenceDate(new Date());
-  }, []);
   const calendarDays = useMemo(
     () => buildLearningCalendarDays(calendarReferenceDate, recentPlans, syllabusEvents),
     [calendarReferenceDate, recentPlans, syllabusEvents],
@@ -7601,19 +7590,6 @@ export function LearnPageClient() {
       );
     return upcoming.slice(0, 4);
   }, [isResearchCourse, practiceSessions, recentPlans, syllabusEvents]);
-  const plansByCalendarDay = useMemo(() => {
-    const next = new Map<string, PracticePlan[]>();
-    for (const plan of recentPlans) {
-      const key = localDayKey(planCalendarTimestamp(plan));
-      const items = next.get(key) || [];
-      items.push(plan);
-      next.set(key, items);
-    }
-    return next;
-  }, [recentPlans]);
-  const syllabusEventsByCalendarDay = useMemo(() => {
-    return buildSyllabusEventsByDay(syllabusEvents);
-  }, [syllabusEvents]);
   const missingLearningSetup =
     Boolean(activeCourse) &&
     !isResearchCourse &&
@@ -15572,132 +15548,15 @@ export function LearnPageClient() {
       open={calendarDialogOpen}
       onOpenChange={setCalendarDialogOpen}
       title="学习日历"
-      description="查看复习计划、作业、考试和周进度。"
-      contentClassName={
-        isStudentCourseChat
-          ? 'h-[min(900px,94dvh)] max-w-[1480px] sm:h-[min(900px,94dvh)]'
-          : undefined
-      }
+      description="日程与首页同步，支持新增、修改和删除。"
     >
-      <div className="flex h-full min-h-0 bg-background">
-        <aside className="hidden w-[230px] shrink-0 border-r border-border/70 bg-muted/30 px-4 py-5 lg:flex lg:flex-col">
-          <div className="space-y-5">
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground">学习日历</p>
-              <div className="mt-3 space-y-2.5 text-sm">
-                {[
-                  {
-                    label: '复习计划',
-                    count: recentPlans.length,
-                    dotClassName: 'bg-emerald-500',
-                  },
-                  {
-                    label: '作业',
-                    count: syllabusEvents.filter((event) => event.kind === 'assignment').length,
-                    dotClassName: 'bg-sky-500',
-                  },
-                  {
-                    label: '考试',
-                    count: syllabusEvents.filter((event) => event.kind === 'exam').length,
-                    dotClassName: 'bg-rose-500',
-                  },
-                  {
-                    label: '周进度',
-                    count: syllabusEvents.filter((event) => event.kind === 'progress').length,
-                    dotClassName: 'bg-amber-500',
-                  },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className={cn(
-                          'grid size-4 shrink-0 place-items-center rounded-[5px]',
-                          item.dotClassName,
-                        )}
-                      >
-                        <span className="size-1.5 rounded-full bg-white" />
-                      </span>
-                      <span className="min-w-0 truncate font-medium text-foreground">
-                        {item.label}
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{item.count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex shrink-0 items-center justify-between gap-4 px-5 pb-4 pt-5 sm:px-6">
-            <h2 className="truncate text-3xl font-semibold tracking-normal text-foreground sm:text-4xl">
-              {calendarMonthLabel}
-            </h2>
-            <div className="flex shrink-0 items-center gap-3 pr-8">
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={showCurrentCalendarMonth}
-                  className="rounded-full bg-muted px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  今天
-                </button>
-                <button
-                  type="button"
-                  onClick={showPreviousCalendarMonth}
-                  className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  aria-label="上一个月"
-                  title="上一个月"
-                >
-                  <ChevronLeft className="size-4" strokeWidth={2} />
-                </button>
-                <button
-                  type="button"
-                  onClick={showNextCalendarMonth}
-                  className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  aria-label="下一个月"
-                  title="下一个月"
-                >
-                  <ChevronRight className="size-4" strokeWidth={2} />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {calendarLoading ? (
-            <p className="mx-5 mb-3 flex items-center gap-2 rounded-xl bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 sm:mx-6 dark:bg-sky-400/10 dark:text-sky-100">
-              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-              正在同步课程日历…
-            </p>
-          ) : null}
-          {calendarLoadError ? (
-            <div
-              className="mx-5 mb-3 inline-flex max-w-[min(100%,20rem)] items-center gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700 sm:mx-6 dark:bg-rose-400/10 dark:text-rose-100"
-              title={calendarLoadError}
-            >
-              <span className="min-w-0 truncate">
-                {formatCalendarLoadErrorLabel(calendarLoadError)}
-              </span>
-              <button
-                type="button"
-                className="inline-flex shrink-0 items-center gap-1 font-semibold"
-                onClick={() => void reloadCalendarEvents().catch(() => undefined)}
-              >
-                <RefreshCw className="size-3" aria-hidden="true" />
-                重试
-              </button>
-            </div>
-          ) : null}
-
-          <LearningCalendarGrid
-            days={calendarDays}
-            plansByCalendarDay={plansByCalendarDay}
-            syllabusEventsByCalendarDay={syllabusEventsByCalendarDay}
-            isResearchCourse={isResearchCourse}
-          />
-        </div>
-      </div>
+      {calendarDialogOpen && activeCourse ? (
+        <LearningCalendarSurface
+          key={activeCourse.id}
+          course={{ id: activeCourse.id, name: activeCourse.name }}
+          onClose={() => setCalendarDialogOpen(false)}
+        />
+      ) : null}
     </LearnWorkspaceDialog>
   );
 

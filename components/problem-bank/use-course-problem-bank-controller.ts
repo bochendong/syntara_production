@@ -1,5 +1,6 @@
 'use client';
 
+import { preparePhotoAnswer } from '@/lib/problem-bank/photo-answer';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@/lib/notifications/client-toast';
 import { useRouter } from 'next/navigation';
@@ -52,7 +53,6 @@ import {
   practiceFilterLabel,
   problemPracticeState,
   problemSolutionSections,
-  readFileAsDataUrl,
   renderProblemContentStem,
   renderProblemStem,
   statusLabel,
@@ -1183,8 +1183,8 @@ export function useCourseProblemBankController({
           if (file.size <= MAX_PHOTO_ANSWER_BYTES) return true;
           toast.error(
             locale === 'zh-CN'
-              ? `${file.name} 超过 4 MB，已跳过。`
-              : `${file.name} is larger than 4 MB and was skipped.`,
+              ? `${file.name} 超过 12 MB，已跳过。`
+              : `${file.name} is larger than 12 MB and was skipped.`,
           );
           return false;
         })
@@ -1200,15 +1200,7 @@ export function useCourseProblemBankController({
       if (accepted.length === 0) return;
 
       try {
-        const nextPhotos = await Promise.all(
-          accepted.map(async (file) => ({
-            id: crypto.randomUUID(),
-            name: file.name,
-            mimeType: file.type || 'image/*',
-            size: file.size,
-            dataUrl: await readFileAsDataUrl(file),
-          })),
-        );
+        const nextPhotos = await Promise.all(accepted.map(preparePhotoAnswer));
         setPhotoAnswers((prev) => ({
           ...prev,
           [problemId]: [...(prev[problemId] ?? []), ...nextPhotos].slice(0, MAX_PHOTO_ANSWER_FILES),

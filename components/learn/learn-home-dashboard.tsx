@@ -2,25 +2,16 @@
 
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import {
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-  type ComponentType,
-  type CSSProperties,
-} from 'react';
+import { useEffect, useMemo, useState, type ComponentType, type CSSProperties } from 'react';
 import { CalendarDays, ChevronRight, Loader2 } from 'lucide-react';
 import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
 import { useSettingsStore } from '@/lib/store/settings';
 import { LearnBackgroundVisual } from '@/components/learn/learn-background-visual';
 import {
-  readSyllabusEvents,
-  readSyllabusEventsSnapshot,
-  subscribeToSyllabusEventChanges,
   type SyllabusCalendarEvent,
   type SyllabusEventKind,
 } from '@/features/learn-core/client-calendar-actions';
+import { useLearningCalendarRange } from '@/features/learning-calendar/client/use-learning-calendar-range';
 import { useAuthStore } from '@/lib/store/auth';
 import type { CourseRecord } from '@/lib/utils/database';
 import { cn } from '@/lib/utils';
@@ -154,7 +145,7 @@ type HomeGridPosition = {
 };
 
 type UpcomingCourseEvent = {
-  course: CourseRecord;
+  course?: CourseRecord;
   event: SyllabusCalendarEvent;
 };
 
@@ -536,12 +527,6 @@ export function LearnHomeDashboard({
   );
   const iconsPerPage =
     variant === 'teacher' ? TEACHER_HOME_ICONS_PER_PAGE : STUDENT_HOME_ICONS_PER_PAGE;
-  const courseCalendarIds = useMemo(() => courses.map((course) => course.id), [courses]);
-  const syllabusEventsSnapshot = useSyncExternalStore(
-    subscribeToSyllabusEventChanges,
-    () => readSyllabusEventsSnapshot(userId, courseCalendarIds),
-    () => '[]',
-  );
 
   const pageCount = Math.max(1, Math.ceil(orderedHomeIcons.length / iconsPerPage));
   const currentPage = Math.min(page, pageCount);
@@ -554,27 +539,33 @@ export function LearnHomeDashboard({
     const start = Math.min(Math.max(currentPage - 1, 1), pageCount - 2);
     return start + index;
   });
-  const referenceDate = now ?? new Date(2026, 6, 21, 9, 41);
+  const referenceDate = useMemo(() => now || new Date(2026, 6, 21, 9, 41), [now]);
   const todayDateKey = localDateKey(referenceDate);
-  const upcomingCourseEvents = useMemo<UpcomingCourseEvent[]>(() => {
-    // The snapshot invalidates this aggregation when any course calendar changes.
-    void syllabusEventsSnapshot;
-    return courses
-      .flatMap((course) =>
-        readSyllabusEvents(userId, course.id).map((event) => ({ course, event })),
-      )
-      .filter(
-        ({ event }) =>
-          event.date >= todayDateKey && event.status !== 'done' && event.status !== 'skipped',
-      )
-      .sort(
-        (left, right) =>
-          left.event.date.localeCompare(right.event.date) ||
-          left.event.title.localeCompare(right.event.title, 'zh-CN') ||
-          left.course.name.localeCompare(right.course.name, 'zh-CN'),
-      )
-      .slice(0, 3);
-  }, [courses, syllabusEventsSnapshot, todayDateKey, userId]);
+  const { events: accountCalendarEvents } = useLearningCalendarRange({
+    referenceDate,
+    rangeMode: 'compact',
+    enabled: Boolean(now && userId !== 'anonymous'),
+  });
+  const upcomingCourseEvents = useMemo<UpcomingCourseEvent[]>(
+    () =>
+      accountCalendarEvents
+        .filter(
+          (event) =>
+            event.date >= todayDateKey && event.status !== 'done' && event.status !== 'skipped',
+        )
+        .sort(
+          (a, b) =>
+            a.date.localeCompare(b.date) ||
+            (a.start || '').localeCompare(b.start || '') ||
+            a.title.localeCompare(b.title, 'zh-CN'),
+        )
+        .slice(0, 3)
+        .map((event) => ({
+          event,
+          course: courses.find((course) => course.id === event.courseId),
+        })),
+    [accountCalendarEvents, courses, todayDateKey],
+  );
   const runSystemAction = (action: SystemAppAction) => {
     if (action === 'calendar') {
       onOpenCalendar();
@@ -694,10 +685,10 @@ export function LearnHomeDashboard({
                       const kindMeta = CALENDAR_EVENT_KIND_META[event.kind];
                       return (
                         <button
-                          key={`${course.id}:${event.id}`}
+                          key={event.id}
                           type="button"
-                          onClick={() => onOpenCourse(course.id)}
-                          aria-label={`${course.name}：${event.title}，${event.date}`}
+                          onClick={() => (course ? onOpenCourse(course.id) : onOpenCalendar())}
+                          aria-label={`${course?.name || '个人日程'}：${event.title}，${event.date}`}
                           className="flex w-full items-center gap-3 rounded-[16px] border border-white/18 bg-white/27 px-3 py-2 text-left outline-none transition hover:bg-white/35 focus-visible:ring-2 focus-visible:ring-white/85"
                         >
                           <span className="grid w-10 shrink-0 place-items-center rounded-[11px] bg-white/75 py-1 text-center shadow-sm">
@@ -710,7 +701,7 @@ export function LearnHomeDashboard({
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-[14px] font-medium text-slate-900/82">
-                              {course.name}
+                              {course?.name || '个人日程'}
                             </span>
                             <span className="mt-0.5 block truncate text-[11px] text-slate-700/58">
                               {kindMeta.label} · {event.title}
