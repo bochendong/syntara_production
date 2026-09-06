@@ -449,7 +449,12 @@ export function LearningCalendarSurface({
               {monthLabel}
             </h2>
           </div>
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <div
+            className={cn(
+              'flex shrink-0 items-center gap-1 sm:gap-2',
+              onClose && 'min-[861px]:pr-10',
+            )}
+          >
             <Button
               type="button"
               variant="secondary"
