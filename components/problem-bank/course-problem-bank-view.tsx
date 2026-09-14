@@ -35,6 +35,7 @@ import {
   type NotebookProblemAttemptRecord,
   type NotebookProblemPublicContent,
 } from '@/lib/problem-bank';
+import { CourseBulkMoveDialog } from '@/components/teacher/course-bulk-move-dialog';
 import { Button } from '@/components/ui/button';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { AnswerComposer, AnswerComposerToolbar } from '@/components/problem-bank/answer-composer';
@@ -1149,6 +1150,7 @@ export function CourseProblemBankView({
     handleSubmitInlineAnswer,
     handleUpdateProblem,
     handleCreateProblem,
+    reloadProblems,
     insertFormulaIntoAnswer,
     isPracticeMode,
     chapterFilter,
@@ -1232,7 +1234,7 @@ export function CourseProblemBankView({
     practiceFilter,
   ]);
   const listGridClass = canEditProblems
-    ? 'grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_9rem_5rem_6rem_4.5rem] gap-2.5'
+    ? 'grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_9rem_5rem_6rem_9.5rem] gap-2.5'
     : 'grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_9rem_5rem_6rem_2rem] gap-2.5';
   const bulkMode = canEditProblems && !isPracticeMode && bulkDeleteMode;
   const selectedBulkIds =
@@ -1266,6 +1268,75 @@ export function CourseProblemBankView({
       onChange={() => toggleBulkProblem(problem.id)}
     />
   );
+  const renderProblemRowActions = (problem: NotebookProblemClientRecord) => {
+    const title = getLocalizedProblemTitle(problem, problemLanguage);
+    const disabled = bulkMode || bulkDeleting || Boolean(deletingProblemId);
+    return (
+      <div
+        className="flex shrink-0 items-center justify-end gap-1.5"
+        role="group"
+        aria-label={locale === 'zh-CN' ? `题目操作：${title}` : `Problem actions: ${title}`}
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        {canEditProblems ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              disabled={disabled}
+              title={locale === 'zh-CN' ? '提交历史' : 'Submission history'}
+              aria-label={
+                locale === 'zh-CN' ? `提交历史：${title}` : `Submission history: ${title}`
+              }
+              onClick={() => setRecentSubmissionsProblem(problem)}
+            >
+              <History className="size-4" aria-hidden="true" />
+            </Button>
+            <CourseBulkMoveDialog
+              courseId={courseId}
+              courseName={courseName}
+              selection={{ problemIds: [problem.id] }}
+              onMoved={reloadProblems}
+              previewMode={previewMode || isLocalDemoProblemBankCourse(courseId)}
+              iconOnly
+              disabled={disabled}
+              triggerLabel={locale === 'zh-CN' ? `复制：${title}` : `Copy: ${title}`}
+            />
+          </>
+        ) : null}
+        <Button
+          type="button"
+          size="icon-sm"
+          disabled={disabled}
+          className={cn('size-8 rounded-lg p-0 shadow-none', PROBLEM_BANK_PRIMARY_BUTTON_CLASS)}
+          title={locale === 'zh-CN' ? '做题' : 'Practice'}
+          aria-label={locale === 'zh-CN' ? `做题：${title}` : `Practice: ${title}`}
+          onClick={() => navigateToPracticeProblem(problem)}
+        >
+          <Play className="size-4" aria-hidden="true" />
+        </Button>
+        {canEditProblems ? (
+          <Button
+            type="button"
+            variant="destructive"
+            size="icon-sm"
+            disabled={disabled}
+            title={locale === 'zh-CN' ? '删除' : 'Delete'}
+            aria-label={locale === 'zh-CN' ? `删除：${title}` : `Delete: ${title}`}
+            onClick={() => void handleDeleteProblem(problem)}
+          >
+            {deletingProblemId === problem.id ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Trash2 className="size-4" aria-hidden="true" />
+            )}
+          </Button>
+        ) : null}
+      </div>
+    );
+  };
   const [createDraft, setCreateDraft] = useState<NotebookProblemImportDraft | null>(null);
   const bulkDeleteActions =
     canEditProblems && !isPracticeMode ? (
@@ -2949,24 +3020,6 @@ export function CourseProblemBankView({
                                   >
                                     {locale === 'zh-CN' ? '全班' : 'Class'} {classPassRate.value}
                                   </span>
-                                  {canEditProblems ? (
-                                    <button
-                                      type="button"
-                                      title={locale === 'zh-CN' ? '最近提交' : 'Recent submissions'}
-                                      aria-label={
-                                        locale === 'zh-CN'
-                                          ? `最近提交：${localizedTitle}`
-                                          : `Recent submissions: ${localizedTitle}`
-                                      }
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        setRecentSubmissionsProblem(problem);
-                                      }}
-                                      className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-700 transition hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/30 dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-200"
-                                    >
-                                      <History className="size-4" aria-hidden="true" />
-                                    </button>
-                                  ) : null}
                                   <span
                                     className={cn(
                                       'inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold',
@@ -2991,52 +3044,7 @@ export function CourseProblemBankView({
                                   />
                                 </p>
                               </div>
-                              <div className="flex shrink-0 items-center gap-1.5">
-                                <Button
-                                  type="button"
-                                  size="icon-sm"
-                                  className={cn('size-8 p-0', PROBLEM_BANK_PRIMARY_BUTTON_CLASS)}
-                                  aria-label={
-                                    locale === 'zh-CN'
-                                      ? `练习：${localizedTitle}`
-                                      : `Practice: ${localizedTitle}`
-                                  }
-                                  title={locale === 'zh-CN' ? '练习' : 'Practice'}
-                                  disabled={bulkMode || bulkDeleting}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    navigateToPracticeProblem(problem);
-                                  }}
-                                >
-                                  <Play className="size-4" aria-hidden="true" />
-                                </Button>
-                                {canEditProblems ? (
-                                  <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="icon-sm"
-                                    disabled={
-                                      bulkMode || bulkDeleting || Boolean(deletingProblemId)
-                                    }
-                                    aria-label={
-                                      locale === 'zh-CN'
-                                        ? `删除题目「${localizedTitle}」`
-                                        : `Delete "${localizedTitle}"`
-                                    }
-                                    title={locale === 'zh-CN' ? '删除题目' : 'Delete problem'}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      void handleDeleteProblem(problem);
-                                    }}
-                                  >
-                                    {deletingProblemId === problem.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <Trash2 className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                ) : null}
-                              </div>
+                              {renderProblemRowActions(problem)}
                             </div>
 
                             <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
@@ -3197,24 +3205,6 @@ export function CourseProblemBankView({
                                   content={localizedTitle}
                                   className="line-clamp-1 min-w-0 flex-1 text-sm font-semibold text-slate-950 dark:text-white"
                                 />
-                                {canEditProblems ? (
-                                  <button
-                                    type="button"
-                                    title={locale === 'zh-CN' ? '最近提交' : 'Recent submissions'}
-                                    aria-label={
-                                      locale === 'zh-CN'
-                                        ? `最近提交：${localizedTitle}`
-                                        : `Recent submissions: ${localizedTitle}`
-                                    }
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setRecentSubmissionsProblem(problem);
-                                    }}
-                                    className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-700 transition hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/30 dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-200"
-                                  >
-                                    <History className="size-4" aria-hidden="true" />
-                                  </button>
-                                ) : null}
                               </div>
                               <p className="mt-[3px] min-w-0 truncate text-xs text-slate-400">
                                 {problem.notebookName ||
@@ -3266,53 +3256,7 @@ export function CourseProblemBankView({
                             >
                               {classPassRate.value}
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <Button
-                                type="button"
-                                size="icon-sm"
-                                className={cn(
-                                  'size-8 rounded-lg p-0 shadow-none',
-                                  PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
-                                )}
-                                aria-label={
-                                  locale === 'zh-CN'
-                                    ? `练习：${localizedTitle}`
-                                    : `Practice: ${localizedTitle}`
-                                }
-                                title={locale === 'zh-CN' ? '练习' : 'Practice'}
-                                disabled={bulkMode || bulkDeleting}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  navigateToPracticeProblem(problem);
-                                }}
-                              >
-                                <Play className="size-4" aria-hidden="true" />
-                              </Button>
-                              {canEditProblems ? (
-                                <Button
-                                  type="button"
-                                  variant="destructive"
-                                  size="icon-sm"
-                                  disabled={bulkMode || bulkDeleting || Boolean(deletingProblemId)}
-                                  aria-label={
-                                    locale === 'zh-CN'
-                                      ? `删除题目「${localizedTitle}」`
-                                      : `Delete "${localizedTitle}"`
-                                  }
-                                  title={locale === 'zh-CN' ? '删除题目' : 'Delete problem'}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void handleDeleteProblem(problem);
-                                  }}
-                                >
-                                  {deletingProblemId === problem.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              ) : null}
-                            </div>
+                            {renderProblemRowActions(problem)}
                           </div>
                         );
                       })}

@@ -28,6 +28,8 @@ export function CourseBulkMoveDialog({
   selection,
   contentKind,
   triggerLabel = '复制到课程',
+  iconOnly = false,
+  disabled = false,
 }: {
   courseId: string;
   courseName: string;
@@ -36,6 +38,8 @@ export function CourseBulkMoveDialog({
   selection?: { notebookIds?: string[]; problemIds?: string[] };
   contentKind?: 'notebooks' | 'problems';
   triggerLabel?: string;
+  iconOnly?: boolean;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<BulkMovePreview | null>(null);
@@ -204,11 +208,14 @@ export function CourseBulkMoveDialog({
           onClick={(event) => event.stopPropagation()}
           type="button"
           variant="outline"
-          size="sm"
-          className="h-8 gap-1.5 rounded-lg px-2.5 text-xs"
+          size={iconOnly ? 'icon-sm' : 'sm'}
+          disabled={disabled}
+          title={triggerLabel}
+          aria-label={triggerLabel}
+          className={iconOnly ? 'size-8 rounded-lg p-0' : 'h-8 gap-1.5 rounded-lg px-2.5 text-xs'}
         >
           <Copy className="size-3.5" />
-          {triggerLabel}
+          {iconOnly ? null : triggerLabel}
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -303,7 +310,7 @@ export function CourseBulkMoveDialog({
                     icon: BookOpenText,
                     checked: notebooks,
                     set: setNotebooks,
-                    count: preview?.notebooks.count,
+                    count: selection?.notebookIds?.length ?? preview?.notebooks.count,
                     unit: '本',
                   },
                   {
@@ -313,39 +320,47 @@ export function CourseBulkMoveDialog({
                     icon: Library,
                     checked: problems,
                     set: setProblems,
-                    count: preview?.problems.count,
+                    count: selection?.problemIds?.length ?? preview?.problems.count,
                     unit: '道题',
                   },
                 ] as const
-              ).map((item) => (
-                <label
-                  key={item.key}
-                  className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-white/5"
-                >
-                  <input
-                    type="checkbox"
-                    checked={item.checked}
-                    onChange={(event) => item.set(event.target.checked)}
-                    disabled={
-                      saving ||
-                      !preview ||
-                      Boolean(selection) ||
-                      (contentKind !== undefined && contentKind !== item.key)
-                    }
-                    className="mt-1 size-4 accent-violet-600"
-                  />
-                  <item.icon className="mt-0.5 size-5 text-violet-500" />
-                  <span className="flex-1">
-                    <span className="block font-semibold">{item.label}</span>
-                    <span className="mt-1 block text-xs leading-5 text-slate-500">
-                      {item.detail}
+              )
+                .filter(
+                  (item) =>
+                    !selection ||
+                    (item.key === 'notebooks'
+                      ? selection.notebookIds?.length
+                      : selection.problemIds?.length),
+                )
+                .map((item) => (
+                  <label
+                    key={item.key}
+                    className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-white/5"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      onChange={(event) => item.set(event.target.checked)}
+                      disabled={
+                        saving ||
+                        !preview ||
+                        Boolean(selection) ||
+                        (contentKind !== undefined && contentKind !== item.key)
+                      }
+                      className="mt-1 size-4 accent-violet-600"
+                    />
+                    <item.icon className="mt-0.5 size-5 text-violet-500" />
+                    <span className="flex-1">
+                      <span className="block font-semibold">{item.label}</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-500">
+                        {item.detail}
+                      </span>
                     </span>
-                  </span>
-                  <span className="shrink-0 text-sm text-slate-500">
-                    {item.count ?? '—'} {item.unit}
-                  </span>
-                </label>
-              ))}
+                    <span className="shrink-0 text-sm text-slate-500">
+                      {item.count ?? '—'} {item.unit}
+                    </span>
+                  </label>
+                ))}
             </div>
             {preview && !selection ? (
               <div className="mt-4 space-y-4">
