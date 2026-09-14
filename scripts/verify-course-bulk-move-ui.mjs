@@ -60,7 +60,7 @@ function mount() {
     (id) => {
       if (id === 'react') return react;
       if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx };
-      if (id === 'sonner')
+      if (id === '@/lib/notifications/client-toast')
         return {
           toast: {
             success: (message) => messages.push(message),
@@ -137,8 +137,23 @@ const preview = {
       academicTerm: 'fall',
     },
   ],
-  notebooks: { count: 3, version: 'book-version' },
-  problems: { count: 12, version: 'problem-version' },
+  notebooks: {
+    count: 3,
+    version: 'book-version',
+    items: [
+      { id: 'n1', name: 'One' },
+      { id: 'n2', name: 'Two' },
+      { id: 'n3', name: 'Three' },
+    ],
+  },
+  problems: {
+    count: 12,
+    version: 'problem-version',
+    chapters: [
+      { id: 'ch1', name: 'Chapter 1', count: 5 },
+      { id: 'ch2', name: 'Chapter 2', count: 7 },
+    ],
+  },
 };
 async function open(app) {
   await app.flush();
@@ -147,21 +162,24 @@ async function open(app) {
 }
 const app = mount();
 await open(app);
-assert.equal(app.button('确认移动').props.disabled, true);
+assert.equal(app.button('确认复制').props.disabled, true);
 app.requests[0].resolve(preview);
 await app.flush();
-assert.equal(app.button('确认移动').props.disabled, true, 'Target selection is required');
+assert.equal(app.button('确认复制').props.disabled, true, 'Target selection is required');
 app.find((node) => node.type === 'input' && node.props.type === 'radio').props.onChange();
 app
   .find((node) => node.type === 'input' && node.props.type === 'checkbox')
   .props.onChange({ target: { checked: false } });
 await app.flush();
-const submit = app.button('确认移动');
+const submit = app.button('确认复制');
 submit.props.onClick();
 submit.props.onClick();
 assert.equal(app.requests.length, 2, 'Rapid double click must send exactly one POST');
 assert.deepEqual(JSON.parse(app.requests[1].options.body), {
   targetCourseId: 'target',
+  operation: 'copy',
+  notebookIds: ['n1', 'n2', 'n3'],
+  chapterIds: ['ch1', 'ch2'],
   notebooks: false,
   problems: true,
   notebookVersion: 'book-version',
@@ -183,11 +201,11 @@ app.requests[2].resolve(preview);
 await app.flush();
 app.find((node) => node.type === 'input' && node.props.type === 'radio').props.onChange();
 await app.flush();
-app.button('确认移动').props.onClick();
+app.button('确认复制').props.onClick();
 app.requests[3].reject(new Error('network interrupted'));
 await app.flush();
 assert.equal(
-  app.button('确认移动').props.disabled,
+  app.button('确认复制').props.disabled,
   true,
   'Unknown write outcome requires a fresh preview',
 );
@@ -196,11 +214,11 @@ app.button('刷新列表').props.onClick();
 await app.flush();
 app.requests[4].resolve({
   ...preview,
-  notebooks: { count: 0, version: 'empty' },
-  problems: { count: 0, version: 'empty' },
+  notebooks: { count: 0, version: 'empty', items: [] },
+  problems: { count: 0, version: 'empty', chapters: [] },
 });
 await app.flush();
-assert.equal(app.button('确认移动').props.disabled, true, 'An empty source cannot be moved again');
+assert.equal(app.button('确认复制').props.disabled, true, 'An empty source cannot be moved again');
 
 const stale = mount();
 await open(stale);
@@ -213,7 +231,7 @@ await stale.flush();
 stale.requests[0].resolve(preview);
 await stale.flush();
 assert.equal(
-  stale.button('确认移动').props.disabled,
+  stale.button('确认复制').props.disabled,
   true,
   'A late response must not overwrite the reopened dialog',
 );

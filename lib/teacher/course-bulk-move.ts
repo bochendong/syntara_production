@@ -8,16 +8,24 @@ export type BulkMoveCourse = {
 
 export type BulkMovePreview = {
   targets: BulkMoveCourse[];
-  notebooks: { count: number; version: string };
-  problems: { count: number; version: string };
+  notebooks: { count: number; version: string; items: { id: string; name: string }[] };
+  problems: {
+    count: number;
+    version: string;
+    chapters: { id: string; name: string; count: number }[];
+  };
 };
 
 export type BulkMoveInput = {
   targetCourseId: string;
+  operation?: 'copy' | 'move';
   notebooks: boolean;
   problems: boolean;
   notebookVersion: string;
   problemVersion: string;
+  notebookIds?: string[];
+  chapterIds?: string[];
+  problemIds?: string[];
 };
 
 export type BulkMoveResult = { notebooks: number; problems: number; targetCourseId: string };

@@ -58,6 +58,8 @@ function fixture() {
     id,
     courseId,
     ownerId: 'teacher',
+    name: id,
+    sourceNotebookId: null,
     updatedAt: date,
     createdAt: date,
     coverSlideJson: { learningOrder: 1, custom: 'preserve' },
@@ -94,6 +96,20 @@ function fixture() {
         externalBinding: { memberships: [{ userId: 'teacher', role: 'TEACHER', active: true }] },
       },
     ],
+    scene: [
+      {
+        id: 'scene-copy',
+        notebookId: 'book',
+        title: 'Lecture',
+        type: 'slide',
+        order: 0,
+        content: { text: 'lecture' },
+      },
+    ],
+    notebookPageContent: [{ pageId: 'page', content: { text: 'content' } }],
+    notebookPageActions: [],
+    notebookPageAsset: [],
+    notebookProblemSecret: [{ problemId: 'p1', secretJudgeJson: { secretTests: ['hidden'] } }],
     notebook: [
       book('book', 'source'),
       book('hidden', 'source', { removedAt: date }),
@@ -210,8 +226,47 @@ function database(initial) {
   }
   for (const model of Object.keys(initial)) {
     db[model] = {
-      findMany: async ({ where } = {}) =>
-        structuredClone(state[model].filter((row) => match(row, where))),
+      findMany: async ({ where, include } = {}) =>
+        structuredClone(
+          state[model]
+            .filter((row) => match(row, where))
+            .map((row) => {
+              if (include && model === 'notebook')
+                return {
+                  ...row,
+                  scenes: state.scene.filter((item) => item.notebookId === row.id),
+                  markdownSections: state.markdownNotebookSection.filter(
+                    (item) => item.notebookId === row.id,
+                  ),
+                  pages: state.notebookPage
+                    .filter((item) => item.notebookId === row.id)
+                    .map((page) => ({
+                      ...page,
+                      content: state.notebookPageContent.find((item) => item.pageId === page.id),
+                      actions: state.notebookPageActions.find((item) => item.pageId === page.id),
+                      assets: state.notebookPageAsset.filter((item) => item.pageId === page.id),
+                    })),
+                };
+              if (include && model === 'notebookProblem')
+                return {
+                  ...row,
+                  secret: state.notebookProblemSecret.find((item) => item.problemId === row.id),
+                  tagAssignments: state.notebookProblemTagAssignment.filter(
+                    (item) => item.problemId === row.id,
+                  ),
+                };
+              return row;
+            }),
+        ),
+      create: async ({ data }) => {
+        const row = {
+          id: `created-${nextId++}`,
+          ...(model === 'notebook' ? { removedAt: null } : {}),
+          ...data,
+        };
+        state[model].push(row);
+        return structuredClone(row);
+      },
       findFirst: async ({ where }) =>
         structuredClone(state[model].find((row) => match(row, where)) ?? null),
       count: async ({ where }) => state[model].filter((row) => match(row, where)).length,
@@ -388,4 +443,107 @@ assert.deepEqual(
 );
 console.log(
   `PASS: ${checks + 1} bulk-move scenarios (selection, retained assets/scores, authorization, stale/replayed requests, rollback, dedupe, taxonomy, term order).`,
+);
+
+for (const selection of [{ chapterIds: ['chapter'] }, { problemIds: ['p1'] }]) {
+  const original = fixture();
+  const db = database(original);
+  const input = { ...(await inputFor(db, false, true)), ...selection };
+  await moveCourseContents(db, 'teacher', 'source', input);
+  assert.equal(db.state.notebookProblem.find((row) => row.id === 'p1').courseId, 'target');
+  assert.deepEqual(
+    db.state.notebookProblem.find((row) => row.id === 'legacy'),
+    original.notebookProblem.find((row) => row.id === 'legacy'),
+  );
+  assert.equal(db.state.notebookProblem.find((row) => row.id === 'standalone').courseId, 'source');
+  assert.equal(db.state.problemImportBatch[0].courseId, 'source');
+}
+for (const [notebooks, problems] of [
+  [true, false],
+  [false, true],
+  [true, true],
+]) {
+  const original = fixture();
+  const db = database(original);
+  const input = {
+    ...(await inputFor(db, notebooks, problems)),
+    operation: 'copy',
+    notebookIds: ['book'],
+    chapterIds: ['chapter'],
+  };
+  const result = await moveCourseContents(db, 'teacher', 'source', input);
+  assert.equal(result.problems, problems ? 1 : 0);
+  for (const row of original.notebookProblem)
+    assert.deepEqual(
+      db.state.notebookProblem.find((item) => item.id === row.id),
+      row,
+      'Original question unchanged',
+    );
+  for (const row of original.notebook)
+    assert.deepEqual(
+      db.state.notebook.find((item) => item.id === row.id),
+      row,
+      'Original notebook unchanged',
+    );
+  assert.deepEqual(db.state.attempts, original.attempts, 'No student attempts copied');
+  assert.deepEqual(db.state.problemImportBatch, original.problemImportBatch);
+  assert.deepEqual(db.state.knowledgeDocument, original.knowledgeDocument);
+  if (problems) {
+    const clone = db.state.notebookProblem.find(
+      (row) => !original.notebookProblem.some((item) => item.id === row.id),
+    );
+    assert.equal(clone.courseId, 'target');
+    assert.equal(
+      db.state.courseProblemChapter.find((row) => row.id === clone.chapterId).name,
+      'Chapter 1',
+    );
+    assert.equal(
+      db.state.notebookProblemSecret.find((row) => row.problemId === clone.id).secretJudgeJson
+        .secretTests[0],
+      'hidden',
+    );
+    assert.equal(Boolean(clone.notebookId), notebooks);
+    assert.equal(
+      db.state.notebookProblemTagAssignment.filter((row) => row.problemId === clone.id).length,
+      1,
+    );
+  }
+  if (notebooks) {
+    const clone = db.state.notebook.find(
+      (row) => row.coverSlideJson?.copiedFromNotebookId === 'book',
+    );
+    assert.equal(clone.courseId, 'target');
+    assert.equal(
+      db.state.markdownNotebookSection.find((row) => row.notebookId === clone.id).markdown,
+      '# Notes',
+    );
+    const page = db.state.notebookPage.find((row) => row.notebookId === clone.id);
+    assert.equal(
+      db.state.notebookPageContent.find((row) => row.pageId === page.id).content.text,
+      'content',
+    );
+  }
+  const after = structuredClone(db.state);
+  await assert.rejects(moveCourseContents(db, 'teacher', 'source', input), /重复|已有/);
+  assert.deepEqual(db.state, after, 'Retry cannot create duplicate content');
+}
+{
+  const db = database(fixture());
+  const input = {
+    ...(await inputFor(db, false, true)),
+    chapterIds: ['foreign-chapter'],
+    operation: 'copy',
+  };
+  await assert.rejects(moveCourseContents(db, 'teacher', 'source', input), /不属于/);
+  assert.deepEqual(db.state, fixture());
+}
+{
+  const db = database(fixture());
+  const input = { ...(await inputFor(db, true, true)), operation: 'copy' };
+  db.failSummary = true;
+  await assert.rejects(moveCourseContents(db, 'teacher', 'source', input), /injected failure/);
+  assert.deepEqual(db.state, fixture(), 'Failed copy rolls back every new row');
+}
+console.log(
+  'PASS: selected chapters, single question, independent notebook/problem copies, retained originals, hidden tests, student-state isolation, duplicate retry, foreign chapter and atomic copy rollback.',
 );

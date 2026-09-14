@@ -57,8 +57,6 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
         : 'concept';
     publicContent.responseKind = 'short_text';
     grading.graderKind = 'rubric';
-    delete grading.rubric;
-    delete grading.rubricCriteria;
   } else if (type === 'choice') {
     publicContent.taskKind =
       publicContent.taskKind === 'code_reading' || publicContent.taskKind === 'calculation'
@@ -70,8 +68,6 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
     publicContent.taskKind = 'proof';
     publicContent.responseKind = 'long_text';
     grading.graderKind = 'rubric';
-    delete grading.rubric;
-    delete grading.rubricCriteria;
   } else if (type === 'calculation') {
     publicContent.taskKind = 'calculation';
     publicContent.responseKind = 'math_expression';
@@ -245,8 +241,10 @@ export function ProblemDraftForm({
   onDraftChange,
   basicInfoSlot,
   formId,
+  allowTypeChange = false,
 }: {
   formId?: string;
+  allowTypeChange?: boolean;
   basicInfoSlot?: ReactNode;
   draft: NotebookProblemImportDraft;
   locale: Locale;
@@ -280,6 +278,9 @@ export function ProblemDraftForm({
     workingDraft.grading && typeof workingDraft.grading === 'object'
       ? (workingDraft.grading as Record<string, unknown>)
       : {};
+  const rubricCriteria = Array.isArray(grading.rubricCriteria)
+    ? (grading.rubricCriteria as Array<{ id: string; description: string; points: number }>)
+    : [];
   const secretJudge =
     workingDraft.secretJudge && typeof workingDraft.secretJudge === 'object'
       ? (workingDraft.secretJudge as Record<string, unknown>)
@@ -330,6 +331,48 @@ export function ProblemDraftForm({
   };
 
   const currentType = (workingDraft.type as NotebookProblemType) || 'short_answer';
+  const samples = Array.isArray(publicContent.sampleIO)
+    ? (publicContent.sampleIO as Array<{ input: string; output: string; explanation?: string }>)
+    : [];
+  const changeType = (type: NotebookProblemType) => {
+    const content: Record<string, unknown> = {
+      type,
+      stem: typeof publicContent.stem === 'string' ? publicContent.stem : '',
+    };
+    const nextGrading: Record<string, unknown> = { type };
+    if (type === 'choice') {
+      content.selectionMode = 'single';
+      content.options = [
+        { id: 'a', label: '' },
+        { id: 'b', label: '' },
+      ];
+      nextGrading.correctOptionIds = [];
+    }
+    if (type === 'fill_blank') {
+      delete content.stem;
+      content.stemTemplate = '{{blank_1}}';
+      content.blanks = [{ id: 'blank_1', answerKind: 'text' }];
+      nextGrading.blanks = [{ id: 'blank_1', acceptedAnswers: [], caseSensitive: false }];
+    }
+    if (type === 'code') {
+      content.language = 'python';
+      content.starterCode = '';
+      content.publicTests = [];
+      content.constraints = [];
+      content.sampleIO = [];
+      content.secretConfigPresent = false;
+      nextGrading.publishRequirementsMet = false;
+    }
+    setWorkingDraft((prev) => ({
+      ...prev,
+      type,
+      publicContent: content,
+      grading: nextGrading,
+      secretJudge: undefined,
+      sourceMeta: {},
+      validationErrors: [],
+    }));
+  };
 
   const handleSave = async () => {
     if (saving) return;
@@ -373,6 +416,9 @@ export function ProblemDraftForm({
           ) : null}
           <TabsTrigger value="analysis">{locale === 'zh-CN' ? '解析' : 'Analysis'}</TabsTrigger>
           {currentType === 'code' ? (
+            <TabsTrigger value="examples">{locale === 'zh-CN' ? '示例' : 'Examples'}</TabsTrigger>
+          ) : null}
+          {currentType === 'code' ? (
             <TabsTrigger value="starter">
               {locale === 'zh-CN' ? '初始代码' : 'Starter code'}
             </TabsTrigger>
@@ -394,6 +440,55 @@ export function ProblemDraftForm({
           ) : null}
         </TabsList>
         <TabsContent value="basic" className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="space-y-1 text-xs font-medium">
+              {locale === 'zh-CN' ? '题型' : 'Problem type'}
+              <select
+                aria-label={locale === 'zh-CN' ? '题型' : 'Problem type'}
+                value={currentType}
+                disabled={!allowTypeChange}
+                onChange={(event) => changeType(event.target.value as NotebookProblemType)}
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              >
+                {(
+                  ['short_answer', 'choice', 'proof', 'calculation', 'fill_blank', 'code'] as const
+                ).map((type, index) => (
+                  <option key={type} value={type}>
+                    {locale === 'zh-CN'
+                      ? ['简答题', '选择题', '证明题', '计算题', '填空题（含代码填空）', '编程题'][
+                          index
+                        ]
+                      : [
+                          'Short answer',
+                          'Choice',
+                          'Proof',
+                          'Calculation',
+                          'Fill blanks (including code)',
+                          'Programming',
+                        ][index]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1 text-xs font-medium">
+              {locale === 'zh-CN' ? '保存状态' : 'Save as'}
+              <select
+                aria-label={locale === 'zh-CN' ? '保存状态' : 'Save as'}
+                value={String(workingDraft.status)}
+                onChange={(event) => updateRoot('status', event.target.value)}
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              >
+                {workingDraft.status === 'archived' ? (
+                  <option value="archived">{locale === 'zh-CN' ? '已归档' : 'Archived'}</option>
+                ) : null}
+                <option value="draft">{locale === 'zh-CN' ? '草稿' : 'Draft'}</option>
+                <option value="published">
+                  {locale === 'zh-CN' ? '校验后发布' : 'Publish after validation'}
+                </option>
+              </select>
+            </label>
+          </div>
+
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
               {locale === 'zh-CN' ? '题目标题' : 'Title'}
@@ -512,6 +607,72 @@ export function ProblemDraftForm({
               />
             </div>
           ) : null}
+        </TabsContent>
+        <TabsContent value="examples" className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            {locale === 'zh-CN'
+              ? '至少填写一个可执行的输入示例及预期输出；发布前会用参考实现验证。'
+              : 'Provide executable sample input and expected output. Samples are checked against the reference implementation before publishing.'}
+          </p>
+          {samples.map((sample, index) => (
+            <fieldset key={index} className="space-y-2 rounded-xl border p-3">
+              <legend className="px-1 text-sm">
+                {locale === 'zh-CN' ? '示例' : 'Example'} {index + 1}
+              </legend>
+              {(['input', 'output', 'explanation'] as const).map((field) => (
+                <label key={field} className="block space-y-1 text-xs">
+                  {locale === 'zh-CN'
+                    ? {
+                        input: '输入（例如函数调用）',
+                        output: '预期输出',
+                        explanation: '说明（可选）',
+                      }[field]
+                    : field}
+                  <Textarea
+                    value={sample[field] ?? ''}
+                    onChange={(event) =>
+                      updatePublicContent(
+                        'sampleIO',
+                        samples.map((item, i) =>
+                          i === index
+                            ? {
+                                ...item,
+                                [field]:
+                                  field === 'explanation' && !event.target.value
+                                    ? undefined
+                                    : event.target.value,
+                              }
+                            : item,
+                        ),
+                      )
+                    }
+                  />
+                </label>
+              ))}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  updatePublicContent(
+                    'sampleIO',
+                    samples.filter((_, i) => i !== index),
+                  )
+                }
+              >
+                {locale === 'zh-CN' ? '删除示例' : 'Remove example'}
+              </Button>
+            </fieldset>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={samples.length >= 12}
+            onClick={() => updatePublicContent('sampleIO', [...samples, { input: '', output: '' }])}
+          >
+            {locale === 'zh-CN' ? '添加示例' : 'Add example'}
+          </Button>
         </TabsContent>
         <TabsContent value="options" className="space-y-4">
           {currentType === 'choice' ? (
@@ -634,6 +795,84 @@ export function ProblemDraftForm({
           ) : null}
         </TabsContent>
         <TabsContent value="analysis" className="space-y-4">
+          {currentType === 'short_answer' || currentType === 'proof' ? (
+            <fieldset className="space-y-3 rounded-xl border p-4">
+              <legend className="px-1 text-sm font-medium">
+                {locale === 'zh-CN' ? '评分要点（总分 100）' : 'Rubric (100 points total)'}
+              </legend>
+              {rubricCriteria.map((criterion, index) => (
+                <div key={criterion.id} className="flex items-start gap-2">
+                  <Textarea
+                    aria-label={`${locale === 'zh-CN' ? '评分要点' : 'Criterion'} ${index + 1}`}
+                    value={criterion.description}
+                    placeholder={
+                      locale === 'zh-CN' ? '描述可核验的得分点' : 'Describe the scoring criterion'
+                    }
+                    onChange={(event) =>
+                      updateGrading(
+                        'rubricCriteria',
+                        rubricCriteria.map((item, i) =>
+                          i === index ? { ...item, description: event.target.value } : item,
+                        ),
+                      )
+                    }
+                  />
+                  <Input
+                    className="w-20"
+                    type="number"
+                    min={0}
+                    max={100}
+                    aria-label={`${locale === 'zh-CN' ? '分值' : 'Points'} ${index + 1}`}
+                    value={criterion.points}
+                    onChange={(event) =>
+                      updateGrading(
+                        'rubricCriteria',
+                        rubricCriteria.map((item, i) =>
+                          i === index ? { ...item, points: Number(event.target.value) } : item,
+                        ),
+                      )
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`${locale === 'zh-CN' ? '删除评分要点' : 'Remove criterion'} ${index + 1}`}
+                    onClick={() =>
+                      updateGrading(
+                        'rubricCriteria',
+                        rubricCriteria.filter((_, i) => i !== index),
+                      )
+                    }
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={rubricCriteria.length >= 24}
+                onClick={() =>
+                  updateGrading('rubricCriteria', [
+                    ...rubricCriteria,
+                    {
+                      id: crypto.randomUUID(),
+                      description: '',
+                      points: Math.max(
+                        0,
+                        100 - rubricCriteria.reduce((sum, item) => sum + item.points, 0),
+                      ),
+                    },
+                  ])
+                }
+              >
+                {locale === 'zh-CN' ? '添加评分要点' : 'Add criterion'}
+              </Button>
+            </fieldset>
+          ) : null}
+
           {currentType === 'choice' ? (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -697,7 +936,9 @@ export function ProblemDraftForm({
                     const blanks = Array.isArray(publicContent.blanks)
                       ? ([...publicContent.blanks] as Array<Record<string, unknown>>)
                       : [];
-                    const nextId = `blank_${blanks.length + 1}`;
+                    let nextNumber = 1;
+                    while (blanks.some((blank) => blank.id === `blank_${nextNumber}`)) nextNumber++;
+                    const nextId = `blank_${nextNumber}`;
                     updatePublicContent('blanks', [
                       ...blanks,
                       { id: nextId, placeholder: locale === 'zh-CN' ? '答案' : 'Answer' },
@@ -708,7 +949,7 @@ export function ProblemDraftForm({
                     );
                     updateGrading('blanks', [
                       ...(Array.isArray(grading.blanks) ? grading.blanks : []),
-                      { id: nextId, acceptedAnswers: ['TODO'], caseSensitive: false },
+                      { id: nextId, acceptedAnswers: [], caseSensitive: false },
                     ]);
                   }}
                 >
@@ -728,8 +969,31 @@ export function ProblemDraftForm({
                 return (
                   <div
                     key={`${blankId}-${index}`}
-                    className="grid gap-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700 md:grid-cols-[150px_minmax(0,1fr)_auto_auto] md:items-end"
+                    className="grid gap-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700 md:grid-cols-[100px_120px_minmax(0,1fr)_auto_auto] md:items-end"
                   >
+                    <label className="space-y-1 text-xs">
+                      {locale === 'zh-CN' ? '答案类型' : 'Answer type'}
+                      <select
+                        aria-label={`${locale === 'zh-CN' ? '答案类型' : 'Answer type'} ${index + 1}`}
+                        className="h-9 w-full rounded-md border bg-background px-2"
+                        value={String(blank.answerKind ?? 'text')}
+                        onChange={(event) =>
+                          updatePublicContent(
+                            'blanks',
+                            blanks.map((row, i) =>
+                              i === index ? { ...row, answerKind: event.target.value } : row,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="text">{locale === 'zh-CN' ? '文本' : 'Text'}</option>
+                        <option value="code_token">{locale === 'zh-CN' ? '代码' : 'Code'}</option>
+                        <option value="number">{locale === 'zh-CN' ? '数值' : 'Number'}</option>
+                        <option value="math_expression">
+                          {locale === 'zh-CN' ? '数学表达式' : 'Math expression'}
+                        </option>
+                      </select>
+                    </label>
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-medium text-slate-500">
                         {locale === 'zh-CN' ? '空格 ID' : 'Blank ID'}

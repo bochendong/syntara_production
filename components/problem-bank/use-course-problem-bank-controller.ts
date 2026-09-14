@@ -1,5 +1,6 @@
 'use client';
 
+import { backendJson } from '@/lib/utils/backend-api';
 import { notebookProblemImportDraftSchema } from '@/lib/problem-bank/schema';
 import { createTeacherPreviewAttempt } from '@/lib/problem-bank/teacher-preview-attempt';
 import { preparePhotoAnswer } from '@/lib/problem-bank/photo-answer';
@@ -1229,6 +1230,38 @@ export function useCourseProblemBankController({
     [selectedProblem],
   );
 
+  const handleCreateProblem = useCallback(
+    async (draft: NotebookProblemImportDraft, chapterId: string | null) => {
+      if (!canEditProblems) throw new Error('只有课程老师可以添加题目。');
+      if (isLocalDemoProblemBankCourse(courseId)) {
+        const now = Date.now();
+        setProblems((items) => [
+          ...items,
+          {
+            ...draft,
+            id: draft.draftId,
+            courseId,
+            notebookId: null,
+            chapterId,
+            order: items.length,
+            problemNumber: items.length + 1,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]);
+        setCourseProblemCount((count) => count + 1);
+        return;
+      }
+      await backendJson(`/api/courses/${encodeURIComponent(courseId)}/problems`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draft, chapterId }),
+      });
+      await loadAll().catch(() => toast.info('题目已保存，刷新题库即可查看。'));
+    },
+    [canEditProblems, courseId, loadAll],
+  );
+
   const handleUpdateProblem = useCallback(
     async (patch: {
       chapterId?: string | null;
@@ -1829,6 +1862,8 @@ export function useCourseProblemBankController({
     handleRunCodeAnswer,
     handleSubmitInlineAnswer,
     handleUpdateProblem,
+    handleCreateProblem,
+    reloadProblems: loadAll,
     insertFormulaIntoAnswer,
     isPracticeMode,
     chapterFilter,

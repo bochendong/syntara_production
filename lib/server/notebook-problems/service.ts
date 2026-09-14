@@ -714,6 +714,7 @@ async function createProblemFromDraftTx(args: {
   tx: Prisma.TransactionClient;
   courseId?: string | null;
   notebookId?: string | null;
+  chapterId?: string | null;
   draft: NotebookProblemImportDraft;
   order: number;
   problemNumber?: number | null;
@@ -736,6 +737,7 @@ async function createProblemFromDraftTx(args: {
       dedupeKey: args.courseId ? courseProblemDedupeKey(normalized) : null,
       courseId: args.courseId ?? null,
       notebookId: args.notebookId ?? null,
+      chapterId: args.chapterId ?? null,
     },
   });
 
@@ -3362,4 +3364,57 @@ export async function listCourseProblemAttempts(args: {
     take: 30,
   })) as unknown as ProblemAttemptRow[];
   return rows.map(mapAttemptRow);
+}
+
+/** Manual authoring uses the same delivery and executable-example gates as generated problems. */
+export async function createManualCourseProblem(args: {
+  userId: string;
+  courseId: string;
+  chapterId?: string | null;
+  draft: NotebookProblemImportDraft;
+}) {
+  await requireCourseOwnership(args.userId, args.courseId);
+  const parsed = notebookProblemImportDraftSchema.parse({
+    ...args.draft,
+    source: 'manual',
+    notebookId: null,
+    sourceMeta: {},
+    validationErrors: [],
+  });
+  if (parsed.type !== parsed.publicContent.type || parsed.type !== parsed.grading.type)
+    throw new Error('题型、题面和答案类型不一致。');
+  const verified = normalizeDraftForPersistence(await withCodeReferenceVerification(parsed), 0);
+  if (parsed.status === 'published' && verified.status !== 'published')
+    throw new Error(
+      `暂时无法发布：${verified.validationErrors.join('；') || '请补全并验证参考答案、示例及测试用例。'}`,
+    );
+  return prismaDb.$transaction(
+    async (tx) => {
+      if (
+        args.chapterId &&
+        !(await tx.courseProblemChapter.findFirst({
+          where: { id: args.chapterId, courseId: args.courseId },
+        }))
+      )
+        throw new Error('所选章节不存在或不属于当前课程。');
+      const keys = await ensureCourseProblemDedupeStateTx(tx, args.courseId);
+      if (keys.has(courseProblemDedupeKey(verified)))
+        throw new Error('题库中已存在相同题目，请勿重复添加。');
+      const last = await tx.notebookProblem.aggregate({
+        where: { courseId: args.courseId },
+        _max: { order: true },
+      });
+      const created = await createProblemFromDraftTx({
+        tx,
+        courseId: args.courseId,
+        chapterId: args.chapterId,
+        draft: verified,
+        order: (last._max.order ?? -1) + 1,
+        problemNumber: await nextProblemNumberForScopeTx(tx, { courseId: args.courseId }),
+      });
+      await touchOwnersAfterProblemWriteTx({ tx, courseId: args.courseId, notebookIds: [] });
+      return { id: created.id, status: created.status };
+    },
+    { maxWait: 15_000, timeout: 60_000 },
+  );
 }

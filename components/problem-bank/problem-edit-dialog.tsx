@@ -38,8 +38,12 @@ export function ProblemEditDialog({
   problem,
   onSave,
   chapters = [],
+  initialDraft,
+  onCreate,
 }: {
   chapters?: CourseProblemChapter[];
+  initialDraft?: NotebookProblemImportDraft;
+  onCreate?: (draft: NotebookProblemImportDraft, chapterId: string | null) => Promise<void>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   locale: Locale;
@@ -49,11 +53,17 @@ export function ProblemEditDialog({
   ) => Promise<void>;
 }) {
   const formId = useId();
-  const draft = useMemo(() => (problem ? problemRecordToDraft(problem) : null), [problem]);
+  const draft = useMemo(
+    () => (problem ? problemRecordToDraft(problem) : (initialDraft ?? null)),
+    [problem, initialDraft],
+  );
+  const submitting = useRef(false);
+  const creating = Boolean(onCreate);
   const [previewDraft, setPreviewDraft] = useState<NotebookProblemImportDraft | null>(null);
   const [chapterOverride, setChapterOverride] = useState<string | null>(null);
   const chapterId = chapterOverride ?? problem?.chapterId ?? '';
   const changeOpen = (nextOpen: boolean) => {
+    if (submitting.current) return;
     if (!nextOpen) {
       setChapterOverride(null);
       setPreviewDraft(null);
@@ -96,14 +106,27 @@ export function ProblemEditDialog({
   };
 
   const handleSave = async (nextDraft: NotebookProblemImportDraft) => {
+    if (submitting.current) return;
+    submitting.current = true;
     setSaving(true);
     try {
-      await onSave({ ...problemDraftToPatch(nextDraft), chapterId: chapterId || null });
-      toast.success(locale === 'zh-CN' ? '题目已更新' : 'Problem updated');
+      if (onCreate) await onCreate(nextDraft, chapterId || null);
+      else await onSave({ ...problemDraftToPatch(nextDraft), chapterId: chapterId || null });
+      toast.success(
+        locale === 'zh-CN'
+          ? creating
+            ? '题目已添加'
+            : '题目已更新'
+          : creating
+            ? 'Problem added'
+            : 'Problem updated',
+      );
+      submitting.current = false;
       changeOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Update failed');
     } finally {
+      submitting.current = false;
       setSaving(false);
     }
   };
@@ -115,10 +138,20 @@ export function ProblemEditDialog({
           className={`${SYNTARA_DIALOG_HEADER_CLASS} flex-row items-center justify-between gap-4`}
         >
           <div className="min-w-0 space-y-2">
-            <DialogTitle>{locale === 'zh-CN' ? '编辑题目' : 'Edit problem'}</DialogTitle>
+            <DialogTitle>
+              {locale === 'zh-CN'
+                ? creating
+                  ? '添加题目'
+                  : '编辑题目'
+                : creating
+                  ? 'Add problem'
+                  : 'Edit problem'}
+            </DialogTitle>
             <DialogDescription>
               {locale === 'zh-CN'
-                ? '修改题面、答案和难度，保存后更新到题库。'
+                ? creating
+                  ? '选择题型，填写题面与答案，保存到当前课程的题库。'
+                  : '修改题面、答案和难度，保存后更新到题库。'
                 : 'Update the statement, answers, and difficulty, then save the changes.'}
             </DialogDescription>
           </div>
@@ -129,7 +162,9 @@ export function ProblemEditDialog({
                 ? '保存中…'
                 : 'Saving...'
               : locale === 'zh-CN'
-                ? '保存修改'
+                ? creating
+                  ? '添加题目'
+                  : '保存修改'
                 : 'Save changes'}
           </Button>
         </DialogHeader>
@@ -154,6 +189,7 @@ export function ProblemEditDialog({
               <ProblemDraftForm
                 key={draft.draftId}
                 formId={formId}
+                allowTypeChange={creating}
                 draft={draft}
                 locale={locale}
                 basicInfoSlot={
@@ -178,7 +214,9 @@ export function ProblemEditDialog({
                 }
                 onDraftChange={setPreviewDraft}
                 onSave={handleSave}
-                saveLabel={locale === 'zh-CN' ? '保存修改' : 'Save changes'}
+                saveLabel={
+                  locale === 'zh-CN' ? (creating ? '添加题目' : '保存修改') : 'Save changes'
+                }
               />
             </div>
             <aside

@@ -25,17 +25,27 @@ export function CourseBulkMoveDialog({
   courseName,
   onMoved,
   previewMode = false,
+  selection,
+  contentKind,
+  triggerLabel = '复制 / 迁移',
 }: {
   courseId: string;
   courseName: string;
   onMoved: () => Promise<void>;
   previewMode?: boolean;
+  selection?: { notebookIds?: string[]; problemIds?: string[] };
+  contentKind?: 'notebooks' | 'problems';
+  triggerLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<BulkMovePreview | null>(null);
   const [targetId, setTargetId] = useState('');
   const [notebooks, setNotebooks] = useState(true);
   const [problems, setProblems] = useState(true);
+  const [operation, setOperation] = useState<'copy' | 'move'>('copy');
+  const [notebookIds, setNotebookIds] = useState<string[]>([]);
+  const [chapterIds, setChapterIds] = useState<string[]>([]);
+  const selectionKey = JSON.stringify(selection ?? null);
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -75,14 +85,35 @@ export function CourseBulkMoveDialog({
               academicTerm: 'summer',
             },
           ].filter((c) => c.id !== courseId),
-          notebooks: { count: 3, version: '' },
-          problems: { count: 12, version: '' },
+          notebooks: {
+            count: 3,
+            version: '',
+            items: [
+              { id: 'demo-book-1', name: '第一章 · 基础概念' },
+              { id: 'demo-book-2', name: '第二章 · 应用' },
+              { id: 'demo-book-3', name: '复习笔记' },
+            ],
+          },
+          problems: {
+            count: 12,
+            version: '',
+            chapters: [
+              { id: 'demo-chapter-1', name: '第一章 · 基础概念', count: 5 },
+              { id: 'demo-chapter-2', name: '第二章 · 应用', count: 7 },
+              { id: '__unfiled__', name: '未归档', count: 0 },
+            ],
+          },
         })
       : backendJson<BulkMovePreview>(endpoint, { signal: controller.signal, cache: 'no-store' });
     void load
       .then((data) => {
         if (controller.signal.aborted) return;
         setPreview(data);
+        const scoped = JSON.parse(selectionKey) as typeof selection;
+        setNotebookIds(scoped?.notebookIds ?? data.notebooks.items.map((item) => item.id));
+        setChapterIds(data.problems.chapters.map((item) => item.id));
+        setNotebooks(scoped ? Boolean(scoped.notebookIds) : contentKind !== 'problems');
+        setProblems(scoped ? Boolean(scoped.problemIds) : contentKind !== 'notebooks');
         setTargetId((id) => (data.targets.some((course) => course.id === id) ? id : ''));
       })
       .catch((reason: unknown) => {
@@ -93,11 +124,22 @@ export function CourseBulkMoveDialog({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [open, endpoint, courseId, previewMode, revision]);
+  }, [open, endpoint, courseId, previewMode, revision, selectionKey, contentKind]);
 
   const target = preview?.targets.find((course) => course.id === targetId);
-  const countBooks = notebooks ? (preview?.notebooks.count ?? 0) : 0;
-  const countProblems = problems ? (preview?.problems.count ?? 0) : 0;
+  const countBooks = notebooks ? notebookIds.length : 0;
+  const countProblems = problems
+    ? (selection?.problemIds?.length ??
+      preview?.problems.chapters
+        .filter((item) => chapterIds.includes(item.id))
+        .reduce((sum, item) => sum + item.count, 0) ??
+      0)
+    : 0;
+  const hasContent = Boolean(
+    countBooks + countProblems ||
+    (problems && !selection && chapterIds.some((id) => id !== '__unfiled__')),
+  );
+  const verb = operation === 'copy' ? '复制' : '迁移';
   const groups = groupBulkMoveCourses(
     (preview?.targets ?? []).filter((course) =>
       `${course.courseCode ?? ''} ${course.name} ${course.academicYear ?? ''} ${course.academicTerm ?? ''}`
@@ -107,9 +149,9 @@ export function CourseBulkMoveDialog({
   );
 
   async function submit() {
-    if (submitting.current || !preview || !target || !(countBooks + countProblems)) return;
+    if (submitting.current || !preview || !target || !hasContent) return;
     if (previewMode) {
-      toast.info('这是界面预览；真实课程中确认后即可迁移。');
+      toast.info('这是界面预览；真实课程中确认后即可复制或迁移。');
       return;
     }
     submitting.current = true;
@@ -121,6 +163,9 @@ export function CourseBulkMoveDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetCourseId: targetId,
+          operation,
+          notebookIds,
+          ...(selection?.problemIds ? { problemIds: selection.problemIds } : { chapterIds }),
           notebooks,
           problems,
           notebookVersion: preview.notebooks.version,
@@ -130,9 +175,9 @@ export function CourseBulkMoveDialog({
       setOpen(false);
       setPreview(null);
       toast.success(
-        `已迁移 ${result.notebooks} 本笔记本、${result.problems} 道题至 ${target.courseCode || target.name}`,
+        `已${verb} ${result.notebooks} 本笔记本、${result.problems} 道题至 ${target.courseCode || target.name}`,
       );
-      await onMoved().catch(() => toast.info('迁移已完成；刷新资料库即可查看最新内容。'));
+      await onMoved().catch(() => toast.info('操作已完成；刷新即可查看最新内容。'));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '暂时无法确认迁移结果，请刷新列表查看。');
       // Do not allow a second write with the same preview after an uncertain network outcome.
@@ -153,27 +198,32 @@ export function CourseBulkMoveDialog({
           setPreview(null);
           setTargetId('');
           setQuery('');
-          setNotebooks(true);
-          setProblems(true);
+          setOperation('copy');
         }
       }}
     >
       <DialogTrigger asChild>
         <Button
+          onClick={(event) => event.stopPropagation()}
           type="button"
           variant="outline"
           size="sm"
           className="h-8 gap-1.5 rounded-lg px-2.5 text-xs"
         >
           <ArrowRightLeft className="size-3.5" />
-          批量迁移
+          {triggerLabel}
         </Button>
       </DialogTrigger>
-      <DialogContent size="large" className="gap-0 overflow-hidden p-0" showCloseButton={!saving}>
+      <DialogContent
+        onClick={(event) => event.stopPropagation()}
+        size="large"
+        className="gap-0 overflow-hidden p-0"
+        showCloseButton={!saving}
+      >
         <DialogHeader className="shrink-0 border-b border-slate-200/80 px-6 py-5 pr-16 dark:border-white/10">
-          <DialogTitle className="text-xl">批量迁移课程内容</DialogTitle>
+          <DialogTitle className="text-xl">复用课程内容</DialogTitle>
           <DialogDescription>
-            将「{courseName}」的 AI 笔记本或题库移动到另一门课程。
+            将「{courseName}」的 AI 笔记本或题库用于另一门课程。
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row">
@@ -244,8 +294,8 @@ export function CourseBulkMoveDialog({
               ))}
             </div>
           </section>
-          <section className="flex flex-1 flex-col p-5 md:max-w-[48%]" aria-label="选择迁移内容">
-            <h3 className="mb-4 text-sm font-semibold">2. 选择迁移内容</h3>
+          <section className="flex flex-1 flex-col p-5 md:max-w-[48%]" aria-label="选择复用内容">
+            <h3 className="mb-4 text-sm font-semibold">2. 选择复用内容</h3>
             <div className="space-y-3">
               {(
                 [
@@ -262,7 +312,7 @@ export function CourseBulkMoveDialog({
                   {
                     key: 'problems',
                     label: '题库',
-                    detail: '包含题目、答案、知识点分类与已有评分',
+                    detail: '保留章节、题目、答案与知识点分类',
                     icon: Library,
                     checked: problems,
                     set: setProblems,
@@ -279,7 +329,12 @@ export function CourseBulkMoveDialog({
                     type="checkbox"
                     checked={item.checked}
                     onChange={(event) => item.set(event.target.checked)}
-                    disabled={saving || !preview || !item.count}
+                    disabled={
+                      saving ||
+                      !preview ||
+                      Boolean(selection) ||
+                      (contentKind !== undefined && contentKind !== item.key)
+                    }
                     className="mt-1 size-4 accent-violet-600"
                   />
                   <item.icon className="mt-0.5 size-5 text-violet-500" />
@@ -295,15 +350,91 @@ export function CourseBulkMoveDialog({
                 </label>
               ))}
             </div>
+            {preview && !selection ? (
+              <div className="mt-4 space-y-4">
+                {notebooks ? (
+                  <fieldset disabled={saving} className="space-y-2">
+                    <legend className="mb-2 text-sm font-medium">选择笔记本</legend>
+                    {preview.notebooks.items.map((item) => (
+                      <label key={item.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={notebookIds.includes(item.id)}
+                          onChange={(event) =>
+                            setNotebookIds((ids) =>
+                              event.target.checked
+                                ? [...ids, item.id]
+                                : ids.filter((id) => id !== item.id),
+                            )
+                          }
+                        />
+                        {item.name}
+                      </label>
+                    ))}
+                  </fieldset>
+                ) : null}
+                {problems ? (
+                  <fieldset disabled={saving} className="space-y-2">
+                    <legend className="mb-2 text-sm font-medium">按章节选择</legend>
+                    {preview.problems.chapters.map((item) => (
+                      <label key={item.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={chapterIds.includes(item.id)}
+                          onChange={(event) =>
+                            setChapterIds((ids) =>
+                              event.target.checked
+                                ? [...ids, item.id]
+                                : ids.filter((id) => id !== item.id),
+                            )
+                          }
+                        />
+                        <span className="flex-1">{item.name}</span>
+                        <span className="text-slate-500">{item.count} 道题</span>
+                      </label>
+                    ))}
+                  </fieldset>
+                ) : null}
+              </div>
+            ) : selection ? (
+              <p className="mt-4 text-sm text-slate-500">
+                仅操作当前选中的 {countBooks ? `${countBooks} 本笔记本` : `${countProblems} 道题`}。
+              </p>
+            ) : null}
+            <fieldset disabled={saving} className="mt-5 space-y-2 text-sm">
+              <legend className="mb-2 font-medium">3. 选择方式</legend>
+              <label className="flex gap-2">
+                <input
+                  type="radio"
+                  name={`operation-${courseId}`}
+                  checked={operation === 'copy'}
+                  onChange={() => setOperation('copy')}
+                />
+                复制到课程（保留原内容）
+              </label>
+              <label className="flex gap-2">
+                <input
+                  type="radio"
+                  name={`operation-${courseId}`}
+                  checked={operation === 'move'}
+                  onChange={() => setOperation('move')}
+                />
+                迁移到课程（移除原内容）
+              </label>
+            </fieldset>
             <div className="mt-5 rounded-2xl bg-violet-50 p-5 text-sm leading-7 dark:bg-violet-500/10">
               <p className="font-semibold">
-                {target ? `移至 ${target.courseCode || target.name}` : '请在左侧选择一门课程'}
+                {target
+                  ? `将${verb}至 ${target.courseCode || target.name}`
+                  : '请在左侧选择一门课程'}
               </p>
               <p>
                 已选 {countBooks} 本笔记本 · {countProblems} 道题
               </p>
               <p className="mt-2 text-slate-600 dark:text-slate-400">
-                确认后，所选内容将从原课程移除，并加入目标课程。源文件不会迁移。
+                {operation === 'copy'
+                  ? '两门课程各自保留一份，后续编辑互不影响；学生答题记录和学习进度不会复制。'
+                  : '所选内容将从原课程移除，加入目标课程。已有答题记录随题目迁移。'}
               </p>
               {notebooks !== problems ? (
                 <p className="mt-2 text-slate-600 dark:text-slate-400">
@@ -338,7 +469,7 @@ export function CourseBulkMoveDialog({
           </Button>
           <Button
             onClick={() => void submit()}
-            disabled={saving || loading || !target || !preview || !(countBooks + countProblems)}
+            disabled={saving || loading || !target || !preview || !hasContent}
             className="gap-2 bg-violet-600 text-white hover:bg-violet-700"
           >
             {saving ? (
@@ -346,7 +477,7 @@ export function CourseBulkMoveDialog({
             ) : (
               <ArrowRightLeft className="size-4" />
             )}
-            {saving ? '正在迁移…' : '确认移动'}
+            {saving ? `正在${verb}…` : `确认${verb}`}
           </Button>
         </div>
       </DialogContent>

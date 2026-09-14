@@ -38,6 +38,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { AnswerComposer, AnswerComposerToolbar } from '@/components/problem-bank/answer-composer';
+import { CourseBulkMoveDialog } from '@/components/teacher/course-bulk-move-dialog';
 import { ProblemEditDialog } from '@/components/problem-bank/problem-edit-dialog';
 import { ProblemDraftForm } from '@/components/problem-bank/problem-draft-form';
 import { ProblemLanguageToggle } from '@/components/problem-bank/problem-language-toggle';
@@ -52,7 +53,8 @@ import {
   ProblemRichText,
   ProblemTitleText,
 } from '@/components/problem-bank/problem-rich-text';
-import { problemDraftToPatch } from '@/lib/problem-bank/editor';
+import type { NotebookProblemImportDraft } from '@/lib/problem-bank/schema';
+import { createBlankProblemDraft, problemDraftToPatch } from '@/lib/problem-bank/editor';
 import { Input } from '@/components/ui/input';
 import {
   AnswerFeedbackSummaryBadge,
@@ -1148,6 +1150,8 @@ export function CourseProblemBankView({
     handleRunCodeAnswer,
     handleSubmitInlineAnswer,
     handleUpdateProblem,
+    handleCreateProblem,
+    reloadProblems,
     insertFormulaIntoAnswer,
     isPracticeMode,
     chapterFilter,
@@ -1262,9 +1266,21 @@ export function CourseProblemBankView({
       onChange={() => toggleBulkProblem(problem.id)}
     />
   );
+  const [createDraft, setCreateDraft] = useState<NotebookProblemImportDraft | null>(null);
   const bulkDeleteActions =
     canEditProblems && !isPracticeMode ? (
       <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" onClick={() => setCreateDraft(createBlankProblemDraft())}>
+          {locale === 'zh-CN' ? '添加题目' : 'Add problem'}
+        </Button>
+        <CourseBulkMoveDialog
+          courseId={courseId}
+          courseName={courseName}
+          contentKind="problems"
+          triggerLabel="复制 / 迁移题库"
+          onMoved={reloadProblems}
+          previewMode={previewMode || isLocalDemoProblemBankCourse(courseId)}
+        />
         {bulkMode ? (
           <>
             <Button
@@ -2988,6 +3004,17 @@ export function CourseProblemBankView({
                                   {locale === 'zh-CN' ? '练习' : 'Practice'}
                                 </Button>
                                 {canEditProblems ? (
+                                  <CourseBulkMoveDialog
+                                    courseId={courseId}
+                                    courseName={courseName}
+                                    selection={{ problemIds: [problem.id] }}
+                                    onMoved={reloadProblems}
+                                    previewMode={
+                                      previewMode || isLocalDemoProblemBankCourse(courseId)
+                                    }
+                                  />
+                                ) : null}
+                                {canEditProblems ? (
                                   <Button
                                     type="button"
                                     variant="destructive"
@@ -3266,6 +3293,17 @@ export function CourseProblemBankView({
                                 {locale === 'zh-CN' ? '练习' : 'Practice'}
                               </Button>
                               {canEditProblems ? (
+                                <CourseBulkMoveDialog
+                                  courseId={courseId}
+                                  courseName={courseName}
+                                  selection={{ problemIds: [problem.id] }}
+                                  onMoved={reloadProblems}
+                                  previewMode={
+                                    previewMode || isLocalDemoProblemBankCourse(courseId)
+                                  }
+                                />
+                              ) : null}
+                              {canEditProblems ? (
                                 <Button
                                   type="button"
                                   variant="destructive"
@@ -3384,6 +3422,19 @@ export function CourseProblemBankView({
           </div>
         ) : null}
       </div>
+      <ProblemEditDialog
+        key={createDraft?.draftId ?? 'new-problem'}
+        open={Boolean(createDraft) && canEditProblems}
+        onOpenChange={(open) => {
+          if (!open) setCreateDraft(null);
+        }}
+        locale={locale}
+        problem={null}
+        initialDraft={createDraft ?? undefined}
+        chapters={problemChapters}
+        onSave={handleUpdateProblem}
+        onCreate={handleCreateProblem}
+      />
       <ProblemEditDialog
         key={selectedProblem?.id ?? 'no-problem'}
         open={editProblemOpen && canEditProblems && Boolean(selectedProblem)}

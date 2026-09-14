@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { copyCourseContentsTx } from '@/lib/server/teacher-course-content-copy';
 import { Prisma } from '@/lib/server/generated-prisma';
 import type { DbClient, RootDbClient } from '@/lib/server/repositories/types';
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
@@ -76,19 +77,42 @@ export async function getCourseBulkMovePreview(
     where: { id: { not: sourceCourseId }, ...teacherCourseAccessWhere(userId) },
     select: courseSelect,
   });
-  // The menu only needs counts and a version, not full question/image payloads.
+  // Return selectable names and counts without question bodies or image payloads.
   const notebooks = await db.notebook.findMany({
     where: { courseId: sourceCourseId, ownerId: userId, removedAt: null },
-    select: { id: true, updatedAt: true },
+    select: { id: true, name: true, updatedAt: true },
   });
   const problems = await db.notebookProblem.findMany({
     where: problemScope(sourceCourseId),
-    select: { id: true, updatedAt: true },
+    select: { id: true, chapterId: true, updatedAt: true },
+  });
+  const chapters = await db.courseProblemChapter.findMany({
+    where: { courseId: sourceCourseId },
+    orderBy: [{ position: 'asc' }, { id: 'asc' }],
   });
   return {
     targets,
-    notebooks: { count: notebooks.length, version: version(notebooks) },
-    problems: { count: problems.length, version: version(problems) },
+    notebooks: {
+      count: notebooks.length,
+      version: version(notebooks),
+      items: notebooks.map((item) => ({ id: item.id, name: item.name || 'AI 笔记本' })),
+    },
+    problems: {
+      count: problems.length,
+      version: version(problems),
+      chapters: [
+        ...chapters.map((chapter) => ({
+          id: chapter.id,
+          name: chapter.name,
+          count: problems.filter((problem) => problem.chapterId === chapter.id).length,
+        })),
+        {
+          id: '__unfiled__',
+          name: '未归档',
+          count: problems.filter((problem) => !problem.chapterId).length,
+        },
+      ],
+    },
   };
 }
 
@@ -107,10 +131,16 @@ function coverObject(value: Prisma.JsonValue): Prisma.InputJsonObject {
 }
 
 /** Keep question IDs (and their attempts/assets) intact; only their course taxonomy changes. */
-async function moveTaxonomy(tx: Prisma.TransactionClient, sourceId: string, targetId: string) {
+async function moveTaxonomy(
+  tx: Prisma.TransactionClient,
+  sourceId: string,
+  targetId: string,
+  selectedChapterIds: Set<string>,
+  selectedTagIds: Set<string>,
+) {
   const chapterMap = new Map<string, string>();
   const chapters = await tx.courseProblemChapter.findMany({ where: { courseId: sourceId } });
-  for (const chapter of chapters) {
+  for (const chapter of chapters.filter((item) => selectedChapterIds.has(item.id))) {
     const target = await tx.courseProblemChapter.upsert({
       where: { courseId_name: { courseId: targetId, name: chapter.name } },
       create: {
@@ -130,6 +160,9 @@ async function moveTaxonomy(tx: Prisma.TransactionClient, sourceId: string, targ
     orderBy: [{ level: 'asc' }, { id: 'asc' }],
   });
   for (const tag of tags) {
+    if (selectedTagIds.has(tag.id) && tag.parentId) selectedTagIds.add(tag.parentId);
+  }
+  for (const tag of tags.filter((item) => selectedTagIds.has(item.id))) {
     const parentId = tag.parentId ? tagMap.get(tag.parentId) : null;
     if (tag.parentId && !parentId)
       throw new CourseBulkMoveError('题库知识点层级不完整，请整理后再迁移。');
@@ -228,9 +261,33 @@ export async function moveCourseContents(
       ) {
         throw new CourseBulkMoveError('课程内容已发生变化，请刷新迁移列表后重新确认。');
       }
-      const books = input.notebooks ? source.notebooks : [];
-      const problems = input.problems ? source.problems : [];
-      if (!books.length && !problems.length)
+      const chapters = await tx.courseProblemChapter.findMany({ where: { courseId: sourceId } });
+      for (const [ids, available] of [
+        [input.notebookIds, source.notebooks.map((row) => row.id)],
+        [input.problemIds, source.problems.map((row) => row.id)],
+        [input.chapterIds, [...chapters.map((row) => row.id), '__unfiled__']],
+      ] as Array<[string[] | undefined, string[]]>) {
+        if (ids?.some((id) => !available.includes(id)))
+          throw new CourseBulkMoveError('所选内容已不存在或不属于这门课程，请刷新后重试。', 400);
+      }
+      const books = input.notebooks
+        ? source.notebooks.filter((row) => !input.notebookIds || input.notebookIds.includes(row.id))
+        : [];
+      const problems = input.problems
+        ? source.problems.filter(
+            (row) =>
+              (!input.chapterIds || input.chapterIds.includes(row.chapterId ?? '__unfiled__')) &&
+              (!input.problemIds || input.problemIds.includes(row.id)),
+          )
+        : [];
+      const selectedChapterIds = new Set([
+        ...(input.problems
+          ? (input.chapterIds ?? (input.problemIds ? [] : chapters.map((chapter) => chapter.id)))
+          : []
+        ).filter((id) => id !== '__unfiled__'),
+        ...problems.flatMap((row) => (row.chapterId ? [row.chapterId] : [])),
+      ]);
+      if (!books.length && !problems.length && !selectedChapterIds.size)
         throw new CourseBulkMoveError('没有可迁移的内容。', 400);
       const bookIds = books.map((row) => row.id);
       const problemIds = problems.map((row) => row.id);
@@ -256,6 +313,35 @@ export async function moveCourseContents(
         }
       }
 
+      if (input.operation === 'copy') {
+        if (
+          target.notebooks.some((book) =>
+            bookSet.has(String(coverObject(book.coverSlideJson).copiedFromNotebookId ?? '')),
+          )
+        ) {
+          throw new CourseBulkMoveError('目标课程中已有所选笔记本的副本，请先取消勾选已有内容。');
+        }
+        const assignments = await tx.notebookProblemTagAssignment.findMany({
+          where: { problemId: { in: problemIds } },
+        });
+        const taxonomy = await moveTaxonomy(
+          tx,
+          sourceId,
+          targetId,
+          selectedChapterIds,
+          new Set(assignments.map((item) => item.tagId)),
+        );
+        return copyCourseContentsTx(tx, {
+          userId,
+          sourceId,
+          targetId,
+          bookIds,
+          problemIds,
+          keys,
+          ...taxonomy,
+        });
+      }
+
       // A subset move must never leave notebook/course foreign keys pointing at different courses.
       if (books.length) {
         await tx.notebookProblem.updateMany({
@@ -267,11 +353,17 @@ export async function moveCourseContents(
           data: { notebookId: null },
         });
       }
-      if (problems.length) {
-        const { chapterMap, tagMap } = await moveTaxonomy(tx, sourceId, targetId);
+      if (problems.length || selectedChapterIds.size) {
         const assignments = await tx.notebookProblemTagAssignment.findMany({
           where: { problemId: { in: problemIds } },
         });
+        const { chapterMap, tagMap } = await moveTaxonomy(
+          tx,
+          sourceId,
+          targetId,
+          selectedChapterIds,
+          new Set(assignments.map((item) => item.tagId)),
+        );
         for (const assignment of assignments) {
           const tagId = tagMap.get(assignment.tagId);
           if (!tagId) throw new CourseBulkMoveError('题目含有跨课程知识点，请整理后再迁移。');
@@ -311,14 +403,16 @@ export async function moveCourseContents(
         }
         // The emptied source taxonomy is retained for future questions; no unrelated records are deleted.
       }
+      const moveAllProblems =
+        input.problems && problems.length === source.problems.length && problems.length > 0;
       for (const batch of imports) {
-        const keepNotebook = input.problems
+        const keepNotebook = moveAllProblems
           ? Boolean(batch.notebookId && bookSet.has(batch.notebookId))
           : !bookSet.has(batch.notebookId ?? '');
         await tx.problemImportBatch.update({
           where: { id: batch.id },
           data: {
-            courseId: input.problems ? targetId : sourceId,
+            courseId: moveAllProblems ? targetId : sourceId,
             notebookId: keepNotebook ? batch.notebookId : null,
           },
         });

@@ -16,6 +16,10 @@ type Context = { params: Promise<{ courseId: string }> };
 const inputSchema = z
   .object({
     targetCourseId: z.string().trim().min(1).max(200),
+    notebookIds: z.array(z.string().min(1).max(200)).max(2000).optional(),
+    chapterIds: z.array(z.string().min(1).max(200)).max(2000).optional(),
+    problemIds: z.array(z.string().min(1).max(200)).max(2000).optional(),
+    operation: z.enum(['copy', 'move']).default('copy'),
     notebooks: z.boolean(),
     problems: z.boolean(),
     notebookVersion: z.string().regex(/^[a-f0-9]{64}$/),

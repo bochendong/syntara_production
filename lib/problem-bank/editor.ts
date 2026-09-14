@@ -68,3 +68,20 @@ export function problemDraftToPatch(draft: NotebookProblemImportDraft) {
 
   return patch;
 }
+
+export function createBlankProblemDraft(): NotebookProblemImportDraft {
+  return {
+    draftId: crypto.randomUUID(),
+    title: '',
+    type: 'short_answer',
+    status: 'draft',
+    source: 'manual',
+    points: 100,
+    tags: [],
+    difficulty: 'medium',
+    publicContent: { type: 'short_answer', stem: '' },
+    grading: { type: 'short_answer', referenceAnswer: '' },
+    sourceMeta: {},
+    validationErrors: [],
+  };
+}

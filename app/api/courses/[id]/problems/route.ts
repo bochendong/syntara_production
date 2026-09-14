@@ -1,3 +1,7 @@
+import { z } from 'zod';
+import { requireTeacher } from '@/lib/server/teacher-auth';
+import { notebookProblemImportDraftSchema } from '@/lib/problem-bank/schema';
+import { createManualCourseProblem } from '@/features/problems/server/service';
 import { NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -124,5 +128,40 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return NextResponse.json({
       problems: problems.map((item) => toClientProblem(item)),
     });
+  });
+}
+
+export const maxDuration = 300;
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  return safeRoute(async () => {
+    const auth = await requireTeacher();
+    if ('response' in auth) return auth.response;
+    const { id } = await context.params;
+    const parsed = z
+      .object({
+        draft: notebookProblemImportDraftSchema,
+        chapterId: z.string().min(1).nullable().optional(),
+      })
+      .strict()
+      .safeParse(await request.json().catch(() => null));
+    if (!parsed.success)
+      return NextResponse.json({ error: '请补全题目标题、题面和答案。' }, { status: 400 });
+    try {
+      const result = await createManualCourseProblem({
+        userId: auth.userId,
+        courseId: id,
+        ...parsed.data,
+      });
+      return NextResponse.json(result, { status: 201 });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Course not found')
+        return NextResponse.json({ error: '课程不存在或无管理权限。' }, { status: 404 });
+      if (
+        error instanceof Error &&
+        /^(题型|暂时无法发布|所选章节|题库中已存在)/.test(error.message)
+      )
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      throw error;
+    }
   });
 }
