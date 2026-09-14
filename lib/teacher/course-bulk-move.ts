@@ -18,7 +18,7 @@ export type BulkMovePreview = {
 
 export type BulkMoveInput = {
   targetCourseId: string;
-  operation?: 'copy' | 'move';
+  operation?: 'copy';
   notebooks: boolean;
   problems: boolean;
   notebookVersion: string;

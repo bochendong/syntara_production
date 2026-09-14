@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRightLeft, BookOpenText, Check, Library, Loader2, Search } from 'lucide-react';
+import { Copy, BookOpenText, Check, Library, Loader2, Search } from 'lucide-react';
 import { toast } from '@/lib/notifications/client-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +27,7 @@ export function CourseBulkMoveDialog({
   previewMode = false,
   selection,
   contentKind,
-  triggerLabel = '复制 / 迁移',
+  triggerLabel = '复制到课程',
 }: {
   courseId: string;
   courseName: string;
@@ -42,7 +42,6 @@ export function CourseBulkMoveDialog({
   const [targetId, setTargetId] = useState('');
   const [notebooks, setNotebooks] = useState(true);
   const [problems, setProblems] = useState(true);
-  const [operation, setOperation] = useState<'copy' | 'move'>('copy');
   const [notebookIds, setNotebookIds] = useState<string[]>([]);
   const [chapterIds, setChapterIds] = useState<string[]>([]);
   const selectionKey = JSON.stringify(selection ?? null);
@@ -139,7 +138,6 @@ export function CourseBulkMoveDialog({
     countBooks + countProblems ||
     (problems && !selection && chapterIds.some((id) => id !== '__unfiled__')),
   );
-  const verb = operation === 'copy' ? '复制' : '迁移';
   const groups = groupBulkMoveCourses(
     (preview?.targets ?? []).filter((course) =>
       `${course.courseCode ?? ''} ${course.name} ${course.academicYear ?? ''} ${course.academicTerm ?? ''}`
@@ -151,7 +149,7 @@ export function CourseBulkMoveDialog({
   async function submit() {
     if (submitting.current || !preview || !target || !hasContent) return;
     if (previewMode) {
-      toast.info('这是界面预览；真实课程中确认后即可复制或迁移。');
+      toast.info('这是界面预览；真实课程中确认后即可复制。');
       return;
     }
     submitting.current = true;
@@ -163,7 +161,7 @@ export function CourseBulkMoveDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetCourseId: targetId,
-          operation,
+          operation: 'copy',
           notebookIds,
           ...(selection?.problemIds ? { problemIds: selection.problemIds } : { chapterIds }),
           notebooks,
@@ -175,11 +173,11 @@ export function CourseBulkMoveDialog({
       setOpen(false);
       setPreview(null);
       toast.success(
-        `已${verb} ${result.notebooks} 本笔记本、${result.problems} 道题至 ${target.courseCode || target.name}`,
+        `已复制 ${result.notebooks} 本笔记本、${result.problems} 道题至 ${target.courseCode || target.name}`,
       );
       await onMoved().catch(() => toast.info('操作已完成；刷新即可查看最新内容。'));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '暂时无法确认迁移结果，请刷新列表查看。');
+      setError(reason instanceof Error ? reason.message : '暂时无法确认复制结果，请刷新列表查看。');
       // Do not allow a second write with the same preview after an uncertain network outcome.
       setPreview(null);
     } finally {
@@ -198,7 +196,6 @@ export function CourseBulkMoveDialog({
           setPreview(null);
           setTargetId('');
           setQuery('');
-          setOperation('copy');
         }
       }}
     >
@@ -210,7 +207,7 @@ export function CourseBulkMoveDialog({
           size="sm"
           className="h-8 gap-1.5 rounded-lg px-2.5 text-xs"
         >
-          <ArrowRightLeft className="size-3.5" />
+          <Copy className="size-3.5" />
           {triggerLabel}
         </Button>
       </DialogTrigger>
@@ -401,40 +398,15 @@ export function CourseBulkMoveDialog({
                 仅操作当前选中的 {countBooks ? `${countBooks} 本笔记本` : `${countProblems} 道题`}。
               </p>
             ) : null}
-            <fieldset disabled={saving} className="mt-5 space-y-2 text-sm">
-              <legend className="mb-2 font-medium">3. 选择方式</legend>
-              <label className="flex gap-2">
-                <input
-                  type="radio"
-                  name={`operation-${courseId}`}
-                  checked={operation === 'copy'}
-                  onChange={() => setOperation('copy')}
-                />
-                复制到课程（保留原内容）
-              </label>
-              <label className="flex gap-2">
-                <input
-                  type="radio"
-                  name={`operation-${courseId}`}
-                  checked={operation === 'move'}
-                  onChange={() => setOperation('move')}
-                />
-                迁移到课程（移除原内容）
-              </label>
-            </fieldset>
             <div className="mt-5 rounded-2xl bg-violet-50 p-5 text-sm leading-7 dark:bg-violet-500/10">
               <p className="font-semibold">
-                {target
-                  ? `将${verb}至 ${target.courseCode || target.name}`
-                  : '请在左侧选择一门课程'}
+                {target ? `将复制至 ${target.courseCode || target.name}` : '请在左侧选择一门课程'}
               </p>
               <p>
                 已选 {countBooks} 本笔记本 · {countProblems} 道题
               </p>
               <p className="mt-2 text-slate-600 dark:text-slate-400">
-                {operation === 'copy'
-                  ? '两门课程各自保留一份，后续编辑互不影响；学生答题记录和学习进度不会复制。'
-                  : '所选内容将从原课程移除，加入目标课程。已有答题记录随题目迁移。'}
+                原课程内容保留，复制后两门课程各自编辑、互不影响；学生答题记录和学习进度不会复制。
               </p>
               {notebooks !== problems ? (
                 <p className="mt-2 text-slate-600 dark:text-slate-400">
@@ -442,7 +414,7 @@ export function CourseBulkMoveDialog({
                 </p>
               ) : null}
               {previewMode ? (
-                <p className="mt-2 text-violet-600">当前为界面预览，不会移动真实资料。</p>
+                <p className="mt-2 text-violet-600">当前为界面预览，不会复制真实资料。</p>
               ) : null}
             </div>
           </section>
@@ -472,12 +444,8 @@ export function CourseBulkMoveDialog({
             disabled={saving || loading || !target || !preview || !hasContent}
             className="gap-2 bg-violet-600 text-white hover:bg-violet-700"
           >
-            {saving ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <ArrowRightLeft className="size-4" />
-            )}
-            {saving ? `正在${verb}…` : `确认${verb}`}
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <Copy className="size-4" />}
+            {saving ? `正在复制…` : `确认复制`}
           </Button>
         </div>
       </DialogContent>

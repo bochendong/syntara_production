@@ -3,7 +3,6 @@ import { copyCourseContentsTx } from '@/lib/server/teacher-course-content-copy';
 import { Prisma } from '@/lib/server/generated-prisma';
 import type { DbClient, RootDbClient } from '@/lib/server/repositories/types';
 import { teacherCourseAccessWhere } from '@/lib/server/external-course-access';
-import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-repository';
 import { courseProblemDedupeKey } from '@/features/problems/domain/problem-dedupe';
 import { notebookProblemPublicContentSchema } from '@/lib/problem-bank/schema';
 import type { BulkMoveInput, BulkMovePreview } from '@/lib/teacher/course-bulk-move';
@@ -119,7 +118,7 @@ export async function getCourseBulkMovePreview(
 function problemKey(row: Awaited<ReturnType<typeof contents>>['problems'][number]) {
   const parsed = notebookProblemPublicContentSchema.safeParse(row.publicContentJson);
   if (!parsed.success || parsed.data.type !== row.type) {
-    throw new CourseBulkMoveError(`题目「${row.title}」内容不完整，请修复后再迁移。`);
+    throw new CourseBulkMoveError(`题目「${row.title}」内容不完整，请修复后再复制。`);
   }
   return courseProblemDedupeKey({ title: row.title, type: row.type, publicContent: parsed.data });
 }
@@ -130,8 +129,8 @@ function coverObject(value: Prisma.JsonValue): Prisma.InputJsonObject {
     : {};
 }
 
-/** Keep question IDs (and their attempts/assets) intact; only their course taxonomy changes. */
-async function moveTaxonomy(
+/** Copy selected chapter and tag definitions into the target course. */
+async function copyTaxonomy(
   tx: Prisma.TransactionClient,
   sourceId: string,
   targetId: string,
@@ -165,7 +164,7 @@ async function moveTaxonomy(
   for (const tag of tags.filter((item) => selectedTagIds.has(item.id))) {
     const parentId = tag.parentId ? tagMap.get(tag.parentId) : null;
     if (tag.parentId && !parentId)
-      throw new CourseBulkMoveError('题库知识点层级不完整，请整理后再迁移。');
+      throw new CourseBulkMoveError('题库知识点层级不完整，请整理后再复制。');
     const target = await tx.courseProblemTagNode.upsert({
       where: {
         courseId_level_normalizedName: {
@@ -198,15 +197,18 @@ async function moveTaxonomy(
   return { chapterMap, tagMap };
 }
 
-export async function moveCourseContents(
+export async function copyCourseContents(
   db: RootDbClient,
   userId: string,
   sourceId: string,
   input: BulkMoveInput,
 ) {
+  if (input.operation !== undefined && input.operation !== 'copy') {
+    throw new CourseBulkMoveError('仅支持复制课程内容。', 400);
+  }
   const targetId = input.targetCourseId;
   if (targetId === sourceId || (!input.notebooks && !input.problems)) {
-    throw new CourseBulkMoveError('请选择其他课程，并至少勾选一种迁移内容。', 400);
+    throw new CourseBulkMoveError('请选择其他课程，并至少勾选一种复制内容。', 400);
   }
   return db.$transaction(
     async (tx) => {
@@ -252,14 +254,14 @@ export async function moveCourseContents(
         select: { id: true },
       });
       if (activeTask || activeJob || committingImport) {
-        throw new CourseBulkMoveError('课程中还有生成或导入任务，请等任务完成后再迁移。');
+        throw new CourseBulkMoveError('课程中还有生成或导入任务，请等任务完成后再复制。');
       }
       const source = await contents(tx, userId, sourceId);
       if (
         (input.notebooks && version(source.notebooks) !== input.notebookVersion) ||
         (input.problems && version(source.problems) !== input.problemVersion)
       ) {
-        throw new CourseBulkMoveError('课程内容已发生变化，请刷新迁移列表后重新确认。');
+        throw new CourseBulkMoveError('课程内容已发生变化，请刷新复制列表后重新确认。');
       }
       const chapters = await tx.courseProblemChapter.findMany({ where: { courseId: sourceId } });
       for (const [ids, available] of [
@@ -288,16 +290,10 @@ export async function moveCourseContents(
         ...problems.flatMap((row) => (row.chapterId ? [row.chapterId] : [])),
       ]);
       if (!books.length && !problems.length && !selectedChapterIds.size)
-        throw new CourseBulkMoveError('没有可迁移的内容。', 400);
+        throw new CourseBulkMoveError('没有可复制的内容。', 400);
       const bookIds = books.map((row) => row.id);
       const problemIds = problems.map((row) => row.id);
       const bookSet = new Set(bookIds);
-      const imports = await tx.problemImportBatch.findMany({
-        where: {
-          OR: [{ courseId: sourceId }, { courseId: null, notebook: { courseId: sourceId } }],
-        },
-        select: { id: true, notebookId: true },
-      });
       const target = await contents(tx, userId, targetId);
       const keys = new Map<string, string>();
       if (input.problems) {
@@ -306,174 +302,39 @@ export async function moveCourseContents(
           const key = problemKey(problem);
           if (seen.has(key))
             throw new CourseBulkMoveError(
-              `题目「${problem.title}」与目标题库或本次迁移中的其他题目重复，请先处理重复题。`,
+              `题目「${problem.title}」与目标题库或本次复制中的其他题目重复，请先处理重复题。`,
             );
           seen.add(key);
           keys.set(problem.id, key);
         }
       }
 
-      if (input.operation === 'copy') {
-        if (
-          target.notebooks.some((book) =>
-            bookSet.has(String(coverObject(book.coverSlideJson).copiedFromNotebookId ?? '')),
-          )
-        ) {
-          throw new CourseBulkMoveError('目标课程中已有所选笔记本的副本，请先取消勾选已有内容。');
-        }
-        const assignments = await tx.notebookProblemTagAssignment.findMany({
-          where: { problemId: { in: problemIds } },
-        });
-        const taxonomy = await moveTaxonomy(
-          tx,
-          sourceId,
-          targetId,
-          selectedChapterIds,
-          new Set(assignments.map((item) => item.tagId)),
-        );
-        return copyCourseContentsTx(tx, {
-          userId,
-          sourceId,
-          targetId,
-          bookIds,
-          problemIds,
-          keys,
-          ...taxonomy,
-        });
+      if (
+        target.notebooks.some((book) =>
+          bookSet.has(String(coverObject(book.coverSlideJson).copiedFromNotebookId ?? '')),
+        )
+      ) {
+        throw new CourseBulkMoveError('目标课程中已有所选笔记本的副本，请先取消勾选已有内容。');
       }
-
-      // A subset move must never leave notebook/course foreign keys pointing at different courses.
-      if (books.length) {
-        await tx.notebookProblem.updateMany({
-          where: { notebookId: { in: bookIds }, courseId: null, id: { notIn: problemIds } },
-          data: { courseId: sourceId },
-        });
-        await tx.notebookProblem.updateMany({
-          where: { notebookId: { in: bookIds }, id: { notIn: problemIds } },
-          data: { notebookId: null },
-        });
-      }
-      if (problems.length || selectedChapterIds.size) {
-        const assignments = await tx.notebookProblemTagAssignment.findMany({
-          where: { problemId: { in: problemIds } },
-        });
-        const { chapterMap, tagMap } = await moveTaxonomy(
-          tx,
-          sourceId,
-          targetId,
-          selectedChapterIds,
-          new Set(assignments.map((item) => item.tagId)),
-        );
-        for (const assignment of assignments) {
-          const tagId = tagMap.get(assignment.tagId);
-          if (!tagId) throw new CourseBulkMoveError('题目含有跨课程知识点，请整理后再迁移。');
-          await tx.notebookProblemTagAssignment.upsert({
-            where: { problemId_tagId: { problemId: assignment.problemId, tagId } },
-            create: {
-              problemId: assignment.problemId,
-              tagId,
-              source: assignment.source,
-              status: assignment.status,
-              confidence: assignment.confidence,
-            },
-            update: {},
-          });
-        }
-        await tx.notebookProblemTagAssignment.deleteMany({
-          where: { problemId: { in: problemIds }, tagId: { in: [...tagMap.keys()] } },
-        });
-        let order = Math.max(-1, ...target.problems.map((p) => p.order));
-        let number = Math.max(0, ...target.problems.map((p) => p.problemNumber ?? 0));
-        for (const problem of problems) {
-          if (problem.chapterId && !chapterMap.has(problem.chapterId)) {
-            throw new CourseBulkMoveError('题目含有跨课程章节，请整理后再迁移。');
-          }
-          await tx.notebookProblem.update({
-            where: { id: problem.id },
-            data: {
-              courseId: targetId,
-              notebookId:
-                problem.notebookId && bookSet.has(problem.notebookId) ? problem.notebookId : null,
-              chapterId: problem.chapterId ? (chapterMap.get(problem.chapterId) ?? null) : null,
-              dedupeKey: keys.get(problem.id),
-              order: ++order,
-              problemNumber: ++number,
-            },
-          });
-        }
-        // The emptied source taxonomy is retained for future questions; no unrelated records are deleted.
-      }
-      const moveAllProblems =
-        input.problems && problems.length === source.problems.length && problems.length > 0;
-      for (const batch of imports) {
-        const keepNotebook = moveAllProblems
-          ? Boolean(batch.notebookId && bookSet.has(batch.notebookId))
-          : !bookSet.has(batch.notebookId ?? '');
-        await tx.problemImportBatch.update({
-          where: { id: batch.id },
-          data: {
-            courseId: moveAllProblems ? targetId : sourceId,
-            notebookId: keepNotebook ? batch.notebookId : null,
-          },
-        });
-      }
-      let learningOrder = Math.max(
-        0,
-        ...target.notebooks.map((n) => Number(coverObject(n.coverSlideJson).learningOrder) || 0),
-      );
-      books.sort(
-        (a, b) =>
-          (Number(coverObject(a.coverSlideJson).learningOrder) || 0) -
-          (Number(coverObject(b.coverSlideJson).learningOrder) || 0),
-      );
-      for (const book of books) {
-        await tx.notebook.update({
-          where: { id: book.id },
-          data: {
-            courseId: targetId,
-            contentVersion: { increment: 1 },
-            coverSlideJson: { ...coverObject(book.coverSlideJson), learningOrder: ++learningOrder },
-          },
-        });
-      }
-      if (books.length) {
-        await tx.markdownNotebookSection.updateMany({
-          where: { notebookId: { in: bookIds } },
-          data: { courseId: targetId },
-        });
-        await tx.notebookPage.updateMany({
-          where: { notebookId: { in: bookIds } },
-          data: { courseId: targetId },
-        });
-      }
-      const affectedBooks = [
-        ...new Set([...bookIds, ...problems.flatMap((p) => (p.notebookId ? [p.notebookId] : []))]),
-      ];
-      for (const id of affectedBooks) {
-        const problemCount = await tx.notebookProblem.count({ where: { notebookId: id } });
-        const publishedProblemCount = await tx.notebookProblem.count({
-          where: { notebookId: id, status: 'published' },
-        });
-        await tx.notebook.update({ where: { id }, data: { problemCount, publishedProblemCount } });
-      }
-      // Search projections are derived, course-scoped data. Drop old copies atomically; normal
-      // projection reconciliation rebuilds them in the new course from the unchanged content IDs.
-      await tx.knowledgeDocument.deleteMany({
-        where: {
-          courseId: sourceId,
-          OR: [
-            ...(bookIds.length
-              ? [{ notebookId: { in: bookIds }, sourceEntityType: { not: 'NotebookProblem' } }]
-              : []),
-            ...(problemIds.length
-              ? [{ sourceEntityType: 'NotebookProblem', sourceEntityId: { in: problemIds } }]
-              : []),
-          ],
-        },
+      const assignments = await tx.notebookProblemTagAssignment.findMany({
+        where: { problemId: { in: problemIds } },
       });
-      await refreshCourseSummaryFields(tx, sourceId);
-      await refreshCourseSummaryFields(tx, targetId);
-      return { notebooks: books.length, problems: problems.length, targetCourseId: targetId };
+      const taxonomy = await copyTaxonomy(
+        tx,
+        sourceId,
+        targetId,
+        selectedChapterIds,
+        new Set(assignments.map((item) => item.tagId)),
+      );
+      return copyCourseContentsTx(tx, {
+        userId,
+        sourceId,
+        targetId,
+        bookIds,
+        problemIds,
+        keys,
+        ...taxonomy,
+      });
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,

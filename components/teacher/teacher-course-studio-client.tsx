@@ -1957,15 +1957,6 @@ export function TeacherCourseStudioClient({
                                   </span>
                                 </button>
                                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                                  {!item.reference.inheritedFromCourseId ? (
-                                    <CourseBulkMoveDialog
-                                      courseId={courseId}
-                                      courseName={courseHeaderFields.courseTitle}
-                                      selection={{ notebookIds: [item.id] }}
-                                      onMoved={loadStudio}
-                                      previewMode={localDemo}
-                                    />
-                                  ) : null}
                                   <Button
                                     size="icon-sm"
                                     variant="outline"

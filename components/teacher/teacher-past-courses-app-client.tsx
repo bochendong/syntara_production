@@ -3,37 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import {
-  Archive,
-  BookOpenText,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  History,
-  Library,
-  Loader2,
-  Search,
-} from 'lucide-react';
+import { Archive, ChevronLeft, ChevronRight, History, Loader2, Search } from 'lucide-react';
 import { TeacherAppShell } from '@/components/teacher/teacher-app-shell';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
   academicTermLabel,
-  listCourseContent,
   listTeacherCurrentCourses,
   listTeacherPastCoursesPage,
   listTeacherPastTerms,
-  migrateCourseContentReferences,
   type AcademicCourseSummary,
   type AcademicTermSummary,
-  type CourseContentItem,
 } from '@/lib/teacher/online-course-archive';
 import { isLocalDemoUserId } from '@/lib/auth/local-demo';
 import {
@@ -42,34 +21,7 @@ import {
   LOCAL_DEMO_PAST_TERMS,
 } from '@/lib/teacher/local-demo-fixtures';
 
-type CourseContentType = CourseContentItem['type'];
-
 const PAST_COURSE_PAGE_SIZE = 12;
-
-const CONTENT_TYPE_META: Record<CourseContentType, { label: string; Icon: typeof FileText }> = {
-  notebook: { label: '笔记本', Icon: BookOpenText },
-  problem_bank: { label: '题库', Icon: Library },
-  source: { label: '源文件', Icon: FileText },
-};
-
-function localDemoCourseContent(course: AcademicCourseSummary): CourseContentItem[] {
-  const items: Array<{ type: CourseContentType; title: string; description: string }> = [
-    { type: 'notebook', title: `${course.code} 核心讲义`, description: '6 个章节 · Markdown' },
-    { type: 'problem_bank', title: `${course.code} 练习题库`, description: '42 道题目' },
-    { type: 'source', title: `${course.code} 课程大纲.pdf`, description: '教师源文件' },
-  ];
-  return items.map((item, index) => ({
-    id: `demo-content-${course.id}-${index + 1}`,
-    ...item,
-    createdAt: course.createdAt + index,
-    updatedAt: course.updatedAt + index,
-    reference: {
-      id: `demo-reference-${course.id}-${index + 1}`,
-      courseId: course.id,
-      assetId: `demo-asset-${course.id}-${index + 1}`,
-    },
-  }));
-}
 
 export function TeacherPastCoursesAppClient() {
   const router = useRouter();
@@ -91,15 +43,6 @@ export function TeacherPastCoursesAppClient() {
   const [termsLoading, setTermsLoading] = useState(true);
   const [pastLoading, setPastLoading] = useState(false);
   const [pastError, setPastError] = useState('');
-  const [pastNotice, setPastNotice] = useState('');
-  const [migrationSource, setMigrationSource] = useState<AcademicCourseSummary | null>(null);
-  const [migrationContent, setMigrationContent] = useState<CourseContentItem[]>([]);
-  const [migrationTargetCourseId, setMigrationTargetCourseId] = useState('');
-  const [selectedReferenceIds, setSelectedReferenceIds] = useState<Set<string>>(new Set());
-  const [migrationLoading, setMigrationLoading] = useState(false);
-  const [migrationSubmitting, setMigrationSubmitting] = useState(false);
-  const [migrationError, setMigrationError] = useState('');
-
   const loadCurrentCourses = useCallback(async () => {
     if (!teacherId) return;
     if (localDemo) {
@@ -204,14 +147,6 @@ export function TeacherPastCoursesAppClient() {
   }, [appliedPastQuery, hydrated, isLoggedIn, localDemo, pastPage, role, selectedTerm, teacherId]);
 
   const pastPageCount = Math.max(1, Math.ceil(pastTotal / PAST_COURSE_PAGE_SIZE));
-  const migrationTargetCourses = useMemo(
-    () =>
-      migrationSource
-        ? currentCourses.filter((course) => course.code === migrationSource.code)
-        : [],
-    [currentCourses, migrationSource],
-  );
-
   const selectTerm = (term: AcademicTermSummary) => {
     if (term.key === selectedTermKey) return;
     setSelectedTermKey(term.key);
@@ -220,84 +155,6 @@ export function TeacherPastCoursesAppClient() {
     setAppliedPastQuery('');
     setPastCourses([]);
     setPastTotal(0);
-  };
-
-  const openMigration = async (course: AcademicCourseSummary) => {
-    setMigrationSource(course);
-    setMigrationContent([]);
-    setSelectedReferenceIds(new Set());
-    setMigrationError('');
-    setMigrationLoading(true);
-    const matchingTarget = currentCourses.find((candidate) => candidate.code === course.code);
-    setMigrationTargetCourseId(matchingTarget?.id ?? '');
-    if (localDemo) {
-      const items = localDemoCourseContent(course);
-      setMigrationContent(items);
-      setSelectedReferenceIds(new Set(items.map((item) => item.reference.id)));
-      setMigrationLoading(false);
-      return;
-    }
-    try {
-      const items = await listCourseContent(course.id);
-      setMigrationContent(items);
-      setSelectedReferenceIds(new Set(items.map((item) => item.reference.id)));
-    } catch (loadError) {
-      setMigrationError(loadError instanceof Error ? loadError.message : '课程内容读取失败');
-    } finally {
-      setMigrationLoading(false);
-    }
-  };
-
-  const closeMigration = (force = false) => {
-    if (migrationSubmitting && !force) return;
-    setMigrationSource(null);
-    setMigrationContent([]);
-    setSelectedReferenceIds(new Set());
-    setMigrationError('');
-  };
-
-  const toggleMigrationReference = (referenceId: string) => {
-    setSelectedReferenceIds((current) => {
-      const next = new Set(current);
-      if (next.has(referenceId)) next.delete(referenceId);
-      else next.add(referenceId);
-      return next;
-    });
-  };
-
-  const submitMigration = async () => {
-    if (!teacherId || !migrationSource || !migrationTargetCourseId) return;
-    setMigrationSubmitting(true);
-    setMigrationError('');
-    if (localDemo) {
-      const target = currentCourses.find((course) => course.id === migrationTargetCourseId);
-      setPastNotice(
-        `本地预览：已模拟向 ${target?.code ?? '当学期课程'} 建立 ${selectedReferenceIds.size} 个内容引用。`,
-      );
-      closeMigration(true);
-      setMigrationSubmitting(false);
-      return;
-    }
-    try {
-      const result = await migrateCourseContentReferences({
-        teacherId,
-        sourceCourseId: migrationSource.id,
-        targetCourseId: migrationTargetCourseId,
-        sourceReferenceIds: Array.from(selectedReferenceIds),
-      });
-      const target = currentCourses.find((course) => course.id === migrationTargetCourseId);
-      setPastNotice(
-        `已向 ${target?.code ?? '当学期课程'} 建立 ${result.migratedCount} 个内容引用。`,
-      );
-      closeMigration(true);
-      await loadCurrentCourses();
-    } catch (migrationFailure) {
-      setMigrationError(
-        migrationFailure instanceof Error ? migrationFailure.message : '内容迁移失败',
-      );
-    } finally {
-      setMigrationSubmitting(false);
-    }
   };
 
   if (!hydrated || !isLoggedIn || role !== 'TEACHER') return null;
@@ -312,12 +169,6 @@ export function TeacherPastCoursesAppClient() {
       accentClassName="bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-800"
     >
       <div className="space-y-5 p-4 sm:p-6">
-        {pastNotice ? (
-          <div className="flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200">
-            <Check className="size-4 shrink-0" />
-            {pastNotice}
-          </div>
-        ) : null}
         {pastError ? (
           <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-400/10 dark:text-rose-200">
             {pastError}
@@ -474,9 +325,6 @@ export function TeacherPastCoursesAppClient() {
             ) : (
               <div className="grid gap-3 pt-5 md:grid-cols-2 xl:grid-cols-3">
                 {pastCourses.map((course) => {
-                  const hasCurrentTarget = currentCourses.some(
-                    (target) => target.code === course.code,
-                  );
                   const isCurrentDesktopCourse = currentCourses.some(
                     (target) => target.id === course.id,
                   );
@@ -515,19 +363,6 @@ export function TeacherPastCoursesAppClient() {
                         >
                           查看课程
                         </Button>
-                        <Button
-                          data-testid={`migrate-course-${course.id}`}
-                          size="sm"
-                          className="flex-1 rounded-xl disabled:bg-slate-200 disabled:text-slate-500 dark:disabled:bg-white/10 dark:disabled:text-slate-400"
-                          disabled={isCurrentDesktopCourse || !hasCurrentTarget}
-                          onClick={() => void openMigration(course)}
-                        >
-                          {isCurrentDesktopCourse
-                            ? '已在桌面'
-                            : hasCurrentTarget
-                              ? '迁移内容'
-                              : '本学期未开设'}
-                        </Button>
                       </div>
                     </article>
                   );
@@ -565,139 +400,6 @@ export function TeacherPastCoursesAppClient() {
           </section>
         </div>
       </div>
-
-      <Dialog open={Boolean(migrationSource)} onOpenChange={(open) => !open && closeMigration()}>
-        <DialogContent
-          data-testid="migration-content-dialog"
-          className="max-h-[min(86dvh,760px)] max-w-2xl overflow-hidden rounded-3xl p-0"
-        >
-          <DialogHeader className="border-b border-slate-200/80 px-6 py-5 dark:border-white/10">
-            <DialogTitle>迁移课程内容</DialogTitle>
-            <DialogDescription>
-              从 {migrationSource?.code} · {migrationSource?.academicYear}{' '}
-              {migrationSource ? academicTermLabel(migrationSource.term) : ''}{' '}
-              选择内容，并引用到当学期课程。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            <label className="block text-sm font-semibold">
-              迁移到
-              <select
-                data-testid="migration-target"
-                value={migrationTargetCourseId}
-                onChange={(event) => setMigrationTargetCourseId(event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 dark:border-white/10 dark:bg-slate-900"
-              >
-                {migrationTargetCourses.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.code} · {course.academicYear} {academicTermLabel(course.term)} ·{' '}
-                    {course.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {migrationTargetCourses.length === 0 ? (
-              <p className="mt-2 text-xs font-medium text-amber-600 dark:text-amber-300">
-                本学期没有同课程代码的机构课程，暂时不能迁移。
-              </p>
-            ) : null}
-            <p className="mt-2 text-xs leading-5 text-slate-500">
-              迁移会引用选中内容当时的版本，不复制底层文件；相同资料可以再次迁移。
-            </p>
-
-            <div className="mt-5 flex items-center justify-between">
-              <h3 className="text-sm font-semibold">选择内容</h3>
-              {migrationContent.length > 0 ? (
-                <button
-                  type="button"
-                  className="text-xs font-semibold text-sky-600 hover:underline"
-                  onClick={() =>
-                    setSelectedReferenceIds(
-                      selectedReferenceIds.size === migrationContent.length
-                        ? new Set()
-                        : new Set(migrationContent.map((item) => item.reference.id)),
-                    )
-                  }
-                >
-                  {selectedReferenceIds.size === migrationContent.length ? '取消全选' : '全部选择'}
-                </button>
-              ) : null}
-            </div>
-            {migrationError ? (
-              <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-400/10 dark:text-rose-200">
-                {migrationError}
-              </p>
-            ) : null}
-            {migrationLoading ? (
-              <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-slate-500">
-                <Loader2 className="size-4 animate-spin" /> 正在读取轻量内容索引…
-              </div>
-            ) : migrationContent.length === 0 ? (
-              <p className="mt-3 rounded-2xl bg-slate-50 p-6 text-center text-sm text-slate-400 dark:bg-white/5">
-                这门往届课程还没有可迁移的内容。
-              </p>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {migrationContent.map((item) => {
-                  const meta = CONTENT_TYPE_META[item.type];
-                  const selected = selectedReferenceIds.has(item.reference.id);
-                  return (
-                    <button
-                      key={item.reference.id}
-                      data-testid={`migration-reference-${item.reference.id}`}
-                      type="button"
-                      role="checkbox"
-                      aria-checked={selected}
-                      onClick={() => toggleMigrationReference(item.reference.id)}
-                      className={`flex w-full items-start gap-3 rounded-2xl border p-3 text-left transition ${selected ? 'border-sky-300 bg-sky-50/80 dark:border-sky-400/40 dark:bg-sky-400/10' : 'border-slate-200 hover:border-slate-300 dark:border-white/10 dark:hover:border-white/20'}`}
-                    >
-                      <span
-                        className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border ${selected ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-300 bg-white dark:border-white/20 dark:bg-white/5'}`}
-                      >
-                        {selected ? <Check className="size-3.5" /> : null}
-                      </span>
-                      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-slate-500 shadow-sm dark:bg-white/10">
-                        <meta.Icon className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold">{item.title}</span>
-                        <span className="mt-1 block text-xs text-slate-500">
-                          {meta.label}
-                          {item.reference.inheritedFromCourseId ? ' · 已是共享引用' : ''}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center justify-between gap-3 border-t border-slate-200/80 px-5 py-4 dark:border-white/10">
-            <span className="text-xs text-slate-500">已选 {selectedReferenceIds.size} 项</span>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => closeMigration()}
-                disabled={migrationSubmitting}
-              >
-                取消
-              </Button>
-              <Button
-                onClick={() => void submitMigration()}
-                disabled={
-                  migrationLoading ||
-                  migrationSubmitting ||
-                  !migrationTargetCourseId ||
-                  selectedReferenceIds.size === 0
-                }
-              >
-                {migrationSubmitting ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : null}
-                建立内容引用
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </TeacherAppShell>
   );
 }

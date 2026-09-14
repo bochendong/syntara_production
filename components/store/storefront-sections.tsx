@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, BookOpen } from 'lucide-react';
+import { ArrowRight, BookOpen, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface StorefrontItem {
@@ -19,12 +19,14 @@ export interface StorefrontItem {
   onPrimaryAction: () => void;
   primaryActionDisabled?: boolean;
   secondaryActionLabel?: string;
+  secondaryActionIcon?: LucideIcon;
   onSecondaryAction?: () => void;
   secondaryActionDisabled?: boolean;
 }
 
 interface StoreActionButtonProps {
   label: string;
+  icon?: LucideIcon;
   onClick: () => void;
   disabled?: boolean;
   emphasis?: 'blue' | 'soft';
@@ -34,6 +36,7 @@ interface StoreActionButtonProps {
 
 function StoreActionButton({
   label,
+  icon: Icon,
   onClick,
   disabled,
   emphasis = 'soft',
@@ -49,7 +52,8 @@ function StoreActionButton({
         if (disabled) return;
         onClick();
       }}
-      aria-label={ariaLabel}
+      aria-label={ariaLabel || label}
+      title={Icon ? label : undefined}
       className={cn(
         'inline-flex h-9 min-w-0 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-semibold transition-colors',
         emphasis === 'blue'
@@ -57,9 +61,10 @@ function StoreActionButton({
           : 'bg-slate-100 text-sky-600 hover:bg-slate-200/80 dark:bg-white/8 dark:text-sky-200 dark:hover:bg-white/12',
         disabled && 'cursor-not-allowed opacity-55',
         className,
+        Icon && 'size-9 w-9 min-[420px]:w-9 p-0',
       )}
     >
-      {label}
+      {Icon ? <Icon className="size-4" aria-hidden="true" /> : label}
     </button>
   );
 }
@@ -168,6 +173,7 @@ export function StoreFeatureCard({
             {item.secondaryActionLabel && item.onSecondaryAction ? (
               <StoreActionButton
                 label={item.secondaryActionLabel}
+                icon={item.secondaryActionIcon}
                 onClick={item.onSecondaryAction}
                 disabled={item.secondaryActionDisabled}
                 ariaLabel={`${item.secondaryActionLabel}：${item.title}`}
@@ -252,6 +258,7 @@ function StoreListItem({ item }: { item: StorefrontItem }) {
         {item.secondaryActionLabel && item.onSecondaryAction ? (
           <StoreActionButton
             label={item.secondaryActionLabel}
+            icon={item.secondaryActionIcon}
             onClick={item.onSecondaryAction}
             disabled={item.secondaryActionDisabled}
             ariaLabel={`${item.secondaryActionLabel}：${item.title}`}

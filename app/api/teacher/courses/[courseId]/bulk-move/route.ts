@@ -6,7 +6,7 @@ import { requireTeacher } from '@/lib/server/teacher-auth';
 import {
   CourseBulkMoveError,
   getCourseBulkMovePreview,
-  moveCourseContents,
+  copyCourseContents,
 } from '@/lib/server/teacher-course-bulk-move';
 import { syncUnlinkedCourseKnowledgeProjection } from '@/lib/server/unlinked-course-knowledge-projection';
 
@@ -19,7 +19,7 @@ const inputSchema = z
     notebookIds: z.array(z.string().min(1).max(200)).max(2000).optional(),
     chapterIds: z.array(z.string().min(1).max(200)).max(2000).optional(),
     problemIds: z.array(z.string().min(1).max(200)).max(2000).optional(),
-    operation: z.enum(['copy', 'move']).default('copy'),
+    operation: z.literal('copy').default('copy'),
     notebooks: z.boolean(),
     problems: z.boolean(),
     notebookVersion: z.string().regex(/^[a-f0-9]{64}$/),
@@ -41,7 +41,7 @@ async function handle(action: () => Promise<unknown>) {
       ['P2034', 'P2002'].includes(String(error.code))
     ) {
       return NextResponse.json(
-        { error: '课程内容刚刚发生变化，迁移未执行。请刷新列表后重试。' },
+        { error: '课程内容刚刚发生变化，复制未执行。请刷新列表后重试。' },
         { status: 409 },
       );
     }
@@ -65,11 +65,11 @@ export async function POST(request: Request, context: Context) {
     const { courseId } = await context.params;
     const parsed = inputSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success)
-      return NextResponse.json({ error: '迁移参数无效，请重新打开弹窗。' }, { status: 400 });
+      return NextResponse.json({ error: '复制参数无效，请重新打开弹窗。' }, { status: 400 });
     return handle(async () => {
-      const result = await moveCourseContents(prisma, teacher.userId, courseId, parsed.data);
+      const result = await copyCourseContents(prisma, teacher.userId, courseId, parsed.data);
       after(async () => {
-        for (const id of [courseId, result.targetCourseId]) {
+        for (const id of [result.targetCourseId]) {
           try {
             await syncUnlinkedCourseKnowledgeProjection({
               prisma,

@@ -361,7 +361,7 @@ export function useCourseProblemBankController({
             searchQuery: deferredSearchQuery,
             practiceFilter,
             typeFilter,
-            difficultyFilter,
+            difficultyFilter: course?.accessRole === 'owner' ? 'all' : difficultyFilter,
             chapterFilter,
             statusFilter,
             notebookId: initialNotebookId,
@@ -574,7 +574,8 @@ export function useCourseProblemBankController({
       if (practiceFilter !== 'all' && !matchesPracticeFilter(problem, practiceFilter)) {
         return false;
       }
-      if (difficultyFilter !== 'all' && problem.difficulty !== difficultyFilter) return false;
+      if (!canEditProblems && difficultyFilter !== 'all' && problem.difficulty !== difficultyFilter)
+        return false;
       if (initialNotebookId && problem.notebookId !== initialNotebookId) return false;
       if (chapterFilter === '__unfiled__') {
         if (problem.chapterId) return false;
@@ -602,6 +603,7 @@ export function useCourseProblemBankController({
       return true;
     });
   }, [
+    canEditProblems,
     difficultyFilter,
     initialNotebookId,
     chapterFilter,
@@ -653,7 +655,7 @@ export function useCourseProblemBankController({
     if (query) params.set('q', query);
     if (practiceFilter !== 'all') params.set('practice', practiceFilter);
     if (typeFilter !== 'all') params.set('type', typeFilter);
-    if (difficultyFilter !== 'all') params.set('difficulty', difficultyFilter);
+    if (!canEditProblems && difficultyFilter !== 'all') params.set('difficulty', difficultyFilter);
     if (statusFilter !== 'all') params.set('status', statusFilter);
     if (scopedNotebookId) params.set('notebookId', scopedNotebookId);
     if (normalizedChapterFilter !== 'all') params.set('chapter', normalizedChapterFilter);
@@ -664,6 +666,7 @@ export function useCourseProblemBankController({
 
     return params.toString();
   }, [
+    canEditProblems,
     difficultyFilter,
     initialNotebookId,
     chapterFilter,
@@ -1094,7 +1097,7 @@ export function useCourseProblemBankController({
   const activeBankFilterCount = [
     practiceFilter !== 'all',
     typeFilter !== 'all',
-    difficultyFilter !== 'all',
+    !canEditProblems && difficultyFilter !== 'all',
     statusFilter !== 'all',
     chapterFilter !== 'all',
   ].filter(Boolean).length;

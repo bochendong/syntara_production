@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, BookOpenCheck, Layers3, Sparkles } from 'lucide-react';
+import { ArrowRight, BookOpenCheck, Layers3, RotateCcw, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   StoreFeatureStrip,
@@ -179,6 +179,7 @@ export default function StorePage() {
         primaryActionLabel: needsJoin ? '加入' : '打开',
         onPrimaryAction: () => void handleNotebookAction(nb),
         secondaryActionLabel: needsJoin ? undefined : '复习',
+        secondaryActionIcon: RotateCcw,
         onSecondaryAction: needsJoin ? undefined : () => router.push(`/review/${nb.id}`),
       };
     },

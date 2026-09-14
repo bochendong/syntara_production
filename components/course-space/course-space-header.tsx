@@ -318,7 +318,7 @@ export function CourseSpaceHeaderContent({
     <header
       data-course-space-header
       className={cn(
-        'relative isolate shrink-0 bg-gradient-to-b from-white to-slate-50/75 px-3 py-2 text-slate-950 backdrop-blur-xl dark:from-slate-950 dark:to-slate-900/90 dark:text-white sm:px-4',
+        'relative isolate shrink-0 [&_button]:text-xs [&_button]:font-medium [&_label]:text-xs bg-gradient-to-b from-white to-slate-50/75 px-3 py-2 text-slate-950 backdrop-blur-xl dark:from-slate-950 dark:to-slate-900/90 dark:text-white sm:px-4',
         surface
           ? COURSE_SPACE_HEADER_SURFACE_CLASS
           : 'border-b border-slate-200/80 dark:border-white/10',
@@ -378,7 +378,7 @@ export function CourseSpaceHeaderContent({
             </div>
           ) : null}
           <h1
-            className="truncate rounded-lg border border-slate-200/70 bg-white/80 px-2.5 py-1.5 text-sm font-semibold tracking-[-0.02em] shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-white/10 dark:bg-white/5 sm:text-[15px]"
+            className="truncate rounded-lg border border-slate-200/70 bg-white/80 px-2.5 py-1.5 text-xs font-medium tracking-[-0.02em] shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-white/10 dark:bg-white/5"
             title={courseTitle}
           >
             {courseTitle}

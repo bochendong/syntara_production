@@ -38,7 +38,7 @@ function load(path) {
   );
   return mod.exports;
 }
-const { moveCourseContents, getCourseBulkMovePreview } = load(
+const { copyCourseContents, getCourseBulkMovePreview } = load(
   'lib/server/teacher-course-bulk-move.ts',
 );
 const { groupBulkMoveCourses } = load('lib/teacher/course-bulk-move.ts');
@@ -327,53 +327,32 @@ for (const [notebooks, problems] of [
   const original = fixture();
   const db = database(original);
   const input = await inputFor(db, notebooks, problems);
-  const result = await moveCourseContents(db, 'teacher', 'source', input);
+  const result = await copyCourseContents(db, 'teacher', 'source', input);
   assert.deepEqual(result, {
     notebooks: notebooks ? 1 : 0,
     problems: problems ? 3 : 0,
     targetCourseId: 'target',
   });
-  assert.equal(
-    db.state.notebook.find((r) => r.id === 'book').courseId,
-    notebooks ? 'target' : 'source',
-  );
-  assert.equal(db.state.notebook.find((r) => r.id === 'hidden').courseId, 'source');
-  assert.equal(db.state.notebook.find((r) => r.id === 'other-book').courseId, 'source');
-  for (const id of ['p1', 'legacy', 'standalone']) {
-    const row = db.state.notebookProblem.find((p) => p.id === id);
-    assert.equal(row.courseId, problems ? 'target' : 'source');
-    assert.equal(row.notebookId, notebooks && problems && id !== 'standalone' ? 'book' : null);
+  for (const [model, rows] of Object.entries(original)) {
+    for (const row of rows) {
+      assert.deepEqual(
+        db.state[model].find((item) => item.id === row.id),
+        row,
+        `Copy must preserve every original ${model} row`,
+      );
+    }
   }
-  assert.equal(db.state.notebookProblem.find((p) => p.id === 'target-p').order, 1);
-  assert.deepEqual(db.state.attempts, original.attempts);
-  assert.deepEqual(db.state.scenes, original.scenes);
-  assert.equal(db.state.markdownNotebookSection[0].courseId, notebooks ? 'target' : 'source');
-  assert.equal(db.state.notebookPage[0].courseId, notebooks ? 'target' : 'source');
-  assert.equal(db.state.notebookPage[0].imageUrl, '/image.png');
-  assert.equal(db.state.problemImportBatch[0].courseId, problems ? 'target' : 'source');
-  assert.equal(db.state.problemImportBatch[0].notebookId, notebooks && problems ? 'book' : null);
-  assert.equal(
-    db.state.notebook.find((b) => b.id === 'book').problemCount,
-    notebooks && problems ? 2 : 0,
-  );
-  if (problems) {
-    const assignment = db.state.notebookProblemTagAssignment[0];
-    assert.equal(
-      db.state.courseProblemTagNode.find((t) => t.id === assignment.tagId).courseId,
-      'target',
-    );
-    const chapterId = db.state.notebookProblem.find((p) => p.id === 'p1').chapterId;
-    assert.equal(db.state.courseProblemChapter.find((c) => c.id === chapterId).courseId, 'target');
-    assert.ok(db.state.notebookProblem.find((p) => p.id === 'p1').problemNumber > 1);
-  }
-  assert.deepEqual(db.summaries, ['source', 'target']);
-  const moved = structuredClone(db.state);
-  await assert.rejects(moveCourseContents(db, 'teacher', 'source', input), /内容已发生变化/);
-  assert.deepEqual(db.state, moved);
+  assert.equal(db.state.notebook.length - original.notebook.length, notebooks ? 1 : 0);
+  assert.equal(db.state.notebookProblem.length - original.notebookProblem.length, problems ? 3 : 0);
+  assert.deepEqual(db.summaries, ['target']);
+  const copied = structuredClone(db.state);
+  await assert.rejects(copyCourseContents(db, 'teacher', 'source', input), /重复|已有/);
+  assert.deepEqual(db.state, copied);
   checks++;
 }
 
 for (const scenario of [
+  'move-rejected',
   'unauthorized-target',
   'revoked-target',
   'unauthorized-source',
@@ -391,6 +370,7 @@ for (const scenario of [
   const db = database(fixture());
   const input = await inputFor(db, true, true);
   let source = 'source';
+  if (scenario === 'move-rejected') input.operation = 'move';
   if (scenario === 'unauthorized-target') input.targetCourseId = 'private';
   if (scenario === 'revoked-target') input.targetCourseId = 'revoked';
   if (scenario === 'unauthorized-source') source = 'private';
@@ -426,7 +406,7 @@ for (const scenario of [
       parentId: 'other-parent',
     });
   const before = structuredClone(db.state);
-  await assert.rejects(moveCourseContents(db, 'teacher', source, input), undefined, scenario);
+  await assert.rejects(copyCourseContents(db, 'teacher', source, input), undefined, scenario);
   assert.deepEqual(db.state, before, `Rollback failed for ${scenario}`);
   checks++;
 }
@@ -442,21 +422,23 @@ assert.deepEqual(
   ['2027 Winter', '2026 Fall', '2026 Summer', '2026 Winter', '未设置学期'],
 );
 console.log(
-  `PASS: ${checks + 1} bulk-move scenarios (selection, retained assets/scores, authorization, stale/replayed requests, rollback, dedupe, taxonomy, term order).`,
+  `PASS: ${checks + 1} course-copy scenarios (selection, retained originals/assets/scores, authorization, stale/replayed requests, rollback, dedupe, taxonomy, term order).`,
 );
 
 for (const selection of [{ chapterIds: ['chapter'] }, { problemIds: ['p1'] }]) {
   const original = fixture();
   const db = database(original);
   const input = { ...(await inputFor(db, false, true)), ...selection };
-  await moveCourseContents(db, 'teacher', 'source', input);
-  assert.equal(db.state.notebookProblem.find((row) => row.id === 'p1').courseId, 'target');
+  await copyCourseContents(db, 'teacher', 'source', input);
+  assert.equal(db.state.notebookProblem.find((row) => row.id === 'p1').courseId, 'source');
+  assert.equal(db.state.notebookProblem.length, original.notebookProblem.length + 1);
+  assert.equal(db.state.notebookProblem.at(-1).courseId, 'target');
   assert.deepEqual(
     db.state.notebookProblem.find((row) => row.id === 'legacy'),
     original.notebookProblem.find((row) => row.id === 'legacy'),
   );
   assert.equal(db.state.notebookProblem.find((row) => row.id === 'standalone').courseId, 'source');
-  assert.equal(db.state.problemImportBatch[0].courseId, 'source');
+  assert.deepEqual(db.state.problemImportBatch, original.problemImportBatch);
 }
 for (const [notebooks, problems] of [
   [true, false],
@@ -471,7 +453,7 @@ for (const [notebooks, problems] of [
     notebookIds: ['book'],
     chapterIds: ['chapter'],
   };
-  const result = await moveCourseContents(db, 'teacher', 'source', input);
+  const result = await copyCourseContents(db, 'teacher', 'source', input);
   assert.equal(result.problems, problems ? 1 : 0);
   for (const row of original.notebookProblem)
     assert.deepEqual(
@@ -524,7 +506,7 @@ for (const [notebooks, problems] of [
     );
   }
   const after = structuredClone(db.state);
-  await assert.rejects(moveCourseContents(db, 'teacher', 'source', input), /重复|已有/);
+  await assert.rejects(copyCourseContents(db, 'teacher', 'source', input), /重复|已有/);
   assert.deepEqual(db.state, after, 'Retry cannot create duplicate content');
 }
 {
@@ -534,14 +516,14 @@ for (const [notebooks, problems] of [
     chapterIds: ['foreign-chapter'],
     operation: 'copy',
   };
-  await assert.rejects(moveCourseContents(db, 'teacher', 'source', input), /不属于/);
+  await assert.rejects(copyCourseContents(db, 'teacher', 'source', input), /不属于/);
   assert.deepEqual(db.state, fixture());
 }
 {
   const db = database(fixture());
   const input = { ...(await inputFor(db, true, true)), operation: 'copy' };
   db.failSummary = true;
-  await assert.rejects(moveCourseContents(db, 'teacher', 'source', input), /injected failure/);
+  await assert.rejects(copyCourseContents(db, 'teacher', 'source', input), /injected failure/);
   assert.deepEqual(db.state, fixture(), 'Failed copy rolls back every new row');
 }
 console.log(

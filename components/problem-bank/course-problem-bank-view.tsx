@@ -38,7 +38,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { AnswerComposer, AnswerComposerToolbar } from '@/components/problem-bank/answer-composer';
-import { CourseBulkMoveDialog } from '@/components/teacher/course-bulk-move-dialog';
 import { ProblemEditDialog } from '@/components/problem-bank/problem-edit-dialog';
 import { ProblemDraftForm } from '@/components/problem-bank/problem-draft-form';
 import { ProblemLanguageToggle } from '@/components/problem-bank/problem-language-toggle';
@@ -65,7 +64,6 @@ import {
   FormulaReferencePanel,
   PROBLEM_BANK_EMERALD_ACTION_BUTTON_CLASS,
   PROBLEM_BANK_EMERALD_OUTLINE_BUTTON_CLASS,
-  PROBLEM_BANK_LIST_GRID_CLASS,
   PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
   PhotoAnswerUploader,
   ProblemDraftPreviewPanel,
@@ -1151,7 +1149,6 @@ export function CourseProblemBankView({
     handleSubmitInlineAnswer,
     handleUpdateProblem,
     handleCreateProblem,
-    reloadProblems,
     insertFormulaIntoAnswer,
     isPracticeMode,
     chapterFilter,
@@ -1234,6 +1231,9 @@ export function CourseProblemBankView({
     statusFilter,
     practiceFilter,
   ]);
+  const listGridClass = canEditProblems
+    ? 'grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_9rem_5rem_6rem_4.5rem] gap-2.5'
+    : 'grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_9rem_5rem_6rem_2rem] gap-2.5';
   const bulkMode = canEditProblems && !isPracticeMode && bulkDeleteMode;
   const selectedBulkIds =
     bulkSelection.scope === bulkScope
@@ -1273,14 +1273,6 @@ export function CourseProblemBankView({
         <Button size="sm" onClick={() => setCreateDraft(createBlankProblemDraft())}>
           {locale === 'zh-CN' ? '添加题目' : 'Add problem'}
         </Button>
-        <CourseBulkMoveDialog
-          courseId={courseId}
-          courseName={courseName}
-          contentKind="problems"
-          triggerLabel="复制 / 迁移题库"
-          onMoved={reloadProblems}
-          previewMode={previewMode || isLocalDemoProblemBankCourse(courseId)}
-        />
         {bulkMode ? (
           <>
             <Button
@@ -2703,7 +2695,12 @@ export function CourseProblemBankView({
       >
         {!isPracticeMode ? (
           <>
-            <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col self-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white/92 shadow-[0_16px_40px_rgba(15,23,42,0.05)] xl:mr-[312px] dark:border-slate-800 dark:bg-slate-950/55">
+            <div
+              className={cn(
+                'order-1 flex min-h-0 min-w-0 flex-1 flex-col self-stretch overflow-hidden @container/problem-list rounded-2xl border border-slate-200 bg-white/92 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/55',
+                'xl:mr-[312px]',
+              )}
+            >
               <div className="grid gap-2.5 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
                 <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                   {!showCourseNavigation ? bulkDeleteActions : null}
@@ -2783,20 +2780,22 @@ export function CourseProblemBankView({
                         </option>
                       ))}
                     </select>
-                    <select
-                      value={difficultyFilter}
-                      onChange={(event) =>
-                        setDifficultyFilter(event.target.value as typeof difficultyFilter)
-                      }
-                      className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                    >
-                      {difficultyFilterOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                          {option.count == null ? '' : ` · ${option.count}`}
-                        </option>
-                      ))}
-                    </select>
+                    {!canEditProblems ? (
+                      <select
+                        value={difficultyFilter}
+                        onChange={(event) =>
+                          setDifficultyFilter(event.target.value as typeof difficultyFilter)
+                        }
+                        className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                      >
+                        {difficultyFilterOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                            {option.count == null ? '' : ` · ${option.count}`}
+                          </option>
+                        ))}
+                      </select>
+                    ) : null}
                     <select
                       value={chapterFilter}
                       onChange={(event) => setChapterFilter(event.target.value)}
@@ -2892,7 +2891,7 @@ export function CourseProblemBankView({
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-2 p-3 lg:hidden">
+                    <div className="space-y-2 p-3 @min-[960px]/problem-list:hidden">
                       {paginatedProblems.map((problem) => {
                         const selected = bulkMode
                           ? selectedBulkIds.includes(problem.id)
@@ -2953,14 +2952,19 @@ export function CourseProblemBankView({
                                   {canEditProblems ? (
                                     <button
                                       type="button"
+                                      title={locale === 'zh-CN' ? '最近提交' : 'Recent submissions'}
+                                      aria-label={
+                                        locale === 'zh-CN'
+                                          ? `最近提交：${localizedTitle}`
+                                          : `Recent submissions: ${localizedTitle}`
+                                      }
                                       onClick={(event) => {
                                         event.stopPropagation();
                                         setRecentSubmissionsProblem(problem);
                                       }}
-                                      className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[11px] font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/30 dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-200 dark:hover:bg-violet-400/15"
+                                      className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-700 transition hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/30 dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-200"
                                     >
-                                      <History className="size-3" />
-                                      {locale === 'zh-CN' ? '最近提交' : 'Recent'}
+                                      <History className="size-4" aria-hidden="true" />
                                     </button>
                                   ) : null}
                                   <span
@@ -2990,30 +2994,22 @@ export function CourseProblemBankView({
                               <div className="flex shrink-0 items-center gap-1.5">
                                 <Button
                                   type="button"
-                                  size="sm"
-                                  className={cn(
-                                    'h-8 px-2.5 text-xs',
-                                    PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
-                                  )}
+                                  size="icon-sm"
+                                  className={cn('size-8 p-0', PROBLEM_BANK_PRIMARY_BUTTON_CLASS)}
+                                  aria-label={
+                                    locale === 'zh-CN'
+                                      ? `练习：${localizedTitle}`
+                                      : `Practice: ${localizedTitle}`
+                                  }
+                                  title={locale === 'zh-CN' ? '练习' : 'Practice'}
                                   disabled={bulkMode || bulkDeleting}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     navigateToPracticeProblem(problem);
                                   }}
                                 >
-                                  {locale === 'zh-CN' ? '练习' : 'Practice'}
+                                  <Play className="size-4" aria-hidden="true" />
                                 </Button>
-                                {canEditProblems ? (
-                                  <CourseBulkMoveDialog
-                                    courseId={courseId}
-                                    courseName={courseName}
-                                    selection={{ problemIds: [problem.id] }}
-                                    onMoved={reloadProblems}
-                                    previewMode={
-                                      previewMode || isLocalDemoProblemBankCourse(courseId)
-                                    }
-                                  />
-                                ) : null}
                                 {canEditProblems ? (
                                   <Button
                                     type="button"
@@ -3092,10 +3088,9 @@ export function CourseProblemBankView({
                               </div>
                               <div>
                                 <div className="text-[11px] font-medium text-slate-400">
-                                  {locale === 'zh-CN' ? '难度 / 得分' : 'Level / Score'}
+                                  {locale === 'zh-CN' ? '状态 / 得分' : 'State / Score'}
                                 </div>
                                 <div className="font-medium text-slate-700 dark:text-slate-200">
-                                  {difficultyLabel(problem.difficulty, locale)} ·{' '}
                                   {latestScoreLabel(problem, locale)}
                                 </div>
                               </div>
@@ -3141,15 +3136,14 @@ export function CourseProblemBankView({
                       </div>
                     </div>
 
-                    <div className="hidden min-w-[680px] lg:block">
+                    <div className="hidden w-full @min-[960px]/problem-list:block">
                       <div
                         className={cn(
-                          PROBLEM_BANK_LIST_GRID_CLASS,
+                          listGridClass,
                           'sticky top-0 z-[1] items-center border-b border-slate-200 bg-slate-50/90 px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-500 dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-400',
                         )}
                       >
                         <span>#</span>
-                        <span>{locale === 'zh-CN' ? '难度' : 'Level'}</span>
                         <span>{locale === 'zh-CN' ? '题目' : 'Problem'}</span>
                         <span>{locale === 'zh-CN' ? '题型' : 'Type'}</span>
                         <span>{locale === 'zh-CN' ? '章节' : 'Chapter'}</span>
@@ -3181,7 +3175,7 @@ export function CourseProblemBankView({
                               }
                             }}
                             className={cn(
-                              PROBLEM_BANK_LIST_GRID_CLASS,
+                              listGridClass,
                               'items-center border-b border-slate-100 px-4 py-2.5 text-sm transition dark:border-slate-800/80',
                               selected
                                 ? 'bg-sky-50/80 dark:bg-sky-500/10'
@@ -3197,15 +3191,6 @@ export function CourseProblemBankView({
                                 </span>
                               )}
                             </div>
-                            <div title={difficultyLabel(problem.difficulty, locale)}>
-                              <span
-                                className={cn(
-                                  'block size-1.5 rounded-full bg-[#c09a68]',
-                                  problem.difficulty === 'easy' && 'bg-[#7aa17d]',
-                                  problem.difficulty === 'hard' && 'bg-[#b96f66]',
-                                )}
-                              />
-                            </div>
                             <div className="min-w-0">
                               <div className="flex min-w-0 items-center gap-1.5">
                                 <ProblemTitleText
@@ -3215,14 +3200,19 @@ export function CourseProblemBankView({
                                 {canEditProblems ? (
                                   <button
                                     type="button"
+                                    title={locale === 'zh-CN' ? '最近提交' : 'Recent submissions'}
+                                    aria-label={
+                                      locale === 'zh-CN'
+                                        ? `最近提交：${localizedTitle}`
+                                        : `Recent submissions: ${localizedTitle}`
+                                    }
                                     onClick={(event) => {
                                       event.stopPropagation();
                                       setRecentSubmissionsProblem(problem);
                                     }}
-                                    className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 text-[10px] font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/30 dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-200 dark:hover:bg-violet-400/15"
+                                    className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-700 transition hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/30 dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-200"
                                   >
-                                    <History className="size-3" />
-                                    {locale === 'zh-CN' ? '最近提交' : 'Recent'}
+                                    <History className="size-4" aria-hidden="true" />
                                   </button>
                                 ) : null}
                               </div>
@@ -3279,30 +3269,25 @@ export function CourseProblemBankView({
                             <div className="flex items-center gap-1.5">
                               <Button
                                 type="button"
-                                size="sm"
+                                size="icon-sm"
                                 className={cn(
-                                  'h-[30px] rounded-lg px-2.5 text-xs font-semibold shadow-none',
+                                  'size-8 rounded-lg p-0 shadow-none',
                                   PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
                                 )}
+                                aria-label={
+                                  locale === 'zh-CN'
+                                    ? `练习：${localizedTitle}`
+                                    : `Practice: ${localizedTitle}`
+                                }
+                                title={locale === 'zh-CN' ? '练习' : 'Practice'}
                                 disabled={bulkMode || bulkDeleting}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   navigateToPracticeProblem(problem);
                                 }}
                               >
-                                {locale === 'zh-CN' ? '练习' : 'Practice'}
+                                <Play className="size-4" aria-hidden="true" />
                               </Button>
-                              {canEditProblems ? (
-                                <CourseBulkMoveDialog
-                                  courseId={courseId}
-                                  courseName={courseName}
-                                  selection={{ problemIds: [problem.id] }}
-                                  onMoved={reloadProblems}
-                                  previewMode={
-                                    previewMode || isLocalDemoProblemBankCourse(courseId)
-                                  }
-                                />
-                              ) : null}
                               {canEditProblems ? (
                                 <Button
                                   type="button"
