@@ -90,7 +90,6 @@ export function InteractiveFillBlank({
             autoComplete="off"
             onFocus={() => onFocusBlank(id)}
             onKeyDown={(event) => {
-              if (!isCode && event.key === 'Enter') event.preventDefault();
               if (isCode && event.key === 'Tab' && !event.shiftKey) {
                 event.preventDefault();
                 const field = event.currentTarget;

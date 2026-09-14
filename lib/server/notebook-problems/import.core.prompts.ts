@@ -149,6 +149,7 @@ export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): stri
       ? String.raw`Syntara 题库交付协议 v1（科目无关）：
 - 编程题必须有至少 2 个 publicContent.sampleIO（正常与边界示例），input 是对参考实现可直接执行的单行 Python 表达式，output 是对应返回值的 Python repr，explanation 解释行为。保留原文示例，补充的示例必须符合题意，不得把隐藏测试泄露到示例。平台执行全部示例验证，不允许留空或只写 examples 标题。
 - 填空标记 {{blank_id}} 必须留在原表格单元格或完整代码围栏内；不得为放输入框拆开代码块。代码补全用 answerKind=code_token，保留原缩进、换行及周边语法；每个标记对应一个作答项与评分项。
+- 多行程序、doctest 或输出追踪不得嵌入 Markdown 表格代码围栏；改用逐项独立的带语言代码块，后接对应填空。输出题参考答案必须保留真实换行。表格内短内容换行只可用无属性的 <br>，代码字面量中的 <br> 则保持原样。
 - Markdown 表格须保留独立表头、分隔行和逐行数据，不得合并换行；竖线字符需转义。代码围栏必须成对闭合。
 - 你的角色是“题库编译器”，不是聊天助手、讲课助手或自由写作助手。你要把原始材料编译成学生可以直接阅读、作答且系统可以稳定评分的题目。
 - 平台把题目分成三层：taskKind 表示考查任务，responseKind 表示学生作答控件，graderKind 表示评分器。不要因为考查代码就一律生成代码编辑器题。

@@ -1423,7 +1423,7 @@ export function CourseProblemBankView({
   const [recentSubmissionsProblem, setRecentSubmissionsProblem] =
     useState<NotebookProblemClientRecord | null>(null);
   const [activeFillBlankId, setActiveFillBlankId] = useState<string | null>(null);
-  const fillBlankAnswerInputRef = useRef<HTMLInputElement>(null);
+  const fillBlankAnswerInputRef = useRef<HTMLTextAreaElement>(null);
   const [practicePaneTabs, setPracticePaneTabs] = useState<PracticePaneTabs>(() => ({
     left: [...DEFAULT_PRACTICE_PANE_TABS.left],
     right: [...DEFAULT_PRACTICE_PANE_TABS.right],
@@ -2388,7 +2388,8 @@ export function CourseProblemBankView({
                         {selectedActiveBlank.placeholder?.trim() ||
                           (locale === 'zh-CN' ? '当前空格' : 'Current blank')}
                       </label>
-                      <Input
+                      <textarea
+                        rows={3}
                         ref={fillBlankAnswerInputRef}
                         id={`fill-blank-${selectedProblem.id}-${selectedActiveBlank.id}`}
                         value={blankAnswers[selectedProblem.id]?.[selectedActiveBlank.id] ?? ''}
@@ -2397,7 +2398,7 @@ export function CourseProblemBankView({
                         onChange={(event) =>
                           updateSelectedFillBlankAnswer(selectedActiveBlank.id, event.target.value)
                         }
-                        className="h-10 text-base shadow-none"
+                        className="min-h-24 w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 font-mono text-base shadow-none outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                       />
                     </div>
                   ) : null}

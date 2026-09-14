@@ -17,6 +17,9 @@ export function problemContentReadinessErrors(draft: NotebookProblemImportDraft)
       .split('|');
   for (const line of [...text.split('\n'), '']) {
     const match = line.match(/^\s*(`{3,}|~{3,})/);
+    if (!fence && /^\s*\|.*(?:`{3,}|~{3,})/.test(line)) {
+      errors.push('题面结构：多行代码不得嵌入 Markdown 表格；请使用独立代码块并在后面放置对应填空');
+    }
     if (!match) {
       if (fence) continue;
       if (line.trim().startsWith('|') && line.trim().endsWith('|')) {

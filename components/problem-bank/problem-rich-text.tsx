@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useMemo } from 'react';
+import { expandLegacyCodeTables } from '@/lib/problem-bank/markdown-structure';
 import {
   renderHtmlWithLatex,
   renderPlainTitleWithOptionalLatex,
@@ -184,13 +185,17 @@ function renderCodeBlock(lines: string[], language: string): string {
 }
 
 function renderInlineFormatting(text: string): string {
-  return escapeHtml(text)
-    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
-    .replace(/~~([^~\n]+)~~/g, '<del>$1</del>')
-    .replace(/(^|[\s（(])\*([^*\n]+)\*(?=$|[\s，。！？；、,.!?)）])/g, '$1<em>$2</em>')
-    .replace(/(^|[\s（(])_([^_\n]+)_(?=$|[\s，。！？；、,.!?)）])/g, '$1<em>$2</em>')
-    .replace(/\n/g, '<br/>');
+  return (
+    escapeHtml(text)
+      // Only attribute-free line breaks are markup; all other HTML stays escaped.
+      .replace(/&lt;br\s*\/?&gt;/gi, '<br/>')
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
+      .replace(/~~([^~\n]+)~~/g, '<del>$1</del>')
+      .replace(/(^|[\s（(])\*([^*\n]+)\*(?=$|[\s，。！？；、,.!?)）])/g, '$1<em>$2</em>')
+      .replace(/(^|[\s（(])_([^_\n]+)_(?=$|[\s，。！？；、,.!?)）])/g, '$1<em>$2</em>')
+      .replace(/\n/g, '<br/>')
+  );
 }
 
 function renderInlineMarkdown(text: string): string {
@@ -545,7 +550,7 @@ function renderDisplayMath(lines: string[]): string {
 }
 
 function textToHtml(text: string): string {
-  const fencedCode = protectFencedCodeBlocks(text);
+  const fencedCode = protectFencedCodeBlocks(expandLegacyCodeTables(text));
   const normalized = restoreFencedCodeBlocks(
     inlineSimpleDisplayMath(normalizeInlineStructuralMarkdown(fencedCode.text)),
     fencedCode.blocks,
