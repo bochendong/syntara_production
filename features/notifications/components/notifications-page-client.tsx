@@ -7,7 +7,7 @@ import { usePersistHydrated } from '@/lib/hooks/use-persist-hydrated';
 import { useAuthStore } from '@/lib/store/auth';
 import { useNotificationStore } from '@/lib/store/notifications';
 import { Button } from '@/components/ui/button';
-import { NotificationBannerCard } from '@/components/notifications/notification-banner-card';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 export function NotificationsPageClient() {
@@ -58,7 +58,7 @@ export function NotificationsPageClient() {
                 通知中心
               </h1>
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">
-                达成目标、完成成就、做题反馈和复习陪伴会保留在这里，并同步到侧边栏未读角标。
+                生成结果、资料处理和重要操作反馈统一保留在这里。关闭弹窗不会清除未读通知。
               </p>
             </div>
 
@@ -89,7 +89,7 @@ export function NotificationsPageClient() {
             <Bell className="mb-4 size-12 text-slate-300 dark:text-slate-600" strokeWidth={1.25} />
             <p className="text-sm font-medium text-slate-700 dark:text-slate-200">暂无通知</p>
             <p className="mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-400">
-              完成目标、做题或复习时，陪伴提醒会自动出现在这里。
+              任务完成或需要处理时，通知会自动出现在这里。
             </p>
           </div>
         ) : (
@@ -107,13 +107,36 @@ export function NotificationsPageClient() {
                       : 'border-white/60 dark:border-white/10',
                   )}
                 >
-                  <NotificationBannerCard
-                    item={item}
-                    onDismiss={deleteNotification}
-                    disableLink
-                    hideViewAction
-                    className="w-full"
-                  />
+                  <div className="p-3">
+                    <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+                      <span>{item.sourceLabel || 'Syntara'}</span>
+                      <time>{new Date(item.createdAt).toLocaleString('zh-CN')}</time>
+                    </div>
+                    <h2 className="text-base font-semibold">{item.title}</h2>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+                      {item.body}
+                    </p>
+                    <div className="mt-3 flex items-center justify-between">
+                      {item.href ? (
+                        <Link
+                          href={item.href}
+                          onClick={() => markAsRead(item.id)}
+                          className="text-xs font-medium text-sky-600"
+                        >
+                          查看详情 →
+                        </Link>
+                      ) : (
+                        <span />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => deleteNotification(item.id)}
+                        className="text-xs text-slate-400"
+                      >
+                        删除通知
+                      </button>
+                    </div>
+                  </div>
 
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
                     <div className="flex flex-wrap items-center gap-2">

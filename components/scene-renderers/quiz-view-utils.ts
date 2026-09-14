@@ -1,3 +1,4 @@
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
 import { createLogger } from '@/lib/logger';
 import { getCurrentModelConfig } from '@/lib/utils/model-config';
 import { runQueuedAiTask } from '@/lib/store/ai-task-queue';
@@ -148,7 +149,7 @@ export async function gradeTextQuestion(
         description: question.question || '正在批改文字题',
       },
       ({ signal }) =>
-        fetch('/api/quiz-grade', {
+        aiFetch('/api/quiz-grade', {
           method: 'POST',
           headers,
           body: JSON.stringify({

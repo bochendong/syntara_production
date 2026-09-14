@@ -1,4 +1,6 @@
 'use client';
+import { AiActivityLight } from '@/components/generation/ai-activity-light';
+import { NotificationInboxButton } from '@/components/notifications/notification-inbox-button';
 
 import type { ReactNode } from 'react';
 import {
@@ -624,10 +626,12 @@ export function Header({ currentSceneTitle, titleActions }: HeaderProps) {
     <>
       <header
         className={cn(
-          'z-10 shrink-0 flex min-h-[4.5rem] items-center px-6 md:px-8',
+          'relative isolate z-10 shrink-0 flex min-h-[4.5rem] items-center px-6 md:px-8',
           'border-b border-slate-900/[0.08] bg-white/70 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#0d0d10]/55',
         )}
       >
+        <AiActivityLight />
+        <NotificationInboxButton />
         <div className="flex w-full min-w-0 flex-1 items-center gap-3">
           <button
             type="button"

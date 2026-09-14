@@ -1,3 +1,4 @@
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
 import { runQueuedAiTask } from '@/lib/store/ai-task-queue';
 import { getCurrentModelConfig } from '@/lib/utils/model-config';
 import type { CourseChatContext } from '@/lib/types/chat';
@@ -208,7 +209,7 @@ export async function pickInsertIndexWithAI(args: {
         description: '正在判断临时PPT应该插入到笔记本哪里',
       },
       ({ signal }) =>
-        fetch('/api/notebooks/micro-lesson/insert-position', {
+        aiFetch('/api/notebooks/micro-lesson/insert-position', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

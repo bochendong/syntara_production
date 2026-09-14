@@ -36,7 +36,7 @@ const DEFAULT_OPENAI_MODEL_ID = 'gpt-5.6-luna';
 const LEGACY_DEFAULT_IMAGE_PROVIDER_ID: ImageProviderId = 'seedream';
 const LEGACY_DEFAULT_IMAGE_MODEL_ID = 'doubao-seedream-5-0-260128';
 const DEFAULT_IMAGE_PROVIDER_ID: ImageProviderId = 'openai-image';
-const DEFAULT_IMAGE_MODEL_ID = 'gpt-image-2';
+const DEFAULT_IMAGE_MODEL_ID = 'gpt-image-2.5-flare';
 
 function migrateLegacyDefaultGenerationModels(state: Partial<SettingsState>) {
   if (state.providerId === 'openai' && LEGACY_DEFAULT_OPENAI_MODEL_IDS.has(state.modelId || '')) {
@@ -1196,10 +1196,17 @@ export const useSettingsStore = create<SettingsState>()(
     },
     {
       name: 'settings-storage',
-      version: 13,
+      version: 14,
       // Migrate persisted state
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<SettingsState>;
+        if (
+          version < 14 &&
+          state.imageProviderId === 'openai-image' &&
+          state.imageModelId === 'gpt-image-2'
+        ) {
+          state.imageModelId = DEFAULT_IMAGE_MODEL_ID;
+        }
 
         if (version < 6 || state.notificationCompanionId === undefined) {
           state.notificationCompanionId =

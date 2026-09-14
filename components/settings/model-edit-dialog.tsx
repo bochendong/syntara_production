@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 import { useState, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { SettingsButton } from '@/components/settings/settings-button';
@@ -69,7 +71,7 @@ export function ModelEditDialog({
     setTestMessage('');
 
     try {
-      const response = await fetch('/api/verify-model', {
+      const response = await aiFetch('/api/verify-model', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -307,8 +309,10 @@ export function ModelEditDialog({
                 onClick={handleTestModel}
                 disabled={!editingModel.model.id || testStatus === 'testing'}
                 className={cn(
-                  testStatus === 'success' && 'border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30',
-                  testStatus === 'error' && 'border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30',
+                  testStatus === 'success' &&
+                    'border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30',
+                  testStatus === 'error' &&
+                    'border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30',
                 )}
               >
                 {testStatus === 'testing' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

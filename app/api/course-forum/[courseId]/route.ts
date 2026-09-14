@@ -1,3 +1,4 @@
+import { courseDisplayCode } from '@/lib/course-space/course-display-name';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/prisma';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -237,7 +238,7 @@ export async function GET(request: Request, context: { params: Promise<{ courseI
         course: {
           id: access.course.id,
           name: access.course.name,
-          code: access.course.courseCode?.trim() || access.course.name,
+          code: courseDisplayCode(access.course),
           academicYear: access.course.academicYear,
           term: access.course.academicTerm,
           problemCount: access.course.problemCount,

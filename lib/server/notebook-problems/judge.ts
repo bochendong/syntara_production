@@ -333,6 +333,76 @@ async function executePythonPayload(args: {
   }
 }
 
+/** Compile the completed Python blocks without executing student/source code. */
+export async function verifyCodeBlankDraft(
+  draft: NotebookProblemImportDraft,
+): Promise<NotebookProblemImportDraft> {
+  const content = draft.publicContent;
+  const grading = draft.grading;
+  if (content.type !== 'fill_blank' || grading.type !== 'fill_blank') return draft;
+  const blocks = [
+    ...content.stemTemplate.matchAll(
+      /^[ \t]*(`{3,}|~{3,})[ \t]*(?:python|py)[ \t]*\n([\s\S]*?)^[ \t]*\1[ \t]*$/gm,
+    ),
+  ]
+    .map((match) => match[2])
+    .filter((block) => /\{\{[^{}]+\}\}/.test(block));
+  if (!blocks.length) return draft;
+  const answers = Object.fromEntries(
+    grading.blanks.map((blank) => [blank.id, blank.acceptedAnswers[0] ?? '']),
+  );
+  const variants = [
+    answers,
+    ...grading.blanks.flatMap((blank) =>
+      blank.acceptedAnswers.slice(1).map((answer) => ({ ...answers, [blank.id]: answer })),
+    ),
+  ];
+  const cases = variants.flatMap((values, variant) =>
+    blocks.map((block, index) => {
+      const completed = block.replace(
+        /\{\{\s*([^{}]+?)\s*\}\}/g,
+        (_, id: string) => values[id.trim()] ?? '',
+      );
+      return {
+        id: `blank_${variant}_${index}`,
+        expression: `__import__('ast').parse(${JSON.stringify(completed)}) is not None`,
+        expected: 'True',
+      };
+    }),
+  );
+  let errors: string[] = [];
+  try {
+    const results = completeRunnerCaseResults(
+      cases,
+      await executePythonCases({ code: '', testCases: cases, timeoutMs: DEFAULT_TIMEOUT_MS }),
+    );
+    errors = results
+      .filter((result) => !result.passed)
+      .map(
+        (result) =>
+          `代码填空校验：参考答案填回代码后语法或缩进不正确（${result.id}）：${result.error ?? '检查失败'}`,
+      );
+  } catch (error) {
+    errors = [`代码填空校验：${error instanceof Error ? error.message : String(error)}`];
+  }
+  return {
+    ...draft,
+    status: errors.length ? 'draft' : draft.status,
+    sourceMeta: {
+      ...draft.sourceMeta,
+      codeBlankVerification: {
+        passed: errors.length === 0,
+        checkedBy: 'python-ast',
+        checkedVariants: cases.length,
+      },
+    },
+    validationErrors: [
+      ...draft.validationErrors.filter((error) => !error.startsWith('代码填空校验：')),
+      ...errors,
+    ],
+  };
+}
+
 export type CodeReferenceVerification = {
   passed: boolean;
   errors: string[];
@@ -400,8 +470,14 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
       );
     const publicResults = await run(publicTests);
     const secretResults = await run(secretTests);
-    const allTests = [...publicTests, ...secretTests];
-    const results = [...publicResults, ...secretResults];
+    const exampleTests: CodeCase[] = draft.publicContent.sampleIO.map((sample, index) => ({
+      id: `example_${index + 1}`,
+      expression: sample.input,
+      expected: sample.output,
+    }));
+    const exampleResults = await run(exampleTests);
+    const allTests = [...publicTests, ...secretTests, ...exampleTests];
+    const results = [...publicResults, ...secretResults, ...exampleResults];
     const failed = results.filter((result) => !result.passed);
     const expectedById = new Map(allTests.map((testCase) => [testCase.id, testCase.expected]));
     const errors = failed.map(

@@ -1,3 +1,4 @@
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
 import {
   useCallback,
   useState,
@@ -63,7 +64,7 @@ export function useInlineLessonDeckActions({
             description: `正在生成临时PPT：${compactTaskText(msg.lessonSourceQuestion)}`,
           },
           ({ signal }) =>
-            fetch('/api/notebooks/micro-lesson', {
+            aiFetch('/api/notebooks/micro-lesson', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

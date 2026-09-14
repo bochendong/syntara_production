@@ -1,3 +1,4 @@
+import { normalizeCourseDisplay } from '@/lib/course-space/course-display-name';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/server/prisma';
@@ -59,7 +60,7 @@ export async function GET() {
     return NextResponse.json(
       {
         courses: courses.map((course) => ({
-          ...course,
+          ...normalizeCourseDisplay(course),
           avatarUrl: course.avatarUrl?.trim() || pickStableCourseAvatarUrl(course.id),
           joinedAt: course.joinedAt ?? undefined,
           sourceOwnerName: course.sourceOwnerName ?? undefined,

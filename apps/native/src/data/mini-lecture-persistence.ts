@@ -83,10 +83,12 @@ export function miniLectureManifestToPersistence(
     throw new Error('平台返回的课堂讲解尚未就绪。');
   }
   if (
-    manifest.generator.image.model !== 'gpt-image-2' ||
+    !['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'].includes(
+      manifest.generator.image.model,
+    ) ||
     manifest.generator.tts.model !== 'gpt-4o-mini-tts'
   ) {
-    throw new Error('课堂讲解没有使用要求的 Image2 与 OpenAI TTS 模型。');
+    throw new Error('课堂讲解没有使用支持的 GPT Image 与 OpenAI TTS 模型。');
   }
 
   const timestamp = createdTimestamp(manifest);

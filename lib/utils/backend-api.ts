@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 import {
   type CreditsBalances,
   notifyCreditsBalancesChanged,
@@ -375,7 +377,7 @@ async function performBackendFetch(
   const headers = new Headers(init?.headers || {});
   const { timeoutMs: _timeoutMs, signal: _callerSignal, ...fetchInit } = init || {};
   try {
-    return await fetch(path, {
+    return await aiFetch(path, {
       credentials: 'include',
       ...fetchInit,
       headers,

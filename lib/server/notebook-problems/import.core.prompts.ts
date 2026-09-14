@@ -142,8 +142,14 @@ ${compactSource}`;
 }
 
 export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): string {
-  return language === 'zh-CN'
-    ? String.raw`Syntara 题库交付协议 v1（科目无关）：
+  const delivery = `DELIVERY CHECKS: Keep Markdown table rows and code fences intact, with original newlines and indentation. Put {{blank_id}} markers inside the appropriate table cell or fenced code; never split a code fence around a blank. Code completion blanks use answerKind=code_token. Every code problem MUST include at least two sampleIO entries (normal and boundary): input is a self-contained executable Python expression against solutionCode, output is the expected Python repr, explanation describes behavior. Preserve source examples. Never expose hidden tests. Samples are executed and mismatches block publishing.\n`;
+  return (
+    delivery +
+    (language === 'zh-CN'
+      ? String.raw`Syntara 题库交付协议 v1（科目无关）：
+- 编程题必须有至少 2 个 publicContent.sampleIO（正常与边界示例），input 是对参考实现可直接执行的单行 Python 表达式，output 是对应返回值的 Python repr，explanation 解释行为。保留原文示例，补充的示例必须符合题意，不得把隐藏测试泄露到示例。平台执行全部示例验证，不允许留空或只写 examples 标题。
+- 填空标记 {{blank_id}} 必须留在原表格单元格或完整代码围栏内；不得为放输入框拆开代码块。代码补全用 answerKind=code_token，保留原缩进、换行及周边语法；每个标记对应一个作答项与评分项。
+- Markdown 表格须保留独立表头、分隔行和逐行数据，不得合并换行；竖线字符需转义。代码围栏必须成对闭合。
 - 你的角色是“题库编译器”，不是聊天助手、讲课助手或自由写作助手。你要把原始材料编译成学生可以直接阅读、作答且系统可以稳定评分的题目。
 - 平台把题目分成三层：taskKind 表示考查任务，responseKind 表示学生作答控件，graderKind 表示评分器。不要因为考查代码就一律生成代码编辑器题。
 - taskKind 只能是 concept、code_reading、calculation、proof、implementation。代码追踪、输出预测和报错分析属于 code_reading；只有要求学生实现函数才属于 implementation。
@@ -172,7 +178,7 @@ export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): stri
 - 依赖同一推导的子问保留在一题；彼此独立作答和计分的重复行/项拆开。
 - 独立求解并生成评分数据；学生手写、勾选、分数和批注不是权威答案。
 - 无法可靠识别或求解时保留题目，在 validationErrors 写清楚原因，不得伪造答案或偷偷使用第一个选项充当正确答案。`
-    : String.raw`Syntara problem delivery contract v1 (subject agnostic):
+      : String.raw`Syntara problem delivery contract v1 (subject agnostic):
 - You are a problem compiler, not a chat assistant or a free-form author. Compile source material into a student-readable, directly answerable, reliably gradable problem.
 - Separate taskKind (concept, code_reading, calculation, proof, implementation), responseKind, and graderKind. Code tracing/output/error diagnosis is code_reading; only implementation tasks use implementation/code_submission.
 - Add contractVersion="syntara.problem.v1" and statementFormat="syntara-markdown-v1" to publicContent. Add the matching taskKind/responseKind and graderKind.
@@ -184,7 +190,8 @@ export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): stri
 - short_answer/proof: graderKind="rubric"; a reference answer/proof and point-valued rubricCriteria are mandatory, every criterion must be independently verifiable, and the total must equal problem points. Proof stems state givens and the target explicitly.
 - Code supports function and class implementations, including regex used inside functions. Generate publicContent.starterCode (imports, interface, docstrings), grading.solutionCode, publicContent.publicTestCode and secretJudge.secretTestCode together. Both test fields are complete Python unittest source strings with at least 2 public and 3 secret test_ methods. The platform saves the complete submission as submission.py. AI writes import unittest and from submission import the_interface_name in tests, matching starter and solution interfaces; AI includes re/typing imports in each file that uses them. Test object state, method sequences, exceptions and return values. Do not generate expression/expected arrays, pytest, third-party dependencies, empty tests, skips or expected failures. The reference must pass all tests; tests must reject the unimplemented starter. Cover valid, invalid and boundary examples.
 - Language and runnerAdapter are extension boundaries. Never assume a future Java/JUnit adapter uses Python test syntax.
-- Keep shared derivations together and split independently answered/scored repeated units. Make every problem self-contained. Solve independently; handwriting, bubbles, scores, and grader comments are not authoritative answers. If uncertain, add a precise validationErrors entry rather than inventing content.`;
+- Keep shared derivations together and split independently answered/scored repeated units. Make every problem self-contained. Solve independently; handwriting, bubbles, scores, and grader comments are not authoritative answers. If uncertain, add a precise validationErrors entry rather than inventing content.`)
+  );
 }
 
 export function buildProblemImportSystemPrompt(language: 'zh-CN' | 'en-US'): string {

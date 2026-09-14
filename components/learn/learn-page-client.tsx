@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 import { useAiActivityStore } from '@/lib/store/ai-activity';
 import { useReportAiActivity } from '@/lib/ai-progress/use-ai-activity';
 import { MiniLectureWaitProgress } from '@/components/generation/mini-lecture-wait-progress';
@@ -1859,7 +1861,7 @@ async function parseSyllabusFileWithOpenAI(
   if (options.courseName) formData.append('courseName', options.courseName);
   if (options.courseDescription) formData.append('courseDescription', options.courseDescription);
 
-  const response = await fetch('/api/syllabus/parse', {
+  const response = await aiFetch('/api/syllabus/parse', {
     method: 'POST',
     body: formData,
   });
@@ -1898,7 +1900,7 @@ async function readSyllabusFileText(
   }
   formData.append('pdf', file);
 
-  const response = await fetch('/api/parse-pdf', {
+  const response = await aiFetch('/api/parse-pdf', {
     method: 'POST',
     body: formData,
   });

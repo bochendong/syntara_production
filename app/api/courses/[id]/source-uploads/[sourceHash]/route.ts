@@ -25,7 +25,7 @@ const updateCoverSchema = z.object({
     .min(32)
     .max(32 * 1024 * 1024),
   providerId: z.literal('openai-image'),
-  model: z.literal('gpt-image-2'),
+  model: z.enum(['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst']),
   prompt: z.string().trim().min(1).max(20_000),
 });
 
@@ -188,6 +188,7 @@ class CoverTargetChangedError extends Error {
 
 function sourceCoverSlideJson(args: {
   previous: unknown;
+  model: string;
   sourceHash: string;
   sourceTitle: string;
   topic: string | null;
@@ -221,7 +222,7 @@ function sourceCoverSlideJson(args: {
       sourceTitle: args.sourceTitle,
       topic: args.topic,
       providerId: 'openai-image',
-      model: 'gpt-image-2',
+      model: args.model,
       promptHash: args.promptHash,
       generatedAt: new Date().toISOString(),
     },
@@ -455,6 +456,7 @@ export async function PATCH(
           };
           const nextCoverSlide = sourceCoverSlideJson({
             previous: currentNotebook.coverSlideJson,
+            model: payload.data.model,
             sourceHash,
             sourceTitle: currentSource.title,
             topic: currentSource.topic,

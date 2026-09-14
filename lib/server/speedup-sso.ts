@@ -1,3 +1,4 @@
+import { courseDisplayCode } from '@/lib/course-space/course-display-name';
 import { encode } from 'next-auth/jwt';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 
@@ -207,7 +208,10 @@ function speedupCourseFromRecord(course: JsonRecord): SpeedupCourse | null {
     id,
     campusCode: normalizeSpeedupUniversityAbbrs(universityAbbrs),
     name: stringValue(course, 'CourseName', 'courseName') || `课程 ${id}`,
-    code: stringValue(course, 'CourseCode', 'courseCode'),
+    code: courseDisplayCode({
+      name: stringValue(course, 'CourseName', 'courseName'),
+      code: stringValue(course, 'CourseCode', 'courseCode'),
+    }),
     termName: stringValue(course, 'TermName', 'termName'),
     universityAbbrs,
     teacherName: stringValue(course, 'TeacherName', 'teacherName'),

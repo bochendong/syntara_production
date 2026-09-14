@@ -38,8 +38,8 @@ requireMatch(
 );
 requireMatch(
   '.env.example',
-  /^IMAGE_OPENAI_IMAGE_MODELS=gpt-image-2,gpt-image-1\.5,gpt-image-1$/m,
-  'OpenAI image models must default to GPT Image 2.',
+  /^IMAGE_OPENAI_IMAGE_MODELS=gpt-image-2\.5-flare,gpt-image-2\.5-sunburst,gpt-image-2$/m,
+  'OpenAI image models must default to GPT Image 2.5 Flare.',
 );
 
 requireBefore(
@@ -94,12 +94,12 @@ requireMatch(
 );
 requireMatch(
   'lib/store/settings.ts',
-  /const DEFAULT_IMAGE_MODEL_ID = 'gpt-image-2';/,
-  'client image model must default to GPT Image 2.',
+  /const DEFAULT_IMAGE_MODEL_ID = 'gpt-image-2.5-flare';/,
+  'client image model must default to GPT Image 2.5 Flare.',
 );
 requireMatch(
   'lib/store/settings.ts',
-  /version: 13,/,
+  /version: 14,/,
   'persisted settings migration version must include the generation-default upgrade.',
 );
 requireMatch(
@@ -110,8 +110,8 @@ requireMatch(
 
 requireMatch(
   'lib/media/adapters/openai-image-adapter.ts',
-  /const DEFAULT_MODEL = 'gpt-image-2';/,
-  'OpenAI image adapter must default to GPT Image 2.',
+  /const DEFAULT_MODEL = 'gpt-image-2.5-flare';/,
+  'OpenAI image adapter must default to GPT Image 2.5 Flare.',
 );
 requireMatch(
   'lib/server/provider-config.ts',
@@ -121,7 +121,7 @@ requireMatch(
 requireMatch(
   'lib/media/adapters/openai-image-adapter.ts',
   /const RESPONSES_IMAGE_HOST_MODEL = 'gpt-5\.6-sol';/,
-  'GPT Image 2 Responses calls must use the current flagship host model.',
+  'GPT Image 2.5 Flare Responses calls must use the current flagship host model.',
 );
 requireMatch(
   'lib/media/adapters/openai-image-adapter.ts',
@@ -130,9 +130,9 @@ requireMatch(
 );
 requireBefore(
   'lib/media/image-providers.ts',
-  "{ id: 'gpt-image-2'",
+  "{ id: 'gpt-image-2.5-flare'",
   "{ id: 'gpt-image-1.5'",
-  'GPT Image 2 must be the first OpenAI image option.',
+  'GPT Image 2.5 Flare must be the first OpenAI image option.',
 );
 requireMatch(
   'lib/constants/notebook-generation-model-presets.ts',
@@ -172,8 +172,8 @@ console.log(
       ok: true,
       textDefault: 'gpt-5.6-luna',
       balancedNotebookModel: 'gpt-5.6-terra',
-      imageDefault: 'gpt-image-2',
-      persistedSettingsMigration: 13,
+      imageDefault: 'gpt-image-2.5-flare',
+      persistedSettingsMigration: 14,
     },
     null,
     2,

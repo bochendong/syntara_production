@@ -88,6 +88,8 @@ export const IMAGE_PROVIDERS: Record<ImageProviderId, ImageProviderConfig> = {
     requiresApiKey: true,
     defaultBaseUrl: 'https://api.openai.com/v1',
     models: [
+      { id: 'gpt-image-2.5-flare', name: 'GPT Image 2.5 Flare' },
+      { id: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst' },
       { id: 'gpt-image-2', name: 'GPT Image 2' },
       { id: 'gpt-image-1.5', name: 'GPT Image 1.5' },
       { id: 'gpt-image-1', name: 'GPT Image 1' },

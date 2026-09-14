@@ -1,5 +1,6 @@
 'use client';
 
+import { TaskNotificationObserver } from './task-notification-observer';
 import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
@@ -16,7 +17,6 @@ const GlobalNotificationOverlay = dynamic(
 
 function shouldSuppressNotificationCenter(pathname: string | null): boolean {
   return Boolean(
-    pathname === '/' ||
     pathname === '/test' ||
     pathname?.startsWith('/test/') ||
     pathname === '/generation-tests' ||
@@ -61,7 +61,12 @@ export function NotificationCenterProvider() {
     userId,
   ]);
 
-  if (suppressNotificationCenter || activeBannerCount === 0) return null;
+  if (suppressNotificationCenter) return null;
 
-  return <GlobalNotificationOverlay />;
+  return (
+    <>
+      <TaskNotificationObserver />
+      {activeBannerCount > 0 && <GlobalNotificationOverlay />}
+    </>
+  );
 }

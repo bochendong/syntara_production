@@ -705,7 +705,7 @@ async function resolveSourceCoverImageProvider(): Promise<{
     if (!apiKey) continue;
     const model =
       providerId === 'openai-image'
-        ? 'gpt-image-2'
+        ? 'gpt-image-2.5-flare'
         : serverConfig?.models?.[0] || IMAGE_PROVIDERS[providerId].models[0]?.id;
     return {
       providerId,

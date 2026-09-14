@@ -1,3 +1,4 @@
+import { normalizeCourseDisplay } from '@/lib/course-space/course-display-name';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/server/prisma';
@@ -172,7 +173,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const { ownerName, ownerEmail, ...courseWithoutRelations } = course;
     return NextResponse.json({
       course: {
-        ...courseWithoutRelations,
+        ...normalizeCourseDisplay(courseWithoutRelations),
         accessRole,
         sourceOwnerName:
           accessRole === 'enrolled'

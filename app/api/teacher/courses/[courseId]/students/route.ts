@@ -1,3 +1,4 @@
+import { courseDisplayCode } from '@/lib/course-space/course-display-name';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -61,7 +62,7 @@ export async function GET(_request: Request, context: { params: Promise<{ course
       storage: 'postgresql',
       course: {
         id: course.id,
-        code: course.courseCode?.trim() || course.name,
+        code: courseDisplayCode(course),
         name: course.name,
         academicYear: course.academicYear,
         term: course.academicTerm,

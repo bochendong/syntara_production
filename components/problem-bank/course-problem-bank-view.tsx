@@ -1,4 +1,5 @@
 'use client';
+import { InteractiveFillBlank } from './interactive-fill-blank';
 import { buildCodeTestFile } from '@/lib/problem-bank/code-test-files';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
@@ -33,7 +34,6 @@ import {
   type NotebookProblemAttemptAnswer,
   type NotebookProblemAttemptRecord,
   type NotebookProblemPublicContent,
-  type NotebookProblemPublicFillBlank,
 } from '@/lib/problem-bank';
 import { Button } from '@/components/ui/button';
 import { MessageResponse } from '@/components/ai-elements/message';
@@ -137,63 +137,6 @@ function classPassRatePresentation(
         ? `全班 ${stats.passedStudentCount}/${stats.studentCount} 人已通过，${stats.attemptedStudentCount} 人作答过`
         : `${stats.passedStudentCount}/${stats.studentCount} students passed; ${stats.attemptedStudentCount} attempted`,
   };
-}
-
-function InlineFillBlankPrompt({
-  content,
-  values,
-  disabled,
-  locale,
-  onFocusBlank,
-  onChangeBlank,
-}: {
-  content: NotebookProblemPublicFillBlank;
-  values: Record<string, string>;
-  disabled: boolean;
-  locale: 'zh-CN' | 'en-US';
-  onFocusBlank: (blankId: string) => void;
-  onChangeBlank: (blankId: string, value: string) => void;
-}) {
-  const parts = content.stemTemplate.split(/(\{\{\s*[^{}]+?\s*\}\})/g).filter(Boolean);
-
-  return (
-    <div className="text-[15px] leading-9 text-slate-800 dark:text-slate-200">
-      {parts.map((part, partIndex) => {
-        const marker = part.match(/^\{\{\s*([^{}]+?)\s*\}\}$/);
-        if (!marker) {
-          return (
-            <ProblemRichText
-              key={`${partIndex}-${part}`}
-              content={part}
-              className="inline text-[15px] leading-9 [&_p]:inline"
-            />
-          );
-        }
-
-        const blankId = marker[1].trim();
-        const blankIndex = content.blanks.findIndex((blank) => blank.id === blankId);
-        const blank = content.blanks[blankIndex];
-        if (!blank) return <span key={`${partIndex}-${part}`}>______</span>;
-
-        const label =
-          blank.placeholder?.trim() ||
-          (locale === 'zh-CN' ? `第 ${blankIndex + 1} 空` : `Blank ${blankIndex + 1}`);
-        return (
-          <Input
-            key={blank.id}
-            value={values[blank.id] ?? ''}
-            disabled={disabled}
-            aria-label={label}
-            title={label}
-            placeholder={locale === 'zh-CN' ? `空 ${blankIndex + 1}` : `Blank ${blankIndex + 1}`}
-            onFocus={() => onFocusBlank(blank.id)}
-            onChange={(event) => onChangeBlank(blank.id, event.target.value)}
-            className="mx-1 inline-flex h-8 w-24 rounded-md border-sky-200 bg-sky-50/70 px-2 text-center text-sm font-semibold align-middle text-slate-900 shadow-none focus-visible:bg-white dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-white dark:focus-visible:bg-slate-950"
-          />
-        );
-      })}
-    </div>
-  );
 }
 
 type ProblemBankStats = {
@@ -1197,6 +1140,8 @@ export function CourseProblemBankView({
     handleAiFileUnfiledProblems,
     handleChangeProblemChapter,
     handleDeleteProblem,
+    handleBulkDeleteProblems,
+    bulkDeleting,
     handleEditingDraftChange,
     handleProblemInfoTabChange,
     handleRemovePhotoAnswer,
@@ -1270,6 +1215,130 @@ export function CourseProblemBankView({
     typeFilterOptions,
     visibleProblemPreviewDraft,
   } = view;
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [bulkSelection, setBulkSelection] = useState<{ scope: string; ids: string[] }>({
+    scope: '',
+    ids: [],
+  });
+  const bulkScope = JSON.stringify([
+    courseId,
+    currentProblemPage,
+    searchQuery,
+    chapterFilter,
+    typeFilter,
+    difficultyFilter,
+    statusFilter,
+    practiceFilter,
+  ]);
+  const bulkMode = canEditProblems && !isPracticeMode && bulkDeleteMode;
+  const selectedBulkIds =
+    bulkSelection.scope === bulkScope
+      ? bulkSelection.ids.filter((id) => paginatedProblems.some((problem) => problem.id === id))
+      : [];
+  const allPageSelected =
+    paginatedProblems.length > 0 && selectedBulkIds.length === paginatedProblems.length;
+  const toggleBulkProblem = (id: string) => {
+    if (bulkDeleting || loading) return;
+    setBulkSelection({
+      scope: bulkScope,
+      ids: selectedBulkIds.includes(id)
+        ? selectedBulkIds.filter((selected) => selected !== id)
+        : [...selectedBulkIds, id],
+    });
+  };
+  const bulkCheckbox = (problem: NotebookProblemClientRecord) => (
+    <input
+      type="checkbox"
+      className="size-4 accent-rose-600"
+      checked={selectedBulkIds.includes(problem.id)}
+      disabled={bulkDeleting || loading}
+      aria-label={
+        locale === 'zh-CN'
+          ? `选择题目「${getLocalizedProblemTitle(problem, problemLanguage)}」`
+          : `Select ${problem.title}`
+      }
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+      onChange={() => toggleBulkProblem(problem.id)}
+    />
+  );
+  const bulkDeleteActions =
+    canEditProblems && !isPracticeMode ? (
+      <div className="flex flex-wrap items-center gap-2">
+        {bulkMode ? (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={bulkDeleting || loading || !paginatedProblems.length}
+              onClick={() =>
+                setBulkSelection({
+                  scope: bulkScope,
+                  ids: allPageSelected ? [] : paginatedProblems.map((problem) => problem.id),
+                })
+              }
+            >
+              {locale === 'zh-CN'
+                ? allPageSelected
+                  ? '取消全选'
+                  : '全选当前页'
+                : allPageSelected
+                  ? 'Deselect page'
+                  : 'Select page'}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={
+                bulkDeleting || loading || Boolean(deletingProblemId) || !selectedBulkIds.length
+              }
+              onClick={async () => {
+                const deleted = await handleBulkDeleteProblems(selectedBulkIds);
+                if (deleted)
+                  setBulkSelection((current) => ({
+                    ...current,
+                    ids: current.ids.filter((id) => !deleted.includes(id)),
+                  }));
+              }}
+            >
+              {bulkDeleting ? (
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="mr-1.5 size-3.5" />
+              )}
+              {locale === 'zh-CN'
+                ? `删除已选（${selectedBulkIds.length}）`
+                : `Delete selected (${selectedBulkIds.length})`}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={bulkDeleting}
+              onClick={() => {
+                setBulkDeleteMode(false);
+                setBulkSelection({ scope: '', ids: [] });
+              }}
+            >
+              {locale === 'zh-CN' ? '取消' : 'Cancel'}
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading || Boolean(deletingProblemId) || !paginatedProblems.length}
+            onClick={() => {
+              setBulkSelection({ scope: '', ids: [] });
+              setBulkDeleteMode(true);
+            }}
+          >
+            <Trash2 className="mr-1.5 size-3.5" />
+            {locale === 'zh-CN' ? '批量删除' : 'Bulk delete'}
+          </Button>
+        )}
+      </div>
+    ) : null;
+
   const [editProblemOpen, setEditProblemOpen] = useState(false);
   const [chapterManagerOpen, setChapterManagerOpen] = useState(false);
   const [recentSubmissionsProblem, setRecentSubmissionsProblem] =
@@ -1715,6 +1784,7 @@ export function CourseProblemBankView({
     problemChapters.length,
     problems.length,
     selectedProblem,
+    setChapterManagerOpen,
     showCourseNavigation,
   ]);
 
@@ -1726,15 +1796,6 @@ export function CourseProblemBankView({
     };
   }, [onPracticeHeaderStateChange, practiceHeaderState]);
 
-  const handleSubmitAndShowHistory = async () => {
-    const submitted = await handleSubmitInlineAnswer();
-    if (!submitted) return;
-    toast.success(
-      locale === 'zh-CN'
-        ? '答案已提交，可在「提交历史」查看详情。'
-        : 'Submitted. Open History to view details.',
-    );
-  };
   const handleRunCodeAndShowOutput = async (pane: PracticePaneId, target: CourseCodeRunTarget) => {
     const ran = await handleRunCodeAnswer(target);
     if (!ran || !visiblePracticePanelTabs.has('output')) return;
@@ -2010,7 +2071,7 @@ export function CourseProblemBankView({
             ) : null}
             {activeTab === 'answer' || activeTab === 'code' ? (
               <Button
-                onClick={handleSubmitAndShowHistory}
+                onClick={handleSubmitInlineAnswer}
                 disabled={
                   submittingAnswer ||
                   runningCode ||
@@ -2066,7 +2127,7 @@ export function CourseProblemBankView({
               {selectedProblemContent?.type === 'code' ? (
                 <CodeProblemStatement content={selectedProblemContent} locale={locale} />
               ) : selectedFillBlankContent ? (
-                <InlineFillBlankPrompt
+                <InteractiveFillBlank
                   content={selectedFillBlankContent}
                   values={blankAnswers[selectedProblem.id] ?? {}}
                   disabled={submittingAnswer}
@@ -2602,13 +2663,16 @@ export function CourseProblemBankView({
                 ) : null}
                 {problemSubmissionStatus}
               </div>
-            ) : undefined
+            ) : (
+              bulkDeleteActions
+            )
           }
           trailingActions={isPracticeMode ? problemSubmissionActions : undefined}
         />
       ) : null}
 
       <div
+        inert={bulkDeleting}
         className={cn(
           'relative flex min-h-0 w-full flex-1 items-stretch gap-2',
           isPracticeMode && 'h-full min-h-0',
@@ -2626,6 +2690,7 @@ export function CourseProblemBankView({
             <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col self-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white/92 shadow-[0_16px_40px_rgba(15,23,42,0.05)] xl:mr-[312px] dark:border-slate-800 dark:bg-slate-950/55">
               <div className="grid gap-2.5 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
                 <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                  {!showCourseNavigation ? bulkDeleteActions : null}
                   {showCourseTitle && !showCourseNavigation ? (
                     <span className="min-w-0 truncate text-sm font-semibold text-sky-600 dark:text-sky-300">
                       {courseName || (locale === 'zh-CN' ? '课程空间' : 'Course workspace')}
@@ -2813,7 +2878,9 @@ export function CourseProblemBankView({
                   <>
                     <div className="space-y-2 p-3 lg:hidden">
                       {paginatedProblems.map((problem) => {
-                        const selected = selectedProblemId === problem.id;
+                        const selected = bulkMode
+                          ? selectedBulkIds.includes(problem.id)
+                          : selectedProblemId === problem.id;
                         const typeVisual = problemTypeVisual(problem.type);
                         const ProblemTypeIcon = typeVisual.Icon;
                         const localizedContent = getLocalizedProblemContent(
@@ -2827,11 +2894,16 @@ export function CourseProblemBankView({
                             key={problem.id}
                             role="button"
                             tabIndex={0}
-                            onClick={() => navigateToPracticeProblem(problem)}
+                            onClick={() =>
+                              bulkMode
+                                ? toggleBulkProblem(problem.id)
+                                : navigateToPracticeProblem(problem)
+                            }
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                navigateToPracticeProblem(problem);
+                                if (bulkMode) toggleBulkProblem(problem.id);
+                                else navigateToPracticeProblem(problem);
                               }
                             }}
                             className={cn(
@@ -2844,6 +2916,7 @@ export function CourseProblemBankView({
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-1.5">
+                                  {bulkMode ? bulkCheckbox(problem) : null}
                                   <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                                     {formatProblemNumber(problem)}
                                   </span>
@@ -2906,6 +2979,7 @@ export function CourseProblemBankView({
                                     'h-8 px-2.5 text-xs',
                                     PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
                                   )}
+                                  disabled={bulkMode || bulkDeleting}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     navigateToPracticeProblem(problem);
@@ -2918,7 +2992,9 @@ export function CourseProblemBankView({
                                     type="button"
                                     variant="destructive"
                                     size="icon-sm"
-                                    disabled={Boolean(deletingProblemId)}
+                                    disabled={
+                                      bulkMode || bulkDeleting || Boolean(deletingProblemId)
+                                    }
                                     aria-label={
                                       locale === 'zh-CN'
                                         ? `删除题目「${localizedTitle}」`
@@ -3055,7 +3131,9 @@ export function CourseProblemBankView({
                         <span />
                       </div>
                       {paginatedProblems.map((problem) => {
-                        const selected = selectedProblemId === problem.id;
+                        const selected = bulkMode
+                          ? selectedBulkIds.includes(problem.id)
+                          : selectedProblemId === problem.id;
                         const localizedTitle = getLocalizedProblemTitle(problem, problemLanguage);
                         const classPassRate = classPassRatePresentation(problem, locale);
                         return (
@@ -3063,11 +3141,16 @@ export function CourseProblemBankView({
                             key={problem.id}
                             role="button"
                             tabIndex={0}
-                            onClick={() => navigateToPracticeProblem(problem)}
+                            onClick={() =>
+                              bulkMode
+                                ? toggleBulkProblem(problem.id)
+                                : navigateToPracticeProblem(problem)
+                            }
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                navigateToPracticeProblem(problem);
+                                if (bulkMode) toggleBulkProblem(problem.id);
+                                else navigateToPracticeProblem(problem);
                               }
                             }}
                             className={cn(
@@ -3079,9 +3162,13 @@ export function CourseProblemBankView({
                             )}
                           >
                             <div>
-                              <span className="grid size-7 place-items-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                                {pageStartIndex + paginatedProblems.indexOf(problem) + 1}
-                              </span>
+                              {bulkMode ? (
+                                bulkCheckbox(problem)
+                              ) : (
+                                <span className="grid size-7 place-items-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                                  {pageStartIndex + paginatedProblems.indexOf(problem) + 1}
+                                </span>
+                              )}
                             </div>
                             <div title={difficultyLabel(problem.difficulty, locale)}>
                               <span
@@ -3170,6 +3257,7 @@ export function CourseProblemBankView({
                                   'h-[30px] rounded-lg px-2.5 text-xs font-semibold shadow-none',
                                   PROBLEM_BANK_PRIMARY_BUTTON_CLASS,
                                 )}
+                                disabled={bulkMode || bulkDeleting}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   navigateToPracticeProblem(problem);
@@ -3182,7 +3270,7 @@ export function CourseProblemBankView({
                                   type="button"
                                   variant="destructive"
                                   size="icon-sm"
-                                  disabled={Boolean(deletingProblemId)}
+                                  disabled={bulkMode || bulkDeleting || Boolean(deletingProblemId)}
                                   aria-label={
                                     locale === 'zh-CN'
                                       ? `删除题目「${localizedTitle}」`

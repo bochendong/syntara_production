@@ -20,6 +20,22 @@ export const OPENAI_WEB_SEARCH_USD_PER_1000_CALLS = 10;
 export const OPENAI_RETAIL_MARKUP_MULTIPLIER = 1.5;
 
 export const OPENAI_IMAGE_PRICING = {
+  'gpt-image-2.5-flare': {
+    imageInputUsdPerMillionTokens: 8,
+    imageCachedInputUsdPerMillionTokens: 2,
+    imageOutputUsdPerMillionTokens: 30,
+    textInputUsdPerMillionTokens: 5,
+    textCachedInputUsdPerMillionTokens: 1.25,
+    textOutputUsdPerMillionTokens: 0,
+  },
+  'gpt-image-2.5-sunburst': {
+    imageInputUsdPerMillionTokens: 8,
+    imageCachedInputUsdPerMillionTokens: 2,
+    imageOutputUsdPerMillionTokens: 30,
+    textInputUsdPerMillionTokens: 5,
+    textCachedInputUsdPerMillionTokens: 1.25,
+    textOutputUsdPerMillionTokens: 0,
+  },
   'gpt-image-2': {
     imageInputUsdPerMillionTokens: 8,
     imageCachedInputUsdPerMillionTokens: 2,

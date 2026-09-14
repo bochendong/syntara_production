@@ -25,6 +25,7 @@ import { pickStableNotebookAgentAvatarUrl } from '@/lib/constants/notebook-agent
 import { nanoid } from 'nanoid';
 import type { Stage } from '@/lib/types/stage';
 import type { SceneOutline, PdfImage, ImageMapping } from '@/lib/types/generation';
+import { toast } from '@/lib/notifications/client-toast';
 import { AgentRevealModal } from '@/components/agent/agent-reveal-modal';
 import { createLogger } from '@/lib/logger';
 import { useAuthStore } from '@/lib/store/auth';
@@ -116,7 +117,6 @@ function GenerationPreviewContent() {
       priority: number;
     }>
   >([]);
-  const agentRevealResolveRef = useRef<(() => void) | null>(null);
 
   const buildFallbackNotebookMetadata = (
     requirement: string,
@@ -577,12 +577,19 @@ function GenerationPreviewContent() {
           const savedIds = await saveGeneratedAgents(stage.id, agentData.agents);
           settings.setSelectedAgentIds(savedIds);
 
-          // Show card-reveal modal, continue generation once all cards are revealed
           setGeneratedAgents(agentData.agents);
-          setShowAgentReveal(true);
-          await new Promise<void>((resolve) => {
-            agentRevealResolveRef.current = resolve;
-          });
+          toast.success(
+            currentSession.requirements.language === 'en-US'
+              ? 'Classroom agents are ready'
+              : '课堂角色已准备好',
+            {
+              description: agentData.agents.map((agent: { name: string }) => agent.name).join('、'),
+              action: {
+                label: t('generation.viewAgents'),
+                onClick: () => setShowAgentReveal(true),
+              },
+            },
+          );
 
           agents = savedIds
             .map((id) => useAgentRegistry.getState().getAgent(id))
@@ -1227,10 +1234,7 @@ function GenerationPreviewContent() {
         agents={generatedAgents}
         open={showAgentReveal}
         onClose={() => setShowAgentReveal(false)}
-        onAllRevealed={() => {
-          agentRevealResolveRef.current?.();
-          agentRevealResolveRef.current = null;
-        }}
+        onAllRevealed={() => {}}
       />
     </div>
   );

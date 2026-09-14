@@ -1,4 +1,5 @@
 'use client';
+import { NotificationInboxButton } from '@/components/notifications/notification-inbox-button';
 
 import Link from 'next/link';
 import { useObserveTeacherAiTasks } from '@/lib/ai-progress/use-ai-activity';
@@ -382,6 +383,7 @@ export function CourseSpaceHeaderContent({
           >
             {courseTitle}
           </h1>
+          <NotificationInboxButton />
           <Link
             href={allCoursesHref}
             className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 outline-none transition hover:bg-white hover:text-sky-700 focus-visible:ring-2 focus-visible:ring-sky-400/40 dark:hover:bg-white/[0.07] dark:hover:text-sky-200"

@@ -1,3 +1,4 @@
+import { problemContentReadinessErrors } from '@/lib/problem-bank/content-readiness';
 import { enqueueJob } from '@/features/background-jobs/server/store';
 import { Prisma } from '@/lib/server/generated-prisma';
 import { courseProblemDedupeKey } from '@/features/problems/domain/problem-dedupe';
@@ -30,7 +31,7 @@ import {
   withCourseEnrollmentSchemaFallback,
 } from '@/lib/server/repositories/course-enrollment-repository';
 import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-repository';
-import { verifyNotebookCodeDraftReferenceAnswer } from './judge';
+import { verifyCodeBlankDraft, verifyNotebookCodeDraftReferenceAnswer } from './judge';
 import { normalizeDraftMathFields } from './import.core.drafts';
 import { STANDARD_PROBLEM_POINTS } from '@/lib/problem-bank/scoring-policy';
 
@@ -641,14 +642,15 @@ function normalizeDraftForPersistence(
 ): NotebookProblemImportDraft {
   const draft = normalizeDraftMathFields(notebookProblemImportDraftSchema.parse(draftInput));
   const isCode = draft.type === 'code';
-  const codeErrors = codeDraftReadinessErrors(draft);
+  const codeErrors = [...codeDraftReadinessErrors(draft), ...problemContentReadinessErrors(draft)];
   const codeVerification =
     draft.sourceMeta.codeVerification && typeof draft.sourceMeta.codeVerification === 'object'
       ? (draft.sourceMeta.codeVerification as { passed?: unknown })
       : undefined;
   const publishRequirementsMet =
     draft.validationErrors.length === 0 &&
-    (!isCode || (codeErrors.length === 0 && codeVerification?.passed !== false));
+    codeErrors.length === 0 &&
+    (!isCode || codeVerification?.passed === true);
   const hasSecretTests = Boolean(
     draft.secretJudge?.secretTestCode?.trim() || (draft.secretJudge?.secretTests?.length ?? 0) > 0,
   );
@@ -683,7 +685,7 @@ function normalizeDraftForPersistence(
 async function withCodeReferenceVerification(
   draft: NotebookProblemImportDraft,
 ): Promise<NotebookProblemImportDraft> {
-  if (draft.type !== 'code') return draft;
+  if (draft.type !== 'code') return verifyCodeBlankDraft(draft);
   const verification = await verifyNotebookCodeDraftReferenceAnswer(draft);
   return {
     ...draft,
@@ -699,6 +701,7 @@ async function withCodeReferenceVerification(
         publicTestCount: verification.publicTestCount,
         secretTestCount: verification.secretTestCount,
         checkedBy: 'python-runner',
+        exampleCount: draft.publicContent.type === 'code' ? draft.publicContent.sampleIO.length : 0,
       },
     },
     validationErrors: Array.from(

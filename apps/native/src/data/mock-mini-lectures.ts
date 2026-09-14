@@ -57,7 +57,7 @@ export type NativeMiniLectureDeck = {
   status: 'ready';
   generatedBy: {
     imageProvider: 'openai-image';
-    imageModel: 'gpt-image-2';
+    imageModel: 'gpt-image-2' | 'gpt-image-2.5-flare' | 'gpt-image-2.5-sunburst';
     ttsProvider: 'openai-tts';
     ttsModel: 'gpt-4o-mini-tts';
     ttsVoice: string;

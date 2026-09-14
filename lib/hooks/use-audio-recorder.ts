@@ -1,3 +1,4 @@
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
 import { useState, useRef, useCallback } from 'react';
 import { createLogger } from '@/lib/logger';
 
@@ -59,7 +60,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
           }
         }
 
-        const response = await fetch('/api/transcription', {
+        const response = await aiFetch('/api/transcription', {
           method: 'POST',
           body: formData,
         });

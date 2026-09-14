@@ -4649,3 +4649,23 @@
     animation: none !important;
   }
 }
+
+/* One quiet, translucent notification stack across every application route. */
+[data-sonner-toaster] .cn-toast {
+  background: color-mix(in srgb, var(--popover) 86%, transparent);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+  box-shadow:
+    0 16px 48px rgb(15 23 42 / 14%),
+    inset 0 1px 0 rgb(255 255 255 / 25%);
+  border-radius: 22px;
+  padding: 18px;
+  gap: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toast] {
+    transition: none !important;
+    animation: none !important;
+  }
+}

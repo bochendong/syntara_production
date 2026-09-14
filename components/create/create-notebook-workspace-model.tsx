@@ -546,7 +546,7 @@ function formatImageNotebookStyleBriefPreview(styleBrief: ImageNotebookStyleBrie
 }
 
 const NOTEBOOK_IMAGE2_PROVIDER_ID = 'openai-image';
-const NOTEBOOK_IMAGE2_MODEL_ID = 'gpt-image-2';
+const NOTEBOOK_IMAGE2_MODEL_ID = 'gpt-image-2.5-flare';
 
 const IMAGE_FIRST_NOTEBOOK_STYLE_SPEC = [
   'Drawing style baseline:',

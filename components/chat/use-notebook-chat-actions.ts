@@ -1,3 +1,4 @@
+import { toast } from '@/lib/notifications/client-toast';
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
 import type { UIMessage } from 'ai';
 import { planNotebookMessage, planNotebookMessageStream } from '@/lib/notebook/send-message';
@@ -229,7 +230,7 @@ export function useNotebookChatActions({
       if ((!importText && attachmentsSnapshot.length === 0) || !notebookId || sending) return;
       const mc = getCurrentModelConfig();
       if (!mc.isServerConfigured) {
-        window.alert('系统模型尚未配置，请联系管理员。');
+        toast.warning('系统模型尚未配置，请联系管理员。');
         return;
       }
 
@@ -365,7 +366,7 @@ export function useNotebookChatActions({
       if (!text || !notebookId || sending) return;
       const mc = getCurrentModelConfig();
       if (!mc.isServerConfigured) {
-        window.alert('系统模型尚未配置，请联系管理员。');
+        toast.warning('系统模型尚未配置，请联系管理员。');
         return;
       }
       const attachmentsSnapshot = [...pendingAttachments];

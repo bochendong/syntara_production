@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type {
   ChatSession,
@@ -410,7 +412,7 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
           whiteboardOpen: useCanvasStore.getState().whiteboardOpen,
         };
 
-        const response = await fetch('/api/chat', {
+        const response = await aiFetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

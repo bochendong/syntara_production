@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Check,
@@ -154,7 +156,7 @@ export function ModelSelector({
       setTestingModelId(mid);
 
       try {
-        const response = await fetch('/api/verify-model', {
+        const response = await aiFetch('/api/verify-model', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -207,9 +209,7 @@ export function ModelSelector({
                 onClick={() => setActiveProvider(provider.id)}
                 className={cn(
                   'w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors border-b',
-                  isActive
-                    ? 'bg-[#007AFF] text-white dark:bg-[#0A84FF]'
-                    : 'hover:bg-muted/50',
+                  isActive ? 'bg-[#007AFF] text-white dark:bg-[#0A84FF]' : 'hover:bg-muted/50',
                 )}
               >
                 {provider.icon ? (
@@ -231,9 +231,7 @@ export function ModelSelector({
                       <span
                         className={cn(
                           'text-[10px] px-1 py-0 h-4 leading-4 rounded shrink-0 inline-block',
-                          isActive
-                            ? 'bg-white/20 text-white'
-                            : 'bg-muted text-muted-foreground',
+                          isActive ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground',
                         )}
                       >
                         {t('settings.serverConfigured')}
@@ -300,9 +298,7 @@ export function ModelSelector({
                     key={model.id}
                     className={cn(
                       'border-b transition-colors',
-                      isSelected
-                        ? 'bg-[#007AFF]/8 dark:bg-[#0A84FF]/12'
-                        : 'hover:bg-muted/50',
+                      isSelected ? 'bg-[#007AFF]/8 dark:bg-[#0A84FF]/12' : 'hover:bg-muted/50',
                     )}
                   >
                     <div className="flex items-center gap-2 px-3 py-2.5">

@@ -1,7 +1,7 @@
 /**
  * OpenAI image generation.
  *
- * `gpt-image-2` uses the Responses API image-generation tool in background
+ * GPT Image 2 and 2.5 use the Responses API image-generation tool in background
  * mode. Image generation routinely exceeds one minute, while a local or
  * corporate HTTP proxy may terminate an idle synchronous connection at the
  * 60-second mark. Submitting once and polling the same response id avoids both
@@ -16,7 +16,7 @@ import type {
   ImageGenerationResult,
 } from '../types';
 
-const DEFAULT_MODEL = 'gpt-image-2';
+const DEFAULT_MODEL = 'gpt-image-2.5-flare';
 const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 const RESPONSES_IMAGE_HOST_MODEL = 'gpt-5.6-sol';
 const RESPONSES_POLL_INTERVAL_MS = 2_000;
@@ -168,7 +168,7 @@ async function generateWithResponsesImageTool(args: {
     model: RESPONSES_IMAGE_HOST_MODEL,
     input: options.prompt,
     // The host model only has to dispatch the image-generation tool. Disabling
-    // reasoning avoids spending text-model tokens before GPT Image 2 starts.
+    // reasoning avoids spending text-model tokens before image generation starts.
     reasoning: { effort: 'none' },
     background: true,
     store: true,
@@ -291,7 +291,10 @@ export async function generateWithOpenAiImage(
   const size = resolveOpenAiSize(options);
   const { width, height } = parseSizeDims(size);
 
-  if (model === 'gpt-image-2' && isOfficialOpenAiBaseUrl(baseUrl)) {
+  if (
+    ['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'].includes(model) &&
+    isOfficialOpenAiBaseUrl(baseUrl)
+  ) {
     return generateWithResponsesImageTool({
       baseUrl,
       request,

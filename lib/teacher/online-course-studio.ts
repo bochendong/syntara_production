@@ -1,4 +1,6 @@
 'use client';
+import { courseDisplayCode } from '@/lib/course-space/course-display-name';
+import { observeTeacherTaskResults } from '@/lib/notifications/task-notifications';
 
 import { useAiActivityStore } from '@/lib/store/ai-activity';
 
@@ -228,6 +230,7 @@ export async function loadOnlineTeacherStudio(args: { courseId: string; teacherI
     ...payload.notebooks.map((notebook) => notebookItem(args.courseId, notebook)),
   ];
   const tasks = payload.tasks.map((task) => taskItem(args.courseId, args.teacherId, task));
+  observeTeacherTaskResults(args.teacherId, args.courseId, tasks);
   useAiActivityStore.getState().teacherSnapshot(
     args.teacherId,
     args.courseId,
@@ -236,7 +239,7 @@ export async function loadOnlineTeacherStudio(args: { courseId: string; teacherI
   return {
     course: {
       id: payload.course.id,
-      code: payload.course.courseCode?.trim() || payload.course.name,
+      code: courseDisplayCode(payload.course),
       name: payload.course.name,
       description: payload.course.description || undefined,
       academicYear: payload.course.academicYear ?? new Date().getFullYear(),

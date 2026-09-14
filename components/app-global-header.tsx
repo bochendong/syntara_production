@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { NotificationInboxButton } from '@/components/notifications/notification-inbox-button';
 import { AiActivityLight } from '@/components/generation/ai-activity-light';
 import { usePathname } from 'next/navigation';
 import {
@@ -273,6 +274,7 @@ export function AppGlobalHeader({ showHomeControls = false }: { showHomeControls
         <HeaderLink href={storeHref} active={storeActive} icon={ShoppingBag} label="商城" />
         {showHomeControls ? <HomeHeaderControls /> : null}
 
+        <NotificationInboxButton />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

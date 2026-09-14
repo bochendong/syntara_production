@@ -1,3 +1,4 @@
+import { toast } from '@/lib/notifications/client-toast';
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { UIMessage } from 'ai';
 import { runCourseSideChatLoop } from '@/lib/chat/run-course-side-chat-loop';
@@ -165,12 +166,12 @@ export function useAgentChatActions({
         return;
       }
       if (selectedAgent.id === COURSE_ORCHESTRATOR_ID && orchestratorViewMode === 'group') {
-        window.alert('群聊由课程总控自动调度。请回到课程总控私聊里发送问题。');
+        toast.warning('群聊由课程总控自动调度。请回到课程总控私聊里发送问题。');
         return;
       }
       const mc = getCurrentModelConfig();
       if (!mc.isServerConfigured) {
-        window.alert('系统模型尚未配置，请联系管理员。');
+        toast.warning('系统模型尚未配置，请联系管理员。');
         return;
       }
 
@@ -188,7 +189,7 @@ export function useAgentChatActions({
         orchestratorComposerMode === 'send-message' &&
         sourceFileForPipeline
       ) {
-        window.alert('上传文档创建笔记本已移到课程内创建界面，请从课程页点击「新建笔记本」。');
+        toast.warning('上传文档创建笔记本已移到课程内创建界面，请从课程页点击「新建笔记本」。');
         return;
       }
 

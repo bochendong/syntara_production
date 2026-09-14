@@ -436,7 +436,7 @@ function buildPracticeNotification(args: {
     title: args.locale === 'zh-CN' ? '已收到本题反馈' : 'Practice feedback is ready',
     body,
     tone: 'positive',
-    presentation: 'banner',
+    presentation: 'feed',
     amountLabel:
       args.locale === 'zh-CN'
         ? `${earnedPoints}/${totalPoints} 分`

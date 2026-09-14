@@ -38,6 +38,33 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    files: ['{app,components,features,lib}/**/*.{ts,tsx}'],
+    ignores: ['lib/notifications/client-toast.ts', 'app/notification-compare-test/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.name='alert'], CallExpression[callee.object.name='window'][callee.property.name='alert']",
+          message: 'Use the shared lightweight toast from @/lib/notifications/client-toast.',
+        },
+        {
+          selector: "CallExpression[callee.object.name='toast'][callee.property.name='custom']",
+          message: 'Use standard toast variants to preserve the global notification appearance.',
+        },
+        {
+          selector:
+            "ImportDeclaration[source.value='sonner'] ImportSpecifier[imported.name='toast']",
+          message: 'Import toast from @/lib/notifications/client-toast.',
+        },
+        {
+          selector: "ImportDeclaration ImportSpecifier[imported.name='NotificationBannerCard']",
+          message: 'Legacy notification cards are preview-only; use the shared lightweight toast.',
+        },
+      ],
+    },
+  },
+  {
     files: ['lib/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [

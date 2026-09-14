@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 /**
  * PBL Chat Hook - Manages chat state, @mention parsing, and API calls
  */
@@ -79,7 +81,7 @@ export function usePBLChat({ projectConfig, userRole, onConfigUpdate }: UsePBLCh
             description: `${targetAgent.name} 正在回复：${compactTaskText(cleanMessage)}`,
           },
           ({ signal }) =>
-            fetch('/api/pbl/chat', {
+            aiFetch('/api/pbl/chat', {
               method: 'POST',
               headers,
               body: JSON.stringify({
@@ -223,7 +225,7 @@ async function handleIssueComplete(
             description: `正在为「${compactTaskText(nextIssue.title)}」生成引导问题`,
           },
           ({ signal }) =>
-            fetch('/api/pbl/chat', {
+            aiFetch('/api/pbl/chat', {
               method: 'POST',
               headers,
               body: JSON.stringify({

@@ -1,3 +1,4 @@
+import { courseDisplayCode } from '@/lib/course-space/course-display-name';
 import { NextResponse } from 'next/server';
 
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -45,7 +46,7 @@ export async function GET() {
     const current = currentAcademicPeriod();
     const courses = rows.map((course) => ({
       id: course.id,
-      code: course.courseCode?.trim() || course.name,
+      code: courseDisplayCode(course),
       name: course.name,
       academicYear: course.academicYear!,
       term: course.academicTerm!,

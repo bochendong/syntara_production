@@ -23,7 +23,7 @@ import type { PPTElement, SlideBackground, SlideTheme } from '@/lib/types/slides
 import type { Stage } from '@/lib/types/stage';
 
 export const NOTEBOOK_IMAGE2_PROVIDER_ID = 'openai-image';
-export const NOTEBOOK_IMAGE2_MODEL_ID = 'gpt-image-2';
+export const NOTEBOOK_IMAGE2_MODEL_ID = 'gpt-image-2.5-flare';
 
 const IMAGE_FIRST_NOTEBOOK_STYLE_SPEC = [
   'Visual style baseline:',

@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
       );
       const inlineResult = await materializeImageResultInline(normalizedResult);
       const result = inlineResult;
-      const resolvedModelId = result.usage?.modelId || clientModel || 'gpt-image-2';
+      const resolvedModelId = result.usage?.modelId || clientModel || 'gpt-image-2.5-flare';
       const costEstimate = createImageCostEstimate(providerId, resolvedModelId, result);
       const inputTokens = Math.max(0, Math.round(result.usage?.inputTokens || 0));
       const outputTokens = Math.max(0, Math.round(result.usage?.outputTokens || 0));

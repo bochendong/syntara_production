@@ -1,3 +1,4 @@
+import { normalizeCourseDisplay } from '@/lib/course-space/course-display-name';
 import type { CommunityCourseListItem, CoursePurpose, CourseRecord } from '@/lib/utils/database';
 import { backendJson, type BackendLoadOptions } from '@/lib/utils/backend-api';
 import { notifyCreditsBalancesChanged } from '@/lib/utils/credits-balance-events';
@@ -53,7 +54,7 @@ export async function createCourse(input: CreateCourseInput): Promise<CourseReco
         : {}),
     }),
   });
-  return data.course;
+  return normalizeCourseDisplay(data.course);
 }
 
 export type UpdateCourseInput = CreateCourseInput;
@@ -81,13 +82,13 @@ export async function updateCourse(id: string, input: UpdateCourseInput): Promis
       }),
     },
   );
-  return data.course;
+  return normalizeCourseDisplay(data.course);
 }
 
 export async function listCommunityStoreCourses(): Promise<CommunityCourseListItem[]> {
   try {
     const data = await backendJson<{ courses: CommunityCourseListItem[] }>('/api/courses/store');
-    return data.courses;
+    return data.courses.map(normalizeCourseDisplay);
   } catch (error) {
     console.warn('[course-storage] Failed to list store courses:', error);
     return [];
@@ -101,7 +102,7 @@ export async function enrollCourseFromStore(sourceCourseId: string): Promise<Cou
     body: JSON.stringify({ sourceCourseId }),
   });
   notifyCreditsBalancesChanged();
-  return data.course;
+  return normalizeCourseDisplay(data.course);
 }
 
 export const cloneCourseFromStore = enrollCourseFromStore;
@@ -113,7 +114,7 @@ export async function listCoursesOrThrow(
     '/api/courses',
     courseLoadOptions(options),
   );
-  return data.courses;
+  return data.courses.map(normalizeCourseDisplay);
 }
 
 export async function listCourses(options: BackendLoadOptions = {}): Promise<CourseRecord[]> {
@@ -133,7 +134,7 @@ export async function getCourseOrThrow(
     `/api/courses/${encodeURIComponent(id)}`,
     courseLoadOptions(options),
   );
-  return data.course;
+  return normalizeCourseDisplay(data.course);
 }
 
 export async function getCourse(

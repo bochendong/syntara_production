@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowUp, BotOff, Loader2, Settings } from 'lucide-react';
+import { ArrowUp, BotOff, Loader2 } from 'lucide-react';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { createLogger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
@@ -132,33 +132,13 @@ export function CreateNotebookComposer({
   };
 
   const showSetupToast = (icon: React.ReactNode, title: string, desc: string) => {
-    toast.custom(
-      (id) => (
-        <div
-          className="flex w-[356px] cursor-pointer items-start gap-3 rounded-xl border border-amber-200/60 bg-gradient-to-r from-amber-50 via-white to-amber-50 p-4 shadow-lg shadow-amber-500/8 dark:border-amber-800/40 dark:from-amber-950/60 dark:via-slate-900 dark:to-amber-950/60 dark:shadow-amber-900/20"
-          onClick={() => {
-            toast.dismiss(id);
-            openSettings();
-          }}
-        >
-          <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 ring-1 ring-amber-200/50 dark:bg-amber-900/40 dark:ring-amber-800/30">
-            {icon}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-tight text-amber-900 dark:text-amber-200">
-              {title}
-            </p>
-            <p className="mt-0.5 text-xs leading-relaxed text-amber-700/80 dark:text-amber-400/70">
-              {desc}
-            </p>
-          </div>
-          <div className="mt-1 shrink-0 text-[10px] font-medium tracking-wide text-amber-500 dark:text-amber-500/70">
-            <Settings className="size-3.5 animate-[spin_3s_linear_infinite]" />
-          </div>
-        </div>
-      ),
-      { duration: 4000 },
-    );
+    toast.warning(title, {
+      id: 'model-setup-required',
+      description: desc,
+      icon,
+      duration: 10000,
+      action: { label: '设置', onClick: () => openSettings() },
+    });
   };
 
   const handleGenerate = async (forcedSelection?: PdfSourceSelection) => {

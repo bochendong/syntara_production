@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 import { useState, useCallback, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -77,7 +79,7 @@ export function VideoSettings({ selectedProviderId }: VideoSettingsProps) {
     setTestStatus('idle');
     setTestMessage('');
     try {
-      const response = await fetch('/api/verify-video-provider', {
+      const response = await aiFetch('/api/verify-video-provider', {
         method: 'POST',
         headers: {
           'x-video-provider': selectedProviderId,
@@ -342,7 +344,11 @@ export function VideoSettings({ selectedProviderId }: VideoSettingsProps) {
               />
             </div>
             <div className="flex justify-end gap-2">
-              <SettingsButton variant="secondary" size="sm" onClick={() => setShowModelDialog(false)}>
+              <SettingsButton
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowModelDialog(false)}
+              >
                 {t('common.cancel')}
               </SettingsButton>
               <SettingsButton size="sm" onClick={handleSaveModel} disabled={!modelForm.id.trim()}>

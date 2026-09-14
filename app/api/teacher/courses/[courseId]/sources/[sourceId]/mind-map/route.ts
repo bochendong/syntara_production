@@ -142,7 +142,7 @@ async function runMindMapGeneration(args: {
       new Headers({
         'content-type': 'application/json',
         'x-image-provider': 'openai-image',
-        'x-image-model': 'gpt-image-2',
+        'x-image-model': 'gpt-image-2.5-flare',
         'x-user-id': args.ownerId,
         'x-usage-source': 'teacher-mind-map-image',
       }),
@@ -202,7 +202,7 @@ async function runMindMapGeneration(args: {
       sourceTitle: args.source.title,
       providerId: resolved.providerId,
       textModel: resolved.modelString,
-      imageModel: result.usage?.modelId || 'gpt-image-2',
+      imageModel: result.usage?.modelId || 'gpt-image-2.5-flare',
       generatedAt,
       summary: preview.summary,
     };

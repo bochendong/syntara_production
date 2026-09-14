@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
+import { CourseBulkMoveDialog } from '@/components/teacher/course-bulk-move-dialog';
 import { CourseSpaceImageCard } from '@/components/course-space/course-space-image-card';
 import { CourseSpacePageFrame } from '@/components/course-space/course-space-page-frame';
 import {
@@ -48,7 +49,7 @@ import {
 } from '@/lib/course-space/format-course-space-header';
 import { cn } from '@/lib/utils';
 import { useReportAiActivity } from '@/lib/ai-progress/use-ai-activity';
-import { estimateTaskProgress, taskTimeEstimate } from '@/lib/ai-progress/estimate';
+import { estimateTaskProgress } from '@/lib/ai-progress/estimate';
 import { useProgressClock } from '@/lib/ai-progress/use-progress-clock';
 import { resolveCourseBackgroundDisplayUrl } from '@/lib/constants/course-backgrounds';
 import { CourseAccessClosedCard } from '@/components/course-access-closed-card';
@@ -1337,50 +1338,59 @@ export function TeacherCourseStudioClient({
         forumCount={unresolvedForumCount}
         previewMode={mockMode}
         actions={
-          tab === 'sources' ? (
-            <label
-              title={
-                uploading
-                  ? '正在保存…'
-                  : sourceCategory === 'problem_bank'
-                    ? '上传题目'
-                    : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`
-              }
-              aria-label={uploading ? '正在保存…' : '上传资料'}
-              className={`inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-slate-950 px-2.5 text-xs font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 ${uploading ? 'pointer-events-none opacity-60' : ''}`}
-            >
-              {uploading ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : sourceCategory === 'problem_bank' ? (
-                <Library className="size-3.5" />
-              ) : (
-                <Upload className="size-3.5" />
-              )}
-              {uploading ? '正在保存…' : '上传资料'}
-              <input
-                type="file"
-                multiple
-                accept={COURSE_SOURCE_ACCEPT}
-                className="sr-only"
-                onChange={(event) => {
-                  const files = Array.from(event.target.files ?? []);
-                  event.target.value = '';
-                  void handleUpload(files);
-                }}
-              />
-            </label>
-          ) : tab === 'hard_rules' ? (
-            <Button
-              type="button"
-              size="sm"
-              className="rounded-xl bg-violet-600 text-white hover:bg-violet-700"
-              disabled={hardRules.length >= 30}
-              onClick={openCreateHardRuleDialog}
-            >
-              <Plus className="mr-1.5 size-3.5" />
-              添加规则
-            </Button>
-          ) : null
+          <>
+            <CourseBulkMoveDialog
+              key={courseId}
+              courseId={courseId}
+              courseName={courseHeaderFields.courseTitle}
+              onMoved={loadStudio}
+              previewMode={localDemo}
+            />
+            {tab === 'sources' ? (
+              <label
+                title={
+                  uploading
+                    ? '正在保存…'
+                    : sourceCategory === 'problem_bank'
+                      ? '上传题目'
+                      : `上传${SOURCE_CATEGORY_META[sourceCategory].label}`
+                }
+                aria-label={uploading ? '正在保存…' : '上传资料'}
+                className={`inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-slate-950 px-2.5 text-xs font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+              >
+                {uploading ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : sourceCategory === 'problem_bank' ? (
+                  <Library className="size-3.5" />
+                ) : (
+                  <Upload className="size-3.5" />
+                )}
+                {uploading ? '正在保存…' : '上传资料'}
+                <input
+                  type="file"
+                  multiple
+                  accept={COURSE_SOURCE_ACCEPT}
+                  className="sr-only"
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files ?? []);
+                    event.target.value = '';
+                    void handleUpload(files);
+                  }}
+                />
+              </label>
+            ) : tab === 'hard_rules' ? (
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-xl bg-violet-600 text-white hover:bg-violet-700"
+                disabled={hardRules.length >= 30}
+                onClick={openCreateHardRuleDialog}
+              >
+                <Plus className="mr-1.5 size-3.5" />
+                添加规则
+              </Button>
+            ) : null}
+          </>
         }
       />
 
@@ -1450,27 +1460,6 @@ export function TeacherCourseStudioClient({
         </nav>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 sm:gap-5">
-          {counts.queued > 0 && tab !== 'queue' ? (
-            <button
-              type="button"
-              onClick={() => switchTab('queue')}
-              className="flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-left text-xs text-sky-800 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-200"
-            >
-              <Loader2 className="size-4 shrink-0 animate-spin" />
-              <span>{counts.queued} 个 AI 任务正在处理，可继续备课。点击查看进度与预计耗时。</span>
-            </button>
-          ) : null}
-          {tab === 'sources' ? (
-            <p className="text-xs text-slate-500">
-              {
-                taskTimeEstimate(
-                  sourceCategory === 'problem_bank' ? 'problem_bank_import' : 'knowledge_notebook',
-                ).label
-              }{' '}
-              / 文件；大文件可能更久。上传后可在此查看处理进度。
-            </p>
-          ) : null}
-
           {tab === 'overview' ? (
             <section className={STUDIO_SECTION_CLASS}>
               <div className={STUDIO_PANEL_BODY_CLASS}>
@@ -1490,7 +1479,7 @@ export function TeacherCourseStudioClient({
                         ? ` · 创建于 ${new Date(course.createdAt).toLocaleDateString('zh-CN')}`
                         : ''}
                     </p>
-                    {course.description ? (
+                    {course.description && !/^.*Speedup AI 课程\s*$/.test(course.description) ? (
                       <p className="mt-3 line-clamp-3 text-sm leading-6 text-white/88 drop-shadow-[0_1px_1px_rgba(15,23,42,0.26)]">
                         {course.description}
                       </p>

@@ -285,7 +285,9 @@ export function CodeProblemStatement({
   return (
     <div className="space-y-8">
       {sections.length > 0 ? (
-        sections.map((section) => <CodeStatementSection key={section.id} section={section} />)
+        sections
+          .filter((section) => section.kind !== 'examples' || samples.length === 0)
+          .map((section) => <CodeStatementSection key={section.id} section={section} />)
       ) : (
         <LegacyDescriptionSection stem={content.stem} locale={locale} />
       )}

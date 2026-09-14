@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -495,7 +497,7 @@ export function AudioSettings({ onSave }: AudioSettingsProps = {}) {
             }
 
             try {
-              const response = await fetch('/api/transcription', {
+              const response = await aiFetch('/api/transcription', {
                 method: 'POST',
                 body: formData,
               });

@@ -827,30 +827,13 @@ export function useCreateNotebookWorkspaceController({
   };
 
   const showSetupToast = (icon: ReactNode, title: string, desc: string) => {
-    toast.custom(
-      (id) => (
-        <div
-          className="flex w-[356px] cursor-pointer items-start gap-3 rounded-xl border border-amber-200/60 bg-white p-4 shadow-lg shadow-amber-500/10 dark:border-amber-800/40 dark:bg-slate-900"
-          onClick={() => {
-            toast.dismiss(id);
-            openSettings();
-          }}
-        >
-          <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 ring-1 ring-amber-200/50 dark:bg-amber-900/40 dark:ring-amber-800/30">
-            {icon}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-tight text-amber-900 dark:text-amber-200">
-              {title}
-            </p>
-            <p className="mt-0.5 text-xs leading-relaxed text-amber-700/80 dark:text-amber-400/70">
-              {desc}
-            </p>
-          </div>
-        </div>
-      ),
-      { duration: 4000 },
-    );
+    toast.warning(title, {
+      id: 'model-setup-required',
+      description: desc,
+      icon,
+      duration: 10000,
+      action: { label: '设置', onClick: () => openSettings() },
+    });
   };
 
   const buildConfirmedRequirement = () => {

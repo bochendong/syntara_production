@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 import { MAX_PDF_CONTENT_CHARS, MAX_VISION_IMAGES } from '@/lib/constants/generation';
 import { createLogger } from '@/lib/logger';
 import type { PDFProviderId } from '@/lib/pdf/types';
@@ -654,7 +656,7 @@ async function requestServerPdfParse(args: {
     parseFormData.append('baseUrl', args.providerConfig.baseUrl);
   }
 
-  const response = await fetch('/api/parse-pdf', {
+  const response = await aiFetch('/api/parse-pdf', {
     method: 'POST',
     body: parseFormData,
     signal: args.signal,

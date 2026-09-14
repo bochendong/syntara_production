@@ -1,5 +1,7 @@
 # Notification Operations
 
+See [global notification policy](./NOTIFICATION_POLICY.md) for reminder rules, implementation coverage, and cross-device limitations.
+
 This directory is the shared home for user-facing notification behavior.
 
 - `client-toast.ts`: the single import point for immediate Sonner toasts.
@@ -9,7 +11,7 @@ This directory is the shared home for user-facing notification behavior.
 ## Surfaces
 
 - `toast`: immediate Sonner toasts.
-- `notification-banner`: animated in-app banners rendered by `GlobalNotificationOverlay`.
+- `notification-banner`: persistent events displayed as lightweight Sonner toasts by `GlobalNotificationOverlay`.
 - `notification-feed`: items shown in the notification center.
 - `confirm-dialog`: native confirmation prompts that interrupt an operation.
 

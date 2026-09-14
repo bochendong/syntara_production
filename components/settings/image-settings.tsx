@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -67,7 +69,7 @@ export function ImageSettings({ selectedProviderId }: ImageSettingsProps) {
 
   const currentConfig = imageProvidersConfig[selectedProviderId];
   const currentProvider = IMAGE_PROVIDERS[selectedProviderId];
-  const builtInModels = currentProvider?.models || [];
+  const builtInModels = useMemo(() => currentProvider?.models || [], [currentProvider?.models]);
   const customModels = useMemo(
     () => currentConfig?.customModels || [],
     [currentConfig?.customModels],
@@ -121,7 +123,7 @@ export function ImageSettings({ selectedProviderId }: ImageSettingsProps) {
     setTestStatus('idle');
     setTestMessage('');
     try {
-      const response = await fetch('/api/verify-image-provider', {
+      const response = await aiFetch('/api/verify-image-provider', {
         method: 'POST',
         headers: {
           'x-image-provider': selectedProviderId,
@@ -196,8 +198,8 @@ export function ImageSettings({ selectedProviderId }: ImageSettingsProps) {
               系统图像生成
             </CardTitle>
             <CardDescription>
-              图像生成默认使用 GPT Image 2。你可以在管理员开放的 Provider 和模型范围内切换，API Key
-              由系统统一托管。
+              图像生成默认使用 GPT Image 2.5 Flare。你可以在管理员开放的 Provider
+              和模型范围内切换，API Key 由系统统一托管。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

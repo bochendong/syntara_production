@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       new Headers({
         'content-type': 'application/json',
         'x-image-provider': 'openai-image',
-        'x-image-model': 'gpt-image-2',
+        'x-image-model': 'gpt-image-2.5-flare',
         'x-user-id': principal.userId,
         'x-request-id': requestId,
       }),
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
       },
       model: {
         text: resolved.modelString,
-        image: result.usage?.modelId || 'gpt-image-2',
+        image: result.usage?.modelId || 'gpt-image-2.5-flare',
       },
       usage: result.usage || null,
       cost_estimate: imagePayload.costEstimate || null,

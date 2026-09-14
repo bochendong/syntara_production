@@ -15,6 +15,7 @@ interface RefreshOptions {
 }
 
 interface NotificationStoreState {
+  historyByUser: Record<string, AppNotification[]>;
   activeUserId: string;
   databaseEnabled: boolean;
   notifications: AppNotification[];
@@ -86,6 +87,7 @@ function buildNextActiveBanners(args: {
 export const useNotificationStore = create<NotificationStoreState>()(
   persist(
     (set, get) => ({
+      historyByUser: {},
       activeUserId: '',
       databaseEnabled: false,
       notifications: [],
@@ -101,20 +103,31 @@ export const useNotificationStore = create<NotificationStoreState>()(
         const normalizedUserId = userId.trim();
         if (normalizedUserId === get().activeUserId) return;
 
+        const previous = get();
+        const historyByUser = {
+          ...previous.historyByUser,
+          ...(previous.activeUserId ? { [previous.activeUserId]: previous.notifications } : {}),
+        };
+        const restored = historyByUser[normalizedUserId] ?? [];
         set({
+          historyByUser,
           activeUserId: normalizedUserId,
           databaseEnabled: false,
-          notifications: [],
+          notifications: restored,
           activeBanners: [],
-          dismissedBannerIds: [],
+          dismissedBannerIds: restored.map((item) => item.id),
           queuedLocalBanners: [],
-          unreadCount: 0,
+          unreadCount: countUnread(restored, buildReadSet(previous.readByUser, normalizedUserId)),
           isLoading: false,
           hasInitializedSession: false,
         });
       },
       clearSession: () =>
-        set({
+        set((state) => ({
+          historyByUser: {
+            ...state.historyByUser,
+            ...(state.activeUserId ? { [state.activeUserId]: state.notifications } : {}),
+          },
           activeUserId: '',
           databaseEnabled: false,
           notifications: [],
@@ -124,7 +137,7 @@ export const useNotificationStore = create<NotificationStoreState>()(
           unreadCount: 0,
           isLoading: false,
           hasInitializedSession: false,
-        }),
+        })),
       refreshNotifications: async (options) => {
         const targetUserId = options?.userId?.trim() || get().activeUserId.trim();
         if (!targetUserId) {
@@ -282,18 +295,8 @@ export const useNotificationStore = create<NotificationStoreState>()(
       dismissBanner: (notificationId) =>
         set((state) => {
           const userId = state.activeUserId.trim();
-          const nextReadIds = userId
-            ? clampReadIds([notificationId, ...(state.readByUser[userId] ?? [])])
-            : [];
-          const nextReadByUser = userId
-            ? {
-                ...state.readByUser,
-                [userId]: nextReadIds,
-              }
-            : state.readByUser;
-          const nextReadSet = userId
-            ? new Set(nextReadIds)
-            : buildReadSet(state.readByUser, userId);
+          const nextReadByUser = state.readByUser;
+          const nextReadSet = buildReadSet(state.readByUser, userId);
           const nextDismissed = clampReadIds([notificationId, ...state.dismissedBannerIds]);
           return {
             readByUser: nextReadByUser,
@@ -323,10 +326,15 @@ export const useNotificationStore = create<NotificationStoreState>()(
             state.queuedLocalBanners.some((item) => item.id === notification.id) ||
             state.notifications.some((item) => item.id === notification.id);
           if (alreadyQueued) return {};
+          const nextNotifications = [notification, ...state.notifications].slice(0, 50);
+          const unreadCount = countUnread(
+            nextNotifications,
+            buildReadSet(state.readByUser, state.activeUserId),
+          );
           if (!canShowAsBanner(notification)) {
             return {
-              notifications: [notification, ...state.notifications].slice(0, 50),
-              unreadCount: state.unreadCount + 1,
+              notifications: nextNotifications,
+              unreadCount,
             };
           }
           const nextQueued =
@@ -334,8 +342,8 @@ export const useNotificationStore = create<NotificationStoreState>()(
               ? state.queuedLocalBanners
               : [...state.queuedLocalBanners, notification];
           return {
-            notifications: [notification, ...state.notifications].slice(0, 50),
-            unreadCount: state.unreadCount + 1,
+            notifications: nextNotifications,
+            unreadCount,
             queuedLocalBanners: nextQueued,
             activeBanners:
               state.activeBanners.length === 0
@@ -354,6 +362,10 @@ export const useNotificationStore = create<NotificationStoreState>()(
       name: 'synatra-notifications',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
+        historyByUser: {
+          ...state.historyByUser,
+          ...(state.activeUserId ? { [state.activeUserId]: state.notifications } : {}),
+        },
         readByUser: state.readByUser,
         deletedByUser: state.deletedByUser,
       }),

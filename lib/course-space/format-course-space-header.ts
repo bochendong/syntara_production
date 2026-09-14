@@ -1,3 +1,4 @@
+import { courseDisplayCode, cleanCourseIdentifier } from './course-display-name';
 import { academicTermLabel } from '@/lib/teacher/online-course-studio';
 import { findLocalDemoTeacherHomeCourse } from '@/lib/teacher/local-demo-fixtures';
 import type { AcademicTerm } from '@/lib/utils/database';
@@ -43,7 +44,7 @@ function withLocalDemoCourseHeaderFields(course: CourseSpaceHeaderCourse): Cours
 }
 
 function courseSpaceCode(course: CourseSpaceHeaderCourse): string {
-  return course.code?.trim() || course.courseCode?.trim() || course.name?.trim() || '课程';
+  return courseDisplayCode(course);
 }
 
 export function formatCourseSpaceTitle(course: CourseSpaceHeaderCourse): string {
@@ -65,10 +66,10 @@ export function formatCourseSpaceTitle(course: CourseSpaceHeaderCourse): string 
 export function formatCourseSpaceMeta(
   course: Pick<CourseSpaceHeaderCourse, 'name' | 'courseCode' | 'code'>,
 ): string | undefined {
-  const name = course.name?.trim();
+  const name = course.name ? cleanCourseIdentifier(course.name) : undefined;
   if (!name) return undefined;
 
-  const code = course.code?.trim() || course.courseCode?.trim();
+  const code = courseDisplayCode(course);
   if (code && name.toUpperCase() === code.toUpperCase()) return undefined;
 
   return name;

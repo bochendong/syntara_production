@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 /**
  * Media Generation Orchestrator
  *
@@ -246,7 +248,7 @@ async function callVideoApi(
   const settings = useSettingsStore.getState();
   const providerConfig = settings.videoProvidersConfig?.[settings.videoProviderId];
 
-  const response = await fetch('/api/generate/video', {
+  const response = await aiFetch('/api/generate/video', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -48,7 +48,7 @@ export default function RootLayout({
               </Suspense>
               <NotificationCenterProvider />
             </AuthSessionProvider>
-            <Toaster position="top-center" />
+            <Toaster position="top-right" />
           </I18nProvider>
         </ThemeProvider>
       </body>

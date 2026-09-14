@@ -1,5 +1,6 @@
 'use client';
 
+import { notifyTaskResult } from '@/lib/notifications/task-notifications';
 import { useEffect, useId } from 'react';
 import { useSession } from 'next-auth/react';
 import { backendJson, BackendApiError } from '@/lib/utils/backend-api';
@@ -63,8 +64,16 @@ export function useAiActivity() {
               const result = await backendJson<{ job: { status: string } }>(
                 `/api/learn/mini-lectures?id=${encodeURIComponent(id)}`,
               );
-              if (['completed', 'failed', 'cancelled'].includes(result.job.status))
+              if (['completed', 'failed', 'cancelled'].includes(result.job.status)) {
+                notifyTaskResult({
+                  id: `mini:${id}`,
+                  title: '课堂讲解',
+                  status: result.job.status,
+                  ownerId,
+                  href: '/learn',
+                });
                 useAiActivityStore.getState().miniLecture(id, ownerId, false);
+              }
             } catch (error) {
               if (error instanceof BackendApiError && [401, 403, 404].includes(error.status ?? 0))
                 useAiActivityStore.getState().miniLecture(id, ownerId, false);

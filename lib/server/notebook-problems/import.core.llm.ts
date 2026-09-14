@@ -7,7 +7,7 @@ import {
   type NotebookProblemImportDraft,
   type NotebookProblemSource,
 } from '@/lib/problem-bank';
-import { verifyNotebookCodeDraftReferenceAnswer } from './judge';
+import { verifyCodeBlankDraft, verifyNotebookCodeDraftReferenceAnswer } from './judge';
 import {
   problemStructurePlanSchema,
   type ImportUsageSummary,
@@ -316,6 +316,7 @@ function codeRepairDraftFromRaw(
         functionSignature,
         starterCode,
         statementSections,
+        sampleIO: publicPatch.sampleIO ?? record.sampleIO ?? original.publicContent.sampleIO,
         contractVersion: 'syntara.problem.v1',
         statementFormat: 'syntara-markdown-v1',
         taskKind: 'implementation',
@@ -468,6 +469,8 @@ async function annotateCodeDraftVerification(
             publicTestCount: verification.publicTestCount,
             secretTestCount: verification.secretTestCount,
             checkedBy: 'python-runner',
+            exampleCount:
+              draft.publicContent.type === 'code' ? draft.publicContent.sampleIO.length : 0,
           },
         },
         validationErrors: Array.from(
@@ -478,34 +481,94 @@ async function annotateCodeDraftVerification(
   );
 }
 
+async function repairGeneratedStructure(args: {
+  drafts: NotebookProblemImportDraft[];
+  model?: LanguageModel;
+  language: 'zh-CN' | 'en-US';
+}): Promise<{ drafts: NotebookProblemImportDraft[]; usage: ImportUsageSummary | null }> {
+  const drafts = await Promise.all(
+    args.drafts.map((draft) => verifyCodeBlankDraft(normalizeDraftMathFields(draft))),
+  );
+  const isStructureError = (error: string) =>
+    /^(题面结构：|代码填空校验：|填空题.*blank|题面包含未闭合)/.test(error);
+  const failed = drafts.filter((draft) => draft.validationErrors.some(isStructureError));
+  if (!args.model || !failed.length) return { drafts, usage: null };
+  try {
+    const result = await callLLM(
+      {
+        model: args.model,
+        system:
+          'Repair assessment document structure. Return a strict JSON array of {draftId, publicContent, grading}. Preserve the problem, language, identifiers, difficulty and intended answers. Never change the task to make validation pass.',
+        prompt: `Fix every reported structural error. Keep entire tables in one Markdown table with matching column counts. Put each {{blank_id}} inside its original cell or complete language-tagged code fence. Preserve all newlines and Python indentation. Code completion blanks use code_token; every public blank and grading blank must match exactly. Substituting accepted answers into Python code must produce syntactically valid complete code. Preserve unrelated fields.\n${JSON.stringify(failed.map((draft) => ({ draftId: draft.draftId, publicContent: draft.publicContent, grading: draft.grading, errors: draft.validationErrors.filter(isStructureError) })))}`,
+        maxOutputTokens: 16000,
+      },
+      'problem-bank-structure-repair',
+    );
+    const patches = parseProblemDraftArrayFromLLMText(result.text);
+    const repaired = drafts.map((draft): NotebookProblemImportDraft => {
+      const patch = patches.find(
+        (raw) =>
+          raw &&
+          typeof raw === 'object' &&
+          (raw as Record<string, unknown>).draftId === draft.draftId,
+      ) as Record<string, unknown> | undefined;
+      if (!patch || !failed.includes(draft)) return draft;
+      const candidate = normalizeCandidateDraft(
+        {
+          ...draft,
+          publicContent: patch.publicContent ?? draft.publicContent,
+          grading: patch.grading ?? draft.grading,
+          validationErrors: draft.validationErrors.filter((error) => !isStructureError(error)),
+        },
+        draft.source,
+      );
+      return candidate.type === draft.type
+        ? {
+            ...candidate,
+            draftId: draft.draftId,
+            sourceMeta: { ...draft.sourceMeta, structureRepairAttempted: true },
+          }
+        : draft;
+    });
+    return {
+      drafts: await Promise.all(repaired.map(verifyCodeBlankDraft)),
+      usage: usageFromLLMResult(args.model, result),
+    };
+  } catch {
+    return { drafts, usage: null };
+  }
+}
+
 export async function ensureImportedCodeDraftsJudgeReady(args: {
   drafts: NotebookProblemImportDraft[];
   model?: LanguageModel;
   language: 'zh-CN' | 'en-US';
   repairAttempt?: number;
 }): Promise<{ drafts: NotebookProblemImportDraft[]; usage: ImportUsageSummary | null }> {
+  const structure = await repairGeneratedStructure(args);
   let drafts = await annotateCodeDraftVerification(
-    promoteFunctionImplementationDrafts(args.drafts),
+    promoteFunctionImplementationDrafts(structure.drafts),
   );
   const failedCodeDrafts = drafts.filter(
     (draft) =>
       draft.type === 'code' &&
       (draft.sourceMeta.codeVerification as { passed?: unknown } | undefined)?.passed !== true,
   );
-  if (!args.model || failedCodeDrafts.length === 0) return { drafts, usage: null };
+  if (!args.model || failedCodeDrafts.length === 0) return { drafts, usage: structure.usage };
 
   const prompt =
     args.language === 'zh-CN'
       ? `修复下面这些代码题，使它们符合平台判题契约。只返回严格 JSON 数组，不要 markdown。
 
 返回最小补丁格式：
-[{"draftId":"original draftId","starterCode":"complete student scaffold with imports","solutionCode":"complete reference module","publicTestCode":"import unittest ... complete test source importing from submission","secretTestCode":"import unittest ... complete hidden test source importing from submission","statementSections":[...]}]
+[{"draftId":"original draftId","starterCode":"complete student scaffold with imports","solutionCode":"complete reference module","publicTestCode":"import unittest ... complete test source importing from submission","secretTestCode":"import unittest ... complete hidden test source importing from submission","statementSections":[...],"sampleIO":[{"input":"target_function(argument)","output":"Python repr of result","explanation":"why"}]}]
 
 平台契约：
 - code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
 - 不支持 input、stdin、print 输出判分或文件读写。如果原题使用这些接口，等价改写函数签名和题面，保留核心考点。
 - starterCode 必须包含参数与返回类型注解、完整 docstring 和 pass；题面必须使用 LeetCode 式 statementSections，覆盖描述、要求、接口、示例和约束。
 - 测试覆盖普通情况、边界情况和容易写错的情况；public 与 secret 不重复。
+- publicContent.sampleIO 必须有至少 2 个示例：input 是可直接对参考实现执行的单行 Python 表达式（不是自然语言、JSON 参数对象或 >>> 提示符），output 是结果的 Python repr，explanation 解释行为。覆盖正常和边界情况，保留原题示例；不得复制隐藏测试到公开示例。平台会逐个执行示例，结果必须匹配。
 - 修复后的 solutionCode 必须能通过你返回的全部测试。
 - 如果运行错误显示参考实现符合题意而 expected 写错，应修正 testcase；如果实现不符合题意，应修正 solutionCode。不得为了让测试通过而改变考点。
 - 保留 draftId、原语言、核心考点和大致难度；不要要求老师确认。
@@ -520,13 +583,14 @@ ${JSON.stringify(
       : `Repair these code problems so they satisfy the platform judging contract. Return a strict JSON array only.
 
 Return minimal patches:
-[{"draftId":"original draftId","starterCode":"complete student scaffold with imports","solutionCode":"complete reference module","publicTestCode":"import unittest ... complete test source importing from submission","secretTestCode":"import unittest ... complete hidden test source importing from submission","statementSections":[...]}]
+[{"draftId":"original draftId","starterCode":"complete student scaffold with imports","solutionCode":"complete reference module","publicTestCode":"import unittest ... complete test source importing from submission","secretTestCode":"import unittest ... complete hidden test source importing from submission","statementSections":[...],"sampleIO":[{"input":"target_function(argument)","output":"Python repr of result","explanation":"why"}]}]
 
 Contract:
 - Code supports function and class implementations, including regex used inside functions. Generate publicContent.starterCode (imports, interface, docstrings), grading.solutionCode, publicContent.publicTestCode and secretJudge.secretTestCode together. Both test fields are complete Python unittest source strings with at least 2 public and 3 secret test_ methods. The platform saves the complete submission as submission.py. AI writes import unittest and from submission import the_interface_name in tests, matching starter and solution interfaces; AI includes re/typing imports in each file that uses them. Test object state, method sequences, exceptions and return values. Do not generate expression/expected arrays, pytest, third-party dependencies, empty tests, skips or expected failures. The reference must pass all tests; tests must reject the unimplemented starter. Cover valid, invalid and boundary examples.
 - stdin, input(), print-based grading, and file I/O are unsupported. Adapt those interfaces while preserving the assessed concept.
 - starterCode must contain annotated parameter and return types, a complete docstring, and pass. Use LeetCode-style statementSections for overview, requirements, interface, examples, and constraints.
 - Cover normal, boundary, and plausible wrong-answer cases. Public and secret tests must not duplicate each other.
+- Provide at least two sampleIO examples: input is a self-contained Python expression evaluated against the reference module (no >>> prefix or prose); output is its expected Python repr; explanation describes the behavior. Include normal and boundary inputs, preserve source examples, and never expose secret tests. All displayed examples are executed and must match.
 - The returned solutionCode must pass every returned test.
 - If runner evidence shows the implementation matches the prompt but an expected value is wrong, fix the testcase; if the implementation violates the prompt, fix solutionCode. Never change the assessed objective merely to make tests pass.
 - Preserve draftId, source language, core objective, and approximate difficulty. No teacher confirmation is required.
@@ -554,7 +618,7 @@ ${JSON.stringify(
       'problem-bank-import-code-repair',
     );
   } catch {
-    return { drafts, usage: null };
+    return { drafts, usage: structure.usage };
   }
 
   let repairedRaw: unknown[] = [];
@@ -603,7 +667,7 @@ ${JSON.stringify(
   });
 
   const verifiedDrafts = await annotateCodeDraftVerification(drafts);
-  const usage = usageFromLLMResult(args.model, result);
+  const usage = mergeImportUsage(structure.usage, usageFromLLMResult(args.model, result));
   const stillFailing = verifiedDrafts.some(
     (draft) =>
       draft.type === 'code' &&

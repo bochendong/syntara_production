@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 import { useState, useRef } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -104,7 +106,7 @@ export function ASRSettings({ selectedProviderId }: ASRSettingsProps) {
             formData.append('language', asrLanguage);
 
             try {
-              const response = await fetch('/api/transcription', {
+              const response = await aiFetch('/api/transcription', {
                 method: 'POST',
                 body: formData,
               });

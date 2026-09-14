@@ -1,3 +1,4 @@
+import { normalizeCourseDisplay } from '@/lib/course-space/course-display-name';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/prisma';
 import { requireTeacher } from '@/lib/server/teacher-auth';
@@ -15,7 +16,7 @@ export async function GET() {
     });
     return NextResponse.json({
       courses: courses.map((course) => ({
-        ...course,
+        ...normalizeCourseDisplay(course),
         accessRole: 'owner' as const,
         avatarUrl: course.avatarUrl?.trim() || pickStableCourseAvatarUrl(course.id),
       })),

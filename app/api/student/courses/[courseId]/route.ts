@@ -1,3 +1,4 @@
+import { courseDisplayCode } from '@/lib/course-space/course-display-name';
 import { NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -73,7 +74,7 @@ export async function GET(_request: Request, context: { params: Promise<{ course
           id: course.id,
           name: course.name,
           description: course.description || '',
-          code: course.courseCode?.trim() || course.name,
+          code: courseDisplayCode(course),
           academicYear: course.academicYear,
           term: course.academicTerm,
           avatarUrl: course.avatarUrl,

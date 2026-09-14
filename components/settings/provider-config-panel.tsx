@@ -1,5 +1,7 @@
 'use client';
 
+import { aiFetch } from '@/lib/ai-progress/ai-fetch';
+
 import { useState, useCallback, useEffect } from 'react';
 import { SettingsButton } from '@/components/settings/settings-button';
 import { Input } from '@/components/ui/input';
@@ -122,7 +124,7 @@ export function ProviderConfigPanel({
     const testModelId = availableModels[0].id;
 
     try {
-      const response = await fetch('/api/verify-model', {
+      const response = await aiFetch('/api/verify-model', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

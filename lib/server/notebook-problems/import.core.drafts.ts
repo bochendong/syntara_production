@@ -1,3 +1,4 @@
+import { problemContentReadinessErrors } from '@/lib/problem-bank/content-readiness';
 import { randomUUID } from 'node:crypto';
 import { jsonrepair } from 'jsonrepair';
 import { ZodError } from 'zod';
@@ -269,7 +270,8 @@ export function normalizeDraftMathFields(
     grading,
     validationErrors: Array.from(
       new Set([
-        ...draft.validationErrors,
+        ...draft.validationErrors.filter((error) => !error.startsWith('题面结构：')),
+        ...problemContentReadinessErrors({ ...draft, publicContent, grading }),
         ...selfContainmentValidationErrors({
           ...draft,
           publicContent,

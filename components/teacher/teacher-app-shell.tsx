@@ -1,4 +1,5 @@
 'use client';
+import { NotificationInboxButton } from '@/components/notifications/notification-inbox-button';
 
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -52,15 +53,18 @@ export function TeacherAppShell({
                 </p>
               </div>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-fit shrink-0 rounded-xl"
-              onClick={() => router.push(backHref)}
-            >
-              <ArrowLeft className="mr-1.5 size-4" />
-              {backLabel}
-            </Button>
+            <div className="flex items-center gap-2">
+              <NotificationInboxButton />
+              <Button
+                type="button"
+                variant="outline"
+                className="w-fit shrink-0 rounded-xl"
+                onClick={() => router.push(backHref)}
+              >
+                <ArrowLeft className="mr-1.5 size-4" />
+                {backLabel}
+              </Button>
+            </div>
           </header>
 
           <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>

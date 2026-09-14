@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       miniLecture: {
         path: '/api/native/v1/mini-lectures',
         imageProvider: 'openai-image',
-        imageModel: 'gpt-image-2',
+        imageModel: 'gpt-image-2.5-flare',
         ttsProvider: 'openai-tts',
         ttsModel: 'gpt-4o-mini-tts',
         browserSpeechSynthesis: false,

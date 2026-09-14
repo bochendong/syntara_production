@@ -31,6 +31,8 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
 
   const errors: string[] = [];
   const content = draft.publicContent;
+  if (new Set(content.sampleIO.map((sample) => sample.input.trim())).size < 2)
+    errors.push('代码题至少需要 2 个可执行并已验证的 sampleIO 示例');
   const secretTests = draft.secretJudge?.secretTests ?? [];
   const solution = codeReferenceSolution(draft);
   const functionSignature = content.functionSignature?.trim() || '';

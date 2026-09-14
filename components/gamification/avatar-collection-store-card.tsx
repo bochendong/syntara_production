@@ -2,8 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Image from 'next/image';
-import { AnimatePresence, motion } from 'motion/react';
-import { Check, Gem, Shield, Sparkles, Star, Ticket, WandSparkles } from 'lucide-react';
+import { Check, Gem, Shield, Sparkles, Star, Ticket } from 'lucide-react';
 import { toast } from '@/lib/notifications/client-toast';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -96,21 +95,6 @@ const BANNER_META: Record<
   },
 };
 
-const REVEAL_PARTICLES = Array.from({ length: 28 }, (_, index) => ({
-  id: `particle-${index}`,
-  left: 8 + ((index * 29) % 84),
-  top: 6 + ((index * 17) % 86),
-  size: 4 + (index % 5) * 2,
-  delay: (index % 6) * 0.07,
-  duration: 1.4 + (index % 5) * 0.18,
-  dx: (index % 2 === 0 ? 1 : -1) * (18 + (index % 4) * 9),
-  dy: -28 - (index % 6) * 14,
-}));
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
 function GachaPoolTabSwitch({
   activePool,
   onChange,
@@ -176,13 +160,6 @@ function gachaAvatarHighlightRingClass(rarity: GamificationAvatarRarity) {
   return 'border-white/25 bg-white/8';
 }
 
-function rewardSortValue(reward: GamificationGachaDrawReward) {
-  if (reward.kind === 'character') return reward.unlockedNow ? 100 : reward.duplicate ? 70 : 80;
-  if (reward.rarity === 'SSR') return reward.unlockedNow ? 98 : 88;
-  if (reward.rarity === 'SR') return reward.unlockedNow ? 90 : 78;
-  return reward.unlockedNow ? 72 : 60;
-}
-
 function rewardCaption(reward: GamificationGachaDrawReward) {
   if (reward.kind === 'character') {
     return reward.duplicate
@@ -197,254 +174,30 @@ function rewardCaption(reward: GamificationGachaDrawReward) {
   return `${reward.rarity} 碎片 +${reward.fragmentGain} · ${reward.fragmentTotal}/${reward.fragmentTarget}`;
 }
 
-function rewardBadgeLabel(reward: GamificationGachaDrawReward) {
-  if (reward.kind === 'character') return reward.duplicate ? '重复奖励' : '讲师碎片';
-  return reward.rarity ?? '头像';
-}
-
-function GachaRevealDialog({
-  open,
-  phase,
-  result,
-  onClose,
-}: {
-  open: boolean;
-  phase: 'charging' | 'impact' | 'reveal';
-  result: GamificationGachaDrawResponse | null;
-  onClose: () => void;
-}) {
-  const bannerId = result?.bannerId ?? 'avatar';
-  const bannerMeta = BANNER_META[bannerId];
-  const featuredReward = useMemo(() => {
-    if (!result) return null;
-    return [...result.rewards].sort((a, b) => rewardSortValue(b) - rewardSortValue(a))[0] ?? null;
-  }, [result]);
-
+function GachaDrawResults({ result }: { result: GamificationGachaDrawResponse }) {
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent
-        className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[72rem] overflow-y-auto border-white/45 bg-[rgba(8,12,24,0.82)] p-0 text-white shadow-[0_40px_160px_rgba(15,23,42,0.45)] backdrop-blur-2xl dark:border-white/10"
-        showOverlay
-        showCloseButton={phase === 'reveal'}
-      >
-        <div className="relative min-h-[min(42rem,calc(100dvh-1rem))] overflow-hidden">
+    <section
+      className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900"
+      aria-label="本次抽取结果"
+    >
+      <h2 className="text-base font-semibold">本次抽取结果</h2>
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {result.rewards.map((reward, index) => (
           <div
-            className={cn(
-              'absolute inset-0 bg-gradient-to-br opacity-90',
-              bannerMeta.tone.burstClassName,
-            )}
-          />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.14),transparent_38%),radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_26%)]" />
-
-          <AnimatePresence>
-            {phase !== 'reveal' ? (
-              <motion.div
-                key={phase}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0"
-              >
-                {REVEAL_PARTICLES.map((particle) => (
-                  <motion.div
-                    key={particle.id}
-                    className="absolute rounded-full bg-white/85 shadow-[0_0_16px_rgba(255,255,255,0.75)]"
-                    style={{
-                      width: particle.size,
-                      height: particle.size,
-                      left: `${particle.left}%`,
-                      top: `${particle.top}%`,
-                    }}
-                    initial={{ opacity: 0, scale: 0.25, x: 0, y: 0 }}
-                    animate={{
-                      opacity: phase === 'impact' ? [0, 1, 0] : [0.1, 0.7, 0.1],
-                      scale: phase === 'impact' ? [0.4, 1.35, 0.2] : [0.35, 1, 0.45],
-                      x: phase === 'impact' ? [0, particle.dx] : [0, particle.dx * 0.35, 0],
-                      y: phase === 'impact' ? [0, particle.dy] : [0, particle.dy * 0.4, 0],
-                    }}
-                    transition={{
-                      duration: particle.duration,
-                      delay: particle.delay,
-                      repeat: phase === 'impact' ? 0 : Number.POSITIVE_INFINITY,
-                      ease: 'easeOut',
-                    }}
-                  />
-                ))}
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-
-          <div className="relative z-10 flex min-h-[min(42rem,calc(100dvh-1rem))] flex-col items-center justify-center px-4 py-6 sm:px-6 sm:py-8">
-            <DialogHeader className="items-center text-center">
-              <span
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium',
-                  bannerMeta.tone.badgeClassName,
-                )}
-              >
-                <WandSparkles className="size-3.5" />
-                {bannerMeta.title}
-              </span>
-              <DialogTitle className="text-2xl font-semibold text-white sm:text-[2rem]">
-                {phase === 'charging'
-                  ? '正在连接星轨补给站'
-                  : phase === 'impact'
-                    ? '流光命中，正在拆封奖励'
-                    : '补给结果已确认'}
-              </DialogTitle>
-              <DialogDescription className="max-w-2xl text-sm text-white/70">
-                {phase === 'reveal'
-                  ? '新的奖励已经写入库存与角色进度。'
-                  : '粒子风暴正在重组本次补给结果，请稍等片刻。'}
-              </DialogDescription>
-            </DialogHeader>
-
-            {phase !== 'reveal' ? (
-              <div className="relative mt-10 flex flex-1 items-center justify-center">
-                <motion.div
-                  className={cn(
-                    'absolute size-[20rem] rounded-full bg-gradient-to-r blur-3xl',
-                    bannerMeta.tone.accentClassName,
-                  )}
-                  animate={{
-                    scale: phase === 'impact' ? [0.85, 1.25, 1.05] : [0.85, 1.05, 0.9],
-                    opacity: phase === 'impact' ? [0.4, 0.92, 0.5] : [0.28, 0.58, 0.32],
-                    rotate: [0, 180, 360],
-                  }}
-                  transition={{
-                    duration: phase === 'impact' ? 1.4 : 3.4,
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: 'linear',
-                  }}
-                />
-                <motion.div
-                  className="relative flex aspect-square w-[14rem] items-center justify-center rounded-[2.25rem] border border-white/25 bg-white/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] sm:w-[18rem] sm:rounded-[3rem]"
-                  animate={{
-                    rotate: phase === 'impact' ? [0, -8, 10, 0] : [0, 5, -5, 0],
-                    scale: phase === 'impact' ? [1, 1.06, 0.96, 1] : [0.96, 1.04, 0.98],
-                  }}
-                  transition={{
-                    duration: phase === 'impact' ? 0.85 : 2.2,
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: 'easeInOut',
-                  }}
-                >
-                  <motion.div
-                    className={cn(
-                      'absolute inset-4 rounded-[2.4rem] bg-gradient-to-br opacity-95',
-                      bannerMeta.tone.accentClassName,
-                    )}
-                    animate={{
-                      filter:
-                        phase === 'impact'
-                          ? ['brightness(1)', 'brightness(1.4)', 'brightness(1.05)']
-                          : ['brightness(0.92)', 'brightness(1.14)', 'brightness(0.95)'],
-                    }}
-                    transition={{ duration: 1.25, repeat: Number.POSITIVE_INFINITY }}
-                  />
-                  <motion.div
-                    className="absolute inset-0 rounded-[3rem] border border-white/25"
-                    animate={{ rotate: [0, 360] }}
-                    transition={{ duration: 5.4, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
-                  />
-                  <bannerMeta.icon className="relative z-10 size-14 text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.65)]" />
-                </motion.div>
-              </div>
-            ) : (
-              <div className="mt-10 flex w-full flex-1 flex-col gap-6">
-                {featuredReward ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 36, scale: 0.94 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.55, ease: 'easeOut' }}
-                    className="mx-auto w-full max-w-xl"
-                  >
-                    <div className="relative overflow-hidden rounded-[2rem] border border-white/20 bg-white/8 p-5 shadow-[0_24px_80px_rgba(8,15,40,0.35)]">
-                      <div
-                        className={cn(
-                          'absolute inset-0 bg-gradient-to-br opacity-70',
-                          rarityAccent(featuredReward.rarity),
-                        )}
-                      />
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.4),transparent_35%)]" />
-                      <div className="relative flex items-center gap-5">
-                        <div className="relative size-28 shrink-0 overflow-hidden rounded-[1.6rem] border border-white/30 bg-black/20">
-                          <img
-                            src={featuredReward.previewSrc}
-                            alt={featuredReward.name}
-                            className="size-full object-cover"
-                          />
-                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-3 pb-2 pt-6 text-[11px] font-medium text-white/90">
-                            {rewardBadgeLabel(featuredReward)}
-                          </div>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-medium uppercase tracking-[0.24em] text-white/70">
-                            Featured Reward
-                          </p>
-                          <h3 className="mt-2 text-2xl font-semibold text-white">
-                            {featuredReward.name}
-                          </h3>
-                          <p className="mt-2 text-sm leading-6 text-white/80">
-                            {rewardCaption(featuredReward)}
-                          </p>
-                          {featuredReward.fragmentTarget > 1 ? (
-                            <div className="mt-3">
-                              <Progress
-                                value={Math.round(
-                                  (featuredReward.fragmentTotal / featuredReward.fragmentTarget) *
-                                    100,
-                                )}
-                                className="bg-white/15"
-                              />
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ) : null}
-
-                <div
-                  className={cn(
-                    'grid gap-3',
-                    result?.drawCount === 10 ? 'md:grid-cols-5' : 'mx-auto max-w-sm',
-                  )}
-                >
-                  {(result?.rewards ?? []).map((reward, index) => (
-                    <motion.div
-                      key={`${reward.kind}-${reward.itemId}-${index}`}
-                      initial={{ opacity: 0, y: 28, scale: 0.9 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ delay: 0.1 + index * 0.05, duration: 0.35 }}
-                      className="overflow-hidden rounded-[1.5rem] border border-white/16 bg-white/8 p-3 shadow-[0_18px_50px_rgba(8,15,40,0.25)]"
-                    >
-                      <div className="relative overflow-hidden rounded-[1.2rem] bg-black/20">
-                        <div
-                          className={cn(
-                            'absolute inset-0 bg-gradient-to-br opacity-75',
-                            rarityAccent(reward.rarity),
-                          )}
-                        />
-                        <img
-                          src={reward.previewSrc}
-                          alt={reward.name}
-                          className="relative aspect-square w-full object-cover"
-                        />
-                      </div>
-                      <p className="mt-3 text-sm font-semibold text-white">{reward.name}</p>
-                      <p className="mt-1 text-xs leading-5 text-white/70">
-                        {rewardCaption(reward)}
-                      </p>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            )}
+            key={`${reward.kind}-${reward.itemId}-${index}`}
+            className="rounded-2xl border border-slate-200 p-3 dark:border-white/10"
+          >
+            <img
+              src={reward.previewSrc}
+              alt={reward.name}
+              className="aspect-square w-full rounded-xl object-cover"
+            />
+            <p className="mt-2 text-sm font-semibold">{reward.name}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{rewardCaption(reward)}</p>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -850,8 +603,6 @@ function InstructorWishBanner({
 
 export function AvatarCollectionStoreCard() {
   const { summary, drawGacha } = useGamificationSummary(true);
-  const [drawOpen, setDrawOpen] = useState(false);
-  const [drawPhase, setDrawPhase] = useState<'charging' | 'impact' | 'reveal'>('charging');
   const [drawResult, setDrawResult] = useState<GamificationGachaDrawResponse | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [dropRulesOpen, setDropRulesOpen] = useState(false);
@@ -876,20 +627,15 @@ export function AvatarCollectionStoreCard() {
   const handleDraw = async (bannerId: GamificationGachaBannerId, drawCount: 1 | 10) => {
     if (drawing) return;
     setDrawing(true);
-    setDrawOpen(true);
     setDrawResult(null);
-    setDrawPhase('charging');
 
     try {
-      const request = drawGacha(bannerId, drawCount);
-      await sleep(650);
-      setDrawPhase('impact');
-      const result = await request;
-      await sleep(550);
+      const result = await drawGacha(bannerId, drawCount);
       setDrawResult(result);
-      setDrawPhase('reveal');
+      toast.success('抽取完成', {
+        description: `已获得 ${result.rewards.length} 份奖励，详细结果已显示在补给站。`,
+      });
     } catch (err) {
-      setDrawOpen(false);
       toast.error(err instanceof Error ? err.message : '抽卡失败');
     } finally {
       setDrawing(false);
@@ -943,6 +689,7 @@ export function AvatarCollectionStoreCard() {
               )}
             </div>
           )}
+          {drawResult ? <GachaDrawResults result={drawResult} /> : null}
         </Card>
       </div>
 
@@ -1039,18 +786,6 @@ export function AvatarCollectionStoreCard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <GachaRevealDialog
-        open={drawOpen}
-        phase={drawPhase}
-        result={drawResult}
-        onClose={() => {
-          if (drawing) return;
-          setDrawOpen(false);
-          setDrawResult(null);
-          setDrawPhase('charging');
-        }}
-      />
     </>
   );
 }

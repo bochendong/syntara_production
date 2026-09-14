@@ -230,6 +230,8 @@ export function useCourseProblemBankController({
   const [autoArchiving, setAutoArchiving] = useState(false);
   const [problemChapters, setProblemChapters] = useState<CourseProblemChapter[]>([]);
   const [deletingProblemId, setDeletingProblemId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const bulkDeleteLock = useRef(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [answerModes, setAnswerModes] = useState<Record<string, TextAnswerMode>>({});
   const [textAnswers, setTextAnswers] = useState<Record<string, string>>({});
@@ -1274,10 +1276,87 @@ export function useCourseProblemBankController({
     [canEditProblems, courseId, locale, selectedProblem, problemChapters],
   );
 
+  const handleBulkDeleteProblems = useCallback(
+    async (problemIds: string[]) => {
+      const ids = Array.from(new Set(problemIds));
+      if (
+        !canEditProblems ||
+        isPracticeMode ||
+        !ids.length ||
+        deletingProblemId ||
+        bulkDeleteLock.current
+      )
+        return;
+      if (
+        !window.confirm(
+          locale === 'zh-CN'
+            ? `确认删除选中的 ${ids.length} 道题目吗？删除后不可恢复。`
+            : `Delete ${ids.length} selected problems? This cannot be undone.`,
+        )
+      )
+        return;
+      bulkDeleteLock.current = true;
+      setBulkDeleting(true);
+      const deletedIds: string[] = [];
+      try {
+        // Reuse the ownership-checked single-delete endpoint and keep partial successes.
+        for (const problemId of ids) {
+          try {
+            if (!isLocalDemoProblemBankCourse(courseId))
+              await deleteCourseProblem({ courseId, problemId });
+            deletedIds.push(problemId);
+          } catch {
+            // Failed rows stay selected so the teacher can retry them.
+          }
+        }
+        const deleted = new Set(deletedIds);
+        setProblems((current) => current.filter((problem) => !deleted.has(problem.id)));
+        setSelectedProblemId((current) => (current && deleted.has(current) ? null : current));
+        setCourseProblemCount((current) => Math.max(0, current - deleted.size));
+        if (usesServerPagination && deleted.size) {
+          setServerFilteredProblemCount((current) => Math.max(0, current - deleted.size));
+          if (deleted.size === problems.length && problemPage > 1) {
+            setProblemPage((current) => current - 1);
+          } else {
+            await loadAll();
+          }
+        }
+        const failed = ids.length - deleted.size;
+        if (failed)
+          toast.error(
+            locale === 'zh-CN'
+              ? `已删除 ${deleted.size} 道题，${failed} 道删除失败，请重试。`
+              : `${deleted.size} deleted; ${failed} failed. Please retry.`,
+          );
+        else
+          toast.success(
+            locale === 'zh-CN'
+              ? `已删除 ${deleted.size} 道题目`
+              : `${deleted.size} problems deleted`,
+          );
+        return deletedIds;
+      } finally {
+        bulkDeleteLock.current = false;
+        setBulkDeleting(false);
+      }
+    },
+    [
+      canEditProblems,
+      isPracticeMode,
+      deletingProblemId,
+      locale,
+      courseId,
+      usesServerPagination,
+      problems.length,
+      problemPage,
+      loadAll,
+    ],
+  );
+
   const handleDeleteProblem = useCallback(
     async (problemToDelete?: NotebookProblemClientRecord) => {
       const targetProblem = problemToDelete ?? selectedProblem;
-      if (!targetProblem || deletingProblemId) return;
+      if (!targetProblem || deletingProblemId || bulkDeleteLock.current) return;
       if (!canEditProblems) {
         toast.error(
           locale === 'zh-CN' ? '只有课程作者可以编辑题目。' : 'Only the author can edit problems.',
@@ -1485,6 +1564,16 @@ export function useCourseProblemBankController({
           saving: false,
         },
       }));
+      const submissionMessage =
+        attempt.status === 'error'
+          ? locale === 'zh-CN'
+            ? '本次判题失败，请重试。'
+            : 'Grading failed. Please try again.'
+          : locale === 'zh-CN'
+            ? '答案已提交，可在「提交历史」查看详情。'
+            : 'Submitted. Open History to view details.';
+      if (attempt.status === 'error') toast.error(submissionMessage);
+      else toast.success(submissionMessage);
       if (!canEditProblems) setAnswerPanelTab('history');
       if (!canEditProblems)
         onPracticeAttemptResolved?.({
@@ -1731,6 +1820,8 @@ export function useCourseProblemBankController({
     handleAddPhotoAnswerFiles,
     handleAiFileUnfiledProblems,
     handleDeleteProblem,
+    handleBulkDeleteProblems,
+    bulkDeleting,
     handleChangeProblemChapter,
     handleEditingDraftChange,
     handleProblemInfoTabChange,

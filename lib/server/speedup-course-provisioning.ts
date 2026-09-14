@@ -1,3 +1,4 @@
+import { courseDisplayCode } from '@/lib/course-space/course-display-name';
 import { prisma } from '@/lib/server/prisma';
 import {
   listSpeedupCoursesForUser,
@@ -193,7 +194,7 @@ export async function syncSpeedupCourseMemberships(
           courseId: true,
           campusCode: true,
           externalCourseId: true,
-          course: { select: { ownerId: true } },
+          course: { select: { ownerId: true, courseCode: true, name: true } },
         },
       })
     : [];
@@ -214,6 +215,14 @@ export async function syncSpeedupCourseMemberships(
         speedupCourseKey({ id: binding.externalCourseId, campusCode: binding.campusCode }),
       );
       if (externalCourse) {
+        // Repair legacy catalogue section codes when the course is next reconciled.
+        const displayCode = courseDisplayCode(binding.course);
+        if (binding.course.courseCode && displayCode !== binding.course.courseCode) {
+          await tx.course.update({
+            where: { id: binding.courseId },
+            data: { courseCode: displayCode },
+          });
+        }
         await tx.externalCourseBinding.update({
           where: { id: binding.id },
           data: {
