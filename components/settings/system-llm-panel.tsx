@@ -64,7 +64,8 @@ export function SystemLLMPanel() {
             日常语言模型
           </CardTitle>
           <CardDescription>
-            老师备课、学生学习与聊天默认使用 GPT-5.6 Sol。低强度仍是 Luna，高强度是 GPT-6 Astra。你可以在管理员开放的模型范围内切换。
+            老师备课、学生学习与聊天默认使用 GPT-5.6 Sol。低强度仍是 Luna，高强度是 GPT-6
+            Astra。你可以在管理员开放的模型范围内切换。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

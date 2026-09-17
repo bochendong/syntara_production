@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import ts from 'typescript';
 const require = createRequire(import.meta.url);
 function load(file, dependencies = {}) {
-  const module = { exports: {} };
+  const loaded = { exports: {} };
   const code = ts.transpileModule(readFileSync(file, 'utf8'), {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -15,10 +15,10 @@ function load(file, dependencies = {}) {
   }).outputText;
   new Function('require', 'module', 'exports', code)(
     (name) => dependencies[name] ?? require(name),
-    module,
-    module.exports,
+    loaded,
+    loaded.exports,
   );
-  return module.exports;
+  return loaded.exports;
 }
 const structure = load('lib/problem-bank/markdown-structure.ts');
 const { renderProblemRichTextHtml: render } = load(
