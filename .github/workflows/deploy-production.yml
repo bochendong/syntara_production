@@ -18,6 +18,8 @@ jobs:
   vercel:
     name: Deploy Vercel
     needs: railway
+    # Railway credentials currently fail in GitHub Actions; include
+    # [railway-deployed] on the triggering commit so Vercel still ships.
     if: >-
       always() &&
       (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') &&
