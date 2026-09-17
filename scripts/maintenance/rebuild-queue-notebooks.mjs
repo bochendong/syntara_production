@@ -27,7 +27,7 @@ const LEGACY_SNAPSHOT_PATH = path.join(
   'additional-queue-learning-content.v1.json',
 );
 const IMPORT_VERSION = 'queue-notebook-rewrite-v3';
-const DEFAULT_MODEL = 'gpt-5.6-terra';
+const DEFAULT_MODEL = 'gpt-5.6-sol';
 const OWNER_ID = 'user-dongbochen1218-icloud-com';
 
 const COURSE_CONFIG = {

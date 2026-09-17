@@ -147,8 +147,8 @@ export function AdminLLMSection() {
             系统模型配置
           </CardTitle>
           <CardDescription>
-            服务端为全站统一提供语言模型与凭据。学生聊天只能在管理员批准的低、中、高三档间选择，
-            不能提交任意模型 ID。补充配置来自项目根目录 server-providers.yml 与
+            学生聊天只能在管理员批准的低、中、高三档间选择，不能提交任意模型 ID。讲义和其他 AI
+            功能使用兜底模型 GPT-5.6 Sol。补充配置来自项目根目录 server-providers.yml 与
             .env，修改后需重启服务。
           </CardDescription>
         </CardHeader>
@@ -306,10 +306,12 @@ export function AdminLLMSection() {
                     </td>
                     <td className="px-3 py-2">
                       <div className="font-medium">
-                        {row.userName || row.userEmail || row.userId || '匿名'}
+                        {row.userName || row.userEmail || '未登记姓名'}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {row.userEmail || row.userId || '-'}
+                        {row.userEmail && row.userEmail !== row.userName
+                          ? row.userEmail
+                          : row.userId || '—'}
                       </div>
                     </td>
                     <td className="px-3 py-2">{row.route}</td>

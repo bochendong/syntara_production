@@ -59,13 +59,13 @@ export async function POST(request: NextRequest) {
         operationCode: 'native_transcription',
         chargeReason: '原生端 OpenAI 语音转写',
       },
-      () =>
+      async () =>
         transcribeAudio(
           {
             providerId,
             language: parsed.data.language,
-            apiKey: systemOpenAI.apiKey || resolveASRApiKey(providerId),
-            baseUrl: systemOpenAI.baseUrl || resolveASRBaseUrl(providerId),
+            apiKey: systemOpenAI.apiKey || (await resolveASRApiKey(providerId)),
+            baseUrl: systemOpenAI.baseUrl || (await resolveASRBaseUrl(providerId)),
           },
           audio,
         ),

@@ -21,16 +21,20 @@ import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { createLogger } from '@/lib/logger';
 import { proxyFetch } from '@/lib/server/proxy-fetch';
 import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
+import { SYSTEM_OPENAI_IMAGE_MODEL } from '@/lib/ai/system-model-policy';
 
 const log = createLogger('VerifyImageProvider');
 
 export async function POST(request: NextRequest) {
   try {
     const providerId = (request.headers.get('x-image-provider') || 'seedream') as ImageProviderId;
-    const model = request.headers.get('x-image-model') || undefined;
     const systemOpenAI = providerId === 'openai-image' ? await getSystemLLMRuntimeConfig() : null;
-    const apiKey = systemOpenAI?.apiKey || resolveImageApiKey(providerId) || '';
-    const baseUrl = systemOpenAI?.baseUrl || resolveImageBaseUrl(providerId);
+    const model =
+      providerId === 'openai-image'
+        ? SYSTEM_OPENAI_IMAGE_MODEL
+        : request.headers.get('x-image-model') || undefined;
+    const apiKey = systemOpenAI?.apiKey || (await resolveImageApiKey(providerId)) || '';
+    const baseUrl = systemOpenAI?.baseUrl || (await resolveImageBaseUrl(providerId));
 
     if (!apiKey) {
       return apiError('MISSING_API_KEY', 400, 'No API key configured');

@@ -12,7 +12,12 @@ import {
 export const runtime = 'nodejs';
 export const maxDuration = 180;
 
-const safeNativeModelSchema = z.enum(['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']);
+const safeNativeModelSchema = z.enum([
+  'gpt-6-astra',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna',
+]);
 
 const requestSchema = z.object({
   course: z.object({

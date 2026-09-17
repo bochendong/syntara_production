@@ -9,6 +9,7 @@ import type { GenerateTextResult, StreamTextResult } from 'ai';
 import { createLogger } from '@/lib/logger';
 import { PROVIDERS } from './providers';
 import { thinkingContext } from './thinking-context';
+import { lowestOpenAIReasoningEffort } from './system-model-policy';
 import type { ProviderType, ThinkingCapability, ThinkingConfig } from '@/lib/types/provider';
 import { assertUserHasCredits } from '@/lib/server/credits';
 import { getRequestContext } from '@/lib/server/request-context';
@@ -163,18 +164,10 @@ function buildDisableThinking(
 ): ProviderOptions | undefined {
   switch (providerType) {
     case 'openai': {
-      // GPT-5.1/5.2: support effort=none (fully off)
-      // GPT-5/mini/nano: lowest is minimal
-      // o-series: lowest is low
-      let effort: string;
-      if (modelId.startsWith('gpt-5.')) {
-        effort = 'none';
-      } else if (modelId.startsWith('gpt-5')) {
-        effort = 'minimal';
-      } else if (modelId.startsWith('o')) {
-        effort = 'low';
-      } else {
-        // Non-thinking OpenAI models (gpt-4o etc.) — no injection needed
+      // GPT-6 Astra rejects effort=none. GPT-5.6 still accepts it; older GPT-5
+      // and o-series keep their previous lowest supported values.
+      const effort = lowestOpenAIReasoningEffort(modelId);
+      if (effort === 'none' && !modelId.startsWith('gpt-5.') && !modelId.startsWith('gpt-6')) {
         return undefined;
       }
       if (!_thinking.toggleable && effort !== 'none') {

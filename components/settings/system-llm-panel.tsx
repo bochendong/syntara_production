@@ -64,13 +64,13 @@ export function SystemLLMPanel() {
             日常语言模型
           </CardTitle>
           <CardDescription>
-            老师备课、学生学习与聊天默认使用 GPT-5.6 Luna。你可以在管理员开放的模型范围内切换。
+            老师备课、学生学习与聊天默认使用 GPT-5.6 Sol。低强度仍是 Luna，高强度是 GPT-6 Astra。你可以在管理员开放的模型范围内切换。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">Provider: {provider?.name || providerId}</Badge>
-            <Badge variant="secondary">Model: {modelId || 'gpt-5.6-luna'}</Badge>
+            <Badge variant="secondary">Model: {modelId || 'gpt-5.6-sol'}</Badge>
             <Badge variant="outline" className="gap-1">
               <ShieldCheck className="h-3.5 w-3.5" />
               系统托管
@@ -114,7 +114,7 @@ export function SystemLLMPanel() {
             笔记本整理模型
           </CardTitle>
           <CardDescription>
-            将课程资料整理成笔记本时默认使用 GPT-5.6 Terra，与上方日常语言模型相互独立。
+            将课程资料整理成笔记本时使用 GPT-5.6 Sol，与聊天回复强度相互独立。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

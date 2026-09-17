@@ -15,7 +15,7 @@ const log = createLogger('ServerProviders');
 
 export async function GET() {
   try {
-    const providers = getServerProviders();
+    const providers = await getServerProviders();
     const openaiFromServer = providers.openai || {};
     const systemLLM = await import('@/lib/server/system-llm-config').then((module) =>
       module.getSystemLLMConfigView(),
@@ -32,9 +32,9 @@ export async function GET() {
       systemLLM.baseUrl ||
       process.env.OPENAI_BASE_URL?.trim() ||
       'https://api.openai.com/v1';
-    const image = getServerImageProviders();
-    const tts = getServerTTSProviders();
-    const asr = getServerASRProviders();
+    const image = await getServerImageProviders();
+    const tts = await getServerTTSProviders();
+    const asr = await getServerASRProviders();
 
     // One administrator-managed OpenAI key powers every OpenAI capability.
     // Only availability metadata is sent to the browser; the secret stays server-side.
@@ -66,7 +66,7 @@ export async function GET() {
       asr,
       pdf: getServerPDFProviders(),
       image,
-      video: getServerVideoProviders(),
+      video: await getServerVideoProviders(),
       webSearch: getServerWebSearchProviders(),
     });
   } catch (error) {

@@ -36,6 +36,7 @@ import type { VideoProviderId } from '@/lib/media/types';
 import type { TTSProviderId } from '@/lib/audio/types';
 import { splitLongSpeechActions } from '@/lib/audio/tts-utils';
 import { verbalizeNarrationText } from '@/lib/audio/spoken-text';
+import { SYSTEM_OPENAI_IMAGE_MODEL } from '@/lib/ai/system-model-policy';
 
 const log = createLogger('ClassroomMedia');
 
@@ -85,10 +86,10 @@ export async function generateMediaForClassroom(
   const imageProviderIds = Array.from(
     new Set([
       ...(systemOpenAI.apiKey ? ['openai-image'] : []),
-      ...Object.keys(getServerImageProviders()),
+      ...Object.keys(await getServerImageProviders()),
     ]),
   );
-  const videoProviderIds = Object.keys(getServerVideoProviders());
+  const videoProviderIds = Object.keys(await getServerVideoProviders());
 
   const mediaMap: Record<string, string> = {};
 
@@ -102,20 +103,22 @@ export async function generateMediaForClassroom(
       try {
         const providerId = imageProviderIds[0] as ImageProviderId;
         const isOpenAI = providerId === 'openai-image';
-        const apiKey = (isOpenAI ? systemOpenAI.apiKey : '') || resolveImageApiKey(providerId);
+        const apiKey =
+          (isOpenAI ? systemOpenAI.apiKey : '') || (await resolveImageApiKey(providerId));
         if (!apiKey) {
           log.warn(`No API key for image provider "${providerId}", skipping ${req.elementId}`);
           continue;
         }
         const providerConfig = IMAGE_PROVIDERS[providerId];
-        const model = providerConfig?.models?.[0]?.id;
+        const model = isOpenAI ? SYSTEM_OPENAI_IMAGE_MODEL : providerConfig?.models?.[0]?.id;
 
         const result = await generateImage(
           {
             providerId,
             apiKey,
             baseUrl:
-              (isOpenAI ? systemOpenAI.baseUrl : undefined) || resolveImageBaseUrl(providerId),
+              (isOpenAI ? systemOpenAI.baseUrl : undefined) ||
+              (await resolveImageBaseUrl(providerId)),
             model,
           },
           { prompt: req.prompt, aspectRatio: req.aspectRatio || '16:9' },
@@ -149,7 +152,7 @@ export async function generateMediaForClassroom(
     for (const req of videoRequests) {
       try {
         const providerId = videoProviderIds[0] as VideoProviderId;
-        const apiKey = resolveVideoApiKey(providerId);
+        const apiKey = await resolveVideoApiKey(providerId);
         if (!apiKey) {
           log.warn(`No API key for video provider "${providerId}", skipping ${req.elementId}`);
           continue;
@@ -163,7 +166,7 @@ export async function generateMediaForClassroom(
         });
 
         const result = await generateVideo(
-          { providerId, apiKey, baseUrl: resolveVideoBaseUrl(providerId), model },
+          { providerId, apiKey, baseUrl: await resolveVideoBaseUrl(providerId), model },
           normalized,
         );
 
@@ -229,7 +232,7 @@ export async function generateTTSForClassroom(
   const ttsProviderIds = Array.from(
     new Set([
       ...(systemOpenAI.apiKey ? ['openai-tts'] : []),
-      ...Object.keys(getServerTTSProviders()),
+      ...Object.keys(await getServerTTSProviders()),
     ]),
   ).filter((id) => id !== 'browser-native-tts');
   if (ttsProviderIds.length === 0) {
@@ -239,14 +242,14 @@ export async function generateTTSForClassroom(
 
   const providerId = ttsProviderIds[0] as TTSProviderId;
   const isOpenAI = providerId === 'openai-tts';
-  const apiKey = (isOpenAI ? systemOpenAI.apiKey : '') || resolveTTSApiKey(providerId);
+  const apiKey = (isOpenAI ? systemOpenAI.apiKey : '') || (await resolveTTSApiKey(providerId));
   if (!apiKey) {
     log.warn(`No API key for TTS provider "${providerId}", skipping TTS generation`);
     return;
   }
   const ttsBaseUrl =
     (isOpenAI ? systemOpenAI.baseUrl : undefined) ||
-    resolveTTSBaseUrl(providerId) ||
+    (await resolveTTSBaseUrl(providerId)) ||
     TTS_PROVIDERS[providerId]?.defaultBaseUrl;
   const voice = DEFAULT_TTS_VOICES[providerId] || 'default';
   const format = TTS_PROVIDERS[providerId]?.supportedFormats?.[0] || 'mp3';

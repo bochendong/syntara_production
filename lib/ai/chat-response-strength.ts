@@ -1,3 +1,5 @@
+import { SYSTEM_CHAT_MODEL_BY_STRENGTH } from '@/lib/ai/system-model-policy';
+
 export const CHAT_RESPONSE_STRENGTHS = ['low', 'medium', 'high'] as const;
 
 export type ChatResponseStrength = (typeof CHAT_RESPONSE_STRENGTHS)[number];
@@ -15,19 +17,19 @@ export const CHAT_RESPONSE_STRENGTH_CONFIG: Record<
 > = {
   low: {
     label: '低',
-    modelId: 'gpt-5.6-luna',
+    modelId: SYSTEM_CHAT_MODEL_BY_STRENGTH.low,
     relativeCost: 1,
     description: '适合日常问答，速度更快、用量更省。',
   },
   medium: {
     label: '中',
-    modelId: 'gpt-5.6-terra',
+    modelId: SYSTEM_CHAT_MODEL_BY_STRENGTH.medium,
     relativeCost: 2.5,
     description: '适合需要推理和分步讲解的学习问题。',
   },
   high: {
     label: '高',
-    modelId: 'gpt-5.6-sol',
+    modelId: SYSTEM_CHAT_MODEL_BY_STRENGTH.high,
     relativeCost: 5,
     description: '适合复杂推导、综合分析和高难度问题。',
   },

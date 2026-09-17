@@ -60,7 +60,7 @@ async function main() {
   const inputPath = path.resolve(inputPathArg);
   const outputPath = path.resolve(outputPathArg);
   const apiKey = process.env.OPENAI_API_KEY?.trim();
-  const modelId = (process.env.DEFAULT_MODEL?.trim() || 'gpt-5.6-luna').replace(/^openai:/, '');
+  const modelId = (process.env.DEFAULT_MODEL?.trim() || 'gpt-5.6-sol').replace(/^openai:/, '');
   if (!apiKey) throw new Error('OPENAI_API_KEY is required.');
 
   const buffer = await readFile(inputPath);

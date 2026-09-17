@@ -75,8 +75,8 @@ export async function POST(req: NextRequest) {
     }
 
     const systemOpenAI = ttsProviderId === 'openai-tts' ? await getSystemLLMRuntimeConfig() : null;
-    const apiKey = systemOpenAI?.apiKey || resolveTTSApiKey(ttsProviderId) || '';
-    const baseUrl = systemOpenAI?.baseUrl || resolveTTSBaseUrl(ttsProviderId);
+    const apiKey = systemOpenAI?.apiKey || (await resolveTTSApiKey(ttsProviderId)) || '';
+    const baseUrl = systemOpenAI?.baseUrl || (await resolveTTSBaseUrl(ttsProviderId));
 
     const spokenText = verbalizeNarrationText(text);
     const speed = ttsSpeed ?? 1.0;

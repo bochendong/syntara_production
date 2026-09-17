@@ -56,6 +56,7 @@ import {
   resolveImageBaseUrl,
 } from '@/lib/server/provider-config';
 import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
+import { SYSTEM_OPENAI_IMAGE_MODEL } from '@/lib/ai/system-model-policy';
 import { proxyFetch } from '@/lib/server/proxy-fetch';
 
 export type SourceUploadKind =
@@ -687,7 +688,7 @@ async function resolveSourceCoverImageProvider(): Promise<{
   baseUrl?: string;
   model?: string;
 } | null> {
-  const providers = getServerImageProviders();
+  const providers = await getServerImageProviders();
   const systemOpenAI = await getSystemLLMRuntimeConfig();
   const orderedProviderIds = Array.from(
     new Set([...(systemOpenAI.apiKey ? ['openai-image'] : []), ...Object.keys(providers)]),
@@ -701,18 +702,18 @@ async function resolveSourceCoverImageProvider(): Promise<{
     if (!providerId) continue;
     const serverConfig = providers[rawProviderId];
     const isOpenAI = providerId === 'openai-image';
-    const apiKey = (isOpenAI ? systemOpenAI.apiKey : '') || resolveImageApiKey(providerId);
+    const apiKey = (isOpenAI ? systemOpenAI.apiKey : '') || (await resolveImageApiKey(providerId));
     if (!apiKey) continue;
     const model =
       providerId === 'openai-image'
-        ? 'gpt-image-2.5-flare'
+        ? SYSTEM_OPENAI_IMAGE_MODEL
         : serverConfig?.models?.[0] || IMAGE_PROVIDERS[providerId].models[0]?.id;
     return {
       providerId,
       apiKey,
       baseUrl:
         (isOpenAI ? systemOpenAI.baseUrl : undefined) ||
-        resolveImageBaseUrl(providerId) ||
+        (await resolveImageBaseUrl(providerId)) ||
         serverConfig?.baseUrl,
       model,
     };

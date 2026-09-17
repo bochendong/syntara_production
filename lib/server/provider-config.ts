@@ -5,6 +5,13 @@
  * Keys never leave the server — only provider IDs and metadata are exposed via API.
  */
 
+import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
+import { CHAT_RESPONSE_STRENGTH_CONFIG } from '@/lib/ai/chat-response-strength';
+import {
+  NOTEBOOK_MODEL_PRESET_FULL,
+  NOTEBOOK_MODEL_PRESET_MINI,
+} from '@/lib/constants/notebook-generation-model-presets';
+import { SYSTEM_OPENAI_IMAGE_MODEL } from '@/lib/ai/system-model-policy';
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
@@ -232,13 +239,48 @@ function getConfig(): ServerConfig {
   return config;
 }
 
+/** The OpenAI credential and endpoint always travel together. Legacy per-feature
+ * keys and browser overrides cannot supersede the administrator's saved config.
+ */
+async function getEffectiveConfig(): Promise<ServerConfig> {
+  const legacy = getConfig();
+  const system = await getSystemLLMRuntimeConfig();
+  const entry = { apiKey: system.apiKey, baseUrl: system.baseUrl };
+  const replace = (section: Record<string, ServerProviderEntry>, id: string, models?: string[]) => {
+    const result = { ...section };
+    delete result[id];
+    if (system.apiKey) result[id] = { ...entry, models };
+    return result;
+  };
+  return {
+    ...legacy,
+    providers: replace(legacy.providers, 'openai', [
+      ...new Set([
+        ...Object.values(CHAT_RESPONSE_STRENGTH_CONFIG).map((tier) => tier.modelId),
+        NOTEBOOK_MODEL_PRESET_FULL,
+        NOTEBOOK_MODEL_PRESET_MINI,
+        system.modelId,
+      ]),
+    ]),
+    image: replace(legacy.image, 'openai-image', [SYSTEM_OPENAI_IMAGE_MODEL]),
+    tts: replace(legacy.tts, 'openai-tts'),
+    asr: replace(legacy.asr, 'openai-whisper'),
+    // Sora remains opt-in, but when enabled it uses the same OpenAI credentials.
+    video: legacy.video.sora
+      ? replace(legacy.video, 'sora', legacy.video.sora.models)
+      : legacy.video,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Public API — LLM
 // ---------------------------------------------------------------------------
 
 /** Returns server-configured LLM providers (no apiKeys) */
-export function getServerProviders(): Record<string, { models?: string[]; baseUrl?: string }> {
-  const cfg = getConfig();
+export async function getServerProviders(): Promise<
+  Record<string, { models?: string[]; baseUrl?: string }>
+> {
+  const cfg = await getEffectiveConfig();
   const result: Record<string, { models?: string[]; baseUrl?: string }> = {};
   for (const [id, entry] of Object.entries(cfg.providers)) {
     result[id] = {};
@@ -248,16 +290,21 @@ export function getServerProviders(): Record<string, { models?: string[]; baseUr
   return result;
 }
 
-/** Resolve API key: client key > server key > empty string */
-export function resolveApiKey(providerId: string, clientKey?: string): string {
-  if (clientKey) return clientKey;
-  return getConfig().providers[providerId]?.apiKey || '';
+/** Resolve API keys. OpenAI always uses the administrator's shared key; other
+ * providers may still accept an explicitly supplied client key. */
+export async function resolveApiKey(providerId: string, clientKey?: string): Promise<string> {
+  if (providerId !== 'openai' && clientKey) return clientKey;
+  return (await getEffectiveConfig()).providers[providerId]?.apiKey || '';
 }
 
-/** Resolve base URL: client > server > undefined */
-export function resolveBaseUrl(providerId: string, clientBaseUrl?: string): string | undefined {
-  if (clientBaseUrl) return clientBaseUrl;
-  return getConfig().providers[providerId]?.baseUrl;
+/** Resolve base URLs. OpenAI always uses the administrator's shared endpoint;
+ * other providers may still accept an explicitly supplied client endpoint. */
+export async function resolveBaseUrl(
+  providerId: string,
+  clientBaseUrl?: string,
+): Promise<string | undefined> {
+  if (providerId !== 'openai' && clientBaseUrl) return clientBaseUrl;
+  return (await getEffectiveConfig()).providers[providerId]?.baseUrl;
 }
 
 /** Resolve proxy URL for a provider (server config only) */
@@ -269,8 +316,8 @@ export function resolveProxy(providerId: string): string | undefined {
 // Public API — TTS
 // ---------------------------------------------------------------------------
 
-export function getServerTTSProviders(): Record<string, { baseUrl?: string }> {
-  const cfg = getConfig();
+export async function getServerTTSProviders(): Promise<Record<string, { baseUrl?: string }>> {
+  const cfg = await getEffectiveConfig();
   const result: Record<string, { baseUrl?: string }> = {};
   for (const [id, entry] of Object.entries(cfg.tts)) {
     result[id] = {};
@@ -279,22 +326,25 @@ export function getServerTTSProviders(): Record<string, { baseUrl?: string }> {
   return result;
 }
 
-export function resolveTTSApiKey(providerId: string, clientKey?: string): string {
-  if (clientKey) return clientKey;
-  return getConfig().tts[providerId]?.apiKey || '';
+export async function resolveTTSApiKey(providerId: string, clientKey?: string): Promise<string> {
+  if (providerId !== 'openai-tts' && clientKey) return clientKey;
+  return (await getEffectiveConfig()).tts[providerId]?.apiKey || '';
 }
 
-export function resolveTTSBaseUrl(providerId: string, clientBaseUrl?: string): string | undefined {
-  if (clientBaseUrl) return clientBaseUrl;
-  return getConfig().tts[providerId]?.baseUrl;
+export async function resolveTTSBaseUrl(
+  providerId: string,
+  clientBaseUrl?: string,
+): Promise<string | undefined> {
+  if (providerId !== 'openai-tts' && clientBaseUrl) return clientBaseUrl;
+  return (await getEffectiveConfig()).tts[providerId]?.baseUrl;
 }
 
 // ---------------------------------------------------------------------------
 // Public API — ASR
 // ---------------------------------------------------------------------------
 
-export function getServerASRProviders(): Record<string, { baseUrl?: string }> {
-  const cfg = getConfig();
+export async function getServerASRProviders(): Promise<Record<string, { baseUrl?: string }>> {
+  const cfg = await getEffectiveConfig();
   const result: Record<string, { baseUrl?: string }> = {};
   for (const [id, entry] of Object.entries(cfg.asr)) {
     result[id] = {};
@@ -303,14 +353,17 @@ export function getServerASRProviders(): Record<string, { baseUrl?: string }> {
   return result;
 }
 
-export function resolveASRApiKey(providerId: string, clientKey?: string): string {
-  if (clientKey) return clientKey;
-  return getConfig().asr[providerId]?.apiKey || '';
+export async function resolveASRApiKey(providerId: string, clientKey?: string): Promise<string> {
+  if (providerId !== 'openai-whisper' && clientKey) return clientKey;
+  return (await getEffectiveConfig()).asr[providerId]?.apiKey || '';
 }
 
-export function resolveASRBaseUrl(providerId: string, clientBaseUrl?: string): string | undefined {
-  if (clientBaseUrl) return clientBaseUrl;
-  return getConfig().asr[providerId]?.baseUrl;
+export async function resolveASRBaseUrl(
+  providerId: string,
+  clientBaseUrl?: string,
+): Promise<string | undefined> {
+  if (providerId !== 'openai-whisper' && clientBaseUrl) return clientBaseUrl;
+  return (await getEffectiveConfig()).asr[providerId]?.baseUrl;
 }
 
 // ---------------------------------------------------------------------------
@@ -341,8 +394,10 @@ export function resolvePDFBaseUrl(providerId: string, clientBaseUrl?: string): s
 // Public API — Image Generation
 // ---------------------------------------------------------------------------
 
-export function getServerImageProviders(): Record<string, { baseUrl?: string; models?: string[] }> {
-  const cfg = getConfig();
+export async function getServerImageProviders(): Promise<
+  Record<string, { baseUrl?: string; models?: string[] }>
+> {
+  const cfg = await getEffectiveConfig();
   const result: Record<string, { baseUrl?: string; models?: string[] }> = {};
   for (const [id, entry] of Object.entries(cfg.image)) {
     result[id] = {};
@@ -352,25 +407,27 @@ export function getServerImageProviders(): Record<string, { baseUrl?: string; mo
   return result;
 }
 
-export function resolveImageApiKey(providerId: string, clientKey?: string): string {
-  if (clientKey) return clientKey;
-  return getConfig().image[providerId]?.apiKey || '';
+export async function resolveImageApiKey(providerId: string, clientKey?: string): Promise<string> {
+  if (providerId !== 'openai-image' && clientKey) return clientKey;
+  return (await getEffectiveConfig()).image[providerId]?.apiKey || '';
 }
 
-export function resolveImageBaseUrl(
+export async function resolveImageBaseUrl(
   providerId: string,
   clientBaseUrl?: string,
-): string | undefined {
-  if (clientBaseUrl) return clientBaseUrl;
-  return getConfig().image[providerId]?.baseUrl;
+): Promise<string | undefined> {
+  if (providerId !== 'openai-image' && clientBaseUrl) return clientBaseUrl;
+  return (await getEffectiveConfig()).image[providerId]?.baseUrl;
 }
 
 // ---------------------------------------------------------------------------
 // Public API — Video Generation
 // ---------------------------------------------------------------------------
 
-export function getServerVideoProviders(): Record<string, { baseUrl?: string; models?: string[] }> {
-  const cfg = getConfig();
+export async function getServerVideoProviders(): Promise<
+  Record<string, { baseUrl?: string; models?: string[] }>
+> {
+  const cfg = await getEffectiveConfig();
   const result: Record<string, { baseUrl?: string; models?: string[] }> = {};
   for (const [id, entry] of Object.entries(cfg.video)) {
     result[id] = {};
@@ -380,17 +437,17 @@ export function getServerVideoProviders(): Record<string, { baseUrl?: string; mo
   return result;
 }
 
-export function resolveVideoApiKey(providerId: string, clientKey?: string): string {
-  if (clientKey) return clientKey;
-  return getConfig().video[providerId]?.apiKey || '';
+export async function resolveVideoApiKey(providerId: string, clientKey?: string): Promise<string> {
+  if (providerId !== 'sora' && clientKey) return clientKey;
+  return (await getEffectiveConfig()).video[providerId]?.apiKey || '';
 }
 
-export function resolveVideoBaseUrl(
+export async function resolveVideoBaseUrl(
   providerId: string,
   clientBaseUrl?: string,
-): string | undefined {
-  if (clientBaseUrl) return clientBaseUrl;
-  return getConfig().video[providerId]?.baseUrl;
+): Promise<string | undefined> {
+  if (providerId !== 'sora' && clientBaseUrl) return clientBaseUrl;
+  return (await getEffectiveConfig()).video[providerId]?.baseUrl;
 }
 
 // ---------------------------------------------------------------------------
@@ -438,14 +495,14 @@ function rowsFromSection(section: Record<string, ServerProviderEntry>): SiteProv
   }));
 }
 
-/** 图像 / TTS / 网络搜索：当前进程内已加载的服务端配置（YAML + 环境变量），不含密钥明文 */
-export function getSiteProviderAdminView(): {
+/** 管理员可见的服务端 provider 配置（全站 OpenAI 配置已合并），不含密钥明文。 */
+export async function getSiteProviderAdminView(): Promise<{
   llm: SiteProviderAdminRow[];
   image: SiteProviderAdminRow[];
   tts: SiteProviderAdminRow[];
   webSearch: SiteProviderAdminRow[];
-} {
-  const cfg = getConfig();
+}> {
+  const cfg = await getEffectiveConfig();
   return {
     llm: rowsFromSection(cfg.providers),
     image: rowsFromSection(cfg.image),

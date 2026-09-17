@@ -56,7 +56,8 @@ const capabilitiesSource = await readFile(
   new URL('../../app/api/native/v1/capabilities/route.ts', import.meta.url),
   'utf8',
 );
-assert.match(capabilitiesSource, /process\.env\.OPENAI_API_KEY\?\.trim\(\)/);
+assert.match(capabilitiesSource, /getSystemLLMRuntimeConfig\(\)/);
+assert.match(capabilitiesSource, /SYSTEM_OPENAI_IMAGE_MODEL/);
 assert.match(capabilitiesSource, /providerCredentials:\s*'server-only'/);
 
 const nativeAuthSource = await readFile(

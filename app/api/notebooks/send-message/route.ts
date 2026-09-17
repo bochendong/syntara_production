@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server';
 import { parse as parsePartialJson, Allow } from 'partial-json';
 import { jsonrepair } from 'jsonrepair';
 import { callLLM, streamLLM } from '@/lib/ai/llm';
+import { SYSTEM_OPENAI_FALLBACK_MODEL } from '@/lib/ai/system-model-policy';
 import { createLogger } from '@/lib/logger';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { resolveModel, resolveModelFromHeaders } from '@/lib/server/resolve-model';
@@ -366,7 +367,7 @@ function defaultProgrammingRepairModelString(): string {
   if (explicit) return explicit.includes(':') ? explicit : `openai:${explicit}`;
   const firstOpenAIModel = process.env.OPENAI_MODELS?.split(',')[0]?.trim();
   if (firstOpenAIModel) return `openai:${firstOpenAIModel}`;
-  return 'openai:gpt-5.6-terra';
+  return `openai:${SYSTEM_OPENAI_FALLBACK_MODEL}`;
 }
 
 class NotebookCourseContractValidationError extends Error {

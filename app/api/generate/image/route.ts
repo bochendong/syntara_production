@@ -33,6 +33,7 @@ import { recordLLMUsage } from '@/lib/server/llm-usage';
 import { getRequestContext, runWithRequestContext } from '@/lib/server/request-context';
 import { proxyFetch } from '@/lib/server/proxy-fetch';
 import { estimateOpenAIImageGenerationCost } from '@/lib/utils/openai-pricing';
+import { SYSTEM_OPENAI_IMAGE_MODEL } from '@/lib/ai/system-model-policy';
 
 const log = createLogger('ImageGeneration API');
 
@@ -182,7 +183,8 @@ export async function POST(request: NextRequest) {
       const providerId = (request.headers.get('x-image-provider') || 'seedream') as ImageProviderId;
       const clientModel = request.headers.get('x-image-model') || undefined;
       const systemOpenAI = providerId === 'openai-image' ? await getSystemLLMRuntimeConfig() : null;
-      const apiKey = systemOpenAI?.apiKey || resolveImageApiKey(providerId) || '';
+      const model = providerId === 'openai-image' ? SYSTEM_OPENAI_IMAGE_MODEL : clientModel;
+      const apiKey = systemOpenAI?.apiKey || (await resolveImageApiKey(providerId)) || '';
       if (!apiKey) {
         return apiError(
           'MISSING_API_KEY',
@@ -191,7 +193,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const baseUrl = systemOpenAI?.baseUrl || resolveImageBaseUrl(providerId);
+      const baseUrl = systemOpenAI?.baseUrl || (await resolveImageBaseUrl(providerId));
 
       // Resolve dimensions from aspect ratio if not explicitly set
       if (!body.width && !body.height && body.aspectRatio) {
@@ -201,7 +203,7 @@ export async function POST(request: NextRequest) {
       }
 
       log.info(
-        `Generating image: provider=${providerId}, model=${clientModel || 'default'}, ` +
+        `Generating image: provider=${providerId}, model=${model || 'default'}, ` +
           `prompt="${body.prompt.slice(0, 80)}...", size=${body.width ?? 'auto'}x${body.height ?? 'auto'}`,
       );
 
@@ -212,7 +214,7 @@ export async function POST(request: NextRequest) {
       }
 
       const rawResult = await generateImage(
-        { providerId, apiKey, baseUrl, model: clientModel, fetch: proxyFetch as typeof fetch },
+        { providerId, apiKey, baseUrl, model, fetch: proxyFetch as typeof fetch },
         body,
       );
       const aspectNormalizedResult =
@@ -227,7 +229,10 @@ export async function POST(request: NextRequest) {
       );
       const inlineResult = await materializeImageResultInline(normalizedResult);
       const result = inlineResult;
-      const resolvedModelId = result.usage?.modelId || clientModel || 'gpt-image-2.5-flare';
+      const resolvedModelId =
+        result.usage?.modelId ||
+        model ||
+        (providerId === 'openai-image' ? SYSTEM_OPENAI_IMAGE_MODEL : '');
       const costEstimate = createImageCostEstimate(providerId, resolvedModelId, result);
       const inputTokens = Math.max(0, Math.round(result.usage?.inputTokens || 0));
       const outputTokens = Math.max(0, Math.round(result.usage?.outputTokens || 0));

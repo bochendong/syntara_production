@@ -25,7 +25,7 @@ type SystemConfig = {
 
 export function AdminGlobalLlmConfigCard() {
   const [config, setConfig] = useState<SystemConfig | null>(null);
-  const [modelId, setModelId] = useState('gpt-5.6-luna');
+  const [modelId, setModelId] = useState('gpt-5.6-sol');
   const [baseUrl, setBaseUrl] = useState('https://api.openai.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(true);
@@ -75,8 +75,8 @@ export function AdminGlobalLlmConfigCard() {
           全站 OpenAI API Key 与回复强度模型
         </CardTitle>
         <CardDescription>
-          学生聊天按低、中、高三档使用受控的 GPT-5.6 模型；其他 AI 功能继续使用兜底模型。Key
-          会加密保存且只在服务端解密，浏览器只能看到掩码。
+          全站共用一把 OpenAI API Key。学生聊天按低 Luna、中 Sol、高 Astra 三档；讲义和其余 AI
+          功能都使用兜底模型 GPT-5.6 Sol。Key 会加密保存且只在服务端解密，浏览器只能看到掩码。
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

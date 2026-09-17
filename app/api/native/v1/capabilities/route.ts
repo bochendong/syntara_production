@@ -7,6 +7,7 @@ import {
   requireNativePlatformApi,
 } from '@/lib/server/public-api';
 import { getSystemLLMRuntimeConfig } from '@/lib/server/system-llm-config';
+import { SYSTEM_OPENAI_IMAGE_MODEL } from '@/lib/ai/system-model-policy';
 
 export const runtime = 'nodejs';
 
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       miniLecture: {
         path: '/api/native/v1/mini-lectures',
         imageProvider: 'openai-image',
-        imageModel: 'gpt-image-2.5-flare',
+        imageModel: SYSTEM_OPENAI_IMAGE_MODEL,
         ttsProvider: 'openai-tts',
         ttsModel: 'gpt-4o-mini-tts',
         browserSpeechSynthesis: false,

@@ -59,7 +59,7 @@ async function main() {
     [key: string]: unknown;
   };
   const apiKey = process.env.OPENAI_API_KEY?.trim();
-  const modelId = (process.env.DEFAULT_MODEL?.trim() || 'gpt-5.6-luna').replace(/^openai:/, '');
+  const modelId = (process.env.DEFAULT_MODEL?.trim() || 'gpt-5.6-sol').replace(/^openai:/, '');
   if (!apiKey) throw new Error('OPENAI_API_KEY is required.');
 
   const { model } = serverModel.getServerOpenAIResponsesModel({

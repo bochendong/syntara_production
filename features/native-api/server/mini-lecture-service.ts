@@ -689,7 +689,7 @@ async function defaultSynthesizeSpeech(args: {
   voice: string;
 }): Promise<TTSGenerationResult> {
   const systemOpenAI = await getSystemLLMRuntimeConfig();
-  const apiKey = systemOpenAI.apiKey || resolveTTSApiKey(OPENAI_TTS_PROVIDER_ID);
+  const apiKey = systemOpenAI.apiKey || (await resolveTTSApiKey(OPENAI_TTS_PROVIDER_ID));
   if (!apiKey) {
     throw new NativeMiniLectureServiceError({
       code: 'MISSING_PROVIDER_CONFIGURATION',
@@ -704,7 +704,7 @@ async function defaultSynthesizeSpeech(args: {
     {
       providerId: OPENAI_TTS_PROVIDER_ID,
       apiKey,
-      baseUrl: systemOpenAI.baseUrl || resolveTTSBaseUrl(OPENAI_TTS_PROVIDER_ID),
+      baseUrl: systemOpenAI.baseUrl || (await resolveTTSBaseUrl(OPENAI_TTS_PROVIDER_ID)),
       voice: args.voice,
       speed: 1,
       format: 'mp3',

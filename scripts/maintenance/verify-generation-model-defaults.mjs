@@ -28,13 +28,13 @@ function requireBefore(relativePath, earlier, later, message) {
 
 requireMatch(
   '.env.example',
-  /^DEFAULT_MODEL=gpt-5\.6-luna$/m,
-  'DEFAULT_MODEL must use GPT-5.6 Luna for everyday teacher/student language tasks.',
+  /^DEFAULT_MODEL=gpt-5\.6-sol$/m,
+  'DEFAULT_MODEL must use GPT-5.6 Sol as the shared fallback.',
 );
 requireMatch(
   '.env.example',
-  /^OPENAI_MODELS=gpt-5\.6-luna,gpt-5\.6-terra,gpt-5\.6-sol$/m,
-  'OPENAI_MODELS must expose Luna first, followed by Terra and Sol.',
+  /^OPENAI_MODELS=gpt-6-astra,gpt-5\.6-sol,gpt-5\.6-terra,gpt-5\.6-luna$/m,
+  'OPENAI_MODELS must expose the configured high, medium, notebook, and low models.',
 );
 requireMatch(
   '.env.example',
@@ -42,11 +42,27 @@ requireMatch(
   'OpenAI image models must default to GPT Image 2.5 Flare.',
 );
 
+requireMatch(
+  'lib/ai/system-model-policy.ts',
+  /SYSTEM_OPENAI_FALLBACK_MODEL = 'gpt-5\.6-sol'/,
+  'non-chat OpenAI calls must fall back to Sol.',
+);
+requireMatch(
+  'lib/ai/system-model-policy.ts',
+  /SYSTEM_OPENAI_LECTURE_MODEL = 'gpt-5\.6-sol'/,
+  'lecture and notebook generation must use Sol.',
+);
+requireMatch(
+  'lib/ai/system-model-policy.ts',
+  /low: 'gpt-5\.6-luna',\s*medium: 'gpt-5\.6-sol',\s*high: 'gpt-6-astra'/,
+  'chat response strength tiers must map low to Luna, medium to Sol, and high to Astra.',
+);
+
 requireBefore(
   'lib/ai/providers.ts',
+  "id: 'gpt-6-astra'",
   "id: 'gpt-5.6-sol'",
-  "id: 'gpt-5.6-terra'",
-  'Sol must be the first OpenAI text model.',
+  'Astra must be the first OpenAI text model.',
 );
 requireBefore(
   'lib/ai/providers.ts',
@@ -64,28 +80,33 @@ for (const model of ['sol', 'terra', 'luna']) {
 
 requireMatch(
   'lib/server/system-llm-config.ts',
-  /if \(!configured\) return 'gpt-5\.6-luna';/,
-  'server LLM fallback must use GPT-5.6 Luna.',
+  /if \(!configured\) return SYSTEM_OPENAI_FALLBACK_MODEL;/,
+  'server LLM fallback must use GPT-5.6 Sol.',
 );
 requireMatch(
   'prisma/schema.prisma',
-  /model SystemLLMConfig \{[\s\S]*?modelId\s+String\s+@default\("gpt-5\.6-luna"\)/,
-  'new system LLM rows must not fall back to the legacy GPT-4o mini default.',
+  /model SystemLLMConfig \{[\s\S]*?modelId\s+String\s+@default\("gpt-5\.6-sol"\)/,
+  'new system LLM rows must default to GPT-5.6 Sol.',
 );
 requireMatch(
-  'prisma/migrations/20260811090000_update_system_llm_default_to_luna/migration.sql',
-  /ALTER COLUMN "modelId" SET DEFAULT 'gpt-5\.6-luna'/,
-  'the database default migration must follow the current everyday language model.',
+  'prisma/migrations/20260917120000_update_system_llm_default_to_sol/migration.sql',
+  /ALTER COLUMN "modelId" SET DEFAULT 'gpt-5\.6-sol'/,
+  'the database default migration must follow the current fallback model.',
 );
 requireMatch(
   'lib/ai/server-model.ts',
-  /config\.providerId === 'openai' && config\.modelId\.startsWith\('gpt-5\.6'\)[\s\S]*?openai\.responses\(config\.modelId\)[\s\S]*?: openai\.chat\(config\.modelId\)/,
-  'native GPT-5.6 must use Responses while older and compatible models retain Chat Completions.',
+  /config\.providerId === 'openai' &&\s*\(config\.modelId\.startsWith\('gpt-5\.6'\) \|\| config\.modelId\.startsWith\('gpt-6'\)\)[\s\S]*?openai\.responses\(config\.modelId\)[\s\S]*?: openai\.chat\(config\.modelId\)/,
+  'native GPT-5.6 and GPT-6 must use Responses while older and compatible models retain Chat Completions.',
+);
+requireMatch(
+  'lib/ai/chat-response-strength.ts',
+  /low:[\s\S]*?modelId: SYSTEM_CHAT_MODEL_BY_STRENGTH\.low[\s\S]*?medium:[\s\S]*?modelId: SYSTEM_CHAT_MODEL_BY_STRENGTH\.medium[\s\S]*?high:[\s\S]*?modelId: SYSTEM_CHAT_MODEL_BY_STRENGTH\.high/,
+  'chat response strength tiers must read from the shared OpenAI policy.',
 );
 requireMatch(
   'lib/store/settings.ts',
-  /const DEFAULT_OPENAI_MODEL_ID = 'gpt-5\.6-luna';/,
-  'client text default must use GPT-5.6 Luna.',
+  /const DEFAULT_OPENAI_MODEL_ID = 'gpt-5\.6-sol';/,
+  'client text default must use GPT-5.6 Sol.',
 );
 requireMatch(
   'lib/store/settings.ts',
@@ -99,8 +120,8 @@ requireMatch(
 );
 requireMatch(
   'lib/store/settings.ts',
-  /version: 14,/,
-  'persisted settings migration version must include the generation-default upgrade.',
+  /version: 15,/,
+  'persisted settings migration version must include the Sol fallback upgrade.',
 );
 requireMatch(
   'lib/store/settings.ts',
@@ -136,19 +157,19 @@ requireBefore(
 );
 requireMatch(
   'lib/constants/notebook-generation-model-presets.ts',
-  /NOTEBOOK_MODEL_PRESET_FULL = 'gpt-5\.6-sol';/,
+  /NOTEBOOK_MODEL_PRESET_FULL = SYSTEM_OPENAI_LECTURE_MODEL;/,
   'quality-critical notebook stages must use Sol.',
 );
 requireMatch(
   'lib/constants/notebook-generation-model-presets.ts',
-  /NOTEBOOK_MODEL_PRESET_MINI = 'gpt-5\.6-terra';/,
-  'cost-sensitive notebook stages must use Terra.',
+  /NOTEBOOK_MODEL_PRESET_MINI = SYSTEM_OPENAI_LECTURE_MODEL;/,
+  'cost-sensitive notebook stages must also use Sol.',
 );
 
 requireMatch(
   'components/settings/system-llm-panel.tsx',
-  /日常语言模型[\s\S]*?gpt-5\.6-luna[\s\S]*?笔记本整理模型/,
-  'shared teacher/student settings must expose independent Luna language and Terra notebook controls.',
+  /日常语言模型[\s\S]*?GPT-5\.6 Sol[\s\S]*?笔记本整理模型[\s\S]*?GPT-5\.6 Sol/,
+  'shared teacher/student settings must expose Sol for both language fallback and notebook generation.',
 );
 
 for (const relativePath of [
@@ -161,7 +182,7 @@ for (const relativePath of [
 ]) {
   requireMatch(
     relativePath,
-    /(?:DEFAULT_MODEL|configured)[\s\S]{0,180}'(?:openai:)?gpt-5\.6-terra'/,
+    /(?:DEFAULT_MODEL|configured)[\s\S]{0,180}'(?:openai:)?gpt-5\.6-sol'/,
     'active API/learning harness fallback must follow the current base model.',
   );
 }
@@ -170,10 +191,16 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      textDefault: 'gpt-5.6-luna',
-      balancedNotebookModel: 'gpt-5.6-terra',
+      textDefault: 'gpt-5.6-sol',
+      responseStrength: {
+        low: 'gpt-5.6-luna',
+        medium: 'gpt-5.6-sol',
+        high: 'gpt-6-astra',
+      },
+      lectureModel: 'gpt-5.6-sol',
+      fallbackModel: 'gpt-5.6-sol',
       imageDefault: 'gpt-image-2.5-flare',
-      persistedSettingsMigration: 14,
+      persistedSettingsMigration: 15,
     },
     null,
     2,

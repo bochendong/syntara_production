@@ -302,7 +302,8 @@ export function getServerModel(config: ModelConfig): ModelWithInfo {
       // OpenAI models and third-party OpenAI-compatible providers on the
       // established Chat Completions path to avoid an unrelated migration.
       model =
-        config.providerId === 'openai' && config.modelId.startsWith('gpt-5.6')
+        config.providerId === 'openai' &&
+        (config.modelId.startsWith('gpt-5.6') || config.modelId.startsWith('gpt-6'))
           ? openai.responses(config.modelId)
           : openai.chat(config.modelId);
       break;

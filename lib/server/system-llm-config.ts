@@ -1,22 +1,14 @@
 import { createLogger } from '@/lib/logger';
+import { SYSTEM_OPENAI_FALLBACK_MODEL } from '@/lib/ai/system-model-policy';
 import { getPrismaOrNull } from '@/lib/server/prisma-safe';
 import { decryptSystemSecret, encryptSystemSecret } from '@/lib/server/system-secret-crypto';
 
 const log = createLogger('SystemLLMConfig');
-const RUNTIME_CONFIG_CACHE_TTL_MS = 30_000;
-
-let runtimeConfigCache:
-  | {
-      expiresAt: number;
-      promise: Promise<SystemLLMRuntimeConfig>;
-    }
-  | undefined;
-
 function configuredDefaultOpenAIModel(): string {
   const configured = process.env.DEFAULT_MODEL?.trim();
-  if (!configured) return 'gpt-5.6-luna';
+  if (!configured) return SYSTEM_OPENAI_FALLBACK_MODEL;
   if (configured.startsWith('openai:')) return configured.slice('openai:'.length);
-  return configured.includes(':') ? 'gpt-5.6-luna' : configured;
+  return configured.includes(':') ? SYSTEM_OPENAI_FALLBACK_MODEL : configured;
 }
 
 export const DEFAULT_OPENAI_MODEL = configuredDefaultOpenAIModel();
@@ -71,7 +63,8 @@ async function loadSystemLLMRuntimeConfig(): Promise<SystemLLMRuntimeConfig> {
         );
       }
     } catch (error) {
-      log.warn('Failed to read DB system config, falling back to env:', error);
+      log.error('Cannot load administrator OpenAI configuration:', error);
+      throw new Error('全站 OpenAI 配置读取失败，请稍后重试；未使用其他 API Key。');
     }
   }
 
@@ -84,30 +77,11 @@ async function loadSystemLLMRuntimeConfig(): Promise<SystemLLMRuntimeConfig> {
   };
 }
 
-/**
- * Model resolution and embedding retrieval often happen several times during
- * one answer. The system credential is global, so a short process-local TTL
- * avoids repeating the same configuration query on every provider call.
+/** Read the shared configuration on every resolution, including background workers.
+ * A process-local TTL can continue using a revoked key after another process saves.
  */
 export async function getSystemLLMRuntimeConfig(): Promise<SystemLLMRuntimeConfig> {
-  const now = Date.now();
-  if (runtimeConfigCache && runtimeConfigCache.expiresAt > now) {
-    return runtimeConfigCache.promise;
-  }
-
-  const promise = loadSystemLLMRuntimeConfig().catch((error) => {
-    runtimeConfigCache = undefined;
-    throw error;
-  });
-  runtimeConfigCache = {
-    expiresAt: now + RUNTIME_CONFIG_CACHE_TTL_MS,
-    promise,
-  };
-  return promise;
-}
-
-export function invalidateSystemLLMRuntimeConfigCache(): void {
-  runtimeConfigCache = undefined;
+  return loadSystemLLMRuntimeConfig();
 }
 
 export async function getSystemLLMConfigView(): Promise<SystemLLMConfigView> {
@@ -177,6 +151,5 @@ export async function updateSystemLLMConfig(input: {
     },
   });
 
-  invalidateSystemLLMRuntimeConfigCache();
   return getSystemLLMConfigView();
 }

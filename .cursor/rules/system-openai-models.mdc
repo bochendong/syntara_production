@@ -1,0 +1,12 @@
+---
+description: 全站共用一把 OpenAI Key，以及固定的聊天档位和兜底/讲义模型
+alwaysApply: true
+---
+
+# 全站 OpenAI 模型策略
+
+- 全站只有一把 OpenAI API Key。老师、学生、后台任务都走管理员保存的同一把 Key 和同一 Base URL；不要再引入第二把 Key，也不要用浏览器里的客户端 Key 覆盖 OpenAI。
+- 聊天回复强度固定为：低 `gpt-5.6-luna`，中 `gpt-5.6-sol`，高 `gpt-6-astra`。
+- 其他 AI 兜底模型是 `gpt-5.6-sol`（含后台记忆、题库导入、无回复强度的调用）。
+- 生成讲义/笔记本用 `gpt-5.6-sol`。
+- `gpt-5.6-*` 和 `gpt-6-*` 走 Responses API。GPT-6 Astra 不支持 `reasoning.effort=none`，最低用 `low`。

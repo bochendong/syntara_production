@@ -1,15 +1,12 @@
 import { apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
-import {
-  getAdminProviderEnvHints,
-  getSiteProviderAdminView,
-} from '@/lib/server/provider-config';
+import { getAdminProviderEnvHints, getSiteProviderAdminView } from '@/lib/server/provider-config';
 
 export async function GET() {
   const admin = await requireAdmin();
   if ('response' in admin) return admin.response;
 
-  const view = getSiteProviderAdminView();
+  const view = await getSiteProviderAdminView();
   const tavilyEnv = process.env.TAVILY_API_KEY?.trim();
   const tavilyLast4 = tavilyEnv ? (tavilyEnv.length <= 4 ? tavilyEnv : tavilyEnv.slice(-4)) : null;
   let { webSearch } = view;

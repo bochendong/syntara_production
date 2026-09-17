@@ -28,8 +28,8 @@ export async function POST(req: NextRequest) {
     const config = {
       providerId: effectiveProviderId,
       language: language || 'auto',
-      apiKey: systemOpenAI?.apiKey || resolveASRApiKey(effectiveProviderId) || '',
-      baseUrl: systemOpenAI?.baseUrl || resolveASRBaseUrl(effectiveProviderId),
+      apiKey: systemOpenAI?.apiKey || (await resolveASRApiKey(effectiveProviderId)) || '',
+      baseUrl: systemOpenAI?.baseUrl || (await resolveASRBaseUrl(effectiveProviderId)),
     };
 
     // Convert audio file to buffer

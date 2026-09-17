@@ -31,8 +31,8 @@ import {
 
 const log = createLogger('Settings');
 const LEGACY_DEFAULT_LIVE2D_PRESENTER_MODEL_ID: Live2DPresenterModelId = 'mark';
-const LEGACY_DEFAULT_OPENAI_MODEL_IDS = new Set(['gpt-4o-mini', 'gpt-5.6-sol', 'gpt-5.6-terra']);
-const DEFAULT_OPENAI_MODEL_ID = 'gpt-5.6-luna';
+const LEGACY_DEFAULT_OPENAI_MODEL_IDS = new Set(['gpt-4o-mini', 'gpt-5.6-luna', 'gpt-5.6-terra']);
+const DEFAULT_OPENAI_MODEL_ID = 'gpt-5.6-sol';
 const LEGACY_DEFAULT_IMAGE_PROVIDER_ID: ImageProviderId = 'seedream';
 const LEGACY_DEFAULT_IMAGE_MODEL_ID = 'doubao-seedream-5-0-260128';
 const DEFAULT_IMAGE_PROVIDER_ID: ImageProviderId = 'openai-image';
@@ -1196,7 +1196,7 @@ export const useSettingsStore = create<SettingsState>()(
     },
     {
       name: 'settings-storage',
-      version: 14,
+      version: 15,
       // Migrate persisted state
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<SettingsState>;
@@ -1250,6 +1250,12 @@ export const useSettingsStore = create<SettingsState>()(
         // v11 -> v12: everyday teacher/student language work now defaults to
         // Luna. Notebook generation retains its independent Terra preset.
         if (version < 12) {
+          migrateLegacyDefaultGenerationModels(state);
+        }
+
+        // v14 -> v15: shared fallback and lecture generation use Sol.
+        // Former Luna/Terra everyday defaults migrate; custom models stay.
+        if (version < 15) {
           migrateLegacyDefaultGenerationModels(state);
         }
 

@@ -14,9 +14,9 @@ export async function GET() {
     version,
     capabilities: {
       webSearch: Object.keys(getServerWebSearchProviders()).length > 0,
-      imageGeneration: Object.keys(getServerImageProviders()).length > 0,
-      videoGeneration: Object.keys(getServerVideoProviders()).length > 0,
-      tts: Object.keys(getServerTTSProviders()).length > 0,
+      imageGeneration: Object.keys(await getServerImageProviders()).length > 0,
+      videoGeneration: Object.keys(await getServerVideoProviders()).length > 0,
+      tts: Object.keys(await getServerTTSProviders()).length > 0,
     },
   });
 }
