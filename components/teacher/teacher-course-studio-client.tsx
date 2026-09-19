@@ -931,6 +931,39 @@ export function TeacherCourseStudioClient({
     }
   };
 
+  const handleDeleteHardRule = async (rule: CourseHardRuleRecord) => {
+    if (
+      savingHardRuleId ||
+      !window.confirm('确定删除这条 Hard Rule？删除后，新的课程聊天将不再使用它。')
+    )
+      return;
+    setSavingHardRuleId(rule.id);
+    setError('');
+    try {
+      if (!localDemo) {
+        const response = await backendFetch(
+          `/api/teacher/courses/${encodeURIComponent(courseId)}/hard-rules/${encodeURIComponent(rule.id)}`,
+          { method: 'DELETE', timeoutMs: 20_000 },
+        );
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.error || '删除 Hard Rule 失败');
+        }
+      }
+      setHardRules((current) => current.filter((candidate) => candidate.id !== rule.id));
+      setHardRuleDrafts((current) => {
+        const next = { ...current };
+        delete next[rule.id];
+        return next;
+      });
+      dirtyHardRuleIdsRef.current.delete(rule.id);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '删除 Hard Rule 失败');
+    } finally {
+      setSavingHardRuleId('');
+    }
+  };
+
   const beginNotebookOrderAdjustment = () => {
     setNotebookOrderDraft(orderedNotebooks.map((notebook) => notebook.id));
     setEditingNotebookOrder(true);
@@ -2077,6 +2110,22 @@ export function TeacherCourseStudioClient({
                             >
                               <Pencil className="mr-1 size-3" />
                               编辑
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="outline"
+                              className="size-7 shrink-0 text-red-600"
+                              aria-label="删除 Hard Rule"
+                              title="删除 Hard Rule"
+                              disabled={Boolean(savingHardRuleId)}
+                              onClick={() => void handleDeleteHardRule(rule)}
+                            >
+                              {savingHardRuleId === rule.id ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="size-3" />
+                              )}
                             </Button>
                           </div>
                         </StudioListItem>

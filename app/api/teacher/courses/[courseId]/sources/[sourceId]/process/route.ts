@@ -1,6 +1,7 @@
 import { after, NextResponse } from 'next/server';
 
 import { parsePDF } from '@/lib/pdf/pdf-providers';
+import { withRequestContext } from '@/lib/server/request-context';
 import { prisma } from '@/lib/server/prisma';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { toPrismaJson } from '@/lib/server/prisma-json';
@@ -405,13 +406,17 @@ export async function POST(
       select: { status: true, stage: true, progress: true, attemptCount: true },
     });
     after(() =>
-      runSourceProcessing({
-        ownerId: teacher.userId,
-        courseId,
-        sourceId: source.id,
-        notebookId,
-        taskId,
-      }),
+      withRequestContext(
+        { userId: teacher.userId, courseId, route: '/api/teacher/courses/source/process' },
+        () =>
+          runSourceProcessing({
+            ownerId: teacher.userId,
+            courseId,
+            sourceId: source.id,
+            notebookId,
+            taskId,
+          }),
+      ),
     );
     return NextResponse.json({ ok: true, taskId, notebookId, ...task }, { status: 202 });
   });

@@ -232,7 +232,7 @@ export const authOptions: NextAuthOptions = {
           accountUser.role === 'ADMIN')
       );
     },
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user }) {
       if (user) {
         const accountUser = user as {
           role?: string;
@@ -249,27 +249,19 @@ export const authOptions: NextAuthOptions = {
         if (accountUser.authSource === 'local-demo') token.authSource = 'local-demo';
         return token;
       }
-      if (trigger === 'update' && token.sub && prismaClient && token.authSource !== 'local-demo') {
-        const profile = await prismaClient.user.findUnique({
-          where: { id: token.sub },
-          select: { name: true, image: true },
-        });
-        if (profile) {
-          token.name = profile.name;
-          token.picture = profile.image;
-        }
-      }
-      if (token.authSource === 'speedup' || token.authSource === 'local-demo') {
-        token.isActive = true;
-        return token;
-      }
+      if (token.authSource === 'local-demo') return token;
       if (token.sub && prismaClient) {
         try {
+          // The saved profile is authoritative across tabs, browser restarts and SSO sessions.
           const current = await prismaClient.user.findUnique({
             where: { id: token.sub },
-            select: { role: true, isActive: true },
+            select: { name: true, image: true, role: true, isActive: true },
           });
-          token.role = current?.role || 'USER';
+          if (current) {
+            token.name = current.name;
+            token.picture = current.image;
+            token.role = current.role;
+          }
           token.isActive = current?.isActive === true;
         } catch {
           token.isActive = false;

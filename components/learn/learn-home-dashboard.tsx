@@ -20,7 +20,7 @@ import { LearnHomeDockAppLayer, type LearnDockApp } from '@/components/learn/lea
 const STUDENT_HOME_ICONS_PER_PAGE = 20;
 const TEACHER_HOME_ICONS_PER_PAGE = 28;
 
-const HaruLive2D = dynamic(
+const CompanionLive2D = dynamic(
   () =>
     import('@/components/canvas/talking-avatar-overlay').then(
       (module) => module.TalkingAvatarOverlay,
@@ -505,6 +505,8 @@ export function LearnHomeDashboard({
 }: LearnHomeDashboardProps) {
   const userId = useAuthStore((state) => state.userId) || 'anonymous';
   const portalRole = useAuthStore((state) => state.role);
+  const companionModelId = useSettingsStore((state) => state.live2dPresenterModelId);
+  const companionVisible = useSettingsStore((state) => state.live2dPresenterVisible);
   const learnBackgroundId = useSettingsStore((state) => state.learnBackgroundId);
   const [now, setNow] = useState<Date | null>(null);
   const [page, setPage] = useState(1);
@@ -735,18 +737,18 @@ export function LearnHomeDashboard({
                 </article>
               ) : null}
 
-              {variant === 'student' ? (
+              {variant === 'student' && companionVisible ? (
                 <article
                   className="learn-app-home__widget learn-app-home__widget--haru relative col-span-3 min-h-[220px] w-full overflow-hidden rounded-[26px] border border-white/28 shadow-[0_20px_52px_rgba(28,43,114,0.14)] backdrop-blur-2xl sm:col-span-3 lg:col-auto lg:h-full lg:min-h-0"
-                  aria-label="Haru Live2D 动态展示"
+                  aria-label="Live2D 伴学角色"
                 >
                   <div className="absolute inset-x-0 -bottom-20 top-9 -translate-y-7">
-                    <HaruLive2D
+                    <CompanionLive2D
                       layout="card"
                       cardFraming="half"
                       speaking={false}
                       cadence="idle"
-                      modelIdOverride="haru"
+                      modelIdOverride={companionModelId}
                       showBadge={false}
                       showStatusDot={false}
                       className="h-full min-h-0 w-full"

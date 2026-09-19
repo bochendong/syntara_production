@@ -37,3 +37,22 @@ export async function PATCH(
     return NextResponse.json({ storage: 'postgresql', rule });
   });
 }
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ courseId: string; ruleId: string }> },
+) {
+  return safeRoute(async () => {
+    const teacher = await requireTeacher();
+    if ('response' in teacher) return teacher.response;
+    const { courseId, ruleId } = await context.params;
+    if (!(await hasTeacherCourseAccess(prisma, teacher.userId, courseId))) {
+      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
+    const deleted = await prisma.courseHardRule.deleteMany({
+      where: { id: ruleId, courseId, ownerId: teacher.userId, course: { ownerId: teacher.userId } },
+    });
+    if (!deleted.count) return NextResponse.json({ error: 'Hard Rule not found' }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  });
+}

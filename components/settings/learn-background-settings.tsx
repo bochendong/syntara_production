@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
 import { LearnBackgroundVisual } from '@/components/learn/learn-background-visual';
 import { LEARN_BACKGROUNDS } from '@/lib/learn/learn-backgrounds';
@@ -9,6 +11,9 @@ import { cn } from '@/lib/utils';
 export function LearnBackgroundSettings() {
   const learnBackgroundId = useSettingsStore((state) => state.learnBackgroundId);
   const setLearnBackgroundId = useSettingsStore((state) => state.setLearnBackgroundId);
+
+  const [draft, setDraft] = useState<typeof learnBackgroundId | null>(null);
+  const selectedBackground = draft ?? learnBackgroundId;
 
   return (
     <section aria-labelledby="learn-background-title">
@@ -21,7 +26,7 @@ export function LearnBackgroundSettings() {
           学习界面背景
         </h3>
         <p className="mt-1 text-sm leading-6 text-slate-500">
-          选择后会立即应用到学习主页和课程聊天界面，并保存在当前浏览器中。
+          选择背景后点击保存，应用到学习主页和课程聊天界面，并保存在当前浏览器中。
         </p>
       </div>
 
@@ -34,12 +39,12 @@ export function LearnBackgroundSettings() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {LEARN_BACKGROUNDS.map((background) => {
-            const selected = background.id === learnBackgroundId;
+            const selected = background.id === selectedBackground;
             return (
               <button
                 key={background.id}
                 type="button"
-                onClick={() => setLearnBackgroundId(background.id)}
+                onClick={() => setDraft(background.id)}
                 className={cn(
                   'group overflow-hidden rounded-[16px] bg-white text-left outline-none ring-1 transition focus-visible:ring-2 focus-visible:ring-[#007aff]',
                   selected
@@ -82,6 +87,16 @@ export function LearnBackgroundSettings() {
           })}
         </div>
       </div>
+      <Button
+        className="mt-5"
+        disabled={selectedBackground === learnBackgroundId}
+        onClick={() => {
+          setLearnBackgroundId(selectedBackground);
+          setDraft(null);
+        }}
+      >
+        {selectedBackground === learnBackgroundId ? '已保存' : '保存背景'}
+      </Button>
     </section>
   );
 }

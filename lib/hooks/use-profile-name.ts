@@ -29,8 +29,10 @@ export function useProfileName() {
         useUserProfileStore.getState().setAccountNickname(profile.id, profile.name);
         useAuthStore.setState({ name: profile.name });
         await update().catch(() => undefined);
-      } else {
+      } else if (session?.user?.id.startsWith('local-demo-')) {
         useUserProfileStore.getState().setNickname(name);
+      } else {
+        throw new Error('登录已失效，请重新登录后保存姓名。');
       }
       return true;
     } finally {

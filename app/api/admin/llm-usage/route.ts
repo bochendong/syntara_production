@@ -63,8 +63,8 @@ export async function GET() {
       return {
         id: row.id,
         userId: row.userId,
-        userEmail: row.userEmail?.trim() || row.user?.email || null,
-        userName: row.userName?.trim() || row.user?.name || null,
+        userEmail: row.user?.email?.trim() || row.userEmail?.trim() || null,
+        userName: row.user?.name?.trim() || row.userName?.trim() || null,
         route: row.route,
         source: row.source,
         providerId: row.providerId,

@@ -154,14 +154,8 @@ export function Live2DCompanionHub() {
     }
   }, [summary, checkInCompanionId, setCheckInCompanionId]);
 
-  useEffect(() => {
-    if (!summary?.databaseEnabled) return;
-    const equippedId = toLive2DModelId(summary.profile.equippedCharacterId);
-    if (!equippedId) return;
-    if (live2dPresenterModelId !== equippedId) {
-      setLive2DPresenterModelId(equippedId);
-    }
-  }, [summary, live2dPresenterModelId, setLive2DPresenterModelId]);
+  // Explicit selections in Settings and this hub share the persisted settings store.
+  // A background summary refresh must not restore an older equipped character.
 
   useEffect(() => {
     let nextSelectedId: string | null;
