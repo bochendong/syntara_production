@@ -265,6 +265,8 @@ export async function POST(request: NextRequest) {
 
       if (totalTokens > 0) {
         await recordLLMUsage({
+          requestContent: { prompt: body.prompt },
+          responseContent: result,
           userId: getRequestContext()?.userId,
           userEmail: getRequestContext()?.userEmail,
           userName: getRequestContext()?.userName,

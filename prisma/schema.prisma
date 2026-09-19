@@ -1052,6 +1052,9 @@ model LLMUsageLog {
   totalTokens  Int      @default(0)
   createdAt    DateTime @default(now())
 
+  requestContent String? @db.Text
+  responseContent String? @db.Text
+
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt(sort: Desc)])

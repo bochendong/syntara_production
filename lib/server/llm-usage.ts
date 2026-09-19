@@ -2,9 +2,13 @@ import { createLogger } from '@/lib/logger';
 import { chargeCreditsForTokenUsage } from '@/lib/server/credits';
 import { getPrismaOrNull } from '@/lib/server/prisma-safe';
 
+import { serializeUsageContent } from '@/lib/server/llm-usage-content';
+
 const log = createLogger('LLMUsage');
 
 export interface LLMUsagePayload {
+  requestContent?: unknown;
+  responseContent?: unknown;
   userId?: string | null;
   userEmail?: string | null;
   userName?: string | null;
@@ -79,6 +83,8 @@ export async function recordLLMUsage(payload: LLMUsagePayload): Promise<void> {
         inputTokens: toInt(payload.inputTokens),
         outputTokens: toInt(payload.outputTokens),
         totalTokens,
+        requestContent: serializeUsageContent(payload.requestContent),
+        responseContent: serializeUsageContent(payload.responseContent),
       },
     });
 

@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
         Math.max(0, Math.round(usage?.totalTokens || 0)) || inputTokens + outputTokens;
       const modelId = resolvedModel.modelString.split(':').pop() || resolvedModel.modelString;
       await recordLLMUsage({
+        requestContent: { prompt: 'Say "OK" if you can hear me.' },
+        responseContent: text,
         userId: getRequestContext()?.userId,
         userEmail: getRequestContext()?.userEmail,
         userName: getRequestContext()?.userName,

@@ -30,7 +30,20 @@ export async function GET() {
       prisma.lLMUsageLog.findMany({
         orderBy: { createdAt: 'desc' },
         take: 200,
-        include: {
+        select: {
+          id: true,
+          userId: true,
+          userEmail: true,
+          userName: true,
+          route: true,
+          source: true,
+          providerId: true,
+          modelId: true,
+          modelString: true,
+          inputTokens: true,
+          outputTokens: true,
+          totalTokens: true,
+          createdAt: true,
           user: { select: { name: true, email: true } },
         },
       }),

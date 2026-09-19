@@ -60,6 +60,7 @@ async function persistUsage(
     outputTokens?: number;
     cachedInputTokens?: number;
   },
+  responseContent: unknown,
 ): Promise<void> {
   const requestContext = getRequestContext();
   const modelId = getModelId(params);
@@ -80,6 +81,8 @@ async function persistUsage(
   }
 
   await recordLLMUsage({
+    requestContent: _extractRequestInfo(params),
+    responseContent,
     userId: requestContext?.userId,
     userEmail: requestContext?.userEmail,
     userName: requestContext?.userName,
@@ -377,7 +380,7 @@ export async function callLLM<T extends GenerateTextParams>(
       const result = await thinkingContext.run(effectiveThinking, () =>
         generateText(injectedParams),
       );
-      await persistUsage(source, injectedParams, result.usage);
+      await persistUsage(source, injectedParams, result.totalUsage, result.response.messages);
 
       // Validate result (only when retries are configured)
       if (validate && !validate(result.text)) {
@@ -428,8 +431,9 @@ export async function streamLLM<T extends StreamTextParams>(
   const result = thinkingContext.run(effectiveThinking, () =>
     streamText({
       ...injectedParams,
-      onFinish: async ({ totalUsage }) => {
-        await persistUsage(source, injectedParams, totalUsage);
+      onFinish: async (event) => {
+        await persistUsage(source, injectedParams, event.totalUsage, event.response.messages);
+        await injectedParams.onFinish?.(event);
       },
     }),
   );
