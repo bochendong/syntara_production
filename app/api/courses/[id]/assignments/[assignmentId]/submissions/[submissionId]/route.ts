@@ -68,6 +68,9 @@ export async function POST(_request: NextRequest, context: Context) {
   return safeRoute(async () => {
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
+    if ('previewedByAdmin' in auth && auth.previewedByAdmin) {
+      return NextResponse.json({ error: '管理员预览为只读模式。' }, { status: 403 });
+    }
     const { id: courseId, assignmentId, submissionId } = await context.params;
     const submission = await accessibleSubmission(
       courseId,

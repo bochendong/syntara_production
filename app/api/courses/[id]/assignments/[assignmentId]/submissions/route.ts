@@ -48,6 +48,9 @@ export async function POST(request: NextRequest, context: Context) {
   return safeRoute(async () => {
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
+    if ('previewedByAdmin' in auth && auth.previewedByAdmin) {
+      return NextResponse.json({ error: '管理员预览为只读模式。' }, { status: 403 });
+    }
     const { id: courseId, assignmentId } = await context.params;
     if ((await findCourseAccessRole(prisma, auth.userId, courseId)) !== 'enrolled') {
       return NextResponse.json({ error: 'Only enrolled students can submit' }, { status: 403 });
