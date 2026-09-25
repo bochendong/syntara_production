@@ -61,6 +61,8 @@ export async function POST(request: NextRequest, context: Context) {
         id: true,
         title: true,
         instructions: true,
+        schoolTaskText: true,
+        schoolFileText: true,
         exemplarText: true,
         version: true,
         course: { select: { name: true } },
@@ -108,6 +110,8 @@ export async function POST(request: NextRequest, context: Context) {
           reviewAssignment({
             title: assignment.title,
             instructions: assignment.instructions,
+            schoolTaskText: assignment.schoolTaskText,
+            schoolFileText: assignment.schoolFileText,
             exemplarText: assignment.exemplarText,
             studentText: extracted.text,
           }),

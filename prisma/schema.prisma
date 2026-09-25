@@ -452,6 +452,11 @@ model CourseAssignment {
   courseId          String
   title             String   @db.VarChar(200)
   instructions      String   @db.Text
+  schoolTaskText    String?  @db.Text
+  schoolFileName    String?  @db.VarChar(255)
+  schoolMimeType    String?  @db.VarChar(120)
+  schoolFileData    Bytes?
+  schoolFileText    String?  @db.Text
   published         Boolean  @default(false)
   exemplarFileName  String?  @db.VarChar(255)
   exemplarMimeType  String?  @db.VarChar(120)

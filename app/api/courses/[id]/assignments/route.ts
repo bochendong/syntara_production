@@ -28,6 +28,8 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
           id: true,
           title: true,
           instructions: true,
+          schoolTaskText: true,
+          schoolFileName: true,
           published: true,
           exemplarFileName: true,
           version: true,
@@ -61,6 +63,8 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
           id: item.id,
           title: item.title,
           instructions: item.instructions,
+          schoolTaskText: item.schoolTaskText,
+          schoolFileName: item.schoolFileName,
           published: item.published,
           exemplarFileName: role === 'owner' ? item.exemplarFileName : undefined,
           version: item.version,
@@ -86,11 +90,20 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const form = await request.formData();
     const title = String(form.get('title') ?? '').trim();
     const instructions = String(form.get('instructions') ?? '').trim();
+    const schoolTaskText = String(form.get('schoolTaskText') ?? '').trim();
     const file = form.get('file');
-    if (!title || title.length > 200 || !instructions || instructions.length > 20_000) {
+    const schoolFile = form.get('schoolFile');
+    if (
+      !title ||
+      title.length > 200 ||
+      !instructions ||
+      instructions.length > 20_000 ||
+      schoolTaskText.length > 20_000
+    ) {
       return NextResponse.json({ error: '请填写标题和检查要点。' }, { status: 400 });
     }
     let extracted: Awaited<ReturnType<typeof extractAssignmentFile>> | null = null;
+    let schoolExtracted: Awaited<ReturnType<typeof extractAssignmentFile>> | null = null;
     if (file instanceof File && file.size > 0) {
       try {
         extracted = await extractAssignmentFile(file);
@@ -101,11 +114,26 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         );
       }
     }
+    if (schoolFile instanceof File && schoolFile.size > 0) {
+      try {
+        schoolExtracted = await extractAssignmentFile(schoolFile);
+      } catch (error) {
+        return NextResponse.json(
+          { error: error instanceof Error ? error.message : '学校作业原件读取失败。' },
+          { status: 400 },
+        );
+      }
+    }
     const assignment = await prisma.courseAssignment.create({
       data: {
         courseId,
         title,
         instructions,
+        schoolTaskText: schoolTaskText || null,
+        schoolFileName: schoolExtracted?.fileName ?? null,
+        schoolMimeType: schoolExtracted?.mimeType ?? null,
+        schoolFileData: schoolExtracted ? Uint8Array.from(schoolExtracted.data) : null,
+        schoolFileText: schoolExtracted?.text ?? null,
         published: form.get('published') === 'true',
         exemplarFileName: extracted?.fileName ?? null,
         exemplarMimeType: extracted?.mimeType ?? null,

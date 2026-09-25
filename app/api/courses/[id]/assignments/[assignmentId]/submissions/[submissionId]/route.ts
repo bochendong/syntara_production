@@ -30,6 +30,8 @@ async function accessibleSubmission(
         select: {
           title: true,
           instructions: true,
+          schoolTaskText: true,
+          schoolFileText: true,
           exemplarText: true,
           course: { select: { name: true } },
         },
@@ -104,6 +106,8 @@ export async function POST(_request: NextRequest, context: Context) {
           reviewAssignment({
             title: submission.assignment.title,
             instructions: submission.assignment.instructions,
+            schoolTaskText: submission.assignment.schoolTaskText,
+            schoolFileText: submission.assignment.schoolFileText,
             exemplarText: submission.assignment.exemplarText,
             studentText: submission.extractedText,
           }),

@@ -22,9 +22,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { aiFetch } from '@/lib/ai-progress/ai-fetch';
 import { useReportAiActivity } from '@/lib/ai-progress/use-ai-activity';
+import { ASSIGNMENT_ACCEPT } from '@/lib/course-assignments/file-types';
 import { toast } from '@/lib/notifications/client-toast';
-
-const ASSIGNMENT_ACCEPT = '.pdf,.docx,.txt,.md,.png,.jpg,.jpeg';
 
 type Role = 'teacher' | 'student';
 type Feedback = {
@@ -36,6 +35,8 @@ type Assignment = {
   id: string;
   title: string;
   instructions: string;
+  schoolTaskText?: string | null;
+  schoolFileName?: string | null;
   published: boolean;
   exemplarFileName?: string | null;
   version: number;
@@ -117,7 +118,10 @@ export function CourseAssignmentsClient({
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [title, setTitle] = useState('');
   const [instructions, setInstructions] = useState('');
+  const [schoolTaskText, setSchoolTaskText] = useState('');
   const [published, setPublished] = useState(false);
+  const [schoolFile, setSchoolFile] = useState<File | null>(null);
+  const [removeSchoolFile, setRemoveSchoolFile] = useState(false);
   const [exemplarFile, setExemplarFile] = useState<File | null>(null);
   const [removeExemplar, setRemoveExemplar] = useState(false);
   const [studentFile, setStudentFile] = useState<File | null>(null);
@@ -140,6 +144,7 @@ export function CourseAssignmentsClient({
               id: 'preview-assignment',
               title: '第一周作业',
               instructions: '检查推理是否完整，并说明关键假设。提交文件需清晰可读。',
+              schoolTaskText: '学校布置：完成第一周习题，展示主要推导过程。',
               published: true,
               version: 1,
               submissionCount: 0,
@@ -187,10 +192,20 @@ export function CourseAssignmentsClient({
     if (role !== 'teacher') return;
     setTitle(selected?.title ?? '');
     setInstructions(selected?.instructions ?? '');
+    setSchoolTaskText(selected?.schoolTaskText ?? '');
     setPublished(selected?.published ?? false);
+    setSchoolFile(null);
+    setRemoveSchoolFile(false);
     setExemplarFile(null);
     setRemoveExemplar(false);
-  }, [role, selectedId, selected?.title, selected?.instructions, selected?.published]);
+  }, [
+    role,
+    selectedId,
+    selected?.title,
+    selected?.instructions,
+    selected?.schoolTaskText,
+    selected?.published,
+  ]);
 
   const loadSubmissions = useCallback(
     async (assignmentId: string) => {
@@ -229,7 +244,10 @@ export function CourseAssignmentsClient({
       const form = new FormData();
       form.set('title', title.trim());
       form.set('instructions', instructions.trim());
+      form.set('schoolTaskText', schoolTaskText.trim());
       form.set('published', String(published));
+      if (schoolFile) form.set('schoolFile', schoolFile);
+      if (removeSchoolFile) form.set('removeSchoolFile', 'true');
       if (exemplarFile) form.set('file', exemplarFile);
       if (removeExemplar) form.set('removeExemplar', 'true');
       const result = await responseData<{ id?: string }>(
@@ -347,7 +365,10 @@ export function CourseAssignmentsClient({
                       setSelectedId(null);
                       setTitle('');
                       setInstructions('');
+                      setSchoolTaskText('');
                       setPublished(false);
+                      setSchoolFile(null);
+                      setRemoveSchoolFile(false);
                       setExemplarFile(null);
                       setRemoveExemplar(false);
                     }}
@@ -388,6 +409,50 @@ export function CourseAssignmentsClient({
                       placeholder="例如：第 3 周分析作业"
                     />
                   </label>
+                  <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                    <h3 className="text-sm font-semibold">学校老师布置的作业（可选）</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      可以写下原始题目要求、上传学校的作业文件，或两者都提供。发布后学生可查看和下载。
+                    </p>
+                    <Textarea
+                      aria-label="学校布置的作业内容"
+                      className="mt-3 min-h-32 resize-y text-sm leading-6"
+                      value={schoolTaskText}
+                      maxLength={20000}
+                      onChange={(event) => setSchoolTaskText(event.target.value)}
+                      placeholder="粘贴学校老师给出的作业内容或要求；没有可留空。"
+                    />
+                    {selected?.schoolFileName ? (
+                      <div className="mt-3 flex flex-wrap items-center gap-3">
+                        <a
+                          className="inline-flex items-center gap-1 text-xs text-sky-700 underline"
+                          href={`${base}/${encodeURIComponent(selected.id)}?download=school`}
+                        >
+                          <Download className="size-3.5" />
+                          当前原件：{selected.schoolFileName}
+                        </a>
+                        <label className="flex items-center gap-1 text-xs text-slate-500">
+                          <input
+                            type="checkbox"
+                            checked={removeSchoolFile}
+                            onChange={(event) => setRemoveSchoolFile(event.target.checked)}
+                          />
+                          移除原件
+                        </label>
+                      </div>
+                    ) : null}
+                    <input
+                      aria-label="上传学校作业原件"
+                      type="file"
+                      accept={ASSIGNMENT_ACCEPT}
+                      className="mt-3 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:text-sky-800"
+                      onChange={(event) => setSchoolFile(event.target.files?.[0] ?? null)}
+                    />
+                    <p className="mt-2 text-xs text-slate-500">
+                      支持 PDF、DOCX、图片、.py、.ipynb、.js、.java、.csv
+                      等常见代码和文本文件，单个最大 4 MB。
+                    </p>
+                  </div>
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
                     检查要点与注意事项
                     <Textarea
@@ -404,7 +469,7 @@ export function CourseAssignmentsClient({
                       老师范本（可选、学生不可见）
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
-                      可上传 PDF、DOCX、TXT、Markdown 或清晰图片，最大 4 MB。也可以只填写检查要点。
+                      可上传 PDF、DOCX、图片或常见代码和文本文件，最大 4 MB。也可以只填写检查要点。
                     </p>
                     {selected?.exemplarFileName ? (
                       <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -449,6 +514,26 @@ export function CourseAssignmentsClient({
               ) : selected ? (
                 <div className="space-y-3">
                   <h3 className="text-lg font-semibold">{selected.title}</h3>
+                  {selected.schoolTaskText || selected.schoolFileName ? (
+                    <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                      <h4 className="text-sm font-semibold">学校布置的作业</h4>
+                      {selected.schoolTaskText ? (
+                        <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 dark:text-slate-200">
+                          {selected.schoolTaskText}
+                        </p>
+                      ) : null}
+                      {selected.schoolFileName ? (
+                        <a
+                          className="mt-3 inline-flex items-center gap-1.5 text-sm text-sky-700 underline dark:text-sky-300"
+                          href={`${base}/${encodeURIComponent(selected.id)}?download=school`}
+                        >
+                          <Download className="size-4" />
+                          下载学校作业原件：{selected.schoolFileName}
+                        </a>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <h4 className="text-sm font-semibold">检查要点与注意事项</h4>
                   <div className="whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-4 text-sm leading-7 text-slate-700 dark:bg-white/5 dark:text-slate-200">
                     {selected.instructions}
                   </div>
@@ -469,7 +554,7 @@ export function CourseAssignmentsClient({
                     <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-400/15 dark:bg-sky-400/10">
                       <p className="text-sm font-medium">上传作业文件</p>
                       <p className="mt-1 text-xs text-slate-500">
-                        支持 PDF、DOCX、TXT、Markdown、PNG 和 JPG，最大 4
+                        支持 PDF、DOCX、图片、.py、.ipynb 及常见代码和文本文件，最大 4
                         MB。检查只指出问题位置与类型。
                       </p>
                       <input
