@@ -19,8 +19,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { backendJson } from '@/lib/utils/backend-api';
 import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
 import { useNotificationStore } from '@/lib/store/notifications';
-import { creditsFromPriceCents, formatPurchaseCreditsLabel } from '@/lib/utils/credits';
-import { notifyCreditsBalancesChanged } from '@/lib/utils/credits-balance-events';
 
 type StoreNotebook = {
   id: string;
@@ -154,10 +152,6 @@ export default function StoreCourseDetailPage() {
     void load();
   }, [load]);
 
-  const priceLabel = useMemo(() => {
-    return formatPurchaseCreditsLabel(creditsFromPriceCents(data?.course.coursePriceCents ?? 0));
-  }, [data]);
-
   const totalScenes = useMemo(
     () => data?.course.notebooks.reduce((sum, notebook) => sum + notebook._count.scenes, 0) ?? 0,
     [data],
@@ -178,7 +172,6 @@ export default function StoreCourseDetailPage() {
         },
       );
       await refreshNotifications({ silent: true });
-      notifyCreditsBalancesChanged();
       toast.success(`已加入课程「${response.course.name}」`);
       router.push(`/learn?courseId=${encodeURIComponent(response.course.id)}`);
       return true;
@@ -296,7 +289,7 @@ export default function StoreCourseDetailPage() {
                   <div>
                     <p className="text-sm text-slate-500 dark:text-slate-400">课程价格</p>
                     <p className="mt-1 text-3xl font-semibold text-slate-950 dark:text-white">
-                      {priceLabel}
+                      免费加入
                     </p>
                   </div>
                 </div>
@@ -403,11 +396,6 @@ export default function StoreCourseDetailPage() {
                           </p>
                           <div className="mt-3 flex flex-wrap gap-2">
                             <span className="store-chip text-xs">{`${notebook._count.scenes} 页`}</span>
-                            <span className="store-chip text-xs">
-                              {`单本价格 ${formatPurchaseCreditsLabel(
-                                creditsFromPriceCents(notebook.notebookPriceCents),
-                              )}`}
-                            </span>
                             <span className="store-chip text-xs">
                               {speechStatusLabel(notebook)}
                             </span>
@@ -563,10 +551,8 @@ export default function StoreCourseDetailPage() {
           onOpenChange={setCoursePurchaseOpen}
           itemTypeLabel="课程"
           itemName={course.name}
-          creditsCost={creditsFromPriceCents(course.coursePriceCents)}
-          accountType="PURCHASE"
           countSummary={`将加入 ${course.notebooks.length} 本笔记本，共 ${totalScenes} 页共享内容。`}
-          note="确认后会立即扣除对应购买积分；课程内容由创建者维护，做题记录和语音缓存属于你自己。"
+          note="课程内容由创建者维护，做题记录和语音缓存属于你自己。"
           busy={buying}
           confirmLabel="确认加入课程"
           onConfirm={handleBuy}

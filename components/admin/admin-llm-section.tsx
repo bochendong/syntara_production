@@ -1,14 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { UsageContentDialog } from '@/components/admin/usage-content-dialog';
 import { Button } from '@/components/ui/button';
 import { backendJson } from '@/lib/utils/backend-api';
-import { formatCreditsLabel, formatUsdLabel } from '@/lib/utils/credits';
-import { AdminGlobalLlmConfigCard } from '@/components/admin/admin-global-llm-config-card';
+import { formatUsdLabel } from '@/lib/utils/credits';
 
 type LLMUsageResponse = {
   summary: {
@@ -17,7 +16,6 @@ type LLMUsageResponse = {
     totalOutputTokens: number;
     totalTokens: number;
     estimatedCostUsd: number;
-    estimatedCostCredits: number;
   };
   rows: Array<{
     id: string;
@@ -30,9 +28,9 @@ type LLMUsageResponse = {
     outputTokens: number;
     totalTokens: number;
     estimatedCostUsd: number | null;
-    estimatedCostCredits: number | null;
     createdAt: string;
   }>;
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
 };
 
 function formatNumber(value: number) {
@@ -40,7 +38,6 @@ function formatNumber(value: number) {
 }
 
 export function AdminLLMSection() {
-  const PAGE_SIZE = 20;
   const [loading, setLoading] = useState(true);
   const [usageError, setUsageError] = useState<string | null>(null);
   const [usage, setUsage] = useState<LLMUsageResponse | null>(null);
@@ -51,7 +48,9 @@ export function AdminLLMSection() {
     setUsageError(null);
     try {
       try {
-        const usageResp = await backendJson<LLMUsageResponse>('/api/admin/llm-usage');
+        const usageResp = await backendJson<LLMUsageResponse>(
+          `/api/admin/llm-usage?page=${usagePage}`,
+        );
         setUsage(usageResp);
       } catch (usageLoadError) {
         setUsage(null);
@@ -62,22 +61,15 @@ export function AdminLLMSection() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [usagePage]);
 
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
 
-  const usageRows = useMemo(() => usage?.rows ?? [], [usage?.rows]);
-  const usageTotalPages = Math.max(1, Math.ceil(usageRows.length / PAGE_SIZE));
-  const usagePagedRows = useMemo(() => {
-    const start = (usagePage - 1) * PAGE_SIZE;
-    return usageRows.slice(start, start + PAGE_SIZE);
-  }, [usagePage, usageRows]);
-
-  useEffect(() => {
-    setUsagePage(1);
-  }, [usage?.rows]);
+  const usageRows = usage?.rows ?? [];
+  const usageTotalPages = usage?.pagination.totalPages ?? 1;
+  const usageTotal = usage?.pagination.total ?? 0;
 
   useEffect(() => {
     if (usagePage > usageTotalPages) {
@@ -86,12 +78,11 @@ export function AdminLLMSection() {
   }, [usagePage, usageTotalPages]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">加载语言模型配置…</p>;
+    return <p className="text-sm text-muted-foreground">加载用量明细…</p>;
   }
 
   return (
     <div className="space-y-6">
-      <AdminGlobalLlmConfigCard />
       {usageError ? (
         <Alert>
           <AlertTitle>用量数据暂不可用</AlertTitle>
@@ -106,10 +97,10 @@ export function AdminLLMSection() {
             用量汇总
           </CardTitle>
           <CardDescription>
-            按 OpenAI GPT 公开价上浮 50% 估算用户侧扣费，方便对账和观察毛利空间。
+            按 OpenAI GPT 公开价估算模型成本，供管理员观察全站用量。
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-lg border bg-background/70 p-3">
             <div className="text-xs text-muted-foreground">调用次数</div>
             <div className="mt-1 text-xl font-semibold">
@@ -135,15 +126,9 @@ export function AdminLLMSection() {
             </div>
           </div>
           <div className="rounded-lg border bg-background/70 p-3">
-            <div className="text-xs text-muted-foreground">预估用户扣费</div>
+            <div className="text-xs text-muted-foreground">预估模型成本</div>
             <div className="mt-1 text-xl font-semibold">
               {formatUsdLabel(usage?.summary.estimatedCostUsd || 0)}
-            </div>
-          </div>
-          <div className="rounded-lg border bg-background/70 p-3">
-            <div className="text-xs text-muted-foreground">折合积分</div>
-            <div className="mt-1 text-xl font-semibold">
-              {formatCreditsLabel(usage?.summary.estimatedCostCredits || 0)}
             </div>
           </div>
         </CardContent>
@@ -152,7 +137,7 @@ export function AdminLLMSection() {
       <Card>
         <CardHeader>
           <CardTitle>最近用量明细</CardTitle>
-          <CardDescription>按最近调用时间倒序。</CardDescription>
+          <CardDescription>按最近调用时间倒序，每页最多 20 条。</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-lg border">
@@ -166,12 +151,12 @@ export function AdminLLMSection() {
                   <th className="px-3 py-2 font-medium">输入</th>
                   <th className="px-3 py-2 font-medium">输出</th>
                   <th className="px-3 py-2 font-medium">总计</th>
-                  <th className="px-3 py-2 font-medium">预估扣费</th>
+                  <th className="px-3 py-2 font-medium">预估成本</th>
                   <th className="px-3 py-2 font-medium">内容</th>
                 </tr>
               </thead>
               <tbody>
-                {usagePagedRows.map((row) => (
+                {usageRows.map((row) => (
                   <tr key={row.id} className="border-t">
                     <td className="px-3 py-2 whitespace-nowrap">
                       {new Date(row.createdAt).toLocaleString('zh-CN')}
@@ -211,10 +196,11 @@ export function AdminLLMSection() {
               </tbody>
             </table>
           </div>
-          {usageRows.length > 0 ? (
+          {usageTotal > 0 ? (
             <div className="mt-3 flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
-                第 {usagePage} / {usageTotalPages} 页 · 共 {formatNumber(usageRows.length)} 条
+                第 {usagePage} / {usageTotalPages} 页 · 共 {formatNumber(usageTotal)} 条 · 每页最多
+                20 条
               </p>
               <div className="flex items-center gap-2">
                 <Button

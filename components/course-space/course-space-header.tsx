@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   BookOpenText,
+  ClipboardCheck,
   Home,
   LayoutDashboard,
   Library,
@@ -103,6 +104,15 @@ function navigationItems({
       label: '题库',
       href: problemBankHref,
       Icon: Library,
+    },
+    {
+      key: 'assignments' as const,
+      label: '作业',
+      href:
+        role === 'teacher'
+          ? `/teacher/courses/${encodedCourseId}/assignments${previewMode ? '?mock=1' : ''}`
+          : `/course/${encodedCourseId}/assignments${previewMode ? '?mock=1' : ''}`,
+      Icon: ClipboardCheck,
     },
     {
       key: 'forum' as const,

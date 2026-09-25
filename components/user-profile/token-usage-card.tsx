@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useAuthStore } from '@/lib/store/auth';
 import { backendJson } from '@/lib/utils/backend-api';
-import { formatCreditsLabel, formatUsdLabel } from '@/lib/utils/credits';
+import { formatUsdLabel } from '@/lib/utils/credits';
 import { TokenUsageSpendChart } from './token-usage-spend-chart';
 
 const USAGE_RECORDS_PAGE_SIZE = 8;
@@ -325,15 +325,9 @@ export function TokenUsageAccountPanel({
           </div>
         </div>
         <div className="rounded-xl border bg-background/60 p-3">
-          <div className="text-[11px] text-muted-foreground">预估扣费美元</div>
+          <div className="text-[11px] text-muted-foreground">预估模型成本</div>
           <div className="mt-1 text-lg font-semibold">
             {formatUsdLabel(usage?.summary.estimatedCostUsd ?? 0)}
-          </div>
-        </div>
-        <div className="rounded-xl border bg-background/60 p-3">
-          <div className="text-[11px] text-muted-foreground">对应积分</div>
-          <div className="mt-1 text-lg font-semibold">
-            {formatCreditsLabel(usage?.summary.estimatedCostCredits ?? 0)}
           </div>
         </div>
       </div>
@@ -355,9 +349,7 @@ export function TokenUsageAccountPanel({
       <div className="space-y-2">
         <div>
           <p className="text-sm font-semibold text-foreground">按模型花费明细</p>
-          <p className="text-xs text-muted-foreground">
-            现在会按模型展示调用次数、token、美元和积分，方便直接看出哪种模型最花钱
-          </p>
+          <p className="text-xs text-muted-foreground">按模型展示调用次数、Token 和预估成本。</p>
         </div>
         <div className="overflow-x-auto rounded-xl border">
           <table className="min-w-full text-left text-xs">
@@ -370,7 +362,6 @@ export function TokenUsageAccountPanel({
                 <th className="px-3 py-2 font-medium">总 Tokens</th>
                 <th className="px-3 py-2 font-medium">花费占比</th>
                 <th className="px-3 py-2 font-medium">美元</th>
-                <th className="px-3 py-2 font-medium">积分</th>
               </tr>
             </thead>
             <tbody>
@@ -402,17 +393,12 @@ export function TokenUsageAccountPanel({
                     <td className="px-3 py-2 whitespace-nowrap font-medium">
                       {row.estimatedCostUsd != null ? formatUsdLabel(row.estimatedCostUsd) : '—'}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {row.estimatedCostCredits != null
-                        ? formatCreditsLabel(row.estimatedCostCredits)
-                        : '—'}
-                    </td>
                   </tr>
                 );
               })}
               {modelRows.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-5 text-center text-muted-foreground" colSpan={8}>
+                  <td className="px-3 py-5 text-center text-muted-foreground" colSpan={7}>
                     暂无模型用量记录
                   </td>
                 </tr>
@@ -476,7 +462,6 @@ export function TokenUsageAccountPanel({
                 <th className="px-3 py-2 font-medium">输出</th>
                 <th className="px-3 py-2 font-medium">总 Tokens</th>
                 <th className="px-3 py-2 font-medium">美元</th>
-                <th className="px-3 py-2 font-medium">积分</th>
               </tr>
             </thead>
             <tbody>
@@ -496,16 +481,11 @@ export function TokenUsageAccountPanel({
                   <td className="px-3 py-2 whitespace-nowrap">
                     {row.estimatedCostUsd != null ? formatUsdLabel(row.estimatedCostUsd) : '—'}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {row.estimatedCostCredits != null
-                      ? formatCreditsLabel(row.estimatedCostCredits)
-                      : '—'}
-                  </td>
                 </tr>
               ))}
               {(usage?.usageRecords?.length ?? 0) === 0 ? (
                 <tr>
-                  <td className="px-3 py-5 text-center text-muted-foreground" colSpan={8}>
+                  <td className="px-3 py-5 text-center text-muted-foreground" colSpan={7}>
                     暂无使用记录
                   </td>
                 </tr>

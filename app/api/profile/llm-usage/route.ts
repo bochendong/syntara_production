@@ -3,7 +3,7 @@ import { requireUserId } from '@/lib/server/api-auth';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import {
   estimateTrackedModelUsageRetailCostCredits,
-  estimateTrackedModelUsageRetailCostUsd,
+  estimateTrackedModelUsageBaseCostUsd,
 } from '@/lib/utils/openai-pricing';
 
 const DEFAULT_RECORDS_PAGE_SIZE = 8;
@@ -137,7 +137,7 @@ function buildSpendChart(args: {
   const totalByModel = new Map<string, { usd: number; credits: number }>();
 
   for (const row of args.rows) {
-    const estimatedCostUsd = estimateTrackedModelUsageRetailCostUsd({
+    const estimatedCostUsd = estimateTrackedModelUsageBaseCostUsd({
       providerId: row.providerId,
       modelId: row.modelId,
       modelString: row.modelString,
@@ -255,7 +255,7 @@ function mapUsageRow(row: {
   totalTokens: number;
   createdAt: Date;
 }): UsageRecordRow {
-  const estimatedCostUsd = estimateTrackedModelUsageRetailCostUsd({
+  const estimatedCostUsd = estimateTrackedModelUsageBaseCostUsd({
     providerId: row.providerId,
     modelId: row.modelId,
     modelString: row.modelString,
@@ -393,7 +393,7 @@ export async function GET(request: Request) {
         inputTokens,
         outputTokens,
         totalTokens: g._sum.totalTokens ?? 0,
-        estimatedCostUsd: estimateTrackedModelUsageRetailCostUsd({
+        estimatedCostUsd: estimateTrackedModelUsageBaseCostUsd({
           modelString: g.modelString,
           inputTokens,
           outputTokens,

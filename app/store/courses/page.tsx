@@ -24,7 +24,6 @@ import {
   listCommunityStoreCourses,
   listCourses,
 } from '@/lib/utils/course-storage';
-import { creditsFromPriceCents, formatPurchaseCreditsLabel } from '@/lib/utils/credits';
 import { listStagesByCourse } from '@/lib/utils/stage-storage';
 import type { CommunityCourseListItem, CourseRecord } from '@/lib/utils/database';
 import { markCourseOwnedByUser } from '@/lib/utils/course-ownership';
@@ -205,7 +204,6 @@ export default function CourseStorePage() {
     (item: CommunityCourseListItem): StorefrontItem => {
       const openCourse = () => router.push(`/store/courses/${item.id}`);
       const busy = addingId === `c:${item.id}`;
-      const priceLabel = formatPurchaseCreditsLabel(creditsFromPriceCents(item.coursePriceCents));
 
       return {
         id: item.id,
@@ -224,7 +222,7 @@ export default function CourseStorePage() {
         ].filter(Boolean) as string[],
         openLabel: '查看课程',
         onOpen: openCourse,
-        primaryActionLabel: busy ? '加入中…' : item.purchased ? '已加入' : priceLabel,
+        primaryActionLabel: busy ? '加入中…' : item.purchased ? '已加入' : '加入课程',
         primaryActionDisabled: item.purchased || busy,
         onPrimaryAction: item.purchased ? openCourse : () => setPendingPurchaseCourse(item),
       };
@@ -497,14 +495,12 @@ export default function CourseStorePage() {
           }}
           itemTypeLabel="课程"
           itemName={pendingPurchaseCourse?.name ?? ''}
-          creditsCost={creditsFromPriceCents(pendingPurchaseCourse?.coursePriceCents ?? 0)}
-          accountType="PURCHASE"
           countSummary={
             pendingPurchaseCourse
               ? `将加入这门共享课程，包含 ${pendingPurchaseCourse.notebookCount} 本笔记本。`
               : undefined
           }
-          note="确认后会立即扣除对应购买积分，并把课程加入你的课程库；内容由创建者维护，语音由你按自己的音色生成。"
+          note="课程内容由创建者维护，语音由你按自己的音色生成。"
           busy={pendingPurchaseCourse ? addingId === `c:${pendingPurchaseCourse.id}` : false}
           confirmLabel="确认加入课程"
           onConfirm={() =>

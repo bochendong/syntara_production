@@ -76,6 +76,24 @@ export const OPENAI_REALTIME_PRICING = {
 } as const;
 
 const OPENAI_TEXT_PRICING: Record<string, OpenAITextPricing> = {
+  'gpt-6-astra': {
+    canonicalModelId: 'gpt-6-astra',
+    inputUsdPerMillionTokens: 10,
+    cachedInputUsdPerMillionTokens: 1,
+    outputUsdPerMillionTokens: 50,
+  },
+  'gpt-6-sol': {
+    canonicalModelId: 'gpt-6-sol',
+    inputUsdPerMillionTokens: 2,
+    cachedInputUsdPerMillionTokens: 0.2,
+    outputUsdPerMillionTokens: 10,
+  },
+  'gpt-6-luna': {
+    canonicalModelId: 'gpt-6-luna',
+    inputUsdPerMillionTokens: 0.1,
+    cachedInputUsdPerMillionTokens: 0.01,
+    outputUsdPerMillionTokens: 0.5,
+  },
   'gpt-5.6-sol': {
     canonicalModelId: 'gpt-5.6-sol',
     inputUsdPerMillionTokens: 5,
@@ -257,6 +275,18 @@ function isTrackedImageUsage(usage: TrackedModelUsage): boolean {
 }
 
 /** Estimate a persisted usage row using the correct text or image pricing table. */
+export function estimateTrackedModelUsageBaseCostUsd(usage: TrackedModelUsage): number | null {
+  if (isTrackedImageUsage(usage)) {
+    return estimateOpenAIImageGenerationBaseCostUsd({
+      modelId: usage.modelId,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    });
+  }
+  return estimateOpenAITextUsageBaseCostUsd(usage);
+}
+
+/** Estimate the former retail price for historical usage records. */
 export function estimateTrackedModelUsageRetailCostUsd(usage: TrackedModelUsage): number | null {
   if (isTrackedImageUsage(usage)) {
     return estimateOpenAIImageGenerationRetailCostUsd({

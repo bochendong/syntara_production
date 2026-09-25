@@ -1804,9 +1804,13 @@ function AttemptHistoryPanel({
 function ProblemDraftPreviewPanel({
   draft,
   locale,
+  showTitle = true,
+  showPoints = true,
 }: {
   draft: NotebookProblemImportDraft;
   locale: 'zh-CN' | 'en-US';
+  showTitle?: boolean;
+  showPoints?: boolean;
 }) {
   const content = draft.publicContent;
   const stem = renderDraftStem(draft);
@@ -1818,14 +1822,18 @@ function ProblemDraftPreviewPanel({
           <div className="flex flex-wrap gap-2">
             <Badge variant="secondary">{typeLabel(draft.type, locale)}</Badge>
             <Badge variant="secondary">{difficultyLabel(draft.difficulty, locale)}</Badge>
-            <Badge variant="secondary">
-              {locale === 'zh-CN' ? `${draft.points} 分` : `${draft.points} pt`}
-            </Badge>
+            {showPoints ? (
+              <Badge variant="secondary">
+                {locale === 'zh-CN' ? `${draft.points} 分` : `${draft.points} pt`}
+              </Badge>
+            ) : null}
           </div>
-          <ProblemTitleText
-            content={draft.title}
-            className="text-base font-semibold text-slate-950 dark:text-white"
-          />
+          {showTitle ? (
+            <ProblemTitleText
+              content={draft.title}
+              className="text-base font-semibold text-slate-950 dark:text-white"
+            />
+          ) : null}
         </div>
 
         {stem.trim() ? (

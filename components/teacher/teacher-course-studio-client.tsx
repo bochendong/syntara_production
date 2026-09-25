@@ -1660,380 +1660,393 @@ export function TeacherCourseStudioClient({
           ) : null}
 
           {resourceLibraryKind ? (
-            <section
-              className={
-                selectedLibraryResource && resourceLibraryKind === 'notebook'
-                  ? cn(COURSE_SPACE_BODY_SURFACE_CLASS, 'flex flex-col overflow-visible')
-                  : STUDIO_SECTION_CLASS
-              }
-            >
+            <section className={STUDIO_SECTION_CLASS}>
               {selectedLibraryResource ? (
-                <div className="flex flex-col bg-slate-50/80 dark:bg-slate-950">
-                  <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200/80 bg-white px-5 py-3 dark:border-white/10 dark:bg-slate-950">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedResourceReferenceId('');
-                        setSelectedNotebookSectionId('');
-                        setMindMapOpen(false);
-                      }}
-                    >
-                      <ArrowLeft className="mr-1.5 size-3.5" />
-                      返回列表
-                    </Button>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                      {TYPE_META[selectedLibraryResource.type].label}
-                    </span>
-                    {selectedLibraryResource.type === 'notebook' ? (
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${persistedNotebookIds.has(selectedLibraryResource.id) ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200' : 'bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-200'}`}
-                      >
-                        <Database className="size-3" />
-                        {persistedNotebookIds.has(selectedLibraryResource.id)
-                          ? '已保存到共享数据库'
-                          : '持久化状态未确认'}
-                      </span>
-                    ) : null}
-                    {selectedLibraryResource.reference.inheritedFromCourseId ? (
-                      <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 dark:bg-sky-400/10 dark:text-sky-200">
-                        历史引用
-                      </span>
-                    ) : null}
-                    <div className="ml-auto flex items-center gap-2">
-                      {selectedLibraryResource.type === 'notebook' ? (
-                        <>
+                <Dialog
+                  open
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setSelectedResourceReferenceId('');
+                      setSelectedNotebookSectionId('');
+                      setMindMapOpen(false);
+                    }
+                  }}
+                >
+                  <DialogContent className="gap-0 overflow-hidden p-0">
+                    <DialogTitle className="sr-only">{selectedLibraryResource.title}</DialogTitle>
+                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-slate-50/80 dark:bg-slate-950">
+                      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200/80 bg-white px-5 py-3 dark:border-white/10 dark:bg-slate-950">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedResourceReferenceId('');
+                            setSelectedNotebookSectionId('');
+                            setMindMapOpen(false);
+                          }}
+                        >
+                          <ArrowLeft className="mr-1.5 size-3.5" />
+                          返回列表
+                        </Button>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                          {TYPE_META[selectedLibraryResource.type].label}
+                        </span>
+                        {selectedLibraryResource.type === 'notebook' ? (
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${persistedNotebookIds.has(selectedLibraryResource.id) ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200' : 'bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-200'}`}
+                          >
+                            <Database className="size-3" />
+                            {persistedNotebookIds.has(selectedLibraryResource.id)
+                              ? '已保存到共享数据库'
+                              : '持久化状态未确认'}
+                          </span>
+                        ) : null}
+                        {selectedLibraryResource.reference.inheritedFromCourseId ? (
+                          <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 dark:bg-sky-400/10 dark:text-sky-200">
+                            历史引用
+                          </span>
+                        ) : null}
+                        <div className="ml-auto flex items-center gap-2">
+                          {selectedLibraryResource.type === 'notebook' ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openNotebookRename(selectedLibraryResource)}
+                              >
+                                <Pencil className="mr-1.5 size-3.5" />
+                                重命名
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setMindMapOpen(true)}
+                              >
+                                <Network className="mr-1.5 size-3.5" />
+                                查看思维导图
+                              </Button>
+                            </>
+                          ) : null}
                           <Button
                             size="sm"
-                            variant="outline"
-                            onClick={() => openNotebookRename(selectedLibraryResource)}
+                            variant="ghost"
+                            className="text-slate-500 hover:text-rose-600"
+                            disabled={actionReferenceId === selectedLibraryResource.reference.id}
+                            onClick={() => void handleHideContent(selectedLibraryResource)}
                           >
-                            <Pencil className="mr-1.5 size-3.5" />
-                            重命名
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => setMindMapOpen(true)}>
-                            <Network className="mr-1.5 size-3.5" />
-                            查看思维导图
-                          </Button>
-                        </>
-                      ) : null}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-slate-500 hover:text-rose-600"
-                        disabled={actionReferenceId === selectedLibraryResource.reference.id}
-                        onClick={() => void handleHideContent(selectedLibraryResource)}
-                      >
-                        {actionReferenceId === selectedLibraryResource.reference.id ? (
-                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="mr-1.5 size-3.5" />
-                        )}
-                        删除
-                      </Button>
-                    </div>
-                  </div>
-
-                  {selectedLibraryResource.type === 'notebook' ? (
-                    <div className="p-4 sm:p-6">
-                      <div className="w-full">
-                        <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                          {selectedLibraryResource.title}
-                        </h2>
-                        {selectedLibraryResource.description &&
-                        selectedLibraryResource.notebookSections?.length ? (
-                          <p className="mt-2 text-sm leading-6 text-slate-500">
-                            {selectedLibraryResource.description}
-                          </p>
-                        ) : null}
-                        {selectedLibraryResource.generation ? (
-                          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
-                            <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
-                              质量 {selectedLibraryResource.generation.qualityScore}/100
-                            </span>
-                            <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
-                              {selectedLibraryResource.generation.totalTokens.toLocaleString(
-                                'zh-CN',
-                              )}{' '}
-                              tokens
-                            </span>
-                          </div>
-                        ) : null}
-
-                        {selectedLibraryResource.notebookSections?.length ? (
-                          <div className="mt-5 grid rounded-2xl border border-slate-200/80 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-slate-900 md:grid-cols-[300px_minmax(0,1fr)] md:items-start">
-                            <aside className="border-b border-slate-200/80 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/[0.03] md:border-r md:border-b-0">
-                              <p className="px-2 py-1 text-xs font-semibold text-slate-500">章节</p>
-                              <div className="mt-1 space-y-1.5">
-                                {selectedLibraryResource.notebookSections.map((section) => (
-                                  <button
-                                    key={section.id}
-                                    type="button"
-                                    onClick={() => setSelectedNotebookSectionId(section.id)}
-                                    className={`w-full rounded-xl px-3 py-2.5 text-left transition ${selectedNotebookSection?.id === section.id ? 'bg-white text-sky-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-sky-100 dark:ring-white/10' : 'text-slate-600 hover:bg-white/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white'}`}
-                                  >
-                                    <span className="block text-sm font-semibold leading-5">
-                                      {section.title}
-                                    </span>
-                                    {section.summary ? (
-                                      <span className="mt-1.5 block line-clamp-2 text-xs leading-5 text-slate-400">
-                                        {section.summary}
-                                      </span>
-                                    ) : null}
-                                  </button>
-                                ))}
-                              </div>
-                            </aside>
-                            <article className="min-w-0 p-5 sm:p-7">
-                              <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
-                                {selectedNotebookSection?.title}
-                              </h3>
-                              {selectedNotebookSection?.sourcePages.length ? (
-                                <p className="mt-1 text-xs text-slate-400">
-                                  来源页码：{selectedNotebookSection.sourcePages.join('、')}
-                                </p>
-                              ) : null}
-                              <MessageResponse className="mt-5 text-sm leading-7">
-                                {selectedNotebookSection?.markdown || '该章节没有可预览内容。'}
-                              </MessageResponse>
-                            </article>
-                          </div>
-                        ) : (
-                          <article className="mt-5 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-900 sm:p-7">
-                            {notebookFallbackLoading ? (
-                              <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-slate-500">
-                                <Loader2 className="size-4 animate-spin" />
-                                正在读取关联源文件…
-                              </div>
-                            ) : notebookFallbackText ? (
-                              <MessageResponse className="text-sm leading-7">
-                                {notebookFallbackText}
-                              </MessageResponse>
-                            ) : selectedLibraryResource.description ? (
-                              <MessageResponse className="text-sm leading-7">
-                                {selectedLibraryResource.description}
-                              </MessageResponse>
+                            {actionReferenceId === selectedLibraryResource.reference.id ? (
+                              <Loader2 className="mr-1.5 size-3.5 animate-spin" />
                             ) : (
-                              <p className="text-center text-sm text-slate-500">
-                                这本笔记本还没有可预览内容。
-                              </p>
+                              <Trash2 className="mr-1.5 size-3.5" />
                             )}
-                            {notebookFallbackError ? (
-                              <p className="mt-5 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700 dark:bg-amber-400/10 dark:text-amber-200">
-                                {notebookFallbackError}
+                            删除
+                          </Button>
+                        </div>
+                      </div>
+
+                      {selectedLibraryResource.type === 'notebook' ? (
+                        <div className="p-4 sm:p-6">
+                          <div className="w-full">
+                            <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                              {selectedLibraryResource.title}
+                            </h2>
+                            {selectedLibraryResource.description &&
+                            selectedLibraryResource.notebookSections?.length ? (
+                              <p className="mt-2 text-sm leading-6 text-slate-500">
+                                {selectedLibraryResource.description}
                               </p>
                             ) : null}
-                          </article>
+                            {selectedLibraryResource.generation ? (
+                              <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
+                                <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
+                                  质量 {selectedLibraryResource.generation.qualityScore}/100
+                                </span>
+                                <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
+                                  {selectedLibraryResource.generation.totalTokens.toLocaleString(
+                                    'zh-CN',
+                                  )}{' '}
+                                  tokens
+                                </span>
+                              </div>
+                            ) : null}
+
+                            {selectedLibraryResource.notebookSections?.length ? (
+                              <div className="mt-5 grid rounded-2xl border border-slate-200/80 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-slate-900 md:grid-cols-[300px_minmax(0,1fr)] md:items-start">
+                                <aside className="border-b border-slate-200/80 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/[0.03] md:border-r md:border-b-0">
+                                  <p className="px-2 py-1 text-xs font-semibold text-slate-500">
+                                    章节
+                                  </p>
+                                  <div className="mt-1 space-y-1.5">
+                                    {selectedLibraryResource.notebookSections.map((section) => (
+                                      <button
+                                        key={section.id}
+                                        type="button"
+                                        onClick={() => setSelectedNotebookSectionId(section.id)}
+                                        className={`w-full rounded-xl px-3 py-2.5 text-left transition ${selectedNotebookSection?.id === section.id ? 'bg-white text-sky-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-sky-100 dark:ring-white/10' : 'text-slate-600 hover:bg-white/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white'}`}
+                                      >
+                                        <span className="block text-sm font-semibold leading-5">
+                                          {section.title}
+                                        </span>
+                                        {section.summary ? (
+                                          <span className="mt-1.5 block line-clamp-2 text-xs leading-5 text-slate-400">
+                                            {section.summary}
+                                          </span>
+                                        ) : null}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </aside>
+                                <article className="min-w-0 p-5 sm:p-7">
+                                  <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
+                                    {selectedNotebookSection?.title}
+                                  </h3>
+                                  {selectedNotebookSection?.sourcePages.length ? (
+                                    <p className="mt-1 text-xs text-slate-400">
+                                      来源页码：{selectedNotebookSection.sourcePages.join('、')}
+                                    </p>
+                                  ) : null}
+                                  <MessageResponse className="mt-5 text-sm leading-7">
+                                    {selectedNotebookSection?.markdown || '该章节没有可预览内容。'}
+                                  </MessageResponse>
+                                </article>
+                              </div>
+                            ) : (
+                              <article className="mt-5 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-900 sm:p-7">
+                                {notebookFallbackLoading ? (
+                                  <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-slate-500">
+                                    <Loader2 className="size-4 animate-spin" />
+                                    正在读取关联源文件…
+                                  </div>
+                                ) : notebookFallbackText ? (
+                                  <MessageResponse className="text-sm leading-7">
+                                    {notebookFallbackText}
+                                  </MessageResponse>
+                                ) : selectedLibraryResource.description ? (
+                                  <MessageResponse className="text-sm leading-7">
+                                    {selectedLibraryResource.description}
+                                  </MessageResponse>
+                                ) : (
+                                  <p className="text-center text-sm text-slate-500">
+                                    这本笔记本还没有可预览内容。
+                                  </p>
+                                )}
+                                {notebookFallbackError ? (
+                                  <p className="mt-5 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700 dark:bg-amber-400/10 dark:text-amber-200">
+                                    {notebookFallbackError}
+                                  </p>
+                                ) : null}
+                              </article>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              ) : null}
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50/80 dark:bg-slate-950 lg:flex-row">
+                <aside className="flex max-h-72 shrink-0 flex-col border-b border-slate-200/80 bg-white/90 p-3 dark:border-white/10 dark:bg-white/[0.035] sm:p-4 lg:order-2 lg:max-h-none lg:w-72 lg:border-b-0 lg:border-l">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="min-w-0 text-sm font-semibold text-slate-950 dark:text-white">
+                      课程顺序
+                    </h2>
+                    {!editingNotebookOrder ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0 rounded-xl px-2.5"
+                        disabled={orderedNotebooks.length === 0}
+                        onClick={beginNotebookOrderAdjustment}
+                      >
+                        <ListOrdered className="mr-1.5 size-3.5" />
+                        调整顺序
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  {editingNotebookOrder ? (
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 rounded-xl"
+                        disabled={savingNotebookOrder}
+                        onClick={cancelNotebookOrderAdjustment}
+                      >
+                        取消
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="flex-1 rounded-xl"
+                        disabled={savingNotebookOrder}
+                        onClick={() => void saveNotebookOrder()}
+                      >
+                        {savingNotebookOrder ? (
+                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                        ) : (
+                          <ListOrdered className="mr-1.5 size-3.5" />
                         )}
-                      </div>
+                        保存顺序
+                      </Button>
                     </div>
                   ) : null}
-                </div>
-              ) : (
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50/80 dark:bg-slate-950 lg:flex-row">
-                  <aside className="flex max-h-72 shrink-0 flex-col border-b border-slate-200/80 bg-white/90 p-3 dark:border-white/10 dark:bg-white/[0.035] sm:p-4 lg:order-2 lg:max-h-none lg:w-72 lg:border-b-0 lg:border-l">
-                    <div className="flex items-center justify-between gap-2">
-                      <h2 className="min-w-0 text-sm font-semibold text-slate-950 dark:text-white">
-                        课程顺序
-                      </h2>
-                      {!editingNotebookOrder ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="shrink-0 rounded-xl px-2.5"
-                          disabled={orderedNotebooks.length === 0}
-                          onClick={beginNotebookOrderAdjustment}
-                        >
-                          <ListOrdered className="mr-1.5 size-3.5" />
-                          调整顺序
-                        </Button>
-                      ) : null}
-                    </div>
 
-                    {editingNotebookOrder ? (
-                      <div className="mt-3 flex gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 rounded-xl"
-                          disabled={savingNotebookOrder}
-                          onClick={cancelNotebookOrderAdjustment}
+                  <div className="mt-3 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+                    {visibleNotebookOrder.map((notebook, index) =>
+                      editingNotebookOrder ? (
+                        <div
+                          key={notebook.reference.id}
+                          className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 px-2 py-2 dark:border-white/10 dark:bg-white/5"
                         >
-                          取消
-                        </Button>
-                        <Button
+                          <GripVertical className="size-3.5 shrink-0 text-slate-300" />
+                          <span className="grid size-5 shrink-0 place-items-center rounded-md bg-white text-[10px] font-bold text-slate-500 ring-1 ring-slate-200/80 dark:bg-white/10 dark:ring-white/10">
+                            {index + 1}
+                          </span>
+                          <span
+                            className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700 dark:text-slate-200"
+                            title={notebook.title}
+                          >
+                            {notebook.title}
+                          </span>
+                          <span className="flex shrink-0 gap-0.5">
+                            <button
+                              type="button"
+                              className="grid size-6 place-items-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-white/10 dark:hover:text-white"
+                              aria-label={`将 ${notebook.title} 上移`}
+                              disabled={index === 0 || savingNotebookOrder}
+                              onClick={() => moveNotebookOrderItem(notebook.id, -1)}
+                            >
+                              <ArrowUp className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              className="grid size-6 place-items-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-white/10 dark:hover:text-white"
+                              aria-label={`将 ${notebook.title} 下移`}
+                              disabled={
+                                index === visibleNotebookOrder.length - 1 || savingNotebookOrder
+                              }
+                              onClick={() => moveNotebookOrderItem(notebook.id, 1)}
+                            >
+                              <ArrowDown className="size-3.5" />
+                            </button>
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          key={notebook.reference.id}
                           type="button"
-                          size="sm"
-                          className="flex-1 rounded-xl"
-                          disabled={savingNotebookOrder}
-                          onClick={() => void saveNotebookOrder()}
+                          onClick={() => openResourceDetail(notebook)}
+                          className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
                         >
-                          {savingNotebookOrder ? (
-                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                          ) : (
-                            <ListOrdered className="mr-1.5 size-3.5" />
-                          )}
-                          保存顺序
-                        </Button>
-                      </div>
+                          <span className="grid size-5 shrink-0 place-items-center rounded-md bg-slate-100 text-[10px] font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">
+                            {index + 1}
+                          </span>
+                          <span
+                            className="min-w-0 flex-1 truncate text-xs font-medium"
+                            title={notebook.title}
+                          >
+                            {notebook.title}
+                          </span>
+                        </button>
+                      ),
+                    )}
+                    {visibleNotebookOrder.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-slate-200 px-3 py-5 text-center text-xs text-slate-400 dark:border-white/10">
+                        还没有上传笔记本
+                      </p>
                     ) : null}
+                  </div>
+                </aside>
 
-                    <div className="mt-3 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
-                      {visibleNotebookOrder.map((notebook, index) =>
-                        editingNotebookOrder ? (
-                          <div
-                            key={notebook.reference.id}
-                            className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 px-2 py-2 dark:border-white/10 dark:bg-white/5"
-                          >
-                            <GripVertical className="size-3.5 shrink-0 text-slate-300" />
-                            <span className="grid size-5 shrink-0 place-items-center rounded-md bg-white text-[10px] font-bold text-slate-500 ring-1 ring-slate-200/80 dark:bg-white/10 dark:ring-white/10">
-                              {index + 1}
-                            </span>
-                            <span
-                              className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700 dark:text-slate-200"
-                              title={notebook.title}
+                <div className={`${STUDIO_PANEL_BODY_CLASS} min-w-0 lg:order-1`}>
+                  <div className="mx-auto flex h-full w-full max-w-6xl min-h-0 flex-1 flex-col">
+                    {libraryResources.length ? (
+                      <StudioList className="dark:bg-white/[0.02]">
+                        {pagedLibraryResources.map((item) => {
+                          const sectionCount = item.notebookSections?.length ?? 0;
+                          const persisted = persistedNotebookIds.has(item.id);
+                          return (
+                            <StudioListItem
+                              key={item.reference.id}
+                              className="flex flex-col gap-3 sm:flex-row sm:items-center"
                             >
-                              {notebook.title}
-                            </span>
-                            <span className="flex shrink-0 gap-0.5">
                               <button
                                 type="button"
-                                className="grid size-6 place-items-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-white/10 dark:hover:text-white"
-                                aria-label={`将 ${notebook.title} 上移`}
-                                disabled={index === 0 || savingNotebookOrder}
-                                onClick={() => moveNotebookOrderItem(notebook.id, -1)}
+                                className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                                onClick={() => openResourceDetail(item)}
                               >
-                                <ArrowUp className="size-3.5" />
+                                <span className="flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden">
+                                  <span className="min-w-0 truncate text-sm font-semibold text-slate-950 dark:text-white">
+                                    {item.title}
+                                  </span>
+                                  <StudioItemTag tone="sky" className="rounded-full">
+                                    {sectionCount ? `${sectionCount} 章节` : '课程笔记本'}
+                                  </StudioItemTag>
+                                  <StudioItemTag
+                                    tone={persisted ? 'emerald' : 'amber'}
+                                    className="rounded-full"
+                                  >
+                                    <Database className="size-3" />
+                                    {persisted ? '已保存' : '状态未确认'}
+                                  </StudioItemTag>
+                                  {item.reference.inheritedFromCourseId ? (
+                                    <StudioItemTag tone="violet" className="rounded-full">
+                                      历史引用
+                                    </StudioItemTag>
+                                  ) : null}
+                                </span>
+                                <span className="mt-1 block truncate text-xs text-slate-500">
+                                  {item.description || '该笔记本暂无简介'} · 更新于{' '}
+                                  {new Date(item.updatedAt).toLocaleDateString('zh-CN')}
+                                </span>
                               </button>
-                              <button
-                                type="button"
-                                className="grid size-6 place-items-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-white/10 dark:hover:text-white"
-                                aria-label={`将 ${notebook.title} 下移`}
-                                disabled={
-                                  index === visibleNotebookOrder.length - 1 || savingNotebookOrder
-                                }
-                                onClick={() => moveNotebookOrderItem(notebook.id, 1)}
-                              >
-                                <ArrowDown className="size-3.5" />
-                              </button>
-                            </span>
-                          </div>
-                        ) : (
-                          <button
-                            key={notebook.reference.id}
-                            type="button"
-                            onClick={() => openResourceDetail(notebook)}
-                            className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
-                          >
-                            <span className="grid size-5 shrink-0 place-items-center rounded-md bg-slate-100 text-[10px] font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">
-                              {index + 1}
-                            </span>
-                            <span
-                              className="min-w-0 flex-1 truncate text-xs font-medium"
-                              title={notebook.title}
-                            >
-                              {notebook.title}
-                            </span>
-                          </button>
-                        ),
-                      )}
-                      {visibleNotebookOrder.length === 0 ? (
-                        <p className="rounded-xl border border-dashed border-slate-200 px-3 py-5 text-center text-xs text-slate-400 dark:border-white/10">
-                          还没有上传笔记本
-                        </p>
-                      ) : null}
-                    </div>
-                  </aside>
-
-                  <div className={`${STUDIO_PANEL_BODY_CLASS} min-w-0 lg:order-1`}>
-                    <div className="mx-auto flex h-full w-full max-w-6xl min-h-0 flex-1 flex-col">
-                      {libraryResources.length ? (
-                        <StudioList className="dark:bg-white/[0.02]">
-                          {pagedLibraryResources.map((item) => {
-                            const sectionCount = item.notebookSections?.length ?? 0;
-                            const persisted = persistedNotebookIds.has(item.id);
-                            return (
-                              <StudioListItem
-                                key={item.reference.id}
-                                className="flex flex-col gap-3 sm:flex-row sm:items-center"
-                              >
-                                <button
-                                  type="button"
-                                  className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                <Button
+                                  size="icon-sm"
+                                  variant="outline"
+                                  aria-label={`查看 ${item.title}`}
+                                  title="查看"
                                   onClick={() => openResourceDetail(item)}
                                 >
-                                  <span className="flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden">
-                                    <span className="min-w-0 truncate text-sm font-semibold text-slate-950 dark:text-white">
-                                      {item.title}
-                                    </span>
-                                    <StudioItemTag tone="sky" className="rounded-full">
-                                      {sectionCount ? `${sectionCount} 章节` : '课程笔记本'}
-                                    </StudioItemTag>
-                                    <StudioItemTag
-                                      tone={persisted ? 'emerald' : 'amber'}
-                                      className="rounded-full"
-                                    >
-                                      <Database className="size-3" />
-                                      {persisted ? '已保存' : '状态未确认'}
-                                    </StudioItemTag>
-                                    {item.reference.inheritedFromCourseId ? (
-                                      <StudioItemTag tone="violet" className="rounded-full">
-                                        历史引用
-                                      </StudioItemTag>
-                                    ) : null}
-                                  </span>
-                                  <span className="mt-1 block truncate text-xs text-slate-500">
-                                    {item.description || '该笔记本暂无简介'} · 更新于{' '}
-                                    {new Date(item.updatedAt).toLocaleDateString('zh-CN')}
-                                  </span>
-                                </button>
-                                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                                  <Button
-                                    size="icon-sm"
-                                    variant="outline"
-                                    aria-label={`查看 ${item.title}`}
-                                    title="查看"
-                                    onClick={() => openResourceDetail(item)}
-                                  >
-                                    <Eye className="size-3.5" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => openNotebookRename(item)}
-                                  >
-                                    <Pencil className="mr-1.5 size-3.5" />
-                                    重命名
-                                  </Button>
-                                  <Button
-                                    size="icon-sm"
-                                    variant="ghost"
-                                    className="text-slate-500 hover:text-rose-600"
-                                    aria-label={`删除 ${item.title}`}
-                                    title="移除"
-                                    disabled={actionReferenceId === item.reference.id}
-                                    onClick={() => void handleHideContent(item)}
-                                  >
-                                    {actionReferenceId === item.reference.id ? (
-                                      <Loader2 className="size-3.5 animate-spin" />
-                                    ) : (
-                                      <Trash2 className="size-3.5" />
-                                    )}
-                                  </Button>
-                                </div>
-                              </StudioListItem>
-                            );
-                          })}
-                        </StudioList>
-                      ) : (
-                        <StudioEmptyPlaceholder>还没有笔记本。</StudioEmptyPlaceholder>
-                      )}
-                    </div>
+                                  <Eye className="size-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openNotebookRename(item)}
+                                >
+                                  <Pencil className="mr-1.5 size-3.5" />
+                                  重命名
+                                </Button>
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  className="text-slate-500 hover:text-rose-600"
+                                  aria-label={`删除 ${item.title}`}
+                                  title="移除"
+                                  disabled={actionReferenceId === item.reference.id}
+                                  onClick={() => void handleHideContent(item)}
+                                >
+                                  {actionReferenceId === item.reference.id ? (
+                                    <Loader2 className="size-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="size-3.5" />
+                                  )}
+                                </Button>
+                              </div>
+                            </StudioListItem>
+                          );
+                        })}
+                      </StudioList>
+                    ) : (
+                      <StudioEmptyPlaceholder>还没有笔记本。</StudioEmptyPlaceholder>
+                    )}
                   </div>
                 </div>
-              )}
+              </div>
               {resourceLibraryKind === 'notebook' ? (
                 <StudioPagination
                   page={safeListPage}

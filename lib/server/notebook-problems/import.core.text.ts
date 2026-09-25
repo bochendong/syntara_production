@@ -1,3 +1,5 @@
+import { repairMalformedProblemMath } from '@/lib/problem-bank/repair-malformed-math';
+
 export function stripCodeFences(text: string): string {
   const trimmed = text.trim();
   if (!trimmed.startsWith('```')) return trimmed;
@@ -532,14 +534,16 @@ export function normalizeMathMarkdown(text: string): string {
   const repaired = repairMalformedMathDollarRuns(withDisplayLines)
     .replace(/\$\$\s+/g, '$$')
     .replace(/\s+\$\$/g, '$$');
-  return restoreMarkdownCodeSegments({
-    ...protectedCode,
-    text: repairOverEagerMathMarkdown(
-      spaceInlineMathMarkdownBoundaries(
-        spaceMathMarkdownBoundaries(normalizeInlineDollarMath(repaired)),
+  return repairMalformedProblemMath(
+    restoreMarkdownCodeSegments({
+      ...protectedCode,
+      text: repairOverEagerMathMarkdown(
+        spaceInlineMathMarkdownBoundaries(
+          spaceMathMarkdownBoundaries(normalizeInlineDollarMath(repaired)),
+        ),
       ),
-    ),
-  });
+    }),
+  );
 }
 
 export function stripTopLevelQuestionLabel(text: string): string {

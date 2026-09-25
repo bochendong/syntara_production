@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
+  Eye,
   History,
   ImagePlus,
   Loader2,
@@ -37,6 +38,7 @@ import {
 } from '@/lib/problem-bank';
 import { CourseBulkMoveDialog } from '@/components/teacher/course-bulk-move-dialog';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { AnswerComposer, AnswerComposerToolbar } from '@/components/problem-bank/answer-composer';
 import { ProblemEditDialog } from '@/components/problem-bank/problem-edit-dialog';
@@ -89,6 +91,7 @@ import {
   type CourseCodeRunResult,
   type CourseCodeRunTarget,
   type CourseProblemBankInitialFilters,
+  type AdminCourseProblemBankSnapshot,
   type CourseProblemPracticeAttemptResolvedEvent,
 } from '@/components/problem-bank/use-course-problem-bank-controller';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
@@ -1074,6 +1077,8 @@ export function CourseProblemBankView({
   showCourseNavigation = false,
   previewMode = false,
   previewAsTeacher = false,
+  adminReadOnly = false,
+  adminSnapshot,
   forumCount,
 }: {
   courseId: string;
@@ -1099,6 +1104,8 @@ export function CourseProblemBankView({
   showCourseNavigation?: boolean;
   previewMode?: boolean;
   previewAsTeacher?: boolean;
+  adminReadOnly?: boolean;
+  adminSnapshot?: AdminCourseProblemBankSnapshot;
   forumCount?: number;
 }) {
   const hasSharedShell = useCourseSpaceShell();
@@ -1112,6 +1119,8 @@ export function CourseProblemBankView({
     mode,
     previewMode,
     previewAsTeacher,
+    adminReadOnly,
+    adminSnapshot,
     onPracticeAttemptResolved,
   });
   const {
@@ -1219,6 +1228,15 @@ export function CourseProblemBankView({
     visibleProblemPreviewDraft,
   } = view;
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [adminPreviewOpen, setAdminPreviewOpen] = useState(false);
+  const openProblem = (problem: NotebookProblemClientRecord) => {
+    if (adminReadOnly) {
+      setSelectedProblemId(problem.id);
+      setAdminPreviewOpen(true);
+      return;
+    }
+    navigateToPracticeProblem(problem);
+  };
   const [bulkSelection, setBulkSelection] = useState<{ scope: string; ids: string[] }>({
     scope: '',
     ids: [],
@@ -1311,11 +1329,21 @@ export function CourseProblemBankView({
           size="icon-sm"
           disabled={disabled}
           className={cn('size-8 rounded-lg p-0 shadow-none', PROBLEM_BANK_PRIMARY_BUTTON_CLASS)}
-          title={locale === 'zh-CN' ? '做题' : 'Practice'}
-          aria-label={locale === 'zh-CN' ? `做题：${title}` : `Practice: ${title}`}
-          onClick={() => navigateToPracticeProblem(problem)}
+          title={adminReadOnly ? '查看题目' : locale === 'zh-CN' ? '做题' : 'Practice'}
+          aria-label={
+            adminReadOnly
+              ? `查看题目：${title}`
+              : locale === 'zh-CN'
+                ? `做题：${title}`
+                : `Practice: ${title}`
+          }
+          onClick={() => openProblem(problem)}
         >
-          <Play className="size-4" aria-hidden="true" />
+          {adminReadOnly ? (
+            <Eye className="size-4" aria-hidden="true" />
+          ) : (
+            <Play className="size-4" aria-hidden="true" />
+          )}
         </Button>
         {canEditProblems ? (
           <Button
@@ -2704,6 +2732,7 @@ export function CourseProblemBankView({
       ? findLocalDemoTeacherHomeCourse(courseId)
       : undefined;
   const isTeacherCourseSpace = (previewMode && previewAsTeacher) || courseAccessRole === 'owner';
+  const adminPreviewDraft = adminReadOnly ? selectedProblemEditDraft : null;
   const courseHeaderFields = resolveCourseSpaceHeaderFields({
     courseCode: previewDemoCourse?.courseCode ?? courseCode,
     code: previewDemoCourse?.courseCode ?? courseCode,
@@ -2770,7 +2799,7 @@ export function CourseProblemBankView({
             <div
               className={cn(
                 'order-1 flex min-h-0 min-w-0 flex-1 flex-col self-stretch overflow-hidden @container/problem-list rounded-2xl border border-slate-200 bg-white/92 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/55',
-                'xl:mr-[312px]',
+                !adminReadOnly && 'xl:mr-[312px]',
               )}
             >
               <div className="grid gap-2.5 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
@@ -2813,20 +2842,24 @@ export function CourseProblemBankView({
                         {activeBankFilterCount}
                       </span>
                     ) : null}
-                    <select
-                      value={practiceFilter}
-                      onChange={(event) =>
-                        setPracticeFilter(event.target.value as typeof practiceFilter)
-                      }
-                      className="h-9 max-w-[180px] rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                      aria-label={locale === 'zh-CN' ? '做题进度筛选' : 'Practice progress filter'}
-                    >
-                      {practiceFilterOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                    {!adminReadOnly ? (
+                      <select
+                        value={practiceFilter}
+                        onChange={(event) =>
+                          setPracticeFilter(event.target.value as typeof practiceFilter)
+                        }
+                        className="h-9 max-w-[180px] rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                        aria-label={
+                          locale === 'zh-CN' ? '做题进度筛选' : 'Practice progress filter'
+                        }
+                      >
+                        {practiceFilterOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : null}
                     <select
                       value={statusFilter}
                       onChange={(event) =>
@@ -2982,15 +3015,13 @@ export function CourseProblemBankView({
                             role="button"
                             tabIndex={0}
                             onClick={() =>
-                              bulkMode
-                                ? toggleBulkProblem(problem.id)
-                                : navigateToPracticeProblem(problem)
+                              bulkMode ? toggleBulkProblem(problem.id) : openProblem(problem)
                             }
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
                                 if (bulkMode) toggleBulkProblem(problem.id);
-                                else navigateToPracticeProblem(problem);
+                                else openProblem(problem);
                               }
                             }}
                             className={cn(
@@ -3007,20 +3038,32 @@ export function CourseProblemBankView({
                                   <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                                     {formatProblemNumber(problem)}
                                   </span>
-                                  <span
-                                    className={cn(
-                                      'inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold',
-                                      practiceStateClassName(problem),
-                                    )}
-                                  >
-                                    {practiceStateLabel(problem, locale)}
-                                  </span>
-                                  <span
-                                    className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
-                                    title={classPassRate.detail}
-                                  >
-                                    {locale === 'zh-CN' ? '全班' : 'Class'} {classPassRate.value}
-                                  </span>
+                                  {adminReadOnly ? (
+                                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                                      {problem.status === 'published'
+                                        ? '已发布'
+                                        : problem.status === 'draft'
+                                          ? '草稿'
+                                          : '已归档'}
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={cn(
+                                        'inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold',
+                                        practiceStateClassName(problem),
+                                      )}
+                                    >
+                                      {practiceStateLabel(problem, locale)}
+                                    </span>
+                                  )}
+                                  {!adminReadOnly ? (
+                                    <span
+                                      className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
+                                      title={classPassRate.detail}
+                                    >
+                                      {locale === 'zh-CN' ? '全班' : 'Class'} {classPassRate.value}
+                                    </span>
+                                  ) : null}
                                   <span
                                     className={cn(
                                       'inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold',
@@ -3097,10 +3140,20 @@ export function CourseProblemBankView({
                               </div>
                               <div>
                                 <div className="text-[11px] font-medium text-slate-400">
-                                  {locale === 'zh-CN' ? '状态 / 得分' : 'State / Score'}
+                                  {adminReadOnly
+                                    ? '状态'
+                                    : locale === 'zh-CN'
+                                      ? '状态 / 得分'
+                                      : 'State / Score'}
                                 </div>
                                 <div className="font-medium text-slate-700 dark:text-slate-200">
-                                  {latestScoreLabel(problem, locale)}
+                                  {adminReadOnly
+                                    ? problem.status === 'published'
+                                      ? '已发布'
+                                      : problem.status === 'draft'
+                                        ? '草稿'
+                                        : '已归档'
+                                    : latestScoreLabel(problem, locale)}
                                 </div>
                               </div>
                             </div>
@@ -3157,7 +3210,13 @@ export function CourseProblemBankView({
                         <span>{locale === 'zh-CN' ? '题型' : 'Type'}</span>
                         <span>{locale === 'zh-CN' ? '章节' : 'Chapter'}</span>
                         <span>{locale === 'zh-CN' ? '状态' : 'State'}</span>
-                        <span>{locale === 'zh-CN' ? '全班通过率' : 'Class pass'}</span>
+                        <span>
+                          {adminReadOnly
+                            ? '难度'
+                            : locale === 'zh-CN'
+                              ? '全班通过率'
+                              : 'Class pass'}
+                        </span>
                         <span />
                       </div>
                       {paginatedProblems.map((problem) => {
@@ -3172,15 +3231,13 @@ export function CourseProblemBankView({
                             role="button"
                             tabIndex={0}
                             onClick={() =>
-                              bulkMode
-                                ? toggleBulkProblem(problem.id)
-                                : navigateToPracticeProblem(problem)
+                              bulkMode ? toggleBulkProblem(problem.id) : openProblem(problem)
                             }
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
                                 if (bulkMode) toggleBulkProblem(problem.id);
-                                else navigateToPracticeProblem(problem);
+                                else openProblem(problem);
                               }
                             }}
                             className={cn(
@@ -3249,13 +3306,21 @@ export function CourseProblemBankView({
                               )}
                             </div>
                             <div className="text-xs text-slate-500 dark:text-slate-400">
-                              {latestScoreLabel(problem, locale)}
+                              {adminReadOnly
+                                ? problem.status === 'published'
+                                  ? '已发布'
+                                  : problem.status === 'draft'
+                                    ? '草稿'
+                                    : '已归档'
+                                : latestScoreLabel(problem, locale)}
                             </div>
                             <div
                               className="text-xs font-semibold text-emerald-700 dark:text-emerald-300"
-                              title={classPassRate.detail}
+                              title={adminReadOnly ? undefined : classPassRate.detail}
                             >
-                              {classPassRate.value}
+                              {adminReadOnly
+                                ? difficultyLabel(problem.difficulty, locale)
+                                : classPassRate.value}
                             </div>
                             {renderProblemRowActions(problem)}
                           </div>
@@ -3298,12 +3363,14 @@ export function CourseProblemBankView({
               </div>
             </div>
 
-            <ProblemBankStatsSidebar
-              stats={bankStats}
-              loading={loading}
-              canEditProblems={canEditProblems}
-              locale={locale}
-            />
+            {!adminReadOnly ? (
+              <ProblemBankStatsSidebar
+                stats={bankStats}
+                loading={loading}
+                canEditProblems={canEditProblems}
+                locale={locale}
+              />
+            ) : null}
           </>
         ) : null}
 
@@ -3391,6 +3458,81 @@ export function CourseProblemBankView({
         problem={recentSubmissionsProblem}
         previewMode={previewMode}
       />
+      {adminReadOnly ? (
+        <Dialog
+          open={adminPreviewOpen && Boolean(selectedProblem)}
+          onOpenChange={setAdminPreviewOpen}
+        >
+          <DialogContent
+            className="flex max-w-[1100px] flex-col overflow-hidden p-0"
+            style={{
+              width: 'min(1100px, calc(100vw - 2rem))',
+              height: 'auto',
+              minHeight: 0,
+              maxHeight: 'calc(100dvh - 2rem)',
+            }}
+          >
+            <DialogHeader className="shrink-0 border-b px-6 py-4">
+              <DialogTitle className="pr-8 text-base">
+                {selectedProblem?.title || '查看题目'}
+              </DialogTitle>
+            </DialogHeader>
+            {selectedProblem ? (
+              <div className="grid min-h-0 flex-1 gap-0 overflow-y-auto md:grid-cols-2 md:overflow-hidden">
+                <div className="min-h-0 overflow-y-auto p-5 md:border-r">
+                  <h3 className="mb-3 text-sm font-semibold">题面</h3>
+                  {adminPreviewDraft ? (
+                    <ProblemDraftPreviewPanel
+                      draft={adminPreviewDraft}
+                      locale={locale}
+                      showTitle={false}
+                      showPoints={false}
+                    />
+                  ) : (
+                    <pre className="whitespace-pre-wrap break-words text-xs">
+                      {JSON.stringify(selectedProblem.publicContent, null, 2)}
+                    </pre>
+                  )}
+                </div>
+                <div className="min-h-0 space-y-5 overflow-y-auto p-5">
+                  <h3 className="text-sm font-semibold">答案与解析</h3>
+                  {selectedProblemSolutionSections.length ? (
+                    selectedProblemSolutionSections.map((section) => (
+                      <section
+                        key={section.title}
+                        className="rounded-lg border border-slate-200 p-4 dark:border-slate-800"
+                      >
+                        <h4 className="mb-2 text-xs font-semibold text-slate-500">
+                          {section.title}
+                        </h4>
+                        {section.contentKind === 'code' ? (
+                          <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-slate-950 p-3 text-xs text-white">
+                            {section.content}
+                          </pre>
+                        ) : (
+                          <ProblemRichText content={section.content} className="text-sm" />
+                        )}
+                      </section>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500">暂无参考答案或解析。</p>
+                  )}
+                  {selectedProblem.secretJudge ? (
+                    <details className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+                      <summary className="cursor-pointer text-sm font-semibold">
+                        隐藏测试配置
+                      </summary>
+                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs">
+                        {JSON.stringify(selectedProblem.secretJudge, null, 2)}
+                      </pre>
+                    </details>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 }

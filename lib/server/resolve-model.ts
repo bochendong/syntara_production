@@ -7,11 +7,7 @@
 
 import type { NextRequest } from 'next/server';
 import { parseModelString } from '@/lib/ai/providers';
-import {
-  isChatResponseStrength,
-  resolveChatResponseModelId,
-  type ChatResponseStrength,
-} from '@/lib/ai/chat-response-strength';
+import { isChatResponseStrength, type ChatResponseStrength } from '@/lib/ai/chat-response-strength';
 import {
   getServerModel,
   getServerOpenAIResponsesModel,
@@ -69,7 +65,7 @@ export async function resolveModel(
   const requestedModelString = _params.modelString?.trim();
 
   if (isChatResponseStrength(_params.responseStrength)) {
-    modelId = resolveChatResponseModelId(_params.responseStrength);
+    modelId = config.tierModels[_params.responseStrength];
   } else if (
     options.allowOpenAIModelOverride &&
     requestModelOverridesEnabled() &&

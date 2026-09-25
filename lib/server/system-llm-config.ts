@@ -1,5 +1,9 @@
 import { createLogger } from '@/lib/logger';
-import { SYSTEM_OPENAI_FALLBACK_MODEL } from '@/lib/ai/system-model-policy';
+import type { ChatTierModels } from '@/lib/ai/admin-model-options';
+import {
+  SYSTEM_CHAT_MODEL_BY_STRENGTH,
+  SYSTEM_OPENAI_FALLBACK_MODEL,
+} from '@/lib/ai/system-model-policy';
 import { getPrismaOrNull } from '@/lib/server/prisma-safe';
 import { decryptSystemSecret, encryptSystemSecret } from '@/lib/server/system-secret-crypto';
 
@@ -16,6 +20,7 @@ export const DEFAULT_OPENAI_BASE_URL =
   process.env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com/v1';
 
 export interface SystemLLMConfigView {
+  tierModels: ChatTierModels;
   providerId: 'openai';
   modelId: string;
   baseUrl?: string;
@@ -27,6 +32,7 @@ export interface SystemLLMConfigView {
 }
 
 export interface SystemLLMRuntimeConfig {
+  tierModels: ChatTierModels;
   providerId: 'openai';
   modelId: string;
   baseUrl?: string;
@@ -50,6 +56,11 @@ async function loadSystemLLMRuntimeConfig(): Promise<SystemLLMRuntimeConfig> {
       if (row?.apiKey?.trim()) {
         const apiKey = decryptSystemSecret(row.apiKey);
         return {
+          tierModels: {
+            low: row.lowModelId || SYSTEM_CHAT_MODEL_BY_STRENGTH.low,
+            medium: row.mediumModelId || SYSTEM_CHAT_MODEL_BY_STRENGTH.medium,
+            high: row.highModelId || SYSTEM_CHAT_MODEL_BY_STRENGTH.high,
+          },
           providerId: 'openai',
           modelId: row.modelId?.trim() || DEFAULT_OPENAI_MODEL,
           baseUrl: row.baseUrl?.trim() || DEFAULT_OPENAI_BASE_URL,
@@ -70,6 +81,7 @@ async function loadSystemLLMRuntimeConfig(): Promise<SystemLLMRuntimeConfig> {
 
   return {
     providerId: 'openai',
+    tierModels: { ...SYSTEM_CHAT_MODEL_BY_STRENGTH },
     modelId: DEFAULT_OPENAI_MODEL,
     baseUrl: DEFAULT_OPENAI_BASE_URL,
     apiKey: process.env.OPENAI_API_KEY?.trim() || '',
@@ -101,6 +113,7 @@ export async function getSystemLLMConfigView(): Promise<SystemLLMConfigView> {
   }
   return {
     providerId: 'openai',
+    tierModels: config.tierModels,
     modelId: config.modelId,
     baseUrl: config.baseUrl,
     apiKeyMasked: maskApiKey(config.apiKey),
@@ -111,6 +124,7 @@ export async function getSystemLLMConfigView(): Promise<SystemLLMConfigView> {
 }
 
 export async function updateSystemLLMConfig(input: {
+  tierModels?: ChatTierModels;
   apiKey?: string;
   modelId?: string;
   baseUrl?: string;
@@ -126,6 +140,8 @@ export async function updateSystemLLMConfig(input: {
   if (!storedApiKey) {
     if (existing?.apiKey?.trim()) {
       storedApiKey = existing.apiKey.trim();
+    } else if (process.env.OPENAI_API_KEY?.trim()) {
+      storedApiKey = encryptSystemSecret(process.env.OPENAI_API_KEY.trim());
     } else {
       throw new Error('首次保存必须填写 OpenAI API Key。');
     }
@@ -134,16 +150,25 @@ export async function updateSystemLLMConfig(input: {
   const modelId = input.modelId?.trim() || DEFAULT_OPENAI_MODEL;
   const baseUrl = input.baseUrl?.trim() || DEFAULT_OPENAI_BASE_URL;
 
+  const tierFields = input.tierModels
+    ? {
+        lowModelId: input.tierModels.low,
+        mediumModelId: input.tierModels.medium,
+        highModelId: input.tierModels.high,
+      }
+    : {};
   await prisma.systemLLMConfig.upsert({
     where: { id: 'default' },
     create: {
       id: 'default',
+      ...tierFields,
       providerId: 'openai',
       modelId,
       apiKey: storedApiKey,
       baseUrl,
     },
     update: {
+      ...tierFields,
       providerId: 'openai',
       modelId,
       apiKey: storedApiKey,

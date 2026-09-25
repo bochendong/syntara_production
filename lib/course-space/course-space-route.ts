@@ -4,6 +4,7 @@ export type CourseSpaceSection =
   | 'resources'
   | 'chat'
   | 'problem-bank'
+  | 'assignments'
   | 'forum'
   | 'students';
 
@@ -38,8 +39,10 @@ export function resolveCourseSpaceRoute(
     };
   }
 
-  const teacher = pathname?.match(/^\/teacher\/courses\/([^/]+)(?:\/(students))?\/?$/);
-  const student = pathname?.match(/^\/course\/([^/]+)(?:\/(resources|problem-bank|forum))?\/?$/);
+  const teacher = pathname?.match(/^\/teacher\/courses\/([^/]+)(?:\/(students|assignments))?\/?$/);
+  const student = pathname?.match(
+    /^\/course\/([^/]+)(?:\/(resources|problem-bank|assignments|forum))?\/?$/,
+  );
   const match = teacher ?? student;
   if (!match) return null;
   let courseId: string;
@@ -54,7 +57,7 @@ export function resolveCourseSpaceRoute(
     active,
     role: teacher
       ? 'teacher'
-      : active === 'dashboard' || active === 'resources'
+      : active === 'dashboard' || active === 'resources' || active === 'assignments'
         ? 'student'
         : previewMode
           ? searchParams.get('asTeacher') === '1'

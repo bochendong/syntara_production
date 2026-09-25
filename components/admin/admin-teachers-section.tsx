@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { KeyRound, Loader2, Plus, Power, Save, Trash2 } from 'lucide-react';
+import { Download, KeyRound, Loader2, Plus, Power, Save, Trash2 } from 'lucide-react';
 import { toast } from '@/lib/notifications/client-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -165,7 +165,8 @@ export function AdminTeachersSection() {
         <CardHeader>
           <CardTitle className="text-base">老师数据库</CardTitle>
           <CardDescription>
-            共 {teachers.length} 个老师账号。停用后现有登录会话也会失效。
+            共 {teachers.length}{' '}
+            个老师账号。课程内容请到「课程管理」点击课程名称查看。停用后现有登录会话也会失效。
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -186,7 +187,7 @@ export function AdminTeachersSection() {
                   {teachers.map((teacher) => (
                     <tr key={teacher.id} className="border-t">
                       <td className="px-3 py-3">
-                        <div className="font-medium">{teacher.name || '未命名老师'}</div>
+                        <span className="font-medium">{teacher.name || '未命名老师'}</span>
                         <div className="text-xs text-muted-foreground">{teacher.email}</div>
                       </td>
                       <td className="px-3 py-3">
@@ -196,7 +197,18 @@ export function AdminTeachersSection() {
                       </td>
                       <td className="px-3 py-3">{teacher.courseCount}</td>
                       <td className="px-3 py-3">
-                        <div className="flex justify-end gap-2">
+                        <div
+                          className="flex flex-wrap justify-end gap-2"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <Button size="sm" variant="outline" asChild>
+                            <a
+                              href={`/api/admin/teachers/${encodeURIComponent(teacher.id)}/export`}
+                            >
+                              <Download className="mr-1 size-3.5" />
+                              下载全部课程资料
+                            </a>
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"

@@ -256,84 +256,21 @@ export function CourseWorkspaceLoadingSkeleton() {
 
 export function ClassroomLoadingSkeleton({ subtitle = '正在加载笔记本…' }: { subtitle?: string }) {
   return (
-    <div className="flex h-full min-h-0 flex-1 overflow-hidden apple-mesh-bg">
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/70 bg-white/[0.72] px-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/60">
-          <div className="min-w-0 flex-1 space-y-2">
-            <LoadingBlock className="h-4 w-56 rounded-md" />
-            <LoadingBlock className="h-2.5 w-36 rounded-md" />
-          </div>
-          <div className="hidden items-center gap-2 sm:flex">
-            <LoadingBlock className="h-8 w-20 rounded-xl" />
-            <LoadingBlock className="h-8 w-24 rounded-xl" />
-            <LoadingBlock className="size-8 rounded-xl" />
-          </div>
-        </header>
-
-        <div className="flex min-h-0 flex-1 gap-3 p-3">
-          <aside className="hidden w-48 shrink-0 rounded-2xl border border-white/80 bg-white/[0.72] p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.055] lg:block">
-            <LoadingBlock className="h-4 w-24 rounded-md" />
-            <div className="mt-4 space-y-3">
-              {Array.from({ length: 5 }).map((_, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-white/70 p-2 dark:border-white/10 dark:bg-white/[0.04]"
-                >
-                  <LoadingBlock className="h-10 w-14 rounded-lg" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <LoadingBlock className="h-3 w-full rounded-md" />
-                    <LoadingBlock className="h-2.5 w-2/3 rounded-md" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </aside>
-
-          <main className="flex min-w-0 flex-1 flex-col rounded-[24px] border border-white/80 bg-white/[0.74] p-4 shadow-[0_22px_70px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.055]">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <LoadingStatus className="mb-0">{subtitle}</LoadingStatus>
-              <div className="hidden gap-2 sm:flex">
-                <LoadingBlock className="h-8 w-20 rounded-xl" />
-                <LoadingBlock className="h-8 w-20 rounded-xl" />
-              </div>
-            </div>
-            <div className="grid min-h-0 flex-1 place-items-center rounded-[22px] border border-slate-200/80 bg-slate-50/80 p-6 dark:border-white/10 dark:bg-slate-950/50">
-              <div className="w-full max-w-4xl">
-                <div className="aspect-[16/9] w-full animate-pulse rounded-[22px] border border-slate-200/80 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.06]" />
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <LoadingBlock className="h-3 rounded-md" />
-                  <LoadingBlock className="h-3 rounded-md" />
-                  <LoadingBlock className="h-3 rounded-md" />
-                </div>
-              </div>
-            </div>
-          </main>
-
-          <aside className="hidden w-72 shrink-0 rounded-2xl border border-white/80 bg-white/[0.72] p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.055] xl:block">
-            <LoadingBlock className="h-4 w-28 rounded-md" />
-            <div className="mt-4 space-y-4">
-              <div className="rounded-2xl bg-slate-100/80 p-3 dark:bg-white/10">
-                <LoadingBlock className="h-3 w-28 rounded-md" />
-                <LoadingBlock className="mt-3 h-3 w-full rounded-md" />
-                <LoadingBlock className="mt-2 h-3 w-4/5 rounded-md" />
-              </div>
-              <div className="rounded-2xl bg-blue-50/90 p-3 dark:bg-blue-500/10">
-                <LoadingBlock className="h-3 w-24 rounded-md" />
-                <LoadingBlock className="mt-3 h-3 w-full rounded-md" />
-                <LoadingBlock className="mt-2 h-3 w-2/3 rounded-md" />
-              </div>
-            </div>
-          </aside>
-        </div>
-
-        <footer className="flex h-14 shrink-0 items-center justify-between border-t border-slate-200/70 bg-white/[0.74] px-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/60">
-          <div className="flex gap-2">
-            <LoadingBlock className="h-8 w-20 rounded-xl" />
-            <LoadingBlock className="h-8 w-20 rounded-xl" />
-          </div>
-          <LoadingBlock className="h-9 w-44 rounded-full" />
-          <LoadingBlock className="h-8 w-24 rounded-xl" />
-        </footer>
+    <div
+      className="grid h-full min-h-0 flex-1 place-items-center bg-slate-50 px-5 dark:bg-slate-950"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="w-full max-w-sm rounded-[24px] border border-slate-200/80 bg-white px-7 py-8 text-center shadow-[0_18px_55px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/[0.05]">
+        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-sky-50 text-sky-700 dark:bg-sky-400/10 dark:text-sky-200">
+          <BookOpen className="size-6" strokeWidth={1.7} aria-hidden="true" />
+        </span>
+        <h1 className="mt-5 text-lg font-semibold text-slate-950 dark:text-white">
+          正在打开笔记本
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">{subtitle}</p>
+        <Loader2 className="mx-auto mt-5 size-5 animate-spin text-sky-600" aria-hidden="true" />
       </div>
     </div>
   );

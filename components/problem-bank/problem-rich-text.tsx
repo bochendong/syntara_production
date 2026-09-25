@@ -2,6 +2,7 @@
 
 import { memo, useMemo } from 'react';
 import { expandLegacyCodeTables } from '@/lib/problem-bank/markdown-structure';
+import { repairMalformedProblemMath } from '@/lib/problem-bank/repair-malformed-math';
 import {
   renderHtmlWithLatex,
   renderPlainTitleWithOptionalLatex,
@@ -550,7 +551,9 @@ function renderDisplayMath(lines: string[]): string {
 }
 
 function textToHtml(text: string): string {
-  const fencedCode = protectFencedCodeBlocks(expandLegacyCodeTables(text));
+  const fencedCode = protectFencedCodeBlocks(
+    expandLegacyCodeTables(repairMalformedProblemMath(text)),
+  );
   const normalized = restoreFencedCodeBlocks(
     inlineSimpleDisplayMath(normalizeInlineStructuralMarkdown(fencedCode.text)),
     fencedCode.blocks,

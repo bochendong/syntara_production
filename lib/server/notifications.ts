@@ -5,6 +5,7 @@ import {
   type Prisma,
 } from '@/lib/server/generated-prisma';
 import type { AppNotification, AppNotificationDetail } from '@/lib/notifications/types';
+import { isCreditBillingEnabled } from '@/lib/server/credit-billing-policy';
 import {
   formatComputeCreditsLabel,
   formatCashCreditsLabel,
@@ -968,7 +969,7 @@ export async function listUserNotifications(
       purchaseCreditsBalance: true,
     },
   });
-  if (user) {
+  if (user && isCreditBillingEnabled()) {
     if (user.computeCreditsBalance <= LOW_COMPUTE_BALANCE_THRESHOLD) {
       notifications.unshift(
         buildLowBalanceNotification({

@@ -35,6 +35,7 @@ export function isGpt56Model(modelId: string): boolean {
  * GPT-6 Astra rejects `none` with HTTP 400; GPT-5.6 still allows it.
  */
 export function lowestOpenAIReasoningEffort(modelId: string): OpenAIReasoningEffort {
+  if (/^gpt-6-(sol|luna)(?:$|-)/i.test(modelId.trim())) return 'none';
   if (isGpt6Model(modelId)) return 'low';
   if (isGpt56Model(modelId)) return 'none';
   if (modelId.trim().toLowerCase().startsWith('gpt-5')) return 'minimal';

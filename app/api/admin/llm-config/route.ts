@@ -1,17 +1,33 @@
+import { z } from 'zod';
+import { isAdminTextModel } from '@/lib/ai/admin-model-options';
 import { NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getSystemLLMConfigView, updateSystemLLMConfig } from '@/lib/server/system-llm-config';
+
+const modelSchema = z.string().trim().refine(isAdminTextModel, '请选择支持的通用文本模型');
+const configSchema = z.object({
+  modelId: modelSchema,
+  tierModels: z.object({ low: modelSchema, medium: modelSchema, high: modelSchema }).optional(),
+  apiKey: z.string().max(1000).optional(),
+  baseUrl: z
+    .string()
+    .trim()
+    .url()
+    .refine((value) => /^https?:\/\//.test(value), '请输入有效服务地址')
+    .optional(),
+});
 
 export async function GET() {
   const admin = await requireAdmin();
   if ('response' in admin) return admin.response;
 
   const config = await getSystemLLMConfigView();
-  return apiSuccess({
+  const response = apiSuccess({
     config: {
       providerId: config.providerId,
       modelId: config.modelId,
+      tierModels: config.tierModels,
       baseUrl: config.baseUrl || '',
       hasApiKey: config.hasApiKey,
       maskedApiKey: config.apiKeyMasked,
@@ -19,6 +35,8 @@ export async function GET() {
       updatedAt: config.updatedAt,
     },
   });
+  response.headers.set('Cache-Control', 'private, no-store');
+  return response;
 }
 
 export async function POST(req: NextRequest) {
@@ -26,21 +44,15 @@ export async function POST(req: NextRequest) {
   if ('response' in admin) return admin.response;
 
   try {
-    const body = (await req.json()) as Partial<{
-      modelId: string;
-      apiKey: string;
-      baseUrl?: string;
-    }>;
-    const modelId = body.modelId?.trim();
-    const apiKey = body.apiKey?.trim();
-    const baseUrl = body.baseUrl?.trim() || undefined;
-
-    if (!modelId) {
-      return apiError('MISSING_REQUIRED_FIELD', 400, '请填写其他 AI 功能的兜底模型 ID（modelId）');
-    }
+    const parsed = configSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success)
+      return apiError('INVALID_REQUEST', 400, parsed.error.issues[0]?.message || '配置无效');
+    const { modelId, tierModels, baseUrl } = parsed.data;
+    const apiKey = parsed.data.apiKey?.trim();
 
     const saved = await updateSystemLLMConfig({
       modelId,
+      tierModels,
       ...(apiKey ? { apiKey } : {}),
       baseUrl,
     });
@@ -48,6 +60,7 @@ export async function POST(req: NextRequest) {
       config: {
         providerId: saved.providerId,
         modelId: saved.modelId,
+        tierModels: saved.tierModels,
         baseUrl: saved.baseUrl || '',
         hasApiKey: saved.hasApiKey,
         maskedApiKey: saved.apiKeyMasked,

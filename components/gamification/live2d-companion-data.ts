@@ -45,9 +45,9 @@ export const LIVE2D_CHARACTER_TRAITS: Record<
   },
   mark: {
     notificationBonuses: [
-      { requiredLevel: 5, label: '任务完成提醒额外 +8% 积分展示' },
-      { requiredLevel: 10, label: '任务完成提醒额外 +14% 积分展示' },
-      { requiredLevel: 15, label: '任务完成提醒额外 +20% 积分展示' },
+      { requiredLevel: 5, label: '解锁更丰富的任务完成提醒' },
+      { requiredLevel: 10, label: '解锁进阶陪伴反馈' },
+      { requiredLevel: 15, label: '解锁完整陪伴反馈' },
     ],
     signInBonuses: [
       { requiredLevel: 5, label: '连胜签到额外 +1 连胜保护点' },

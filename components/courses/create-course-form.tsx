@@ -10,7 +10,6 @@ import {
   pickRandomCourseAvatarUrl,
   resolveCourseAvatarDisplayUrl,
 } from '@/lib/constants/course-avatars';
-import { creditsFromPriceCents, priceCentsFromCredits } from '@/lib/utils/credits';
 import { ChevronLeft, ChevronRight, Dices } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -160,12 +159,10 @@ export function CreateCourseForm({
   const [university, setUniversity] = useState('');
   const [courseCode, setCourseCode] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
-  const [coursePrice, setCoursePrice] = useState('0');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [avatarPage, setAvatarPage] = useState(0);
-  const publishLockedByPurchase = Boolean(editCourse?.sourceCourseId);
   const isCreateStepper = !editCourse;
 
   useEffect(() => {
@@ -178,7 +175,6 @@ export function CreateCourseForm({
     setUniversity(editCourse.university ?? '');
     setCourseCode(editCourse.courseCode ?? '');
     setAvatarUrl(editCourse.avatarUrl ?? '');
-    setCoursePrice(String(creditsFromPriceCents(editCourse.coursePriceCents ?? 0)));
     setError(null);
   }, [editCourse]);
 
@@ -236,10 +232,6 @@ export function CreateCourseForm({
     setStep((s) => Math.min(CREATE_STEPS.length - 1, s + 1));
   };
 
-  const coursePriceCents = priceCentsFromCredits(
-    Math.max(0, Number.parseInt(coursePrice || '0', 10) || 0),
-  );
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -265,7 +257,7 @@ export function CreateCourseForm({
           university: purpose === 'university' ? university : undefined,
           courseCode: purpose === 'university' ? courseCode : undefined,
           avatarUrl,
-          coursePriceCents,
+          coursePriceCents: 0,
         });
         await onSuccess(course.id, course);
       } else {
@@ -278,7 +270,7 @@ export function CreateCourseForm({
           university: purpose === 'university' ? university : undefined,
           courseCode: purpose === 'university' ? courseCode : undefined,
           avatarUrl,
-          coursePriceCents,
+          coursePriceCents: 0,
         });
         if (userId) markCourseOwnedByUser(userId, course.id);
         await onSuccess(course.id, course);
@@ -619,27 +611,6 @@ export function CreateCourseForm({
           {fieldsStepAvatar}
         </>
       )}
-
-      {editCourse ? (
-        <div>
-          <label className="text-sm font-medium text-slate-700 dark:text-slate-200">课程价格</label>
-          <div className="mt-1.5 flex items-center gap-2">
-            <input
-              value={coursePrice}
-              onChange={(e) => setCoursePrice(e.target.value.replace(/[^\d]/g, ''))}
-              disabled={publishLockedByPurchase}
-              className={inputClass}
-              placeholder="0"
-              inputMode="numeric"
-            />
-            <span className="shrink-0 text-sm text-slate-500 dark:text-slate-400">积分</span>
-          </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            设为 0 表示免费。现在按 100 credits = 1 USD 换算，所以 500 credits 就是 5 美元。
-            课程价格用于整门课购买；发布课程会连带发布其下笔记本。
-          </p>
-        </div>
-      ) : null}
 
       {error ? (
         <p className="text-sm text-red-600 dark:text-red-400" role="alert">

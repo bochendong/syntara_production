@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useI18n } from '@/lib/hooks/use-i18n';
@@ -13,6 +12,7 @@ import {
   resolveCourseOrchestratorAvatar,
 } from '@/lib/constants/course-chat';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
+import { NotebookPopupLink } from '@/components/student/notebook-popup-link';
 
 function OrchestratorProgressAvatar() {
   const courseId = useCurrentCourseStore((s) => s.id);
@@ -140,12 +140,12 @@ export function OrchestratorNotebookProgressPanel({
               </p>
             ) : null}
             {notebookLinkId ? (
-              <Link
-                href={`/classroom/${encodeURIComponent(notebookLinkId)}`}
+              <NotebookPopupLink
+                notebookId={notebookLinkId}
                 className="mt-2 inline-flex rounded-full border border-violet-500/25 bg-violet-500/10 px-3 py-1 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-500/15 dark:text-violet-200"
               >
                 查看笔记本
-              </Link>
+              </NotebookPopupLink>
             ) : null}
             {onCancel ? (
               <button

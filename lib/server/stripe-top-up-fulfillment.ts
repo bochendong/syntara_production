@@ -1,7 +1,8 @@
 import type Stripe from 'stripe';
 import { CreditTransactionKind, Prisma } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
-import { applyCreditDelta } from '@/lib/server/credits';
+// Settle Stripe sessions created before credit billing was retired.
+import { applyCreditDelta } from '@/lib/server/repositories/credit-ledger-repository';
 
 type DbTx = PrismaClient | Prisma.TransactionClient;
 

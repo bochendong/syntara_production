@@ -8,6 +8,7 @@ import {
 } from '@/lib/server/generated-prisma';
 import { createLogger } from '@/lib/logger';
 import { applyCreditDelta, getUserCreditBalances } from '@/lib/server/credits';
+import { isCreditBillingEnabled } from '@/lib/server/credit-billing-policy';
 import type {
   GamificationAvatarRarity,
   GamificationCharacterSummary,
@@ -194,7 +195,9 @@ async function ensureUserCharacterProgress(db: GamificationDbClient, userId: str
         data: {
           userId,
           characterId: item.id,
-          isUnlocked: item.isDefault,
+          isUnlocked:
+            item.isDefault ||
+            (!isCreditBillingEnabled() && item.assetType === CharacterAssetType.LIVE2D),
           fragmentCount:
             item.isDefault && item.assetType === CharacterAssetType.LIVE2D
               ? CHARACTER_FRAGMENT_TARGET
@@ -209,6 +212,17 @@ async function ensureUserCharacterProgress(db: GamificationDbClient, userId: str
 
   if (creates.length > 0) {
     await Promise.all(creates);
+  }
+
+  if (!isCreditBillingEnabled()) {
+    await db.userCharacterProgress.updateMany({
+      where: {
+        userId,
+        isUnlocked: false,
+        character: { assetType: CharacterAssetType.LIVE2D },
+      },
+      data: { isUnlocked: true },
+    });
   }
 
   const refreshed = await db.userCharacterProgress.findMany({
@@ -421,7 +435,9 @@ async function grantReward(
     0,
     DAILY_PURCHASE_EARN_CAP - Math.max(0, profile.todayEarnedPurchaseCredits),
   );
-  const grantedPurchaseCredits = Math.max(0, Math.min(args.purchaseCredits, remainingCredits));
+  const grantedPurchaseCredits = isCreditBillingEnabled()
+    ? Math.max(0, Math.min(args.purchaseCredits, remainingCredits))
+    : 0;
 
   const todayAffinityEarned = await getTodayAffinityEarnedForCharacter(
     db,
@@ -1350,12 +1366,11 @@ export async function unlockProfileCosmetic(
     return getGamificationSummary(db, userId);
   }
 
-  const balances = await getUserCreditBalances(db, userId);
-  if (balances.purchaseCreditsBalance < cosmetic.cost) {
-    throw new Error('购买积分不足，先去完成几组题再回来解锁吧');
-  }
-
-  if (cosmetic.cost > 0) {
+  if (isCreditBillingEnabled() && cosmetic.cost > 0) {
+    const balances = await getUserCreditBalances(db, userId);
+    if (balances.purchaseCreditsBalance < cosmetic.cost) {
+      throw new Error('购买积分不足，先去完成几组题再回来解锁吧');
+    }
     await applyCreditDelta(db, {
       userId,
       delta: -cosmetic.cost,
@@ -1595,6 +1610,9 @@ export async function drawGamificationGacha(
   bannerId: GamificationGachaBannerId,
   drawCount: number,
 ): Promise<GamificationGachaDrawResponse> {
+  if (!isCreditBillingEnabled()) {
+    throw new Error('积分抽卡已停用');
+  }
   await ensureCatalogSeeded(db);
   await ensureUserCharacterProgress(db, userId);
   const profile = await normalizeEngagementProfile(db, userId);

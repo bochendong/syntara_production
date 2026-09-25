@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
+import { isCreditBillingEnabled } from '@/lib/server/credit-billing-policy';
 import { requireUserId } from '@/lib/server/api-auth';
 import { convertCashCredits } from '@/lib/server/credits';
 
@@ -11,6 +12,8 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   const auth = await requireUserId();
   if ('response' in auth) return auth.response;
+
+  if (!isCreditBillingEnabled()) return apiError('INVALID_REQUEST', 410, '积分转换已停用。');
 
   let body: z.infer<typeof bodySchema>;
   try {

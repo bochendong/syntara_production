@@ -430,6 +430,14 @@ const CourseLearningProgressPanel = dynamic(
   },
 );
 
+const StudentNotebookDialog = dynamic(
+  () =>
+    import('@/components/student/student-notebook-dialog').then(
+      (module) => module.StudentNotebookDialog,
+    ),
+  { ssr: false },
+);
+
 const DeferredCreateCourseDialog = dynamic(
   () =>
     import('@/components/courses/create-course-dialog').then((module) => module.CreateCourseDialog),
@@ -6215,6 +6223,11 @@ export function LearnPageClient() {
   const [sourceUploadingCourseId, setSourceUploadingCourseId] = useState<string | null>(null);
   const [sourceUploadPanelOpen, setSourceUploadPanelOpen] = useState(false);
   const [notebookLibraryPanelOpen, setNotebookLibraryPanelOpen] = useState(false);
+  const [readingNotebook, setReadingNotebook] = useState<{
+    id: string;
+    title?: string;
+    kind?: 'image' | 'markdown';
+  } | null>(null);
   const [notebookLibraryQuery, setNotebookLibraryQuery] = useState('');
   const [notebookLibraryDetailView, setNotebookLibraryDetailView] = useState<
     'content' | 'mind-map'
@@ -15316,10 +15329,12 @@ export function LearnPageClient() {
                         className="h-9 rounded-full bg-sky-600 px-4 text-xs text-white hover:bg-sky-700"
                         onClick={() => {
                           if (!selectedNotebookLibraryId) return;
+                          setReadingNotebook({
+                            id: selectedNotebookLibraryId,
+                            title: selectedNotebookLibraryTile.title,
+                            kind: 'image',
+                          });
                           setNotebookLibraryPanelOpen(false);
-                          router.push(
-                            `/classroom/${encodeURIComponent(selectedNotebookLibraryId)}`,
-                          );
                         }}
                       >
                         <BookOpen className="mr-1.5 size-3.5" aria-hidden="true" />
@@ -16382,7 +16397,7 @@ export function LearnPageClient() {
                             <span className="block font-semibold">
                               {option.label}强度
                               <span className="ml-2 font-normal text-muted-foreground">
-                                约 {option.relativeCost}× 用量
+                                按实际模型用量计费
                               </span>
                             </span>
                             <span className="block text-[11px] leading-4 text-muted-foreground">
@@ -17214,6 +17229,12 @@ export function LearnPageClient() {
       {manualScheduleDialog}
       {sourceUploadStatusDialog}
       {notebookLibraryDialog}
+      {readingNotebook ? (
+        <StudentNotebookDialog
+          notebook={readingNotebook}
+          onClose={() => setReadingNotebook(null)}
+        />
+      ) : null}
       {courseFilesDialog}
       {platformMemoryDialog}
       {largeCalendarDialog}

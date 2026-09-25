@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Clock3, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,7 @@ import {
   type NotebookGenerationQueueTask,
 } from '@/lib/store/notebook-generation-queue';
 import { OrchestratorNotebookProgressPanel } from '@/components/chat/orchestrator-notebook-progress';
+import { NotebookPopupLink } from '@/components/student/notebook-popup-link';
 
 function taskTitle(task: NotebookGenerationQueueTask): string {
   const trimmed = task.notebookName?.trim() || task.requirement.trim();
@@ -150,12 +150,13 @@ export function NotebookGenerationQueuePanel({
                   </p>
                 </div>
                 {task.status === 'completed' && task.notebookId ? (
-                  <Link
-                    href={`/classroom/${encodeURIComponent(task.notebookId)}`}
+                  <NotebookPopupLink
+                    notebookId={task.notebookId}
+                    title={taskTitle(task)}
                     className="shrink-0 rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-1 text-[11px] font-medium text-violet-700 hover:bg-violet-500/15 dark:text-violet-200"
                   >
                     打开
-                  </Link>
+                  </NotebookPopupLink>
                 ) : null}
                 {task.status === 'queued' || task.status === 'running' ? (
                   <button

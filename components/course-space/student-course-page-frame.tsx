@@ -11,7 +11,7 @@ export function StudentCoursePageFrame({
 }: {
   courseId: string;
   course?: CourseRecord | null;
-  active: 'dashboard' | 'resources';
+  active: 'dashboard' | 'resources' | 'assignments';
   children?: ReactNode;
 }) {
   return (

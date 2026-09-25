@@ -21,15 +21,9 @@ import {
   OPENAI_RETAIL_MARKUP_MULTIPLIER,
 } from '@/lib/utils/openai-pricing';
 import { assertCloudUsageAllowed, recordCloudUsageCost } from '@/lib/server/cloud-usage-limits';
+import { isCreditBillingEnabled } from '@/lib/server/credit-billing-policy';
 
 const log = createLogger('Credits');
-
-function isComputeCreditSpendingDisabledForTesting(): boolean {
-  // The current product is in shared-key testing mode: authenticated learners
-  // may use the platform AI even when their legacy compute-credit balance is 0.
-  // Billing must be turned on deliberately when the product leaves testing.
-  return process.env.SYNTARA_ENABLE_COMPUTE_CREDIT_SPENDING !== 'true';
-}
 
 interface ChargeCreditsForUsdArgs {
   userId?: string | null;
@@ -86,17 +80,10 @@ async function chargeCreditsForUsdCost(args: ChargeCreditsForUsdArgs): Promise<{
     });
   }
 
-  if (!userId) return null;
+  // Preserve USD usage accounting above for cloud limits without debiting credits.
+  if (!isCreditBillingEnabled()) return null;
 
-  if (isComputeCreditSpendingDisabledForTesting()) {
-    log.info('Skipped compute credit charge in test mode', {
-      userId,
-      route: args.route ?? null,
-      source: args.source ?? null,
-      referenceType: args.referenceType,
-    });
-    return null;
-  }
+  if (!userId) return null;
 
   const prisma = getOptionalPrisma();
   if (!prisma) return null;
@@ -149,10 +136,12 @@ async function chargeCreditsForUsdCost(args: ChargeCreditsForUsdArgs): Promise<{
 }
 
 export async function ensureUserCreditsInitialized(db: DbClient, userId: string): Promise<number> {
+  if (!isCreditBillingEnabled()) return 0;
   return ensureCreditLedgerInitialized(db, userId);
 }
 
 export async function applyCreditDelta(db: DbClient, args: ApplyCreditDeltaArgs): Promise<number> {
+  if (!isCreditBillingEnabled()) throw new Error('积分系统已停用');
   return applyCreditDeltaToLedger(db, args);
 }
 
@@ -162,8 +151,8 @@ export async function assertUserHasCredits(
 ): Promise<void> {
   const normalizedUserId = userId?.trim();
   await assertCloudUsageAllowed(normalizedUserId);
+  if (!isCreditBillingEnabled()) return;
   if (!normalizedUserId) return;
-  if (accountType === 'COMPUTE' && isComputeCreditSpendingDisabledForTesting()) return;
 
   const prisma = getOptionalPrisma();
   if (!prisma) return;
@@ -185,6 +174,7 @@ export async function convertCashCredits(args: {
   amount: number;
   targetAccountType: Extract<CreditAccountType, 'COMPUTE' | 'PURCHASE'>;
 }): Promise<{ cashBalance: number; targetBalance: number }> {
+  if (!isCreditBillingEnabled()) throw new Error('积分转换已停用');
   const prisma = getOptionalPrisma();
   if (!prisma) throw new Error('数据库不可用，暂时无法转换积分');
 

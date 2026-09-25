@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   BookOpen,
   CalendarClock,
   Database,
+  Download,
   Loader2,
   Plus,
   RefreshCw,
@@ -380,7 +382,7 @@ export function AdminCoursesSection() {
             <BookOpen className="h-4 w-4" />
             全站课程管理
           </CardTitle>
-          <CardDescription>浏览所有账户创建或克隆的课程，必要时由管理员直接删除。</CardDescription>
+          <CardDescription>点击课程名称，以只读方式查看课程内容。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-4">
@@ -497,9 +499,12 @@ export function AdminCoursesSection() {
                               </div>
                             )}
                             <div className="min-w-0">
-                              <div className="truncate font-medium text-foreground">
+                              <Link
+                                href={`/admin/courses/${encodeURIComponent(course.id)}`}
+                                className="block truncate rounded font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2"
+                              >
                                 {course.name}
-                              </div>
+                              </Link>
                               <div className="mt-1 flex flex-wrap gap-1">
                                 {course.courseCode ? (
                                   <Badge variant="outline">{course.courseCode}</Badge>
@@ -563,6 +568,18 @@ export function AdminCoursesSection() {
                           ) : null}
                         </td>
                         <td className="px-4 py-4 text-right align-top">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            asChild
+                            className="mr-2"
+                          >
+                            <a href={`/api/admin/courses/${encodeURIComponent(course.id)}/export`}>
+                              <Download className="mr-1 h-4 w-4" />
+                              下载资料
+                            </a>
+                          </Button>
                           <Button
                             type="button"
                             variant="destructive"

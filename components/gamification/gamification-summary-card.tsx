@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Coins, Flame, Heart, Loader2, Sparkles, Target, WandSparkles } from 'lucide-react';
+import { Flame, Heart, Loader2, Sparkles, Target, WandSparkles } from 'lucide-react';
 import { toast } from '@/lib/notifications/client-toast';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,9 +19,8 @@ type GamificationSummaryCardProps = {
   };
 };
 
-function rewardText(purchaseCredits: number, affinity: number) {
+function rewardText(affinity: number) {
   const chunks: string[] = [];
-  if (purchaseCredits > 0) chunks.push(`+${purchaseCredits} 购买积分`);
   if (affinity > 0) chunks.push(`+${affinity} 亲密度`);
   return chunks.join(' · ') || '已记录';
 }
@@ -40,7 +39,7 @@ export function GamificationSummaryCard({
     const prevLevelFloor =
       summary.profile.affinityLevel <= 1
         ? 0
-        : [0, 30, 80, 160, 300][summary.profile.affinityLevel - 1] ?? 0;
+        : ([0, 30, 80, 160, 300][summary.profile.affinityLevel - 1] ?? 0);
     const current = Math.max(0, summary.profile.affinityExp - prevLevelFloor);
     const total = Math.max(1, summary.profile.nextAffinityLevelExp - prevLevelFloor);
     return Math.max(0, Math.min(100, Math.round((current / total) * 100)));
@@ -50,7 +49,7 @@ export function GamificationSummaryCard({
     setBusyAction(kind);
     try {
       const result = await claim(kind);
-      toast.success(rewardText(result.rewardedPurchaseCredits, result.rewardedAffinity));
+      toast.success(rewardText(result.rewardedAffinity));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '领取奖励失败');
     } finally {
@@ -69,7 +68,7 @@ export function GamificationSummaryCard({
         progressPercent: 100,
         checkpointCount: 1,
       });
-      toast.success(`课程里程碑已结算：${rewardText(result.rewardedPurchaseCredits, result.rewardedAffinity)}`);
+      toast.success(`课程里程碑已结算：${rewardText(result.rewardedAffinity)}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '课程里程碑结算失败');
     } finally {
@@ -78,12 +77,17 @@ export function GamificationSummaryCard({
   };
 
   return (
-    <Card className={cn('p-5 !gap-0 border-muted/40 bg-white/85 backdrop-blur-xl dark:bg-slate-900/80', className)}>
+    <Card
+      className={cn(
+        'p-5 !gap-0 border-muted/40 bg-white/85 backdrop-blur-xl dark:bg-slate-900/80',
+        className,
+      )}
+    >
       <div className="flex items-start justify-between gap-3 border-b border-border/60 pb-4">
         <div>
           <h2 className="text-base font-semibold text-foreground">{title}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            每天靠看课、做题和回顾慢慢把积分、亲密度和连胜攒起来。
+            每天靠看课、做题和回顾积累亲密度与连续学习记录。
           </p>
         </div>
         {loading ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : null}
@@ -101,24 +105,16 @@ export function GamificationSummaryCard({
         </div>
       ) : (
         <div className="mt-4 space-y-4">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-2xl border bg-background/60 p-4">
               <div className="flex items-center gap-2 text-[11px] font-medium text-orange-700 dark:text-orange-200">
                 <Flame className="size-4" />
                 连续学习
               </div>
-              <div className="mt-2 text-3xl font-semibold tracking-[-0.04em]">{summary.profile.streakDays}</div>
-              <div className="mt-1 text-xs text-muted-foreground">days</div>
-            </div>
-            <div className="rounded-2xl border bg-background/60 p-4">
-              <div className="flex items-center gap-2 text-[11px] font-medium text-emerald-700 dark:text-emerald-200">
-                <Coins className="size-4" />
-                今日学习奖励
-              </div>
               <div className="mt-2 text-3xl font-semibold tracking-[-0.04em]">
-                {summary.profile.todayEarnedPurchaseCredits}
+                {summary.profile.streakDays}
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">/ 120 购买积分</div>
+              <div className="mt-1 text-xs text-muted-foreground">days</div>
             </div>
             <div className="rounded-2xl border bg-background/60 p-4">
               <div className="flex items-center gap-2 text-[11px] font-medium text-pink-700 dark:text-pink-200">
@@ -143,10 +139,12 @@ export function GamificationSummaryCard({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">
-                  当前陪伴角色：{summary.characters.find((character) => character.isEquipped)?.name ?? 'Haru'}
+                  当前陪伴角色：
+                  {summary.characters.find((character) => character.isEquipped)?.name ?? 'Haru'}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  今日亲密度 {summary.profile.todayAffinityEarned}/{summary.profile.todayAffinityCap}
+                  今日亲密度 {summary.profile.todayAffinityEarned}/
+                  {summary.profile.todayAffinityCap}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -157,7 +155,9 @@ export function GamificationSummaryCard({
                   disabled={!summary.claimables.dailySignIn || busyAction != null}
                   onClick={() => void handleClaim('daily_sign_in')}
                 >
-                  {busyAction === 'daily_sign_in' ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  {busyAction === 'daily_sign_in' ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : null}
                   每日签到
                 </Button>
                 <Button
@@ -167,7 +167,9 @@ export function GamificationSummaryCard({
                   disabled={!summary.claimables.dailyTasks || busyAction != null}
                   onClick={() => void handleClaim('daily_tasks')}
                 >
-                  {busyAction === 'daily_tasks' ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  {busyAction === 'daily_tasks' ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : null}
                   领取日常奖励
                 </Button>
                 <Button
@@ -176,7 +178,9 @@ export function GamificationSummaryCard({
                   disabled={!summary.claimables.streakBonusDays || busyAction != null}
                   onClick={() => void handleClaim('streak_bonus')}
                 >
-                  {busyAction === 'streak_bonus' ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  {busyAction === 'streak_bonus' ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : null}
                   {summary.claimables.streakBonusDays
                     ? `领取 ${summary.claimables.streakBonusDays} 天连胜奖励`
                     : '连续奖励待解锁'}
@@ -191,7 +195,7 @@ export function GamificationSummaryCard({
                 <div>
                   <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">课程里程碑</p>
                   <p className="mt-1 text-xs text-sky-700/80 dark:text-sky-200/80">
-                    看完这节课后，把今天的课程里程碑记下来，结算 +8 购买积分和 +2 亲密度。
+                    看完这节课后，记录今天的课程里程碑，增加亲密度。
                   </p>
                 </div>
                 <Button
@@ -200,7 +204,9 @@ export function GamificationSummaryCard({
                   disabled={!courseMilestone.enabled || busyAction != null}
                   onClick={() => void handleCourseMilestone()}
                 >
-                  {busyAction === 'course_milestone' ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  {busyAction === 'course_milestone' ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : null}
                   记录看课完成
                 </Button>
               </div>
@@ -279,4 +285,3 @@ export function GamificationSummaryCard({
     </Card>
   );
 }
-

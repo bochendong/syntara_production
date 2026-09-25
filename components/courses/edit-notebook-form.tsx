@@ -7,7 +7,6 @@ import {
   NOTEBOOK_AGENT_AVATAR_PRESET_URLS,
   resolveNotebookAgentAvatarDisplayUrl,
 } from '@/lib/constants/notebook-agent-avatars';
-import { creditsFromPriceCents, priceCentsFromCredits } from '@/lib/utils/credits';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -23,7 +22,6 @@ export function EditNotebookForm({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
-  const [priceCredits, setPriceCredits] = useState('0');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +31,6 @@ export function EditNotebookForm({
     setName(notebook.name);
     setDescription(notebook.description ?? '');
     setAvatarUrl(notebook.avatarUrl?.trim() || NOTEBOOK_AGENT_AVATAR_PRESET_URLS[0] || '');
-    setPriceCredits(String(creditsFromPriceCents(notebook.notebookPriceCents ?? 0)));
     setError(null);
   }, [notebook]);
 
@@ -47,14 +44,11 @@ export function EditNotebookForm({
     }
     setSubmitting(true);
     try {
-      const notebookPriceCents = priceCentsFromCredits(
-        Math.max(0, Number.parseInt(priceCredits || '0', 10) || 0),
-      );
       await updateStageStoreMeta(notebook.id, {
         name: trimmedName,
         description: description.trim(),
         avatarUrl,
-        ...(purchaseLocked ? {} : { notebookPriceCents }),
+        ...(purchaseLocked ? {} : { notebookPriceCents: 0 }),
       });
       onSuccess();
     } catch (err) {
@@ -126,29 +120,6 @@ export function EditNotebookForm({
             );
           })}
         </div>
-      </div>
-
-      <div>
-        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">笔记本价格</label>
-        <div className="mt-1.5 flex items-center gap-2">
-          <input
-            value={priceCredits}
-            onChange={(e) => setPriceCredits(e.target.value.replace(/[^\d]/g, ''))}
-            disabled={purchaseLocked}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-violet-500/0 transition-[box-shadow,border-color] focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/15 dark:bg-white/5 dark:text-white"
-            placeholder="0"
-            inputMode="numeric"
-          />
-          <span className="shrink-0 text-sm text-slate-500 dark:text-slate-400">积分</span>
-        </div>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          设为 0 表示免费。按 100 credits = 1 USD 换算；发布到笔记本商城时使用该价格。
-        </p>
-        {purchaseLocked ? (
-          <p className="mt-1 text-xs text-amber-700 dark:text-amber-200/90">
-            购买得到的副本不可单独改价；名称、描述与头像仍可本地调整。
-          </p>
-        ) : null}
       </div>
 
       {error ? (

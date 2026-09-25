@@ -1,14 +1,19 @@
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
-import {
-  estimateTrackedModelUsageRetailCostCredits,
-  estimateTrackedModelUsageRetailCostUsd,
-} from '@/lib/utils/openai-pricing';
+import { estimateTrackedModelUsageBaseCostUsd } from '@/lib/utils/openai-pricing';
 
-export async function GET() {
+const PAGE_SIZE = 20;
+
+export async function GET(request: Request) {
   const admin = await requireAdmin();
   if ('response' in admin) return admin.response;
+
+  const requestedPage = Number(new URL(request.url).searchParams.get('page'));
+  const page =
+    Number.isSafeInteger(requestedPage) && requestedPage > 0 && requestedPage <= 100_000
+      ? requestedPage
+      : 1;
 
   const prisma = getOptionalPrisma();
   if (!prisma) {
@@ -19,17 +24,18 @@ export async function GET() {
         totalOutputTokens: 0,
         totalTokens: 0,
         estimatedCostUsd: 0,
-        estimatedCostCredits: 0,
       },
       rows: [],
+      pagination: { page, pageSize: PAGE_SIZE, total: 0, totalPages: 1 },
     });
   }
 
   try {
-    const [rows, aggregate] = await Promise.all([
+    const [rows, aggregate, costRows] = await Promise.all([
       prisma.lLMUsageLog.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 200,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
         select: {
           id: true,
           userId: true,
@@ -55,24 +61,23 @@ export async function GET() {
           totalTokens: true,
         },
       }),
+      prisma.lLMUsageLog.groupBy({
+        by: ['providerId', 'modelId', 'modelString'],
+        _sum: {
+          inputTokens: true,
+          outputTokens: true,
+        },
+      }),
     ]);
 
     const mappedRows = rows.map((row: (typeof rows)[number]) => {
-      const estimatedCostUsd = estimateTrackedModelUsageRetailCostUsd({
+      const estimatedCostUsd = estimateTrackedModelUsageBaseCostUsd({
         providerId: row.providerId,
         modelId: row.modelId,
         modelString: row.modelString,
         inputTokens: row.inputTokens,
         outputTokens: row.outputTokens,
       });
-      const estimatedCostCredits = estimateTrackedModelUsageRetailCostCredits({
-        providerId: row.providerId,
-        modelId: row.modelId,
-        modelString: row.modelString,
-        inputTokens: row.inputTokens,
-        outputTokens: row.outputTokens,
-      });
-
       return {
         id: row.id,
         userId: row.userId,
@@ -87,14 +92,20 @@ export async function GET() {
         outputTokens: row.outputTokens,
         totalTokens: row.totalTokens,
         estimatedCostUsd,
-        estimatedCostCredits,
         createdAt: row.createdAt,
       };
     });
 
-    const estimatedCostUsd = mappedRows.reduce((sum, row) => sum + (row.estimatedCostUsd ?? 0), 0);
-    const estimatedCostCredits = mappedRows.reduce(
-      (sum, row) => sum + (row.estimatedCostCredits ?? 0),
+    const estimatedCostUsd = costRows.reduce(
+      (sum, row) =>
+        sum +
+        (estimateTrackedModelUsageBaseCostUsd({
+          providerId: row.providerId,
+          modelId: row.modelId,
+          modelString: row.modelString,
+          inputTokens: row._sum.inputTokens,
+          outputTokens: row._sum.outputTokens,
+        }) ?? 0),
       0,
     );
 
@@ -105,9 +116,14 @@ export async function GET() {
         totalOutputTokens: aggregate._sum.outputTokens ?? 0,
         totalTokens: aggregate._sum.totalTokens ?? 0,
         estimatedCostUsd,
-        estimatedCostCredits,
       },
       rows: mappedRows,
+      pagination: {
+        page,
+        pageSize: PAGE_SIZE,
+        total: aggregate._count.id,
+        totalPages: Math.max(1, Math.ceil(aggregate._count.id / PAGE_SIZE)),
+      },
     });
   } catch (error) {
     return apiError('INTERNAL_ERROR', 500, error instanceof Error ? error.message : String(error));

@@ -1,4 +1,3 @@
-import { applyCreditDelta, ensureUserCreditsInitialized } from '@/lib/server/credits';
 import { toPrismaJson, toPrismaNullableJson } from '@/lib/server/prisma-json';
 import { stripPrivateSpeechAudioFromActions } from '@/lib/server/speech-action-assets';
 import {
@@ -14,7 +13,6 @@ import {
 } from '@/lib/server/repositories/store-repository';
 import type { RootDbClient } from '@/lib/server/repositories/types';
 import type { Prisma } from '@/lib/server/generated-prisma';
-import { creditsFromPriceCents } from '@/lib/utils/credits';
 
 export type StorePurchaseResult<T> =
   | { status: 'not_found' }
@@ -80,41 +78,13 @@ export async function cloneStoreCourseForUser(
     return { status: 'existing', item: existingCourse ?? source } as const;
   }
 
-  const courseCostCredits = creditsFromPriceCents(source.coursePriceCents ?? 0);
-  const creatorSaleCredits = creditsFromPriceCents(source.coursePriceCents ?? 0);
   await ensureCourseEnrollmentTable(db);
 
   const course = await db.$transaction(async (tx) => {
-    await ensureUserCreditsInitialized(tx, userId);
-    await ensureUserCreditsInitialized(tx, source.ownerId);
-
-    if (courseCostCredits > 0) {
-      await applyCreditDelta(tx, {
-        userId,
-        delta: -courseCostCredits,
-        kind: 'COURSE_PURCHASE',
-        accountType: 'PURCHASE',
-        description: `Joined course "${source.name}"`,
-        referenceType: 'course',
-        referenceId: source.id,
-      });
-      if (creatorSaleCredits > 0) {
-        await applyCreditDelta(tx, {
-          userId: source.ownerId,
-          delta: creatorSaleCredits,
-          kind: 'CREATOR_COURSE_SALE',
-          accountType: 'CASH',
-          description: `Course enrollment sale: "${source.name}"`,
-          referenceType: 'course',
-          referenceId: source.id,
-        });
-      }
-    }
-
     await createCourseEnrollment(tx, {
       userId,
       courseId: source.id,
-      priceCents: source.coursePriceCents ?? 0,
+      priceCents: 0,
     });
 
     return tx.course.findUniqueOrThrow({ where: { id: source.id } });
@@ -136,37 +106,9 @@ export async function cloneStoreNotebookForUser(
     return { status: 'existing', item: existingPurchase.clonedNotebook } as const;
   }
 
-  const notebookCostCredits = creditsFromPriceCents(source.notebookPriceCents ?? 0);
-  const creatorSaleCredits = creditsFromPriceCents(source.notebookPriceCents ?? 0);
   const sourceProblems = await listPublishedNotebookProblemsForClone(db, source.id);
 
   const notebook = await db.$transaction(async (tx) => {
-    await ensureUserCreditsInitialized(tx, userId);
-    await ensureUserCreditsInitialized(tx, source.ownerId);
-
-    if (notebookCostCredits > 0) {
-      await applyCreditDelta(tx, {
-        userId,
-        delta: -notebookCostCredits,
-        kind: 'NOTEBOOK_PURCHASE',
-        accountType: 'PURCHASE',
-        description: `Purchased notebook "${source.name}"`,
-        referenceType: 'notebook',
-        referenceId: source.id,
-      });
-      if (creatorSaleCredits > 0) {
-        await applyCreditDelta(tx, {
-          userId: source.ownerId,
-          delta: creatorSaleCredits,
-          kind: 'CREATOR_NOTEBOOK_SALE',
-          accountType: 'CASH',
-          description: `Notebook sale: "${source.name}"`,
-          referenceType: 'notebook',
-          referenceId: source.id,
-        });
-      }
-    }
-
     const clonedNotebook = await tx.notebook.create({
       data: {
         ownerId: userId,
@@ -233,7 +175,7 @@ export async function cloneStoreNotebookForUser(
         buyerId: userId,
         sourceNotebookId: source.id,
         clonedNotebookId: clonedNotebook.id,
-        priceCents: source.notebookPriceCents ?? 0,
+        priceCents: 0,
       },
     });
 

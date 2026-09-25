@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from '@/lib/server/api-response';
+import { isCreditBillingEnabled } from '@/lib/server/credit-billing-policy';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { applyCreditDelta, ensureUserCreditsInitialized } from '@/lib/server/credits';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
@@ -60,6 +61,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const admin = await requireAdmin();
   if ('response' in admin) return admin.response;
+
+  if (!isCreditBillingEnabled()) return apiError('INVALID_REQUEST', 410, '积分管理已停用。');
 
   const prisma = getOptionalPrisma();
   if (!prisma) {

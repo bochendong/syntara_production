@@ -18,6 +18,8 @@
     "check:changed": "node scripts/maintenance/check-changed-format.mjs",
     "format": "prettier . --write",
     "repo:audit": "node scripts/maintenance/audit-repository-structure.mjs",
+    "course:download": "node --env-file=.env.local scripts/maintenance/download-course-materials.mjs",
+    "course:upload-problems": "node --env-file=.env.local scripts/maintenance/upload-course-problem-patches.mjs",
     "notebooks:inline-generated-images": "dotenv -e .env.local -- node scripts/maintenance/inline-generated-notebook-page-images.mjs",
     "notebooks:import-generated-assets": "node scripts/maintenance/import-generated-notebook-assets-to-db.mjs",
     "notebooks:push-lesson": "node scripts/maintenance/push-lesson-to-online-db.mjs",

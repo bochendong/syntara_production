@@ -6,7 +6,6 @@ import {
   summarizeCloudUsage,
 } from '@/lib/server/cloud-usage-limits';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
-import { creditsFromUsd } from '@/lib/utils/credits';
 
 export async function GET() {
   const auth = await requireUserId();
@@ -18,9 +17,9 @@ export async function GET() {
     return apiSuccess({
       databaseEnabled: false,
       period: { start: period.start.toISOString(), end: period.end.toISOString() },
-      usedCredits: 0,
-      limitCredits: null,
-      remainingCredits: null,
+      usedUsd: 0,
+      limitUsd: null,
+      remainingUsd: null,
       requestCount: 0,
       requestLimit: null,
       remainingRequests: null,
@@ -33,16 +32,15 @@ export async function GET() {
       getCloudUsageUserLimit(prisma, auth.userId),
       summarizeCloudUsage(prisma, auth.userId),
     ]);
-    const usedCredits = creditsFromUsd(usage.estimatedCostUsd, 'ceil');
-    const limitCredits =
-      limit?.weeklyCostLimitUsd == null ? null : creditsFromUsd(limit.weeklyCostLimitUsd, 'round');
+    const usedUsd = usage.estimatedCostUsd;
+    const limitUsd = limit?.weeklyCostLimitUsd ?? null;
 
     return apiSuccess({
       databaseEnabled: true,
       period: { start: period.start.toISOString(), end: period.end.toISOString() },
-      usedCredits,
-      limitCredits,
-      remainingCredits: limitCredits == null ? null : Math.max(0, limitCredits - usedCredits),
+      usedUsd,
+      limitUsd,
+      remainingUsd: limitUsd == null ? null : Math.max(0, limitUsd - usedUsd),
       requestCount: usage.requestCount,
       requestLimit: limit?.weeklyRequestLimit ?? null,
       remainingRequests:

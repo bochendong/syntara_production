@@ -913,24 +913,8 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
       );
       setImportSummaryNote(
         locale === 'zh-CN'
-          ? `已生成 ${nextDrafts.length} 道题草稿，其中 ${needsFixCount} 道需要修正。${
-              previewResult.webSearch
-                ? ` 本次联网检索命中 ${previewResult.webSearch.sourceCount} 个网页来源，并额外扣费 ${previewResult.webSearch.estimatedCostCredits} 算力积分。`
-                : ''
-            }${
-              previewResult.usage?.estimatedCostCredits != null
-                ? `本次导题精确扣费 ${previewResult.usage.estimatedCostCredits} 算力积分。`
-                : '本次导题可能产生算力消耗，可在个人中心的积分流水查看。'
-            }`
-          : `${nextDrafts.length} drafts generated, ${needsFixCount} need fixes.${
-              previewResult.webSearch
-                ? ` Web search found ${previewResult.webSearch.sourceCount} sources and charged ${previewResult.webSearch.estimatedCostCredits} compute credits.`
-                : ''
-            }${
-              previewResult.usage?.estimatedCostCredits != null
-                ? ` Charged ${previewResult.usage.estimatedCostCredits} compute credits.`
-                : ' Any compute charges can be reviewed in the profile credit ledger.'
-            }`,
+          ? `已生成 ${nextDrafts.length} 道题草稿，其中 ${needsFixCount} 道需要修正。${previewResult.webSearch ? ` 本次联网检索命中 ${previewResult.webSearch.sourceCount} 个网页来源。` : ''}`
+          : `${nextDrafts.length} drafts generated, ${needsFixCount} need fixes.${previewResult.webSearch ? ` Web search found ${previewResult.webSearch.sourceCount} sources.` : ''}`,
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Import preview failed');
@@ -1016,16 +1000,8 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
       );
       setImportSummaryNote(
         locale === 'zh-CN'
-          ? `已写入 ${selectedDrafts.length} 道题。${
-              importUsage?.estimatedCostCredits != null
-                ? `本次 preview 导题共扣费 ${importUsage.estimatedCostCredits} 算力积分。`
-                : '若本次导题触发了模型或 PDF 解析扣费，可在个人中心的积分流水查看。'
-            }`
-          : `${selectedDrafts.length} problems imported.${
-              importUsage?.estimatedCostCredits != null
-                ? ` Preview import charged ${importUsage.estimatedCostCredits} compute credits.`
-                : ' Any compute charges can be reviewed in the profile credit ledger.'
-            }`,
+          ? `已写入 ${selectedDrafts.length} 道题。`
+          : `${selectedDrafts.length} problems imported.`,
       );
       toast.success(locale === 'zh-CN' ? '题目已写入题库' : 'Problems imported');
     } catch (error) {
@@ -1034,7 +1010,7 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
     } finally {
       setCommitLoading(false);
     }
-  }, [drafts, importBatchId, importUsage, includedDraftIds, locale, notebookId]);
+  }, [drafts, importBatchId, includedDraftIds, locale, notebookId]);
 
   const editingDraft = drafts.find((draft) => draft.draftId === editingDraftId) || null;
   const editingDraftIsManual =
@@ -1718,7 +1694,7 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                   {importUsage ? (
                     <div className="mt-3 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-300">
                       <div className="font-medium text-slate-800 dark:text-slate-100">
-                        {locale === 'zh-CN' ? '本次导题精确计费' : 'Precise import charge'}
+                        {locale === 'zh-CN' ? '本次导题用量' : 'Import usage'}
                       </div>
                       <div className="mt-1">
                         {locale === 'zh-CN' ? '输入' : 'Input'} {importUsage.inputTokens} tokens ·{' '}
@@ -1726,15 +1702,6 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                         {importUsage.cachedInputTokens > 0
                           ? ` · ${locale === 'zh-CN' ? '缓存输入' : 'Cached'} ${importUsage.cachedInputTokens}`
                           : ''}
-                      </div>
-                      <div className="mt-1 font-medium text-sky-700 dark:text-sky-200">
-                        {importUsage.estimatedCostCredits != null
-                          ? locale === 'zh-CN'
-                            ? `${importUsage.estimatedCostCredits} 算力积分`
-                            : `${importUsage.estimatedCostCredits} compute credits`
-                          : locale === 'zh-CN'
-                            ? '当前模型未返回可估算价格'
-                            : 'Pricing unavailable for current model'}
                       </div>
                     </div>
                   ) : null}
@@ -1749,10 +1716,6 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                       <div className="mt-1">
                         {locale === 'zh-CN' ? '命中来源' : 'Sources'}:{' '}
                         {importWebSearchSummary.sourceCount}
-                        {' · '}
-                        {locale === 'zh-CN'
-                          ? `扣费 ${importWebSearchSummary.estimatedCostCredits} 算力积分`
-                          : `Charge ${importWebSearchSummary.estimatedCostCredits} compute credits`}
                       </div>
                       {importWebSearchSummary.sources.slice(0, 3).map((source) => (
                         <div key={source.url} className="mt-1 truncate">

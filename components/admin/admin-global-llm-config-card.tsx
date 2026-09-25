@@ -1,173 +1,253 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { KeyRound, Loader2, Save, ShieldCheck } from 'lucide-react';
+import { KeyRound, Loader2, Save, ShieldCheck, RotateCcw } from 'lucide-react';
 import { toast } from '@/lib/notifications/client-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { backendJson } from '@/lib/utils/backend-api';
-import {
-  CHAT_RESPONSE_STRENGTH_CONFIG,
-  CHAT_RESPONSE_STRENGTHS,
-} from '@/lib/ai/chat-response-strength';
+import { ADMIN_TEXT_MODEL_OPTIONS, type ChatTierModels } from '@/lib/ai/admin-model-options';
+import { SYSTEM_CHAT_MODEL_BY_STRENGTH } from '@/lib/ai/system-model-policy';
+import { CHAT_RESPONSE_STRENGTHS } from '@/lib/ai/chat-response-strength';
 
 type SystemConfig = {
-  providerId: 'openai';
   modelId: string;
+  tierModels: ChatTierModels;
   baseUrl: string;
   hasApiKey: boolean;
   maskedApiKey: string;
-  source: 'database' | 'environment';
   updatedAt: string | null;
 };
+const tierLabels = { low: '低强度', medium: '中强度', high: '高强度' };
+
+function ModelSelect({
+  id,
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  description: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-xl border border-border/70 bg-background p-4">
+      <div>
+        <Label htmlFor={id} className="font-semibold">
+          {label}
+        </Label>
+        <p id={`${id}-hint`} className="mt-1 text-xs leading-5 text-muted-foreground">
+          {description}
+        </p>
+      </div>
+      <select
+        id={id}
+        aria-describedby={`${id}-hint`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {!ADMIN_TEXT_MODEL_OPTIONS.some((model) => model.id === value) ? (
+          <option value={value} disabled>
+            {value}（原配置，请选择支持的模型）
+          </option>
+        ) : null}
+        {ADMIN_TEXT_MODEL_OPTIONS.map((model) => (
+          <option key={model.id} value={model.id}>
+            {model.label} · {model.description}
+          </option>
+        ))}
+      </select>
+      <p className="font-mono text-[11px] text-muted-foreground">{value}</p>
+    </div>
+  );
+}
 
 export function AdminGlobalLlmConfigCard() {
   const [config, setConfig] = useState<SystemConfig | null>(null);
   const [modelId, setModelId] = useState('gpt-5.6-sol');
+  const [tiers, setTiers] = useState<ChatTierModels>({ ...SYSTEM_CHAT_MODEL_BY_STRENGTH });
   const [baseUrl, setBaseUrl] = useState('https://api.openai.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
+  const [error, setError] = useState('');
+  const apply = useCallback((next: SystemConfig) => {
+    setConfig(next);
+    setModelId(next.modelId);
+    setTiers(next.tierModels || { ...SYSTEM_CHAT_MODEL_BY_STRENGTH });
+    setBaseUrl(next.baseUrl || 'https://api.openai.com/v1');
+    setApiKey('');
+  }, []);
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const payload = await backendJson<{ config: SystemConfig }>('/api/admin/llm-config');
-      setConfig(payload.config);
-      setModelId(payload.config.modelId);
-      setBaseUrl(payload.config.baseUrl || 'https://api.openai.com/v1');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '全站模型配置加载失败');
+      apply(payload.config);
+    } catch {
+      setError('配置加载失败，请重试。');
     } finally {
       setLoading(false);
     }
-  }, []);
-
+  }, [apply]);
   useEffect(() => {
     void load();
   }, [load]);
-
+  const dirty = Boolean(
+    config &&
+    (modelId !== config.modelId ||
+      baseUrl !== config.baseUrl ||
+      apiKey ||
+      CHAT_RESPONSE_STRENGTHS.some((key) => tiers[key] !== config.tierModels?.[key])),
+  );
   const save = async () => {
     setSaving(true);
     try {
       const payload = await backendJson<{ config: SystemConfig }>('/api/admin/llm-config', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ modelId, baseUrl, apiKey }),
+        body: JSON.stringify({ modelId, tierModels: tiers, baseUrl, apiKey }),
       });
-      setConfig(payload.config);
-      setApiKey('');
-      toast.success('全站 API Key 已加密保存');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '保存失败');
+      apply(payload.config);
+      toast.success('模型配置已保存，新请求立即生效');
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : '保存失败');
     } finally {
       setSaving(false);
     }
   };
-
+  if (loading)
+    return (
+      <p role="status" className="p-6 text-sm text-muted-foreground">
+        正在读取模型配置…
+      </p>
+    );
+  if (error)
+    return (
+      <div role="alert" className="rounded-xl border p-5">
+        {error}
+        <Button variant="outline" onClick={() => void load()}>
+          重新加载
+        </Button>
+      </div>
+    );
   return (
-    <Card className="max-w-4xl border-emerald-200/70 dark:border-emerald-300/15">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ShieldCheck className="size-4 text-emerald-600" />
-          全站 OpenAI API Key 与回复强度模型
-        </CardTitle>
-        <CardDescription>
-          全站共用一把 OpenAI API Key。学生聊天按低 Luna、中 Sol、高 Astra 三档；讲义和其余 AI
-          功能都使用兜底模型 GPT-5.6 Sol。Key 会加密保存且只在服务端解密，浏览器只能看到掩码。
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {loading ? (
-          <p className="text-sm text-muted-foreground">正在读取全站配置…</p>
-        ) : (
-          <>
-            <div className="rounded-xl border bg-muted/30 px-3 py-2 text-sm">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span className={config?.hasApiKey ? 'text-emerald-600' : 'text-amber-600'}>
-                  {config?.hasApiKey ? `已配置 ${config.maskedApiKey}` : '尚未配置 API Key'}
-                </span>
-                <span className="text-muted-foreground">
-                  来源：{config?.source === 'database' ? 'Railway PostgreSQL' : 'Vercel 环境变量'}
-                </span>
-                {config?.updatedAt ? (
-                  <span className="text-muted-foreground">
-                    更新：{new Date(config.updatedAt).toLocaleString('zh-CN')}
-                  </span>
-                ) : null}
-              </div>
+    <div className="space-y-6">
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle className="text-base">模型分配</CardTitle>
+          <CardDescription>
+            为默认任务和三档聊天回复分别选择模型。修改后点击保存，新请求使用新的配置。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <fieldset disabled={saving} className="grid gap-4 lg:grid-cols-2">
+            <ModelSelect
+              id="default-model"
+              label="默认模型"
+              description="讲义、题库导入和其他通用 AI 任务使用。"
+              value={modelId}
+              onChange={setModelId}
+            />
+            {CHAT_RESPONSE_STRENGTHS.map((key) => (
+              <ModelSelect
+                key={key}
+                id={`model-${key}`}
+                label={tierLabels[key]}
+                description={`用户选择「${tierLabels[key]}」聊天时使用，可按你的教学需求分配。`}
+                value={tiers[key]}
+                onChange={(value) => setTiers((old) => ({ ...old, [key]: value }))}
+              />
+            ))}
+          </fieldset>
+          <p className="mt-4 text-xs leading-5 text-muted-foreground">
+            候选项来自 OpenAI 官方模型目录；实际访问权限取决于当前
+            Key。图像、语音等专用模型独立配置。
+            <a
+              className="ml-1 underline underline-offset-4"
+              href="https://developers.openai.com/api/docs/models"
+              target="_blank"
+              rel="noreferrer"
+            >
+              查看模型说明
+            </a>
+          </p>
+        </CardContent>
+      </Card>
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <KeyRound className="size-4" />
+            全站连接
+          </CardTitle>
+          <CardDescription>各项 OpenAI 服务共用此 Key，密钥加密保存在服务端。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 text-sm">
+            <ShieldCheck className="size-4 text-emerald-600" />
+            <span>{config?.hasApiKey ? `已配置 ${config.maskedApiKey}` : '尚未配置 API Key'}</span>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="system-api-key">更换 API Key</Label>
+            <Input
+              id="system-api-key"
+              type="password"
+              disabled={saving}
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              placeholder={config?.hasApiKey ? '留空保留当前 Key' : '请输入 OpenAI API Key'}
+              autoComplete="new-password"
+            />
+          </div>
+          <details className="rounded-lg border p-3">
+            <summary className="cursor-pointer text-sm">高级连接设置</summary>
+            <div className="mt-3 space-y-2">
+              <Label htmlFor="system-base-url">服务地址（Base URL）</Label>
+              <Input
+                id="system-base-url"
+                disabled={saving}
+                value={baseUrl}
+                onChange={(event) => setBaseUrl(event.target.value)}
+              />
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="system-model-id">其他 AI 功能兜底模型</Label>
-                <Input
-                  id="system-model-id"
-                  value={modelId}
-                  onChange={(event) => setModelId(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="system-base-url">Base URL</Label>
-                <Input
-                  id="system-base-url"
-                  value={baseUrl}
-                  onChange={(event) => setBaseUrl(event.target.value)}
-                />
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {CHAT_RESPONSE_STRENGTHS.map((strength) => {
-                const tier = CHAT_RESPONSE_STRENGTH_CONFIG[strength];
-                return (
-                  <div key={strength} className="rounded-xl border bg-muted/20 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold">{tier.label}强度</p>
-                      <span className="text-xs text-muted-foreground">
-                        约 {tier.relativeCost}× 用量
-                      </span>
-                    </div>
-                    <p className="mt-1 font-mono text-xs text-foreground">{tier.modelId}</p>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      {tier.description}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="system-api-key">OpenAI API Key</Label>
-              <div className="flex gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <KeyRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="system-api-key"
-                    type="password"
-                    className="pl-9"
-                    value={apiKey}
-                    onChange={(event) => setApiKey(event.target.value)}
-                    placeholder={config?.hasApiKey ? '留空则保留当前 Key' : '首次保存必须填写'}
-                    autoComplete="new-password"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  onClick={() => void save()}
-                  disabled={saving || !modelId.trim()}
-                >
-                  {saving ? (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 size-4" />
-                  )}
-                  保存
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+          </details>
+        </CardContent>
+      </Card>
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background/95 p-4 shadow-sm backdrop-blur">
+        <p aria-live="polite" className="text-xs text-muted-foreground">
+          {dirty
+            ? '有未保存的修改'
+            : config?.updatedAt
+              ? `已保存 · ${new Date(config.updatedAt).toLocaleString('zh-CN')}`
+              : '当前配置已加载'}
+        </p>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            disabled={!dirty || saving}
+            onClick={() => {
+              if (config) apply(config);
+            }}
+          >
+            <RotateCcw className="mr-2 size-4" />
+            撤销修改
+          </Button>
+          <Button disabled={!dirty || saving || !config} onClick={() => void save()}>
+            {saving ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Save className="mr-2 size-4" />
+            )}
+            保存配置
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }

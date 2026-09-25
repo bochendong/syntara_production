@@ -75,6 +75,8 @@ import { hasLimitedSubmissions } from '@/lib/problem-bank/scoring-policy';
 
 type CourseProblemBankControllerArgs = {
   courseId: string;
+  adminReadOnly?: boolean;
+  adminSnapshot?: AdminCourseProblemBankSnapshot;
   initialNotebookId?: string;
   initialProblemId?: string;
   initialFilters?: CourseProblemBankInitialFilters;
@@ -84,6 +86,15 @@ type CourseProblemBankControllerArgs = {
   previewMode?: boolean;
   previewAsTeacher?: boolean;
   onPracticeAttemptResolved?: (event: CourseProblemPracticeAttemptResolvedEvent) => void;
+};
+
+export type AdminCourseProblemBankSnapshot = {
+  courseName: string;
+  courseCode?: string;
+  courseAcademicYear?: number;
+  courseAcademicTerm?: CourseRecord['academicTerm'];
+  problems: NotebookProblemClientRecord[];
+  chapters: CourseProblemChapter[];
 };
 
 export type CourseProblemPracticeAttemptResolvedEvent = {
@@ -184,6 +195,8 @@ function attemptAnswerHasContent(answer: NotebookProblemAttemptAnswer | null | u
 
 export function useCourseProblemBankController({
   courseId,
+  adminReadOnly = false,
+  adminSnapshot,
   initialNotebookId,
   initialProblemId,
   initialFilters,
@@ -273,7 +286,8 @@ export function useCourseProblemBankController({
     () => normalizeInitialStatusFilter(initialFilters?.statusFilter),
   );
   const deferredSearchQuery = useDeferredValue(searchQuery);
-  const usesServerPagination = !isPracticeMode && !isLocalDemoProblemBankCourse(courseId);
+  const usesServerPagination =
+    !adminReadOnly && !isPracticeMode && !isLocalDemoProblemBankCourse(courseId);
 
   const scopedPracticeProblemIdKey = useMemo(
     () => Array.from(new Set(practiceProblemIds?.filter(Boolean) ?? [])).join('\u001f'),
@@ -291,6 +305,23 @@ export function useCourseProblemBankController({
     }
     setLoading(true);
     try {
+      if (adminReadOnly && adminSnapshot) {
+        setCourseName(adminSnapshot.courseName);
+        setCourseCode(adminSnapshot.courseCode);
+        setCourseAcademicYear(adminSnapshot.courseAcademicYear);
+        setCourseAcademicTerm(adminSnapshot.courseAcademicTerm);
+        setCourseAccessRole('enrolled');
+        setProblems(adminSnapshot.problems);
+        setCourseProblemCount(adminSnapshot.problems.length);
+        setServerFilteredProblemCount(adminSnapshot.problems.length);
+        setServerBankStats(null);
+        setSelectedProblemId((current) =>
+          current && adminSnapshot.problems.some((problem) => problem.id === current)
+            ? current
+            : null,
+        );
+        return;
+      }
       const localDemoProblems = listLocalDemoProblemBank(courseId);
       if (localDemoProblems) {
         const localDemoCourse = resolveLocalDemoProblemBankCourse(courseId, previewAsTeacher);
@@ -408,6 +439,8 @@ export function useCourseProblemBankController({
       if (requestId === loadRequestIdRef.current) setLoading(false);
     }
   }, [
+    adminReadOnly,
+    adminSnapshot,
     chapterFilter,
     courseId,
     deferredSearchQuery,
@@ -443,6 +476,10 @@ export function useCourseProblemBankController({
       setProblemChapters([]);
       return;
     }
+    if (adminReadOnly && adminSnapshot) {
+      setProblemChapters(adminSnapshot.chapters);
+      return;
+    }
     if (isLocalDemoProblemBankCourse(courseId)) {
       setProblemChapters(listLocalDemoProblemChapters(courseId));
       return;
@@ -456,10 +493,14 @@ export function useCourseProblemBankController({
     return () => {
       cancelled = true;
     };
-  }, [courseId]);
+  }, [adminReadOnly, adminSnapshot, courseId]);
 
   const reloadProblemChapters = useCallback(async () => {
     if (!courseId) return;
+    if (adminReadOnly && adminSnapshot) {
+      setProblemChapters(adminSnapshot.chapters);
+      return;
+    }
     if (isLocalDemoProblemBankCourse(courseId)) {
       setProblemChapters(listLocalDemoProblemChapters(courseId));
       return;
@@ -467,7 +508,7 @@ export function useCourseProblemBankController({
     const result = await listCourseProblemChapters(courseId);
     setProblemChapters(result.chapters);
     await loadAll();
-  }, [courseId, loadAll]);
+  }, [adminReadOnly, adminSnapshot, courseId, loadAll]);
 
   useEffect(() => {
     initialPracticeAnswersRef.current = initialPracticeAnswers;
@@ -532,7 +573,7 @@ export function useCourseProblemBankController({
     });
   }, [initialPracticeAnswers, isPracticeMode]);
 
-  const canEditProblems = courseAccessRole === 'owner';
+  const canEditProblems = !adminReadOnly && courseAccessRole === 'owner';
 
   useEffect(() => {
     if (canEditProblems) return;
@@ -887,10 +928,15 @@ export function useCourseProblemBankController({
     currentFilteredProblemIndex >= 0 ? currentFilteredProblemIndex + 1 : 0;
   const practiceNavigationProblemCount = filteredSequenceProblems.length;
   const deleteReplacementPracticeTarget = nextPracticeTarget ?? previousPracticeTarget;
-  const selectedProblemEditDraft = useMemo(
-    () => (selectedProblem ? problemRecordToDraft(selectedProblem) : null),
-    [selectedProblem],
-  );
+  const selectedProblemEditDraft = useMemo(() => {
+    if (!selectedProblem) return null;
+    try {
+      return problemRecordToDraft(selectedProblem);
+    } catch {
+      // Older records can still be viewed even if they predate the current editor schema.
+      return null;
+    }
+  }, [selectedProblem]);
   const visibleProblemPreviewDraft = editingPreviewDraft ?? selectedProblemEditDraft;
   const selectedProblemSolutionSections = useMemo(() => {
     if (!selectedProblem || !selectedProblemContent) return [];

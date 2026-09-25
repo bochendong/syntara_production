@@ -75,7 +75,7 @@ function DialogContent({
           className,
         )}
         {...props}
-        style={{ ...style, ...SYNTARA_DIALOG_VIEWPORT_STYLE }}
+        style={{ ...SYNTARA_DIALOG_VIEWPORT_STYLE, ...style }}
       >
         {children}
         {showCloseButton && (

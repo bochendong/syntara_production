@@ -300,9 +300,9 @@ type WeeklyUsageResponse = {
   success: true;
   databaseEnabled: boolean;
   period: { start: string; end: string };
-  usedCredits: number;
-  limitCredits: number | null;
-  remainingCredits: number | null;
+  usedUsd: number;
+  limitUsd: number | null;
+  remainingUsd: number | null;
   requestCount: number;
   requestLimit: number | null;
   remainingRequests: number | null;
@@ -331,8 +331,8 @@ function WeeklyUsageSummary() {
     return () => window.removeEventListener(WEEKLY_USAGE_UPDATED_EVENT, onUsageUpdated);
   }, [load]);
 
-  const limit = usage?.limitCredits ?? null;
-  const used = usage?.usedCredits ?? 0;
+  const limit = usage?.limitUsd ?? null;
+  const used = usage?.usedUsd ?? 0;
   const requestLimit = usage?.requestLimit ?? null;
   const hasCostLimit = limit != null;
   const hasRequestLimit = requestLimit != null;
@@ -373,19 +373,17 @@ function WeeklyUsageSummary() {
         <>
           <div className="mt-2 flex items-end justify-between gap-2">
             <p className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
-              {(hasCostLimit ? usage.remainingCredits : usage.remainingRequests)?.toLocaleString(
-                'zh-CN',
-              ) ?? 0}
+              {hasCostLimit
+                ? `$${(usage.remainingUsd ?? 0).toFixed(2)}`
+                : (usage.remainingRequests?.toLocaleString('zh-CN') ?? 0)}
               <span className="ml-1 text-[10px] font-medium text-slate-400">
-                {hasCostLimit ? '点' : '次'}
+                {hasCostLimit ? 'USD' : '次'}
               </span>
             </p>
             <p className="pb-0.5 text-[10px] text-slate-400">
               已用{' '}
-              {hasCostLimit
-                ? used.toLocaleString('zh-CN')
-                : usage.requestCount.toLocaleString('zh-CN')}{' '}
-              / {(hasCostLimit ? limit : requestLimit)?.toLocaleString('zh-CN')}
+              {hasCostLimit ? `$${used.toFixed(2)}` : usage.requestCount.toLocaleString('zh-CN')} /{' '}
+              {hasCostLimit ? `$${limit?.toFixed(2)}` : requestLimit?.toLocaleString('zh-CN')}
             </p>
           </div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
@@ -402,7 +400,7 @@ function WeeklyUsageSummary() {
             />
           </div>
           <p className="mt-2 text-[10px] leading-4 text-slate-400">
-            {hasCostLimit ? '按模型实际开销扣减' : '按 AI 请求次数扣减'}
+            {hasCostLimit ? '按预估模型成本统计' : '按 AI 请求次数统计'}
             {hasCostLimit && hasRequestLimit
               ? ` · 请求 ${usage.requestCount.toLocaleString('zh-CN')} / ${requestLimit.toLocaleString('zh-CN')}`
               : ''}
@@ -414,9 +412,7 @@ function WeeklyUsageSummary() {
           <p className="mt-2 text-[12px] font-medium text-slate-600 dark:text-slate-300">
             管理员尚未设置每周限额
           </p>
-          <p className="mt-1 text-[10px] text-slate-400">
-            本周已用 {used.toLocaleString('zh-CN')} 点
-          </p>
+          <p className="mt-1 text-[10px] text-slate-400">本周预估模型成本 ${used.toFixed(2)}</p>
         </>
       ) : !loading ? (
         <button type="button" onClick={() => void load()} className="mt-2 text-[11px] text-sky-600">

@@ -125,7 +125,7 @@ export function AdminEntry() {
               管理员控制台登录
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              这里用于登录站点管理员后台。登录成功后，你可以管理模型配置、积分发放、老用户补发和其它全站级设置。
+              这里用于登录站点管理员后台。登录成功后，你可以管理模型配置、用量明细、课程与用户等全站级设置。
             </p>
           </div>
         </div>

@@ -18,6 +18,7 @@ import { NotebookMindMapPreview } from '@/components/courses/notebook-mind-map-p
 import { COURSE_SPACE_BODY_SURFACE_CLASS } from '@/components/course-space/course-space-header';
 import { StudentCoursePageFrame } from '@/components/course-space/student-course-page-frame';
 import { Button } from '@/components/ui/button';
+import { NotebookPopupLink } from '@/components/student/notebook-popup-link';
 import {
   readLearnCourseListCache,
   upsertLearnCourseListCache,
@@ -479,13 +480,16 @@ export function CourseResourceLibraryPageClient({ courseId, initialNotebookId }:
                     </div>
                   </dl>
                   <div className="mt-auto pt-6">
-                    <Button asChild className="h-11 w-full rounded-xl">
-                      <Link href={`/classroom/${encodeURIComponent(selectedNotebook.id)}`}>
-                        <BookOpen className="mr-1.5 size-4" />
-                        打开笔记本
-                        <ArrowUpRight className="ml-auto size-4" />
-                      </Link>
-                    </Button>
+                    <NotebookPopupLink
+                      notebookId={selectedNotebook.id}
+                      title={selectedNotebook.name}
+                      kind={selectedNotebook.notebookKind ?? 'image'}
+                      className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90"
+                    >
+                      <BookOpen className="mr-1.5 size-4" />
+                      打开笔记本
+                      <ArrowUpRight className="ml-auto size-4" />
+                    </NotebookPopupLink>
                   </div>
                 </>
               ) : null}

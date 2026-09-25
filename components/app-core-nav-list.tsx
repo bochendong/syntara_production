@@ -3,10 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  ArrowRightLeft,
   BookOpen,
   Bug,
-  Coins,
   LifeBuoy,
   LibraryBig,
   LayoutDashboard,
@@ -101,9 +99,6 @@ const CHAT_RIGHT_RAIL_KEY_ORDER: Record<string, number> = {
   learn: 2,
   courses: 2,
   store: 3,
-  'top-up': 4,
-  'credits-market': 5,
-  'avatar-store': 6,
   chat: 7,
   live2d: 8,
   profile: 10,
@@ -178,8 +173,6 @@ export function AppCoreNavList({
 
   const live2dActive = pathname === '/live2d' || pathname?.startsWith('/live2d/');
   const learnActive = pathname === '/learn' || pathname?.startsWith('/learn/');
-  const avatarStoreActive =
-    pathname === '/store/avatars' || pathname?.startsWith('/store/avatars/');
   const courseProblemBankActive =
     Boolean(pathname?.startsWith('/course/')) &&
     (pathname?.endsWith('/problem-bank') || pathname?.includes('/problem-bank/'));
@@ -189,9 +182,6 @@ export function AppCoreNavList({
   const courseTemplateLibraryActive =
     Boolean(pathname?.startsWith('/course/')) &&
     (pathname?.endsWith('/memory/templates') || pathname?.includes('/memory/templates/'));
-  const topUpActive = pathname === '/top-up' || pathname?.startsWith('/top-up/');
-  const creditsMarketActive =
-    pathname === '/credits-market' || pathname?.startsWith('/credits-market/');
   const creatorActive =
     pathname === '/creator' ||
     pathname?.startsWith('/creator/') ||
@@ -259,36 +249,6 @@ export function AppCoreNavList({
           tooltip: '课程商城',
           icon: ShoppingBag,
           active: courseStoreActive,
-        },
-        {
-          key: 'avatar-store',
-          href: '/store/avatars',
-          label: '抽卡补给站',
-          tooltip: '抽卡补给站',
-          icon: UserRound,
-          active: avatarStoreActive,
-        },
-      ],
-    },
-    {
-      key: 'credits',
-      label: '积分中心',
-      items: [
-        {
-          key: 'top-up',
-          href: '/top-up',
-          label: '充值/转换',
-          tooltip: '充值/转换',
-          icon: Coins,
-          active: topUpActive,
-        },
-        {
-          key: 'credits-market',
-          href: '/credits-market',
-          label: '交易积分',
-          tooltip: '交易积分',
-          icon: ArrowRightLeft,
-          active: creditsMarketActive,
         },
       ],
     },
@@ -449,38 +409,8 @@ export function AppCoreNavList({
                     icon: Sparkles,
                     active: live2dActive,
                   },
-                  {
-                    key: 'avatar-store',
-                    href: '/store/avatars',
-                    label: '抽卡补给站',
-                    tooltip: '抽卡补给站',
-                    icon: UserRound,
-                    active: avatarStoreActive,
-                  },
                 ] satisfies CoreNavItem[])
               : []),
-          ],
-        },
-        {
-          key: 'credits',
-          label: '积分中心',
-          items: [
-            {
-              key: 'top-up',
-              href: '/top-up',
-              label: '充值/转换',
-              tooltip: '充值/转换',
-              icon: Coins,
-              active: topUpActive,
-            },
-            {
-              key: 'credits-market',
-              href: '/credits-market',
-              label: '交易积分',
-              tooltip: '交易积分',
-              icon: ArrowRightLeft,
-              active: creditsMarketActive,
-            },
           ],
         },
         {

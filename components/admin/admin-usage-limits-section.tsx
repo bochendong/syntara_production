@@ -423,8 +423,8 @@ export function AdminUsageLimitsSection() {
             批量用户云端上限
           </CardTitle>
           <CardDescription>
-            选择一组账号后统一覆盖每周成本、每周请求数和暂停状态。留空表示不限；学生侧按 100 点 = 1
-            USD 显示剩余用量。
+            选择一组账号后统一覆盖每周成本、每周请求数和暂停状态。留空表示不限；学生侧以 USD
+            显示剩余用量预算。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

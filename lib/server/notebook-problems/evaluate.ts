@@ -12,6 +12,7 @@ import {
   isNotebookProofProblemRecord,
   isNotebookShortAnswerProblemRecord,
 } from '@/lib/problem-bank';
+import { parseNumericPair, parseNumericScalar } from '@/lib/problem-bank/numeric-answer';
 
 function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -22,15 +23,6 @@ function arraysEqual(left: string[], right: string[]): boolean {
   const a = [...left].sort();
   const b = [...right].sort();
   return a.every((value, index) => value === b[index]);
-}
-
-function extractNumericValue(value: string): number | null {
-  const cleaned = value.trim().replace(/,/g, '');
-  if (!cleaned) return null;
-  const match = cleaned.match(/-?\d+(?:\.\d+)?/);
-  if (!match) return null;
-  const parsed = Number(match[0]);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function scoreToStatus(score: number, totalPoints: number) {
@@ -266,8 +258,8 @@ export async function evaluateNotebookNonCodeProblem(args: {
       const userValue = filled[blank.id] || '';
       return blank.acceptedAnswers.some((candidate) => {
         if (blank.matcher === 'numeric_tolerance') {
-          const actual = extractNumericValue(userValue);
-          const expected = extractNumericValue(candidate);
+          const actual = parseNumericScalar(userValue);
+          const expected = parseNumericScalar(candidate);
           return (
             actual != null &&
             expected != null &&
@@ -328,17 +320,31 @@ export async function evaluateNotebookNonCodeProblem(args: {
       (typeof problem.grading.tolerance === 'number' ||
         typeof problem.grading.relativeTolerance === 'number')
     ) {
-      const userNumeric = extractNumericValue(submitted);
+      const userNumeric = parseNumericScalar(submitted);
+      const userPair = parseNumericPair(submitted);
       numericMatch = accepted.some((candidate) => {
-        const expectedNumeric = extractNumericValue(candidate);
-        if (userNumeric == null || expectedNumeric == null) return false;
-        const difference = Math.abs(userNumeric - expectedNumeric);
-        const absoluteMatch =
-          typeof problem.grading.tolerance === 'number' && difference <= problem.grading.tolerance;
-        const relativeMatch =
-          typeof problem.grading.relativeTolerance === 'number' &&
-          difference <= Math.abs(expectedNumeric) * problem.grading.relativeTolerance;
-        return absoluteMatch || relativeMatch;
+        const expectedPair = parseNumericPair(candidate);
+        const expectedNumeric = expectedPair ? null : parseNumericScalar(candidate);
+        const values: Array<[number, number]> =
+          userPair && expectedPair
+            ? [
+                [userPair[0], expectedPair[0]],
+                [userPair[1], expectedPair[1]],
+              ]
+            : userNumeric !== null && expectedNumeric !== null
+              ? [[userNumeric, expectedNumeric]]
+              : [];
+        if (values.length === 0) return false;
+        return values.every(([actual, expected]) => {
+          const difference = Math.abs(actual - expected);
+          const absoluteMatch =
+            typeof problem.grading.tolerance === 'number' &&
+            difference <= problem.grading.tolerance;
+          const relativeMatch =
+            typeof problem.grading.relativeTolerance === 'number' &&
+            difference <= Math.abs(expected) * problem.grading.relativeTolerance;
+          return absoluteMatch || relativeMatch;
+        });
       });
     }
     const correct = directMatch || numericMatch;

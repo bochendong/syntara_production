@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/context-menu';
 import { ChatAttachmentBubble } from '@/components/chat/chat-attachment-bubble';
 import { NotebookContentView } from '@/components/notebook-content/notebook-content-view';
+import { NotebookPopupLink } from '@/components/student/notebook-popup-link';
 import type {
   ChatMessageMetadata,
   CourseChatGroupMeta,
@@ -505,6 +506,17 @@ function GroupMemberMessage({
             <div className="mt-3 flex flex-wrap gap-2">
               {meta.actions.map((action) => {
                 const href = actionHref(action.id);
+                if (action.id.startsWith('open-notebook:')) {
+                  return (
+                    <NotebookPopupLink
+                      key={action.id}
+                      notebookId={action.id.slice('open-notebook:'.length)}
+                      className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-[11px] font-medium text-violet-700 transition-colors hover:bg-violet-500/15 dark:text-violet-200"
+                    >
+                      {action.label}
+                    </NotebookPopupLink>
+                  );
+                }
                 return href ? (
                   <Link
                     key={action.id}
@@ -864,6 +876,17 @@ export function AgentMessageThread({
                     <div className="mt-3 flex flex-wrap gap-2">
                       {meta.actions.map((action) => {
                         const href = actionHref(action.id);
+                        if (action.id.startsWith('open-notebook:')) {
+                          return (
+                            <NotebookPopupLink
+                              key={action.id}
+                              notebookId={action.id.slice('open-notebook:'.length)}
+                              className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-[11px] font-medium text-violet-700 transition-colors hover:bg-violet-500/15 dark:text-violet-200"
+                            >
+                              {action.label}
+                            </NotebookPopupLink>
+                          );
+                        }
                         return href ? (
                           <Link
                             key={action.id}

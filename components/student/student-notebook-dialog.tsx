@@ -24,7 +24,7 @@ const ThumbnailSlide = dynamic(
 );
 type Section = { id: string; title: string; summary?: string; markdown?: string };
 type SectionPage = { sections: Section[]; page: { hasMore: boolean; nextCursor: string | null } };
-type Notebook = { id: string; title: string; kind: 'image' | 'markdown' };
+type Notebook = { id: string; title?: string; kind?: 'image' | 'markdown' };
 
 export function StudentNotebookDialog({
   notebook,
@@ -35,6 +35,31 @@ export function StudentNotebookDialog({
   onClose: () => void;
   preview?: boolean;
 }) {
+  const [resolved, setResolved] = useState<Notebook>(notebook);
+  const [metadataError, setMetadataError] = useState('');
+  const [metadataRetry, setMetadataRetry] = useState(0);
+
+  useEffect(() => {
+    if (preview || (notebook.title && notebook.kind)) return;
+    const controller = new AbortController();
+    void backendJson<{
+      notebook: { name: string; notebookKind: 'image' | 'markdown' };
+    }>(`/api/notebooks/${encodeURIComponent(notebook.id)}?includeScenes=0`, {
+      signal: controller.signal,
+    })
+      .then(({ notebook: record }) => {
+        if (!controller.signal.aborted) {
+          setResolved({ id: notebook.id, title: record.name, kind: record.notebookKind });
+          setMetadataError('');
+        }
+      })
+      .catch((cause) => {
+        if (!controller.signal.aborted)
+          setMetadataError(cause instanceof Error ? cause.message : '笔记本加载失败，请重试。');
+      });
+    return () => controller.abort();
+  }, [notebook.id, notebook.kind, notebook.title, preview, metadataRetry]);
+
   return (
     <Dialog
       open
@@ -44,10 +69,36 @@ export function StudentNotebookDialog({
     >
       <DialogContent className="gap-0 overflow-hidden p-0">
         <DialogHeader className="border-b px-6 py-5 pr-14">
-          <DialogTitle>{notebook.title}</DialogTitle>
-          <DialogDescription>课程笔记本 · 选择章节阅读，关闭后返回课程。</DialogDescription>
+          <DialogTitle>{resolved.title || '课程笔记本'}</DialogTitle>
+          <DialogDescription>选择章节阅读；关闭后返回刚才的位置。</DialogDescription>
         </DialogHeader>
-        <NotebookReader key={notebook.id} notebook={notebook} preview={preview} />
+        {resolved.kind ? (
+          <NotebookReader
+            key={notebook.id}
+            notebook={{ id: notebook.id, title: resolved.title || '', kind: resolved.kind }}
+            preview={preview}
+          />
+        ) : metadataError ? (
+          <div role="alert" className="grid min-h-64 place-items-center px-6 text-center">
+            <div>
+              <p className="text-sm text-rose-700">{metadataError}</p>
+              <Button
+                className="mt-4"
+                variant="outline"
+                onClick={() => setMetadataRetry((n) => n + 1)}
+              >
+                重试加载
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div role="status" className="grid min-h-64 place-items-center text-sm text-slate-500">
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin" />
+              正在读取笔记本…
+            </span>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -87,6 +138,7 @@ function NotebookReader({ notebook, preview }: { notebook: Notebook; preview: bo
         }));
         setSections(items);
         setSelectedId(items[0].id);
+        setLoading(false);
         return;
       }
       const base = `/api/notebooks/${encodeURIComponent(notebook.id)}`;

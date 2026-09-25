@@ -162,7 +162,7 @@ export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): stri
 - 行内函数名、变量名、文件名和代码片段使用反引号，例如 \`len(items)\`。代码块和行内代码内部绝不能插入数学定界符。
 - 只有数学表达式使用 LaTeX：短公式使用 $...$；矩阵、分段函数、长积分、长极限和多行推导使用独立 $$...$$。不要把普通文字或程序代码放进 $...$。
 - 题目必须脱离原 PDF 独立作答。共享材料复制到依赖它的题目；不能只写“见上表”“见图”“如上”或 “Table I”。
-- 默认保持原题的作答方式和认知要求。只有原交互无法稳定展示或评分时才适配题型，并在 sourceMeta.adaptation 记录原因；不得全局优先改成选择题。
+- 优先考虑选择题，尤其是原作答方式在平台上难以清楚展示或稳定评分时。只有能用可信的典型错误作为干扰项、仍考查同一知识和推理、且不明显降低难度时才使用选择题；若改变了原作答方式，在 sourceMeta.adaptation 记录原因。不要机械保留难以作答的简答题，也不要机械地把所有题改成选择题。编写代码、证明、推导和多步计算若会变成辨认答案，应保留开放作答；若平台仍无法交付，在 validationErrors 标记障碍。缺失作答条件的题不能靠提供选项补救。
 
 题型交付契约：
 - choice：publicContent.responseKind="choice"，taskKind 根据实际任务填写，selectionMode 为 single 或 multiple；options 是 2-12 个 {id,label,format:"syntara-markdown-inline-v1"}。stem 不得重复选项；label 必须是完整 Markdown 选项，不能只写 A/B/C。grading.graderKind="exact_choice"，correctOptionIds 必须引用真实选项；单选恰好一个正确答案。干扰项应对应可信的常见错误，不得随机编造。
@@ -184,7 +184,7 @@ export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): stri
 - Separate taskKind (concept, code_reading, calculation, proof, implementation), responseKind, and graderKind. Code tracing/output/error diagnosis is code_reading; only implementation tasks use implementation/code_submission.
 - Add contractVersion="syntara.problem.v1" and statementFormat="syntara-markdown-v1" to publicContent. Add the matching taskKind/responseKind and graderKind.
 - The stem is final student-facing Markdown, not OCR, metadata, an answer, or prompt commentary. Use paragraphs, Markdown lists, GFM tables, and language-labelled fenced code blocks according to meaning. Use backticks for identifiers. Never add math delimiters inside code. Use $...$ only for inline math and $$...$$ for standalone/structured math.
-- Preserve the original response demand and cognitive load. Adapt the response type only when the source interaction cannot be rendered or graded reliably; do not globally prefer multiple choice.
+- Prefer multiple choice when plausible misconception-based distractors still test the same knowledge and reasoning without materially reducing difficulty, especially if the original interaction is hard to display or grade reliably. Record changes to the original response demand in sourceMeta.adaptation. Do not mechanically preserve an unsuitable short-answer interaction or mechanically turn every problem into a choice question. Keep coding, proof, derivation, and multi-step calculation open-ended when choices would reduce them to answer recognition; report any remaining delivery obstacle in validationErrors. Options cannot repair missing givens.
 - choice: responseKind="choice", 2-12 complete Markdown options, valid single/multiple mode, graderKind="exact_choice", and correctOptionIds referencing existing options. Distractors must represent plausible misconceptions.
 - fill_blank: use one {{blank_id}} marker per public blank; answerKind is text|number|math_expression|code_token. The grading blank IDs must match exactly and use matcher exact|normalized_exact|numeric_tolerance with acceptedAnswers and optional tolerance.
 - calculation is only for final-result auto-matching: taskKind="calculation", responseKind="math_expression", showWork=false, graderKind="numeric_or_exact", referenceAnswer, final-only acceptedForms, and applicable tolerance/relativeTolerance/unit. If solution steps earn credit, use short_answer + taskKind="calculation" + graderKind="rubric" + rubricCriteria so the student can submit the full derivation.
