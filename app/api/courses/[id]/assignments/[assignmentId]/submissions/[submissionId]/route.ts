@@ -31,8 +31,12 @@ async function accessibleSubmission(
           title: true,
           instructions: true,
           schoolTaskText: true,
-          schoolFileText: true,
-          exemplarText: true,
+          schoolFileName: true,
+          schoolMimeType: true,
+          schoolFileData: true,
+          exemplarFileName: true,
+          exemplarMimeType: true,
+          exemplarFileData: true,
           course: { select: { name: true } },
         },
       },
@@ -107,9 +111,31 @@ export async function POST(_request: NextRequest, context: Context) {
             title: submission.assignment.title,
             instructions: submission.assignment.instructions,
             schoolTaskText: submission.assignment.schoolTaskText,
-            schoolFileText: submission.assignment.schoolFileText,
-            exemplarText: submission.assignment.exemplarText,
-            studentText: submission.extractedText,
+            schoolFile:
+              submission.assignment.schoolFileData &&
+              submission.assignment.schoolFileName &&
+              submission.assignment.schoolMimeType
+                ? {
+                    fileName: submission.assignment.schoolFileName,
+                    mimeType: submission.assignment.schoolMimeType,
+                    data: submission.assignment.schoolFileData,
+                  }
+                : null,
+            exemplarFile:
+              submission.assignment.exemplarFileData &&
+              submission.assignment.exemplarFileName &&
+              submission.assignment.exemplarMimeType
+                ? {
+                    fileName: submission.assignment.exemplarFileName,
+                    mimeType: submission.assignment.exemplarMimeType,
+                    data: submission.assignment.exemplarFileData,
+                  }
+                : null,
+            studentFile: {
+              fileName: submission.fileName,
+              mimeType: submission.mimeType,
+              data: submission.fileData,
+            },
           }),
       );
       await prisma.courseAssignmentSubmission.update({

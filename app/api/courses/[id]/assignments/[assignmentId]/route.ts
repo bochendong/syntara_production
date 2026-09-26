@@ -10,14 +10,41 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 type Context = { params: Promise<{ id: string; assignmentId: string }> };
 
+function assignmentFileResponse(
+  file: {
+    name: string | null;
+    mimeType: string | null;
+    data: Uint8Array | null;
+    text: string | null;
+  },
+  preview: boolean,
+) {
+  if (!file.data || !file.mimeType || !file.name) return null;
+  const headers = {
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'private, no-store',
+    'Content-Disposition': `${preview ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+  };
+  if (preview && file.mimeType !== 'application/pdf' && !file.mimeType.startsWith('image/')) {
+    return new NextResponse(file.text ?? '', {
+      headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
+  return new NextResponse(new Uint8Array(file.data), {
+    headers: { ...headers, 'Content-Type': file.mimeType },
+  });
+}
+
 async function ownerAccess(courseId: string, userId: string) {
   return (await findCourseAccessRole(prisma, userId, courseId)) === 'owner';
 }
 
 export async function GET(request: NextRequest, context: Context) {
   return safeRoute(async () => {
-    const download = new URL(request.url).searchParams.get('download');
-    if (download === 'school') {
+    const search = new URL(request.url).searchParams;
+    const fileKind = search.get('preview') ?? search.get('download');
+    const preview = search.has('preview');
+    if (fileKind === 'school') {
       const auth = await requireUserId({ ensureFallbackUser: false });
       if ('response' in auth) return auth.response;
       const { id: courseId, assignmentId } = await context.params;
@@ -25,21 +52,25 @@ export async function GET(request: NextRequest, context: Context) {
       if (!role) return NextResponse.json({ error: 'Not found' }, { status: 404 });
       const assignment = await prisma.courseAssignment.findFirst({
         where: { id: assignmentId, courseId, ...(role === 'enrolled' ? { published: true } : {}) },
-        select: { schoolFileName: true, schoolMimeType: true, schoolFileData: true },
-      });
-      if (!assignment?.schoolFileData || !assignment.schoolMimeType || !assignment.schoolFileName) {
-        return NextResponse.json({ error: '学校作业原件不存在。' }, { status: 404 });
-      }
-      return new NextResponse(new Uint8Array(assignment.schoolFileData), {
-        headers: {
-          'Content-Type': assignment.schoolMimeType,
-          'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(assignment.schoolFileName)}`,
-          'X-Content-Type-Options': 'nosniff',
-          'Cache-Control': 'private, no-store',
+        select: {
+          schoolFileName: true,
+          schoolMimeType: true,
+          schoolFileData: true,
+          schoolFileText: true,
         },
       });
+      const response = assignmentFileResponse(
+        {
+          name: assignment?.schoolFileName ?? null,
+          mimeType: assignment?.schoolMimeType ?? null,
+          data: assignment?.schoolFileData ?? null,
+          text: assignment?.schoolFileText ?? null,
+        },
+        preview,
+      );
+      return response ?? NextResponse.json({ error: '学校作业原件不存在。' }, { status: 404 });
     }
-    if (download !== 'exemplar') return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (fileKind !== 'exemplar') return NextResponse.json({ error: 'Not found' }, { status: 404 });
     const auth = await requireTeacher();
     if ('response' in auth) return auth.response;
     const { id: courseId, assignmentId } = await context.params;
@@ -48,23 +79,23 @@ export async function GET(request: NextRequest, context: Context) {
     }
     const assignment = await prisma.courseAssignment.findFirst({
       where: { id: assignmentId, courseId },
-      select: { exemplarFileName: true, exemplarMimeType: true, exemplarFileData: true },
-    });
-    if (
-      !assignment?.exemplarFileData ||
-      !assignment.exemplarMimeType ||
-      !assignment.exemplarFileName
-    ) {
-      return NextResponse.json({ error: '范本不存在。' }, { status: 404 });
-    }
-    return new NextResponse(new Uint8Array(assignment.exemplarFileData), {
-      headers: {
-        'Content-Type': assignment.exemplarMimeType,
-        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(assignment.exemplarFileName)}`,
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'private, no-store',
+      select: {
+        exemplarFileName: true,
+        exemplarMimeType: true,
+        exemplarFileData: true,
+        exemplarText: true,
       },
     });
+    const response = assignmentFileResponse(
+      {
+        name: assignment?.exemplarFileName ?? null,
+        mimeType: assignment?.exemplarMimeType ?? null,
+        data: assignment?.exemplarFileData ?? null,
+        text: assignment?.exemplarText ?? null,
+      },
+      preview,
+    );
+    return response ?? NextResponse.json({ error: '范本不存在。' }, { status: 404 });
   });
 }
 
@@ -102,7 +133,7 @@ export async function PATCH(request: NextRequest, context: Context) {
     let schoolExtracted: Awaited<ReturnType<typeof extractAssignmentFile>> | null = null;
     if (file instanceof File && file.size > 0) {
       try {
-        extracted = await extractAssignmentFile(file);
+        extracted = await extractAssignmentFile(file, { previewText: true });
       } catch (error) {
         return NextResponse.json(
           { error: error instanceof Error ? error.message : '范本读取失败。' },
@@ -112,7 +143,7 @@ export async function PATCH(request: NextRequest, context: Context) {
     }
     if (schoolFile instanceof File && schoolFile.size > 0) {
       try {
-        schoolExtracted = await extractAssignmentFile(schoolFile);
+        schoolExtracted = await extractAssignmentFile(schoolFile, { previewText: true });
       } catch (error) {
         return NextResponse.json(
           { error: error instanceof Error ? error.message : '学校作业原件读取失败。' },

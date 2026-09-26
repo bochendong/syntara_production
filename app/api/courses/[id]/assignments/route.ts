@@ -106,7 +106,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     let schoolExtracted: Awaited<ReturnType<typeof extractAssignmentFile>> | null = null;
     if (file instanceof File && file.size > 0) {
       try {
-        extracted = await extractAssignmentFile(file);
+        extracted = await extractAssignmentFile(file, { previewText: true });
       } catch (error) {
         return NextResponse.json(
           { error: error instanceof Error ? error.message : '范本读取失败。' },
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }
     if (schoolFile instanceof File && schoolFile.size > 0) {
       try {
-        schoolExtracted = await extractAssignmentFile(schoolFile);
+        schoolExtracted = await extractAssignmentFile(schoolFile, { previewText: true });
       } catch (error) {
         return NextResponse.json(
           { error: error instanceof Error ? error.message : '学校作业原件读取失败。' },

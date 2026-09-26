@@ -62,8 +62,12 @@ export async function POST(request: NextRequest, context: Context) {
         title: true,
         instructions: true,
         schoolTaskText: true,
-        schoolFileText: true,
-        exemplarText: true,
+        schoolFileName: true,
+        schoolMimeType: true,
+        schoolFileData: true,
+        exemplarFileName: true,
+        exemplarMimeType: true,
+        exemplarFileData: true,
         version: true,
         course: { select: { name: true } },
       },
@@ -90,7 +94,7 @@ export async function POST(request: NextRequest, context: Context) {
         fileName: extracted.fileName,
         mimeType: extracted.mimeType,
         fileData: Uint8Array.from(extracted.data),
-        extractedText: extracted.text,
+        extractedText: '',
         sourceVersion: assignment.version,
       },
       select: { id: true },
@@ -111,9 +115,29 @@ export async function POST(request: NextRequest, context: Context) {
             title: assignment.title,
             instructions: assignment.instructions,
             schoolTaskText: assignment.schoolTaskText,
-            schoolFileText: assignment.schoolFileText,
-            exemplarText: assignment.exemplarText,
-            studentText: extracted.text,
+            schoolFile:
+              assignment.schoolFileData && assignment.schoolFileName && assignment.schoolMimeType
+                ? {
+                    fileName: assignment.schoolFileName,
+                    mimeType: assignment.schoolMimeType,
+                    data: assignment.schoolFileData,
+                  }
+                : null,
+            exemplarFile:
+              assignment.exemplarFileData &&
+              assignment.exemplarFileName &&
+              assignment.exemplarMimeType
+                ? {
+                    fileName: assignment.exemplarFileName,
+                    mimeType: assignment.exemplarMimeType,
+                    data: assignment.exemplarFileData,
+                  }
+                : null,
+            studentFile: {
+              fileName: extracted.fileName,
+              mimeType: extracted.mimeType,
+              data: extracted.data,
+            },
           }),
       );
       await prisma.courseAssignmentSubmission.update({

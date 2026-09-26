@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   ChevronRight,
   Download,
+  Eye,
   FileText,
   Loader2,
   Plus,
@@ -36,7 +37,13 @@ import { toast } from '@/lib/notifications/client-toast';
 type Role = 'teacher' | 'student';
 type Feedback = {
   summary: string;
-  issues: Array<{ line: number; severity: 'attention' | 'important'; message: string }>;
+  issues: Array<{
+    line?: number;
+    page?: number;
+    paragraph?: number;
+    severity: 'attention' | 'important';
+    message: string;
+  }>;
   checkedAt: string;
 };
 type Assignment = {
@@ -65,6 +72,7 @@ type ListResponse = {
   course: { name: string; courseCode: string | null };
   assignments: Assignment[];
 };
+type PreviewFile = { assignmentId: string; kind: 'school' | 'exemplar'; fileName: string };
 
 async function responseData<T>(response: Response): Promise<T> {
   const data = (await response.json().catch(() => ({}))) as T & { error?: string };
@@ -90,11 +98,17 @@ function FeedbackPanel({ feedback }: { feedback: Feedback | null }) {
         <ol className="mt-3 space-y-2">
           {feedback.issues.map((issue, index) => (
             <li
-              key={`${issue.line}-${index}`}
+              key={`${issue.page ?? issue.paragraph ?? issue.line}-${index}`}
               className="rounded-xl border border-sky-100 bg-white px-3 py-2 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-200"
             >
               <span className="mr-2 font-semibold text-sky-700 dark:text-sky-300">
-                第 {issue.line} 行
+                {issue.page != null
+                  ? `第 ${issue.page} 页`
+                  : issue.paragraph != null
+                    ? `第 ${issue.paragraph} 段`
+                    : issue.line != null
+                      ? `第 ${issue.line} 行`
+                      : '需检查'}
               </span>
               {issue.message}
             </li>
@@ -202,6 +216,9 @@ export function CourseAssignmentsClient({
   const [removeExemplar, setRemoveExemplar] = useState(false);
   const [studentFile, setStudentFile] = useState<File | null>(null);
   const [uploadKey, setUploadKey] = useState(0);
+  const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState('');
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -209,6 +226,27 @@ export function CourseAssignmentsClient({
 
   const base = `/api/courses/${encodeURIComponent(courseId)}/assignments`;
   const selected = data?.assignments.find((item) => item.id === selectedId) ?? null;
+  const previewUrl = previewFile
+    ? `${base}/${encodeURIComponent(previewFile.assignmentId)}?preview=${previewFile.kind}`
+    : '';
+  const visualPreview = previewFile ? /\.(pdf|png|jpe?g)$/i.test(previewFile.fileName) : false;
+
+  useEffect(() => {
+    setPreviewText(null);
+    setPreviewError('');
+    if (!previewFile || visualPreview) return;
+    const controller = new AbortController();
+    void fetch(previewUrl, { signal: controller.signal, cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('文件预览读取失败。');
+        setPreviewText(await response.text());
+      })
+      .catch((cause) => {
+        if (!controller.signal.aborted)
+          setPreviewError(cause instanceof Error ? cause.message : '文件预览读取失败。');
+      });
+    return () => controller.abort();
+  }, [previewFile, previewUrl, visualPreview]);
 
   const load = useCallback(
     async (preferredId?: string | null) => {
@@ -524,13 +562,30 @@ export function CourseAssignmentsClient({
                         </p>
                       ) : null}
                       {selected.schoolFileName ? (
-                        <a
-                          className="mt-3 inline-flex items-center gap-1.5 text-sm text-sky-700 underline dark:text-sky-300"
-                          href={`${base}/${encodeURIComponent(selected.id)}?download=school`}
-                        >
-                          <Download className="size-4" />
-                          下载学校作业原件：{selected.schoolFileName}
-                        </a>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setPreviewFile({
+                                assignmentId: selected.id,
+                                kind: 'school',
+                                fileName: selected.schoolFileName!,
+                              })
+                            }
+                          >
+                            <Eye className="mr-1.5 size-4" />
+                            预览学校作业原件
+                          </Button>
+                          <a
+                            className="inline-flex items-center gap-1.5 text-sky-700 underline dark:text-sky-300"
+                            href={`${base}/${encodeURIComponent(selected.id)}?download=school`}
+                          >
+                            <Download className="size-4" />
+                            下载 {selected.schoolFileName}
+                          </a>
+                        </div>
                       ) : null}
                     </div>
                   ) : null}
@@ -633,13 +688,30 @@ export function CourseAssignmentsClient({
                           </p>
                         ) : null}
                         {selected.schoolFileName ? (
-                          <a
-                            className="mt-2 inline-flex items-center gap-1.5 text-sm text-sky-700 underline"
-                            href={`${base}/${encodeURIComponent(selected.id)}?download=school`}
-                          >
-                            <Download className="size-4" />
-                            {selected.schoolFileName}
-                          </a>
+                          <div className="mt-2 flex flex-wrap items-center gap-3">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setPreviewFile({
+                                  assignmentId: selected.id,
+                                  kind: 'school',
+                                  fileName: selected.schoolFileName!,
+                                })
+                              }
+                            >
+                              <Eye className="mr-1.5 size-4" />
+                              预览原件
+                            </Button>
+                            <a
+                              className="inline-flex items-center gap-1.5 text-sm text-sky-700 underline"
+                              href={`${base}/${encodeURIComponent(selected.id)}?download=school`}
+                            >
+                              <Download className="size-4" />
+                              下载 {selected.schoolFileName}
+                            </a>
+                          </div>
                         ) : null}
                       </div>
                     ) : null}
@@ -652,13 +724,30 @@ export function CourseAssignmentsClient({
                     {selected.exemplarFileName ? (
                       <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4 dark:border-sky-400/15 dark:bg-sky-400/10">
                         <p className="text-xs font-medium">仅老师可见的参考范本</p>
-                        <a
-                          className="mt-2 inline-flex items-center gap-1.5 text-sm text-sky-700 underline"
-                          href={`${base}/${encodeURIComponent(selected.id)}?download=exemplar`}
-                        >
-                          <ShieldCheck className="size-4" />
-                          {selected.exemplarFileName}
-                        </a>
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setPreviewFile({
+                                assignmentId: selected.id,
+                                kind: 'exemplar',
+                                fileName: selected.exemplarFileName!,
+                              })
+                            }
+                          >
+                            <Eye className="mr-1.5 size-4" />
+                            预览范本
+                          </Button>
+                          <a
+                            className="inline-flex items-center gap-1.5 text-sm text-sky-700 underline"
+                            href={`${base}/${encodeURIComponent(selected.id)}?download=exemplar`}
+                          >
+                            <Download className="size-4" />
+                            下载 {selected.exemplarFileName}
+                          </a>
+                        </div>
                       </div>
                     ) : null}
                     <div>
@@ -739,6 +828,22 @@ export function CourseAssignmentsClient({
                   {editingId &&
                   data?.assignments.find((item) => item.id === editingId)?.schoolFileName ? (
                     <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setPreviewFile({
+                            assignmentId: editingId,
+                            kind: 'school',
+                            fileName: data.assignments.find((item) => item.id === editingId)!
+                              .schoolFileName!,
+                          })
+                        }
+                      >
+                        <Eye className="mr-1.5 size-4" />
+                        预览当前原件
+                      </Button>
                       <a
                         className="inline-flex items-center gap-1 text-xs text-sky-700 underline"
                         href={`${base}/${encodeURIComponent(editingId)}?download=school`}
@@ -789,6 +894,22 @@ export function CourseAssignmentsClient({
                   {editingId &&
                   data?.assignments.find((item) => item.id === editingId)?.exemplarFileName ? (
                     <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setPreviewFile({
+                            assignmentId: editingId,
+                            kind: 'exemplar',
+                            fileName: data.assignments.find((item) => item.id === editingId)!
+                              .exemplarFileName!,
+                          })
+                        }
+                      >
+                        <Eye className="mr-1.5 size-4" />
+                        预览当前范本
+                      </Button>
                       <a
                         className="inline-flex items-center gap-1 text-xs text-sky-700 underline"
                         href={`${base}/${encodeURIComponent(editingId)}?download=exemplar`}
@@ -833,6 +954,65 @@ export function CourseAssignmentsClient({
           </Dialog>
         </>
       ) : null}
+
+      <Dialog open={Boolean(previewFile)} onOpenChange={(open) => !open && setPreviewFile(null)}>
+        <DialogContent className="flex h-[min(900px,94dvh)] max-w-[min(1100px,calc(100vw-1.5rem))] flex-col gap-0 overflow-hidden rounded-3xl p-0">
+          <DialogHeader className="border-b border-slate-200 px-6 py-5 pr-14 dark:border-white/10">
+            <DialogTitle className="truncate text-lg">
+              {previewFile?.fileName ?? '文件预览'}
+            </DialogTitle>
+            <DialogDescription>
+              {previewFile?.kind === 'exemplar'
+                ? '老师内部参考范本，学生不可见。'
+                : '学校布置的作业原件。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-auto bg-slate-50 p-4 dark:bg-slate-950">
+            {previewFile && visualPreview ? (
+              <iframe
+                title={`${previewFile.fileName} 预览`}
+                src={previewUrl}
+                className="h-full min-h-96 w-full rounded-xl border border-slate-200 bg-white dark:border-white/10"
+              />
+            ) : previewError ? (
+              <p role="alert" className="p-4 text-sm text-rose-700">
+                {previewError}
+              </p>
+            ) : previewText === null ? (
+              <p className="flex items-center gap-2 p-4 text-sm text-slate-500">
+                <Loader2 className="size-4 animate-spin" />
+                正在读取文件预览…
+              </p>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-white/[0.04]">
+                <p className="mb-3 text-xs text-slate-500">
+                  便于浏览的文本预览；AI 检查会直接读取原文件。
+                </p>
+                {previewText ? (
+                  <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-7 text-slate-800 dark:text-slate-100">
+                    {previewText}
+                  </pre>
+                ) : (
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
+                    此文件没有可用的文本预览，请下载原件查看。
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="border-t border-slate-200 px-6 py-4 dark:border-white/10">
+            {previewFile ? (
+              <a
+                className="inline-flex items-center gap-1.5 text-sm text-sky-700 underline dark:text-sky-300"
+                href={`${base}/${encodeURIComponent(previewFile.assignmentId)}?download=${previewFile.kind}`}
+              >
+                <Download className="size-4" />
+                下载原文件
+              </a>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </CourseSpacePageFrame>
   );
 }
