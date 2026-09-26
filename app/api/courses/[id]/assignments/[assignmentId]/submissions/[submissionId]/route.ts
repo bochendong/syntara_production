@@ -105,6 +105,7 @@ export async function POST(_request: NextRequest, context: Context) {
           operationCode: 'course_assignment_review_retry',
           chargeReason: '重新检查作业',
           serviceLabel: '作业问题检查',
+          skipCreditCharge: true,
         },
         () =>
           reviewAssignment({
