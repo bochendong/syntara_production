@@ -38,14 +38,13 @@ type Role = 'teacher' | 'student';
 type Feedback = {
   reviewVersion?: number;
   summary: string;
+  limitations?: string[];
   issues: Array<{
-    line?: number;
-    page?: number;
-    paragraph?: number;
+    title?: string;
     severity: 'attention' | 'important';
     message: string;
     observation?: string;
-    selfCheck?: string;
+    revisionFocus?: string;
   }>;
   checkedAt: string;
 };
@@ -101,31 +100,33 @@ function FeedbackPanel({ feedback }: { feedback: Feedback | null }) {
         <ol className="mt-3 space-y-2">
           {feedback.issues.map((issue, index) => (
             <li
-              key={`${issue.page ?? issue.paragraph ?? issue.line}-${index}`}
+              key={`${issue.title ?? 'issue'}-${index}`}
               className="rounded-xl border border-sky-100 bg-white px-3 py-2 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-200"
             >
-              <span className="mr-2 font-semibold text-sky-700 dark:text-sky-300">
-                {issue.page != null
-                  ? `第 ${issue.page} 页`
-                  : issue.paragraph != null
-                    ? `第 ${issue.paragraph} 段`
-                    : issue.line != null
-                      ? `第 ${issue.line} 行`
-                      : '需检查'}
-              </span>
-              {issue.observation && issue.selfCheck ? (
-                <span className="inline-block align-top">
-                  <span>{issue.observation}</span>
-                  <span className="mt-1 block text-slate-600 dark:text-slate-300">
-                    自查：{issue.selfCheck}
-                  </span>
-                </span>
+              {issue.title ? <h4 className="mb-1 font-semibold">{issue.title}</h4> : null}
+              {issue.observation && issue.revisionFocus ? (
+                <>
+                  <p>{issue.observation}</p>
+                  <p className="mt-2 text-slate-600 dark:text-slate-300">
+                    调整方向：{issue.revisionFocus}
+                  </p>
+                </>
               ) : (
                 issue.message
               )}
             </li>
           ))}
         </ol>
+      ) : null}
+      {feedback.limitations?.length ? (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
+          <h4 className="font-semibold">尚未确认的内容</h4>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {feedback.limitations.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
+        </div>
       ) : null}
       <p className="mt-3 text-xs text-sky-800/75 dark:text-sky-200/75">
         这是辅助检查，不给标准答案，也不代替老师的最终判断。
@@ -194,7 +195,7 @@ function SubmissionCard({
         </div>
       ) : null}
       {submission.reviewStatus === 'complete' &&
-      (submission.feedbackJson?.reviewVersion ?? 1) < 2 ? (
+      (submission.feedbackJson?.reviewVersion ?? 1) < 3 ? (
         <Button
           variant="outline"
           size="sm"

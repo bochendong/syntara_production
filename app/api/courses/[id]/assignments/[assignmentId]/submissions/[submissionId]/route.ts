@@ -87,7 +87,7 @@ export async function POST(_request: NextRequest, context: Context) {
     if (!submission) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     const feedback = submission.feedbackJson as { reviewVersion?: number } | null;
     const outdatedReview =
-      submission.reviewStatus === 'complete' && (feedback?.reviewVersion ?? 1) < 2;
+      submission.reviewStatus === 'complete' && (feedback?.reviewVersion ?? 1) < 3;
     if (submission.reviewStatus !== 'error' && !outdatedReview) {
       return NextResponse.json({ error: '这份作业的检查结果已经是最新版本。' }, { status: 409 });
     }
