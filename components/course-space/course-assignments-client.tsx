@@ -6,18 +6,26 @@ import { useSession } from 'next-auth/react';
 import {
   AlertCircle,
   ClipboardCheck,
+  ChevronRight,
   Download,
   FileText,
   Loader2,
   Plus,
   RefreshCw,
-  Save,
   ShieldCheck,
   Upload,
 } from 'lucide-react';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
 import { CourseSpacePageFrame } from '@/components/course-space/course-space-page-frame';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { aiFetch } from '@/lib/ai-progress/ai-fetch';
@@ -100,6 +108,73 @@ function FeedbackPanel({ feedback }: { feedback: Feedback | null }) {
   );
 }
 
+function SubmissionCard({
+  submission,
+  assignmentId,
+  base,
+  role,
+  retryingId,
+  onRetry,
+}: {
+  submission: Submission;
+  assignmentId: string;
+  base: string;
+  role: Role;
+  retryingId: string | null;
+  onRetry: (id: string) => void;
+}) {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.04]">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          {role === 'teacher' ? (
+            <p className="text-xs font-medium text-slate-500">
+              {submission.student?.name || submission.student?.email || '学生'}
+            </p>
+          ) : null}
+          <p className="flex items-center gap-1.5 break-all text-sm font-medium">
+            <FileText className="size-4 shrink-0 text-sky-600" />
+            {submission.fileName}
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            {formatDate(submission.createdAt)} ·{' '}
+            {submission.reviewStatus === 'complete'
+              ? '检查完成'
+              : submission.reviewStatus === 'error'
+                ? '检查失败'
+                : '检查中'}
+          </p>
+        </div>
+        <a
+          className="inline-flex items-center gap-1 text-xs text-sky-700 underline dark:text-sky-300"
+          href={`${base}/${encodeURIComponent(assignmentId)}/submissions/${encodeURIComponent(submission.id)}?download=1`}
+        >
+          <Download className="size-3.5" />
+          下载提交文件
+        </a>
+      </div>
+      {submission.reviewStatus === 'error' ? (
+        <div className="mt-3 text-sm text-rose-700">
+          {submission.reviewError || '检查暂时失败。'}
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-2"
+            disabled={retryingId === submission.id}
+            onClick={() => onRetry(submission.id)}
+          >
+            {retryingId === submission.id ? '重试中…' : '重试检查'}
+          </Button>
+        </div>
+      ) : null}
+      {submission.reviewStatus === 'pending' ? (
+        <p className="mt-3 text-sm text-slate-500">正在检查，请稍后刷新。</p>
+      ) : null}
+      <FeedbackPanel feedback={submission.feedbackJson} />
+    </article>
+  );
+}
+
 export function CourseAssignmentsClient({
   courseId,
   role,
@@ -115,16 +190,18 @@ export function CourseAssignmentsClient({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dialogMode, setDialogMode] = useState<'view' | 'compose' | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [title, setTitle] = useState('');
   const [instructions, setInstructions] = useState('');
   const [schoolTaskText, setSchoolTaskText] = useState('');
-  const [published, setPublished] = useState(false);
   const [schoolFile, setSchoolFile] = useState<File | null>(null);
   const [removeSchoolFile, setRemoveSchoolFile] = useState(false);
   const [exemplarFile, setExemplarFile] = useState<File | null>(null);
   const [removeExemplar, setRemoveExemplar] = useState(false);
   const [studentFile, setStudentFile] = useState<File | null>(null);
+  const [uploadKey, setUploadKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -151,7 +228,7 @@ export function CourseAssignmentsClient({
             },
           ],
         });
-        setSelectedId(preferredId === null ? null : 'preview-assignment');
+        setSelectedId(role === 'student' ? 'preview-assignment' : (preferredId ?? null));
         setLoading(false);
         return;
       }
@@ -164,7 +241,9 @@ export function CourseAssignmentsClient({
           const choice = preferredId === undefined ? previous : preferredId;
           return choice && result.assignments.some((item) => item.id === choice)
             ? choice
-            : (result.assignments[0]?.id ?? null);
+            : role === 'student'
+              ? (result.assignments[0]?.id ?? null)
+              : null;
         });
         setError('');
       } catch (cause) {
@@ -188,24 +267,22 @@ export function CourseAssignmentsClient({
     if (status === 'authenticated') void load();
   }, [load, previewMode, role, router, status]);
 
-  useEffect(() => {
-    if (role !== 'teacher') return;
-    setTitle(selected?.title ?? '');
-    setInstructions(selected?.instructions ?? '');
-    setSchoolTaskText(selected?.schoolTaskText ?? '');
-    setPublished(selected?.published ?? false);
+  function openComposer(assignment?: Assignment) {
+    setEditingId(assignment?.id ?? null);
+    setTitle(assignment?.title ?? '');
+    setInstructions(assignment?.instructions ?? '');
+    setSchoolTaskText(assignment?.schoolTaskText ?? '');
     setSchoolFile(null);
     setRemoveSchoolFile(false);
     setExemplarFile(null);
     setRemoveExemplar(false);
-  }, [
-    role,
-    selectedId,
-    selected?.title,
-    selected?.instructions,
-    selected?.schoolTaskText,
-    selected?.published,
-  ]);
+    setDialogMode('compose');
+  }
+
+  function openDetail(assignment: Assignment) {
+    setSelectedId(assignment.id);
+    setDialogMode('view');
+  }
 
   const loadSubmissions = useCallback(
     async (assignmentId: string) => {
@@ -245,19 +322,20 @@ export function CourseAssignmentsClient({
       form.set('title', title.trim());
       form.set('instructions', instructions.trim());
       form.set('schoolTaskText', schoolTaskText.trim());
-      form.set('published', String(published));
+      form.set('published', 'true');
       if (schoolFile) form.set('schoolFile', schoolFile);
       if (removeSchoolFile) form.set('removeSchoolFile', 'true');
       if (exemplarFile) form.set('file', exemplarFile);
       if (removeExemplar) form.set('removeExemplar', 'true');
       const result = await responseData<{ id?: string }>(
-        await fetch(selected ? `${base}/${encodeURIComponent(selected.id)}` : base, {
-          method: selected ? 'PATCH' : 'POST',
+        await fetch(editingId ? `${base}/${encodeURIComponent(editingId)}` : base, {
+          method: editingId ? 'PATCH' : 'POST',
           body: form,
         }),
       );
-      await load(result.id ?? selected?.id ?? null);
-      toast.success(selected ? '作业已更新。' : '作业已创建。');
+      setDialogMode(null);
+      await load(result.id ?? editingId ?? null);
+      toast.success(editingId ? '作业已更新并发布。' : '作业已发布，学生现在可以看到。');
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : '保存失败。');
     } finally {
@@ -279,6 +357,7 @@ export function CourseAssignmentsClient({
         }),
       );
       setStudentFile(null);
+      setUploadKey((value) => value + 1);
       await loadSubmissions(selected.id);
       if (result.reviewStatus === 'complete') toast.success('作业已保存，问题检查完成。');
       else toast.error(result.error || '作业已保存，检查暂时失败，可稍后重试。');
@@ -328,14 +407,22 @@ export function CourseAssignmentsClient({
             </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               {role === 'teacher'
-                ? '设置检查要点，查看学生提交和问题反馈。范本仅老师可见。'
-                : '上传自己的作业，查看需要自行核查的地方。检查不会给出标准答案。'}
+                ? '发布课程作业，查看内容和学生的检查结果。'
+                : '选择作业、上传文件，查看这次作业需要自行核查的地方。'}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-            <RefreshCw className="mr-1.5 size-4" />
-            刷新
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+              <RefreshCw className="mr-1.5 size-4" />
+              刷新
+            </Button>
+            {role === 'teacher' ? (
+              <Button size="sm" onClick={() => openComposer()}>
+                <Plus className="mr-1.5 size-4" />
+                发布作业
+              </Button>
+            ) : null}
+          </div>
         </div>
         {error ? (
           <div
@@ -351,172 +438,82 @@ export function CourseAssignmentsClient({
             <Loader2 className="size-4 animate-spin" />
             正在读取作业…
           </p>
-        ) : (
-          <div className="grid min-h-[min(680px,70dvh)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04] sm:p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <h2 className="font-semibold">{role === 'teacher' ? '作业设置' : '作业要求'}</h2>
-                {role === 'teacher' ? (
-                  <Button
+        ) : role === 'teacher' ? (
+          <section className="min-h-[min(620px,70dvh)] rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04] sm:p-6">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="font-semibold">已布置的作业</h2>
+              <span className="text-xs text-slate-500">{data?.assignments.length ?? 0} 份</span>
+            </div>
+            {data?.assignments.length ? (
+              <div className="space-y-3" aria-label="作业列表">
+                {data.assignments.map((item) => (
+                  <button
+                    key={item.id}
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedId(null);
-                      setTitle('');
-                      setInstructions('');
-                      setSchoolTaskText('');
-                      setPublished(false);
-                      setSchoolFile(null);
-                      setRemoveSchoolFile(false);
-                      setExemplarFile(null);
-                      setRemoveExemplar(false);
-                    }}
+                    onClick={() => openDetail(item)}
+                    className="flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 px-4 py-4 text-left transition hover:border-sky-300 hover:bg-sky-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500 dark:border-white/10 dark:hover:bg-white/5"
                   >
-                    <Plus className="mr-1 size-4" />
-                    新作业
-                  </Button>
-                ) : null}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-semibold">{item.title}</span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs ${item.published ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300'}`}
+                        >
+                          {item.published ? '已发布' : '草稿'}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-xs text-slate-500">
+                        {item.schoolFileName ? `学校作业原件：${item.schoolFileName} · ` : ''}
+                        {item.submissionCount ?? 0} 次学生提交
+                      </p>
+                    </div>
+                    <ChevronRight className="size-4 shrink-0 text-slate-400" />
+                  </button>
+                ))}
               </div>
+            ) : (
+              <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-center dark:border-white/10">
+                <ClipboardCheck className="mb-3 size-8 text-slate-300" />
+                <p className="font-medium">还没有发布作业</p>
+                <p className="mt-1 text-sm text-slate-500">点击右上角「发布作业」填写要求。</p>
+              </div>
+            )}
+          </section>
+        ) : (
+          <div className="grid min-h-[min(680px,72dvh)] gap-4 md:grid-cols-[minmax(220px,260px)_minmax(0,1fr)]">
+            <aside className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
+              <h2 className="mb-4 font-semibold">作业列表</h2>
               {data?.assignments.length ? (
-                <div className="mb-5 flex flex-wrap gap-2" aria-label="选择作业">
+                <nav className="space-y-2" aria-label="选择作业">
                   {data.assignments.map((item) => (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setSelectedId(item.id)}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedId === item.id ? 'border-sky-400 bg-sky-50 text-sky-900 dark:bg-sky-400/15 dark:text-sky-100' : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300'}`}
+                      onClick={() => {
+                        setSelectedId(item.id);
+                        setStudentFile(null);
+                      }}
+                      aria-current={selectedId === item.id ? 'page' : undefined}
+                      className={`w-full rounded-xl border px-3 py-3 text-left text-sm transition ${selectedId === item.id ? 'border-sky-300 bg-sky-50 font-semibold text-sky-900 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-100' : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-white/5'}`}
                     >
                       {item.title}
-                      {role === 'teacher' && !item.published ? ' · 草稿' : ''}
                     </button>
                   ))}
-                </div>
-              ) : role === 'student' ? (
-                <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-500 dark:bg-white/5">
-                  老师还没有发布作业。
-                </p>
-              ) : null}
-              {role === 'teacher' ? (
-                <div className="space-y-4">
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
-                    作业标题
-                    <Input
-                      className="mt-1.5"
-                      value={title}
-                      maxLength={200}
-                      onChange={(event) => setTitle(event.target.value)}
-                      placeholder="例如：第 3 周分析作业"
-                    />
-                  </label>
-                  <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-                    <h3 className="text-sm font-semibold">学校老师布置的作业（可选）</h3>
-                    <p className="mt-1 text-xs text-slate-500">
-                      可以写下原始题目要求、上传学校的作业文件，或两者都提供。发布后学生可查看和下载。
-                    </p>
-                    <Textarea
-                      aria-label="学校布置的作业内容"
-                      className="mt-3 min-h-32 resize-y text-sm leading-6"
-                      value={schoolTaskText}
-                      maxLength={20000}
-                      onChange={(event) => setSchoolTaskText(event.target.value)}
-                      placeholder="粘贴学校老师给出的作业内容或要求；没有可留空。"
-                    />
-                    {selected?.schoolFileName ? (
-                      <div className="mt-3 flex flex-wrap items-center gap-3">
-                        <a
-                          className="inline-flex items-center gap-1 text-xs text-sky-700 underline"
-                          href={`${base}/${encodeURIComponent(selected.id)}?download=school`}
-                        >
-                          <Download className="size-3.5" />
-                          当前原件：{selected.schoolFileName}
-                        </a>
-                        <label className="flex items-center gap-1 text-xs text-slate-500">
-                          <input
-                            type="checkbox"
-                            checked={removeSchoolFile}
-                            onChange={(event) => setRemoveSchoolFile(event.target.checked)}
-                          />
-                          移除原件
-                        </label>
-                      </div>
-                    ) : null}
-                    <input
-                      aria-label="上传学校作业原件"
-                      type="file"
-                      accept={ASSIGNMENT_ACCEPT}
-                      className="mt-3 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:text-sky-800"
-                      onChange={(event) => setSchoolFile(event.target.files?.[0] ?? null)}
-                    />
-                    <p className="mt-2 text-xs text-slate-500">
-                      支持 PDF、DOCX、图片、.py、.ipynb、.js、.java、.csv
-                      等常见代码和文本文件，单个最大 4 MB。
-                    </p>
+                </nav>
+              ) : (
+                <p className="text-sm text-slate-500">老师还没有发布作业。</p>
+              )}
+            </aside>
+            <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04] sm:p-6">
+              {selected ? (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-xs font-medium text-sky-700 dark:text-sky-300">当前作业</p>
+                    <h2 className="mt-1 text-xl font-semibold">{selected.title}</h2>
                   </div>
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
-                    检查要点与注意事项
-                    <Textarea
-                      className="mt-1.5 min-h-64 resize-y text-sm leading-6"
-                      value={instructions}
-                      maxLength={20000}
-                      onChange={(event) => setInstructions(event.target.value)}
-                      placeholder="写明作业要求、必须覆盖的内容、格式要求，以及老师希望重点检查的问题。"
-                    />
-                  </label>
-                  <div className="rounded-xl border border-dashed border-slate-300 p-4 dark:border-white/15">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <ShieldCheck className="size-4 text-sky-600" />
-                      老师范本（可选、学生不可见）
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      可上传 PDF、DOCX、图片或常见代码和文本文件，最大 4 MB。也可以只填写检查要点。
-                    </p>
-                    {selected?.exemplarFileName ? (
-                      <div className="mt-2 flex flex-wrap items-center gap-3">
-                        <a
-                          className="inline-flex items-center gap-1 text-xs text-sky-700 underline"
-                          href={`${base}/${encodeURIComponent(selected.id)}?download=exemplar`}
-                        >
-                          <Download className="size-3.5" />
-                          当前范本：{selected.exemplarFileName}
-                        </a>
-                        <label className="flex items-center gap-1 text-xs text-slate-500">
-                          <input
-                            type="checkbox"
-                            checked={removeExemplar}
-                            onChange={(event) => setRemoveExemplar(event.target.checked)}
-                          />
-                          移除范本
-                        </label>
-                      </div>
-                    ) : null}
-                    <input
-                      aria-label="上传老师范本"
-                      type="file"
-                      accept={ASSIGNMENT_ACCEPT}
-                      className="mt-3 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:text-sky-800"
-                      onChange={(event) => setExemplarFile(event.target.files?.[0] ?? null)}
-                    />
-                  </div>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={published}
-                      onChange={(event) => setPublished(event.target.checked)}
-                    />
-                    发布给学生
-                  </label>
-                  <Button onClick={() => void saveAssignment()} disabled={saving}>
-                    <Save className="mr-1.5 size-4" />
-                    {saving ? '保存中…' : selected ? '保存修改' : '创建作业'}
-                  </Button>
-                </div>
-              ) : selected ? (
-                <div className="space-y-3">
-                  <h3 className="text-lg font-semibold">{selected.title}</h3>
                   {selected.schoolTaskText || selected.schoolFileName ? (
                     <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-                      <h4 className="text-sm font-semibold">学校布置的作业</h4>
+                      <h3 className="text-sm font-semibold">学校布置的原始作业</h3>
                       {selected.schoolTaskText ? (
                         <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 dark:text-slate-200">
                           {selected.schoolTaskText}
@@ -533,118 +530,308 @@ export function CourseAssignmentsClient({
                       ) : null}
                     </div>
                   ) : null}
-                  <h4 className="text-sm font-semibold">检查要点与注意事项</h4>
-                  <div className="whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-4 text-sm leading-7 text-slate-700 dark:bg-white/5 dark:text-slate-200">
-                    {selected.instructions}
-                  </div>
-                </div>
-              ) : null}
-            </section>
-            <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04] sm:p-5">
-              <h2 className="font-semibold">
-                {role === 'teacher' ? '学生提交与检查' : '我的提交与检查'}
-              </h2>
-              {!selected ? (
-                <p className="mt-5 text-sm text-slate-500">
-                  {role === 'teacher' ? '选择或创建作业后查看提交。' : '请选择作业。'}
-                </p>
-              ) : (
-                <>
-                  {role === 'student' ? (
-                    <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-400/15 dark:bg-sky-400/10">
-                      <p className="text-sm font-medium">上传作业文件</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        支持 PDF、DOCX、图片、.py、.ipynb 及常见代码和文本文件，最大 4
-                        MB。检查只指出问题位置与类型。
-                      </p>
-                      <input
-                        aria-label="上传学生作业"
-                        type="file"
-                        accept={ASSIGNMENT_ACCEPT}
-                        className="mt-3 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2"
-                        onChange={(event) => setStudentFile(event.target.files?.[0] ?? null)}
-                      />
-                      <Button
-                        className="mt-3"
-                        disabled={!studentFile || checking}
-                        onClick={() => void submitAssignment()}
-                      >
-                        <Upload className="mr-1.5 size-4" />
-                        {checking ? '上传并检查中…' : '上传并检查'}
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-xs text-slate-500">
-                      共 {selected.submissionCount ?? 0} 次提交。这里展示最近 100 次。
+                  <div className="rounded-xl bg-slate-50 p-4 dark:bg-white/5">
+                    <h3 className="text-sm font-semibold">检查要点与注意事项</h3>
+                    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 dark:text-slate-200">
+                      {selected.instructions}
                     </p>
-                  )}
-                  <div className="mt-5 space-y-3">
-                    {submissions.length ? (
-                      submissions.map((submission) => (
-                        <article
-                          key={submission.id}
-                          className="rounded-xl border border-slate-200 p-4 dark:border-white/10"
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              {role === 'teacher' ? (
-                                <p className="text-xs font-medium text-slate-500">
-                                  {submission.student?.name || submission.student?.email || '学生'}
-                                </p>
-                              ) : null}
-                              <p className="flex items-center gap-1.5 break-all text-sm font-medium">
-                                <FileText className="size-4 shrink-0 text-sky-600" />
-                                {submission.fileName}
-                              </p>
-                              <p className="mt-1 text-xs text-slate-400">
-                                {formatDate(submission.createdAt)} ·{' '}
-                                {submission.reviewStatus === 'complete'
-                                  ? '检查完成'
-                                  : submission.reviewStatus === 'error'
-                                    ? '检查失败'
-                                    : '检查中'}
-                              </p>
-                            </div>
-                            <a
-                              className="inline-flex items-center gap-1 text-xs text-sky-700 underline dark:text-sky-300"
-                              href={`${base}/${encodeURIComponent(selected.id)}/submissions/${encodeURIComponent(submission.id)}?download=1`}
-                            >
-                              <Download className="size-3.5" />
-                              下载原件
-                            </a>
-                          </div>
-                          {submission.reviewStatus === 'error' ? (
-                            <div className="mt-3 text-sm text-rose-700">
-                              {submission.reviewError || '检查暂时失败。'}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="ml-2"
-                                disabled={retryingId === submission.id}
-                                onClick={() => void retryReview(submission.id)}
-                              >
-                                {retryingId === submission.id ? '重试中…' : '重试检查'}
-                              </Button>
-                            </div>
-                          ) : null}
-                          {submission.reviewStatus === 'pending' ? (
-                            <p className="mt-3 text-sm text-slate-500">正在检查，请稍后刷新。</p>
-                          ) : null}
-                          <FeedbackPanel feedback={submission.feedbackJson} />
-                        </article>
-                      ))
+                  </div>
+                  <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-400/15 dark:bg-sky-400/10">
+                    <h3 className="text-sm font-semibold">上传我的作业</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      支持 PDF、DOCX、图片、.py、.ipynb 及常见代码和文本文件，最大 4 MB。
+                    </p>
+                    <input
+                      key={`${selected.id}:${uploadKey}`}
+                      aria-label="上传学生作业"
+                      type="file"
+                      accept={ASSIGNMENT_ACCEPT}
+                      className="mt-3 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2"
+                      onChange={(event) => setStudentFile(event.target.files?.[0] ?? null)}
+                    />
+                    <Button
+                      className="mt-3"
+                      disabled={!studentFile || checking}
+                      onClick={() => void submitAssignment()}
+                    >
+                      <Upload className="mr-1.5 size-4" />
+                      {checking ? '上传并检查中…' : '上传并检查'}
+                    </Button>
+                  </div>
+                  <div aria-live="polite">
+                    <h3 className="mb-3 font-semibold">本次作业评估</h3>
+                    {submissions[0] ? (
+                      <SubmissionCard
+                        submission={submissions[0]}
+                        assignmentId={selected.id}
+                        base={base}
+                        role="student"
+                        retryingId={retryingId}
+                        onRetry={(id) => void retryReview(id)}
+                      />
                     ) : (
                       <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-white/5">
-                        还没有提交记录。
+                        上传作业后，这里会显示需要自行检查的地方；不会给出标准答案。
                       </p>
                     )}
+                    {submissions.length > 1 ? (
+                      <details className="mt-4 rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                        <summary className="cursor-pointer text-sm font-medium">
+                          过往提交（{submissions.length - 1}）
+                        </summary>
+                        <div className="mt-4 space-y-3">
+                          {submissions.slice(1).map((submission) => (
+                            <SubmissionCard
+                              key={submission.id}
+                              submission={submission}
+                              assignmentId={selected.id}
+                              base={base}
+                              role="student"
+                              retryingId={retryingId}
+                              onRetry={(id) => void retryReview(id)}
+                            />
+                          ))}
+                        </div>
+                      </details>
+                    ) : null}
                   </div>
-                </>
+                </div>
+              ) : (
+                <div className="flex min-h-64 items-center justify-center text-sm text-slate-500">
+                  请先从左侧选择一份作业。
+                </div>
               )}
             </section>
           </div>
         )}
       </main>
+
+      {role === 'teacher' ? (
+        <>
+          <Dialog
+            open={dialogMode === 'view'}
+            onOpenChange={(open) => !open && setDialogMode(null)}
+          >
+            <DialogContent className="flex h-[min(820px,90dvh)] max-w-[min(900px,calc(100vw-1.5rem))] flex-col gap-0 overflow-hidden rounded-3xl p-0">
+              <DialogHeader className="border-b border-slate-200 px-6 py-5 pr-14 dark:border-white/10">
+                <DialogTitle className="text-lg">{selected?.title ?? '作业详情'}</DialogTitle>
+                <DialogDescription>作业内容、检查要点及学生提交。</DialogDescription>
+              </DialogHeader>
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+                {selected ? (
+                  <>
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs ${selected.published ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
+                    >
+                      {selected.published ? '已发布给学生' : '草稿，学生不可见'}
+                    </span>
+                    {selected.schoolTaskText || selected.schoolFileName ? (
+                      <div>
+                        <h3 className="font-semibold">学校布置的原始作业</h3>
+                        {selected.schoolTaskText ? (
+                          <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7">
+                            {selected.schoolTaskText}
+                          </p>
+                        ) : null}
+                        {selected.schoolFileName ? (
+                          <a
+                            className="mt-2 inline-flex items-center gap-1.5 text-sm text-sky-700 underline"
+                            href={`${base}/${encodeURIComponent(selected.id)}?download=school`}
+                          >
+                            <Download className="size-4" />
+                            {selected.schoolFileName}
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <div>
+                      <h3 className="font-semibold">检查要点与注意事项</h3>
+                      <p className="mt-2 whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-4 text-sm leading-7 dark:bg-white/5">
+                        {selected.instructions}
+                      </p>
+                    </div>
+                    {selected.exemplarFileName ? (
+                      <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4 dark:border-sky-400/15 dark:bg-sky-400/10">
+                        <p className="text-xs font-medium">仅老师可见的参考范本</p>
+                        <a
+                          className="mt-2 inline-flex items-center gap-1.5 text-sm text-sky-700 underline"
+                          href={`${base}/${encodeURIComponent(selected.id)}?download=exemplar`}
+                        >
+                          <ShieldCheck className="size-4" />
+                          {selected.exemplarFileName}
+                        </a>
+                      </div>
+                    ) : null}
+                    <div>
+                      <h3 className="font-semibold">
+                        学生提交与检查（{selected.submissionCount ?? 0}）
+                      </h3>
+                      <div className="mt-3 space-y-3">
+                        {submissions.length ? (
+                          submissions.map((submission) => (
+                            <SubmissionCard
+                              key={submission.id}
+                              submission={submission}
+                              assignmentId={selected.id}
+                              base={base}
+                              role="teacher"
+                              retryingId={retryingId}
+                              onRetry={(id) => void retryReview(id)}
+                            />
+                          ))
+                        ) : (
+                          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-white/5">
+                            还没有学生提交。
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+              <DialogFooter className="border-t border-slate-200 px-6 py-4 dark:border-white/10">
+                <Button variant="outline" onClick={() => setDialogMode(null)}>
+                  关闭
+                </Button>
+                {selected ? (
+                  <Button onClick={() => openComposer(selected)}>编辑并发布</Button>
+                ) : null}
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={dialogMode === 'compose'}
+            onOpenChange={(open) => !open && !saving && setDialogMode(null)}
+          >
+            <DialogContent className="flex h-[min(860px,92dvh)] max-w-[min(800px,calc(100vw-1.5rem))] flex-col gap-0 overflow-hidden rounded-3xl p-0">
+              <DialogHeader className="border-b border-slate-200 px-6 py-5 pr-14 dark:border-white/10">
+                <DialogTitle className="text-lg">{editingId ? '编辑作业' : '发布作业'}</DialogTitle>
+                <DialogDescription>
+                  速成老师填写作业信息并发布，学生随后可在课程中看到。
+                </DialogDescription>
+              </DialogHeader>
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+                <label className="block text-sm font-medium">
+                  作业标题
+                  <Input
+                    className="mt-2"
+                    value={title}
+                    maxLength={200}
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder="例如：第 3 周分析作业"
+                  />
+                </label>
+                <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                  <h3 className="text-sm font-semibold">学校布置的作业原版（可选）</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    由速成老师上传学校老师给出的作业内容或原件，发布后学生可查看和下载。
+                  </p>
+                  <Textarea
+                    aria-label="学校布置的作业内容"
+                    className="mt-3 min-h-32 resize-y text-sm leading-6"
+                    value={schoolTaskText}
+                    maxLength={20000}
+                    onChange={(event) => setSchoolTaskText(event.target.value)}
+                    placeholder="粘贴学校老师给出的作业内容或要求；没有可留空。"
+                  />
+                  {editingId &&
+                  data?.assignments.find((item) => item.id === editingId)?.schoolFileName ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <a
+                        className="inline-flex items-center gap-1 text-xs text-sky-700 underline"
+                        href={`${base}/${encodeURIComponent(editingId)}?download=school`}
+                      >
+                        <Download className="size-3.5" />
+                        当前原件：
+                        {data.assignments.find((item) => item.id === editingId)?.schoolFileName}
+                      </a>
+                      <label className="flex items-center gap-1 text-xs text-slate-500">
+                        <input
+                          type="checkbox"
+                          checked={removeSchoolFile}
+                          onChange={(event) => setRemoveSchoolFile(event.target.checked)}
+                        />
+                        移除原件
+                      </label>
+                    </div>
+                  ) : null}
+                  <input
+                    aria-label="上传学校作业原件"
+                    type="file"
+                    accept={ASSIGNMENT_ACCEPT}
+                    className="mt-3 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:text-sky-800"
+                    onChange={(event) => setSchoolFile(event.target.files?.[0] ?? null)}
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    支持 PDF、DOCX、图片、.py、.ipynb 等代码和文本文件，最大 4 MB。
+                  </p>
+                </div>
+                <label className="block text-sm font-medium">
+                  检查要点与注意事项
+                  <Textarea
+                    className="mt-2 min-h-40 resize-y text-sm leading-6"
+                    value={instructions}
+                    maxLength={20000}
+                    onChange={(event) => setInstructions(event.target.value)}
+                    placeholder="写明需要重点检查的内容、过程与格式要求。"
+                  />
+                </label>
+                <div className="rounded-xl border border-dashed border-slate-300 p-4 dark:border-white/15">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <ShieldCheck className="size-4 text-sky-600" />
+                    老师参考范本（可选、学生不可见）
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    可上传答案范本供内部检查参考，也可以只填写检查要点。
+                  </p>
+                  {editingId &&
+                  data?.assignments.find((item) => item.id === editingId)?.exemplarFileName ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <a
+                        className="inline-flex items-center gap-1 text-xs text-sky-700 underline"
+                        href={`${base}/${encodeURIComponent(editingId)}?download=exemplar`}
+                      >
+                        <Download className="size-3.5" />
+                        当前范本：
+                        {data.assignments.find((item) => item.id === editingId)?.exemplarFileName}
+                      </a>
+                      <label className="flex items-center gap-1 text-xs text-slate-500">
+                        <input
+                          type="checkbox"
+                          checked={removeExemplar}
+                          onChange={(event) => setRemoveExemplar(event.target.checked)}
+                        />
+                        移除范本
+                      </label>
+                    </div>
+                  ) : null}
+                  <input
+                    aria-label="上传老师范本"
+                    type="file"
+                    accept={ASSIGNMENT_ACCEPT}
+                    className="mt-3 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:text-sky-800"
+                    onChange={(event) => setExemplarFile(event.target.files?.[0] ?? null)}
+                  />
+                </div>
+              </div>
+              <DialogFooter className="border-t border-slate-200 px-6 py-4 dark:border-white/10">
+                <Button variant="outline" disabled={saving} onClick={() => setDialogMode(null)}>
+                  取消
+                </Button>
+                <Button disabled={saving} onClick={() => void saveAssignment()}>
+                  {saving ? (
+                    <Loader2 className="mr-1.5 size-4 animate-spin" />
+                  ) : (
+                    <Plus className="mr-1.5 size-4" />
+                  )}
+                  {saving ? '发布中…' : editingId ? '保存并发布' : '发布作业'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      ) : null}
     </CourseSpacePageFrame>
   );
 }
