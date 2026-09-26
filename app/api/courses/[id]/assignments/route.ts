@@ -62,7 +62,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
         assignments: assignments.map((item) => ({
           id: item.id,
           title: item.title,
-          instructions: item.instructions,
+          instructions: role === 'owner' ? item.instructions : undefined,
           schoolTaskText: item.schoolTaskText,
           schoolFileName: item.schoolFileName,
           published: item.published,

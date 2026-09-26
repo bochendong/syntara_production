@@ -42,7 +42,7 @@ type Feedback = {
 type Assignment = {
   id: string;
   title: string;
-  instructions: string;
+  instructions?: string;
   schoolTaskText?: string | null;
   schoolFileName?: string | null;
   published: boolean;
@@ -335,7 +335,9 @@ export function CourseAssignmentsClient({
       );
       setDialogMode(null);
       await load(result.id ?? editingId ?? null);
-      toast.success(editingId ? '作业已更新并发布。' : '作业已发布，学生现在可以看到。');
+      toast.success(
+        editingId ? '学校作业已更新，学生现在可以看到。' : '学校作业已添加，学生现在可以看到。',
+      );
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : '保存失败。');
     } finally {
@@ -407,8 +409,8 @@ export function CourseAssignmentsClient({
             </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               {role === 'teacher'
-                ? '发布课程作业，查看内容和学生的检查结果。'
-                : '选择作业、上传文件，查看这次作业需要自行核查的地方。'}
+                ? '录入学校老师布置的作业，检查学生已完成的作答。'
+                : '查看学校作业、上传自己的作答，获得需要自行核查的问题提示。'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -419,7 +421,7 @@ export function CourseAssignmentsClient({
             {role === 'teacher' ? (
               <Button size="sm" onClick={() => openComposer()}>
                 <Plus className="mr-1.5 size-4" />
-                发布作业
+                添加学校作业
               </Button>
             ) : null}
           </div>
@@ -441,7 +443,7 @@ export function CourseAssignmentsClient({
         ) : role === 'teacher' ? (
           <section className="min-h-[min(620px,70dvh)] rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04] sm:p-6">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="font-semibold">已布置的作业</h2>
+              <h2 className="font-semibold">学校作业</h2>
               <span className="text-xs text-slate-500">{data?.assignments.length ?? 0} 份</span>
             </div>
             {data?.assignments.length ? (
@@ -459,7 +461,7 @@ export function CourseAssignmentsClient({
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs ${item.published ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300'}`}
                         >
-                          {item.published ? '已发布' : '草稿'}
+                          {item.published ? '学生可见' : '草稿'}
                         </span>
                       </div>
                       <p className="mt-1 truncate text-xs text-slate-500">
@@ -474,8 +476,10 @@ export function CourseAssignmentsClient({
             ) : (
               <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-center dark:border-white/10">
                 <ClipboardCheck className="mb-3 size-8 text-slate-300" />
-                <p className="font-medium">还没有发布作业</p>
-                <p className="mt-1 text-sm text-slate-500">点击右上角「发布作业」填写要求。</p>
+                <p className="font-medium">还没有录入学校作业</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  点击右上角「添加学校作业」录入原件和内部检查要点。
+                </p>
               </div>
             )}
           </section>
@@ -501,7 +505,7 @@ export function CourseAssignmentsClient({
                   ))}
                 </nav>
               ) : (
-                <p className="text-sm text-slate-500">老师还没有发布作业。</p>
+                <p className="text-sm text-slate-500">速成老师还没有录入学校作业。</p>
               )}
             </aside>
             <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04] sm:p-6">
@@ -530,16 +534,11 @@ export function CourseAssignmentsClient({
                       ) : null}
                     </div>
                   ) : null}
-                  <div className="rounded-xl bg-slate-50 p-4 dark:bg-white/5">
-                    <h3 className="text-sm font-semibold">检查要点与注意事项</h3>
-                    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 dark:text-slate-200">
-                      {selected.instructions}
-                    </p>
-                  </div>
                   <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-400/15 dark:bg-sky-400/10">
                     <h3 className="text-sm font-semibold">上传我的作业</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      支持 PDF、DOCX、图片、.py、.ipynb 及常见代码和文本文件，最大 4 MB。
+                      请上传自己完成的作答。检查只指出需要核查的地方，不提供答案。支持
+                      PDF、DOCX、图片、.py、.ipynb 及常见代码和文本文件，最大 4 MB。
                     </p>
                     <input
                       key={`${selected.id}:${uploadKey}`}
@@ -623,7 +622,7 @@ export function CourseAssignmentsClient({
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-xs ${selected.published ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
                     >
-                      {selected.published ? '已发布给学生' : '草稿，学生不可见'}
+                      {selected.published ? '学生可见' : '草稿，学生不可见'}
                     </span>
                     {selected.schoolTaskText || selected.schoolFileName ? (
                       <div>
@@ -645,7 +644,7 @@ export function CourseAssignmentsClient({
                       </div>
                     ) : null}
                     <div>
-                      <h3 className="font-semibold">检查要点与注意事项</h3>
+                      <h3 className="font-semibold">内部检查要点（学生不可见）</h3>
                       <p className="mt-2 whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-4 text-sm leading-7 dark:bg-white/5">
                         {selected.instructions}
                       </p>
@@ -694,7 +693,7 @@ export function CourseAssignmentsClient({
                   关闭
                 </Button>
                 {selected ? (
-                  <Button onClick={() => openComposer(selected)}>编辑并发布</Button>
+                  <Button onClick={() => openComposer(selected)}>编辑学校作业</Button>
                 ) : null}
               </DialogFooter>
             </DialogContent>
@@ -706,9 +705,11 @@ export function CourseAssignmentsClient({
           >
             <DialogContent className="flex h-[min(860px,92dvh)] max-w-[min(800px,calc(100vw-1.5rem))] flex-col gap-0 overflow-hidden rounded-3xl p-0">
               <DialogHeader className="border-b border-slate-200 px-6 py-5 pr-14 dark:border-white/10">
-                <DialogTitle className="text-lg">{editingId ? '编辑作业' : '发布作业'}</DialogTitle>
+                <DialogTitle className="text-lg">
+                  {editingId ? '编辑学校作业' : '添加学校作业'}
+                </DialogTitle>
                 <DialogDescription>
-                  速成老师填写作业信息并发布，学生随后可在课程中看到。
+                  作业由学校老师布置。速成老师录入原件和内部检查要点，学生只能看到学校作业和自己提交后的问题提示。
                 </DialogDescription>
               </DialogHeader>
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
@@ -768,13 +769,13 @@ export function CourseAssignmentsClient({
                   </p>
                 </div>
                 <label className="block text-sm font-medium">
-                  检查要点与注意事项
+                  内部检查要点（学生不可见）
                   <Textarea
                     className="mt-2 min-h-40 resize-y text-sm leading-6"
                     value={instructions}
                     maxLength={20000}
                     onChange={(event) => setInstructions(event.target.value)}
-                    placeholder="写明需要重点检查的内容、过程与格式要求。"
+                    placeholder="写明需要重点核查的内容、过程与格式要求；这些要点只用于内部检查。"
                   />
                 </label>
                 <div className="rounded-xl border border-dashed border-slate-300 p-4 dark:border-white/15">
@@ -783,7 +784,7 @@ export function CourseAssignmentsClient({
                     老师参考范本（可选、学生不可见）
                   </div>
                   <p className="mt-1 text-xs text-slate-500">
-                    可上传答案范本供内部检查参考，也可以只填写检查要点。
+                    如有参考范本，可上传供内部比对；也可以只填写检查要点。范本不会显示给学生。
                   </p>
                   {editingId &&
                   data?.assignments.find((item) => item.id === editingId)?.exemplarFileName ? (
@@ -825,7 +826,7 @@ export function CourseAssignmentsClient({
                   ) : (
                     <Plus className="mr-1.5 size-4" />
                   )}
-                  {saving ? '发布中…' : editingId ? '保存并发布' : '发布作业'}
+                  {saving ? '保存中…' : editingId ? '保存并开放给学生' : '添加并开放给学生'}
                 </Button>
               </DialogFooter>
             </DialogContent>
