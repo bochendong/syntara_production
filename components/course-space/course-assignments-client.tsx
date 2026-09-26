@@ -36,6 +36,7 @@ import { toast } from '@/lib/notifications/client-toast';
 
 type Role = 'teacher' | 'student';
 type Feedback = {
+  reviewVersion?: number;
   summary: string;
   issues: Array<{
     line?: number;
@@ -43,6 +44,8 @@ type Feedback = {
     paragraph?: number;
     severity: 'attention' | 'important';
     message: string;
+    observation?: string;
+    selfCheck?: string;
   }>;
   checkedAt: string;
 };
@@ -110,7 +113,16 @@ function FeedbackPanel({ feedback }: { feedback: Feedback | null }) {
                       ? `第 ${issue.line} 行`
                       : '需检查'}
               </span>
-              {issue.message}
+              {issue.observation && issue.selfCheck ? (
+                <span className="inline-block align-top">
+                  <span>{issue.observation}</span>
+                  <span className="mt-1 block text-slate-600 dark:text-slate-300">
+                    自查：{issue.selfCheck}
+                  </span>
+                </span>
+              ) : (
+                issue.message
+              )}
             </li>
           ))}
         </ol>
@@ -181,10 +193,24 @@ function SubmissionCard({
           </Button>
         </div>
       ) : null}
+      {submission.reviewStatus === 'complete' &&
+      (submission.feedbackJson?.reviewVersion ?? 1) < 2 ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          disabled={retryingId === submission.id}
+          onClick={() => onRetry(submission.id)}
+        >
+          {retryingId === submission.id ? '重新检查中…' : '更新检查结果'}
+        </Button>
+      ) : null}
       {submission.reviewStatus === 'pending' ? (
         <p className="mt-3 text-sm text-slate-500">正在检查，请稍后刷新。</p>
       ) : null}
-      <FeedbackPanel feedback={submission.feedbackJson} />
+      <FeedbackPanel
+        feedback={submission.reviewStatus === 'complete' ? submission.feedbackJson : null}
+      />
     </article>
   );
 }

@@ -85,11 +85,18 @@ export async function POST(_request: NextRequest, context: Context) {
       auth.userId,
     );
     if (!submission) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (submission.reviewStatus !== 'error') {
-      return NextResponse.json({ error: '只有检查失败的提交可以重试。' }, { status: 409 });
+    const feedback = submission.feedbackJson as { reviewVersion?: number } | null;
+    const outdatedReview =
+      submission.reviewStatus === 'complete' && (feedback?.reviewVersion ?? 1) < 2;
+    if (submission.reviewStatus !== 'error' && !outdatedReview) {
+      return NextResponse.json({ error: '这份作业的检查结果已经是最新版本。' }, { status: 409 });
     }
     const claimed = await prisma.courseAssignmentSubmission.updateMany({
-      where: { id: submissionId, reviewStatus: 'error' },
+      where: {
+        id: submissionId,
+        reviewStatus: submission.reviewStatus,
+        updatedAt: submission.updatedAt,
+      },
       data: { reviewStatus: 'pending', reviewError: null },
     });
     if (claimed.count !== 1) {
