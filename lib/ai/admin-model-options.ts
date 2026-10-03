@@ -1,7 +1,8 @@
-/** General-purpose text models verified against OpenAI's model catalog, 2026-09-23.
+/** General-purpose text models; GPT-6.1 Sol verified against OpenAI's catalog, 2026-10-03.
  * Account access is separate from documented model compatibility.
  */
 export const ADMIN_TEXT_MODEL_OPTIONS = [
+  { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol', description: '复杂编程、多步骤任务与专业工作' },
   { id: 'gpt-6-astra', label: 'GPT-6 Astra', description: '复杂推理与高难度任务' },
   { id: 'gpt-6-sol', label: 'GPT-6 Sol', description: '复杂编程与多步骤任务' },
   { id: 'gpt-6-luna', label: 'GPT-6 Luna', description: '日常问答与高频任务' },

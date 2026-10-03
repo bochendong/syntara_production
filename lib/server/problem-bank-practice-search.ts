@@ -98,6 +98,17 @@ const PRACTICE_TOPIC_ALIASES: Array<{ pattern: RegExp; terms: string[] }> = [
     pattern: /嵌套列表|嵌套数组|\bnested\s+(?:list|array)s?\b/i,
     terms: ['嵌套列表', 'nested list', 'nested array'],
   },
+  {
+    pattern: /斜率场|方向场|\b(?:slope|direction)\s*fields?\b/i,
+    terms: [
+      '斜率场',
+      '方向场',
+      'slope field',
+      'slope fields',
+      'direction field',
+      'direction fields',
+    ],
+  },
   { pattern: /递归|\brecurs(?:ion|ive)\b/i, terms: ['递归', 'recursion', 'recursive'] },
   { pattern: /文件|\bfile\b/i, terms: ['文件', 'file'] },
   { pattern: /排序|\bsort(?:ing)?\b/i, terms: ['排序', 'sort', 'sorting'] },
@@ -311,10 +322,17 @@ export async function searchLearnProblemBankForPractice(args: {
   query: string;
   requestedCount?: number;
   allowedNotebookIds?: string[];
-}): Promise<LearnProblemBankSearchResult> {
+  chapterId?: string | null;
+  offset?: number;
+  searchTerms?: string[];
+}): Promise<LearnProblemBankSearchResult & { hasMore?: boolean; nextOffset?: number | null }> {
   const query = args.query.trim();
   const requestedCount = Math.max(1, Math.min(args.requestedCount ?? 5, 12));
   const searchedAt = new Date().toISOString();
+  const offset = Math.max(0, args.offset ?? 0);
+  const searchTerms = [
+    ...new Set([query, ...practiceTopicAliases(query), ...(args.searchTerms ?? [])]),
+  ];
   if (!args.courseId || !query) {
     return {
       query,
@@ -333,7 +351,7 @@ export async function searchLearnProblemBankForPractice(args: {
   const profile = inferTopicProfile(query);
   const rawMatches = await searchProblemSourceEvidence({
     prisma: args.prisma,
-    query: [query, ...practiceTopicAliases(query)].join(' '),
+    query: searchTerms.join(' '),
     courseId: args.courseId,
     viewerUserId: args.userId,
     limit: Math.max(requestedCount * 3, 12),
@@ -348,9 +366,78 @@ export async function searchLearnProblemBankForPractice(args: {
     profile,
     query,
   });
-  const matches = accepted
+  // Query persisted curated columns too: an incomplete/stale index must not hide
+  // an exact title. No global candidate take; output is paginated after ranking.
+  const directRows = await args.prisma.notebookProblem.findMany({
+    where: {
+      courseId: args.courseId,
+      ...(args.chapterId ? { chapterId: args.chapterId } : {}),
+      ...(args.allowedNotebookIds
+        ? { OR: [{ notebookId: null }, { notebookId: { in: args.allowedNotebookIds } }] }
+        : {}),
+      AND: [
+        {
+          OR: searchTerms.flatMap((term) => [
+            { title: { contains: term, mode: 'insensitive' as const } },
+            { tags: { has: term } },
+            { publicContentJson: { path: ['stem'], string_contains: term } },
+            { publicContentJson: { path: ['stemTemplate'], string_contains: term } },
+          ]),
+        },
+      ],
+    },
+    select: {
+      id: true,
+      title: true,
+      notebookId: true,
+      chapterId: true,
+      problemNumber: true,
+      type: true,
+      difficulty: true,
+      tags: true,
+      publicContentJson: true,
+      chapter: { select: { name: true } },
+    },
+    orderBy: [{ problemNumber: 'asc' }, { id: 'asc' }],
+  });
+  const merged = new Map(accepted.map((match) => [match.problemId, match]));
+  for (const row of directRows) {
+    const content = row.publicContentJson as Record<string, unknown> | null;
+    const exact =
+      normalizeSearchText(row.title).toLowerCase() === normalizeSearchText(query).toLowerCase();
+    const text = normalizeSearchText(
+      [row.title, content?.stem, content?.stemTemplate, ...row.tags].join(' '),
+    );
+    if (!exact && profile) {
+      if (!firstSignal(text, profile.positive)) continue;
+      if (profile.id === 'truth_table' && firstSignal(text, profile.excluded)) continue;
+    }
+    const previous = merged.get(row.id);
+    merged.set(row.id, {
+      problemId: row.id,
+      title: row.title,
+      score: exact ? 10000 : 1000,
+      reason: exact ? '题名精确命中。' : '题名、标签或题干直接命中检索词。',
+      excerpt: clipText(String(content?.stem ?? content?.stemTemplate ?? ''), 520),
+      notebookName: row.chapter?.name ?? null,
+      tags: row.tags,
+      difficulty: row.difficulty,
+      problemType: row.type,
+      attemptStatus: previous?.attemptStatus ?? null,
+      metadata: {
+        ...previous?.metadata,
+        chapterId: row.chapterId,
+        chapterName: row.chapter?.name,
+        problemNumber: row.problemNumber,
+      },
+    });
+  }
+  let candidates = [...merged.values()];
+  if (args.chapterId)
+    candidates = candidates.filter((match) => match.metadata?.chapterId === args.chapterId);
+  const matches = candidates
     .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
-    .slice(0, requestedCount)
+    .slice(offset, offset + requestedCount)
     .map((match) => ({
       ...match,
       metadata: {
@@ -361,10 +448,10 @@ export async function searchLearnProblemBankForPractice(args: {
   const gaps: string[] = [];
   if (matches.length < requestedCount) {
     gaps.push(
-      `严格命中「${profile?.label || query}」的题只有 ${matches.length} 道；没有为了凑数量混入相邻专题。`,
+      `本次检索返回 ${matches.length} 道相关题；未命中不代表题库不存在，可换中英文关键词或限定章节继续查询。`,
     );
   }
-  if (rawMatches.length === 0) {
+  if (rawMatches.length === 0 && directRows.length === 0) {
     gaps.push('题库全文检索没有召回候选题。');
   }
 
@@ -383,5 +470,7 @@ export async function searchLearnProblemBankForPractice(args: {
     ].filter(Boolean),
     gaps,
     searchedAt,
+    hasMore: offset + matches.length < candidates.length,
+    nextOffset: offset + matches.length < candidates.length ? offset + matches.length : null,
   };
 }

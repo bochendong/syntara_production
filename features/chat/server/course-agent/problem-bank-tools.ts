@@ -39,6 +39,8 @@ export type TeacherProblemBankSearchResult = {
   chapterId: string | null;
   matches: TeacherProblemMatch[];
   gaps: string[];
+  hasMore?: boolean;
+  nextOffset?: number | null;
 };
 
 export type ProblemChapterSummary = {
@@ -264,8 +266,8 @@ function toTeacherMatch(args: {
 
 /**
  * Search the course problem bank for a course owner. Recall reuses the student
- * search (hybrid index + strict topic filter); every hit is then re-read from
- * NotebookProblem, scoped to the course and excluding archived problems.
+ * search (hybrid index + direct persisted-column lookup); every hit is then re-read from
+ * NotebookProblem, scoped to the course.
  */
 export async function searchTeacherProblemBank(args: {
   db: PrismaClient;
@@ -274,6 +276,8 @@ export async function searchTeacherProblemBank(args: {
   query: string;
   requestedCount?: number;
   chapterId?: string | null;
+  offset?: number;
+  searchTerms?: string[];
   /** Include reference-answer summaries (teacher only). Defaults to true. */
   includeAnswers?: boolean;
 }): Promise<TeacherProblemBankSearchResult> {
@@ -285,8 +289,10 @@ export async function searchTeacherProblemBank(args: {
     userId: args.userId,
     courseId: args.courseId,
     query: args.query,
-    // A chapter filter discards hits after recall, so ask for the maximum then.
-    requestedCount: chapterId ? 12 : requestedCount,
+    requestedCount,
+    chapterId,
+    offset: args.offset,
+    searchTerms: args.searchTerms,
   });
   const query = recall.query;
   const ids = [...new Set(recall.matches.map((match) => match.problemId).filter(Boolean))];
@@ -311,40 +317,15 @@ export async function searchTeacherProblemBank(args: {
     if (matches.length >= requestedCount) break;
   }
 
-  // Within an explicit chapter, fall back to a plain title/tag match so a narrow
-  // chapter request is not lost to the global ranking cut.
-  if (chapterId && matches.length < requestedCount && query) {
-    const extra = (await args.db.notebookProblem.findMany({
-      where: {
-        courseId: args.courseId,
-        chapterId,
-        id: { notIn: matches.map((item) => item.problemId) },
-        OR: [{ title: { contains: query, mode: 'insensitive' } }, { tags: { has: query } }],
-      },
-      orderBy: [{ problemNumber: 'asc' }, { order: 'asc' }],
-      take: requestedCount - matches.length,
-      select: PROBLEM_SELECT,
-    })) as unknown as ProblemRow[];
-    for (const row of extra) {
-      matches.push(
-        toTeacherMatch({
-          row,
-          courseId: args.courseId,
-          reason: '题名或标签命中检索词，且属于指定章节。',
-          includeAnswers,
-        }),
-      );
-    }
-  }
-
-  const gaps: string[] = [];
-  if (matches.length < requestedCount) {
-    gaps.push(
-      `题库中严格命中「${clip(query, 60)}」${chapterId ? '（限定章节）' : ''}的题目只有 ${matches.length} 道，没有混入相邻专题凑数。`,
-    );
-  }
-  if (recall.matches.length === 0) gaps.push('题库检索没有召回候选题。');
-  return { query, requestedCount, chapterId, matches, gaps };
+  return {
+    query,
+    requestedCount,
+    chapterId,
+    matches,
+    gaps: recall.gaps,
+    hasMore: recall.hasMore,
+    nextOffset: recall.nextOffset,
+  };
 }
 
 /**

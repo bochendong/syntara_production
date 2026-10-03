@@ -76,6 +76,12 @@ export const OPENAI_REALTIME_PRICING = {
 } as const;
 
 const OPENAI_TEXT_PRICING: Record<string, OpenAITextPricing> = {
+  'gpt-6.1-sol': {
+    canonicalModelId: 'gpt-6.1-sol',
+    inputUsdPerMillionTokens: 2,
+    cachedInputUsdPerMillionTokens: 0.1,
+    outputUsdPerMillionTokens: 10,
+  },
   'gpt-6-astra': {
     canonicalModelId: 'gpt-6-astra',
     inputUsdPerMillionTokens: 10,

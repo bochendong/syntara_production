@@ -47,7 +47,6 @@ import { listProblemChapters, searchTeacherProblemBank } from './course-agent/pr
 import {
   formatSourceInventoryForPrompt,
   loadCourseSourceInventory,
-  unconvertedSourceHint,
   type CourseSourceInventory,
 } from './course-agent/source-inventory';
 import { teacherPreviewCardFromMatches } from './practice-card';
@@ -298,7 +297,6 @@ async function loadSearchCandidates(
     where: { notebookId: { in: notebookIds } },
     select: { id: true, notebookId: true, title: true, order: true, markdown: true, summary: true },
     orderBy: [{ notebookId: 'asc' }, { order: 'asc' }],
-    take: 240,
   });
   const pages = await db.notebookPage.findMany({
     where: { notebookId: { in: notebookIds } },
@@ -310,7 +308,6 @@ async function loadSearchCandidates(
       content: { select: { content: true, whiteboard: true } },
     },
     orderBy: [{ notebookId: 'asc' }, { order: 'asc' }],
-    take: 160,
   });
   const scenes = await db.scene.findMany({
     where: { notebookId: { in: notebookIds } },
@@ -323,7 +320,6 @@ async function loadSearchCandidates(
       whiteboard: true,
     },
     orderBy: [{ notebookId: 'asc' }, { order: 'asc' }],
-    take: 160,
   });
 
   return [
@@ -515,15 +511,25 @@ export async function runCourseTurn(
       }),
       search_course_notebooks: tool({
         description:
-          'Search or read persisted notebook sections and pages in the current course. Set detail=full and narrow by notebookId or sectionIds when full source content is needed.',
+          'Search or read persisted notebook sections and pages in the current course. Set detail=full and narrow by notebookId or sectionIds when full source content is needed. Continue with nextOffset for more matches; for a truncated section, use its sectionId and nextContentOffset as contentOffset to read the remainder.',
         inputSchema: z.object({
           query: z.string().trim().max(500).default(''),
           notebookId: z.string().trim().min(1).max(200).optional(),
           sectionIds: z.array(z.string().trim().min(1).max(200)).max(12).optional(),
           detail: z.enum(['excerpt', 'full']).default('excerpt'),
+          offset: z.number().int().min(0).default(0),
+          contentOffset: z.number().int().min(0).default(0),
           maxResults: z.number().int().min(1).max(MAX_SEARCH_RESULTS).optional(),
         }),
-        execute: async ({ query, notebookId, sectionIds, detail, maxResults }) => {
+        execute: async ({
+          query,
+          notebookId,
+          sectionIds,
+          detail,
+          maxResults,
+          offset,
+          contentOffset,
+        }) => {
           const candidates = await getSearchCandidates();
           const sectionIdSet = sectionIds?.length ? new Set(sectionIds) : null;
           const filtered = candidates.filter(
@@ -534,7 +540,7 @@ export async function runCourseTurn(
           const limit = maxResults ?? (detail === 'full' ? 3 : 5);
           let remaining =
             detail === 'full' ? MAX_NOTEBOOK_READ_CHARS : MAX_SEARCH_EXCERPT_CHARS * limit;
-          const ranked = filtered
+          const allRanked = filtered
             .map((candidate) => ({
               candidate,
               score: query ? scoreSearchCandidate(candidate, query) : 1,
@@ -543,30 +549,41 @@ export async function runCourseTurn(
             .sort(
               (left, right) =>
                 right.score - left.score || left.candidate.order - right.candidate.order,
-            )
-            .slice(0, limit);
+            );
+          const ranked = allRanked.slice(offset, offset + limit);
           return {
             query,
             matchCount: ranked.length,
-            matches: ranked.map(({ candidate, score }) => ({
-              notebookId: candidate.notebookId,
-              notebookName: candidate.notebookName,
-              sectionId: candidate.sectionId,
-              sectionTitle: candidate.sectionTitle,
-              kind: candidate.kind,
-              order: candidate.order,
-              score,
-              excerpt: compactText(candidate.text, MAX_SEARCH_EXCERPT_CHARS),
-              ...(detail === 'full'
-                ? {
-                    content: (() => {
-                      const content = compactText(candidate.text, remaining);
-                      remaining = Math.max(0, remaining - content.length);
-                      return content;
-                    })(),
-                  }
-                : {}),
-            })),
+            totalMatches: allRanked.length,
+            hasMore: offset + ranked.length < allRanked.length,
+            nextOffset: offset + ranked.length < allRanked.length ? offset + ranked.length : null,
+            matches: ranked.map(({ candidate, score }) => {
+              const content =
+                detail === 'full'
+                  ? candidate.text.slice(contentOffset, contentOffset + remaining)
+                  : undefined;
+              if (content !== undefined) remaining -= content.length;
+              const end = contentOffset + (content?.length ?? 0);
+              return {
+                notebookId: candidate.notebookId,
+                notebookName: candidate.notebookName,
+                sectionId: candidate.sectionId,
+                sectionTitle: candidate.sectionTitle,
+                kind: candidate.kind,
+                order: candidate.order,
+                score,
+                excerpt: compactText(candidate.text, MAX_SEARCH_EXCERPT_CHARS),
+                ...(content !== undefined
+                  ? {
+                      content,
+                      contentOffset,
+                      totalContentChars: candidate.text.length,
+                      truncated: end < candidate.text.length,
+                      nextContentOffset: end < candidate.text.length ? end : null,
+                    }
+                  : {}),
+              };
+            }),
           };
         },
       }),
@@ -667,14 +684,16 @@ export async function runCourseTurn(
     const problemBankTools = {
       search_course_problem_bank: tool({
         description: isStudent
-          ? 'Search the real problem bank for this course and return strict matches with persisted problem ids. Never invent replacement questions when matches are insufficient.'
-          : "Search this course's platform problem bank (problems filed by chapter). Returns candidates with real ids and hrefs. Cite selected problems using their exact hrefs in the final answer; only cited problems become preview cards, in first-citation order. Never describe where a problem originally came from.",
+          ? 'Search the real problem bank for this course and return strict matches with persisted problem ids. Use searchTerms for bilingual synonyms or title keywords and offset=nextOffset to continue. Exact persisted titles are checked directly. No hits does not prove absence. Never invent replacement questions when matches are insufficient.'
+          : "Search this course's platform problem bank (problems filed by chapter). Use searchTerms for bilingual synonyms or title keywords, and offset=nextOffset to continue. Exact persisted titles are checked directly; no hits does not prove absence. Returns candidates with real ids and hrefs. Cite selected problems using their exact hrefs in the final answer; only cited problems become preview cards, in first-citation order. Never describe where a problem originally came from.",
         inputSchema: z.object({
           query: z.string().trim().min(1).max(500),
           requestedCount: z.number().int().min(1).max(12).default(5),
           chapterId: z.string().trim().max(64).optional(),
+          offset: z.number().int().min(0).default(0),
+          searchTerms: z.array(z.string().trim().min(1).max(200)).max(12).optional(),
         }),
-        execute: async ({ query, requestedCount, chapterId }) => {
+        execute: async ({ query, requestedCount, chapterId, offset, searchTerms }) => {
           if (!isStudent) {
             teacherProblemSearchRan = true;
             const result = await searchTeacherProblemBank({
@@ -684,13 +703,17 @@ export async function runCourseTurn(
               query,
               requestedCount,
               chapterId: chapterId || null,
+              offset,
+              searchTerms,
             });
             for (const match of result.matches)
               teacherProblemCandidates.set(match.problemId, match);
             return {
               ...result,
               ...(result.matches.length === 0
-                ? { hint: unconvertedSourceHint(sourceInventory) }
+                ? {
+                    hint: '本次检索尚未找到；尝试中英文 searchTerms、题名或章节检索，不能据此断言题库不存在。',
+                  }
                 : {}),
               display:
                 '这些是候选题，尚未显示卡片。最终正文中用 [《章节》· 题库第 N 题](工具返回的 href) 引用选中的题目；应用按首次引用顺序生成同一组卡片。',
@@ -703,6 +726,9 @@ export async function runCourseTurn(
             query,
             requestedCount,
             allowedNotebookIds: inventory.notebooks.map((notebook) => notebook.id),
+            chapterId,
+            offset,
+            searchTerms,
           });
           if (isStudent) {
             const plan = practiceCardFromSearch({
