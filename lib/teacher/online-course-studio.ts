@@ -85,6 +85,8 @@ export type TeacherStudioTask = {
   stage: string;
   progress: number;
   attemptCount: number;
+  importProgress?: { completed: number; total: number; questions: number };
+  resumable?: boolean;
   persistenceStatus: 'pending' | 'complete' | 'failed';
   persistenceStorage?: 'postgresql';
   errorReason?: string;

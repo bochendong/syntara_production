@@ -291,10 +291,17 @@ const TYPE_META: Record<CourseContentType, { label: string; icon: typeof FileTex
 };
 
 function queueStageLabel(job: TeacherStudioTask): string {
+  if (job.stage === 'awaiting_resume') return '进度已保存，等待继续';
+  if (job.stage === 'resuming') return '接着处理已保存的进度';
   if (job.status === 'queued') return '等待开始';
   if (job.stage === 'extracting_structure') return '分析资料结构';
   if (job.stage === 'converting_to_pdf') return '转换文件格式';
-  if (job.stage === 'extracting_questions') return '识别题目与答案';
+  if (job.stage === 'extracting_questions')
+    return job.importProgress
+      ? `题目批次 ${job.importProgress.completed}/${job.importProgress.total} 已完成`
+      : '识别题目与答案';
+  if (job.stage === 'checking_quality') return '核对答案与原图';
+  if (job.stage === 'saving_questions') return '保存题目到题库';
   if (job.stage === 'persisting_notebook') return '保存笔记本';
   if (job.kind === 'mind_map') {
     if (job.stage === 'extracting') return '解析思维导图素材';
@@ -2518,7 +2525,9 @@ export function TeacherCourseStudioClient({
                               </div>
                             </div>
                             <p className="mt-2 text-[11px] leading-5 text-slate-500">
-                              {progressView.hint}
+                              {job.kind === 'problem_bank_import' && job.resumable
+                                ? `${job.importProgress?.questions ? `已保存 ${job.importProgress.questions} 道题目草稿，完成核对后入库。` : '目录与处理中间进度已保存。'}${isFailed ? '继续处理会复用已完成批次。' : job.stage === 'awaiting_resume' ? '保持页面打开即可继续；离开后下次打开会接着处理。' : ''}`
+                                : progressView.hint}
                             </p>
                           </div>
 
@@ -2544,9 +2553,13 @@ export function TeacherCourseStudioClient({
                                 {persistenceStatus === 'complete'
                                   ? '已持久化'
                                   : persistenceStatus === 'failed'
-                                    ? '持久化失败'
+                                    ? job.resumable
+                                      ? '进度已保存'
+                                      : '尚未完成入库'
                                     : persistenceStatus === 'pending'
-                                      ? '正在持久化'
+                                      ? job.resumable
+                                        ? '进度已保存'
+                                        : '等待入库'
                                       : '持久化未确认'}
                               </StudioStatusBadge>
                             </div>
@@ -2562,7 +2575,9 @@ export function TeacherCourseStudioClient({
                                 onClick={() => void handleRetry(job.id)}
                               >
                                 <RefreshCw className="mr-1 size-3" />
-                                重新处理
+                                {job.kind === 'problem_bank_import' && job.resumable
+                                  ? '继续处理'
+                                  : '重新处理'}
                               </Button>
                             ) : null}
                           </div>

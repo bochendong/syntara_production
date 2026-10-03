@@ -201,7 +201,7 @@ function buildDrafts(sourceData) {
     const solutionCode = String(question.solutionCode || '').trim();
     const publicTests = buildCodeTests(question.publicTestCode, 'public');
     const secretTests = buildCodeTests(question.secretTestCode, 'secret');
-    const publishable = Boolean(
+    const referenceVerified = Boolean(
       functionSignature && publicTests.length > 0 && secretTests.length > 0,
     );
     const validationErrors = [
@@ -217,7 +217,6 @@ function buildDrafts(sourceData) {
         question.title || question.functionName || `CSC108 question ${question.id}`,
       ).slice(0, 200),
       type: 'code',
-      status: publishable ? 'published' : 'draft',
       source: 'manual',
       points: 1,
       tags: uniqueTags(['CSC108', 'python', question.category, question.questionNumber]),
@@ -235,7 +234,7 @@ function buildDrafts(sourceData) {
       },
       grading: {
         type: 'code',
-        publishRequirementsMet: publishable,
+        referenceVerified: referenceVerified,
         ...(solutionCode
           ? {
               referenceAnswer: solutionCode,
@@ -282,11 +281,8 @@ async function refreshCourseSummaryFields(prisma, courseId) {
       speechTotalCount: true,
     },
   });
-  const [problemCount, publishedProblemCount] = await Promise.all([
+  const [problemCount] = await Promise.all([
     prisma.notebookProblem.count({ where: { OR: [{ courseId }, { notebook: { courseId } }] } }),
-    prisma.notebookProblem.count({
-      where: { status: 'published', OR: [{ courseId }, { notebook: { courseId } }] },
-    }),
   ]);
 
   await prisma.course.updateMany({
@@ -295,7 +291,7 @@ async function refreshCourseSummaryFields(prisma, courseId) {
       notebookCount: notebookAggregate._count._all,
       sceneCount: notebookAggregate._sum.sceneCount ?? 0,
       problemCount,
-      publishedProblemCount,
+
       speechReadyCount: notebookAggregate._sum.speechReadyCount ?? 0,
       speechTotalCount: notebookAggregate._sum.speechTotalCount ?? 0,
     },
@@ -344,7 +340,6 @@ async function main() {
         name: true,
         courseCode: true,
         problemCount: true,
-        publishedProblemCount: true,
       },
     });
     if (!course) throw new Error(`Course not found: ${courseId}`);
@@ -396,7 +391,6 @@ async function main() {
       (sum, draft) => sum + (draft.secretJudge?.secretTests.length ?? 0),
       0,
     );
-    const draftProblemCount = draftsToInsert.filter((draft) => draft.status !== 'published').length;
 
     console.log(
       JSON.stringify(
@@ -409,7 +403,6 @@ async function main() {
           insertQuestionCount: draftsToInsert.length,
           publicTestCount,
           secretTestCount,
-          draftProblemCount,
           missingAssignedNotebookIds,
           courseLevelFallback,
           courseLevelFallbackQuestionCount: resolvedDraftsToInsert.filter(
@@ -472,7 +465,6 @@ async function main() {
             notebookId: draft.notebookId,
             title: draft.title,
             type: draft.type,
-            status: draft.status,
             source: draft.source,
             order: count + index,
             problemNumber: firstProblemNumber + index,
@@ -527,7 +519,7 @@ async function main() {
     await refreshCourseSummaryFields(prisma, courseId);
     const after = await prisma.course.findUnique({
       where: { id: courseId },
-      select: { id: true, problemCount: true, publishedProblemCount: true },
+      select: { id: true, problemCount: true },
     });
     const imported = await prisma.notebookProblem.count({
       where: {

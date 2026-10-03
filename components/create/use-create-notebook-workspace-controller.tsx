@@ -1051,6 +1051,8 @@ export function useCreateNotebookWorkspaceController({
           testNoCharge: true,
         }),
       );
+      if (preparedSource.extract.sourceFileToken)
+        headers.set('x-notebook-source-token', preparedSource.extract.sourceFileToken);
       headers.set('Accept', 'text/event-stream');
 
       setOutlineGenerationMessage('正在生成整课主线和页面索引…');

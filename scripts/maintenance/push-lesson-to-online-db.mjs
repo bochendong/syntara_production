@@ -386,15 +386,9 @@ async function refreshTargetCourseSummary(prisma, courseId) {
       speechTotalCount: true,
     },
   });
-  const [problemCount, publishedProblemCount] = await Promise.all([
+  const [problemCount] = await Promise.all([
     prisma.notebookProblem.count({
       where: { OR: [{ courseId }, { notebook: { courseId } }] },
-    }),
-    prisma.notebookProblem.count({
-      where: {
-        status: 'published',
-        OR: [{ courseId }, { notebook: { courseId } }],
-      },
     }),
   ]);
 
@@ -404,7 +398,7 @@ async function refreshTargetCourseSummary(prisma, courseId) {
       notebookCount: notebookAggregate._count._all,
       sceneCount: notebookAggregate._sum.sceneCount ?? 0,
       problemCount,
-      publishedProblemCount,
+
       speechReadyCount: notebookAggregate._sum.speechReadyCount ?? 0,
       speechTotalCount: notebookAggregate._sum.speechTotalCount ?? 0,
     },

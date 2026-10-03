@@ -310,6 +310,7 @@ export async function searchLearnProblemBankForPractice(args: {
   courseId?: string | null;
   query: string;
   requestedCount?: number;
+  allowedNotebookIds?: string[];
 }): Promise<LearnProblemBankSearchResult> {
   const query = args.query.trim();
   const requestedCount = Math.max(1, Math.min(args.requestedCount ?? 5, 12));
@@ -338,7 +339,12 @@ export async function searchLearnProblemBankForPractice(args: {
     limit: Math.max(requestedCount * 3, 12),
   });
   const { accepted, excluded } = applyTopicProfile({
-    matches: rawMatches,
+    matches: rawMatches.filter(
+      (match) =>
+        !match.notebookId ||
+        args.allowedNotebookIds === undefined ||
+        args.allowedNotebookIds.includes(match.notebookId),
+    ),
     profile,
     query,
   });

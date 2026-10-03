@@ -79,7 +79,6 @@ function canonicalProblem(problem, localCourseId) {
     notebookId: null,
     title: problem.title,
     type: problem.type,
-    status: 'published',
     difficulty: problem.difficulty,
     tags: Array.isArray(problem.tags) ? problem.tags : [],
     publicContent: jsonRecord(problem.publicContentJson),
@@ -111,7 +110,6 @@ async function main() {
       prisma.notebookProblem.findMany({
         where: {
           courseId: { in: sourceCourseIds },
-          status: 'published',
         },
         select: {
           id: true,
@@ -186,7 +184,7 @@ async function main() {
       exportedAt: Date.now(),
       source: {
         kind: 'production-postgresql',
-        scope: 'published-course-problems',
+        scope: 'course-problems',
         excludes: ['NotebookProblemSecret', 'accounts', 'messages', 'user progress'],
       },
       integrity: {

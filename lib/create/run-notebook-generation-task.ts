@@ -34,19 +34,8 @@ import { backendFetch } from '@/lib/utils/backend-api';
 import { writeMemoryWithActivity } from '@/lib/utils/memory-write-api';
 import { writePersistedStageOutlines } from '@/lib/utils/stage-outline-storage';
 import { getApiHeaders } from './generation-headers';
-import {
-  isDocxSourceFile,
-  isImageSourceFile,
-  isMarkdownSourceFile,
-  isPdfSourceFile,
-  isPptxSourceFile,
-  isTextSourceFile,
-  parseDocxLikeGenerationInput,
-  parseImageLikeGenerationInput,
-  parseMarkdownLikeGenerationInput,
-  parsePdfLikeGenerationPreview,
-  parsePptxLikeGenerationPreview,
-} from './source-input';
+import { isImageSourceFile } from './source-input';
+import { prepareNotebookOriginalFile } from './notebook-original-file';
 import {
   analyzeOutlineCoverage,
   applyOutlineLanguage,
@@ -1336,19 +1325,25 @@ export async function runNotebookGenerationTask(
     videoEnabled: settings.videoGenerationEnabled ?? false,
   };
   const notebookGenerationSessionId = nanoid(12);
-  const getHeaders = () =>
-    getApiHeaders({
-      imageGenerationEnabled:
-        input.imageGenerationEnabledOverride !== undefined
-          ? input.imageGenerationEnabledOverride
-          : undefined,
-      modelIdOverride: input.modelIdOverride,
-      notebookStageModelOverrides: input.notebookStageModelOverrides ?? undefined,
-      notebookModelMode: input.notebookModelMode ?? 'recommended',
-      notebookGenerationSessionId,
-      notebookGenerationTaskId: input.generationTaskId,
-      testNoCharge: NOTEBOOK_GENERATION_TEST_NO_CHARGE,
-    });
+  let sourceFileToken: string | undefined;
+  const getHeaders = () => {
+    const headers = new Headers(
+      getApiHeaders({
+        imageGenerationEnabled:
+          input.imageGenerationEnabledOverride !== undefined
+            ? input.imageGenerationEnabledOverride
+            : undefined,
+        modelIdOverride: input.modelIdOverride,
+        notebookStageModelOverrides: input.notebookStageModelOverrides ?? undefined,
+        notebookModelMode: input.notebookModelMode ?? 'recommended',
+        notebookGenerationSessionId,
+        notebookGenerationTaskId: input.generationTaskId,
+        testNoCharge: NOTEBOOK_GENERATION_TEST_NO_CHARGE,
+      }),
+    );
+    if (sourceFileToken) headers.set('x-notebook-source-token', sourceFileToken);
+    return headers;
+  };
   input.onProgress?.({ stage: 'preparing', detail: '正在初始化创建任务…' });
 
   try {
@@ -1372,91 +1367,15 @@ export async function runNotebookGenerationTask(
     let imageMapping: ImageMapping | undefined;
 
     if (sourceFile) {
-      if (isPdfSourceFile(sourceFile)) {
-        input.onProgress?.({ stage: 'pdf-analysis', detail: '正在解析 PDF（与创建页相同流程）…' });
-        const parsed = await parsePdfLikeGenerationPreview({
-          pdfFile: sourceFile,
-          signal: input.signal,
-          language,
-          sourcePageSelection: input.sourcePageSelection,
-          imageLimit: input.sourceImageIds !== undefined ? null : undefined,
-          includeVisualRegionImages: true,
-        });
-        pdfText = parsed.pdfText;
-        pdfImages = parsed.pdfImages;
-        imageMapping = parsed.imageMapping;
-        input.onProgress?.({
-          stage: 'pdf-analysis',
-          detail:
-            parsed.truncationWarnings.length > 0
-              ? `PDF 已解析。${parsed.truncationWarnings.join(' ')}`
-              : 'PDF 已解析，已提取文本与配图信息。',
-        });
-      } else if (isPptxSourceFile(sourceFile)) {
-        input.onProgress?.({ stage: 'pdf-analysis', detail: '正在解析 PPTX 文档…' });
-        const parsed = await parsePptxLikeGenerationPreview({
-          pptxFile: sourceFile,
-          signal: input.signal,
-        });
-        pdfText = parsed.pdfText;
-        pdfImages = parsed.pdfImages;
-        imageMapping = parsed.imageMapping;
-        input.onProgress?.({
-          stage: 'pdf-analysis',
-          detail:
-            parsed.truncationWarnings.length > 0
-              ? `PPTX 已解析。${parsed.truncationWarnings.join(' ')}`
-              : 'PPTX 已解析，已提取每页文字、备注与图片。',
-        });
-      } else if (isMarkdownSourceFile(sourceFile)) {
-        input.onProgress?.({ stage: 'pdf-analysis', detail: '正在读取 Markdown 文档…' });
-        const parsed = await parseMarkdownLikeGenerationInput({ file: sourceFile });
-        pdfText = parsed.pdfText;
-        input.onProgress?.({
-          stage: 'pdf-analysis',
-          detail:
-            parsed.truncationWarnings.length > 0
-              ? `Markdown 已读取。${parsed.truncationWarnings.join(' ')}`
-              : 'Markdown 已读取，已提取正文内容。',
-        });
-      } else if (isTextSourceFile(sourceFile)) {
-        input.onProgress?.({ stage: 'pdf-analysis', detail: '正在读取 TXT 文档…' });
-        const parsed = await parseMarkdownLikeGenerationInput({ file: sourceFile });
-        pdfText = parsed.pdfText;
-        input.onProgress?.({
-          stage: 'pdf-analysis',
-          detail:
-            parsed.truncationWarnings.length > 0
-              ? `TXT 已读取。${parsed.truncationWarnings.join(' ')}`
-              : 'TXT 已读取，已提取正文内容。',
-        });
-      } else if (isDocxSourceFile(sourceFile)) {
-        input.onProgress?.({ stage: 'pdf-analysis', detail: '正在解析 DOCX 文档…' });
-        const parsed = await parseDocxLikeGenerationInput({
-          file: sourceFile,
-          signal: input.signal,
-        });
-        pdfText = parsed.pdfText;
-        input.onProgress?.({
-          stage: 'pdf-analysis',
-          detail:
-            parsed.truncationWarnings.length > 0
-              ? `DOCX 已解析。${parsed.truncationWarnings.join(' ')}`
-              : 'DOCX 已解析，已提取正文内容。',
-        });
-      } else if (isImageSourceFile(sourceFile)) {
-        input.onProgress?.({ stage: 'pdf-analysis', detail: '正在读取课程图片…' });
-        const parsed = await parseImageLikeGenerationInput({ file: sourceFile });
-        pdfText = parsed.pdfText;
-        pdfImages = parsed.pdfImages;
-        imageMapping = parsed.imageMapping;
-        input.onProgress?.({
-          stage: 'pdf-analysis',
-          detail: '课程图片已读取，将作为视觉资料参与生成。',
-        });
-      } else {
-        throw new Error('文件格式不受支持，请重新选择课程资料。');
-      }
+      input.onProgress?.({ stage: 'pdf-analysis', detail: '正在上传原文件至 OpenAI…' });
+      const original = await prepareNotebookOriginalFile({
+        file: sourceFile,
+        signal: input.signal,
+        selection: input.sourcePageSelection,
+      });
+      sourceFileToken = original.sourceFileToken;
+      pdfText = original.text;
+      input.onProgress?.({ stage: 'pdf-analysis', detail: '原文件已上传，生成时将直接读取。' });
     }
 
     if (sourceFile && input.sourceImageIds !== undefined) {

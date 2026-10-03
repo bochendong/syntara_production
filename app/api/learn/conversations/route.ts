@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { enqueueJob } from '@/features/background-jobs/server/store';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -349,7 +350,7 @@ export async function GET(request: Request) {
   });
 }
 
-export async function POST(request: Request) {
+async function auditedPOST(request: Request) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -435,7 +436,7 @@ export async function POST(request: Request) {
   });
 }
 
-export async function DELETE(request: Request) {
+async function auditedDELETE(request: Request) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -491,3 +492,7 @@ export async function DELETE(request: Request) {
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

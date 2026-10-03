@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { z } from 'zod';
 import { requireTeacher } from '@/lib/server/teacher-auth';
 import { notebookProblemImportDraftSchema } from '@/lib/problem-bank/schema';
@@ -22,7 +23,6 @@ function toClientProblem(problem: Awaited<ReturnType<typeof listCourseProblemsFo
     chapterName: problem.chapterName,
     title: problem.title,
     type: problem.type,
-    status: problem.status,
     source: problem.source,
     order: problem.order,
     problemNumber: problem.problemNumber ?? null,
@@ -53,7 +53,6 @@ function toClientProblemSummary(
     chapterName: problem.chapterName,
     title: problem.title,
     type: problem.type,
-    status: problem.status,
     tags: problem.tags,
     difficulty: problem.difficulty,
     updatedAt: problem.updatedAt,
@@ -103,7 +102,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
           typeFilter: url.searchParams.get('type') || undefined,
           difficultyFilter: url.searchParams.get('difficulty') || undefined,
           chapterFilter: url.searchParams.get('chapter') || undefined,
-          statusFilter: url.searchParams.get('status') || undefined,
           notebookId: url.searchParams.get('notebookId') || undefined,
         },
       });
@@ -132,7 +130,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 }
 
 export const maxDuration = 300;
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireTeacher();
     if ('response' in auth) return auth.response;
@@ -165,3 +163,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

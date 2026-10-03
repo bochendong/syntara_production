@@ -67,7 +67,6 @@ export interface CourseRecord {
   notebookCount?: number;
   sceneCount?: number;
   problemCount?: number;
-  publishedProblemCount?: number;
   speechReadyCount?: number;
   speechTotalCount?: number;
   speechStatus?: 'no_speech' | 'ready' | 'pending';

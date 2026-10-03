@@ -43,7 +43,10 @@ export function AdminEntry() {
   useEffect(() => {
     let cancelled = false;
     void backendJson<AdminSessionResponse>('/api/admin/session')
-      .then((response) => {
+      .then(async (response) => {
+        if (response.authenticated) {
+          await backendJson('/api/admin/students/preview', { method: 'DELETE' });
+        }
         if (cancelled) return;
         setAuthenticated(Boolean(response.authenticated));
       })

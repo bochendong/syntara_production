@@ -9,7 +9,6 @@ export const notebookProblemTypeSchema = z.enum([
   'code',
   'fill_blank',
 ]);
-export const notebookProblemStatusSchema = z.enum(['draft', 'published', 'archived']);
 export const notebookProblemSourceSchema = z.enum([
   'chat',
   'pdf',
@@ -292,7 +291,7 @@ export const notebookProblemGradingCodeSchema = z.object({
   referenceAnswer: z.string().trim().min(1).max(40000).optional(),
   solutionCode: z.string().trim().min(1).max(40000).optional(),
   analysis: z.string().trim().min(1).max(12000).optional(),
-  publishRequirementsMet: z.boolean().default(false),
+  referenceVerified: z.boolean().default(false),
 });
 
 export const notebookProblemGradingSchema = z.discriminatedUnion('type', [
@@ -321,7 +320,6 @@ export const notebookProblemRecordSchema = z.object({
   chapterName: z.string().trim().min(1).max(160).optional(),
   title: z.string().trim().min(1).max(200),
   type: notebookProblemTypeSchema,
-  status: notebookProblemStatusSchema,
   source: notebookProblemSourceSchema,
   order: z.number().int().min(0),
   problemNumber: z.number().int().positive().nullable().optional(),
@@ -434,7 +432,6 @@ export const notebookProblemImportDraftSchema = z.object({
   notebookId: z.string().trim().min(1).nullable().optional(),
   title: z.string().trim().min(1).max(200),
   type: notebookProblemTypeSchema,
-  status: notebookProblemStatusSchema.default('draft'),
   source: notebookProblemSourceSchema.default('manual'),
   points: z.number().int().min(0).max(1000).default(100),
   tags: z.array(z.string().trim().min(1).max(30)).max(16).default([]),
@@ -447,7 +444,6 @@ export const notebookProblemImportDraftSchema = z.object({
 });
 
 export type NotebookProblemType = z.infer<typeof notebookProblemTypeSchema>;
-export type NotebookProblemStatus = z.infer<typeof notebookProblemStatusSchema>;
 export type NotebookProblemSource = z.infer<typeof notebookProblemSourceSchema>;
 export type NotebookProblemDifficulty = z.infer<typeof notebookProblemDifficultySchema>;
 export type NotebookProblemAttemptKind = z.infer<typeof notebookProblemAttemptKindSchema>;
@@ -578,7 +574,6 @@ function normalizeQuizChoiceType(question: QuizQuestion): NotebookProblemImportD
     draftId: question.id,
     title: question.question.slice(0, 80),
     type: 'choice',
-    status: 'published',
     source: 'legacy_quiz_scene',
     points: 100,
     tags: [],
@@ -628,7 +623,6 @@ export function buildLegacyProblemDraftFromQuizQuestion(
       draftId: question.id,
       title: question.question.slice(0, 80),
       type: 'short_answer',
-      status: 'published',
       source: 'legacy_quiz_scene',
       points: 100,
       tags: [],
@@ -663,7 +657,6 @@ export function buildLegacyProblemDraftFromQuizQuestion(
       draftId: question.id,
       title: question.question.slice(0, 80),
       type: 'proof',
-      status: 'published',
       source: 'legacy_quiz_scene',
       points: 100,
       tags: [],
@@ -705,13 +698,12 @@ export function buildLegacyProblemDraftFromQuizQuestion(
         expression: testCase.expression,
         expected: testCase.expected,
       }));
-    const publishable =
+    const referenceVerified =
       Boolean(question.language === 'python') && publicTests.length > 0 && secretTests.length > 0;
     return {
       draftId: question.id,
       title: question.question.slice(0, 80),
       type: 'code',
-      status: publishable ? 'published' : 'draft',
       source: 'legacy_quiz_scene',
       points: 100,
       tags: [],
@@ -731,7 +723,7 @@ export function buildLegacyProblemDraftFromQuizQuestion(
       grading: {
         type: 'code',
         analysis: question.analysis,
-        publishRequirementsMet: publishable,
+        referenceVerified: referenceVerified,
       },
       secretJudge:
         secretTests.length > 0
@@ -774,7 +766,6 @@ export function buildLegacyProblemDraftFromQuizQuestion(
       draftId: question.id,
       title: question.question.slice(0, 80),
       type: 'short_answer',
-      status: 'published',
       source: 'legacy_quiz_scene',
       points: 100,
       tags: [],

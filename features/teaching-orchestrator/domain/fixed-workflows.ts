@@ -156,7 +156,7 @@ export const MEMORY_EXTRACTION_WORKFLOWS = [
   },
   {
     kind: 'problem_bank_metadata',
-    trigger: 'A problem is imported, generated, published, selected, or used for review.',
+    trigger: 'A problem is imported, generated, selected, or used for review.',
     storageTarget: 'practice_attempt',
     requiredFields: ['problemId', 'conceptTags', 'difficulty', 'questionType', 'diagnosticPurpose'],
     skipWhen: ['Tags are generic source names or do not help future retrieval/selection.'],

@@ -1,4 +1,7 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
+import { withRequestContext } from '@/lib/server/request-context';
+
+export const maxDuration = 300;
 
 import { prisma } from '@/lib/server/prisma';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -9,7 +12,7 @@ const MIND_MAP_TASK_STALE_MS = 6 * 60 * 1000;
 const STALE_MIND_MAP_ERROR = '任务超过服务器执行时限，已自动结束，请重新生成。';
 const PROBLEM_BANK_TASK_STALE_MS = 6 * 60 * 1000;
 const STALE_PROBLEM_BANK_ERROR =
-  '题库导入超过服务器执行时限，已自动结束。原文件已保留，请重新处理。';
+  '本轮题库处理已中断。原文件和已保存的题目批次已保留，点击继续处理即可接着完成。';
 
 function jsonRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -198,10 +201,50 @@ export async function GET(_request: Request, context: { params: Promise<{ course
           now - task.updatedAt.getTime() > MIND_MAP_TASK_STALE_MS,
       )
       .map((task) => task.id);
+    const importSummaries = await prisma.$queryRaw<
+      Array<{ id: string; importProgress: unknown; resumable: boolean }>
+    >`
+      SELECT "id", "result"->'importProgress' AS "importProgress",
+        EXISTS (SELECT 1 FROM jsonb_each(COALESCE("result"->'checkpoints', '{}'::jsonb))) AS "resumable"
+      FROM "AgentTask" WHERE "courseId" = ${courseId} AND "ownerId" = ${teacher.userId} AND "taskType" = 'teacher_problem_bank_import'`;
+    const importSummaryById = new Map(importSummaries.map((summary) => [summary.id, summary]));
+    // Each authorized studio poll starts at most two saved continuations. The atomic
+    // claim prevents two tabs from processing the same paused task.
+    for (const task of tasks
+      .filter(
+        (task) =>
+          task.taskType === 'teacher_problem_bank_import' &&
+          task.status === 'queued' &&
+          task.stage === 'awaiting_resume',
+      )
+      .slice(0, 2)) {
+      const sourceId = jsonRecord(task.request).sourceId;
+      if (typeof sourceId !== 'string') continue;
+      const claim = await prisma.agentTask.updateMany({
+        where: { id: task.id, status: 'queued', stage: 'awaiting_resume' },
+        data: { status: 'running', stage: 'resuming' },
+      });
+      if (claim.count !== 1) continue;
+      after(async () => {
+        const { runSourceProcessing } = await import('@/lib/server/teacher-source-processing');
+        await withRequestContext(
+          { userId: teacher.userId, courseId, route: '/api/teacher/courses/source/process' },
+          () =>
+            runSourceProcessing({
+              ownerId: teacher.userId,
+              courseId,
+              sourceId,
+              notebookId: null,
+              taskId: task.id,
+            }),
+        );
+      });
+    }
     const staleProblemBankTasks = tasks
       .filter(
         (task) =>
           task.taskType === 'teacher_problem_bank_import' &&
+          task.stage !== 'awaiting_resume' &&
           (task.status === 'queued' || task.status === 'running') &&
           now - task.updatedAt.getTime() > PROBLEM_BANK_TASK_STALE_MS,
       )
@@ -242,11 +285,14 @@ export async function GET(_request: Request, context: { params: Promise<{ course
         : Promise.resolve(),
       staleProblemBankTaskIds.length
         ? prisma.agentTask.updateMany({
-            where: { id: { in: staleProblemBankTaskIds } },
+            where: {
+              id: { in: staleProblemBankTaskIds },
+              status: { in: ['queued', 'running'] },
+              updatedAt: { lt: new Date(now - PROBLEM_BANK_TASK_STALE_MS) },
+            },
             data: {
               status: 'failed',
               stage: 'failed',
-              progress: 100,
               error: STALE_PROBLEM_BANK_ERROR,
             },
           })
@@ -338,7 +384,9 @@ export async function GET(_request: Request, context: { params: Promise<{ course
             ? 'failed'
             : task.stage;
         const reconciledProgress =
-          completedMindMapTaskIdSet.has(task.id) || staleTask ? 100 : task.progress;
+          completedMindMapTaskIdSet.has(task.id) || staleMindMapTaskIdSet.has(task.id)
+            ? 100
+            : task.progress;
         return {
           id: task.id,
           notebookId: task.notebookId || undefined,
@@ -359,6 +407,8 @@ export async function GET(_request: Request, context: { params: Promise<{ course
           stage: reconciledStage,
           progress: reconciledProgress,
           attemptCount: task.attemptCount,
+          importProgress: importSummaryById.get(task.id)?.importProgress ?? undefined,
+          resumable: importSummaryById.get(task.id)?.resumable ?? false,
           persistenceStatus:
             reconciledStatus === 'completed'
               ? 'complete'

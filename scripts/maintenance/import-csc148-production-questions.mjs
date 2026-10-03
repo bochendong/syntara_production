@@ -292,7 +292,6 @@ function shortAnswerDraft(question, sourceData) {
     notebookId: null,
     title: trimTitle(question.title, `CSC148 question ${question.id}`),
     type: 'short_answer',
-    status: 'published',
     source: 'manual',
     points: originalType === 'multiple_choice' ? 1 : 2,
     tags: uniqueTags([
@@ -324,7 +323,6 @@ function choiceDraft(question, sourceData, override) {
     notebookId: null,
     title: trimTitle(question.title, `CSC148 choice question ${question.id}`),
     type: 'choice',
-    status: 'published',
     source: 'manual',
     points: 1,
     tags: uniqueTags([
@@ -361,7 +359,7 @@ function codeDraft(question, sourceData) {
   const functionSignature = extractFunctionSignature(starterCode);
   const publicTests = buildCodeTests(question.publicTestCode, 'public', validationErrors);
   const secretTests = buildCodeTests(question.secretTestCode, 'secret', validationErrors);
-  const publishable = publicTests.length > 0 && secretTests.length > 0;
+  const referenceVerified = publicTests.length > 0 && secretTests.length > 0;
 
   if (publicTests.length === 0) validationErrors.push('缺少 public tests');
   if (secretTests.length === 0) validationErrors.push('缺少 secret tests');
@@ -371,7 +369,6 @@ function codeDraft(question, sourceData) {
     notebookId: null,
     title: trimTitle(question.title, `CSC148 code question ${question.id}`),
     type: 'code',
-    status: publishable ? 'published' : 'draft',
     source: 'manual',
     points: 5,
     tags: uniqueTags([
@@ -396,7 +393,7 @@ function codeDraft(question, sourceData) {
     },
     grading: {
       type: 'code',
-      publishRequirementsMet: publishable,
+      referenceVerified: referenceVerified,
     },
     ...(secretTests.length > 0
       ? {
@@ -465,11 +462,8 @@ async function refreshCourseSummaryFields(prisma, courseId) {
       speechTotalCount: true,
     },
   });
-  const [problemCount, publishedProblemCount] = await Promise.all([
+  const [problemCount] = await Promise.all([
     prisma.notebookProblem.count({ where: { OR: [{ courseId }, { notebook: { courseId } }] } }),
-    prisma.notebookProblem.count({
-      where: { status: 'published', OR: [{ courseId }, { notebook: { courseId } }] },
-    }),
   ]);
 
   await prisma.course.updateMany({
@@ -478,7 +472,7 @@ async function refreshCourseSummaryFields(prisma, courseId) {
       notebookCount: notebookAggregate._count._all,
       sceneCount: notebookAggregate._sum.sceneCount ?? 0,
       problemCount,
-      publishedProblemCount,
+
       speechReadyCount: notebookAggregate._sum.speechReadyCount ?? 0,
       speechTotalCount: notebookAggregate._sum.speechTotalCount ?? 0,
     },
@@ -541,7 +535,6 @@ async function main() {
         name: true,
         courseCode: true,
         problemCount: true,
-        publishedProblemCount: true,
       },
     });
     if (!course) throw new Error(`Course not found: ${courseId}`);
@@ -577,7 +570,6 @@ async function main() {
       (sum, draft) => sum + (draft.secretJudge?.secretTests.length ?? 0),
       0,
     );
-    const draftProblemCount = draftsToInsert.filter((draft) => draft.status !== 'published').length;
     const validationWarningCount = draftsToInsert.reduce(
       (sum, draft) => sum + draft.validationErrors.length,
       0,
@@ -596,7 +588,6 @@ async function main() {
           afterProblemCount: currentProblemCount + draftsToInsert.length,
           publicTestCount,
           secretTestCount,
-          draftProblemCount,
           validationWarningCount,
           assignedNotebookCount: draftsToInsert.filter((draft) => draft.notebookId).length,
           availableNotebooks: courseNotebooks,
@@ -649,7 +640,6 @@ async function main() {
               notebookId: draft.notebookId,
               title: draft.title,
               type: draft.type,
-              status: draft.status,
               source: draft.source,
               order: count + index,
               problemNumber: firstProblemNumber + index,
@@ -691,7 +681,7 @@ async function main() {
     await refreshCourseSummaryFields(prisma, courseId);
     const after = await prisma.course.findUnique({
       where: { id: courseId },
-      select: { id: true, problemCount: true, publishedProblemCount: true },
+      select: { id: true, problemCount: true },
     });
     const imported = await prisma.notebookProblem.count({
       where: {

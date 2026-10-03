@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -27,7 +28,7 @@ const completeSchema = z.object({
     .max(20),
 });
 
-export async function POST(
+async function auditedPOST(
   request: NextRequest,
   context: { params: Promise<{ uploadId: string }> },
 ) {
@@ -83,3 +84,5 @@ export async function POST(
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

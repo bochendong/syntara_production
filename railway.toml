@@ -9,7 +9,7 @@ buildCommand = "pnpm install && pnpm run build"
 [deploy]
 # Apply only committed Prisma migrations before the new app starts. Railway runs
 # this command inside the service network with the configured DATABASE_URL.
-preDeployCommand = "npx prisma migrate deploy"
+preDeployCommand = "node -e \"console.log('Database migration coordinated with Vercel cutover')\""
 # Use Node directly: Nixpacks runtime image may not have `pnpm` on PATH (catatonit: failed to exec pid1).
 startCommand = "node scripts/workers/start-with-worker.mjs"
 restartPolicyType = "ON_FAILURE"

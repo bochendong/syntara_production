@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { POST as parseSyllabus } from '@/app/api/syllabus/parse/route';
@@ -29,7 +30,7 @@ type SyllabusResponse = {
   modelId?: string;
 };
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   const principal = requirePublicApi(request, requestId);
   if (principal instanceof NextResponse) return principal;
@@ -86,3 +87,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

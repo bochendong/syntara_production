@@ -275,6 +275,7 @@ export async function buildLearnerAnalytics(args: {
   target: AnalyticsTarget;
   query: string;
   searchIntent: MemorySearchIntent;
+  allowedNotebookIds?: string[];
 }): Promise<LearnerAnalytics | null> {
   const shouldCollect =
     args.searchIntent.knowledgeTypes.includes('learner_history') ||
@@ -302,7 +303,6 @@ export async function buildLearnerAnalytics(args: {
         userId: args.userId,
         ...(since ? { createdAt: { gte: since } } : {}),
         problem: {
-          status: { not: 'archived' },
           ...problemScopeWhere(args.target),
         },
       },
@@ -354,7 +354,10 @@ export async function buildLearnerAnalytics(args: {
     }),
   ]);
 
+  const notebookAllowed = (id: string | null) =>
+    !id || args.allowedNotebookIds === undefined || args.allowedNotebookIds.includes(id);
   const messages = messageRows
+    .filter((row) => notebookAllowed(row.notebookId))
     .map((row) => ({
       id: row.id,
       conversationId: row.conversationId,
@@ -367,39 +370,43 @@ export async function buildLearnerAnalytics(args: {
     }))
     .filter((row) => row.text.length > 0)
     .slice(0, 40);
-  const attempts = attemptRows.map((row) => ({
-    id: row.id,
-    problemId: row.problemId,
-    problemTitle: row.problem.title,
-    notebookId: row.problem.notebookId,
-    notebookName: row.problem.notebook?.name || null,
-    status: String(row.status),
-    score: row.score,
-    problemLanguage:
-      row.problem.publicContentJson &&
-      typeof row.problem.publicContentJson === 'object' &&
-      'language' in row.problem.publicContentJson &&
-      typeof row.problem.publicContentJson.language === 'string'
-        ? row.problem.publicContentJson.language
-        : null,
-    feedback:
-      row.resultJson && typeof row.resultJson === 'object' && 'feedback' in row.resultJson
-        ? compact(String(row.resultJson.feedback || ''), 600)
-        : undefined,
-    tags: row.problem.tags || [],
-    difficulty: String(row.problem.difficulty),
-    createdAt: iso(row.createdAt),
-  }));
-  const privateMemories = memoryRows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    text: compact(row.text, 900),
-    kind: row.kind,
-    source: row.source,
-    notebookId: row.notebookId,
-    notebookName: row.notebook?.name || null,
-    updatedAt: iso(row.updatedAt),
-  }));
+  const attempts = attemptRows
+    .filter((row) => notebookAllowed(row.problem.notebookId))
+    .map((row) => ({
+      id: row.id,
+      problemId: row.problemId,
+      problemTitle: row.problem.title,
+      notebookId: row.problem.notebookId,
+      notebookName: row.problem.notebook?.name || null,
+      status: String(row.status),
+      score: row.score,
+      problemLanguage:
+        row.problem.publicContentJson &&
+        typeof row.problem.publicContentJson === 'object' &&
+        'language' in row.problem.publicContentJson &&
+        typeof row.problem.publicContentJson.language === 'string'
+          ? row.problem.publicContentJson.language
+          : null,
+      feedback:
+        row.resultJson && typeof row.resultJson === 'object' && 'feedback' in row.resultJson
+          ? compact(String(row.resultJson.feedback || ''), 600)
+          : undefined,
+      tags: row.problem.tags || [],
+      difficulty: String(row.problem.difficulty),
+      createdAt: iso(row.createdAt),
+    }));
+  const privateMemories = memoryRows
+    .filter((row) => notebookAllowed(row.notebookId))
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      text: compact(row.text, 900),
+      kind: row.kind,
+      source: row.source,
+      notebookId: row.notebookId,
+      notebookName: row.notebook?.name || null,
+      updatedAt: iso(row.updatedAt),
+    }));
 
   const weakAttempts = attempts.filter(
     (attempt) => attempt.status === 'failed' || attempt.status === 'partial',

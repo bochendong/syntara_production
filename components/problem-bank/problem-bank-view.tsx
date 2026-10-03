@@ -107,14 +107,8 @@ function sourceLabel(source: NotebookProblemClientRecord['source'], locale: 'zh-
   return locale === 'zh-CN' ? zh[source] : en[source];
 }
 
-function statusLabel(
-  status: NotebookProblemClientRecord['status'] | NotebookProblemAttemptRecord['status'],
-  locale: 'zh-CN' | 'en-US',
-) {
+function statusLabel(status: NotebookProblemAttemptRecord['status'], locale: 'zh-CN' | 'en-US') {
   const zh: Record<string, string> = {
-    draft: '草稿',
-    published: '已发布',
-    archived: '已归档',
     pending: '进行中',
     passed: '通过',
     failed: '失败',
@@ -122,9 +116,6 @@ function statusLabel(
     error: '错误',
   };
   const en: Record<string, string> = {
-    draft: 'Draft',
-    published: 'Published',
-    archived: 'Archived',
     pending: 'Pending',
     passed: 'Passed',
     failed: 'Failed',
@@ -360,7 +351,6 @@ function createManualProblemDraft(
     notebookId: notebookId ?? null,
     title: locale === 'zh-CN' ? '未命名题目' : 'Untitled problem',
     type: 'short_answer',
-    status: 'draft',
     source: 'manual',
     points: 100,
     tags: [],
@@ -492,9 +482,6 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [typeFilter, setTypeFilter] = useState<'all' | NotebookProblemClientRecord['type']>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | NotebookProblemClientRecord['status']>(
-    'all',
-  );
   const [textAnswer, setTextAnswer] = useState<Record<string, string>>({});
   const [choiceAnswer, setChoiceAnswer] = useState<Record<string, string[]>>({});
   const [blankAnswer, setBlankAnswer] = useState<Record<string, Record<string, string>>>({});
@@ -565,10 +552,9 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
     () =>
       problems.filter((problem) => {
         if (typeFilter !== 'all' && problem.type !== typeFilter) return false;
-        if (statusFilter !== 'all' && problem.status !== statusFilter) return false;
         return true;
       }),
-    [problems, statusFilter, typeFilter],
+    [problems, typeFilter],
   );
 
   const selectedProblem = useMemo(
@@ -765,7 +751,6 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
   const handleUpdateProblem = useCallback(
     async (patch: {
       title?: string;
-      status?: 'draft' | 'published' | 'archived';
       points?: number;
       difficulty?: 'easy' | 'medium' | 'hard';
       publicContent?: unknown;
@@ -1054,16 +1039,6 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                 <option value="code">{typeLabel('code', locale)}</option>
               </select>
             </div>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
-              className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-            >
-              <option value="all">{locale === 'zh-CN' ? '全部状态' : 'All status'}</option>
-              <option value="draft">{statusLabel('draft', locale)}</option>
-              <option value="published">{statusLabel('published', locale)}</option>
-              <option value="archived">{statusLabel('archived', locale)}</option>
-            </select>
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
@@ -1118,9 +1093,6 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Badge className="border-0 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                        {statusLabel(problem.status, locale)}
-                      </Badge>
-                      <Badge className="border-0 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                         {problem.points} {locale === 'zh-CN' ? '分' : 'pts'}
                       </Badge>
                       {problem.latestAttempt ? (
@@ -1170,9 +1142,6 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                       </Badge>
                       <Badge variant="secondary">
                         {selectedProblem.points} {locale === 'zh-CN' ? '分' : 'pts'}
-                      </Badge>
-                      <Badge variant="secondary">
-                        {statusLabel(selectedProblem.status, locale)}
                       </Badge>
                       {selectedProblem.latestAttempt?.status ? (
                         <Badge
@@ -1289,7 +1258,7 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                 {choiceContent ? (
                   <div className="space-y-3">
                     <ProblemRichText content={choiceContent.stem} />
-                    <ProblemImageAssets content={choiceContent} />
+                    <ProblemImageAssets content={choiceContent} locale={locale} />
                     {choiceContent.options.map((option) => {
                       const selected = choiceAnswer[selectedProblem.id] ?? [];
                       const multi = choiceContent.selectionMode === 'multiple';
@@ -1337,7 +1306,7 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                         },
                       )}
                     />
-                    <ProblemImageAssets content={fillBlankContent} />
+                    <ProblemImageAssets content={fillBlankContent} locale={locale} />
                     <div className="space-y-3">
                       {fillBlankContent.blanks.map((blank, index) => (
                         <div
@@ -1371,7 +1340,7 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                 ) : codeContent ? (
                   <div className="space-y-4">
                     <ProblemRichText content={codeContent.stem} />
-                    <ProblemImageAssets content={codeContent} />
+                    <ProblemImageAssets content={codeContent} locale={locale} />
                     {codeContent.functionSignature ? (
                       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-950/40">
                         <div className="mb-2 flex items-center gap-2 font-medium">
@@ -1428,7 +1397,7 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                         textLikeContent && 'stem' in textLikeContent ? textLikeContent.stem : ''
                       }
                     />
-                    <ProblemImageAssets content={textLikeContent} />
+                    <ProblemImageAssets content={textLikeContent} locale={locale} />
                     {latestAttempt && typeof latestAttempt.score === 'number' ? (
                       <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm dark:border-sky-900/40 dark:bg-sky-950/20">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1797,7 +1766,7 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                           {typeLabel(draft.type, locale)} ·{' '}
                           {difficultyLabel(draft.difficulty, locale)} ·{' '}
-                          {statusLabel(draft.status, locale)}
+                          {locale === 'zh-CN' ? '题库题目' : 'Problem'}
                         </p>
                       </div>
                       <Button

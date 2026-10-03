@@ -14,6 +14,7 @@ import type { ProviderType, ThinkingCapability, ThinkingConfig } from '@/lib/typ
 import { assertUserHasCredits } from '@/lib/server/credits';
 import { getRequestContext } from '@/lib/server/request-context';
 import { recordLLMUsage } from '@/lib/server/llm-usage';
+import { persistAiFailure } from '@/lib/server/ai-failure-log';
 const log = createLogger('LLM');
 
 // Re-export for external use
@@ -387,12 +388,37 @@ export async function callLLM<T extends GenerateTextParams>(
         log.warn(
           `[${source}] Validation failed (attempt ${attempt}/${maxAttempts}), ${attempt < maxAttempts ? 'retrying...' : 'giving up'}`,
         );
+        await persistAiFailure({
+          source,
+          stage: 'validation',
+          attempt,
+          model: typeof params.model === 'string' ? params.model : params.model.modelId,
+          input: _extractRequestInfo(params),
+          output: result.text,
+          reason: 'AI 输出未通过校验',
+          status: 502,
+        });
         lastResult = result;
         continue;
       }
 
       return result;
     } catch (error) {
+      await persistAiFailure({
+        source,
+        stage: 'provider',
+        attempt,
+        model: typeof params.model === 'string' ? params.model : params.model.modelId,
+        input: _extractRequestInfo(params),
+        output: {
+          stack: error instanceof Error ? error.stack : null,
+          responseBody: (error as { responseBody?: unknown })?.responseBody,
+          code: (error as { code?: unknown })?.code,
+          statusCode: (error as { statusCode?: unknown })?.statusCode,
+        },
+        reason: error instanceof Error ? error.message : String(error),
+        status: 502,
+      });
       lastError = error;
 
       if (attempt < maxAttempts) {
@@ -431,6 +457,17 @@ export async function streamLLM<T extends StreamTextParams>(
   const result = thinkingContext.run(effectiveThinking, () =>
     streamText({
       ...injectedParams,
+      onError: async (event) => {
+        await persistAiFailure({
+          source,
+          stage: 'provider-stream',
+          input: _extractRequestInfo(params),
+          output: { stack: event.error instanceof Error ? event.error.stack : null },
+          reason: event.error instanceof Error ? event.error.message : String(event.error),
+          status: 502,
+        });
+        await injectedParams.onError?.(event);
+      },
       onFinish: async (event) => {
         await persistUsage(source, injectedParams, event.totalUsage, event.response.messages);
         await injectedParams.onFinish?.(event);

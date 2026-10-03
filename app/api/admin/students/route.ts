@@ -16,6 +16,8 @@ function studentPayload(student: {
   id: string;
   email: string | null;
   name: string | null;
+  image: string | null;
+  phone: string | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -28,6 +30,7 @@ function studentPayload(student: {
       courseCode: string | null;
       academicYear: number | null;
       academicTerm: 'winter' | 'summer' | 'fall' | null;
+      university: string | null;
     };
   }>;
 }) {
@@ -35,6 +38,8 @@ function studentPayload(student: {
     id: student.id,
     email: student.email || '',
     name: student.name || '',
+    image: student.image,
+    phone: student.phone,
     isActive: student.isActive,
     courses: student.courseEnrollments.map((enrollment) => ({
       ...enrollment.course,
@@ -50,6 +55,8 @@ const studentSelect = {
   id: true,
   email: true,
   name: true,
+  image: true,
+  phone: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,
@@ -65,6 +72,7 @@ const studentSelect = {
           courseCode: true,
           academicYear: true,
           academicTerm: true,
+          university: true,
         },
       },
     },

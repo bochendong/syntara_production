@@ -389,12 +389,6 @@ export async function refreshCourseSummaryFields(db: DbClient, courseId: string)
   const problemCount = await db.notebookProblem.count({
     where: { OR: [{ courseId }, { notebook: { courseId } }] },
   });
-  const publishedProblemCount = await db.notebookProblem.count({
-    where: {
-      status: 'published',
-      OR: [{ courseId }, { notebook: { courseId } }],
-    },
-  });
 
   await db.course.updateMany({
     where: { id: courseId },
@@ -404,7 +398,7 @@ export async function refreshCourseSummaryFields(db: DbClient, courseId: string)
       // earlier aggregate here can overwrite a concurrent trigger increment.
       sceneCount: notebookAggregate._sum.sceneCount ?? 0,
       problemCount,
-      publishedProblemCount,
+
       speechReadyCount: notebookAggregate._sum.speechReadyCount ?? 0,
       speechTotalCount: notebookAggregate._sum.speechTotalCount ?? 0,
     },
@@ -429,7 +423,7 @@ const notebookListSelect = {
   sceneCount: true,
   sectionCount: true,
   problemCount: true,
-  publishedProblemCount: true,
+
   speechReadyCount: true,
   speechTotalCount: true,
   speechStatus: true,

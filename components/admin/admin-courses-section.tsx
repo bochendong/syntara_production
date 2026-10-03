@@ -1,20 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import {
-  BookOpen,
-  CalendarClock,
-  Database,
-  Download,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Search,
-  Store,
-  Trash2,
-  Users,
-} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Download, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { toast } from '@/lib/notifications/client-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -28,9 +15,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
 import { backendJson } from '@/lib/utils/backend-api';
 import { cn } from '@/lib/utils';
 
@@ -52,7 +39,6 @@ type AdminCourseRow = {
   notebookCount: number;
   sceneCount: number;
   problemCount: number;
-  publishedProblemCount: number;
   speechReadyCount: number;
   speechTotalCount: number;
   createdAt: string;
@@ -73,9 +59,16 @@ type AdminCourseRow = {
     conversations: number;
     studyMemories: number;
   };
+  usage: {
+    studentCount: number;
+    studentTokens: number;
+    teacherTokens: number;
+  };
 };
 
 type AcademicTerm = 'winter' | 'summer' | 'fall';
+
+const COURSE_PAGE_SIZE = 15;
 
 const ACADEMIC_TERM_LABEL: Record<AcademicTerm, string> = {
   winter: 'Winter',
@@ -83,31 +76,15 @@ const ACADEMIC_TERM_LABEL: Record<AcademicTerm, string> = {
   fall: 'Fall',
 };
 
-function currentSemesterValue() {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const term: AcademicTerm = month <= 4 ? 'winter' : month <= 8 ? 'summer' : 'fall';
-  return `${now.getFullYear()}:${term}`;
-}
-
-function buildSemesterOptions() {
-  const currentYear = new Date().getFullYear();
-  const terms = Object.keys(ACADEMIC_TERM_LABEL) as AcademicTerm[];
-  return Array.from({ length: 5 }, (_, index) => currentYear - 1 + index).flatMap((year) =>
-    terms.map((term) => ({
-      value: `${year}:${term}`,
-      label: `${year} ${ACADEMIC_TERM_LABEL[term]}`,
-    })),
-  );
-}
-
-function isAcademicTerm(value: string): value is AcademicTerm {
-  return value === 'winter' || value === 'summer' || value === 'fall';
-}
+type SemesterOption = {
+  academicYear: number;
+  academicTerm: AcademicTerm;
+};
 
 type AdminCoursesResponse = {
   success: true;
   totalCount: number;
+  semesters: SemesterOption[];
   courses: AdminCourseRow[];
 };
 
@@ -124,54 +101,41 @@ type DeleteCourseResponse = {
   };
 };
 
-type TeacherOption = {
-  id: string;
-  email: string;
-  name: string;
-  isActive: boolean;
-};
-
-function formatDateTime(date: string | null) {
-  if (!date) return '未记录';
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return date;
-  return parsed.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function formatMoney(cents: number) {
-  if (!cents) return '免费';
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CAD',
-  }).format(cents / 100);
-}
-
 function ownerLabel(course: AdminCourseRow) {
   return course.owner.email || course.owner.name || course.owner.id;
 }
 
-function purposeLabel(purpose: string) {
-  switch (purpose) {
-    case 'research':
-      return '科研';
-    case 'university':
-      return '大学课程';
-    case 'daily':
-      return '日常学习';
-    default:
-      return purpose;
-  }
+function semesterLabel(course: AdminCourseRow) {
+  if (!course.academicYear || !course.academicTerm) return null;
+  return `${course.academicYear} ${ACADEMIC_TERM_LABEL[course.academicTerm]}`;
+}
+
+function semesterOptionValue(semester: SemesterOption) {
+  return `${semester.academicYear}:${semester.academicTerm}`;
+}
+
+function currentSemesterOption(date = new Date()): SemesterOption {
+  const month = date.getMonth() + 1;
+  return {
+    academicYear: date.getFullYear(),
+    academicTerm: month <= 4 ? 'winter' : month <= 8 ? 'summer' : 'fall',
+  };
+}
+
+function currentSemesterValue(date = new Date()) {
+  return semesterOptionValue(currentSemesterOption(date));
+}
+
+function formatUsage(tokens: number) {
+  return `${Math.round(tokens).toLocaleString('zh-CN')} tokens`;
 }
 
 export function AdminCoursesSection() {
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
+  const [semester, setSemester] = useState(currentSemesterValue);
+  const [semesters, setSemesters] = useState<SemesterOption[]>([]);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [courses, setCourses] = useState<AdminCourseRow[]>([]);
@@ -180,32 +144,27 @@ export function AdminCoursesSection() {
   const [courseToDelete, setCourseToDelete] = useState<AdminCourseRow | null>(null);
   const [confirmCourseName, setConfirmCourseName] = useState('');
   const [refreshTick, setRefreshTick] = useState(0);
-  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
-  const [creating, setCreating] = useState(false);
-  const [newOwnerId, setNewOwnerId] = useState('');
-  const [newCourseCode, setNewCourseCode] = useState('');
-  const [newSemester, setNewSemester] = useState(currentSemesterValue);
-  const semesterOptions = useMemo(buildSemesterOptions, []);
 
-  const listedCount = useMemo(
-    () => courses.filter((course) => course.listedInCourseStore).length,
-    [courses],
-  );
-  const enrolledCount = useMemo(
-    () => courses.reduce((sum, course) => sum + course.counts.enrollments, 0),
-    [courses],
-  );
-  const problemCount = useMemo(
-    () => courses.reduce((sum, course) => sum + course.counts.problems, 0),
-    [courses],
-  );
+  const pageCount = Math.max(1, Math.ceil(totalCount / COURSE_PAGE_SIZE));
+  const currentSemester = currentSemesterValue();
+  const semesterChoices = semesters.some((item) => semesterOptionValue(item) === currentSemester)
+    ? semesters
+    : [currentSemesterOption(), ...semesters];
 
   const loadCourses = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const params = new URLSearchParams({ take: '120' });
+    const params = new URLSearchParams({
+      take: String(COURSE_PAGE_SIZE),
+      skip: String((page - 1) * COURSE_PAGE_SIZE),
+    });
     const normalizedQuery = appliedQuery.trim();
     if (normalizedQuery) params.set('query', normalizedQuery);
+    const [academicYear, academicTerm] = semester.split(':');
+    if (academicYear && academicTerm) {
+      params.set('academicYear', academicYear);
+      params.set('academicTerm', academicTerm);
+    }
 
     try {
       const response = await backendJson<AdminCoursesResponse>(
@@ -213,63 +172,23 @@ export function AdminCoursesSection() {
       );
       setCourses(response.courses);
       setTotalCount(response.totalCount);
+      setSemesters(response.semesters);
     } catch (loadError) {
       setCourses([]);
       setTotalCount(0);
+      setSemesters([]);
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
       setLoading(false);
     }
-  }, [appliedQuery]);
+  }, [appliedQuery, page, semester]);
 
   useEffect(() => {
     void loadCourses();
   }, [loadCourses, refreshTick]);
 
-  useEffect(() => {
-    void backendJson<{ teachers: TeacherOption[] }>('/api/admin/teachers')
-      .then((payload) => {
-        const activeTeachers = payload.teachers.filter((teacher) => teacher.isActive);
-        setTeachers(activeTeachers);
-        setNewOwnerId((current) => current || activeTeachers[0]?.id || '');
-      })
-      .catch(() => setTeachers([]));
-  }, [refreshTick]);
-
-  const createCourse = async () => {
-    const [academicYearRaw, academicTerm] = newSemester.split(':');
-    const academicYear = Number.parseInt(academicYearRaw || '', 10);
-    if (
-      !newOwnerId ||
-      !newCourseCode.trim() ||
-      !Number.isInteger(academicYear) ||
-      !isAcademicTerm(academicTerm || '')
-    ) {
-      return;
-    }
-    setCreating(true);
-    try {
-      await backendJson('/api/admin/courses', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          ownerId: newOwnerId,
-          courseCode: newCourseCode,
-          academicYear,
-          academicTerm,
-        }),
-      });
-      setNewCourseCode('');
-      toast.success('课程已创建并分配给老师');
-      setRefreshTick((current) => current + 1);
-    } catch (createError) {
-      toast.error(createError instanceof Error ? createError.message : '课程创建失败');
-    } finally {
-      setCreating(false);
-    }
-  };
-
   const handleSearch = () => {
+    setPage(1);
     setAppliedQuery(query.trim());
   };
 
@@ -295,9 +214,15 @@ export function AdminCoursesSection() {
           method: 'DELETE',
         },
       );
-      setCourses((current) => current.filter((item) => item.id !== course.id));
-      setTotalCount((current) => Math.max(0, current - 1));
+      const nextTotal = Math.max(0, totalCount - 1);
+      const nextPageCount = Math.max(1, Math.ceil(nextTotal / COURSE_PAGE_SIZE));
+      setTotalCount(nextTotal);
       setCourseToDelete(null);
+      if (page > nextPageCount) {
+        setPage(nextPageCount);
+      } else {
+        setRefreshTick((current) => current + 1);
+      }
       setConfirmCourseName('');
       toast.success(`已删除课程：${response.deletedCourse.name}`);
     } catch (deleteError) {
@@ -310,117 +235,24 @@ export function AdminCoursesSection() {
   return (
     <div className="space-y-5">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="size-4" />
-            创建并分配课程
-          </CardTitle>
-          <CardDescription>
-            课程只能由管理员创建；老师登录后只会看到分配给自己的课程。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          <div className="space-y-2">
-            <Label htmlFor="admin-course-owner">所属老师</Label>
-            <select
-              id="admin-course-owner"
-              value={newOwnerId}
-              onChange={(event) => setNewOwnerId(event.target.value)}
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-            >
-              <option value="">选择老师</option>
-              {teachers.map((teacher) => (
-                <option key={teacher.id} value={teacher.id}>
-                  {teacher.name || teacher.email} · {teacher.email}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="admin-new-course-code">课程代码</Label>
-            <Input
-              id="admin-new-course-code"
-              value={newCourseCode}
-              onChange={(event) => setNewCourseCode(event.target.value)}
-              placeholder="CSC108"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="admin-new-course-semester">学期</Label>
-            <select
-              id="admin-new-course-semester"
-              value={newSemester}
-              onChange={(event) => setNewSemester(event.target.value)}
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-            >
-              {semesterOptions.map((semester) => (
-                <option key={semester.value} value={semester.value}>
-                  {semester.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="md:col-span-3">
-            <Button
-              type="button"
-              disabled={creating || !newOwnerId || !newCourseCode.trim() || !newSemester}
-              onClick={() => void createCourse()}
-            >
-              {creating ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              ) : (
-                <Plus className="mr-2 size-4" />
-              )}
-              创建课程
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4" />
-            全站课程管理
-          </CardTitle>
-          <CardDescription>点击课程名称，以只读方式查看课程内容。</CardDescription>
-        </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-4">
-            <div className="rounded-lg border bg-background/70 p-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Database className="h-3.5 w-3.5" />
-                当前结果
-              </div>
-              <div className="mt-1 text-2xl font-semibold">{courses.length}</div>
-              <p className="text-xs text-muted-foreground">匹配总数 {totalCount}</p>
-            </div>
-            <div className="rounded-lg border bg-background/70 p-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Store className="h-3.5 w-3.5" />
-                商城上架
-              </div>
-              <div className="mt-1 text-2xl font-semibold">{listedCount}</div>
-              <p className="text-xs text-muted-foreground">当前结果内</p>
-            </div>
-            <div className="rounded-lg border bg-background/70 p-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Users className="h-3.5 w-3.5" />
-                报名记录
-              </div>
-              <div className="mt-1 text-2xl font-semibold">{enrolledCount}</div>
-              <p className="text-xs text-muted-foreground">当前结果内</p>
-            </div>
-            <div className="rounded-lg border bg-background/70 p-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <BookOpen className="h-3.5 w-3.5" />
-                题目
-              </div>
-              <div className="mt-1 text-2xl font-semibold">{problemCount}</div>
-              <p className="text-xs text-muted-foreground">当前结果内</p>
-            </div>
-          </div>
-
           <div className="flex flex-col gap-2 sm:flex-row">
+            <select
+              aria-label="学期"
+              value={semester}
+              onChange={(event) => {
+                setPage(1);
+                setSemester(event.target.value);
+              }}
+              className="h-9 shrink-0 rounded-md border bg-background px-3 text-sm"
+            >
+              <option value="">全部学期</option>
+              {semesterChoices.map((item) => (
+                <option key={semesterOptionValue(item)} value={semesterOptionValue(item)}>
+                  {item.academicYear} {ACADEMIC_TERM_LABEL[item.academicTerm]}
+                </option>
+              ))}
+            </select>
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -457,92 +289,63 @@ export function AdminCoursesSection() {
 
           <div className="overflow-hidden rounded-lg border bg-background/80">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] text-left text-sm">
+              <table className="w-full text-left text-sm">
                 <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3 font-medium">课程</th>
-                    <th className="px-4 py-3 font-medium">Owner</th>
-                    <th className="px-4 py-3 font-medium">状态</th>
                     <th className="px-4 py-3 font-medium">内容</th>
-                    <th className="px-4 py-3 font-medium">活跃时间</th>
+                    <th className="px-4 py-3 font-medium">学生与用量</th>
                     <th className="px-4 py-3 text-right font-medium">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                      <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground">
                         <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
                         正在读取课程...
                       </td>
                     </tr>
                   ) : courses.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                      <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground">
                         没有找到课程
                       </td>
                     </tr>
                   ) : (
                     courses.map((course) => (
                       <tr key={course.id} className="border-b last:border-0">
-                        <td className="max-w-[320px] px-4 py-4 align-top">
-                          <div className="flex items-start gap-3">
-                            {course.avatarUrl ? (
-                              <img
-                                src={course.avatarUrl}
-                                alt=""
-                                className="h-10 w-10 rounded-lg border object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-10 w-10 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
-                                <BookOpen className="h-4 w-4" />
-                              </div>
-                            )}
+                        <td className="max-w-[420px] px-4 py-4 align-top">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={resolveCourseAvatarDisplayUrl(course.id, course.avatarUrl)}
+                              alt=""
+                              className="h-10 w-10 shrink-0 rounded-lg border object-cover"
+                            />
                             <div className="min-w-0">
-                              <Link
-                                href={`/admin/courses/${encodeURIComponent(course.id)}`}
+                              <a
+                                href={`/api/admin/courses/${encodeURIComponent(course.id)}/preview`}
                                 className="block truncate rounded font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2"
                               >
                                 {course.name}
-                              </Link>
-                              <div className="mt-1 flex flex-wrap gap-1">
-                                {course.courseCode ? (
-                                  <Badge variant="outline">{course.courseCode}</Badge>
-                                ) : null}
-                                <Badge variant="secondary">{purposeLabel(course.purpose)}</Badge>
-                                {course.sourceCourseId ? (
+                              </a>
+                              {course.sourceCourseId ? (
+                                <div className="mt-1 flex flex-wrap gap-1">
                                   <Badge variant="outline">克隆课程</Badge>
-                                ) : null}
-                              </div>
-                              {course.university || course.description ? (
-                                <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                                  {course.university ? `${course.university} · ` : ''}
-                                  {course.description || '无描述'}
+                                </div>
+                              ) : null}
+                              <p className="mt-1 truncate text-xs text-muted-foreground">
+                                {ownerLabel(course)}
+                              </p>
+                              {semesterLabel(course) ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {semesterLabel(course)}
                                 </p>
                               ) : null}
                               <p className="mt-2 font-mono text-[11px] text-muted-foreground">
                                 {course.id}
                               </p>
                             </div>
-                          </div>
-                        </td>
-                        <td className="max-w-[220px] px-4 py-4 align-top">
-                          <div className="truncate font-medium">{ownerLabel(course)}</div>
-                          <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-                            {course.ownerId}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 align-top">
-                          <div className="flex flex-col items-start gap-2">
-                            <Badge
-                              variant={course.listedInCourseStore ? 'default' : 'outline'}
-                              className={course.listedInCourseStore ? 'bg-emerald-600' : ''}
-                            >
-                              {course.listedInCourseStore ? '商城上架' : '未上架'}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {formatMoney(course.coursePriceCents)}
-                            </span>
                           </div>
                         </td>
                         <td className="px-4 py-4 align-top">
@@ -555,51 +358,87 @@ export function AdminCoursesSection() {
                             <span>记忆 {course.counts.studyMemories}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-4 align-top text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <CalendarClock className="h-3.5 w-3.5" />
-                            更新 {formatDateTime(course.updatedAt)}
-                          </div>
-                          <div className="mt-1">创建 {formatDateTime(course.createdAt)}</div>
-                          {course.storePublishedAt ? (
-                            <div className="mt-1">
-                              上架 {formatDateTime(course.storePublishedAt)}
+                        <td className="px-4 py-4 align-top text-xs">
+                          <div className="space-y-1">
+                            <div>
+                              学生{' '}
+                              <span className="font-medium tabular-nums">
+                                {course.usage.studentCount}
+                              </span>
                             </div>
-                          ) : null}
+                            <div>
+                              学生用量{' '}
+                              <span className="font-medium tabular-nums">
+                                {formatUsage(course.usage.studentTokens)}
+                              </span>
+                            </div>
+                            <div>
+                              老师用量{' '}
+                              <span className="font-medium tabular-nums">
+                                {formatUsage(course.usage.teacherTokens)}
+                              </span>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-4 py-4 text-right align-top">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            asChild
-                            className="mr-2"
-                          >
-                            <a href={`/api/admin/courses/${encodeURIComponent(course.id)}/export`}>
-                              <Download className="mr-1 h-4 w-4" />
-                              下载资料
-                            </a>
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => openDeleteDialog(course)}
-                            disabled={deletingId === course.id}
-                          >
-                            {deletingId === course.id ? (
-                              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="mr-1 h-4 w-4" />
-                            )}
-                            删除
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button type="button" variant="outline" size="icon-sm" asChild>
+                              <a
+                                href={`/api/admin/courses/${encodeURIComponent(course.id)}/export`}
+                                aria-label="下载资料"
+                                title="下载资料"
+                              >
+                                <Download />
+                              </a>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon-sm"
+                              aria-label="删除"
+                              title="删除"
+                              onClick={() => openDeleteDialog(course)}
+                              disabled={deletingId === course.id}
+                            >
+                              {deletingId === course.id ? (
+                                <Loader2 className="animate-spin" />
+                              ) : (
+                                <Trash2 />
+                              )}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              第 {Math.min(page, pageCount)} / {pageCount} 页
+            </p>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={loading || page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                上一页
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={loading || page >= pageCount}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                下一页
+              </Button>
             </div>
           </div>
         </CardContent>

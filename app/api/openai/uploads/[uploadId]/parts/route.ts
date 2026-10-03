@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -9,7 +10,7 @@ import {
 
 export const runtime = 'nodejs';
 
-export async function POST(
+async function auditedPOST(
   request: NextRequest,
   context: { params: Promise<{ uploadId: string }> },
 ) {
@@ -50,3 +51,5 @@ export async function POST(
     return NextResponse.json({ partId, partIndex });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

@@ -11,10 +11,13 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true, phone: true, image: true },
+    select: { id: true, name: true, email: true, phone: true, image: true, role: true },
   });
   if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
-  return NextResponse.json(user, { headers: { 'Cache-Control': 'private, no-store' } });
+  return NextResponse.json(
+    { ...user, phoneEditable: user.role === 'TEACHER' || user.role === 'ADMIN' },
+    { headers: { 'Cache-Control': 'private, no-store' } },
+  );
 }
 
 function cleanProfileValue(value: unknown, maxLength: number): string | null {
@@ -39,6 +42,16 @@ export async function PATCH(request: Request) {
   const name = cleanProfileValue(payload.name, 60);
   const image = cleanProfileValue(payload.image, 2_000);
   const phoneProvided = Object.prototype.hasOwnProperty.call(payload, 'phone');
+  if (phoneProvided) {
+    const currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+    if (!currentUser) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (currentUser.role !== 'TEACHER' && currentUser.role !== 'ADMIN') {
+      return NextResponse.json({ error: '手机号由 Speedup 同步，学生不可修改。' }, { status: 403 });
+    }
+  }
   const phone = phoneProvided ? parsePhoneNumber(payload.phone) : null;
   if (phone && !phone.ok) {
     return NextResponse.json({ error: phone.error }, { status: 400 });
@@ -57,7 +70,10 @@ export async function PATCH(request: Request) {
       ...(image ? { image } : {}),
       ...(phone?.ok ? { phone: phone.value } : {}),
     },
-    select: { id: true, name: true, email: true, phone: true, image: true },
+    select: { id: true, name: true, email: true, phone: true, image: true, role: true },
   });
-  return NextResponse.json(user, { headers: { 'Cache-Control': 'private, no-store' } });
+  return NextResponse.json(
+    { ...user, phoneEditable: user.role === 'TEACHER' || user.role === 'ADMIN' },
+    { headers: { 'Cache-Control': 'private, no-store' } },
+  );
 }

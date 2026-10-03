@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -79,7 +80,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
   });
 }
 
-export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireTeacher();
     if ('response' in auth) return auth.response;
@@ -145,3 +146,5 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ id: assignment.id }, { status: 201 });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

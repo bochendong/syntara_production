@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -9,7 +10,7 @@ import {
 } from '@/features/learn-core/server/compat-action-planner';
 import { createRequestSemanticRouter } from '@/features/learn-core/server/semantic-router-runtime';
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   return runWithRequestContext(
     request,
     '/api/learn/action-planner',
@@ -49,3 +50,5 @@ export async function POST(request: NextRequest) {
     },
   );
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

@@ -106,7 +106,6 @@ function baseDraft(number, sourceQuestionId, overrides) {
   return {
     draftId: `csc108-midreview-2025-${String(number).padStart(3, '0')}`,
     notebookId: null,
-    status: 'published',
     source: 'pdf',
     points: 1,
     tags: ['CSC108', 'mid-review', 'fall-2025'],
@@ -229,7 +228,7 @@ function codeDraft({
     },
     grading: {
       type: 'code',
-      publishRequirementsMet: true,
+      referenceVerified: true,
     },
     secretJudge: {
       language: 'python',
@@ -1365,11 +1364,8 @@ async function refreshCourseSummaryFields(prisma, courseId) {
       speechTotalCount: true,
     },
   });
-  const [problemCount, publishedProblemCount] = await Promise.all([
+  const [problemCount] = await Promise.all([
     prisma.notebookProblem.count({ where: { OR: [{ courseId }, { notebook: { courseId } }] } }),
-    prisma.notebookProblem.count({
-      where: { status: 'published', OR: [{ courseId }, { notebook: { courseId } }] },
-    }),
   ]);
 
   await prisma.course.updateMany({
@@ -1378,7 +1374,7 @@ async function refreshCourseSummaryFields(prisma, courseId) {
       notebookCount: notebookAggregate._count._all,
       sceneCount: notebookAggregate._sum.sceneCount ?? 0,
       problemCount,
-      publishedProblemCount,
+
       speechReadyCount: notebookAggregate._sum.speechReadyCount ?? 0,
       speechTotalCount: notebookAggregate._sum.speechTotalCount ?? 0,
     },
@@ -1424,7 +1420,6 @@ async function main() {
         name: true,
         courseCode: true,
         problemCount: true,
-        publishedProblemCount: true,
       },
     });
     if (!course) throw new Error(`Course not found: ${courseId}`);
@@ -1498,7 +1493,6 @@ async function main() {
               notebookId: null,
               title: draft.title,
               type: draft.type,
-              status: draft.status,
               source: draft.source,
               order: count + index,
               problemNumber: firstProblemNumber + index,
@@ -1539,7 +1533,7 @@ async function main() {
     await refreshCourseSummaryFields(prisma, courseId);
     const after = await prisma.course.findUnique({
       where: { id: courseId },
-      select: { id: true, problemCount: true, publishedProblemCount: true },
+      select: { id: true, problemCount: true },
     });
     const imported = await prisma.notebookProblem.groupBy({
       by: ['type'],

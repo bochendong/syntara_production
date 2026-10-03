@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { createHash } from 'node:crypto';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -252,7 +253,7 @@ async function runMindMapGeneration(args: {
   }
 }
 
-export async function POST(
+async function auditedPOST(
   request: NextRequest,
   context: { params: Promise<{ courseId: string; sourceId: string }> },
 ) {
@@ -377,3 +378,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

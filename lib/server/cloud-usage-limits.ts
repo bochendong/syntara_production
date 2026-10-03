@@ -153,6 +153,12 @@ export async function getCloudUsageUserLimit(
   db: DbClient,
   userId: string,
 ): Promise<CloudUsageUserLimit | null> {
+  const roleRows = await db.$queryRaw<LimitRow[]>(Prisma.sql`
+    SELECT r."weeklyCostLimitUsd", NULL::int AS "weeklyRequestLimit", false AS "disabled", r."updatedBy", r."updatedAt"
+    FROM "User" u JOIN "CloudUsageRoleLimit" r ON r."role" = u."role"::text
+    WHERE u."id" = ${userId}
+  `);
+  if (roleRows.length) return normalizeUserLimit(userId, roleRows[0]);
   const rows = await db.$queryRaw<LimitRow[]>(
     Prisma.sql`
       SELECT "weeklyCostLimitUsd", "weeklyRequestLimit", "disabled", "note", "updatedBy", "updatedAt"
@@ -168,7 +174,14 @@ export async function summarizeCloudUsage(
   db: DbClient,
   userId?: string | null,
 ): Promise<CloudUsageSummary> {
-  const { start, end } = getCloudUsageWeekWindow();
+  const { start: weekStart, end } = getCloudUsageWeekWindow();
+  let start = weekStart;
+  if (userId) {
+    const rows = await db.$queryRaw<{ resetAt: Date }[]>(Prisma.sql`
+      SELECT "resetAt" FROM "CloudUsageQuotaReset" WHERE "userId" = ${userId}
+    `);
+    if (rows[0] && rows[0].resetAt > start) start = rows[0].resetAt;
+  }
   const llmRows = userId
     ? await db.$queryRaw<LLMUsageCostRow[]>(
         Prisma.sql`
@@ -316,4 +329,16 @@ export async function recordCloudUsageCost(args: {
   } catch (error) {
     log.warn('Failed to record cloud usage cost', error);
   }
+}
+
+export async function getCloudUsageRoleLimits(db: DbClient) {
+  const rows = await db.$queryRaw<(LimitRow & { role: string })[]>(Prisma.sql`
+   SELECT "role", "weeklyCostLimitUsd" FROM "CloudUsageRoleLimit"
+ `);
+  return Object.fromEntries(
+    ['TEACHER', 'STUDENT'].map((role) => [
+      role,
+      toNullableNumber(rows.find((row) => row.role === role)?.weeklyCostLimitUsd),
+    ]),
+  );
 }

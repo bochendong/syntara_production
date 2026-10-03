@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 /**
  * Video Generation API
  *
@@ -28,7 +29,7 @@ const log = createLogger('VideoGeneration API');
 
 export const maxDuration = 300;
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   try {
     const body = (await request.json()) as VideoGenerationOptions;
 
@@ -93,3 +94,5 @@ export async function POST(request: NextRequest) {
     return apiError('INTERNAL_ERROR', 500, message);
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

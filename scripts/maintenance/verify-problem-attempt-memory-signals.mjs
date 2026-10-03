@@ -377,7 +377,6 @@ const problem = {
   notebookId: 'notebook-1',
   title: 'BST 边界',
   type: 'short_answer',
-  status: 'published',
   source: 'manual',
   order: 1,
   points: 1,

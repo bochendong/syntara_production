@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 import { callLLM } from '@/lib/ai/llm';
 import { createLogger } from '@/lib/logger';
@@ -42,7 +43,7 @@ function stripCodeFences(text: string): string {
   return cleaned.trim();
 }
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   return runWithRequestContext(req, '/api/notebooks/micro-lesson/insert-position', async () => {
     try {
       const body = (await req.json()) as InsertPositionRequest;
@@ -52,7 +53,10 @@ export async function POST(req: NextRequest) {
         return apiError('MISSING_REQUIRED_FIELD', 400, 'lessonPages is required');
       }
       if (currentPages.length === 0) {
-        return apiSuccess({ insertAfterOrder: -1, reason: 'Notebook is empty, insert at beginning.' });
+        return apiSuccess({
+          insertAfterOrder: -1,
+          reason: 'Notebook is empty, insert at beginning.',
+        });
       }
 
       const maxOrder = Math.max(...currentPages.map((p) => p.order));
@@ -91,11 +95,21 @@ Rules:
       }
       const out = parsed as Partial<{ insertAfterOrder: number; reason: string }>;
       const raw = Number(out.insertAfterOrder);
-      const insertAfterOrder = Number.isFinite(raw) ? Math.min(maxOrder, Math.max(-1, Math.round(raw))) : maxOrder;
-      const reason = String(out.reason || '').trim().slice(0, 240);
+      const insertAfterOrder = Number.isFinite(raw)
+        ? Math.min(maxOrder, Math.max(-1, Math.round(raw)))
+        : maxOrder;
+      const reason = String(out.reason || '')
+        .trim()
+        .slice(0, 240);
       return apiSuccess({ insertAfterOrder, reason });
     } catch (error) {
-      return apiError('INTERNAL_ERROR', 500, error instanceof Error ? error.message : 'Unknown error');
+      return apiError(
+        'INTERNAL_ERROR',
+        500,
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

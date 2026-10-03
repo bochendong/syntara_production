@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -34,7 +35,7 @@ function safeFilename(value: string): string {
   ).slice(-240);
 }
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   return safeRoute(async () => {
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
@@ -83,3 +84,5 @@ export async function POST(request: NextRequest) {
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

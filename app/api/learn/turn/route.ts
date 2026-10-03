@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { requireUserId } from '@/lib/server/api-auth';
@@ -13,7 +14,7 @@ import { issueTrustedLearnAnswererHandoff } from '@/features/learn-core/server/t
 import { prisma } from '@/lib/server/prisma';
 import { searchLearnProblemBankForPractice } from '@/lib/server/problem-bank-practice-search';
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   return runWithRequestContext(
     request,
     '/api/learn/turn',
@@ -58,3 +59,5 @@ export async function POST(request: NextRequest) {
     },
   );
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

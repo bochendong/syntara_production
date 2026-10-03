@@ -199,10 +199,7 @@ export function CreatorCourseStudioClient({ courseId }: { courseId: string }) {
   }, [authHydrated, isLoggedIn, loadStudio, router, setCurrentCourse]);
 
   const concepts = useMemo(() => topConcepts(problems, notebooks), [notebooks, problems]);
-  const publishedProblems = useMemo(
-    () => problems.filter((problem) => problem.status === 'published'),
-    [problems],
-  );
+  const availableProblems = problems;
   const isCourseOwner = Boolean(
     course && course.accessRole !== 'enrolled' && !course.sourceCourseId,
   );
@@ -365,7 +362,7 @@ export function CreatorCourseStudioClient({ courseId }: { courseId: string }) {
                   {course.listedInCourseStore ? '商城已上架' : '未上架'}
                 </span>
                 <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
-                  {publishedProblems.length}/{problems.length} 题已发布
+                  {availableProblems.length}/{problems.length} 题已发布
                 </span>
                 <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
                   {memoryCount} 条记忆

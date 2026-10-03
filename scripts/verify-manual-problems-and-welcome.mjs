@@ -14,8 +14,7 @@ async function scenario({
   denied = false,
   chapter = true,
   duplicate = false,
-  verifiedStatus = 'published',
-  requestedStatus = 'published',
+  verificationFailed = false,
 } = {}) {
   const calls = [];
   const mod = { exports: {} };
@@ -39,8 +38,7 @@ async function scenario({
       calls.push('verify');
       return {
         ...x,
-        status: verifiedStatus,
-        validationErrors: verifiedStatus === 'draft' ? ['Example failed'] : [],
+        validationErrors: verificationFailed ? ['Example failed'] : [],
       };
     },
     prismaDb: {
@@ -54,7 +52,7 @@ async function scenario({
     nextProblemNumberForScopeTx: async () => 12,
     createProblemFromDraftTx: async (data) => {
       calls.push(data);
-      return { id: 'new', status: data.draft.status };
+      return { id: 'new' };
     },
     touchOwnersAfterProblemWriteTx: async () => calls.push('summary'),
   };
@@ -70,7 +68,6 @@ async function scenario({
       draft: {
         draftId: 'draft',
         type: 'code',
-        status: requestedStatus,
         publicContent: { type: 'code' },
         grading: { type: 'code' },
         sourceMeta: { codeVerification: { passed: true } },
@@ -80,25 +77,23 @@ async function scenario({
   return { calls, run };
 }
 let test = await scenario();
-assert.deepEqual(await test.run(), { id: 'new', status: 'published' });
+assert.deepEqual(await test.run(), { id: 'new' });
 assert.deepEqual(test.calls.slice(0, 4), ['auth', 'verify', 'transaction', 'chapter']);
 const saved = test.calls.find((x) => typeof x === 'object');
 assert.equal(saved.chapterId, 'chapter');
 assert.equal(saved.order, 9);
 assert.equal(saved.problemNumber, 12);
 assert.deepEqual(saved.draft.sourceMeta, {}, 'Do not trust client verification');
-for (const options of [
-  { denied: true },
-  { chapter: false },
-  { duplicate: true },
-  { verifiedStatus: 'draft' },
-]) {
+for (const options of [{ denied: true }, { chapter: false }, { duplicate: true }]) {
   test = await scenario(options);
   await assert.rejects(test.run());
   assert.ok(!test.calls.some((x) => typeof x === 'object'), 'Invalid request must never write');
 }
-test = await scenario({ verifiedStatus: 'draft', requestedStatus: 'draft' });
-assert.equal((await test.run()).status, 'draft');
+test = await scenario({ verificationFailed: true });
+assert.deepEqual(await test.run(), { id: 'new' });
+assert.deepEqual(test.calls.find((call) => typeof call === 'object').draft.validationErrors, [
+  'Example failed',
+]);
 const welcome = ts.transpileModule(
   readFileSync(root + 'features/course-forum/server/course-forum-welcome.ts', 'utf8'),
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
@@ -136,5 +131,5 @@ for (const legacy of [true, false]) {
   assert.match(writes[0].create.bodyMarkdown, /题库/);
 }
 console.log(
-  'PASS: manual create ownership/chapter/dedupe/publish verification, untrusted verification metadata, draft save, and legacy welcome upgrade preserving customized posts.',
+  'PASS: manual create ownership/chapter/dedupe checks, untrusted verification metadata, content diagnostics without publication, and legacy welcome upgrade preserving customized posts.',
 );

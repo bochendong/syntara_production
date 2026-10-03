@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/server/prisma';
@@ -37,7 +38,6 @@ function toClientProblem(
     notebookName: problem.notebookName,
     title: problem.title,
     type: problem.type,
-    status: problem.status,
     source: problem.source,
     order: problem.order,
     problemNumber: problem.problemNumber ?? null,
@@ -112,7 +112,7 @@ function committedBatchResponse(
   );
 }
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -365,3 +365,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

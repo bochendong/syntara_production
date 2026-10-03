@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 /**
  * Single TTS Generation API
  *
@@ -44,7 +45,7 @@ function buildUserSpeechAudioAssetKey(args: {
   );
 }
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   try {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -149,3 +150,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

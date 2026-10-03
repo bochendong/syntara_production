@@ -70,6 +70,7 @@ function isInsideLatexIgnoredElement(node: Text): boolean {
   let element = node.parentElement;
   while (element) {
     if (['CODE', 'PRE', 'SCRIPT', 'STYLE'].includes(element.tagName)) return true;
+    if (element.hasAttribute('data-syntara-math')) return true;
     element = element.parentElement;
   }
   return false;

@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
@@ -79,7 +80,7 @@ export async function GET() {
   });
 }
 
-export async function POST(request: Request) {
+async function auditedPOST(request: Request) {
   const admin = await requireAdmin();
   if ('response' in admin) return admin.response;
 
@@ -94,3 +95,5 @@ export async function POST(request: Request) {
     ...result,
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

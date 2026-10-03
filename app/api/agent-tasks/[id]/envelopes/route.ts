@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/server/prisma';
@@ -17,7 +18,9 @@ const createEnvelopeSchema = z.object({
     'task_error',
   ]),
   payload: z.unknown(),
-  taskStatus: z.enum(['queued', 'running', 'waiting', 'completed', 'failed', 'cancelled']).optional(),
+  taskStatus: z
+    .enum(['queued', 'running', 'waiting', 'completed', 'failed', 'cancelled'])
+    .optional(),
   /** 关联互动笔记本，与 `/classroom/[id]` 一致 */
   taskNotebookId: z.string().trim().min(1).max(120).optional(),
   taskResult: z.unknown().optional(),
@@ -45,7 +48,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   });
 }
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -100,7 +103,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         data: {
           ...(payload.data.taskStatus ? { status: payload.data.taskStatus } : {}),
           ...(payload.data.taskNotebookId ? { notebookId: payload.data.taskNotebookId } : {}),
-          ...(payload.data.taskResult ? { result: toPrismaNullableJson(payload.data.taskResult) } : {}),
+          ...(payload.data.taskResult
+            ? { result: toPrismaNullableJson(payload.data.taskResult) }
+            : {}),
           ...(payload.data.taskError ? { error: payload.data.taskError } : {}),
           ...(mergedRequest ? { request: toPrismaNullableJson(mergedRequest) } : {}),
         },
@@ -110,3 +115,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ envelope }, { status: 201 });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

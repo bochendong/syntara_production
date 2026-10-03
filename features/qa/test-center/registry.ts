@@ -764,7 +764,7 @@ const SECOND_PHASE_MEMORY_TEST_SCENARIO_DEFINITIONS: MemorySystemTestScenario[] 
     setup: [
       ...MEMORY_TEST_SETUP,
       '复用第二阶段 01 的四档模拟用户与第二阶段 02 已生成的 CSC148 笔记本',
-      '使用本地 298 道已发布 CSC148 真实题库快照，不向模型伪造题目',
+      '使用本地 298 道CSC148 真实题库快照，不向模型伪造题目',
     ],
     inputs: [
       '无学习历史、少量历史和大量历史的自然语言查询',
@@ -861,7 +861,7 @@ const SECOND_PHASE_MEMORY_TEST_SCENARIO_DEFINITIONS: MemorySystemTestScenario[] 
       {
         title: '生成并验收学习计划',
         action: '只把已返回证据交给计划生成器，检查重点、理由、时间、方法和每次题量。',
-        evidence: '所有计划结论引用真实 evidenceId，题目来自 298 道已发布 CSC148 快照。',
+        evidence: '所有计划结论引用真实 evidenceId，题目来自 298 道CSC148 快照。',
       },
     ],
     passCriteria: [

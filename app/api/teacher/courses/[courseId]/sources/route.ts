@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { createHash, randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -40,7 +41,7 @@ function safeFilename(value: string): string {
   ).slice(-240);
 }
 
-export async function POST(request: Request, context: { params: Promise<{ courseId: string }> }) {
+async function auditedPOST(request: Request, context: { params: Promise<{ courseId: string }> }) {
   return safeRoute(async () => {
     const teacher = await requireTeacher();
     if ('response' in teacher) return teacher.response;
@@ -201,3 +202,5 @@ export async function POST(request: Request, context: { params: Promise<{ course
     return NextResponse.json({ ok: true, sourceId: source.id }, { status: 201 });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

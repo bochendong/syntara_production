@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/server/api-auth';
 import { reviewAssignment } from '@/lib/server/course-assignment-review';
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest, context: Context) {
   });
 }
 
-export async function POST(_request: NextRequest, context: Context) {
+async function auditedPOST(_request: NextRequest, context: Context) {
   return safeRoute(async () => {
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
@@ -161,3 +162,5 @@ export async function POST(_request: NextRequest, context: Context) {
     }
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

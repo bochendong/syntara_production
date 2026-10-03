@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest, context: Context) {
   });
 }
 
-export async function PATCH(request: NextRequest, context: Context) {
+async function auditedPATCH(request: NextRequest, context: Context) {
   return safeRoute(async () => {
     const auth = await requireTeacher();
     if ('response' in auth) return auth.response;
@@ -194,3 +195,5 @@ export async function PATCH(request: NextRequest, context: Context) {
     return NextResponse.json({ ok: true });
   });
 }
+
+export const PATCH = withAiFailureAudit(auditedPATCH);

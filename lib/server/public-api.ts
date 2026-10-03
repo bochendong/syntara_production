@@ -1,3 +1,4 @@
+import { setFailureActor } from '@/lib/server/ai-failure-log';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -158,7 +159,10 @@ export function requirePublicApi(
   requestId: string,
 ): PublicApiPrincipal | NextResponse {
   const principal = authenticatePublicApi(request);
-  if (principal) return principal;
+  if (principal) {
+    setFailureActor(principal.userId);
+    return principal;
+  }
   return publicApiError(
     requestId,
     401,
@@ -184,7 +188,9 @@ export async function requireNativePlatformApi(
   }
   if (nativePlatformApiAuthMode() === 'authenticated') {
     try {
-      return await authenticateNativeDeviceRequest(request);
+      const principal = await authenticateNativeDeviceRequest(request);
+      setFailureActor(principal.userId);
+      return principal;
     } catch (error) {
       if (error instanceof NativeAuthError) {
         return publicApiError(requestId, error.status, error.code, error.message);

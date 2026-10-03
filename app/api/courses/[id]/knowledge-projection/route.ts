@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -7,7 +8,7 @@ import { syncUnlinkedCourseKnowledgeProjection } from '@/lib/server/unlinked-cou
 
 export const maxDuration = 300;
 
-export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(_request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -37,3 +38,5 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     );
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

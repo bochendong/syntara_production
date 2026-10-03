@@ -10,6 +10,7 @@ import {
   type CourseReplyProgressPhase,
 } from '@/lib/chat/course-reply-progress';
 import type {
+  ChatFileArtifact,
   ChatMessageMetadata,
   CourseChatContextUsage,
   CourseChatContext,
@@ -18,6 +19,7 @@ import type {
   DirectorState,
   LearningAction,
   LearningActionKind,
+  PublicReplyProgressStep,
   StatelessChatRequest,
   StatelessEvent,
 } from '@/lib/types/chat';
@@ -28,6 +30,36 @@ import { backendFetch } from '@/lib/utils/backend-api';
 import type { ChatResponseStrength } from '@/lib/ai/chat-response-strength';
 
 const log = createLogger('CourseSideChat');
+
+/**
+ * Server-reported steps (from `public_progress`, carrying `kind`) are the real trace.
+ * Client phase updates must not overwrite them with the generic placeholder steps.
+ */
+function hasServerReportedSteps(
+  steps: PublicReplyProgressStep[] | undefined,
+): steps is PublicReplyProgressStep[] {
+  return Boolean(steps?.some((step) => step.kind));
+}
+
+function progressStepsForPhase(
+  existing: PublicReplyProgressStep[] | undefined,
+  phase: CourseReplyProgressPhase,
+  generic: PublicReplyProgressStep[],
+): PublicReplyProgressStep[] {
+  if (!hasServerReportedSteps(existing)) return generic;
+  if (phase !== 'completed' && phase !== 'failed') return existing;
+  const now = Date.now();
+  return existing.map((step) =>
+    step.status === 'complete'
+      ? step
+      : { ...step, status: 'complete' as const, endedAt: step.endedAt ?? now },
+  );
+}
+
+/** Message metadata plus chat-generated files (Word/PDF/image) from `chat_artifact` events. */
+export type CourseSideChatMessageMetadata = ChatMessageMetadata & {
+  chatFiles?: ChatFileArtifact[];
+};
 
 export interface RunCourseSideChatParams {
   initialMessages: UIMessage<ChatMessageMetadata>[];
@@ -227,7 +259,11 @@ async function consumeOneResponse(
           streaming: true,
           progressOnly: msg.metadata?.progressOnly,
           statusText: progress.line,
-          publicProgressSteps: progress.steps,
+          publicProgressSteps: progressStepsForPhase(
+            msg.metadata?.publicProgressSteps,
+            phase,
+            progress.steps,
+          ),
         };
         changedMessage = true;
       }
@@ -327,6 +363,22 @@ async function consumeOneResponse(
             flushTextUpdate();
             break;
           }
+          case 'chat_artifact': {
+            const message = working.find((item) => item.id === event.data.messageId);
+            if (!message) break;
+            const artifact = event.data.artifact;
+            const metadata = message.metadata as CourseSideChatMessageMetadata | undefined;
+            const existing = metadata?.chatFiles || [];
+            const chatFiles = existing.some((file) => file.id === artifact.id)
+              ? existing.map((file) => (file.id === artifact.id ? artifact : file))
+              : [...existing, artifact];
+            message.metadata = {
+              ...message.metadata,
+              chatFiles,
+            } as CourseSideChatMessageMetadata;
+            flushTextUpdate();
+            break;
+          }
           case 'course_evidence': {
             courseEvidence = event.data.items;
             break;
@@ -381,7 +433,14 @@ async function consumeOneResponse(
               createdAt: pendingMessage?.metadata?.createdAt || Date.now(),
               streaming: true,
               statusText: progress.line,
-              publicProgressSteps: progress.steps,
+              publicProgressSteps:
+                pendingMessage && !pendingText
+                  ? progressStepsForPhase(
+                      pendingMessage.metadata?.publicProgressSteps,
+                      'agent_started',
+                      progress.steps,
+                    )
+                  : progress.steps,
             };
             if (pendingMessage && !pendingText) {
               pendingMessage.id = messageId;
@@ -408,6 +467,7 @@ async function consumeOneResponse(
             if (!streamingStartedMessageIds.has(targetId)) {
               streamingStartedMessageIds.add(targetId);
               const existingSteps = msg.metadata?.publicProgressSteps;
+              const serverSteps = hasServerReportedSteps(existingSteps) ? existingSteps : null;
               const teacherSteps = existingSteps?.some((step) => step.id.startsWith('teacher-'))
                 ? existingSteps.map((step) => ({
                     ...step,
@@ -419,20 +479,29 @@ async function consumeOneResponse(
                           : step.status,
                   }))
                 : null;
-              const progress = teacherSteps
+              const progress = serverSteps
                 ? {
                     messageId: targetId,
                     phase: 'streaming' as const,
                     agentName: msg.metadata?.senderName || currentAgentName || undefined,
-                    line: '已经核对课程依据，正在输出回复。',
-                    steps: teacherSteps,
+                    line: msg.metadata?.statusText || '正在输出回复。',
+                    steps: serverSteps,
                     updatedAt: Date.now(),
                   }
-                : buildCourseReplyProgress({
-                    phase: 'streaming',
-                    messageId: targetId,
-                    agentName: msg.metadata?.senderName || currentAgentName,
-                  });
+                : teacherSteps
+                  ? {
+                      messageId: targetId,
+                      phase: 'streaming' as const,
+                      agentName: msg.metadata?.senderName || currentAgentName || undefined,
+                      line: '已经核对课程依据，正在输出回复。',
+                      steps: teacherSteps,
+                      updatedAt: Date.now(),
+                    }
+                  : buildCourseReplyProgress({
+                      phase: 'streaming',
+                      messageId: targetId,
+                      agentName: msg.metadata?.senderName || currentAgentName,
+                    });
               msg.metadata = {
                 ...msg.metadata,
                 streaming: true,

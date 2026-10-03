@@ -28,7 +28,6 @@ function initialFiltersFromSearchParams(
     typeFilter: firstSearchParam(params.type),
     difficultyFilter: firstSearchParam(params.difficulty),
     chapterFilter: firstSearchParam(params.chapter),
-    statusFilter: firstSearchParam(params.status),
   };
 }
 

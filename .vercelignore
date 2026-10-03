@@ -11,7 +11,8 @@ apps/native
 
 # Local-only generated data and processing artifacts
 .data
-artifacts
+/artifacts
+Claude outputs
 output
 outputs
 queue

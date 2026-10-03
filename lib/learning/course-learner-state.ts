@@ -28,6 +28,11 @@ export type PracticePlanQuestion = {
   reason: string;
   difficulty: string;
   tags: string[];
+  /** Problem-bank chapter the question is filed under, when known. */
+  chapterName?: string | null;
+  /** Course-visible problem number, never a source-file question number. */
+  problemNumber?: number | null;
+  problemType?: string | null;
 };
 
 export type ConceptMastery = {
@@ -131,6 +136,12 @@ export type LearnerCourseSnapshot = {
 
 export type PracticePlan = {
   version: 1;
+  /**
+   * practice (default): a student practice set that creates a practice session.
+   * teacher_preview: problems found for a course owner; opening one only previews
+   * the problem and never creates practice sessions or progress.
+   */
+  presentation?: 'practice' | 'teacher_preview';
   id: string;
   userId: string;
   courseId: string;
@@ -772,7 +783,6 @@ export function createPracticePlan(args: {
   const preferredProblemIds = new Set(args.preferredProblemIds || []);
   const targetCount = args.targetCount ?? (args.mode === 'quiz' ? 10 : 8);
   const selectedProblemIds = args.problems
-    .filter((problem) => problem.status !== 'archived')
     .map((problem) => ({
       problem,
       score:

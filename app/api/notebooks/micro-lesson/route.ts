@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 import { callLLM } from '@/lib/ai/llm';
 import { createLogger } from '@/lib/logger';
@@ -150,7 +151,7 @@ function normalizeOutlines(outlines: SceneOutline[], language: 'zh-CN' | 'en-US'
   return fallbackOutlines(language).map(normalizeComputerScienceSceneOutline);
 }
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   return runWithRequestContext(req, '/api/notebooks/micro-lesson', async () => {
     try {
       const body = (await req.json()) as { question?: string; language?: 'zh-CN' | 'en-US' };
@@ -231,3 +232,5 @@ export async function POST(req: NextRequest) {
     }
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

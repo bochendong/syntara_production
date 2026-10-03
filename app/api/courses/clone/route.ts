@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/server/prisma';
@@ -9,7 +10,7 @@ const bodySchema = z.object({
   sourceCourseId: z.string().trim().min(1),
 });
 
-export async function POST(request: Request) {
+async function auditedPOST(request: Request) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -34,3 +35,5 @@ export async function POST(request: Request) {
     );
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

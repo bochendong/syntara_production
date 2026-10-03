@@ -1,4 +1,5 @@
 'use client';
+import { choiceDisplayLabel } from '@/lib/problem-bank/choice-display';
 
 import { MAX_PHOTO_SOURCE_BYTES } from '@/lib/problem-bank/photo-answer';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
@@ -83,12 +84,6 @@ function typeLabel(type: NotebookProblemClientRecord['type'], locale: 'zh-CN' | 
     fill_blank: 'Fill in the blank',
   } as const;
   return locale === 'zh-CN' ? zh[type] : en[type];
-}
-
-function statusLabel(status: NotebookProblemClientRecord['status'], locale: 'zh-CN' | 'en-US') {
-  const zh = { draft: '草稿', published: '已发布', archived: '已归档' } as const;
-  const en = { draft: 'Draft', published: 'Published', archived: 'Archived' } as const;
-  return locale === 'zh-CN' ? zh[status] : en[status];
 }
 
 function attemptStatusLabel(
@@ -258,7 +253,11 @@ function problemSolutionSections(
         const option = publicContent.options.find((item) => item.id === id);
         return { id, label: option?.label ?? id };
       });
-      const optionText = options.map((option) => `${option.id}. ${option.label}`).join('\n');
+      const optionText = options
+        .map(
+          (option, optionIndex) => `${choiceDisplayLabel(option.id, optionIndex)}. ${option.label}`,
+        )
+        .join('\n');
       sections.push({
         title: locale === 'zh-CN' ? '正确答案' : 'Correct answer',
         content: optionText,
@@ -1347,7 +1346,14 @@ function ChoiceAnswerPreviewPanel({
         </div>
         <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-300">
           {selectedOptionIds.length > 0
-            ? selectedOptionIds.join(', ')
+            ? selectedOptionIds
+                .map((id) =>
+                  choiceDisplayLabel(
+                    id,
+                    content.options.findIndex((option) => option.id === id),
+                  ),
+                )
+                .join(', ')
             : locale === 'zh-CN'
               ? '未选择'
               : 'No selection'}
@@ -1355,7 +1361,7 @@ function ChoiceAnswerPreviewPanel({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         <div className="space-y-2">
-          {content.options.map((option) => {
+          {content.options.map((option, optionIndex) => {
             const isSelected = selected.has(option.id);
             const isCorrect = correctOptionIds.includes(option.id);
             const isWrongSelected = hasFeedback && isSelected && !isCorrect;
@@ -1382,7 +1388,7 @@ function ChoiceAnswerPreviewPanel({
                       : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300',
                   )}
                 >
-                  {option.id}
+                  {choiceDisplayLabel(option.id, optionIndex)}
                 </span>
                 <div className="min-w-0 flex-1">
                   <ProblemRichText
@@ -1844,22 +1850,21 @@ function ProblemDraftPreviewPanel({
           </p>
         )}
 
-        <ProblemImageAssets
-          content={content}
-          className="mt-5 sm:grid-cols-1 [&_figure]:rounded-lg [&_figure]:bg-white [&_img]:max-h-[320px]"
-        />
+        <ProblemImageAssets content={content} locale={locale} className="mt-5" />
       </section>
 
       {content.type === 'choice' ? (
         <section className="space-y-2">
-          {content.options.map((option) => (
+          {content.options.map((option, optionIndex) => (
             <div
               key={option.id}
               className="flex items-start gap-3 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
             >
               <span className="mt-1 size-4 shrink-0 rounded-full border border-slate-300 dark:border-slate-600" />
               <div className="flex min-w-0 flex-1 items-start gap-1.5">
-                <span className="mt-0.5 shrink-0 font-medium">{option.id}.</span>
+                <span className="mt-0.5 shrink-0 font-medium">
+                  {choiceDisplayLabel(option.id, optionIndex)}.
+                </span>
                 <ProblemRichText
                   content={option.label}
                   className="min-w-0 flex-1 [&_.problem-rich-code-block]:my-0 [&_.problem-rich-code-block]:max-w-full"
@@ -2053,7 +2058,6 @@ function createManualProblemDraft(
     notebookId: notebookId ?? null,
     title: locale === 'zh-CN' ? '未命名题目' : 'Untitled problem',
     type: 'short_answer',
-    status: 'draft',
     source: 'manual',
     points: 100,
     tags: [],
@@ -2120,7 +2124,6 @@ export {
   readFileAsDataUrl,
   renderProblemContentStem,
   renderProblemStem,
-  statusLabel,
   supportsPhotoAnswer,
   typeLabel,
 };

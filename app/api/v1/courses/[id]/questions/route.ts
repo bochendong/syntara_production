@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import type { UIMessage } from 'ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -364,7 +365,7 @@ function errorResponse(requestId: string, error: unknown): NextResponse {
   return publicApiError(requestId, 500, 'internal_error', 'Course question generation failed.');
 }
 
-export async function POST(
+async function auditedPOST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
@@ -617,3 +618,5 @@ export async function POST(
     return errorResponse(requestId, error);
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

@@ -46,7 +46,7 @@ export function findPublicStoreCourseDetail(db: DbClient, userId: string, course
           createdAt: true,
           sceneCount: true,
           problemCount: true,
-          publishedProblemCount: true,
+
           speechReadyCount: true,
           speechTotalCount: true,
           speechStatus: true,
@@ -226,14 +226,13 @@ export function findNotebookPurchaseWithClonedNotebook(
   });
 }
 
-export function listPublishedCourseProblemsForClone(
+export function listCourseProblemsForClone(
   db: DbClient,
   sourceCourseId: string,
   sourceNotebookIds: string[],
 ) {
   return db.notebookProblem.findMany({
     where: {
-      status: 'published',
       OR:
         sourceNotebookIds.length > 0
           ? [{ courseId: sourceCourseId }, { notebookId: { in: sourceNotebookIds } }]
@@ -244,10 +243,9 @@ export function listPublishedCourseProblemsForClone(
   });
 }
 
-export function listPublishedNotebookProblemsForClone(db: DbClient, sourceNotebookId: string) {
+export function listNotebookProblemsForClone(db: DbClient, sourceNotebookId: string) {
   return db.notebookProblem.findMany({
     where: {
-      status: 'published',
       notebookId: sourceNotebookId,
     },
     include: { secret: true },

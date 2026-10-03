@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Loader2, Pencil, X } from 'lucide-react';
+import { Check, Loader2, LockKeyhole, Pencil, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 
 type MeProfile = {
   phone: string | null;
+  phoneEditable: boolean;
 };
 
 export function ProfilePhoneEditor({ layout = 'row' }: { layout?: 'row' | 'stacked' }) {
@@ -22,19 +23,30 @@ export function ProfilePhoneEditor({ layout = 'row' }: { layout?: 'row' | 'stack
   const [draft, setDraft] = useState(phone);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [profile, setProfile] = useState<MeProfile | null>(null);
+  const readOnly = status !== 'unauthenticated' && !profile?.phoneEditable;
+  const displayedPhone = status === 'authenticated' ? profile?.phone || '' : phone;
 
   useEffect(() => {
     if (status !== 'authenticated') return;
+    let active = true;
     void backendJson<MeProfile>('/api/me')
       .then((profile) => {
+        if (!active) return;
+        setProfile(profile);
         setPhone(profile.phone || '');
         setDraft(profile.phone || '');
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setError('手机号加载失败，请刷新后重试。');
+      });
+    return () => {
+      active = false;
+    };
   }, [setPhone, status]);
 
   const save = async () => {
-    if (saving || status === 'loading') return;
+    if (saving || status === 'loading' || readOnly) return;
     const parsed = parsePhoneNumber(draft);
     if (!parsed.ok) {
       setError(parsed.error);
@@ -49,6 +61,7 @@ export function ProfilePhoneEditor({ layout = 'row' }: { layout?: 'row' | 'stack
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ phone: parsed.value || '' }),
         });
+        setProfile(profile);
         setPhone(profile.phone || '');
         setDraft(profile.phone || '');
       } else {
@@ -74,10 +87,28 @@ export function ProfilePhoneEditor({ layout = 'row' }: { layout?: 'row' | 'stack
         <div>
           <p className="font-medium text-slate-800">手机号</p>
           <p className="mt-0.5 text-xs text-slate-400">
-            老师只能看到后四位{phoneLastFour(phone) ? ` · 当前尾号 ${phoneLastFour(phone)}` : ''}
+            {readOnly ? '由 Speedup 同步，不可自行修改。' : ''}
+            老师只能看到后四位
+            {phoneLastFour(displayedPhone) ? ` · 当前尾号 ${phoneLastFour(displayedPhone)}` : ''}
           </p>
         </div>
-        {editing ? (
+        {readOnly ? (
+          <div
+            className={cn(
+              'inline-flex min-w-0 items-center gap-2 px-2 py-1.5 text-slate-500',
+              layout === 'stacked' &&
+                'justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3',
+            )}
+          >
+            <span className="truncate">
+              {displayedPhone ||
+                (status === 'loading' || (status === 'authenticated' && !profile && !error)
+                  ? '加载中…'
+                  : '暂未同步')}
+            </span>
+            <LockKeyhole className="size-3.5 shrink-0" aria-hidden="true" />
+          </div>
+        ) : editing ? (
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
             <Input
               autoFocus

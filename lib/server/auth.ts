@@ -290,7 +290,7 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
-export async function requireServerSession() {
+export async function requireActualServerSession() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id || session.user.isActive === false) {
@@ -302,4 +302,9 @@ export async function requireServerSession() {
     console.error('[auth] getServerSession failed', e);
     return null;
   }
+}
+
+export async function requireServerSession() {
+  const { resolveAdminCoursePreviewSession } = await import('@/lib/server/admin-course-preview');
+  return (await resolveAdminCoursePreviewSession()) ?? requireActualServerSession();
 }

@@ -22,6 +22,7 @@ export function middleware(request: NextRequest) {
     pathname === '/login' ||
     pathname === '/learn' ||
     pathname === '/test/frontend' ||
+    pathname === '/test/problem-import-results' ||
     pathname.startsWith('/student/') ||
     pathname === '/student' ||
     pathname === '/calendar' ||

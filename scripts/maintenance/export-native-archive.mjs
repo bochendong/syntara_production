@@ -353,7 +353,6 @@ async function main() {
           notebookId: problem.notebookId,
           title: problem.title,
           type: problem.type,
-          status: problem.status,
           difficulty: problem.difficulty,
           tags: problem.tags,
           publicContent: jsonRecord(problem.publicContentJson),

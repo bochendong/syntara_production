@@ -84,9 +84,6 @@ function validateCsc148IdMap(source, idMapSnapshot) {
       throw new Error(`CSC148 id map is missing the database title for ${sourceId}.`);
     }
     const metadata = asRecord(metadataBySourceId[sourceId]);
-    if (metadata.status !== 'published') {
-      throw new Error(`CSC148 id map row ${sourceId} is not verified as published.`);
-    }
     if (!String(metadata.type || '').trim() || !String(metadata.difficulty || '').trim()) {
       throw new Error(`CSC148 id map row ${sourceId} is missing database metadata.`);
     }
@@ -103,23 +100,21 @@ function buildMat136() {
   );
   if (!course) throw new Error('The MAT136 published course is missing from the DB snapshot.');
   const notebookNames = new Map(course.notebooks.map((item) => [item.id, item.name]));
-  const problems = course.problems
-    .filter((problem) => problem.status === 'published')
-    .map((problem) => ({
-      id: problem.id,
-      sourceId: problem.id,
-      order: problem.order,
-      title: compactTitle(problem.title),
-      notebookId: problem.notebookId || null,
-      notebookTitle: notebookNames.get(problem.notebookId) || null,
-      type: problem.type,
-      difficulty: problem.difficulty,
-      points: problem.points,
-      tags: Array.isArray(problem.tags) ? problem.tags.map(String) : [],
-      question: publicQuestionText(problem.publicContentJson, problem.title),
-      publicContent: sanitizedPublicContent(problem.publicContentJson),
-      source: 'database_snapshot',
-    }));
+  const problems = course.problems.map((problem) => ({
+    id: problem.id,
+    sourceId: problem.id,
+    order: problem.order,
+    title: compactTitle(problem.title),
+    notebookId: problem.notebookId || null,
+    notebookTitle: notebookNames.get(problem.notebookId) || null,
+    type: problem.type,
+    difficulty: problem.difficulty,
+    points: problem.points,
+    tags: Array.isArray(problem.tags) ? problem.tags.map(String) : [],
+    question: publicQuestionText(problem.publicContentJson, problem.title),
+    publicContent: sanitizedPublicContent(problem.publicContentJson),
+    source: 'database_snapshot',
+  }));
   return {
     schemaVersion: 1,
     courseCode: 'MAT136',

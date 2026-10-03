@@ -5,10 +5,12 @@ import { callLLM } from '@/lib/ai/llm';
 import { prisma } from '@/lib/server/prisma';
 import { toPrismaJson } from '@/lib/server/prisma-json';
 import { withRequestContext } from '@/lib/server/request-context';
+import { notebookOriginalFilePart } from '@/lib/server/notebook-original-file';
 import { resolveModel } from '@/lib/server/resolve-model';
 import { persistTeacherCourseNotebook } from '@/lib/server/teacher-course-notebook-storage';
 
 const generatedNotebookSchema = z.object({
+  sourcePageCount: z.number().int().min(1).max(500),
   title: z.string().trim().min(4).max(160),
   summary: z.string().trim().min(30).max(500),
   sections: z
@@ -36,8 +38,9 @@ export async function generateTeacherCourseNotebook(args: {
   courseCode: string;
   courseTitle: string;
   sourceTitle: string;
-  sourceText: string;
-  sourcePageCount: number;
+  sourceFileId: string;
+  sourceFileMime: string;
+  sourcePageCount?: number;
 }) {
   const taskId = `teacher-generation:${args.notebookId}`;
   const taskRequest = toPrismaJson({
@@ -45,7 +48,8 @@ export async function generateTeacherCourseNotebook(args: {
     sourceId: args.sourceId,
     sourceTitle: args.sourceTitle,
     sourcePageCount: args.sourcePageCount,
-    sourceTextCharacters: args.sourceText.length,
+    sourceFileId: args.sourceFileId,
+    sourceInput: 'openai_file_id',
     courseCode: args.courseCode,
   });
   await prisma.agentTask.update({
@@ -59,13 +63,15 @@ export async function generateTeacherCourseNotebook(args: {
     },
   });
   try {
-    const { model, modelString, providerId } = await resolveModel({});
+    const { model, modelString, providerId } = await resolveModel({}, { useOpenAIResponses: true });
     const prompt = [
       `课程：${args.courseCode} · ${args.courseTitle}`,
       `源文件：${args.sourceTitle}`,
-      `源文件页数：${args.sourcePageCount}`,
+      args.sourcePageCount
+        ? `源文件页数：${args.sourcePageCount}`
+        : '请直接阅读附加原文件，识别实际页码。',
       '',
-      '把下面的课程讲义重写为一份可直接给学生阅读的 Markdown 笔记本。',
+      '把附加原文件中的课程讲义重写为一份可直接给学生阅读的 Markdown 笔记本。',
       '要求：',
       '- 使用简体中文讲解，首次出现的重要英文术语放在括号中。',
       '- 只使用源文件能支持的内容；不要补造定理、数值、例题答案或页码。',
@@ -73,11 +79,10 @@ export async function generateTeacherCourseNotebook(args: {
       '- 至少完整保留并讲解 3 个源文件中的例题或练习；写清思路与关键步骤。',
       '- 数学公式使用标准 LaTeX：行内 $...$，独立公式 $$...$$。',
       '- 删除页眉、页脚、页码、断行和 OCR 碎片，不要写“根据文档”“原文提到”等空话。',
-      '- 每章 sourcePages 必须列出真实支撑页码；一章可对应多页。',
+      '- sourcePageCount 填写原文件实际页数；无分页的文档或单张图片填 1。每章 sourcePages 必须列出真实支撑页码。',
       '- markdown 正文不要重复章节标题；可使用小标题、列表、表格、例题和自测。',
       '',
-      '源文件提取正文如下：',
-      args.sourceText,
+      '原文件为唯一内容依据；扫描页面、手写内容、公式和图表请直接识别。',
     ].join('\n');
     const result = await withRequestContext(
       {
@@ -98,7 +103,19 @@ export async function generateTeacherCourseNotebook(args: {
             model,
             system:
               'You are a source-faithful university course notebook editor. Produce concise, teachable Chinese notes through the required schema.',
-            prompt,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: prompt },
+                  notebookOriginalFilePart({
+                    fileId: args.sourceFileId,
+                    mimeType: args.sourceFileMime,
+                    fileName: args.sourceTitle,
+                  }),
+                ],
+              },
+            ],
             output: Output.object({
               schema: generatedNotebookSchema,
               name: 'teacher_course_markdown_notebook',
@@ -127,7 +144,7 @@ export async function generateTeacherCourseNotebook(args: {
       outputTokens,
       cachedInputTokens,
       totalTokens,
-      sourcePageCount: args.sourcePageCount,
+      sourcePageCount: notebook.sourcePageCount,
       generatedAt,
     };
     await prisma.agentTask.update({

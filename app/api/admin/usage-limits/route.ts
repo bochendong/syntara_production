@@ -3,6 +3,7 @@ import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import {
   getCloudUsageGlobalLimit,
+  getCloudUsageRoleLimits,
   getCloudUsageUserLimit,
   summarizeCloudUsage,
 } from '@/lib/server/cloud-usage-limits';
@@ -104,6 +105,7 @@ export async function GET(request: Request) {
         usage: globalUsage,
       },
       users,
+      roleLimits: await getCloudUsageRoleLimits(prisma),
     });
   } catch (error) {
     return apiError('INTERNAL_ERROR', 500, error instanceof Error ? error.message : String(error));
@@ -120,7 +122,8 @@ export async function PUT(request: Request) {
   }
 
   let body: {
-    scope?: 'global' | 'user' | 'bulk-users';
+    scope?: 'global' | 'user' | 'bulk-users' | 'role' | 'reset';
+    roleLimits?: { TEACHER?: unknown; STUDENT?: unknown };
     userId?: string;
     userIds?: string[];
     targetRole?: 'STUDENT' | 'TEACHER' | 'ALL';
@@ -141,6 +144,49 @@ export async function PUT(request: Request) {
   const weeklyRequestLimit = normalizeNullableInt(body.weeklyRequestLimit);
 
   try {
+    if (body.scope === 'role') {
+      const values = body.roleLimits;
+      if (
+        !values ||
+        !['TEACHER', 'STUDENT'].every((role) => {
+          const value = values[role as keyof typeof values];
+          return (
+            value === '' ||
+            value === null ||
+            (value !== undefined && Number.isFinite(Number(value)) && Number(value) >= 0)
+          );
+        })
+      )
+        return apiError('INVALID_REQUEST', 400, '请输入有效的每周限额');
+      await prisma.$transaction(
+        ['TEACHER', 'STUDENT'].map((role) =>
+          prisma.$executeRaw(Prisma.sql`
+        INSERT INTO "CloudUsageRoleLimit" ("role", "weeklyCostLimitUsd", "updatedBy")
+        VALUES (${role}, ${normalizeNullableNumber(values[role as keyof typeof values])}, ${admin.identity.email ?? admin.identity.userId})
+        ON CONFLICT ("role") DO UPDATE SET "weeklyCostLimitUsd" = EXCLUDED."weeklyCostLimitUsd",
+          "updatedBy" = EXCLUDED."updatedBy", "updatedAt" = CURRENT_TIMESTAMP
+      `),
+        ),
+      );
+      return apiSuccess({ roleLimits: await getCloudUsageRoleLimits(prisma) });
+    }
+    if (body.scope === 'reset') {
+      const userId = typeof body.userId === 'string' ? body.userId.trim() : '';
+      if (!userId && body.targetRole !== 'TEACHER' && body.targetRole !== 'STUDENT')
+        return apiError('INVALID_REQUEST', 400, '请选择用户或老师/学生');
+      const users = await prisma.user.findMany({
+        where: userId ? { id: userId } : { role: body.targetRole as UserRole },
+        select: { id: true },
+      });
+      if (userId && !users.length) return apiError('INVALID_REQUEST', 404, '用户不存在');
+      await prisma.$executeRaw(Prisma.sql`
+        INSERT INTO "CloudUsageQuotaReset" ("userId", "resetAt", "updatedBy")
+        SELECT "id", CURRENT_TIMESTAMP, ${admin.identity.email ?? admin.identity.userId}
+        FROM "User" WHERE ${userId ? Prisma.sql`"id" = ${userId}` : Prisma.sql`"role"::text = ${body.targetRole}`}
+        ON CONFLICT ("userId") DO UPDATE SET "resetAt" = EXCLUDED."resetAt", "updatedBy" = EXCLUDED."updatedBy"
+      `);
+      return apiSuccess({ updatedCount: users.length });
+    }
     if (body.scope === 'global') {
       await prisma.$executeRaw(
         Prisma.sql`

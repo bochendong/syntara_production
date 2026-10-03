@@ -1,8 +1,9 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 
-export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedDELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin();
   if ('response' in admin) return admin.response;
 
@@ -48,3 +49,5 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     return apiError('INTERNAL_ERROR', 500, error instanceof Error ? error.message : String(error));
   }
 }
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

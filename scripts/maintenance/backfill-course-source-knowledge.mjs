@@ -330,7 +330,6 @@ async function loadLegacyCourseArtifacts(db, course) {
     }),
     db.notebookProblem.findMany({
       where: {
-        status: { not: 'archived' },
         OR: [
           { courseId: course.id },
           {

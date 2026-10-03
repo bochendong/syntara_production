@@ -95,7 +95,7 @@ export function deriveProblemBankLearningProfile(args: {
   const conceptMap = new Map<string, ProblemBankConceptProfile>();
   const wrongProblems: ProblemBankLearningProfile['wrongProblems'] = [];
 
-  for (const problem of args.problems.filter((item) => item.status !== 'archived')) {
+  for (const problem of args.problems) {
     const concepts = getProblemConcepts(problem);
     const latestStatus = problem.latestAttempt?.status ?? null;
     if (latestStatus === 'failed' || latestStatus === 'partial' || latestStatus === 'error') {

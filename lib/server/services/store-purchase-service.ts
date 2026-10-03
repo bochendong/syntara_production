@@ -9,7 +9,7 @@ import {
   findNotebookPurchaseWithClonedNotebook,
   findPublicCourseForEnrollment,
   findPublicNotebookForClone,
-  listPublishedNotebookProblemsForClone,
+  listNotebookProblemsForClone,
 } from '@/lib/server/repositories/store-repository';
 import type { RootDbClient } from '@/lib/server/repositories/types';
 import type { Prisma } from '@/lib/server/generated-prisma';
@@ -19,9 +19,7 @@ export type StorePurchaseResult<T> =
   | { status: 'existing'; item: T }
   | { status: 'created'; item: T };
 
-type PublishedProblemForClone = Awaited<
-  ReturnType<typeof listPublishedNotebookProblemsForClone>
->[number];
+type PublishedProblemForClone = Awaited<ReturnType<typeof listNotebookProblemsForClone>>[number];
 
 async function clonePublishedProblemTx(args: {
   tx: Prisma.TransactionClient;
@@ -35,7 +33,6 @@ async function clonePublishedProblemTx(args: {
       notebookId: args.notebookId,
       title: args.problem.title,
       type: args.problem.type,
-      status: args.problem.status,
       source: args.problem.source,
       order: args.problem.order,
       problemNumber: args.problem.problemNumber,
@@ -106,7 +103,7 @@ export async function cloneStoreNotebookForUser(
     return { status: 'existing', item: existingPurchase.clonedNotebook } as const;
   }
 
-  const sourceProblems = await listPublishedNotebookProblemsForClone(db, source.id);
+  const sourceProblems = await listNotebookProblemsForClone(db, source.id);
 
   const notebook = await db.$transaction(async (tx) => {
     const clonedNotebook = await tx.notebook.create({

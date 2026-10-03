@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -17,7 +18,7 @@ function periodOrder(year: number, term: 'winter' | 'summer' | 'fall') {
   return year * 3 + { winter: 0, summer: 1, fall: 2 }[term];
 }
 
-export async function POST(request: Request) {
+async function auditedPOST(request: Request) {
   return safeRoute(async () => {
     const teacher = await requireTeacher();
     if ('response' in teacher) return teacher.response;
@@ -205,3 +206,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ storage: 'postgresql', ...result });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

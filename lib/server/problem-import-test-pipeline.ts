@@ -207,7 +207,6 @@ function previewBase(args: {
     draftId: `${args.fixtureId}-preview-${args.index}`,
     title: args.title,
     type: args.type,
-    status: 'draft' as const,
     source: args.source,
     points: 1,
     tags: args.tags || [],

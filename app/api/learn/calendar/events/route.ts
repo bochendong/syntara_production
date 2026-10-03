@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import {
   calendarBatchCreateSchema,
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function auditedPOST(request: Request) {
   try {
     // User creation belongs to the login boundary. Re-running the compatibility
     // upsert and credit initialization makes a small calendar write wait on
@@ -86,3 +87,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unable to create calendar events' }, { status: 500 });
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

@@ -5,24 +5,12 @@ import { useDraftCache } from '@/lib/hooks/use-draft-cache';
 import { getPdfSourceFileSignature, type PdfSourceSelection } from '@/lib/pdf/page-selection';
 import type { ImageMapping, PdfImage } from '@/lib/types/generation';
 import { courseSourceFileValidationError } from '@/lib/uploads/course-source-policy';
-import {
-  parseDocxLikeGenerationInput,
-  parseImageLikeGenerationInput,
-  parseMarkdownLikeGenerationInput,
-  parsePdfLikeGenerationPreview,
-  parsePptxLikeGenerationPreview,
-} from '@/lib/create/source-input';
+import { prepareNotebookOriginalFile } from '@/lib/create/notebook-original-file';
 import {
   buildExtractedTextItems,
-  buildImagePreviews,
   buildMaterialRows,
   buildRequirementPreview,
-  isMarkdownSourceFile,
-  isDocxSourceFile,
-  isImageSourceFile,
   isPdfSourceFile,
-  isPptxSourceFile,
-  isTextSourceFile,
   type ExtractedSourceItem,
   type ExtractedSourcePreview,
   type FormState,
@@ -34,6 +22,7 @@ import {
 
 type ParsedSourcePreview = {
   text: string;
+  sourceFileToken?: string;
   imageCount: number;
   imagePreviews: ExtractedSourcePreview['imagePreviews'];
   imageDuplicateCount: number;
@@ -66,7 +55,16 @@ const EMPTY_SOURCE_PREVIEW: ExtractedSourcePreview = {
 };
 
 function buildReadySourcePreview(parsed: ParsedSourcePreview): ExtractedSourcePreview {
-  const textItems = buildExtractedTextItems(parsed.text);
+  const textItems = parsed.sourceFileToken
+    ? [
+        {
+          id: 'original-file',
+          title: '原文件已上传',
+          detail: '生成时由 OpenAI 直接读取原文件。',
+          kind: '文本' as const,
+        },
+      ]
+    : buildExtractedTextItems(parsed.text);
   const imageItem: ExtractedSourceItem[] =
     parsed.imageCount > 0
       ? [
@@ -115,7 +113,6 @@ function buildErrorSourcePreview(message: string): ExtractedSourcePreview {
 export function useCreateNotebookSourceInput({
   activeStep,
   busy,
-  language,
   onError,
   onSourceChanged,
 }: UseCreateNotebookSourceInputArgs) {
@@ -156,102 +153,20 @@ export function useCreateNotebookSourceInput({
 
   const parseSourceFile = useCallback(
     async (file: File, signal: AbortSignal): Promise<ParsedSourcePreview> => {
-      if (isMarkdownSourceFile(file)) {
-        const parsed = await parseMarkdownLikeGenerationInput({ file });
-        return {
-          text: parsed.pdfText,
-          imageCount: 0,
-          imagePreviews: [],
-          imageDuplicateCount: 0,
-          pdfImages: [],
-          imageMapping: {},
-          warnings: parsed.truncationWarnings,
-        };
-      }
-
-      if (isTextSourceFile(file)) {
-        const parsed = await parseMarkdownLikeGenerationInput({ file });
-        return {
-          text: parsed.pdfText,
-          imageCount: 0,
-          imagePreviews: [],
-          imageDuplicateCount: 0,
-          pdfImages: [],
-          imageMapping: {},
-          warnings: parsed.truncationWarnings,
-        };
-      }
-
-      if (isDocxSourceFile(file)) {
-        const parsed = await parseDocxLikeGenerationInput({ file, signal });
-        return {
-          text: parsed.pdfText,
-          imageCount: 0,
-          imagePreviews: [],
-          imageDuplicateCount: 0,
-          pdfImages: [],
-          imageMapping: {},
-          warnings: parsed.truncationWarnings,
-        };
-      }
-
-      if (isImageSourceFile(file)) {
-        const parsed = await parseImageLikeGenerationInput({ file });
-        const imagePreviewResult = buildImagePreviews(parsed.pdfImages, parsed.imageMapping);
-        return {
-          text: parsed.pdfText,
-          imageCount: parsed.pdfImages.length,
-          imagePreviews: imagePreviewResult.imagePreviews,
-          imageDuplicateCount: imagePreviewResult.duplicateCount,
-          pdfImages: parsed.pdfImages,
-          imageMapping: parsed.imageMapping,
-          warnings: parsed.truncationWarnings,
-        };
-      }
-
-      if (isPptxSourceFile(file)) {
-        const parsed = await parsePptxLikeGenerationPreview({
-          pptxFile: file,
-          signal,
-        });
-        const imagePreviewResult = buildImagePreviews(parsed.pdfImages, parsed.imageMapping);
-        return {
-          text: parsed.pdfText,
-          imageCount: parsed.pdfImages.length,
-          imagePreviews: imagePreviewResult.imagePreviews,
-          imageDuplicateCount: imagePreviewResult.duplicateCount,
-          pdfImages: parsed.pdfImages,
-          imageMapping: parsed.imageMapping,
-          warnings: parsed.truncationWarnings,
-        };
-      }
-
-      const parsed = await parsePdfLikeGenerationPreview({
-        pdfFile: file,
-        language,
-        sourcePageSelection: sourcePageSelection ?? undefined,
-        imageLimit: null,
-        includeVisualRegionImages: true,
+      return prepareNotebookOriginalFile({
+        file,
         signal,
+        selection: sourcePageSelection ?? undefined,
       });
-      const imagePreviewResult = buildImagePreviews(parsed.pdfImages, parsed.imageMapping);
-      return {
-        text: parsed.pdfText,
-        imageCount: parsed.pdfImages.length,
-        imagePreviews: imagePreviewResult.imagePreviews,
-        imageDuplicateCount: imagePreviewResult.duplicateCount,
-        pdfImages: parsed.pdfImages,
-        imageMapping: parsed.imageMapping,
-        warnings: parsed.truncationWarnings,
-      };
     },
-    [language, sourcePageSelection],
+    [sourcePageSelection],
   );
 
   const commitParsedSourceInput = useCallback((parsed: ParsedSourcePreview) => {
     const selectedImageIds = parsed.imagePreviews.map((image) => image.id);
     const extract = {
       text: parsed.text,
+      sourceFileToken: parsed.sourceFileToken,
       pdfImages: parsed.pdfImages,
       imageMapping: parsed.imageMapping,
     };

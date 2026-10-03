@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import { type NextRequest, NextResponse } from 'next/server';
 import { authOptions } from '@/lib/server/auth';
+import { resolveAdminCoursePreviewSession } from '@/lib/server/admin-course-preview';
 
 const handler = NextAuth(authOptions);
 
@@ -59,6 +60,11 @@ async function safeAuthResponse(
 }
 
 export async function GET(request: NextRequest, context: NextAuthRouteContext) {
+  if (isSessionPath(new URL(request.url).pathname)) {
+    const preview = await resolveAdminCoursePreviewSession();
+    if (preview)
+      return NextResponse.json(preview, { headers: { 'Cache-Control': 'private, no-store' } });
+  }
   return safeAuthResponse(request, context, handler);
 }
 

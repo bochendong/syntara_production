@@ -394,7 +394,6 @@ function baseDraft(question, sourceData, config, sourcePath, type, points) {
     notebookId: null,
     title: trimTitle(question.title, `${config.courseTag} question ${question.id}`),
     type,
-    status: 'published',
     source: 'manual',
     points,
     tags: uniqueTags([
@@ -416,7 +415,6 @@ function choiceDraft(question, sourceData, config, sourcePath) {
   const correctOptionIds = normalizeCorrectOptionIds(question, options, draft.validationErrors);
   return {
     ...draft,
-    status: options.length >= 2 && correctOptionIds.length > 0 ? 'published' : 'draft',
     publicContent: {
       type: 'choice',
       stem: stemForQuestion(question),
@@ -444,14 +442,13 @@ function codeDraft(question, sourceData, config, sourcePath) {
   const secretTestCode = firstNonEmpty(question.secretTests, question.secretTestCode);
   const publicTests = buildCodeTests(publicTestCode, 'public', draft.validationErrors);
   const secretTests = buildCodeTests(secretTestCode, 'secret', draft.validationErrors);
-  const publishable = publicTests.length > 0 && secretTests.length > 0;
+  const referenceVerified = publicTests.length > 0 && secretTests.length > 0;
 
   if (publicTests.length === 0) draft.validationErrors.push('缺少 public tests');
   if (secretTests.length === 0) draft.validationErrors.push('缺少 secret tests');
 
   return {
     ...draft,
-    status: publishable ? 'published' : 'draft',
     publicContent: {
       type: 'code',
       stem: firstNonEmpty(question.question, question.description, question.title),
@@ -468,7 +465,7 @@ function codeDraft(question, sourceData, config, sourcePath) {
     },
     grading: {
       type: 'code',
-      publishRequirementsMet: publishable,
+      referenceVerified: referenceVerified,
       ...(firstNonEmpty(question.answer) ? { analysis: firstNonEmpty(question.answer) } : {}),
     },
     ...(secretTests.length > 0
@@ -619,13 +616,12 @@ async function refreshCourseAndNotebookSummaryFields(prisma, courseId) {
   });
   await Promise.all(
     notebooks.map(async (notebook) => {
-      const [problemCount, publishedProblemCount] = await Promise.all([
+      const [problemCount] = await Promise.all([
         prisma.notebookProblem.count({ where: { notebookId: notebook.id } }),
-        prisma.notebookProblem.count({ where: { notebookId: notebook.id, status: 'published' } }),
       ]);
       await prisma.notebook.updateMany({
         where: { id: notebook.id },
-        data: { problemCount, publishedProblemCount },
+        data: { problemCount },
       });
     }),
   );
@@ -639,11 +635,8 @@ async function refreshCourseAndNotebookSummaryFields(prisma, courseId) {
       speechTotalCount: true,
     },
   });
-  const [problemCount, publishedProblemCount] = await Promise.all([
+  const [problemCount] = await Promise.all([
     prisma.notebookProblem.count({ where: { OR: [{ courseId }, { notebook: { courseId } }] } }),
-    prisma.notebookProblem.count({
-      where: { status: 'published', OR: [{ courseId }, { notebook: { courseId } }] },
-    }),
   ]);
 
   await prisma.course.updateMany({
@@ -652,7 +645,7 @@ async function refreshCourseAndNotebookSummaryFields(prisma, courseId) {
       notebookCount: notebookAggregate._count._all,
       sceneCount: notebookAggregate._sum.sceneCount ?? 0,
       problemCount,
-      publishedProblemCount,
+
       speechReadyCount: notebookAggregate._sum.speechReadyCount ?? 0,
       speechTotalCount: notebookAggregate._sum.speechTotalCount ?? 0,
     },
@@ -695,7 +688,6 @@ async function syncCourse(courseKey) {
         name: true,
         courseCode: true,
         problemCount: true,
-        publishedProblemCount: true,
       },
     });
     if (!course) throw new Error(`Course not found: ${courseId}`);
@@ -794,7 +786,6 @@ async function syncCourse(courseKey) {
               notebookId: draft.notebookId,
               title: draft.title,
               type: draft.type,
-              status: draft.status,
               source: draft.source,
               points: draft.points,
               tags: draft.tags,
@@ -836,7 +827,6 @@ async function syncCourse(courseKey) {
               notebookId: draft.notebookId,
               title: draft.title,
               type: draft.type,
-              status: draft.status,
               source: draft.source,
               order: firstOrder + index,
               problemNumber: firstProblemNumber + index,
@@ -880,7 +870,7 @@ async function syncCourse(courseKey) {
     const [courseAfter, productionRows] = await Promise.all([
       prisma.course.findUnique({
         where: { id: courseId },
-        select: { id: true, problemCount: true, publishedProblemCount: true },
+        select: { id: true, problemCount: true },
       }),
       prisma.notebookProblem.findMany({
         where: scopeWhere,
@@ -898,7 +888,6 @@ async function syncCourse(courseKey) {
       choiceFromSource: fromSource.filter((row) => row.type === 'choice').length,
       proofFromSource: fromSource.filter((row) => row.type === 'proof').length,
       codeFromSource: fromSource.filter((row) => row.type === 'code').length,
-      draftFromSource: fromSource.filter((row) => row.status !== 'published').length,
       courseAfter,
     };
     console.log(JSON.stringify(afterSummary, null, 2));

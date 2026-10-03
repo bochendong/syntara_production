@@ -58,7 +58,6 @@ import {
   problemSolutionSections,
   renderProblemContentStem,
   renderProblemStem,
-  statusLabel,
   supportsPhotoAnswer,
   typeLabel,
   type AnswerPanelTab,
@@ -122,7 +121,6 @@ export type CourseProblemBankInitialFilters = {
   typeFilter?: string;
   difficultyFilter?: string;
   chapterFilter?: string;
-  statusFilter?: string;
 };
 
 const PRACTICE_FILTER_VALUES = ['all', 'review', 'wrong', 'unattempted', 'mastered'] as const;
@@ -136,7 +134,6 @@ const PROBLEM_TYPE_FILTER_VALUES = [
   'code',
 ] as const;
 const DIFFICULTY_FILTER_VALUES = ['all', 'easy', 'medium', 'hard'] as const;
-const STATUS_FILTER_VALUES = ['all', 'draft', 'published', 'archived'] as const;
 
 function hasStringValue<const T extends readonly string[]>(
   values: T,
@@ -174,13 +171,6 @@ function normalizeInitialDifficultyFilter(
 
 function normalizeInitialChapterFilter(value: string | undefined): string {
   return normalizeInitialFilterValue(value) || 'all';
-}
-
-function normalizeInitialStatusFilter(
-  value: string | undefined,
-): 'all' | NotebookProblemClientRecord['status'] {
-  const next = normalizeInitialFilterValue(value);
-  return hasStringValue(STATUS_FILTER_VALUES, next) ? next : 'all';
 }
 
 function attemptAnswerHasContent(answer: NotebookProblemAttemptAnswer | null | undefined): boolean {
@@ -242,6 +232,7 @@ export function useCourseProblemBankController({
   );
   const [savingChapterProblemId, setSavingChapterProblemId] = useState<string | null>(null);
   const [autoArchiving, setAutoArchiving] = useState(false);
+  const [autoArchiveProgress, setAutoArchiveProgress] = useState(0);
   const [problemChapters, setProblemChapters] = useState<CourseProblemChapter[]>([]);
   const [deletingProblemId, setDeletingProblemId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -266,6 +257,7 @@ export function useCourseProblemBankController({
     string | null
   >(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState(() =>
     normalizeInitialSearchQuery(initialFilters?.searchQuery),
   );
@@ -281,9 +273,6 @@ export function useCourseProblemBankController({
   >(() => normalizeInitialDifficultyFilter(initialFilters?.difficultyFilter));
   const [chapterFilter, setChapterFilter] = useState(() =>
     normalizeInitialChapterFilter(initialFilters?.chapterFilter),
-  );
-  const [statusFilter, setStatusFilter] = useState<'all' | NotebookProblemClientRecord['status']>(
-    () => normalizeInitialStatusFilter(initialFilters?.statusFilter),
   );
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const usesServerPagination =
@@ -304,8 +293,9 @@ export function useCourseProblemBankController({
       return;
     }
     setLoading(true);
+    setLoadError(null);
     try {
-      if (adminReadOnly && adminSnapshot) {
+      if (adminSnapshot) {
         setCourseName(adminSnapshot.courseName);
         setCourseCode(adminSnapshot.courseCode);
         setCourseAcademicYear(adminSnapshot.courseAcademicYear);
@@ -315,10 +305,17 @@ export function useCourseProblemBankController({
         setCourseProblemCount(adminSnapshot.problems.length);
         setServerFilteredProblemCount(adminSnapshot.problems.length);
         setServerBankStats(null);
+        const preferredPracticeProblemId =
+          adminSnapshot.problems.find((problem) => problem.id === initialProblemIdRef.current)
+            ?.id ??
+          adminSnapshot.problems[0]?.id ??
+          null;
         setSelectedProblemId((current) =>
           current && adminSnapshot.problems.some((problem) => problem.id === current)
             ? current
-            : null,
+            : isPracticeMode
+              ? preferredPracticeProblemId
+              : null,
         );
         return;
       }
@@ -394,7 +391,6 @@ export function useCourseProblemBankController({
             typeFilter,
             difficultyFilter: course?.accessRole === 'owner' ? 'all' : difficultyFilter,
             chapterFilter,
-            statusFilter,
             notebookId: initialNotebookId,
             timeoutMs: 45_000,
           })
@@ -434,12 +430,13 @@ export function useCourseProblemBankController({
       }
     } catch (error) {
       if (requestId !== loadRequestIdRef.current) return;
-      toast.error(error instanceof Error ? error.message : 'Failed to load course problems');
+      const message = error instanceof Error ? error.message : 'Failed to load course problems';
+      setLoadError(message);
+      toast.error(message);
     } finally {
       if (requestId === loadRequestIdRef.current) setLoading(false);
     }
   }, [
-    adminReadOnly,
     adminSnapshot,
     chapterFilter,
     courseId,
@@ -451,7 +448,6 @@ export function useCourseProblemBankController({
     previewAsTeacher,
     problemPage,
     scopedPracticeProblemIds,
-    statusFilter,
     typeFilter,
     usesServerPagination,
   ]);
@@ -476,7 +472,7 @@ export function useCourseProblemBankController({
       setProblemChapters([]);
       return;
     }
-    if (adminReadOnly && adminSnapshot) {
+    if (adminSnapshot) {
       setProblemChapters(adminSnapshot.chapters);
       return;
     }
@@ -611,7 +607,6 @@ export function useCourseProblemBankController({
     const query = searchQuery.trim().toLowerCase();
     return problems.filter((problem) => {
       if (typeFilter !== 'all' && problem.type !== typeFilter) return false;
-      if (statusFilter !== 'all' && problem.status !== statusFilter) return false;
       if (practiceFilter !== 'all' && !matchesPracticeFilter(problem, practiceFilter)) {
         return false;
       }
@@ -651,22 +646,13 @@ export function useCourseProblemBankController({
     practiceFilter,
     problems,
     searchQuery,
-    statusFilter,
     typeFilter,
     usesServerPagination,
   ]);
 
   useEffect(() => {
     setProblemPage(1);
-  }, [
-    difficultyFilter,
-    initialNotebookId,
-    chapterFilter,
-    practiceFilter,
-    searchQuery,
-    statusFilter,
-    typeFilter,
-  ]);
+  }, [difficultyFilter, initialNotebookId, chapterFilter, practiceFilter, searchQuery, typeFilter]);
 
   const filteredProblemCount = usesServerPagination
     ? serverFilteredProblemCount
@@ -697,7 +683,6 @@ export function useCourseProblemBankController({
     if (practiceFilter !== 'all') params.set('practice', practiceFilter);
     if (typeFilter !== 'all') params.set('type', typeFilter);
     if (!canEditProblems && difficultyFilter !== 'all') params.set('difficulty', difficultyFilter);
-    if (statusFilter !== 'all') params.set('status', statusFilter);
     if (scopedNotebookId) params.set('notebookId', scopedNotebookId);
     if (normalizedChapterFilter !== 'all') params.set('chapter', normalizedChapterFilter);
     if (previewMode || isLocalDemoProblemBankCourse(courseId)) {
@@ -715,7 +700,6 @@ export function useCourseProblemBankController({
     previewAsTeacher,
     previewMode,
     searchQuery,
-    statusFilter,
     typeFilter,
     courseId,
   ]);
@@ -733,10 +717,7 @@ export function useCourseProblemBankController({
     [buildProblemBankFilterSearchParams, courseId],
   );
 
-  const activeProblems = useMemo(
-    () => problems.filter((problem) => problem.status !== 'archived'),
-    [problems],
-  );
+  const activeProblems = useMemo(() => problems, [problems]);
   const clientUnfiledProblemCount = useMemo(
     () => activeProblems.filter((problem) => !problem.chapterId).length,
     [activeProblems],
@@ -816,16 +797,6 @@ export function useCourseProblemBankController({
       { value: 'calculation', label: typeLabel('calculation', locale) },
       { value: 'fill_blank', label: typeLabel('fill_blank', locale) },
       { value: 'code', label: typeLabel('code', locale) },
-    ],
-    [locale],
-  );
-
-  const statusFilterOptions = useMemo<FilterSelectOption[]>(
-    () => [
-      { value: 'all', label: locale === 'zh-CN' ? '全部状态' : 'All status' },
-      { value: 'draft', label: statusLabel('draft', locale) },
-      { value: 'published', label: statusLabel('published', locale) },
-      { value: 'archived', label: statusLabel('archived', locale) },
     ],
     [locale],
   );
@@ -1144,7 +1115,6 @@ export function useCourseProblemBankController({
     practiceFilter !== 'all',
     typeFilter !== 'all',
     !canEditProblems && difficultyFilter !== 'all',
-    statusFilter !== 'all',
     chapterFilter !== 'all',
   ].filter(Boolean).length;
 
@@ -1315,7 +1285,6 @@ export function useCourseProblemBankController({
     async (patch: {
       chapterId?: string | null;
       title?: string;
-      status?: 'draft' | 'published' | 'archived';
       points?: number;
       difficulty?: 'easy' | 'medium' | 'hard';
       publicContent?: unknown;
@@ -1836,48 +1805,76 @@ export function useCourseProblemBankController({
 
   const handleAiFileUnfiledProblems = useCallback(async () => {
     if (!canEditProblems || autoArchiving) return;
-    if (problemChapters.length === 0) {
-      toast.error(
-        locale === 'zh-CN'
-          ? '请先在“管理章节”中添加至少一个章节，再使用 AI 归档。'
-          : 'Add at least one chapter before using AI filing.',
-      );
-      return;
-    }
     if (isLocalDemoProblemBankCourse(courseId)) {
       toast.info(locale === 'zh-CN' ? '预览课程不会写入归档结果。' : 'Preview data is read-only.');
       return;
     }
     setAutoArchiving(true);
+    setAutoArchiveProgress(0);
+    let archivedCount = 0;
+    let createdChapterCount = 0;
     try {
-      const result = await archiveCourseProblems(courseId);
-      await loadAll();
-      const chapterResult = await listCourseProblemChapters(courseId);
-      setProblemChapters(chapterResult.chapters);
-      if (result.archivedCount > 0) {
+      const processed = new Set<string>();
+      let unfiledCount = 0;
+      let more = true;
+      while (more) {
+        const result = await archiveCourseProblems(courseId, [...processed]);
+        archivedCount += result.archivedCount;
+        createdChapterCount += result.createdChapterCount;
+        unfiledCount = result.unfiledCount;
+        const previousSize = processed.size;
+        result.processedProblemIds.forEach((id) => processed.add(id));
+        setAutoArchiveProgress(archivedCount);
+        more = result.truncated && processed.size > previousSize && processed.size <= 10000;
+      }
+      if (archivedCount > 0) {
         toast.success(
           locale === 'zh-CN'
-            ? `AI 已归档 ${result.archivedCount} 道题，仍有 ${result.unfiledCount} 道题未归档。`
-            : `AI filed ${result.archivedCount} problems; ${result.unfiledCount} remain unfiled.`,
+            ? `已自动新增 ${createdChapterCount} 个章节，归档 ${archivedCount} 道题${unfiledCount ? `；${unfiledCount} 道题需手动确认` : '。'}`
+            : `Created ${createdChapterCount} chapters and filed ${archivedCount} problems. ${unfiledCount} remain unfiled.`,
         );
       } else {
         toast.info(
           locale === 'zh-CN'
-            ? '没有找到可以可靠归入现有章节的题目，题目仍保留为未归档。'
-            : 'No problems could be confidently filed into the existing chapters.',
+            ? '没有需要整理或能明确分类的题目。'
+            : 'No unfiled problems could be confidently categorized.',
         );
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'AI 归档失败');
+      const message =
+        error instanceof Error
+          ? error.message
+          : locale === 'zh-CN'
+            ? '自动整理失败'
+            : 'Organization failed';
+      toast.error(
+        archivedCount
+          ? locale === 'zh-CN'
+            ? `已保存 ${archivedCount} 道题的归档结果，可再次点击继续。${message}`
+            : `Saved ${archivedCount} assignments. Click again to continue. ${message}`
+          : message,
+      );
     } finally {
+      try {
+        await loadAll();
+        const chapterResult = await listCourseProblemChapters(courseId);
+        setProblemChapters(chapterResult.chapters);
+      } catch {
+        toast.error(
+          locale === 'zh-CN'
+            ? '整理结果已保存，请刷新查看。'
+            : 'Results saved. Refresh to view them.',
+        );
+      }
       setAutoArchiving(false);
     }
-  }, [autoArchiving, canEditProblems, courseId, loadAll, locale, problemChapters.length]);
+  }, [autoArchiving, canEditProblems, courseId, loadAll, locale]);
 
   return {
     activeBankFilterCount,
     answerPanelTab,
     autoArchiving,
+    autoArchiveProgress,
     bankStats,
     blankAnswers,
     canEditProblems,
@@ -1918,6 +1915,7 @@ export function useCourseProblemBankController({
     chapterFilter,
     chapterFilterOptions,
     loading,
+    loadError,
     locale,
     navigateToPracticeProblem,
     nextPracticeTarget,
@@ -1970,11 +1968,8 @@ export function useCourseProblemBankController({
     setSelectedProblemId,
     setSearchQuery,
     setSelectedTextAnswer,
-    setStatusFilter,
     setTypeFilter,
     showSidebarAnswerTools,
-    statusFilter,
-    statusFilterOptions,
     submittingAnswer,
     textAnswers,
     typeFilter,

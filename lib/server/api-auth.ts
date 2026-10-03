@@ -1,3 +1,4 @@
+import { setFailureActor } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { requireServerSession } from '@/lib/server/auth';
 import { resolveAdminStudentPreviewId } from '@/lib/server/admin-student-preview';
@@ -21,6 +22,7 @@ export async function requireUserId(_options: RequireUserIdOptions = {}) {
           })
         : null;
       if (student) {
+        setFailureActor(student.id, student.email);
         return {
           userId: student.id,
           userEmail: student.email?.trim().toLowerCase() || null,
@@ -32,6 +34,7 @@ export async function requireUserId(_options: RequireUserIdOptions = {}) {
   const session = await requireServerSession();
   const userId = session?.user?.id?.trim();
   if (userId) {
+    setFailureActor(userId, session?.user?.email);
     // Database-backed NextAuth sessions can only reference an existing user.
     // Re-running the compatibility upsert/credit initialization on every API
     // request adds several remote database round trips to read-only routes.

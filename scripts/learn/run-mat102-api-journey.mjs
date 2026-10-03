@@ -261,20 +261,17 @@ function recentMessages(chatMessages) {
 }
 
 function problemSamples(problems) {
-  return problems
-    .filter((problem) => problem.status !== 'archived')
-    .slice(0, 12)
-    .map((problem) => ({
-      id: problem.id,
-      title: problem.title,
-      type: problem.type,
-      status: problem.status,
-      tags: problem.tags,
-      difficulty: problem.difficulty,
-      notebookId: problem.notebookId,
-      notebookName: problem.notebookName,
-      latestAttempt: problem.latestAttempt,
-    }));
+  return problems.slice(0, 12).map((problem) => ({
+    id: problem.id,
+    title: problem.title,
+    type: problem.type,
+    status: problem.status,
+    tags: problem.tags,
+    difficulty: problem.difficulty,
+    notebookId: problem.notebookId,
+    notebookName: problem.notebookName,
+    latestAttempt: problem.latestAttempt,
+  }));
 }
 
 function sourceUploadSummaries(sources) {
@@ -308,9 +305,8 @@ async function callLearnTurn(args) {
         recentActions: args.recentActions || [],
         recentActivities: args.recentActivities || [],
         problemBank: {
-          available: args.fixtures.problems.some((problem) => problem.status !== 'archived'),
-          activeCount: args.fixtures.problems.filter((problem) => problem.status !== 'archived')
-            .length,
+          available: args.fixtures.problems.length > 0,
+          activeCount: args.fixtures.problems.length,
           samples: problemSamples(args.fixtures.problems),
         },
         resourceStates: {

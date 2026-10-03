@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 /**
  * Agent Profiles Generation API
  *
@@ -57,7 +58,7 @@ function stripCodeFences(text: string): string {
   return cleaned.trim();
 }
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   try {
     const body = (await req.json()) as RequestBody;
     const { stageInfo, sceneOutlines, language, availableAvatars, courseContext } = body;
@@ -100,14 +101,18 @@ export async function POST(req: NextRequest) {
 Course name: ${stageInfo.name}
 ${stageInfo.description ? `Course description: ${stageInfo.description}` : ''}
 ${sceneSummary ? `\nScene outlines:\n${sceneSummary}\n` : ''}
-${courseContext ? `\nCourse personalization context:
+${
+  courseContext
+    ? `\nCourse personalization context:
 - name: ${courseContext.name || ''}
 - description: ${courseContext.description || ''}
 - tags: ${(courseContext.tags || []).join(', ')}
 - purpose: ${courseContext.purpose || ''}
 - university: ${courseContext.university || ''}
 - courseCode: ${courseContext.courseCode || ''}
-- language: ${courseContext.language || ''}` : ''}
+- language: ${courseContext.language || ''}`
+    : ''
+}
 Requirements:
 - Decide the appropriate number of agents based on the course content (typically 3-5)
 - Exactly 1 agent must have role "teacher", the rest can be "assistant" or "student"
@@ -216,3 +221,5 @@ Return a JSON object with this exact structure:
     return apiError('INTERNAL_ERROR', 500, error instanceof Error ? error.message : String(error));
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

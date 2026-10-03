@@ -13,6 +13,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { ProblemImageEditor } from './problem-image-editor';
+import type { NotebookProblemImageAsset } from '@/lib/problem-bank';
 
 type Locale = 'zh-CN' | 'en-US';
 
@@ -222,7 +224,7 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
       : [];
     draft.secretJudge = secretJudge;
     publicContent.secretConfigPresent = Boolean(secretJudge.secretTestCode || secretTests.length);
-    grading.publishRequirementsMet = false;
+    grading.referenceVerified = false;
   } else {
     delete draft.secretJudge;
   }
@@ -257,6 +259,7 @@ export function ProblemDraftForm({
   );
   const [saveErrors, setSaveErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [processingImages, setProcessingImages] = useState(false);
 
   const normalizedDraft = useMemo(() => normalizeDraftForValidation(workingDraft), [workingDraft]);
   const liveErrors = useMemo(
@@ -338,6 +341,7 @@ export function ProblemDraftForm({
     const content: Record<string, unknown> = {
       type,
       stem: typeof publicContent.stem === 'string' ? publicContent.stem : '',
+      assets: publicContent.assets,
     };
     const nextGrading: Record<string, unknown> = { type };
     if (type === 'choice') {
@@ -361,7 +365,7 @@ export function ProblemDraftForm({
       content.constraints = [];
       content.sampleIO = [];
       content.secretConfigPresent = false;
-      nextGrading.publishRequirementsMet = false;
+      nextGrading.referenceVerified = false;
     }
     setWorkingDraft((prev) => ({
       ...prev,
@@ -375,7 +379,7 @@ export function ProblemDraftForm({
   };
 
   const handleSave = async () => {
-    if (saving) return;
+    if (saving || processingImages) return;
     const parsed = notebookProblemImportDraftSchema.safeParse(normalizedDraft);
     if (!parsed.success) {
       setSaveErrors(formatDraftValidationErrors(normalizedDraft));
@@ -402,7 +406,7 @@ export function ProblemDraftForm({
     >
       {!formId ? (
         <div className="flex justify-end">
-          <Button type="button" onClick={handleSave} disabled={saving}>
+          <Button type="button" onClick={handleSave} disabled={saving || processingImages}>
             {saveLabel || (locale === 'zh-CN' ? '保存表单草稿' : 'Save form draft')}
           </Button>
         </div>
@@ -446,7 +450,7 @@ export function ProblemDraftForm({
               <select
                 aria-label={locale === 'zh-CN' ? '题型' : 'Problem type'}
                 value={currentType}
-                disabled={!allowTypeChange}
+                disabled={!allowTypeChange || processingImages}
                 onChange={(event) => changeType(event.target.value as NotebookProblemType)}
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm"
               >
@@ -468,23 +472,6 @@ export function ProblemDraftForm({
                         ][index]}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label className="space-y-1 text-xs font-medium">
-              {locale === 'zh-CN' ? '保存状态' : 'Save as'}
-              <select
-                aria-label={locale === 'zh-CN' ? '保存状态' : 'Save as'}
-                value={String(workingDraft.status)}
-                onChange={(event) => updateRoot('status', event.target.value)}
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-              >
-                {workingDraft.status === 'archived' ? (
-                  <option value="archived">{locale === 'zh-CN' ? '已归档' : 'Archived'}</option>
-                ) : null}
-                <option value="draft">{locale === 'zh-CN' ? '草稿' : 'Draft'}</option>
-                <option value="published">
-                  {locale === 'zh-CN' ? '校验后发布' : 'Publish after validation'}
-                </option>
               </select>
             </label>
           </div>
@@ -540,6 +527,16 @@ export function ProblemDraftForm({
           {basicInfoSlot}
         </TabsContent>
         <TabsContent value="statement" className="space-y-4">
+          <ProblemImageEditor
+            images={
+              (publicContent.assets as { images?: NotebookProblemImageAsset[] } | undefined)
+                ?.images || []
+            }
+            locale={locale}
+            disabled={saving}
+            onBusyChange={setProcessingImages}
+            onChange={(images) => updatePublicContent('assets', { images })}
+          />
           {currentType === 'short_answer' ||
           currentType === 'proof' ||
           currentType === 'calculation' ||
@@ -611,8 +608,8 @@ export function ProblemDraftForm({
         <TabsContent value="examples" className="space-y-4">
           <p className="text-xs text-muted-foreground">
             {locale === 'zh-CN'
-              ? '至少填写一个可执行的输入示例及预期输出；发布前会用参考实现验证。'
-              : 'Provide executable sample input and expected output. Samples are checked against the reference implementation before publishing.'}
+              ? '至少填写一个可执行的输入示例及预期输出；保存时会用参考实现验证。'
+              : 'Provide executable sample input and expected output. Samples are checked against the reference implementation when saving.'}
           </p>
           {samples.map((sample, index) => (
             <fieldset key={index} className="space-y-2 rounded-xl border p-3">

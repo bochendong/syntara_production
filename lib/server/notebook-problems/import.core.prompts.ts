@@ -54,7 +54,7 @@ export function directLlmProblemImportPrompt(args: {
 硬性要求：
 - 由你直接决定题目边界；不要照抄 Source Package 里的 roleHint 或本地 heuristic 结论。
 - 必须保留 PDF 原文语言：英文题继续输出英文，中文题继续输出中文；不要翻译、改写成另一种语言或把示例里的中文套进题面。
-- publicContent.stem（填空题使用 stemTemplate）是可直接作答的学生题面。保持考点、认知要求和大致难度，但允许为了适配平台而改写输入输出接口和题型；不要翻译或随意扩展知识点。
+- publicContent.stem（填空题使用 stemTemplate）是可直接作答的学生题面。忠实转写原题的条件、数据、单位、小问和作答要求；不要翻译、改写题型、扩展知识点或补入原题没有的条件。
 - 默认按顶层题号组织题目；但表格中的每一行、逐项代码追踪或其他彼此独立作答且独立计分的重复单元，应分别建立 structurePlan 条目和 draft。共享材料复制到每道拆出的题中。
 - 不要输出封面、考试说明、空白页、additional work。
 - drafts 数量必须等于 structurePlan.topLevelProblems 数量，顺序一致。
@@ -65,7 +65,6 @@ export function directLlmProblemImportPrompt(args: {
 - 保持原题的作答方式与认知要求；代码输出预测、报错判断属于 code_reading，可按原题使用 choice、fill_blank 或 short_answer。只有原交互无法稳定展示或评分时才适配题型。
 - choice 填 correctOptionIds；calculation 填 referenceAnswer、至少一个仅含最终结果的 acceptedForms，并在适用时填 tolerance/unit；short_answer 填 referenceAnswer/rubric/rubricCriteria；proof 填 referenceProof/rubric/rubricCriteria；fill_blank 为每个 blank 填 answerKind、acceptedAnswers 与 matcher。
 - code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
-- code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
 - sourceMeta.adaptation 使用 {"status":"exact|adapted","originalKind":"...","deliveryType":"...","changes":[],"preservedObjectives":[]} 记录转换。不能保持考点和难度时，选择更合适的非代码题型，不要生成平台无法判分的题。
 - 填空题使用 publicContent.stemTemplate，并用 {{blank_id}} 标记每个空；publicContent.blanks 与 grading.blanks 的 id 必须一一对应。
 - 所有模型推导答案都在 sourceMeta.answerSource 写 "llm-solved"；如果确实无法可靠求解，保留题目并在 validationErrors 明确标记，不得伪造答案。
@@ -73,8 +72,8 @@ export function directLlmProblemImportPrompt(args: {
 - 分段函数、矩阵、长积分、长极限等使用独立 $$...$$；行内短公式使用 $...$。
 - 不要把一条公式拆成多个相邻的 $...$ 片段；分段函数必须写成一个完整块，例如 $$f(x)=\\begin{cases} ... \\end{cases}$$。
 - 不要把普通文字放进数学 delimiter；只包数学表达式本身。
-- 如果图形/图表题的视觉信息无法完整转写，可以保留可读文本并在 visualRefs / validationErrors 标注，但不要因为图形存在就放弃整题。
-- 图像题不要伪造图片 URL；只在 sourceMeta.structure.visualRefs 写清依赖的 Figure/Graph/Diagram 和页码，系统会把对应页面图像挂到 publicContent.assets.images。
+- 题目依赖的图、曲线、结构式、电路、截图或图片表格必须保留为原图：不要用文字、坐标列表或自编数据替代，也不要因为图形存在就放弃整题。
+- 图像题不要伪造图片 URL。在 sourceMeta.figureRefs 中逐项登记依赖的原图，格式见“来源忠实契约”；系统会从原页裁出这些区域挂到题目上。
 
 ${formattingContract}
 
@@ -114,7 +113,7 @@ Return shape:
 Hard requirements:
 - You decide the problem boundaries directly; do not copy local roleHint or heuristic conclusions.
 - Preserve the PDF's original language: English questions must remain English and Chinese questions must remain Chinese. Do not translate or localize stems, titles, options, or subparts.
-- publicContent.stem (or stemTemplate for fill blanks) is a directly answerable student prompt. Preserve the objective, cognitive demand, and approximate difficulty, but adapt interfaces and delivery type when required by platform capabilities. Do not translate or introduce unrelated concepts.
+- publicContent.stem (or stemTemplate for fill blanks) is a directly answerable student prompt. Faithfully transcribe the givens, data, units, subparts, and response requirements. Do not translate, change the response mode, add concepts, or add givens that the source does not state.
 - Organize by top-level question by default. However, split independently answered and independently scored repeated units—such as table rows or code-tracing rows—into separate structure items and drafts, copying shared context into each.
 - Do not output covers, instructions, blank pages, or additional-work pages.
 - drafts count must equal structurePlan.topLevelProblems count, in the same order.
@@ -133,7 +132,7 @@ Hard requirements:
 - Use $$...$$ for cases, matrices, long integrals, and long limits; use $...$ for short inline formulas.
 - Do not split one formula into many adjacent $...$ fragments. A piecewise function must be one complete display block, e.g. $$f(x)=\\begin{cases} ... \\end{cases}$$.
 - Do not put ordinary prose inside math delimiters; wrap only mathematical expressions.
-- For image/graph/diagram questions, do not invent image URLs. Record the needed Figure/Graph/Diagram in sourceMeta.structure.visualRefs with page anchors; the system will attach source page images to publicContent.assets.images.
+- For image/graph/diagram questions, do not invent image URLs. Register every source figure the problem depends on in sourceMeta.figureRefs (see the source fidelity contract); the system crops those regions from the original page and attaches them. Never replace a figure with prose, coordinate lists, or invented data.
 
 ${formattingContract}
 
@@ -142,9 +141,10 @@ ${compactSource}`;
 }
 
 export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): string {
-  const delivery = `DELIVERY CHECKS: Keep Markdown table rows and code fences intact, with original newlines and indentation. Put {{blank_id}} markers inside the appropriate table cell or fenced code; never split a code fence around a blank. Code completion blanks use answerKind=code_token. Every code problem MUST include at least two sampleIO entries (normal and boundary): input is a self-contained executable Python expression against solutionCode, output is the expected Python repr, explanation describes behavior. Preserve source examples. Never expose hidden tests. Samples are executed and mismatches block publishing.\n`;
+  const delivery = `DELIVERY CHECKS: Keep Markdown table rows and code fences intact, with original newlines and indentation. Put {{blank_id}} markers inside the appropriate table cell or fenced code; never split a code fence around a blank. Code completion blanks use answerKind=code_token. Every code problem MUST include at least two sampleIO entries (normal and boundary): input is a self-contained executable Python expression against solutionCode, output is the expected Python repr, explanation describes behavior. Preserve source examples. Never expose hidden tests. Samples are executed and mismatches are reported as validation errors.\n`;
   return (
     delivery +
+    sourceFidelityContract(language) +
     (language === 'zh-CN'
       ? String.raw`Syntara 题库交付协议 v1（科目无关）：
 - 编程题必须有至少 2 个 publicContent.sampleIO（正常与边界示例），input 是对参考实现可直接执行的单行 Python 表达式，output 是对应返回值的 Python repr，explanation 解释行为。保留原文示例，补充的示例必须符合题意，不得把隐藏测试泄露到示例。平台执行全部示例验证，不允许留空或只写 examples 标题。
@@ -162,7 +162,7 @@ export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): stri
 - 行内函数名、变量名、文件名和代码片段使用反引号，例如 \`len(items)\`。代码块和行内代码内部绝不能插入数学定界符。
 - 只有数学表达式使用 LaTeX：短公式使用 $...$；矩阵、分段函数、长积分、长极限和多行推导使用独立 $$...$$。不要把普通文字或程序代码放进 $...$。
 - 题目必须脱离原 PDF 独立作答。共享材料复制到依赖它的题目；不能只写“见上表”“见图”“如上”或 “Table I”。
-- 优先考虑选择题，尤其是原作答方式在平台上难以清楚展示或稳定评分时。只有能用可信的典型错误作为干扰项、仍考查同一知识和推理、且不明显降低难度时才使用选择题；若改变了原作答方式，在 sourceMeta.adaptation 记录原因。不要机械保留难以作答的简答题，也不要机械地把所有题改成选择题。编写代码、证明、推导和多步计算若会变成辨认答案，应保留开放作答；若平台仍无法交付，在 validationErrors 标记障碍。缺失作答条件的题不能靠提供选项补救。
+- 保持原题的作答方式：原题是选择题才生成选择题；原题要求计算、证明、推导、解释或作图时保持开放作答，不得为了便于评分改成选择题或降低要求。平台支持学生上传图片作答，作图题直接要求学生提交所画的图。缺失作答条件的题不能靠提供选项补救。
 
 题型交付契约：
 - choice：publicContent.responseKind="choice"，taskKind 根据实际任务填写，selectionMode 为 single 或 multiple；options 是 2-12 个 {id,label,format:"syntara-markdown-inline-v1"}。stem 不得重复选项；label 必须是完整 Markdown 选项，不能只写 A/B/C。grading.graderKind="exact_choice"，correctOptionIds 必须引用真实选项；单选恰好一个正确答案。干扰项应对应可信的常见错误，不得随机编造。
@@ -172,7 +172,6 @@ export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): stri
 - proof：publicContent.taskKind="proof"、responseKind="long_text"。题面明确给出已知条件与证明目标。grading.graderKind="rubric"，必须给 referenceProof 和 rubricCriteria；每个 criterion 是独立可核验的得分点，criteria 总分等于题目 points。
 - code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
 
-- code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
 
 编译流程要求：
 - 先识别材料角色和可独立评分单元，再选择 taskKind、responseKind、graderKind，最后填充对应 schema。
@@ -184,7 +183,7 @@ export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): stri
 - Separate taskKind (concept, code_reading, calculation, proof, implementation), responseKind, and graderKind. Code tracing/output/error diagnosis is code_reading; only implementation tasks use implementation/code_submission.
 - Add contractVersion="syntara.problem.v1" and statementFormat="syntara-markdown-v1" to publicContent. Add the matching taskKind/responseKind and graderKind.
 - The stem is final student-facing Markdown, not OCR, metadata, an answer, or prompt commentary. Use paragraphs, Markdown lists, GFM tables, and language-labelled fenced code blocks according to meaning. Use backticks for identifiers. Never add math delimiters inside code. Use $...$ only for inline math and $$...$$ for standalone/structured math.
-- Prefer multiple choice when plausible misconception-based distractors still test the same knowledge and reasoning without materially reducing difficulty, especially if the original interaction is hard to display or grade reliably. Record changes to the original response demand in sourceMeta.adaptation. Do not mechanically preserve an unsuitable short-answer interaction or mechanically turn every problem into a choice question. Keep coding, proof, derivation, and multi-step calculation open-ended when choices would reduce them to answer recognition; report any remaining delivery obstacle in validationErrors. Options cannot repair missing givens.
+- Preserve the source response mode: only produce choice when the source is multiple choice. Keep calculation, proof, derivation, explanation, and drawing tasks open-ended; never convert them into choices or weaker tasks for easier grading. Students can upload photos, so drawing tasks ask for the drawn figure itself. Options cannot repair missing givens.
 - choice: responseKind="choice", 2-12 complete Markdown options, valid single/multiple mode, graderKind="exact_choice", and correctOptionIds referencing existing options. Distractors must represent plausible misconceptions.
 - fill_blank: use one {{blank_id}} marker per public blank; answerKind is text|number|math_expression|code_token. The grading blank IDs must match exactly and use matcher exact|normalized_exact|numeric_tolerance with acceptedAnswers and optional tolerance.
 - calculation is only for final-result auto-matching: taskKind="calculation", responseKind="math_expression", showWork=false, graderKind="numeric_or_exact", referenceAnswer, final-only acceptedForms, and applicable tolerance/relativeTolerance/unit. If solution steps earn credit, use short_answer + taskKind="calculation" + graderKind="rubric" + rubricCriteria so the student can submit the full derivation.
@@ -218,13 +217,13 @@ ${problemStemFormattingContract(language)}
 - title 必须是简洁、稳定、概念导向的题目名，优先概括知识点与任务，不要直接复制整句题面，不要把公式原样塞进 title
 - tags 必须保持为空数组，不要输出 tagPaths、知识标签或知识树分类；章节归档由老师建立章节后单独完成
 - 每道题的 publicContent 必须能独立作答；不要只写“见上表 / 见图 / front page / Table I / Diagram II”
-- 按材料语义选择 stem 表达方式：枚举/步骤/条件用列表；数据矩阵/表格/真值表用 markdown 表格；代码用 fenced code block；图形/流程/关系图用可读的节点、边、状态、箭头或邻接关系列表
+- 按材料语义选择 stem 表达方式：枚举/步骤/条件用列表；文字数据表/真值表用 markdown 表格；代码用 fenced code block；图形、曲线、结构式、流程图和关系图保留原图并登记到 sourceMeta.figureRefs，不得改写成文字描述
 - 共享上下文必须复制进依赖它的题目，或整理成该题开头的“背景/材料/数据/定义”块
 - choice 题必须拆出 publicContent.options 与 grading.correctOptionIds
 - publicContent.options 必须是数组，形如 [{"id":"A","label":"完整选项文本"}, ...]；label 必须是完整可作答的选项内容，绝不能只写 "A" / "B" / "C" 这样的字母
 - 每一道题都必须生成评分答案，并在 sourceMeta.answerSource 写 "llm-solved"；不要把学生作答、勾选、分数或教师批注当作权威答案，必须根据题面独立求解
 - choice 使用 correctOptionIds；calculation 使用 referenceAnswer、至少一个只包含最终结果的 acceptedForms，以及适用的 tolerance/unit；short_answer 使用 referenceAnswer/rubric/rubricCriteria；proof 使用 referenceProof/rubric/rubricCriteria，且 criteria 总分必须等于题目 points
-- 保持原题的作答方式与认知要求；只有原交互无法稳定展示或评分时才适配题型
+- 保持原题的作答方式与认知要求；不得把作图、推导或解释题降级为选择题或“文字描述即可”
 - code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
 - fill_blank 使用 stemTemplate，并以 {{blank_id}} 标出空位；publicContent.blanks 与 grading.blanks 的 id 一一对应，每个 blank 都必须有 answerKind、acceptedAnswers 和 matcher
 - 题干缺少图表或前文等关键上下文、无法可靠解答时，在 validationErrors 写清原因；不得使用第一个选项作为伪造答案
@@ -256,13 +255,13 @@ Requirements:
 - title must be concise, concept-focused, and stable; summarize the topic/task instead of copying the whole stem, and avoid dumping raw formulas into the title
 - keep tags as an empty array; do not output tagPaths, knowledge tags, or taxonomy categories because chapter filing happens separately after the teacher creates chapters
 - every publicContent item must be independently answerable; do not leave references like "see above", "front page", "Table I", or "Diagram II" without the referenced content
-- choose the stem representation by material semantics: enumerations, steps, and conditions become lists; data matrices, tables, and truth tables become markdown tables; code becomes fenced code blocks; diagrams, flows, and relationship graphs become readable node/edge/state/arrow/adjacency lists
+- choose the stem representation by material semantics: enumerations, steps, and conditions become lists; textual data tables and truth tables become markdown tables; code becomes fenced code blocks; graphs, curves, chemical structures, flows, and relationship diagrams stay as the original figure registered in sourceMeta.figureRefs and must not be rewritten as prose
 - shared context must be copied into every problem that depends on it, or rewritten as a Background / Material / Data / Definitions block at the start of that stem
 - choice problems must include publicContent.options and grading.correctOptionIds
 - publicContent.options must be an array like [{"id":"A","label":"full option text"}, ...]; label must be the complete answer choice text and must never be only "A" / "B" / "C" / the option id
 - every problem must include grading answers and sourceMeta.answerSource="llm-solved"; do not treat student handwriting, selected bubbles, scores, or grader comments as authoritative answers; solve from the problem statement independently
 - choice uses correctOptionIds; calculation uses referenceAnswer, at least one acceptedForms entry containing only the final result, and tolerance/unit when applicable; short_answer uses referenceAnswer/rubric/rubricCriteria; proof uses referenceProof/rubric/rubricCriteria, and criteria points must sum to the problem points
-- preserve the original response demand and cognitive load; adapt the type only when the source interaction cannot be rendered or graded reliably
+- preserve the original response demand and cognitive load; never downgrade drawing, derivation, or explanation tasks into choice questions or "a description is enough"
 - Code supports function and class implementations, including regex used inside functions. Generate publicContent.starterCode (imports, interface, docstrings), grading.solutionCode, publicContent.publicTestCode and secretJudge.secretTestCode together. Both test fields are complete Python unittest source strings with at least 2 public and 3 secret test_ methods. The platform saves the complete submission as submission.py. AI writes import unittest and from submission import the_interface_name in tests, matching starter and solution interfaces; AI includes re/typing imports in each file that uses them. Test object state, method sequences, exceptions and return values. Do not generate expression/expected arrays, pytest, third-party dependencies, empty tests, skips or expected failures. The reference must pass all tests; tests must reject the unimplemented starter. Cover valid, invalid and boundary examples.
 - fill_blank uses stemTemplate with a {{blank_id}} marker for each blank; publicContent.blanks and grading.blanks must have matching IDs and every blank must include answerKind, acceptedAnswers, and matcher
 - if critical context is missing and the answer cannot be solved reliably, explain it in validationErrors; never use the first option as a fabricated answer
@@ -273,4 +272,45 @@ Requirements:
 - do not emit bare math, Unicode math symbols, or plain-text math commands; for example, never write "A ⊆ X", "leq", "subseteq", or "f: X → Y"; write "$A \\subseteq X$", "$\\leq$", "$\\subseteq$", and "$f: X \\to Y$"
 - do not wrap LaTeX math in additional ordinary prose parentheses
 - if a problem cannot be solved reliably, explain why in validationErrors instead of inventing an answer`;
+}
+
+/**
+ * Rules that keep imported problems faithful to the uploaded source. The figure and
+ * prompt-status fields are consumed by import.figures.ts and import.quality-gates.ts,
+ * so their names and shapes must stay in sync with those modules.
+ */
+export function sourceFidelityContract(language: 'zh-CN' | 'en-US'): string {
+  return language === 'zh-CN'
+    ? String.raw`来源忠实契约（优先于其他改编规则）：
+- 你是转写者，不是出题者。只导入原页上真实印刷/打字的题目。题干必须能回到原页逐句对照。
+- sourceMeta.promptStatus 必填："present"（原页有完整题干）、"solution_only"（只有解答/手写计算/答案曲线而没有题干）、"incomplete"（题干存在但共享条件、前文、图或表缺失）。solution_only 的页面不要反推题目；不能用答案、选项或自编数据补条件。
+- sourceMeta.sourceQuote 必填：原题开头 8-30 个字的原文摘录，用于回查。
+- sourceMeta.figureRefs：题目作答依赖的每一张原图各一项 {"label":"图1","pageNumber":6,"description":"轴、曲线、标签等可识别特征，不写结论","role":"question|context|option"}。包括图表、曲线、几何图、电路、有机结构式/反应式图、Excel/软件截图、以图片形式出现的表格。若同一原图被多题使用，每题都登记。题干中用“图1、图2”指代，不写来源文件名、页码或“Original figure”。答案卷/讲义常在题目后附解答图（移动后的曲线、阴影区域、标出的最优点、手写批注），这些不是题目条件，绝不能登记；只登记题目印刷给定、学生作答前就应看到的图。没有依赖图时写 []。pageNumber 是文件中的物理页序（文件第一页为 1），不是页脚印刷的页码。
+- 题干不得写出原题要求学生判断或计算的结论（曲线移动方向、最优解、绑定约束、反应产物等），这些只放在 grading。
+- sourceMeta.responseMode："text"（文字/数值作答）或 "student_draws"（原题要求学生画图、画结构、画机理、画树图等）。student_draws 的题干要明确要求提交所画的图（可上传照片），评分中纯文字不能获得作图部分的分数；不要把原题只要求解释的题升级为作图题。
+- 原页模糊、被遮挡、原卷数据互相矛盾或明显笔误时，不要猜测或“修正”：保留原文，并在 validationErrors 写明具体位置和问题。
+- validationErrors 只用于“按现有题面无法作答或无法可靠评分”的阻断问题（缺条件、缺图、原卷矛盾、无法求解）。排版转写说明、来源措辞差异、分值缺失、给出示例答案之类的备注写入 sourceMeta.notes，不要写进 validationErrors。
+- Excel/电子表格公式、单元格地址填写题属于 fill_blank（answerKind=text，matcher=normalized_exact，acceptedAnswers 列出等价写法），不要生成 code 题；code 只用于 Python 函数或类的实现。
+- 多选题（“select all”“选出所有”）设置 selectionMode="multiple"；单选题恰好一个正确选项。
+- 化学式和反应式使用 mhchem：$\ce{H2SO4}$、$\ce{CH3COOH <=> CH3COO- + H+}$；单位可用 $\pu{25 mL}$。物理量与单位用 LaTeX，例如 $v = 3.0\ \mathrm{m/s}$。
+- Markdown 表格单元格内不要使用裸竖线：绝对值写 $\lvert x 
+vert$，条件概率写 $P(A \mid B)$。
+- 货币金额写在数学定界符之外，不要用 $ 或 \$ 作货币符号，沿用原题语言的写法（英文题写 “12 dollars” 或 “USD 12”，中文题写 “12 美元”）；需要公式时写 $p^* = 70$（单位：美元/dollars），不要写 $p^*=\$70$。
+`
+    : String.raw`Source fidelity contract (overrides any adaptation rule):
+- You are a transcriber, not a problem author. Import only problems actually printed/typed on the source pages; every stem must be checkable sentence by sentence against the page.
+- sourceMeta.promptStatus is required: "present" (complete prompt on the page), "solution_only" (only worked solutions, handwritten calculations, or answer curves without a prompt), or "incomplete" (prompt exists but shared givens, earlier context, a figure, or a table is missing). Never reverse-engineer a prompt from a solution, and never fill missing givens from answers, options, or invented data.
+- sourceMeta.sourceQuote is required: an 8-30 word verbatim excerpt of the source prompt opening.
+- sourceMeta.figureRefs: one entry per source figure the problem needs, {"label":"Figure 1","pageNumber":6,"description":"identifiable features such as axes, curves, labels — no conclusions","role":"question|context|option"}. Include charts, curves, geometry, circuits, chemical structures/reaction schemes, spreadsheet/software screenshots, and tables that appear as images. Register a shared figure on every problem that uses it. Refer to figures as Figure 1/Figure 2 in the stem; never mention source filenames, page numbers, or "Original figure". Answer keys often place solution graphs after a question (shifted curves, shaded answer regions, marked optimal points, handwritten work); never register those, only figures printed as givens that students should see before answering. Use [] when no figure is needed. pageNumber is the physical page index in the file (first page = 1), not the printed page label.
+- Never state in the stem a result the source asks students to determine (shift directions, optimal solutions, binding constraints, reaction products); those belong in grading only.
+- sourceMeta.responseMode: "text" or "student_draws" (the source asks students to draw a graph, structure, mechanism, tree, etc.). For student_draws, the stem asks for the drawn figure (photo upload is allowed) and text alone cannot earn the drawing credit. Do not upgrade explanation-only prompts into drawing tasks.
+- If the source is blurry, covered, self-contradictory, or contains an evident typo, do not guess or "fix" it: keep the original and describe the exact location and issue in validationErrors.
+- Use validationErrors only for blocking problems that make the problem unanswerable or ungradable as written (missing givens or figures, contradictory source, unsolvable). Put transcription notes, wording differences, missing point values, or example-answer remarks in sourceMeta.notes instead.
+- Spreadsheet/Excel formula and cell-reference questions are fill_blank (answerKind=text, matcher=normalized_exact, acceptedAnswers listing equivalent forms), never code; code is only for Python function or class implementations.
+- "Select all" questions use selectionMode="multiple"; single-answer questions have exactly one correct option.
+- Write chemical formulas and equations with mhchem: $\ce{H2SO4}$, $\ce{CH3COOH <=> CH3COO- + H+}$; units may use $\pu{25 mL}$. Write physical quantities with LaTeX units, e.g. $v = 3.0\ \mathrm{m/s}$.
+- Never put a bare vertical bar inside a Markdown table cell: write $\lvert x 
+vert$ for absolute values and $P(A \mid B)$ for conditional probability.
+- Keep money outside math delimiters and never use $ or \$ as a currency sign; follow the source language ("12 dollars" or "USD 12" in English stems, "12 美元" in Chinese stems). When a formula is needed write $p^* = 70$ (in dollars), never $p^*=\$70$.
+`;
 }

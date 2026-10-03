@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import type { UserContent } from 'ai';
@@ -118,7 +119,7 @@ JSON shape:
 }`;
 }
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   return runWithRequestContext(
     request,
     '/api/syllabus/parse',
@@ -219,3 +220,5 @@ export async function POST(request: NextRequest) {
     },
   );
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

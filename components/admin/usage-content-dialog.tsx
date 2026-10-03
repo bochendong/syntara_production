@@ -10,6 +10,7 @@ import {
   DialogDescription,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { UsageContentBody } from '@/components/admin/usage-content-body';
 import { backendJson } from '@/lib/utils/backend-api';
 
 type Detail = { id: string; requestContent: string | null; responseContent: string | null };
@@ -22,6 +23,8 @@ export function UsageContentDialog({ id, model }: { id: string; model: string })
   useEffect(() => {
     if (!open) return;
     let active = true;
+    setDetail(null);
+    setError('');
     void backendJson<{ row: Detail }>(`/api/admin/llm-usage/${encodeURIComponent(id)}`)
       .then(({ row }) => {
         if (active) setDetail(row);
@@ -37,11 +40,7 @@ export function UsageContentDialog({ id, model }: { id: string; model: string })
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => {
-        setDetail(null);
-        setError('');
-        setOpen(next);
-      }}
+      onOpenChange={setOpen}
     >
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm">
@@ -55,7 +54,7 @@ export function UsageContentDialog({ id, model }: { id: string; model: string })
             {model} · 记录 {id}
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-[65vh] space-y-5 overflow-y-auto">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto">
           {error ? (
             <div role="alert">
               {error}
@@ -77,16 +76,21 @@ export function UsageContentDialog({ id, model }: { id: string; model: string })
               <p className="text-xs text-muted-foreground">
                 展示本次调用保存的输入和输出。敏感字段和二进制媒体不保存；超长内容会标注截断。
               </p>
-              {(['requestContent', 'responseContent'] as const).map((key) => (
-                <section key={key}>
-                  <h3 className="mb-2 font-medium">
-                    {key === 'requestContent' ? '输入内容' : '输出内容'}
-                  </h3>
-                  <pre className="whitespace-pre-wrap break-words rounded-lg border bg-muted/30 p-4 font-mono text-xs">
-                    {detail[key] ?? '当时未记录此内容，无法追溯。'}
-                  </pre>
-                </section>
-              ))}
+              {(['requestContent', 'responseContent'] as const).map((key) => {
+                const text = detail[key];
+                return (
+                  <section key={key}>
+                    <h3 className="mb-2 font-medium">
+                      {key === 'requestContent' ? '输入内容' : '输出内容'}
+                    </h3>
+                    {text ? (
+                      <UsageContentBody text={text} />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">当时未记录此内容，无法追溯。</p>
+                    )}
+                  </section>
+                );
+              })}
             </>
           )}
         </div>

@@ -148,12 +148,6 @@ enum NotebookProblemType {
   fill_blank
 }
 
-enum NotebookProblemStatus {
-  draft
-  published
-  archived
-}
-
 enum NotebookProblemSource {
   chat
   pdf
@@ -214,6 +208,7 @@ model User {
   llmPromptLogs             LLMPromptLog[]
   creditTransactions        CreditTransaction[]
   cloudUsageLimit           CloudUsageUserLimit?
+  cloudUsageQuotaReset      CloudUsageQuotaReset?
   cloudUsageCostLogs        CloudUsageCostLog[]
   coursePurchases           CoursePurchase[]
   courseEnrollments         CourseEnrollment[]
@@ -363,7 +358,6 @@ model Course {
   notebookCount         Int                 @default(0)
   sceneCount            Int                 @default(0)
   problemCount          Int                 @default(0)
-  publishedProblemCount Int                 @default(0)
   speechReadyCount      Int                 @default(0)
   speechTotalCount      Int                 @default(0)
 
@@ -510,7 +504,6 @@ model Notebook {
   sceneCount            Int          @default(0)
   sectionCount          Int          @default(0)
   problemCount          Int          @default(0)
-  publishedProblemCount Int          @default(0)
   speechReadyCount      Int          @default(0)
   speechTotalCount      Int          @default(0)
   speechStatus          String       @default("no_speech")
@@ -699,7 +692,6 @@ model NotebookProblem {
   chapterId         String?
   title             String
   type              NotebookProblemType
-  status            NotebookProblemStatus     @default(draft)
   source            NotebookProblemSource     @default(manual)
   order             Int
   problemNumber     Int?
@@ -727,7 +719,6 @@ model NotebookProblem {
   @@index([courseId, order])
   @@index([courseId, problemNumber])
   @@index([courseId, chapterId, problemNumber])
-  @@index([courseId, status, order])
   @@index([courseId, updatedAt(sort: Desc)])
   @@index([notebookId, order])
   @@index([notebookId, problemNumber])
@@ -1950,5 +1941,28 @@ model BackgroundJobStep {
   key String
   result Bytes
   job BackgroundJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
   @@id([jobId, key])
+}
+
+model AiFailureRecord {
+  id                        String             @id
+  data      Json
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)], map: "AiFailureRecord_createdAt_idx")
+}
+
+model CloudUsageRoleLimit {
+  role               String   @id
+  weeklyCostLimitUsd Decimal? @db.Decimal(12, 6)
+  updatedBy          String?
+  updatedAt          DateTime @default(now())
+}
+
+model CloudUsageQuotaReset {
+  userId    String   @id
+  resetAt   DateTime @default(now())
+  updatedBy String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

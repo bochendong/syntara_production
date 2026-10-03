@@ -143,9 +143,8 @@ async function refreshNotebookSummaries(prisma, materializePages) {
   let updated = 0;
   for (const notebook of notebooks) {
     const summary = summarizeScenes(notebook.scenes);
-    const [problemCount, publishedProblemCount] = await Promise.all([
+    const [problemCount] = await Promise.all([
       prisma.notebookProblem.count({ where: { notebookId: notebook.id } }),
-      prisma.notebookProblem.count({ where: { notebookId: notebook.id, status: 'published' } }),
     ]);
 
     await prisma.notebook.update({
@@ -153,7 +152,7 @@ async function refreshNotebookSummaries(prisma, materializePages) {
       data: {
         sceneCount: summary.sceneCount,
         problemCount,
-        publishedProblemCount,
+
         speechReadyCount: summary.speechReadyCount,
         speechTotalCount: summary.speechTotalCount,
         speechStatus: summary.speechStatus,
@@ -214,15 +213,9 @@ async function refreshCourseSummaries(prisma) {
         speechTotalCount: true,
       },
     });
-    const [problemCount, publishedProblemCount] = await Promise.all([
+    const [problemCount] = await Promise.all([
       prisma.notebookProblem.count({
         where: { OR: [{ courseId: course.id }, { notebook: { courseId: course.id } }] },
-      }),
-      prisma.notebookProblem.count({
-        where: {
-          status: 'published',
-          OR: [{ courseId: course.id }, { notebook: { courseId: course.id } }],
-        },
       }),
     ]);
     await prisma.course.update({
@@ -231,7 +224,7 @@ async function refreshCourseSummaries(prisma) {
         notebookCount: notebookAggregate._count._all,
         sceneCount: notebookAggregate._sum.sceneCount ?? 0,
         problemCount,
-        publishedProblemCount,
+
         speechReadyCount: notebookAggregate._sum.speechReadyCount ?? 0,
         speechTotalCount: notebookAggregate._sum.speechTotalCount ?? 0,
       },

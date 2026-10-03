@@ -265,7 +265,6 @@ export function practiceProblemMatchScore(
   if (status === 'failed' || status === 'partial' || status === 'error') score += 8;
   if (!status) score += 3;
   if (status === 'passed') score -= 4;
-  if (problem.status === 'published') score += 1;
   return score;
 }
 

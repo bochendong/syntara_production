@@ -96,7 +96,7 @@ export async function loadTrustedCourseLearningProgress(args: {
       select: { valueJson: true },
     }),
     args.prisma.notebook.findMany({
-      where: { courseId: args.courseId },
+      where: { courseId: args.courseId, removedAt: null },
       select: { id: true, name: true, createdAt: true, coverSlideJson: true },
     }),
   ]);

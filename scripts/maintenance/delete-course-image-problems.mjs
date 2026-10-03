@@ -73,13 +73,10 @@ function imageHits(value, pathParts = [], output = []) {
 
 async function refreshNotebookProblemSummaryFields(tx, notebookIds) {
   for (const notebookId of notebookIds) {
-    const [problemCount, publishedProblemCount] = await Promise.all([
-      tx.notebookProblem.count({ where: { notebookId } }),
-      tx.notebookProblem.count({ where: { notebookId, status: 'published' } }),
-    ]);
+    const [problemCount] = await Promise.all([tx.notebookProblem.count({ where: { notebookId } })]);
     await tx.notebook.updateMany({
       where: { id: notebookId },
-      data: { problemCount, publishedProblemCount },
+      data: { problemCount },
     });
   }
 }
@@ -94,11 +91,8 @@ async function refreshCourseSummaryFields(tx, courseId) {
       speechTotalCount: true,
     },
   });
-  const [problemCount, publishedProblemCount] = await Promise.all([
+  const [problemCount] = await Promise.all([
     tx.notebookProblem.count({ where: { OR: [{ courseId }, { notebook: { courseId } }] } }),
-    tx.notebookProblem.count({
-      where: { status: 'published', OR: [{ courseId }, { notebook: { courseId } }] },
-    }),
   ]);
 
   await tx.course.updateMany({
@@ -107,7 +101,7 @@ async function refreshCourseSummaryFields(tx, courseId) {
       notebookCount: notebookAggregate._count._all,
       sceneCount: notebookAggregate._sum.sceneCount ?? 0,
       problemCount,
-      publishedProblemCount,
+
       speechReadyCount: notebookAggregate._sum.speechReadyCount ?? 0,
       speechTotalCount: notebookAggregate._sum.speechTotalCount ?? 0,
     },
@@ -128,7 +122,6 @@ async function main() {
         name: true,
         courseCode: true,
         problemCount: true,
-        publishedProblemCount: true,
       },
     });
     if (!course) throw new Error(`Course not found: ${courseId}`);
@@ -209,7 +202,7 @@ async function main() {
     const [courseAfter, remainingImageCount, remainingProblemCount] = await Promise.all([
       prisma.course.findUnique({
         where: { id: courseId },
-        select: { id: true, problemCount: true, publishedProblemCount: true },
+        select: { id: true, problemCount: true },
       }),
       prisma.notebookProblem
         .findMany({

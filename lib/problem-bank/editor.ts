@@ -10,7 +10,6 @@ export function problemRecordToDraft(
     notebookId: problem.notebookId ?? null,
     title: problem.title,
     type: problem.type,
-    status: problem.status,
     source: problem.source,
     points: 100,
     tags: [],
@@ -34,7 +33,6 @@ export function problemRecordToDraft(
 export function problemDraftToPatch(draft: NotebookProblemImportDraft) {
   const patch: {
     title: string;
-    status: NotebookProblemImportDraft['status'];
     points: number;
     difficulty: NotebookProblemImportDraft['difficulty'];
     publicContent: NotebookProblemImportDraft['publicContent'];
@@ -42,7 +40,6 @@ export function problemDraftToPatch(draft: NotebookProblemImportDraft) {
     secretJudge?: NotebookProblemImportDraft['secretJudge'] | null;
   } = {
     title: draft.title,
-    status: draft.status,
     points: 100,
     difficulty: draft.difficulty,
     publicContent: draft.publicContent,
@@ -74,7 +71,6 @@ export function createBlankProblemDraft(): NotebookProblemImportDraft {
     draftId: crypto.randomUUID(),
     title: '',
     type: 'short_answer',
-    status: 'draft',
     source: 'manual',
     points: 100,
     tags: [],

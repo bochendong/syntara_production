@@ -1,3 +1,4 @@
+import { parsePhoneNumber } from '@/lib/profile/phone';
 import { courseDisplayCode } from '@/lib/course-space/course-display-name';
 import { encode } from 'next-auth/jwt';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
@@ -38,6 +39,7 @@ export type SpeedupVerifiedIdentity = {
   externalUserId: string;
   name: string;
   image: string | null;
+  phone: string | null;
   role: SpeedupUserRole;
   studentId: string | null;
   teacherId: string | null;
@@ -334,11 +336,25 @@ export async function verifySpeedupCallback(
     ),
   );
 
+  const exchangedPhone = stringValue(
+    exchange,
+    'PhoneNumber',
+    'phoneNumber',
+    'Phone',
+    'phone',
+    'MobilePhone',
+    'mobilePhone',
+    'Mobile',
+    'mobile',
+  );
+  const phone = parsePhoneNumber(exchangedPhone);
+
   return {
     accessToken,
     expiresIn,
     externalUserId,
     name: speedupIdentityName(exchange, role, courses),
+    phone: phone.ok ? phone.value : null,
     image: stringValue(exchange, 'AvatarUrl', 'avatarUrl', 'Avatar', 'avatar', 'Image', 'image'),
     role,
     studentId: stringValue(exchange, 'StudentId', 'studentId'),
@@ -391,9 +407,10 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
         prisma.user.update({
           where: { id: existingAccount.userId },
           data: {
-            // The local profile is authoritative after the account is created.
+            // Preserve the chosen local name; Speedup is authoritative for phone.
             ...(!existingAccount.user.name?.trim() ? { name: identity.name } : {}),
             ...(identity.image ? { image: identity.image } : {}),
+            ...(identity.phone ? { phone: identity.phone } : {}),
             role: identity.role,
             isActive: true,
           },
@@ -405,6 +422,7 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
       user = await prisma.user.create({
         data: {
           name: identity.name,
+          phone: identity.phone,
           image: identity.image,
           role: identity.role,
           isActive: true,

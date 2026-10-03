@@ -302,7 +302,6 @@ export function CourseSpaceHeader({
 
 export function CourseSpaceHeaderContent({
   courseId,
-  courseTitle,
   role,
   active,
   previewMode,
@@ -336,15 +335,8 @@ export function CourseSpaceHeaderContent({
       )}
     >
       <AiActivityLight />
-      <div
-        className={cn(
-          'flex min-w-0 flex-col gap-2',
-          trailingActions || actionTargets
-            ? 'xl:flex-row xl:items-center xl:justify-between'
-            : 'md:flex-row md:items-center md:justify-between',
-        )}
-      >
-        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:flex-nowrap">
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <div className="col-span-2 flex min-w-0 items-center gap-2 lg:col-span-1">
           <button
             type="button"
             onClick={handleBack}
@@ -359,25 +351,20 @@ export function CourseSpaceHeaderContent({
             role={role}
             active={active}
             previewMode={previewMode}
-            className="max-w-[calc(100%-2.5rem)]"
+            className="min-w-0 flex-1 lg:flex-initial"
           />
-          {actions || actionTargets ? (
-            <div
-              ref={actionTargets?.actions}
-              data-course-header-actions
-              className="flex min-w-0 flex-wrap items-center gap-2 empty:hidden xl:flex-nowrap"
-            >
-              {actions}
-            </div>
-          ) : null}
         </div>
+        {actions || actionTargets ? (
+          <div
+            ref={actionTargets?.actions}
+            data-course-header-actions
+            className="col-span-2 flex min-w-0 flex-wrap items-center gap-1 empty:hidden sm:col-span-1"
+          >
+            {actions}
+          </div>
+        ) : null}
 
-        <div
-          className={cn(
-            'flex min-w-0 items-center justify-end gap-2.5 md:ml-auto md:flex-1',
-            (trailingActions || actionTargets) && 'flex-wrap xl:flex-nowrap',
-          )}
-        >
+        <div className="col-span-2 flex min-w-0 items-center justify-end gap-1.5 sm:col-span-1 sm:col-start-2 lg:col-start-3">
           {beforeTitleActions || actionTargets ? (
             <div
               ref={actionTargets?.beforeTitle}
@@ -387,12 +374,6 @@ export function CourseSpaceHeaderContent({
               {beforeTitleActions}
             </div>
           ) : null}
-          <h1
-            className="truncate rounded-lg border border-slate-200/70 bg-white/80 px-2.5 py-1.5 text-xs font-medium tracking-[-0.02em] shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-white/10 dark:bg-white/5"
-            title={courseTitle}
-          >
-            {courseTitle}
-          </h1>
           <NotificationInboxButton />
           <Link
             href={allCoursesHref}

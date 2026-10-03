@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -39,7 +40,7 @@ export async function GET(_request: Request, context: { params: Promise<{ course
   });
 }
 
-export async function POST(request: Request, context: { params: Promise<{ courseId: string }> }) {
+async function auditedPOST(request: Request, context: { params: Promise<{ courseId: string }> }) {
   return safeRoute(async () => {
     const { courseId } = await context.params;
     const access = await requireOwnedCourse(courseId);
@@ -67,3 +68,5 @@ export async function POST(request: Request, context: { params: Promise<{ course
     return NextResponse.json({ storage: 'postgresql', rule }, { status: 201 });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

@@ -21,9 +21,15 @@ export const chatContextSelectionSchema = z
       'student-dashboard',
       'calendar',
     ]),
-    studentId: id.optional(),
-    problemId: id.optional(),
-    attemptId: id.optional(),
+    studentId: id
+      .describe(
+        'Only for an actual enrolled student whose learning records or attempts are requested. Omit for source=problem; never use the teacher/admin user ID or a problem ID here.',
+      )
+      .optional(),
+    problemId: id.describe('Exact problemId returned by the course problem-bank tools.').optional(),
+    attemptId: id
+      .describe('Exact student submission ID; omit when reading only a problem.')
+      .optional(),
     topicId: id.optional(),
     notebookId: id.optional(),
     calendarEventId: id.optional(),

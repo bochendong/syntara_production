@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
@@ -16,7 +17,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 180;
 const MAX_NATIVE_TURN_BODY_BYTES = 2 * 1024 * 1024;
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   const principal = await requireNativePlatformApi(request, requestId);
   if (principal instanceof NextResponse) return principal;
@@ -61,3 +62,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

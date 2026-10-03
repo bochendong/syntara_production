@@ -1,0 +1,9 @@
+CREATE TABLE "CloudUsageRoleLimit" (
+ "role" TEXT PRIMARY KEY CHECK ("role" IN ('TEACHER', 'STUDENT')),
+ "weeklyCostLimitUsd" DECIMAL(12,6), "updatedBy" TEXT,
+ "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "CloudUsageQuotaReset" (
+ "userId" TEXT PRIMARY KEY REFERENCES "User"("id") ON DELETE CASCADE,
+ "resetAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedBy" TEXT
+);

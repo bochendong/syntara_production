@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { callLLM } from '@/lib/ai/llm';
@@ -389,7 +390,7 @@ function isValidReviewRouteText(text: string): boolean {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   const parsedBody = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsedBody.success) {
     return apiError('INVALID_REQUEST', 400, parsedBody.error.message);
@@ -677,3 +678,5 @@ ${reviewHistoryLines}
     );
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

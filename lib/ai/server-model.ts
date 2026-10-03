@@ -1,4 +1,6 @@
 import type { LanguageModel } from 'ai';
+import { createHash } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
@@ -16,6 +18,14 @@ type OpenAIBackgroundResponse = {
   id?: unknown;
   status?: unknown;
   error?: unknown;
+  created_at?: unknown;
+};
+
+export type OpenAIBackgroundResponseOptions = {
+  /** Deadline for this worker invocation, including calls without an SDK timeout. */
+  signal?: AbortSignal;
+  loadResponseId?: (key: string) => string | undefined;
+  saveResponseId?: (key: string, responseId: string) => Promise<void>;
 };
 
 function cloneResponseHeaders(headers: Headers): Headers {
@@ -44,7 +54,9 @@ function isBackgroundPending(payload: OpenAIBackgroundResponse): boolean {
   return payload.status === 'queued' || payload.status === 'in_progress';
 }
 
-function createBackgroundResponsesFetch(): typeof fetch {
+function createBackgroundResponsesFetch(
+  options: OpenAIBackgroundResponseOptions = {},
+): typeof fetch {
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     if (!isOpenAIResponsesCreateRequest(url, init) || typeof init?.body !== 'string') {
@@ -62,38 +74,66 @@ function createBackgroundResponsesFetch(): typeof fetch {
     }
 
     const startedAt = Date.now();
-    const createResponse = await sharedProxyFetch(url, {
-      ...init,
-      body: JSON.stringify({ ...requestBody, background: true, store: true }),
-    });
+    const signal = AbortSignal.any([
+      ...[init.signal, options.signal].filter((value): value is AbortSignal => Boolean(value)),
+      AbortSignal.timeout(OPENAI_BACKGROUND_TIMEOUT_MS),
+    ]);
+    signal.throwIfAborted();
+    const key = `openai-response:${createHash('sha256').update(url).update(init.body).digest('hex')}`;
+    const savedResponseId = options.loadResponseId?.(key);
+    const requestHeaders = new Headers(init.headers);
+    requestHeaders.delete('content-length');
+    requestHeaders.delete('content-type');
+    const responseUrl = (id: string) =>
+      `${url.replace(/\/responses\/?(?:\?.*)?$/, '/responses')}/${encodeURIComponent(id)}`;
+    // A saved response continues generating at OpenAI after this worker stops.
+    // Resume by GET, never by submitting the same paid generation again.
+    const createResponse = savedResponseId
+      ? await sharedProxyFetch(responseUrl(savedResponseId), {
+          method: 'GET',
+          headers: requestHeaders,
+          signal,
+        })
+      : await sharedProxyFetch(url, {
+          ...init,
+          signal,
+          body: JSON.stringify({ ...requestBody, background: true, store: true }),
+        });
     const created = (await createResponse
       .clone()
       .json()
       .catch(() => null)) as OpenAIBackgroundResponse | null;
-    if (!createResponse.ok || !created || !isBackgroundPending(created)) {
+    if (!createResponse.ok || !created) {
       return createResponse;
     }
 
     const responseId = typeof created.id === 'string' ? created.id : '';
     if (!responseId) return createResponse;
-    log.info('OpenAI background response started.', { responseId });
+    if (!savedResponseId) await options.saveResponseId?.(key, responseId);
+    if (!isBackgroundPending(created)) return createResponse;
+    log.info(
+      savedResponseId
+        ? 'OpenAI background response resumed.'
+        : 'OpenAI background response started.',
+      { responseId },
+    );
 
-    const requestHeaders = new Headers(init.headers);
-    requestHeaders.delete('content-length');
-    requestHeaders.delete('content-type');
-    const retrieveUrl = `${url.replace(/\/responses\/?(?:\?.*)?$/, '/responses')}/${encodeURIComponent(responseId)}`;
+    const retrieveUrl = responseUrl(responseId);
+    const responseStartedAt =
+      typeof created.created_at === 'number' ? created.created_at * 1000 : startedAt;
     let lastPayload: OpenAIBackgroundResponse = created;
     let lastResponse = createResponse;
 
     while (
       isBackgroundPending(lastPayload) &&
-      Date.now() - startedAt < OPENAI_BACKGROUND_TIMEOUT_MS
+      Date.now() - responseStartedAt < OPENAI_BACKGROUND_TIMEOUT_MS
     ) {
-      await new Promise((resolve) => setTimeout(resolve, OPENAI_BACKGROUND_POLL_INTERVAL_MS));
+      await delay(OPENAI_BACKGROUND_POLL_INTERVAL_MS, undefined, { signal });
       try {
         const polled = await sharedProxyFetch(retrieveUrl, {
           method: 'GET',
           headers: requestHeaders,
+          signal,
         });
         const payload = (await polled
           .clone()
@@ -103,6 +143,7 @@ function createBackgroundResponsesFetch(): typeof fetch {
         lastResponse = polled;
         lastPayload = payload;
       } catch (error) {
+        signal.throwIfAborted();
         // Polling the existing response is idempotent. A transient proxy failure
         // must not submit the paid generation again; keep polling the same ID.
         log.warn('OpenAI background response poll failed; keeping the same response id.', {
@@ -159,13 +200,19 @@ function createOpenAIProvider(config: ModelConfig, fetchOverride?: typeof fetch)
  * must be sent as Responses API `input_file` parts so the model receives both
  * the PDF text and rendered page images.
  */
-export function getServerOpenAIResponsesModel(config: ModelConfig): ModelWithInfo {
+export function getServerOpenAIResponsesModel(
+  config: ModelConfig,
+  backgroundOptions?: OpenAIBackgroundResponseOptions,
+): ModelWithInfo {
   if (config.providerId !== 'openai' || (config.providerType && config.providerType !== 'openai')) {
     throw new Error('OpenAI Responses models require the native OpenAI provider.');
   }
   const provider = getProvider('openai');
   return {
-    model: createOpenAIProvider(config, createBackgroundResponsesFetch()).responses(config.modelId),
+    model: createOpenAIProvider(
+      config,
+      createBackgroundResponsesFetch(backgroundOptions),
+    ).responses(config.modelId),
     modelInfo: provider?.models.find((model) => model.id === config.modelId) || null,
   };
 }

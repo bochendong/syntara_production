@@ -324,7 +324,6 @@ async function runProblemPromptBuilderFixture(outDir) {
     notebookName: 'CSC108 Code Practice',
     title: 'Longest Wrapped Chain',
     type: 'code',
-    status: 'published',
     source: 'manual',
     order: 1,
     points: 1,

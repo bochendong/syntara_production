@@ -22,6 +22,7 @@ export interface GenerationSessionState {
   currentStep: 'generating' | 'complete';
   // PDF deferred parsing fields
   pdfStorageKey?: string;
+  sourceFileToken?: string;
   pdfFileName?: string;
   sourceFileType?: 'pdf' | 'pptx';
   sourcePageSelection?: PdfSourceSelection;

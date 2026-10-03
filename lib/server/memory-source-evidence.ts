@@ -40,7 +40,6 @@ type ProblemEvidenceRow = {
   notebookName: string | null;
   title: string;
   type: string;
-  status: string;
   tags: string[];
   difficulty: string;
   publicText: string;
@@ -820,7 +819,6 @@ export async function searchProblemSourceEvidence(args: {
           n."name" AS "notebookName",
           p."title",
           p."type"::text AS "type",
-          p."status"::text AS "status",
           p."tags",
           p."difficulty"::text AS "difficulty",
           p."publicContentJson"::text AS "fullPublicText",
@@ -843,8 +841,7 @@ export async function searchProblemSourceEvidence(args: {
           AND ($3::text IS NOT NULL AND progress."userId" = $3)
         LEFT JOIN "NotebookProblemAttempt" latest
           ON latest."id" = progress."latestAttemptId"
-        WHERE p."status" <> 'archived'
-          AND ($1::text IS NULL OR p."notebookId" = $1)
+        WHERE ($1::text IS NULL OR p."notebookId" = $1)
           AND (
             $2::text IS NULL
             OR p."courseId" = $2
@@ -905,7 +902,6 @@ export async function searchProblemSourceEvidence(args: {
         ranked."notebookName",
         ranked."title",
         ranked."type",
-        ranked."status",
         ranked."tags",
         ranked."difficulty",
         ranked."publicText",
@@ -982,7 +978,6 @@ export async function searchProblemSourceEvidence(args: {
       metadata: {
         notebookName: row.notebookName,
         problemType: row.type,
-        status: row.status,
         tags: row.tags,
         difficulty: row.difficulty,
         attemptStatus: row.attemptStatus,

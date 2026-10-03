@@ -387,7 +387,6 @@ export async function verifyCodeBlankDraft(
   }
   return {
     ...draft,
-    status: errors.length ? 'draft' : draft.status,
     sourceMeta: {
       ...draft.sourceMeta,
       codeBlankVerification: {

@@ -1584,7 +1584,7 @@ function collectKnowledgeSources(args: {
       {
         id: 'derived:problem-bank',
         title: '课程题库',
-        subtitle: `${args.course.publishedProblemCount || 0} 已发布 / ${args.course.problemCount || 0} 总题`,
+        subtitle: `${args.course.problemCount || 0} 道题目`,
       },
       args.course.problemCount || 1,
     );
@@ -1618,9 +1618,9 @@ function shuffledProblemSuggestionTitles(
   problems: CourseProblemClientSummary[],
   seed: number,
 ): string[] {
-  const published = problems.filter((problem) => problem.status === 'published');
-  const generated = published.filter((problem) => problem.tags.includes('AI生成练习'));
-  const source = generated.length > 0 ? generated : published;
+  const available = problems;
+  const generated = available.filter((problem) => problem.tags.includes('AI生成练习'));
+  const source = generated.length > 0 ? generated : available;
   return shuffledValues(source, seed)
     .map((problem) => problem.title.trim())
     .filter(Boolean);

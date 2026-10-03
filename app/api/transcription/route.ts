@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 import { transcribeAudio } from '@/lib/audio/asr-providers';
 import { resolveASRApiKey, resolveASRBaseUrl } from '@/lib/server/provider-config';
@@ -9,7 +10,7 @@ const log = createLogger('Transcription');
 
 export const maxDuration = 60;
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const audioFile = formData.get('audio') as File;
@@ -50,3 +51,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

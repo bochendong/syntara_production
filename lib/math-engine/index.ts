@@ -1,4 +1,7 @@
 import katex from 'katex';
+// Registers \ce{} and \pu{} for chemistry formulas. Without it KaTeX rejects every
+// chemical equation and students see raw `\ce...` text.
+import 'katex/contrib/mhchem';
 import {
   getDirectUnicodeMathSymbol,
   normalizeLatexSource as normalizeLegacyLatexSource,
@@ -36,6 +39,7 @@ const LATEX_INLINE_COMMAND_PATTERN =
   /\\(?:d?frac|neq|ne|to|rightarrow|Rightarrow|Leftrightarrow|equiv|mid|nmid|pmod|bmod|mod|dots|ldots|cdots|approx|sim|times|cdot|circ|exists|forall|in|notin|subseteq|subset|supseteq|leq|geq|mathbb|operatorname|text|sqrt|left|right|begin|end|gcd|tilde|alpha|beta|gamma|delta|lambda|mu|sigma|theta|omega|pi|sum|prod|int|lim|log|ln|sin|cos|tan)\b/;
 const BARE_MATH_RUN_CHARS = String.raw`A-Za-z0-9\\{}\(\)\[\]\.,+\-−*/=,:^_<>|!'"’ \t→∘≠⇒≤≥≡∈∉⊆⊂∪∩∅∣∤ℕℤℚℝℂ`;
 const BARE_MATH_PATTERNS = [
+  /(?<![A-Za-z0-9_])(?:[A-Za-z](?:['’]{1,3})?)\s*\([A-Za-z0-9.+\- ]{1,30}\)/g,
   /[ℕℤℚℝℂ](?:\s*[_^]\s*(?:\{[^}]{1,40}\}|[A-Za-z0-9]+))?/g,
   /\b(?:O|T|Theta|Omega|Θ|Ω)\s*\([^，。！？；;\n]+?\)/g,
   /(?:\b|(?<![A-Za-z]))[A-Za-z0-9()[\]{}!^_+\-−*/.\\\s]{1,90}?\s*(?:≡|\\equiv)\s*[A-Za-z0-9()[\]{}!^_+\-−*/.\\\s]{1,90}?\s*(?:\\pmod\s*\{?[^{}\s，。！？；;]+}?|\(\s*(?:mod|\\pmod)\s*[^)]+?\s*\))/g,
@@ -517,10 +521,13 @@ function isBareMathCandidate(value: string): boolean {
   if (isPlainSlashWordPhrase(text)) return false;
   if (looksLikeCodeLiteral(text)) return false;
   if (hasBareMathProseLeak(text)) return false;
+  // Multiword labels inside parentheses are prose, not a function invocation.
+  if (/\([^)]*[A-Za-z]{2,}\s+[A-Za-z]{2,}/.test(text)) return false;
   if (!/[A-Za-z\\ℕℤℚℝℂ]/.test(text) && !/\d+\s*\^/.test(text)) return false;
   if (/^[A-Za-z\s]+$/.test(text)) return false;
 
   const hasMathTrigger =
+    /^[A-Za-z](?:['’]{1,3})?\s*\([A-Za-z0-9.+\- ]{1,30}\)$/.test(text) ||
     LATEX_INLINE_COMMAND_PATTERN.test(text) ||
     /[=^*/]|→|∘|≠|⇒|≤|≥|≡|∈|∉|⊆|⊂|∪|∩|∅|∣|∤|−|ℕ|ℤ|ℚ|ℝ|ℂ/.test(text) ||
     /\b(?:O|T|Theta|Omega|Θ|Ω)\s*\(/.test(text) ||
@@ -777,6 +784,34 @@ function wrapDoubleParenMath(text: string): string {
   return output;
 }
 
+const PAREN_PROSE_MATH_WORDS = new Set(
+  'sin cos tan cot sec csc log exp max min lim det mod gcd lcm sup inf arg deg dim ker var cov'.split(
+    ' ',
+  ),
+);
+
+/**
+ * Parentheses around ordinary English/Chinese prose must stay text, e.g.
+ * "(also called a **not-for-profit organization**)" or "(revenue - cost)".
+ * Only bare Latin words count; LaTeX commands and \text{...} are ignored.
+ */
+function isParenProseContent(value: string): boolean {
+  if (/\*\*|__/.test(value)) return true;
+  const withoutLatex = value.replace(/\\text\s*\{[^{}]*\}/g, ' ').replace(/\\[A-Za-z]+/g, ' ');
+  if (/[\u3400-\u9fff]{2,}/.test(withoutLatex)) return true;
+  // A lone hyphenated word such as "business-to-business" or "x-axis" is prose.
+  if (/^[A-Za-z]+(?:-[A-Za-z]+)+$/.test(withoutLatex.trim()) && /[A-Za-z]{3,}/.test(withoutLatex)) {
+    return true;
+  }
+  const words = withoutLatex
+    .split(/[\s-]+/)
+    .map((token) => token.replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, ''))
+    .filter(
+      (token) => /^[A-Za-z]{3,}$/.test(token) && !PAREN_PROSE_MATH_WORDS.has(token.toLowerCase()),
+    );
+  return words.length >= 2;
+}
+
 function wrapParenMath(text: string): string {
   let output = '';
   let index = 0;
@@ -802,7 +837,7 @@ function wrapParenMath(text: string): string {
             depth -= 1;
           } else {
             const candidate = text.slice(index + 1, cursor).trim();
-            if (isLooseMathContent(candidate)) {
+            if (isLooseMathContent(candidate) && !isParenProseContent(candidate)) {
               output += `$${candidate}$`;
               index = cursor + 1;
               continue outer;
@@ -998,6 +1033,37 @@ export function renderMathToHtml(latexSource: string, options: RenderMathOptions
   }
 
   return `<span class="math-engine-display" data-syntara-math="display" style="display:block;text-align:center;margin:0.2em 0;">${rendered}</span>`;
+}
+
+export type MathRenderIssue = { latex: string; message: string };
+
+/**
+ * Lists every math fragment that KaTeX cannot render. renderMathToHtml falls back to
+ * escaped raw text on failure so the page never crashes, which also hides the error.
+ * Importers call this to block broken formulas instead of shipping raw LaTeX.
+ */
+export function findMathRenderIssues(text: string): MathRenderIssue[] {
+  if (!text || !text.trim()) return [];
+  const issues: MathRenderIssue[] = [];
+  for (const fragment of parseMathFragments(text)) {
+    if (fragment.type !== 'math') continue;
+    const latex = normalizeMathSource(fragment.value);
+    if (!latex || getDirectUnicodeMathSymbol(latex)) continue;
+    try {
+      katex.renderToString(latex, {
+        throwOnError: true,
+        displayMode: fragment.displayMode,
+        output: 'html',
+        strict: 'ignore',
+      });
+    } catch (error) {
+      issues.push({
+        latex: latex.slice(0, 200),
+        message: error instanceof Error ? error.message.slice(0, 200) : String(error),
+      });
+    }
+  }
+  return issues;
 }
 
 export function renderTextWithMathToHtml(

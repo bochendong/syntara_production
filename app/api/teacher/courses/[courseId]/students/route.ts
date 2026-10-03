@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { courseDisplayCode } from '@/lib/course-space/course-display-name';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -80,7 +81,7 @@ export async function GET(_request: Request, context: { params: Promise<{ course
   });
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ courseId: string }> }) {
+async function auditedPATCH(request: Request, context: { params: Promise<{ courseId: string }> }) {
   return safeRoute(async () => {
     const teacher = await requireTeacher();
     if ('response' in teacher) return teacher.response;
@@ -129,3 +130,5 @@ export async function PATCH(request: Request, context: { params: Promise<{ cours
     return NextResponse.json({ success: true, storage: 'postgresql' });
   });
 }
+
+export const PATCH = withAiFailureAudit(auditedPATCH);

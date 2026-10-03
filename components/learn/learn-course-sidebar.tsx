@@ -336,15 +336,15 @@ function WeeklyUsageSummary() {
   const requestLimit = usage?.requestLimit ?? null;
   const hasCostLimit = limit != null;
   const hasRequestLimit = requestLimit != null;
-  const progress = hasCostLimit
-    ? limit <= 0
-      ? 100
-      : Math.min(100, (used / limit) * 100)
-    : hasRequestLimit
-      ? requestLimit <= 0
-        ? 100
-        : Math.min(100, ((usage?.requestCount ?? 0) / requestLimit) * 100)
-      : 0;
+  const remainingForLimit = (usedAmount: number, quota: number) =>
+    quota <= 0 ? 0 : Math.max(0, Math.min(100, (1 - usedAmount / quota) * 100));
+  const remainingPercent = Math.min(
+    hasCostLimit ? remainingForLimit(used, limit) : 100,
+    hasRequestLimit ? remainingForLimit(usage?.requestCount ?? 0, requestLimit) : 100,
+  );
+  const remainingLabel = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(
+    Math.floor(remainingPercent * 10) / 10,
+  );
   const resetLabel = usage?.period.end
     ? new Date(usage.period.end).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
     : null;
@@ -371,40 +371,32 @@ function WeeklyUsageSummary() {
         <p className="mt-2 text-[11px] text-slate-500">当前环境未启用云端用量统计</p>
       ) : !loading && usage && (hasCostLimit || hasRequestLimit) ? (
         <>
-          <div className="mt-2 flex items-end justify-between gap-2">
-            <p className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
-              {hasCostLimit
-                ? `$${(usage.remainingUsd ?? 0).toFixed(2)}`
-                : (usage.remainingRequests?.toLocaleString('zh-CN') ?? 0)}
-              <span className="ml-1 text-[10px] font-medium text-slate-400">
-                {hasCostLimit ? 'USD' : '次'}
-              </span>
-            </p>
-            <p className="pb-0.5 text-[10px] text-slate-400">
-              已用{' '}
-              {hasCostLimit ? `$${used.toFixed(2)}` : usage.requestCount.toLocaleString('zh-CN')} /{' '}
-              {hasCostLimit ? `$${limit?.toFixed(2)}` : requestLimit?.toLocaleString('zh-CN')}
-            </p>
-          </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+          <p className="mt-2 text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
+            剩余 {remainingLabel}%
+          </p>
+          <div
+            role="progressbar"
+            aria-label="本周剩余用量"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={remainingPercent}
+            aria-valuetext={`剩余 ${remainingLabel}%`}
+            className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10"
+          >
             <div
               className={cn(
                 'h-full rounded-full transition-[width]',
-                progress >= 100
+                remainingPercent <= 0
                   ? 'bg-rose-500'
-                  : progress >= 80
+                  : remainingPercent <= 20
                     ? 'bg-amber-500'
                     : 'bg-emerald-500',
               )}
-              style={{ width: `${progress}%` }}
+              style={{ width: `${remainingPercent}%` }}
             />
           </div>
           <p className="mt-2 text-[10px] leading-4 text-slate-400">
-            {hasCostLimit ? '按预估模型成本统计' : '按 AI 请求次数统计'}
-            {hasCostLimit && hasRequestLimit
-              ? ` · 请求 ${usage.requestCount.toLocaleString('zh-CN')} / ${requestLimit.toLocaleString('zh-CN')}`
-              : ''}
-            {resetLabel ? ` · ${resetLabel} 重置` : ''}
+            {resetLabel ? `${resetLabel} 重置` : '每周自动重置'}
           </p>
         </>
       ) : !loading && usage ? (
@@ -412,7 +404,6 @@ function WeeklyUsageSummary() {
           <p className="mt-2 text-[12px] font-medium text-slate-600 dark:text-slate-300">
             管理员尚未设置每周限额
           </p>
-          <p className="mt-1 text-[10px] text-slate-400">本周预估模型成本 ${used.toFixed(2)}</p>
         </>
       ) : !loading ? (
         <button type="button" onClick={() => void load()} className="mt-2 text-[11px] text-sky-600">

@@ -76,7 +76,6 @@ export async function GET(request: Request, context: { params: Promise<{ teacher
               id: true,
               title: true,
               type: true,
-              status: true,
               problemNumber: true,
               updatedAt: true,
               course: { select: { name: true } },

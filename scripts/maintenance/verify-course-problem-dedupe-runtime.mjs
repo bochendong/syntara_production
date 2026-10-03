@@ -64,7 +64,6 @@ function shortAnswer(title, stem) {
   return {
     title,
     type: 'short_answer',
-    status: 'published',
     source: 'manual',
     difficulty: 'medium',
     stem,

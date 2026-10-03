@@ -83,7 +83,6 @@ function choiceDraft(number, notebookId, title, stem, options, correctOptionId, 
     notebookId,
     title,
     type: 'choice',
-    status: 'published',
     source: 'pdf',
     points: 1,
     tags: ['CSC108', 'final-review', 'fall-2025', 'choice'],
@@ -1057,13 +1056,12 @@ async function refreshSummaryFields(tx, courseId) {
   });
   await Promise.all(
     notebooks.map(async (notebook) => {
-      const [problemCount, publishedProblemCount] = await Promise.all([
+      const [problemCount] = await Promise.all([
         tx.notebookProblem.count({ where: { notebookId: notebook.id } }),
-        tx.notebookProblem.count({ where: { notebookId: notebook.id, status: 'published' } }),
       ]);
       await tx.notebook.update({
         where: { id: notebook.id },
-        data: { problemCount, publishedProblemCount },
+        data: { problemCount },
       });
     }),
   );
@@ -1077,11 +1075,8 @@ async function refreshSummaryFields(tx, courseId) {
       speechTotalCount: true,
     },
   });
-  const [problemCount, publishedProblemCount] = await Promise.all([
+  const [problemCount] = await Promise.all([
     tx.notebookProblem.count({ where: { OR: [{ courseId }, { notebook: { courseId } }] } }),
-    tx.notebookProblem.count({
-      where: { status: 'published', OR: [{ courseId }, { notebook: { courseId } }] },
-    }),
   ]);
   await tx.course.update({
     where: { id: courseId },
@@ -1089,7 +1084,7 @@ async function refreshSummaryFields(tx, courseId) {
       notebookCount: notebookAggregate._count._all,
       sceneCount: notebookAggregate._sum.sceneCount ?? 0,
       problemCount,
-      publishedProblemCount,
+
       speechReadyCount: notebookAggregate._sum.speechReadyCount ?? 0,
       speechTotalCount: notebookAggregate._sum.speechTotalCount ?? 0,
     },
@@ -1116,7 +1111,6 @@ async function main() {
         name: true,
         courseCode: true,
         problemCount: true,
-        publishedProblemCount: true,
       },
     });
     if (!course) throw new Error(`Course not found: ${courseId}`);
@@ -1245,7 +1239,6 @@ async function main() {
               notebookId: draft.notebookId,
               title: draft.title,
               type: draft.type,
-              status: draft.status,
               source: draft.source,
               order: count + index,
               problemNumber: firstProblemNumber + index,
@@ -1284,7 +1277,7 @@ async function main() {
     });
     const courseAfter = await prisma.course.findUnique({
       where: { id: courseId },
-      select: { id: true, problemCount: true, publishedProblemCount: true },
+      select: { id: true, problemCount: true },
     });
     console.log(
       JSON.stringify(

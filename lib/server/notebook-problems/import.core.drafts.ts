@@ -659,6 +659,57 @@ export function looksLikeSingleProblemInput(text: string): boolean {
   return heuristicExtractProblemDrafts(trimmed, 'manual').length === 1;
 }
 
+/**
+ * Models sometimes return near-miss shapes: step lists instead of strings, or rubric
+ * items keyed "criterion"/"text" instead of "description". The strict schema used to
+ * reject the whole draft for that and replace the stem with the title, so coerce the
+ * common variants first.
+ */
+function coerceGradingShapes(grading: Record<string, unknown>) {
+  for (const key of ['analysis', 'rubric', 'referenceAnswer', 'referenceProof']) {
+    const value = grading[key];
+    if (Array.isArray(value)) {
+      grading[key] = value
+        .map((item) => (typeof item === 'string' ? item : JSON.stringify(item)))
+        .join('\n');
+    } else if (value && typeof value === 'object') {
+      grading[key] = Object.entries(value as Record<string, unknown>)
+        .map(
+          ([label, item]) => `${label}: ${typeof item === 'string' ? item : JSON.stringify(item)}`,
+        )
+        .join('\n');
+    }
+  }
+  if (Array.isArray(grading.rubricCriteria)) {
+    grading.rubricCriteria = grading.rubricCriteria.flatMap((item, index) => {
+      if (typeof item === 'string') {
+        return item.trim() ? [{ id: `c${index + 1}`, description: item.trim(), points: 1 }] : [];
+      }
+      if (!item || typeof item !== 'object') return [];
+      const record = item as Record<string, unknown>;
+      const description = [
+        record.description,
+        record.criterion,
+        record.text,
+        record.label,
+        record.name,
+      ].find((value): value is string => typeof value === 'string' && value.trim() !== '');
+      if (!description) return [];
+      const points = Number(record.points ?? record.score ?? record.weight ?? 1);
+      return [
+        {
+          id:
+            typeof record.id === 'string' && record.id.trim()
+              ? record.id.trim().slice(0, 64)
+              : `c${index + 1}`,
+          description: description.trim().slice(0, 1000),
+          points: Number.isFinite(points) && points >= 0 ? Math.min(points, 1000) : 1,
+        },
+      ];
+    });
+  }
+}
+
 export function normalizeRawCandidate(
   raw: unknown,
   source: NotebookProblemSource,
@@ -682,6 +733,7 @@ export function normalizeRawCandidate(
       ? ({ ...(base.grading as Record<string, unknown>) } as Record<string, unknown>)
       : {};
   grading.type = type;
+  coerceGradingShapes(grading);
   const validationErrors = Array.isArray(base.validationErrors)
     ? base.validationErrors.map((error) => String(error ?? '').trim()).filter(Boolean)
     : [];
@@ -1000,7 +1052,6 @@ export function normalizeRawCandidate(
   return {
     source,
     draftId: randomUUID(),
-    status: 'draft',
     points: 1,
     difficulty: 'medium',
     sourceMeta: {},
@@ -1032,6 +1083,16 @@ export function formatImportValidationIssues(error: ZodError): string[] {
   });
 }
 
+function fallbackStemOf(raw: unknown): string {
+  if (!raw || typeof raw !== 'object') return '';
+  const content = (raw as { publicContent?: Record<string, unknown> }).publicContent;
+  if (!content || typeof content !== 'object') return '';
+  const stem = [content.stem, content.stemTemplate, content.statement, content.question].find(
+    (value): value is string => typeof value === 'string' && value.trim() !== '',
+  );
+  return stem ?? '';
+}
+
 export function normalizeCandidateDraft(
   raw: unknown,
   source: NotebookProblemSource,
@@ -1053,14 +1114,15 @@ export function normalizeCandidateDraft(
       draftId: randomUUID(),
       title: normalizeTitle(fallbackText || 'Imported problem', 'short_answer'),
       type: 'short_answer',
-      status: 'draft',
       source,
       points: 1,
       tags: [],
       difficulty: inferDifficulty(fallbackText),
       publicContent: {
         type: 'short_answer',
-        stem: normalizeMathMarkdown(fallbackText || 'Imported problem'),
+        // Keep the transcribed stem when only grading failed validation; a title alone
+        // is not a usable problem.
+        stem: normalizeMathMarkdown(fallbackStemOf(raw) || fallbackText || 'Imported problem'),
       },
       grading: {
         type: 'short_answer',

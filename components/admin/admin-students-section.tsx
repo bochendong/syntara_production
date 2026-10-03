@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Eye, GraduationCap, Loader2, Minus, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { useCallback, useEffect, useState } from 'react';
+import { Eye, Loader2, Minus, Plus, Search, Trash2 } from 'lucide-react';
+import { AdminStudentCourseWorkspace } from '@/components/admin/admin-student-course-card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
@@ -14,23 +16,46 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { backendJson } from '@/lib/utils/backend-api';
 import { toast } from '@/lib/notifications/client-toast';
+
+type AcademicTerm = 'winter' | 'summer' | 'fall';
+
+const ACADEMIC_TERM_LABEL: Record<AcademicTerm, string> = {
+  winter: 'Winter',
+  summer: 'Summer',
+  fall: 'Fall',
+};
+
+const TERM_RANK: Record<AcademicTerm, number> = {
+  winter: 0,
+  summer: 1,
+  fall: 2,
+};
+
+const STUDENT_PAGE_SIZE = 20;
+
+function currentSemesterValue(date = new Date()) {
+  const month = date.getMonth() + 1;
+  const term: AcademicTerm = month <= 4 ? 'winter' : month <= 8 ? 'summer' : 'fall';
+  return `${date.getFullYear()}:${term}`;
+}
 
 type CourseOption = {
   id: string;
   name: string;
   courseCode: string | null;
   academicYear: number | null;
-  academicTerm: 'winter' | 'summer' | 'fall' | null;
+  academicTerm: AcademicTerm | null;
+  university?: string | null;
 };
 
 type StudentRow = {
   id: string;
   email: string;
   name: string;
+  image?: string | null;
+  phone?: string | null;
   isActive: boolean;
   courses: Array<CourseOption & { notebookAccessLimit: number | null; joinedAt: string }>;
   createdAt: string;
@@ -43,20 +68,43 @@ type CourseDialogState = {
 };
 
 function courseLabel(course: CourseOption) {
-  return [course.courseCode || course.name, course.academicYear, course.academicTerm]
-    .filter(Boolean)
-    .join(' · ');
+  const term = course.academicTerm ? ACADEMIC_TERM_LABEL[course.academicTerm] : null;
+  return [course.courseCode || course.name, course.academicYear, term].filter(Boolean).join(' · ');
+}
+
+function campusOf(course: Pick<CourseOption, 'university' | 'courseCode'>) {
+  const university = course.university?.trim();
+  if (university) return university;
+  const prefix = course.courseCode?.trim().split('-')[0] || '';
+  return /^[A-Za-z]{2,8}$/.test(prefix) && prefix !== course.courseCode?.trim()
+    ? prefix.toUpperCase()
+    : '';
+}
+
+function semesterValue(course: Pick<CourseOption, 'academicYear' | 'academicTerm'>) {
+  if (!course.academicYear || !course.academicTerm) return '';
+  return `${course.academicYear}:${course.academicTerm}`;
+}
+
+function semesterLabel(value: string) {
+  const [year, term] = value.split(':');
+  if (!year || !(term === 'winter' || term === 'summer' || term === 'fall')) return value;
+  return `${year} ${ACADEMIC_TERM_LABEL[term]}`;
 }
 
 export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }) {
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [semester, setSemester] = useState(currentSemesterValue);
+  const [campus, setCampus] = useState('');
+  const [courseId, setCourseId] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [insightsVersion, setInsightsVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [courseIds, setCourseIds] = useState<string[]>([]);
   const [courseDialog, setCourseDialog] = useState<CourseDialogState | null>(null);
   const [courseDialogSelection, setCourseDialogSelection] = useState<string[]>([]);
 
@@ -68,9 +116,13 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
         backendJson<{ courses: CourseOption[] }>('/api/admin/courses?take=200'),
       ]);
       setStudents(studentPayload.students);
+      setLoadError('');
+      setInsightsVersion((value) => value + 1);
       setCourses(coursePayload.courses);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '学生列表加载失败');
+      const message = error instanceof Error ? error.message : '学生列表加载失败';
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -79,33 +131,6 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
   useEffect(() => {
     void load();
   }, [load, refreshKey]);
-
-  const selectedCourseLabels = useMemo(
-    () => courses.filter((course) => courseIds.includes(course.id)).map(courseLabel),
-    [courseIds, courses],
-  );
-
-  const createStudent = async () => {
-    if (!name.trim() || !email.trim() || password.length < 10) return;
-    setBusyId('create');
-    try {
-      await backendJson('/api/admin/students', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, email, password, courseIds }),
-      });
-      setName('');
-      setEmail('');
-      setPassword('');
-      setCourseIds([]);
-      toast.success('学生账号已创建，课程已写入共享数据库');
-      await load();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '学生创建失败');
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   const updateCourses = async (
     student: StudentRow,
@@ -199,193 +224,304 @@ export function AdminStudentsSection({ refreshKey = 0 }: { refreshKey?: number }
     }
   };
 
-  return (
-    <div className="space-y-5">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="size-4" />
-            添加学生
-          </CardTitle>
-          <CardDescription>
-            创建可登录的学生账号并分配课程；登录后课程会自动作为桌面 App 出现。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 lg:grid-cols-3">
-          <div className="space-y-2">
-            <Label htmlFor="student-name">学生姓名</Label>
-            <Input
-              id="student-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="student-email">登录邮箱</Label>
-            <Input
-              id="student-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="student-password">初始密码（至少 10 位）</Label>
-            <Input
-              id="student-password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </div>
-          <div className="space-y-2 lg:col-span-2">
-            <Label htmlFor="student-courses">分配课程（可多选）</Label>
-            <select
-              id="student-courses"
-              multiple
-              value={courseIds}
-              onChange={(event) =>
-                setCourseIds(
-                  Array.from(event.currentTarget.selectedOptions, (option) => option.value),
-                )
-              }
-              className="min-h-28 w-full rounded-md border bg-background px-3 py-2 text-sm"
-            >
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {courseLabel(course)}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground">
-              {selectedCourseLabels.length
-                ? `已选择：${selectedCourseLabels.join('、')}`
-                : '尚未选择课程'}
-            </p>
-          </div>
-          <div className="flex items-end">
-            <Button
-              className="w-full"
-              onClick={() => void createStudent()}
-              disabled={
-                busyId === 'create' || !name.trim() || !email.trim() || password.length < 10
-              }
-            >
-              {busyId === 'create' ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              ) : (
-                <Plus className="mr-2 size-4" />
-              )}
-              创建学生
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+  const search = query.trim().toLowerCase();
+  const semesterOptions = Array.from(
+    new Set([currentSemesterValue(), ...courses.map(semesterValue).filter(Boolean)]),
+  ).sort((left, right) => {
+    const [leftYear, leftTerm] = left.split(':');
+    const [rightYear, rightTerm] = right.split(':');
+    return (
+      Number(rightYear) - Number(leftYear) ||
+      TERM_RANK[leftTerm as AcademicTerm] - TERM_RANK[rightTerm as AcademicTerm]
+    );
+  });
+  const campusOptions = Array.from(new Set(courses.map(campusOf).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const courseOptions = courses.filter((course) => {
+    if (semester && semesterValue(course) !== semester) return false;
+    if (campus && campusOf(course) !== campus) return false;
+    return true;
+  });
+  const filtersActive = Boolean(search || semester || campus || courseId);
+  const filteredStudents = students.filter((student) => {
+    const matchesSearch =
+      !search ||
+      [student.name, student.email, student.phone || ''].some((value) =>
+        value.toLowerCase().includes(search),
+      );
+    if (!matchesSearch) return false;
+    if (!semester && !campus && !courseId) return true;
+    return student.courses.some((course) => {
+      if (semester && semesterValue(course) !== semester) return false;
+      if (campus && campusOf(course) !== campus) return false;
+      if (courseId && course.id !== courseId) return false;
+      return true;
+    });
+  });
+  const pageCount = Math.max(1, Math.ceil(filteredStudents.length / STUDENT_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageStudents = filteredStudents.slice(
+    (currentPage - 1) * STUDENT_PAGE_SIZE,
+    currentPage * STUDENT_PAGE_SIZE,
+  );
+  const selected = pageStudents.find((student) => student.id === selectedId) || pageStudents[0];
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <div>
-            <CardTitle>学生数据库</CardTitle>
-            <CardDescription>{students.length} 个学生账号</CardDescription>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-            <RefreshCw className={`mr-2 size-4 ${loading ? 'animate-spin' : ''}`} />
-            刷新
+  useEffect(() => {
+    setPage(1);
+  }, [search, semester, campus, courseId]);
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center">
+        <div className="relative w-full min-w-0 max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
+          <Input
+            aria-label="搜索学生"
+            className="pl-10"
+            placeholder="搜索姓名、手机号或邮箱…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        <select
+          aria-label="学期"
+          value={semester}
+          onChange={(event) => {
+            const nextSemester = event.target.value;
+            setSemester(nextSemester);
+            if (
+              courseId &&
+              !courses.some(
+                (course) =>
+                  course.id === courseId &&
+                  (!nextSemester || semesterValue(course) === nextSemester) &&
+                  (!campus || campusOf(course) === campus),
+              )
+            ) {
+              setCourseId('');
+            }
+          }}
+          className="h-9 shrink-0 rounded-md border bg-background px-3 text-sm"
+        >
+          <option value="">全部学期</option>
+          {semesterOptions.map((value) => (
+            <option key={value} value={value}>
+              {semesterLabel(value)}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="校区"
+          value={campus}
+          onChange={(event) => {
+            const nextCampus = event.target.value;
+            setCampus(nextCampus);
+            if (
+              courseId &&
+              !courses.some(
+                (course) =>
+                  course.id === courseId &&
+                  (!semester || semesterValue(course) === semester) &&
+                  (!nextCampus || campusOf(course) === nextCampus),
+              )
+            ) {
+              setCourseId('');
+            }
+          }}
+          className="h-9 shrink-0 rounded-md border bg-background px-3 text-sm"
+        >
+          <option value="">全部校区</option>
+          {campusOptions.map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="课程"
+          value={courseId}
+          onChange={(event) => setCourseId(event.target.value)}
+          className="h-9 min-w-0 shrink rounded-md border bg-background px-3 text-sm lg:max-w-[280px]"
+        >
+          <option value="">全部课程</option>
+          {courseOptions.map((course) => (
+            <option key={course.id} value={course.id}>
+              {courseLabel(course)}
+            </option>
+          ))}
+        </select>
+      </div>
+      {loadError ? (
+        <div
+          role="alert"
+          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/25 p-4 text-sm"
+        >
+          <p>{loadError}</p>
+          <Button variant="outline" size="sm" onClick={() => void load()}>
+            重新加载
           </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {loading && !students.length ? (
-            <div className="grid min-h-40 place-items-center text-sm text-muted-foreground">
-              <Loader2 className="size-5 animate-spin" />
+        </div>
+      ) : null}
+      <div className="grid min-h-[640px] items-stretch gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside
+          aria-label="学生列表"
+          className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-background/40"
+        >
+          <div className="border-b px-4 py-4 text-xs text-muted-foreground">
+            共 {students.length} 名学生
+            {filtersActive ? ` · 匹配 ${filteredStudents.length} 名` : ''}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            {loading && !students.length ? (
+              <div role="status" className="grid min-h-40 place-items-center">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : pageStudents.length ? (
+              pageStudents.map((student) => (
+                <button
+                  key={student.id}
+                  type="button"
+                  aria-pressed={selected?.id === student.id}
+                  onClick={() => setSelectedId(student.id)}
+                  className={cn(
+                    'flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition focus-visible:outline-2 focus-visible:outline-primary',
+                    selected?.id === student.id ? 'bg-primary/10' : 'hover:bg-muted/50',
+                  )}
+                >
+                  <Avatar className="size-10">
+                    <AvatarImage src={student.image || undefined} alt="" />
+                    <AvatarFallback>
+                      {Array.from(student.name.trim() || student.email || '学生')[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold">
+                      {student.name || '未命名学生'}
+                    </span>
+                    <span className="mt-1 block truncate text-xs text-muted-foreground">
+                      {student.phone || student.email || '未填写联系方式'}
+                    </span>
+                  </span>
+                </button>
+              ))
+            ) : (
+              <p className="px-3 py-10 text-center text-sm text-muted-foreground">
+                {filtersActive ? '没有匹配的学生' : '暂无学生账号'}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2 border-t px-3 py-3">
+            <p className="text-xs text-muted-foreground">
+              第 {currentPage} / {pageCount} 页
+            </p>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                上一页
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= pageCount}
+                onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+              >
+                下一页
+              </Button>
             </div>
-          ) : students.length ? (
-            students.map((student) => {
-              return (
-                <div key={student.id} className="rounded-2xl border p-4">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
-                          <GraduationCap className="size-4" />
-                        </span>
-                        <div>
-                          <p className="font-semibold">{student.name || '未命名学生'}</p>
-                          <p className="text-xs text-muted-foreground">{student.email}</p>
-                        </div>
-                        <Badge variant={student.isActive ? 'default' : 'secondary'}>
-                          {student.isActive ? '已启用' : '已停用'}
-                        </Badge>
-                      </div>
-                      <p className="mt-3 text-xs font-medium text-muted-foreground">
-                        当前课程（{student.courses.length}）
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {student.courses.length ? (
-                          student.courses.map((course) => (
-                            <Badge key={course.id} variant="outline">
-                              {courseLabel(course)}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="rounded-full border border-dashed px-3 py-1 text-xs text-muted-foreground">
-                            尚未分配课程
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void openStudent(student.id)}
-                        disabled={busyId === student.id}
-                      >
-                        {busyId === student.id ? (
-                          <Loader2 className="mr-2 size-4 animate-spin" />
-                        ) : (
-                          <Eye className="mr-2 size-4" />
-                        )}
-                        进入学生页面
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openCourseDialog(student, 'add')}
-                        disabled={busyId === student.id || student.courses.length >= courses.length}
-                      >
-                        <Plus className="mr-2 size-4" />
-                        添加课程
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openCourseDialog(student, 'remove')}
-                        disabled={busyId === student.id || student.courses.length === 0}
-                      >
-                        <Minus className="mr-2 size-4" />
-                        删除课程
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void removeStudent(student)}
-                        disabled={busyId === student.id}
-                      >
-                        <Trash2 className="mr-2 size-4" />
-                        删除学生
-                      </Button>
-                    </div>
+          </div>
+        </aside>
+        {selected ? (
+          <section
+            aria-label="学生学习详情"
+            className="h-full min-w-0 rounded-xl border p-5 lg:p-6"
+          >
+            <div className="mb-4 flex items-start gap-4">
+              <Avatar className="size-14 shrink-0">
+                <AvatarImage src={selected.image || undefined} alt={selected.name || '学生头像'} />
+                <AvatarFallback className="text-lg">
+                  {Array.from(selected.name.trim() || selected.email || '学生')[0].toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <h2 className="text-xl font-semibold">{selected.name || '未命名学生'}</h2>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="进入学生页面"
+                      title="进入学生页面"
+                      className="size-8"
+                      onClick={() => void openStudent(selected.id)}
+                      disabled={busyId === selected.id}
+                    >
+                      {busyId === selected.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="添加课程"
+                      title="添加课程"
+                      className="size-8"
+                      onClick={() => openCourseDialog(selected, 'add')}
+                      disabled={busyId === selected.id || selected.courses.length >= courses.length}
+                    >
+                      <Plus className="size-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="删除课程"
+                      title="删除课程"
+                      className="size-8"
+                      onClick={() => openCourseDialog(selected, 'remove')}
+                      disabled={busyId === selected.id || selected.courses.length === 0}
+                    >
+                      <Minus className="size-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="删除学生"
+                      title="删除学生"
+                      className="size-8 text-muted-foreground hover:border-destructive/30 hover:text-destructive"
+                      onClick={() => void removeStudent(selected)}
+                      disabled={busyId === selected.id}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
                   </div>
                 </div>
-              );
-            })
-          ) : (
-            <div className="grid min-h-40 place-items-center text-sm text-muted-foreground">
-              还没有学生账号。
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                  <span>{selected.phone || '未填写手机号'}</span>
+                  {selected.email ? <span className="break-all">{selected.email}</span> : null}
+                </div>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <AdminStudentCourseWorkspace
+              key={selected.id}
+              studentId={selected.id}
+              courses={selected.courses}
+              refreshKey={insightsVersion}
+            />
+          </section>
+        ) : (
+          <div className="hidden min-h-96 items-center justify-center text-sm text-muted-foreground lg:flex">
+            {loading ? '正在加载学生…' : '选择学生查看学习情况'}
+          </div>
+        )}
+      </div>
 
       <Dialog
         open={Boolean(courseDialog)}

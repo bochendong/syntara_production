@@ -73,7 +73,7 @@ const baseProblem = {
     sampleIO: [],
     secretConfigPresent: true,
   },
-  grading: { type: 'code', publishRequirementsMet: true },
+  grading: { type: 'code', referenceVerified: true },
 };
 const passed = {
   status: 'passed',

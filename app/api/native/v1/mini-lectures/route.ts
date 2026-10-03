@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   nativeMiniLectureRequestSchema,
@@ -31,7 +32,7 @@ function errorResponse(
   });
 }
 
-export async function POST(request: NextRequest): Promise<Response> {
+async function auditedPOST(request: NextRequest): Promise<Response> {
   const requestId = publicApiRequestId(request);
   const principal = await requireNativePlatformApi(request, requestId);
   if (principal instanceof NextResponse) return principal;
@@ -170,3 +171,5 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

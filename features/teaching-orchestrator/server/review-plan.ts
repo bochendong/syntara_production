@@ -358,36 +358,32 @@ function problemBankEvidence(args: {
   preferredProblemIds?: ReadonlySet<string>;
 }): TeachingEvidence[] {
   const { problems } = args;
-  return problems
-    .filter((problem) => problem.status !== 'archived')
-    .slice(0, 24)
-    .map((problem) => {
-      const detail = args.detailByProblemId?.get(problem.id);
-      const retrievalMatched = args.preferredProblemIds?.has(problem.id) ?? false;
-      return {
-        id: evidenceId('problem', problem.id),
-        sourceType: 'problem_bank',
-        sourceId: problem.id,
-        title: problem.title,
-        excerpt: detail ? problemContentExcerpt(detail) : problemCandidateExcerpt(problem),
-        reason: retrievalMatched
-          ? '题库检索明确命中当前复习主题，并进入有上限的候选集合。'
-          : problem.latestAttempt
-            ? `题库题目，最近一次状态是「${problemAttemptStatusLabel(problem.latestAttempt.status)}」。`
-            : '题库题目，尚未看到最近作答记录，可作为诊断或练习候选。',
-        confidence: retrievalMatched ? 0.95 : problem.status === 'published' ? 0.9 : 0.65,
-        target: { type: 'problem', id: problem.id },
-        conceptTags: problem.tags,
-        metadata: {
-          difficulty: problem.difficulty,
-          type: problem.type,
-          status: problem.status,
-          latestAttempt: problem.latestAttempt,
-          detailLoaded: Boolean(detail),
-          retrievalMatched,
-        },
-      } satisfies TeachingEvidence;
-    });
+  return problems.slice(0, 24).map((problem) => {
+    const detail = args.detailByProblemId?.get(problem.id);
+    const retrievalMatched = args.preferredProblemIds?.has(problem.id) ?? false;
+    return {
+      id: evidenceId('problem', problem.id),
+      sourceType: 'problem_bank',
+      sourceId: problem.id,
+      title: problem.title,
+      excerpt: detail ? problemContentExcerpt(detail) : problemCandidateExcerpt(problem),
+      reason: retrievalMatched
+        ? '题库检索明确命中当前复习主题，并进入有上限的候选集合。'
+        : problem.latestAttempt
+          ? `题库题目，最近一次状态是「${problemAttemptStatusLabel(problem.latestAttempt.status)}」。`
+          : '题库题目，尚未看到最近作答记录，可作为诊断或练习候选。',
+      confidence: retrievalMatched ? 0.95 : 0.9,
+      target: { type: 'problem', id: problem.id },
+      conceptTags: problem.tags,
+      metadata: {
+        difficulty: problem.difficulty,
+        type: problem.type,
+        latestAttempt: problem.latestAttempt,
+        detailLoaded: Boolean(detail),
+        retrievalMatched,
+      },
+    } satisfies TeachingEvidence;
+  });
 }
 
 async function recentAttemptEvidence(args: {
@@ -406,7 +402,6 @@ async function recentAttemptEvidence(args: {
     where: {
       userId: args.userId,
       problem: {
-        status: { not: 'archived' },
         ...problemWhere,
       },
     },
@@ -720,7 +715,6 @@ function selectQuestions(args: {
     (args.preferredProblemIds ?? []).map((problemId, index) => [problemId, index] as const),
   );
   const ranked = [...args.problems]
-    .filter((problem) => problem.status !== 'archived')
     .map((problem) => {
       const preferredRank = preferredRankByProblemId.get(problem.id);
       const overlap = args.concepts
@@ -745,7 +739,6 @@ function selectQuestions(args: {
           priorityOverlap.length * 30 +
           overlap.length * 8 +
           attemptScore +
-          (problem.status === 'published' ? 2 : 0) +
           (problem.difficulty === 'medium' ? 1 : 0),
       };
     })

@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -31,7 +32,7 @@ const reviewPlanRequestSchema = z.object({
     .optional(),
 });
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   return runWithRequestContext(
     request,
     '/api/teaching/review-plan',
@@ -66,3 +67,5 @@ export async function POST(request: NextRequest) {
     },
   );
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

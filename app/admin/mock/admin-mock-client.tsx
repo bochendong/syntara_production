@@ -45,6 +45,7 @@ const student = {
   id: 'mock-student-1',
   email: 'student@example.invalid',
   name: '示例学生',
+  phone: '+1 416-555-0134',
   isActive: true,
   courses: [{ ...course, notebookAccessLimit: null, joinedAt: now }],
   createdAt: now,
@@ -118,6 +119,38 @@ function mockResponse(path: string, config: MockConfig, searchParams: URLSearchP
       ],
     };
   if (path.includes('/api/admin/teachers')) return { teachers: [teacher] };
+  if (path.includes('/api/admin/students/') && path.endsWith('/insights'))
+    return {
+      usage: { credits: 124, tokens: 18400, requests: 16 },
+      chapters: [
+        { id: 'chapter-1', name: '第 1 章 · 编程基础', total: 25, attempted: 18, passed: 15 },
+        { id: 'chapter-2', name: '第 2 章 · 控制结构', total: 24, attempted: 12, passed: 9 },
+        { id: 'chapter-3', name: '第 3 章 · 函数与模块', total: 28, attempted: 8, passed: 6 },
+      ],
+      activities: [
+        {
+          id: 'activity-1',
+          actionType: 'QUIZ_COMPLETED',
+          label: '完成控制结构练习',
+          createdAt: now,
+        },
+        {
+          id: 'activity-2',
+          actionType: 'REVIEW_COMPLETED',
+          label: '复习函数与模块',
+          createdAt: new Date(Date.parse(now) - 3600000).toISOString(),
+        },
+      ],
+      conversations: [
+        { id: 'conversation-1', title: '关于循环的时间复杂度', updatedAt: now, messageCount: 4 },
+        {
+          id: 'conversation-2',
+          title: '函数参数的作用域问题',
+          updatedAt: new Date(Date.parse(now) - 86400000).toISOString(),
+          messageCount: 6,
+        },
+      ],
+    };
   if (path.includes('/api/admin/students')) return { students: [student] };
   if (path.includes('/api/admin/courses')) return { courses: [], totalCount: 0 };
   if (path.includes('/api/admin/usage-limits'))

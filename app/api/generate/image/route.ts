@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 /**
  * Image Generation API
  *
@@ -160,7 +161,7 @@ async function materializeImageResultInline(
   }
 }
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   return runWithRequestContext(request, '/api/generate/image', async () => {
     try {
       const body = (await request.json()) as ImageGenerationOptions & {
@@ -327,3 +328,5 @@ export async function POST(request: NextRequest) {
     }
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

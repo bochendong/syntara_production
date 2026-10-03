@@ -17,7 +17,6 @@ export type MemoryKnowledgeMatch = {
     problemType: string;
     difficulty: string;
     tags: string[];
-    status: string;
     notebookName: string | null;
     attemptStatus: string | null;
     attemptScore: number | null;
@@ -69,7 +68,6 @@ export function problemEvidenceToKnowledgeMatch(
       problemType: stringMetadata(metadata, 'problemType', 'unknown'),
       difficulty: stringMetadata(metadata, 'difficulty', 'medium'),
       tags: tagsMetadata(metadata),
-      status: stringMetadata(metadata, 'status', 'published'),
       notebookName: nullableStringMetadata(metadata, 'notebookName'),
       attemptStatus: nullableStringMetadata(metadata, 'attemptStatus'),
       attemptScore: nullableNumberMetadata(metadata, 'attemptScore'),

@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { normalizeCourseDisplay } from '@/lib/course-space/course-display-name';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -19,7 +20,6 @@ import {
   syncOwnedCourseNotebookStoreState,
   updateOwnedCourse,
 } from '@/lib/server/repositories/course-repository';
-import { publishCourseProblemBankForUser } from '@/features/problems/server/service';
 import { reconcileSpeedupCourseMembershipsIfAvailable } from '@/lib/server/speedup-course-provisioning';
 
 function ownerDisplayName(owner: { name: string | null; email: string | null }): string {
@@ -50,7 +50,6 @@ type CourseDetailRow = {
   notebookCount: number;
   sceneCount: number;
   problemCount: number;
-  publishedProblemCount: number;
   speechReadyCount: number;
   speechTotalCount: number;
   createdAt: Date;
@@ -184,7 +183,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   });
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedPATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -231,22 +230,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
     let publishScope:
       | {
-          problemBank: Awaited<ReturnType<typeof publishCourseProblemBankForUser>> | null;
           publicMemoryCount: number;
           sourceFilesUploaded: false;
           privateContentUploaded: false;
         }
       | undefined;
     if (shouldPublishCourse) {
-      // Course publishing deliberately does not copy or upload source files, private study memory,
-      // learner progress, or chat transcripts. Public course/notebook memories remain readable
-      // through the shared course context; only the problem bank gets an explicit publish pass.
-      const [problemBank, publicMemoryCount] = await Promise.all([
-        publishCourseProblemBankForUser({ userId, courseId: id }),
-        countPublicCourseMemoriesForPublish(userId, id),
-      ]);
+      const publicMemoryCount = await countPublicCourseMemoriesForPublish(userId, id);
       publishScope = {
-        problemBank,
         publicMemoryCount,
         sourceFilesUploaded: false,
         privateContentUploaded: false,
@@ -256,7 +247,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   });
 }
 
-export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedDELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -300,3 +291,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     return NextResponse.json({ ok: true, action: 'removed' });
   });
 }
+
+export const PATCH = withAiFailureAudit(auditedPATCH);
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

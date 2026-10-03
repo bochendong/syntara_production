@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { isValidPhotoAnswerUpload } from '@/lib/problem-bank/photo-answer';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -44,7 +45,7 @@ const submitSchema = z.object({
   activeDurationMs: z.number().int().min(0).max(14_400_000).optional(),
 });
 
-export async function POST(
+async function auditedPOST(
   req: NextRequest,
   context: { params: Promise<{ id: string; problemId: string }> },
 ) {
@@ -185,3 +186,5 @@ export async function POST(
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

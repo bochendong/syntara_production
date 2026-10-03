@@ -1,3 +1,4 @@
+import { persistAiFailure } from '@/lib/server/ai-failure-log';
 import type { BackgroundJob } from '@/lib/server/generated-prisma';
 import { prisma } from '@/lib/server/prisma';
 import { claimJob, checkpoint, failJob, finishJob, inputHash, renewLease } from './store';
@@ -91,6 +92,20 @@ export async function runNextBackgroundJob(): Promise<boolean> {
     const result = await execute(job);
     await finishJob(prisma, job, result);
   } catch (error) {
+    await persistAiFailure({
+      requestId: job.id,
+      jobId: job.id,
+      userId: job.ownerId,
+      courseId: job.courseId,
+      route: '/background/' + job.kind,
+      method: 'WORKER',
+      stage: 'background',
+      attempt: job.attempts,
+      input: job.payload,
+      output: { stack: error instanceof Error ? error.stack : null },
+      reason: error instanceof Error ? error.message : String(error),
+      status: 500,
+    });
     await failJob(prisma, job, error);
     console.error(
       '[ai-worker] job failed',

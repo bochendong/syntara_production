@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -27,7 +28,7 @@ function feedback(status: 'passed' | 'partial' | 'failed') {
   return '学生自评：还不会，需要回到概念和例题。';
 }
 
-export async function POST(
+async function auditedPOST(
   request: Request,
   context: { params: Promise<{ id: string; problemId: string }> },
 ) {
@@ -69,3 +70,5 @@ export async function POST(
     return NextResponse.json({ attempt, result: attempt.result });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

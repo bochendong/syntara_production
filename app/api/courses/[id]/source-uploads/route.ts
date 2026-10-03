@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { after, NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/prisma';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -166,7 +167,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   });
 }
 
-export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedDELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -260,3 +261,5 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     });
   });
 }
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

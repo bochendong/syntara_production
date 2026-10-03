@@ -22,7 +22,30 @@ export interface PublicReplyProgressStep {
   /** Concrete, user-safe facts observed while completing this step. */
   evidence?: string[];
   status: PublicReplyProgressStepStatus;
+  /** What produced the step: setup, a real tool call, a model reasoning summary, or the answer. */
+  kind?: 'prepare' | 'tool' | 'reasoning' | 'compose' | 'answer';
+  /** The step failed; description explains why. Status stays 'complete'. */
+  failed?: boolean;
+  startedAt?: number;
+  endedAt?: number;
 }
+
+/** A file the course assistant generated in chat (Word, PDF, or image). */
+export type ChatFileArtifact = {
+  kind: 'chat_file';
+  /** Asset id; also the path segment of the download route. */
+  id: string;
+  fileKind: 'docx' | 'pdf' | 'image';
+  title: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  /** /api/courses/{courseId}/chat-artifacts/{id}?download=1 */
+  url: string;
+  /** Inline view URL for images and PDFs. */
+  previewUrl?: string;
+  createdAt: string;
+};
 
 export type ChatContextCompressionTrigger = 'token_budget' | 'message_count';
 
@@ -960,6 +983,7 @@ export type StatelessEvent =
   | { type: 'agent_end'; data: { messageId: string; agentId: string } }
   | { type: 'text_delta'; data: { content: string; messageId?: string } }
   | { type: 'practice_plan'; data: { messageId: string; plan: PracticePlan } }
+  | { type: 'chat_artifact'; data: { messageId: string; artifact: ChatFileArtifact } }
   | {
       type: 'action';
       data: {

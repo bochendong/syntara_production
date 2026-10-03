@@ -72,6 +72,7 @@ const migrationFiles = [
   '0006_app_metadata.sql',
   '0007_course_events_and_lectures.sql',
   '0008_message_metadata.sql',
+  '0009_remove_problem_status.sql',
 ];
 
 async function migrate(database) {
@@ -239,7 +240,7 @@ for (const [courseCode, expectedCount] of Object.entries(expectedProblemCounts))
       `SELECT COUNT(*) AS count
          FROM problems
          JOIN courses ON courses.id = problems.course_id
-        WHERE courses.course_code = ? AND problems.status = 'published'`,
+        WHERE courses.course_code = ?`,
     )
     .get(courseCode);
   assert.equal(row.count, expectedCount, `${courseCode} 内置题数应为 ${expectedCount}`);
@@ -377,7 +378,6 @@ const archive = parseSyntaraArchive({
       notebookId: 'notebook-fixture',
       title: '本地题目',
       type: 'multiple_choice',
-      status: 'published',
       difficulty: 'easy',
       tags: ['fixture'],
       publicContent: { statement: '1 + 1 等于多少？', options: ['1', '2'] },

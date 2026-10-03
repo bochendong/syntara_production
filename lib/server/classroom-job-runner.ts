@@ -1,3 +1,4 @@
+import { persistAiFailure } from '@/lib/server/ai-failure-log';
 import { createLogger } from '@/lib/logger';
 import { generateClassroom, type GenerateClassroomInput } from '@/lib/server/classroom-generation';
 import {
@@ -34,6 +35,16 @@ export function runClassroomGenerationJob(
       await markClassroomGenerationJobSucceeded(jobId, result);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      await persistAiFailure({
+        requestId: jobId,
+        jobId,
+        route: '/background/classroom-generation',
+        method: 'WORKER',
+        input,
+        reason: message,
+        output: { stack: error instanceof Error ? error.stack : null },
+        status: 500,
+      });
       log.error(`Classroom generation job ${jobId} failed:`, error);
       try {
         await markClassroomGenerationJobFailed(jobId, message);

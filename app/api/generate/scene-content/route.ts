@@ -1,3 +1,5 @@
-export { POST } from '@/features/ppt-generation/server/scene-content-route';
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
+import { POST as auditedPOST } from '@/features/ppt-generation/server/scene-content-route';
+export const POST = withAiFailureAudit(auditedPOST);
 
 export const maxDuration = 300;

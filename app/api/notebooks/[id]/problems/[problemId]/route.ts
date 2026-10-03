@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -17,7 +18,6 @@ import {
 
 const updateProblemSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
-  status: z.enum(['draft', 'published', 'archived']).optional(),
   points: z.number().int().min(0).max(1000).optional(),
   order: z.number().int().min(0).optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
@@ -37,7 +37,6 @@ function toClientProblem(
     notebookName: problem.notebookName,
     title: problem.title,
     type: problem.type,
-    status: problem.status,
     source: problem.source,
     order: problem.order,
     problemNumber: problem.problemNumber ?? null,
@@ -66,7 +65,7 @@ export async function GET(
   });
 }
 
-export async function PATCH(
+async function auditedPATCH(
   request: Request,
   context: { params: Promise<{ id: string; problemId: string }> },
 ) {
@@ -114,7 +113,7 @@ export async function PATCH(
   });
 }
 
-export async function DELETE(
+async function auditedDELETE(
   _request: Request,
   context: { params: Promise<{ id: string; problemId: string }> },
 ) {
@@ -140,3 +139,7 @@ export async function DELETE(
     return NextResponse.json({ ok: true });
   });
 }
+
+export const PATCH = withAiFailureAudit(auditedPATCH);
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

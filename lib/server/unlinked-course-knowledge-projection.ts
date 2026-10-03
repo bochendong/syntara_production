@@ -34,7 +34,6 @@ type ProblemRow = {
   notebookName: string | null;
   title: string;
   type: string;
-  status: string;
   tags: string[];
   difficulty: string;
   publicText: string;
@@ -441,15 +440,13 @@ async function loadUnlinkedCourseDocuments(
           n."name" AS "notebookName",
           p."title",
           p."type"::text AS "type",
-          p."status"::text AS "status",
           p."tags",
           p."difficulty"::text AS "difficulty",
           p."publicContentJson"::text AS "publicText",
           p."updatedAt"
         FROM "NotebookProblem" p
         LEFT JOIN "Notebook" n ON n."id" = p."notebookId"
-        WHERE p."status" <> 'archived'
-          AND COALESCE(p."courseId", n."courseId") = $1
+        WHERE COALESCE(p."courseId", n."courseId") = $1
           AND NOT EXISTS (
             SELECT 1
             FROM "CourseSource" source
@@ -505,11 +502,10 @@ async function loadUnlinkedCourseDocuments(
       metadataJson: {
         notebookName: row.notebookName,
         problemType: row.type,
-        status: row.status,
         tags: row.tags,
         difficulty: row.difficulty,
       },
-      publishedAt: row.status === 'published' ? row.updatedAt : null,
+      publishedAt: null,
     };
   });
 
@@ -707,7 +703,6 @@ async function syncUnlinkedCourseKnowledgeProjectionWithPermit(args: {
                   FROM "NotebookProblem" problem
                   LEFT JOIN "Notebook" notebook ON notebook."id" = problem."notebookId"
                   WHERE d."documentKey" = 'problem:' || problem."id"
-                    AND problem."status" <> 'archived'
                     AND COALESCE(problem."courseId", notebook."courseId") = $1
                     AND NOT EXISTS (
                       SELECT 1
@@ -773,7 +768,6 @@ async function syncUnlinkedCourseKnowledgeProjectionWithPermit(args: {
                   FROM "NotebookProblem" problem
                   LEFT JOIN "Notebook" notebook ON notebook."id" = problem."notebookId"
                   WHERE d."documentKey" = 'problem:' || problem."id"
-                    AND problem."status" <> 'archived'
                     AND COALESCE(problem."courseId", notebook."courseId") = $1
                     AND NOT EXISTS (
                       SELECT 1

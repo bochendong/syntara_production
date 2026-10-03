@@ -711,7 +711,6 @@ async function main() {
     const problems = await prisma.notebookProblem.findMany({
       where: {
         type: 'code',
-        status: 'published',
         OR: [{ courseId }, { notebookId: { in: notebookIds } }],
       },
       orderBy: [{ problemNumber: 'asc' }, { createdAt: 'asc' }],

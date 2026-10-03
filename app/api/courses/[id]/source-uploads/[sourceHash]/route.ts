@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -239,7 +240,7 @@ function sourceCoverSlideJson(args: {
   };
 }
 
-export async function PATCH(
+async function auditedPATCH(
   request: Request,
   context: { params: Promise<{ id: string; sourceHash: string }> },
 ) {
@@ -584,7 +585,7 @@ export async function PATCH(
   });
 }
 
-export async function DELETE(
+async function auditedDELETE(
   request: Request,
   context: { params: Promise<{ id: string; sourceHash: string }> },
 ) {
@@ -629,3 +630,7 @@ export async function DELETE(
     return NextResponse.json({ ok: true, result });
   });
 }
+
+export const PATCH = withAiFailureAudit(auditedPATCH);
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

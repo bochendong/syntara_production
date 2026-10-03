@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 
 import {
@@ -11,7 +12,7 @@ import { publicApiRequestId, publicApiSuccess } from '@/lib/server/public-api';
 
 export const runtime = 'nodejs';
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   try {
     const session = await requireServerSession();
@@ -28,3 +29,5 @@ export async function POST(request: NextRequest) {
     return nativeAuthRouteError(requestId, error);
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

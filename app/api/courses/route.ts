@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { normalizeCourseDisplay } from '@/lib/course-space/course-display-name';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -71,7 +72,7 @@ export async function GET() {
   });
 }
 
-export async function POST(request: Request) {
+async function auditedPOST(request: Request) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -98,3 +99,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ course }, { status: 201 });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

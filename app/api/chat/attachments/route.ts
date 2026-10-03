@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { requireUserId } from '@/lib/server/api-auth';
@@ -51,7 +52,7 @@ async function deleteFromOpenAI(args: { fileId: string; apiKey: string; baseUrl?
   }
 }
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   return safeRoute(async () => {
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
   });
 }
 
-export async function DELETE(request: NextRequest) {
+async function auditedDELETE(request: NextRequest) {
   return safeRoute(async () => {
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
@@ -133,3 +134,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ deleted: true });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -38,7 +39,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       where: { courseId },
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       include: {
-        _count: { select: { problems: { where: { status: { not: 'archived' } } } } },
+        _count: { select: { problems: { where: {} } } },
       },
     });
     return NextResponse.json({
@@ -48,7 +49,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   });
 }
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
@@ -83,9 +84,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         position: (last?.position ?? -1) + 1,
       },
       include: {
-        _count: { select: { problems: { where: { status: { not: 'archived' } } } } },
+        _count: { select: { problems: { where: {} } } },
       },
     });
     return NextResponse.json({ chapter: toClientChapter(chapter) }, { status: 201 });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

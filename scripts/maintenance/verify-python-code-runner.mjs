@@ -57,7 +57,7 @@ const problem = {
     constraints: [],
     publicTests: [{ id: 'positive', expression: 'add(1, 2)', expected: '3' }],
   },
-  grading: { type: 'code', publishRequirementsMet: true },
+  grading: { type: 'code', referenceVerified: true },
 };
 const secretJudge = {
   language: 'python',

@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/prisma';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -6,7 +7,7 @@ import { toPrismaJson, toPrismaNullableJson } from '@/lib/server/prisma-json';
 import { stripPrivateSpeechAudioFromActions } from '@/lib/server/speech-action-assets';
 import { scheduleUnlinkedCourseKnowledgeProjectionSync } from '@/lib/server/unlinked-course-knowledge-projection';
 
-export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(_request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -132,3 +133,5 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

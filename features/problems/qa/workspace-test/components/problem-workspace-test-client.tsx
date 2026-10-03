@@ -65,12 +65,6 @@ const DIFFICULTY_LABELS: Record<WorkspaceProblem['difficulty'], string> = {
   hard: '困难',
 };
 
-const STATUS_LABELS: Record<WorkspaceProblem['status'], string> = {
-  draft: '草稿',
-  published: '已发布',
-  archived: '归档',
-};
-
 const CODE_PANELS: CodePanelMeta[] = [
   { value: 'code', icon: Code2, label: 'Code' },
   { value: 'testcase', icon: FlaskConical, label: 'Testcase' },
@@ -97,7 +91,6 @@ function makeProblem(args: {
     notebookName: '做题空间 UI Fixtures',
     title: args.title,
     type: args.type,
-    status: 'published',
     source: 'manual',
     order: WORKSPACE_PROBLEMS_ORDER.indexOf(args.id),
     points: args.points,
@@ -297,7 +290,7 @@ const WORKSPACE_PROBLEMS: WorkspaceProblem[] = [
     grading: {
       type: 'code',
       analysis: '哈希表记录已访问数字及其下标。',
-      publishRequirementsMet: true,
+      referenceVerified: true,
     },
   }),
   makeProblem({
@@ -338,7 +331,7 @@ const WORKSPACE_PROBLEMS: WorkspaceProblem[] = [
     grading: {
       type: 'code',
       analysis: '一次扫描维护 current 和 best。',
-      publishRequirementsMet: true,
+      referenceVerified: true,
     },
     latestAttempt: {
       id: 'attempt-risk-latest',
@@ -866,9 +859,6 @@ function ProblemHeader({
           </Badge>
           <Badge variant="outline" className="rounded-md">
             {problem.subject}
-          </Badge>
-          <Badge variant="outline" className="rounded-md">
-            {STATUS_LABELS[problem.status]}
           </Badge>
           {latestAttempt?.status ? (
             <Badge className={cn('rounded-md border', statusTone(latestAttempt.status))}>

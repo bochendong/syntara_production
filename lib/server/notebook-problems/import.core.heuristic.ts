@@ -277,7 +277,6 @@ export function buildHeuristicDraft(
   const common = {
     draftId: randomUUID(),
     title,
-    status: 'draft' as const,
     source,
     points: extractPointTotal(cleaned),
     tags: [],
@@ -393,7 +392,7 @@ export function buildHeuristicDraft(
       },
       grading: {
         type,
-        publishRequirementsMet:
+        referenceVerified:
           Boolean(extractCodeSignature(cleaned)) &&
           publicTests.length > 0 &&
           secretTests.length > 0,

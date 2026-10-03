@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -15,7 +16,7 @@ async function ownedSource(userId: string, courseId: string, sourceId: string) {
   });
 }
 
-export async function PATCH(
+async function auditedPATCH(
   request: Request,
   context: { params: Promise<{ courseId: string; sourceId: string }> },
 ) {
@@ -39,7 +40,7 @@ export async function PATCH(
   });
 }
 
-export async function DELETE(
+async function auditedDELETE(
   request: Request,
   context: { params: Promise<{ courseId: string; sourceId: string }> },
 ) {
@@ -70,3 +71,7 @@ export async function DELETE(
     return NextResponse.json({ ok: true });
   });
 }
+
+export const PATCH = withAiFailureAudit(auditedPATCH);
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

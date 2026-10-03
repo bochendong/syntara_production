@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/server/prisma';
@@ -14,7 +15,7 @@ const addNotebookToCourseSchema = z.object({
   notebookId: z.string().trim().min(1),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -62,3 +63,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ notebook });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

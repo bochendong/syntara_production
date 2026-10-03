@@ -493,7 +493,6 @@ export function buildCoverageScaffoldFromStructurePlan(
         draftId: randomUUID(),
         title: problem.title || `Question ${problem.topLevelLabel}`,
         type: publicContent.type,
-        status: 'draft',
         source,
         points:
           problem.subparts.reduce((sum, subpart) => sum + (subpart.points || 0), 0) ||

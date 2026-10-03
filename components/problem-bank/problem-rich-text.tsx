@@ -1,13 +1,23 @@
 'use client';
 
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
+import { Download, Eye, FileImage } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { expandLegacyCodeTables } from '@/lib/problem-bank/markdown-structure';
 import { repairMalformedProblemMath } from '@/lib/problem-bank/repair-malformed-math';
 import {
   renderHtmlWithLatex,
   renderPlainTitleWithOptionalLatex,
 } from '@/lib/render-html-with-latex';
-import { renderMathToHtml, renderTextWithMathToHtml } from '@/lib/math-engine';
+import { parseMathFragments, renderMathToHtml, renderTextWithMathToHtml } from '@/lib/math-engine';
 import type { NotebookProblemImageAsset, NotebookProblemPublicContent } from '@/lib/problem-bank';
 import { cn } from '@/lib/utils';
 
@@ -186,6 +196,27 @@ function renderCodeBlock(lines: string[], language: string): string {
 }
 
 function renderInlineFormatting(text: string): string {
+  // Keep formulas opaque to Markdown while preserving emphasis around them.
+  const formulas: string[] = [];
+  const source = parseMathFragments(text)
+    .map((fragment) => {
+      if (fragment.type === 'text') return fragment.value;
+      const index =
+        formulas.push(
+          renderMathToHtml(fragment.value, {
+            displayMode: fragment.displayMode || fragment.complex,
+          }),
+        ) - 1;
+      return `\uE000${index}\uE001`;
+    })
+    .join('');
+  return renderPlainInlineFormatting(source).replace(
+    /\uE000(\d+)\uE001/g,
+    (match, index) => formulas[Number(index)] ?? match,
+  );
+}
+
+function renderPlainInlineFormatting(text: string): string {
   return (
     escapeHtml(text)
       // Only attribute-free line breaks are markup; all other HTML stays escaped.
@@ -408,8 +439,46 @@ function isPipeTableRow(line: string): boolean {
 }
 
 function splitTableRow(line: string): string[] {
-  const trimmed = line.trim().replace(/^\|/, '').replace(/\|$/, '');
-  return trimmed.split('|').map((cell) => cell.trim());
+  const trimmed = line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/(?<!\\)\|$/, '');
+  const cells: string[] = [];
+  let current = '';
+  let inCode = false;
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const char = trimmed[index];
+    if (char === '\\' && trimmed[index + 1] === '|') {
+      // GFM escaped pipe: a literal "|" inside the cell.
+      current += '|';
+      index += 1;
+      continue;
+    }
+    if (char === '`') inCode = !inCode;
+    if (char === '$' && !inCode && trimmed[index - 1] !== '\\') {
+      // Keep "$|x|$" in one cell, but "$100 | $200" is currency in two cells.
+      const close = trimmed.indexOf('$', index + 1);
+      const inner = close > index ? trimmed.slice(index + 1, close) : '';
+      const currencyAcrossCells =
+        /^\s*\d[\d,.]*\s*\|\s*$/.test(inner) && /\d/.test(trimmed[close + 1] ?? '');
+      // Consume every complete math span, including "$0$" and "$b$".
+      // Otherwise its closing dollar can pair with the next cell's opener
+      // and swallow the real column separator between them.
+      if (close > index && !currencyAcrossCells) {
+        current += trimmed.slice(index, close + 1);
+        index = close;
+        continue;
+      }
+    }
+    if (char === '|' && !inCode) {
+      cells.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current.trim());
+  return cells;
 }
 
 function renderTable(lines: string[]): string {
@@ -430,15 +499,77 @@ function renderTable(lines: string[]): string {
     .join('')}</tbody></table></div>`;
 }
 
-function renderList(lines: string[], ordered: boolean): string {
-  const tag = ordered ? 'ol' : 'ul';
-  const itemPattern = ordered ? /^\s*\d+[\.)]\s+(.+)$/ : /^\s*[-*]\s+(.+)$/;
-  return `<${tag}>${lines
-    .map((line) => {
-      const item = line.match(itemPattern)?.[1] ?? line.trim();
-      return `<li>${renderInlineMarkdown(item)}</li>`;
-    })
-    .join('')}</${tag}>`;
+const LIST_ITEM_PATTERN = /^(\s*)(?:([-*+])|(\d+)[.)])\s+(.*)$/;
+
+function isListItemLine(line: string): boolean {
+  return LIST_ITEM_PATTERN.test(line);
+}
+
+function listIndentWidth(indent: string): number {
+  return indent.replace(/\t/g, '    ').length;
+}
+
+type ListNode = {
+  indent: number;
+  ordered: boolean;
+  start: number;
+  text: string;
+  children: ListNode[];
+};
+
+/**
+ * Renders a run of Markdown list lines as nested <ul>/<ol>. Indentation creates
+ * sub-lists, an ordered list keeps its first number (a list that starts at "3." must
+ * not be shown as 1), and indented non-marker lines continue the previous item.
+ */
+function renderList(lines: string[]): string {
+  const roots: ListNode[] = [];
+  const stack: ListNode[] = [];
+  for (const line of lines) {
+    const match = line.match(LIST_ITEM_PATTERN);
+    if (!match) {
+      const last = stack.at(-1);
+      if (last) last.text += `\n${line.trim()}`;
+      continue;
+    }
+    const node: ListNode = {
+      indent: listIndentWidth(match[1] ?? ''),
+      ordered: !match[2],
+      start: match[3] ? Number(match[3]) : 1,
+      text: match[4] ?? '',
+      children: [],
+    };
+    while (stack.length && stack.at(-1)!.indent >= node.indent) stack.pop();
+    const parent = stack.at(-1);
+    if (parent && node.indent >= parent.indent + 2) parent.children.push(node);
+    else roots.push(node);
+    stack.push(node);
+  }
+
+  const renderGroup = (nodes: ListNode[]): string => {
+    let html = '';
+    let index = 0;
+    while (index < nodes.length) {
+      const ordered = nodes[index].ordered;
+      const group: ListNode[] = [];
+      while (index < nodes.length && nodes[index].ordered === ordered) {
+        group.push(nodes[index]);
+        index += 1;
+      }
+      const tag = ordered ? 'ol' : 'ul';
+      const start = ordered && group[0].start !== 1 ? ` start="${group[0].start}"` : '';
+      html += `<${tag}${start}>${group
+        .map(
+          (node) =>
+            `<li>${renderInlineMarkdown(node.text)}${
+              node.children.length ? renderGroup(node.children) : ''
+            }</li>`,
+        )
+        .join('')}</${tag}>`;
+    }
+    return html;
+  };
+  return renderGroup(roots);
 }
 
 function renderHeading(line: string): string | null {
@@ -601,7 +732,7 @@ function textToHtml(text: string): string {
       continue;
     }
 
-    if (line.includes('\\begin{cases}')) {
+    if (line.includes('\\begin{cases}') && !line.includes('\\end{cases}')) {
       const mathLines: string[] = [line];
       index += 1;
       while (index < lines.length && !lines[index].includes('\\end{cases}')) {
@@ -650,23 +781,34 @@ function textToHtml(text: string): string {
       continue;
     }
 
-    if (/^\s*[-*]\s+/.test(line)) {
+    if (isListItemLine(line)) {
       const listLines: string[] = [];
-      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
-        listLines.push(lines[index]);
-        index += 1;
+      while (index < lines.length) {
+        const current = lines[index];
+        if (isListItemLine(current)) {
+          listLines.push(current);
+          index += 1;
+          continue;
+        }
+        // An indented, non-empty line directly after an item continues that item.
+        if (current.trim() && /^\s{2,}\S/.test(current) && !parseCodeFenceStart(current)) {
+          listLines.push(current);
+          index += 1;
+          continue;
+        }
+        // A blank line followed by an indented item keeps a loose nested list together.
+        if (
+          !current.trim() &&
+          lines[index + 1] &&
+          /^\s{2,}/.test(lines[index + 1]) &&
+          isListItemLine(lines[index + 1])
+        ) {
+          index += 1;
+          continue;
+        }
+        break;
       }
-      blocks.push(renderList(listLines, false));
-      continue;
-    }
-
-    if (/^\s*\d+[\.)]\s+/.test(line)) {
-      const listLines: string[] = [];
-      while (index < lines.length && /^\s*\d+[\.)]\s+/.test(lines[index])) {
-        listLines.push(lines[index]);
-        index += 1;
-      }
-      blocks.push(renderList(listLines, true));
+      blocks.push(renderList(listLines));
       continue;
     }
 
@@ -677,13 +819,12 @@ function textToHtml(text: string): string {
       !parseCodeFenceStart(lines[index]) &&
       lines[index].trim() !== '$$' &&
       !isBracketDisplayMathStart(lines[index]) &&
-      !lines[index].includes('\\begin{cases}') &&
+      !(lines[index].includes('\\begin{cases}') && !lines[index].includes('\\end{cases}')) &&
       !renderHeading(lines[index]) &&
       !isHorizontalRule(lines[index]) &&
       !/^\s*>\s?/.test(lines[index]) &&
       !(isPipeTableRow(lines[index]) && lines[index + 1] && isTableSeparator(lines[index + 1])) &&
-      !/^\s*[-*]\s+/.test(lines[index]) &&
-      !/^\s*\d+[\.)]\s+/.test(lines[index])
+      !isListItemLine(lines[index])
     ) {
       paragraphLines.push(lines[index]);
       index += 1;
@@ -714,7 +855,8 @@ export const ProblemRichText = memo(function ProblemRichText({
   return (
     <div
       className={cn(
-        'prose prose-slate max-w-none text-sm leading-7 dark:prose-invert [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-0 [&_.katex-display]:my-3',
+        'prose prose-slate min-w-0 max-w-full text-sm leading-7 dark:prose-invert [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-0 [&_.katex-display]:my-3',
+        '[&_.math-engine-inline]:inline-block [&_.math-engine-inline]:max-w-full [&_.math-engine-inline]:overflow-x-auto [&_.math-engine-inline]:py-1 [&_.math-engine-inline]:align-middle [&_.math-engine-display]:max-w-full [&_.math-engine-display]:overflow-x-auto [&_.math-engine-display]:py-1 [&_.katex-display>.katex]:min-w-max',
         '[&_.problem-rich-display-math]:my-3 [&_.problem-rich-display-math]:overflow-x-auto',
         '[&_.problem-rich-cases]:my-3 [&_.problem-rich-cases]:flex [&_.problem-rich-cases]:items-center [&_.problem-rich-cases]:justify-center [&_.problem-rich-cases]:gap-2 [&_.problem-rich-cases]:overflow-x-auto',
         '[&_.problem-rich-cases-lhs]:whitespace-nowrap [&_.problem-rich-cases-brace]:text-5xl [&_.problem-rich-cases-brace]:font-light [&_.problem-rich-cases-brace]:leading-none',
@@ -741,35 +883,96 @@ export function ProblemImageAssets({
   content,
   images,
   className,
+  locale = 'zh-CN',
 }: {
   content?: Pick<NotebookProblemPublicContent, 'assets'> | null;
   images?: NotebookProblemImageAsset[];
   className?: string;
+  locale?: 'zh-CN' | 'en-US';
 }) {
-  const resolvedImages = images || problemImageAssetsFromContent(content);
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const resolvedImages = (images || problemImageAssetsFromContent(content)).filter((image) =>
+    image.src?.trim(),
+  );
+  const preview = resolvedImages.find((image) => image.src === previewSrc);
+  const label = (image: NotebookProblemImageAsset, index: number) =>
+    image.caption ||
+    image.alt ||
+    (locale === 'zh-CN' ? `题图 ${index + 1}` : `Figure ${index + 1}`);
   if (!resolvedImages.length) return null;
 
   return (
-    <div className={cn('grid gap-3 sm:grid-cols-2', className)}>
-      {resolvedImages.map((image) => (
-        <figure
-          key={image.id}
-          className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60"
-        >
-          <div className="flex min-h-[180px] items-center justify-center bg-white p-2 dark:bg-slate-950">
-            <img
-              src={image.src}
-              alt={image.alt || image.caption || image.id}
-              width={image.width || undefined}
-              height={image.height || undefined}
-              loading="lazy"
-              decoding="async"
-              className="max-h-[420px] w-full rounded-lg object-contain"
-            />
+    <>
+      <div className={cn('mt-4 flex flex-wrap gap-2.5', className)}>
+        {resolvedImages.map((image, index) => (
+          <figure
+            key={image.id}
+            className="group w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60"
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewSrc(image.src)}
+              aria-label={
+                locale === 'zh-CN'
+                  ? `放大查看 ${label(image, index)}`
+                  : `Enlarge ${label(image, index)}`
+              }
+              className="flex w-full items-center justify-center overflow-hidden bg-white p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 dark:bg-slate-950"
+            >
+              <img
+                src={image.src}
+                alt={image.alt || label(image, index)}
+                width={image.width || undefined}
+                height={image.height || undefined}
+                loading="lazy"
+                decoding="async"
+                className="h-auto max-h-[65dvh] w-full object-contain"
+              />
+            </button>
+            <figcaption className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+              <FileImage className="size-3 shrink-0 text-slate-400" aria-hidden="true" />
+              <span className="min-w-0 flex-1 break-words" title={label(image, index)}>
+                {label(image, index)}
+              </span>
+              <Eye className="size-3 shrink-0 text-slate-400" aria-hidden="true" />
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+      <Dialog open={Boolean(preview)} onOpenChange={(open) => !open && setPreviewSrc(null)}>
+        <DialogContent className="flex max-h-[92dvh] w-[min(94vw,1100px)] max-w-none flex-col overflow-hidden p-0">
+          <DialogHeader className="border-b border-slate-200 px-5 py-4 pr-14 dark:border-slate-700">
+            <DialogTitle>
+              {preview ? label(preview, resolvedImages.indexOf(preview)) : ''}
+            </DialogTitle>
+            <DialogDescription>
+              {locale === 'zh-CN'
+                ? '查看题图，可滚动查看完整内容或保存图片。'
+                : 'View the full figure, scroll, or save the image.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-4 dark:bg-slate-950">
+            {preview ? (
+              <img
+                src={preview.src}
+                alt={preview.alt || label(preview, resolvedImages.indexOf(preview))}
+                className="mx-auto h-auto max-w-full rounded-lg bg-white"
+              />
+            ) : null}
           </div>
-        </figure>
-      ))}
-    </div>
+          <DialogFooter className="border-t border-slate-200 px-5 py-3 dark:border-slate-700">
+            {preview ? (
+              <Button asChild>
+                <a href={preview.src} download>
+                  <Download className="mr-1.5 size-4" />
+                  {locale === 'zh-CN' ? '保存图片' : 'Save image'}
+                </a>
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

@@ -61,7 +61,6 @@ type ProblemSnapshot = {
   courseId: string | null;
   title: string;
   type: string;
-  status: string;
   difficulty: string;
   publicContentJson: Prisma.JsonValue;
   gradingJson: Prisma.JsonValue;
@@ -86,7 +85,6 @@ export function courseProblemRevision(problem: ProblemSnapshot): string {
         courseId: problem.courseId,
         title: problem.title,
         type: problem.type,
-        status: problem.status,
         difficulty: problem.difficulty,
         publicContentJson: problem.publicContentJson,
         gradingJson: problem.gradingJson,
@@ -149,7 +147,6 @@ async function prepareUpload(
       courseId: true,
       title: true,
       type: true,
-      status: true,
       difficulty: true,
       publicContentJson: true,
       gradingJson: true,
@@ -168,9 +165,6 @@ async function prepareUpload(
   for (const change of upload.changes) {
     const current = currentById.get(change.id);
     if (!current) throw new CourseProblemUploadConflict(`Problem not in course: ${change.id}`);
-    if (current.status !== 'draft') {
-      throw new CourseProblemUploadConflict(`Only draft problems can be uploaded: ${change.id}`);
-    }
     const revision = courseProblemRevision(current);
     if (revision !== change.expectedRevision) {
       throw new CourseProblemUploadConflict(`Problem changed since export: ${change.id}`);
@@ -240,7 +234,6 @@ export async function applyCourseProblemUpload(db: PrismaClient, input: unknown)
           where: {
             id: change.id,
             courseId: upload.courseId,
-            status: 'draft',
             updatedAt: change.updatedAt,
           },
           data: change.data,

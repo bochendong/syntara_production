@@ -15,7 +15,6 @@ const row = {
   courseId: 'course-1',
   title: 'Example',
   type: 'short_answer',
-  status: 'draft',
   difficulty: 'medium',
   publicContentJson: { type: 'short_answer', stem: 'What is two plus two?' },
   gradingJson: { type: 'short_answer', referenceAnswer: '4' },
@@ -33,7 +32,7 @@ const db = {
       where.courseId === row.courseId && where.id.in.includes(row.id) ? [row] : [],
     updateMany: async ({ where, data }) => {
       assert.equal(where.courseId, 'course-1');
-      assert.equal(where.status, 'draft');
+      assert.equal('status' in where, false);
       assert.equal(where.updatedAt, row.updatedAt);
       assert.equal(data.type, 'choice');
       assert.equal(data.publicContentJson.type, 'choice');

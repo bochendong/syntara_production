@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import crypto from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { requireServerSession } from '@/lib/server/auth';
+import { requireActualServerSession } from '@/lib/server/auth';
 import { ensureUserForApi } from '@/lib/server/ensure-user';
 import { isTrustedInternalHeaders } from '@/lib/server/internal-request';
 import { getOptionalPrisma, isDatabaseConfigured } from '@/lib/server/prisma-safe';
@@ -177,7 +177,7 @@ async function resolveIdentity(): Promise<AdminIdentity | null> {
     return cookieIdentity;
   }
 
-  const session = await requireServerSession();
+  const session = await requireActualServerSession();
   const sessionUserId = session?.user?.id?.trim();
   if (sessionUserId) {
     const resolvedUserId =

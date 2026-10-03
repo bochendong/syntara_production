@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -6,7 +7,7 @@ import { cancelOpenAIUserUpload } from '@/lib/server/openai-user-files';
 
 export const runtime = 'nodejs';
 
-export async function DELETE(
+async function auditedDELETE(
   request: NextRequest,
   context: { params: Promise<{ uploadId: string }> },
 ) {
@@ -27,3 +28,5 @@ export async function DELETE(
     return NextResponse.json({ cancelled: true });
   });
 }
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

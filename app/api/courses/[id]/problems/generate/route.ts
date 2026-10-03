@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { requireUserId } from '@/lib/server/api-auth';
@@ -8,7 +9,7 @@ import { safeRoute } from '@/lib/server/json-error-response';
  * Practice plans must select existing course problem-bank records; this route
  * must never fabricate or persist replacement questions when the bank is short.
  */
-export async function POST(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -24,3 +25,5 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
     );
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

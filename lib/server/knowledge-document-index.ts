@@ -47,7 +47,6 @@ type ProblemSourceRow = {
   notebookName: string | null;
   title: string;
   type: string;
-  status: string;
   tags: string[];
   difficulty: string;
   publicText: string;
@@ -485,15 +484,13 @@ async function loadSourceDocuments(args: {
           n."name" AS "notebookName",
           p."title",
           p."type"::text AS "type",
-          p."status"::text AS "status",
           p."tags",
           p."difficulty"::text AS "difficulty",
           p."publicContentJson"::text AS "publicText",
           p."updatedAt"
         FROM "NotebookProblem" p
         LEFT JOIN "Notebook" n ON n."id" = p."notebookId"
-        WHERE p."status" <> 'archived'
-          AND COALESCE(p."courseId", n."courseId") = $1
+        WHERE COALESCE(p."courseId", n."courseId") = $1
           AND COALESCE(
             p."sourceMeta"->>'uploadSourceHash',
             p."sourceMeta"->>'sourceHash'
@@ -573,11 +570,10 @@ async function loadSourceDocuments(args: {
       metadataJson: {
         notebookName: row.notebookName,
         problemType: row.type,
-        status: row.status,
         tags: row.tags,
         difficulty: row.difficulty,
       },
-      publishedAt: row.status === 'published' ? row.updatedAt : null,
+      publishedAt: null,
     };
   });
 
@@ -1088,7 +1084,7 @@ export async function searchCourseKnowledge(args: {
           FROM "NotebookProblem" p
           LEFT JOIN "Notebook" n ON n."id" = p."notebookId"
           WHERE 'problem' = ANY($3::text[])
-            AND p."status" <> 'archived'
+
             AND (
               p."courseId" = $1
               OR (p."courseId" IS NULL AND n."courseId" = $1)

@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -15,7 +16,7 @@ const runSchema = z.object({
   language: z.enum(['zh-CN', 'en-US']).default('zh-CN'),
 });
 
-export async function POST(
+async function auditedPOST(
   request: Request,
   context: { params: Promise<{ id: string; problemId: string }> },
 ) {
@@ -64,3 +65,5 @@ export async function POST(
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

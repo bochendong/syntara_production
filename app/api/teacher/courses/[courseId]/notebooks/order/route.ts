@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -21,7 +22,7 @@ function jsonRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-export async function PUT(request: Request, context: { params: Promise<{ courseId: string }> }) {
+async function auditedPUT(request: Request, context: { params: Promise<{ courseId: string }> }) {
   return safeRoute(async () => {
     const teacher = await requireTeacher();
     if ('response' in teacher) return teacher.response;
@@ -63,3 +64,5 @@ export async function PUT(request: Request, context: { params: Promise<{ courseI
     return NextResponse.json({ ok: true, notebookIds: payload.data.notebookIds });
   });
 }
+
+export const PUT = withAiFailureAudit(auditedPUT);

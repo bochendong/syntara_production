@@ -272,7 +272,10 @@ function classifyExamProblem(problem) {
   const number = String(sourceMeta.sourceQuestionNumber ?? '');
   if (sourceFileName === 'CSC108H5_Midterm_2025_V1.pdf') return MIDTERM_MAP.get(number) ?? null;
   if (sourceFileName === '06_MidReview.pdf') return MID_REVIEW_MAP.get(number) ?? null;
-  if (sourceFileName === 'CSC108H5F_FinalExam_2025_Questions.pdf' && sourceMeta.assignedNotebookId) {
+  if (
+    sourceFileName === 'CSC108H5F_FinalExam_2025_Questions.pdf' &&
+    sourceMeta.assignedNotebookId
+  ) {
     return {
       notebookId: String(sourceMeta.assignedNotebookId),
       reason: String(sourceMeta.sourceTopic ?? 'final exam assigned notebook'),
@@ -344,27 +347,23 @@ async function refreshSummaryFields(prisma, courseId) {
 
   await Promise.all(
     notebooks.map(async (notebook) => {
-      const [problemCount, publishedProblemCount] = await Promise.all([
+      const [problemCount] = await Promise.all([
         prisma.notebookProblem.count({ where: { notebookId: notebook.id } }),
-        prisma.notebookProblem.count({ where: { notebookId: notebook.id, status: 'published' } }),
       ]);
       await prisma.notebook.update({
         where: { id: notebook.id },
-        data: { problemCount, publishedProblemCount },
+        data: { problemCount },
       });
     }),
   );
 
-  const [problemCount, publishedProblemCount] = await Promise.all([
+  const [problemCount] = await Promise.all([
     prisma.notebookProblem.count({ where: { OR: [{ courseId }, { notebook: { courseId } }] } }),
-    prisma.notebookProblem.count({
-      where: { status: 'published', OR: [{ courseId }, { notebook: { courseId } }] },
-    }),
   ]);
 
   await prisma.course.update({
     where: { id: courseId },
-    data: { problemCount, publishedProblemCount },
+    data: { problemCount },
   });
 }
 

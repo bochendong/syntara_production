@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 /**
  * Web Search API
  *
@@ -15,7 +16,7 @@ import { getRequestContext, runWithRequestContext } from '@/lib/server/request-c
 
 const log = createLogger('WebSearch');
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   return runWithRequestContext(req, '/api/web-search', async () => {
     try {
       const body = await req.json();
@@ -103,3 +104,5 @@ export async function POST(req: NextRequest) {
     }
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -13,7 +14,7 @@ const updateRuleSchema = z.object({
   content: z.string().trim().min(1).max(COURSE_HARD_RULE_MAX_CHARS),
 });
 
-export async function PATCH(
+async function auditedPATCH(
   request: Request,
   context: { params: Promise<{ courseId: string; ruleId: string }> },
 ) {
@@ -38,7 +39,7 @@ export async function PATCH(
   });
 }
 
-export async function DELETE(
+async function auditedDELETE(
   _request: Request,
   context: { params: Promise<{ courseId: string; ruleId: string }> },
 ) {
@@ -56,3 +57,7 @@ export async function DELETE(
     return NextResponse.json({ ok: true });
   });
 }
+
+export const PATCH = withAiFailureAudit(auditedPATCH);
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

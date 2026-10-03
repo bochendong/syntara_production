@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/server/prisma';
@@ -43,7 +44,7 @@ const previewSchema = z
     }
   });
 
-export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -203,3 +204,5 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

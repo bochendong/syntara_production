@@ -1,10 +1,8 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { runWithRequestContext } from '@/lib/server/request-context';
-import {
-  repairMathSlide,
-  type RepairMathSlideResult,
-} from '@/lib/server/slide-repair/math-repair';
+import { repairMathSlide, type RepairMathSlideResult } from '@/lib/server/slide-repair/math-repair';
 import type { RepairRequestBody } from '@/lib/server/slide-repair/shared';
 
 export const maxDuration = 180;
@@ -17,7 +15,7 @@ function toApiResponse(result: RepairMathSlideResult) {
   return apiError(result.code, result.status, result.message);
 }
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   let body: RepairRequestBody;
   try {
     body = (await req.json()) as RepairRequestBody;
@@ -46,3 +44,5 @@ export async function POST(req: NextRequest) {
     },
   );
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

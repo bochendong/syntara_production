@@ -34,8 +34,10 @@ const { renderProblemRichTextHtml: render } = load(
   {
     '@/lib/problem-bank/markdown-structure': structure,
     '@/lib/problem-bank/repair-malformed-math': mathRepair,
+    '@/components/ui/button': {},
+    '@/components/ui/dialog': {},
     '@/lib/render-html-with-latex': { renderHtmlWithLatex: (x) => x },
-    '@/lib/math-engine': {},
+    '@/lib/math-engine': mathEngine,
     '@/lib/utils': {},
   },
 );

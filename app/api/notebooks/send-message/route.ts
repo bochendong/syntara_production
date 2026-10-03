@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { readNotebookReplyContext } from '@/features/chat/server/context-notes';
 import { enqueueJob, inputHash } from '@/features/background-jobs/server/store';
 import { prisma } from '@/lib/server/prisma';
@@ -856,7 +857,7 @@ function buildNotebookUnitPrompt(
   return lines.join('\n') || 'N/A';
 }
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   return runWithRequestContext(req, '/api/notebooks/send-message', async () => {
     try {
       const body = (await req.json()) as SendNotebookMessageRequest;
@@ -1723,3 +1724,5 @@ ${compactSchema}`;
     }
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

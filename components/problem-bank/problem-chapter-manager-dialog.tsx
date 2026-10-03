@@ -113,8 +113,8 @@ export function ProblemChapterManagerDialog(props: {
           <DialogTitle>{props.locale === 'zh-CN' ? '管理章节' : 'Manage chapters'}</DialogTitle>
           <DialogDescription>
             {props.locale === 'zh-CN'
-              ? '章节由老师手动建立。AI 归档只会把未归档题目放入已有章节。'
-              : 'Teachers define chapters. AI filing only places unfiled problems into them.'}
+              ? '可用题库中的“一键整理章节”自动生成章节并归档，也可在这里手动添加、改名或调整。'
+              : 'Use “Organize chapters” in the problem bank to create chapters and file problems automatically, or add and edit chapters here.'}
           </DialogDescription>
         </DialogHeader>
 

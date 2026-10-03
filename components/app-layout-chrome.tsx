@@ -73,10 +73,12 @@ function MainShellNoRail({
   children,
   balancedInset = false,
   edgeToEdge = false,
+  lockScroll = false,
 }: {
   children: ReactNode;
   balancedInset?: boolean;
   edgeToEdge?: boolean;
+  lockScroll?: boolean;
 }) {
   return (
     <div
@@ -94,7 +96,8 @@ function MainShellNoRail({
       >
         <div
           className={cn(
-            'min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto',
+            'min-h-0 w-full min-w-0 flex-1 overflow-x-hidden',
+            lockScroll ? 'overflow-y-hidden' : 'overflow-y-auto',
             !edgeToEdge && 'rounded-[20px]',
           )}
         >
@@ -243,7 +246,7 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   }
 
   if (isAdmin) {
-    return <MainShellNoRail>{children}</MainShellNoRail>;
+    return <MainShellNoRail lockScroll>{children}</MainShellNoRail>;
   }
 
   if (isClassroom) {

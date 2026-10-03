@@ -428,7 +428,6 @@ async function ProblemTab({
         chapterName: row.chapter?.name || undefined,
         title: row.title,
         type: row.type,
-        status: row.status,
         source: row.source,
         order: row.order,
         problemNumber: row.problemNumber,

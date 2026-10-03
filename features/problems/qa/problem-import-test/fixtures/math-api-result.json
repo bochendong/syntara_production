@@ -1,0 +1,789 @@
+{
+  "data": {
+    "model": "openai:gpt-5.6-luna",
+    "problems": [
+      {
+        "draftId": "113c731f-ee6d-452a-a1a8-9436c71fe208",
+        "title": "Area between two graphs",
+        "type": "calculation",
+        "status": "draft",
+        "source": "pdf",
+        "points": 8,
+        "tags": [],
+        "difficulty": "medium",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "assets": { "images": [] },
+          "type": "calculation",
+          "taskKind": "calculation",
+          "responseKind": "math_expression",
+          "stem": "Compute the area between the graphs of $y=x^2$ and $y=-2x+3$. Show all your work.",
+          "showWork": true
+        },
+        "grading": {
+          "type": "calculation",
+          "graderKind": "numeric_or_exact",
+          "referenceAnswer": "$\\frac{32}{3}$ square units",
+          "acceptedForms": [],
+          "analysis": "The intersection points satisfy $x^2=-2x+3$, so $x^2+2x-3=0$ and $(x+3)(x-1)=0$. Thus the curves intersect at $x=-3$ and $x=1$. On this interval, the line is above the parabola because at $x=0$, $-2(0)+3=3>0=x^2$. Therefore the area is $\\int_{-3}^{1}((-2x+3)-x^2)\\,dx=\\left[-\\frac{x^3}{3}-x^2+3x\\right]_{-3}^{1}=\\frac{32}{3}$."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 1,
+          "promptStatus": "present",
+          "sourceQuote": "Compute the area between the graphs of y = x2 and y = −2x + 3.",
+          "figureRefs": [],
+          "responseMode": "text",
+          "answerSource": "llm-solved",
+          "notes": "The source states 8 marks for Question 1.",
+          "topLevelLabel": "1",
+          "pageStart": 1,
+          "pageEnd": 1,
+          "sourceAnchors": [
+            {
+              "pageNumber": 1,
+              "textQuote": "QUESTION 1: [8 marks] Compute the area between the graphs of y = x2 and y = −2x + 3.",
+              "role": "problem"
+            }
+          ],
+          "structureConfidence": 0.99,
+          "structureVisualRefs": [],
+          "importReview": {
+            "version": 1,
+            "status": "needs_review",
+            "issues": [
+              {
+                "code": "model_flag",
+                "message": "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria"
+              }
+            ],
+            "answerCheck": "agree",
+            "independentAnswer": "\\(\\frac{32}{3}\\) square units",
+            "checkedAt": "2026-10-02T23:42:28.924Z"
+          }
+        },
+        "validationErrors": [
+          "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria"
+        ],
+        "notebookId": null
+      },
+      {
+        "draftId": "fc79e83a-deda-4bd1-8af5-3ed866d36e1f",
+        "title": "Indefinite integral with powers of x",
+        "type": "calculation",
+        "status": "draft",
+        "source": "pdf",
+        "points": 3,
+        "tags": [],
+        "difficulty": "easy",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "assets": { "images": [] },
+          "type": "calculation",
+          "taskKind": "calculation",
+          "responseKind": "math_expression",
+          "stem": "Evaluate the following integral. Show all your work. $\\int \\frac{x^2+1+x^{-2}}{x}\\,dx$",
+          "showWork": true
+        },
+        "grading": {
+          "type": "calculation",
+          "graderKind": "numeric_or_exact",
+          "referenceAnswer": "$\\frac{x^2}{2}+\\ln\\lvert x\\rvert-\\frac{1}{2x^2}+C$",
+          "acceptedForms": [],
+          "analysis": "Rewrite the integrand as $\\frac{x^2+1+x^{-2}}{x}=x+x^{-1}+x^{-3}$. Integrating term by term gives $\\frac{x^2}{2}+\\ln\\lvert x\\rvert-\\frac{1}{2}x^{-2}+C$, equivalently $\\frac{x^2}{2}+\\ln\\lvert x\\rvert-\\frac{1}{2x^2}+C$."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 2,
+          "promptStatus": "present",
+          "sourceQuote": "Evaluate the following integrals. (a) ∫ (x2 + 1 + x−2)/x dx",
+          "figureRefs": [],
+          "responseMode": "text",
+          "answerSource": "llm-solved",
+          "notes": "The source assigns 12 marks to Question 2 as a whole; 3 marks are allocated here for the independently listed subpart.",
+          "topLevelLabel": "2a",
+          "pageStart": 2,
+          "pageEnd": 2,
+          "sourceAnchors": [
+            { "pageNumber": 2, "textQuote": "(a) ∫ (x2 + 1 + x−2)/x dx", "role": "problem" }
+          ],
+          "structureConfidence": 0.98,
+          "structureVisualRefs": [],
+          "importReview": {
+            "version": 1,
+            "status": "needs_review",
+            "issues": [
+              {
+                "code": "model_flag",
+                "message": "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria"
+              }
+            ],
+            "answerCheck": "agree",
+            "independentAnswer": "\\frac{x^2}{2}+\\ln|x|-\\frac{1}{2x^2}+C, \\quad x\\ne0",
+            "checkedAt": "2026-10-02T23:42:28.926Z"
+          }
+        },
+        "validationErrors": [
+          "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria"
+        ],
+        "notebookId": null
+      },
+      {
+        "draftId": "c50ae142-e372-4942-8f7a-5faaa11986a9",
+        "title": "Partial-fraction integral",
+        "type": "calculation",
+        "status": "draft",
+        "source": "pdf",
+        "points": 3,
+        "tags": [],
+        "difficulty": "medium",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "assets": { "images": [] },
+          "type": "calculation",
+          "taskKind": "calculation",
+          "responseKind": "math_expression",
+          "stem": "Evaluate the following integral. Show all your work. $\\int \\frac{1}{x^3-x}\\,dx$",
+          "showWork": true
+        },
+        "grading": {
+          "type": "calculation",
+          "graderKind": "numeric_or_exact",
+          "referenceAnswer": "$-\\ln\\lvert x\\rvert+\\frac{1}{2}\\ln\\lvert x-1\\rvert+\\frac{1}{2}\\ln\\lvert x+1\\rvert+C$",
+          "acceptedForms": [],
+          "analysis": "Factor the denominator: $x^3-x=x(x-1)(x+1)$. Use the decomposition $\\frac{1}{x(x-1)(x+1)}=-\\frac{1}{x}+\\frac{1}{2(x-1)}+\\frac{1}{2(x+1)}$. Integrating gives $-\\ln\\lvert x\\rvert+\\frac{1}{2}\\ln\\lvert x-1\\rvert+\\frac{1}{2}\\ln\\lvert x+1\\rvert+C$."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 3,
+          "promptStatus": "present",
+          "sourceQuote": "Evaluate the following integrals. (b) ∫ 1/(x3 − x) dx",
+          "figureRefs": [],
+          "responseMode": "text",
+          "answerSource": "llm-solved",
+          "notes": "The source assigns 12 marks to Question 2 as a whole; 3 marks are allocated here for the independently listed subpart.",
+          "topLevelLabel": "2b",
+          "pageStart": 2,
+          "pageEnd": 2,
+          "sourceAnchors": [
+            { "pageNumber": 2, "textQuote": "(b) ∫ 1/(x3 − x) dx", "role": "problem" }
+          ],
+          "structureConfidence": 0.98,
+          "structureVisualRefs": [],
+          "importReview": {
+            "version": 1,
+            "status": "needs_review",
+            "issues": [
+              {
+                "code": "model_flag",
+                "message": "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria"
+              }
+            ],
+            "answerCheck": "agree",
+            "independentAnswer": "\\frac{1}{2}\\ln\\left|\\frac{x^2-1}{x^2}\\right|+C,\\quad x\\ne -1,0,1",
+            "checkedAt": "2026-10-02T23:42:28.927Z"
+          }
+        },
+        "validationErrors": [
+          "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria"
+        ],
+        "notebookId": null
+      },
+      {
+        "draftId": "70e1a48b-e719-436f-a124-b6bd5acc39a0",
+        "title": "Definite trigonometric integral",
+        "type": "calculation",
+        "status": "draft",
+        "source": "pdf",
+        "points": 3,
+        "tags": [],
+        "difficulty": "medium",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "assets": { "images": [] },
+          "type": "calculation",
+          "taskKind": "calculation",
+          "responseKind": "math_expression",
+          "stem": "Evaluate the following integral. Show all your work. $\\int_{0}^{\\pi/4}x\\sin 2x\\,dx$",
+          "showWork": true
+        },
+        "grading": {
+          "type": "calculation",
+          "graderKind": "numeric_or_exact",
+          "referenceAnswer": "$\\frac{1}{4}$",
+          "acceptedForms": [],
+          "analysis": "Use integration by parts with $u=x$ and $dv=\\sin 2x\\,dx$, so $du=dx$ and $v=-\\frac{1}{2}\\cos 2x$. Thus $\\int x\\sin 2x\\,dx=-\\frac{x}{2}\\cos 2x+\\frac{1}{4}\\sin 2x$. Evaluating from $0$ to $\\frac{\\pi}{4}$ gives $\\left[-\\frac{x}{2}\\cos 2x+\\frac{1}{4}\\sin 2x\\right]_{0}^{\\pi/4}=\\frac{1}{4}$."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 4,
+          "promptStatus": "present",
+          "sourceQuote": "Evaluate the following integrals. (c) ∫ from 0 to π/4 x sin 2x dx",
+          "figureRefs": [],
+          "responseMode": "text",
+          "answerSource": "llm-solved",
+          "notes": "The source assigns 12 marks to Question 2 as a whole; 3 marks are allocated here for the independently listed subpart.",
+          "topLevelLabel": "2c",
+          "pageStart": 2,
+          "pageEnd": 2,
+          "sourceAnchors": [
+            { "pageNumber": 2, "textQuote": "(c) ∫ from 0 to π/4 x sin 2x dx", "role": "problem" }
+          ],
+          "structureConfidence": 0.98,
+          "structureVisualRefs": [],
+          "importReview": {
+            "version": 1,
+            "status": "needs_review",
+            "issues": [
+              {
+                "code": "model_flag",
+                "message": "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria"
+              },
+              {
+                "code": "answer_disagree",
+                "message": "Independent solve disagrees with the reference answer; review it: 1/4 vs $\\frac{1}{4}$"
+              }
+            ],
+            "answerCheck": "disagree",
+            "independentAnswer": "1/4",
+            "checkedAt": "2026-10-02T23:42:28.929Z"
+          }
+        },
+        "validationErrors": [
+          "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria",
+          "Independent solve disagrees with the reference answer; review it: 1/4 vs $\\frac{1}{4}$"
+        ],
+        "notebookId": null
+      },
+      {
+        "draftId": "52257f7f-aedd-4f90-acac-985581839bd2",
+        "title": "Definite integral involving a square root",
+        "type": "calculation",
+        "status": "draft",
+        "source": "pdf",
+        "points": 3,
+        "tags": [],
+        "difficulty": "medium",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "assets": { "images": [] },
+          "type": "calculation",
+          "taskKind": "calculation",
+          "responseKind": "math_expression",
+          "stem": "Evaluate the following integral. Show all your work. $\\int_{1}^{9}\\frac{dx}{x+\\sqrt{x}}$",
+          "showWork": true
+        },
+        "grading": {
+          "type": "calculation",
+          "graderKind": "numeric_or_exact",
+          "referenceAnswer": "$2\\ln 2$",
+          "acceptedForms": [],
+          "analysis": "Let $t=\\sqrt{x}$, so $x=t^2$ and $dx=2t\\,dt$. The denominator becomes $t^2+t=t(t+1)$, so the integrand becomes $\\frac{2t}{t(t+1)}\\,dt=\\frac{2}{t+1}\\,dt$. The bounds change from $x=1,9$ to $t=1,3$. Therefore the integral is $\\int_{1}^{3}\\frac{2}{t+1}\\,dt=2\\ln(t+1)\\big\\vert_{1}^{3}=2\\ln 2$."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 5,
+          "promptStatus": "present",
+          "sourceQuote": "Evaluate the following integrals. (d) ∫ from 1 to 9 dx/(x + √x)",
+          "figureRefs": [],
+          "responseMode": "text",
+          "answerSource": "llm-solved",
+          "notes": "The source assigns 12 marks to Question 2 as a whole; 3 marks are allocated here for the independently listed subpart.",
+          "topLevelLabel": "2d",
+          "pageStart": 2,
+          "pageEnd": 2,
+          "sourceAnchors": [
+            { "pageNumber": 2, "textQuote": "(d) ∫ from 1 to 9 dx/(x + √x)", "role": "problem" }
+          ],
+          "structureConfidence": 0.98,
+          "structureVisualRefs": [],
+          "importReview": {
+            "version": 1,
+            "status": "needs_review",
+            "issues": [
+              {
+                "code": "model_flag",
+                "message": "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria"
+              }
+            ],
+            "answerCheck": "agree",
+            "independentAnswer": "2 ln 2",
+            "checkedAt": "2026-10-02T23:42:28.931Z"
+          }
+        },
+        "validationErrors": [
+          "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria"
+        ],
+        "notebookId": null
+      },
+      {
+        "draftId": "cd314c64-67b3-4b34-8c24-539b2d645137",
+        "title": "Calculation of Calculus",
+        "type": "calculation",
+        "status": "draft",
+        "source": "pdf",
+        "points": 4,
+        "tags": [],
+        "difficulty": "medium",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "assets": { "images": [] },
+          "type": "calculation",
+          "taskKind": "calculation",
+          "responseKind": "math_expression",
+          "stem": "Find $F'(x)$ for $x>0$ if $F(x)=\\int_{0}^{x^2}\\sqrt{t}\\sin\\sqrt{t}\\,dt.$ Show all your work.",
+          "showWork": true
+        },
+        "grading": {
+          "type": "calculation",
+          "graderKind": "numeric_or_exact",
+          "referenceAnswer": "$F'(x)=2x^2\\sin x$",
+          "acceptedForms": [],
+          "analysis": "By the Fundamental Theorem of Calculus and the chain rule, $F'(x)=\\sqrt{x^2}\\sin\\sqrt{x^2}\\cdot 2x$. Since $x>0$, $\\sqrt{x^2}=x$. Hence $F'(x)=2x^2\\sin x$."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 6,
+          "promptStatus": "present",
+          "sourceQuote": "Find F′(x) for x > 0 if F(x) = ∫ from 0 to x2 √t sin √t dt.",
+          "figureRefs": [],
+          "responseMode": "text",
+          "answerSource": "llm-solved",
+          "notes": "The source assigns 12 marks to Question 3 as a whole; 4 marks are allocated here for the independently listed subpart.",
+          "topLevelLabel": "3a",
+          "pageStart": 3,
+          "pageEnd": 3,
+          "sourceAnchors": [
+            {
+              "pageNumber": 3,
+              "textQuote": "(a) Find F′(x) for x > 0 if F(x) = ∫ from 0 to x2 √t sin √t dt.",
+              "role": "problem"
+            }
+          ],
+          "structureConfidence": 0.98,
+          "structureVisualRefs": [],
+          "importReview": {
+            "version": 1,
+            "status": "needs_review",
+            "issues": [
+              {
+                "code": "model_flag",
+                "message": "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria"
+              }
+            ],
+            "answerCheck": "agree",
+            "independentAnswer": "F'(x)=2x^2\\sin x",
+            "checkedAt": "2026-10-02T23:42:28.932Z"
+          }
+        },
+        "validationErrors": [
+          "需要按过程给分的计算任务必须使用 short_answer + taskKind=calculation + rubricCriteria"
+        ],
+        "notebookId": null
+      },
+      {
+        "draftId": "39b54d06-7123-4b98-9e3d-5410de12d264",
+        "title": "Riemann-sum limit",
+        "type": "calculation",
+        "status": "draft",
+        "source": "pdf",
+        "points": 4,
+        "tags": [],
+        "difficulty": "medium",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "assets": { "images": [] },
+          "type": "calculation",
+          "taskKind": "calculation",
+          "responseKind": "math_expression",
+          "stem": "Determine $\\lim_{n\\to\\infty}\\sum_{i=1}^{n}\\frac{1}{n}\\frac{1}{\\sqrt{1+(i/n)^2}}.$ Show all of your work."
+        },
+        "grading": {
+          "type": "calculation",
+          "graderKind": "numeric_or_exact",
+          "referenceAnswer": "$\\ln(1+\\sqrt{2})$",
+          "acceptedForms": [],
+          "analysis": "The sum has the form $\\lim_{n\\to\\infty}\\sum_{i=1}^{n} f(i/n)\\,\\Delta x$ with $\\Delta x=1/n$ and $f(x)=1/\\sqrt{1+x^2}$.\nThe sample points $i/n$ run from $1/n$ to $1$, so the limit is the right-endpoint Riemann sum for $\\int_0^1 \\frac{1}{\\sqrt{1+x^2}}\\,dx$.\nAn antiderivative is $\\operatorname{arsinh}(x)=\\ln\\left(x+\\sqrt{1+x^2}\\right)$.\nEvaluating gives $\\operatorname{arsinh}(1)-\\operatorname{arsinh}(0)=\\ln(1+\\sqrt{2})$."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 8,
+          "answerSource": "llm-solved",
+          "promptStatus": "present",
+          "sourceQuote": "Determine lim n→∞ Σ from i=1 to n 1/n 1/√(1+(i/n)^2)",
+          "figureRefs": [],
+          "responseMode": "text",
+          "notes": "Printed as Question 3(b), worth part of the 12 marks assigned to Question 3.",
+          "topLevelLabel": "3c",
+          "pageStart": 3,
+          "pageEnd": 3,
+          "sourceAnchors": [
+            {
+              "pageNumber": 3,
+              "textQuote": "(c) Evaluate ∫ from π/4 to π/3 sec2 x tan x dx.",
+              "role": "problem"
+            }
+          ],
+          "structureConfidence": 0.98,
+          "structureVisualRefs": [],
+          "importReview": {
+            "version": 1,
+            "status": "passed",
+            "issues": [],
+            "answerCheck": "agree",
+            "independentAnswer": "\\(\\ln(1+\\sqrt{2})\\)",
+            "checkedAt": "2026-10-02T23:42:28.935Z"
+          }
+        },
+        "validationErrors": [],
+        "notebookId": null
+      },
+      {
+        "draftId": "32f2029b-b331-4e0a-bec9-a02c7ed61e88",
+        "title": "Definite integral of secant and tangent",
+        "type": "calculation",
+        "status": "draft",
+        "source": "pdf",
+        "points": 4,
+        "tags": [],
+        "difficulty": "easy",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "assets": { "images": [] },
+          "type": "calculation",
+          "taskKind": "calculation",
+          "responseKind": "math_expression",
+          "stem": "Evaluate $\\int_{\\pi/4}^{\\pi/3}\\sec^2 x\\tan x\\,dx.$ Show all of your work."
+        },
+        "grading": {
+          "type": "calculation",
+          "graderKind": "numeric_or_exact",
+          "referenceAnswer": "$1$",
+          "acceptedForms": [],
+          "analysis": "Use the substitution $u=\\tan x$, so $du=\\sec^2 x\\,dx$.\nThe integral becomes $\\int_{\\tan(\\pi/4)}^{\\tan(\\pi/3)}u\\,du=\\frac{1}{2}u^2\\big|_1^{\\sqrt{3}}$.\nTherefore the value is $\\frac{1}{2}(3-1)=1$."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 9,
+          "answerSource": "llm-solved",
+          "promptStatus": "present",
+          "sourceQuote": "Evaluate ∫ from π/4 to π/3 sec² x tan x dx",
+          "figureRefs": [],
+          "responseMode": "text",
+          "notes": "Printed as Question 3(c), worth part of the 12 marks assigned to Question 3.",
+          "topLevelLabel": "4a",
+          "pageStart": 4,
+          "pageEnd": 4,
+          "sourceAnchors": [
+            {
+              "pageNumber": 4,
+              "textQuote": "(a) Find the volume of the solid that results when the region inside the curve (x − 2)2 + y2 = 1 is rotated about the y-axis.",
+              "role": "problem"
+            }
+          ],
+          "structureConfidence": 0.98,
+          "structureVisualRefs": [],
+          "importReview": {
+            "version": 1,
+            "status": "passed",
+            "issues": [],
+            "answerCheck": "agree",
+            "independentAnswer": "1",
+            "checkedAt": "2026-10-02T23:42:28.937Z"
+          }
+        },
+        "validationErrors": [],
+        "notebookId": null
+      },
+      {
+        "draftId": "e5609836-6965-479d-a13a-a810d3105a9b",
+        "title": "Volume of a rotated circular region",
+        "type": "calculation",
+        "status": "draft",
+        "source": "pdf",
+        "points": 5,
+        "tags": [],
+        "difficulty": "medium",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "assets": { "images": [] },
+          "type": "calculation",
+          "taskKind": "calculation",
+          "responseKind": "math_expression",
+          "stem": "Find the volume of the solid that results when the region inside the curve $(x-2)^2+y^2=1$ is rotated about the $y$ -axis. Show all of your work."
+        },
+        "grading": {
+          "type": "calculation",
+          "graderKind": "numeric_or_exact",
+          "referenceAnswer": "$4\\pi^2$ cubic units",
+          "acceptedForms": [],
+          "analysis": "The curve encloses a disk of radius $1$ centered at $(2,0)$.\nWhen this disk is revolved about the $y$ -axis, its centroid travels a distance $2\\pi(2)=4\\pi$.\nThe area of the generating region is $\\pi(1)^2=\\pi$.\nBy Pappus's centroid theorem, the volume is $(4\\pi)(\\pi)=4\\pi^2$ cubic units.\nEquivalently, using cylindrical shells, $V=\\int_1^3 2\\pi x\\sqrt{1-(x-2)^2}\\,dx=4\\pi^2$."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 10,
+          "answerSource": "llm-solved",
+          "promptStatus": "present",
+          "sourceQuote": "Find the volume of the solid that results when the region inside the curve",
+          "figureRefs": [],
+          "responseMode": "text",
+          "notes": "Printed as Question 4(a), worth part of the 10 marks assigned to Question 4.",
+          "topLevelLabel": "4b",
+          "pageStart": 4,
+          "pageEnd": 4,
+          "sourceAnchors": [
+            {
+              "pageNumber": 4,
+              "textQuote": "(b) Suppose f(x) is a function satisfying |f″(x)| ≤ 2 for 0 ≤ x ≤ 3. How large should n be in order that the midpoint rule applied to ∫ from 0 to 3 f(x) dx be accurate to within 10−2?",
+              "role": "problem"
+            }
+          ],
+          "structureConfidence": 0.98,
+          "structureVisualRefs": [],
+          "importReview": {
+            "version": 1,
+            "status": "passed",
+            "issues": [],
+            "answerCheck": "agree",
+            "independentAnswer": "4π² cubic units",
+            "checkedAt": "2026-10-02T23:42:28.938Z"
+          }
+        },
+        "validationErrors": [],
+        "notebookId": null
+      },
+      {
+        "draftId": "a7e71d7c-ae7b-4799-9c3a-a30aa92fa236",
+        "title": "Midpoint-rule accuracy bound",
+        "type": "calculation",
+        "status": "draft",
+        "source": "pdf",
+        "points": 5,
+        "tags": [],
+        "difficulty": "medium",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "assets": { "images": [] },
+          "type": "calculation",
+          "taskKind": "calculation",
+          "responseKind": "math_expression",
+          "stem": "Suppose $f(x)$ is a function satisfying $\\lvert f''(x)\\rvert\\le 2\\quad\\text{for }0\\le x\\le 3.$ How large should $n$ be in order that the midpoint rule applied to $\\int_0^3 f(x)\\,dx$ be accurate to within $10^{-2}$? Show all of your work."
+        },
+        "grading": {
+          "type": "calculation",
+          "graderKind": "numeric_or_exact",
+          "referenceAnswer": "$n\\ge 15$",
+          "acceptedForms": [],
+          "analysis": "For the midpoint rule, if $\\lvert f''(x)\\rvert\\le K$ on $[a,b]$, the error satisfies $\\lvert E_M\\rvert\\le \\frac{K(b-a)^3}{24n^2}$.\nHere $K=2$, $a=0$, and $b=3$, so $\\lvert E_M\\rvert\\le \\frac{2(3)^3}{24n^2}=\\frac{9}{4n^2}$.\nRequire $\\frac{9}{4n^2}\\le 10^{-2}$. Multiplying by $n^2$ and solving gives $n^2\\ge 225$, hence $n\\ge 15$.\nSince $n$ must be a positive integer, the smallest sufficient value is $n=15$."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 11,
+          "answerSource": "llm-solved",
+          "promptStatus": "present",
+          "sourceQuote": "Suppose f(x) is a function satisfying |f''(x)| ≤ 2 for 0 ≤ x ≤ 3",
+          "figureRefs": [],
+          "responseMode": "text",
+          "notes": "Printed as Question 4(b), worth part of the 10 marks assigned to Question 4.",
+          "topLevelLabel": "5a",
+          "pageStart": 5,
+          "pageEnd": 5,
+          "sourceAnchors": [
+            {
+              "pageNumber": 5,
+              "textQuote": "(a) Give a careful definition of the definite integral ∫ from a to b f(x) dx.",
+              "role": "problem"
+            }
+          ],
+          "structureConfidence": 0.98,
+          "structureVisualRefs": [],
+          "importReview": {
+            "version": 1,
+            "status": "passed",
+            "issues": [],
+            "answerCheck": "agree",
+            "independentAnswer": "n = 15 (or any larger integer)",
+            "checkedAt": "2026-10-02T23:42:28.941Z"
+          }
+        },
+        "validationErrors": [],
+        "notebookId": null
+      },
+      {
+        "draftId": "0f7fc3d3-e379-41ef-9612-dcb925c35b35",
+        "notebookId": null,
+        "title": "Definition of the definite integral",
+        "type": "proof",
+        "status": "draft",
+        "source": "pdf",
+        "points": 100,
+        "tags": [],
+        "difficulty": "medium",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "explanation": "Partition the interval $[a,b]$ by $a=x_0<x_1<\\cdots<x_n=b$. Choose a sample point $\\xi_i\\in[x_{i-1},x_i]$ in each subinterval and define the mesh by $\\lVert P\\rVert=\\max_i(x_i-x_{i-1})$. Form the tagged Riemann sum $S(f,P,\\xi)=\\sum_{i=1}^n f(\\xi_i)(x_i-x_{i-1})$. The definite integral exists and equals $I$ when all tagged Riemann sums approach the same number $I$ as the mesh tends to zero; equivalently, for every $\\varepsilon>0$, there is $\\delta>0$ such that $\\lVert P\\rVert<\\delta$ implies $\\lvert S(f,P,\\xi)-I\\rvert<\\varepsilon$ for every choice of tags.",
+          "assets": { "images": [] },
+          "type": "proof",
+          "taskKind": "proof",
+          "responseKind": "long_text",
+          "stem": "Give a careful definition of the definite integral $\\int_a^b f(x)\\,dx.$ Include the partition, sample points, Riemann sum, and limiting condition. Show all of your work."
+        },
+        "grading": {
+          "type": "proof",
+          "graderKind": "rubric",
+          "referenceProof": "Let $P$ be a partition of $[a,b]$ of the form $a=x_0<x_1<\\cdots<x_n=b$. Choose a tag or sample point $\\xi_i\\in[x_{i-1},x_i]$ for each subinterval, and define the mesh of the partition by\n\n$\\lVert P\\rVert=\\max_{1\\le i\\le n}(x_i-x_{i-1}).$\n\nThe corresponding tagged Riemann sum is $S(f;P,\\xi)=\\sum_{i=1}^{n}f(\\xi_i)(x_i-x_{i-1}).$ A function $f$ is Riemann integrable on $[a,b]$ if there exists a real number $I$ such that, for every $\\varepsilon>0$, there is a $\\delta>0$ with the property that for every partition $P$ and every choice of tags $\\xi_i\\in[x_{i-1},x_i]$, if $\\lVert P\\rVert<\\delta$, then\n\n$\\left|S(f;P,\\xi)-I\\right|<\\varepsilon.$\n\nThe definite integral of $f$ over $[a,b]$ is defined to be this common limit:\n\n$\\int_a^b f(x)\\,dx=I=\\lim_{\\lVert P\\rVert\\to0}S(f;P,\\xi),$\n\nwhere the limit is required to be the same for every choice of sample points.",
+          "rubricCriteria": [
+            {
+              "id": "c1",
+              "description": "Defines a partition $a=x_0<x_1<\\cdots<x_n=b$ and sample points $\\xi_i\\in[x_{i-1},x_i]$.",
+              "points": 25
+            },
+            {
+              "id": "c2",
+              "description": "Defines the tagged Riemann sum $\\sum_{i=1}^n f(\\xi_i)(x_i-x_{i-1})$ and the mesh of the partition.",
+              "points": 25
+            },
+            {
+              "id": "c3",
+              "description": "States that the integral is the common limit as the mesh tends to zero.",
+              "points": 25
+            },
+            {
+              "id": "c4",
+              "description": "Gives a correct quantified $\\varepsilon$-$\\delta$ limiting condition and identifies the limit as $\\int_a^b f(x)\\,dx$.",
+              "points": 25
+            }
+          ],
+          "analysis": "Partition the interval $[a,b]$ by $a=x_0<x_1<\\cdots<x_n=b$. Choose a sample point $\\xi_i\\in[x_{i-1},x_i]$ in each subinterval and define the mesh by $\\lVert P\\rVert=\\max_i(x_i-x_{i-1})$. Form the tagged Riemann sum $S(f,P,\\xi)=\\sum_{i=1}^n f(\\xi_i)(x_i-x_{i-1})$. The definite integral exists and equals $I$ when all tagged Riemann sums approach the same number $I$ as the mesh tends to zero; equivalently, for every $\\varepsilon>0$, there is $\\delta>0$ such that $\\lVert P\\rVert<\\delta$ implies $\\lvert S(f,P,\\xi)-I\\rvert<\\varepsilon$ for every choice of tags."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 12,
+          "answerSource": "llm-solved",
+          "promptStatus": "present",
+          "sourceQuote": "Give a careful definition of the definite integral",
+          "figureRefs": [],
+          "responseMode": "text",
+          "notes": "Printed as Question 5(a), worth part of the 8 marks assigned to Question 5.",
+          "topLevelLabel": "5b",
+          "pageStart": 5,
+          "pageEnd": 5,
+          "sourceAnchors": [
+            {
+              "pageNumber": 5,
+              "textQuote": "(b) State and prove the Fundamental Theorem of Calculus.",
+              "role": "problem"
+            }
+          ],
+          "structureConfidence": 0.99,
+          "structureVisualRefs": [],
+          "answerRepairAttempted": true,
+          "importReview": {
+            "version": 1,
+            "status": "passed",
+            "issues": [],
+            "answerCheck": "agree",
+            "independentAnswer": "\\(\\int_a^b f(x)\\,dx=\\lim_{\\|P\\|\\to0}\\sum_{i=1}^n f(c_i)(x_i-x_{i-1})\\), if this limit exists.",
+            "checkedAt": "2026-10-02T23:42:28.944Z"
+          }
+        },
+        "validationErrors": []
+      },
+      {
+        "draftId": "6ef3f108-2cd1-4e13-acc6-5a1d7b7ff890",
+        "title": "Fundamental Theorem of Calculus",
+        "type": "proof",
+        "status": "draft",
+        "source": "pdf",
+        "points": 100,
+        "tags": [],
+        "difficulty": "hard",
+        "publicContent": {
+          "contractVersion": "syntara.problem.v1",
+          "statementFormat": "syntara-markdown-v1",
+          "explanation": "Use the standard two-part Fundamental Theorem of Calculus under the hypothesis that $f$ is continuous on $[a,b]$. Part I: Define $F(x)=\\int_a^x f(t)\\,dt$. For $h\\ne0$, $\\frac{F(x+h)-F(x)}{h}=\\frac{1}{h}\\int_x^{x+h}f(t)\\,dt$. By continuity of $f$ at $x$, the average value of $f$ over the interval between $x$ and $x+h$ approaches $f(x)$ as $h\\to0$. Hence $F'(x)=f(x)$. Part II: Let $G$ be any antiderivative of $f$, so $G'=f$. Since Part I gives $F'=f$, the function $H=G-F$ satisfies $H'=0$, hence is constant. Therefore $G(b)-G(a)=F(b)-F(a)=\\int_a^b f(x)\\,dx$.",
+          "assets": { "images": [] },
+          "type": "proof",
+          "taskKind": "proof",
+          "responseKind": "long_text",
+          "stem": "State and prove the Fundamental Theorem of Calculus. Include the hypotheses, the theorem statement, and a complete proof."
+        },
+        "grading": {
+          "type": "proof",
+          "graderKind": "rubric",
+          "referenceProof": "Assume that $f$ is continuous on the closed interval $[a,b]$.\n\nPart I: Define $F:[a,b]\\to\\mathbb{R}$ by $F(x)=\\int_a^x f(t)\\,dt.$ Then $F$ is differentiable on $(a,b)$ and $F'(x)=f(x)$ for every $x\\in(a,b)$. Indeed, for $h$ such that $x+h\\in[a,b]$ and $h\\ne0$,\n\n$\\frac{F(x+h)-F(x)}{h}=\\frac{1}{h}\\int_x^{x+h}f(t)\\,dt.$\n\nSubtracting $f(x)$ gives\n\n$\\frac{F(x+h)-F(x)}{h}-f(x)=\\frac{1}{h}\\int_x^{x+h}(f(t)-f(x))\\,dt.$\n\nBecause $f$ is continuous at $x$, for every $\\varepsilon>0$ there is $\\delta>0$ such that $|f(t)-f(x)|<\\varepsilon$ whenever $|t-x|<\\delta$. If $|h|<\\delta$, the absolute value of the last average is at most $\\varepsilon$. Therefore the difference quotient tends to $f(x)$ as $h\\to0$, so $F'(x)=f(x)$.\n\nPart II: If $G$ is any antiderivative of $f$ on $[a,b]$, then $G'(x)=f(x)$. From Part I, $F'(x)=f(x)$, so the function $H=G-F$ satisfies $H'(x)=G'(x)-F'(x)=0$ on $(a,b)$. By the mean value theorem, $H$ is constant on $[a,b]$. Hence $G(b)-F(b)=G(a)-F(a)$, which implies $G(b)-G(a)=F(b)-F(a)=\\int_a^b f(x)\\,dx.$ Thus, under the stated continuity hypothesis, $\\frac{d}{dx}\\int_a^x f(t)\\,dt=f(x)$ and, for every antiderivative $G$ of $f$, $\\int_a^b f(x)\\,dx=G(b)-G(a)$.",
+          "rubricCriteria": [
+            {
+              "id": "c1",
+              "description": "States appropriate continuity and differentiability hypotheses and states both parts of the Fundamental Theorem of Calculus.",
+              "points": 25
+            },
+            {
+              "id": "c2",
+              "description": "Proves Part I by forming the difference quotient for $F(x)=\\int_a^x f(t)\\,dt$ and showing it tends to $f(x)$.",
+              "points": 25
+            },
+            {
+              "id": "c3",
+              "description": "Proves Part II by comparing an antiderivative $G$ with $F$ and showing that $G-F$ is constant.",
+              "points": 25
+            },
+            {
+              "id": "c4",
+              "description": "Correctly concludes $\\int_a^b f(x)\\,dx=G(b)-G(a)$ and presents a logically complete argument.",
+              "points": 25
+            }
+          ],
+          "analysis": "Use the standard two-part Fundamental Theorem of Calculus under the hypothesis that $f$ is continuous on $[a,b]$. Part I: Define $F(x)=\\int_a^x f(t)\\,dt$. For $h\\ne0$, $\\frac{F(x+h)-F(x)}{h}=\\frac{1}{h}\\int_x^{x+h}f(t)\\,dt$. By continuity of $f$ at $x$, the average value of $f$ over the interval between $x$ and $x+h$ approaches $f(x)$ as $h\\to0$. Hence $F'(x)=f(x)$. Part II: Let $G$ be any antiderivative of $f$, so $G'=f$. Since Part I gives $F'=f$, the function $H=G-F$ satisfies $H'=0$, hence is constant. Therefore $G(b)-G(a)=F(b)-F(a)=\\int_a^b f(x)\\,dx$."
+        },
+        "sourceMeta": {
+          "scaffoldIndex": 12,
+          "answerSource": "llm-solved",
+          "promptStatus": "present",
+          "sourceQuote": "State and prove the Fundamental Theorem of Calculus",
+          "figureRefs": [],
+          "responseMode": "text",
+          "notes": "Printed as Question 5(b), worth part of the 8 marks assigned to Question 5. The source does not specify a particular convention for whether one or both parts must be stated; the grading reference uses the standard two-part theorem.",
+          "topLevelLabel": "5b",
+          "pageStart": 5,
+          "pageEnd": 5,
+          "sourceAnchors": [
+            {
+              "pageNumber": 5,
+              "textQuote": "(b) State and prove the Fundamental Theorem of Calculus.",
+              "role": "problem"
+            }
+          ],
+          "structureConfidence": 0.99,
+          "structureVisualRefs": [],
+          "answerRepairAttempted": true,
+          "importReview": {
+            "version": 1,
+            "status": "passed",
+            "issues": [],
+            "answerCheck": "agree",
+            "independentAnswer": "If f is continuous on [a,b], then F(x)=∫_a^x f(t)dt satisfies F'(x)=f(x); consequently, every antiderivative G of f satisfies ∫_a^b f(x)dx=G(b)-G(a).",
+            "checkedAt": "2026-10-02T23:42:28.950Z"
+          }
+        },
+        "validationErrors": [],
+        "notebookId": null
+      }
+    ],
+    "quality_report": {
+      "total": 12,
+      "passed": 6,
+      "needsReview": 6,
+      "skippedSolutionOnly": 0,
+      "figuresAttached": 0,
+      "uniqueFigures": 0,
+      "issueCounts": { "model_flag": 6, "answer_disagree": 1 },
+      "coverage": {
+        "checked": true,
+        "printedQuestionCount": 5,
+        "missingQuestions": [],
+        "mergedItems": []
+      }
+    }
+  }
+}

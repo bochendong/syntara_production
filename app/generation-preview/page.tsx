@@ -16,15 +16,13 @@ import {
   loadImageMapping,
   loadSourceBlob,
   cleanupOldImages,
-  storeImages,
   setSessionStorageJson,
 } from '@/lib/utils/image-storage';
 import { getCurrentModelConfig } from '@/lib/utils/model-config';
-import { MAX_PDF_CONTENT_CHARS, MAX_VISION_IMAGES } from '@/lib/constants/generation';
 import { pickStableNotebookAgentAvatarUrl } from '@/lib/constants/notebook-agent-avatars';
 import { nanoid } from 'nanoid';
 import type { Stage } from '@/lib/types/stage';
-import type { SceneOutline, PdfImage, ImageMapping } from '@/lib/types/generation';
+import type { SceneOutline, ImageMapping } from '@/lib/types/generation';
 import { toast } from '@/lib/notifications/client-toast';
 import { AgentRevealModal } from '@/components/agent/agent-reveal-modal';
 import { createLogger } from '@/lib/logger';
@@ -32,7 +30,7 @@ import { useAuthStore } from '@/lib/store/auth';
 import { writeGenerationContext } from '@/lib/utils/generation-context-storage';
 import { markCourseOwnedByUser } from '@/lib/utils/course-ownership';
 import { backendFetch } from '@/lib/utils/backend-api';
-import { parsePdfForGeneration } from '@/lib/pdf/parse-for-generation';
+import { prepareNotebookOriginalFile } from '@/lib/create/notebook-original-file';
 import {
   buildBudgetedGenerationMedia,
   SAFE_GENERATION_REQUEST_BYTES,
@@ -93,6 +91,7 @@ function GenerationPreviewContent() {
   const { t } = useI18n();
   const hasStartedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const sourceFileTokenRef = useRef<string | undefined>(undefined);
 
   const [session, setSession] = useState<GenerationSessionState | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
@@ -101,7 +100,7 @@ function GenerationPreviewContent() {
   const [isComplete] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [streamingOutlines, setStreamingOutlines] = useState<SceneOutline[] | null>(null);
-  const [truncationWarnings, setTruncationWarnings] = useState<string[]>([]);
+  const [truncationWarnings] = useState<string[]>([]);
   const [webSearchSources, setWebSearchSources] = useState<Array<{ title: string; url: string }>>(
     [],
   );
@@ -194,6 +193,7 @@ function GenerationPreviewContent() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as GenerationSessionState;
+        sourceFileTokenRef.current = parsed.sourceFileToken;
         setSession(parsed);
       } catch (e) {
         log.error('Failed to parse generation session:', e);
@@ -217,6 +217,9 @@ function GenerationPreviewContent() {
     const videoProviderConfig = settings.videoProvidersConfig?.[settings.videoProviderId];
     return {
       'Content-Type': 'application/json',
+      ...(sourceFileTokenRef.current
+        ? { 'x-notebook-source-token': sourceFileTokenRef.current }
+        : {}),
       'x-model': modelConfig.modelString,
       'x-api-key': modelConfig.apiKey,
       'x-base-url': modelConfig.baseUrl,
@@ -269,7 +272,7 @@ function GenerationPreviewContent() {
       let activeSteps = getActiveSteps(currentSession);
 
       // Determine if we need the PDF analysis step
-      const hasPdfToAnalyze = !!currentSession.pdfStorageKey && !currentSession.pdfText;
+      const hasPdfToAnalyze = !!currentSession.pdfStorageKey && !currentSession.sourceFileToken;
       // If no PDF to analyze, skip to the next available step
       if (!hasPdfToAnalyze) {
         const firstNonPdfIdx = activeSteps.findIndex((s) => s.id !== 'pdf-analysis');
@@ -294,143 +297,33 @@ function GenerationPreviewContent() {
         }
 
         const sourceType = currentSession.sourceFileType || 'pdf';
-
-        if (sourceType === 'pptx') {
-          const parseFormData = new FormData();
-          const pptxFile = new File([sourceBlob], currentSession.pdfFileName || 'document.pptx', {
-            type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-          });
-          parseFormData.append('pptx', pptxFile);
-          const parseResponse = await fetch('/api/parse-pptx', {
-            method: 'POST',
-            body: parseFormData,
-            signal,
-          });
-          if (!parseResponse.ok) {
-            const errorData = await parseResponse
-              .json()
-              .catch(() => ({ error: t('generation.pdfParseFailed') }));
-            throw new Error(errorData.error || t('generation.pdfParseFailed'));
-          }
-
-          const parseResult = await parseResponse.json();
-          if (!parseResult.success || !parseResult.data) {
-            throw new Error(t('generation.pdfParseFailed'));
-          }
-
-          let pdfText = parseResult.data.text as string;
-          if (pdfText.length > MAX_PDF_CONTENT_CHARS) {
-            pdfText = pdfText.substring(0, MAX_PDF_CONTENT_CHARS);
-          }
-
-          const rawPdfImages = parseResult.data.metadata?.pdfImages || [];
-          const images = rawPdfImages.map(
-            (img: {
-              id: string;
-              src?: string;
-              pageNumber?: number;
-              description?: string;
-              width?: number;
-              height?: number;
-            }) => ({
-              id: img.id,
-              src: img.src || '',
-              pageNumber: img.pageNumber || 1,
-              description: img.description,
-              width: img.width,
-              height: img.height,
-            }),
-          );
-
-          const imageStorageIds = await storeImages(images);
-          const pdfImages: PdfImage[] = images.map(
-            (
-              img: {
-                id: string;
-                src: string;
-                pageNumber: number;
-                description?: string;
-                width?: number;
-                height?: number;
-              },
-              i: number,
-            ) => ({
-              id: img.id,
-              src: '',
-              pageNumber: img.pageNumber,
-              description: img.description,
-              width: img.width,
-              height: img.height,
-              storageId: imageStorageIds[i],
-            }),
-          );
-
-          const warnings: string[] = [];
-          if ((parseResult.data.text as string).length > MAX_PDF_CONTENT_CHARS) {
-            warnings.push(
-              t('generation.textTruncated').replace('{n}', String(MAX_PDF_CONTENT_CHARS)),
-            );
-          }
-          if (images.length > MAX_VISION_IMAGES) {
-            warnings.push(
-              t('generation.imageTruncated')
-                .replace('{total}', String(images.length))
-                .replace('{max}', String(MAX_VISION_IMAGES)),
-            );
-          }
-          if (warnings.length > 0) {
-            setTruncationWarnings(warnings);
-          }
-
-          const updatedSession = {
-            ...currentSession,
-            pdfText,
-            pdfImages,
-            imageStorageIds,
-            pdfStorageKey: undefined,
-          };
-          setSession(updatedSession);
-          setSessionStorageJson(
-            'generationSession',
-            updatedSession,
-            '保存「生成会话」到浏览器缓存（generationSession）时失败：',
-          );
-          currentSession = updatedSession;
-          activeSteps = getActiveSteps(currentSession);
-        } else {
-          const pdfFile = new File([sourceBlob], currentSession.pdfFileName || 'document.pdf', {
-            type: 'application/pdf',
-          });
-          const parsed = await parsePdfForGeneration({
-            pdfFile,
-            signal,
-            language: currentSession.requirements.language,
-            providerId: currentSession.pdfProviderId as 'unpdf' | 'mineru' | undefined,
-            providerConfig: currentSession.pdfProviderConfig,
-            selection: currentSession.sourcePageSelection,
-          });
-
-          if (parsed.truncationWarnings.length > 0) {
-            setTruncationWarnings(parsed.truncationWarnings);
-          }
-
-          const updatedSession = {
-            ...currentSession,
-            pdfText: parsed.pdfText,
-            pdfImages: parsed.pdfImages,
-            imageStorageIds: parsed.imageStorageIds,
-            pdfStorageKey: undefined, // Clear so we don't re-parse
-          };
-          setSession(updatedSession);
-          setSessionStorageJson(
-            'generationSession',
-            updatedSession,
-            '保存「生成会话」到浏览器缓存（generationSession）时失败：',
-          );
-
-          currentSession = updatedSession;
-          activeSteps = getActiveSteps(currentSession);
-        }
+        const sourceFile = new File(
+          [sourceBlob],
+          currentSession.pdfFileName || `document.${sourceType}`,
+          {
+            type:
+              sourceType === 'pptx'
+                ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                : 'application/pdf',
+          },
+        );
+        const original = await prepareNotebookOriginalFile({
+          file: sourceFile,
+          signal,
+          selection: currentSession.sourcePageSelection,
+        });
+        sourceFileTokenRef.current = original.sourceFileToken;
+        const updatedSession = {
+          ...currentSession,
+          pdfText: original.text,
+          sourceFileToken: original.sourceFileToken,
+          pdfImages: [],
+          imageStorageIds: [],
+        };
+        setSession(updatedSession);
+        setSessionStorageJson('generationSession', updatedSession, '保存生成会话失败：');
+        currentSession = updatedSession;
+        activeSteps = getActiveSteps(currentSession);
       }
 
       // Step: Web Search (if enabled)

@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { type NextRequest } from 'next/server';
 import { randomUUID } from 'crypto';
 import { apiSuccess, apiError, API_ERROR_CODES } from '@/lib/server/api-response';
@@ -8,7 +9,7 @@ import {
   readClassroom,
 } from '@/lib/server/classroom-storage';
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   try {
     const body = await request.json();
     const { stage, scenes } = body;
@@ -68,3 +69,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

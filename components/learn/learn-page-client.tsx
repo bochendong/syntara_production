@@ -60,7 +60,9 @@ import {
   Trash2,
   UploadCloud,
   Volume2,
+  Wrench,
   X,
+  XCircle,
   type LucideIcon,
 } from 'lucide-react';
 import type { UIMessage } from 'ai';
@@ -72,6 +74,7 @@ import {
 import { LearnBackgroundVisual } from '@/components/learn/learn-background-visual';
 import { LearnCourseSidebar } from '@/components/learn/learn-course-sidebar';
 import { ChatContextCompressionNotice } from '@/components/learn/chat-context-compression-notice';
+import { ChatFileCards, isChatFileArtifact } from '@/components/chat/chat-file-cards';
 import { LearnPageShellSkeleton } from '@/components/learn/learn-page-shell-skeleton';
 import {
   readLearnCourseListCache,
@@ -200,6 +203,7 @@ import {
 } from '@/lib/chat/course-reply-progress';
 import type {
   ChatContextCompression,
+  ChatFileArtifact,
   ChatMessageMetadata,
   CourseChatContextUsage,
   CourseChatContext,
@@ -481,6 +485,16 @@ function LearnAllSessionsDialog(props: ComponentProps<typeof DeferredLearnAllSes
   return <DeferredLearnAllSessionsDialog {...props} />;
 }
 
+const DeferredPracticeProblemPopup = dynamic(
+  () =>
+    import('@/components/problem-bank/practice-problem-popup').then(
+      (module) => module.PracticeProblemPopup,
+    ),
+  {
+    loading: () => <LearnDeferredDialogLoading label="正在打开题目…" />,
+  },
+);
+
 type LearnMessage = {
   id: string;
   role: 'user' | 'assistant';
@@ -494,6 +508,8 @@ type LearnMessage = {
   lectureDeck?: MiniLectureDeck;
   learningActions?: LearningAction[];
   artifacts?: LearnArtifact[];
+  /** Files the course assistant generated in chat; persisted inside `artifacts` remotely. */
+  chatFiles?: ChatFileArtifact[];
   publicTrace?: LearnPublicTraceStep[];
   contextCompression?: ChatContextCompression;
   transient?: boolean;
@@ -505,7 +521,51 @@ type LearnPublicTraceStep = {
   detail: string;
   status: 'done' | 'waiting' | 'blocked';
   evidence?: string[];
+  /** Server-reported step kind (course reply progress); absent on client placeholder steps. */
+  kind?: 'prepare' | 'tool' | 'reasoning' | 'compose' | 'answer';
+  failed?: boolean;
+  startedAt?: number;
+  endedAt?: number;
 };
+
+/** Chat files survive remote sync by riding inside the persisted `artifacts` array. */
+function splitPersistedLearnArtifacts(value: unknown): {
+  artifacts?: LearnArtifact[];
+  chatFiles?: ChatFileArtifact[];
+} {
+  if (!Array.isArray(value)) {
+    return { artifacts: value == null ? undefined : (value as LearnArtifact[]) };
+  }
+  const artifacts: LearnArtifact[] = [];
+  const chatFiles: ChatFileArtifact[] = [];
+  for (const item of value) {
+    if (isChatFileArtifact(item)) chatFiles.push(item);
+    else if (item != null) artifacts.push(item as LearnArtifact);
+  }
+  return {
+    artifacts: artifacts.length ? artifacts : value.length ? undefined : [],
+    chatFiles: chatFiles.length ? chatFiles : undefined,
+  };
+}
+
+function mergeLearnChatFiles(
+  ...groups: Array<ChatFileArtifact[] | undefined | null>
+): ChatFileArtifact[] | undefined {
+  const byId = new Map<string, ChatFileArtifact>();
+  for (const group of groups) {
+    if (!Array.isArray(group)) continue;
+    for (const file of group) if (isChatFileArtifact(file)) byId.set(file.id, file);
+  }
+  return byId.size ? Array.from(byId.values()) : undefined;
+}
+
+function persistedLearnArtifacts(
+  artifacts?: LearnArtifact[],
+  chatFiles?: ChatFileArtifact[],
+): Array<LearnArtifact | ChatFileArtifact> | undefined {
+  if (!chatFiles?.length) return artifacts;
+  return [...(artifacts || []), ...chatFiles];
+}
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -1597,6 +1657,7 @@ function deleteLearnSessionMessages(userId: string, courseId: string, sessionId:
 }
 
 function remoteMessageToLearnMessage(message: RemoteLearnMessage): LearnMessage {
+  const persistedArtifacts = splitPersistedLearnArtifacts(message.artifacts);
   return finalizeLearnMessagePublicTrace({
     id: message.id,
     role: message.role,
@@ -1612,7 +1673,11 @@ function remoteMessageToLearnMessage(message: RemoteLearnMessage): LearnMessage 
     lectureDeck: message.lectureDeck == null ? undefined : (message.lectureDeck as MiniLectureDeck),
     learningActions:
       message.learningActions == null ? undefined : (message.learningActions as LearningAction[]),
-    artifacts: message.artifacts == null ? undefined : (message.artifacts as LearnArtifact[]),
+    artifacts: persistedArtifacts.artifacts,
+    chatFiles: mergeLearnChatFiles(
+      persistedArtifacts.chatFiles,
+      (message as { chatFiles?: ChatFileArtifact[] }).chatFiles,
+    ),
     publicTrace:
       message.publicTrace == null ? undefined : (message.publicTrace as LearnPublicTraceStep[]),
     contextCompression: message.contextCompression,
@@ -1647,7 +1712,7 @@ function learnMessageToRemotePayload(message: LearnMessage): RemoteLearnMessageP
     lecturePrompt: settledMessage.lecturePrompt,
     lectureDeck: compactMiniLectureDeckForPersistence(settledMessage.lectureDeck),
     learningActions: settledMessage.learningActions,
-    artifacts: settledMessage.artifacts,
+    artifacts: persistedLearnArtifacts(settledMessage.artifacts, settledMessage.chatFiles),
     publicTrace: settledMessage.publicTrace,
     contextCompression: settledMessage.contextCompression,
     attachments: settledMessage.attachments?.map(learnAttachmentReference),
@@ -1763,13 +1828,18 @@ function mergeOlderRemoteLearnMessages(
 function copyableLearnMessageText(message: LearnMessage): string {
   const parts = [
     message.text.trim(),
-    message.plan?.title ? `计划：${message.plan.title}` : '',
+    message.plan?.title
+      ? `${isTeacherPreviewPlan(message.plan) ? '题库题目' : '计划'}：${message.plan.title}`
+      : '',
     message.progressProposal?.label ? `学习范围：${message.progressProposal.label}` : '',
     message.lectureDeck?.title ? `课堂讲解：${message.lectureDeck.title}` : '',
     message.learningActions?.length
       ? `学习操作：${message.learningActions.map((a) => a.label).join(' / ')}`
       : '',
     message.artifacts?.length ? `学习素材：${message.artifacts.length} 个` : '',
+    message.chatFiles?.length
+      ? `生成文件：${message.chatFiles.map((file) => file.fileName || file.title).join(' / ')}`
+      : '',
     message.attachments?.length ? `[附件 ${message.attachments.length} 个]` : '',
   ].filter(Boolean);
   return parts.join('\n').trim();
@@ -1815,8 +1885,12 @@ function rememberDeletedPracticePlanId(userId: string, courseId: string, planId:
 }
 
 function visiblePracticePlans(plans: PracticePlan[], deletedIds: Set<string>): PracticePlan[] {
-  if (deletedIds.size === 0) return plans;
-  return plans.filter((plan) => !deletedIds.has(plan.id));
+  // Teacher problem previews are never practice sets and never belong in practice lists.
+  const practicePlans = plans.some(isTeacherPreviewPlan)
+    ? plans.filter((plan) => !isTeacherPreviewPlan(plan))
+    : plans;
+  if (deletedIds.size === 0) return practicePlans;
+  return practicePlans.filter((plan) => !deletedIds.has(plan.id));
 }
 
 function isSyllabusPdfFile(file: File) {
@@ -2739,7 +2813,9 @@ const courseMarkdownClassName = cn(
   '[&_code]:rounded-[4px] [&_code]:bg-[#f7f1e9] [&_code]:px-[0.32em] [&_code]:py-[0.1em] [&_code]:font-mono [&_code]:text-[0.9em] dark:[&_code]:bg-white/10',
   '[&_[data-streamdown=code-block]]:my-5 [&_[data-streamdown=code-block]]:max-w-full [&_[data-streamdown=code-block]]:overflow-hidden [&_[data-streamdown=code-block]]:rounded-lg [&_[data-streamdown=code-block]]:border [&_[data-streamdown=code-block]]:border-border [&_[data-streamdown=code-block]]:bg-muted/60',
   '[&_[data-streamdown=code-block-body]]:text-sm [&_[data-streamdown=code-block-body]]:leading-6',
-  '[&_table]:my-5 [&_table]:block [&_table]:w-full [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:rounded-lg [&_table]:border [&_table]:border-border [&_table]:border-separate [&_table]:border-spacing-0',
+  '[&_[data-streamdown=table-wrapper]]:my-4 [&_[data-streamdown=table-wrapper]]:min-w-0 [&_[data-streamdown=table-wrapper]]:max-w-full [&_[data-streamdown=table-wrapper]]:border-0 [&_[data-streamdown=table-wrapper]]:bg-transparent [&_[data-streamdown=table-wrapper]]:p-0',
+  '[&_table]:m-0 [&_table]:table [&_table]:w-full [&_table]:border-collapse',
+  '[&_a]:text-sky-700 [&_a]:underline [&_a]:underline-offset-2 dark:[&_a]:text-sky-300',
   '[&_thead]:bg-muted/80',
   '[&_th]:border-b [&_th]:border-r [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th:last-child]:border-r-0',
   '[&_td]:border-b [&_td]:border-r [&_td]:border-border/70 [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-sm [&_td:last-child]:border-r-0',
@@ -2775,7 +2851,10 @@ function miniLecturePromptForMessage(args: {
     .filter((candidate) => candidate.role === 'user' && candidate.text.trim());
   const question = questions[0];
   if (!question) return undefined;
-  if (message.progressProposal || (message.plan && isProblemSelectionPlan(message.plan)))
+  if (
+    message.progressProposal ||
+    (message.plan && (isProblemSelectionPlan(message.plan) || isTeacherPreviewPlan(message.plan)))
+  )
     return undefined;
 
   const inferred = buildMiniLecturePrompt({
@@ -2804,7 +2883,8 @@ function learnMessageHasContent(message: LearnMessage): boolean {
     message.lecturePrompt ||
     message.lectureDeck ||
     message.learningActions?.length ||
-    message.artifacts?.length,
+    message.artifacts?.length ||
+    message.chatFiles?.length,
   );
 }
 
@@ -2815,6 +2895,8 @@ function learnSessionIsBlank(messages: LearnMessage[]): boolean {
 function shouldDisplayPublicTrace(message: LearnMessage): boolean {
   if (!message.publicTrace?.length) return false;
   if (message.transient) return true;
+  // Server-reported traces (steps with a kind) stay with the settled answer, collapsed.
+  if (message.publicTrace.some((step) => step.kind)) return true;
   return message.publicTrace.some((step) => step.status === 'blocked');
 }
 
@@ -2893,8 +2975,10 @@ function learnSessionTitleFromMessages(messages: LearnMessage[], fallback: strin
   }
   if (userMessage?.attachments?.length) return '图片问题';
 
-  const actionMessage = messages.find((message) => message.plan || message.progressProposal);
-  if (actionMessage?.plan?.title) {
+  const actionMessage = messages.find(
+    (message) => (message.plan && !isTeacherPreviewPlan(message.plan)) || message.progressProposal,
+  );
+  if (actionMessage?.plan?.title && !isTeacherPreviewPlan(actionMessage.plan)) {
     return normalizeLearnSessionTitle(actionMessage.plan.title) || fallback;
   }
   if (actionMessage?.progressProposal?.title) return actionMessage.progressProposal.title;
@@ -3024,7 +3108,9 @@ function learnMessagesForCourseAnswerer(
         ? [
             {
               type: 'text' as const,
-              text: `已展示题库练习卡片：${message.plan.questions?.map((question) => `${question.title}（${question.problemId}）`).join('；') || message.plan.title}`,
+              text: isTeacherPreviewPlan(message.plan)
+                ? `已向教师展示题库题目预览（未创建练习）：${message.plan.questions?.map((question) => `${question.problemNumber ? `第 ${question.problemNumber} 题 ` : ''}${question.title}（${question.problemId}）`).join('；') || message.plan.title}`
+                : `已展示题库练习卡片：${message.plan.questions?.map((question) => `${question.title}（${question.problemId}）`).join('；') || message.plan.title}`,
             },
           ]
         : []),
@@ -3103,6 +3189,10 @@ function publicTraceFromCourseAnswererMessages(
           : '这一步已完成。'),
       status: step.status === 'complete' ? 'done' : 'waiting',
       evidence: step.evidence,
+      kind: step.kind,
+      failed: step.failed,
+      startedAt: step.startedAt,
+      endedAt: step.endedAt,
     }));
 }
 
@@ -3113,6 +3203,7 @@ function streamedCourseAnswerFromMessages(
   text: string;
   plan?: PracticePlan;
   learningActions?: LearningAction[];
+  chatFiles?: ChatFileArtifact[];
   publicTrace?: LearnPublicTraceStep[];
   contextCompression?: ChatContextCompression;
 } | null {
@@ -3133,6 +3224,9 @@ function streamedCourseAnswerFromMessages(
     learningActions: assistantMessage?.metadata?.learningActions?.map((action) => ({
       ...action,
     })),
+    chatFiles: mergeLearnChatFiles(
+      (assistantMessage?.metadata as { chatFiles?: ChatFileArtifact[] } | undefined)?.chatFiles,
+    ),
     publicTrace,
     contextCompression: assistantMessage?.metadata?.contextCompression,
   };
@@ -3170,9 +3264,12 @@ function collapseDuplicatedAssistantText(text: string): string {
 
 function normalizeLearnChatMarkdownSegment(text: string): string {
   return protectLearnChatAsciiDiagrams(text)
-    .split(/(`[^`\n]*`)/g)
+    .split(/(`[^`\n]*`|!?\[(?:\\.|[^\]\\])*\]\([^\s)]*\))/g)
     .map((part) => {
       if (part.startsWith('`')) return part.replace(/\[blocked\]/gi, '');
+      // A relative URL contains slashes/minus signs, but is never a math expression.
+      if (/^!?\[/.test(part) && /\]\([^\s)]*\)$/.test(part))
+        return sanitizeLearnChatMarkdownText(part);
       return normalizeLooseMathDelimiters(sanitizeLearnChatMarkdownText(part));
     })
     .join('');
@@ -3359,6 +3456,18 @@ function publicTraceForBlockedQuestion(
   ];
 }
 
+/** Keep the real server trace (when one streamed) and append the blocked step. */
+function publicTraceForBlockedTurn(
+  streamedTrace: LearnPublicTraceStep[] | undefined,
+  question: string,
+  blockedStep: LearnPublicTraceStep,
+): LearnPublicTraceStep[] {
+  if (streamedTrace?.some((step) => step.kind)) {
+    return [...(finalizePublicTraceSteps(streamedTrace) || []), blockedStep];
+  }
+  return publicTraceForBlockedQuestion(question, blockedStep);
+}
+
 function replaceLearnMessage(
   messages: LearnMessage[],
   messageId: string,
@@ -3373,6 +3482,9 @@ function replaceLearnMessage(
 }
 
 function planIntro(plan: PracticePlan): string {
+  if (isTeacherPreviewPlan(plan)) {
+    return `题库题目 · ${plan.questions?.length || plan.problemIds.length} 道`;
+  }
   if (isProblemSelectionPlan(plan)) return selectedPracticeIntro(plan);
   const noun = plan.mode === 'quiz' ? '测验' : '刷题计划';
   const concepts = plan.targetConcepts.slice(0, 3).join('、') || '当前课程重点';
@@ -3620,7 +3732,13 @@ function repairStalePracticeSelectionMessageText(text: string): string {
   return text.replace(staleLine, replacement);
 }
 
+/** Problems found for a course owner: preview-only, never a practice set. */
+function isTeacherPreviewPlan(plan: PracticePlan | null | undefined): boolean {
+  return plan?.presentation === 'teacher_preview';
+}
+
 function isProblemSelectionPlan(plan: PracticePlan): boolean {
+  if (isTeacherPreviewPlan(plan)) return false;
   return plan.evidence?.decisionId === PRACTICE_PROBLEM_SELECTION_DECISION_ID;
 }
 
@@ -4019,7 +4137,7 @@ function addCalendarDays(date: Date, days: number): Date {
 }
 
 function practicePlanCalendarDraftItems(plan: PracticePlan): LearnCalendarDraftItem[] {
-  if (isProblemSelectionPlan(plan)) return [];
+  if (isProblemSelectionPlan(plan) || isTeacherPreviewPlan(plan)) return [];
   const concepts = plan.targetConcepts.length ? plan.targetConcepts : [plan.title];
   const count = Math.min(7, Math.max(1, concepts.length));
   const minutes = Math.max(20, Math.ceil(plan.estimatedMinutes / count));
@@ -4618,6 +4736,216 @@ export function MiniLectureClassroomDialog({
   );
 }
 
+const TEACHER_PREVIEW_DIFFICULTY_LABELS: Record<string, string> = {
+  easy: '基础',
+  medium: '中等',
+  hard: '挑战',
+};
+
+const TEACHER_PREVIEW_TYPE_LABELS: Record<string, string> = {
+  short_answer: '简答',
+  choice: '选择',
+  proof: '证明',
+  calculation: '计算',
+  code: '编程',
+  fill_blank: '填空',
+};
+
+/**
+ * Course-owner variant of the plan card: lists problem-bank questions found for
+ * the teacher. Opening a row only previews the problem; it never creates a
+ * practice session, saves a plan, or touches progress/calendar.
+ */
+function TeacherProblemPreviewCard({
+  plan,
+  disabled = false,
+}: {
+  plan: PracticePlan;
+  disabled?: boolean;
+}) {
+  const [previewProblem, setPreviewProblem] = useState<{ id: string; title: string } | null>(null);
+  const questionById = new Map((plan.questions || []).map((item) => [item.problemId, item]));
+  const orderedIds = plan.problemIds.length
+    ? plan.problemIds
+    : (plan.questions || []).map((item) => item.problemId);
+  const rows = Array.from(new Set(orderedIds)).map((problemId, index) => {
+    const question = questionById.get(problemId);
+    return {
+      problemId,
+      index,
+      title: question?.title || `题目 ${index + 1}`,
+      problemNumber: question?.problemNumber ?? null,
+      chapterName: question?.chapterName?.trim() || '',
+      problemType: question?.problemType?.trim() || '',
+      difficulty: question?.difficulty?.trim() || '',
+    };
+  });
+  const badgeClassName =
+    'inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold';
+
+  return (
+    <div
+      className={cn(
+        learnAssistantActionCardWidthClassName,
+        LEARN_CONFIRMATION_SURFACE_CLASS,
+        'mt-3',
+      )}
+    >
+      <div className="px-3.5 py-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="grid size-7 shrink-0 place-items-center rounded-[9px] bg-sky-50 text-sky-700 dark:bg-sky-400/10 dark:text-sky-200">
+            <LibraryBig className="size-[15px]" strokeWidth={1.9} />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-bold text-slate-900 dark:text-slate-100">
+              题库题目 · {rows.length} 道
+            </p>
+            <p className="mt-[3px] truncate text-xs text-slate-500 dark:text-slate-400">
+              {plan.title && plan.title !== '题库题目' ? `${plan.title} · ` : ''}
+              点击题目查看题面与答案
+            </p>
+          </div>
+        </div>
+
+        {rows.length ? (
+          <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 dark:border-white/10">
+            {rows.map((row) => (
+              <button
+                key={row.problemId}
+                type="button"
+                disabled={disabled}
+                onClick={() => setPreviewProblem({ id: row.problemId, title: row.title })}
+                className={cn(
+                  'group flex w-full items-center gap-2 rounded-[12px] border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-left text-xs transition-colors hover:border-sky-200 hover:bg-sky-50/60 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-sky-300/25 dark:hover:bg-sky-400/10',
+                  disabled && 'pointer-events-none opacity-60',
+                )}
+              >
+                <span className="shrink-0 rounded-md bg-slate-900 px-1.5 py-1 text-[10px] font-bold text-white dark:bg-sky-300 dark:text-slate-950">
+                  题库第 {row.problemNumber ?? row.index + 1} 题
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-bold text-slate-800 dark:text-slate-100">
+                    {row.title}
+                  </span>
+                  <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1">
+                    {row.chapterName ? (
+                      <span className="min-w-0 truncate text-[10px] text-slate-500 dark:text-slate-400">
+                        {row.chapterName}
+                      </span>
+                    ) : null}
+                    {row.problemType ? (
+                      <span
+                        className={cn(
+                          badgeClassName,
+                          'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300',
+                        )}
+                      >
+                        {TEACHER_PREVIEW_TYPE_LABELS[row.problemType] || row.problemType}
+                      </span>
+                    ) : null}
+                    {row.difficulty ? (
+                      <span
+                        className={cn(
+                          badgeClassName,
+                          row.difficulty === 'hard'
+                            ? 'border-rose-100 bg-rose-50 text-rose-700 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-200'
+                            : row.difficulty === 'medium'
+                              ? 'border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-200'
+                              : 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-400/10 dark:text-emerald-200',
+                        )}
+                      >
+                        {TEACHER_PREVIEW_DIFFICULTY_LABELS[row.difficulty] || row.difficulty}
+                      </span>
+                    ) : null}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[10px] font-bold text-sky-700 dark:text-sky-200">
+                  查看
+                </span>
+                <ChevronRight className="size-3 shrink-0 text-sky-700 transition-transform group-hover:translate-x-0.5 dark:text-sky-200" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-white/10 dark:text-slate-400">
+            没有找到匹配的题库题目。
+          </p>
+        )}
+      </div>
+      {previewProblem ? (
+        <DeferredPracticeProblemPopup
+          open
+          onOpenChange={(open) => {
+            if (!open) setPreviewProblem(null);
+          }}
+          courseId={plan.courseId}
+          problemId={previewProblem.id}
+          title={previewProblem.title}
+          access="course"
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** Body citations and the card resolve to the same persisted, ordered selection. */
+function CourseAnswerResponse({
+  text,
+  plan,
+  transient,
+}: {
+  text: string;
+  plan?: PracticePlan;
+  transient?: boolean;
+}) {
+  const [previewProblem, setPreviewProblem] = useState<{ id: string; title: string } | null>(null);
+  return (
+    <div
+      className="min-w-0"
+      onClickCapture={(event) => {
+        if (!isTeacherPreviewPlan(plan) || !plan) return;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const anchor = (event.target as Element).closest('a');
+        if (!anchor) return;
+        const href = anchor.getAttribute('href');
+        const question = plan.questions?.find(
+          (item) => item.href === href && plan.problemIds.includes(item.problemId),
+        );
+        if (!question) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setPreviewProblem({ id: question.problemId, title: question.title });
+      }}
+    >
+      <MessageResponse
+        className={courseMarkdownClassName}
+        mode={transient ? 'streaming' : 'static'}
+        components={{
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer">
+              {children}
+            </a>
+          ),
+        }}
+      >
+        {normalizeAssistantMarkdown(text)}
+      </MessageResponse>
+      {previewProblem && plan ? (
+        <DeferredPracticeProblemPopup
+          open
+          onOpenChange={(open) => {
+            if (!open) setPreviewProblem(null);
+          }}
+          courseId={plan.courseId}
+          problemId={previewProblem.id}
+          title={previewProblem.title}
+          access="course"
+        />
+      ) : null}
+    </div>
+  );
+}
+
 export function PlanActionCard({
   plan,
   sessionSummary,
@@ -4631,6 +4959,9 @@ export function PlanActionCard({
   disabled?: boolean;
   onStart: (plan: PracticePlan, problemId?: string) => void;
 }) {
+  if (isTeacherPreviewPlan(plan)) {
+    return <TeacherProblemPreviewCard plan={plan} disabled={disabled} />;
+  }
   const isQuizPlan = plan.mode === 'quiz';
   const planIconClassName = isQuizPlan
     ? 'bg-sky-50 text-sky-700'
@@ -5756,15 +6087,239 @@ function LearnArtifactCards({
   );
 }
 
+function formatTraceDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  if (ms < 1000) return `${(ms / 1000).toFixed(1)}s`;
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ${Math.round(seconds - minutes * 60)}s`;
+}
+
+function publicTraceStepDuration(step: LearnPublicTraceStep): string {
+  if (typeof step.startedAt !== 'number' || typeof step.endedAt !== 'number') return '';
+  return formatTraceDuration(step.endedAt - step.startedAt);
+}
+
+function publicTraceTotalDuration(steps: LearnPublicTraceStep[]): string {
+  const starts = steps
+    .map((step) => step.startedAt)
+    .filter((v): v is number => typeof v === 'number');
+  const ends = steps.map((step) => step.endedAt).filter((v): v is number => typeof v === 'number');
+  if (!starts.length || !ends.length) return '';
+  return formatTraceDuration(Math.max(...ends) - Math.min(...starts));
+}
+
+function LearnPublicTraceReasoningBlock({ step }: { step: LearnPublicTraceStep }) {
+  const [open, setOpen] = useState(false);
+  if (!step.detail.trim()) return null;
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 hover:text-violet-900 dark:text-violet-200 dark:hover:text-violet-100"
+        aria-expanded={open}
+      >
+        <ChevronRight
+          className={cn('size-3 transition-transform', open && 'rotate-90')}
+          strokeWidth={2}
+        />
+        思路
+      </button>
+      {open ? (
+        <p className="mt-1 whitespace-pre-wrap rounded-lg border border-violet-100 bg-violet-50/60 px-2.5 py-2 text-[11px] leading-5 text-slate-700 dark:border-violet-300/15 dark:bg-violet-400/[0.06] dark:text-slate-300">
+          {step.detail}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Ordered timeline for server-reported course reply steps (steps carrying `kind`). */
+function LearnPublicTraceTimeline({
+  steps,
+  transient,
+  answerStarted,
+}: {
+  steps: LearnPublicTraceStep[];
+  transient?: boolean;
+  answerStarted?: boolean;
+}) {
+  const [expandedOverride, setExpandedOverride] = useState<boolean | null>(null);
+  const autoCollapsed = !transient || Boolean(answerStarted);
+  const expanded = expandedOverride ?? !autoCollapsed;
+  const failedCount = steps.filter((step) => step.failed || step.status === 'blocked').length;
+  const runningStep = transient ? steps.find((step) => step.status === 'waiting') : undefined;
+  const totalDuration = publicTraceTotalDuration(steps);
+  const toolCount = steps.filter((step) => step.kind === 'tool').length;
+  const summary = [
+    runningStep ? runningStep.title : transient ? '思考中' : '思考过程',
+    `${steps.length} 步`,
+    toolCount ? `${toolCount} 次工具调用` : '',
+    failedCount ? `${failedCount} 步失败` : '',
+    totalDuration ? `用时 ${totalDuration}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <div
+      className="mb-2 rounded-[10px] border border-slate-200/80 bg-slate-50/60 text-xs dark:border-white/10 dark:bg-white/[0.03]"
+      role="status"
+      aria-live="polite"
+    >
+      <button
+        type="button"
+        onClick={() => setExpandedOverride(!expanded)}
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
+        aria-expanded={expanded}
+      >
+        <span
+          className={cn(
+            'grid size-5 shrink-0 place-items-center rounded-full',
+            failedCount
+              ? 'bg-rose-50 text-rose-600 dark:bg-rose-400/10 dark:text-rose-200'
+              : 'bg-white text-sky-700 shadow-sm ring-1 ring-sky-100 dark:bg-white/10 dark:text-sky-100 dark:ring-sky-300/10',
+          )}
+        >
+          {runningStep ? (
+            <Loader2 className="size-3 animate-spin motion-reduce:animate-none" strokeWidth={1.9} />
+          ) : failedCount ? (
+            <AlertTriangle className="size-3" strokeWidth={1.9} />
+          ) : (
+            <Brain className="size-3" strokeWidth={1.9} />
+          )}
+        </span>
+        <span className="min-w-0 flex-1 truncate font-medium text-slate-700 dark:text-slate-200">
+          {summary}
+        </span>
+        <ChevronDown
+          className={cn(
+            'size-3.5 shrink-0 text-slate-400 transition-transform',
+            expanded && 'rotate-180',
+          )}
+        />
+      </button>
+      {expanded ? (
+        <ol className="space-y-0 border-t border-slate-200/70 px-2.5 pt-2 pb-1 dark:border-white/10">
+          {steps.map((step, index) => {
+            const failed = Boolean(step.failed) || step.status === 'blocked';
+            const running = Boolean(transient) && step.status === 'waiting';
+            const duration = publicTraceStepDuration(step);
+            const isLast = index === steps.length - 1;
+            return (
+              <li key={step.id} className="relative flex gap-2.5 pb-2.5">
+                {!isLast ? (
+                  <span
+                    aria-hidden
+                    className="absolute top-5 bottom-0 left-[9px] w-px bg-slate-200 dark:bg-white/10"
+                  />
+                ) : null}
+                <span
+                  className={cn(
+                    'relative z-[1] mt-0.5 grid size-[19px] shrink-0 place-items-center rounded-full ring-1 ring-inset',
+                    failed
+                      ? 'bg-rose-50 text-rose-600 ring-rose-200 dark:bg-rose-400/10 dark:text-rose-200 dark:ring-rose-300/20'
+                      : running
+                        ? 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-300/20'
+                        : 'bg-white text-emerald-600 ring-slate-200 dark:bg-slate-900 dark:text-emerald-300 dark:ring-white/10',
+                  )}
+                >
+                  {failed ? (
+                    <XCircle className="size-3" strokeWidth={2} />
+                  ) : running ? (
+                    <Loader2
+                      className="size-3 animate-spin motion-reduce:animate-none"
+                      strokeWidth={2}
+                    />
+                  ) : step.kind === 'tool' ? (
+                    <Wrench className="size-2.5" strokeWidth={2} />
+                  ) : step.kind === 'reasoning' ? (
+                    <Brain className="size-2.5" strokeWidth={2} />
+                  ) : (
+                    <CheckCircle2 className="size-3" strokeWidth={2} />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p
+                      className={cn(
+                        'min-w-0 truncate font-semibold',
+                        failed
+                          ? 'text-rose-700 dark:text-rose-200'
+                          : 'text-slate-800 dark:text-slate-100',
+                      )}
+                    >
+                      {step.title}
+                    </p>
+                    {duration ? (
+                      <span className="shrink-0 text-[10px] tabular-nums text-slate-400 dark:text-slate-500">
+                        {duration}
+                      </span>
+                    ) : null}
+                  </div>
+                  {step.kind === 'reasoning' && !failed ? (
+                    <LearnPublicTraceReasoningBlock step={step} />
+                  ) : step.detail ? (
+                    <p
+                      className={cn(
+                        'mt-0.5 leading-4',
+                        failed
+                          ? 'text-rose-600 dark:text-rose-300'
+                          : 'line-clamp-2 text-slate-500 dark:text-slate-400',
+                      )}
+                    >
+                      {failed ? `失败原因：${step.detail}` : step.detail}
+                    </p>
+                  ) : null}
+                  {step.kind === 'tool' && step.evidence?.length ? (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {step.evidence.slice(0, 6).map((item, evidenceIndex) => (
+                        <span
+                          key={`${step.id}-evidence-${evidenceIndex}`}
+                          className="max-w-full truncate rounded-full border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                          title={item}
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  ) : step.evidence?.length ? (
+                    <p className="mt-1 truncate text-[10px] text-slate-500 dark:text-slate-400">
+                      {step.evidence.slice(0, 3).join(' · ')}
+                    </p>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+    </div>
+  );
+}
+
 function LearnPublicTraceCard({
   steps,
   transient,
+  answerStarted,
 }: {
   steps?: LearnPublicTraceStep[];
   transient?: boolean;
+  answerStarted?: boolean;
 }) {
   const displaySteps = transient ? steps : finalizePublicTraceSteps(steps);
   if (!displaySteps?.length) return null;
+  if (displaySteps.some((step) => step.kind)) {
+    return (
+      <LearnPublicTraceTimeline
+        steps={displaySteps}
+        transient={transient}
+        answerStarted={answerStarted}
+      />
+    );
+  }
   const blockedStep = displaySteps.find((step) => step.status === 'blocked');
   const activeStep =
     blockedStep ||
@@ -7008,10 +7563,7 @@ export function LearnPageClient() {
   const coursePublishBlockReason = activeCourse
     ? getCoursePublishBlockReason(activeCourse, notebooks)
     : null;
-  const publishableProblemCount = useMemo(
-    () => problems.filter((problem) => problem.status === 'published').length,
-    [problems],
-  );
+  const availableProblemCount = problems.length;
   const refreshPracticeSessions = useCallback(() => {
     if (!activeCourseId) {
       setPracticeSessions([]);
@@ -7584,12 +8136,6 @@ export function LearnPageClient() {
   );
   const currentPracticeProblemHelpTabActive =
     currentPracticeProblemHelpTabVisible && practiceProblemHelpTabActive;
-  const currentPracticeProblemHelpLoading = currentPracticeProblemHelp?.status === 'loading';
-  const practiceAiHelpHeaderLabel = currentPracticeProblemHelpLoading
-    ? '生成中'
-    : currentPracticeProblemHelpTabVisible
-      ? '重新生成解答'
-      : 'AI 解答';
   const statusCalendarActivities = useMemo<StatusCalendarActivity[]>(() => {
     const todayKey = localDayKey(new Date());
     const sessionPlanIds = new Set(practiceSessions.map((session) => session.planId));
@@ -10625,6 +11171,8 @@ export function LearnPageClient() {
 
   const openPracticePlan = useCallback(
     (plan: PracticePlan, problemId?: string) => {
+      // Teacher previews only open the problem popup from their card; never a practice session.
+      if (isTeacherPreviewPlan(plan)) return;
       if (plan.courseId !== activeCourseId || plan.userId !== localUserId) {
         toast.error('这组练习不属于当前课程或账号。');
         return;
@@ -11008,20 +11556,6 @@ export function LearnPageClient() {
     ],
   );
 
-  const handlePracticeAiHelpHeaderClick = useCallback(() => {
-    if (!practiceHeaderState?.problemId) return;
-    setPracticeProblemHelpTabProblemId(practiceHeaderState.problemId);
-    setPracticeProblemHelpTabActive(true);
-    void handlePracticeProblemHelpRequest({
-      forceRegenerate: currentPracticeProblemHelpTabVisible && !currentPracticeProblemHelpLoading,
-    });
-  }, [
-    currentPracticeProblemHelpLoading,
-    currentPracticeProblemHelpTabVisible,
-    handlePracticeProblemHelpRequest,
-    practiceHeaderState?.problemId,
-  ]);
-
   const handlePracticeAttemptResolved = useCallback(
     (event: CourseProblemPracticeAttemptResolvedEvent) => {
       if (!activePracticeSession) return;
@@ -11201,6 +11735,7 @@ export function LearnPageClient() {
             createdAt: Date.now(),
             learningActions: answer?.learningActions,
             artifacts: [activeArtifact],
+            chatFiles: answer?.chatFiles,
             publicTrace: answer?.publicTrace,
             contextCompression: answer?.contextCompression,
           },
@@ -11773,7 +12308,7 @@ export function LearnPageClient() {
 
   const addAssistantPlan = useCallback(
     (plan: PracticePlan, textOverride?: string, extraArtifacts: LearnArtifact[] = []) => {
-      const savedPlan = savePracticePlan(plan);
+      const savedPlan = isTeacherPreviewPlan(plan) ? plan : savePracticePlan(plan);
       const calendarDraftItems = practicePlanCalendarDraftItems(savedPlan);
       const artifacts: LearnArtifact[] = [
         ...(calendarDraftItems.length
@@ -12572,6 +13107,7 @@ export function LearnPageClient() {
             text,
             createdAt: Date.now(),
             learningActions: answer?.learningActions,
+            chatFiles: answer?.chatFiles,
             publicTrace: answer?.publicTrace,
             contextCompression: answer?.contextCompression,
           },
@@ -12861,6 +13397,16 @@ export function LearnPageClient() {
         let latestTeacherPublicTrace: LearnPublicTraceStep[] | undefined;
         let ephemeralCleanupTokens: string[] = [];
         try {
+          if (!isTeacherCourseChat) {
+            let progressSave = progressSavePromiseRef.current;
+            while (progressSave?.courseId === activeCourse.id) {
+              const saved = await progressSave.promise;
+              if (!canCommitTurn() || controller.signal.aborted) return;
+              if (!saved) throw new Error('学习进度同步到账号失败，请重新保存进度后再发送。');
+              if (progressSavePromiseRef.current === progressSave) break;
+              progressSave = progressSavePromiseRef.current;
+            }
+          }
           const preparedAttachments = await prepareCourseChatAttachmentsForModel(
             outgoingAttachmentPayloads,
             { signal: controller.signal },
@@ -12901,6 +13447,7 @@ export function LearnPageClient() {
                   text: streamedAnswer.text || existing.text,
                   learningActions: streamedAnswer.learningActions || existing.learningActions,
                   plan: streamedAnswer.plan || existing.plan,
+                  chatFiles: streamedAnswer.chatFiles || existing.chatFiles,
                   createdAt: existing.createdAt,
                   publicTrace:
                     streamedAnswer.publicTrace || latestTeacherPublicTrace || existing.publicTrace,
@@ -12924,7 +13471,8 @@ export function LearnPageClient() {
           if (
             !currentTurnAnswer?.text.trim() &&
             !currentTurnAnswer?.learningActions?.length &&
-            !currentTurnAnswer?.plan
+            !currentTurnAnswer?.plan &&
+            !currentTurnAnswer?.chatFiles?.length
           ) {
             throw new Error('教师课程助理没有返回新的内容');
           }
@@ -12934,6 +13482,7 @@ export function LearnPageClient() {
             text: normalizeCourseAssistantAnswer(currentTurnAnswer.text),
             learningActions: currentTurnAnswer.learningActions,
             plan: currentTurnAnswer.plan,
+            chatFiles: currentTurnAnswer.chatFiles,
             createdAt: Date.now(),
             publicTrace: finalizePublicTraceSteps(
               currentTurnAnswer.publicTrace || latestTeacherPublicTrace,
@@ -12974,8 +13523,10 @@ export function LearnPageClient() {
               : interruptionNotice,
             learningActions: partialMessage?.learningActions,
             plan: partialMessage?.plan,
+            chatFiles: partialMessage?.chatFiles,
             createdAt: Date.now(),
-            publicTrace: publicTraceForBlockedQuestion(
+            publicTrace: publicTraceForBlockedTurn(
+              partialMessage?.publicTrace,
               questionText,
               makePublicTraceStep(
                 'teacher-answer-blocked',
@@ -14084,31 +14635,6 @@ export function LearnPageClient() {
               </DialogDescription>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handlePracticeAiHelpHeaderClick}
-                disabled={
-                  !activePracticeSummary?.currentProblemId ||
-                  currentPracticeProblemHelpLoading ||
-                  !practiceHeaderState ||
-                  (!practiceHeaderState.problemContent && !currentPracticeProblemHelpSessionId)
-                }
-                className={cn(
-                  'h-8 gap-1.5 rounded-full px-3 text-xs font-semibold',
-                  currentPracticeProblemHelpTabVisible
-                    ? 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-300/25 dark:bg-sky-300/10 dark:text-sky-100'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10',
-                )}
-              >
-                {currentPracticeProblemHelpLoading ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Brain className="size-3.5" />
-                )}
-                {practiceAiHelpHeaderLabel}
-              </Button>
               <div className="flex items-center gap-1 rounded-full border border-border bg-background p-1 shadow-sm">
                 <Button
                   type="button"
@@ -15644,9 +16170,9 @@ export function LearnPageClient() {
             </div>
             <div className={cn(rightRailRowClassName, 'text-center')}>
               <p className="text-lg font-semibold text-foreground">
-                {resourceCountText(problemsLoadState, publishableProblemCount)}
+                {resourceCountText(problemsLoadState, availableProblemCount)}
               </p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">已发布题目</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">题库题目</p>
             </div>
             <div className={cn(rightRailRowClassName, 'text-center')}>
               <p className="text-lg font-semibold text-foreground">
@@ -15660,7 +16186,7 @@ export function LearnPageClient() {
             {[
               '不会发布你的私人学习状态、私人记忆或聊天记录。',
               '不会上传 PDF、图片等源文件；源文件只留在你的原始讲义库里。',
-              '会同步课程信息、原始讲义的整理文本、已发布题库，以及课程回复题目需要用到的公开记忆。',
+              '会同步课程信息、原始讲义的整理文本、课程题库，以及课程回复题目需要用到的公开记忆。',
             ].map((item) => (
               <div key={item} className="flex gap-2 text-sm leading-5 text-slate-600">
                 <CheckCircle2
@@ -15981,7 +16507,7 @@ export function LearnPageClient() {
         hasMore={activeLearnSessionListState.hasMore}
         error={activeLearnSessionListState.error}
         interactionDisabled={sending}
-        showWeeklyUsage={isStudentCourseChat && !uiPreviewMode}
+        showWeeklyUsage={!uiPreviewMode}
         onCreateSession={createNewLearnSession}
         onSelectSession={(session) => selectLearnSession(session.id)}
         onDeleteSession={(session) => {
@@ -16282,137 +16808,6 @@ export function LearnPageClient() {
             className="relative z-20"
             actions={
               <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span
-                      role="status"
-                      tabIndex={0}
-                      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border border-slate-200/80 bg-white px-2.5 text-[11px] font-medium text-slate-600 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                      aria-label={`当前有效对话上下文约 ${displayedContextUsedTokens} / ${displayedContextLimitTokens} tokens`}
-                      data-testid="learn-context-window-usage"
-                    >
-                      <Brain className="size-3.5 text-slate-400" strokeWidth={1.9} />
-                      <span className="hidden sm:inline">上下文</span>
-                      <span className="font-mono text-[10px] text-slate-500 dark:text-slate-300">
-                        {formatCompactTokenCount(displayedContextUsedTokens)} /{' '}
-                        {formatCompactTokenCount(displayedContextLimitTokens)}
-                      </span>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" align="end" className="max-w-72 leading-5">
-                    当前会话送入课程助理的有效历史（估算）。达到预算后会自动整理较早对话，完整聊天记录不会被删除。
-                  </TooltipContent>
-                </Tooltip>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      disabled={sending}
-                      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border border-slate-200/80 bg-white px-2.5 text-[11px] font-semibold text-slate-700 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-                      aria-label={`教学方式：${chatTeachingMode === 'guided' ? '引导模式' : '回复模式'}`}
-                      data-testid="learn-teaching-mode-trigger"
-                    >
-                      {chatTeachingMode === 'guided' ? (
-                        <Sparkles className="size-3.5 text-violet-500" strokeWidth={1.9} />
-                      ) : (
-                        <MessageCircle className="size-3.5 text-emerald-600" strokeWidth={1.9} />
-                      )}
-                      {chatTeachingMode === 'guided' ? '引导模式' : '回复模式'}
-                      <ChevronDown className="size-3 text-slate-400" strokeWidth={2} />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    sideOffset={8}
-                    className="w-72 rounded-[14px] p-1.5"
-                  >
-                    <DropdownMenuLabel>选择教学方式</DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onSelect={() => selectChatTeachingMode('reply')}
-                      className="items-start gap-2 py-2"
-                      data-testid="learn-teaching-mode-reply"
-                    >
-                      <MessageCircle className="mt-0.5 size-4 text-emerald-600" strokeWidth={1.8} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-semibold">回复模式</span>
-                        <span className="block text-[11px] leading-4 text-muted-foreground">
-                          直接给出完整解释、步骤和结论。
-                        </span>
-                      </span>
-                      {chatTeachingMode === 'reply' ? (
-                        <CheckCircle2 className="mt-0.5 size-4 text-emerald-600" />
-                      ) : null}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => selectChatTeachingMode('guided')}
-                      className="items-start gap-2 py-2"
-                      data-testid="learn-teaching-mode-guided"
-                    >
-                      <Sparkles className="mt-0.5 size-4 text-violet-500" strokeWidth={1.8} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-semibold">引导模式</span>
-                        <span className="block text-[11px] leading-4 text-muted-foreground">
-                          一次给一个提示，用追问带你完成解题。
-                        </span>
-                      </span>
-                      {chatTeachingMode === 'guided' ? (
-                        <CheckCircle2 className="mt-0.5 size-4 text-violet-500" />
-                      ) : null}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      disabled={sending}
-                      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border border-slate-200/80 bg-white px-2.5 text-[11px] font-semibold text-slate-700 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-                      aria-label={`回复强度：${CHAT_RESPONSE_STRENGTH_CONFIG[chatResponseStrength].label}`}
-                      data-testid="learn-response-strength-trigger"
-                    >
-                      <Gauge className="size-3.5 text-sky-600" strokeWidth={1.9} />
-                      回复强度 · {CHAT_RESPONSE_STRENGTH_CONFIG[chatResponseStrength].label}
-                      <ChevronDown className="size-3 text-slate-400" strokeWidth={2} />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    sideOffset={8}
-                    className="w-80 rounded-[14px] p-1.5"
-                  >
-                    <DropdownMenuLabel>选择回复强度</DropdownMenuLabel>
-                    {(['low', 'medium', 'high'] as const).map((strength) => {
-                      const option = CHAT_RESPONSE_STRENGTH_CONFIG[strength];
-                      return (
-                        <DropdownMenuItem
-                          key={strength}
-                          onSelect={() => selectChatResponseStrength(strength)}
-                          className="items-start gap-2 py-2"
-                          data-testid={`learn-response-strength-${strength}`}
-                        >
-                          <Gauge className="mt-0.5 size-4 text-sky-600" strokeWidth={1.8} />
-                          <span className="min-w-0 flex-1">
-                            <span className="block font-semibold">
-                              {option.label}强度
-                              <span className="ml-2 font-normal text-muted-foreground">
-                                按实际模型用量计费
-                              </span>
-                            </span>
-                            <span className="block text-[11px] leading-4 text-muted-foreground">
-                              {option.description}
-                            </span>
-                          </span>
-                          {chatResponseStrength === strength ? (
-                            <CheckCircle2 className="mt-0.5 size-4 text-sky-600" />
-                          ) : null}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -16825,15 +17220,15 @@ export function LearnPageClient() {
                                   <LearnPublicTraceCard
                                     steps={message.publicTrace}
                                     transient={message.transient}
+                                    answerStarted={Boolean(displayText)}
                                   />
                                 ) : null}
                                 {displayText ? (
-                                  <MessageResponse
-                                    className={courseMarkdownClassName}
-                                    mode={message.transient ? 'streaming' : 'static'}
-                                  >
-                                    {normalizeAssistantMarkdown(displayText)}
-                                  </MessageResponse>
+                                  <CourseAnswerResponse
+                                    text={displayText}
+                                    plan={message.plan}
+                                    transient={message.transient}
+                                  />
                                 ) : null}
                                 {message.plan ? (
                                   <PlanActionCard
@@ -16854,6 +17249,12 @@ export function LearnPageClient() {
                                     disabled={!conversationInteractive}
                                     isResearchCourse={isResearchCourse}
                                     onConfirmCalendarAction={handleLearningActionConfirm}
+                                  />
+                                ) : null}
+                                {message.chatFiles?.length ? (
+                                  <ChatFileCards
+                                    files={message.chatFiles}
+                                    className={learnAssistantActionCardWidthClassName}
                                   />
                                 ) : null}
                                 {message.progressProposal ? (
@@ -17031,39 +17432,184 @@ export function LearnPageClient() {
                       ))}
                     </div>
                   ) : null}
-                  <div className="flex min-h-10 items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => imageInputRef.current?.click()}
-                      disabled={!conversationInteractive}
-                      title="添加到本次聊天"
-                      aria-label="添加到本次聊天"
-                      className="relative size-9 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
-                    >
-                      <Plus className="size-4" />
-                    </Button>
-                    <Textarea
-                      ref={draftTextareaRef}
-                      rows={1}
-                      value={draft}
-                      onChange={(event) => updateComposerDraft(event.target.value)}
-                      disabled={!conversationInteractive}
-                      placeholder={
-                        conversationFallbackActive
-                          ? '云端同步暂时异常，恢复后会自动同步…'
-                          : !conversationInteractive
-                            ? '正在加载课程会话…'
-                            : activeCourse
-                              ? isTeacherCourseChat
-                                ? `询问 ${activeCourse.courseCode || activeCourse.name} 的课程资料`
-                                : `问 ${activeCourse.courseCode || activeCourse.name} 一个问题`
-                              : '添加课程后开始提问'
-                      }
-                      className="max-h-32 min-h-9 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-0 py-1.5 text-sm leading-6 shadow-none [field-sizing:fixed] focus-visible:ring-0"
-                    />
-                    <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-h-10 items-center gap-2">
+                        <Textarea
+                          ref={draftTextareaRef}
+                          rows={1}
+                          value={draft}
+                          onChange={(event) => updateComposerDraft(event.target.value)}
+                          disabled={!conversationInteractive}
+                          placeholder={
+                            conversationFallbackActive
+                              ? '云端同步暂时异常，恢复后会自动同步…'
+                              : !conversationInteractive
+                                ? '正在加载课程会话…'
+                                : activeCourse
+                                  ? isTeacherCourseChat
+                                    ? `询问 ${activeCourse.courseCode || activeCourse.name} 的课程资料`
+                                    : `问 ${activeCourse.courseCode || activeCourse.name} 一个问题`
+                                  : '添加课程后开始提问'
+                          }
+                          className="max-h-32 min-h-9 flex-1 resize-none overflow-y-auto border-0 bg-transparent py-1.5 pl-3 pr-1 text-sm leading-6 shadow-none [field-sizing:fixed] focus-visible:ring-0"
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => imageInputRef.current?.click()}
+                          disabled={!conversationInteractive}
+                          title="添加到本次聊天"
+                          aria-label="添加到本次聊天"
+                          className="relative size-7 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white"
+                        >
+                          <Plus className="size-4" />
+                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              role="status"
+                              tabIndex={0}
+                              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border border-slate-200/80 bg-slate-50 px-2.5 text-[11px] font-medium text-slate-600 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                              aria-label={`当前有效对话上下文约 ${displayedContextUsedTokens} / ${displayedContextLimitTokens} tokens`}
+                              data-testid="learn-context-window-usage"
+                            >
+                              <Brain className="size-3.5 text-slate-400" strokeWidth={1.9} />
+                              上下文
+                              <span className="font-mono text-[10px] text-slate-500 dark:text-slate-300">
+                                {formatCompactTokenCount(displayedContextUsedTokens)} /{' '}
+                                {formatCompactTokenCount(displayedContextLimitTokens)}
+                              </span>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" align="start" className="max-w-72 leading-5">
+                            当前会话送入课程助理的有效历史（估算）。达到预算后会自动整理较早对话，完整聊天记录不会被删除。
+                          </TooltipContent>
+                        </Tooltip>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              disabled={sending}
+                              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border border-slate-200/80 bg-slate-50 px-2.5 text-[11px] font-semibold text-slate-700 outline-none transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                              aria-label={`教学方式：${chatTeachingMode === 'guided' ? '引导模式' : '回复模式'}`}
+                              data-testid="learn-teaching-mode-trigger"
+                            >
+                              {chatTeachingMode === 'guided' ? (
+                                <Sparkles className="size-3.5 text-violet-500" strokeWidth={1.9} />
+                              ) : (
+                                <MessageCircle
+                                  className="size-3.5 text-emerald-600"
+                                  strokeWidth={1.9}
+                                />
+                              )}
+                              {chatTeachingMode === 'guided' ? '引导模式' : '回复模式'}
+                              <ChevronDown className="size-3 text-slate-400" strokeWidth={2} />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="start"
+                            side="top"
+                            sideOffset={8}
+                            className="w-72 rounded-[14px] p-1.5"
+                          >
+                            <DropdownMenuLabel>选择教学方式</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onSelect={() => selectChatTeachingMode('reply')}
+                              className="items-start gap-2 py-2"
+                              data-testid="learn-teaching-mode-reply"
+                            >
+                              <MessageCircle
+                                className="mt-0.5 size-4 text-emerald-600"
+                                strokeWidth={1.8}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block font-semibold">回复模式</span>
+                                <span className="block text-[11px] leading-4 text-muted-foreground">
+                                  直接给出完整解释、步骤和结论。
+                                </span>
+                              </span>
+                              {chatTeachingMode === 'reply' ? (
+                                <CheckCircle2 className="mt-0.5 size-4 text-emerald-600" />
+                              ) : null}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => selectChatTeachingMode('guided')}
+                              className="items-start gap-2 py-2"
+                              data-testid="learn-teaching-mode-guided"
+                            >
+                              <Sparkles
+                                className="mt-0.5 size-4 text-violet-500"
+                                strokeWidth={1.8}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block font-semibold">引导模式</span>
+                                <span className="block text-[11px] leading-4 text-muted-foreground">
+                                  一次给一个提示，用追问带你完成解题。
+                                </span>
+                              </span>
+                              {chatTeachingMode === 'guided' ? (
+                                <CheckCircle2 className="mt-0.5 size-4 text-violet-500" />
+                              ) : null}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              disabled={sending}
+                              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border border-slate-200/80 bg-slate-50 px-2.5 text-[11px] font-semibold text-slate-700 outline-none transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                              aria-label={`回复强度：${CHAT_RESPONSE_STRENGTH_CONFIG[chatResponseStrength].label}`}
+                              data-testid="learn-response-strength-trigger"
+                            >
+                              <Gauge className="size-3.5 text-sky-600" strokeWidth={1.9} />
+                              回复强度 · {CHAT_RESPONSE_STRENGTH_CONFIG[chatResponseStrength].label}
+                              <ChevronDown className="size-3 text-slate-400" strokeWidth={2} />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="start"
+                            side="top"
+                            sideOffset={8}
+                            className="w-80 rounded-[14px] p-1.5"
+                          >
+                            <DropdownMenuLabel>选择回复强度</DropdownMenuLabel>
+                            {(['low', 'medium', 'high'] as const).map((strength) => {
+                              const option = CHAT_RESPONSE_STRENGTH_CONFIG[strength];
+                              return (
+                                <DropdownMenuItem
+                                  key={strength}
+                                  onSelect={() => selectChatResponseStrength(strength)}
+                                  className="items-start gap-2 py-2"
+                                  data-testid={`learn-response-strength-${strength}`}
+                                >
+                                  <Gauge className="mt-0.5 size-4 text-sky-600" strokeWidth={1.8} />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block font-semibold">
+                                      {option.label}强度
+                                      <span className="ml-2 font-normal text-muted-foreground">
+                                        按实际模型用量计费
+                                      </span>
+                                    </span>
+                                    <span className="block text-[11px] leading-4 text-muted-foreground">
+                                      {option.description}
+                                    </span>
+                                  </span>
+                                  {chatResponseStrength === strength ? (
+                                    <CheckCircle2 className="mt-0.5 size-4 text-sky-600" />
+                                  ) : null}
+                                </DropdownMenuItem>
+                              );
+                            })}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center self-center">
                       <Button
                         type="button"
                         size="icon"

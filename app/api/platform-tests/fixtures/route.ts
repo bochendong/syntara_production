@@ -48,7 +48,6 @@ export async function POST(request: Request) {
     const problems = await listCourseProblemsForUser(auth.userId, input.courseId);
     const tokens = topicTokens(input.topic);
     const ranked = problems
-      .filter((problem) => problem.status !== 'archived')
       .map((problem) => {
         const haystack = [problem.title, ...problem.tags].join(' ').toLowerCase();
         return {

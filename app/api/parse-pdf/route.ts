@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 import { parsePDF } from '@/lib/pdf/pdf-providers';
 import { resolvePDFApiKey, resolvePDFBaseUrl } from '@/lib/server/provider-config';
@@ -8,7 +9,7 @@ import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { validateUrlForSSRF } from '@/lib/server/ssrf-guard';
 const log = createLogger('Parse PDF');
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   try {
     const contentType = req.headers.get('content-type') || '';
     if (!contentType.includes('multipart/form-data')) {
@@ -75,3 +76,5 @@ export async function POST(req: NextRequest) {
     return apiError('PARSE_FAILED', 500, error instanceof Error ? error.message : 'Unknown error');
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

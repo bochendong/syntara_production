@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 import {
   applyOutlineFallbacks,
@@ -13,7 +14,7 @@ import type { AgentInfo, CoursePersonalizationContext } from '@/lib/generation/g
 import type { PdfImage, ImageMapping, SceneOutline } from '@/lib/types/generation';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
@@ -126,3 +127,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

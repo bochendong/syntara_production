@@ -6,7 +6,7 @@ import {
   type CourseTurnContext,
 } from '@/features/chat/domain/context-selection';
 import type { TrustedCourseAccess } from './trusted-course-turn';
-import { resolveCourseNotebookAccess } from '@/lib/server/repositories/course-enrollment-repository';
+import { resolveCourseAgentNotebookAccess } from '@/lib/server/course-agent-notebook-access';
 import { listLearningCalendarEvents } from '@/features/learning-calendar/server/repository';
 import { loadCourseLearningOverview } from '@/features/teacher-analytics/server/course-learning-analytics';
 
@@ -77,7 +77,6 @@ export async function readCourseAttempt(
       userId: args.studentId,
       ...(args.problemId ? { problemId: args.problemId } : {}),
       problem: {
-        status: { not: 'archived' },
         OR: [{ courseId: args.courseId }, { notebook: { courseId: args.courseId } }],
       },
     },
@@ -129,6 +128,18 @@ export async function prepareCourseTurnContext(args: {
   ) {
     throw new CourseContextError('不能读取其他学生的学习记录。', 403);
   }
+  // A bank question is a course resource, not a student's record. Models can
+  // populate optional studentId with the current teacher/admin id. Do not require
+  // enrollment for that unrelated field on a pure problem read. Keep the student
+  // cross-user guard above, and retain enrollment checks for attempts/analytics.
+  if (
+    selection.source === 'problem' &&
+    !selection.attemptId &&
+    !selection.topicId &&
+    !selection.calendarEventId
+  ) {
+    delete selection.studentId;
+  }
   let subjectUserId = selection.studentId || access.userId;
   let subjectName: string | null = null;
   if (!isStudent && selection.attemptId && !selection.studentId) {
@@ -167,23 +178,10 @@ export async function prepareCourseTurnContext(args: {
         }
       : undefined;
   const notebookAccess = isStudent
-    ? await resolveCourseNotebookAccess(db, access.userId, courseId)
+    ? await resolveCourseAgentNotebookAccess(db, access.userId, courseId)
     : null;
   const courseWhere: Prisma.NotebookProblemWhereInput = {
-    status: isStudent ? 'published' : { not: 'archived' },
     OR: [{ courseId }, { notebook: { courseId } }],
-    ...(isStudent
-      ? {
-          AND: [
-            {
-              OR: [
-                { notebookId: null },
-                { notebookId: { in: notebookAccess?.allowedNotebookIds || [] } },
-              ],
-            },
-          ],
-        }
-      : {}),
   };
   const assertNotebook = (notebookId: string | null) => {
     if (isStudent && notebookId && !notebookAccess?.allowedNotebookIds.includes(notebookId))
@@ -217,8 +215,7 @@ export async function prepareCourseTurnContext(args: {
       problemId: selection.problemId,
     });
     if (!attempt) throw new CourseContextError('找不到指定学生的这次作答。', 404);
-    assertNotebook(attempt.problem.notebookId);
-    // Apply the same publication/topic restriction used by direct problem reads.
+    // Apply the same course/topic restriction used by direct problem reads.
     const visible = await db.notebookProblem.findFirst({
       where: { ...courseWhere, id: attempt.problemId },
       select: { id: true },

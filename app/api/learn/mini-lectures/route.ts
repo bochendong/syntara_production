@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 import { nativeMiniLectureRequestSchema } from '@/features/native-api/domain/mini-lecture';
 import {
@@ -14,7 +15,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 
-export async function POST(request: NextRequest): Promise<Response> {
+async function auditedPOST(request: NextRequest): Promise<Response> {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -121,3 +122,5 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

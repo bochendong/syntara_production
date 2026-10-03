@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -34,7 +35,7 @@ const requestSchema = z.object({
     .default([]),
 });
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   const principal = requirePublicApi(request, requestId);
   if (principal instanceof NextResponse) return principal;
@@ -119,3 +120,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

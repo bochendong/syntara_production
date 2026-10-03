@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
@@ -26,7 +27,7 @@ type CalendarEventRouteContext = {
   params: Promise<{ eventId: string }>;
 };
 
-export async function PATCH(request: Request, context: CalendarEventRouteContext) {
+async function auditedPATCH(request: Request, context: CalendarEventRouteContext) {
   try {
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
@@ -60,7 +61,7 @@ export async function PATCH(request: Request, context: CalendarEventRouteContext
   }
 }
 
-export async function DELETE(request: Request, context: CalendarEventRouteContext) {
+async function auditedDELETE(request: Request, context: CalendarEventRouteContext) {
   try {
     const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
@@ -93,3 +94,7 @@ export async function DELETE(request: Request, context: CalendarEventRouteContex
     return NextResponse.json({ error: 'Unable to delete calendar event' }, { status: 500 });
   }
 }
+
+export const PATCH = withAiFailureAudit(auditedPATCH);
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

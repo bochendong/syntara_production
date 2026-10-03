@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
@@ -17,7 +18,7 @@ function jsonRecord(value: Prisma.JsonValue | null): Record<string, unknown> {
     : {};
 }
 
-export async function POST(
+async function auditedPOST(
   _request: Request,
   context: { params: Promise<{ courseId: string; sourceId: string }> },
 ) {
@@ -112,3 +113,5 @@ export async function POST(
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

@@ -187,7 +187,7 @@ function LearnHomeProfileApp({ courses, onBack }: { courses: CourseRecord[]; onB
             </button>
           </nav>
           <p className="learn-dock-profile-navigation-note">
-            在这里修改头像、昵称、简介、学校和手机号；学习背景与伴学角色统一放在设置中。
+            在这里修改头像、昵称、简介和学校，查看手机号；学习背景与伴学角色统一放在设置中。
           </p>
           <div className="learn-dock-profile-navigation-footer">
             <button type="button" onClick={() => router.push('/settings')}>

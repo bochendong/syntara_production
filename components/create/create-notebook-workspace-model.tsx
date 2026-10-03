@@ -98,6 +98,7 @@ type ExtractedSourcePreview =
 
 type SourceGenerationExtract = {
   text: string;
+  sourceFileToken?: string;
   pdfImages: PdfImage[];
   imageMapping: ImageMapping;
 };

@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { Output } from 'ai';
 import { z } from 'zod';
@@ -157,7 +158,7 @@ const generatedQuestionOutputSchema = z
       tolerance: z.number().nonnegative().nullable(),
       unit: z.string().trim().max(120).nullable(),
       solutionCode: z.string().trim().max(40_000).nullable(),
-      publishRequirementsMet: z.boolean(),
+      referenceVerified: z.boolean(),
     }),
     tags: z.array(z.string().trim().min(1)).max(12),
     reason: z.string().trim().min(1),
@@ -412,7 +413,6 @@ function generatedDraft(question: GeneratedQuestion) {
     draftId: question.id,
     title: question.title,
     type: question.publicContent.type,
-    status: 'draft' as const,
     source: 'chat' as const,
     points: 1,
     tags: question.tags,
@@ -529,7 +529,7 @@ function _materializeGeneratedQuestion(question: GeneratedQuestionOutput): Gener
       ...(grading.referenceAnswer ? { referenceAnswer: grading.referenceAnswer } : {}),
       ...(grading.solutionCode ? { solutionCode: grading.solutionCode } : {}),
       ...(grading.analysis ? { analysis: grading.analysis } : {}),
-      publishRequirementsMet: grading.publishRequirementsMet,
+      referenceVerified: grading.referenceVerified,
     };
   } else {
     gradingInput = {
@@ -660,7 +660,7 @@ ${args.notebookContent.trim() ? args.notebookContent.slice(0, 20_000) : '没有 
 12. 只返回结构化结果，不输出 Markdown。`;
 }
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   return runWithRequestContext(
     request,
     '/api/platform-tests/question-source',
@@ -1070,3 +1070,5 @@ export async function POST(request: NextRequest) {
     },
   );
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

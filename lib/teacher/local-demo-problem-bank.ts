@@ -57,7 +57,6 @@ const CSC148_DEMO_PROBLEMS: NotebookProblemClientRecord[] = [
       notebookName: CSC148_NOTEBOOKS.memory.name,
       title: fixture.title,
       type: 'code',
-      status: 'published',
       source: 'manual',
       order: 15 + index,
       points: 100,
@@ -75,7 +74,7 @@ const CSC148_DEMO_PROBLEMS: NotebookProblemClientRecord[] = [
         sampleIO: [],
         secretConfigPresent: true,
       },
-      grading: { type: 'code', solutionCode: fixture.solutionCode, publishRequirementsMet: true },
+      grading: { type: 'code', solutionCode: fixture.solutionCode, referenceVerified: true },
       secretJudge: {
         language: 'python',
         secretTestCode: fixture.secretTestCode,
@@ -90,7 +89,6 @@ const CSC148_DEMO_PROBLEMS: NotebookProblemClientRecord[] = [
     notebookName: CSC148_NOTEBOOKS.memory.name,
     title: '【多选】列表引用与可变对象',
     type: 'choice',
-    status: 'published',
     source: 'manual',
     order: 14,
     problemNumber: 14,
@@ -118,7 +116,6 @@ const CSC148_DEMO_PROBLEMS: NotebookProblemClientRecord[] = [
     notebookName: CSC148_NOTEBOOKS.memory.name,
     title: 'Python 对象三要素与变量关系',
     type: 'choice',
-    status: 'published',
     source: 'manual',
     order: 1,
     problemNumber: 1,
@@ -149,7 +146,6 @@ const CSC148_DEMO_PROBLEMS: NotebookProblemClientRecord[] = [
     notebookName: CSC148_NOTEBOOKS.memory.name,
     title: '代码追踪：列表引用与浅拷贝',
     type: 'choice',
-    status: 'published',
     source: 'manual',
     order: 2,
     problemNumber: 2,
@@ -203,7 +199,6 @@ print(id(a) == id(b), id(a) == id(c))
     notebookName: CSC148_NOTEBOOKS.oop.name,
     title: '解释 Representation Invariant 的作用',
     type: 'short_answer',
-    status: 'published',
     source: 'manual',
     order: 3,
     problemNumber: 3,
@@ -229,7 +224,6 @@ print(id(a) == id(b), id(a) == id(c))
     notebookName: CSC148_NOTEBOOKS.linkedList.name,
     title: '证明：有序单链表插入保持有序',
     type: 'proof',
-    status: 'published',
     source: 'manual',
     order: 4,
     problemNumber: 4,
@@ -255,7 +249,6 @@ print(id(a) == id(b), id(a) == id(c))
     notebookName: CSC148_NOTEBOOKS.trees.name,
     title: 'BST 查找的比较次数',
     type: 'calculation',
-    status: 'published',
     source: 'manual',
     order: 5,
     problemNumber: 5,
@@ -281,7 +274,6 @@ print(id(a) == id(b), id(a) == id(c))
     notebookName: CSC148_NOTEBOOKS.recursion.name,
     title: '递归调用次数',
     type: 'calculation',
-    status: 'published',
     source: 'manual',
     order: 6,
     problemNumber: 6,
@@ -305,7 +297,6 @@ print(id(a) == id(b), id(a) == id(c))
     notebookName: CSC148_NOTEBOOKS.adt.name,
     title: '栈操作结果',
     type: 'fill_blank',
-    status: 'published',
     source: 'manual',
     order: 7,
     problemNumber: 7,
@@ -336,7 +327,6 @@ print(id(a) == id(b), id(a) == id(c))
     notebookName: CSC148_NOTEBOOKS.trees.name,
     title: 'BST 中序遍历性质',
     type: 'short_answer',
-    status: 'published',
     source: 'manual',
     order: 8,
     problemNumber: 8,
@@ -359,7 +349,6 @@ print(id(a) == id(b), id(a) == id(c))
     notebookName: CSC148_NOTEBOOKS.linkedList.name,
     title: '实现 sum_list',
     type: 'code',
-    status: 'published',
     source: 'manual',
     order: 9,
     problemNumber: 9,
@@ -396,7 +385,7 @@ print(id(a) == id(b), id(a) == id(c))
     for value in nums:
         total += value
     return total`,
-      publishRequirementsMet: true,
+      referenceVerified: true,
     },
     secretJudge: {
       language: 'python',
@@ -410,7 +399,6 @@ print(id(a) == id(b), id(a) == id(c))
     notebookName: CSC148_NOTEBOOKS.recursion.name,
     title: '递归反转字符串',
     type: 'code',
-    status: 'published',
     source: 'manual',
     order: 10,
     problemNumber: 10,
@@ -445,7 +433,7 @@ print(id(a) == id(b), id(a) == id(c))
     if len(text) <= 1:
         return text
     return reverse_text(text[1:]) + text[0]`,
-      publishRequirementsMet: true,
+      referenceVerified: true,
     },
   }),
   baseProblem({
@@ -454,7 +442,6 @@ print(id(a) == id(b), id(a) == id(c))
     notebookName: CSC148_NOTEBOOKS.oop.name,
     title: '继承与方法解析顺序',
     type: 'choice',
-    status: 'published',
     source: 'manual',
     order: 11,
     problemNumber: 11,
@@ -485,7 +472,6 @@ print(id(a) == id(b), id(a) == id(c))
     notebookName: CSC148_NOTEBOOKS.adt.name,
     title: '何时抛出 EmptyStackError',
     type: 'short_answer',
-    status: 'published',
     source: 'manual',
     order: 12,
     problemNumber: 12,
@@ -507,18 +493,17 @@ print(id(a) == id(b), id(a) == id(c))
     id: 'demo-csc148-problem-draft-preview',
     notebookId: CSC148_NOTEBOOKS.trees.id,
     notebookName: CSC148_NOTEBOOKS.trees.name,
-    title: '【草稿】BST 删除两子结点情形',
+    title: 'BST 删除两子结点情形',
     type: 'proof',
-    status: 'draft',
     source: 'manual',
     order: 13,
     problemNumber: 13,
     points: 100,
-    tags: ['BST', '删除', '草稿'],
+    tags: ['BST', '删除'],
     difficulty: 'hard',
     publicContent: {
       type: 'proof',
-      stem: '证明：在 BST 中删除有两个非空子结点的键时，用中序后继替换被删键可保持 BST 性质。（本地预览草稿）',
+      stem: '证明：在 BST 中删除有两个非空子结点的键时，用中序后继替换被删键可保持 BST 性质。',
     },
     grading: {
       type: 'proof',
@@ -527,9 +512,7 @@ print(id(a) == id(b), id(a) == id(c))
   }),
 ];
 
-export const LOCAL_DEMO_CSC148_PROBLEM_COUNT = CSC148_DEMO_PROBLEMS.filter(
-  (problem) => problem.status === 'published',
-).length;
+export const LOCAL_DEMO_CSC148_PROBLEM_COUNT = CSC148_DEMO_PROBLEMS.length;
 
 export function isLocalDemoProblemBankCourse(courseId: string): boolean {
   return LOCAL_DEMO_PROBLEM_BANK_COURSE_IDS.has(courseId);
@@ -552,9 +535,8 @@ export function listLocalDemoProblemChapters(courseId: string): CourseProblemCha
     name: notebook.name,
     description: '',
     position: index + 1,
-    problemCount: CSC148_DEMO_PROBLEMS.filter(
-      (problem) => problem.notebookId === notebook.id && problem.status !== 'archived',
-    ).length,
+    problemCount: CSC148_DEMO_PROBLEMS.filter((problem) => problem.notebookId === notebook.id)
+      .length,
   }));
 }
 

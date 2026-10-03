@@ -2,6 +2,7 @@
 
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { NotebookGenerationModelMode } from '@/lib/constants/notebook-generation-model-presets';
+import { prepareNotebookOriginalFile } from '@/lib/create/notebook-original-file';
 import { getApiHeaders } from '@/lib/create/generation-headers';
 import { backendFetch } from '@/lib/utils/backend-api';
 import { createLogger } from '@/lib/logger';
@@ -124,13 +125,19 @@ export function useCreateNotebookStyleSample({
     setStyleSampleStatus('loading');
 
     try {
-      const baseHeaders = getApiHeaders({
-        imageGenerationEnabled: true,
-        modelIdOverride,
-        notebookStageModelOverrides,
-        notebookModelMode,
-        testNoCharge: true,
-      });
+      const baseHeaders = new Headers(
+        getApiHeaders({
+          imageGenerationEnabled: true,
+          modelIdOverride,
+          notebookStageModelOverrides,
+          notebookModelMode,
+          testNoCharge: true,
+        }),
+      );
+      if (form.sourceFile) {
+        const original = await prepareNotebookOriginalFile({ file: form.sourceFile });
+        baseHeaders.set('x-notebook-source-token', original.sourceFileToken);
+      }
       const qualityCheckStage: Stage = {
         id: `create-notebook-image-quality-check-${courseId || 'draft'}`,
         courseId,
@@ -274,7 +281,7 @@ export function useCreateNotebookStyleSample({
     currentStyleSampleKey,
     drawingStylePrompt,
     form.requirement,
-    form.sourceFile?.name,
+    form.sourceFile,
     hasCustomDrawingStyle,
     hasSelectableSourceImages,
     imageNotebookStyleBrief,

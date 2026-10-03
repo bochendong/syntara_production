@@ -37,6 +37,10 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat('zh-CN').format(value);
 }
 
+function formatModelLabel(modelString: string) {
+  return modelString.replace(/^openai:/, '');
+}
+
 export function AdminLLMSection() {
   const [loading, setLoading] = useState(true);
   const [usageError, setUsageError] = useState<string | null>(null);
@@ -100,32 +104,32 @@ export function AdminLLMSection() {
             按 OpenAI GPT 公开价估算模型成本，供管理员观察全站用量。
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-lg border bg-background/70 p-3">
+        <CardContent className="grid grid-cols-2 gap-y-5 md:grid-cols-3 xl:grid-cols-5">
+          <div className="border-r px-4 py-2 last:border-r-0">
             <div className="text-xs text-muted-foreground">调用次数</div>
             <div className="mt-1 text-xl font-semibold">
               {formatNumber(usage?.summary.totalRequests || 0)}
             </div>
           </div>
-          <div className="rounded-lg border bg-background/70 p-3">
+          <div className="border-r px-4 py-2 last:border-r-0">
             <div className="text-xs text-muted-foreground">输入 Tokens</div>
             <div className="mt-1 text-xl font-semibold">
               {formatNumber(usage?.summary.totalInputTokens || 0)}
             </div>
           </div>
-          <div className="rounded-lg border bg-background/70 p-3">
+          <div className="border-r px-4 py-2 last:border-r-0">
             <div className="text-xs text-muted-foreground">输出 Tokens</div>
             <div className="mt-1 text-xl font-semibold">
               {formatNumber(usage?.summary.totalOutputTokens || 0)}
             </div>
           </div>
-          <div className="rounded-lg border bg-background/70 p-3">
+          <div className="border-r px-4 py-2 last:border-r-0">
             <div className="text-xs text-muted-foreground">总 Tokens</div>
             <div className="mt-1 text-xl font-semibold">
               {formatNumber(usage?.summary.totalTokens || 0)}
             </div>
           </div>
-          <div className="rounded-lg border bg-background/70 p-3">
+          <div className="border-r px-4 py-2 last:border-r-0">
             <div className="text-xs text-muted-foreground">预估模型成本</div>
             <div className="mt-1 text-xl font-semibold">
               {formatUsdLabel(usage?.summary.estimatedCostUsd || 0)}
@@ -146,7 +150,6 @@ export function AdminLLMSection() {
                 <tr>
                   <th className="px-3 py-2 font-medium">时间</th>
                   <th className="px-3 py-2 font-medium">用户</th>
-                  <th className="px-3 py-2 font-medium">路由</th>
                   <th className="px-3 py-2 font-medium">模型</th>
                   <th className="px-3 py-2 font-medium">输入</th>
                   <th className="px-3 py-2 font-medium">输出</th>
@@ -159,7 +162,14 @@ export function AdminLLMSection() {
                 {usageRows.map((row) => (
                   <tr key={row.id} className="border-t">
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {new Date(row.createdAt).toLocaleString('zh-CN')}
+                      {new Date(row.createdAt).toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false,
+                      })}
                     </td>
                     <td className="px-3 py-2">
                       <div className="font-medium">
@@ -173,8 +183,9 @@ export function AdminLLMSection() {
                           : row.userId || '—'}
                       </div>
                     </td>
-                    <td className="px-3 py-2">{row.route}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{row.modelString}</td>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {formatModelLabel(row.modelString)}
+                    </td>
                     <td className="px-3 py-2">{formatNumber(row.inputTokens)}</td>
                     <td className="px-3 py-2">{formatNumber(row.outputTokens)}</td>
                     <td className="px-3 py-2 font-medium">{formatNumber(row.totalTokens)}</td>
@@ -182,13 +193,13 @@ export function AdminLLMSection() {
                       {row.estimatedCostUsd != null ? formatUsdLabel(row.estimatedCostUsd) : '—'}
                     </td>
                     <td className="px-3 py-2">
-                      <UsageContentDialog id={row.id} model={row.modelString} />
+                      <UsageContentDialog id={row.id} model={formatModelLabel(row.modelString)} />
                     </td>
                   </tr>
                 ))}
                 {usageRows.length === 0 ? (
                   <tr>
-                    <td className="px-3 py-6 text-center text-muted-foreground" colSpan={9}>
+                    <td className="px-3 py-6 text-center text-muted-foreground" colSpan={8}>
                       暂无用量数据。
                     </td>
                   </tr>

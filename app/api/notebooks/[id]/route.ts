@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/server/prisma';
@@ -16,7 +17,6 @@ import {
   NotebookCourseMoveDedupeError,
   updateOwnedNotebook,
 } from '@/lib/server/repositories/notebook-repository';
-import { publishNotebookProblemBankForUser } from '@/features/problems/server/service';
 import { scheduleUnlinkedCourseKnowledgeProjectionSync } from '@/lib/server/unlinked-course-knowledge-projection';
 
 const updateNotebookSchema = z.object({
@@ -73,7 +73,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   });
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedPATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -140,9 +140,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!notebook) {
       return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
     }
-    if (shouldPublishNotebook) {
-      await publishNotebookProblemBankForUser({ userId, notebookId: id });
-    }
     const courseChanged = existing.courseId !== notebook.courseId;
     const nameChanged = existing.name !== notebook.name;
     if (courseChanged || nameChanged) {
@@ -166,7 +163,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   });
 }
 
-export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedDELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -206,3 +203,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     });
   });
 }
+
+export const PATCH = withAiFailureAudit(auditedPATCH);
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

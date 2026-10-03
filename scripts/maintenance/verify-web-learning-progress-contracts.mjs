@@ -53,13 +53,13 @@ assert.match(
 );
 assert.match(
   client,
-  /turnNotebooks = await ensureNotebooksLoaded\(\)[\s\S]{0,800}await progressSave\.promise/,
-  'A web AI turn must resolve notebook metadata and await the latest progress write.',
+  /while \(progressSave\?\.courseId === activeCourse\.id\)[\s\S]{0,800}await progressSave\.promise/,
+  'A web student AI turn must await the latest progress write before the server reads progress.',
 );
 assert.match(
   client,
-  /summarizeLearnerCourseState\(\{[\s\S]{0,120}notebooks: turnNotebooks/,
-  'The planner snapshot must use the hydrated notebook directory.',
+  /if \(!saved\) throw new Error\('学习进度同步到账号失败/,
+  'A failed progress write must prevent a turn from using stale server progress.',
 );
 
 assert.match(trustedProgress, /namespace: LEARNER_STATE_NAMESPACE/);

@@ -15,25 +15,26 @@ const checks = [
     pass: legacyRoute.includes('status: 410') && legacyRoute.includes('problem-chapters/archive'),
   },
   {
-    name: 'AI filing requires teacher-created chapters',
+    name: 'one-click filing automatically creates required chapters',
     pass:
-      archiveRoute.includes('CHAPTER_REQUIRED') &&
-      archiveRoute.includes('chapters.length === 0') &&
+      !archiveRoute.includes('CHAPTER_REQUIRED') &&
+      archiveRoute.includes('plan.chapters') &&
+      archiveRoute.includes('courseProblemChapter.create') &&
       chapterRoute.includes('courseProblemChapter.create'),
   },
   {
     name: 'AI filing only updates unfiled real problems into real chapters',
     pass:
       archiveRoute.includes('Output.object') &&
-      archiveRoute.includes('validProblemIds.has') &&
-      archiveRoute.includes('validChapterIds.has') &&
+      archiveRoute.includes('normalizeChapterArchivePlan') &&
+      archiveRoute.includes('chapterIds.get') &&
       archiveRoute.includes('chapterId: null'),
   },
   {
     name: 'teacher problem bank exposes chapter management and AI filing',
     pass:
       controller.includes('archiveCourseProblems') &&
-      view.includes('AI 归档') &&
+      view.includes('一键整理章节') &&
       view.includes('管理章节') &&
       view.includes('handleChangeProblemChapter'),
   },

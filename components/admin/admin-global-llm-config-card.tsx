@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { KeyRound, Loader2, Save, ShieldCheck, RotateCcw } from 'lucide-react';
 import { toast } from '@/lib/notifications/client-toast';
 import { Button } from '@/components/ui/button';
+import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,7 +37,7 @@ function ModelSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="space-y-3 rounded-xl border border-border/70 bg-background p-4">
+    <div className="space-y-3 min-w-0">
       <div>
         <Label htmlFor={id} className="font-semibold">
           {label}
@@ -130,95 +131,112 @@ export function AdminGlobalLlmConfigCard() {
     );
   if (error)
     return (
-      <div role="alert" className="rounded-xl border p-5">
-        {error}
-        <Button variant="outline" onClick={() => void load()}>
-          重新加载
-        </Button>
+      <div>
+        <AdminPageHeader
+          title="模型设置"
+          description="为默认任务与聊天档位选择模型，统一管理服务连接。"
+        />
+        <div role="alert" className="space-y-4 rounded-xl border p-5">
+          <p className="font-medium">{error}</p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            若本地连接远程数据库，请确认 SYSTEM_CONFIG_ENCRYPTION_KEY 与部署环境一致。
+          </p>
+          <Button variant="outline" onClick={() => void load()}>
+            重新加载
+          </Button>
+        </div>
       </div>
     );
   return (
     <div className="space-y-6">
-      <Card className="shadow-none">
-        <CardHeader>
-          <CardTitle className="text-base">模型分配</CardTitle>
-          <CardDescription>
-            为默认任务和三档聊天回复分别选择模型。修改后点击保存，新请求使用新的配置。
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <fieldset disabled={saving} className="grid gap-4 lg:grid-cols-2">
-            <ModelSelect
-              id="default-model"
-              label="默认模型"
-              description="讲义、题库导入和其他通用 AI 任务使用。"
-              value={modelId}
-              onChange={setModelId}
-            />
-            {CHAT_RESPONSE_STRENGTHS.map((key) => (
+      <AdminPageHeader
+        title="模型设置"
+        description="为默认任务与聊天档位选择模型，统一管理服务连接。"
+      />
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)]">
+        <Card className="shadow-none">
+          <CardHeader>
+            <CardTitle className="text-base">模型分配</CardTitle>
+            <CardDescription>
+              为默认任务和三档聊天回复分别选择模型。修改后点击保存，新请求使用新的配置。
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <fieldset disabled={saving} className="grid gap-x-5 gap-y-6 sm:grid-cols-2">
               <ModelSelect
-                key={key}
-                id={`model-${key}`}
-                label={tierLabels[key]}
-                description={`用户选择「${tierLabels[key]}」聊天时使用，可按你的教学需求分配。`}
-                value={tiers[key]}
-                onChange={(value) => setTiers((old) => ({ ...old, [key]: value }))}
+                id="default-model"
+                label="默认模型"
+                description="讲义、题库导入和其他通用 AI 任务使用。"
+                value={modelId}
+                onChange={setModelId}
               />
-            ))}
-          </fieldset>
-          <p className="mt-4 text-xs leading-5 text-muted-foreground">
-            候选项来自 OpenAI 官方模型目录；实际访问权限取决于当前
-            Key。图像、语音等专用模型独立配置。
-            <a
-              className="ml-1 underline underline-offset-4"
-              href="https://developers.openai.com/api/docs/models"
-              target="_blank"
-              rel="noreferrer"
-            >
-              查看模型说明
-            </a>
-          </p>
-        </CardContent>
-      </Card>
-      <Card className="shadow-none">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <KeyRound className="size-4" />
-            全站连接
-          </CardTitle>
-          <CardDescription>各项 OpenAI 服务共用此 Key，密钥加密保存在服务端。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-2 text-sm">
-            <ShieldCheck className="size-4 text-emerald-600" />
-            <span>{config?.hasApiKey ? `已配置 ${config.maskedApiKey}` : '尚未配置 API Key'}</span>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="system-api-key">更换 API Key</Label>
-            <Input
-              id="system-api-key"
-              type="password"
-              disabled={saving}
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
-              placeholder={config?.hasApiKey ? '留空保留当前 Key' : '请输入 OpenAI API Key'}
-              autoComplete="new-password"
-            />
-          </div>
-          <details className="rounded-lg border p-3">
-            <summary className="cursor-pointer text-sm">高级连接设置</summary>
-            <div className="mt-3 space-y-2">
-              <Label htmlFor="system-base-url">服务地址（Base URL）</Label>
+              {CHAT_RESPONSE_STRENGTHS.map((key) => (
+                <ModelSelect
+                  key={key}
+                  id={`model-${key}`}
+                  label={tierLabels[key]}
+                  description={`用户选择「${tierLabels[key]}」聊天时使用，可按你的教学需求分配。`}
+                  value={tiers[key]}
+                  onChange={(value) => setTiers((old) => ({ ...old, [key]: value }))}
+                />
+              ))}
+            </fieldset>
+            <p className="mt-4 text-xs leading-5 text-muted-foreground">
+              候选项来自 OpenAI 官方模型目录；实际访问权限取决于当前
+              Key。图像、语音等专用模型独立配置。
+              <a
+                className="ml-1 underline underline-offset-4"
+                href="https://developers.openai.com/api/docs/models"
+                target="_blank"
+                rel="noreferrer"
+              >
+                查看模型说明
+              </a>
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-none">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <KeyRound className="size-4" />
+              全站连接
+            </CardTitle>
+            <CardDescription>各项 OpenAI 服务共用此 Key，密钥加密保存在服务端。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-2 text-sm">
+              <ShieldCheck className="size-4 text-emerald-600" />
+              <span>
+                {config?.hasApiKey ? `已配置 ${config.maskedApiKey}` : '尚未配置 API Key'}
+              </span>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="system-api-key">更换 API Key</Label>
               <Input
-                id="system-base-url"
+                id="system-api-key"
+                type="password"
                 disabled={saving}
-                value={baseUrl}
-                onChange={(event) => setBaseUrl(event.target.value)}
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder={config?.hasApiKey ? '留空保留当前 Key' : '请输入 OpenAI API Key'}
+                autoComplete="new-password"
               />
             </div>
-          </details>
-        </CardContent>
-      </Card>
+            <details className="rounded-lg border p-3">
+              <summary className="cursor-pointer text-sm">高级连接设置</summary>
+              <div className="mt-3 space-y-2">
+                <Label htmlFor="system-base-url">服务地址（Base URL）</Label>
+                <Input
+                  id="system-base-url"
+                  disabled={saving}
+                  value={baseUrl}
+                  onChange={(event) => setBaseUrl(event.target.value)}
+                />
+              </div>
+            </details>
+          </CardContent>
+        </Card>
+      </div>
       <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background/95 p-4 shadow-sm backdrop-blur">
         <p aria-live="polite" className="text-xs text-muted-foreground">
           {dirty

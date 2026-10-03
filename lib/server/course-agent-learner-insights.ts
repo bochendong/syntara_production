@@ -103,6 +103,7 @@ export async function loadCourseLearnerInsight(args: {
   userId: string;
   focus: CourseAgentLearningFocus;
   timeScope: LearnerAnalyticsTimeScope;
+  allowedNotebookIds?: string[];
 }): Promise<LearnerAnalytics | null> {
   const intent = analyticsIntent({ focus: args.focus, timeScope: args.timeScope });
   return buildLearnerAnalytics({
@@ -116,6 +117,7 @@ export async function loadCourseLearnerInsight(args: {
     },
     query: intent.originalQuery,
     searchIntent: intent,
+    allowedNotebookIds: args.allowedNotebookIds,
   });
 }
 
@@ -326,7 +328,6 @@ export async function loadTeacherClassOverview(args: {
         userId: { in: userIds },
         ...(since ? { createdAt: { gte: since } } : {}),
         problem: {
-          status: { not: 'archived' },
           OR: [{ courseId: args.courseId }, { notebook: { courseId: args.courseId } }],
         },
       },
@@ -424,7 +425,6 @@ export async function loadTeacherProblemInsight(args: {
   const needle = normalized(args.problemQuery);
   const problems = await args.prisma.notebookProblem.findMany({
     where: {
-      status: { not: 'archived' },
       OR: [{ courseId: args.courseId }, { notebook: { courseId: args.courseId } }],
     },
     select: { id: true, title: true, problemNumber: true },

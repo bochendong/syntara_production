@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -18,7 +19,7 @@ async function requireOwner(userId: string, courseId: string, chapterId: string)
   return prisma.courseProblemChapter.findFirst({ where: { id: chapterId, courseId } });
 }
 
-export async function PATCH(
+async function auditedPATCH(
   request: Request,
   context: { params: Promise<{ id: string; chapterId: string }> },
 ) {
@@ -52,7 +53,7 @@ export async function PATCH(
           : {}),
       },
       include: {
-        _count: { select: { problems: { where: { status: { not: 'archived' } } } } },
+        _count: { select: { problems: { where: {} } } },
       },
     });
     return NextResponse.json({
@@ -67,7 +68,7 @@ export async function PATCH(
   });
 }
 
-export async function DELETE(
+async function auditedDELETE(
   _request: Request,
   context: { params: Promise<{ id: string; chapterId: string }> },
 ) {
@@ -81,3 +82,7 @@ export async function DELETE(
     return NextResponse.json({ ok: true });
   });
 }
+
+export const PATCH = withAiFailureAudit(auditedPATCH);
+
+export const DELETE = withAiFailureAudit(auditedDELETE);

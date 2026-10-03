@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 
 import { gradeQuizAnswer, type GradeQuizAnswerInput } from '@/features/practice/server';
@@ -6,7 +7,7 @@ import { apiError, apiSuccess } from '@/lib/server/api-response';
 
 const log = createLogger('Quiz Grade');
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   try {
     const body = (await req.json()) as GradeQuizAnswerInput;
 
@@ -21,3 +22,5 @@ export async function POST(req: NextRequest) {
     return apiError('INTERNAL_ERROR', 500, 'Failed to grade answer');
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

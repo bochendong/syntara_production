@@ -22,7 +22,6 @@ export type NotebookProblemClientRecord = {
   chapterName?: string;
   title: string;
   type: NotebookProblemPublicContent['type'];
-  status: 'draft' | 'published' | 'archived';
   source: 'chat' | 'pdf' | 'manual' | 'web' | 'legacy_quiz_scene';
   order: number;
   problemNumber?: number | null;
@@ -62,7 +61,6 @@ export type CourseProblemClientSummary = Pick<
   | 'chapterName'
   | 'title'
   | 'type'
-  | 'status'
   | 'tags'
   | 'difficulty'
   | 'updatedAt'
@@ -152,7 +150,6 @@ export async function listCourseProblemPage(
     typeFilter?: string;
     difficultyFilter?: string;
     chapterFilter?: string;
-    statusFilter?: string;
     notebookId?: string;
   } & BackendLoadOptions,
 ): Promise<CourseProblemPageClientResult> {
@@ -167,7 +164,6 @@ export async function listCourseProblemPage(
     type: options.typeFilter,
     difficulty: options.difficultyFilter,
     chapter: options.chapterFilter,
-    status: options.statusFilter,
     notebookId: options.notebookId,
   };
   for (const [key, value] of Object.entries(optionalParams)) {
@@ -313,19 +309,24 @@ export async function deleteCourseProblemChapter(args: { courseId: string; chapt
 }
 
 export type CourseProblemArchiveResult = {
+  createdChapterCount: number;
+  processedProblemIds: string[];
   candidateCount: number;
   archivedCount: number;
   unfiledCount: number;
   truncated: boolean;
 };
 
-export async function archiveCourseProblems(courseId: string): Promise<CourseProblemArchiveResult> {
+export async function archiveCourseProblems(
+  courseId: string,
+  excludeProblemIds: string[] = [],
+): Promise<CourseProblemArchiveResult> {
   return backendJson<CourseProblemArchiveResult>(
     `/api/courses/${encodeURIComponent(courseId)}/problem-chapters/archive`,
     {
       method: 'POST',
       headers: withModelHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
+      body: JSON.stringify({ excludeProblemIds }),
       timeoutMs: 300_000,
     },
   );
@@ -478,7 +479,6 @@ export async function updateNotebookProblem(args: {
   problemId: string;
   patch: {
     title?: string;
-    status?: 'draft' | 'published' | 'archived';
     points?: number;
     order?: number;
     difficulty?: 'easy' | 'medium' | 'hard';
@@ -505,7 +505,6 @@ export async function updateCourseProblem(args: {
     notebookId?: string | null;
     chapterId?: string | null;
     title?: string;
-    status?: 'draft' | 'published' | 'archived';
     points?: number;
     order?: number;
     difficulty?: 'easy' | 'medium' | 'hard';

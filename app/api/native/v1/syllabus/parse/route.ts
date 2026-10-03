@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { Buffer } from 'node:buffer';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -37,7 +38,7 @@ const requestSchema = z.object({
     .optional(),
 });
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   const principal = await requireNativePlatformApi(request, requestId);
   if (principal instanceof NextResponse) return principal;
@@ -84,3 +85,5 @@ export async function POST(request: NextRequest) {
   });
   return parseSyllabus(internalRequest);
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

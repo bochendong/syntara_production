@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 /**
  * PBL Runtime Chat API
  *
@@ -23,7 +24,7 @@ interface PBLChatRequest {
   agentType?: 'question' | 'judge';
 }
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   try {
     const body = (await req.json()) as PBLChatRequest;
     const { message, agent, currentIssue, recentMessages, userRole, agentType } = body;
@@ -59,14 +60,14 @@ export async function POST(req: NextRequest) {
     const systemPrompt = `${agent.system_prompt}${issueContext}${recentContext}${userRole ? `\n\nThe student's role is: ${userRole}` : ''}`;
 
     const result = await runWithRequestContext(req, '/api/pbl/chat', () =>
-        callLLM(
-          {
-            model,
-            system: systemPrompt,
-            prompt: message,
-          },
-          'pbl-chat',
-        ),
+      callLLM(
+        {
+          model,
+          system: systemPrompt,
+          prompt: message,
+        },
+        'pbl-chat',
+      ),
     );
 
     return apiSuccess({ message: result.text, agentName: agent.name });
@@ -75,3 +76,5 @@ export async function POST(req: NextRequest) {
     return apiError('INTERNAL_ERROR', 500, error instanceof Error ? error.message : String(error));
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

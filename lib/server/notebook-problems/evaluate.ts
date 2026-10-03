@@ -43,6 +43,14 @@ export async function gradeNotebookTextProblem(args: {
 }> {
   const userAnswer = args.answer.text?.trim() || '';
   const imageAnswers = args.answer.images ?? [];
+  const questionImages = (args.problem.publicContent.assets?.images ?? [])
+    .filter((image) => image.role !== 'explanation')
+    .flatMap((image) => {
+      const match = image.src.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\s]+)$/);
+      return match
+        ? [{ type: 'image' as const, image: Buffer.from(match[2], 'base64'), mediaType: match[1] }]
+        : [];
+    });
   if (!userAnswer && imageAnswers.length === 0) {
     return {
       status: 'error',
@@ -106,13 +114,23 @@ ${referenceBits.length > 0 ? `${args.language === 'zh-CN' ? '可选参考信息'
         abortSignal: AbortSignal.timeout(120_000),
         maxRetries: 1,
         system: systemPrompt,
-        ...(imageAnswers.length > 0
+        ...(imageAnswers.length > 0 || questionImages.length > 0
           ? {
               messages: [
                 {
                   role: 'user' as const,
                   content: [
                     { type: 'text' as const, text: prompt },
+                    ...(questionImages.length > 0
+                      ? [
+                          {
+                            type: 'text' as const,
+                            text: 'Problem figures (given conditions, not student answers). Use these alongside the problem statement.',
+                          },
+                          ...questionImages,
+                        ]
+                      : []),
+                    { type: 'text' as const, text: 'Student answer photos follow, if any.' },
                     ...imageAnswers.map((image) => ({
                       type: 'image' as const,
                       image: Buffer.from(image.dataUrl.split(',')[1], 'base64'),

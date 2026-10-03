@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/server/admin-auth';
@@ -10,7 +11,7 @@ import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(request: Request, context: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin();
   if ('response' in admin) return admin.response;
   const origin = request.headers.get('origin');
@@ -55,3 +56,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

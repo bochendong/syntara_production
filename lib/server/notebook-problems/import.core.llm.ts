@@ -1,5 +1,15 @@
 import type { LanguageModel } from 'ai';
 import { jsonrepair } from 'jsonrepair';
+import { sanitizeStructurePlanInput } from './import.structure-sanitize';
+import {
+  analyzeStructureCoverage,
+  coverageRetryInstruction,
+  coverageScore,
+  detectPrintedQuestionLabels,
+  detectSourceLanguage,
+  printedLabelsHint,
+  type StructureCoverage,
+} from './import.coverage';
 import { callLLM } from '@/lib/ai/llm';
 import {
   codeReferenceSolution,
@@ -29,12 +39,12 @@ import {
   removeMissingAnswerValidationErrors,
 } from './import.core.usage';
 
-const OPENAI_FILE_PROBLEM_BATCH_SIZE = 8;
+const OPENAI_FILE_PROBLEM_BATCH_SIZE = 6;
 const OPENAI_FILE_BATCH_CONCURRENCY = 4;
 
 function usageFromLLMResult(
   model: LanguageModel,
-  result: Awaited<ReturnType<typeof callLLM>>,
+  result: Pick<Awaited<ReturnType<typeof callLLM>>, 'usage'>,
 ): ImportUsageSummary | null {
   return llmUsageFromResult({
     model,
@@ -111,7 +121,9 @@ function parseOpenAIFileStructurePlan(text: string): ProblemStructurePlan | null
         })
       : [];
     return {
-      ...problemStructurePlanSchema.parse({ ...parsed, topLevelProblems }),
+      ...problemStructurePlanSchema.parse(
+        sanitizeStructurePlanInput({ ...parsed, topLevelProblems }),
+      ),
       generatedBy: 'llm',
     };
   } catch {
@@ -198,7 +210,7 @@ function promoteFunctionImplementationDraft(
       type: 'code',
       solutionCode,
       analysis: draft.grading.analysis || draft.grading.rubric,
-      publishRequirementsMet: false,
+      referenceVerified: false,
     },
     secretJudge: {
       language: 'python',
@@ -228,7 +240,6 @@ export function mergeAnswerRepairDraft(
     draftId: original.draftId,
     notebookId: original.notebookId,
     title: original.title,
-    status: original.status,
     source: original.source,
     points: original.points,
     tags: original.tags,
@@ -335,7 +346,7 @@ function codeRepairDraftFromRaw(
         type: 'code',
         graderKind: 'code_runner',
         solutionCode,
-        publishRequirementsMet: false,
+        referenceVerified: false,
       },
       secretJudge: {
         ...original.secretJudge,
@@ -457,10 +468,9 @@ async function annotateCodeDraftVerification(
       const verification = await verifyNotebookCodeDraftReferenceAnswer(draft);
       return {
         ...draft,
-        status: verification.passed ? draft.status : 'draft',
         grading:
           draft.grading.type === 'code'
-            ? { ...draft.grading, publishRequirementsMet: verification.passed }
+            ? { ...draft.grading, referenceVerified: verification.passed }
             : draft.grading,
         sourceMeta: {
           ...draft.sourceMeta,
@@ -706,6 +716,7 @@ function enrichFileDraftSourceMeta(
       pageEnd: structureItem.pageEnd,
       sourceAnchors: structureItem.sourceAnchors,
       structureConfidence: structureItem.confidence,
+      structureVisualRefs: structureItem.visualRefs,
     },
   };
 }
@@ -730,7 +741,7 @@ async function mapWithConcurrency<T, R>(
 ): Promise<R[]> {
   const results = new Array<R>(items.length);
   let nextIndex = 0;
-  await Promise.all(
+  const settled = await Promise.allSettled(
     Array.from({ length: Math.min(concurrency, items.length) }, async () => {
       while (nextIndex < items.length) {
         const index = nextIndex;
@@ -739,6 +750,8 @@ async function mapWithConcurrency<T, R>(
       }
     }),
   );
+  const failure = settled.find((result) => result.status === 'rejected');
+  if (failure?.status === 'rejected') throw failure.reason;
   return results;
 }
 
@@ -974,16 +987,29 @@ export async function llmExtractProblemDraftsFromOpenAIFile(args: {
   source: NotebookProblemSource;
   model: LanguageModel;
   language: 'zh-CN' | 'en-US';
+  /** Original PDF bytes; enables the printed-question-number coverage check. */
+  sourcePdfBuffer?: Buffer;
+  checkpoint?: <T>(key: string, work: () => Promise<T>) => Promise<T>;
+  onProgress?: (progress: { completed: number; total: number; questions: number }) => Promise<void>;
 }): Promise<{
   drafts: NotebookProblemImportDraft[];
   usage: ImportUsageSummary | null;
+  coverage?: StructureCoverage;
 }> {
-  const system = buildProblemImportSystemPrompt(args.language);
+  const checkpoint = args.checkpoint ?? (async <T>(_key: string, work: () => Promise<T>) => work());
+  // Follow the source's language rather than the UI language for every model prompt.
+  const language =
+    (args.sourcePdfBuffer
+      ? await detectSourceLanguage(args.sourcePdfBuffer).catch(() => null)
+      : null) ?? args.language;
+  const system = buildProblemImportSystemPrompt(language);
   const structureInstruction =
-    args.language === 'zh-CN'
+    language === 'zh-CN'
       ? `请通读附件的每一页，但本轮只生成题目结构目录，不要解题。返回严格 JSON 对象，不要 markdown。
 必须区分印刷的原始题面与学生手写答案、圈选气泡、阅卷批注、得分和评分反馈。后五者都不是题目。封面、参考页、答题卡和空白页必须放入 nonProblemRegions。
-默认按最顶层题号建立条目；共享同一推导的小问放入 subparts。表格逐行作答、逐段代码追踪等彼此独立且独立计分的重复单元，要分别建立 topLevelProblems 条目，并携带原题号与行号。仔细识别原题能力和适合平台交付的题型。
+只有解答、手写计算或答案曲线而没有印刷题干的页面（例如纯 Solutions/Answers 页）也放入 nonProblemRegions（kind 用 other，reason 写明“仅解答，无题干”），不要据此反推题目；若能对应到本文件中的原题，只在原题条目中引用。
+visualRefs 逐项登记题目作答依赖的原图（图表、曲线、几何图、结构式、电路、截图或图片形式的表格），每项写成 "p<页码>: <可识别特征，不写结论>"，例如 "p6: 含 Orange/Blue/Green 三条直线和 A–G 点的可行域图"。共享图在每个依赖它的题目中都登记。
+每个印刷题号（Question 3、Q3、第3题等）至少建立一个条目，不得遗漏或把不同题号合并。题号下的小问 (a)(b)(c) 若各自独立作答、独立计分，就拆成独立条目，topLevelLabel 写成“1a”“1b”这类“题号+小问号”；只有必须连续推导、不能单独作答的小问才放进同一条目的 subparts。多道题共用同一段材料、图或表时仍分别建立条目，共享材料记入 sharedContexts，并在每个条目的 contextBlocks 中引用；不要把连续的判断题、选择题合并成一道题或改写成组合选择题。表格逐行作答、逐段代码追踪等彼此独立且独立计分的重复单元，要分别建立 topLevelProblems 条目，并携带原题号与行号。仔细识别原题能力和适合平台交付的题型。
 JSON 格式：
 {
   "sourceSummary": "...",
@@ -995,81 +1021,153 @@ JSON 格式：
 }`
       : `Read every page of the attached file, but in this pass create only a structural problem index; do not solve anything. Return one strict JSON object without markdown.
 Separate printed source questions from student handwriting, marked bubbles, grader annotations, scores, and grading feedback. The latter are not problems. Put covers, reference sheets, answer sheets, and blank pages in nonProblemRegions.
-Create items by top-level number by default and keep subparts that share one derivation together. Split independently answered and independently scored repeated units, such as table rows and code-tracing rows, into separate topLevelProblems items carrying the original number and row label. Identify both the source capability and the best supported delivery type.
+Pages that contain only worked solutions, handwritten calculations, or answer curves without a printed prompt also go to nonProblemRegions (kind "other", reason "solution only, no prompt"); never reverse-engineer problems from them.
+List every source figure a problem needs in visualRefs as "p<page>: <identifiable features, no conclusions>", e.g. "p6: feasible-region graph with Orange/Blue/Green lines and points A–G". Register a shared figure on every problem that uses it.
+Create at least one item per printed question number (Question 3, Q3, 3.); never omit or merge different numbers. Split subparts (a)(b)(c) that are answered and scored independently into separate items labelled like "1a", "1b"; keep only subparts that form one continuous derivation together as subparts of one item. Questions that share one passage, figure, or table still get separate items, with the shared material in sharedContexts and referenced from each item's contextBlocks; never merge consecutive true/false or multiple-choice questions or rewrite them as a combined choice question. Split independently answered and independently scored repeated units, such as table rows and code-tracing rows, into separate topLevelProblems items carrying the original number and row label. Identify both the source capability and the best supported delivery type.
 Record the printed total points for every problem as points. Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|additional_work|blank|header_footer|other","pageNumbers":[1],"reason":"..."}],"sharedContexts":[],"topLevelProblems":[{"index":1,"topLevelLabel":"1","title":"...","points":3,"problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],"warnings":[],"generatedBy":"llm"}`;
-  const structureResult = await callLLM(
-    {
-      model: args.model,
-      system:
-        args.language === 'zh-CN'
-          ? '你是严谨的试卷结构分析器，只输出机器可解析的 JSON。'
-          : 'You are a rigorous exam structure analyzer. Output machine-readable JSON only.',
-      messages: [
+  const runStructurePass = (instruction: string, source: string) =>
+    checkpoint(source, async () => {
+      const result = await callLLM(
         {
-          role: 'user',
-          content: [
-            { type: 'text', text: structureInstruction },
+          model: args.model,
+          system:
+            language === 'zh-CN'
+              ? '你是严谨的试卷结构分析器，只输出机器可解析的 JSON。'
+              : 'You are a rigorous exam structure analyzer. Output machine-readable JSON only.',
+          messages: [
             {
-              type: 'file',
-              data: args.fileId,
-              mediaType: args.mimeType,
-              filename: args.fileName,
+              role: 'user',
+              content: [
+                { type: 'text', text: instruction },
+                {
+                  type: 'file',
+                  data: args.fileId,
+                  mediaType: args.mimeType,
+                  filename: args.fileName,
+                },
+              ],
             },
           ],
+          // Long exams list many items; a small budget truncates the outline, which used to
+          // surface as merged or missing questions.
+          maxOutputTokens: 24000,
+          abortSignal: AbortSignal.timeout(100_000),
         },
-      ],
-      maxOutputTokens: 10000,
-    },
+        source,
+      );
+      return { text: result.text, usage: result.usage };
+    });
+  // Compare the outline with printed question numbers from the PDF text layer. Merged or
+  // missing numbers trigger one targeted retry; the better-covering outline wins.
+  const printedLabels = args.sourcePdfBuffer
+    ? await detectPrintedQuestionLabels(args.sourcePdfBuffer).catch(() => [])
+    : [];
+  const structureResult = await runStructurePass(
+    structureInstruction + printedLabelsHint(printedLabels, language),
     'problem-bank-import-openai-file-structure',
   );
   let usage = usageFromLLMResult(args.model, structureResult);
-  const structurePlan = parseOpenAIFileStructurePlan(structureResult.text);
+  let structurePlan = parseOpenAIFileStructurePlan(structureResult.text);
+
+  if (!structurePlan || structurePlan.topLevelProblems.length === 0) {
+    // An unparseable outline (often truncated JSON) used to fall straight through to the
+    // single-pass fallback, which bundles questions. Retry once with a compact request.
+    const compactNote =
+      language === 'zh-CN'
+        ? '\n\n上一次输出无法解析为完整 JSON。请重新输出完整目录，所有字符串保持简短（title ≤ 60 字，summary ≤ 200 字，visualRefs 每项 ≤ 150 字），确保 JSON 完整闭合。'
+        : '\n\nThe previous output was not valid complete JSON. Output the full outline again with short strings (title ≤ 60 chars, summary ≤ 200 chars, each visualRef ≤ 150 chars) and make sure the JSON is closed.';
+    const labelHint = printedLabelsHint(printedLabels, language);
+    const retry = await runStructurePass(
+      structureInstruction + compactNote + labelHint,
+      'problem-bank-import-openai-file-structure-retry',
+    );
+    usage = mergeImportUsage(usage, usageFromLLMResult(args.model, retry));
+    structurePlan = parseOpenAIFileStructurePlan(retry.text);
+  }
+  let coverage = analyzeStructureCoverage(structurePlan, printedLabels);
+  if (coverage.checked && coverageScore(coverage) > 0) {
+    const retry = await runStructurePass(
+      structureInstruction + coverageRetryInstruction(coverage, language),
+      'problem-bank-import-openai-file-structure-coverage-retry',
+    );
+    usage = mergeImportUsage(usage, usageFromLLMResult(args.model, retry));
+    const retryPlan = parseOpenAIFileStructurePlan(retry.text);
+    const retryCoverage = analyzeStructureCoverage(retryPlan, printedLabels);
+    if (
+      retryPlan &&
+      retryPlan.topLevelProblems.length > 0 &&
+      coverageScore(retryCoverage) < coverageScore(coverage)
+    ) {
+      structurePlan = retryPlan;
+      coverage = retryCoverage;
+    }
+  }
 
   // A malformed structure response should not make ordinary, short documents unimportable.
   // Fall back to the former single pass, while retaining the answer-complete contract.
   if (!structurePlan || structurePlan.topLevelProblems.length === 0) {
     const fallbackInstruction =
-      args.language === 'zh-CN'
+      language === 'zh-CN'
         ? '请直接阅读附加的原始文件，识别全部印刷题目，独立解出每题并为每道题生成可判分的标准答案。忽略学生手写和阅卷批注。返回严格 JSON 数组，题目不归入任何笔记本。'
         : 'Read the original file, extract every printed problem, independently solve each one, and generate a gradable reference answer for every problem. Ignore student handwriting and grader annotations. Return a strict JSON array without notebook assignment.';
-    const fallbackResult = await callLLM(
-      {
-        model: args.model,
-        system,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: fallbackInstruction },
-              {
-                type: 'file',
-                data: args.fileId,
-                mediaType: args.mimeType,
-                filename: args.fileName,
-              },
-            ],
-          },
-        ],
-        maxOutputTokens: 32000,
-      },
-      'problem-bank-import-openai-file-fallback',
-    );
+    const fallbackResult = await checkpoint('fallback-response', async () => {
+      const result = await callLLM(
+        {
+          model: args.model,
+          system,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: fallbackInstruction },
+                {
+                  type: 'file',
+                  data: args.fileId,
+                  mediaType: args.mimeType,
+                  filename: args.fileName,
+                },
+              ],
+            },
+          ],
+          maxOutputTokens: 32000,
+          abortSignal: AbortSignal.timeout(100_000),
+        },
+        'problem-bank-import-openai-file-fallback',
+      );
+      return { text: result.text, usage: result.usage };
+    });
     usage = mergeImportUsage(usage, usageFromLLMResult(args.model, fallbackResult));
-    const fallbackDrafts = parseProblemDraftArrayFromLLMText(fallbackResult.text).map((item) => ({
-      ...normalizeCandidateDraft(item, args.source),
-      notebookId: null,
-    }));
-    const fallbackAnswers = await ensureImportedDraftAnswers({
-      drafts: fallbackDrafts,
-      model: args.model,
-      language: args.language,
+    const fallbackDrafts = parseProblemDraftArrayFromLLMText(fallbackResult.text).map((item) => {
+      const draft = normalizeCandidateDraft(item, args.source);
+      return {
+        ...draft,
+        notebookId: null,
+        sourceMeta: { ...draft.sourceMeta, extractionPath: 'single_pass_fallback' },
+        // Without an outline nothing guarantees one draft per printed question.
+        validationErrors: [
+          ...draft.validationErrors,
+          language === 'zh-CN'
+            ? '题目目录生成失败，本题来自整卷单次抽取，可能合并或遗漏了原卷题目，请逐题核对。'
+            : 'The outline pass failed; this draft came from a single-pass extraction and may merge or omit source questions.',
+        ],
+      };
     });
-    const fallbackCodeResult = await ensureImportedCodeDraftsJudgeReady({
-      drafts: fallbackAnswers.drafts,
-      model: args.model,
-      language: args.language,
-    });
+    const fallbackAnswers = await checkpoint('fallback-answers', () =>
+      ensureImportedDraftAnswers({
+        drafts: fallbackDrafts,
+        model: args.model,
+        language: language,
+      }),
+    );
+    const fallbackCodeResult = await checkpoint('fallback-code', () =>
+      ensureImportedCodeDraftsJudgeReady({
+        drafts: fallbackAnswers.drafts,
+        model: args.model,
+        language: language,
+      }),
+    );
     return {
+      coverage: analyzeStructureCoverage(null, printedLabels),
       drafts: fallbackCodeResult.drafts.map((draft) => ({ ...draft, notebookId: null })),
       usage: mergeImportUsage(
         usage,
@@ -1089,133 +1187,186 @@ Record the printed total points for every problem as points. Return: {"sourceSum
     );
   }
 
+  let completed = 0;
+  let questions = 0;
+  await args.onProgress?.({ completed, total: batches.length, questions });
   const batchResults = await mapWithConcurrency(
     batches,
     OPENAI_FILE_BATCH_CONCURRENCY,
-    async (batch) => {
-      const batchOutline = JSON.stringify(
-        batch.map((item) => ({
-          index: item.index,
-          topLevelLabel: item.topLevelLabel,
-          title: item.title,
-          points: item.points,
-          problemTypeHint: item.problemTypeHint,
-          pageStart: item.pageStart,
-          pageEnd: item.pageEnd,
-          subparts: item.subparts,
-          contextBlocks: item.contextBlocks,
-          visualRefs: item.visualRefs,
-        })),
-      );
-      const baseInstruction =
-        args.language === 'zh-CN'
-          ? `现在只处理下列 ${batch.length} 道顶层题：${batchOutline}
-请回到附件指定页面，完整转写印刷题面，并独立解出每道题。忽略学生手写、勾选、阅卷痕迹、得分和评分反馈；不得把它们当成标准答案。
+    async (batch, batchIndex) => {
+      const saved = await checkpoint(`batch:${batchIndex}`, async () => {
+        const batchOutline = JSON.stringify(
+          batch.map((item) => ({
+            index: item.index,
+            topLevelLabel: item.topLevelLabel,
+            title: item.title,
+            points: item.points,
+            problemTypeHint: item.problemTypeHint,
+            pageStart: item.pageStart,
+            pageEnd: item.pageEnd,
+            subparts: item.subparts,
+            contextBlocks: item.contextBlocks,
+            visualRefs: item.visualRefs,
+          })),
+        );
+        // Shared passages, models, tables, and figures that these problems may depend on.
+        // Without them a split-out problem loses its givens (e.g. the LP constraints).
+        const batchPages = new Set(
+          batch.flatMap((item) => {
+            const start = item.pageStart ?? 1;
+            const end = item.pageEnd ?? start;
+            return Array.from(
+              { length: Math.max(1, end - start + 1) },
+              (_, offset) => start + offset,
+            );
+          }),
+        );
+        const sharedContextOutline = JSON.stringify(
+          (structurePlan.sharedContexts ?? []).filter(
+            (context) =>
+              context.pageNumbers.length === 0 ||
+              context.pageNumbers.some(
+                (page) =>
+                  batchPages.has(page) || batchPages.has(page + 1) || batchPages.has(page + 2),
+              ),
+          ),
+        );
+        const baseInstruction =
+          language === 'zh-CN'
+            ? `现在只处理下列 ${batch.length} 道顶层题：${batchOutline}
+可能相关的共享材料（sharedContexts）：${sharedContextOutline}
+每道题都必须能独立作答：凡依赖共享材料、前文模型、前一题的表格/函数/约束/数据，必须回到原页把完整条件逐字复制进该题题干（不是摘要），图则登记到 sourceMeta.figureRefs。不要把多道题合并，也不要把独立判断题改成组合选择题。
+题干只写原题给出的内容；不得把需要从图中读出的结论（点在直线哪一侧、违反哪些约束、曲线移动方向等）写进题干。
+求解时先在 grading.analysis 中写出完整推导（列出所用条件、逐步计算并检查符号、方向和单位），再根据推导填写 correctOptionIds、referenceAnswer、acceptedForms 或 blanks；判断“等价”“可行”“绑定”等结论时逐项代入验证，不凭印象作答。
+请回到附件指定页面，逐字忠实转写印刷题面（目录中的 visualRefs 必须转成 sourceMeta.figureRefs，并按“来源忠实契约”填写 promptStatus、sourceQuote、responseMode），再独立解出每道题。忽略学生手写、勾选、阅卷痕迹、得分和评分反馈；不得把它们当成标准答案。
 必须恰好返回 ${batch.length} 个题目草稿，顺序与目录一致，小问保留在同一道题中。每题 sourceMeta.scaffoldIndex 填对应 index，并保留目录中的原卷分值。
 每道题都必须有可判分答案。保持原题的作答方式与认知要求；代码输出预测和报错判断属于 code_reading，不得误做成代码编辑器题。代码题用于函数或 class 实现，AI 负责在初始代码、参考实现和测试文件中生成匹配的 imports 与接口，提供 LeetCode 式题面、带类型注解和 docstring 的 starterCode、完整 solutionCode、publicTestCode 和 secretTestCode 完整 unittest 文件，且参考答案能通过全部 unittest。input、stdin、print 判分和文件读写必须等价改写。
 只返回严格 JSON 数组。`
-          : `Process only these ${batch.length} top-level problems: ${batchOutline}
-Return to the cited pages, transcribe the complete printed prompt, and independently solve every problem. Ignore handwriting, marked bubbles, grading marks, scores, and grader feedback; none is an answer source.
+            : `Process only these ${batch.length} top-level problems: ${batchOutline}
+Possibly relevant shared material (sharedContexts): ${sharedContextOutline}
+Every problem must be answerable on its own: whenever it depends on shared material, an earlier model, or a previous problem's table, function, constraints, or data, go back to the source page and copy the complete givens verbatim into the stem (not a summary); register figures in sourceMeta.figureRefs. Never merge problems or turn independent true/false items into a combined choice question.
+The stem contains only what the source states; never write conclusions students must read from a figure (which side of a line a point lies on, which constraints it violates, curve shift directions).
+When solving, first write the full derivation in grading.analysis (list the givens used, compute step by step, check signs, directions, and units), then fill correctOptionIds, referenceAnswer, acceptedForms, or blanks from that derivation. Verify claims such as "equivalent", "feasible", or "binding" by substitution rather than from memory.
+Return to the cited pages, faithfully transcribe the complete printed prompt (convert the outline visualRefs into sourceMeta.figureRefs and fill promptStatus, sourceQuote, and responseMode per the source fidelity contract), then independently solve every problem. Ignore handwriting, marked bubbles, grading marks, scores, and grader feedback; none is an answer source.
 Return exactly ${batch.length} drafts in the same order, with subparts kept in their top-level problem. Set sourceMeta.scaffoldIndex to the corresponding index and preserve the printed points from the outline.
 Every problem must have a gradable answer. Preserve the original response demand and cognitive load; code-output prediction and error diagnosis are code_reading, not code-editor tasks. Code supports function and class implementations with matching imports and interfaces, a LeetCode-style statement, annotated starterCode with a docstring, complete solutionCode, complete publicTestCode and secretTestCode unittest files, and a solution that passes all unittests. Equivalently adapt input(), stdin, print-based grading, and file I/O. Return a strict JSON array only.`;
 
-      let bestDrafts: NotebookProblemImportDraft[] = [];
-      let batchUsage: ImportUsageSummary | null = null;
-      let retryReason = '';
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const retrySuffix =
-          attempt === 0
-            ? ''
-            : args.language === 'zh-CN'
-              ? `\n上一次输出无法入库：${retryReason || '缺少题目或标准答案'}。请重新检查 JSON 转义和每题 grading，返回修正后的完整数组。`
-              : `\nThe previous output could not be imported: ${retryReason || 'missing problems or reference answers'}. Recheck JSON escaping and every grading object, then return the complete corrected array.`;
-        const result = await callLLM(
-          {
-            model: args.model,
-            system,
-            messages: [
+        let bestDrafts: NotebookProblemImportDraft[] = [];
+        let batchUsage: ImportUsageSummary | null = null;
+        let retryReason = '';
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const retrySuffix =
+            attempt === 0
+              ? ''
+              : language === 'zh-CN'
+                ? `\n上一次输出无法入库：${retryReason || '缺少题目或标准答案'}。请重新检查 JSON 转义和每题 grading，返回修正后的完整数组。`
+                : `\nThe previous output could not be imported: ${retryReason || 'missing problems or reference answers'}. Recheck JSON escaping and every grading object, then return the complete corrected array.`;
+          const result = await checkpoint(`batch-response:${batchIndex}:${attempt}`, async () => {
+            const response = await callLLM(
               {
-                role: 'user',
-                content: [
-                  { type: 'text', text: `${baseInstruction}${retrySuffix}` },
+                model: args.model,
+                system,
+                messages: [
                   {
-                    type: 'file',
-                    data: args.fileId,
-                    mediaType: args.mimeType,
-                    filename: args.fileName,
+                    role: 'user',
+                    content: [
+                      { type: 'text', text: `${baseInstruction}${retrySuffix}` },
+                      {
+                        type: 'file',
+                        data: args.fileId,
+                        mediaType: args.mimeType,
+                        filename: args.fileName,
+                      },
+                    ],
                   },
                 ],
+                maxOutputTokens: 24000,
+                abortSignal: AbortSignal.timeout(100_000),
               },
-            ],
-            maxOutputTokens: 24000,
-          },
-          attempt === 0
-            ? 'problem-bank-import-openai-file-batch'
-            : 'problem-bank-import-openai-file-batch-retry',
-        );
-        batchUsage = mergeImportUsage(batchUsage, usageFromLLMResult(args.model, result));
-        let rawDrafts: unknown[];
-        try {
-          rawDrafts = parseProblemDraftArrayFromLLMText(result.text).slice(0, batch.length);
-        } catch (error) {
-          retryReason =
-            error instanceof Error ? `JSON 解析失败：${error.message}` : 'JSON 解析失败';
-          if (attempt === 0) continue;
+              attempt === 0
+                ? 'problem-bank-import-openai-file-batch'
+                : 'problem-bank-import-openai-file-batch-retry',
+            );
+            return { text: response.text, usage: response.usage };
+          });
+          batchUsage = mergeImportUsage(batchUsage, usageFromLLMResult(args.model, result));
+          let rawDrafts: unknown[];
+          try {
+            rawDrafts = parseProblemDraftArrayFromLLMText(result.text).slice(0, batch.length);
+          } catch (error) {
+            retryReason =
+              error instanceof Error ? `JSON 解析失败：${error.message}` : 'JSON 解析失败';
+            if (attempt === 0) continue;
+            throw new Error(
+              language === 'zh-CN'
+                ? `PDF 题目批次 ${batch[0]?.index}-${batch.at(-1)?.index} 连续两次返回无效 JSON：${retryReason}`
+                : `PDF batch ${batch[0]?.index}-${batch.at(-1)?.index} returned invalid JSON twice: ${retryReason}`,
+            );
+          }
+          const normalized = rawDrafts.map((item, index) =>
+            enrichFileDraftSourceMeta(
+              normalizeCandidateDraft(item, args.source),
+              batch.find(
+                (structureItem) =>
+                  typeof item === 'object' &&
+                  item !== null &&
+                  typeof (item as { sourceMeta?: { scaffoldIndex?: unknown } }).sourceMeta
+                    ?.scaffoldIndex === 'number' &&
+                  (item as { sourceMeta: { scaffoldIndex: number } }).sourceMeta.scaffoldIndex ===
+                    structureItem.index,
+              ) ?? batch[index],
+            ),
+          );
+          if (
+            normalized.length > bestDrafts.length ||
+            (normalized.length === bestDrafts.length &&
+              normalized.filter(draftHasCompleteAnswer).length >
+                bestDrafts.filter(draftHasCompleteAnswer).length)
+          ) {
+            bestDrafts = normalized;
+          }
+          retryReason = `${normalized.length}/${batch.length} 题，${normalized.filter(draftHasCompleteAnswer).length}/${batch.length} 题答案与代码测试完整`;
+          if (normalized.length === batch.length) break;
+        }
+        if (bestDrafts.length !== batch.length) {
           throw new Error(
-            args.language === 'zh-CN'
-              ? `PDF 题目批次 ${batch[0]?.index}-${batch.at(-1)?.index} 连续两次返回无效 JSON：${retryReason}`
-              : `PDF batch ${batch[0]?.index}-${batch.at(-1)?.index} returned invalid JSON twice: ${retryReason}`,
+            language === 'zh-CN'
+              ? `PDF 题目批次 ${batch[0]?.index}-${batch.at(-1)?.index} 抽取不完整：期望 ${batch.length} 题，实际 ${bestDrafts.length} 题。`
+              : `Incomplete PDF batch ${batch[0]?.index}-${batch.at(-1)?.index}: expected ${batch.length} problems, received ${bestDrafts.length}.`,
           );
         }
-        const normalized = rawDrafts.map((item, index) =>
-          enrichFileDraftSourceMeta(
-            normalizeCandidateDraft(item, args.source),
-            batch.find(
-              (structureItem) =>
-                typeof item === 'object' &&
-                item !== null &&
-                typeof (item as { sourceMeta?: { scaffoldIndex?: unknown } }).sourceMeta
-                  ?.scaffoldIndex === 'number' &&
-                (item as { sourceMeta: { scaffoldIndex: number } }).sourceMeta.scaffoldIndex ===
-                  structureItem.index,
-            ) ?? batch[index],
-          ),
+        // Normalization assigns draft IDs. Keep them stable across worker slices
+        // so pending answer/repair requests can be retrieved by the same input hash.
+        bestDrafts = await checkpoint(`batch-drafts:${batchIndex}`, async () => bestDrafts);
+        const answers = await checkpoint(`batch-answers:${batchIndex}`, () =>
+          ensureImportedDraftAnswers({
+            drafts: bestDrafts,
+            model: args.model,
+            language,
+          }),
         );
-        if (
-          normalized.length > bestDrafts.length ||
-          (normalized.length === bestDrafts.length &&
-            normalized.filter(draftHasCompleteAnswer).length >
-              bestDrafts.filter(draftHasCompleteAnswer).length)
-        ) {
-          bestDrafts = normalized;
-        }
-        retryReason = `${normalized.length}/${batch.length} 题，${normalized.filter(draftHasCompleteAnswer).length}/${batch.length} 题答案与代码测试完整`;
-        if (normalized.length === batch.length) break;
-      }
-      if (bestDrafts.length !== batch.length) {
-        throw new Error(
-          args.language === 'zh-CN'
-            ? `PDF 题目批次 ${batch[0]?.index}-${batch.at(-1)?.index} 抽取不完整：期望 ${batch.length} 题，实际 ${bestDrafts.length} 题。`
-            : `Incomplete PDF batch ${batch[0]?.index}-${batch.at(-1)?.index}: expected ${batch.length} problems, received ${bestDrafts.length}.`,
+        const code = await checkpoint(`batch-code:${batchIndex}`, () =>
+          ensureImportedCodeDraftsJudgeReady({
+            drafts: answers.drafts,
+            model: args.model,
+            language,
+          }),
         );
-      }
-      return { drafts: bestDrafts, usage: batchUsage };
+        return {
+          drafts: code.drafts,
+          usage: mergeImportUsage(batchUsage, mergeImportUsage(answers.usage, code.usage)),
+        };
+      });
+      completed += 1;
+      questions += saved.drafts.length;
+      await args.onProgress?.({ completed, total: batches.length, questions });
+      return saved;
     },
   );
 
   let drafts = batchResults.flatMap((result) => result.drafts);
   for (const result of batchResults) usage = mergeImportUsage(usage, result.usage);
-  const answerResult = await ensureImportedDraftAnswers({
-    drafts,
-    model: args.model,
-    language: args.language,
-  });
-  const codeResult = await ensureImportedCodeDraftsJudgeReady({
-    drafts: answerResult.drafts,
-    model: args.model,
-    language: args.language,
-  });
-  drafts = codeResult.drafts
+  drafts = drafts
     .map((draft) => ({ ...draft, notebookId: null }))
     .sort((left, right) => {
       const leftIndex = Number(left.sourceMeta.scaffoldIndex ?? Number.MAX_SAFE_INTEGER);
@@ -1224,6 +1375,7 @@ Every problem must have a gradable answer. Preserve the original response demand
     });
   return {
     drafts,
-    usage: mergeImportUsage(usage, mergeImportUsage(answerResult.usage, codeResult.usage)),
+    usage,
+    coverage,
   };
 }

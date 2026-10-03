@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 import { parseNotebookContentDocument, type NotebookContentDocument } from '@/lib/notebook-content';
 import { createLogger } from '@/lib/logger';
@@ -536,7 +537,7 @@ async function runRepairAttempt(args: {
   });
 }
 
-export async function POST(req: NextRequest) {
+async function auditedPOST(req: NextRequest) {
   let body: RepairRequestBody;
   try {
     body = (await req.json()) as RepairRequestBody;
@@ -732,3 +733,5 @@ export async function POST(req: NextRequest) {
     },
   );
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

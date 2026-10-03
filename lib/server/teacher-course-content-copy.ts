@@ -188,7 +188,6 @@ export async function copyCourseContentsTx(
         chapterId: problem.chapterId ? (input.chapterMap.get(problem.chapterId) ?? null) : null,
         title: problem.title,
         type: problem.type,
-        status: problem.status,
         source: problem.source,
         order: ++order,
         problemNumber: ++number,
@@ -237,9 +236,6 @@ export async function copyCourseContentsTx(
       where: { id },
       data: {
         problemCount: await tx.notebookProblem.count({ where: { notebookId: id } }),
-        publishedProblemCount: await tx.notebookProblem.count({
-          where: { notebookId: id, status: 'published' },
-        }),
       },
     });
   }

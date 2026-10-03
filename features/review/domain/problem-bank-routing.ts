@@ -53,7 +53,6 @@ function getCandidateStatus(
 function candidateProblemFromNotebookProblem(
   problem: NotebookProblemClientRecord,
 ): ReviewRouteCandidateProblem | null {
-  if (problem.status === 'archived') return null;
   return {
     id: problem.id,
     title: problem.title,
@@ -154,8 +153,6 @@ function commentPromptForProblem(problem: NotebookProblemClientRecord): string |
 export function notebookProblemToQuizQuestion(
   problem: NotebookProblemClientRecord,
 ): QuizQuestion | null {
-  if (problem.status === 'archived') return null;
-
   const content = problem.publicContent;
   const analysis = analysisForProblem(problem);
   const base = {

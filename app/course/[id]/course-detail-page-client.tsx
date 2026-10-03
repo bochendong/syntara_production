@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import {
   ArrowRight,
   BarChart3,
@@ -162,24 +163,36 @@ export default function CourseDetailPageClient() {
   const authHydrated = usePersistHydrated(useAuthStore);
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const portalRole = useAuthStore((state) => state.role);
+  const { data: session, status: sessionStatus } = useSession();
+  const sessionRole = session?.user?.role;
+  const actingAsStudent =
+    sessionRole === 'STUDENT' || sessionRole === 'USER' || (isLoggedIn && portalRole === 'STUDENT');
   const [dashboard, setDashboard] = useState<DashboardState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    if (!authHydrated) return;
-    if (!isLoggedIn) {
+    if (!authHydrated || sessionStatus === 'loading') return;
+    if (!session?.user?.id && !isLoggedIn) {
       router.replace('/speedup/signed-out?role=student');
       return;
     }
-    if (portalRole !== 'STUDENT' && courseId) {
+    if (!actingAsStudent && courseId) {
       router.replace(`/teacher/courses/${encodeURIComponent(courseId)}`);
     }
-  }, [authHydrated, courseId, isLoggedIn, portalRole, router]);
+  }, [
+    actingAsStudent,
+    authHydrated,
+    courseId,
+    isLoggedIn,
+    router,
+    session?.user?.id,
+    sessionStatus,
+  ]);
 
   useEffect(() => {
-    if (!authHydrated || !isLoggedIn || portalRole !== 'STUDENT' || !courseId) return;
+    if (!authHydrated || sessionStatus === 'loading' || !actingAsStudent || !courseId) return;
     let alive = true;
     const controller = new AbortController();
     void Promise.all([
@@ -205,7 +218,7 @@ export default function CourseDetailPageClient() {
       alive = false;
       controller.abort();
     };
-  }, [authHydrated, courseId, isLoggedIn, portalRole, reloadKey]);
+  }, [actingAsStudent, authHydrated, courseId, reloadKey, sessionStatus]);
 
   useEffect(() => {
     if (!dashboard?.course) return;
@@ -217,7 +230,7 @@ export default function CourseDetailPageClient() {
   }, [dashboard?.course]);
 
   const metrics = useMemo(() => {
-    const problems = dashboard?.problems.filter((problem) => problem.status !== 'archived') ?? [];
+    const problems = dashboard?.problems ?? [];
     const total = problems.length;
     const attempted = problems.filter(isAttempted).length;
     const mastered = problems.filter(isMastered).length;
@@ -257,7 +270,7 @@ export default function CourseDetailPageClient() {
     };
   }, [dashboard?.problems]);
 
-  if (!authHydrated || !isLoggedIn || portalRole !== 'STUDENT' || (loading && !dashboard)) {
+  if (!authHydrated || sessionStatus === 'loading' || !actingAsStudent || (loading && !dashboard)) {
     return <StudentCoursePageFrame courseId={courseId} active="dashboard" />;
   }
 

@@ -886,7 +886,7 @@ function GradingPreview({ grading }: { grading: NotebookProblemImportDraft['grad
   if (grading.type === 'code') {
     blocks.push({
       label: '发布条件',
-      value: grading.publishRequirementsMet ? '已满足' : '未满足',
+      value: grading.referenceVerified ? '已满足' : '未满足',
     });
     if (grading.analysis) blocks.push({ label: '解析', value: grading.analysis });
   }

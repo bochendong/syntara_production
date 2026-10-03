@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { createHash, randomBytes } from 'node:crypto';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { FormData as UndiciFormData } from 'undici';
@@ -706,18 +707,21 @@ async function parseMultipartSourceUpload(
     sourceKind,
   });
   if (
-    sourceKind === 'pdf' &&
-    (outputMode === 'cover_prompt' || outputMode === 'notebook_content')
+    (outputMode === 'notebook_content' ||
+      outputMode === 'cover_prompt' ||
+      sourceKind !== 'problem_bank') &&
+    ingestControls.ingestIntent !== 'maintenance_pilot_reuse_only'
   ) {
     const openaiFileId = await tryUploadOpenAIUserFile({
       buffer,
       fileName: file.name || sourceTitle,
-      mimeType: file.type || 'application/octet-stream',
+      mimeType: normalizedCourseSourceMimeType(file),
     });
     if (!openaiFileId) {
       return NextResponse.json(
         {
-          error: 'OpenAI Files API upload failed. PDF AI tests do not fall back to OCR text.',
+          error:
+            'OpenAI Files API upload failed. Notebook generation requires the original file; extracted-text fallback is disabled.',
         },
         { status: 502 },
       );
@@ -725,7 +729,7 @@ async function parseMultipartSourceUpload(
     return {
       sourceTitle,
       sourceKind,
-      sourceFileMime: file.type || 'application/pdf',
+      sourceFileMime: normalizedCourseSourceMimeType(file),
       targetNotebookId,
       language,
       usageProfile,
@@ -735,7 +739,7 @@ async function parseMultipartSourceUpload(
       requireNotebookCover,
       ...ingestControls,
       outputMode,
-      text: `Original PDF is attached through OpenAI Files API: ${sourceTitle}`,
+      text: `Original source file is attached through OpenAI Files API: ${sourceTitle}`,
       rawFileHash,
       openaiFileId,
       parser: 'openai-file-input',
@@ -895,14 +899,22 @@ async function parseStagedSourceUpload(
   const file = new File([new Uint8Array(buffer)], capability.fileName, {
     type: capability.mimeType,
   });
-  const extraction = await extractSourceTextFromFile({
-    request,
-    file,
-    sourceKind: fileKind,
-    buffer,
-    formData: new FormData(),
-    allowClientProviderConfig: options.allowClientProviderConfig,
-  });
+  const extraction =
+    sourceKind !== 'problem_bank' && ingestControls.ingestIntent !== 'maintenance_pilot_reuse_only'
+      ? {
+          text: `Original source file is attached through OpenAI Files API: ${file.name}`,
+          parser: 'openai-file-input',
+          pageCount: null,
+          slideCount: null,
+        }
+      : await extractSourceTextFromFile({
+          request,
+          file,
+          sourceKind: fileKind,
+          buffer,
+          formData: new FormData(),
+          allowClientProviderConfig: options.allowClientProviderConfig,
+        });
   const text = sanitizeSourceText(extraction.text);
   if (!text) {
     return NextResponse.json(
@@ -1185,7 +1197,7 @@ function sourceCatalogMetadata(
   };
 }
 
-export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+async function auditedPOST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
     const auth = await requireUserId();
     if ('response' in auth) return auth.response;
@@ -1716,3 +1728,5 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

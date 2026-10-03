@@ -993,14 +993,12 @@ async function refreshNotebookSummariesAfterSourceDelete(args: {
     });
     if (!notebook) continue;
 
-    const [sectionCount, pageCount, sceneCount, problemCount, publishedProblemCount] =
-      await Promise.all([
-        args.tx.markdownNotebookSection.count({ where: { notebookId } }),
-        args.tx.notebookPage.count({ where: { notebookId } }),
-        args.tx.scene.count({ where: { notebookId } }),
-        args.tx.notebookProblem.count({ where: { notebookId } }),
-        args.tx.notebookProblem.count({ where: { notebookId, status: 'published' } }),
-      ]);
+    const [sectionCount, pageCount, sceneCount, problemCount] = await Promise.all([
+      args.tx.markdownNotebookSection.count({ where: { notebookId } }),
+      args.tx.notebookPage.count({ where: { notebookId } }),
+      args.tx.scene.count({ where: { notebookId } }),
+      args.tx.notebookProblem.count({ where: { notebookId } }),
+    ]);
 
     if (
       notebook.notebookKind === 'markdown' &&
@@ -1022,7 +1020,7 @@ async function refreshNotebookSummariesAfterSourceDelete(args: {
       data: {
         sectionCount,
         problemCount,
-        publishedProblemCount,
+
         ...(shouldClearSourceCover
           ? {
               coverSlideJson: Prisma.DbNull,

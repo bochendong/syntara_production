@@ -9,7 +9,6 @@ import {
   notebookProblemSecretJudgeSchema,
   notebookProblemSourceMetaSchema,
   notebookProblemSourceSchema,
-  notebookProblemStatusSchema,
   notebookProblemTypeSchema,
   type NotebookProblemGrading,
   type NotebookProblemImportDraft,
@@ -36,7 +35,6 @@ export const reviewProblemInsertSchema = z.object({
   draftId: z.string().trim().min(1).max(120).optional(),
   title: z.string().trim().min(1).max(200).optional(),
   type: notebookProblemTypeSchema.optional(),
-  status: notebookProblemStatusSchema.default('published'),
   source: notebookProblemSourceSchema.default('manual'),
   points: z.number().int().min(0).max(1000).default(100),
   concepts: z.array(z.string().trim().min(1).max(80)).max(16).default([]),
@@ -354,7 +352,7 @@ function buildGrading(
         type,
         solutionCode: firstText(problem.solutionCode, answer) || undefined,
         analysis,
-        publishRequirementsMet:
+        referenceVerified:
           Boolean(secretJudge) &&
           publicContent.type === 'code' &&
           Boolean(publicContent.publicTestCode?.trim() || publicContent.publicTests.length),
@@ -403,7 +401,6 @@ export function buildNotebookProblemDraftFromReviewProblem(
     notebookId: null,
     title,
     type,
-    status: problem.status,
     source: problem.source,
     points: problem.points,
     tags: [],

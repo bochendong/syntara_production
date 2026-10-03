@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { createTeacherPreviewAttempt } from '@/lib/problem-bank/teacher-preview-attempt';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -17,7 +18,7 @@ const runSchema = z.object({
   language: z.enum(['zh-CN', 'en-US']).default('zh-CN'),
 });
 
-export async function POST(
+async function auditedPOST(
   request: Request,
   context: { params: Promise<{ id: string; problemId: string }> },
 ) {
@@ -82,3 +83,5 @@ export async function POST(
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

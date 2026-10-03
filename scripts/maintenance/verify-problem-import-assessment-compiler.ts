@@ -39,7 +39,6 @@ async function main() {
     draftId: 'code-ready-contract',
     title: 'Add two numbers',
     type: 'code' as const,
-    status: 'draft' as const,
     source: 'pdf' as const,
     points: 1,
     tags: ['functions'],
@@ -98,7 +97,7 @@ async function main() {
     grading: {
       type: 'code' as const,
       solutionCode: 'def add(a, b):\n    return a + b',
-      publishRequirementsMet: false,
+      referenceVerified: false,
     },
     secretJudge: {
       language: 'python' as const,

@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 
@@ -20,7 +21,7 @@ function uploadedPartCount(value: Prisma.JsonValue | null): number {
   return typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : 0;
 }
 
-export async function POST(
+async function auditedPOST(
   request: Request,
   context: { params: Promise<{ courseId: string; sourceId: string }> },
 ) {
@@ -110,3 +111,5 @@ export async function POST(
     return NextResponse.json({ ok: true, partIndex, ...rows[0] });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

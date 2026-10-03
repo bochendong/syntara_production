@@ -186,7 +186,6 @@ function baseDraft({
     notebookId,
     title,
     type,
-    status: 'published',
     source: 'pdf',
     points,
     tags: Array.from(new Set(['CSC108', 'final-exam', 'fall-2025', ...tags])).slice(0, 16),
@@ -211,7 +210,17 @@ function baseDraft({
   };
 }
 
-function choiceDraft({ order, heading, sourceQuestionId, sourceQuestionNumber, notebookId, answer, points, topic, tags }) {
+function choiceDraft({
+  order,
+  heading,
+  sourceQuestionId,
+  sourceQuestionNumber,
+  notebookId,
+  answer,
+  points,
+  topic,
+  tags,
+}) {
   const parsed = splitChoiceSection(heading.section);
   return baseDraft({
     order,
@@ -283,7 +292,7 @@ function codeDraft({
     },
     grading: {
       type: 'code',
-      publishRequirementsMet: true,
+      referenceVerified: true,
       analysis: `Autograded with public and hidden Python checks for ${topic}.`,
     },
     secretJudge:
@@ -661,7 +670,17 @@ function buildRegexDraft(sections) {
   });
 }
 
-function parsonsChoiceDraft({ order, sourceQuestionId, sourceQuestionNumber, notebookId, title, stem, answer, options, topic }) {
+function parsonsChoiceDraft({
+  order,
+  sourceQuestionId,
+  sourceQuestionNumber,
+  notebookId,
+  title,
+  stem,
+  answer,
+  options,
+  topic,
+}) {
   return baseDraft({
     order,
     sourceQuestionId,
@@ -961,7 +980,8 @@ function buildNetworkDraft(sections) {
     title: 'Network Class',
     points: 3,
     topic: 'class with dictionary of objects',
-    stem: `${section(sections, 'Q32b. The Network Class')}\n\nThe ` +
+    stem:
+      `${section(sections, 'Q32b. The Network Class')}\n\nThe ` +
       '`Person` class is already available for this standalone problem.',
     starterCode: `
 ${PERSON_REFERENCE}
@@ -1015,7 +1035,8 @@ function buildPopularDraft(sections) {
     title: 'Finding the Most Popular People',
     points: 6,
     topic: 'method that counts object references',
-    stem: `${section(sections, 'Q32c. Finding the Most Popular People')}\n\nThe ` +
+    stem:
+      `${section(sections, 'Q32c. Finding the Most Popular People')}\n\nThe ` +
       '`Person` class and the basic `Network` methods are already available for this standalone problem.',
     starterCode: `
 ${PERSON_REFERENCE}
@@ -1180,13 +1201,12 @@ async function refreshSummaryFields(prisma, courseId) {
 
   await Promise.all(
     notebooks.map(async (notebook) => {
-      const [problemCount, publishedProblemCount] = await Promise.all([
+      const [problemCount] = await Promise.all([
         prisma.notebookProblem.count({ where: { notebookId: notebook.id } }),
-        prisma.notebookProblem.count({ where: { notebookId: notebook.id, status: 'published' } }),
       ]);
       await prisma.notebook.update({
         where: { id: notebook.id },
-        data: { problemCount, publishedProblemCount },
+        data: { problemCount },
       });
     }),
   );
@@ -1200,11 +1220,8 @@ async function refreshSummaryFields(prisma, courseId) {
       speechTotalCount: true,
     },
   });
-  const [problemCount, publishedProblemCount] = await Promise.all([
+  const [problemCount] = await Promise.all([
     prisma.notebookProblem.count({ where: { OR: [{ courseId }, { notebook: { courseId } }] } }),
-    prisma.notebookProblem.count({
-      where: { status: 'published', OR: [{ courseId }, { notebook: { courseId } }] },
-    }),
   ]);
 
   await prisma.course.updateMany({
@@ -1213,7 +1230,7 @@ async function refreshSummaryFields(prisma, courseId) {
       notebookCount: notebookAggregate._count._all,
       sceneCount: notebookAggregate._sum.sceneCount ?? 0,
       problemCount,
-      publishedProblemCount,
+
       speechReadyCount: notebookAggregate._sum.speechReadyCount ?? 0,
       speechTotalCount: notebookAggregate._sum.speechTotalCount ?? 0,
     },
@@ -1254,7 +1271,6 @@ async function main() {
         name: true,
         courseCode: true,
         problemCount: true,
-        publishedProblemCount: true,
       },
     });
     if (!course) throw new Error(`Course not found: ${courseId}`);
@@ -1363,7 +1379,6 @@ async function main() {
               notebookId: draft.notebookId,
               title: draft.title,
               type: draft.type,
-              status: draft.status,
               source: draft.source,
               order: firstOrder + index,
               problemNumber: firstProblemNumber + index,
@@ -1422,7 +1437,7 @@ async function main() {
     });
     const after = await prisma.course.findUnique({
       where: { id: courseId },
-      select: { id: true, problemCount: true, publishedProblemCount: true },
+      select: { id: true, problemCount: true },
     });
     console.log(
       JSON.stringify(

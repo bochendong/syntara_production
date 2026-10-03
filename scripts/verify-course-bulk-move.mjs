@@ -78,7 +78,6 @@ function fixture() {
     publicContentJson: { type: 'short_answer', stem: `Explain ${id}` },
     order: 1,
     problemNumber: 1,
-    status: 'published',
     gradingJson: { referenceAnswer: 'answer' },
     ...extra,
   });

@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextRequest } from 'next/server';
 
 import { nativeAuthRouteError } from '@/lib/server/native-auth-route';
@@ -6,7 +7,7 @@ import { publicApiRequestId, publicApiSuccess } from '@/lib/server/public-api';
 
 export const runtime = 'nodejs';
 
-export async function POST(request: NextRequest) {
+async function auditedPOST(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   try {
     const result = await revokeNativeDeviceSession(request);
@@ -15,3 +16,5 @@ export async function POST(request: NextRequest) {
     return nativeAuthRouteError(requestId, error);
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

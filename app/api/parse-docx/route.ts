@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse } from 'next/server';
 
 import { parseDocxBuffer } from '@/lib/docx/parse-docx-buffer';
@@ -11,7 +12,7 @@ import {
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
-export async function POST(request: Request) {
+async function auditedPOST(request: Request) {
   return safeRoute(async () => {
     const formData = await request.formData();
     const file = formData.get('file');
@@ -36,3 +37,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, text: parsed.text, parser: 'docx-openxml' });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

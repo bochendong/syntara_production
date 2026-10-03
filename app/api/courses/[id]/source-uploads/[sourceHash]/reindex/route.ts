@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { after, NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/server/api-auth';
 import { prisma } from '@/lib/server/prisma';
@@ -13,7 +14,7 @@ export const maxDuration = 300;
 
 const log = createLogger('CourseSourceReindex');
 
-export async function POST(
+async function auditedPOST(
   request: Request,
   context: { params: Promise<{ id: string; sourceHash: string }> },
 ) {
@@ -108,3 +109,5 @@ export async function POST(
     );
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

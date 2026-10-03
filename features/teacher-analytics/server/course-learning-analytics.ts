@@ -34,7 +34,6 @@ export async function loadCourseLearningOverview(args: {
   const to = args.window?.to || new Date();
   const problems = await args.prisma.notebookProblem.findMany({
     where: {
-      status: { not: 'archived' },
       OR: [{ courseId: args.courseId }, { notebook: { courseId: args.courseId } }],
     },
     select: {
@@ -218,7 +217,6 @@ export async function loadCourseStudentLearningDetail(args: {
   if (!student) return null;
   const problems = await args.prisma.notebookProblem.findMany({
     where: {
-      status: { not: 'archived' },
       OR: [{ courseId: args.courseId }, { notebook: { courseId: args.courseId } }],
     },
     orderBy: { title: 'asc' },

@@ -23,3 +23,7 @@ export {
   runProblemImportPipelineV2,
 } from './import.pipeline';
 export { llmExtractProblemDraftsFromOpenAIFile } from './import.core.llm';
+export { finalizeImportedDrafts } from './import.quality-gates';
+export type { ImportQualityReport, ImportReview } from './import.quality-gates';
+export { importUploadedProblemFile } from './import.upload';
+export { summarizeCoverage } from './import.upload';

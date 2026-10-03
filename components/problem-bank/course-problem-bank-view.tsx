@@ -1,4 +1,6 @@
 'use client';
+import { ImportReviewNotice } from './import-review-notice';
+import { choiceDisplayLabel } from '@/lib/problem-bank/choice-display';
 import { InteractiveFillBlank } from './interactive-fill-blank';
 import { buildCodeTestFile } from '@/lib/problem-bank/code-test-files';
 
@@ -18,6 +20,7 @@ import {
   Loader2,
   Maximize2,
   Play,
+  Plus,
   Save,
   Search,
   Sparkles,
@@ -234,10 +237,10 @@ function ProblemBankStatsSidebar({
               {locale === 'zh-CN'
                 ? canEditProblems
                   ? '导入第一批题目后，这里会自动生成完成率、练习状态和章节进度。'
-                  : '老师发布题目后，这里会自动展示你的练习进度。'
+                  : '导入题库的题目会显示在这里，并记录你的练习进度。'
                 : canEditProblems
                   ? 'Import the first problems to generate completion, practice, and chapter insights.'
-                  : 'Your learning progress will appear after the teacher publishes problems.'}
+                  : 'Imported problems and your practice progress will appear here.'}
             </p>
           </div>
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-3 text-center text-[11px] text-slate-400 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-500">
@@ -761,7 +764,7 @@ function SolutionChoiceOptions({
 }) {
   return (
     <div className="space-y-2">
-      {options.map((option) => {
+      {options.map((option, optionIndex) => {
         const parsedCode = parseCodeChoiceLabel(option.label);
 
         return (
@@ -771,7 +774,7 @@ function SolutionChoiceOptions({
           >
             <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-100">
               <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-emerald-600 px-2 font-mono text-xs font-bold text-white shadow-sm shadow-emerald-950/10">
-                {option.id}
+                {choiceDisplayLabel(option.id, optionIndex)}
               </span>
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               <span className="text-xs font-semibold">
@@ -1126,6 +1129,7 @@ export function CourseProblemBankView({
   const {
     activeBankFilterCount,
     autoArchiving,
+    autoArchiveProgress,
     bankStats,
     blankAnswers,
     canEditProblems,
@@ -1165,6 +1169,7 @@ export function CourseProblemBankView({
     chapterFilter,
     chapterFilterOptions,
     loading,
+    loadError,
     locale,
     navigateToPracticeProblem,
     nextPracticeTarget,
@@ -1216,11 +1221,8 @@ export function CourseProblemBankView({
     setSearchQuery,
     setSelectedProblemId,
     setSelectedTextAnswer,
-    setStatusFilter,
     setTypeFilter,
     showSidebarAnswerTools,
-    statusFilter,
-    statusFilterOptions,
     submittingAnswer,
     textAnswers,
     typeFilter,
@@ -1228,11 +1230,11 @@ export function CourseProblemBankView({
     visibleProblemPreviewDraft,
   } = view;
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
-  const [adminPreviewOpen, setAdminPreviewOpen] = useState(false);
+  const [problemPopupOpen, setProblemPopupOpen] = useState(false);
   const openProblem = (problem: NotebookProblemClientRecord) => {
     if (adminReadOnly) {
       setSelectedProblemId(problem.id);
-      setAdminPreviewOpen(true);
+      setProblemPopupOpen(true);
       return;
     }
     navigateToPracticeProblem(problem);
@@ -1248,12 +1250,13 @@ export function CourseProblemBankView({
     chapterFilter,
     typeFilter,
     difficultyFilter,
-    statusFilter,
     practiceFilter,
   ]);
-  const listGridClass = canEditProblems
-    ? 'grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_9rem_5rem_6rem_9.5rem] gap-2.5'
-    : 'grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_9rem_5rem_6rem_2rem] gap-2.5';
+  const listGridClass = adminReadOnly
+    ? 'grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_9rem_6rem_2rem] gap-2.5'
+    : canEditProblems
+      ? 'grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_9rem_5rem_6rem_9.5rem] gap-2.5'
+      : 'grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_9rem_5rem_6rem_2rem] gap-2.5';
   const bulkMode = canEditProblems && !isPracticeMode && bulkDeleteMode;
   const selectedBulkIds =
     bulkSelection.scope === bulkScope
@@ -1369,8 +1372,14 @@ export function CourseProblemBankView({
   const bulkDeleteActions =
     canEditProblems && !isPracticeMode ? (
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={() => setCreateDraft(createBlankProblemDraft())}>
-          {locale === 'zh-CN' ? '添加题目' : 'Add problem'}
+        <Button
+          type="button"
+          size="icon-sm"
+          title={locale === 'zh-CN' ? '添加题目' : 'Add problem'}
+          aria-label={locale === 'zh-CN' ? '添加题目' : 'Add problem'}
+          onClick={() => setCreateDraft(createBlankProblemDraft())}
+        >
+          <Plus className="size-4" aria-hidden="true" />
         </Button>
         {bulkMode ? (
           <>
@@ -1431,16 +1440,18 @@ export function CourseProblemBankView({
           </>
         ) : (
           <Button
+            type="button"
             variant="outline"
-            size="sm"
+            size="icon-sm"
             disabled={loading || Boolean(deletingProblemId) || !paginatedProblems.length}
+            title={locale === 'zh-CN' ? '批量删除' : 'Bulk delete'}
+            aria-label={locale === 'zh-CN' ? '批量删除' : 'Bulk delete'}
             onClick={() => {
               setBulkSelection({ scope: '', ids: [] });
               setBulkDeleteMode(true);
             }}
           >
-            <Trash2 className="mr-1.5 size-3.5" />
-            {locale === 'zh-CN' ? '批量删除' : 'Bulk delete'}
+            <Trash2 className="size-4" aria-hidden="true" />
           </Button>
         )}
       </div>
@@ -1811,18 +1822,24 @@ export function CourseProblemBankView({
             type="button"
             size="sm"
             onClick={() => {
-              if (problemChapters.length === 0) setChapterManagerOpen(true);
               void handleAiFileUnfiledProblems();
             }}
+            title={
+              locale === 'zh-CN'
+                ? '自动生成章节并归档未整理的题目，保留已有归档。'
+                : 'Create chapters and file unfiled problems. Existing assignments are preserved.'
+            }
             disabled={autoArchiving || problems.length === 0}
             className="h-8 gap-1.5 rounded-lg bg-primary px-2.5 text-xs font-semibold text-primary-foreground shadow-none hover:bg-primary/90"
           >
-            {autoArchiving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" />
-            )}
-            {locale === 'zh-CN' ? 'AI 归档' : 'AI file'}
+            {autoArchiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            {autoArchiving
+              ? locale === 'zh-CN'
+                ? `整理中 · 已归档 ${autoArchiveProgress} 道`
+                : `Organizing · ${autoArchiveProgress} filed`
+              : locale === 'zh-CN'
+                ? '一键整理章节'
+                : 'Organize chapters'}
           </Button>
         </div>
       );
@@ -1878,6 +1895,7 @@ export function CourseProblemBankView({
     );
   }, [
     autoArchiving,
+    autoArchiveProgress,
     canEditProblems,
     handlePracticeStepChange,
     handleAiFileUnfiledProblems,
@@ -1888,7 +1906,6 @@ export function CourseProblemBankView({
     nextPracticeHeaderLabel,
     practiceHeaderPlacement,
     previousPracticeHeaderLabel,
-    problemChapters.length,
     problems.length,
     selectedProblem,
     setChapterManagerOpen,
@@ -2087,14 +2104,14 @@ export function CourseProblemBankView({
     };
   const practicePaneHeaderClassName = (pane: PracticePaneId) =>
     cn(
-      'flex min-h-11 shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-200 px-3.5 dark:border-slate-800',
+      'flex min-h-11 shrink-0 flex-wrap items-center gap-1 py-1 border-b border-slate-200 px-3.5 dark:border-slate-800',
       visibleDraggingPracticeTab &&
         !visiblePracticePaneTabs[pane].includes(visibleDraggingPracticeTab) &&
         'bg-sky-50/70 dark:bg-sky-500/10',
     );
   const practiceTabClassName = (tab: PracticePanelTab, active: boolean) =>
     cn(
-      'inline-flex h-8 cursor-grab items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-semibold transition active:cursor-grabbing',
+      'inline-flex h-8 shrink-0 cursor-grab items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-semibold transition active:cursor-grabbing',
       active
         ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-100 dark:bg-sky-500/10 dark:text-sky-200 dark:ring-sky-500/20'
         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-100',
@@ -2231,13 +2248,20 @@ export function CourseProblemBankView({
                   </button>
                 ) : null}
               </div>
+              {canEditProblems ? (
+                <ImportReviewNotice
+                  sourceMeta={selectedProblem.sourceMeta}
+                  locale={locale}
+                  className="mb-4"
+                />
+              ) : null}
               {selectedProblemContent?.type === 'code' ? (
                 <CodeProblemStatement content={selectedProblemContent} locale={locale} />
               ) : selectedFillBlankContent ? (
                 <InteractiveFillBlank
                   content={selectedFillBlankContent}
                   values={blankAnswers[selectedProblem.id] ?? {}}
-                  disabled={submittingAnswer}
+                  disabled={adminReadOnly || submittingAnswer}
                   locale={locale}
                   onFocusBlank={setActiveFillBlankId}
                   onChangeBlank={updateSelectedFillBlankAnswer}
@@ -2249,7 +2273,8 @@ export function CourseProblemBankView({
               )}
               <ProblemImageAssets
                 content={selectedProblemContent}
-                className="mt-6 sm:grid-cols-1 [&_figure]:rounded-lg [&_figure]:bg-white [&_img]:max-h-[360px]"
+                locale={locale}
+                className="mt-6"
               />
             </div>
             <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
@@ -2304,7 +2329,7 @@ export function CourseProblemBankView({
           <div className={cn('flex flex-col', codeAnswerActive ? 'min-h-0 flex-1' : 'min-h-full')}>
             {selectedProblem.type === 'choice' && selectedProblemContent?.type === 'choice' ? (
               <div className="space-y-2">
-                {selectedProblemContent.options.map((option) => {
+                {selectedProblemContent.options.map((option, optionIndex) => {
                   const selected = choiceAnswers[selectedProblem.id] ?? [];
                   const multi = selectedProblemContent.selectionMode === 'multiple';
                   const correctOptionIds = selectedAnswerFeedback?.correctOptionIds ?? [];
@@ -2352,7 +2377,9 @@ export function CourseProblemBankView({
                         }}
                       />
                       <div className="flex min-w-0 flex-1 items-start gap-1.5">
-                        <span className="mt-0.5 shrink-0 font-medium">{option.id}.</span>
+                        <span className="mt-0.5 shrink-0 font-medium">
+                          {choiceDisplayLabel(option.id, optionIndex)}.
+                        </span>
                         <ProblemRichText
                           content={option.label}
                           className="min-w-0 flex-1 [&_.problem-rich-code-block]:my-0 [&_.problem-rich-code-block]:max-w-full"
@@ -2732,7 +2759,6 @@ export function CourseProblemBankView({
       ? findLocalDemoTeacherHomeCourse(courseId)
       : undefined;
   const isTeacherCourseSpace = (previewMode && previewAsTeacher) || courseAccessRole === 'owner';
-  const adminPreviewDraft = adminReadOnly ? selectedProblemEditDraft : null;
   const courseHeaderFields = resolveCourseSpaceHeaderFields({
     courseCode: previewDemoCourse?.courseCode ?? courseCode,
     code: previewDemoCourse?.courseCode ?? courseCode,
@@ -2860,19 +2886,7 @@ export function CourseProblemBankView({
                         ))}
                       </select>
                     ) : null}
-                    <select
-                      value={statusFilter}
-                      onChange={(event) =>
-                        setStatusFilter(event.target.value as typeof statusFilter)
-                      }
-                      className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                    >
-                      {statusFilterOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+
                     <select
                       value={typeFilter}
                       onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}
@@ -3038,15 +3052,7 @@ export function CourseProblemBankView({
                                   <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                                     {formatProblemNumber(problem)}
                                   </span>
-                                  {adminReadOnly ? (
-                                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                                      {problem.status === 'published'
-                                        ? '已发布'
-                                        : problem.status === 'draft'
-                                          ? '草稿'
-                                          : '已归档'}
-                                    </span>
-                                  ) : (
+                                  {adminReadOnly ? null : (
                                     <span
                                       className={cn(
                                         'inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold',
@@ -3138,24 +3144,14 @@ export function CourseProblemBankView({
                                     (locale === 'zh-CN' ? '未归类' : 'Unassigned')}
                                 </div>
                               </div>
-                              <div>
-                                <div className="text-[11px] font-medium text-slate-400">
-                                  {adminReadOnly
-                                    ? '状态'
-                                    : locale === 'zh-CN'
-                                      ? '状态 / 得分'
-                                      : 'State / Score'}
+                              {!adminReadOnly && (
+                                <div>
+                                  <div className="text-[11px] font-medium text-slate-400">
+                                    {locale === 'zh-CN' ? '练习状态 / 得分' : 'Practice / Score'}
+                                  </div>
+                                  <div>{latestScoreLabel(problem, locale)}</div>
                                 </div>
-                                <div className="font-medium text-slate-700 dark:text-slate-200">
-                                  {adminReadOnly
-                                    ? problem.status === 'published'
-                                      ? '已发布'
-                                      : problem.status === 'draft'
-                                        ? '草稿'
-                                        : '已归档'
-                                    : latestScoreLabel(problem, locale)}
-                                </div>
-                              </div>
+                              )}
                             </div>
                           </div>
                         );
@@ -3209,7 +3205,9 @@ export function CourseProblemBankView({
                         <span>{locale === 'zh-CN' ? '题目' : 'Problem'}</span>
                         <span>{locale === 'zh-CN' ? '题型' : 'Type'}</span>
                         <span>{locale === 'zh-CN' ? '章节' : 'Chapter'}</span>
-                        <span>{locale === 'zh-CN' ? '状态' : 'State'}</span>
+                        {!adminReadOnly && (
+                          <span>{locale === 'zh-CN' ? '练习状态' : 'Practice state'}</span>
+                        )}
                         <span>
                           {adminReadOnly
                             ? '难度'
@@ -3305,15 +3303,11 @@ export function CourseProblemBankView({
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                              {adminReadOnly
-                                ? problem.status === 'published'
-                                  ? '已发布'
-                                  : problem.status === 'draft'
-                                    ? '草稿'
-                                    : '已归档'
-                                : latestScoreLabel(problem, locale)}
-                            </div>
+                            {!adminReadOnly && (
+                              <div className="text-xs text-slate-500 dark:text-slate-400">
+                                {latestScoreLabel(problem, locale)}
+                              </div>
+                            )}
                             <div
                               className="text-xs font-semibold text-emerald-700 dark:text-emerald-300"
                               title={adminReadOnly ? undefined : classPassRate.detail}
@@ -3384,18 +3378,40 @@ export function CourseProblemBankView({
                     {locale === 'zh-CN' ? '正在加载题目...' : 'Loading problem...'}
                   </>
                 ) : (
-                  <>{locale === 'zh-CN' ? '没有找到这道题。' : 'Problem not found.'}</>
+                  <div
+                    className="flex flex-col items-center gap-3 px-4 text-center"
+                    role={loadError ? 'alert' : undefined}
+                  >
+                    <p>
+                      {loadError
+                        ? /401|Unauthorized/i.test(loadError)
+                          ? locale === 'zh-CN'
+                            ? '登录或预览会话已过期，请重新登录或重新进入课程预览。'
+                            : 'Your login or preview session has expired. Sign in or reopen the course preview.'
+                          : locale === 'zh-CN'
+                            ? '题目加载失败，请重试。'
+                            : 'Could not load the problem. Please retry.'
+                        : locale === 'zh-CN'
+                          ? '没有找到这道题。'
+                          : 'Problem not found.'}
+                    </p>
+                    {loadError ? (
+                      <Button variant="outline" onClick={() => void reloadProblems()}>
+                        {locale === 'zh-CN' ? '重新加载' : 'Retry'}
+                      </Button>
+                    ) : null}
+                  </div>
                 )}
               </div>
             ) : (
               <div className="flex h-full min-h-0 flex-1 flex-col">
                 <div className="grid h-full min-h-0 flex-1 gap-2 overflow-y-auto min-[981px]:grid-cols-[minmax(0,1fr)_minmax(22rem,1fr)] min-[981px]:overflow-hidden">
-                  <section className="flex min-h-[min(34rem,72dvh)] flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white min-[981px]:min-h-0 dark:border-slate-800 dark:bg-slate-950">
+                  <section className="flex min-h-[min(22rem,45dvh)] flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white min-[981px]:min-h-0 dark:border-slate-800 dark:bg-slate-950">
                     {renderPracticePaneHeader('left')}
                     {renderPracticePaneContent(visiblePracticePaneActive.left)}
                   </section>
 
-                  <section className="flex min-h-[min(34rem,72dvh)] flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white min-[981px]:min-h-0 dark:border-slate-800 dark:bg-slate-950">
+                  <section className="flex min-h-[min(22rem,45dvh)] flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white min-[981px]:min-h-0 dark:border-slate-800 dark:bg-slate-950">
                     {renderPracticePaneHeader('right')}
                     {renderPracticePaneContent(visiblePracticePaneActive.right)}
                   </section>
@@ -3460,8 +3476,11 @@ export function CourseProblemBankView({
       />
       {adminReadOnly ? (
         <Dialog
-          open={adminPreviewOpen && Boolean(selectedProblem)}
-          onOpenChange={setAdminPreviewOpen}
+          open={problemPopupOpen}
+          onOpenChange={(open) => {
+            setProblemPopupOpen(open);
+            if (!open) setSelectedProblemId(null);
+          }}
         >
           <DialogContent
             className="flex max-w-[1100px] flex-col overflow-hidden p-0"
@@ -3474,25 +3493,68 @@ export function CourseProblemBankView({
           >
             <DialogHeader className="shrink-0 border-b px-6 py-4">
               <DialogTitle className="pr-8 text-base">
-                {selectedProblem?.title || '查看题目'}
+                <ProblemTitleText content={selectedProblemTitle || '查看题目'} />
               </DialogTitle>
+              {selectedProblemHasTranslation ? (
+                <ProblemLanguageToggle
+                  value={problemLanguage}
+                  locale={locale}
+                  onChange={setProblemLanguage}
+                />
+              ) : null}
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!previousPracticeTarget || loading}
+                  onClick={() => {
+                    if (previousPracticeTarget) setSelectedProblemId(previousPracticeTarget.id);
+                  }}
+                >
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  {locale === 'zh-CN' ? '上一题' : 'Previous'}
+                </Button>
+                <span className="text-xs text-slate-500" aria-live="polite">
+                  {currentFilteredProblemPosition} / {practiceNavigationProblemCount}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!nextPracticeTarget || loading}
+                  onClick={() => {
+                    if (nextPracticeTarget) setSelectedProblemId(nextPracticeTarget.id);
+                  }}
+                >
+                  {locale === 'zh-CN' ? '下一题' : 'Next'}
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
             </DialogHeader>
-            {selectedProblem ? (
+            {loading ? (
+              <div className="flex flex-1 items-center justify-center" role="status">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {locale === 'zh-CN' ? '正在加载题目…' : 'Loading problem…'}
+              </div>
+            ) : !selectedProblem ? (
+              <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+                {locale === 'zh-CN' ? '没有找到这道题。' : 'Problem not found.'}
+              </div>
+            ) : (
               <div className="grid min-h-0 flex-1 gap-0 overflow-y-auto md:grid-cols-2 md:overflow-hidden">
-                <div className="min-h-0 overflow-y-auto p-5 md:border-r">
-                  <h3 className="mb-3 text-sm font-semibold">题面</h3>
-                  {adminPreviewDraft ? (
-                    <ProblemDraftPreviewPanel
-                      draft={adminPreviewDraft}
-                      locale={locale}
-                      showTitle={false}
-                      showPoints={false}
-                    />
-                  ) : (
-                    <pre className="whitespace-pre-wrap break-words text-xs">
-                      {JSON.stringify(selectedProblem.publicContent, null, 2)}
-                    </pre>
-                  )}
+                <div className="flex min-h-0 flex-col overflow-y-auto md:border-r">
+                  <div className="shrink-0">{renderProblemInfoPaneContent('description')}</div>
+                  {selectedProblemContent?.type === 'choice' ? (
+                    <div className="shrink-0 px-3 pb-5 sm:px-5">
+                      <ChoiceAnswerPreviewPanel
+                        content={selectedProblemContent}
+                        selectedOptionIds={[]}
+                        feedback={null}
+                        locale={locale}
+                      />
+                    </div>
+                  ) : null}
                 </div>
                 <div className="min-h-0 space-y-5 overflow-y-auto p-5">
                   <h3 className="text-sm font-semibold">答案与解析</h3>
@@ -3509,6 +3571,8 @@ export function CourseProblemBankView({
                           <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-slate-950 p-3 text-xs text-white">
                             {section.content}
                           </pre>
+                        ) : section.contentKind === 'choice-options' && section.options?.length ? (
+                          <SolutionChoiceOptions options={section.options} locale={locale} />
                         ) : (
                           <ProblemRichText content={section.content} className="text-sm" />
                         )}
@@ -3529,7 +3593,7 @@ export function CourseProblemBankView({
                   ) : null}
                 </div>
               </div>
-            ) : null}
+            )}
           </DialogContent>
         </Dialog>
       ) : null}

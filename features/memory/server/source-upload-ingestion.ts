@@ -1,3 +1,4 @@
+import { notebookOriginalFilePart } from '@/lib/server/notebook-original-file';
 import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -1923,10 +1924,7 @@ async function synthesizeSourceCheatSheetWithModel(args: {
 }> {
   if (!args.model) throw new Error('Cheat Sheet generation requires a configured AI model.');
   const useOpenAIFileInput = Boolean(
-    args.modelProviderId === 'openai' &&
-    args.sourceKind === 'pdf' &&
-    args.sourceFileMime !== 'application/octet-stream' &&
-    args.openaiFileId?.startsWith('file-'),
+    args.modelProviderId === 'openai' && args.openaiFileId?.startsWith('file-'),
   );
   const inputMode = useOpenAIFileInput ? 'openai_file_id' : 'extracted_text';
   const sample = useOpenAIFileInput ? '' : buildSynthesisSourceSample(args.text);
@@ -1970,12 +1968,11 @@ async function synthesizeSourceCheatSheetWithModel(args: {
           role: 'user',
           content: [
             { type: 'text', text: prompt },
-            {
-              type: 'file',
-              data: args.openaiFileId!,
-              filename: args.sourceTitle,
-              mediaType: args.sourceFileMime || 'application/pdf',
-            },
+            notebookOriginalFilePart({
+              fileId: args.openaiFileId!,
+              mimeType: args.sourceFileMime || 'application/pdf',
+              fileName: args.sourceTitle,
+            }),
           ],
         },
       ]
@@ -2050,12 +2047,11 @@ async function routeSourceNotebookWithModel(args: {
           role: 'user',
           content: [
             { type: 'text', text: prompt },
-            {
-              type: 'file',
-              data: args.openaiFileId!,
-              filename: args.sourceTitle,
-              mediaType: args.sourceFileMime || 'application/pdf',
-            },
+            notebookOriginalFilePart({
+              fileId: args.openaiFileId!,
+              mimeType: args.sourceFileMime || 'application/pdf',
+              fileName: args.sourceTitle,
+            }),
           ],
         },
       ]
@@ -2114,10 +2110,7 @@ async function synthesizeSourcePacketWithModel(args: {
   }
 
   const useOpenAIFileInput = Boolean(
-    args.modelProviderId === 'openai' &&
-    args.sourceKind === 'pdf' &&
-    args.sourceFileMime !== 'application/octet-stream' &&
-    args.openaiFileId?.startsWith('file-'),
+    args.modelProviderId === 'openai' && args.openaiFileId?.startsWith('file-'),
   );
   if (args.sourceKind === 'pdf' && !useOpenAIFileInput) {
     throw new Error(
@@ -2250,12 +2243,11 @@ async function synthesizeSourcePacketWithModel(args: {
             role: 'user',
             content: [
               { type: 'text', text: prompt },
-              {
-                type: 'file',
-                data: args.openaiFileId!,
-                filename: args.sourceTitle,
-                mediaType: 'application/pdf',
-              },
+              notebookOriginalFilePart({
+                fileId: args.openaiFileId!,
+                mimeType: args.sourceFileMime || 'application/pdf',
+                fileName: args.sourceTitle,
+              }),
             ],
           },
         ]

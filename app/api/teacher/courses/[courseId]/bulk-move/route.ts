@@ -1,3 +1,4 @@
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
 import { NextResponse, after } from 'next/server';
 import { z } from 'zod';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -58,7 +59,7 @@ export async function GET(_request: Request, context: Context) {
   });
 }
 
-export async function POST(request: Request, context: Context) {
+async function auditedPOST(request: Request, context: Context) {
   return safeRoute(async () => {
     const teacher = await requireTeacher();
     if ('response' in teacher) return teacher.response;
@@ -85,3 +86,5 @@ export async function POST(request: Request, context: Context) {
     });
   });
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

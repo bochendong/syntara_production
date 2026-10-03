@@ -5,6 +5,7 @@
  * Client-supplied model / apiKey / baseUrl are ignored for production use.
  */
 
+import { withNotebookOriginalFile } from '@/lib/server/notebook-original-file';
 import type { NextRequest } from 'next/server';
 import { parseModelString } from '@/lib/ai/providers';
 import { isChatResponseStrength, type ChatResponseStrength } from '@/lib/ai/chat-response-strength';
@@ -100,7 +101,7 @@ export async function resolveModelFromHeaders(
   req: NextRequest,
   options: ResolveModelOptions = {},
 ): Promise<ResolvedModel> {
-  return resolveModel(
+  const resolved = await resolveModel(
     {
       modelString: req.headers.get('x-model') || undefined,
       responseStrength: isChatResponseStrength(req.headers.get('x-response-strength'))
@@ -111,8 +112,13 @@ export async function resolveModelFromHeaders(
       providerType: req.headers.get('x-provider-type') || undefined,
       requiresApiKey: req.headers.get('x-requires-api-key') === 'true' ? true : undefined,
     },
-    options,
+    {
+      ...options,
+      useOpenAIResponses:
+        options.useOpenAIResponses || Boolean(req.headers.get('x-notebook-source-token')),
+    },
   );
+  return { ...resolved, model: await withNotebookOriginalFile(resolved.model, req) };
 }
 
 /** Resolve the system-managed native OpenAI Responses model for PDF/file inputs. */
@@ -159,7 +165,7 @@ export async function resolveModelFromHeadersForNotebookStage(
   const stageModel = req.headers.get(headerName)?.trim();
   const fallbackModel = req.headers.get('x-model')?.trim();
   const modelString = stageModel || fallbackModel || undefined;
-  return resolveModel(
+  const resolved = await resolveModel(
     {
       modelString,
       apiKey: req.headers.get('x-api-key') || undefined,
@@ -167,6 +173,11 @@ export async function resolveModelFromHeadersForNotebookStage(
       providerType: req.headers.get('x-provider-type') || undefined,
       requiresApiKey: req.headers.get('x-requires-api-key') === 'true' ? true : undefined,
     },
-    options,
+    {
+      ...options,
+      useOpenAIResponses:
+        options.useOpenAIResponses || Boolean(req.headers.get('x-notebook-source-token')),
+    },
   );
+  return { ...resolved, model: await withNotebookOriginalFile(resolved.model, req) };
 }

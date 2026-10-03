@@ -70,7 +70,7 @@ import { cn } from '@/lib/utils';
 import { BackendApiError, backendFetch, backendJson } from '@/lib/utils/backend-api';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 import { notebookProblemPublicContentSchema } from '@/lib/problem-bank';
-import { ProblemRichText } from '@/components/problem-bank/problem-rich-text';
+import { ProblemImageAssets, ProblemRichText } from '@/components/problem-bank/problem-rich-text';
 import { renderProblemContentStem } from '@/components/problem-bank/course-problem-bank-helpers';
 
 type ForumDeleteTarget =
@@ -1242,6 +1242,7 @@ export function CourseForumPageClient({
                 return parsed.success ? (
                   <div className="space-y-4">
                     <ProblemRichText content={renderProblemContentStem(parsed.data)} />
+                    <ProblemImageAssets content={parsed.data} />
                     {selected.problem.chapterName ? (
                       <div className="flex flex-wrap gap-1.5">
                         <Badge variant="outline">{selected.problem.chapterName}</Badge>

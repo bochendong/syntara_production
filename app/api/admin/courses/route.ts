@@ -1,4 +1,5 @@
-import type { Prisma } from '@prisma/client';
+import { withAiFailureAudit } from '@/lib/server/ai-failure-log';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
@@ -28,6 +29,137 @@ function normalizeTake(raw: string | null): number {
   return Math.min(Math.max(parsed, 1), 200);
 }
 
+function toNumber(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+type CourseUsageSummary = {
+  studentCount: number;
+  studentTokens: number;
+  teacherTokens: number;
+};
+
+async function loadCourseUsageSummaries(
+  prisma: NonNullable<ReturnType<typeof getOptionalPrisma>>,
+  courses: Array<{ id: string }>,
+) {
+  if (courses.length === 0) return new Map<string, CourseUsageSummary>();
+  const rows = await prisma.$queryRaw<
+    Array<{
+      courseId: string;
+      studentCount: number;
+      studentTokens: number;
+      teacherTokens: number;
+    }>
+  >(Prisma.sql`
+    WITH page_courses AS (
+      SELECT c.id, c."ownerId", c.name
+      FROM "Course" c
+      WHERE c.id IN (${Prisma.join(courses.map((course) => course.id))})
+    ),
+    attributed AS (
+      SELECT l.id, p.id AS "courseId", l."totalTokens" AS tokens, 'teacher'::text AS side
+      FROM "LLMUsageLog" l
+      JOIN page_courses p ON p."ownerId" = l."userId"
+      WHERE l."requestContent" ILIKE '%' || p.name || '%'
+        AND char_length(p.name) >= 4
+        AND l.source NOT IN ('student-course-chat', 'teacher-course-chat')
+
+      UNION
+
+      SELECT l.id, p.id, l."totalTokens", 'student'::text
+      FROM "LLMUsageLog" l
+      JOIN "User" u ON u.id = l."userId" AND u.role = 'STUDENT'::"UserRole"
+      JOIN "CourseEnrollment" e ON e."userId" = u.id
+      JOIN page_courses p ON p.id = e."courseId"
+      WHERE l."requestContent" ILIKE '%' || p.name || '%'
+        AND char_length(p.name) >= 4
+        AND l.source NOT IN ('student-course-chat', 'teacher-course-chat')
+
+      UNION
+
+      SELECT l.id, p.id, l."totalTokens",
+        CASE WHEN l."userId" = p."ownerId" THEN 'teacher' ELSE 'student' END
+      FROM "LLMUsageLog" l
+      JOIN LATERAL (
+        SELECT cc."courseId"
+        FROM "CourseConversation" cc
+        WHERE cc."ownerId" = l."userId"
+          AND cc."deletedAt" IS NULL
+          AND ABS(EXTRACT(EPOCH FROM (COALESCE(cc."lastMessageAt", cc."updatedAt") - l."createdAt"))) <= 7200
+        ORDER BY ABS(EXTRACT(EPOCH FROM (COALESCE(cc."lastMessageAt", cc."updatedAt") - l."createdAt")))
+        LIMIT 1
+      ) matched ON true
+      JOIN page_courses p ON p.id = matched."courseId"
+      WHERE l.source IN ('student-course-chat', 'teacher-course-chat')
+        AND (
+          l."userId" = p."ownerId"
+          OR EXISTS (
+            SELECT 1
+            FROM "CourseEnrollment" e
+            JOIN "User" u ON u.id = e."userId"
+            WHERE e."courseId" = p.id
+              AND e."userId" = l."userId"
+              AND u.role = 'STUDENT'::"UserRole"
+          )
+        )
+    )
+    SELECT p.id AS "courseId",
+      (
+        SELECT COUNT(*)::int
+        FROM "CourseEnrollment" e
+        INNER JOIN "User" u ON u.id = e."userId"
+        WHERE e."courseId" = p.id
+          AND u.role = 'STUDENT'::"UserRole"
+      ) AS "studentCount",
+      COALESCE(SUM(a.tokens) FILTER (WHERE a.side = 'student'), 0)::float8 AS "studentTokens",
+      COALESCE(SUM(a.tokens) FILTER (WHERE a.side = 'teacher'), 0)::float8 AS "teacherTokens"
+    FROM page_courses p
+    LEFT JOIN attributed a ON a."courseId" = p.id
+    GROUP BY p.id
+  `);
+  return new Map(
+    rows.map((row) => [
+      row.courseId,
+      {
+        studentCount: toNumber(row.studentCount),
+        studentTokens: toNumber(row.studentTokens),
+        teacherTokens: toNumber(row.teacherTokens),
+      },
+    ]),
+  );
+}
+
+function normalizeSkip(raw: string | null): number {
+  const parsed = Number.parseInt(raw || '', 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.min(parsed, 10_000);
+}
+
+function normalizeAcademicYear(raw: string | null): number | null {
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 2020 || parsed > 2100) return null;
+  return parsed;
+}
+
+function normalizeAcademicTerm(raw: string | null): 'winter' | 'summer' | 'fall' | null {
+  if (raw === 'winter' || raw === 'summer' || raw === 'fall') return raw;
+  return null;
+}
+
+const TERM_RANK = { winter: 0, summer: 1, fall: 2 } as const;
+
+function materialRichness(counts: {
+  notebooks: number;
+  notebookPages: number;
+  problems: number;
+  studyMemories: number;
+}) {
+  return counts.notebooks + counts.notebookPages + counts.problems + counts.studyMemories;
+}
+
 export async function GET(request: Request) {
   const admin = await requireAdmin();
   if ('response' in admin) return admin.response;
@@ -40,26 +172,31 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = normalizeSearch(searchParams.get('query'));
   const take = normalizeTake(searchParams.get('take'));
+  const skip = normalizeSkip(searchParams.get('skip'));
+  const academicYear = normalizeAcademicYear(searchParams.get('academicYear'));
+  const academicTerm = normalizeAcademicTerm(searchParams.get('academicTerm'));
 
-  const where: Prisma.CourseWhereInput = query
-    ? {
-        OR: [
-          { name: { contains: query, mode: 'insensitive' } },
-          { description: { contains: query, mode: 'insensitive' } },
-          { courseCode: { contains: query, mode: 'insensitive' } },
-          { university: { contains: query, mode: 'insensitive' } },
-          { owner: { email: { contains: query, mode: 'insensitive' } } },
-          { owner: { name: { contains: query, mode: 'insensitive' } } },
-        ],
-      }
-    : {};
+  const where: Prisma.CourseWhereInput = {
+    ...(academicYear != null ? { academicYear } : {}),
+    ...(academicTerm ? { academicTerm } : {}),
+    ...(query
+      ? {
+          OR: [
+            { name: { contains: query, mode: 'insensitive' } },
+            { description: { contains: query, mode: 'insensitive' } },
+            { courseCode: { contains: query, mode: 'insensitive' } },
+            { university: { contains: query, mode: 'insensitive' } },
+            { owner: { email: { contains: query, mode: 'insensitive' } } },
+            { owner: { name: { contains: query, mode: 'insensitive' } } },
+          ],
+        }
+      : {}),
+  };
 
   try {
-    const [courses, totalCount] = await Promise.all([
+    const [courses, semesterRows] = await Promise.all([
       prisma.course.findMany({
         where,
-        orderBy: [{ updatedAt: 'desc' }],
-        take,
         select: {
           id: true,
           ownerId: true,
@@ -78,7 +215,7 @@ export async function GET(request: Request) {
           notebookCount: true,
           sceneCount: true,
           problemCount: true,
-          publishedProblemCount: true,
+
           speechReadyCount: true,
           speechTotalCount: true,
           createdAt: true,
@@ -105,12 +242,39 @@ export async function GET(request: Request) {
           },
         },
       }),
-      prisma.course.count({ where }),
+      prisma.course.findMany({
+        where: { academicYear: { not: null }, academicTerm: { not: null } },
+        distinct: ['academicYear', 'academicTerm'],
+        select: { academicYear: true, academicTerm: true },
+      }),
     ]);
+    courses.sort(
+      (left, right) =>
+        materialRichness(right._count) - materialRichness(left._count) ||
+        right.updatedAt.getTime() - left.updatedAt.getTime(),
+    );
+    const pageCourses = courses.slice(skip, skip + take);
+    const usageByCourse = await loadCourseUsageSummaries(prisma, pageCourses);
+    const emptyUsage: CourseUsageSummary = {
+      studentCount: 0,
+      studentTokens: 0,
+      teacherTokens: 0,
+    };
 
     return apiSuccess({
-      totalCount,
-      courses: courses.map((course) => ({
+      totalCount: courses.length,
+      semesters: semesterRows
+        .flatMap((row) =>
+          row.academicYear == null || row.academicTerm == null
+            ? []
+            : [{ academicYear: row.academicYear, academicTerm: row.academicTerm }],
+        )
+        .sort(
+          (left, right) =>
+            right.academicYear - left.academicYear ||
+            TERM_RANK[left.academicTerm] - TERM_RANK[right.academicTerm],
+        ),
+      courses: pageCourses.map((course) => ({
         id: course.id,
         ownerId: course.ownerId,
         name: course.name,
@@ -128,13 +292,14 @@ export async function GET(request: Request) {
         notebookCount: course.notebookCount,
         sceneCount: course.sceneCount,
         problemCount: course.problemCount,
-        publishedProblemCount: course.publishedProblemCount,
+
         speechReadyCount: course.speechReadyCount,
         speechTotalCount: course.speechTotalCount,
         createdAt: course.createdAt,
         updatedAt: course.updatedAt,
         owner: course.owner,
         counts: course._count,
+        usage: usageByCourse.get(course.id) ?? emptyUsage,
       })),
     });
   } catch (error) {
@@ -142,7 +307,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function auditedPOST(request: Request) {
   const admin = await requireAdmin();
   if ('response' in admin) return admin.response;
   const prisma = getOptionalPrisma();
@@ -177,3 +342,5 @@ export async function POST(request: Request) {
     return apiError('INTERNAL_ERROR', 500, error instanceof Error ? error.message : String(error));
   }
 }
+
+export const POST = withAiFailureAudit(auditedPOST);

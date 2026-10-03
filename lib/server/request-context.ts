@@ -1,3 +1,4 @@
+import { setFailureActor } from '@/lib/server/ai-failure-log';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { NextRequest } from 'next/server';
 import { createLogger } from '@/lib/logger';
@@ -44,6 +45,7 @@ export function withRequestContext<T>(
   context: RequestLLMContext,
   callback: () => T | Promise<T>,
 ): T | Promise<T> {
+  if (context.userId) setFailureActor(context.userId, context.userEmail);
   return requestContextStorage.run(context, callback);
 }
 
