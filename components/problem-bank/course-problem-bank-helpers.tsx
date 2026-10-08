@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { highlightPython } from '@/components/problem-bank/code-answer-editor';
 import { toast } from '@/lib/notifications/client-toast';
+import { useFileDrop } from '@/lib/hooks/use-file-drop';
 import {
   Dialog,
   DialogContent,
@@ -1962,22 +1963,24 @@ function PhotoAnswerUploader({
   onAddFiles: (files: FileList | File[]) => void;
   onRemovePhoto: (id: string) => void;
 }) {
+  const { isDragging, dropZoneProps } = useFileDrop({
+    onFiles: onAddFiles,
+    disabled,
+    accept: 'image/*',
+    onRejected: () =>
+      toast.error(locale === 'zh-CN' ? '只能拖入图片文件。' : 'Only image files can be dropped.'),
+  });
   return (
     <div className="space-y-3">
       <label
         htmlFor={inputId}
-        onDragOver={(event) => {
-          event.preventDefault();
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          if (disabled) return;
-          onAddFiles(event.dataTransfer.files);
-        }}
+        {...dropZoneProps}
         className={`flex min-h-[170px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-6 text-center transition-colors ${
           disabled
             ? 'pointer-events-none border-slate-200 bg-slate-50 opacity-60 dark:border-slate-800 dark:bg-slate-900/50'
-            : 'border-slate-300 bg-slate-50 hover:border-sky-300 hover:bg-sky-50/70 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:border-sky-700 dark:hover:bg-sky-950/30'
+            : isDragging
+              ? 'border-sky-400 bg-sky-50 ring-4 ring-sky-400/15 dark:border-sky-500 dark:bg-sky-950/40'
+              : 'border-slate-300 bg-slate-50 hover:border-sky-300 hover:bg-sky-50/70 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:border-sky-700 dark:hover:bg-sky-950/30'
         }`}
       >
         <input
@@ -1996,7 +1999,13 @@ function PhotoAnswerUploader({
           <ImagePlus className="h-5 w-5" />
         </span>
         <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-          {locale === 'zh-CN' ? '上传照片答案' : 'Upload photo answer'}
+          {isDragging
+            ? locale === 'zh-CN'
+              ? '松开即可添加照片'
+              : 'Drop to add photos'
+            : locale === 'zh-CN'
+              ? '上传照片答案'
+              : 'Upload photo answer'}
         </span>
         <span className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
           {locale === 'zh-CN'
