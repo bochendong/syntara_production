@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, FileText, HardDrive, Loader2, Trash2, Upload } from 'lucide-react';
 import { toast } from '@/lib/notifications/client-toast';
 import { Button } from '@/components/ui/button';
+import { FileDropOverlay } from '@/components/ui/file-drop-zone';
+import { useFileDrop } from '@/lib/hooks/use-file-drop';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import {
@@ -74,7 +76,7 @@ export function CourseMaterialsPanel({
     };
   }, [courseId]);
 
-  const handlePickFiles = async (files: FileList | null) => {
+  const handlePickFiles = async (files: FileList | File[] | null) => {
     if (!files || files.length === 0) return;
     const selected = Array.from(files);
     const validationError = selected.map(courseSourceFileValidationError).find(Boolean);
@@ -96,6 +98,11 @@ export function CourseMaterialsPanel({
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+
+  const { isDragging, dropZoneProps } = useFileDrop({
+    onFiles: (files) => void handlePickFiles(files),
+    disabled: busy || remainingBytes <= 0,
+  });
 
   const handleDownload = async (material: CourseMaterialListItem) => {
     try {
@@ -135,8 +142,13 @@ export function CourseMaterialsPanel({
 
   return (
     <section
-      className={cn('rounded-2xl p-4 apple-glass sm:p-5 md:rounded-[28px] md:p-6', className)}
+      {...dropZoneProps}
+      className={cn(
+        'relative rounded-2xl p-4 apple-glass sm:p-5 md:rounded-[28px] md:p-6',
+        className,
+      )}
     >
+      <FileDropOverlay active={isDragging} label="松开即可上传课程资料" />
       <input
         ref={fileInputRef}
         type="file"
@@ -152,7 +164,7 @@ export function CourseMaterialsPanel({
             <h2 className="text-base font-semibold text-slate-900 dark:text-white">课程资料</h2>
           </div>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-            上传到这里的资料会保存在当前课程空间中；每门课最多 20MB。
+            上传到这里的资料会保存在当前课程空间中；每门课最多 20MB。也可以直接把文件拖到这里。
           </p>
         </div>
         <Button
