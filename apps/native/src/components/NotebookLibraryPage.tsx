@@ -1,9 +1,20 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, CheckCircle2, Loader2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, ChevronRight, Loader2 } from 'lucide-react';
 
 import { getLocalRepository } from '../data/repository';
 import type { LocalCourseWorkspace, LocalNotebook } from '../domain/models';
 import { LocalResourceViewer, type LocalResourceDocument } from './LocalResourceViewer';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function formatUpdatedAt(timestamp: number) {
+  const days = Math.floor((Date.now() - timestamp) / DAY_MS);
+  if (days <= 0) return '今天';
+  if (days === 1) return '昨天';
+  if (days < 30) return `${days} 天前`;
+  if (days < 365) return `${Math.floor(days / 30)} 个月前`;
+  return `${Math.floor(days / 365)} 年前`;
+}
 
 type NotebookLibraryPageProps = {
   workspace: LocalCourseWorkspace;
@@ -49,7 +60,7 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
   };
 
   return (
-    <section className="native-problem-bank" aria-label="笔记本库">
+    <section className="native-problem-bank native-notebook-library" aria-label="笔记本库">
       <div className="native-problem-bank-shell">
         <header className="native-problem-bank-header">
           <div className="native-problem-bank-header-row">
@@ -112,6 +123,9 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
                     <span />
                   </span>
                   <span className="native-notebook-library-pages" aria-hidden="true" />
+                  <span className="native-notebook-library-row-icon" aria-hidden="true">
+                    <BookOpen size={18} />
+                  </span>
                   <span className="native-notebook-library-cover">
                     <span className="native-notebook-library-card-kind">
                       {notebook.kind === 'markdown' ? 'Markdown' : '讲义'}
@@ -119,12 +133,17 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
                     <strong className="native-notebook-library-card-title">{notebook.name}</strong>
                     <span className="native-notebook-library-card-meta">
                       <span>{notebook.sectionCount} 章节</span>
-                      <span>{new Date(notebook.updatedAt).toLocaleString()}</span>
+                      <span title={new Date(notebook.updatedAt).toLocaleString()}>
+                        {formatUpdatedAt(notebook.updatedAt)}
+                      </span>
                     </span>
                     <span className="native-notebook-library-card-action">
                       {busy ? <Loader2 size={14} className="spin" /> : null}
                       {busy ? '打开中…' : '打开'}
                     </span>
+                  </span>
+                  <span className="native-notebook-library-card-chevron" aria-hidden="true">
+                    {busy ? <Loader2 size={16} className="spin" /> : <ChevronRight size={18} />}
                   </span>
                 </button>
               );

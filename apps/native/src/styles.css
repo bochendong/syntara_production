@@ -8135,3 +8135,141 @@ textarea:focus-visible {
     font-weight: 500;
   }
 }
+
+/* iPhone：笔记本库从书本卡片改成紧凑列表。 */
+.native-notebook-library-row-icon,
+.native-notebook-library-card-chevron {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .native-notebook-library {
+    padding: 0;
+    background: #f4f5f9;
+  }
+
+  .native-notebook-library .native-problem-bank-shell {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .native-notebook-library .native-problem-bank-header {
+    gap: 8px;
+    padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+    border-bottom: 0;
+    background: transparent;
+  }
+
+  .native-notebook-library .native-problem-bank-header-row {
+    align-items: center;
+  }
+
+  .native-notebook-library .native-problem-bank-back {
+    border-radius: 12px;
+  }
+
+  .native-notebook-library .native-problem-bank-course {
+    color: #0f172a;
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .native-notebook-library .native-problem-bank-search {
+    flex-basis: 100%;
+    order: 3;
+    border: 0;
+    border-radius: 12px;
+    background: #e8e9f0;
+  }
+
+  .native-notebook-library .native-problem-bank-count,
+  .native-notebook-library .native-problem-bank-meta {
+    display: none;
+  }
+
+  .native-notebook-library-grid {
+    display: block;
+    margin: 4px 16px calc(16px + env(safe-area-inset-bottom));
+    padding: 0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgb(15 23 42 / 6%);
+  }
+
+  .native-notebook-library-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: none;
+    min-height: 0;
+    aspect-ratio: auto;
+    padding: 12px 14px;
+    border-bottom: 1px solid #f1f2f5;
+  }
+
+  .native-notebook-library-card:last-child {
+    border-bottom: 0;
+  }
+
+  .native-notebook-library-card:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .native-notebook-library-spine,
+  .native-notebook-library-pages,
+  .native-notebook-library-card-kind,
+  .native-notebook-library-card-action {
+    display: none;
+  }
+
+  .native-notebook-library-row-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: #eef0fe;
+    color: #4f46e5;
+  }
+
+  .native-notebook-library-cover,
+  .native-notebook-library-card:hover:not(:disabled) .native-notebook-library-cover {
+    position: static;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .native-notebook-library-card-title {
+    font-size: 15px;
+    font-weight: 600;
+    -webkit-line-clamp: 1;
+  }
+
+  .native-notebook-library-card-meta {
+    display: flex;
+    gap: 6px;
+    color: #94a3b8;
+    font-size: 12px;
+  }
+
+  .native-notebook-library-card-meta > span + span::before {
+    content: '· ';
+  }
+
+  .native-notebook-library-card-chevron {
+    display: grid;
+    flex: none;
+    color: #cbd5e1;
+  }
+}
