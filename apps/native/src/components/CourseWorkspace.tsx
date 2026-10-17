@@ -72,6 +72,11 @@ import {
   type NativePlatformCapabilities,
 } from '../data/platform-api-client';
 import { miniLectureManifestToPersistence } from '../data/mini-lecture-persistence';
+import {
+  deleteRemoteConversation,
+  pullCourseConversations,
+  pushConversation,
+} from '../data/chat-sync';
 import { getLocalRepository, type SaveCourseLearningStateInput } from '../data/repository';
 import {
   courseScopedEventId,
@@ -1389,6 +1394,10 @@ export function CourseWorkspace({
   const [activeTool, setActiveTool] = useState<CourseTool>('overview');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
   const [resourceBusy, setResourceBusy] = useState(false);
   const [resource, setResource] = useState<LocalResourceDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1726,6 +1735,33 @@ export function CourseWorkspace({
       cancelled = true;
     };
   }, [selectedConversationId]);
+
+  // 网页上的课程：打开时把网页端的对话拉到本机，两边看到同一份聊天记录。
+  const conversationsRef = useRef(workspace.conversations);
+  const onWorkspaceChangedRef = useRef(onWorkspaceChanged);
+  useEffect(() => {
+    conversationsRef.current = workspace.conversations;
+    onWorkspaceChangedRef.current = onWorkspaceChanged;
+  }, [onWorkspaceChanged, workspace.conversations]);
+  useEffect(() => {
+    const courseId = workspace.course.id;
+    let cancelled = false;
+    void (async () => {
+      const repository = await getLocalRepository();
+      const changed = await pullCourseConversations(repository, courseId, conversationsRef.current);
+      if (cancelled || !changed) return;
+      await onWorkspaceChangedRef.current();
+      const conversationId = activeConversationIdRef.current;
+      if (!conversationId || busyRef.current) return;
+      const loadedMessages = await repository.listMessages(conversationId);
+      if (!cancelled && activeConversationIdRef.current === conversationId && !busyRef.current) {
+        setMessages(loadedMessages);
+      }
+    })().catch((cause) => console.warn('[chat-sync] pull failed', cause));
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace.course.id]);
 
   useEffect(() => {
     const query = librarySearchQuery.trim();
@@ -2299,6 +2335,8 @@ export function CourseWorkspace({
     setError(null);
     try {
       const repository = await getLocalRepository();
+      // 网页课程的对话先在网页删除，失败就保留本机记录，避免下次同步又出现。
+      await deleteRemoteConversation(repository, deleting);
       await repository.deleteConversation(deleting.id);
       if (selectedConversationId === deleting.id) {
         conversationLoadRequestRef.current += 1;
@@ -3119,6 +3157,17 @@ export function CourseWorkspace({
             message.id === optimisticAssistantId ? assistantMessage : message,
           );
         });
+        const now = Date.now();
+        void pushConversation(repository, {
+          id: conversationId,
+          courseId: workspace.course.id,
+          notebookId: null,
+          title:
+            workspace.conversations.find((item) => item.id === conversationId)?.title ??
+            text.slice(0, 24),
+          createdAt: now,
+          updatedAt: now,
+        }).catch((cause) => console.warn('[chat-sync] push failed', cause));
         await onWorkspaceChanged();
       } catch (cause) {
         if (!userMessage) {
@@ -3144,6 +3193,7 @@ export function CourseWorkspace({
       onWorkspaceChanged,
       platformAiAccess.message,
       selectedConversationId,
+      workspace.conversations,
       workspace.course.description,
       workspace.course.courseCode,
       workspace.course.id,

@@ -80,6 +80,8 @@ import {
 } from './bundled-learning-content';
 import { NATIVE_MAT136_MOCK_EXAM } from './mock-review-plan';
 
+const PLATFORM_COURSE_IDS_KEY = 'platform-course-ids';
+
 type SqlRow = Record<string, unknown>;
 
 function stringValue(value: unknown): string {
@@ -2262,5 +2264,97 @@ export class SqliteLocalRepository implements LocalRepository {
     }
 
     return summarizeArchive(archive);
+  }
+
+  async upsertPlatformCourses(courses: LocalCourse[]): Promise<void> {
+    const database = await this.database();
+    for (const course of courses) {
+      await database.execute(
+        `INSERT INTO courses
+          (id, name, description, language, tags_json, purpose, university, course_code, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT(id) DO UPDATE SET
+           name = excluded.name, description = excluded.description, language = excluded.language,
+           course_code = excluded.course_code, updated_at = excluded.updated_at`,
+        [
+          course.id,
+          course.name,
+          course.description,
+          course.language,
+          JSON.stringify(course.tags),
+          course.purpose,
+          course.university,
+          course.courseCode,
+          course.createdAt,
+          course.updatedAt,
+        ],
+      );
+    }
+  }
+
+  async getPlatformCourseIds(): Promise<string[] | null> {
+    const rows = await (
+      await this.database()
+    ).select<Array<{ value: string }>>('SELECT value FROM app_metadata WHERE key = $1 LIMIT 1', [
+      PLATFORM_COURSE_IDS_KEY,
+    ]);
+    if (!rows[0]) return null;
+    try {
+      const parsed = JSON.parse(rows[0].value) as unknown;
+      return Array.isArray(parsed)
+        ? parsed.filter((id): id is string => typeof id === 'string')
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async setPlatformCourseIds(courseIds: string[]): Promise<void> {
+    await (
+      await this.database()
+    ).execute(
+      `INSERT INTO app_metadata (key, value, updated_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      [PLATFORM_COURSE_IDS_KEY, JSON.stringify(courseIds), Date.now()],
+    );
+  }
+
+  async mergeSyncedConversation(
+    conversation: LocalConversation,
+    messages: LocalMessage[],
+  ): Promise<number> {
+    const database = await this.database();
+    await database.execute(
+      `INSERT INTO conversations (id, course_id, notebook_id, title, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT(id) DO UPDATE SET
+         title = excluded.title, updated_at = MAX(conversations.updated_at, excluded.updated_at)`,
+      [
+        conversation.id,
+        conversation.courseId,
+        conversation.notebookId,
+        conversation.title,
+        conversation.createdAt,
+        conversation.updatedAt,
+      ],
+    );
+    let inserted = 0;
+    for (const message of messages) {
+      const result = await database.execute(
+        `INSERT OR IGNORE INTO messages (id, conversation_id, role, text, metadata_json, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          message.id,
+          conversation.id,
+          message.role,
+          message.text,
+          JSON.stringify(message.metadata ?? {}),
+          message.createdAt,
+        ],
+      );
+      inserted += result.rowsAffected;
+    }
+    return inserted;
   }
 }

@@ -1,4 +1,9 @@
 import type {
+  NativeConversationSyncPayload,
+  NativeConversationSyncResult,
+  NativePlatformCourse,
+  NativeSyncedConversationList,
+  NativeSyncedConversationSnapshot,
   NativeGradeRequest,
   NativeGradeResponse,
   NativeDeviceAuthorization,
@@ -257,6 +262,62 @@ export function parseNativeSyllabus(
     payload,
     ...options,
   });
+}
+
+async function invokeQuery<TResult>(
+  command: string,
+  query: Record<string, string | number | undefined>,
+): Promise<TResult> {
+  assertTauriRuntime();
+  const { invoke } = await import('@tauri-apps/api/core');
+  const syntaraToken = await resolveNativePlatformToken();
+  const cleanQuery = Object.fromEntries(
+    Object.entries(query)
+      .filter((entry): entry is [string, string | number] => entry[1] !== undefined)
+      .map(([key, value]) => [key, String(value)]),
+  );
+  const response = await invoke<PlatformApiEnvelope<TResult> | TResult>(command, {
+    request: { syntaraToken, query: cleanQuery },
+  });
+  return unwrapPlatformEnvelope(response);
+}
+
+export async function listNativePlatformCourses(): Promise<NativePlatformCourse[]> {
+  assertTauriRuntime();
+  const { invoke } = await import('@tauri-apps/api/core');
+  const syntaraToken = await resolveNativePlatformToken();
+  const response = await invoke<
+    PlatformApiEnvelope<{ courses: NativePlatformCourse[] }> | { courses: NativePlatformCourse[] }
+  >('native_list_platform_courses', { request: { syntaraToken } });
+  return unwrapPlatformEnvelope(response).courses ?? [];
+}
+
+export function listSyncedConversations(courseId: string): Promise<NativeSyncedConversationList> {
+  return invokeQuery('native_get_conversations', { courseId, limit: 50 });
+}
+
+export function loadSyncedConversation(
+  courseId: string,
+  sessionId: string,
+): Promise<NativeSyncedConversationSnapshot> {
+  return invokeQuery('native_get_conversations', { courseId, sessionId, messageLimit: 120 });
+}
+
+export function pushSyncedConversation(
+  payload: NativeConversationSyncPayload,
+): Promise<NativeConversationSyncResult> {
+  return invokeJson<NativeConversationSyncPayload, NativeConversationSyncResult>(
+    'native_sync_conversation',
+    { requestId: crypto.randomUUID(), payload },
+  );
+}
+
+export function deleteSyncedConversation(
+  courseId: string,
+  sessionId: string,
+  baseRevision: number,
+): Promise<NativeConversationSyncResult> {
+  return invokeQuery('native_delete_conversation', { courseId, sessionId, baseRevision });
 }
 
 export type {

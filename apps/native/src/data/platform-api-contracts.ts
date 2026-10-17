@@ -400,3 +400,62 @@ export interface NativeSyllabusResponse {
   model?: string;
   modelId?: string;
 }
+
+/** A course the signed-in account owns, joined or bought on the web platform. */
+export interface NativePlatformCourse {
+  id: string;
+  name: string;
+  courseCode: string | null;
+  description: string | null;
+  language: string;
+  avatarUrl: string;
+  accessRole: 'owner' | 'enrolled';
+  updatedAt: string;
+}
+
+/** Course chat message as stored by the web platform (`learn_message`). */
+export interface NativeSyncedChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  createdAt?: number;
+  attachments?: Array<{ id?: string; name?: string; mimeType?: string }>;
+  [key: string]: unknown;
+}
+
+export interface NativeSyncedConversationSummary {
+  id: string;
+  conversationId: string;
+  title: string;
+  createdAt: number | string;
+  updatedAt: number | string;
+  currentRevision: number;
+  messageCount: number;
+}
+
+export interface NativeSyncedConversationList {
+  sessions: NativeSyncedConversationSummary[];
+  hasMore: boolean;
+  nextCursor: string | null;
+  totalCount: number;
+}
+
+export interface NativeSyncedConversationSnapshot {
+  session: NativeSyncedConversationSummary | null;
+  messages: NativeSyncedChatMessage[];
+  deletedMessageIds: string[];
+  currentRevision: number;
+}
+
+export interface NativeConversationSyncPayload {
+  courseId: string;
+  sessionId: string;
+  title?: string;
+  messages: NativeSyncedChatMessage[];
+  deletedMessageIds?: string[];
+}
+
+export interface NativeConversationSyncResult {
+  accepted: boolean;
+  currentRevision: number;
+}
