@@ -16,8 +16,9 @@ import {
   Brain,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
-  History,
+  LayoutGrid,
   ChevronRight,
   CircleGauge,
   CloudUpload,
@@ -39,6 +40,7 @@ import {
   Settings2,
   SlidersHorizontal,
   Sparkles,
+  SquarePen,
   Target,
   Trash2,
   Upload,
@@ -655,6 +657,150 @@ function SessionsPanel({
           <span>全部会话</span>
         </button>
         <span>{conversations.length}</span>
+      </div>
+    </div>
+  );
+}
+
+/** iPhone 左侧抽屉：参考 ChatGPT，入口、最近聊天和「新聊天」都放在这里。 */
+function PhoneChatDrawer({
+  courseTitle,
+  courseAvatarUrl,
+  conversations,
+  selectedConversationId,
+  memoryCount,
+  busy,
+  onBack,
+  onCreateConversation,
+  onDeleteConversation,
+  onOpenMemory,
+  onOpenNotes,
+  onOpenProgress,
+  onOpenSettings,
+  onSelectConversation,
+}: {
+  courseTitle: string;
+  courseAvatarUrl: string;
+  conversations: LocalConversation[];
+  selectedConversationId: string | null;
+  memoryCount: number;
+  busy: boolean;
+  onBack: () => void;
+  onCreateConversation: () => void;
+  onDeleteConversation: (conversation: LocalConversation) => void;
+  onOpenMemory: () => void;
+  onOpenNotes: () => void;
+  onOpenProgress: () => void;
+  onOpenSettings: () => void;
+  onSelectConversation: (conversationId: string) => void;
+}) {
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
+  const keyword = query.trim().toLowerCase();
+  const visibleConversations = keyword
+    ? conversations.filter((conversation) => conversation.title.toLowerCase().includes(keyword))
+    : conversations;
+
+  return (
+    <div className="phone-drawer">
+      <div className="phone-drawer-top">
+        <h2>Syntara</h2>
+        <button
+          type="button"
+          className="phone-round-button"
+          onClick={() => {
+            setSearching((current) => !current);
+            setQuery('');
+          }}
+          aria-label={searching ? '取消搜索' : '搜索聊天'}
+        >
+          {searching ? <X size={20} /> : <Search size={20} />}
+        </button>
+      </div>
+
+      {searching ? (
+        <input
+          className="phone-drawer-search"
+          type="search"
+          autoFocus
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="搜索聊天"
+        />
+      ) : (
+        <nav className="phone-drawer-nav" aria-label="课程入口">
+          <button type="button" onClick={onBack}>
+            <LayoutGrid size={21} strokeWidth={1.8} />
+            <span>全部课程</span>
+          </button>
+          <button type="button" onClick={onOpenNotes}>
+            <BookOpen size={21} strokeWidth={1.8} />
+            <span>笔记</span>
+          </button>
+          <button type="button" onClick={onOpenProgress}>
+            <Target size={21} strokeWidth={1.8} />
+            <span>学习进度</span>
+          </button>
+          <button type="button" onClick={onOpenMemory}>
+            <Brain size={21} strokeWidth={1.8} />
+            <span>学习记忆</span>
+            {memoryCount ? <small>{memoryCount}</small> : null}
+          </button>
+        </nav>
+      )}
+
+      <div className="phone-drawer-scroll">
+        <p className="phone-drawer-section">
+          <img src={courseAvatarUrl} alt="" aria-hidden />
+          <span>{courseTitle} · 最近</span>
+        </p>
+        {visibleConversations.length ? (
+          visibleConversations.map((conversation) => {
+            const active = conversation.id === selectedConversationId;
+            return (
+              <div
+                key={conversation.id}
+                className={active ? 'phone-drawer-row phone-drawer-row-active' : 'phone-drawer-row'}
+              >
+                <button type="button" onClick={() => onSelectConversation(conversation.id)}>
+                  {conversation.title}
+                </button>
+                {active ? (
+                  <button
+                    type="button"
+                    className="phone-drawer-delete"
+                    onClick={() => onDeleteConversation(conversation)}
+                    aria-label={`删除会话：${conversation.title}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })
+        ) : (
+          <p className="phone-drawer-empty">{keyword ? '没有找到相关聊天' : '还没有聊天'}</p>
+        )}
+      </div>
+
+      <div className="phone-drawer-bottom">
+        <button
+          type="button"
+          className="phone-drawer-new"
+          onClick={onCreateConversation}
+          disabled={busy}
+        >
+          <SquarePen size={19} />
+          <span>新聊天</span>
+        </button>
+        <button
+          type="button"
+          className="phone-round-button"
+          onClick={onOpenSettings}
+          aria-label="设置"
+        >
+          <Settings2 size={20} />
+        </button>
       </div>
     </div>
   );
@@ -3310,6 +3456,12 @@ export function CourseWorkspace({
     </div>
   );
 
+  const courseAvatarUrl = resolveNativeCourseAvatar(
+    workspace.course.id,
+    workspace.course.courseCode,
+    courseAvatarIdDraft,
+  );
+
   return (
     <section
       className={`course-workspace${leftRailCollapsed ? ' workspace-left-collapsed' : ''}${
@@ -3322,108 +3474,124 @@ export function CourseWorkspace({
       </aside>
 
       <main className="conversation-workspace">
-        <header className="conversation-header">
-          <button
-            type="button"
-            className="phone-back-button"
-            onClick={onBack}
-            aria-label="返回首页"
-          >
-            <ChevronLeft size={22} />
-          </button>
-          <div className="compact-nav-actions">
+        {phoneLayout ? (
+          <header className="phone-chat-header">
             <button
               type="button"
-              className="round-outline-button"
+              className="phone-round-button"
               onClick={() => setMobilePanel('sessions')}
-              aria-label="打开会话历史"
+              aria-label="打开菜单"
             >
-              <Menu size={17} />
+              <Menu size={20} />
             </button>
-          </div>
-
-          <img
-            className="conversation-course-avatar"
-            src={resolveNativeCourseAvatar(
-              workspace.course.id,
-              workspace.course.courseCode,
-              courseAvatarIdDraft,
-            )}
-            alt=""
-            aria-hidden
-          />
-          <div className="conversation-course-copy">
-            <div className="conversation-course-title">
-              <h1>{workspace.course.courseCode || workspace.course.name}</h1>
-              <span>当前课程上下文</span>
-            </div>
-            <div className="course-status-pills" role="status">
-              <span>
-                <CircleGauge size={10} />
-                课程 本机
-              </span>
-              <span className="status-ready">
-                <CheckCircle2 size={10} />
-                对话 本机
-              </span>
+            <button
+              type="button"
+              className="phone-course-pill"
+              onClick={onBack}
+              aria-label="切换课程"
+            >
+              <img src={courseAvatarUrl} alt="" aria-hidden />
+              <span>{workspace.course.courseCode || workspace.course.name}</span>
+              <ChevronDown size={15} />
+            </button>
+            <button
+              type="button"
+              className="phone-round-button"
+              onClick={() => void createConversation()}
+              disabled={busy}
+              aria-label="新聊天"
+            >
+              <SquarePen size={19} />
+            </button>
+          </header>
+        ) : (
+          <header className="conversation-header">
+            <div className="compact-nav-actions">
               <button
                 type="button"
-                className="status-ready"
-                onClick={openProblemBank}
-                title="打开题库"
+                className="round-outline-button"
+                onClick={() => setMobilePanel('sessions')}
+                aria-label="打开会话历史"
               >
-                <CheckCircle2 size={10} />
-                题库 {workspace.problems.length}
-              </button>
-              <button type="button" onClick={openNotebookLibrary} title="打开笔记本库">
-                <CircleGauge size={10} />
-                笔记本 {workspace.notebooks.length}
+                <Menu size={17} />
               </button>
             </div>
-          </div>
 
-          <div className="conversation-header-spacer" />
-          <button
-            type="button"
-            className="memory-orb"
-            onClick={() => openMemoryDialog()}
-            aria-label={`打开学习记忆，共 ${workspace.memories.length} 条`}
-            title="学习记忆"
-          >
-            <span />
-            {workspace.memories.length ? <small>{workspace.memories.length}</small> : null}
-          </button>
-          <button
-            type="button"
-            className="round-outline-button compact-tools-button"
-            onClick={() => setMobilePanel('tools')}
-            aria-label="打开课程工具"
-          >
-            <SlidersHorizontal size={17} />
-          </button>
-          <div className="phone-header-actions">
+            <img
+              className="conversation-course-avatar"
+              src={resolveNativeCourseAvatar(
+                workspace.course.id,
+                workspace.course.courseCode,
+                courseAvatarIdDraft,
+              )}
+              alt=""
+              aria-hidden
+            />
+            <div className="conversation-course-copy">
+              <div className="conversation-course-title">
+                <h1>{workspace.course.courseCode || workspace.course.name}</h1>
+                <span>当前课程上下文</span>
+              </div>
+              <div className="course-status-pills" role="status">
+                <span>
+                  <CircleGauge size={10} />
+                  课程 本机
+                </span>
+                <span className="status-ready">
+                  <CheckCircle2 size={10} />
+                  对话 本机
+                </span>
+                <button
+                  type="button"
+                  className="status-ready"
+                  onClick={openProblemBank}
+                  title="打开题库"
+                >
+                  <CheckCircle2 size={10} />
+                  题库 {workspace.problems.length}
+                </button>
+                <button type="button" onClick={openNotebookLibrary} title="打开笔记本库">
+                  <CircleGauge size={10} />
+                  笔记本 {workspace.notebooks.length}
+                </button>
+              </div>
+            </div>
+
+            <div className="conversation-header-spacer" />
             <button
               type="button"
-              className="phone-icon-action"
-              onClick={() => setMobilePanel('sessions')}
-              aria-label="聊天记录"
+              className="memory-orb"
+              onClick={() => openMemoryDialog()}
+              aria-label={`打开学习记忆，共 ${workspace.memories.length} 条`}
+              title="学习记忆"
             >
-              <History size={18} />
-            </button>
-            <button type="button" onClick={openNotebookLibrary} aria-label="打开笔记">
-              <BookOpen size={17} />
-              <span>笔记</span>
+              <span />
+              {workspace.memories.length ? <small>{workspace.memories.length}</small> : null}
             </button>
             <button
               type="button"
-              onClick={() => setMobilePanel('progress')}
-              aria-label="打开学习进度"
+              className="round-outline-button compact-tools-button"
+              onClick={() => setMobilePanel('tools')}
+              aria-label="打开课程工具"
             >
-              <Target size={17} />
-              <span>进度</span>
+              <SlidersHorizontal size={17} />
             </button>
-          </div>
-        </header>
+            <div className="phone-header-actions">
+              <button type="button" onClick={openNotebookLibrary} aria-label="打开笔记">
+                <BookOpen size={17} />
+                <span>笔记</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobilePanel('progress')}
+                aria-label="打开学习进度"
+              >
+                <Target size={17} />
+                <span>进度</span>
+              </button>
+            </div>
+          </header>
+        )}
 
         <div className="conversation-content">
           {messages.length === 0 ? (
@@ -3642,7 +3810,9 @@ export function CourseWorkspace({
             aria-label="关闭面板"
           />
           <aside
-            className={`mobile-slide-panel mobile-slide-panel-${mobilePanel}`}
+            className={`mobile-slide-panel mobile-slide-panel-${mobilePanel}${
+              mobilePanel === 'sessions' && phoneLayout ? ' mobile-slide-panel-drawer' : ''
+            }`}
             aria-label={
               mobilePanel === 'sessions'
                 ? '会话历史'
@@ -3651,7 +3821,33 @@ export function CourseWorkspace({
                   : '课程工具'
             }
           >
-            {mobilePanel === 'sessions' ? (
+            {mobilePanel === 'sessions' && phoneLayout ? (
+              <PhoneChatDrawer
+                courseTitle={workspace.course.courseCode || workspace.course.name}
+                courseAvatarUrl={courseAvatarUrl}
+                conversations={workspace.conversations}
+                selectedConversationId={selectedConversationId}
+                memoryCount={workspace.memories.length}
+                busy={busy}
+                onBack={onBack}
+                onCreateConversation={() => void createConversation()}
+                onDeleteConversation={setConversationToDelete}
+                onOpenMemory={() => {
+                  setMobilePanel(null);
+                  openMemoryDialog();
+                }}
+                onOpenNotes={() => {
+                  setMobilePanel(null);
+                  openNotebookLibrary();
+                }}
+                onOpenProgress={() => setMobilePanel('progress')}
+                onOpenSettings={() => {
+                  setActiveTool('settings');
+                  setMobilePanel('tools');
+                }}
+                onSelectConversation={selectConversation}
+              />
+            ) : mobilePanel === 'sessions' ? (
               <SessionsPanel
                 conversations={workspace.conversations}
                 selectedConversationId={selectedConversationId}
