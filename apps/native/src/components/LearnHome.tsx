@@ -99,6 +99,9 @@ const dockApps: DockApp[] = [
   { id: 'settings', label: '设置', iconUrl: settingsIconUrl },
 ];
 
+// iPhone Dock 只保留日历与个人中心。
+const PHONE_DOCK_APP_IDS: ReadonlySet<DockAppId> = new Set(['calendar', 'profile']);
+
 const KIND_LABELS: Record<LocalCourseEventKind, string> = {
   assignment: '作业',
   exam: '考试',
@@ -162,7 +165,8 @@ export function LearnHome({
       kind: 'course' as const,
       course,
     }));
-    return phoneLayout ? [...courseItems, createItem] : [createItem, ...courseItems];
+    // iPhone 上不提供新建课程入口，只列出已有课程。
+    return phoneLayout ? courseItems : [createItem, ...courseItems];
   }, [courses, phoneLayout]);
   const iconsPerPage = phoneLayout ? homeItems.length || 1 : appColumns * HOME_GRID_ROWS;
   const pageCount = Math.max(1, Math.ceil(homeItems.length / iconsPerPage));
@@ -472,18 +476,20 @@ export function LearnHome({
         </nav>
 
         <nav className="native-learn-dock" aria-label="系统应用 Dock">
-          {dockApps.map((app) => (
-            <button
-              type="button"
-              key={app.id}
-              onClick={() => setActiveDockApp(app.id)}
-              aria-label={app.label}
-              title={app.label}
-            >
-              <img src={app.iconUrl} alt="" aria-hidden draggable={false} />
-              <span>{app.label}</span>
-            </button>
-          ))}
+          {(phoneLayout ? dockApps.filter((app) => PHONE_DOCK_APP_IDS.has(app.id)) : dockApps).map(
+            (app) => (
+              <button
+                type="button"
+                key={app.id}
+                onClick={() => setActiveDockApp(app.id)}
+                aria-label={app.label}
+                title={app.label}
+              >
+                <img src={app.iconUrl} alt="" aria-hidden draggable={false} />
+                <span>{app.label}</span>
+              </button>
+            ),
+          )}
         </nav>
       </div>
 
