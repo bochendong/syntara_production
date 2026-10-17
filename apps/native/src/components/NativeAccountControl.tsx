@@ -181,9 +181,7 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
             <br />
             都延续上一次的理解。
           </h1>
-          <p className="native-auth-lead">
-            登录后进入你的课程、课堂讲解、复习计划与学习记忆。
-          </p>
+          <p className="native-auth-lead">登录后进入你的课程、课堂讲解、复习计划与学习记忆。</p>
         </div>
         <div className="native-auth-trust">
           <span>
@@ -207,7 +205,7 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
           <p className="native-account-copy">
             {browserPreview
               ? '当前是浏览器预览，无法使用平台登录与平台 AI。可先进入本机预览改界面；正式登录请打开 macOS 开发版窗口。'
-              : '我们会在浏览器中完成安全登录。确认后，这个 App 会自动进入你的学习空间。'}
+              : '我们会在浏览器中完成安全登录。首次使用需要在网页上输入激活码开通 App，每个激活码只能用一次。'}
           </p>
 
           {browserPreview ? (

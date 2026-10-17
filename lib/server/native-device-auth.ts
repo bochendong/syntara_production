@@ -1,5 +1,6 @@
 import { createHmac, randomBytes } from 'node:crypto';
 
+import { hasNativeAppAccess } from '@/lib/server/native-activation';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 
 const DEVICE_CODE_TTL_MS = 10 * 60 * 1_000;
@@ -51,7 +52,8 @@ export class NativeAuthError extends Error {
       | 'rate_limited'
       | 'unauthorized'
       | 'expired_token'
-      | 'invalid_grant',
+      | 'invalid_grant'
+      | 'activation_required',
     message: string,
   ) {
     super(message);
@@ -98,6 +100,26 @@ function userCode(): string {
     value += USER_CODE_ALPHABET[randomBytes(1)[0] % USER_CODE_ALPHABET.length];
   }
   return `${value.slice(0, 4)}-${value.slice(4)}`;
+}
+
+const NATIVE_USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  image: true,
+  role: true,
+  nativeAppActivatedAt: true,
+} as const;
+
+/** App 只对兑换过一次性激活码的账号开放（管理员除外）。 */
+function assertNativeAppAccess(user: { role: string; nativeAppActivatedAt: Date | null }) {
+  if (!hasNativeAppAccess(user)) {
+    throw new NativeAuthError(
+      403,
+      'activation_required',
+      '这个账号还没有开通 Syntara App，请先在网页上输入激活码。',
+    );
+  }
 }
 
 export function normalizeNativeUserCode(value: string): string {
@@ -262,6 +284,15 @@ export async function approveNativeDeviceAuthorization(userCodeValue: string, us
     throw new NativeAuthError(410, 'expired_token', 'This Native login code has expired.');
   }
 
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, nativeAppActivatedAt: true },
+  });
+  if (!user) {
+    throw new NativeAuthError(401, 'unauthorized', 'Sign in before authorizing this device.');
+  }
+  assertNativeAppAccess(user);
+
   await prisma.nativeDeviceAuthorization.update({
     where: { id: authorization.id },
     data: {
@@ -329,11 +360,10 @@ export async function pollNativeDeviceAuthorization(
         refreshExpiresAt: material.refreshExpiresAt,
       },
       include: {
-        user: {
-          select: { id: true, name: true, email: true, image: true, role: true },
-        },
+        user: { select: NATIVE_USER_SELECT },
       },
     });
+    assertNativeAppAccess(session.user);
     return tokenPair(session, material);
   });
 }
@@ -350,9 +380,7 @@ export async function refreshNativeDeviceSession(
     const current = await transaction.nativeDeviceSession.findUnique({
       where: { refreshTokenHash },
       include: {
-        user: {
-          select: { id: true, name: true, email: true, image: true, role: true },
-        },
+        user: { select: NATIVE_USER_SELECT },
       },
     });
     if (!current || current.revokedAt) {
@@ -361,6 +389,7 @@ export async function refreshNativeDeviceSession(
     if (current.refreshExpiresAt <= now) {
       throw new NativeAuthError(401, 'expired_token', 'Native session has expired.');
     }
+    assertNativeAppAccess(current.user);
 
     const material = createTokenMaterial(now);
     const session = await transaction.nativeDeviceSession.update({
@@ -373,9 +402,7 @@ export async function refreshNativeDeviceSession(
         lastUsedAt: now,
       },
       include: {
-        user: {
-          select: { id: true, name: true, email: true, image: true, role: true },
-        },
+        user: { select: NATIVE_USER_SELECT },
       },
     });
     return tokenPair(session, material);
@@ -400,9 +427,7 @@ export async function authenticateNativeDeviceRequest(
   const session = await prisma.nativeDeviceSession.findUnique({
     where: { accessTokenHash: hashScoped('access-token', accessToken) },
     include: {
-      user: {
-        select: { id: true, name: true, email: true, image: true, role: true },
-      },
+      user: { select: NATIVE_USER_SELECT },
     },
   });
   if (!session || session.revokedAt) {
@@ -411,6 +436,7 @@ export async function authenticateNativeDeviceRequest(
   if (session.accessExpiresAt <= now || session.refreshExpiresAt <= now) {
     throw new NativeAuthError(401, 'expired_token', 'Native access token has expired.');
   }
+  assertNativeAppAccess(session.user);
 
   if (now.getTime() - session.lastUsedAt.getTime() >= LAST_USED_WRITE_INTERVAL_MS) {
     await prisma.nativeDeviceSession.update({

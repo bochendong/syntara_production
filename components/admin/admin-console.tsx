@@ -8,6 +8,7 @@ import {
   Bot,
   Gauge,
   Image as ImageIcon,
+  KeyRound,
   Volume2,
   Search,
   RefreshCw,
@@ -22,6 +23,7 @@ import { AdminCoursesSection } from '@/components/admin/admin-courses-section';
 import { AdminTeachersSection } from '@/components/admin/admin-teachers-section';
 import { AdminStudentsSection } from '@/components/admin/admin-students-section';
 import { AdminUsageLimitsSection } from '@/components/admin/admin-usage-limits-section';
+import { AdminActivationCodesSection } from '@/components/admin/admin-activation-codes-section';
 
 const SECTIONS = [
   { id: 'llm', label: '模型设置', icon: Bot },
@@ -29,6 +31,7 @@ const SECTIONS = [
   { id: 'students', label: '学生管理', icon: Users },
   { id: 'teachers', label: '老师管理', icon: Users },
   { id: 'usage-limits', label: '云端限额', icon: Gauge },
+  { id: 'activation-codes', label: 'App 激活码', icon: KeyRound },
   { id: 'courses', label: '课程管理', icon: BookOpen },
   { id: 'image', label: '图像生成', icon: ImageIcon },
   { id: 'tts', label: '语音合成', icon: Volume2 },
@@ -113,6 +116,9 @@ export function AdminConsole({ basePath = '/admin' }: { basePath?: string }) {
             {section === 'usage' ? <AdminLLMSection key={refreshKey} /> : null}
             {section === 'teachers' ? <AdminTeachersSection key={refreshKey} /> : null}
             {section === 'usage-limits' ? <AdminUsageLimitsSection key={refreshKey} /> : null}
+            {section === 'activation-codes' ? (
+              <AdminActivationCodesSection key={refreshKey} />
+            ) : null}
             {section === 'students' ? (
               <AdminStudentsSection key={refreshKey} refreshKey={refreshKey} />
             ) : null}

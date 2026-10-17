@@ -1,8 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { signIn, useSession } from 'next-auth/react';
-import { ArrowRight, CheckCircle2, Github, Laptop, Loader2, ShieldCheck } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  Github,
+  KeyRound,
+  Laptop,
+  Loader2,
+  ShieldCheck,
+} from 'lucide-react';
 
 type NativeLoginPageClientProps = {
   userCode: string;
@@ -17,6 +25,19 @@ type ApprovalState =
   | { status: 'approving' }
   | { status: 'approved'; deviceName: string }
   | { status: 'error'; message: string };
+
+type ActivationState =
+  | { status: 'checking' }
+  | { status: 'activated' }
+  | { status: 'required'; submitting: boolean; message?: string };
+
+function approvalErrorCode(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const error = (payload as Record<string, unknown>).error;
+  if (!error || typeof error !== 'object' || Array.isArray(error)) return null;
+  const code = (error as Record<string, unknown>).code;
+  return typeof code === 'string' ? code : null;
+}
 
 function approvalError(payload: unknown): string {
   if (!payload || typeof payload !== 'object') return '设备授权失败，请重新生成登录码。';
@@ -36,6 +57,30 @@ export function NativeLoginPageClient({ userCode, providers }: NativeLoginPageCl
   const { data: session, status } = useSession();
   const [approval, setApproval] = useState<ApprovalState>({ status: 'idle' });
   const callbackUrl = `/native-login?user_code=${encodeURIComponent(userCode)}`;
+  const [activation, setActivation] = useState<ActivationState>({ status: 'checking' });
+  const [activationCode, setActivationCode] = useState('');
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    let cancelled = false;
+    void fetch('/api/native/v1/activation')
+      .then((response) => response.json().catch(() => null))
+      .then((payload: { activated?: boolean } | null) => {
+        if (cancelled) return;
+        // 查询失败时先放行，授权接口会再检查一次。
+        setActivation(
+          payload?.activated === false
+            ? { status: 'required', submitting: false }
+            : { status: 'activated' },
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setActivation({ status: 'activated' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
   const approveDevice = async () => {
     if (!userCode || approval.status === 'approving') return;
@@ -49,6 +94,11 @@ export function NativeLoginPageClient({ userCode, providers }: NativeLoginPageCl
       const payload = (await response.json().catch(() => null)) as {
         data?: { deviceName?: string };
       } | null;
+      if (!response.ok && approvalErrorCode(payload) === 'activation_required') {
+        setActivation({ status: 'required', submitting: false });
+        setApproval({ status: 'idle' });
+        return;
+      }
       if (!response.ok) throw new Error(approvalError(payload));
       setApproval({
         status: 'approved',
@@ -59,6 +109,35 @@ export function NativeLoginPageClient({ userCode, providers }: NativeLoginPageCl
         status: 'error',
         message: error instanceof Error ? error.message : '设备授权失败，请重试。',
       });
+    }
+  };
+
+  const redeemActivationCode = async () => {
+    const code = activationCode.trim();
+    if (!code || (activation.status === 'required' && activation.submitting)) return;
+    setActivation({ status: 'required', submitting: true });
+    try {
+      const response = await fetch('/api/native/v1/activation', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        details?: string;
+      } | null;
+      if (!response.ok && payload?.details !== 'already_activated') {
+        setActivation({
+          status: 'required',
+          submitting: false,
+          message: payload?.error || '激活失败，请稍后重试。',
+        });
+        return;
+      }
+      setActivation({ status: 'activated' });
+      await approveDevice();
+    } catch {
+      setActivation({ status: 'required', submitting: false, message: '激活失败，请稍后重试。' });
     }
   };
 
@@ -133,6 +212,51 @@ export function NativeLoginPageClient({ userCode, providers }: NativeLoginPageCl
               </p>
             ) : null}
           </div>
+        ) : activation.status === 'checking' ? (
+          <div className="mt-7 flex items-center justify-center gap-2 text-sm text-[#86868b]">
+            <Loader2 size={16} className="animate-spin" />
+            正在检查 App 开通状态…
+          </div>
+        ) : activation.status === 'required' ? (
+          <form
+            className="mt-7"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void redeemActivationCode();
+            }}
+          >
+            <p className="mb-3 text-center text-sm leading-6 text-[#6e6e73] dark:text-[#a1a1a6]">
+              账号 {session.user?.email || session.user?.name || '当前用户'} 还没有开通 Syntara
+              App。请输入激活码，每个激活码只能使用一次。
+            </p>
+            <input
+              className="h-12 w-full rounded-xl border border-black/10 bg-white/80 px-4 text-center font-mono text-lg tracking-[0.12em] text-[#1d1d1f] uppercase outline-none focus:border-[#007AFF] dark:border-white/15 dark:bg-white/[0.06] dark:text-white"
+              placeholder="SNT-XXXX-XXXX-XXXX"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              value={activationCode}
+              onChange={(event) => setActivationCode(event.target.value)}
+              disabled={activation.submitting}
+            />
+            {activation.message ? (
+              <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-200">
+                {activation.message}
+              </p>
+            ) : null}
+            <button
+              type="submit"
+              className="apple-btn apple-btn-primary mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium"
+              disabled={!userCode || !activationCode.trim() || activation.submitting}
+            >
+              {activation.submitting ? (
+                <Loader2 size={17} className="animate-spin" />
+              ) : (
+                <KeyRound size={17} />
+              )}
+              {activation.submitting ? '正在激活…' : '激活并授权这台设备'}
+            </button>
+          </form>
         ) : approval.status === 'approved' ? (
           <div className="mt-7 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center dark:border-emerald-400/30 dark:bg-emerald-400/10">
             <CheckCircle2 className="mx-auto text-emerald-600" size={28} />
