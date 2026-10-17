@@ -111,7 +111,7 @@ import type {
 } from '../domain/teaching';
 
 type CourseTool = 'overview' | 'library' | 'calendar' | 'settings';
-type MobilePanel = 'sessions' | 'tools' | null;
+type MobilePanel = 'sessions' | 'tools' | 'progress' | null;
 const AI_MODEL_STORAGE_KEY = 'syntara.native.openai.model';
 const LEFT_RAIL_STORAGE_KEY = 'syntara.native.chat.left-rail-collapsed';
 const COURSE_PROGRESS_STORAGE_PREFIX = 'syntara.native.course-progress.';
@@ -875,7 +875,8 @@ function CourseLearningProgressPanel({
 
 function CourseToolsPanel({
   workspace,
-  activeTool,
+  activeTool: requestedTool,
+  progressOnly = false,
   backendLabel,
   courseLearningState,
   platformAiAccess,
@@ -915,6 +916,8 @@ function CourseToolsPanel({
 }: {
   workspace: LocalCourseWorkspace;
   activeTool: CourseTool;
+  /** iPhone 右上角「进度」入口：只显示学习进度，不显示工具分栏。 */
+  progressOnly?: boolean;
   backendLabel: string;
   courseLearningState: LocalCourseLearningState | null;
   platformAiAccess: PlatformAiAccess;
@@ -974,11 +977,12 @@ function CourseToolsPanel({
         left.id.localeCompare(right.id),
     )
     .slice(0, 6);
+  const activeTool: CourseTool = progressOnly ? 'overview' : requestedTool;
 
   return (
     <div className="course-tools-panel">
       <header className="course-tools-heading">
-        <h2>课程工具</h2>
+        <h2>{progressOnly ? '学习进度' : '课程工具'}</h2>
         {onClose ? (
           <button type="button" className="round-ghost-button" onClick={onClose} aria-label="关闭">
             <X size={16} />
@@ -995,21 +999,23 @@ function CourseToolsPanel({
         ) : null}
       </header>
 
-      <nav className="course-tool-tabs" aria-label="课程工具">
-        {courseTools.map(({ id, label, Icon }) => (
-          <button
-            type="button"
-            key={id}
-            className={
-              activeTool === id ? 'course-tool-tab course-tool-tab-active' : 'course-tool-tab'
-            }
-            onClick={() => onToolChange(id)}
-          >
-            <Icon size={15} strokeWidth={1.75} />
-            <span>{label}</span>
-          </button>
-        ))}
-      </nav>
+      {progressOnly ? null : (
+        <nav className="course-tool-tabs" aria-label="课程工具">
+          {courseTools.map(({ id, label, Icon }) => (
+            <button
+              type="button"
+              key={id}
+              className={
+                activeTool === id ? 'course-tool-tab course-tool-tab-active' : 'course-tool-tab'
+              }
+              onClick={() => onToolChange(id)}
+            >
+              <Icon size={15} strokeWidth={1.75} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
 
       <div className="course-tools-scroll">
         {activeTool === 'overview' ? (
@@ -3269,6 +3275,20 @@ export function CourseWorkspace({
           >
             <SlidersHorizontal size={17} />
           </button>
+          <div className="phone-header-actions">
+            <button type="button" onClick={openNotebookLibrary} aria-label="打开笔记">
+              <BookOpen size={17} />
+              <span>笔记</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobilePanel('progress')}
+              aria-label="打开学习进度"
+            >
+              <Target size={17} />
+              <span>进度</span>
+            </button>
+          </div>
         </header>
 
         <div className="conversation-content">
@@ -3453,7 +3473,13 @@ export function CourseWorkspace({
           />
           <aside
             className={`mobile-slide-panel mobile-slide-panel-${mobilePanel}`}
-            aria-label={mobilePanel === 'sessions' ? '会话历史' : '课程工具'}
+            aria-label={
+              mobilePanel === 'sessions'
+                ? '会话历史'
+                : mobilePanel === 'progress'
+                  ? '学习进度'
+                  : '课程工具'
+            }
           >
             {mobilePanel === 'sessions' ? (
               <SessionsPanel
@@ -3471,6 +3497,7 @@ export function CourseWorkspace({
               <CourseToolsPanel
                 workspace={workspace}
                 activeTool={activeTool}
+                progressOnly={mobilePanel === 'progress'}
                 backendLabel={backendLabel}
                 courseLearningState={courseLearningState}
                 platformAiAccess={platformAiAccess}

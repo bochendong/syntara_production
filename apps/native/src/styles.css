@@ -8100,3 +8100,38 @@ textarea:focus-visible {
     max-width: none;
   }
 }
+
+/* iPhone：课程页右上角只保留「笔记」「进度」两个入口，题库与课程工具不在手机上显示。 */
+.phone-header-actions {
+  display: none;
+}
+
+.mobile-slide-panel-progress {
+  right: 0;
+}
+
+@media (max-width: 600px) {
+  .conversation-header .compact-tools-button {
+    display: none;
+  }
+
+  .phone-header-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: 8px;
+  }
+
+  .phone-header-actions > button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 36px;
+    padding: 0 11px;
+    border: 1px solid rgb(226 232 240);
+    border-radius: 12px;
+    background: #fff;
+    color: rgb(51 65 85);
+    font-size: 13px;
+    font-weight: 500;
+  }
+}
