@@ -30,7 +30,8 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
   const notebooks = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = [...workspace.notebooks].sort(
-      (a, b) => b.updatedAt - a.updatedAt || a.name.localeCompare(b.name, 'zh-CN'),
+      // 按笔记本编号排列（01 → 11），编号相同时按名称。
+      (a, b) => a.name.localeCompare(b.name, 'zh-CN', { numeric: true }),
     );
     if (!q) return list;
     return list.filter((notebook) => {
