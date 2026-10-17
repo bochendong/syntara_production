@@ -8273,3 +8273,184 @@ textarea:focus-visible {
     color: #cbd5e1;
   }
 }
+
+/* iPhone 首页：纵向滚动，问候 → Haru → 本周课程 → 两列课程卡片，底部 Dock 常驻。 */
+.native-learn-phone .native-learn-shell {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.native-learn-phone .native-learn-stage {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  height: auto;
+  overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px 20px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.native-learn-phone-header {
+  order: 0;
+  padding: 6px 4px 2px;
+  text-shadow: 0 1px 8px rgb(20 42 105 / 35%);
+}
+
+.native-learn-phone-header span {
+  color: rgb(255 255 255 / 80%);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.native-learn-phone-header h1 {
+  margin: 2px 0 0;
+  font-size: 32px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.native-learn-phone .native-learn-widget {
+  flex: none;
+  height: auto;
+  max-height: none;
+  border-radius: 20px;
+}
+
+.native-learn-phone .native-learn-haru {
+  display: flex;
+  order: 1;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.native-learn-haru-avatar {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 30%);
+  object-fit: cover;
+  object-position: center 8%;
+}
+
+.native-learn-phone .native-learn-haru-copy {
+  height: auto;
+  justify-content: center;
+  padding: 0;
+}
+
+.native-learn-phone .native-learn-haru-copy strong {
+  font-size: 18px;
+}
+
+.native-learn-phone .native-learn-haru-copy small {
+  font-size: 12px;
+}
+
+.native-learn-phone .native-learn-schedule {
+  order: 2;
+  padding: 14px;
+}
+
+.native-learn-phone .native-learn-schedule footer {
+  display: none;
+}
+
+.native-learn-phone .native-learn-schedule-empty {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 0;
+  margin-top: 10px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.native-learn-phone .native-learn-schedule-empty svg {
+  width: 20px;
+  height: 20px;
+}
+
+.native-learn-phone-section {
+  order: 3;
+  margin: 10px 4px 0;
+  font-size: 19px;
+  font-weight: 700;
+  text-shadow: 0 1px 8px rgb(20 42 105 / 35%);
+}
+
+.native-learn-phone .native-learn-icons {
+  display: grid;
+  order: 4;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.native-learn-phone .native-learn-app-icon {
+  align-items: stretch;
+  justify-content: flex-start;
+  height: auto;
+  padding: 10px;
+  border: 1px solid rgb(255 255 255 / 60%);
+  border-radius: 20px;
+  color: #0f172a;
+  background: rgb(255 255 255 / 86%);
+  box-shadow: 0 12px 30px rgb(28 43 114 / 14%);
+  backdrop-filter: blur(24px) saturate(1.08);
+  text-align: left;
+}
+
+.native-learn-phone .native-learn-app-art {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1.45;
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.native-learn-phone .native-learn-app-icon:hover .native-learn-app-art {
+  transform: none;
+}
+
+.native-learn-phone .native-learn-app-icon > strong {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 19px;
+  text-shadow: none;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.native-learn-phone .native-learn-course-meta {
+  margin-top: 2px;
+  color: #64748b;
+  text-shadow: none;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.native-learn-phone .native-learn-create-art {
+  border: 1.5px dashed #c7cbe0;
+  color: #6366f1;
+  background: #f4f5fb;
+}
+
+.native-learn-phone .native-learn-pagination {
+  display: none;
+}
+
+.native-learn-phone .native-learn-dock {
+  --native-app-icon-size: 46px;
+  flex: none;
+  align-self: stretch;
+  justify-content: space-around;
+  width: auto;
+  margin: 0 10px max(10px, env(safe-area-inset-bottom));
+  padding: 8px 6px 6px;
+  border-radius: 26px;
+}
