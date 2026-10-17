@@ -17,6 +17,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
+  History,
   ChevronRight,
   CircleGauge,
   CloudUpload,
@@ -3322,6 +3323,14 @@ export function CourseWorkspace({
 
       <main className="conversation-workspace">
         <header className="conversation-header">
+          <button
+            type="button"
+            className="phone-back-button"
+            onClick={onBack}
+            aria-label="返回首页"
+          >
+            <ChevronLeft size={22} />
+          </button>
           <div className="compact-nav-actions">
             <button
               type="button"
@@ -3393,6 +3402,14 @@ export function CourseWorkspace({
             <SlidersHorizontal size={17} />
           </button>
           <div className="phone-header-actions">
+            <button
+              type="button"
+              className="phone-icon-action"
+              onClick={() => setMobilePanel('sessions')}
+              aria-label="聊天记录"
+            >
+              <History size={18} />
+            </button>
             <button type="button" onClick={openNotebookLibrary} aria-label="打开笔记">
               <BookOpen size={17} />
               <span>笔记</span>

@@ -3,6 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      // iPhone 上禁止整页缩放（包括点输入框时的自动放大）；iPad 和 Mac 不变。
+      if (Math.min(screen.width, screen.height) <= 600) {
+        document
+          .querySelector('meta[name="viewport"]')
+          .setAttribute(
+            'content',
+            'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover',
+          );
+      }
+    </script>
     <meta name="theme-color" content="#f8fafc" />
     <title>Syntara</title>
   </head>

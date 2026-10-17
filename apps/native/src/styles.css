@@ -8568,3 +8568,211 @@ textarea:focus-visible {
     display: none;
   }
 }
+
+/* iPhone 聊天页：返回键和聊天记录放在顶栏，消息不再横向溢出，历史改成整屏列表。 */
+.phone-back-button {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  html,
+  body {
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* iOS 在输入框字号小于 16px 时会自动放大页面。 */
+  input,
+  textarea,
+  select,
+  .conversation-composer textarea {
+    font-size: 16px;
+  }
+
+  .conversation-header .compact-nav-actions {
+    display: none;
+  }
+
+  .phone-back-button {
+    display: grid;
+    flex: none;
+    width: 34px;
+    height: 36px;
+    margin-left: -6px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: #0f172a;
+  }
+
+  .conversation-header .conversation-course-avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .conversation-course-title h1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .phone-header-actions > button.phone-icon-action {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .message-stream {
+    width: calc(100% - 24px);
+    padding-top: 16px;
+    gap: 16px;
+  }
+
+  .chat-message {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .chat-message > div {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .chat-message-user {
+    max-width: 86%;
+  }
+
+  .chat-message-assistant {
+    width: 100%;
+  }
+
+  .chat-message-assistant > img {
+    display: none;
+  }
+
+  .chat-message-assistant > div {
+    flex: 1;
+    padding: 2px 2px 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .chat-message-markdown .katex-display,
+  .chat-message-markdown table,
+  .chat-message-markdown pre {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .mobile-slide-panel.mobile-slide-panel-sessions {
+    width: 100%;
+    background: #f4f5f9;
+    box-shadow: none;
+  }
+
+  .mobile-slide-panel-sessions .sessions-panel {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .mobile-slide-panel-sessions .sessions-panel {
+    position: relative;
+  }
+
+  /* 关闭按钮和标题放在同一行，省掉单独的一行。 */
+  .mobile-slide-panel-sessions .sessions-back-row {
+    position: absolute;
+    top: calc(8px + env(safe-area-inset-top));
+    right: 8px;
+    z-index: 1;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .mobile-slide-panel-sessions .sessions-back-row .round-ghost-button,
+  .mobile-slide-panel-sessions .sessions-heading .round-ghost-button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .mobile-slide-panel-sessions .sessions-back-row .plain-row-button,
+  .mobile-slide-panel-sessions .sessions-footer {
+    display: none;
+  }
+
+  .mobile-slide-panel-sessions .sessions-heading {
+    min-height: 56px;
+    padding: 8px 56px 8px 20px;
+  }
+
+  .mobile-slide-panel-sessions .sessions-heading h2 {
+    font-family: inherit;
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  .mobile-slide-panel-sessions .new-conversation-button {
+    height: 44px;
+    border-radius: 14px;
+  }
+
+  .mobile-slide-panel-sessions .session-list {
+    flex: 0 1 auto;
+    overflow-y: auto;
+    margin: 0 16px calc(16px + env(safe-area-inset-bottom));
+    padding: 4px 0;
+    border-radius: 16px;
+    background: #fff;
+  }
+
+  .mobile-slide-panel-sessions .session-group-title {
+    display: none;
+  }
+
+  .mobile-slide-panel-sessions .session-row-shell {
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid #f1f2f5;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .mobile-slide-panel-sessions .session-row-shell:last-child {
+    border-bottom: 0;
+  }
+
+  .mobile-slide-panel-sessions .session-row-shell-active {
+    background: #eef0fe;
+  }
+
+  .mobile-slide-panel-sessions .session-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 13px 4px 13px 14px;
+  }
+
+  .mobile-slide-panel-sessions .session-row span {
+    color: #0f172a;
+    font-size: 15px;
+  }
+
+  .mobile-slide-panel-sessions .session-row time {
+    grid-column: auto;
+    color: #94a3b8;
+    font-size: 12px;
+  }
+
+  .mobile-slide-panel-sessions .session-row svg {
+    display: none;
+  }
+
+  /* 手机没有悬停，删除按钮一直显示。 */
+  .mobile-slide-panel-sessions .session-delete-button {
+    opacity: 1;
+  }
+}
