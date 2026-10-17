@@ -30,6 +30,25 @@ import { ProfileCenterApp } from './ProfileCenterApp';
 
 const UPCOMING_SCHEDULE_LIMIT = 5;
 const HOME_GRID_ROWS = 4;
+const PHONE_LAYOUT_QUERY = '(max-width: 600px)';
+
+/** iPhone 宽度下首页改为纵向滚动布局，不再沿用 iPad 主屏网格与分页。 */
+function usePhoneLayout(): boolean {
+  const [phone, setPhone] = useState(() => window.matchMedia(PHONE_LAYOUT_QUERY).matches);
+  useEffect(() => {
+    const media = window.matchMedia(PHONE_LAYOUT_QUERY);
+    const update = () => setPhone(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return phone;
+}
+
+function formatPhoneHomeDate(date: Date): string {
+  const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+  return `${date.getMonth() + 1}月${date.getDate()}日 星期${weekdays[date.getDay()]}`;
+}
 
 function resolveHomeAppColumns(width: number): number {
   if (width >= 1_080) return 4;
@@ -79,6 +98,9 @@ const dockApps: DockApp[] = [
   { id: 'store', label: '课程商城', iconUrl: storeIconUrl },
   { id: 'settings', label: '设置', iconUrl: settingsIconUrl },
 ];
+
+// iPhone Dock 只保留日历与个人中心。
+const PHONE_DOCK_APP_IDS: ReadonlySet<DockAppId> = new Set(['calendar', 'profile']);
 
 const KIND_LABELS: Record<LocalCourseEventKind, string> = {
   assignment: '作业',
@@ -135,14 +157,18 @@ export function LearnHome({
   const [avatarRevision, setAvatarRevision] = useState(0);
   const [appColumns, setAppColumns] = useState(4);
   const stageRef = useRef<HTMLDivElement>(null);
-  const homeItems = useMemo(
-    () => [
-      { id: 'new-course', kind: 'create' as const },
-      ...courses.map((course) => ({ id: course.id, kind: 'course' as const, course })),
-    ],
-    [courses],
-  );
-  const iconsPerPage = appColumns * HOME_GRID_ROWS;
+  const phoneLayout = usePhoneLayout();
+  const homeItems = useMemo(() => {
+    const createItem = { id: 'new-course', kind: 'create' as const };
+    const courseItems = courses.map((course) => ({
+      id: course.id,
+      kind: 'course' as const,
+      course,
+    }));
+    // iPhone 上不提供新建课程入口，只列出已有课程。
+    return phoneLayout ? courseItems : [createItem, ...courseItems];
+  }, [courses, phoneLayout]);
+  const iconsPerPage = phoneLayout ? homeItems.length || 1 : appColumns * HOME_GRID_ROWS;
   const pageCount = Math.max(1, Math.ceil(homeItems.length / iconsPerPage));
   const currentPage = Math.min(page, pageCount - 1);
   const visibleItems = homeItems.slice(
@@ -226,7 +252,10 @@ export function LearnHome({
   }, []);
 
   return (
-    <section className="native-learn-home" aria-label="学习应用主页">
+    <section
+      className={`native-learn-home${phoneLayout ? ' native-learn-phone' : ''}`}
+      aria-label="学习应用主页"
+    >
       {activeDockApp === 'calendar' ? (
         <GlobalCalendarApp
           schedules={allSchedules.map((item) => ({
@@ -275,6 +304,13 @@ export function LearnHome({
           className="native-learn-stage"
           style={{ '--home-app-columns': appColumns } as CSSProperties}
         >
+          {phoneLayout ? (
+            <header className="native-learn-phone-header">
+              <span>{formatPhoneHomeDate(new Date())}</span>
+              <h1>学习</h1>
+            </header>
+          ) : null}
+
           <article className="native-learn-widget native-learn-schedule">
             <button
               type="button"
@@ -338,7 +374,11 @@ export function LearnHome({
           </article>
 
           <article className="native-learn-widget native-learn-haru" aria-label="Haru 学习伙伴">
-            <HaruLive2D fallbackSrc={haruImageUrl} />
+            {phoneLayout ? (
+              <img className="native-learn-haru-avatar" src={haruImageUrl} alt="" aria-hidden />
+            ) : (
+              <HaruLive2D fallbackSrc={haruImageUrl} />
+            )}
             <div className="native-learn-haru-copy">
               <span>SYNTARA</span>
               <strong>Haru</strong>
@@ -346,9 +386,11 @@ export function LearnHome({
             </div>
           </article>
 
+          {phoneLayout ? <h2 className="native-learn-phone-section">我的课程</h2> : null}
+
           <div className="native-learn-icons" aria-label="课程与学习应用">
             {visibleItems.map((item, index) => {
-              const gridStyle = homeIconGridStyle(index, appColumns);
+              const gridStyle = phoneLayout ? undefined : homeIconGridStyle(index, appColumns);
               if (item.kind === 'create') {
                 return (
                   <button
@@ -434,18 +476,20 @@ export function LearnHome({
         </nav>
 
         <nav className="native-learn-dock" aria-label="系统应用 Dock">
-          {dockApps.map((app) => (
-            <button
-              type="button"
-              key={app.id}
-              onClick={() => setActiveDockApp(app.id)}
-              aria-label={app.label}
-              title={app.label}
-            >
-              <img src={app.iconUrl} alt="" aria-hidden draggable={false} />
-              <span>{app.label}</span>
-            </button>
-          ))}
+          {(phoneLayout ? dockApps.filter((app) => PHONE_DOCK_APP_IDS.has(app.id)) : dockApps).map(
+            (app) => (
+              <button
+                type="button"
+                key={app.id}
+                onClick={() => setActiveDockApp(app.id)}
+                aria-label={app.label}
+                title={app.label}
+              >
+                <img src={app.iconUrl} alt="" aria-hidden draggable={false} />
+                <span>{app.label}</span>
+              </button>
+            ),
+          )}
         </nav>
       </div>
 

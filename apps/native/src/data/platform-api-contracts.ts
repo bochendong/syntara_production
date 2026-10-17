@@ -121,6 +121,8 @@ export interface NativeTeachingTurnPayload {
     id?: string;
     recentMessages: NativeTeachingTurnMessage[];
   };
+  /** Compressed photos of the problem or the learner's work for this turn only. */
+  images?: Array<{ name: string; mimeType: 'image/jpeg'; dataBase64: string }>;
   localContext?: {
     calendarEvents?: unknown[];
     memories?: unknown[];
