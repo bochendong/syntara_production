@@ -8382,6 +8382,17 @@ textarea:focus-visible {
   text-shadow: 0 1px 8px rgb(20 42 105 / 35%);
 }
 
+.native-learn-phone-empty {
+  order: 4;
+  margin: 0 4px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 86%);
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .native-learn-phone .native-learn-icons {
   display: grid;
   order: 4;

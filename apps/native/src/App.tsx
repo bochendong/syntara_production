@@ -8,6 +8,7 @@ import { NotebookLibraryPage } from './components/NotebookLibraryPage';
 import { ProblemBankPage, type ProblemBankLaunch } from './components/ProblemBankPage';
 import { ProblemPracticePage } from './components/ProblemPracticePage';
 import { parseSyntaraArchive } from './data/archive';
+import { syncPlatformCourses } from './data/chat-sync';
 import { getLocalRepository, type LocalBackendKind } from './data/repository';
 import type { LocalCourseSummary, LocalCourseWorkspace } from './domain/models';
 
@@ -29,6 +30,7 @@ function updateWithPlatformTransition(update: () => void) {
 
 function AuthenticatedApp() {
   const [courses, setCourses] = useState<LocalCourseSummary[]>([]);
+  const [platformCourseIds, setPlatformCourseIds] = useState<string[] | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<LocalCourseWorkspace | null>(null);
   const [surface, setSurface] = useState<AppSurface>('learn');
@@ -46,6 +48,7 @@ function AuthenticatedApp() {
     const repository = await getLocalRepository();
     const startedAt = performance.now();
     await repository.bootstrap();
+    setPlatformCourseIds(await syncPlatformCourses(repository));
     const loadedCourses = await repository.listCourseSummaries();
     setBackendKind(repository.kind);
     setCourses(loadedCourses);
@@ -238,6 +241,7 @@ function AuthenticatedApp() {
     content = (
       <LearnHome
         courses={courses}
+        platformCourseIds={platformCourseIds}
         activeCourseId={selectedCourseId}
         backendLabel={backendLabel}
         loadDuration={loadDuration}

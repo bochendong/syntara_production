@@ -1112,4 +1112,55 @@ export class BrowserLocalRepository implements LocalRepository {
     );
     return summarizeArchive(archive);
   }
+
+  async upsertPlatformCourses(courses: LocalCourse[]): Promise<void> {
+    await this.database.courses.bulkPut(courses);
+  }
+
+  async getPlatformCourseIds(): Promise<string[] | null> {
+    const metadata = await this.database.appMetadata.get('platform-course-ids');
+    if (!metadata) return null;
+    try {
+      const parsed = JSON.parse(metadata.value) as unknown;
+      return Array.isArray(parsed)
+        ? parsed.filter((id): id is string => typeof id === 'string')
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async setPlatformCourseIds(courseIds: string[]): Promise<void> {
+    await this.database.appMetadata.put({
+      key: 'platform-course-ids',
+      value: JSON.stringify(courseIds),
+      updatedAt: Date.now(),
+    });
+  }
+
+  async mergeSyncedConversation(
+    conversation: LocalConversation,
+    messages: LocalMessage[],
+  ): Promise<number> {
+    return this.database.transaction(
+      'rw',
+      this.database.conversations,
+      this.database.messages,
+      async () => {
+        const current = await this.database.conversations.get(conversation.id);
+        await this.database.conversations.put({
+          ...conversation,
+          updatedAt: Math.max(current?.updatedAt ?? 0, conversation.updatedAt),
+        });
+        const existing = new Set(
+          (await this.database.messages.bulkGet(messages.map((message) => message.id)))
+            .filter(Boolean)
+            .map((message) => message!.id),
+        );
+        const fresh = messages.filter((message) => !existing.has(message.id));
+        await this.database.messages.bulkAdd(fresh);
+        return fresh.length;
+      },
+    );
+  }
 }

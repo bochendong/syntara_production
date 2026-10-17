@@ -28,12 +28,23 @@ const AUTH_DEVICE_TOKEN_PATH: &str = "/api/native/v1/auth/device/token";
 const AUTH_REFRESH_PATH: &str = "/api/native/v1/auth/refresh";
 const AUTH_ME_PATH: &str = "/api/native/v1/auth/me";
 const AUTH_LOGOUT_PATH: &str = "/api/native/v1/auth/logout";
+const COURSES_PATH: &str = "/api/native/v1/courses";
+const CONVERSATIONS_PATH: &str = "/api/native/v1/conversations";
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlatformAuthRequest {
     #[serde(default)]
     pub(crate) syntara_token: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlatformQueryRequest {
+    #[serde(default)]
+    pub(crate) syntara_token: Option<String>,
+    #[serde(default)]
+    pub(crate) query: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -424,6 +435,15 @@ pub async fn get_json(path: &str, syntara_token: Option<&str>) -> Result<Value, 
         DEFAULT_TIMEOUT,
     )
     .await
+}
+
+fn path_with_query(path: &str, query: &std::collections::BTreeMap<String, String>) -> String {
+    if query.is_empty() {
+        return path.to_string();
+    }
+    let mut url = Url::parse("http://localhost/").expect("static URL is valid");
+    url.query_pairs_mut().extend_pairs(query.iter());
+    format!("{path}?{}", url.query().unwrap_or_default())
 }
 
 pub async fn post_json(
@@ -872,6 +892,40 @@ pub async fn native_transcribe_audio(request: PlatformJsonRequest) -> Result<Val
 #[tauri::command]
 pub async fn native_parse_syllabus(request: PlatformJsonRequest) -> Result<Value, String> {
     post_json(SYLLABUS_PARSE_PATH, &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
+pub async fn native_list_platform_courses(request: PlatformAuthRequest) -> Result<Value, String> {
+    get_json(COURSES_PATH, request.syntara_token.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn native_get_conversations(request: PlatformQueryRequest) -> Result<Value, String> {
+    get_json(
+        &path_with_query(CONVERSATIONS_PATH, &request.query),
+        request.syntara_token.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn native_sync_conversation(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json(CONVERSATIONS_PATH, &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
+pub async fn native_delete_conversation(request: PlatformQueryRequest) -> Result<Value, String> {
+    request_json(
+        Method::DELETE,
+        &path_with_query(CONVERSATIONS_PATH, &request.query),
+        None,
+        request.syntara_token.as_deref(),
+        None,
+        None,
+        None,
+        DEFAULT_TIMEOUT,
+    )
+    .await
 }
 
 #[cfg(test)]

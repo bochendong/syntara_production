@@ -51,6 +51,8 @@ function homeIconGridStyle(index: number, appColumns: number): CSSProperties {
 
 type LearnHomeProps = {
   courses: LocalCourseSummary[];
+  /** 网页账号下的课程 id；手机上只显示这些课程。null 表示还没同步过。 */
+  platformCourseIds: string[] | null;
   activeCourseId: string | null;
   backendLabel: string;
   loadDuration: number | null;
@@ -129,6 +131,7 @@ function toHomeScheduleItem(event: LocalCourseEvent, course: LocalCourseSummary)
 
 export function LearnHome({
   courses,
+  platformCourseIds,
   activeCourseId,
   backendLabel,
   loadDuration,
@@ -146,14 +149,17 @@ export function LearnHome({
   const phoneLayout = usePhoneLayout();
   const homeItems = useMemo(() => {
     const createItem = { id: 'new-course', kind: 'create' as const };
-    const courseItems = courses.map((course) => ({
+    const platformIds = platformCourseIds ? new Set(platformCourseIds) : null;
+    const listedCourses =
+      phoneLayout && platformIds ? courses.filter((course) => platformIds.has(course.id)) : courses;
+    const courseItems = listedCourses.map((course) => ({
       id: course.id,
       kind: 'course' as const,
       course,
     }));
     // iPhone 上不提供新建课程入口，只列出已有课程。
     return phoneLayout ? courseItems : [createItem, ...courseItems];
-  }, [courses, phoneLayout]);
+  }, [courses, phoneLayout, platformCourseIds]);
   const iconsPerPage = phoneLayout ? homeItems.length || 1 : appColumns * HOME_GRID_ROWS;
   const pageCount = Math.max(1, Math.ceil(homeItems.length / iconsPerPage));
   const currentPage = Math.min(page, pageCount - 1);
@@ -373,6 +379,14 @@ export function LearnHome({
           </article>
 
           {phoneLayout ? <h2 className="native-learn-phone-section">我的课程</h2> : null}
+
+          {phoneLayout && !homeItems.length ? (
+            <p className="native-learn-phone-empty">
+              {platformCourseIds
+                ? '这个账号还没有课程。请先在网页上报名或购买课程，回到这里就会出现。'
+                : '正在从网页同步你的课程…'}
+            </p>
+          ) : null}
 
           <div className="native-learn-icons" aria-label="课程与学习应用">
             {visibleItems.map((item, index) => {

@@ -118,6 +118,16 @@ export interface LocalRepository {
   importTextMaterial(input: ImportTextMaterialInput): Promise<LocalNotebook>;
   importTextProblem(input: ImportTextProblemInput): Promise<LocalProblem>;
   importArchive(archive: SyntaraArchiveV1): Promise<ArchiveImportSummary>;
+  /** Courses imported from the web platform keep their server id as the local id. */
+  upsertPlatformCourses(courses: LocalCourse[]): Promise<void>;
+  /** Ids of the signed-in account's platform courses, or null before the first sync. */
+  getPlatformCourseIds(): Promise<string[] | null>;
+  setPlatformCourseIds(courseIds: string[]): Promise<void>;
+  /** Adds a conversation pulled from the platform; returns how many new messages were stored. */
+  mergeSyncedConversation(
+    conversation: LocalConversation,
+    messages: LocalMessage[],
+  ): Promise<number>;
 }
 
 let repositoryPromise: Promise<LocalRepository> | null = null;
