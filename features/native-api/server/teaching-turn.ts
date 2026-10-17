@@ -75,6 +75,13 @@ export const nativeBoundedAttemptContextSchema = z.object({
   attemptedAt: z.string().trim().max(80).optional(),
 });
 
+export const nativeTeachingTurnImageSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  // The App compresses photos before sending; ~2.6 MB of base64 is ~2 MB of image.
+  dataBase64: z.string().min(1).max(2_800_000),
+});
+
 export const nativeTeachingTurnRequestSchema = z.object({
   requestId: z.string().trim().min(1).max(160),
   clientTurnId: z.string().trim().min(1).max(160).optional(),
@@ -98,6 +105,7 @@ export const nativeTeachingTurnRequestSchema = z.object({
       )
       .max(12),
   }),
+  images: z.array(nativeTeachingTurnImageSchema).max(4).default([]),
   localContext: z
     .object({
       calendarEvents: z.array(nativeBoundedRecordSchema).max(120).default([]),
@@ -210,7 +218,12 @@ function learnInput(input: NativeTeachingTurnRequest) {
   return {
     question,
     recentMessages: input.conversation.recentMessages.map(({ role, text }) => ({ role, text })),
-    attachments: [],
+    attachments: input.images.map((image, index) => ({
+      id: `native-image-${index + 1}`,
+      name: image.name,
+      mimeType: image.mimeType,
+      size: Math.floor((image.dataBase64.length * 3) / 4),
+    })),
     courseId: input.course.id,
     courseName: input.course.name,
     courseCode: input.course.code ?? undefined,
@@ -406,8 +419,10 @@ export async function runNativeTeachingTurn(
   const evidence = collectEvidence(decision);
   let answer = decision.replyText.trim();
   let model: Record<string, unknown> | undefined;
+  // A photo of a problem or of the learner's work always gets a direct, image-aware answer.
+  const hasImages = input.images.length > 0;
 
-  if (decision.answerMode === 'course_answer') {
+  if (decision.answerMode === 'course_answer' || hasImages) {
     const resolved = await resolveModelFromHeaders(request, { allowOpenAIModelOverride: true });
     const sourceNotes = [
       ...input.localContext.notebookExcerpts.map((item, index) =>
@@ -433,11 +448,12 @@ export async function runNativeTeachingTurn(
     const explanation = await generatePublicExplanation({
       model: resolved.model,
       input: {
-        kind: 'concept',
+        kind: hasImages ? 'problem' : 'concept',
         topic,
         courseName: input.course.name,
         language: input.preferences.language,
         sourceNotes,
+        images: input.images.map(({ dataBase64, mimeType }) => ({ dataBase64, mimeType })),
       },
     });
     answer = explanation.markdown;

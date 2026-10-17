@@ -66,6 +66,7 @@ export interface StreamAssistantInput {
   conversationId: string;
   messages: LocalMessage[];
   model: SupportedAiModel;
+  images?: Array<{ name: string; mimeType: 'image/jpeg'; dataBase64: string }>;
   localContext?: {
     calendarEvents?: unknown[];
     memories?: unknown[];
@@ -172,6 +173,7 @@ export async function streamAssistantReply(
               : [],
           ),
         },
+        ...(input.images?.length ? { images: input.images } : {}),
         localContext: input.localContext ?? {},
         preferences: {
           language: 'zh-CN',

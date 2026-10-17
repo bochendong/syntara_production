@@ -14,7 +14,8 @@ import { withRequestContext } from '@/lib/server/request-context';
 
 export const runtime = 'nodejs';
 export const maxDuration = 180;
-const MAX_NATIVE_TURN_BODY_BYTES = 2 * 1024 * 1024;
+// Room for up to four compressed photos alongside the bounded course context.
+const MAX_NATIVE_TURN_BODY_BYTES = 12 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   const requestId = publicApiRequestId(request);
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
       requestId,
       413,
       'invalid_request',
-      'Native teaching-turn context exceeds the 2 MB request limit.',
+      'Native teaching-turn context exceeds the 12 MB request limit.',
     );
   }
 

@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <key>NSCameraUsageDescription</key>
+  <string>拍下题目或作业，发给 AI 讲解。</string>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>从相册选择题目或作业图片，发给 AI 讲解。</string>
   <key>UIApplicationSupportsIndirectInputEvents</key>
   <true/>
   <key>UIRequiresFullScreen</key>

@@ -29,6 +29,7 @@ import {
   Menu,
   MessageCircle,
   PanelLeftClose,
+  ImagePlus,
   Paperclip,
   Plus,
   Save,
@@ -59,6 +60,12 @@ import {
   type ParsedSyllabusDocument,
   type SupportedAiModel,
 } from '../data/ai-client';
+import {
+  MAX_CHAT_IMAGES,
+  chatImageThumbnails,
+  prepareChatImage,
+  type PendingChatImage,
+} from '../data/chat-images';
 import {
   createNativeMiniLecture,
   getNativePlatformCapabilities,
@@ -135,7 +142,21 @@ type PlatformAiAccess = {
 };
 
 function ChatMessageContent({ message }: { message: LocalMessage }) {
-  if (message.role === 'user') return <p>{message.text}</p>;
+  if (message.role === 'user') {
+    const images = chatImageThumbnails(message.metadata);
+    return (
+      <>
+        {images.length ? (
+          <div className="chat-message-images">
+            {images.map((image, index) => (
+              <img key={index} src={image.thumbnailDataUrl} alt={image.name} />
+            ))}
+          </div>
+        ) : null}
+        <p>{message.text}</p>
+      </>
+    );
+  }
 
   return <ProblemRichText className="chat-message-markdown" content={message.text} />;
 }
@@ -1360,6 +1381,8 @@ export function CourseWorkspace({
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [draft, setDraft] = useState('');
+  const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([]);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [activeTool, setActiveTool] = useState<CourseTool>('overview');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [busy, setBusy] = useState(false);
@@ -2075,6 +2098,26 @@ export function CourseWorkspace({
       workspace.course.id,
       workspace.course.name,
     ],
+  );
+
+  const handleImageSelection = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files || []);
+      event.target.value = '';
+      if (!files.length) return;
+      void (async () => {
+        setError(null);
+        const room = MAX_CHAT_IMAGES - pendingImages.length;
+        if (room <= 0) {
+          setError(`一次最多发送 ${MAX_CHAT_IMAGES} 张图片。`);
+          return;
+        }
+        if (files.length > room) setError(`一次最多发送 ${MAX_CHAT_IMAGES} 张图片，多出的已忽略。`);
+        const prepared = await Promise.all(files.slice(0, room).map(prepareChatImage));
+        setPendingImages((current) => [...current, ...prepared].slice(0, MAX_CHAT_IMAGES));
+      })().catch((cause) => setError(errorMessage(cause)));
+    },
+    [pendingImages.length],
   );
 
   const handleAttachmentSelection = useCallback(
@@ -2859,7 +2902,8 @@ export function CourseWorkspace({
   const send = useCallback(
     async (event: FormEvent) => {
       event.preventDefault();
-      const text = draft.trim();
+      const images = pendingImages;
+      const text = draft.trim() || (images.length ? '请看图片里的题目，帮我讲解。' : '');
       if (!text || busy) return;
       if (!teachingTurnAvailable) {
         setError(platformAiAccess.message);
@@ -2868,6 +2912,7 @@ export function CourseWorkspace({
       setBusy(true);
       setError(null);
       setDraft('');
+      setPendingImages([]);
       let userMessage: LocalMessage | null = null;
       let optimisticAssistantId: string | null = null;
       try {
@@ -2888,6 +2933,16 @@ export function CourseWorkspace({
           conversationId,
           role: 'user',
           text,
+          ...(images.length
+            ? {
+                metadata: {
+                  images: images.map(({ name, thumbnailDataUrl }) => ({
+                    name,
+                    thumbnailDataUrl,
+                  })),
+                },
+              }
+            : {}),
         });
         const history = [...messages, userMessage].slice(-12);
         optimisticAssistantId = `stream-${crypto.randomUUID()}`;
@@ -2984,6 +3039,11 @@ export function CourseWorkspace({
             conversationId,
             messages: history,
             model: aiModel,
+            images: images.map(({ name, mimeType, dataBase64 }) => ({
+              name,
+              mimeType,
+              dataBase64,
+            })),
             localContext: {
               calendarEvents: scheduleItems.slice(0, 120),
               memories: [
@@ -3058,7 +3118,10 @@ export function CourseWorkspace({
         });
         await onWorkspaceChanged();
       } catch (cause) {
-        if (!userMessage) setDraft(text);
+        if (!userMessage) {
+          setDraft(draft);
+          setPendingImages(images);
+        }
         if (optimisticAssistantId) {
           setMessages((current) =>
             current.filter((message) => message.id !== optimisticAssistantId),
@@ -3087,6 +3150,7 @@ export function CourseWorkspace({
       workspace.problems,
       scheduleItems,
       teachingTurnAvailable,
+      pendingImages,
     ],
   );
 
@@ -3400,10 +3464,37 @@ export function CourseWorkspace({
         </div>
 
         <footer className="conversation-composer-footer">
+          {pendingImages.length ? (
+            <div className="composer-image-strip" aria-label="待发送的图片">
+              {pendingImages.map((image) => (
+                <span key={image.id} className="composer-image-thumb">
+                  <img src={image.thumbnailDataUrl} alt={image.name} />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPendingImages((current) => current.filter((item) => item.id !== image.id))
+                    }
+                    aria-label={`移除图片 ${image.name}`}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
           <form className="conversation-composer" onSubmit={(event) => void send(event)}>
             <button
               type="button"
               className="composer-icon-button"
+              onClick={() => imageInputRef.current?.click()}
+              aria-label="拍照或选择图片"
+              title="拍照或从相册选择题目、作业图片"
+            >
+              <ImagePlus size={17} />
+            </button>
+            <button
+              type="button"
+              className="composer-icon-button composer-material-button"
               onClick={() => attachmentInputRef.current?.click()}
               aria-label="添加本机资料"
               title="导入到当前课程的本机资料库"
@@ -3447,7 +3538,7 @@ export function CourseWorkspace({
             <button
               type="submit"
               className="composer-send-button"
-              disabled={!draft.trim() || busy || !teachingTurnAvailable}
+              disabled={(!draft.trim() && !pendingImages.length) || busy || !teachingTurnAvailable}
               aria-label={teachingTurnAvailable ? '发送' : platformAiAccess.message}
               title={teachingTurnAvailable ? undefined : platformAiAccess.message}
             >
@@ -4005,6 +4096,15 @@ export function CourseWorkspace({
         </div>
       ) : null}
 
+      <input
+        ref={imageInputRef}
+        type="file"
+        hidden
+        accept="image/*"
+        multiple
+        onChange={handleImageSelection}
+        tabIndex={-1}
+      />
       <input
         ref={attachmentInputRef}
         type="file"
