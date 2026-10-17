@@ -27,6 +27,7 @@ export type PublicApiErrorCode =
   | 'rate_limited'
   | 'expired_token'
   | 'invalid_grant'
+  | 'activation_required'
   | 'upstream_error'
   | 'generation_failed'
   | 'internal_error';

@@ -196,11 +196,14 @@ model User {
   computeCreditsBalance  Int       @default(0)
   purchaseCreditsBalance Int       @default(0)
   stripeCustomerId       String?   @unique
+  /// 兑换激活码后才能登录 Syntara App（手机端）。
+  nativeAppActivatedAt   DateTime?
 
   accounts                   Account[]
   sessions                   Session[]
   nativeDeviceAuthorizations NativeDeviceAuthorization[]
   nativeDeviceSessions       NativeDeviceSession[]
+  nativeActivationCodes      NativeActivationCode[]
 
   courses                   Course[]
   notebooks                 Notebook[]
@@ -243,13 +246,13 @@ model User {
   courseQuestionRuns        CourseQuestionRun[]
   learningCalendarEvents    LearningCalendarEvent[]
   calendarMutations         LearningCalendarMutation[]
-  forumPosts                CourseForumPost[]          @relation("CourseForumPostAuthor")
-  pinnedForumPosts          CourseForumPost[]          @relation("CourseForumPostPinnedBy")
-  forumAnswers              CourseForumAnswer[]        @relation("CourseForumAnswerAuthor")
-  acceptedForumAnswers      CourseForumAnswer[]        @relation("CourseForumAnswerAcceptedBy")
-  forumComments             CourseForumComment[]       @relation("CourseForumCommentAuthor")
-  forumAttachments          CourseForumAttachment[]    @relation("CourseForumAttachmentUploader")
-  externalCourseBindings    ExternalCourseBinding[]    @relation("ExternalCourseBindingActivator")
+  forumPosts                CourseForumPost[]            @relation("CourseForumPostAuthor")
+  pinnedForumPosts          CourseForumPost[]            @relation("CourseForumPostPinnedBy")
+  forumAnswers              CourseForumAnswer[]          @relation("CourseForumAnswerAuthor")
+  acceptedForumAnswers      CourseForumAnswer[]          @relation("CourseForumAnswerAcceptedBy")
+  forumComments             CourseForumComment[]         @relation("CourseForumCommentAuthor")
+  forumAttachments          CourseForumAttachment[]      @relation("CourseForumAttachmentUploader")
+  externalCourseBindings    ExternalCourseBinding[]      @relation("ExternalCourseBindingActivator")
   externalCourseMemberships ExternalCourseMembership[]
 
   createdAt DateTime @default(now())
@@ -338,6 +341,22 @@ model NativeDeviceSession {
 
   @@index([userId, revokedAt, refreshExpiresAt])
   @@index([deviceId, revokedAt])
+}
+
+/// 一次性激活码：在网页上兑换后开通 Syntara App 的使用权限。
+model NativeActivationCode {
+  id           String    @id @default(cuid())
+  code         String    @unique @db.VarChar(32)
+  note         String?   @db.VarChar(200)
+  createdBy    String?   @db.VarChar(320)
+  redeemedById String?
+  redeemedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  redeemedBy User? @relation(fields: [redeemedById], references: [id], onDelete: SetNull)
+
+  @@index([redeemedAt, createdAt(sort: Desc)])
+  @@index([redeemedById])
 }
 
 model Course {
@@ -448,45 +467,45 @@ model CourseRulePack {
 }
 
 model CourseAssignment {
-  id                String   @id @default(cuid())
-  courseId          String
-  title             String   @db.VarChar(200)
-  instructions      String   @db.Text
-  schoolTaskText    String?  @db.Text
-  schoolFileName    String?  @db.VarChar(255)
-  schoolMimeType    String?  @db.VarChar(120)
-  schoolFileData    Bytes?
-  schoolFileText    String?  @db.Text
-  published         Boolean  @default(false)
-  exemplarFileName  String?  @db.VarChar(255)
-  exemplarMimeType  String?  @db.VarChar(120)
-  exemplarFileData  Bytes?
-  exemplarText      String?  @db.Text
-  version           Int      @default(1)
-  course            Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  submissions       CourseAssignmentSubmission[]
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String                       @id @default(cuid())
+  courseId         String
+  title            String                       @db.VarChar(200)
+  instructions     String                       @db.Text
+  schoolTaskText   String?                      @db.Text
+  schoolFileName   String?                      @db.VarChar(255)
+  schoolMimeType   String?                      @db.VarChar(120)
+  schoolFileData   Bytes?
+  schoolFileText   String?                      @db.Text
+  published        Boolean                      @default(false)
+  exemplarFileName String?                      @db.VarChar(255)
+  exemplarMimeType String?                      @db.VarChar(120)
+  exemplarFileData Bytes?
+  exemplarText     String?                      @db.Text
+  version          Int                          @default(1)
+  course           Course                       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions      CourseAssignmentSubmission[]
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
 
   @@index([courseId, createdAt(sort: Desc)])
 }
 
 model CourseAssignmentSubmission {
-  id             String           @id @default(cuid())
-  assignmentId   String
-  studentId      String
-  fileName       String           @db.VarChar(255)
-  mimeType       String           @db.VarChar(120)
-  fileData       Bytes
-  extractedText  String           @db.Text
-  feedbackJson   Json?
-  reviewStatus   String           @default("pending") @db.VarChar(24)
-  reviewError    String?          @db.Text
-  sourceVersion  Int
-  assignment     CourseAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  student        User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  assignmentId  String
+  studentId     String
+  fileName      String           @db.VarChar(255)
+  mimeType      String           @db.VarChar(120)
+  fileData      Bytes
+  extractedText String           @db.Text
+  feedbackJson  Json?
+  reviewStatus  String           @default("pending") @db.VarChar(24)
+  reviewError   String?          @db.Text
+  sourceVersion Int
+  assignment    CourseAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student       User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   @@index([assignmentId, createdAt(sort: Desc)])
   @@index([studentId, assignmentId, createdAt(sort: Desc)])
@@ -1075,16 +1094,16 @@ model AgentEnvelope {
 }
 
 model SystemLLMConfig {
-  lowModelId String @default("gpt-5.6-luna")
-  mediumModelId String @default("gpt-5.6-sol")
-  highModelId String @default("gpt-6-astra")
-  id         String   @id @default("default")
-  providerId String   @default("openai")
-  modelId    String   @default("gpt-5.6-sol")
-  apiKey     String   @db.Text
-  baseUrl    String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  lowModelId    String   @default("gpt-5.6-luna")
+  mediumModelId String   @default("gpt-5.6-sol")
+  highModelId   String   @default("gpt-6-astra")
+  id            String   @id @default("default")
+  providerId    String   @default("openai")
+  modelId       String   @default("gpt-5.6-sol")
+  apiKey        String   @db.Text
+  baseUrl       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model LLMUsageLog {
@@ -1102,7 +1121,7 @@ model LLMUsageLog {
   totalTokens  Int      @default(0)
   createdAt    DateTime @default(now())
 
-  requestContent String? @db.Text
+  requestContent  String? @db.Text
   responseContent String? @db.Text
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -1917,28 +1936,28 @@ model NotebookReview {
 
 // Durable AI work. Payloads are immutable and scoped to an authenticated owner.
 model BackgroundJob {
-  id           String   @id @default(cuid())
-  ownerId      String
-  courseId     String?
-  kind         String
-  dedupeKey    String
-  inputHash    String
-  payload      Json
-  status       String   @default("queued")
-  attempts     Int      @default(0)
-  maxAttempts  Int      @default(3)
-  availableAt  DateTime @default(now())
-  leaseToken   String?
-  leaseUntil   DateTime?
-  result       Bytes?
-  error        String?  @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  completedAt  DateTime?
+  id          String    @id @default(cuid())
+  ownerId     String
+  courseId    String?
+  kind        String
+  dedupeKey   String
+  inputHash   String
+  payload     Json
+  status      String    @default("queued")
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  availableAt DateTime  @default(now())
+  leaseToken  String?
+  leaseUntil  DateTime?
+  result      Bytes?
+  error       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
 
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  course Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  steps BackgroundJobStep[]
+  owner  User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course Course?             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  steps  BackgroundJobStep[]
 
   @@unique([ownerId, dedupeKey])
   @@index([status, availableAt, leaseUntil])
@@ -1946,9 +1965,10 @@ model BackgroundJob {
 }
 
 model BackgroundJobStep {
-  jobId String
-  key String
+  jobId  String
+  key    String
   result Bytes
-  job BackgroundJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job    BackgroundJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
   @@id([jobId, key])
 }
