@@ -116,6 +116,7 @@ import type {
   NativeReviewPlanCalendarItem,
   NativeReviewPlanTask,
 } from '../domain/teaching';
+import { usePhoneLayout } from '../lib/use-phone-layout';
 
 type CourseTool = 'overview' | 'library' | 'calendar' | 'settings';
 type MobilePanel = 'sessions' | 'tools' | 'progress' | null;
@@ -1382,6 +1383,8 @@ export function CourseWorkspace({
   const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([]);
+  // 手机端做题困难：聊天里不出现练习、复习题单和课堂讲解入口。
+  const phoneLayout = usePhoneLayout();
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [activeTool, setActiveTool] = useState<CourseTool>('overview');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
@@ -3376,10 +3379,18 @@ export function CourseWorkspace({
                 {[
                   '我现在学到哪里了？',
                   '帮我安排今天复习',
-                  '给我开一个小测',
+                  phoneLayout ? '拍一道题问 Haru' : '给我开一个小测',
                   '我最近哪里最薄弱？',
                 ].map((suggestion) => (
-                  <button type="button" key={suggestion} onClick={() => setDraft(suggestion)}>
+                  <button
+                    type="button"
+                    key={suggestion}
+                    onClick={() =>
+                      suggestion === '拍一道题问 Haru'
+                        ? imageInputRef.current?.click()
+                        : setDraft(suggestion)
+                    }
+                  >
                     {suggestion}
                   </button>
                 ))}
@@ -3398,7 +3409,8 @@ export function CourseWorkspace({
                 const nonLectureActions = (message.metadata?.learningActions ?? []).filter(
                   (action) =>
                     action.kind !== 'classroom.propose_temporary_explanation' &&
-                    action.kind !== 'image.propose_generation',
+                    action.kind !== 'image.propose_generation' &&
+                    !(phoneLayout && action.kind === 'practice.propose_generation'),
                 );
                 return (
                   <article className={`chat-message chat-message-${message.role}`} key={message.id}>
@@ -3422,7 +3434,7 @@ export function CourseWorkspace({
                       ) : (
                         <ChatMessageContent message={message} />
                       )}
-                      {message.metadata?.reviewPlan ? (
+                      {message.metadata?.reviewPlan && !phoneLayout ? (
                         <NativeReviewPlanCard
                           courseId={workspace.course.id}
                           plan={message.metadata.reviewPlan}
@@ -3440,7 +3452,7 @@ export function CourseWorkspace({
                           onExecute={(action) => void executeLearningAction(message, action)}
                         />
                       ) : null}
-                      {miniLecture ? (
+                      {phoneLayout ? null : miniLecture ? (
                         <MiniLectureInviteCard
                           deck={miniLecture}
                           busy={miniLectureLoadingDeckId === miniLecture.id}

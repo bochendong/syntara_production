@@ -27,24 +27,10 @@ import type { LocalCourseSummary } from '../domain/models';
 import { HaruLive2D } from './HaruLive2D';
 import { GlobalCalendarApp } from './GlobalCalendarApp';
 import { ProfileCenterApp } from './ProfileCenterApp';
+import { usePhoneLayout } from '../lib/use-phone-layout';
 
 const UPCOMING_SCHEDULE_LIMIT = 5;
 const HOME_GRID_ROWS = 4;
-const PHONE_LAYOUT_QUERY = '(max-width: 600px)';
-
-/** iPhone 宽度下首页改为纵向滚动布局，不再沿用 iPad 主屏网格与分页。 */
-function usePhoneLayout(): boolean {
-  const [phone, setPhone] = useState(() => window.matchMedia(PHONE_LAYOUT_QUERY).matches);
-  useEffect(() => {
-    const media = window.matchMedia(PHONE_LAYOUT_QUERY);
-    const update = () => setPhone(media.matches);
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
-  return phone;
-}
-
 function formatPhoneHomeDate(date: Date): string {
   const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
   return `${date.getMonth() + 1}月${date.getDate()}日 星期${weekdays[date.getDay()]}`;
