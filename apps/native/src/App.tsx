@@ -292,7 +292,13 @@ function AuthenticatedApp() {
         key={workspace.course.id}
         workspace={workspace}
         backendLabel={backendLabel}
+        courses={
+          platformCourseIds
+            ? courses.filter((course) => platformCourseIds.includes(course.id))
+            : courses
+        }
         onBack={openLearnHome}
+        onSwitchCourse={openCourse}
         onOpenProblemBank={openProblemBank}
         onOpenNotebookLibrary={openNotebookLibrary}
         onOpenPractice={openPractice}

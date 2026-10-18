@@ -15,6 +15,7 @@ import {
   BookOpenCheck,
   Brain,
   CalendarDays,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -114,6 +115,7 @@ import type {
   LocalConversation,
   LocalCourseLearningState,
   LocalCourseSearchResult,
+  LocalCourseSummary,
   LocalCourseWorkspace,
   LocalMessage,
   LocalNotebook,
@@ -514,8 +516,11 @@ function errorMessage(cause: unknown): string {
 
 type CourseWorkspaceProps = {
   workspace: LocalCourseWorkspace;
+  /** 手机顶栏弹出的课程列表。 */
+  courses: LocalCourseSummary[];
   backendLabel: string;
   onBack: () => void;
+  onSwitchCourse: (courseId: string) => void;
   onOpenProblemBank: () => void;
   onOpenNotebookLibrary: () => void;
   onOpenPractice: (launch: ProblemBankLaunch) => void;
@@ -661,6 +666,15 @@ function SessionsPanel({
       </div>
     </div>
   );
+}
+
+/** 课程名里常常已经带了课号（如「MAT136 · 积分学」），弹窗副标题去掉重复的课号。 */
+function courseSubtitle(course: LocalCourseSummary): string {
+  const code = course.courseCode?.trim();
+  if (!code) return '';
+  const name = course.name.trim();
+  if (name === code) return '';
+  return name.startsWith(code) ? name.slice(code.length).replace(/^[\s·:：\-–—]+/, '') : name;
 }
 
 /** iPhone 左侧抽屉：参考 ChatGPT，入口、最近聊天和「新聊天」都放在这里。 */
@@ -1526,8 +1540,10 @@ function CourseToolsPanel({
 
 export function CourseWorkspace({
   workspace,
+  courses,
   backendLabel,
   onBack,
+  onSwitchCourse,
   onOpenProblemBank,
   onOpenNotebookLibrary,
   onOpenPractice,
@@ -1542,6 +1558,7 @@ export function CourseWorkspace({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [activeTool, setActiveTool] = useState<CourseTool>('overview');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
+  const [coursePickerOpen, setCoursePickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   useEffect(() => {
@@ -3492,8 +3509,9 @@ export function CourseWorkspace({
             <button
               type="button"
               className="phone-chat-title"
-              onClick={onBack}
+              onClick={() => setCoursePickerOpen((open) => !open)}
               aria-label="切换课程"
+              aria-expanded={coursePickerOpen}
             >
               <img src={courseAvatarUrl} alt="" aria-hidden />
               <span>
@@ -3602,6 +3620,59 @@ export function CourseWorkspace({
             </div>
           </header>
         )}
+
+        {phoneLayout && coursePickerOpen ? (
+          <div className="phone-course-picker-layer">
+            <button
+              type="button"
+              className="phone-course-picker-backdrop"
+              onClick={() => setCoursePickerOpen(false)}
+              aria-label="关闭课程列表"
+            />
+            <div className="phone-course-picker" role="menu" aria-label="切换课程">
+              <p>切换课程</p>
+              <div className="phone-course-picker-list">
+                {courses.map((course) => {
+                  const current = course.id === workspace.course.id;
+                  return (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      key={course.id}
+                      className={current ? 'phone-course-option-current' : undefined}
+                      onClick={() => {
+                        setCoursePickerOpen(false);
+                        if (!current) onSwitchCourse(course.id);
+                      }}
+                    >
+                      <img
+                        src={resolveNativeCourseAvatar(course.id, course.courseCode)}
+                        alt=""
+                        aria-hidden
+                      />
+                      <span>
+                        <strong>{course.courseCode || course.name}</strong>
+                        {courseSubtitle(course) ? <small>{courseSubtitle(course)}</small> : null}
+                      </span>
+                      {current ? <Check size={18} strokeWidth={2.4} /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                className="phone-course-picker-all"
+                onClick={() => {
+                  setCoursePickerOpen(false);
+                  onBack();
+                }}
+              >
+                <LayoutGrid size={17} />
+                <span>全部课程</span>
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="conversation-content">
           {messages.length === 0 ? (
