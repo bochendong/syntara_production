@@ -8569,10 +8569,7 @@ textarea:focus-visible {
   }
 }
 
-/* iPhone 聊天页：返回键和聊天记录放在顶栏，消息不再横向溢出，历史改成整屏列表。 */
-.phone-back-button {
-  display: none;
-}
+/* iPhone 聊天页：消息不再横向溢出，输入框不触发自动放大。 */
 
 @media (max-width: 600px) {
   html,
@@ -8587,40 +8584,6 @@ textarea:focus-visible {
   select,
   .conversation-composer textarea {
     font-size: 16px;
-  }
-
-  .conversation-header .compact-nav-actions {
-    display: none;
-  }
-
-  .phone-back-button {
-    display: grid;
-    flex: none;
-    width: 34px;
-    height: 36px;
-    margin-left: -6px;
-    padding: 0;
-    place-items: center;
-    border: 0;
-    background: transparent;
-    color: #0f172a;
-  }
-
-  .conversation-header .conversation-course-avatar {
-    width: 32px;
-    height: 32px;
-  }
-
-  .conversation-course-title h1 {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .phone-header-actions > button.phone-icon-action {
-    width: 36px;
-    padding: 0;
-    justify-content: center;
   }
 
   .message-stream {
@@ -8666,113 +8629,406 @@ textarea:focus-visible {
     max-width: 100%;
     overflow-x: auto;
   }
+}
 
-  .mobile-slide-panel.mobile-slide-panel-sessions {
-    width: 100%;
-    background: #f4f5f9;
-    box-shadow: none;
-  }
+/* iPhone 聊天页（参考 ChatGPT）：圆形菜单键、居中课程胶囊、新聊天键；左侧抽屉；两行输入卡片。 */
+.phone-chat-header {
+  display: none;
+}
 
-  .mobile-slide-panel-sessions .sessions-panel {
-    padding-top: env(safe-area-inset-top);
-  }
-
-  .mobile-slide-panel-sessions .sessions-panel {
-    position: relative;
-  }
-
-  /* 关闭按钮和标题放在同一行，省掉单独的一行。 */
-  .mobile-slide-panel-sessions .sessions-back-row {
-    position: absolute;
-    top: calc(8px + env(safe-area-inset-top));
-    right: 8px;
-    z-index: 1;
-    min-height: 0;
-    padding: 0;
-    border: 0;
-  }
-
-  .mobile-slide-panel-sessions .sessions-back-row .round-ghost-button,
-  .mobile-slide-panel-sessions .sessions-heading .round-ghost-button {
-    width: 40px;
-    height: 40px;
-  }
-
-  .mobile-slide-panel-sessions .sessions-back-row .plain-row-button,
-  .mobile-slide-panel-sessions .sessions-footer {
-    display: none;
-  }
-
-  .mobile-slide-panel-sessions .sessions-heading {
-    min-height: 56px;
-    padding: 8px 56px 8px 20px;
-  }
-
-  .mobile-slide-panel-sessions .sessions-heading h2 {
-    font-family: inherit;
-    font-size: 22px;
-    font-weight: 700;
-  }
-
-  .mobile-slide-panel-sessions .new-conversation-button {
-    height: 44px;
-    border-radius: 14px;
-  }
-
-  .mobile-slide-panel-sessions .session-list {
-    flex: 0 1 auto;
-    overflow-y: auto;
-    margin: 0 16px calc(16px + env(safe-area-inset-bottom));
-    padding: 4px 0;
-    border-radius: 16px;
+@media (max-width: 600px) {
+  .phone-chat-header {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 12px;
+    padding: calc(6px + env(safe-area-inset-top)) 14px 6px;
     background: #fff;
   }
 
-  .mobile-slide-panel-sessions .session-group-title {
+  .phone-round-button {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid #eceef2;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 4px 14px rgb(15 23 42 / 7%);
+    color: #0f172a;
+  }
+
+  .phone-round-button:disabled {
+    opacity: 0.4;
+  }
+
+  .phone-course-pill {
+    display: inline-flex;
+    justify-self: center;
+    align-items: center;
+    gap: 7px;
+    max-width: 100%;
+    height: 44px;
+    padding: 0 14px 0 6px;
+    border: 1px solid #eceef2;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 4px 14px rgb(15 23 42 / 7%);
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .phone-course-pill img {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .phone-course-pill span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .phone-course-pill svg {
+    flex: none;
+    color: #94a3b8;
+  }
+
+  .conversation-workspace {
+    background: #fff;
+  }
+
+  /* 空白页：只留一句居中的问候，建议放在输入框上方。 */
+  .conversation-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 0 16px 8px;
+  }
+
+  .conversation-empty-state .conversation-empty-glow,
+  .conversation-empty-state .conversation-empty-avatar,
+  .conversation-empty-state .empty-kicker,
+  .conversation-empty-state > p:not(.empty-kicker) {
     display: none;
   }
 
-  .mobile-slide-panel-sessions .session-row-shell {
-    margin: 0;
+  .conversation-empty-state h2 {
+    margin: auto 0;
+    color: #0f172a;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .conversation-empty-state .suggestion-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .conversation-empty-state .suggestion-row button {
+    padding: 9px 4px;
     border: 0;
-    border-bottom: 1px solid #f1f2f5;
-    border-radius: 0;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: none;
+    color: #64748b;
+    font-size: 15px;
+    text-align: left;
+  }
+
+  .conversation-composer-footer {
+    padding: 6px 12px calc(8px + env(safe-area-inset-bottom));
+    border: 0;
+    background: #fff;
+  }
+
+  .conversation-composer {
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    grid-template-areas:
+      'text text text'
+      'photo . send';
+    gap: 6px 8px;
+    padding: 12px 10px 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 26px;
+    background: #fff;
+    box-shadow: 0 6px 24px rgb(15 23 42 / 8%);
+  }
+
+  .conversation-composer textarea {
+    grid-area: text;
+    min-height: 28px;
+    max-height: 140px;
+    padding: 2px 8px;
+    line-height: 1.45;
+  }
+
+  .conversation-composer .composer-icon-button {
+    grid-area: photo;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: #0f172a;
+  }
+
+  .conversation-composer .model-chip,
+  .conversation-composer .composer-material-button {
+    display: none;
+  }
+
+  .conversation-composer .composer-send-button {
+    grid-area: send;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
     box-shadow: none;
   }
 
-  .mobile-slide-panel-sessions .session-row-shell:last-child {
-    border-bottom: 0;
+  /* 左侧抽屉：像 ChatGPT 一样把聊天页整个推到右边，不加灰色遮罩。 */
+  .course-workspace {
+    --phone-drawer-width: min(78vw, 340px);
   }
 
-  .mobile-slide-panel-sessions .session-row-shell-active {
-    background: #eef0fe;
+  .course-workspace .conversation-workspace {
+    transition:
+      transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-radius 260ms ease;
   }
 
-  .mobile-slide-panel-sessions .session-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+  .course-workspace.phone-drawer-open {
+    background: #f9f9f9;
+  }
+
+  .course-workspace.phone-drawer-open .conversation-workspace {
+    overflow: hidden;
+    border-radius: 36px 0 0 36px;
+    box-shadow: -10px 0 40px rgb(15 23 42 / 10%);
+    transform: translateX(var(--phone-drawer-width));
+  }
+
+  .phone-drawer-open .mobile-panel-backdrop {
+    left: var(--phone-drawer-width);
+    background: transparent;
+    backdrop-filter: none;
+  }
+
+  .mobile-slide-panel.mobile-slide-panel-drawer {
+    left: 0;
+    width: var(--phone-drawer-width);
+    background: #f9f9f9;
+    box-shadow: none;
+    backdrop-filter: none;
+    animation: phone-drawer-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .phone-drawer {
+    position: relative;
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .phone-drawer-top {
+    display: flex;
     align-items: center;
-    gap: 10px;
-    margin: 0;
-    padding: 13px 4px 13px 14px;
+    justify-content: space-between;
+    padding: 8px 16px 8px 22px;
   }
 
-  .mobile-slide-panel-sessions .session-row span {
+  .phone-drawer-top h2 {
+    margin: 0;
     color: #0f172a;
+    font-size: 26px;
+    font-weight: 700;
+  }
+
+  .phone-drawer-search {
+    margin: 4px 16px 8px;
+    height: 44px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 22px;
+    outline: none;
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+
+  .phone-drawer-nav {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 10px 8px;
+  }
+
+  .phone-drawer-nav button {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 52px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 14px;
+    background: transparent;
+    color: #0f172a;
+    font-size: 17px;
+    text-align: left;
+  }
+
+  .phone-drawer-nav button:active,
+  .phone-drawer-row button:active {
+    background: #f1f5f9;
+  }
+
+  .phone-drawer-nav .phone-drawer-course img {
+    width: 26px;
+    height: 26px;
+    margin: 0 -2px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .phone-drawer-nav small {
+    margin-left: auto;
+    color: #94a3b8;
+    font-size: 13px;
+  }
+
+  .phone-drawer-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 10px 96px;
+  }
+
+  .phone-drawer-section {
+    margin: 18px 12px 4px;
+    color: #000;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .phone-drawer-row {
+    display: flex;
+    align-items: center;
+    border-radius: 14px;
+  }
+
+  .phone-drawer-row > button:first-child {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    padding: 0 12px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 14px;
+    background: transparent;
+    color: #0f172a;
+    font-size: 16px;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .phone-drawer-row-active {
+    background: #ececec;
+  }
+
+  .phone-drawer-delete {
+    display: grid;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: #94a3b8;
+  }
+
+  .phone-drawer-empty {
+    margin: 8px 12px;
+    color: #94a3b8;
     font-size: 15px;
   }
 
-  .mobile-slide-panel-sessions .session-row time {
-    grid-column: auto;
+  .phone-drawer-bottom {
+    position: absolute;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    left: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .phone-drawer::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: calc(96px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, #f9f9f9 55%, rgb(249 249 249 / 0%));
+    content: '';
+    pointer-events: none;
+  }
+
+  .phone-drawer-bottom {
+    z-index: 1;
+  }
+
+  .phone-drawer-bottom > button {
+    pointer-events: auto;
+  }
+
+  .phone-drawer-new {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    height: 52px;
+    padding: 0 24px;
+    border: 0;
+    border-radius: 26px;
+    background: #000;
+    box-shadow: 0 10px 26px rgb(0 0 0 / 22%);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .phone-drawer-new:disabled {
+    opacity: 0.6;
+  }
+
+  /* 用户消息改成浅灰气泡。 */
+  .chat-message-user > div {
+    border-radius: 22px;
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+
+  .chat-message-user time {
     color: #94a3b8;
-    font-size: 12px;
   }
+}
 
-  .mobile-slide-panel-sessions .session-row svg {
-    display: none;
+@keyframes phone-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
   }
-
-  /* 手机没有悬停，删除按钮一直显示。 */
-  .mobile-slide-panel-sessions .session-delete-button {
+  to {
     opacity: 1;
+    transform: none;
   }
 }
