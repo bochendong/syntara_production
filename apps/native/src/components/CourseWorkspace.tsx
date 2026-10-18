@@ -37,6 +37,7 @@ import {
   Save,
   Search,
   SendHorizontal,
+  Settings,
   Settings2,
   SlidersHorizontal,
   Sparkles,
@@ -729,6 +730,10 @@ function PhoneChatDrawer({
         />
       ) : (
         <nav className="phone-drawer-nav" aria-label="课程入口">
+          <button type="button" className="phone-drawer-course" onClick={onBack}>
+            <img src={courseAvatarUrl} alt="" aria-hidden />
+            <span>{courseTitle}</span>
+          </button>
           <button type="button" onClick={onBack}>
             <LayoutGrid size={21} strokeWidth={1.8} />
             <span>全部课程</span>
@@ -750,10 +755,7 @@ function PhoneChatDrawer({
       )}
 
       <div className="phone-drawer-scroll">
-        <p className="phone-drawer-section">
-          <img src={courseAvatarUrl} alt="" aria-hidden />
-          <span>{courseTitle} · 最近</span>
-        </p>
+        <p className="phone-drawer-section">最近</p>
         {visibleConversations.length ? (
           visibleConversations.map((conversation) => {
             const active = conversation.id === selectedConversationId;
@@ -799,7 +801,7 @@ function PhoneChatDrawer({
           onClick={onOpenSettings}
           aria-label="设置"
         >
-          <Settings2 size={20} />
+          <Settings size={20} />
         </button>
       </div>
     </div>
@@ -3466,7 +3468,7 @@ export function CourseWorkspace({
     <section
       className={`course-workspace${leftRailCollapsed ? ' workspace-left-collapsed' : ''}${
         rightRailCollapsed ? ' workspace-right-collapsed' : ''
-      }`}
+      }${phoneLayout && mobilePanel === 'sessions' ? ' phone-drawer-open' : ''}`}
       aria-label={`${workspace.course.name} 课程工作台`}
     >
       <aside className="workspace-sidebar workspace-sidebar-left">

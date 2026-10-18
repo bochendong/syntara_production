@@ -8795,14 +8795,41 @@ textarea:focus-visible {
     box-shadow: none;
   }
 
-  /* 左侧抽屉 */
+  /* 左侧抽屉：像 ChatGPT 一样把聊天页整个推到右边，不加灰色遮罩。 */
+  .course-workspace {
+    --phone-drawer-width: min(78vw, 340px);
+  }
+
+  .course-workspace .conversation-workspace {
+    transition:
+      transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-radius 260ms ease;
+  }
+
+  .course-workspace.phone-drawer-open {
+    background: #f9f9f9;
+  }
+
+  .course-workspace.phone-drawer-open .conversation-workspace {
+    overflow: hidden;
+    border-radius: 36px 0 0 36px;
+    box-shadow: -10px 0 40px rgb(15 23 42 / 10%);
+    transform: translateX(var(--phone-drawer-width));
+  }
+
+  .phone-drawer-open .mobile-panel-backdrop {
+    left: var(--phone-drawer-width);
+    background: transparent;
+    backdrop-filter: none;
+  }
+
   .mobile-slide-panel.mobile-slide-panel-drawer {
     left: 0;
-    width: 84vw;
-    max-width: 360px;
-    background: #fff;
-    box-shadow: 0 0 40px rgb(15 23 42 / 18%);
+    width: var(--phone-drawer-width);
+    background: #f9f9f9;
+    box-shadow: none;
     backdrop-filter: none;
+    animation: phone-drawer-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .phone-drawer {
@@ -8863,6 +8890,14 @@ textarea:focus-visible {
     background: #f1f5f9;
   }
 
+  .phone-drawer-nav .phone-drawer-course img {
+    width: 26px;
+    height: 26px;
+    margin: 0 -2px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
   .phone-drawer-nav small {
     margin-left: auto;
     color: #94a3b8;
@@ -8877,20 +8912,10 @@ textarea:focus-visible {
   }
 
   .phone-drawer-section {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 12px 12px 6px;
-    color: #0f172a;
-    font-size: 15px;
-    font-weight: 700;
-  }
-
-  .phone-drawer-section img {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    object-fit: cover;
+    margin: 18px 12px 4px;
+    color: #000;
+    font-size: 16px;
+    font-weight: 600;
   }
 
   .phone-drawer-row {
@@ -8902,7 +8927,7 @@ textarea:focus-visible {
   .phone-drawer-row > button:first-child {
     flex: 1;
     min-width: 0;
-    height: 48px;
+    height: 44px;
     padding: 0 12px;
     overflow: hidden;
     border: 0;
@@ -8916,7 +8941,7 @@ textarea:focus-visible {
   }
 
   .phone-drawer-row-active {
-    background: #f1f5f9;
+    background: #ececec;
   }
 
   .phone-drawer-delete {
@@ -8953,7 +8978,7 @@ textarea:focus-visible {
     bottom: 0;
     left: 0;
     height: calc(96px + env(safe-area-inset-bottom));
-    background: linear-gradient(to top, #fff 55%, rgb(255 255 255 / 0%));
+    background: linear-gradient(to top, #f9f9f9 55%, rgb(249 249 249 / 0%));
     content: '';
     pointer-events: none;
   }
@@ -8974,8 +8999,8 @@ textarea:focus-visible {
     padding: 0 24px;
     border: 0;
     border-radius: 26px;
-    background: #0f172a;
-    box-shadow: 0 10px 26px rgb(15 23 42 / 25%);
+    background: #000;
+    box-shadow: 0 10px 26px rgb(0 0 0 / 22%);
     color: #fff;
     font-size: 16px;
     font-weight: 600;
@@ -8994,5 +9019,16 @@ textarea:focus-visible {
 
   .chat-message-user time {
     color: #94a3b8;
+  }
+}
+
+@keyframes phone-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
