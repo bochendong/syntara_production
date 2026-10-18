@@ -9032,3 +9032,160 @@ textarea:focus-visible {
     transform: none;
   }
 }
+
+/* iPhone 聊天页：毛玻璃顶栏和输入框浮在消息上面，消息从它们下面滚过去。 */
+@media (max-width: 600px) {
+  .course-workspace .conversation-workspace {
+    /* 课程工作台已经留出了顶部安全区。 */
+    --phone-header-height: 64px;
+    --phone-composer-space: calc(128px + env(safe-area-inset-bottom));
+    position: relative;
+    background:
+      radial-gradient(120% 60% at 100% 0%, rgb(224 231 255 / 55%), transparent 60%),
+      radial-gradient(90% 50% at 0% 100%, rgb(254 243 199 / 45%), transparent 60%), #fbfbfd;
+  }
+
+  .phone-chat-header {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px 10px;
+    border-bottom: 1px solid rgb(255 255 255 / 55%);
+    background: linear-gradient(to bottom, rgb(255 255 255 / 78%), rgb(255 255 255 / 52%));
+    backdrop-filter: blur(22px) saturate(1.8);
+    -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  }
+
+  .phone-glass-button {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid rgb(255 255 255 / 80%);
+    border-radius: 50%;
+    background: rgb(255 255 255 / 55%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 90%),
+      0 4px 16px rgb(15 23 42 / 8%);
+    color: #0f172a;
+    backdrop-filter: blur(16px) saturate(1.6);
+    -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  }
+
+  .phone-glass-button:active {
+    transform: scale(0.94);
+  }
+
+  .phone-glass-button:disabled {
+    opacity: 0.45;
+  }
+
+  .phone-chat-title {
+    display: flex;
+    justify-self: center;
+    align-items: center;
+    gap: 9px;
+    max-width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #0f172a;
+    text-align: left;
+  }
+
+  .phone-chat-title img {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgb(15 23 42 / 12%);
+    object-fit: cover;
+  }
+
+  .phone-chat-title > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  .phone-chat-title strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .phone-chat-title strong svg {
+    color: #94a3b8;
+  }
+
+  .phone-chat-title small {
+    max-width: 52vw;
+    overflow: hidden;
+    color: #64748b;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .course-workspace .conversation-content {
+    padding-top: var(--phone-header-height);
+    padding-bottom: var(--phone-composer-space);
+    background: transparent;
+    scroll-padding-top: var(--phone-header-height);
+  }
+
+  .course-workspace .conversation-composer-footer {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 5;
+    padding: 0 12px calc(10px + env(safe-area-inset-bottom));
+    border: 0;
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .course-workspace .conversation-composer-footer > * {
+    pointer-events: auto;
+  }
+
+  .course-workspace .conversation-composer {
+    border: 1px solid rgb(255 255 255 / 75%);
+    background: linear-gradient(135deg, rgb(255 255 255 / 82%), rgb(255 255 255 / 64%));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 95%),
+      inset 0 -1px 0 rgb(255 255 255 / 30%),
+      0 10px 34px rgb(15 23 42 / 12%);
+    backdrop-filter: blur(30px) saturate(1.8);
+    -webkit-backdrop-filter: blur(30px) saturate(1.8);
+  }
+
+  .course-workspace .conversation-composer:focus-within {
+    border-color: rgb(255 255 255 / 90%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 95%),
+      0 14px 40px rgb(15 23 42 / 16%);
+  }
+
+  .course-workspace .conversation-composer .composer-icon-button {
+    background: rgb(255 255 255 / 55%);
+  }
+
+  .course-workspace .composer-image-strip {
+    margin-bottom: 6px;
+  }
+}

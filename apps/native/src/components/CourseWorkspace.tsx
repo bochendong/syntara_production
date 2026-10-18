@@ -3458,6 +3458,9 @@ export function CourseWorkspace({
     </div>
   );
 
+  const currentConversationTitle =
+    workspace.conversations.find((conversation) => conversation.id === selectedConversationId)
+      ?.title || '新聊天';
   const courseAvatarUrl = resolveNativeCourseAvatar(
     workspace.course.id,
     workspace.course.courseCode,
@@ -3480,7 +3483,7 @@ export function CourseWorkspace({
           <header className="phone-chat-header">
             <button
               type="button"
-              className="phone-round-button"
+              className="phone-glass-button"
               onClick={() => setMobilePanel('sessions')}
               aria-label="打开菜单"
             >
@@ -3488,17 +3491,22 @@ export function CourseWorkspace({
             </button>
             <button
               type="button"
-              className="phone-course-pill"
+              className="phone-chat-title"
               onClick={onBack}
               aria-label="切换课程"
             >
               <img src={courseAvatarUrl} alt="" aria-hidden />
-              <span>{workspace.course.courseCode || workspace.course.name}</span>
-              <ChevronDown size={15} />
+              <span>
+                <strong>
+                  {workspace.course.courseCode || workspace.course.name}
+                  <ChevronDown size={13} strokeWidth={2.4} />
+                </strong>
+                <small>{currentConversationTitle}</small>
+              </span>
             </button>
             <button
               type="button"
-              className="phone-round-button"
+              className="phone-glass-button"
               onClick={() => void createConversation()}
               disabled={busy}
               aria-label="新聊天"
