@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Syntara Test",
+  "identifier": "com.syntara.staging",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Syntara Test",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 760,
+        "minHeight": 620,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      }
+    ]
+  }
+}

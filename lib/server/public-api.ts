@@ -28,6 +28,8 @@ export type PublicApiErrorCode =
   | 'expired_token'
   | 'invalid_grant'
   | 'activation_required'
+  | 'google_required'
+  | 'speedup_required'
   | 'upstream_error'
   | 'generation_failed'
   | 'internal_error';

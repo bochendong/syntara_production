@@ -9,6 +9,10 @@ import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { isDatabaseAvailable, getOptionalPrisma } from '@/lib/server/prisma-safe';
 import { verifyPassword } from '@/lib/server/password-hash';
+import {
+  canSignInToGoogleTest,
+  resolveNativeAccessPolicy,
+} from '@/lib/server/native-access-policy';
 
 function oauthHttpOptions() {
   const proxyUrl = process.env.HTTPS_PROXY?.trim() || process.env.HTTP_PROXY?.trim();
@@ -83,7 +87,8 @@ function buildProviders() {
   const providers = [];
 
   const prisma = getOptionalPrisma();
-  if (prisma || process.env.SYNTARA_ALLOW_DEMO_AUTH?.trim() === '1') {
+  const googleTest = resolveNativeAccessPolicy(process.env) === 'google-test';
+  if (!googleTest && (prisma || process.env.SYNTARA_ALLOW_DEMO_AUTH?.trim() === '1')) {
     providers.push(
       CredentialsProvider({
         id: 'teacher-credentials',
@@ -199,7 +204,7 @@ function buildProviders() {
 
   const githubClientId = process.env.GITHUB_CLIENT_ID?.trim();
   const githubClientSecret = process.env.GITHUB_CLIENT_SECRET?.trim();
-  if (githubClientId && githubClientSecret) {
+  if (!googleTest && githubClientId && githubClientSecret) {
     providers.push(
       GitHubProvider({
         clientId: githubClientId,
@@ -222,8 +227,19 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
-    async signIn({ user }) {
+    async signIn({ user, account, profile }) {
       const accountUser = user as { role?: string; isActive?: boolean };
+      const policy = resolveNativeAccessPolicy(process.env);
+      if (policy === 'invalid') return false;
+      if (policy === 'google-test') {
+        return canSignInToGoogleTest({
+          provider: account?.provider,
+          verifiedEmail: (profile as { email_verified?: boolean } | undefined)?.email_verified,
+          email: user.email,
+          isActive: accountUser.isActive,
+          databaseConfigured: Boolean(prismaClient),
+        });
+      }
       return (
         accountUser.isActive !== false &&
         (accountUser.role === 'USER' ||

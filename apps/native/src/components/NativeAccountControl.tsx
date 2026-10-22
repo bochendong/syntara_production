@@ -11,6 +11,7 @@ import {
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import loginBackgroundUrl from '../../../../public/background/login.png?url';
+import { nativeChannel } from '../channel';
 import {
   getNativeDeviceIdentity,
   loadNativeAuthSession,
@@ -205,7 +206,9 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
           <p className="native-account-copy">
             {browserPreview
               ? '当前是浏览器预览，无法使用平台登录与平台 AI。可先进入本机预览改界面；正式登录请打开 macOS 开发版窗口。'
-              : '我们会在浏览器中完成安全登录。首次使用需要在网页上输入激活码开通 App，每个激活码只能用一次。'}
+              : nativeChannel === 'staging'
+                ? '使用你自己的 Google 账号登录，在浏览器中确认后即可返回测试版 App。'
+                : '我们会在浏览器中完成安全登录，并检查当前环境的 App 使用权限。'}
           </p>
 
           {browserPreview ? (

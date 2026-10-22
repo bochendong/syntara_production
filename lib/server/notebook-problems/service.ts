@@ -3216,6 +3216,8 @@ export async function deleteCourseProblem(args: {
 }
 
 export async function createNotebookProblemAttempt(args: {
+  id?: string;
+  createdAt?: Date;
   userId: string;
   problemId: string;
   kind: 'run' | 'submit' | 'answer';
@@ -3229,6 +3231,8 @@ export async function createNotebookProblemAttempt(args: {
   const created = (await prismaDb.$transaction(async (tx: Prisma.TransactionClient) => {
     const attempt = await tx.notebookProblemAttempt.create({
       data: {
+        ...(args.id ? { id: args.id } : {}),
+        ...(args.createdAt ? { createdAt: args.createdAt } : {}),
         userId: args.userId,
         problemId: args.problemId,
         kind: args.kind,

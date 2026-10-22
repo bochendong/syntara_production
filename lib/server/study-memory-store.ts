@@ -272,8 +272,9 @@ export async function listStudyMemoriesForViewer(
   userId: string | null | undefined,
   target: ReadableStudyMemoryTarget,
   limit = 120,
+  ceiling = 120,
 ): Promise<StudyMemoryRecord[]> {
-  const boundedLimit = Math.max(1, Math.min(120, Math.trunc(limit) || 120));
+  const boundedLimit = Math.max(1, Math.min(600, ceiling, Math.trunc(limit) || 120));
   let rows: RawStudyMemoryRow[];
   if (target.targetType === 'platform') {
     rows = await prisma.$queryRawUnsafe<RawStudyMemoryRow[]>(

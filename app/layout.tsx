@@ -33,6 +33,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nativeStaging = process.env.SYNTARA_APP_ENV === 'staging';
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body
@@ -41,12 +42,18 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <I18nProvider>
-            <ServerProvidersInit />
-            <AuthSessionProvider>
-              <Suspense fallback={<>{children}</>}>
-                <AppLayoutChrome>{children}</AppLayoutChrome>
-              </Suspense>
-              <NotificationCenterProvider />
+            {nativeStaging ? null : <ServerProvidersInit />}
+            <AuthSessionProvider syncWebProfile={!nativeStaging}>
+              {nativeStaging ? (
+                children
+              ) : (
+                <>
+                  <Suspense fallback={<>{children}</>}>
+                    <AppLayoutChrome>{children}</AppLayoutChrome>
+                  </Suspense>
+                  <NotificationCenterProvider />
+                </>
+              )}
             </AuthSessionProvider>
             <Toaster position="top-right" />
           </I18nProvider>

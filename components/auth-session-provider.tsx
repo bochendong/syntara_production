@@ -61,10 +61,16 @@ function AuthSessionSync() {
   return null;
 }
 
-export function AuthSessionProvider({ children }: { children: ReactNode }) {
+export function AuthSessionProvider({
+  children,
+  syncWebProfile = true,
+}: {
+  children: ReactNode;
+  syncWebProfile?: boolean;
+}) {
   return (
     <SessionProvider>
-      <AuthSessionSync />
+      {syncWebProfile ? <AuthSessionSync /> : null}
       {children}
     </SessionProvider>
   );

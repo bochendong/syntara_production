@@ -1,4 +1,5 @@
 import { NativeLoginPageClient } from './native-login-page-client';
+import { resolveNativeAccessPolicy } from '@/lib/server/native-access-policy';
 
 type NativeLoginPageProps = {
   searchParams: Promise<{ user_code?: string | string[] }>;
@@ -15,6 +16,7 @@ export default async function NativeLoginPage({ searchParams }: NativeLoginPageP
   return (
     <NativeLoginPageClient
       userCode={normalizeUserCode(query.user_code)}
+      accessPolicy={resolveNativeAccessPolicy(process.env)}
       providers={{
         google: Boolean(
           process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim(),

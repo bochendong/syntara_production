@@ -1,6 +1,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 
-import { hasNativeAppAccess } from '@/lib/server/native-activation';
+import { NATIVE_ACCESS_SELECT, nativeUserAccess } from '@/lib/server/native-user-access';
+import type { NativeAccessUser } from '@/lib/server/native-access-policy';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 
 const DEVICE_CODE_TTL_MS = 10 * 60 * 1_000;
@@ -53,7 +54,9 @@ export class NativeAuthError extends Error {
       | 'unauthorized'
       | 'expired_token'
       | 'invalid_grant'
-      | 'activation_required',
+      | 'activation_required'
+      | 'google_required'
+      | 'speedup_required',
     message: string,
   ) {
     super(message);
@@ -103,6 +106,7 @@ function userCode(): string {
 }
 
 const NATIVE_USER_SELECT = {
+  ...NATIVE_ACCESS_SELECT,
   id: true,
   name: true,
   email: true,
@@ -111,15 +115,20 @@ const NATIVE_USER_SELECT = {
   nativeAppActivatedAt: true,
 } as const;
 
-/** App 只对兑换过一次性激活码的账号开放（管理员除外）。 */
-function assertNativeAppAccess(user: { role: string; nativeAppActivatedAt: Date | null }) {
-  if (!hasNativeAppAccess(user)) {
-    throw new NativeAuthError(
-      403,
-      'activation_required',
-      '这个账号还没有开通 Syntara App，请先在网页上输入激活码。',
-    );
+/** Every device-token lifecycle step rechecks the server's access policy. */
+async function assertNativeAppAccess(user: NativeAccessUser) {
+  const decision = await nativeUserAccess(user);
+  if (decision === 'allowed') return;
+  if (decision === 'inactive') throw new NativeAuthError(401, 'unauthorized', '账号已停用。');
+  if (decision === 'misconfigured') {
+    throw new NativeAuthError(503, 'auth_not_configured', '当前服务器的 App 登录配置不可用。');
   }
+  const messages = {
+    google_required: '请使用 Google 账号登录测试服。',
+    speedup_required: '请前往 Speedup 重新验证身份和课程权限。',
+    activation_required: '这个账号还没有开通 Syntara App，请先在网页上输入激活码。',
+  };
+  throw new NativeAuthError(403, decision, messages[decision]);
 }
 
 export function normalizeNativeUserCode(value: string): string {
@@ -286,12 +295,12 @@ export async function approveNativeDeviceAuthorization(userCodeValue: string, us
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, nativeAppActivatedAt: true },
+    select: NATIVE_ACCESS_SELECT,
   });
   if (!user) {
     throw new NativeAuthError(401, 'unauthorized', 'Sign in before authorizing this device.');
   }
-  assertNativeAppAccess(user);
+  await assertNativeAppAccess(user);
 
   await prisma.nativeDeviceAuthorization.update({
     where: { id: authorization.id },
@@ -363,7 +372,7 @@ export async function pollNativeDeviceAuthorization(
         user: { select: NATIVE_USER_SELECT },
       },
     });
-    assertNativeAppAccess(session.user);
+    await assertNativeAppAccess(session.user);
     return tokenPair(session, material);
   });
 }
@@ -389,7 +398,7 @@ export async function refreshNativeDeviceSession(
     if (current.refreshExpiresAt <= now) {
       throw new NativeAuthError(401, 'expired_token', 'Native session has expired.');
     }
-    assertNativeAppAccess(current.user);
+    await assertNativeAppAccess(current.user);
 
     const material = createTokenMaterial(now);
     const session = await transaction.nativeDeviceSession.update({
@@ -436,7 +445,7 @@ export async function authenticateNativeDeviceRequest(
   if (session.accessExpiresAt <= now || session.refreshExpiresAt <= now) {
     throw new NativeAuthError(401, 'expired_token', 'Native access token has expired.');
   }
-  assertNativeAppAccess(session.user);
+  await assertNativeAppAccess(session.user);
 
   if (now.getTime() - session.lastUsedAt.getTime() >= LAST_USED_WRITE_INTERVAL_MS) {
     await prisma.nativeDeviceSession.update({

@@ -1,0 +1,77 @@
+{
+  "sourceCheckout": "/Users/dongbochen/Documents/GitHub/syntara_production",
+  "sourceBranch": "codex/shared-wip-2026-10-21",
+  "provenance": "Mixed, unassigned working changes; no authorship inferred. Only the listed native backend modules are imported for this deployment.",
+  "files": [
+    {
+      "path": "features/native-ai/server/attachments.ts",
+      "sha256": "730c508f5f2d42cecc0a4d3f2183ca4ba5a701912b078125c6e59178fa41f010"
+    },
+    {
+      "path": "features/native-ai/server/prompt.ts",
+      "sha256": "34cdab63d6392abce7daa0dec0847e068d1b30b61d17d257f7e1c5425c4c6a64"
+    },
+    {
+      "path": "features/native-ai/server/run-chat.ts",
+      "sha256": "0888b488083557447f2cacbf783b99620f8ec02e14e50b339f68cefe865d5854"
+    },
+    {
+      "path": "features/native-ai/server/schema.ts",
+      "sha256": "e4628bb7a45fa538e2d38278199d09a555f30d5ccaf53e464e29bb1f13c0dcf1"
+    },
+    {
+      "path": "features/native-ai/server/tools.ts",
+      "sha256": "5f156160be68002ca0106abbfc6de2867fb68d12cfe9b87f1d135945256b8c17"
+    },
+    {
+      "path": "app/api/native/v2/chat/route.ts",
+      "sha256": "c2083e6ff39f32ca654238410fc562767cbce7b5adb0646378ca3d245840be62"
+    },
+    {
+      "path": "app/api/native/v1/course-data/route.ts",
+      "sha256": "93a658a3111bbac977ebaa0b87c7e8fb93e5ea70157b75afbda9041f3959b2cd"
+    },
+    {
+      "path": "app/api/native/v1/learning-progress/route.ts",
+      "sha256": "8031ae245fb2c2d15a8fd5cf86b84ae9de92e828f56ccff2b2ac87f8a141429c"
+    },
+    {
+      "path": "app/api/native/v1/memories/route.ts",
+      "sha256": "3e533b652d41d3757ca74bd69ba91888f7b8a2f69e2a36fe7fbe92e40e50fda3"
+    },
+    {
+      "path": "app/api/native/v1/notebooks/route.ts",
+      "sha256": "bb252f3f48a832a1a4e3730fbcde1170f524377713fdce6c32d258b09517bc44"
+    },
+    {
+      "path": "app/api/native/v1/problems/route.ts",
+      "sha256": "620dbbe7abfc4402bdba28c4e5a3c2ed4d033b69ecb9b3a91ab58ff28ef06e6e"
+    },
+    {
+      "path": "app/api/native/v1/usage/route.ts",
+      "sha256": "bb126667333e76d13ce8d79d97a8b142d37f248625ce39ebb1f55e5e2841ffad"
+    },
+    {
+      "path": "lib/server/native-course-sync.ts",
+      "sha256": "0a4fff2f763548b15925b95627e393ab5af8480e8ac6c1522764e4eb8b83bb1f"
+    },
+    {
+      "path": "lib/server/native-problem-sync.ts",
+      "sha256": "d8d3991316c327c39fa3c6c4f3eb8bd6147667b54b700773fb7c5b62543a2fc1"
+    },
+    {
+      "path": "lib/server/native-memory-store.ts",
+      "sha256": "2c0b650dc9d6e6d63dea87bcef828bb78d60ae5720f7d6a09f8870150fc2184c"
+    }
+  ],
+  "additionalAdaptations": [
+    {
+      "path": "lib/server/study-memory-store.ts",
+      "scope": "Optional bounded memory ceiling for native course sync; existing default stays 120."
+    },
+    {
+      "path": "lib/server/notebook-problems/service.ts",
+      "scope": "Only optional attempt id and timestamp for idempotent native uploads."
+    }
+  ]
+}

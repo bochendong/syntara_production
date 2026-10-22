@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { nativeChannel } from '../channel';
 import type {
   LocalAsset,
   LocalConversation,
@@ -112,7 +113,9 @@ class NativePreviewDatabase extends Dexie {
   lecturePages!: EntityTable<PersistedMiniLecturePage, 'id'>;
 
   constructor() {
-    super('Syntara-Native-Preview');
+    super(
+      nativeChannel === 'staging' ? 'Syntara-Native-Preview-Staging' : 'Syntara-Native-Preview',
+    );
     this.version(1).stores({
       courses: 'id, updatedAt',
       notebooks: 'id, courseId, updatedAt, [courseId+updatedAt]',

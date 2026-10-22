@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { signIn, useSession } from 'next-auth/react';
+import { signIn, signOut, useSession } from 'next-auth/react';
+import type { NativeAccessPolicy } from '@/lib/server/native-access-policy';
 import {
   ArrowRight,
   CheckCircle2,
@@ -14,6 +15,7 @@ import {
 
 type NativeLoginPageClientProps = {
   userCode: string;
+  accessPolicy: NativeAccessPolicy;
   providers: {
     google: boolean;
     github: boolean;
@@ -28,6 +30,7 @@ type ApprovalState =
 
 type ActivationState =
   | { status: 'checking' }
+  | { status: 'error'; message: string }
   | { status: 'activated' }
   | { status: 'required'; submitting: boolean; message?: string };
 
@@ -53,21 +56,32 @@ function approvalError(payload: unknown): string {
   );
 }
 
-export function NativeLoginPageClient({ userCode, providers }: NativeLoginPageClientProps) {
+export function NativeLoginPageClient({
+  userCode,
+  providers,
+  accessPolicy,
+}: NativeLoginPageClientProps) {
   const { data: session, status } = useSession();
   const [approval, setApproval] = useState<ApprovalState>({ status: 'idle' });
   const callbackUrl = `/native-login?user_code=${encodeURIComponent(userCode)}`;
   const [activation, setActivation] = useState<ActivationState>({ status: 'checking' });
   const [activationCode, setActivationCode] = useState('');
+  const speedupUrl = `/api/native/v1/auth/speedup/start?user_code=${encodeURIComponent(userCode)}`;
 
   useEffect(() => {
     if (status !== 'authenticated') return;
     let cancelled = false;
     void fetch('/api/native/v1/activation')
-      .then((response) => response.json().catch(() => null))
+      .then(async (response) => {
+        if (!response.ok) throw new Error('暂时无法检查 App 访问权限，请稍后重试。');
+        return response.json();
+      })
       .then((payload: { activated?: boolean } | null) => {
         if (cancelled) return;
-        // 查询失败时先放行，授权接口会再检查一次。
+        if (typeof payload?.activated !== 'boolean') {
+          setActivation({ status: 'error', message: '服务器返回了无效的访问权限状态。' });
+          return;
+        }
         setActivation(
           payload?.activated === false
             ? { status: 'required', submitting: false }
@@ -75,7 +89,8 @@ export function NativeLoginPageClient({ userCode, providers }: NativeLoginPageCl
         );
       })
       .catch(() => {
-        if (!cancelled) setActivation({ status: 'activated' });
+        if (!cancelled)
+          setActivation({ status: 'error', message: '暂时无法检查 App 访问权限，请稍后重试。' });
       });
     return () => {
       cancelled = true;
@@ -149,10 +164,14 @@ export function NativeLoginPageClient({ userCode, providers }: NativeLoginPageCl
             <ShieldCheck size={28} strokeWidth={1.8} />
           </span>
           <h1 className="mt-5 text-2xl font-semibold tracking-tight text-[#1d1d1f] dark:text-white">
-            登录 Syntara App
+            {accessPolicy === 'google-test' ? '登录 Syntara 测试版' : '登录 Syntara App'}
           </h1>
           <p className="mt-2 text-sm leading-6 text-[#6e6e73] dark:text-[#a1a1a6]">
-            授权后，这台设备才能调用平台 AI。你的 OpenAI Key 不会发送到 App。
+            {accessPolicy === 'google-test'
+              ? '使用你的 Google 账号登录并确认设备，即可开始测试。'
+              : accessPolicy === 'speedup'
+                ? '前往 Speedup 验证身份和课程权限，然后授权这台设备。'
+                : '在浏览器中登录并授权这台设备。'}
           </p>
         </header>
 
@@ -176,14 +195,26 @@ export function NativeLoginPageClient({ userCode, providers }: NativeLoginPageCl
           </div>
         )}
 
-        {status === 'loading' ? (
+        {accessPolicy === 'invalid' ? (
+          <p role="alert" className="mt-7 text-sm text-rose-700">
+            当前服务器的登录配置不可用，请联系管理员。
+          </p>
+        ) : status === 'loading' ? (
           <div className="mt-7 flex items-center justify-center gap-2 text-sm text-[#86868b]">
             <Loader2 size={16} className="animate-spin" />
             正在检查登录状态…
           </div>
         ) : status !== 'authenticated' ? (
           <div className="mt-7 space-y-3">
-            {providers.google ? (
+            {accessPolicy === 'speedup' && userCode ? (
+              <a
+                href={speedupUrl}
+                className="apple-btn apple-btn-primary flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium"
+              >
+                前往 Speedup 验证 <ArrowRight size={16} />
+              </a>
+            ) : null}
+            {providers.google && accessPolicy !== 'speedup' ? (
               <button
                 type="button"
                 className="apple-btn apple-btn-primary flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium"
@@ -195,7 +226,7 @@ export function NativeLoginPageClient({ userCode, providers }: NativeLoginPageCl
                 <ArrowRight size={16} />
               </button>
             ) : null}
-            {providers.github ? (
+            {providers.github && accessPolicy === 'activation' ? (
               <button
                 type="button"
                 className="apple-btn flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] text-sm font-medium text-white"
@@ -206,7 +237,7 @@ export function NativeLoginPageClient({ userCode, providers }: NativeLoginPageCl
                 使用 GitHub 登录
               </button>
             ) : null}
-            {!providers.google && !providers.github ? (
+            {!providers.google && !providers.github && accessPolicy !== 'speedup' ? (
               <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                 平台尚未配置 OAuth 登录。
               </p>
@@ -216,6 +247,36 @@ export function NativeLoginPageClient({ userCode, providers }: NativeLoginPageCl
           <div className="mt-7 flex items-center justify-center gap-2 text-sm text-[#86868b]">
             <Loader2 size={16} className="animate-spin" />
             正在检查 App 开通状态…
+          </div>
+        ) : activation.status === 'error' ? (
+          <div className="mt-7 text-center text-sm" role="alert">
+            <p>{activation.message}</p>
+            <button
+              type="button"
+              className="apple-btn mt-3"
+              onClick={() => window.location.reload()}
+            >
+              重新检查
+            </button>
+          </div>
+        ) : activation.status === 'required' && accessPolicy !== 'activation' ? (
+          <div className="mt-7 text-center text-sm">
+            {accessPolicy === 'speedup' ? (
+              <a href={speedupUrl} className="apple-btn apple-btn-primary">
+                前往 Speedup 验证
+              </a>
+            ) : (
+              <>
+                <p>请使用 Google 账号登录测试服。</p>
+                <button
+                  type="button"
+                  className="apple-btn mt-3"
+                  onClick={() => void signOut({ callbackUrl })}
+                >
+                  更换登录账号
+                </button>
+              </>
+            )}
           </div>
         ) : activation.status === 'required' ? (
           <form

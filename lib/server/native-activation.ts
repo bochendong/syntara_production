@@ -1,6 +1,8 @@
 import { randomInt } from 'node:crypto';
 
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
+import { NATIVE_ACCESS_SELECT, nativeUserAccess } from '@/lib/server/native-user-access';
+import { resolveNativeAccessPolicy } from '@/lib/server/native-access-policy';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_GROUPS = 3;
@@ -60,10 +62,11 @@ export async function getNativeActivationStatus(userId: string) {
   const prisma = activationPrisma();
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, nativeAppActivatedAt: true },
+    select: NATIVE_ACCESS_SELECT,
   });
   return {
-    activated: user ? hasNativeAppAccess(user) : false,
+    activated: user ? (await nativeUserAccess(user)) === 'allowed' : false,
+    policy: resolveNativeAccessPolicy(process.env),
     activatedAt: user?.nativeAppActivatedAt?.toISOString() ?? null,
   };
 }

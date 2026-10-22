@@ -15,5 +15,6 @@ export function resolveNativePlatformApiAuthMode(
 }
 
 export function nativePlatformApiAuthMode(): NativePlatformApiAuthMode {
+  if (process.env.SYNTARA_NATIVE_ACCESS_POLICY?.trim()) return 'authenticated';
   return resolveNativePlatformApiAuthMode(process.env.SYNTARA_NATIVE_API_AUTH_MODE);
 }

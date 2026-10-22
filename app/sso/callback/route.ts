@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { NATIVE_SPEEDUP_COOKIE, readNativeSpeedupState } from '@/lib/server/native-speedup-login';
+import { resolveNativeAccessPolicy } from '@/lib/server/native-access-policy';
 import {
   createSpeedupUserSession,
   SpeedupSsoError,
@@ -72,7 +74,7 @@ function validCourseId(value: string): boolean {
   return /^\d{1,20}$/.test(value);
 }
 
-export async function GET(request: Request): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code')?.trim() || '';
   const courseId = requestUrl.searchParams.get('courseId')?.trim() || '';
@@ -110,7 +112,20 @@ export async function GET(request: Request): Promise<NextResponse> {
       destination = new URL('/learn', requestUrl.origin);
     }
 
+    const nativeState = request.cookies.get(NATIVE_SPEEDUP_COOKIE)?.value;
+    if (nativeState && resolveNativeAccessPolicy(process.env) === 'speedup') {
+      const userCode = readNativeSpeedupState(nativeState);
+      if (!userCode) return errorPage(400, 'App 登录请求已过期，请回到 App 重新登录。');
+      destination = new URL('/native-login', requestUrl.origin);
+      destination.searchParams.set('user_code', userCode);
+    }
     const response = NextResponse.redirect(destination, 303);
+    response.cookies.set(NATIVE_SPEEDUP_COOKIE, '', {
+      path: '/',
+      secure: true,
+      httpOnly: true,
+      maxAge: 0,
+    });
     for (const [header, value] of Object.entries(CALLBACK_SECURITY_HEADERS)) {
       response.headers.set(header, value);
     }

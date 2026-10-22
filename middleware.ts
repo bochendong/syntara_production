@@ -4,6 +4,28 @@ const CLASSROOM_TASK_HISTORY_PATH = /^\/classroom\/([^/]+)\/tasks(?:\/.*)?$/;
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  // The public staging backend exposes the App gateway and its login flow only.
+  if (process.env.SYNTARA_APP_ENV === 'staging') {
+    if (pathname === '/test' || pathname === '/test/') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/native-test';
+      return NextResponse.rewrite(url);
+    }
+    const authPath =
+      /^\/api\/auth\/(?:csrf|session|providers|signin(?:\/google)?|signout|callback\/google|error)\/?$/;
+    const allowed =
+      pathname.startsWith('/api/native/') ||
+      authPath.test(pathname) ||
+      pathname.startsWith('/_next/') ||
+      pathname === '/native-login' ||
+      pathname === '/native-test' ||
+      pathname === '/api/health' ||
+      (!pathname.startsWith('/api/') && pathname.includes('.'));
+    if (!allowed) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    return NextResponse.next();
+  }
   const match = request.nextUrl.pathname.match(CLASSROOM_TASK_HISTORY_PATH);
   if (match?.[1]) {
     const url = request.nextUrl.clone();

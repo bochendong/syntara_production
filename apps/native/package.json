@@ -10,6 +10,7 @@
     "tauri": "tauri",
     "desktop:dev": "dotenv -e ../../.env.local -- tauri dev",
     "desktop:build": "dotenv -e ../../.env.local -- tauri build --bundles app",
+    "desktop:build:staging": "node scripts/build-channel.mjs staging",
     "ios:init": "dotenv -e ../../.env.local -- sh -c 'PATH=./scripts:$PATH tauri ios init'",
     "ios:dev": "dotenv -e ../../.env.local -- sh -c 'PATH=./scripts:$PATH tauri ios dev'",
     "ios:build": "dotenv -e ../../.env.local -- sh -c 'PATH=./scripts:$PATH tauri ios build'"
