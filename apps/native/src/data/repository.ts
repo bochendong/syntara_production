@@ -1,3 +1,4 @@
+import { serializeRepository } from './serialize-repository';
 import type {
   LocalConversation,
   LocalCourse,
@@ -105,6 +106,10 @@ export interface LocalRepository {
   upsertCourseEvents(events: LocalCourseEvent[]): Promise<void>;
   deleteCourseEvent(courseId: string, eventId: string): Promise<void>;
   listMiniLectureDecks(conversationId: string): Promise<PersistedMiniLectureDeck[]>;
+  /** 按 id 取消息，并标出哪些已经挂了课堂；同步网页课堂时用，不用扫全部对话。 */
+  findLectureAnchors(
+    messageIds: string[],
+  ): Promise<{ messages: LocalMessage[]; messageIdsWithDeck: string[] }>;
   loadMiniLectureDeck(deckId: string): Promise<RuntimeMiniLectureDeck | null>;
   saveMiniLectureDocument(input: SaveMiniLectureInput): Promise<PersistedMiniLectureDeck>;
   createCourse(input: NewCourseInput): Promise<LocalCourse>;
@@ -115,9 +120,13 @@ export interface LocalRepository {
   updateMessageMetadata(messageId: string, metadata: NativeMessageMetadata): Promise<void>;
   upsertStudyMemory(memory: LocalStudyMemory): Promise<LocalStudyMemory>;
   archiveStudyMemory(memoryId: string): Promise<void>;
+  /** 归档在这条对话里记下的记忆，返回被归档的那些。 */
+  archiveConversationMemories(conversationId: string): Promise<LocalStudyMemory[]>;
   importTextMaterial(input: ImportTextMaterialInput): Promise<LocalNotebook>;
   importTextProblem(input: ImportTextProblemInput): Promise<LocalProblem>;
   importArchive(archive: SyntaraArchiveV1): Promise<ArchiveImportSummary>;
+  /** 清掉一本笔记的页面、章节和图片链接，重新导入网页上的新版本前调用。 */
+  clearNotebookContent(notebookId: string): Promise<void>;
   /** Courses imported from the web platform keep their server id as the local id. */
   upsertPlatformCourses(courses: LocalCourse[]): Promise<void>;
   /** Ids of the signed-in account's platform courses, or null before the first sync. */
@@ -140,7 +149,9 @@ export function getLocalRepository(): Promise<LocalRepository> {
   if (repositoryPromise) return repositoryPromise;
 
   repositoryPromise = isTauriRuntime()
-    ? import('./sqlite-repository').then(({ SqliteLocalRepository }) => new SqliteLocalRepository())
+    ? import('./sqlite-repository').then(({ SqliteLocalRepository }) =>
+        serializeRepository(new SqliteLocalRepository()),
+      )
     : import('./browser-repository').then(
         ({ BrowserLocalRepository }) => new BrowserLocalRepository(),
       );

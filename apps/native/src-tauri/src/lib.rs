@@ -1,6 +1,7 @@
 mod ai;
 mod assets;
 mod auth_store;
+mod local_database;
 mod platform_api;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
@@ -56,10 +57,17 @@ pub fn run() {
             sql: include_str!("../migrations/0008_message_metadata.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 9,
+            description: "add_memory_conversation",
+            sql: include_str!("../migrations/0009_memory_conversation.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            local_database::configure_local_database,
             ai::get_ai_settings,
             ai::parse_syllabus_document,
             ai::stream_ai_response,
@@ -67,18 +75,31 @@ pub fn run() {
             auth_store::save_native_auth_session,
             auth_store::clear_native_auth_session,
             platform_api::native_start_device_auth,
+            platform_api::native_tester_login,
+            platform_api::native_tester_login_config,
+            platform_api::native_local_test_login,
             platform_api::native_poll_device_auth,
             platform_api::native_refresh_device_auth,
             platform_api::native_get_current_user,
             platform_api::native_logout_device,
             platform_api::native_get_capabilities,
             platform_api::native_teaching_turn,
+            platform_api::native_chat,
             platform_api::native_create_mini_lecture,
             platform_api::native_create_review_plan,
             platform_api::native_grade_answer,
             platform_api::native_transcribe_audio,
             platform_api::native_parse_syllabus,
             platform_api::native_list_platform_courses,
+            platform_api::native_get_weekly_usage,
+            platform_api::native_get_course_data,
+            platform_api::native_get_notebook,
+            platform_api::native_get_mini_lecture,
+            platform_api::native_save_learning_progress,
+            platform_api::native_get_memories,
+            platform_api::native_sync_memories,
+            platform_api::native_get_problems,
+            platform_api::native_upload_problem_attempts,
             platform_api::native_get_conversations,
             platform_api::native_sync_conversation,
             platform_api::native_delete_conversation,

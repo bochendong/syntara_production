@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AlertTriangle } from 'lucide-react';
 
 import { CourseWorkspace } from './components/CourseWorkspace';
-import { LearnHome } from './components/LearnHome';
+import { GlassSpinner } from './components/GlassLoadMore';
 import { NativeAuthGate } from './components/NativeAccountControl';
 import { NotebookLibraryPage } from './components/NotebookLibraryPage';
 import { ProblemBankPage, type ProblemBankLaunch } from './components/ProblemBankPage';
 import { ProblemPracticePage } from './components/ProblemPracticePage';
-import { parseSyntaraArchive } from './data/archive';
 import { syncPlatformCourses } from './data/chat-sync';
 import { getLocalRepository, type LocalBackendKind } from './data/repository';
+import { readPhoneLastChat } from './lib/phone-last-chat';
+import { usePhoneLayout } from './lib/use-phone-layout';
+import { useAvatarTheme } from './lib/use-avatar-theme';
 import type { LocalCourseSummary, LocalCourseWorkspace } from './domain/models';
 
 type AppSurface = 'learn' | 'course' | 'problem-bank' | 'notebook-library' | 'problem-practice';
@@ -29,24 +31,26 @@ function updateWithPlatformTransition(update: () => void) {
 }
 
 function AuthenticatedApp() {
+  const avatarTheme = useAvatarTheme();
   const [courses, setCourses] = useState<LocalCourseSummary[]>([]);
   const [platformCourseIds, setPlatformCourseIds] = useState<string[] | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [initialConversationId, setInitialConversationId] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<LocalCourseWorkspace | null>(null);
   const [surface, setSurface] = useState<AppSurface>('learn');
   const [practiceLaunch, setPracticeLaunch] = useState<ProblemBankLaunch | null>(null);
   const [backendKind, setBackendKind] = useState<LocalBackendKind>('indexeddb');
-  const [loadDuration, setLoadDuration] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [switchingCourse, setSwitchingCourse] = useState(false);
-  const [migrationBusy, setMigrationBusy] = useState(false);
+  const [settledCourseId, setSettledCourseId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const archiveInputRef = useRef<HTMLInputElement>(null);
+  const phoneLayout = usePhoneLayout();
+  const [autoOpened, setAutoOpened] = useState(false);
+  const [lastChat] = useState(readPhoneLastChat);
+  const switchingCourse = surface !== 'learn' && settledCourseId !== selectedCourseId;
 
   const loadCourses = useCallback(async (preferredCourseId?: string) => {
     const repository = await getLocalRepository();
-    const startedAt = performance.now();
     await repository.bootstrap();
     setPlatformCourseIds(await syncPlatformCourses(repository));
     const loadedCourses = await repository.listCourseSummaries();
@@ -60,7 +64,6 @@ function AuthenticatedApp() {
         ? currentCourseId
         : null;
     });
-    setLoadDuration(performance.now() - startedAt);
   }, []);
 
   const loadWorkspace = useCallback(async (courseId: string | null) => {
@@ -69,30 +72,41 @@ function AuthenticatedApp() {
       return;
     }
     const repository = await getLocalRepository();
-    const startedAt = performance.now();
     const loadedWorkspace = await repository.loadCourseWorkspace(courseId);
     setWorkspace(loadedWorkspace);
-    setLoadDuration(performance.now() - startedAt);
   }, []);
 
   useEffect(() => {
-    void loadCourses()
-      .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
-      .finally(() => setLoading(false));
+    async function initialize() {
+      try {
+        await loadCourses();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        setLoading(false);
+      }
+    }
+    void initialize();
   }, [loadCourses]);
 
   useEffect(() => {
-    if (surface === 'learn') {
-      setWorkspace(null);
-      setPracticeLaunch(null);
-      setSwitchingCourse(false);
-      return;
-    }
-    setSwitchingCourse(true);
-    void loadWorkspace(selectedCourseId)
-      .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
-      .finally(() => setSwitchingCourse(false));
-  }, [loadWorkspace, selectedCourseId, surface]);
+    if (surface === 'learn' || !selectedCourseId) return;
+    let cancelled = false;
+    void getLocalRepository()
+      .then((repository) => repository.loadCourseWorkspace(selectedCourseId))
+      .then((loadedWorkspace) => {
+        if (!cancelled) setWorkspace(loadedWorkspace);
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
+      })
+      .finally(() => {
+        if (!cancelled) setSettledCourseId(selectedCourseId);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCourseId, surface]);
 
   useEffect(() => {
     if (!toast) return;
@@ -100,31 +114,38 @@ function AuthenticatedApp() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const createCourse = useCallback(async () => {
-    try {
-      const repository = await getLocalRepository();
-      const course = await repository.createCourse({
-        name: `本地课程 ${courses.length + 1}`,
-        description: '这门课程只保存在当前设备。',
-      });
-      await loadCourses(course.id);
-      setToast(`已在本机创建“${course.name}”`);
-    } catch (cause) {
-      setToast(`创建失败：${cause instanceof Error ? cause.message : String(cause)}`);
-    }
-  }, [courses.length, loadCourses]);
-
-  const openCourse = useCallback((courseId: string) => {
+  const openCourse = useCallback((courseId: string, conversationId?: string) => {
     updateWithPlatformTransition(() => {
       setSelectedCourseId(courseId);
+      setInitialConversationId(conversationId ?? null);
       setPracticeLaunch(null);
       setSurface('course');
     });
   }, []);
 
+  // 手机上只显示网页账号下的课程；还没同步过账号时一门也不显示。
+  const accountCourses = useMemo(
+    () =>
+      platformCourseIds ? courses.filter((course) => platformCourseIds.includes(course.id)) : [],
+    [courses, platformCourseIds],
+  );
+
+  // 没有主页（手机、iPad、桌面都一样）：载入后直接打开上次用的课程和聊天，没有记录就打开第一门课。
+  // 手机只认网页账号下的课程；大屏上账号还没有课程时，退回本机课程。
+  const launchCourses = accountCourses.length || phoneLayout ? accountCourses : courses;
+  if (!loading && surface === 'learn' && !autoOpened && launchCourses.length) {
+    const lastCourse = launchCourses.find((course) => course.id === lastChat?.courseId);
+    const course = lastCourse ?? [...launchCourses].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    setAutoOpened(true);
+    setSelectedCourseId(course.id);
+    setInitialConversationId(lastCourse ? (lastChat?.conversationId ?? null) : null);
+    setSurface('course');
+  }
+
   const openLearnHome = useCallback(() => {
     updateWithPlatformTransition(() => {
       setSurface('learn');
+      setInitialConversationId(null);
       setPracticeLaunch(null);
       setWorkspace(null);
     });
@@ -137,13 +158,6 @@ function AuthenticatedApp() {
     });
   }, []);
 
-  const openNotebookLibrary = useCallback(() => {
-    updateWithPlatformTransition(() => {
-      setPracticeLaunch(null);
-      setSurface('notebook-library');
-    });
-  }, []);
-
   const openPractice = useCallback((launch: ProblemBankLaunch) => {
     updateWithPlatformTransition(() => {
       setPracticeLaunch(launch);
@@ -151,12 +165,13 @@ function AuthenticatedApp() {
     });
   }, []);
 
+  // iPad 和桌面的题库在课程工作台右侧，做完题回到那里。
   const backFromPractice = useCallback(() => {
     updateWithPlatformTransition(() => {
       setPracticeLaunch(null);
-      setSurface('problem-bank');
+      setSurface(phoneLayout ? 'problem-bank' : 'course');
     });
-  }, []);
+  }, [phoneLayout]);
 
   const backFromProblemBank = useCallback(() => {
     updateWithPlatformTransition(() => {
@@ -178,42 +193,13 @@ function AuthenticatedApp() {
     ]);
   }, [loadCourses, loadWorkspace, selectedCourseId]);
 
-  const importArchive = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      event.target.value = '';
-      if (!file || migrationBusy) return;
-
-      setMigrationBusy(true);
-      try {
-        const archive = parseSyntaraArchive(await file.text());
-        if (archive.courses.length === 0) {
-          throw new Error('迁移文件中没有可导入的课程。');
-        }
-        const repository = await getLocalRepository();
-        const summary = await repository.importArchive(archive);
-        await loadCourses(summary.courseIds[0]);
-        setSurface('learn');
-        setPracticeLaunch(null);
-        setToast(
-          `已迁移 ${summary.courses} 门课程、${summary.notebooks} 个笔记本、${summary.problems} 道题、${summary.messages} 条消息和 ${summary.assets} 个离线资源${summary.missingAssets ? `；${summary.missingAssets} 个资源缺失` : ''}`,
-        );
-      } catch (cause) {
-        setToast(`迁移失败：${cause instanceof Error ? cause.message : String(cause)}`);
-      } finally {
-        setMigrationBusy(false);
-      }
-    },
-    [loadCourses, migrationBusy],
-  );
-
   const backendLabel = backendKind === 'sqlite' ? '本机 SQLite' : '本机预览库';
 
   if (loading) {
     return (
       <div className="launch-state">
         <span className="launch-orb">
-          <Loader2 size={23} />
+          <GlassSpinner size={23} />
         </span>
         <strong>正在载入 Learn</strong>
         <span>正在恢复本地课程、笔记本与会话…</span>
@@ -238,24 +224,22 @@ function AuthenticatedApp() {
 
   let content: ReactNode = null;
   if (surface === 'learn') {
+    // 没有主页：有课程就直接打开聊天，一门都没有就提示去网页上加入（手机、iPad、桌面一样）。
+    const waiting = launchCourses.length > 0;
     content = (
-      <LearnHome
-        courses={courses}
-        platformCourseIds={platformCourseIds}
-        activeCourseId={selectedCourseId}
-        backendLabel={backendLabel}
-        loadDuration={loadDuration}
-        migrationBusy={migrationBusy}
-        onCreateCourse={() => void createCourse()}
-        onImportArchive={() => archiveInputRef.current?.click()}
-        onOpenCourse={openCourse}
-      />
+      <div className="launch-state launch-state-light">
+        <span className="launch-orb">
+          {waiting ? <GlassSpinner size={23} /> : <AlertTriangle size={23} />}
+        </span>
+        <strong>{waiting ? '正在打开聊天' : '账号下还没有课程'}</strong>
+        {waiting ? null : <span>请先在网页上创建或加入课程，再回到这里。</span>}
+      </div>
     );
   } else if (!workspace) {
     content = (
       <div className="launch-state launch-state-light">
         <span className="launch-orb">
-          <Loader2 size={23} />
+          <GlassSpinner size={23} />
         </span>
         <strong>正在打开课程</strong>
       </div>
@@ -292,9 +276,11 @@ function AuthenticatedApp() {
         key={workspace.course.id}
         workspace={workspace}
         backendLabel={backendLabel}
+        courses={accountCourses}
         onBack={openLearnHome}
+        onSwitchCourse={(courseId) => openCourse(courseId)}
+        initialConversationId={initialConversationId}
         onOpenProblemBank={openProblemBank}
-        onOpenNotebookLibrary={openNotebookLibrary}
         onOpenPractice={openPractice}
         onWorkspaceChanged={refreshWorkspace}
       />
@@ -302,23 +288,18 @@ function AuthenticatedApp() {
   }
 
   return (
-    <main className="syntara-native-shell">
+    <main
+      className={`syntara-native-shell${avatarTheme.themed ? ' has-avatar-theme' : ''}`}
+      style={avatarTheme.style}
+    >
       {content}
 
       {surface !== 'learn' && switchingCourse && workspace ? (
         <div className="course-switch-progress" role="status">
-          <Loader2 size={14} />
+          <GlassSpinner size={14} />
           正在切换课程
         </div>
       ) : null}
-
-      <input
-        ref={archiveInputRef}
-        className="archive-file-input"
-        type="file"
-        accept=".json,.syntara.json,application/json"
-        onChange={(event) => void importArchive(event)}
-      />
 
       {toast ? (
         <div className="native-toast" role="status">
@@ -331,9 +312,12 @@ function AuthenticatedApp() {
 
 function App() {
   return (
-    <NativeAuthGate>
-      <AuthenticatedApp />
-    </NativeAuthGate>
+    <>
+      <div className="native-window-drag-region" data-tauri-drag-region aria-hidden />
+      <NativeAuthGate>
+        <AuthenticatedApp />
+      </NativeAuthGate>
+    </>
   );
 }
 

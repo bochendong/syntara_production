@@ -1,6 +1,10 @@
 import type { LocalConversation, LocalCourse, LocalMessage } from '../domain/models';
+import { chatFileChips } from './chat-files';
 import { chatImageThumbnails } from './chat-images';
-import type { NativeSyncedChatMessage } from './platform-api-contracts';
+import type {
+  NativeSyncedChatMessage,
+  NativeSyncedConversationList,
+} from './platform-api-contracts';
 import {
   deleteSyncedConversation,
   listNativePlatformCourses,
@@ -71,15 +75,19 @@ function toSyncedMessage(message: LocalMessage): NativeSyncedChatMessage | null 
   if (message.role !== 'user' && message.role !== 'assistant') return null;
   if (message.id.startsWith('stream-')) return null;
   const images = chatImageThumbnails(message.metadata);
+  const files = chatFileChips(message.metadata);
   return {
     id: message.id,
     role: message.role,
     text: message.text.slice(0, MAX_SYNCED_TEXT_LENGTH),
     createdAt: message.createdAt,
-    ...(images.length
+    ...(images.length || files.length
       ? {
-          // 只同步图片的名字，原图和缩略图留在手机上。
-          attachments: images.map((image) => ({ name: image.name, mimeType: 'image/jpeg' })),
+          // 只同步附件的名字，原图、缩略图和文件留在手机上。
+          attachments: [
+            ...images.map((image) => ({ name: image.name, mimeType: 'image/jpeg' })),
+            ...files.map((file) => ({ name: file.name, size: file.size })),
+          ],
         }
       : {}),
   };
@@ -118,23 +126,37 @@ export async function pushConversation(
   });
 }
 
-/** 打开课程时把网页上的对话拉到本机；返回是否有新内容。 */
-export async function pullCourseConversations(
+/** 侧边栏每页的会话数，和网页「全部会话」的下一页一样按最近更新排序。 */
+export const CONVERSATION_PAGE_SIZE = 30;
+/** 打开课程时只预先下载最近几段有更新的对话，其余的点开时再下载。 */
+const PREFETCH_CONVERSATION_COUNT = 5;
+/** 本机已有旧消息、但网页上新增太多时，最多往前补几页把中间的空缺填上。 */
+const MAX_GAP_FILL_PAGES = 4;
+
+export interface ConversationPage {
+  changed: boolean;
+  hasMore: boolean;
+  nextCursor: string | null;
+  /** 网页上这门课的会话总数。 */
+  totalCount: number;
+}
+
+/** 把一页网页会话的标题和时间存到本机；返回有更新、需要下载消息的那些会话。 */
+async function mergeConversationPage(
   repository: LocalRepository,
   courseId: string,
+  sessions: NativeSyncedConversationList['sessions'],
   localConversations: LocalConversation[],
-): Promise<boolean> {
-  if (!(await isPlatformCourse(repository, courseId))) return false;
-  const remote = await listSyncedConversations(courseId);
+) {
   const localById = new Map(localConversations.map((item) => [item.id, item]));
+  const stale: string[] = [];
   let changed = false;
-  for (const session of remote.sessions) {
+  for (const session of sessions) {
     const updatedAt = timestampOf(session.updatedAt, Date.now());
     const local = localById.get(session.id);
     if (local && local.updatedAt >= updatedAt && local.title === session.title) continue;
-    const snapshot = await loadSyncedConversation(courseId, session.id);
     const createdAt = timestampOf(session.createdAt, updatedAt);
-    const inserted = await repository.mergeSyncedConversation(
+    await repository.mergeSyncedConversation(
       {
         id: session.id,
         courseId,
@@ -143,13 +165,171 @@ export async function pullCourseConversations(
         createdAt: local?.createdAt ?? createdAt,
         updatedAt,
       },
-      snapshot.messages
-        .filter((message) => message.role === 'user' || message.role === 'assistant')
-        .map((message) => fromSyncedMessage(message, session.id, createdAt)),
+      [],
     );
-    changed = changed || inserted > 0 || !local || local.title !== session.title;
+    if (!local || local.updatedAt < updatedAt) stale.push(session.id);
+    changed = true;
   }
-  return changed;
+  return { changed, stale };
+}
+
+/**
+ * 打开课程时拉第一页网页会话（30 个）。只预先下载最近 5 段有更新的对话的消息，
+ * 其余点开时由 refreshConversationMessages 再下载，避免一次连发几十个请求。
+ */
+export async function pullCourseConversations(
+  repository: LocalRepository,
+  courseId: string,
+  localConversations: LocalConversation[],
+): Promise<ConversationPage> {
+  if (!(await isPlatformCourse(repository, courseId))) {
+    return { changed: false, hasMore: false, nextCursor: null, totalCount: 0 };
+  }
+  const remote = await listSyncedConversations(courseId, { limit: CONVERSATION_PAGE_SIZE });
+  const merged = await mergeConversationPage(
+    repository,
+    courseId,
+    remote.sessions,
+    localConversations,
+  );
+  for (const sessionId of merged.stale.slice(0, PREFETCH_CONVERSATION_COUNT)) {
+    await refreshConversationMessages(repository, courseId, sessionId).catch((cause) =>
+      console.warn('[chat-sync] prefetch failed', sessionId, cause),
+    );
+  }
+  return {
+    changed: merged.changed,
+    hasMore: remote.hasMore,
+    nextCursor: remote.nextCursor,
+    totalCount: remote.totalCount,
+  };
+}
+
+/** 侧边栏滚到底：取下一页网页会话（只存标题和时间）。 */
+export async function pullMoreCourseConversations(
+  repository: LocalRepository,
+  courseId: string,
+  cursor: string,
+  localConversations: LocalConversation[],
+): Promise<ConversationPage> {
+  const remote = await listSyncedConversations(courseId, {
+    limit: CONVERSATION_PAGE_SIZE,
+    cursor,
+  });
+  const merged = await mergeConversationPage(
+    repository,
+    courseId,
+    remote.sessions,
+    localConversations,
+  );
+  return {
+    changed: merged.changed,
+    hasMore: remote.hasMore,
+    nextCursor: remote.nextCursor,
+    totalCount: remote.totalCount,
+  };
+}
+
+/** 本机没有全部会话，所以搜索也问一下网页；找到的会话存到本机。 */
+export async function searchCourseConversations(
+  repository: LocalRepository,
+  courseId: string,
+  query: string,
+  localConversations: LocalConversation[],
+): Promise<boolean> {
+  if (!(await isPlatformCourse(repository, courseId))) return false;
+  const remote = await listSyncedConversations(courseId, {
+    limit: CONVERSATION_PAGE_SIZE,
+    q: query,
+  });
+  const merged = await mergeConversationPage(
+    repository,
+    courseId,
+    remote.sessions,
+    localConversations,
+  );
+  return merged.changed;
+}
+
+export interface ConversationMessagePage {
+  /** 新存到本机的消息数。 */
+  inserted: number;
+  /** 网页上还有更早的消息时，取上一页用的游标。 */
+  olderCursor: string | null;
+}
+
+async function mergeMessagePage(
+  repository: LocalRepository,
+  courseId: string,
+  sessionId: string,
+  before: string | null,
+) {
+  const snapshot = await loadSyncedConversation(courseId, sessionId, { before });
+  if (!snapshot.session) return null;
+  const updatedAt = timestampOf(snapshot.session.updatedAt, Date.now());
+  const createdAt = timestampOf(snapshot.session.createdAt, updatedAt);
+  const messages = snapshot.messages
+    .filter((message) => message.role === 'user' || message.role === 'assistant')
+    .map((message) => fromSyncedMessage(message, sessionId, createdAt));
+  const inserted = await repository.mergeSyncedConversation(
+    {
+      id: sessionId,
+      courseId,
+      notebookId: null,
+      title: snapshot.session.title || '新对话',
+      createdAt,
+      updatedAt,
+    },
+    messages,
+  );
+  const page = snapshot.messagePage;
+  return {
+    inserted,
+    returned: messages.length,
+    olderCursor: page?.hasMore ? page.nextCursor : null,
+  };
+}
+
+/**
+ * 点开一段网页对话时下载最近 30 条消息。如果本机原本就有旧消息、而这一页全是新的，
+ * 说明中间还有空缺，再往前补几页，直到接上本机已有的消息。
+ */
+export async function refreshConversationMessages(
+  repository: LocalRepository,
+  courseId: string,
+  sessionId: string,
+): Promise<ConversationMessagePage | null> {
+  if (!(await isPlatformCourse(repository, courseId))) return null;
+  const hadLocalMessages = (await repository.listMessages(sessionId)).length > 0;
+  let page = await mergeMessagePage(repository, courseId, sessionId, null);
+  if (!page) return null;
+  let inserted = page.inserted;
+  for (
+    let filled = 0;
+    hadLocalMessages &&
+    page.olderCursor &&
+    page.returned > 0 &&
+    page.inserted === page.returned &&
+    filled < MAX_GAP_FILL_PAGES;
+    filled += 1
+  ) {
+    const older = await mergeMessagePage(repository, courseId, sessionId, page.olderCursor);
+    if (!older) break;
+    page = older;
+    inserted += older.inserted;
+  }
+  return { inserted, olderCursor: page.olderCursor };
+}
+
+/** 聊天往上翻到本机最早的一条时，再从网页取更早的 30 条。 */
+export async function loadOlderConversationMessages(
+  repository: LocalRepository,
+  courseId: string,
+  sessionId: string,
+  before: string,
+): Promise<ConversationMessagePage | null> {
+  const page = await mergeMessagePage(repository, courseId, sessionId, before);
+  return page ? { inserted: page.inserted, olderCursor: page.olderCursor } : null;
 }
 
 /** 在手机上删除对话时，同时删除网页上的同一段对话。 */

@@ -1,0 +1,1708 @@
+{
+  "sourceCheckout": "/Users/dongbochen/Documents/GitHub/syntara_production",
+  "sourceBranch": "codex/shared-wip-2026-10-21",
+  "provenance": "Mixed, unassigned work. User explicitly identified this current Native App as the supported app and requested deletion of the obsolete main-branch client. This list imports only the current native source delta and its direct public avatar dependencies; no whole-worktree snapshot or private env files are imported.",
+  "files": [
+    {
+      "path": "apps/native/README.md",
+      "action": "import",
+      "sha256": "2cf429c0a5ab025b2bfc5a01ee4599a8c14b43aad529da3cec899ee7ac372716"
+    },
+    {
+      "path": "apps/native/package.json",
+      "action": "import",
+      "sha256": "1ff09cfa5b5b340c58301913723de675f970b9a922aaae5c3231bc412d930137"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/Haru.2048/texture_00.png",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/Haru.2048/texture_01.png",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/Haru.cdi3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/Haru.moc3",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/Haru.model3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/Haru.physics3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/Haru.pose3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/Haru.userdata3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/expressions/F01.exp3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/expressions/F02.exp3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/expressions/F03.exp3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/expressions/F04.exp3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/expressions/F05.exp3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/expressions/F06.exp3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/expressions/F07.exp3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/expressions/F08.exp3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_idle.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m01.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m02.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m03.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m04.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m05.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m06.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m07.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m08.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m09.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m10.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m11.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m12.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m13.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m14.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m15.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m16.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m17.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m18.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m19.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m20.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m21.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m22.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m23.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m24.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m25.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/motions/haru_g_m26.motion3.json",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/sounds/haru_normal_01.wav",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/sounds/haru_normal_02.wav",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/sounds/haru_normal_03.wav",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/Haru/sounds/haru_normal_04.wav",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/README.md",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/public/live2d/live2dcubismcore.min.js",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/src-tauri/Cargo.lock",
+      "action": "import",
+      "sha256": "b9f3bb5112334ddca9c72efcb5c7a8102610d07977d505e9a1de59a8d027d9c8"
+    },
+    {
+      "path": "apps/native/src-tauri/Cargo.toml",
+      "action": "import",
+      "sha256": "6c2ac2427e97427bf6dcf37dcc70ab3d0ad18f5837baa4abd7f25ce347b9a136"
+    },
+    {
+      "path": "apps/native/src-tauri/Info.ios.plist",
+      "action": "import",
+      "sha256": "65b0b5422f9c13aeca7e56063155e64552ee460a9d77b0d232b4a4e430809b11"
+    },
+    {
+      "path": "apps/native/src-tauri/capabilities/window-drag.json",
+      "action": "import",
+      "sha256": "e7f336d46a727915618a1cc5780140aacd8fd29496ae0cd82dbd2a634b3170e6"
+    },
+    {
+      "path": "apps/native/src-tauri/migrations/0009_memory_conversation.sql",
+      "action": "import",
+      "sha256": "ce60f6ac96235456dc58ce4d07d59331e82429c27e2901a8e40adf7ba9f310ce"
+    },
+    {
+      "path": "apps/native/src-tauri/project.ios.yml",
+      "action": "import",
+      "sha256": "d5222aeb292b5030df2f13ec2439318f50c33fc2da67c85c18297af430c75184"
+    },
+    {
+      "path": "apps/native/src-tauri/src/ai.rs",
+      "action": "import",
+      "sha256": "6b7382a833272e06f69d414170014c0325ebd9882fea22e0312a5033c08a0d86"
+    },
+    {
+      "path": "apps/native/src-tauri/src/auth_store.rs",
+      "action": "import",
+      "sha256": "795b83ce4c37d618c9a017f5096127ba7effb5850051ae45dd3a606fbec3ae4f"
+    },
+    {
+      "path": "apps/native/src-tauri/src/lib.rs",
+      "action": "import",
+      "sha256": "5fea25dbca7b49e0f3eb38923367c45e7b4c76f8ec63329310accb892ef8a7ea"
+    },
+    {
+      "path": "apps/native/src-tauri/src/local_database.rs",
+      "action": "import",
+      "sha256": "20c94de353a7a05aa5a2089519607dc90ced195dc6435fc4df1423430310f127"
+    },
+    {
+      "path": "apps/native/src-tauri/src/platform_api.rs",
+      "action": "import",
+      "sha256": "c6de1369333f68050ec5cbc878d676f16f700d1967a61eaf81fa47b8ef12b6fd"
+    },
+    {
+      "path": "apps/native/src-tauri/tauri.conf.json",
+      "action": "import",
+      "sha256": "cad4ebad285a88fc63ed866822cc1595a744aa5debff7a88e61a1018e77a3239"
+    },
+    {
+      "path": "apps/native/src/App.tsx",
+      "action": "import",
+      "sha256": "85d3a19e3a6bf9f42e2207c38cd80e27d0523fa2dd5710fe7c8a6a205d64c019"
+    },
+    {
+      "path": "apps/native/src/ai/chat.ts",
+      "action": "import",
+      "sha256": "7cf1d06e1539be3fb29e31d92acc5763de22e0751aba4056fa6d84e449dc0fb0"
+    },
+    {
+      "path": "apps/native/src/ai/context.ts",
+      "action": "import",
+      "sha256": "b58ea7fe1f8cedc9c29b8499f670864843573634eab7b947c6664cffb4fbd509"
+    },
+    {
+      "path": "apps/native/src/ai/types.ts",
+      "action": "import",
+      "sha256": "2a29447e67c344be5bd463e51d5af57bae70d6b1b349cdfff519e276f7e80eb7"
+    },
+    {
+      "path": "apps/native/src/assets.ts",
+      "action": "import",
+      "sha256": "920284fe8c182a94087e206fc8b8eb2560e7b3cd3c3b02c4943fd04d6504c17d"
+    },
+    {
+      "path": "apps/native/src/assets/learning-confirmation-mark.webp",
+      "action": "import",
+      "sha256": "676923d9fc6dc81105ce669135ffc4506aaaf36e8f5bdbfafc9e6d3cb98a5e5a"
+    },
+    {
+      "path": "apps/native/src/assets/learning-marble-amber.webp",
+      "action": "import",
+      "sha256": "c679f08bef42b8caf6da21444b68ab99404f69d88ea18a25282b75d9252c663c"
+    },
+    {
+      "path": "apps/native/src/assets/learning-marble-blue.webp",
+      "action": "import",
+      "sha256": "dd67507fdcdff836d57ee1889052bd2d6afcad22d4bee1f14478d4237db2acd6"
+    },
+    {
+      "path": "apps/native/src/assets/learning-marble-green.webp",
+      "action": "import",
+      "sha256": "3abb792aee3f8eab54a3c36e16b2e9d2750a757f0654b040c30d71a48741d5c8"
+    },
+    {
+      "path": "apps/native/src/assets/learning-marble-pink.webp",
+      "action": "import",
+      "sha256": "f2f913998fe249bed8947da75c52da92ec2e6fafaad7e861ae73d42fcb592f6a"
+    },
+    {
+      "path": "apps/native/src/assets/learning-marble-purple.webp",
+      "action": "import",
+      "sha256": "00846d7c95149f0f45746e728dbbd8508e3089e849539063dc14bb86595531da"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/ex-any-biology.webp",
+      "action": "import",
+      "sha256": "d1674926a1ef4d2a94e65b52c8d2dc275e11f1c8189ece5096ce109a27897115"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/ex-any-chemistry.webp",
+      "action": "import",
+      "sha256": "c615bf243cef63c4792654b086389385d9faddfd740d0c799b24397e57b49d6c"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/ex-any-mushroom.webp",
+      "action": "import",
+      "sha256": "3a10d06f3bfda2325a5f1f056333170f38139d653277e5658c9ee7c1a55456ae"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/ex-any-ocean.webp",
+      "action": "import",
+      "sha256": "fbd02e52c35538dd86e7f0a462fde369ddcc04674c1b0fa34be835b3fa1b0d36"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/ex-any-rainforest.webp",
+      "action": "import",
+      "sha256": "ce14a3425daad387d57bebe8b90b1367f98a2db34913319a9758e2db164deb51"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/r-amber-swirl.webp",
+      "action": "import",
+      "sha256": "2a0b0242d45b098733a1f429bd14f0f348a56b025fd485403b39b15810034551"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/r-blue-swirl.webp",
+      "action": "import",
+      "sha256": "0d8e3cb5ccda31afadbbb1f2966d8434ea9b7fbfa17724ea3544dd45da45640b"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/r-green-swirl.webp",
+      "action": "import",
+      "sha256": "1ab4c6ae2a75383436433492594af615b0fcfff7bdf79302c2fef9f4aa81d2f5"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/r-pink-swirl.webp",
+      "action": "import",
+      "sha256": "f310b6aff41f15a1fe12abf2442d3b43e0af02445837c81c5624c6aecd91d94d"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/r-purple-swirl.webp",
+      "action": "import",
+      "sha256": "91cbb29acc8be688c0adc5b9cc9dcccb0249a665e05da77d8f7bbd5acc737b07"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/r-silver-swirl.webp",
+      "action": "import",
+      "sha256": "dd17726fbf944e588c6d7a2587db135b392a21b6ba68b061f5a7fb0046fe2d7f"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/sr-blue-cloud.webp",
+      "action": "import",
+      "sha256": "d853d283d7b6540215345403ebfd930e4a57b594af6bd78a294dc081fa3ed8ae"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/sr-green-aurora.webp",
+      "action": "import",
+      "sha256": "ded4ea0a49e21354ff50344b83c07d630e6d3a3439b71817d7b8dcda013c40f5"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/sr-pink-sakura.webp",
+      "action": "import",
+      "sha256": "60fc95911391b97f1b82f177588808b117f53fb7adfb1910de8e72cf4bf9c2c5"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/sr-purple-moon.webp",
+      "action": "import",
+      "sha256": "c1672c024252f88337295ff55743e0ee78ad655b3935e4c8eaf9ea023810a4ab"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/ssr-any-cosmos.webp",
+      "action": "import",
+      "sha256": "a5ba0c621bd6fe3356ad7d6790e564474f1ebb932ccadd0cc0a58b133e631860"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/ssr-any-eclipse.webp",
+      "action": "import",
+      "sha256": "38e8418616dcc50f0370ba40ce490eea63a9b81aaf50f1ab55c5d4f5e650ae4d"
+    },
+    {
+      "path": "apps/native/src/assets/marbles/ssr-any-gold.webp",
+      "action": "import",
+      "sha256": "60645b8f44e191b6127d8ec29cd56714cf0c107eeb9fdc6b1f3c222e774dcecc"
+    },
+    {
+      "path": "apps/native/src/assets/memory-night-sky-v2.webp",
+      "action": "import",
+      "sha256": "9514871d00533c189ab333ef8d9ff0846f11f2a5abc835c97f3ab5d37982f101"
+    },
+    {
+      "path": "apps/native/src/assets/send-wisdom-glass-orb.png",
+      "action": "import",
+      "sha256": "44140793816a7b9abe5a57a1d926ccfffb6c01d7803fd1e8a12efcc138808180"
+    },
+    {
+      "path": "apps/native/src/assets/send-wisdom-glass-orb.prompt.txt",
+      "action": "import",
+      "sha256": "7564f5d08a3529cdd29498f07976704aba1128ffe2fd9cb9412cbde171655bb3"
+    },
+    {
+      "path": "apps/native/src/components/CourseWorkspace.tsx",
+      "action": "import",
+      "sha256": "cccaa812e6dd1ce0361fc8975835d35543534feed90fbe192c4afdcfe4e895fb"
+    },
+    {
+      "path": "apps/native/src/components/GlassLoadMore.tsx",
+      "action": "import",
+      "sha256": "cfec55ac9cc50af46f86584228faf6322d1e9ece6c84397882b10ce957781572"
+    },
+    {
+      "path": "apps/native/src/components/GlassMarbles.tsx",
+      "action": "import",
+      "sha256": "0343f749560029675362f52a0d1d7c4e2ceb823fc0e2db5e045ef8bd92a6b1fc"
+    },
+    {
+      "path": "apps/native/src/components/GlobalCalendarApp.tsx",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/src/components/HaruLive2D.tsx",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/src/components/LearnHome.tsx",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/src/components/LearningCalendarGrid.tsx",
+      "action": "import",
+      "sha256": "b011ba11afe03681b4413b0e0ab4dca6789421f737e5917d0330ac196d5841bb"
+    },
+    {
+      "path": "apps/native/src/components/LocalResourceViewer.tsx",
+      "action": "import",
+      "sha256": "7cf04c16c0392d7ee6b3a41819f3cfbf6a4d9eed82314f702b081e94d402013d"
+    },
+    {
+      "path": "apps/native/src/components/MarbleCatcher.tsx",
+      "action": "import",
+      "sha256": "1bdc87cbe1685f65fd791cdb6007738dce9d1ee3c5d09ba5f183b42abdef38f9"
+    },
+    {
+      "path": "apps/native/src/components/MarbleTube3D.tsx",
+      "action": "import",
+      "sha256": "f1c03bd550e4e9745f8246bb7ab119ccb58fab6270d8184150113303eed04b24"
+    },
+    {
+      "path": "apps/native/src/components/MemoryGalaxy3D.tsx",
+      "action": "import",
+      "sha256": "1656e0278c6189539fab418f0f27cbc318a3ec5657b1635a9ccd549214b7fd0b"
+    },
+    {
+      "path": "apps/native/src/components/MiniLectureClassroom.tsx",
+      "action": "import",
+      "sha256": "f09acdab3f7d314bdddf3725f428438b89e0493bd32023a1a79cf1277ea2cc60"
+    },
+    {
+      "path": "apps/native/src/components/NativeAccountControl.tsx",
+      "action": "import",
+      "sha256": "b4f7d5f42de1d5a573a9d3c9a2b776c2be005ecef469532b7ef18c26c0f01a3f"
+    },
+    {
+      "path": "apps/native/src/components/NativeLearningActions.tsx",
+      "action": "import",
+      "sha256": "4c3cef8c31da718d9ce611b27218e8be01da20a7f98bea01aec9d13c06dca915"
+    },
+    {
+      "path": "apps/native/src/components/NotebookLibraryPage.tsx",
+      "action": "import",
+      "sha256": "9e59bd0d0f1d93d20e1dd26928df8d65d780524407bb0c5b8066454a6e2707b3"
+    },
+    {
+      "path": "apps/native/src/components/PhonePages.tsx",
+      "action": "import",
+      "sha256": "cf5231470b9ce98a71ccc703fd566079474a5886ba1ec6a6a9f7fbcb2848a44c"
+    },
+    {
+      "path": "apps/native/src/components/ProblemBankPage.tsx",
+      "action": "import",
+      "sha256": "962f762d650cb4e635508b36b547804b60add7360b7c42bff52969d42bf92a76"
+    },
+    {
+      "path": "apps/native/src/components/ProblemPracticePage.tsx",
+      "action": "import",
+      "sha256": "c43834c7cad52831b9487a1e8237ec8d28da015adc4e7fdda23a66cbd27e0daa"
+    },
+    {
+      "path": "apps/native/src/components/ProfileCenterApp.tsx",
+      "action": "delete-obsolete-source"
+    },
+    {
+      "path": "apps/native/src/components/RecallThinking.tsx",
+      "action": "import",
+      "sha256": "fc95179cdaf4a3877820ad8b4e6120a6a8c25c38ae47e140b8b1057fea06f983"
+    },
+    {
+      "path": "apps/native/src/components/avatar-theme.css",
+      "action": "import",
+      "sha256": "ece4047e2534b1e31cdf878fc35ae323f41120e99fab3ccd68e163954f5838ca"
+    },
+    {
+      "path": "apps/native/src/components/chat-rich/ChatRichText.tsx",
+      "action": "import",
+      "sha256": "e60a7aba91316e2ca22329d6cd755addd50a975e62952bbe5890c630ba15004a"
+    },
+    {
+      "path": "apps/native/src/components/chat-rich/chat-rich.css",
+      "action": "import",
+      "sha256": "7e1b92c0c3c8ad88956b8e028c0398b0b3c6a601c87cc72eccd084da780f6965"
+    },
+    {
+      "path": "apps/native/src/components/course-pages.css",
+      "action": "import",
+      "sha256": "fe6f3328998cdc236b7c96cfc114ae9148ebef0437b0dcb53c95fbffa9b60be7"
+    },
+    {
+      "path": "apps/native/src/components/glass-load-more.css",
+      "action": "import",
+      "sha256": "665771f6ef844b36d7d46522474cf02ec59d43308799236de59cee2b78a72afa"
+    },
+    {
+      "path": "apps/native/src/components/glass-marbles.css",
+      "action": "import",
+      "sha256": "7722efce8defe332a07b3505794ee135583cdf309640a2ad16b8f7b2c34b1309"
+    },
+    {
+      "path": "apps/native/src/components/marble-tokens.css",
+      "action": "import",
+      "sha256": "f9214fca912b257e6a1f72279c09302c162aa455b84b13acce44ebe69b6d000b"
+    },
+    {
+      "path": "apps/native/src/components/phone-pages.css",
+      "action": "import",
+      "sha256": "e5d4c09b52caee03d4c5e7ed7750847266f10993e6fcd567ee5c1f7df34033f4"
+    },
+    {
+      "path": "apps/native/src/components/recall-thinking.css",
+      "action": "import",
+      "sha256": "7db7ded6d27b4d552bcc2c250619487899688cbd5af8160d32eabec2e5b2264f"
+    },
+    {
+      "path": "apps/native/src/data/ai-client.ts",
+      "action": "import",
+      "sha256": "51f09952bef7aee87ea9c17111cdda893d4bf2be946d9d50a59bfca072a1112f"
+    },
+    {
+      "path": "apps/native/src/data/browser-repository.ts",
+      "action": "import",
+      "sha256": "a9d05e15591bd551e308eed799c8a7338170af489143af3a293b8cba4518d3fa"
+    },
+    {
+      "path": "apps/native/src/data/chat-files.ts",
+      "action": "import",
+      "sha256": "b5ce121140e33541c10cd4a781259a087a9b7587beeddc6bcf5853b69b4a5328"
+    },
+    {
+      "path": "apps/native/src/data/chat-images.ts",
+      "action": "import",
+      "sha256": "8f8b90f2d5ae87213343bf0b9841c316757efccabe57a960e7e190a5dcf13184"
+    },
+    {
+      "path": "apps/native/src/data/chat-sync.ts",
+      "action": "import",
+      "sha256": "ea5e63a281f13e80838055405abcbc8d96fe5a3d2fc121866c3d053c6ee9de08"
+    },
+    {
+      "path": "apps/native/src/data/course-sync.ts",
+      "action": "import",
+      "sha256": "23f812abdb7dc9e374de3a72bb2bb21522fdbed4f574dc2ab444f9d6649a65c1"
+    },
+    {
+      "path": "apps/native/src/data/learner-profile.ts",
+      "action": "import",
+      "sha256": "3db9bbd0acf4e12a24b2c5d1b9590fe05cbd1132fdfcec04c70399a9bf646895"
+    },
+    {
+      "path": "apps/native/src/data/mini-lecture-persistence.ts",
+      "action": "import",
+      "sha256": "ce930754452341689269455781137ffdaac27c350a7f082678c66b5d6a24d4fb"
+    },
+    {
+      "path": "apps/native/src/data/native-auth.ts",
+      "action": "import",
+      "sha256": "05bb9a932719dd2d1964ff9187f648054d1d04323449a91bcc7b71bdac10559c"
+    },
+    {
+      "path": "apps/native/src/data/platform-api-client.ts",
+      "action": "import",
+      "sha256": "539d45557d3187389f2c6f01ab5762703720666b61c42ebb067108a438eb81e0"
+    },
+    {
+      "path": "apps/native/src/data/platform-api-contracts.ts",
+      "action": "import",
+      "sha256": "e580a7ee26590c3551f124507b255afd051643ea8db5b2694ed702db009329a0"
+    },
+    {
+      "path": "apps/native/src/data/problem-sync.ts",
+      "action": "import",
+      "sha256": "5f13d1fe9526ce27ecb0444aef88b6f16971d2c1f536bc569c5810074c35ed31"
+    },
+    {
+      "path": "apps/native/src/data/repository.ts",
+      "action": "import",
+      "sha256": "3337b42e2e1ca72abeafb4725e0a16d2ac3e716baa083d1770de641ac75fb252"
+    },
+    {
+      "path": "apps/native/src/data/serialize-repository.ts",
+      "action": "import",
+      "sha256": "1c4c0b43279763df59366bd797c5767e61f394c42c712c4d597001da451f57f7"
+    },
+    {
+      "path": "apps/native/src/data/sqlite-repository.ts",
+      "action": "import",
+      "sha256": "9e2fbc34feb4ab4636f2be3405ec3185ed27bad3072a07d7b793f1a2c1597961"
+    },
+    {
+      "path": "apps/native/src/domain/models.ts",
+      "action": "import",
+      "sha256": "9c2703e8a6b649c3f2b94b441f0a76e5fc537f82193dd28a01e401f66c4dc4eb"
+    },
+    {
+      "path": "apps/native/src/domain/teaching.ts",
+      "action": "import",
+      "sha256": "f5649a7626db094892b9aaea81d5f33644183ba0b6061afa6f68900b7d9b337d"
+    },
+    {
+      "path": "apps/native/src/lib/galaxy-sky.ts",
+      "action": "import",
+      "sha256": "7fea8daad17a6414ec968a214caedf42202d5062d27677718bc24ffe22e97816"
+    },
+    {
+      "path": "apps/native/src/lib/glass-3d.ts",
+      "action": "import",
+      "sha256": "c6a5e27453a3bf4df80de9d41e6e6d9b300c709b495b627792a85ddda464c600"
+    },
+    {
+      "path": "apps/native/src/lib/learning-action-marbles.ts",
+      "action": "import",
+      "sha256": "85213209e880a3121f50a84443c34d6f8fa5e976cdb0514d8a1d5016e670100c"
+    },
+    {
+      "path": "apps/native/src/lib/marble-art-3d.ts",
+      "action": "import",
+      "sha256": "df02275ee9b9bad1f9668ffc181b373e114800a58d87bca00665cf3dd05757b2"
+    },
+    {
+      "path": "apps/native/src/lib/marble-art.ts",
+      "action": "import",
+      "sha256": "925526645903ff949f27b039102c8ffc71ce912409386288bef921523843ecb1"
+    },
+    {
+      "path": "apps/native/src/lib/marble-tube-3d.ts",
+      "action": "import",
+      "sha256": "9044309b72366b3f64890a95b0f8b35df955ff42c76ec05cb389d39d6930e486"
+    },
+    {
+      "path": "apps/native/src/lib/memory-freshness.ts",
+      "action": "import",
+      "sha256": "8abc6e90a7c558b66fd104227c42be2e050106e5cad7c10ed543cd5ab1c55f31"
+    },
+    {
+      "path": "apps/native/src/lib/memory-galaxy-3d.ts",
+      "action": "import",
+      "sha256": "d4eaf613ece0cedeecd3d6a77b5afcde4212402c0d8d71800c93c68bd4fd179f"
+    },
+    {
+      "path": "apps/native/src/lib/memory-galaxy.ts",
+      "action": "import",
+      "sha256": "1465d35b8b3493b6ac0cd3c867756ffa0ab8d17515ba162f0890f0de8c317153"
+    },
+    {
+      "path": "apps/native/src/lib/phone-last-chat.ts",
+      "action": "import",
+      "sha256": "c0bd768bff6d0c4da3e327cb53b91668f642406b582e04e89c6643a11c759411"
+    },
+    {
+      "path": "apps/native/src/lib/phone-pinned-chats.ts",
+      "action": "import",
+      "sha256": "e1e5e169e3344080bd661a7782e6b5be91f3b59a60c23a6f363d0cb60e143c3f"
+    },
+    {
+      "path": "apps/native/src/lib/toon-glass.ts",
+      "action": "import",
+      "sha256": "8b0968ceb6fdb6cf26aa063436ca03146aaaa083ec5d04bb7476b7b0dd4277e5"
+    },
+    {
+      "path": "apps/native/src/lib/use-avatar-theme.ts",
+      "action": "import",
+      "sha256": "377aee45714f6f445bef2630e81d91cac98a282d7f8362ad858fce94404056ef"
+    },
+    {
+      "path": "apps/native/src/lib/use-back-dismiss.ts",
+      "action": "import",
+      "sha256": "de12f9087ac49ba51c84394e912c795d9594e733de297def06a2d73dd4869451"
+    },
+    {
+      "path": "apps/native/src/lib/use-chat-file-drop.ts",
+      "action": "import",
+      "sha256": "09d30f326f7649abd9bb22ba784bd6c6327e1edebbeba3bccffcdceca79b7806"
+    },
+    {
+      "path": "apps/native/src/lib/use-phone-keyboard.ts",
+      "action": "import",
+      "sha256": "c219feedafb27598677cff36e0b683bf972e5c4e9fcccbc6546eff74458e8497"
+    },
+    {
+      "path": "apps/native/src/lib/use-sidebar-background.ts",
+      "action": "import",
+      "sha256": "397828c1d6e3ffedd3b15a1f068822cc643661c40a79117ea6772d51868dc6fd"
+    },
+    {
+      "path": "apps/native/src/main.tsx",
+      "action": "import",
+      "sha256": "8c4fe0981da400bcb59d943d379e6f6fd8a0a54a3f6221a65d31708b4dfefa13"
+    },
+    {
+      "path": "apps/native/src/styles.css",
+      "action": "import",
+      "sha256": "35fd3722492bf5d6f38142ef3648bd638995a383147c94f0f9b425134b38eda0"
+    },
+    {
+      "path": "lib/constants/marble-avatar-catalog.json",
+      "action": "import",
+      "sha256": "6db446715958fc1b2d7fd6af5ed359ae1fdcdd051de748801cfbe5885363f922"
+    },
+    {
+      "path": "lib/constants/marble-avatar-theme-hues.json",
+      "action": "import",
+      "sha256": "ab76584d34c6c109782789b95a454b7cfc4fc8348dba9ded2f067011c367985b"
+    },
+    {
+      "path": "lib/constants/marble-avatars.ts",
+      "action": "import",
+      "sha256": "fbb2b8d96bb6302f09546dc4ebb7603bd49f7f5162928ce19c18d92dbe197085"
+    },
+    {
+      "path": "lib/constants/tester-login.ts",
+      "action": "import",
+      "sha256": "5d352eb31a19e8310709146246980c0c84a26a2b393c4c9f9e052233ad84a25c"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/EX01.webp",
+      "action": "import",
+      "sha256": "44743701accd52a6ff3f94c755e6cd09e93581c32d3584a41d401abb1add1b29"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/EX02.webp",
+      "action": "import",
+      "sha256": "1d666941b8a14827d15e1dfb9b2ca6a68ceaf1ecbaf43ef3c402a60c8efcd7e3"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/EX03.webp",
+      "action": "import",
+      "sha256": "5d35d96aa8b2be7165db11fe1f18ecad5209a4af70e0c29c1e631aea34a2f256"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/EX04.webp",
+      "action": "import",
+      "sha256": "b9a2d0b6b393cb04176012727c6a92a6d341b0b03c1f2ee7ec43985e67b7f74f"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/EX05.webp",
+      "action": "import",
+      "sha256": "87513c94164cc8f0fad4beaf0ab49219881b6aeef13a837c9b0d659c9de2c7a6"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R01.webp",
+      "action": "import",
+      "sha256": "4f0066681fc79067a9042beef4bfb9a71bccfc1e9da4caea5a9300931950cd90"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R02.webp",
+      "action": "import",
+      "sha256": "ce9d309456159b917943943ccd2d79598ae95a774399f76e6bae226e9a3ff288"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R03.webp",
+      "action": "import",
+      "sha256": "c6ff63b727289f914abdee9b529a5cd9c5b3e2867ea91d31a8a0b5dc74611660"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R04.webp",
+      "action": "import",
+      "sha256": "5acd25ef02ca7c8cec721af6e43334b0d453eb1130e9f01c6f61d0378682ac8c"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R05.webp",
+      "action": "import",
+      "sha256": "5cfd78020f6129ddac62e8f9866124232066fe751344f8ca4ca8d9e14db69c26"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R06.webp",
+      "action": "import",
+      "sha256": "57093e97d114e0c5c3c21c58f4d260ec0e2ae2d62fc91a666bc5eb7f47d072a1"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R07.webp",
+      "action": "import",
+      "sha256": "8e52e2bd6addc639856ad757d9a4cd5a03209fb602a397dc6c505f98e30deb00"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R08.webp",
+      "action": "import",
+      "sha256": "6fc6736b91feb9abecc3f71fe1ddfa3efaaf39f48d51cd28ba0f2814195e1414"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R09.webp",
+      "action": "import",
+      "sha256": "fe82d05ee2acfef1b134914dfcd19f66cff744647ff3dc3b1363be70a86801e9"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R10.webp",
+      "action": "import",
+      "sha256": "7b07a5ed68ea2757084cdb633d030b95ca32155eb5c3cd7edfe93324cc9e09ad"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R11.webp",
+      "action": "import",
+      "sha256": "7853fcc75d2fe72e331d2e50d6244fa3b4dbcd8315c4f7de3c3d215ebd321fe2"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R12.webp",
+      "action": "import",
+      "sha256": "864a9aedf78305f017e866245ea5abc5d4ac05647ac3ad30be6437cb66095bb2"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R13.webp",
+      "action": "import",
+      "sha256": "fa3641ace6848ebab7dea8f1d998aef414d98086e28bd40c0605af0c43ab7a37"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R14.webp",
+      "action": "import",
+      "sha256": "17abc6809a438d9e51e024ef45cbe54f94482c179bb45ec1f498b733901fab87"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R15.webp",
+      "action": "import",
+      "sha256": "963d170d0a95d0fa26f9b315bab26444fbe63c8d9b5e73dab46b1ef49a58feef"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R16.webp",
+      "action": "import",
+      "sha256": "0f84fdae6d7b731ce0fb171c34c493c21fcd1f35b7c7ecf5cc2bbbdb1cea7b9d"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R17.webp",
+      "action": "import",
+      "sha256": "554d62bfd027c673d5a028b5d73ad2b5aab1c78d403f0519e105fee1c75f571a"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R18.webp",
+      "action": "import",
+      "sha256": "66cd9d5189104c6ab4e43612bb48c56eea89305990d3aae8530d76f78ba0f446"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R19.webp",
+      "action": "import",
+      "sha256": "d2c96da76a9e42228a9e50d21dd4c4c36dbe55fe43789b1158b746f923be63a0"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R20.webp",
+      "action": "import",
+      "sha256": "294a6f88e51d94ec95b492f9d07bf07c4ddf046dd664b80fac20246b5bcef913"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R21.webp",
+      "action": "import",
+      "sha256": "850a97ee117c72bd96c7afa6d3de5eea9234835e6723c73f43cb43f382e86e49"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R22.webp",
+      "action": "import",
+      "sha256": "a6355b979ae78046f2f51fdb059ab44d694b34de97c3639565dc219d4a7f0409"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R23.webp",
+      "action": "import",
+      "sha256": "e65840a7e04bca18e4e843246faec25a6a0afcf0a49df005a3d7318806727529"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/R24.webp",
+      "action": "import",
+      "sha256": "0131d3551476435f24132cbd75257f2c13708ff180b685e916b670736c979a03"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR01.webp",
+      "action": "import",
+      "sha256": "d4fa4ad99cb96dccd32fcf005bd083fe44fcf6b134646f62206c3d14e2edd702"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR02.webp",
+      "action": "import",
+      "sha256": "2a440025d128e9efb90e332ccb4c34e2ca05baf759db43a81a9477573b9220b5"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR03.webp",
+      "action": "import",
+      "sha256": "97e83d70cc99061b290ac1030003e61983714142a9da24ed23a209627afbc228"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR04.webp",
+      "action": "import",
+      "sha256": "47280d3c1b0d9498e720923ef0b459f745e27ad62a89dfcc1b968f0e5be92e92"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR05.webp",
+      "action": "import",
+      "sha256": "3239aa09123971d17749a4296375d69fa26275bd942352f4e79a99d318027610"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR06.webp",
+      "action": "import",
+      "sha256": "bca8d95515493ca1f23fc5a43ace911ae4dadc5a13f62623cbca34ea699d12c1"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR07.webp",
+      "action": "import",
+      "sha256": "021ddb5b9ea777cc14ed0a48d065155698cacc1611aff2a8eb95163ebbbe9dc0"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR08.webp",
+      "action": "import",
+      "sha256": "ffe06e969c8c82c4bcb9382b5978ee776b3b2b254c1e6aa31bd2c526b842c157"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR09.webp",
+      "action": "import",
+      "sha256": "b17dcc7f76afcb28798dd71e7e405f3439c9ef86ba78d5c846432796ae1280d7"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR10.webp",
+      "action": "import",
+      "sha256": "e79f8fc4c012c7b8fc4808429555a5fe7856f5eadeb074b4e86a89e99d33bea7"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR11.webp",
+      "action": "import",
+      "sha256": "3ef359db540d29f28859ed92f61a7957485c12024b6e3b3edbe89e0260cd7ca7"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SR12.webp",
+      "action": "import",
+      "sha256": "2ea30aa078c46eb187e324a5804d4a2ef655277718a19fd7bb439c86c692fcdc"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SSR01.webp",
+      "action": "import",
+      "sha256": "0a320c13d11119ebd15a524f92d3f02107efb1c5a91a28faed3ca6955d392a52"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SSR02.webp",
+      "action": "import",
+      "sha256": "9bdb664de083995cf85faffb12c2ee865728a833e3c0fd2d1f1631d650ad090d"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SSR03.webp",
+      "action": "import",
+      "sha256": "61be6cb9fb6bf69c3139573e9548b95117380a7b6947b12d1d8f34f39f2c6706"
+    },
+    {
+      "path": "public/avatars/marble-backgrounds-v1/SSR04.webp",
+      "action": "import",
+      "sha256": "f8e6cf0f01d650c670d7cbc71d34593e597766127d35983070ad71f4821e3c7c"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/EX01.webp",
+      "action": "import",
+      "sha256": "567ec1526192454e23562a27f74777a567fc9ea298014c0424aeb4e0099a9e4e"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/EX02.webp",
+      "action": "import",
+      "sha256": "eaeda003d9675234d4ebeacb98b1836a99913016d8b66af7cefe492285dbf5b6"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/EX03.webp",
+      "action": "import",
+      "sha256": "7ce115ec72e51c062915f08ed43adecc61c1546fa826ecbbdd90e99524973034"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/EX04.webp",
+      "action": "import",
+      "sha256": "ba65dc5efe0e6257c3b922b2fc015b35fbe11c5e1646786cbbaf5e9b1ec18e96"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/EX05.webp",
+      "action": "import",
+      "sha256": "239bacd5cf50a372fa0029d935650036dc987cb24f878b0bd21fc3df49629a92"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R01.webp",
+      "action": "import",
+      "sha256": "74b9edca1e245f8593b2fb649e1b4854e0fc6db1a179dd89405d6410b53b362f"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R02.webp",
+      "action": "import",
+      "sha256": "88ddcfde102903dd43b8de6d7cefc639adf901a281898cf49e82141b64ca3dd0"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R03.webp",
+      "action": "import",
+      "sha256": "077ac17d46291869d91ed7318dbf4ced551df657c969b582e542c66c86889a25"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R04.webp",
+      "action": "import",
+      "sha256": "8be7edbc2287cf174ae039cf6f93cffff08cd7bfcd34f4d4c8bbff2daddc0244"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R05.webp",
+      "action": "import",
+      "sha256": "a829d0759a9321b40f78051d6b5dfc557d1903e5ac8cba3e0009f25c58ff408d"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R06.webp",
+      "action": "import",
+      "sha256": "d7eccdb01587443472072360fe7b3097861250bdb1158d3778fc259b3696c9cb"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R07.webp",
+      "action": "import",
+      "sha256": "cd468285b251c72a8ec924d52d6600f3f26870d6725889188f9dd80af4a9b98a"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R08.webp",
+      "action": "import",
+      "sha256": "93144704ef958f50f7b68ac5355005897b522bc1274b4e4c5ee8316413e80310"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R09.webp",
+      "action": "import",
+      "sha256": "2df6e5e5ad44a4903bffdcb11c372fb9d96d697b64dbdc49937bbb29469b0224"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R10.webp",
+      "action": "import",
+      "sha256": "b2c9d0b480eaa8d9d92152166963a9a07bee2a693943cf7f66b59bd6c1f256e9"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R11.webp",
+      "action": "import",
+      "sha256": "988b194979ce27be11600d54499223fe52bb23f839d700f02fabc07b89329a0d"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R12.webp",
+      "action": "import",
+      "sha256": "9359dac3baa487600d99a485a5529d5d5fbabc09d31d10316d67f94caadea7a8"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R13.webp",
+      "action": "import",
+      "sha256": "ecaa6dd97429804321b1046daae706928ad8f91eda177bd71cdd16da316ce6d3"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R14.webp",
+      "action": "import",
+      "sha256": "ab6454b61b0019c0e4675ad308d8a7cc40cb7ce6254ea0ba352adda9fb257903"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R15.webp",
+      "action": "import",
+      "sha256": "cb2a2a40893361d354f739031015ff7c185bbd01443d53cbf80ee13ced8eddac"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R16.webp",
+      "action": "import",
+      "sha256": "609d6e0efb4ffeafc723c6cf1d17a807007b5f96587b157b3e54fdfe5cb2ccc9"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R17.webp",
+      "action": "import",
+      "sha256": "1004accce729bd37b6fd425a7393fa0bde5f8de76ef380cf4ce9ca5e53f74d97"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R18.webp",
+      "action": "import",
+      "sha256": "b7d5afc4294befddb790595c62afe2afe3856cf5107cac909a4c926584252bed"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R19.webp",
+      "action": "import",
+      "sha256": "b31e19a54687909c2541192d3a7193aa5eb8f492abdc9cae97f68b1aced0f770"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R20.webp",
+      "action": "import",
+      "sha256": "9ee108679f80e3a8988263cdc71d69ee1cd977fd2252465765d3dd84b77fa381"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R21.webp",
+      "action": "import",
+      "sha256": "59ca860af61409094a89d03f530f6731a479046742f7cbec1ae95405ecff643c"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R22.webp",
+      "action": "import",
+      "sha256": "a0756fcee7d33b1101913547bc046b284f02eb57a3c7db194630a7b978fc6aa9"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R23.webp",
+      "action": "import",
+      "sha256": "2fd32e3909ac0385295c8d75173f3e6b61477a7dcfd9ad58a118e85b4806fb35"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/R24.webp",
+      "action": "import",
+      "sha256": "ffc8d862aad392cd5aa77e320fa43b906663f3e296439072d05db153f18b80a7"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR01.webp",
+      "action": "import",
+      "sha256": "9d02b5915d83da8d4364028777418c43e02e5d3ec04dff6c874e489047263b2b"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR02.webp",
+      "action": "import",
+      "sha256": "75af904af7c63c4fe52cbc2606572734239322fe6324e05a86e4f2006b8e3f49"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR03.webp",
+      "action": "import",
+      "sha256": "3fc77d367ff2a363578bb35c3470e9014528d961ae54f9d6936729a94d6e002f"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR04.webp",
+      "action": "import",
+      "sha256": "ed0a8f2a66e40bb95e786c491a82f8b162103ff9eaae8399dfe2873bcc998be1"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR05.webp",
+      "action": "import",
+      "sha256": "db97154b94725120d9c5e43a478d930f4349eaaf787c8ac9cd76c24d4c68fcb0"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR06.webp",
+      "action": "import",
+      "sha256": "e30440b3c3c6eaece2726ef5ef6e6ca421587c817fc6bf1d0b6979daf220e57f"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR07.webp",
+      "action": "import",
+      "sha256": "4deb9f9f48140519e8256fa2122548792ec82ebcfc973a43a011c051626f489a"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR08.webp",
+      "action": "import",
+      "sha256": "d66937fc6e7848e244bdeef45daabb291ba5cf3c132dfa867fbf73f911df8960"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR09.webp",
+      "action": "import",
+      "sha256": "6eb8a3d75a720b80f9de8651218dac8b18d58eb067b9e9d6693ee98543efaed7"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR10.webp",
+      "action": "import",
+      "sha256": "3be556d2601db24cd8914fd4d801658f2504be90949435840be3e6ee02d15a2f"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR11.webp",
+      "action": "import",
+      "sha256": "26fde140dea38f154111125bb0d78df461b7f07f4f1bf04568542e9fad2dfed1"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SR12.webp",
+      "action": "import",
+      "sha256": "d1841165ff3972c4c1fafbb7b53a2edc825aadf9f160f8188f04b4c4be933bf4"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SSR01.webp",
+      "action": "import",
+      "sha256": "8bbb8fd693d591091e1da36850896cf3a22fa5318805455679c8be2504e51df7"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SSR02.webp",
+      "action": "import",
+      "sha256": "bc16f713bfae666a55ac08dbcc2e38a28ca33013a7a9906853c2fa859cba0774"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SSR03.webp",
+      "action": "import",
+      "sha256": "74b9865ae5845e70d4c320ae54437678df93e7992d961aa1c5b2e76b4f2a1156"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/SSR04.webp",
+      "action": "import",
+      "sha256": "2ef39d5a6e38df1a3bdbf38a7e6e1795c37fac1a799b8b59d2357f43239269d4"
+    },
+    {
+      "path": "public/avatars/marble-collection-v1/manifest.json",
+      "action": "import",
+      "sha256": "56812d967dcc9e64a012d4ac3ab4ac18cf5f772172e711e96d4fd21e4cda7566"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/EX01.webp",
+      "action": "import",
+      "sha256": "62b712019ce1bfff8445e45999e63574db474751216424f4c6d3ee05bf08ebf3"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/EX02.webp",
+      "action": "import",
+      "sha256": "ea3f2cf8c9161671f22dfb0e8b6c050df662abff01c5d7c1687ad97c795f69c9"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/EX03.webp",
+      "action": "import",
+      "sha256": "604cf3618c8cae887dff8f56d2eaea49750b78bce20e99c01a0a655b831d962a"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/EX04.webp",
+      "action": "import",
+      "sha256": "5ab4c1beee9baf1b81d3fc5e8efd51983ea7b58c0e086060525ebbc31457f73f"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/EX05.webp",
+      "action": "import",
+      "sha256": "8792810fe32e1028c00048bd5de1c088331610da5c461e6cd37a1470f1c96a4e"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R01.webp",
+      "action": "import",
+      "sha256": "07834a25cacd3ae1af669a92fa969ac247c6941432ab1f401e28c0aca8afc82b"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R02.webp",
+      "action": "import",
+      "sha256": "fd1cb716da0d57814fc4c6aa9ccc05bf18ee9595967fa93b6fef5b92ffb54381"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R03.webp",
+      "action": "import",
+      "sha256": "e952d469408b9aabcc573d83b46c1e769a41ca9010b237b3be178a1f34a5e328"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R04.webp",
+      "action": "import",
+      "sha256": "0dfc550c8ecfd2661996664438160d41ee6bbd2292ae0a712406387b4735a170"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R05.webp",
+      "action": "import",
+      "sha256": "33a2a185d2864ed4e63f0330032f85d7af13a970bb7bcee36fa8cafcbb76a48a"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R06.webp",
+      "action": "import",
+      "sha256": "6f3981f3176f98ce420abab44961905a3a11f1ee9759836231dae82963fcb86a"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R07.webp",
+      "action": "import",
+      "sha256": "bf8625c83faae3933b58cfd5fb921a5198f9056b84a032ee257286fd5cf4483f"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R08.webp",
+      "action": "import",
+      "sha256": "8e649d357f6b65fe235331eb9e4c4cf37dae03f403ca4e2720e8242cb0e53d02"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R09.webp",
+      "action": "import",
+      "sha256": "e8eb178f3b6d98498a0a88f5cc424f3d6ac9248b2cca3da4c921cefc758d889e"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R10.webp",
+      "action": "import",
+      "sha256": "41236ea980f2b6e59451c6211c1f6b027a20d10bc07ecd70f115599f75f3c921"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R11.webp",
+      "action": "import",
+      "sha256": "68186a203c96abd20c4513eaa0d98b70255672f4a402d6f505d294db3a10e6b1"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R12.webp",
+      "action": "import",
+      "sha256": "1f736bdfdd60cd381964278eb543d4c150ba1ba4d4287d50dc4fbde55aacff28"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R13.webp",
+      "action": "import",
+      "sha256": "7f8133495f74c3eb7baef52f713185b19720253498a28976fa4c8189dc0096c4"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R14.webp",
+      "action": "import",
+      "sha256": "90ed6367f189bfc1ead70065a46116ded23bcb9ff07168e68e3ddd4e944a371c"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R15.webp",
+      "action": "import",
+      "sha256": "b13dc0ed8b8c72fb1c9a64c10349937a1747681d1b427af6cfe7c4676b8091af"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R16.webp",
+      "action": "import",
+      "sha256": "49b125560adb210844360cb51331846f1f042f787543aea899fee46fb2e66959"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R17.webp",
+      "action": "import",
+      "sha256": "b5f1b440e930ddfdb2cc9a0bc0e548e000324ced29d0df173007ae9f7eee5402"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R18.webp",
+      "action": "import",
+      "sha256": "2646fd7ade663ffacd321cf6910f7ffe8db91ecdec7b53fc16b2ab03c5b0802d"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R19.webp",
+      "action": "import",
+      "sha256": "d2f3c6f3ee578178e43068895c2e2a99c7681f5700f999a5a42c400958a41e59"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R20.webp",
+      "action": "import",
+      "sha256": "933be0b35893e16d93bb6cb2c613fb03d8019409b3dbf57cbc22700131414d28"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R21.webp",
+      "action": "import",
+      "sha256": "6d58db3e2517e1ed6700a2a4148ef914e5e2986d9cc8c9ec10fcec509ef70613"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R22.webp",
+      "action": "import",
+      "sha256": "62fff88138f4d8ee683fcaef70d52163d4f73a81265bf19c16b63531fd15ebb9"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R23.webp",
+      "action": "import",
+      "sha256": "cf92f3dc64d6fe82ec36ea748285bfdcb9e1b1452bd396435cca6d65d123dc5f"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/R24.webp",
+      "action": "import",
+      "sha256": "8e550a1f75dfe31059e7fc29e9242222621039a999a9e47e3f04b131daae9774"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR01.webp",
+      "action": "import",
+      "sha256": "09a9466abbff6b8389907f0fae007dc7fb073c79cab02f6f3557d3c6a682d2f6"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR02.webp",
+      "action": "import",
+      "sha256": "565b9108d03ff8253bd2c39884f27029a0c57eb8f8154584ccee823a2be7c05d"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR03.webp",
+      "action": "import",
+      "sha256": "843a4b553583a85412a4e9444cef3b27d57cc3a7a8592f35b734dd70db6f43a6"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR04.webp",
+      "action": "import",
+      "sha256": "6f606eed6c01101ab195c4894997c14ef8d7e831a99c4e6ed4376782c9480ad1"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR05.webp",
+      "action": "import",
+      "sha256": "e75486a5c4d149fc46bf1c8dea8f61e4ad37cfde872908c0a1aafd0c22e4aea8"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR06.webp",
+      "action": "import",
+      "sha256": "6e9d85f494faf78885473eaa3e0bfb234067436ecfcaeb9316fae6129a656c8e"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR07.webp",
+      "action": "import",
+      "sha256": "675fba49dbdef454f356f22d37a714d10c66dae6a3afc3e84f428ab87271ef6f"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR08.webp",
+      "action": "import",
+      "sha256": "0dfe83841b577c0687da8790db117f27a7b85b5723f16d775c7d59a26135e7c3"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR09.webp",
+      "action": "import",
+      "sha256": "d34952450eeb3bb5008edbf6db4182f05eecfe9ec507ca88b1faab162ec73bb0"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR10.webp",
+      "action": "import",
+      "sha256": "79ce89c5723cf8b486d057061b4fbd11896957805187ea2caaa6ea8a9ede55ac"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR11.webp",
+      "action": "import",
+      "sha256": "3cbfe2d505fec2fc08209b52cb693a1543c91d952f306b94ce415ef1c4de963f"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SR12.webp",
+      "action": "import",
+      "sha256": "16b72d1e25bf9386bf6136d60451cc7fd17a570714d18bf2b2c4da4b2de6263f"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SSR01.webp",
+      "action": "import",
+      "sha256": "3a37ce9e51f6e627ae0d9cf2e5f27efb839b29f74434be1a687a7cc922cd97d7"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SSR02.webp",
+      "action": "import",
+      "sha256": "a45320eafb52953ff33ed07c2ad0b01f01d73c2203f566e70ef5ade8631ec6c1"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SSR03.webp",
+      "action": "import",
+      "sha256": "cbe3c8c618ffdd8026f1668aa177c82b7bdd55674736b88cec7aca7e245571be"
+    },
+    {
+      "path": "public/avatars/marble-galaxies-v1/SSR04.webp",
+      "action": "import",
+      "sha256": "d97b6623c11af7eb856fc84bfe690439fccecc4b54e40e62572f9e9445810751"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/EX01.webp",
+      "action": "import",
+      "sha256": "9e02b2e873612bd16d2e2d13586067b2170a59cc3561b827a9d75c7bf5464e99"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/EX02.webp",
+      "action": "import",
+      "sha256": "ff9cb6b20ba36c4c6984c106b1baf428914ad8938f471b55c66d38910c763759"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/EX03.webp",
+      "action": "import",
+      "sha256": "718396ecd2ac080cc5f08a05ba1d4f77f7cc372a5f64beb21de85cb49934c065"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/EX04.webp",
+      "action": "import",
+      "sha256": "64754a2a181b75e4e95279d1cd9193121b22ec751e031feb6f2242073b6ef7e2"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/EX05.webp",
+      "action": "import",
+      "sha256": "1367727b12bfd7e89f302c0ec90c801cbc9a2013782e464f9772203fa9d9d913"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R01.webp",
+      "action": "import",
+      "sha256": "ac4807545107850e1d1be36bf2c96006aa7cd9db69df51daa3efa8ca7fcbb3e2"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R02.webp",
+      "action": "import",
+      "sha256": "5e7d7a16fd99fd5c7e87b67b79e9bc3ed5bfca8f2b178aa4f2f9071e93f37a07"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R03.webp",
+      "action": "import",
+      "sha256": "2fe14e5a53db0dab160dc44020189b35b548ced5c783bfd492b39a1a0a347b1c"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R04.webp",
+      "action": "import",
+      "sha256": "32e24fde6c45033d6ae0a28b5ff5e46c92c29aa2ed4282ce166186674e80c3cb"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R05.webp",
+      "action": "import",
+      "sha256": "7806d436c8ccbe0882392163d8d1860dfce72efea063c92fae8f5559a0b1058e"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R06.webp",
+      "action": "import",
+      "sha256": "215ce7f1307d53c4f11efa1c786fc32434d3faa31603de79522d0f095c5afde5"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R07.webp",
+      "action": "import",
+      "sha256": "d3bdf6bc5de7fb07e8d332bd0b3debc2921d0205226749e76b3e46a3b1ae34f0"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R08.webp",
+      "action": "import",
+      "sha256": "7e5ccb0173ce49341accc4bc368f804d833e4b33f995645f5c41091952853e87"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R09.webp",
+      "action": "import",
+      "sha256": "e36f72cd0e544625f37f523b9ba31b2da207d1bb7e442d107d7662ba532f1c04"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R10.webp",
+      "action": "import",
+      "sha256": "d5f47c5173f21d244f9060d91997f7786576b0b2764fb0926b96d1036f7afc5e"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R11.webp",
+      "action": "import",
+      "sha256": "58209e754d1e43587c602d5cb2ed3c6e73db510c4c235f7f689490171163224c"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R12.webp",
+      "action": "import",
+      "sha256": "3b1add884701ab2925408852fbeb9dc9af6c878ba182a9b6f9dee80e245c99e5"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R13.webp",
+      "action": "import",
+      "sha256": "fd76a0bf77bad8747c875f52117acc578a3176732f6245625640fd2643fe7683"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R14.webp",
+      "action": "import",
+      "sha256": "8f0634632d350053d706027042f636db7b98b67bbebd64457228d8ce0d8268b7"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R15.webp",
+      "action": "import",
+      "sha256": "f75631da6d2731cb3557d23a30d01ba7fb61a3a0f52f62558dba50c1f36069f7"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R16.webp",
+      "action": "import",
+      "sha256": "7fdff77e31e27f43d0e60cf8efc6df0daa96c68a538e3e640e30877e31536656"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R17.webp",
+      "action": "import",
+      "sha256": "9f22c16ecff7e3e582fb8b3e4f42d8f0fc050f38fe2621e45aa4bdfdb945deec"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R18.webp",
+      "action": "import",
+      "sha256": "8dcb2f89af10ea7f39ae192b370f84c7d586520dcec507de158993d752af5b84"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R19.webp",
+      "action": "import",
+      "sha256": "892655886f3edb9b523aa4530bc2c97c945807190eec0b0edd82d663db750d7e"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R20.webp",
+      "action": "import",
+      "sha256": "2feb0da59f57c7221d28e68561f4ac491809cc33d278d5f0d4dafec422066346"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R21.webp",
+      "action": "import",
+      "sha256": "9d134aa9ce3bc6688d58cc27be55ab1b022df875398c73cf68242edca78a9f15"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R22.webp",
+      "action": "import",
+      "sha256": "10f12a47bf061a9a392b8260474deb4b74601556abff7ce07ca8eeee641ac622"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R23.webp",
+      "action": "import",
+      "sha256": "8821ee0be639d24c9ebdde8a0ebc9e1fb7ea1cfc16bf267121ccf4f87d9b0730"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/R24.webp",
+      "action": "import",
+      "sha256": "39b0c7d957af5f1b8d6b3f710e9e96e919ddec6810aaf23286ca33f75d294ee4"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR01.webp",
+      "action": "import",
+      "sha256": "cecfa78b517bf417c39f4286f1755a4bf8c7c7e3d1ec6313798668cc39ab6c58"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR02.webp",
+      "action": "import",
+      "sha256": "5dd4971ec13519b69abceb95700128bca0ec8d4a975b38d061344e8c8a749712"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR03.webp",
+      "action": "import",
+      "sha256": "e3d49b62ad795e0ce4c930757d36b8cd4b89e5e066bd0b051e0ba0e8a08a314b"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR04.webp",
+      "action": "import",
+      "sha256": "9191d1e097e844f76bb9f1e2881eec0adf6766f3f0be9fdc9370f7c9084e5943"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR05.webp",
+      "action": "import",
+      "sha256": "21bd227180ebdd80119b8ad8ab9fbceebd097dda73a4b0f615ccb1c66e7897a9"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR06.webp",
+      "action": "import",
+      "sha256": "a51b34b613bf0b287b55e6381645236eda88769ee3687d17fb8bd9a1b4e656d0"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR07.webp",
+      "action": "import",
+      "sha256": "e9bf1ef471412f15e19fcd04fcbd5dd50c573a73c8c8bcbc463e472e1b2a2d62"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR08.webp",
+      "action": "import",
+      "sha256": "f03e924c8d490ba9a2f9caba8b901a76b750bb8338d36ae161e39eed7075cc3f"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR09.webp",
+      "action": "import",
+      "sha256": "54b000e62cdb7e46b203ee3534dc7fc5dbadb23d87db201fd90a84cd8e84231f"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR10.webp",
+      "action": "import",
+      "sha256": "d9a51322f8517f53c7ad6d37aaae242f9ab43ce20d140df9588e1601438bca48"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR11.webp",
+      "action": "import",
+      "sha256": "4fdfc65f4df9877a01c3071638c52b0a3a49d878679a8a090fa5bf0b64bf9a3d"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SR12.webp",
+      "action": "import",
+      "sha256": "60185e41e7d34c7df165315683aca64e394294654bdfae7bcec561f6037c6b03"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SSR01.webp",
+      "action": "import",
+      "sha256": "1f30f1befd02f27a8bc71292a9e8a7c4afb4437173a1cf6c20b84aa3efa6e0cb"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SSR02.webp",
+      "action": "import",
+      "sha256": "d181af646c1567780e9231f995c2b34f0f262b7b1c0143abaeefac7d01c21ce7"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SSR03.webp",
+      "action": "import",
+      "sha256": "5ac78c834ff4d8e06efa7260c6f63ec42c3914681661bf9521055e0e2f7f4448"
+    },
+    {
+      "path": "public/avatars/marble-sidebars-v1/SSR04.webp",
+      "action": "import",
+      "sha256": "0ddd51aae58bb6d2eafb494e20eb7e77f903943ddecd52cafd68ecdd5132af5d"
+    }
+  ],
+  "stagingAdaptations": [
+    {
+      "path": "apps/native/package.json",
+      "sha256": "4858fab2cf2573f1fa5eb68e3506055a9d02326170a0ccc448380298b4f1a16f"
+    },
+    {
+      "path": "apps/native/README.md",
+      "sha256": "87e671726676c6d231d0e6c9278790c3f85fbb6ea7e9a1b7094f572292dc9294"
+    },
+    {
+      "path": "apps/native/src/components/NativeAccountControl.tsx",
+      "sha256": "633f8b998b47e2c5c921baec839c7ef92be6f78f6f971e6b18bc6a73a8f625f4"
+    },
+    {
+      "path": "apps/native/src/data/browser-repository.ts",
+      "sha256": "e84f0e283f74c33e3b089e340fd11dde9f5b59eac6bb5218b667cf973ad0af5b"
+    },
+    {
+      "path": "apps/native/src-tauri/src/auth_store.rs",
+      "sha256": "ab4a47d857fbcf8cb92f3ac41735dcd28ccdf3ff5037dd0f01324938af093863"
+    }
+  ],
+  "addedStagingTooling": [
+    "apps/native/scripts/build-channel.mjs",
+    "apps/native/src/channel.ts",
+    "apps/native/src-tauri/tauri.staging.conf.json"
+  ],
+  "retiredWebSource": ["components/app-left-rail.tsx"],
+  "originalCheckoutSync": "Explicit user-authorized cleanup and named staging tooling only; original unrelated WIP preserved. Recovery checkpoints and exact sync records live in the private common Git directory under codex/."
+}

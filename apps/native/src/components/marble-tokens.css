@@ -1,0 +1,47 @@
+/*
+ * 五色玻璃弹珠的颜色（和 lib/toon-glass.ts 的弹珠着色一致）。
+ * 语义：粉 = 错题 / 难 / 考试，琥珀 = 薄弱点 / 中等 / 进度，绿 = 反思 / 基础 / 假期，
+ * 蓝 = 偏好 / 课堂 / 作业，紫 = 其他学习状态 / 辅导。
+ * light = 浅底色，mid = 弹珠主色，deep = 深色描边，ink = 浅底上的文字，rgb = 主色的 RGB（配透明度用）。
+ */
+:root {
+  --marble-pink-light: #ffe2ee;
+  --marble-pink-mid: #ff8db7;
+  --marble-pink-deep: #d92e6c;
+  --marble-pink-ink: #b0306a;
+  --marble-pink-rgb: 255 141 183;
+
+  --marble-amber-light: #ffeab0;
+  --marble-amber-mid: #ffae1f;
+  --marble-amber-deep: #e3540b;
+  --marble-amber-ink: #9a6512;
+  --marble-amber-rgb: 255 174 31;
+
+  --marble-green-light: #d8fbe8;
+  --marble-green-mid: #5fdc9f;
+  --marble-green-deep: #0f8f5a;
+  --marble-green-ink: #2f7a4a;
+  --marble-green-rgb: 95 220 159;
+
+  --marble-blue-light: #d3efff;
+  --marble-blue-mid: #5ab4ff;
+  --marble-blue-deep: #1d4ed8;
+  --marble-blue-ink: #1d4ed8;
+  --marble-blue-rgb: 90 180 255;
+
+  --marble-purple-light: #e8e0ff;
+  --marble-purple-mid: #a68aff;
+  --marble-purple-deep: #5634e6;
+  --marble-purple-ink: #5634e6;
+  --marble-purple-rgb: 166 138 255;
+}
+
+/* 玻璃和圆角各只有三档：小件（胶囊、按钮）、卡片、浮层/大面板。 */
+:root {
+  --glass-blur-sm: 12px;
+  --glass-blur-md: 24px;
+  --glass-blur-lg: 32px;
+  --radius-sm: 16px;
+  --radius-md: 20px;
+  --radius-lg: 24px;
+}

@@ -10,6 +10,7 @@ import {
   requireNativePlatformApi,
 } from '@/lib/server/public-api';
 import { listAccessibleCoursesForUser } from '@/lib/server/repositories/course-repository';
+import { nativeStagingCourseForUser } from '@/lib/server/native-staging-course';
 
 export const runtime = 'nodejs';
 
@@ -26,7 +27,13 @@ export async function GET(request: NextRequest) {
     where: { id: principal.userId },
     select: { email: true },
   });
-  const courses = await listAccessibleCoursesForUser(prisma, principal.userId, user?.email);
+  let courses = await listAccessibleCoursesForUser(prisma, principal.userId, user?.email);
+  const fixture =
+    courses.length === 0 ? nativeStagingCourseForUser(process.env, principal.userId) : null;
+  if (fixture) {
+    await prisma.course.upsert({ where: { id: fixture.id }, create: fixture, update: {} });
+    courses = await listAccessibleCoursesForUser(prisma, principal.userId, user?.email);
+  }
   return publicApiSuccess(requestId, {
     courses: courses.map((course) => {
       const display = normalizeCourseDisplay(course);

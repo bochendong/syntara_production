@@ -1,0 +1,1703 @@
+{
+  "version": 1,
+  "title": "Syntara Marble Portraits",
+  "count": 45,
+  "rarities": {
+    "R": 24,
+    "SR": 12,
+    "SSR": 4,
+    "EX": 5
+  },
+  "avatars": [
+    {
+      "id": "R01",
+      "name": "蓝调书生",
+      "rarity": "R",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/R01.webp",
+      "filename": "R01.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 88288,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "pale aqua spherical glass head, broad cobalt cat-eye ribbon inside"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "curious attentive eyes, faint smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "round black optical glasses; ivory hoodie under cobalt varsity jacket"
+        },
+        {
+          "trait_type": "Background",
+          "value": "warm limestone wall with single broad arch shadow"
+        }
+      ]
+    },
+    {
+      "id": "R02",
+      "name": "薄荷信使",
+      "rarity": "R",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/R02.webp",
+      "filename": "R02.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 81542,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "clear mint spherical head with emerald twisted ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "bright alert eyes, asymmetric confident grin"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "cream baseball cap; forest-green overshirt, small messenger strap"
+        },
+        {
+          "trait_type": "Background",
+          "value": "dusty peach wall and faint doorframe"
+        }
+      ]
+    },
+    {
+      "id": "R03",
+      "name": "琥珀慢拍",
+      "rarity": "R",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/R03.webp",
+      "filename": "R03.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 81120,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "warm honey glass sphere, deep orange curled ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "laid-back sleepy eyes, neutral tiny mouth"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "burgundy knitted beanie; charcoal denim jacket over cream tee"
+        },
+        {
+          "trait_type": "Background",
+          "value": "muted slate-blue wall, soft diagonal afternoon light"
+        }
+      ]
+    },
+    {
+      "id": "R04",
+      "name": "紫罗兰电台",
+      "rarity": "R",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/R04.webp",
+      "filename": "R04.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 70902,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "smoky lavender glass sphere, violet ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "thoughtful sideways eyes, relaxed small smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "large silver headphones over head; navy hoodie with lilac lining"
+        },
+        {
+          "trait_type": "Background",
+          "value": "dusty rose wall, minimal acoustic panel rectangles"
+        }
+      ]
+    },
+    {
+      "id": "R05",
+      "name": "赤陶骑手",
+      "rarity": "R",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/R05.webp",
+      "filename": "R05.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 84386,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "smoky orange sphere with copper-red interior ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "determined narrowed eyes, firm mouth"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "matte dark cycling glasses pushed onto forehead; sand technical windbreaker"
+        },
+        {
+          "trait_type": "Background",
+          "value": "desaturated sage background, subtle railing silhouette"
+        }
+      ]
+    },
+    {
+      "id": "R06",
+      "name": "晴空旅人",
+      "rarity": "R",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/R06.webp",
+      "filename": "R06.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 104252,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "very pale blue glass sphere, ultramarine ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "friendly smiling eyes, small toothy grin"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "mustard fisherman bucket hat; off-white utility vest over blue shirt"
+        },
+        {
+          "trait_type": "Background",
+          "value": "dusty terracotta wall, one faint window shadow"
+        }
+      ]
+    },
+    {
+      "id": "R07",
+      "name": "烟灰侦探",
+      "rarity": "R",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/R07.webp",
+      "filename": "R07.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 54810,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "transparent smoky-gray sphere with silver-black cat-eye ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "skeptical brow and dry half-smirk"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "thin silver square glasses; charcoal high-collar coat"
+        },
+        {
+          "trait_type": "Background",
+          "value": "flat pale blue-gray background, quiet geometric corner shadow"
+        }
+      ]
+    },
+    {
+      "id": "R08",
+      "name": "桃色夜猫",
+      "rarity": "R",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/R08.webp",
+      "filename": "R08.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 70298,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "clear peach-pink sphere with coral ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "playfully arched brow, mischievous small grin"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "black low-profile cap backwards; muted plum bomber jacket"
+        },
+        {
+          "trait_type": "Background",
+          "value": "cool desaturated mint wall and soft round light patch"
+        }
+      ]
+    },
+    {
+      "id": "R09",
+      "name": "钴蓝学长",
+      "rarity": "R",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/R09.webp",
+      "filename": "R09.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 73966,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "rounded steel-blue glass cat head, pointed glass ears, white-blue inner ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "reserved attentive amber cat eyes"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "black baseball cap; cobalt varsity jacket and cream tee; single small metal ear cuff"
+        },
+        {
+          "trait_type": "Background",
+          "value": "warm khaki wall with restrained light shadow"
+        }
+      ]
+    },
+    {
+      "id": "R10",
+      "name": "蜜糖眼镜",
+      "rarity": "R",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/R10.webp",
+      "filename": "R10.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 92026,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "rounded amber glass cat head and ears with orange interior ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "amused squinting feline eyes and subtle smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "burgundy rectangular spectacles; cream hoodie under rust vest"
+        },
+        {
+          "trait_type": "Background",
+          "value": "dusty muted blue wall, faint vertical window shadow"
+        }
+      ]
+    },
+    {
+      "id": "R11",
+      "name": "青玉浪客",
+      "rarity": "R",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/R11.webp",
+      "filename": "R11.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 87188,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "jade-green glass cat head and ears, emerald ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "crooked cheeky grin, tiny visible cat fang"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "dark bucket hat; navy windbreaker and silver headphones around neck"
+        },
+        {
+          "trait_type": "Background",
+          "value": "flat dusty plum background, faint building edge"
+        }
+      ]
+    },
+    {
+      "id": "R12",
+      "name": "雾紫耳语",
+      "rarity": "R",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/R12.webp",
+      "filename": "R12.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 71018,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "smoky violet glass cat head with pale lilac ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "calm half-lidded mint eyes, thoughtful mouth"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "small silver hoop earring; charcoal high-collar jacket over muted pink hoodie"
+        },
+        {
+          "trait_type": "Background",
+          "value": "pale sage wall and quiet plant shadow"
+        }
+      ]
+    },
+    {
+      "id": "R13",
+      "name": "珊瑚调音师",
+      "rarity": "R",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/R13.webp",
+      "filename": "R13.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 91954,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "warm coral glass cat head and ears with deep ruby ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "focused green feline eyes, relaxed tiny smirk"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "cream over-ear headphones; dark burgundy zip jacket"
+        },
+        {
+          "trait_type": "Background",
+          "value": "desaturated navy backdrop with one broad flat pale circle"
+        }
+      ]
+    },
+    {
+      "id": "R14",
+      "name": "奶青漫步",
+      "rarity": "R",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/R14.webp",
+      "filename": "R14.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 110926,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "pale seafoam glass cat head, turquoise cat-eye ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "friendly wide attentive cat eyes, closed smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "soft rust knitted beanie; oversized oatmeal cardigan over blue shirt"
+        },
+        {
+          "trait_type": "Background",
+          "value": "warm off-white wall and muted door arch"
+        }
+      ]
+    },
+    {
+      "id": "R15",
+      "name": "金眸策士",
+      "rarity": "R",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/R15.webp",
+      "filename": "R15.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 80612,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "smoke-brown transparent glass cat head with gold ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "sharp golden eyes, serious calculating expression"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "slender gold browline glasses; forest-green turtleneck and dark tan jacket"
+        },
+        {
+          "trait_type": "Background",
+          "value": "dusty warm lavender wall, subtle angled shadow"
+        }
+      ]
+    },
+    {
+      "id": "R16",
+      "name": "冰蓝搭档",
+      "rarity": "R",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/R16.webp",
+      "filename": "R16.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 84646,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "icy clear-blue glass cat head and ears with navy internal curl"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "upbeat bright eyes and confident open grin"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "small cyan neck bandana; navy college jacket over gray tee"
+        },
+        {
+          "trait_type": "Background",
+          "value": "muted peach backdrop and faint horizontal railing"
+        }
+      ]
+    },
+    {
+      "id": "R17",
+      "name": "柴犬课代表",
+      "rarity": "R",
+      "species": "dog:shiba",
+      "image": "/avatars/marble-collection-v1/R17.webp",
+      "filename": "R17.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 88590,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:shiba"
+        },
+        {
+          "trait_type": "Core",
+          "value": "rounded cyan glass Shiba Inu head, short dog ears, short broad canine muzzle, blue internal ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "self-assured amber eyes, little skeptical brow"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "black baseball cap; ivory bomber jacket"
+        },
+        {
+          "trait_type": "Background",
+          "value": "muted terracotta wall and soft low roofline"
+        }
+      ]
+    },
+    {
+      "id": "R18",
+      "name": "金毛午后",
+      "rarity": "R",
+      "species": "dog:golden-retriever",
+      "image": "/avatars/marble-collection-v1/R18.webp",
+      "filename": "R18.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 99988,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:golden-retriever"
+        },
+        {
+          "trait_type": "Core",
+          "value": "honey-gold glass golden retriever head, broad long canine muzzle and long floppy ears, orange interior ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "gentle relaxed eyes and warm small smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "smoky square sunglasses on forehead; navy hoodie and warm brown vest"
+        },
+        {
+          "trait_type": "Background",
+          "value": "dusty muted sage wall, one broad patch of sunlight"
+        }
+      ]
+    },
+    {
+      "id": "R19",
+      "name": "哈士奇节拍",
+      "rarity": "R",
+      "species": "dog:husky",
+      "image": "/avatars/marble-collection-v1/R19.webp",
+      "filename": "R19.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 92968,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:husky"
+        },
+        {
+          "trait_type": "Core",
+          "value": "icy-blue glass husky head with tall dog ears and strong long muzzle, pale silver-blue inner curl"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "alert icy eyes, slightly raised mischievous brow"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "silver headphones around neck; charcoal jacket with cobalt trim"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet dusty-purple wall and minimal geometric bars"
+        }
+      ]
+    },
+    {
+      "id": "R20",
+      "name": "柯基小站",
+      "rarity": "R",
+      "species": "dog:corgi",
+      "image": "/avatars/marble-collection-v1/R20.webp",
+      "filename": "R20.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 99358,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:corgi"
+        },
+        {
+          "trait_type": "Core",
+          "value": "amber-clear glass corgi head with large broad dog ears and short canine muzzle, honey curled ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "cheeky grin and lively brown eyes"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "burgundy beanie sitting between ears; sage-green jacket"
+        },
+        {
+          "trait_type": "Background",
+          "value": "cream wall and simple muted blue windowframe"
+        }
+      ]
+    },
+    {
+      "id": "R21",
+      "name": "比格侦察员",
+      "rarity": "R",
+      "species": "dog:beagle",
+      "image": "/avatars/marble-collection-v1/R21.webp",
+      "filename": "R21.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 105152,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:beagle"
+        },
+        {
+          "trait_type": "Core",
+          "value": "smoky tea-amber glass beagle head with long floppy ears and gentle canine snout, cream internal spiral"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "curious lifted brow and attentive dark eyes"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "tan bucket hat; olive utility jacket and orange neck scarf"
+        },
+        {
+          "trait_type": "Background",
+          "value": "pale dusty blue background, faint doorway edge"
+        }
+      ]
+    },
+    {
+      "id": "R22",
+      "name": "边牧笔记",
+      "rarity": "R",
+      "species": "dog:border-collie",
+      "image": "/avatars/marble-collection-v1/R22.webp",
+      "filename": "R22.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 91708,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:border-collie"
+        },
+        {
+          "trait_type": "Core",
+          "value": "smoky blue-gray glass border collie head with semi-folded ears and slender canine muzzle, silver-white internal ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "intelligent concentrated silver eyes, small restrained smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "thin dark optical glasses; oatmeal hoodie under navy overshirt"
+        },
+        {
+          "trait_type": "Background",
+          "value": "muted sage wall and quiet shelving silhouette"
+        }
+      ]
+    },
+    {
+      "id": "R23",
+      "name": "杜宾风纪",
+      "rarity": "R",
+      "species": "dog:doberman",
+      "image": "/avatars/marble-collection-v1/R23.webp",
+      "filename": "R23.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 77376,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:doberman"
+        },
+        {
+          "trait_type": "Core",
+          "value": "smoky charcoal-violet glass Doberman head, long narrow canine muzzle and naturally folded pointed ears, copper internal ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "composed determined amber eyes, straight mouth"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "small plain silver ear cuff; tailored charcoal high collar jacket"
+        },
+        {
+          "trait_type": "Background",
+          "value": "dusty rose backdrop with one low-contrast angular shadow"
+        }
+      ]
+    },
+    {
+      "id": "R24",
+      "name": "拉布拉多晴日",
+      "rarity": "R",
+      "species": "dog:labrador",
+      "image": "/avatars/marble-collection-v1/R24.webp",
+      "filename": "R24.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 137602,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "R"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:labrador"
+        },
+        {
+          "trait_type": "Core",
+          "value": "clear warm olive-gold glass Labrador head, broad rounded canine muzzle and folded ears, mint inner swirl"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "easygoing smiling eyes, friendly small grin"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "cream knit cap; blue denim jacket over sage tee"
+        },
+        {
+          "trait_type": "Background",
+          "value": "warm pale ochre wall and soft tree shadow"
+        }
+      ]
+    },
+    {
+      "id": "SR01",
+      "name": "天台蓝调",
+      "rarity": "SR",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/SR01.webp",
+      "filename": "SR01.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 101732,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "clear cobalt sphere with internal drifting white cloudscape and pale blue ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "hopeful curious eyes, soft confident smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "cream hood and deep blue technical jacket, thin silver glasses"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet low-contrast sunset urban rooftop, distant water tank, desaturated warm sky"
+        }
+      ]
+    },
+    {
+      "id": "SR02",
+      "name": "极光听众",
+      "rarity": "SR",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/SR02.webp",
+      "filename": "SR02.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 91958,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "smoky turquoise sphere containing a gentle green-violet aurora and sparse light dust"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "calm attentive eyes, small relaxed grin"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "large silver headphones; charcoal windbreaker with jade piping"
+        },
+        {
+          "trait_type": "Background",
+          "value": "low-contrast nighttime tram stop, cool blue structures, a single blurred warm lamp"
+        }
+      ]
+    },
+    {
+      "id": "SR03",
+      "name": "落日邮差",
+      "rarity": "SR",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/SR03.webp",
+      "filename": "SR03.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 113300,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "amber sphere filled with softly illustrated peach clouds and narrow golden ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "warm smiling eyes, slight lopsided grin"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "rust cap backwards; cream jacket with mustard messenger strap"
+        },
+        {
+          "trait_type": "Background",
+          "value": "sunset train platform canopy and distant muted city buildings"
+        }
+      ]
+    },
+    {
+      "id": "SR04",
+      "name": "月光胶片",
+      "rarity": "SR",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/SR04.webp",
+      "filename": "SR04.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 93590,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "translucent smoky lavender sphere with silver crescent inside and faint drifting lilac cloud"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "reflective slightly sad eyes, tiny calm mouth"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "burgundy round spectacles; navy high-collar coat and cream scarf"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet library window with faint moonlight, minimal book stacks in background"
+        }
+      ]
+    },
+    {
+      "id": "SR05",
+      "name": "书海青玉",
+      "rarity": "SR",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/SR05.webp",
+      "filename": "SR05.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 106206,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "emerald glass cat head and ears containing floating golden light dust and pale green ribbon"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "focused yellow feline eyes, composed expression"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "silver ear cuff; burgundy turtleneck and charcoal jacket"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet illustrated library stacks, tall sage window and single warm reading lamp"
+        }
+      ]
+    },
+    {
+      "id": "SR06",
+      "name": "樱云吉他手",
+      "rarity": "SR",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/SR06.webp",
+      "filename": "SR06.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 126254,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "rose glass cat head and ears with pale blossom-shaped light motes and soft coral cloud ribbon INSIDE"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "confident bright mint eyes and playful crooked grin"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "small matte dark headphones around neck; cream bomber with muted pink lining, narrow guitar strap only"
+        },
+        {
+          "trait_type": "Background",
+          "value": "simplified spring campus courtyard and pale flowering branches at outer background edge"
+        }
+      ]
+    },
+    {
+      "id": "SR07",
+      "name": "霜夜巡游",
+      "rarity": "SR",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/SR07.webp",
+      "filename": "SR07.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 122046,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "icy blue transparent glass cat head and ears with silver snowflake-like internal facets and pale blue fog"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "cool determined narrow blue eyes"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "dark knitted cap; cobalt technical parka and oatmeal scarf"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet winter pedestrian bridge, desaturated dusk skyline, subtle snow silhouettes"
+        }
+      ]
+    },
+    {
+      "id": "SR08",
+      "name": "暖灯策展人",
+      "rarity": "SR",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/SR08.webp",
+      "filename": "SR08.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 92712,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "smoky amber glass cat head with slow copper-gold cloud swirls and a few light motes"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "knowing amused eyes and subtle smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "round tortoiseshell glasses; forest-green overshirt over dark rust knit"
+        },
+        {
+          "trait_type": "Background",
+          "value": "low-contrast gallery interior with simple framed abstract shapes and one warm lamp"
+        }
+      ]
+    },
+    {
+      "id": "SR09",
+      "name": "星途柴犬",
+      "rarity": "SR",
+      "species": "dog:shiba",
+      "image": "/avatars/marble-collection-v1/SR09.webp",
+      "filename": "SR09.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 101064,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:shiba"
+        },
+        {
+          "trait_type": "Core",
+          "value": "deep cobalt glass Shiba head with short dog ears and broad muzzle, teal nebula and sparse constellation INSIDE"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "self-assured amber eyes, skeptical brow"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "black baseball cap; ivory bomber jacket"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet desaturated terracotta city rooftop and distant antenna silhouettes"
+        }
+      ]
+    },
+    {
+      "id": "SR10",
+      "name": "观测站金毛",
+      "rarity": "SR",
+      "species": "dog:golden-retriever",
+      "image": "/avatars/marble-collection-v1/SR10.webp",
+      "filename": "SR10.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 114354,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:golden-retriever"
+        },
+        {
+          "trait_type": "Core",
+          "value": "golden glass retriever head with broad canine snout and floppy ears containing warm nebula and sparse tiny star cluster"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "gentle thoughtful eyes"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "square sunglasses resting above eyes; navy hoodie and brown utility vest"
+        },
+        {
+          "trait_type": "Background",
+          "value": "muted lavender observatory dome, a simple pale moon and distant dark trees"
+        }
+      ]
+    },
+    {
+      "id": "SR11",
+      "name": "北极光哈士奇",
+      "rarity": "SR",
+      "species": "dog:husky",
+      "image": "/avatars/marble-collection-v1/SR11.webp",
+      "filename": "SR11.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 113580,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:husky"
+        },
+        {
+          "trait_type": "Core",
+          "value": "icy-blue glass husky head with clear long dog muzzle and tall ears, violet-blue aurora and sparse stars contained inside"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "lively icy-blue eyes and small challenging smirk"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "silver headphones around neck; high-collar charcoal coat with cobalt accents"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet deep-blue city skyline with a single restrained cyan neon line"
+        }
+      ]
+    },
+    {
+      "id": "SR12",
+      "name": "云上柯基",
+      "rarity": "SR",
+      "species": "dog:corgi",
+      "image": "/avatars/marble-collection-v1/SR12.webp",
+      "filename": "SR12.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 129422,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:corgi"
+        },
+        {
+          "trait_type": "Core",
+          "value": "warm amber glass corgi head with very broad ears and short canine muzzle containing sunset peach cloudscape and pale mint aurora"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "cheerful confident smiling eyes"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "rust beanie between ears; off-white technical windbreaker with orange seam"
+        },
+        {
+          "trait_type": "Background",
+          "value": "simplified sunset station canopy and distant rail bridge"
+        }
+      ]
+    },
+    {
+      "id": "SSR01",
+      "name": "紫宙守望者",
+      "rarity": "SSR",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/SSR01.webp",
+      "filename": "SSR01.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 88568,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SSR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "perfect smoky-purple glass sphere containing deep indigo starfield, elegant lavender spiral nebula and one small pale ringed planet visible at back inside sphere"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "enigmatic calm silver eyes, restrained knowing smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "black architectural high-collar coat; single small silver crescent lapel pin"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet observatory terrace with a moon above distant mountains, muted violet night, low-contrast background"
+        }
+      ]
+    },
+    {
+      "id": "SSR02",
+      "name": "日蚀旅客",
+      "rarity": "SSR",
+      "species": "marble",
+      "image": "/avatars/marble-collection-v1/SSR02.webp",
+      "filename": "SSR02.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 115358,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SSR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "clear smoky obsidian glass sphere with internal gold corona ECLIPSE, sparse warm stars and dark violet orbital ribbon, glass rim remains visible"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "resolute pale gold eyes, slight confident smirk"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "cream high-collar utility coat, black crossbody strap, bronze thin rectangular spectacles"
+        },
+        {
+          "trait_type": "Background",
+          "value": "distant futuristic sunlit arch silhouette at violet dusk, subtle eclipse-shaped light patch in sky"
+        }
+      ]
+    },
+    {
+      "id": "SSR03",
+      "name": "银河灵猫",
+      "rarity": "SSR",
+      "species": "cat",
+      "image": "/avatars/marble-collection-v1/SSR03.webp",
+      "filename": "SSR03.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 107692,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SSR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "rounded translucent midnight-violet glass cat head and glass ears containing flowing turquoise-purple milky way, sparse stars and one tiny silver moon within the head"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "sharp luminous mint cat eyes, elegant mysterious expression"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "small paired silver ear cuffs; deep plum structured coat and ivory scarf"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet moonlit rooftop garden with very simple dark plant silhouettes and far observatory, background restrained"
+        }
+      ]
+    },
+    {
+      "id": "SSR04",
+      "name": "金曜猎星犬",
+      "rarity": "SSR",
+      "species": "dog:golden-retriever",
+      "image": "/avatars/marble-collection-v1/SSR04.webp",
+      "filename": "SSR04.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 128394,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "SSR"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:golden-retriever"
+        },
+        {
+          "trait_type": "Core",
+          "value": "rounded clear golden retriever glass head, broad canine muzzle and graceful floppy glass ears containing amber-violet galaxy, sparse constellations and a tiny dark ringed planet at back"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "steady dignified gold eyes, subtle warm confident smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "dark navy high-collar expedition jacket, cream inner collar, one small abstract gold orbital clasp"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet observatory walkway above clouds at late violet dusk, restrained warm window glow and one distant moon"
+        }
+      ]
+    },
+    {
+      "id": "EX01",
+      "name": "晶格化学家",
+      "rarity": "EX",
+      "species": "marble",
+      "theme": "chemistry",
+      "image": "/avatars/marble-collection-v1/EX01.webp",
+      "filename": "EX01.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 122154,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "EX"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "perfect clear turquoise spherical glass head containing miniature cobalt and copper crystalline geometric lattices, a few tasteful ball-and-stick molecular clusters and flowing violet-teal liquid ribbons; tiny bubbles; clearly chemistry-inspired, not a galaxy"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "thoughtful focused gray-green eyes and a confident slight smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "thin clear safety-style optical glasses; ivory structured lab-inspired coat over charcoal turtleneck, matte black strap"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet modern chemistry studio, low-contrast glass shelves and simple teal window glow, NO text or chemical formula labels"
+        },
+        {
+          "trait_type": "Theme",
+          "value": "chemistry"
+        }
+      ]
+    },
+    {
+      "id": "EX02",
+      "name": "雨林守林猫",
+      "rarity": "EX",
+      "species": "cat",
+      "theme": "rainforest",
+      "image": "/avatars/marble-collection-v1/EX02.webp",
+      "filename": "EX02.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 165842,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "EX"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "rounded emerald transparent glass cat head and glass ears containing a miniature lush tropical RAINFOREST: layered ferns, broad split leaves, curling vines, a tiny waterfall and warm filtered canopy light contained inside the glass"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "calm alert golden feline eyes, gentle knowing smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "olive expedition overshirt and cream hood, small silver leaf-shaped pin, no hat obscuring glass ears"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet misty greenhouse edge and tropical canopy silhouettes, subdued sage greens"
+        },
+        {
+          "trait_type": "Theme",
+          "value": "rainforest"
+        }
+      ]
+    },
+    {
+      "id": "EX03",
+      "name": "细胞漫游者",
+      "rarity": "EX",
+      "species": "marble",
+      "theme": "biology",
+      "image": "/avatars/marble-collection-v1/EX03.webp",
+      "filename": "EX03.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 111074,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "EX"
+        },
+        {
+          "trait_type": "Species",
+          "value": "marble"
+        },
+        {
+          "trait_type": "Core",
+          "value": "perfect clear pearlescent aqua spherical head containing an elegant microscopic BIOLOGY-inspired world: translucent rounded cells with visible soft colored nuclei, delicate membrane vesicles, a single subtle DNA double-helix ribbon flowing through turquoise fluid; clean beautiful scientific aesthetic, no gore, no text, no stars"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "curious attentive pale lilac eyes, slightly delighted restrained smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "navy high-collar technical coat with muted mint inner lining, small round silver optical glasses"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet life-science conservatory with softly suggested microscope silhouette far behind and pale blue window shadows"
+        },
+        {
+          "trait_type": "Theme",
+          "value": "biology"
+        }
+      ]
+    },
+    {
+      "id": "EX04",
+      "name": "鱼群领航犬",
+      "rarity": "EX",
+      "species": "dog:golden-retriever",
+      "theme": "fish-school",
+      "image": "/avatars/marble-collection-v1/EX04.webp",
+      "filename": "EX04.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 151246,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "EX"
+        },
+        {
+          "trait_type": "Species",
+          "value": "dog:golden-retriever"
+        },
+        {
+          "trait_type": "Core",
+          "value": "smooth clear deep-aqua glass golden retriever DOG head with broad long canine muzzle and floppy glass ears, INSIDE the head a miniature underwater world: a coherent SCHOOL OF TINY SILVER AND CORAL FISH swimming in a sweeping ribbon, delicate aquatic plants and a few rising bubbles, soft sunbeams entering blue water; actual distinguishable tiny fish silhouettes, not stars or space"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "friendly calm amber dog eyes, gentle confident smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "dark navy water-resistant expedition jacket with cream inner collar, simple small silver wave-shaped clasp"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet low-contrast coastal aquarium walkway and teal water reflections, minimal dark rail"
+        },
+        {
+          "trait_type": "Theme",
+          "value": "fish-school"
+        }
+      ]
+    },
+    {
+      "id": "EX05",
+      "name": "菌菇夜行猫",
+      "rarity": "EX",
+      "species": "cat",
+      "theme": "mushrooms",
+      "image": "/avatars/marble-collection-v1/EX05.webp",
+      "filename": "EX05.webp",
+      "width": 768,
+      "height": 768,
+      "bytes": 140794,
+      "attributes": [
+        {
+          "trait_type": "Rarity",
+          "value": "EX"
+        },
+        {
+          "trait_type": "Species",
+          "value": "cat"
+        },
+        {
+          "trait_type": "Core",
+          "value": "rounded smoky plum transparent glass cat head with glass cat ears containing a miniature MUSHROOM FOREST: recognisable little bell and umbrella mushroom caps in pale coral and aqua, delicate white gills, winding mycelium threads and moss in a violet-teal mist, gentle bioluminescent glow kept inside the glass head, no galaxy or stars"
+        },
+        {
+          "trait_type": "Expression",
+          "value": "playful curious mint eyes with a tiny crooked smile"
+        },
+        {
+          "trait_type": "Outfit",
+          "value": "charcoal oversized raincoat over warm rust knit, cream scarf, small silver hoop ear cuff"
+        },
+        {
+          "trait_type": "Background",
+          "value": "quiet damp woodland with soft moss and large distant mushroom silhouettes, muted blue-green evening"
+        },
+        {
+          "trait_type": "Theme",
+          "value": "mushrooms"
+        }
+      ]
+    }
+  ]
+}

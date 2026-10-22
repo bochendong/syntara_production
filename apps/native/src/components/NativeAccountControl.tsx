@@ -2,7 +2,6 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   CheckCircle2,
   ExternalLink,
-  Loader2,
   LockKeyhole,
   LogIn,
   ShieldCheck,
@@ -10,8 +9,9 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import loginBackgroundUrl from '../../../../public/background/login.png?url';
 import { nativeChannel } from '../channel';
+import { DEFAULT_TESTER_EMAIL } from '../../../../lib/constants/tester-login';
+import loginBackgroundUrl from '../../../../public/background/login.png?url';
 import {
   getNativeDeviceIdentity,
   loadNativeAuthSession,
@@ -21,10 +21,13 @@ import {
   type NativeAuthSession,
 } from '../data/native-auth';
 import {
+  getTesterLoginConfig,
+  loginNativeTester,
   pollNativeDeviceAuth,
   startNativeDeviceAuth,
   type NativeDeviceAuthorization,
 } from '../data/platform-api-client';
+import { GlassSpinner } from './GlassLoadMore';
 
 type LoginState = 'idle' | 'starting' | 'waiting' | 'error';
 
@@ -44,11 +47,26 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
   const [loginState, setLoginState] = useState<LoginState>('idle');
   const [authorization, setAuthorization] = useState<NativeDeviceAuthorization | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [testerEnabled, setTesterEnabled] = useState(false);
+  const [testerExpanded, setTesterExpanded] = useState(false);
+  const [testerEmail, setTesterEmail] = useState(DEFAULT_TESTER_EMAIL);
+  const [testerPassword, setTesterPassword] = useState('');
+  const [testerBusy, setTesterBusy] = useState(false);
   const pollGenerationRef = useRef(0);
   const browserPreview = !isTauriRuntime();
 
   useEffect(() => {
     let cancelled = false;
+    if (!browserPreview && nativeChannel !== 'staging') {
+      void getTesterLoginConfig()
+        .then((config) => {
+          if (!cancelled && config.enabled) {
+            setTesterEnabled(true);
+            setTesterEmail(config.email);
+          }
+        })
+        .catch(() => {});
+    }
     const unsubscribe = subscribeNativeAuth((nextSession) => {
       if (!cancelled) setSession(nextSession);
     });
@@ -71,7 +89,7 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
       pollGenerationRef.current += 1;
       unsubscribe();
     };
-  }, []);
+  }, [browserPreview]);
 
   const stopPolling = useCallback(() => {
     pollGenerationRef.current += 1;
@@ -129,6 +147,28 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
     }
   }, [beginPolling, stopPolling]);
 
+  const startTesterLogin = async () => {
+    stopPolling();
+    setAuthorization(null);
+    setLoginState('idle');
+    setTesterBusy(true);
+    setError(null);
+    try {
+      const pair = await loginNativeTester({
+        email: testerEmail,
+        password: testerPassword,
+        ...getNativeDeviceIdentity(),
+      });
+      const stored = await saveNativeAuthSession(pair);
+      setTesterPassword('');
+      setSession(stored);
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setTesterBusy(false);
+    }
+  };
+
   const reopenBrowser = useCallback(async () => {
     if (!authorization) return;
     try {
@@ -147,7 +187,7 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
           </span>
           <strong>Syntara</strong>
           <span>
-            <Loader2 className="is-spinning" size={15} />
+            <GlassSpinner size={15} />
             正在验证登录状态
           </span>
         </div>
@@ -208,7 +248,7 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
               ? '当前是浏览器预览，无法使用平台登录与平台 AI。可先进入本机预览改界面；正式登录请打开 macOS 开发版窗口。'
               : nativeChannel === 'staging'
                 ? '使用你自己的 Google 账号登录，在浏览器中确认后即可返回测试版 App。'
-                : '我们会在浏览器中完成安全登录，并检查当前环境的 App 使用权限。'}
+                : '在浏览器中登录并完成当前环境的身份验证。'}
           </p>
 
           {browserPreview ? (
@@ -234,7 +274,7 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
 
           {!browserPreview && loginState === 'starting' ? (
             <div className="native-account-progress" role="status">
-              <Loader2 className="is-spinning" size={18} />
+              <GlassSpinner size={18} />
               正在创建一次性登录请求…
             </div>
           ) : null}
@@ -246,7 +286,7 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
                 <strong>{authorization.userCode}</strong>
               </div>
               <div className="native-account-progress" role="status">
-                <Loader2 className="is-spinning" size={17} />
+                <GlassSpinner size={17} />
                 等待你在浏览器中确认…
               </div>
               <button
@@ -261,6 +301,56 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
                 取消
               </button>
             </>
+          ) : null}
+
+          {testerEnabled && nativeChannel !== 'staging' ? (
+            <div className="native-tester-login">
+              <button
+                type="button"
+                className="native-account-secondary native-auth-submit"
+                aria-expanded={testerExpanded}
+                onClick={() => setTesterExpanded(!testerExpanded)}
+              >
+                测试人员登录
+              </button>
+              {testerExpanded ? (
+                <form
+                  className="native-tester-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void startTesterLogin();
+                  }}
+                >
+                  <label>
+                    测试邮箱
+                    <input
+                      type="email"
+                      autoComplete="username"
+                      required
+                      value={testerEmail}
+                      onChange={(event) => setTesterEmail(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    测试密码
+                    <input
+                      type="password"
+                      autoComplete="current-password"
+                      required
+                      value={testerPassword}
+                      onChange={(event) => setTesterPassword(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="native-account-primary native-auth-submit"
+                    disabled={testerBusy}
+                  >
+                    {testerBusy ? '正在登录…' : '进入测试账户'}
+                  </button>
+                </form>
+              ) : null}
+            </div>
           ) : null}
 
           {error ? (

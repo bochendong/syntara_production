@@ -23,6 +23,13 @@ export interface ChatImageThumbnail {
   thumbnailDataUrl: string;
 }
 
+export function isChatImageFile(file: File): boolean {
+  return (
+    file.type.startsWith('image/') ||
+    /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(file.name)
+  );
+}
+
 async function decodeImage(file: File): Promise<HTMLImageElement> {
   const url = URL.createObjectURL(file);
   try {
@@ -55,7 +62,7 @@ function encodeJpeg(image: HTMLImageElement, maxEdge: number, quality: number): 
 }
 
 export async function prepareChatImage(file: File): Promise<PendingChatImage> {
-  if (!file.type.startsWith('image/') && !/\.(heic|heif)$/i.test(file.name)) {
+  if (!isChatImageFile(file)) {
     throw new Error(`“${file.name}”不是图片。`);
   }
   const image = await decodeImage(file);

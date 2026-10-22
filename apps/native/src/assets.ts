@@ -1,35 +1,90 @@
-const avatarModules = import.meta.glob('../../../public/avatars/course-avators/*.avif', {
+import {
+  MARBLE_AVATAR_CATALOG,
+  type MarbleAvatarRarity,
+} from '../../../lib/constants/marble-avatars';
+import avatarThemeHues from '../../../lib/constants/marble-avatar-theme-hues.json';
+
+const avatarModules = import.meta.glob('../../../public/avatars/marble-collection-v1/*.webp', {
   eager: true,
   query: '?url',
   import: 'default',
 }) as Record<string, string>;
 
-function avatarFilename(path: string): string {
-  return path.split('/').pop() || path;
-}
+const avatarUrls = new Map(
+  Object.entries(avatarModules).map(([path, url]) => [path.split('/').pop(), url]),
+);
+
+const profileBackgroundModules = import.meta.glob(
+  '../../../public/avatars/marble-backgrounds-v1/*.webp',
+  { eager: true, query: '?url', import: 'default' },
+) as Record<string, string>;
+
+const profileBackgroundUrls = new Map(
+  Object.entries(profileBackgroundModules).map(([path, url]) => [path.split('/').pop(), url]),
+);
+
+const sidebarBackgroundModules = import.meta.glob(
+  '../../../public/avatars/marble-sidebars-v1/*.webp',
+  { eager: true, query: '?url', import: 'default' },
+) as Record<string, string>;
+
+const sidebarBackgroundUrls = new Map(
+  Object.entries(sidebarBackgroundModules).map(([path, url]) => [path.split('/').pop(), url]),
+);
+
+const galaxyBackgroundModules = import.meta.glob(
+  '../../../public/avatars/marble-galaxies-v1/*.webp',
+  { eager: true, query: '?url', import: 'default' },
+) as Record<string, string>;
+
+const galaxyBackgroundUrls = new Map(
+  Object.entries(galaxyBackgroundModules).map(([path, url]) => [path.split('/').pop(), url]),
+);
 
 export type CourseAvatarPreset = {
   id: string;
+  name: string;
+  rarity: MarbleAvatarRarity;
   url: string;
 };
 
-export const COURSE_AVATAR_PRESETS: CourseAvatarPreset[] = Object.entries(avatarModules)
-  .filter(([path]) => !avatarFilename(path).includes('(1)'))
-  .map(([path, url]) => ({ id: avatarFilename(path), url }))
-  .sort((left, right) => left.id.localeCompare(right.id, 'en'));
+/** 和网页端同一份 45 款目录，图片由 Vite 打包到应用内，支持离线显示。 */
+export const COURSE_AVATAR_PRESETS: CourseAvatarPreset[] = MARBLE_AVATAR_CATALOG.map((avatar) => ({
+  id: avatar.id,
+  name: avatar.name,
+  rarity: avatar.rarity,
+  url: avatarUrls.get(avatar.filename) || '',
+}));
+
+/** Resolve separate card and sidebar artwork, including synced web avatar URLs. */
+export function profileThemeForAvatar(avatarUrl: string) {
+  let pathname = avatarUrl;
+  try {
+    pathname = new URL(avatarUrl, 'https://syntara.local').pathname;
+  } catch {
+    // Custom images keep the neutral card background.
+  }
+  const avatar = MARBLE_AVATAR_CATALOG.find(
+    (item) => avatarUrls.get(item.filename) === avatarUrl || item.url === pathname,
+  );
+  const backgroundUrl = avatar && profileBackgroundUrls.get(avatar.filename);
+  if (!avatar || !backgroundUrl) return undefined;
+  const hue = avatarThemeHues[avatar.id as keyof typeof avatarThemeHues];
+  return {
+    backgroundUrl,
+    sidebarUrl: sidebarBackgroundUrls.get(avatar.filename),
+    galaxyUrl: galaxyBackgroundUrls.get(avatar.filename),
+    accent: `hsl(${hue} 50% 32%)`,
+  };
+}
 
 const courseAvatarByCode: Record<string, string> = {
-  CSC148: COURSE_AVATAR_PRESETS.find((item) => item.id === 'SR2.avif')?.url || COURSE_AVATAR_PRESETS[0]?.url || '',
-  MAT136:
-    COURSE_AVATAR_PRESETS.find((item) => item.id === '767dee2c02f7954b500a9ec416d38e5b.avif')?.url ||
-    COURSE_AVATAR_PRESETS[0]?.url ||
-    '',
+  CSC148: COURSE_AVATAR_PRESETS.find((item) => item.id === 'SR02')?.url || '',
+  MAT136: COURSE_AVATAR_PRESETS.find((item) => item.id === 'R07')?.url || '',
 };
 
 const defaultCourseAvatarUrl =
-  COURSE_AVATAR_PRESETS.find((item) => item.id === 'R14.avif')?.url ||
-  COURSE_AVATAR_PRESETS[0]?.url ||
-  '';
+  COURSE_AVATAR_PRESETS.find((item) => item.id === 'R14')?.url || COURSE_AVATAR_PRESETS[0].url;
 
 export function courseAvatarStorageKey(courseId: string): string {
   return `syntara.native.course.${courseId}.avatar`;
@@ -62,7 +117,7 @@ export function courseAvatarUrlById(avatarId: string | null | undefined): string
 }
 
 export function pickRandomCourseAvatarId(): string {
-  if (!COURSE_AVATAR_PRESETS.length) return 'R14.avif';
+  if (!COURSE_AVATAR_PRESETS.length) return 'R01';
   const index = Math.floor(Math.random() * COURSE_AVATAR_PRESETS.length);
   return COURSE_AVATAR_PRESETS[index].id;
 }

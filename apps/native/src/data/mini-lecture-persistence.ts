@@ -7,6 +7,8 @@ import type { LocalAsset } from '../domain/models';
 import type {
   PersistedMiniLectureAction,
   PersistedMiniLectureDocument,
+  RuntimeMiniLectureDeck,
+  RuntimeMiniLectureAction,
 } from '../domain/learning-experiences';
 
 function generatedAssetId(kind: 'image' | 'audio', sha256: string) {
@@ -185,4 +187,38 @@ export function miniLectureManifestToPersistence(
     pages,
   };
   return { document, assets: [...assetsById.values()] };
+}
+
+/** Open a course lecture even when its original chat is no longer on this device. */
+export function miniLectureManifestToRuntime(
+  manifest: NativeMiniLectureManifest,
+): RuntimeMiniLectureDeck {
+  const { document, assets } = miniLectureManifestToPersistence(
+    manifest,
+    manifest.source.answerId || `remote-lecture:${manifest.lectureId}`,
+  );
+  const urls = new Map(
+    assets.map((asset) => {
+      if (!asset.dataBase64) throw new Error('课堂图片或语音尚未下载完整，请重试。');
+      return [asset.id, `data:${asset.mimeType};base64,${asset.dataBase64}`];
+    }),
+  );
+  const assetUrl = (id: string) => {
+    const url = urls.get(id);
+    if (!url) throw new Error('课堂缺少图片或语音资源，请重试。');
+    return url;
+  };
+  return {
+    ...document.deck,
+    pages: document.pages.map((page) => ({
+      ...page,
+      imageUrl: assetUrl(page.imageAssetId),
+      actions: page.actions.map(
+        (action): RuntimeMiniLectureAction =>
+          action.type === 'speech'
+            ? { ...action, audioUrl: assetUrl(action.audioAssetId) }
+            : action,
+      ),
+    })),
+  };
 }

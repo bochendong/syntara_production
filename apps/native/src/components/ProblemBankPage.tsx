@@ -1,17 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  ArrowLeft,
-  BookOpenCheck,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Play,
-  Search,
-  SlidersHorizontal,
-} from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ChevronLeft, Play, Search, X } from 'lucide-react';
 
-import { problemTypeLabel } from '../data/local-problem-grading';
+import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
+import { ProblemTitleText } from './problem-bank/problem-rich-text';
 import type { LocalCourseWorkspace, LocalProblem } from '../domain/models';
+import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
+import './course-pages.css';
 
 export type ProblemBankLaunch = {
   problemIds: string[];
@@ -26,9 +20,19 @@ type ProblemBankPageProps = {
 
 type TypeFilter = 'all' | string;
 type DifficultyFilter = 'all' | LocalProblem['difficulty'];
-type StatusFilter = 'all' | LocalProblem['status'];
 
-const PROBLEM_BANK_PAGE_SIZE = 10;
+const PROBLEM_BANK_PAGE_SIZE = 20;
+
+// 难度用弹珠颜色表示：基础绿、进阶黄、挑战粉。
+const DIFFICULTY_OPTIONS = (['easy', 'medium', 'hard'] as const).map((value) => ({
+  value,
+  label: difficultyLabel(value),
+  color: DIFFICULTY_MARBLES[value],
+}));
+
+function difficultyMarble(difficulty: LocalProblem['difficulty']): string {
+  return marbleImages[DIFFICULTY_MARBLES[difficulty] ?? 'blue'];
+}
 
 function matchesQuery(problem: LocalProblem, query: string): boolean {
   if (!query) return true;
@@ -47,54 +51,47 @@ function matchesQuery(problem: LocalProblem, query: string): boolean {
     .every((term) => haystack.includes(term));
 }
 
+// 同步来的标题会在公式中间截断（比如 "$mx\equiv nx\..."），公式就渲染不出来；
+// 这种情况改用完整题干，一行放不下交给 CSS 省略。
+function listTitle(problem: LocalProblem): string {
+  const stem = problem.publicContent.stem;
+  if (typeof stem !== 'string' || !stem.trim()) return problem.title;
+  return /(\.\.\.|…)\s*$/.test(problem.title) ? stem.replace(/\s+/g, ' ') : problem.title;
+}
+
 export function ProblemBankPage({ workspace, onBack, onPractice }: ProblemBankPageProps) {
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('published');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [visibleCount, setVisibleCount] = useState(PROBLEM_BANK_PAGE_SIZE);
+
+  // 学生只看已发布的题；课程里还没有发布的题时（本机自建课程）就全部显示。
+  const bankProblems = useMemo(() => {
+    const published = workspace.problems.filter((problem) => problem.status === 'published');
+    return published.length
+      ? published
+      : workspace.problems.filter((problem) => problem.status !== 'archived');
+  }, [workspace.problems]);
 
   const typeOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const problem of workspace.problems) {
+    for (const problem of bankProblems) {
       counts.set(problem.type, (counts.get(problem.type) || 0) + 1);
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [workspace.problems]);
+  }, [bankProblems]);
 
   const filteredProblems = useMemo(() => {
-    return workspace.problems
+    return bankProblems
       .filter((problem) => {
-        if (statusFilter !== 'all' && problem.status !== statusFilter) return false;
         if (typeFilter !== 'all' && problem.type !== typeFilter) return false;
         if (difficultyFilter !== 'all' && problem.difficulty !== difficultyFilter) return false;
         return matchesQuery(problem, query.trim());
       })
       .sort((a, b) => b.updatedAt - a.updatedAt || a.title.localeCompare(b.title, 'zh-CN'));
-  }, [difficultyFilter, query, statusFilter, typeFilter, workspace.problems]);
+  }, [bankProblems, difficultyFilter, query, typeFilter]);
 
-  const pageCount = Math.max(1, Math.ceil(filteredProblems.length / PROBLEM_BANK_PAGE_SIZE));
-  const safePage = Math.min(currentPage, pageCount);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [difficultyFilter, query, statusFilter, typeFilter]);
-
-  useEffect(() => {
-    if (currentPage > pageCount) setCurrentPage(pageCount);
-  }, [currentPage, pageCount]);
-
-  const pageStartIndex = (safePage - 1) * PROBLEM_BANK_PAGE_SIZE;
-  const visibleProblems = filteredProblems.slice(
-    pageStartIndex,
-    pageStartIndex + PROBLEM_BANK_PAGE_SIZE,
-  );
-
-  const activeFilterCount =
-    (statusFilter !== 'published' ? 1 : 0) +
-    (typeFilter !== 'all' ? 1 : 0) +
-    (difficultyFilter !== 'all' ? 1 : 0) +
-    (query.trim() ? 1 : 0);
+  const visibleProblems = filteredProblems.slice(0, visibleCount);
 
   const startPractice = (initialProblemId?: string) => {
     if (!filteredProblems.length) return;
@@ -107,148 +104,152 @@ export function ProblemBankPage({ workspace, onBack, onPractice }: ProblemBankPa
   };
 
   return (
-    <section className="native-problem-bank" aria-label="课程题库">
-      <div className="native-problem-bank-shell">
-        <header className="native-problem-bank-header">
-          <div className="native-problem-bank-header-row">
-            <button type="button" className="native-problem-bank-back" onClick={onBack}>
-              <ArrowLeft size={16} />
-              返回课程
-            </button>
-            <span className="native-problem-bank-course">
-              {workspace.course.courseCode || workspace.course.name}
-            </span>
-            <label className="native-problem-bank-search">
-              <Search size={15} />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索题号、题目、知识点、来源"
-              />
-            </label>
-            <span className="native-problem-bank-count">
-              {filteredProblems.length}/{workspace.problems.length}
-            </span>
-            <div className="native-problem-bank-filters" aria-label="筛选">
-              <SlidersHorizontal size={14} />
-              {activeFilterCount > 0 ? (
-                <span className="native-problem-bank-filter-badge">{activeFilterCount}</span>
-              ) : null}
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+    <section className="pb-page" aria-label="课程题库">
+      <header className="pb-header">
+        <button type="button" className="phone-glass-button" onClick={onBack} aria-label="返回">
+          <ChevronLeft size={22} />
+        </button>
+        <div className="pb-title">
+          <strong>题库</strong>
+          <small>
+            {workspace.course.courseCode || workspace.course.name} · {filteredProblems.length} 题
+          </small>
+        </div>
+        <span className="pb-header-spacer" aria-hidden />
+      </header>
+
+      <div className="pb-scroll">
+        <div className="pb-column">
+          <label className="pb-search">
+            <Search size={17} />
+            <input
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setVisibleCount(PROBLEM_BANK_PAGE_SIZE);
+              }}
+              placeholder="搜索题目或知识点"
+              type="search"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  setVisibleCount(PROBLEM_BANK_PAGE_SIZE);
+                }}
+                aria-label="清空搜索"
               >
-                <option value="published">已发布</option>
-                <option value="all">全部状态</option>
-                <option value="draft">草稿</option>
-                <option value="archived">已归档</option>
-              </select>
-              <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-                <option value="all">全部题型</option>
-                {typeOptions.map(([type, count]) => (
-                  <option key={type} value={type}>
-                    {problemTypeLabel(type)} · {count}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={difficultyFilter}
-                onChange={(event) => setDifficultyFilter(event.target.value as DifficultyFilter)}
-              >
-                <option value="all">全部难度</option>
-                <option value="easy">基础</option>
-                <option value="medium">进阶</option>
-                <option value="hard">挑战</option>
-              </select>
-            </div>
+                <X size={14} />
+              </button>
+            ) : null}
+          </label>
+
+          <div className="pb-chips" role="group" aria-label="难度">
             <button
               type="button"
-              className="native-problem-bank-primary"
-              disabled={!filteredProblems.length}
-              onClick={() => startPractice()}
+              className={difficultyFilter === 'all' ? 'is-active' : ''}
+              onClick={() => {
+                if (difficultyFilter === 'all') return;
+                setDifficultyFilter('all');
+                setVisibleCount(PROBLEM_BANK_PAGE_SIZE);
+              }}
             >
-              <Play size={15} />
-              开始练习
+              全部
             </button>
+            {DIFFICULTY_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={difficultyFilter === option.value ? 'is-active' : ''}
+                onClick={() => {
+                  setDifficultyFilter((current) =>
+                    current === option.value ? 'all' : option.value,
+                  );
+                  setVisibleCount(PROBLEM_BANK_PAGE_SIZE);
+                }}
+              >
+                <img src={marbleImages[option.color]} alt="" />
+                {option.label}
+              </button>
+            ))}
+            {typeOptions.length > 1 ? <span className="pb-chips-divider" aria-hidden /> : null}
+            {typeOptions.length > 1
+              ? typeOptions.map(([type]) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className={typeFilter === type ? 'is-active' : ''}
+                    onClick={() => {
+                      setTypeFilter((current) => (current === type ? 'all' : type));
+                      setVisibleCount(PROBLEM_BANK_PAGE_SIZE);
+                    }}
+                  >
+                    {problemTypeLabel(type)}
+                  </button>
+                ))
+              : null}
           </div>
-          <div className="native-problem-bank-meta">
-            <span>
-              <BookOpenCheck size={14} />
-              当前筛选 {filteredProblems.length} 题
-            </span>
-            <span>
-              第 {safePage}/{pageCount} 页 · 每页 {PROBLEM_BANK_PAGE_SIZE} 题
-            </span>
-          </div>
-        </header>
 
-        <div className="native-problem-bank-list">
-          <div className="native-problem-bank-table-head" aria-hidden>
-            <span>#</span>
-            <span>难度</span>
-            <span>题目</span>
-            <span>题型</span>
-            <span>状态</span>
-            <span />
-          </div>
           {visibleProblems.length === 0 ? (
-            <div className="native-problem-bank-empty">
-              <CheckCircle2 size={28} />
-              <strong>没有匹配的题目</strong>
-              <span>换个筛选条件，或清空搜索后再试。</span>
+            <div className="pb-empty">
+              <span className="pb-empty-marbles" aria-hidden>
+                <img src={marbleImages.green} alt="" />
+                <img src={marbleImages.amber} alt="" />
+                <img src={marbleImages.pink} alt="" />
+              </span>
+              <strong>没有找到题目</strong>
             </div>
           ) : (
-            visibleProblems.map((problem, index) => (
-              <button
-                key={problem.id}
-                type="button"
-                className="native-problem-bank-row"
-                onClick={() => startPractice(problem.id)}
-              >
-                <span className="native-problem-bank-index">{pageStartIndex + index + 1}</span>
-                <span className={`difficulty-dot difficulty-dot-${problem.difficulty}`} />
-                <span className="native-problem-bank-copy">
-                  <strong>{problem.title}</strong>
-                  <small>
-                    {problem.tags.length ? problem.tags.slice(0, 3).join(' · ') : '未标注标签'}
-                  </small>
-                </span>
-                <span className="native-problem-bank-type">{problemTypeLabel(problem.type)}</span>
-                <span className="native-problem-bank-status">{problem.status}</span>
-                <span className="native-problem-bank-practice">练习</span>
-              </button>
-            ))
+            <ol className="pb-list">
+              {visibleProblems.map((problem, index) => (
+                <li key={problem.id} style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}>
+                  <button
+                    type="button"
+                    className="pb-row"
+                    onClick={() => startPractice(problem.id)}
+                  >
+                    <img
+                      className="pb-row-marble"
+                      src={difficultyMarble(problem.difficulty)}
+                      alt=""
+                    />
+                    <span className="pb-row-copy">
+                      <strong>
+                        <ProblemTitleText content={listTitle(problem)} />
+                      </strong>
+                      <small>
+                        <span className="pb-row-type">{problemTypeLabel(problem.type)}</span>
+                        {problem.tags.slice(0, 2).join(' · ')}
+                      </small>
+                    </span>
+                    <span className="pb-row-play" aria-hidden>
+                      <Play size={14} />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
           )}
-        </div>
 
-        {filteredProblems.length > 0 ? (
-          <footer className="native-problem-bank-pagination">
+          {filteredProblems.length > visibleCount ? (
             <button
               type="button"
-              className="native-problem-bank-page-button"
-              disabled={safePage <= 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              className="pb-more"
+              onClick={() => setVisibleCount((count) => count + PROBLEM_BANK_PAGE_SIZE)}
             >
-              <ChevronLeft size={15} />
-              上一页
+              再看 {Math.min(PROBLEM_BANK_PAGE_SIZE, filteredProblems.length - visibleCount)} 题
             </button>
-            <span className="native-problem-bank-page-status">
-              {pageStartIndex + 1}-
-              {Math.min(pageStartIndex + PROBLEM_BANK_PAGE_SIZE, filteredProblems.length)} /{' '}
-              {filteredProblems.length}
-            </span>
-            <button
-              type="button"
-              className="native-problem-bank-page-button"
-              disabled={safePage >= pageCount}
-              onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
-            >
-              下一页
-              <ChevronRight size={15} />
-            </button>
-          </footer>
-        ) : null}
+          ) : null}
+        </div>
       </div>
+
+      {filteredProblems.length ? (
+        <button type="button" className="pb-start" onClick={() => startPractice()}>
+          <Play size={16} fill="currentColor" />
+          开始练习
+        </button>
+      ) : null}
     </section>
   );
 }

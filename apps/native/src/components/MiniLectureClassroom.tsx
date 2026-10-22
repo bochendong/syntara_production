@@ -5,12 +5,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Eraser,
-  Loader2,
+  ListOrdered,
   Pause,
   Play,
   RefreshCw,
   Sparkles,
-  Volume2,
   X,
 } from 'lucide-react';
 
@@ -21,7 +20,9 @@ import type {
   RuntimeMiniLecturePage,
   RuntimeMiniLectureSpeechAction,
 } from '../domain/learning-experiences';
-import { NativeWorkspaceDialog } from './NativeWorkspaceDialog';
+import { classroomMarble } from '../lib/learning-action-marbles';
+import './course-pages.css';
+import { GlassSpinner } from './GlassLoadMore';
 
 export type MiniLectureGenerationState = {
   status: 'idle' | 'queued' | 'running' | 'failed';
@@ -37,6 +38,16 @@ const GENERATION_STEP_LABELS: Record<string, string> = {
   narration: '正在生成逐段课堂讲稿',
   tts: 'OpenAI 正在生成课堂语音',
   packaging: '正在保存到本机',
+};
+
+/** 手机上的进度只说一个短词。 */
+const COMPACT_STEP_LABELS: Record<string, string> = {
+  planning: '正在规划',
+  image_generation: '正在绘图',
+  marker_recovery: '正在标注',
+  narration: '正在写讲稿',
+  tts: '正在配音',
+  packaging: '正在保存',
 };
 
 const MINI_LECTURE_PLAYBACK_RATE_STORAGE_KEY = 'syntara.native.mini-lecture.playback-rate';
@@ -56,13 +67,18 @@ export function MiniLectureGenerateCard({
   state,
   disabled = false,
   unavailableReason,
+  compact = false,
   onGenerate,
 }: {
   state: MiniLectureGenerationState;
   disabled?: boolean;
   unavailableReason?: string;
+  /** 手机：一行标题加一个按钮，不放说明文字。 */
+  compact?: boolean;
   onGenerate: () => void;
 }) {
+  if (compact)
+    return <CompactGenerateCard state={state} disabled={disabled} onGenerate={onGenerate} />;
   const running = state.status === 'queued' || state.status === 'running';
   const unavailable = disabled && !running;
   const label = unavailable
@@ -120,7 +136,7 @@ export function MiniLectureGenerateCard({
       </span>
       <button type="button" onClick={onGenerate} disabled={running || unavailable}>
         {running ? (
-          <Loader2 size={13} className="spin-icon" />
+          <GlassSpinner size={13} />
         ) : state.status === 'failed' ? (
           <RefreshCw size={13} />
         ) : (
@@ -135,12 +151,30 @@ export function MiniLectureGenerateCard({
 export function MiniLectureInviteCard({
   deck,
   busy = false,
+  compact = false,
   onOpen,
 }: {
   deck: PersistedMiniLectureDeck;
   busy?: boolean;
+  compact?: boolean;
   onOpen: () => void;
 }) {
+  if (compact) {
+    return (
+      <section className="mini-lecture-invite is-compact" aria-label="已生成的课堂讲解">
+        <span className="mini-lecture-invite-icon has-learning-mark">
+          <img src={classroomMarble} alt="" className="learning-confirmation-mark" />
+        </span>
+        <span className="mini-lecture-invite-copy">
+          <strong>{deck.title}</strong>
+        </span>
+        <button type="button" onClick={onOpen} disabled={busy} aria-label="播放课堂讲解">
+          {busy ? <GlassSpinner size={14} /> : <Play size={13} fill="currentColor" />}
+          播放
+        </button>
+      </section>
+    );
+  }
   return (
     <section className="mini-lecture-invite" aria-label="已生成的课堂讲解">
       <span className="mini-lecture-invite-icon">
@@ -152,12 +186,65 @@ export function MiniLectureInviteCard({
       </span>
       <span className="mini-lecture-page-count">已就绪</span>
       <button type="button" onClick={onOpen} disabled={busy}>
-        {busy ? (
-          <Loader2 size={13} className="spin-icon" />
-        ) : (
-          <Play size={13} fill="currentColor" />
-        )}
+        {busy ? <GlassSpinner size={13} /> : <Play size={13} fill="currentColor" />}
         {busy ? '正在打开…' : '查看讲解'}
+      </button>
+    </section>
+  );
+}
+
+function CompactGenerateCard({
+  state,
+  disabled,
+  onGenerate,
+}: {
+  state: MiniLectureGenerationState;
+  disabled: boolean;
+  onGenerate: () => void;
+}) {
+  const running = state.status === 'queued' || state.status === 'running';
+  const failed = state.status === 'failed';
+  const unavailable = disabled && !running;
+  const title = running
+    ? (COMPACT_STEP_LABELS[state.step ?? ''] ?? '正在生成')
+    : failed
+      ? '课堂讲解生成失败'
+      : unavailable
+        ? '登录后可生成课堂讲解'
+        : '生成课堂讲解';
+  return (
+    <section
+      className={`mini-lecture-invite mini-lecture-generate is-compact${failed ? ' is-failed' : ''}${running ? ' is-running' : ''}`}
+      aria-label="生成课堂讲解"
+      style={
+        running
+          ? ({
+              '--lecture-progress': `${Math.max(4, state.progress ?? 8)}%`,
+            } as React.CSSProperties)
+          : undefined
+      }
+    >
+      <span className={`mini-lecture-invite-icon${failed ? '' : ' has-learning-mark'}`}>
+        {failed ? (
+          <AlertCircle size={17} />
+        ) : (
+          <img src={classroomMarble} alt="" className="learning-confirmation-mark" />
+        )}
+      </span>
+      <span className="mini-lecture-invite-copy">
+        <strong>{title}</strong>
+      </span>
+      <button type="button" onClick={onGenerate} disabled={running || unavailable}>
+        {running ? (
+          <>
+            <GlassSpinner size={14} />
+            {typeof state.progress === 'number' ? `${state.progress}%` : null}
+          </>
+        ) : failed ? (
+          '重试'
+        ) : (
+          '生成'
+        )}
       </button>
     </section>
   );
@@ -202,6 +289,10 @@ export function MiniLectureClassroom({
   const [pageIndex, setPageIndex] = useState(0);
   const [actionIndex, setActionIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
+  // 宽屏默认展开讲解节奏，手机上默认收起，让课件尽量大。
+  const [scriptOpen, setScriptOpen] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth >= 1000,
+  );
   const [hasStartedPlayback, setHasStartedPlayback] = useState(false);
   const [activeRegionId, setActiveRegionId] = useState<string | null>(null);
   const [speechText, setSpeechText] = useState('');
@@ -417,75 +508,50 @@ export function MiniLectureClassroom({
 
   if (!deck || !page) return null;
 
+  const close = () => {
+    stop();
+    onClose();
+  };
+  const activeSegmentIndex = speechSegments.findIndex(
+    ({ action }) => activeRegionId === action.regionId && speechText === action.text,
+  );
+
+  // 课堂是一间暗下来的放映厅：中间是课件，下面是玻璃播放条，讲解节奏可以从右边拉出来。
   return (
-    <NativeWorkspaceDialog
-      open
-      onClose={() => {
-        stop();
-        onClose();
-      }}
-      title={deck.title}
-      description="GPT Image 2 图片课件、语义遮罩与 OpenAI 中文语音"
-      className="mini-lecture-dialog"
+    <div
+      className={`lc-layer${scriptOpen ? ' is-script-open' : ''}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label={deck.title}
     >
-      <header className="mini-lecture-classroom-header">
-        <div>
-          <h2>{deck.title}</h2>
-          <p>
-            第 {pageIndex + 1}/{deck.pages.length} 页 · {speechSegments.length} 个讲解片段
-          </p>
+      <header className="lc-header">
+        <button type="button" className="lc-glass-button" onClick={close} aria-label="关闭课堂">
+          <X size={20} />
+        </button>
+        <div className="lc-title">
+          <strong>{deck.title}</strong>
+          <small>
+            {pageIndex + 1} / {deck.pages.length}
+          </small>
         </div>
-        <div className="mini-lecture-header-actions">
-          <label className="mini-lecture-speed-control">
-            <span>倍速</span>
-            <select
-              aria-label="讲解播放速度"
-              value={playbackRate}
-              onChange={(event) => changePlaybackRate(Number(event.target.value))}
-            >
-              {MINI_LECTURE_PLAYBACK_RATES.map((rate) => (
-                <option key={rate} value={rate}>
-                  {rate}×
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="mini-lecture-play-button"
-            onClick={() => {
-              if (playing) {
-                pause();
-                return;
-              }
-              startOrResumePagePlayback();
-            }}
-          >
-            {playing ? (
-              <Pause size={14} fill="currentColor" />
-            ) : (
-              <Play size={14} fill="currentColor" />
-            )}
-            {playing ? '暂停讲解' : hasStartedPlayback ? '继续讲解' : '播放讲解'}
-          </button>
-          <button
-            type="button"
-            className="mini-lecture-close-button"
-            aria-label="关闭课堂讲解"
-            onClick={() => {
-              stop();
-              onClose();
-            }}
-          >
-            <X size={17} />
-          </button>
-        </div>
+        <button
+          type="button"
+          className={`lc-glass-button${scriptOpen ? ' is-active' : ''}`}
+          onClick={() => setScriptOpen((open) => !open)}
+          aria-label={scriptOpen ? '收起讲解节奏' : '展开讲解节奏'}
+          aria-pressed={scriptOpen}
+        >
+          <ListOrdered size={19} />
+        </button>
       </header>
 
-      <div className="mini-lecture-classroom-body">
-        <div className="mini-lecture-stage">
-          <div className="mini-lecture-slide">
-            <img src={page.imageUrl} alt={page.title} />
+      <div className="lc-body">
+        <div className="lc-stage">
+          <div
+            className="lc-slide mini-lecture-slide"
+            style={{ ['--lc-ratio' as string]: `${page.width / page.height}` }}
+          >
+            <img key={page.id} src={page.imageUrl} alt={page.title} />
             {activeRegion ? (
               <span
                 className="mini-lecture-spotlight"
@@ -496,60 +562,30 @@ export function MiniLectureClassroom({
                 }}
               />
             ) : null}
+            {speechText ? (
+              <p key={speechText} className="lc-caption">
+                {speechText}
+              </p>
+            ) : null}
           </div>
-          <div className="mini-lecture-page-nav">
-            <button
-              type="button"
-              disabled={pageIndex === 0}
-              onClick={() => goToPage(pageIndex - 1)}
-            >
-              <ChevronLeft size={15} />
-              上一页
-            </button>
-            <span>
-              {deck.pages.map((item, index) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={index === pageIndex ? 'active' : ''}
-                  aria-label={`第 ${index + 1} 页`}
-                  onClick={() => goToPage(index)}
-                />
-              ))}
-            </span>
-            <button
-              type="button"
-              disabled={pageIndex === deck.pages.length - 1}
-              onClick={() => goToPage(pageIndex + 1)}
-            >
-              下一页
-              <ChevronRight size={15} />
-            </button>
-          </div>
-          <p className="mini-lecture-audio-disclosure">
-            语音由 OpenAI 人工智能生成，不是真人录音。
-          </p>
         </div>
 
-        <aside className="mini-lecture-script">
-          <div className="mini-lecture-script-title">
-            <span>
-              <Volume2 size={15} />
-              讲解节奏
-            </span>
-            <button type="button" className="mini-lecture-clear-focus" onClick={clearFocus}>
-              <Eraser size={13} />
-              清除聚焦
-            </button>
+        <aside className="lc-script" aria-label="讲解节奏" aria-hidden={!scriptOpen}>
+          <div className="lc-script-head">
+            <strong>讲解节奏</strong>
+            {activeRegionId ? (
+              <button type="button" onClick={clearFocus} aria-label="清除聚焦">
+                <Eraser size={14} />
+              </button>
+            ) : null}
           </div>
-          <div className="mini-lecture-region-list">
+          <div className="lc-script-list">
             {speechSegments.map(({ action, actionIndex: segmentActionIndex, region }, index) => (
               <button
                 key={action.id}
                 type="button"
-                className={
-                  activeRegionId === action.regionId && speechText === action.text ? 'active' : ''
-                }
+                className={index === activeSegmentIndex ? 'is-active' : ''}
+                tabIndex={scriptOpen ? 0 : -1}
                 onClick={() => {
                   stop();
                   setActionIndex(segmentActionIndex);
@@ -558,26 +594,92 @@ export function MiniLectureClassroom({
                   setPlaybackError('');
                 }}
               >
-                <span style={{ background: region?.color || '#94a3b8' }} />
-                <strong>
-                  {index + 1}. {action.title}
-                </strong>
-                <small>{action.text}</small>
+                <span className="lc-script-dot" style={{ background: region?.color || '#94a3b8' }}>
+                  {index + 1}
+                </span>
+                <span className="lc-script-copy">
+                  <strong>{action.title}</strong>
+                  <small>{action.text}</small>
+                </span>
               </button>
             ))}
           </div>
-          <div className="mini-lecture-caption">
-            <span>{playing ? '正在播放 OpenAI 语音' : speechText ? '当前讲解' : '准备就绪'}</span>
-            <p>{speechText || '点击“播放讲解”，遮罩会由动作序列驱动并跟随音频移动。'}</p>
-          </div>
-          {playbackError ? (
-            <div className="mini-lecture-playback-error" role="alert">
-              <AlertCircle size={14} />
-              <span>{playbackError}</span>
-            </div>
-          ) : null}
+          <p className="lc-disclosure">语音由 AI 生成</p>
         </aside>
       </div>
-    </NativeWorkspaceDialog>
+
+      {playbackError ? (
+        <div className="lc-error" role="alert">
+          <AlertCircle size={14} />
+          <span>{playbackError}</span>
+        </div>
+      ) : null}
+
+      <footer className="lc-dock">
+        <button
+          type="button"
+          className="lc-dock-step"
+          disabled={pageIndex === 0}
+          onClick={() => goToPage(pageIndex - 1)}
+          aria-label="上一页"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <button
+          type="button"
+          className={`lc-dock-play${playing ? ' is-playing' : ''}`}
+          onClick={() => {
+            if (playing) {
+              pause();
+              return;
+            }
+            startOrResumePagePlayback();
+          }}
+          aria-label={playing ? '暂停讲解' : hasStartedPlayback ? '继续讲解' : '播放讲解'}
+        >
+          <img src={classroomMarble} alt="" />
+          {playing ? (
+            <Pause size={18} fill="currentColor" />
+          ) : (
+            <Play size={18} fill="currentColor" />
+          )}
+        </button>
+        <button
+          type="button"
+          className="lc-dock-step"
+          disabled={pageIndex === deck.pages.length - 1}
+          onClick={() => goToPage(pageIndex + 1)}
+          aria-label="下一页"
+        >
+          <ChevronRight size={20} />
+        </button>
+        {deck.pages.length > 1 ? (
+          <span className="lc-dock-dots">
+            {deck.pages.map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                className={index === pageIndex ? 'is-active' : ''}
+                aria-label={`第 ${index + 1} 页`}
+                onClick={() => goToPage(index)}
+              />
+            ))}
+          </span>
+        ) : null}
+        <label className="lc-dock-speed">
+          <select
+            aria-label="讲解播放速度"
+            value={playbackRate}
+            onChange={(event) => changePlaybackRate(Number(event.target.value))}
+          >
+            {MINI_LECTURE_PLAYBACK_RATES.map((rate) => (
+              <option key={rate} value={rate}>
+                {rate}×
+              </option>
+            ))}
+          </select>
+        </label>
+      </footer>
+    </div>
   );
 }

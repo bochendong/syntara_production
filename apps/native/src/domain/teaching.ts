@@ -136,6 +136,8 @@ export interface NativeMessageMetadata {
   schemaVersion?: 1;
   lectureEligible?: boolean;
   lectureEligibilityReason?: 'course_answer' | 'explicit_classroom_action' | 'bundled_reference';
+  /** 平台的 AI 判断这条回答适合做成课堂（学生没明说也会给）。 */
+  lectureSuggested?: boolean;
   learningActions?: NativeLearningAction[];
   reviewPlan?: NativeReviewPlan;
   problemSelection?: NativeProblemSelection;

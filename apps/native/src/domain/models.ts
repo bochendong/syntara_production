@@ -138,6 +138,8 @@ export interface LocalStudyMemory {
   kind: string;
   status: string;
   source: string;
+  /** 在 App 哪条对话里记下的；删掉这条对话时一起删。网页同步下来的没有。 */
+  conversationId?: string | null;
   title: string;
   text: string;
   reason: string | null;

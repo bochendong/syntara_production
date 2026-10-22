@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { nativeBrowserVerificationUrl } from '../../lib/server/native-login-url.ts';
+import { nativeStagingCourseForUser } from '../../lib/server/native-staging-course.ts';
 import {
   canSignInToGoogleTest,
   nativeAccessDecision,
@@ -12,6 +13,24 @@ import {
 } from '../../lib/server/native-speedup-login.ts';
 
 const now = 1_800_000_000_000;
+
+test('starter courses are private, deterministic and confined to Google staging', () => {
+  const env = { SYNTARA_APP_ENV: 'staging', SYNTARA_NATIVE_ACCESS_POLICY: 'google-test' };
+  const course = nativeStagingCourseForUser(env, 'tester-a');
+  assert.equal(course.ownerId, 'tester-a');
+  assert.equal(course.listedInCourseStore, false);
+  assert.deepEqual(nativeStagingCourseForUser(env, 'tester-a'), course);
+  assert.notEqual(nativeStagingCourseForUser(env, 'tester-b').id, course.id);
+  assert.equal(
+    nativeStagingCourseForUser({ ...env, SYNTARA_APP_ENV: 'production' }, 'tester-a'),
+    null,
+  );
+  assert.equal(
+    nativeStagingCourseForUser({ ...env, SYNTARA_NATIVE_ACCESS_POLICY: 'speedup' }, 'tester-a'),
+    null,
+  );
+  assert.equal(nativeStagingCourseForUser(env, ''), null);
+});
 const user = {
   id: 'fixture',
   role: 'STUDENT',

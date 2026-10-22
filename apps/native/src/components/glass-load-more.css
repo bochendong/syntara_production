@@ -1,0 +1,118 @@
+/* 长列表的「加载更多」：一颗小玻璃弹珠，没有按钮文字。 */
+.glass-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1px;
+  flex-shrink: 0;
+}
+
+.glass-load-more.is-loading,
+.glass-load-more.is-error {
+  min-height: 44px;
+}
+
+.glass-load-more img {
+  display: block;
+  width: 14px;
+  height: 14px;
+  filter: drop-shadow(0 2px 4px rgb(37 99 235 / 22%));
+}
+
+.glass-load-more.is-loading img {
+  animation: glass-load-roll 900ms linear infinite;
+}
+
+.glass-load-more button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* 失败：磨砂灰，点一下重试。 */
+.glass-load-more.is-error img {
+  filter: grayscale(1) opacity(0.5) blur(0.4px);
+}
+
+@keyframes glass-load-roll {
+  from {
+    transform: translateX(-6px) rotate(0deg);
+  }
+  50% {
+    transform: translateX(6px) rotate(180deg);
+  }
+  to {
+    transform: translateX(-6px) rotate(360deg);
+  }
+}
+
+/* 原地转动的小弹珠（替代转圈图标） */
+.glass-spinner {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  filter: drop-shadow(0 2px 4px rgb(37 99 235 / 22%));
+  animation: glass-spinner-roll 900ms linear infinite;
+}
+
+@keyframes glass-spinner-roll {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 首屏骨架：半透明玻璃条，一道很轻的光扫过去。 */
+.glass-skeleton {
+  display: grid;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.glass-skeleton span {
+  display: block;
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      100deg,
+      rgb(255 255 255 / 0%) 30%,
+      rgb(255 255 255 / 55%) 50%,
+      rgb(255 255 255 / 0%) 70%
+    ),
+    rgb(148 163 184 / 14%);
+  background-size:
+    220% 100%,
+    100% 100%;
+  border: 1px solid rgb(255 255 255 / 40%);
+  animation: glass-skeleton-sheen 1.6s ease-in-out infinite;
+}
+
+.glass-skeleton span:nth-child(2n) {
+  width: 82%;
+}
+
+@keyframes glass-skeleton-sheen {
+  from {
+    background-position:
+      120% 0,
+      0 0;
+  }
+  to {
+    background-position:
+      -120% 0,
+      0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-load-more.is-loading img,
+  .glass-spinner,
+  .glass-skeleton span {
+    animation: none;
+  }
+}

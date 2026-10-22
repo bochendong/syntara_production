@@ -7,46 +7,22 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { CourseSpaceShell } from '@/components/course-space/course-space-shell';
 import { resolveCourseSpaceRoute } from '@/lib/course-space/course-space-route';
 import { cn } from '@/lib/utils';
-import {
-  CHAT_RIGHT_RAIL_COLLAPSED_STORAGE_KEY,
-  LEFT_RAIL_COLLAPSED_STORAGE_KEY,
-} from '@/lib/constants/app-rail-storage';
+import { CHAT_RIGHT_RAIL_COLLAPSED_STORAGE_KEY } from '@/lib/constants/app-rail-storage';
 
-const AppLeftRail = dynamic(
-  () => import('@/components/app-left-rail').then((mod) => mod.AppLeftRail),
-  { ssr: false },
-);
 const ChatRightRail = dynamic(
   () => import('@/components/chat-right-rail').then((mod) => mod.ChatRightRail),
   { ssr: false },
 );
-/** 侧栏 inset left-4 / right-4 各 16px；左侧导航略宽，右侧聊天栏保持紧凑。 */
+/** The chat utility rail retains its own right inset. */
 const SIDEBAR_GAP = 12;
-const LEFT_RAIL_EXPANDED_WIDTH = 280;
 const RIGHT_RAIL_EXPANDED_WIDTH = 330;
 const RAIL_COLLAPSED_WIDTH = 78;
 const GLOBAL_HEADER_OFFSET_PX = 76;
-const COMPACT_RAIL_BREAKPOINT_PX = 1024;
-const COMPACT_PAGE_INSET_PX = 16;
 
 function railOuterPaddingPx(collapsed: boolean, expandedWidth: number): number {
   const maxW = typeof window !== 'undefined' ? Math.max(0, window.innerWidth - 32) : expandedWidth;
   const w = collapsed ? RAIL_COLLAPSED_WIDTH : Math.min(expandedWidth, maxW);
   return 16 + w + SIDEBAR_GAP;
-}
-
-function shouldUseCompactRailLayout(hasRightRail: boolean): boolean {
-  if (typeof window === 'undefined' || hasRightRail) return false;
-  return window.innerWidth < COMPACT_RAIL_BREAKPOINT_PX;
-}
-
-function getInitialSidebarCollapsed(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return localStorage.getItem(LEFT_RAIL_COLLAPSED_STORAGE_KEY) === '1';
-  } catch {
-    return false;
-  }
 }
 
 function getInitialChatRightCollapsed(): boolean {
@@ -141,17 +117,7 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
     pathname === '/practice' ||
     Boolean(pathname?.startsWith('/practice/'));
   const isCreatorV2 = pathname === '/creator' || Boolean(pathname?.startsWith('/creator/'));
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed);
   const [chatRightCollapsed, setChatRightCollapsed] = useState(getInitialChatRightCollapsed);
-
-  const persistSidebarCollapsed = (collapsed: boolean) => {
-    setSidebarCollapsed(collapsed);
-    try {
-      localStorage.setItem(LEFT_RAIL_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
-  };
 
   const persistChatRightCollapsed = (collapsed: boolean) => {
     setChatRightCollapsed(collapsed);
@@ -252,14 +218,7 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <AppLeftRail
-        collapsed={sidebarCollapsed}
-        hasGlobalHeader={hasGlobalHeader}
-        hideBelowLg={!hasRightRail}
-        onCollapsedChange={persistSidebarCollapsed}
-      />
       <SidebarInset
-        leftCollapsed={sidebarCollapsed}
         rightCollapsed={chatRightCollapsed}
         hasRightRail={hasRightRail}
         hasGlobalHeader={hasGlobalHeader}
@@ -282,48 +241,26 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
 }
 
 function SidebarInset({
-  leftCollapsed,
   rightCollapsed,
   hasRightRail,
   hasGlobalHeader = true,
   lockContentScroll = false,
   children,
 }: {
-  leftCollapsed: boolean;
   rightCollapsed: boolean;
   hasRightRail: boolean;
   hasGlobalHeader?: boolean;
   lockContentScroll?: boolean;
   children: ReactNode;
 }) {
-  const [compactLayout, setCompactLayout] = useState(() =>
-    shouldUseCompactRailLayout(hasRightRail),
+  const [padRight, setPadRight] = useState(() =>
+    hasRightRail ? railOuterPaddingPx(rightCollapsed, RIGHT_RAIL_EXPANDED_WIDTH) : 16,
   );
-  const [padLeft, setPadLeft] = useState(() =>
-    shouldUseCompactRailLayout(hasRightRail)
-      ? COMPACT_PAGE_INSET_PX
-      : railOuterPaddingPx(false, LEFT_RAIL_EXPANDED_WIDTH),
-  );
-  const [padRight, setPadRight] = useState(() => {
-    if (shouldUseCompactRailLayout(hasRightRail)) return COMPACT_PAGE_INSET_PX;
-    return hasRightRail ? railOuterPaddingPx(false, RIGHT_RAIL_EXPANDED_WIDTH) : 16;
-  });
 
   useLayoutEffect(() => {
     const sync = () => {
-      const compact = shouldUseCompactRailLayout(hasRightRail);
-      setCompactLayout(compact);
-      setPadLeft(
-        compact
-          ? COMPACT_PAGE_INSET_PX
-          : railOuterPaddingPx(leftCollapsed, LEFT_RAIL_EXPANDED_WIDTH),
-      );
       setPadRight(
-        compact
-          ? COMPACT_PAGE_INSET_PX
-          : hasRightRail
-            ? railOuterPaddingPx(rightCollapsed, RIGHT_RAIL_EXPANDED_WIDTH)
-            : 16,
+        hasRightRail ? railOuterPaddingPx(rightCollapsed, RIGHT_RAIL_EXPANDED_WIDTH) : 16,
       );
     };
     sync();
@@ -335,26 +272,25 @@ function SidebarInset({
       window.clearTimeout(timer);
       window.removeEventListener('resize', sync);
     };
-  }, [leftCollapsed, rightCollapsed, hasRightRail]);
+  }, [rightCollapsed, hasRightRail]);
 
   return (
     <div
       className={cn(
         'box-border pb-0 transition-[padding-left,padding-right] duration-300 ease-in-out',
-        !hasRightRail && 'app-sidebar-inset-compactable',
         lockContentScroll ? 'h-dvh overflow-hidden' : 'min-h-dvh',
       )}
       style={{
-        paddingLeft: padLeft,
+        paddingLeft: 16,
         paddingRight: padRight,
-        paddingTop: hasGlobalHeader || compactLayout ? GLOBAL_HEADER_OFFSET_PX : 16,
+        paddingTop: hasGlobalHeader ? GLOBAL_HEADER_OFFSET_PX : 16,
       }}
     >
       {/* 与侧栏一致：有全局 header 时从 header 下方开始；无 header 时回到普通页面 inset。 */}
       <div
-        className="app-sidebar-inset-content flex w-full min-w-0 flex-col gap-3 overflow-hidden"
+        className="flex w-full min-w-0 flex-col gap-3 overflow-hidden"
         style={{
-          height: `calc(100dvh - ${hasGlobalHeader || compactLayout ? GLOBAL_HEADER_OFFSET_PX : 32}px)`,
+          height: `calc(100dvh - ${hasGlobalHeader ? GLOBAL_HEADER_OFFSET_PX : 32}px)`,
         }}
       >
         <div

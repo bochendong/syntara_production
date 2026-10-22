@@ -18,6 +18,8 @@ const MAX_DOWNLOAD_BYTES: usize = 256 * 1024 * 1024;
 
 const CAPABILITIES_PATH: &str = "/api/native/v1/capabilities";
 const TEACHING_TURN_PATH: &str = "/api/native/v1/turn";
+/// 手机 / 桌面端独立的助教聊天（SSE）。
+const CHAT_PATH: &str = "/api/native/v2/chat";
 const MINI_LECTURES_PATH: &str = "/api/native/v1/mini-lectures";
 const REVIEW_PLANS_PATH: &str = "/api/native/v1/review-plans";
 const GRADE_PATH: &str = "/api/native/v1/grade";
@@ -30,6 +32,13 @@ const AUTH_ME_PATH: &str = "/api/native/v1/auth/me";
 const AUTH_LOGOUT_PATH: &str = "/api/native/v1/auth/logout";
 const COURSES_PATH: &str = "/api/native/v1/courses";
 const CONVERSATIONS_PATH: &str = "/api/native/v1/conversations";
+const USAGE_PATH: &str = "/api/native/v1/usage";
+const COURSE_DATA_PATH: &str = "/api/native/v1/course-data";
+const NOTEBOOKS_PATH: &str = "/api/native/v1/notebooks";
+const LEARNING_PROGRESS_PATH: &str = "/api/native/v1/learning-progress";
+/// App 自己写的学习记忆（网页不可见），三端同步。
+const MEMORIES_PATH: &str = "/api/native/v1/memories";
+const PROBLEMS_PATH: &str = "/api/native/v1/problems";
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,6 +67,9 @@ pub struct PlatformJsonRequest {
     pub(crate) idempotency_key: Option<String>,
     #[serde(default)]
     pub(crate) model: Option<String>,
+    /// 回复强度（low / medium / high），由平台按网页端同一套档位选模型。
+    #[serde(default)]
+    pub(crate) response_strength: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -308,6 +320,31 @@ fn http_client(timeout: Duration) -> Result<Client, String> {
         .user_agent(concat!("Syntara Native/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|error| format!("无法创建平台连接：{error}"))
+}
+
+#[tauri::command]
+pub async fn native_local_test_login() -> Result<Option<Value>, String> {
+    if !cfg!(debug_assertions) {
+        return Ok(None);
+    }
+    let (base, _) = configured_base_url()?;
+    if !base.host_str().is_some_and(is_loopback_host) {
+        return Ok(None);
+    }
+    let response = http_client(Duration::from_secs(30))?
+        .post(
+            base.join("api/native/v1/auth/local-test")
+                .map_err(|e| e.to_string())?,
+        )
+        .json(&json!({}))
+        .send()
+        .await
+        .map_err(|error| format!("无法连接本地测试服务：{error}"))?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    let payload = response_json(response).await?;
+    Ok(Some(payload.get("data").cloned().unwrap_or(payload)))
 }
 
 fn apply_platform_headers(
@@ -666,21 +703,38 @@ pub async fn execute_teaching_turn(
     app: AppHandle,
     request: PlatformJsonRequest,
 ) -> Result<PlatformTeachingTurnResult, String> {
+    execute_streaming_turn(app, request, TEACHING_TURN_PATH).await
+}
+
+async fn execute_streaming_turn(
+    app: AppHandle,
+    request: PlatformJsonRequest,
+    path: &str,
+) -> Result<PlatformTeachingTurnResult, String> {
     reject_provider_credentials(&request.payload)?;
     let client = http_client(DEFAULT_TIMEOUT)?;
-    let url = endpoint_url(TEACHING_TURN_PATH)?;
-    let response = apply_platform_headers(
+    let url = endpoint_url(path)?;
+    let mut builder = apply_platform_headers(
         client.post(url),
         request.syntara_token.as_deref(),
         Some(&request.request_id),
         request.idempotency_key.as_deref(),
         request.model.as_deref(),
-    )
-    .header("Accept", "text/event-stream, application/json")
-    .json(&request.payload)
-    .send()
-    .await
-    .map_err(|error| format!("无法连接 Syntara 教学服务：{error}"))?;
+    );
+    if let Some(strength) = request
+        .response_strength
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| matches!(*value, "low" | "medium" | "high"))
+    {
+        builder = builder.header("X-Response-Strength", strength);
+    }
+    let response = builder
+        .header("Accept", "text/event-stream, application/json")
+        .json(&request.payload)
+        .send()
+        .await
+        .map_err(|error| format!("无法连接 Syntara 教学服务：{error}"))?;
 
     if !response.status().is_success() {
         return response_json(response)
@@ -837,6 +891,16 @@ pub async fn native_get_capabilities(request: PlatformAuthRequest) -> Result<Val
 }
 
 #[tauri::command]
+pub async fn native_tester_login_config() -> Result<Value, String> {
+    get_json("api/auth/tester", None).await
+}
+
+#[tauri::command]
+pub async fn native_tester_login(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json("api/native/v1/auth/tester", &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
 pub async fn native_start_device_auth(request: PlatformJsonRequest) -> Result<Value, String> {
     post_json(AUTH_DEVICE_START_PATH, &request, DEFAULT_TIMEOUT).await
 }
@@ -870,6 +934,14 @@ pub async fn native_teaching_turn(
 }
 
 #[tauri::command]
+pub async fn native_chat(
+    app: AppHandle,
+    request: PlatformJsonRequest,
+) -> Result<PlatformTeachingTurnResult, String> {
+    execute_streaming_turn(app, request, CHAT_PATH).await
+}
+
+#[tauri::command]
 pub async fn native_create_mini_lecture(request: PlatformJsonRequest) -> Result<Value, String> {
     post_json(MINI_LECTURES_PATH, &request, LONG_RUNNING_TIMEOUT).await
 }
@@ -900,12 +972,77 @@ pub async fn native_list_platform_courses(request: PlatformAuthRequest) -> Resul
 }
 
 #[tauri::command]
+pub async fn native_get_weekly_usage(request: PlatformAuthRequest) -> Result<Value, String> {
+    get_json(USAGE_PATH, request.syntara_token.as_deref()).await
+}
+
+#[tauri::command]
 pub async fn native_get_conversations(request: PlatformQueryRequest) -> Result<Value, String> {
     get_json(
         &path_with_query(CONVERSATIONS_PATH, &request.query),
         request.syntara_token.as_deref(),
     )
     .await
+}
+
+#[tauri::command]
+pub async fn native_get_course_data(request: PlatformQueryRequest) -> Result<Value, String> {
+    get_json(
+        &path_with_query(COURSE_DATA_PATH, &request.query),
+        request.syntara_token.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn native_get_notebook(request: PlatformQueryRequest) -> Result<Value, String> {
+    get_json(
+        &path_with_query(NOTEBOOKS_PATH, &request.query),
+        request.syntara_token.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn native_get_mini_lecture(request: PlatformQueryRequest) -> Result<Value, String> {
+    get_json(
+        &path_with_query(MINI_LECTURES_PATH, &request.query),
+        request.syntara_token.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn native_save_learning_progress(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json(LEARNING_PROGRESS_PATH, &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
+pub async fn native_get_memories(request: PlatformQueryRequest) -> Result<Value, String> {
+    get_json(
+        &path_with_query(MEMORIES_PATH, &request.query),
+        request.syntara_token.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn native_sync_memories(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json(MEMORIES_PATH, &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
+pub async fn native_get_problems(request: PlatformQueryRequest) -> Result<Value, String> {
+    get_json(
+        &path_with_query(PROBLEMS_PATH, &request.query),
+        request.syntara_token.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn native_upload_problem_attempts(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json(PROBLEMS_PATH, &request, DEFAULT_TIMEOUT).await
 }
 
 #[tauri::command]

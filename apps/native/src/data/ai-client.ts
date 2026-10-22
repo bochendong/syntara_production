@@ -14,6 +14,8 @@ export const supportedAiModels = [
 
 export type SupportedAiModel = (typeof supportedAiModels)[number]['id'];
 
+export type ChatResponseStrength = 'low' | 'medium' | 'high';
+
 export interface AiSettings {
   configured: boolean;
   credentialSource: 'platform-service' | null;
@@ -66,6 +68,8 @@ export interface StreamAssistantInput {
   conversationId: string;
   messages: LocalMessage[];
   model: SupportedAiModel;
+  /** 手机端用回复强度代替具体模型。 */
+  responseStrength?: ChatResponseStrength;
   images?: Array<{ name: string; mimeType: 'image/jpeg'; dataBase64: string }>;
   localContext?: {
     calendarEvents?: unknown[];
@@ -153,7 +157,8 @@ export async function streamAssistantReply(
     {
       requestId: input.requestId,
       idempotencyKey: input.requestId,
-      model: input.model,
+      model: input.responseStrength ? undefined : input.model,
+      responseStrength: input.responseStrength,
       payload: {
         requestId: input.requestId,
         clientTurnId: input.requestId,

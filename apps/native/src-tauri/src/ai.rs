@@ -213,6 +213,7 @@ pub async fn parse_syllabus_document(
         syntara_token: None,
         idempotency_key: None,
         model: Some(model.clone()),
+        response_strength: None,
     };
     let payload = post_json(
         "/api/native/v1/syllabus/parse",
@@ -288,6 +289,7 @@ pub async fn stream_ai_response(
         syntara_token: None,
         idempotency_key: Some(request.request_id),
         model: Some(model.clone()),
+        response_strength: None,
     };
     let result = execute_teaching_turn(app, platform_request).await?;
     Ok(AiChatResult {

@@ -1,6 +1,13 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -24,6 +31,8 @@ for (const name of paths) {
   if (/(^|\/)\.env(?:\.|$)/.test(name) && name !== '.env.example')
     throw new Error('Refusing environment file.');
   const source = path.join(root, name);
+  if (!existsSync(source)) continue;
+  if (lstatSync(source).isSymbolicLink()) throw new Error(`Refusing symbolic link: ${name}`);
   const target = path.join(destination, name);
   mkdirSync(path.dirname(target), { recursive: true });
   copyFileSync(source, target);

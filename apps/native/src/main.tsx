@@ -2,7 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './tailwind.css';
+import './components/marble-tokens.css';
 import './styles.css';
+import './components/avatar-theme.css';
 
 if ('__TAURI_INTERNALS__' in window) {
   document.documentElement.classList.add('tauri-runtime');

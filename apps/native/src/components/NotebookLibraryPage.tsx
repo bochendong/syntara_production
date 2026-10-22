@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, CheckCircle2, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, ChevronRight } from 'lucide-react';
 
 import { getLocalRepository } from '../data/repository';
+import { loadNotebookForReading } from '../data/course-sync';
 import type { LocalCourseWorkspace, LocalNotebook } from '../domain/models';
+import { GlassLoadMore, useListWindow, GlassSpinner } from './GlassLoadMore';
 import { LocalResourceViewer, type LocalResourceDocument } from './LocalResourceViewer';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -50,7 +52,7 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
     setError(null);
     try {
       const repository = await getLocalRepository();
-      const document = await repository.loadNotebookDocument(notebook.id);
+      const document = await loadNotebookForReading(repository, notebook.id);
       if (!document) throw new Error('本地找不到这个笔记本。');
       setResource({ kind: 'notebook', document });
     } catch (cause) {
@@ -59,6 +61,8 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
       setBusyId(null);
     }
   };
+
+  const listWindow = useListWindow(notebooks.length, `${workspace.course.id}:${query}`, 40);
 
   return (
     <section className="native-problem-bank native-notebook-library" aria-label="笔记本库">
@@ -108,7 +112,7 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
               </span>
             </div>
           ) : (
-            notebooks.map((notebook) => {
+            notebooks.slice(0, listWindow.count).map((notebook) => {
               const busy = busyId === notebook.id;
               return (
                 <button
@@ -139,18 +143,21 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
                       </span>
                     </span>
                     <span className="native-notebook-library-card-action">
-                      {busy ? <Loader2 size={14} className="spin" /> : null}
+                      {busy ? <GlassSpinner size={14} /> : null}
                       {busy ? '打开中…' : '打开'}
                     </span>
                   </span>
                   <span className="native-notebook-library-card-chevron" aria-hidden="true">
-                    {busy ? <Loader2 size={16} className="spin" /> : <ChevronRight size={18} />}
+                    {busy ? <GlassSpinner size={16} /> : <ChevronRight size={18} />}
                   </span>
                 </button>
               );
             })
           )}
         </div>
+        {listWindow.hasHidden ? (
+          <GlassLoadMore onLoadMore={listWindow.showMore} watchKey={listWindow.count} />
+        ) : null}
       </div>
 
       {resource ? (

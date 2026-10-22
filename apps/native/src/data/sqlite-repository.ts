@@ -1,4 +1,5 @@
 import Database from '@tauri-apps/plugin-sql';
+import { invoke } from '@tauri-apps/api/core';
 import type {
   LocalAsset,
   LocalConversation,
@@ -332,6 +333,7 @@ function mapStudyMemory(row: SqlRow): LocalStudyMemory {
     kind: stringValue(row.kind),
     status: stringValue(row.status),
     source: stringValue(row.source),
+    conversationId: nullableString(row.conversation_id),
     title: stringValue(row.title),
     text: stringValue(row.text),
     reason: nullableString(row.reason),
@@ -397,13 +399,24 @@ function mapMiniLecturePage(row: SqlRow): PersistedMiniLecturePage {
 export class SqliteLocalRepository implements LocalRepository {
   readonly kind = 'sqlite' as const;
   private connection: Database | null = null;
+  private connectionTask: Promise<Database> | null = null;
   private bootstrapTask: Promise<void> | null = null;
 
   private async database(): Promise<Database> {
-    if (!this.connection) {
-      this.connection = await Database.load('sqlite:syntara-local.db');
+    if (this.connection) return this.connection;
+    if (!this.connectionTask) {
+      this.connectionTask = Database.load('sqlite:syntara-local.db')
+        .then(async (database) => {
+          await invoke('configure_local_database');
+          this.connection = database;
+          return database;
+        })
+        .catch((error) => {
+          this.connectionTask = null;
+          throw error;
+        });
     }
-    return this.connection;
+    return this.connectionTask;
   }
 
   private async migrateEmbeddedAssets(database: Database): Promise<void> {
@@ -962,7 +975,8 @@ export class SqliteLocalRepository implements LocalRepository {
       `SELECT courses.*,
               (SELECT COUNT(*) FROM notebooks WHERE notebooks.course_id = courses.id)
                 AS notebook_count,
-              (SELECT COUNT(*) FROM problems WHERE problems.course_id = courses.id)
+              (SELECT COUNT(*) FROM problems
+                WHERE problems.course_id = courses.id AND problems.status != 'archived')
                 AS problem_count,
               (SELECT COUNT(*) FROM conversations WHERE conversations.course_id = courses.id)
                 AS conversation_count
@@ -1396,6 +1410,28 @@ export class SqliteLocalRepository implements LocalRepository {
     return rows.map(mapMiniLectureDeck);
   }
 
+  async findLectureAnchors(
+    messageIds: string[],
+  ): Promise<{ messages: LocalMessage[]; messageIdsWithDeck: string[] }> {
+    const database = await this.database();
+    const messages: LocalMessage[] = [];
+    const messageIdsWithDeck: string[] = [];
+    for (const ids of chunks([...new Set(messageIds)], 400)) {
+      const placeholders = ids.map((_, index) => `$${index + 1}`).join(', ');
+      const [messageRows, deckRows] = await Promise.all([
+        database.select<SqlRow[]>(`SELECT * FROM messages WHERE id IN (${placeholders})`, ids),
+        database.select<Array<{ message_id: string }>>(
+          `SELECT DISTINCT message_id FROM lecture_decks
+            WHERE status = 'ready' AND message_id IN (${placeholders})`,
+          ids,
+        ),
+      ]);
+      messages.push(...messageRows.map(mapMessage));
+      messageIdsWithDeck.push(...deckRows.map((row) => row.message_id));
+    }
+    return { messages, messageIdsWithDeck };
+  }
+
   async loadMiniLectureDeck(deckId: string): Promise<RuntimeMiniLectureDeck | null> {
     const database = await this.database();
     const [deckRows, pageRows] = await Promise.all([
@@ -1772,15 +1808,17 @@ export class SqliteLocalRepository implements LocalRepository {
     ).execute(
       `INSERT INTO study_memories
         (id, course_id, notebook_id, target_type, scope, kind, status, source, title, text,
-         reason, question, source_references_json, confidence, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+         reason, question, source_references_json, confidence, created_at, updated_at,
+         conversation_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        ON CONFLICT(id) DO UPDATE SET
          course_id = excluded.course_id, notebook_id = excluded.notebook_id,
          target_type = excluded.target_type, scope = excluded.scope, kind = excluded.kind,
          status = excluded.status, source = excluded.source, title = excluded.title,
          text = excluded.text, reason = excluded.reason, question = excluded.question,
          source_references_json = excluded.source_references_json,
-         confidence = excluded.confidence, updated_at = excluded.updated_at`,
+         confidence = excluded.confidence, updated_at = excluded.updated_at,
+         conversation_id = COALESCE(excluded.conversation_id, study_memories.conversation_id)`,
       [
         memory.id,
         memory.courseId,
@@ -1798,9 +1836,36 @@ export class SqliteLocalRepository implements LocalRepository {
         memory.confidence,
         memory.createdAt,
         memory.updatedAt,
+        memory.conversationId ?? null,
       ],
     );
     return memory;
+  }
+
+  async clearNotebookContent(notebookId: string): Promise<void> {
+    const database = await this.database();
+    await database.execute(
+      'DELETE FROM page_assets WHERE page_id IN (SELECT id FROM notebook_pages WHERE notebook_id = $1)',
+      [notebookId],
+    );
+    await database.execute('DELETE FROM notebook_pages WHERE notebook_id = $1', [notebookId]);
+    await database.execute('DELETE FROM markdown_sections WHERE notebook_id = $1', [notebookId]);
+    await database.execute('DELETE FROM notebook_assets WHERE notebook_id = $1', [notebookId]);
+  }
+
+  async archiveConversationMemories(conversationId: string): Promise<LocalStudyMemory[]> {
+    const database = await this.database();
+    const rows = await database.select<SqlRow[]>(
+      `SELECT * FROM study_memories WHERE conversation_id = $1 AND status = 'active'`,
+      [conversationId],
+    );
+    if (!rows.length) return [];
+    await database.execute(
+      `UPDATE study_memories SET status = 'archived', updated_at = $1
+       WHERE conversation_id = $2 AND status = 'active'`,
+      [Date.now(), conversationId],
+    );
+    return rows.map(mapStudyMemory);
   }
 
   async archiveStudyMemory(memoryId: string): Promise<void> {

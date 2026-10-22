@@ -1,18 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { code } from '@streamdown/code';
 import { createMathPlugin } from '@streamdown/math';
 import { Streamdown } from 'streamdown';
 import {
   ArrowLeft,
-  BookOpen,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   FileQuestion,
-  FileText,
   HardDrive,
   ImageOff,
-  Loader2,
 } from 'lucide-react';
 
 import { readLocalAsset } from '../data/asset-storage';
@@ -23,6 +20,17 @@ import type {
   LocalProblemDocument,
 } from '../domain/models';
 import { NativeWorkspaceDialog } from './NativeWorkspaceDialog';
+import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
+import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
+import './course-pages.css';
+import { GlassSpinner } from './GlassLoadMore';
+
+const PROGRESS_STATUS_LABELS: Record<string, string> = {
+  passed: '已通过',
+  partial: '部分正确',
+  failed: '未通过',
+  pending: '待批改',
+};
 
 export type LocalResourceDocument =
   | { kind: 'notebook'; document: LocalNotebookDocument }
@@ -55,23 +63,26 @@ function LocalAssetImage({
   className?: string;
 }) {
   const immediateSource = typeof source === 'string' ? source : dataUrl(source);
-  const [resolvedSource, setResolvedSource] = useState<string | null>(immediateSource);
-  const [failed, setFailed] = useState(false);
+  const [loadResult, setLoadResult] = useState<{
+    source: AssetImageSource;
+    value: string | null;
+    failed: boolean;
+  } | null>(null);
+  const currentResult = loadResult?.source === source ? loadResult : null;
+  const resolvedSource = immediateSource ?? currentResult?.value ?? null;
+  const failed = currentResult?.failed ?? false;
 
   useEffect(() => {
+    if (immediateSource || typeof source === 'string') return;
     let cancelled = false;
-    setFailed(false);
-    setResolvedSource(immediateSource);
-    if (immediateSource || typeof source === 'string') return () => undefined;
     void readLocalAsset(source)
       .then((value) => {
         if (!cancelled) {
-          setResolvedSource(value);
-          setFailed(!value);
+          setLoadResult({ source, value, failed: !value });
         }
       })
       .catch(() => {
-        if (!cancelled) setFailed(true);
+        if (!cancelled) setLoadResult({ source, value: null, failed: true });
       });
     return () => {
       cancelled = true;
@@ -89,7 +100,7 @@ function LocalAssetImage({
   if (!resolvedSource) {
     return (
       <div className={`local-asset-state ${className ?? ''}`} role="status">
-        <Loader2 size={20} />
+        <GlassSpinner size={20} />
         <span>正在读取本地图片…</span>
       </div>
     );
@@ -292,81 +303,78 @@ function NotebookViewer({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const resolveAsset = useMemo(() => assetResolver(document.assets), [document.assets]);
 
-  useEffect(() => setSelectedIndex(0), [document.notebook.id]);
   const selected = entries[selectedIndex] ?? null;
 
+  // 换一节时回到顶部。
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [selectedIndex]);
+
   return (
-    <section className="local-resource-sheet" aria-label={`${document.notebook.name} 本地阅读器`}>
-      <header className="local-resource-header">
-        <button type="button" className="local-resource-back" onClick={onClose}>
-          <ArrowLeft size={18} />
-          返回课程
+    <section className="nr-page" aria-label={`${document.notebook.name} 阅读`}>
+      <header className="nr-header">
+        <button type="button" className="phone-glass-button" onClick={onClose} aria-label="返回">
+          <ChevronLeft size={22} />
         </button>
-        <div>
-          <span>本地笔记本</span>
-          <h2>{document.notebook.name}</h2>
+        <div className="nr-title">
+          <strong>{document.notebook.name}</strong>
+          {entries.length ? (
+            <small>
+              {selectedIndex + 1} / {entries.length}
+            </small>
+          ) : null}
         </div>
-        <span className="local-resource-storage">
-          <HardDrive size={14} />
-          {document.assets.length} 个离线资源
-        </span>
+        <span aria-hidden />
       </header>
-      <div className="local-notebook-layout">
-        <nav className="local-notebook-index" aria-label="笔记章节">
-          {entries.map((entry, index) => (
-            <button
-              type="button"
-              key={entry.id}
-              className={
-                index === selectedIndex
-                  ? 'local-index-row local-index-row-active'
-                  : 'local-index-row'
-              }
-              onClick={() => setSelectedIndex(index)}
-            >
-              <span>{index + 1}</span>
-              <strong>{entry.title}</strong>
-            </button>
-          ))}
-        </nav>
-        <main className="local-notebook-reader">
-          {selected ? (
-            <>
-              <div className="local-reader-title">
-                <span>
-                  {document.notebook.kind === 'markdown' ? (
-                    <FileText size={15} />
-                  ) : (
-                    <BookOpen size={15} />
-                  )}
-                  {selectedIndex + 1} / {entries.length}
+
+      <div className="nr-body">
+        {entries.length > 1 ? (
+          <nav className="nr-index" aria-label="章节">
+            {entries.map((entry, index) => (
+              <button
+                type="button"
+                key={entry.id}
+                className={index === selectedIndex ? 'is-active' : ''}
+                onClick={() => setSelectedIndex(index)}
+              >
+                <span className="nr-index-dot">
+                  {index === selectedIndex ? <img src={marbleImages.blue} alt="" /> : index + 1}
                 </span>
-                <h1>{selected.title}</h1>
-              </div>
+                <span className="nr-index-label">{entry.title}</span>
+              </button>
+            ))}
+          </nav>
+        ) : null}
+
+        <div ref={scrollRef} className="nr-scroll">
+          {selected ? (
+            <article key={selected.id} className="nr-article">
+              <h1>{selected.title}</h1>
               {'markdown' in selected ? (
                 <MarkdownBlock markdown={selected.markdown} resolveAsset={resolveAsset} />
               ) : (
                 <NotebookPageView page={selected} document={document} resolveAsset={resolveAsset} />
               )}
-            </>
+            </article>
           ) : (
-            <div className="local-resource-empty">
-              <FileText size={27} />
-              <strong>笔记本还没有内容</strong>
-              <span>迁移包中保留了笔记本信息，但没有找到页面或 Markdown 章节。</span>
+            <div className="nr-empty">
+              <img src={marbleImages.blue} alt="" />
+              <strong>这本笔记还没有内容</strong>
             </div>
           )}
-        </main>
+        </div>
       </div>
+
       {entries.length > 1 ? (
-        <footer className="local-reader-controls">
+        <footer className="nr-controls">
           <button
             type="button"
             disabled={selectedIndex === 0}
             onClick={() => setSelectedIndex((current) => Math.max(0, current - 1))}
+            aria-label="上一节"
           >
-            <ChevronLeft size={17} />
-            上一节
+            <ChevronLeft size={20} />
           </button>
           <span>
             {selectedIndex + 1} / {entries.length}
@@ -375,9 +383,9 @@ function NotebookViewer({
             type="button"
             disabled={selectedIndex >= entries.length - 1}
             onClick={() => setSelectedIndex((current) => Math.min(entries.length - 1, current + 1))}
+            aria-label="下一节"
           >
-            下一节
-            <ChevronRight size={17} />
+            <ChevronRight size={20} />
           </button>
         </footer>
       ) : null}
@@ -450,13 +458,21 @@ function ProblemViewer({
         <div className="local-problem-meta">
           <span>
             <FileQuestion size={14} />
-            {document.problem.type}
+            {problemTypeLabel(document.problem.type)}
           </span>
-          <span>{document.problem.difficulty}</span>
+          <span>
+            <img
+              className="local-problem-difficulty"
+              src={marbleImages[DIFFICULTY_MARBLES[document.problem.difficulty] ?? 'blue']}
+              alt=""
+            />
+            {difficultyLabel(document.problem.difficulty)}
+          </span>
           {progress ? (
             <span className={progress.status === 'passed' ? 'local-progress-passed' : ''}>
               <CheckCircle2 size={14} />
-              {progress.status} · 已作答 {progress.attemptedCount} 次
+              {PROGRESS_STATUS_LABELS[progress.status] ?? progress.status} · 已作答{' '}
+              {progress.attemptedCount} 次
             </span>
           ) : null}
         </div>
@@ -494,18 +510,22 @@ function ProblemViewer({
 export function LocalResourceViewer({ resource, onClose }: LocalResourceViewerProps) {
   const title = resource.kind === 'notebook' ? resource.document.notebook.name : '本地题目';
 
+  // 笔记本是推进来的一整页（iPad/桌面上只盖住右侧区域）；题目仍然用弹窗。
+  if (resource.kind === 'notebook') {
+    return (
+      <div className="nr-layer">
+        <NotebookViewer
+          key={resource.document.notebook.id}
+          document={resource.document}
+          onClose={onClose}
+        />
+      </div>
+    );
+  }
+
   return (
-    <NativeWorkspaceDialog
-      open
-      onClose={onClose}
-      title={title}
-      description={resource.kind === 'notebook' ? '本机笔记本阅读器' : '本机题目阅读器'}
-    >
-      {resource.kind === 'notebook' ? (
-        <NotebookViewer document={resource.document} onClose={onClose} />
-      ) : (
-        <ProblemViewer document={resource.document} onClose={onClose} />
-      )}
+    <NativeWorkspaceDialog open onClose={onClose} title={title} description="本机题目阅读器">
+      <ProblemViewer document={resource.document} onClose={onClose} />
     </NativeWorkspaceDialog>
   );
 }

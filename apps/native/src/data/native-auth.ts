@@ -33,7 +33,10 @@ function isValidUser(value: unknown): value is NativeDeviceUser {
     (user.name === null || typeof user.name === 'string') &&
     (user.email === null || typeof user.email === 'string') &&
     (user.image === null || typeof user.image === 'string') &&
-    (user.role === 'USER' || user.role === 'ADMIN')
+    (user.role === 'USER' ||
+      user.role === 'STUDENT' ||
+      user.role === 'TEACHER' ||
+      user.role === 'ADMIN')
   );
 }
 
@@ -112,6 +115,16 @@ export async function loadNativeAuthSession(): Promise<NativeAuthSession | null>
       loadPromise = null;
     });
   return loadPromise;
+}
+
+export async function bootstrapNativeLocalTestSession(): Promise<NativeAuthSession | null> {
+  if (!isTauriRuntime()) return null;
+  const pair = await invoke<NativeDeviceTokenPair | null>('native_local_test_login');
+  if (!pair) return null;
+  const session = { ...pair, savedAt: new Date().toISOString() };
+  if (!isValidSession(session)) throw new Error('本地测试服务返回了无效的账号会话。');
+  await persistSession(session);
+  return session;
 }
 
 export async function saveNativeAuthSession(

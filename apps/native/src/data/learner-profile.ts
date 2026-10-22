@@ -47,7 +47,9 @@ export function readStoredLearnerProfile(): LearnerProfile {
   }
 }
 
-export function writeStoredLearnerProfile(profile: Omit<LearnerProfile, 'updatedAt'>): LearnerProfile {
+export function writeStoredLearnerProfile(
+  profile: Omit<LearnerProfile, 'updatedAt'>,
+): LearnerProfile {
   const next: LearnerProfile = {
     avatarId: profile.avatarId,
     name: profile.name.trim() || DEFAULT_LEARNER_PROFILE.name,

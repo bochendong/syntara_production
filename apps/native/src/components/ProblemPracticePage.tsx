@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Code2,
   FileCode2,
-  Loader2,
   SendHorizontal,
   Terminal,
 } from 'lucide-react';
@@ -25,18 +24,18 @@ import {
   type LocalProblemAnswer,
 } from '../data/local-problem-grading';
 import { gradeNativeAnswer } from '../data/platform-api-client';
+import { queueProblemAttempt } from '../data/problem-sync';
 import { getLocalRepository } from '../data/repository';
 import type { LocalProblem, LocalProblemDocument } from '../domain/models';
 import { cn } from '../lib/cn';
 import { CodeAnswerEditor, highlightPython } from './problem-bank/code-answer-editor';
 import { CodeProblemStatement } from './problem-bank/code-problem-statement';
-import {
-  ProblemImageAssets,
-  ProblemRichText,
-  ProblemTitleText,
-} from './problem-bank/problem-rich-text';
+import { ProblemImageAssets, ProblemRichText } from './problem-bank/problem-rich-text';
 import type { NotebookProblemPublicContent } from './problem-bank/types';
 import type { ProblemBankLaunch } from './ProblemBankPage';
+import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
+import './course-pages.css';
+import { GlassSpinner } from './GlassLoadMore';
 
 type ProblemPracticePageProps = {
   problems: LocalProblem[];
@@ -296,6 +295,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
       });
       setDocument(saved.document);
       setFeedback(grade.feedback);
+      // 网页课程的作答同步到网页题库；传不上去会排队，下次打开课程再传。
+      void queueProblemAttempt(repository, currentProblem.courseId, saved.attempt);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -306,12 +307,18 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   if (!currentProblem || orderedIds.length === 0) {
     return (
       <section className="native-problem-practice">
-        <header className="native-problem-practice-topbar">
-          <button type="button" className="native-problem-practice-back" onClick={onBack}>
-            <ChevronLeft size={16} />
-            返回题库
+        <header className="pp-header">
+          <button
+            type="button"
+            className="phone-glass-button"
+            onClick={onBack}
+            aria-label="返回题库"
+          >
+            <ChevronLeft size={22} />
           </button>
-          <strong>没有可练习的题目</strong>
+          <div className="pp-progress">
+            <strong>没有可练习的题目</strong>
+          </div>
         </header>
       </section>
     );
@@ -330,56 +337,56 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
 
   return (
     <section className="native-problem-practice" aria-label="本地做题器">
-      <header className="native-problem-practice-topbar">
-        <button type="button" className="native-problem-practice-back" onClick={onBack}>
-          <ChevronLeft size={16} />
-          返回题库
+      <header className="pp-header">
+        <button type="button" className="phone-glass-button" onClick={onBack} aria-label="返回题库">
+          <ChevronLeft size={22} />
         </button>
-        <span className="native-problem-practice-progress-chip">
-          {currentIndex + 1}/{total}
-        </span>
-        <span className="native-problem-practice-source-chip">
-          {problemTypeLabel(currentProblem.type)}
-        </span>
-        <strong className="native-problem-practice-title">
-          <ProblemTitleText content={currentProblem.title} />
-        </strong>
-        <div className="native-problem-practice-nav">
+        <div className="pp-progress" aria-label={`第 ${currentIndex + 1} 题，共 ${total} 题`}>
+          <strong>
+            {currentIndex + 1}
+            <small> / {total}</small>
+          </strong>
+          <span className="pp-progress-track">
+            <span
+              style={{ width: `${Math.round(((currentIndex + 1) / Math.max(total, 1)) * 100)}%` }}
+            >
+              <img src={marbleImages[DIFFICULTY_MARBLES[currentProblem.difficulty]]} alt="" />
+            </span>
+          </span>
+        </div>
+        <div className="pp-nav">
           <button
             type="button"
+            className="phone-glass-button"
             disabled={currentIndex <= 0}
             onClick={() => goRelative(-1)}
             aria-label="上一题"
           >
-            <ChevronLeft size={16} />
-            上一题
+            <ChevronLeft size={20} />
           </button>
           <button
             type="button"
+            className="phone-glass-button"
             disabled={currentIndex >= total - 1}
             onClick={() => goRelative(1)}
             aria-label="下一题"
           >
-            下一题
-            <ChevronRight size={16} />
+            <ChevronRight size={20} />
           </button>
         </div>
       </header>
 
-      <div className="native-problem-practice-track">
-        <div style={{ width: `${Math.round(((currentIndex + 1) / Math.max(total, 1)) * 100)}%` }} />
-      </div>
-
       {loading ? (
         <div className="native-problem-practice-loading">
-          <Loader2 size={18} className="spin" />
+          <GlassSpinner size={18} />
           正在从本机打开题目…
         </div>
       ) : (
         <div className="native-problem-practice-panes">
           <section className="native-problem-practice-pane">
-            <header>
-              <span>题目</span>
+            <header className="pp-pane-head">
+              <img src={marbleImages[DIFFICULTY_MARBLES[currentProblem.difficulty]]} alt="" />
+              <span>{problemTypeLabel(currentProblem.type)}</span>
               <small>{difficultyLabel(currentProblem.difficulty)}</small>
             </header>
             <div className="native-problem-practice-pane-body native-problem-rich-scroll">
@@ -399,15 +406,13 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   <CheckCircle2 size={14} />
                   {document.progress.status} · 已作答 {document.progress.attemptedCount} 次
                 </p>
-              ) : (
-                <p className="native-problem-practice-progress-note">尚未作答</p>
-              )}
+              ) : null}
             </div>
           </section>
 
           <section className="native-problem-practice-pane">
             <header className="native-problem-practice-pane-tabs">
-              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+              <div className="pp-tabs">
                 {rightTabs.map((tab) => {
                   const Icon = tab.icon;
                   const active = rightTab === tab.id;
@@ -415,12 +420,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                     <button
                       key={tab.id}
                       type="button"
-                      className={cn(
-                        'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition',
-                        active
-                          ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-100'
-                          : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
-                      )}
+                      className={cn('pp-tab', active && 'is-active')}
                       onClick={() => setRightTab(tab.id)}
                     >
                       <Icon size={13} />
@@ -429,7 +429,6 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   );
                 })}
               </div>
-              <small>本地批改</small>
             </header>
 
             <div className="native-problem-practice-pane-body native-problem-rich-scroll">
@@ -450,15 +449,11 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   <footer className="native-problem-practice-footer">
                     <button
                       type="button"
-                      className="native-problem-bank-primary"
+                      className="pp-submit"
                       disabled={!answerHasContent(answer) || submitting}
                       onClick={() => void submitAnswer()}
                     >
-                      {submitting ? (
-                        <Loader2 size={15} className="spin" />
-                      ) : (
-                        <SendHorizontal size={15} />
-                      )}
+                      {submitting ? <GlassSpinner size={15} /> : <SendHorizontal size={15} />}
                       提交作答
                     </button>
                     <p className="m-0 text-xs text-slate-500">
@@ -489,7 +484,9 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                             }
                             onClick={() => toggleChoice(option.id)}
                           >
-                            <strong>{option.id}</strong>
+                            <strong>
+                              {selected ? <img src={marbleImages.blue} alt="" /> : option.id}
+                            </strong>
                             <span>
                               <ProblemRichText content={option.label} />
                             </span>
@@ -517,15 +514,11 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   <footer className="native-problem-practice-footer">
                     <button
                       type="button"
-                      className="native-problem-bank-primary"
+                      className="pp-submit"
                       disabled={!answerHasContent(answer) || submitting}
                       onClick={() => void submitAnswer()}
                     >
-                      {submitting ? (
-                        <Loader2 size={15} className="spin" />
-                      ) : (
-                        <SendHorizontal size={15} />
-                      )}
+                      {submitting ? <GlassSpinner size={15} /> : <SendHorizontal size={15} />}
                       提交作答
                     </button>
                     {feedback ? (

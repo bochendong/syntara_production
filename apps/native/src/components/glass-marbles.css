@@ -1,0 +1,471 @@
+/* 玻璃珠：学习记忆是一颗颗挂在星图上的玻璃珠。 */
+
+/* 记忆星图：3D 版的外框（画布 + 文字层），和不支持 3D 时的平面版。 */
+.memory-galaxy,
+.marble-catcher-jar,
+.galaxy-flat {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  /* 与 3D 共用同一张插画，加载中和不支持 WebGL 时也保持完整夜空。 */
+  background: #0b102b url('../assets/memory-night-sky-v2.webp') center / cover no-repeat;
+  box-shadow:
+    inset 0 0 0 1px rgb(166 185 235 / 12%),
+    0 6px 20px rgb(18 26 55 / 10%);
+}
+
+.memory-galaxy canvas,
+.marble-catcher-jar canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.galaxy-labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.galaxy-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: 120px;
+  overflow: hidden;
+  padding: 2px 8px;
+  border: 0.5px solid rgb(255 255 255 / 22%);
+  border-radius: 999px;
+  background: rgb(24 20 66 / 55%);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  backdrop-filter: blur(var(--glass-blur-sm));
+  box-shadow: 0 2px 8px rgb(8 6 30 / 25%);
+  color: rgb(232 236 255 / 88%);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  will-change: transform;
+}
+
+.galaxy-label.is-shown {
+  opacity: 1;
+}
+
+.galaxy-label.is-shown.is-dim {
+  opacity: 0.35;
+}
+
+.galaxy-label.is-memory {
+  max-width: 180px;
+  color: #fff;
+  font-weight: 600;
+}
+
+.galaxy-flat {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.galaxy-flat-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.galaxy-flat-link {
+  stroke: rgb(148 163 184 / 45%);
+  stroke-width: 0.018;
+}
+
+.galaxy-flat-link.is-pink {
+  stroke: rgb(255 127 182 / 50%);
+}
+.galaxy-flat-link.is-amber {
+  stroke: rgb(255 170 43 / 50%);
+}
+.galaxy-flat-link.is-blue {
+  stroke: rgb(91 157 255 / 50%);
+}
+.galaxy-flat-link.is-green {
+  stroke: rgb(67 207 143 / 50%);
+}
+.galaxy-flat-link.is-purple {
+  stroke: rgb(159 123 255 / 50%);
+}
+
+.galaxy-flat-link.is-dim {
+  opacity: 0.15;
+}
+
+.galaxy-flat-orb {
+  fill: rgb(255 255 255 / 70%);
+  stroke: rgb(255 255 255 / 95%);
+  stroke-width: 0.02;
+  filter: drop-shadow(0 0.03px 0.06px rgb(15 23 42 / 18%));
+  cursor: pointer;
+}
+
+.galaxy-flat-orb.is-core {
+  fill: rgb(224 231 255 / 85%);
+}
+
+.galaxy-flat-marble {
+  cursor: pointer;
+  transition: opacity 180ms ease;
+}
+
+.galaxy-flat-marble.is-active {
+  filter: drop-shadow(0 0 0.06px rgb(124 58 237 / 60%));
+}
+
+/* 思考中：三颗弹珠轮流弹起。 */
+.marble-thinking {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 18px;
+}
+
+.marble-thinking img {
+  display: block;
+  width: 11px;
+  height: 11px;
+  animation: marble-hop 1.05s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.marble-thinking img:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.marble-thinking img:nth-child(3) {
+  animation-delay: 280ms;
+}
+
+@keyframes marble-hop {
+  0%,
+  55%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  15% {
+    transform: translateY(1px) scale(1.12, 0.88);
+  }
+  32% {
+    transform: translateY(-7px) scale(0.95, 1.05);
+  }
+  50% {
+    transform: translateY(0) scale(1.08, 0.92);
+  }
+}
+
+/* 存进记忆时抛过去的那颗弹珠。 */
+.marble-flight {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 10px rgb(15 23 42 / 22%));
+  will-change: transform;
+}
+
+.marble-landed {
+  animation: marble-landed 640ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes marble-landed {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(0.88, 1.08);
+  }
+  55% {
+    transform: scale(1.12, 0.94);
+  }
+}
+
+.marble-plus-one {
+  position: fixed;
+  z-index: 9999;
+  color: #7c3aed;
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+  animation: marble-plus-one 900ms ease-out forwards;
+}
+
+@keyframes marble-plus-one {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.7);
+  }
+  25% {
+    opacity: 1;
+    transform: translate(-50%, -12px) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -26px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marble-thinking img,
+  .marble-landed {
+    animation: none;
+  }
+}
+
+/* ---- 把弹珠放进聊天页的各个角落 ---- */
+
+/* 五彩玻璃中的光缓缓呼吸；箭头单独绘制，始终保持清晰。 */
+.conversation-composer .composer-send-button:not(:disabled) {
+  position: relative;
+  isolation: isolate;
+  aspect-ratio: 1;
+  min-height: 40px;
+  overflow: hidden;
+  color: #fff;
+  background: #758ad8;
+  box-shadow:
+    0 4px 12px rgb(104 91 198 / 24%),
+    0 0 9px rgb(76 205 218 / 16%);
+  transition:
+    transform 160ms ease,
+    box-shadow 200ms ease;
+}
+
+.conversation-composer .composer-send-button:not(:disabled)::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: url('../assets/send-wisdom-glass-orb.png') center / 108% 108% no-repeat;
+  content: '';
+  pointer-events: none;
+  animation: marble-send-light 6s ease-in-out infinite alternate;
+}
+
+.conversation-composer .composer-send-button:not(:disabled) svg {
+  filter: drop-shadow(0 1px 2px rgb(31 39 99 / 65%));
+}
+
+.conversation-composer .composer-send-button:not(:disabled):hover {
+  box-shadow:
+    0 5px 16px rgb(104 91 198 / 32%),
+    0 0 12px rgb(76 205 218 / 25%);
+}
+
+.conversation-composer .composer-send-button:focus-visible {
+  outline: 2px solid #8873d5;
+  outline-offset: 3px;
+}
+
+@keyframes marble-send-light {
+  from {
+    transform: rotate(-7deg) scale(1);
+    filter: saturate(1.08) brightness(0.98);
+  }
+  to {
+    transform: rotate(7deg) scale(1.035);
+    filter: saturate(1.2) brightness(1.08);
+  }
+}
+
+.conversation-composer .composer-send-button:not(:disabled):active {
+  transform: scale(0.9);
+}
+
+.conversation-composer .composer-send-button:disabled {
+  background:
+    radial-gradient(circle at 33% 27%, rgb(255 255 255 / 95%) 0 7%, rgb(255 255 255 / 0%) 26%),
+    linear-gradient(155deg, rgb(241 245 249), rgb(226 232 240));
+  box-shadow:
+    inset 0 -2px 4px rgb(148 163 184 / 25%),
+    inset 0 1px 2px rgb(255 255 255 / 80%);
+}
+
+.conversation-composer .composer-send-button.is-rolling {
+  animation: marble-send-roll 560ms cubic-bezier(0.3, 0.9, 0.4, 1);
+}
+
+.conversation-composer .composer-send-button.is-rolling svg {
+  animation: marble-send-spin 560ms cubic-bezier(0.3, 0.9, 0.4, 1);
+}
+
+@keyframes marble-send-roll {
+  0% {
+    transform: scale(1);
+  }
+  18% {
+    transform: scale(0.84, 0.92);
+  }
+  45% {
+    transform: translate(3px, -5px) scale(1.06);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes marble-send-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  45% {
+    transform: rotate(-35deg) translateX(4px);
+    opacity: 0;
+  }
+  55% {
+    transform: rotate(0deg) translateX(-6px);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* 收藏款玻璃珠作为文字旁的点缀，保留内部景色和玻璃高光。 */
+.conversation-empty-state .suggestion-row button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.conversation-empty-state .suggestion-row button::before {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  background: url('../assets/marbles/sr-blue-cloud.webp') center / contain no-repeat;
+  content: '';
+  filter: drop-shadow(0 2px 3px rgb(48 72 110 / 10%));
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.conversation-empty-state .suggestion-row button:nth-child(2)::before {
+  background-image: url('../assets/marbles/sr-green-aurora.webp');
+}
+
+.conversation-empty-state .suggestion-row button:nth-child(3)::before {
+  background-image: url('../assets/marbles/sr-pink-sakura.webp');
+}
+
+.conversation-empty-state .suggestion-row button:nth-child(4)::before {
+  background-image: url('../assets/marbles/ssr-any-gold.webp');
+}
+
+@media (hover: hover) {
+  .conversation-empty-state .suggestion-row button:hover::before {
+    transform: translateY(-1px) scale(1.03);
+  }
+}
+
+.conversation-empty-state .suggestion-row button:active::before {
+  transform: scale(0.94);
+}
+
+@media (max-width: 540px) {
+  .conversation-empty-state .suggestion-row button {
+    gap: 8px;
+  }
+
+  .conversation-empty-state .suggestion-row button::before {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-empty-state .suggestion-row button,
+  .conversation-empty-state .suggestion-row button::before {
+    transition: none;
+  }
+
+  .conversation-empty-state .suggestion-row button:hover::before,
+  .conversation-empty-state .suggestion-row button:active::before {
+    transform: none;
+  }
+}
+
+/* 聊天卡片：按下按钮时那颗弹珠也被按扁一下。 */
+.native-learning-actions.is-compact .learning-confirmation-mark,
+.mini-lecture-invite.is-compact .learning-confirmation-mark {
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.native-learning-actions.is-compact article:has(button:active) .learning-confirmation-mark,
+.mini-lecture-invite.is-compact:has(> button:active) .learning-confirmation-mark {
+  transform: scale(0.86, 0.8);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-composer .composer-send-button::before,
+  .conversation-composer .composer-send-button.is-rolling,
+  .conversation-composer .composer-send-button.is-rolling svg {
+    animation: none;
+  }
+}
+
+/* 点了「记住」：右下角浮出一小团星图接珠子，接完沉下去；不挡输入框，也不吃点击。 */
+.marble-catcher {
+  position: fixed;
+  right: -6px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
+  z-index: 60;
+  pointer-events: none;
+  transform-origin: 50% 100%;
+  animation: marble-catcher-rise 260ms cubic-bezier(0.25, 1.3, 0.5, 1) both;
+}
+
+.marble-catcher.is-leaving {
+  animation: marble-catcher-sink 300ms cubic-bezier(0.5, 0, 0.75, 0) both;
+}
+
+.marble-catcher-jar {
+  display: block;
+  width: 116px;
+  height: 92px;
+  border-radius: var(--radius-md);
+}
+
+@keyframes marble-catcher-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes marble-catcher-sink {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(24px) scale(0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marble-catcher,
+  .marble-catcher.is-leaving {
+    animation-duration: 1ms;
+  }
+}

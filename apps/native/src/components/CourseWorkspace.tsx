@@ -8,6 +8,7 @@ import {
   type ChangeEvent,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
+  type TouchEvent as ReactTouchEvent,
 } from 'react';
 import {
   ArrowLeft,
@@ -18,22 +19,20 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
-  LayoutGrid,
   ChevronRight,
-  CircleGauge,
   CloudUpload,
   Cpu,
   Database,
   Dices,
   FileText,
   Library,
-  Loader2,
+  FileQuestion,
   Menu,
+  PanelLeft,
   MessageCircle,
   PanelLeftClose,
-  ImagePlus,
-  Paperclip,
   Plus,
+  Presentation,
   Save,
   Search,
   SendHorizontal,
@@ -44,6 +43,9 @@ import {
   SquarePen,
   Target,
   Trash2,
+  Pin,
+  PinOff,
+  Ellipsis,
   Upload,
   X,
 } from 'lucide-react';
@@ -53,34 +55,63 @@ import {
   pickRandomCourseAvatarId,
   readStoredCourseAvatarId,
   resolveNativeCourseAvatar,
+  profileThemeForAvatar,
   writeStoredCourseAvatarId,
 } from '../assets';
+import { streamNativeChat, detectChatSurface } from '../ai/chat';
+import { buildNativeChatContext } from '../ai/context';
 import {
   getAiSettings,
   parseSyllabusDocument,
-  streamAssistantReply,
   supportedAiModels,
-  type AiSettings,
   type ParsedSyllabusDocument,
+  type ChatResponseStrength,
   type SupportedAiModel,
 } from '../data/ai-client';
 import {
   MAX_CHAT_IMAGES,
   chatImageThumbnails,
+  isChatImageFile,
   prepareChatImage,
   type PendingChatImage,
 } from '../data/chat-images';
 import {
+  CHAT_ATTACH_ACCEPT,
+  CHAT_FILE_LABEL,
+  MAX_CHAT_FILES,
+  chatFileChips,
+  formatFileSize,
+  prepareChatFile,
+  type ChatFileKind,
+  type PendingChatFile,
+} from '../data/chat-files';
+import {
   createNativeMiniLecture,
   getNativePlatformCapabilities,
+  getNativeMiniLecture,
   type NativePlatformCapabilities,
 } from '../data/platform-api-client';
-import { miniLectureManifestToPersistence } from '../data/mini-lecture-persistence';
+import {
+  miniLectureManifestToPersistence,
+  miniLectureManifestToRuntime,
+} from '../data/mini-lecture-persistence';
+import type { NativeSyncedMiniLecture } from '../data/platform-api-contracts';
 import {
   deleteRemoteConversation,
+  loadOlderConversationMessages,
   pullCourseConversations,
+  pullMoreCourseConversations,
   pushConversation,
+  refreshConversationMessages,
+  searchCourseConversations,
 } from '../data/chat-sync';
+import {
+  deleteConversationMemories,
+  loadNotebookForReading,
+  pushLearningProgress,
+  syncAppMemories,
+  syncCourseData,
+} from '../data/course-sync';
 import { getLocalRepository, type SaveCourseLearningStateInput } from '../data/repository';
 import {
   courseScopedEventId,
@@ -105,15 +136,37 @@ import {
   type MiniLectureGenerationState,
 } from './MiniLectureClassroom';
 import { NativeLearningActions } from './NativeLearningActions';
+import { marbleImages } from '../lib/learning-action-marbles';
+import { RecallThinking, type ThinkingRecall } from './RecallThinking';
+import {
+  GlassLoadMore,
+  LIST_WINDOW_SIZE,
+  useListWindow,
+  type LoadMoreState,
+  GlassSpinner,
+} from './GlassLoadMore';
+import { MarbleCatcher, type MarbleCatch } from './MarbleCatcher';
+import { markMemoryReviewed } from '../lib/memory-freshness';
+import { useChatFileDrop } from '../lib/use-chat-file-drop';
 import { NativeReviewPlanCard } from './NativeReviewPlanCard';
 import { NativeWorkspaceDialog } from './NativeWorkspaceDialog';
+import {
+  PhoneCalendarPage,
+  PhoneClassroomPage,
+  PhoneConfirm,
+  PhoneMemoryPage,
+  PhoneNotesPage,
+  PhoneProfilePage,
+  PhoneProgressPage,
+} from './PhonePages';
 import { ProblemPracticePage } from './ProblemPracticePage';
-import type { ProblemBankLaunch } from './ProblemBankPage';
-import { ProblemRichText } from './problem-bank/problem-rich-text';
+import { ProblemBankPage, type ProblemBankLaunch } from './ProblemBankPage';
+import { ChatRichText, type ChatRichMemory, type ChatRichSource } from './chat-rich/ChatRichText';
 import type {
   LocalConversation,
   LocalCourseLearningState,
   LocalCourseSearchResult,
+  LocalCourseSummary,
   LocalCourseWorkspace,
   LocalMessage,
   LocalNotebook,
@@ -125,14 +178,39 @@ import type {
   NativeReviewPlanCalendarItem,
   NativeReviewPlanTask,
 } from '../domain/teaching';
+import { writePhoneLastChat } from '../lib/phone-last-chat';
+import { readPinnedChatIds, writePinnedChatIds } from '../lib/phone-pinned-chats';
+import { useBackDismiss } from '../lib/use-back-dismiss';
+import { usePhoneKeyboardInset } from '../lib/use-phone-keyboard';
 import { usePhoneLayout } from '../lib/use-phone-layout';
+
+// 我的页收藏架点了别的课的罐子：换课后直接打开那门课的学习记忆。
+const OPEN_PHONE_PAGE_KEY = 'syntara.open-phone-page';
+
+function readOpenPhonePage(): 'memory' | 'problems' | null {
+  try {
+    const page = window.sessionStorage.getItem(OPEN_PHONE_PAGE_KEY);
+    return page === 'memory' || page === 'problems' ? page : null;
+  } catch {
+    return null;
+  }
+}
 
 type CourseTool = 'overview' | 'library' | 'calendar' | 'settings';
 type MobilePanel = 'sessions' | 'tools' | 'progress' | null;
+/** 去掉再加回一个 class，让同一个动画可以连续重播。 */
+function replayClass(element: HTMLElement | null, className: string) {
+  if (!element) return;
+  element.classList.remove(className);
+  void element.offsetWidth;
+  element.classList.add(className);
+}
+
 const AI_MODEL_STORAGE_KEY = 'syntara.native.openai.model';
 const LEFT_RAIL_STORAGE_KEY = 'syntara.native.chat.left-rail-collapsed';
 const COURSE_PROGRESS_STORAGE_PREFIX = 'syntara.native.course-progress.';
 const RIGHT_RAIL_STORAGE_KEY = 'syntara.native.chat.right-rail-collapsed';
+const RESPONSE_STRENGTH_STORAGE_KEY = 'syntara.phone.response-strength.v1';
 const MAX_CHAT_ATTACHMENT_BYTES = 512 * 1024;
 const MAX_CHAT_ATTACHMENTS = 4;
 const MAX_SYLLABUS_DOCUMENT_BYTES = 20 * 1024 * 1024;
@@ -151,9 +229,18 @@ type PlatformAiAccess = {
   message: string;
 };
 
-function ChatMessageContent({ message }: { message: LocalMessage }) {
+function ChatMessageContent({
+  message,
+  onOpenNotebookId,
+  onOpenMemoryId,
+}: {
+  message: LocalMessage;
+  onOpenNotebookId?: (notebookId: string) => void;
+  onOpenMemoryId?: (memoryId: string) => void;
+}) {
   if (message.role === 'user') {
     const images = chatImageThumbnails(message.metadata);
+    const files = chatFileChips(message.metadata);
     return (
       <>
         {images.length ? (
@@ -163,20 +250,107 @@ function ChatMessageContent({ message }: { message: LocalMessage }) {
             ))}
           </div>
         ) : null}
+        {files.length ? (
+          <div className="chat-message-files">
+            {files.map((file, index) => (
+              <ChatFilePill key={index} name={file.name} kind={file.kind} size={file.size} />
+            ))}
+          </div>
+        ) : null}
         <p>{message.text}</p>
       </>
     );
   }
 
-  return <ProblemRichText className="chat-message-markdown" content={message.text} />;
+  return (
+    <AssistantMessageContent
+      message={message}
+      onOpenNotebookId={onOpenNotebookId}
+      onOpenMemoryId={onOpenMemoryId}
+    />
+  );
 }
 
-function boundedJson(value: unknown, maxLength = 3600): string {
-  try {
-    return JSON.stringify(value).slice(0, maxLength);
-  } catch {
-    return '';
-  }
+/** 文件小药丸：左边一颗按类型上色的玻璃珠写着 PDF / DOC / PPT / TXT。 */
+function ChatFilePill({
+  name,
+  kind,
+  size,
+  onRemove,
+}: {
+  name: string;
+  kind: ChatFileKind;
+  size?: number;
+  onRemove?: () => void;
+}) {
+  return (
+    <span className={`chat-file-pill is-${kind}`} title={name}>
+      <span className="chat-file-pill-marble" aria-hidden>
+        {CHAT_FILE_LABEL[kind]}
+      </span>
+      <span className="chat-file-pill-text">
+        <strong>{name.replace(/\.[^.]+$/, '')}</strong>
+        {size ? <small>{formatFileSize(size)}</small> : null}
+      </span>
+      {onRemove ? (
+        <button type="button" onClick={onRemove} aria-label={`移除 ${name}`}>
+          <X size={12} />
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
+function AssistantMessageContent({
+  message,
+  onOpenNotebookId,
+  onOpenMemoryId,
+}: {
+  message: LocalMessage;
+  onOpenNotebookId?: (notebookId: string) => void;
+  onOpenMemoryId?: (memoryId: string) => void;
+}) {
+  const evidence = message.metadata?.evidence;
+  // [^n] 指向第 n 条课程笔记片段（和发给 AI 的顺序一致）。
+  const sources = useMemo<ChatRichSource[]>(
+    () =>
+      (evidence ?? [])
+        .filter((item) => item.sourceType === 'notebook')
+        .map((item) => {
+          const notebookId = item.metadata?.notebookId;
+          return {
+            title: item.title ?? '课程笔记',
+            notebookId: typeof notebookId === 'string' ? notebookId : undefined,
+          };
+        }),
+    [evidence],
+  );
+  // [^mn] 指向第 n 颗学习记忆珠子。
+  const memories = useMemo<ChatRichMemory[]>(
+    () =>
+      (evidence ?? [])
+        .filter((item) => item.sourceType === 'memory' && item.sourceId)
+        .map((item) => {
+          const kind = item.metadata?.kind;
+          return {
+            id: item.sourceId as string,
+            title: item.title ?? '学习记忆',
+            kind: typeof kind === 'string' ? kind : undefined,
+          };
+        }),
+    [evidence],
+  );
+  return (
+    <ChatRichText
+      text={message.text}
+      sources={sources}
+      memories={memories}
+      onOpenMemory={(memory) => onOpenMemoryId?.(memory.id)}
+      onOpenSource={(source) => {
+        if (source.notebookId) onOpenNotebookId?.(source.notebookId);
+      }}
+    />
+  );
 }
 
 function orderCourseNotebooks(notebooks: LocalNotebook[]): LocalNotebook[] {
@@ -186,9 +360,17 @@ function orderCourseNotebooks(notebooks: LocalNotebook[]): LocalNotebook[] {
   );
 }
 
-function isLectureEligibleMessage(message: LocalMessage): boolean {
+// 「生成课堂讲解」主要听平台 AI 的判断（lectureSuggested）；关键词兜底：
+// 学生自己说要课堂、小课、幻灯片、图解时一定给。普通的“讲解一下”不算。
+const LECTURE_REQUEST =
+  /课堂|小课|微课|讲一节|上一节|做成.{0,6}(课|讲解|幻灯片)|生成.{0,8}讲解|幻灯片|slides?|ppt|图解|配图|画图.{0,4}讲|可视化|动画|视频|lecture|lesson/i;
+
+function isLectureEligibleMessage(message: LocalMessage, askedBy: string): boolean {
   if (message.role !== 'assistant' || message.id.startsWith('stream-')) return false;
-  if (message.metadata?.lectureEligible === true) return true;
+  if (message.metadata?.lectureEligibilityReason === 'bundled_reference') return true;
+  if (message.metadata?.lectureSuggested === true) return true;
+  // 旧版平台把每条课程回答都标成可生成，这里再看一眼学生这一问有没有要课堂。
+  if (message.metadata?.lectureEligible === true && LECTURE_REQUEST.test(askedBy)) return true;
   if (
     message.metadata?.learningActions?.some(
       (action) => action.kind === 'classroom.propose_temporary_explanation',
@@ -508,16 +690,28 @@ function readStoredAiModel(): SupportedAiModel {
     : 'gpt-5.6-sol';
 }
 
+function readStoredResponseStrength(): ChatResponseStrength {
+  try {
+    const stored = window.localStorage.getItem(RESPONSE_STRENGTH_STORAGE_KEY);
+    return stored === 'low' || stored === 'medium' || stored === 'high' ? stored : 'medium';
+  } catch {
+    return 'medium';
+  }
+}
+
 function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
 type CourseWorkspaceProps = {
   workspace: LocalCourseWorkspace;
+  initialConversationId?: string | null;
+  /** 当前账户的全部课程，常驻侧栏。 */
+  courses: LocalCourseSummary[];
   backendLabel: string;
   onBack: () => void;
+  onSwitchCourse: (courseId: string) => void;
   onOpenProblemBank: () => void;
-  onOpenNotebookLibrary: () => void;
   onOpenPractice: (launch: ProblemBankLaunch) => void;
   onWorkspaceChanged: () => Promise<void>;
 };
@@ -539,6 +733,40 @@ function formatRelativeTime(timestamp: number): string {
   return `${Math.round(hours / 24)} 天前`;
 }
 
+/** 会话列表的「下一页」：本机的看完了，再向网页要。 */
+type ConversationPaging = {
+  hasMore: boolean;
+  state: LoadMoreState;
+  onLoadMore: () => void | Promise<void>;
+};
+
+/** 本机只存了一部分会话，搜索时停顿一下再问网页，找到的会话会出现在列表里。 */
+function useRemoteConversationSearch(query: string, search?: (query: string) => void) {
+  useEffect(() => {
+    const keyword = query.normalize('NFKC').trim();
+    if (!keyword || !search) return;
+    const timer = window.setTimeout(() => search(keyword), 350);
+    return () => window.clearTimeout(timer);
+  }, [query, search]);
+}
+
+/** 列表末尾的弹珠：先多显示本机已有的，看完了再向网页要下一页。 */
+function ConversationListEnd({
+  listWindow,
+  paging,
+  length,
+}: {
+  listWindow: ReturnType<typeof useListWindow>;
+  paging?: ConversationPaging;
+  length: number;
+}) {
+  if (listWindow.hasHidden) {
+    return <GlassLoadMore onLoadMore={listWindow.showMore} watchKey={listWindow.count} />;
+  }
+  if (!paging?.hasMore) return null;
+  return <GlassLoadMore onLoadMore={paging.onLoadMore} state={paging.state} watchKey={length} />;
+}
+
 function SessionsPanel({
   conversations,
   selectedConversationId,
@@ -550,10 +778,12 @@ function SessionsPanel({
   onDeleteConversation,
   onShowAllConversations,
   onSelectConversation,
+  paging,
 }: {
   conversations: LocalConversation[];
   selectedConversationId: string | null;
   busy: boolean;
+  paging?: ConversationPaging;
   onBack: () => void;
   onClose?: () => void;
   onCollapse?: () => void;
@@ -562,6 +792,7 @@ function SessionsPanel({
   onShowAllConversations: () => void;
   onSelectConversation: (conversationId: string) => void;
 }) {
+  const listWindow = useListWindow(conversations.length, conversations[0]?.courseId);
   return (
     <div className="sessions-panel">
       <div className="sessions-back-row">
@@ -616,7 +847,7 @@ function SessionsPanel({
         {conversations.length ? (
           <>
             <p className="session-group-title">最近</p>
-            {conversations.map((conversation) => {
+            {conversations.slice(0, listWindow.count).map((conversation) => {
               const active = conversation.id === selectedConversationId;
               return (
                 <div
@@ -646,6 +877,11 @@ function SessionsPanel({
                 </div>
               );
             })}
+            <ConversationListEnd
+              listWindow={listWindow}
+              paging={paging}
+              length={conversations.length}
+            />
           </>
         ) : (
           <p className="sessions-empty-copy">还没有会话，先开始一次新的学习对话。</p>
@@ -663,36 +899,44 @@ function SessionsPanel({
   );
 }
 
+type DrawerLearningAction = {
+  id: string;
+  label: string;
+  icon: typeof BookOpen;
+  open: () => void;
+  count?: number;
+};
+
 /** iPhone 左侧抽屉：参考 ChatGPT，入口、最近聊天和「新聊天」都放在这里。 */
 function PhoneChatDrawer({
-  courseTitle,
-  courseAvatarUrl,
+  learningActions,
+  courses,
+  selectedCourseId,
+  selectedCourseAvatarUrl,
   conversations,
   selectedConversationId,
-  memoryCount,
   busy,
-  onBack,
   onCreateConversation,
   onDeleteConversation,
-  onOpenMemory,
-  onOpenNotes,
-  onOpenProgress,
-  onOpenSettings,
+  onSelectCourse,
+  onOpenProfile,
   onSelectConversation,
+  paging,
+  onRemoteSearch,
 }: {
-  courseTitle: string;
-  courseAvatarUrl: string;
+  paging?: ConversationPaging;
+  onRemoteSearch?: (query: string) => void;
+  learningActions: DrawerLearningAction[];
+  courses: LocalCourseSummary[];
+  selectedCourseId: string;
+  selectedCourseAvatarUrl: string;
   conversations: LocalConversation[];
   selectedConversationId: string | null;
-  memoryCount: number;
   busy: boolean;
-  onBack: () => void;
   onCreateConversation: () => void;
   onDeleteConversation: (conversation: LocalConversation) => void;
-  onOpenMemory: () => void;
-  onOpenNotes: () => void;
-  onOpenProgress: () => void;
-  onOpenSettings: () => void;
+  onSelectCourse: (courseId: string) => void;
+  onOpenProfile: () => void;
   onSelectConversation: (conversationId: string) => void;
 }) {
   const [searching, setSearching] = useState(false);
@@ -701,21 +945,130 @@ function PhoneChatDrawer({
   const visibleConversations = keyword
     ? conversations.filter((conversation) => conversation.title.toLowerCase().includes(keyword))
     : conversations;
+  // 置顶和删除：长按一条聊天（或点当前聊天右边的 ⋯）弹出菜单。置顶只记在本机。
+  const [pinnedIds, setPinnedIds] = useState(readPinnedChatIds);
+  // 菜单贴着被长按的那一行弹出（iOS 上下文菜单），而不是从屏幕底部升起。
+  const [menu, setMenu] = useState<{
+    conversation: LocalConversation;
+    top: number;
+    height: number;
+    placeAbove: boolean;
+  } | null>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const openMenuFor = (conversation: LocalConversation, row: Element | null) => {
+    const drawer = drawerRef.current?.getBoundingClientRect();
+    const rect = row?.getBoundingClientRect();
+    if (!drawer || !rect) return;
+    const top = rect.top - drawer.top;
+    const menuHeight = 120;
+    setMenu({
+      conversation,
+      top,
+      height: rect.height,
+      placeAbove: top + rect.height + menuHeight + 24 > drawer.height,
+    });
+  };
+  const closeMenu = () => setMenu(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const pinnedConversations = pinnedIds
+    .map((id) => visibleConversations.find((conversation) => conversation.id === id))
+    .filter((conversation): conversation is LocalConversation => Boolean(conversation));
+  const recentConversations = visibleConversations.filter(
+    (conversation) => !pinnedIds.includes(conversation.id),
+  );
+  const recentWindow = useListWindow(recentConversations.length, `${selectedCourseId}:${keyword}`);
+  useRemoteConversationSearch(query, onRemoteSearch);
+
+  const togglePinned = (conversation: LocalConversation) => {
+    const next = pinnedIds.includes(conversation.id)
+      ? pinnedIds.filter((id) => id !== conversation.id)
+      : [conversation.id, ...pinnedIds];
+    setPinnedIds(next);
+    writePinnedChatIds(next);
+    closeMenu();
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current !== null) window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  };
+
+  const startLongPress = (conversation: LocalConversation, row: Element | null) => {
+    cancelLongPress();
+    longPressFiredRef.current = false;
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressFiredRef.current = true;
+      navigator.vibrate?.(10);
+      openMenuFor(conversation, row);
+    }, 450);
+  };
+
+  const renderRow = (conversation: LocalConversation) => {
+    const active = conversation.id === selectedConversationId;
+    return (
+      <div
+        key={conversation.id}
+        className={active ? 'phone-drawer-row phone-drawer-row-active' : 'phone-drawer-row'}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            if (longPressFiredRef.current) {
+              longPressFiredRef.current = false;
+              return;
+            }
+            onSelectConversation(conversation.id);
+          }}
+          onTouchStart={(event) =>
+            startLongPress(conversation, event.currentTarget.closest('.phone-drawer-row'))
+          }
+          onTouchMove={cancelLongPress}
+          onTouchEnd={cancelLongPress}
+          onTouchCancel={cancelLongPress}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            cancelLongPress();
+            openMenuFor(conversation, event.currentTarget.closest('.phone-drawer-row'));
+          }}
+        >
+          {conversation.title}
+        </button>
+        {active ? (
+          <button
+            type="button"
+            className="phone-drawer-delete"
+            onClick={(event) =>
+              openMenuFor(conversation, event.currentTarget.closest('.phone-drawer-row'))
+            }
+            aria-label={`更多操作：${conversation.title}`}
+          >
+            <Ellipsis size={18} />
+          </button>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
-    <div className="phone-drawer">
-      <div className="phone-drawer-top">
+    <div className="phone-drawer" ref={drawerRef}>
+      <div
+        className="phone-drawer-top"
+        data-tauri-drag-region={
+          document.documentElement.classList.contains('platform-macos') ? 'deep' : undefined
+        }
+      >
         <h2>Syntara</h2>
         <button
           type="button"
-          className="phone-round-button"
+          className="phone-glass-button"
           onClick={() => {
             setSearching((current) => !current);
             setQuery('');
           }}
           aria-label={searching ? '取消搜索' : '搜索聊天'}
         >
-          {searching ? <X size={20} /> : <Search size={20} />}
+          {searching ? <X size={20} strokeWidth={1.8} /> : <Search size={20} strokeWidth={1.8} />}
         </button>
       </div>
 
@@ -728,62 +1081,152 @@ function PhoneChatDrawer({
           onChange={(event) => setQuery(event.target.value)}
           placeholder="搜索聊天"
         />
-      ) : (
-        <nav className="phone-drawer-nav" aria-label="课程入口">
-          <button type="button" className="phone-drawer-course" onClick={onBack}>
-            <img src={courseAvatarUrl} alt="" aria-hidden />
-            <span>{courseTitle}</span>
-          </button>
-          <button type="button" onClick={onBack}>
-            <LayoutGrid size={21} strokeWidth={1.8} />
-            <span>全部课程</span>
-          </button>
-          <button type="button" onClick={onOpenNotes}>
-            <BookOpen size={21} strokeWidth={1.8} />
-            <span>笔记</span>
-          </button>
-          <button type="button" onClick={onOpenProgress}>
-            <Target size={21} strokeWidth={1.8} />
-            <span>学习进度</span>
-          </button>
-          <button type="button" onClick={onOpenMemory}>
-            <Brain size={21} strokeWidth={1.8} />
-            <span>学习记忆</span>
-            {memoryCount ? <small>{memoryCount}</small> : null}
-          </button>
-        </nav>
-      )}
+      ) : null}
 
       <div className="phone-drawer-scroll">
+        {!searching ? (
+          <>
+            <nav className="phone-drawer-nav" aria-label="全部课程">
+              <details className="phone-drawer-group" open>
+                <summary className="phone-drawer-section-toggle">
+                  <h3>课程</h3>
+                  <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
+                </summary>
+                <div className="phone-drawer-group-items">
+                  {courses.map((course) => {
+                    const current = course.id === selectedCourseId;
+                    return (
+                      <button
+                        type="button"
+                        key={course.id}
+                        className={`phone-drawer-course${current ? ' is-current' : ''}`}
+                        aria-current={current ? 'page' : undefined}
+                        title={course.name}
+                        onClick={() => onSelectCourse(course.id)}
+                      >
+                        <img
+                          src={
+                            current
+                              ? selectedCourseAvatarUrl
+                              : resolveNativeCourseAvatar(course.id, course.courseCode)
+                          }
+                          alt=""
+                          aria-hidden
+                          data-marble-target={current ? '1' : undefined}
+                        />
+                        <span>{course.courseCode || course.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </details>
+            </nav>
+            <nav className="phone-drawer-nav" aria-label="学习工具">
+              <details className="phone-drawer-group" open>
+                <summary className="phone-drawer-section-toggle">
+                  <h3>学习</h3>
+                  <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
+                </summary>
+                <div className="phone-drawer-group-items">
+                  {learningActions.map(({ id, label, icon: Icon, open, count }) => (
+                    <button
+                      type="button"
+                      key={id}
+                      className="phone-drawer-tool"
+                      onClick={open}
+                      data-marble-target={id === 'memory' ? '2' : undefined}
+                    >
+                      <Icon size={20} strokeWidth={1.8} aria-hidden />
+                      <span>{label}</span>
+                      {count ? <small>{count}</small> : null}
+                    </button>
+                  ))}
+                </div>
+              </details>
+            </nav>
+          </>
+        ) : null}
+        {pinnedConversations.length ? (
+          <>
+            <p className="phone-drawer-section">置顶</p>
+            {pinnedConversations.map(renderRow)}
+          </>
+        ) : null}
         <p className="phone-drawer-section">最近</p>
-        {visibleConversations.length ? (
-          visibleConversations.map((conversation) => {
-            const active = conversation.id === selectedConversationId;
-            return (
-              <div
-                key={conversation.id}
-                className={active ? 'phone-drawer-row phone-drawer-row-active' : 'phone-drawer-row'}
-              >
-                <button type="button" onClick={() => onSelectConversation(conversation.id)}>
-                  {conversation.title}
-                </button>
-                {active ? (
-                  <button
-                    type="button"
-                    className="phone-drawer-delete"
-                    onClick={() => onDeleteConversation(conversation)}
-                    aria-label={`删除会话：${conversation.title}`}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                ) : null}
-              </div>
-            );
-          })
+        {recentConversations.length ? (
+          <>
+            {recentConversations.slice(0, recentWindow.count).map(renderRow)}
+            <ConversationListEnd
+              listWindow={recentWindow}
+              paging={keyword ? undefined : paging}
+              length={conversations.length}
+            />
+          </>
         ) : (
-          <p className="phone-drawer-empty">{keyword ? '没有找到相关聊天' : '还没有聊天'}</p>
+          <p className="phone-drawer-empty">
+            <img src={marbleImages.blue} alt="" aria-hidden />
+            {keyword
+              ? '没有找到相关聊天'
+              : pinnedConversations.length
+                ? '没有其他聊天'
+                : '还没有聊天'}
+          </p>
         )}
       </div>
+
+      {menu ? (
+        <div className="phone-chat-actions-layer">
+          <button
+            type="button"
+            className="phone-chat-actions-backdrop"
+            onClick={closeMenu}
+            aria-label="关闭菜单"
+          />
+          <div
+            className="phone-chat-actions-preview"
+            style={{ top: menu.top, height: menu.height }}
+          >
+            {menu.conversation.title}
+          </div>
+          <div
+            className={`phone-chat-actions${menu.placeAbove ? ' is-above' : ''}`}
+            role="menu"
+            aria-label={menu.conversation.title}
+            style={
+              menu.placeAbove
+                ? { bottom: `calc(100% - ${menu.top - 8}px)` }
+                : { top: menu.top + menu.height + 8 }
+            }
+          >
+            <button type="button" role="menuitem" onClick={() => togglePinned(menu.conversation)}>
+              {pinnedIds.includes(menu.conversation.id) ? (
+                <>
+                  <span>取消置顶</span>
+                  <PinOff size={18} />
+                </>
+              ) : (
+                <>
+                  <span>置顶</span>
+                  <Pin size={18} />
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="phone-chat-actions-danger"
+              onClick={() => {
+                const conversation = menu.conversation;
+                closeMenu();
+                onDeleteConversation(conversation);
+              }}
+            >
+              <span>删除</span>
+              <Trash2 size={18} />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="phone-drawer-bottom">
         <button
@@ -798,8 +1241,8 @@ function PhoneChatDrawer({
         <button
           type="button"
           className="phone-round-button"
-          onClick={onOpenSettings}
-          aria-label="设置"
+          onClick={onOpenProfile}
+          aria-label="我的"
         >
           <Settings size={20} />
         </button>
@@ -1234,7 +1677,7 @@ function CourseToolsPanel({
                 placeholder="搜索本机笔记本、题目和学习记忆"
                 autoComplete="off"
               />
-              {librarySearchBusy ? <Loader2 size={14} className="spin-icon" /> : null}
+              {librarySearchBusy ? <GlassSpinner size={14} /> : null}
             </label>
             {librarySearchQuery.trim() ? (
               <section className="tool-card tool-card-list local-search-results">
@@ -1377,11 +1820,7 @@ function CourseToolsPanel({
                 disabled={syllabusBusy}
               >
                 <span className="tool-action-icon">
-                  {syllabusBusy ? (
-                    <Loader2 size={17} className="spin-icon" />
-                  ) : (
-                    <CloudUpload size={17} />
-                  )}
+                  {syllabusBusy ? <GlassSpinner size={17} /> : <CloudUpload size={17} />}
                 </span>
                 <span>
                   <strong>{syllabusBusy ? '正在解析 syllabus…' : syllabusActionLabel}</strong>
@@ -1490,11 +1929,7 @@ function CourseToolsPanel({
                   onClick={onSaveCourseSettings}
                   disabled={!courseNameDraft.trim() || courseSettingsBusy}
                 >
-                  {courseSettingsBusy ? (
-                    <Loader2 size={14} className="spin-icon" />
-                  ) : (
-                    <Save size={14} />
-                  )}
+                  {courseSettingsBusy ? <GlassSpinner size={14} /> : <Save size={14} />}
                   {courseSettingsBusy ? '保存中…' : '保存'}
                 </button>
               </div>
@@ -1526,22 +1961,47 @@ function CourseToolsPanel({
 
 export function CourseWorkspace({
   workspace,
+  initialConversationId = null,
   backendLabel,
   onBack,
   onOpenProblemBank,
-  onOpenNotebookLibrary,
   onOpenPractice,
   onWorkspaceChanged,
+  courses,
+  onSwitchCourse,
 }: CourseWorkspaceProps) {
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(() =>
+    workspace.conversations.some((conversation) => conversation.id === initialConversationId)
+      ? initialConversationId
+      : null,
+  );
   const [messages, setMessages] = useState<LocalMessage[]>([]);
+  // 正在回答的那条消息用到的记忆和笔记，思考动画里画成真实颜色的珠子。
+  const [thinkingRecall, setThinkingRecall] = useState<
+    (ThinkingRecall & { messageId: string }) | null
+  >(null);
   const [draft, setDraft] = useState('');
   const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([]);
-  // 手机端做题困难：聊天里不出现练习、复习题单和课堂讲解入口。
+  const [pendingFiles, setPendingFiles] = useState<PendingChatFile[]>([]);
+  // 手机端做题困难：聊天里不出现练习和复习题单；课堂讲解可以用。
   const phoneLayout = usePhoneLayout();
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [activeTool, setActiveTool] = useState<CourseTool>('overview');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
+  const workspaceRef = useRef<HTMLElement | null>(null);
+  const conversationContentRef = useRef<HTMLDivElement | null>(null);
+  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const pinnedToBottomRef = useRef(true);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  // 从侧边栏进的二级页面，返回时回到打开的侧边栏；从聊天里进的直接回聊天。
+  const phonePageFromDrawerRef = useRef(false);
+  // iPad 和桌面：侧边栏常驻，可以用聊天页左上角的按钮收起。
+  const [splitSidebarCollapsed, setSplitSidebarCollapsed] = useState(false);
+
+  // 没有主页：记下最近用的课程和聊天，下次打开 App 直接回到这里。
+  useEffect(() => {
+    writePhoneLastChat({ courseId: workspace.course.id, conversationId: selectedConversationId });
+  }, [selectedConversationId, workspace.course.id]);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   useEffect(() => {
@@ -1549,18 +2009,26 @@ export function CourseWorkspace({
   }, [busy]);
   const [resourceBusy, setResourceBusy] = useState(false);
   const [resource, setResource] = useState<LocalResourceDocument | null>(null);
+  const notebookLoadRequestRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
-  const [aiSettings, setAiSettings] = useState<AiSettings>({
-    configured: false,
-    credentialSource: null,
-    defaultModel: 'gpt-5.6-sol',
-  });
   const [platformAiAccess, setPlatformAiAccess] = useState<PlatformAiAccess>({
     status: 'checking',
     capabilities: null,
     message: '正在检查平台 AI 能力与登录状态…',
   });
-  const [aiModel, setAiModel] = useState<SupportedAiModel>(readStoredAiModel);
+  const [aiModel] = useState<SupportedAiModel>(readStoredAiModel);
+  // 手机端和网页一样按回复强度（低 / 中 / 高）选模型，记在本机。
+  const [phoneResponseStrength, setPhoneResponseStrength] = useState<ChatResponseStrength>(
+    readStoredResponseStrength,
+  );
+  const changePhoneResponseStrength = useCallback((strength: ChatResponseStrength) => {
+    setPhoneResponseStrength(strength);
+    try {
+      window.localStorage.setItem(RESPONSE_STRENGTH_STORAGE_KEY, strength);
+    } catch {
+      // 存不了就只在这次打开里生效。
+    }
+  }, []);
   const [librarySearchQuery, setLibrarySearchQuery] = useState('');
   const [librarySearchResults, setLibrarySearchResults] = useState<LocalCourseSearchResult[]>([]);
   const [librarySearchBusy, setLibrarySearchBusy] = useState(false);
@@ -1573,8 +2041,25 @@ export function CourseWorkspace({
   );
   const [allConversationsOpen, setAllConversationsOpen] = useState(false);
   const [conversationSearchQuery, setConversationSearchQuery] = useState('');
+  // 网页会话分页：第一页随课程一起拉，侧边栏滚到底再拉下一页。
+  const [conversationPage, setConversationPage] = useState<{
+    nextCursor: string | null;
+    totalCount: number;
+    state: LoadMoreState;
+  }>({ nextCursor: null, totalCount: 0, state: 'idle' });
+  // 聊天只渲染最近的一段；往上翻到顶多显示一段，本机的看完了再向网页要更早的。
+  const [visibleMessageCount, setVisibleMessageCount] = useState(LIST_WINDOW_SIZE);
+  const [olderMessageCursor, setOlderMessageCursor] = useState<string | null>(null);
+  const [olderMessagesState, setOlderMessagesState] = useState<LoadMoreState>('idle');
+  const prependScrollRef = useRef<{ height: number; top: number } | null>(null);
+  const courseIdRef = useRef(workspace.course.id);
+  useLayoutEffect(() => {
+    courseIdRef.current = workspace.course.id;
+  }, [workspace.course.id]);
   const [notice, setNotice] = useState<string | null>(null);
   const [scheduleItems, setScheduleItems] = useState<LocalCourseEvent[]>([]);
+  /** 网页数据同步到本机后加一，触发日历和课堂重新读取。 */
+  const [courseDataRevision, setCourseDataRevision] = useState(0);
   const [scheduleBusy, setScheduleBusy] = useState(false);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
@@ -1583,6 +2068,11 @@ export function CourseWorkspace({
   const [calendarDayItems, setCalendarDayItems] = useState<LocalCourseEvent[]>([]);
   const [memoryDialogOpen, setMemoryDialogOpen] = useState(false);
   const [focusedMemoryId, setFocusedMemoryId] = useState<string | null>(null);
+  // 手机上我的、笔记、学习进度、学习记忆都是从右边推进来的整页。
+  const [phonePage, setPhonePage] = useState<
+    'profile' | 'notes' | 'progress' | 'memory' | 'calendar' | 'classroom' | 'problems' | null
+  >(readOpenPhonePage);
+  const [marbleCatch, setMarbleCatch] = useState<MarbleCatch | null>(null);
   const [courseLearningState, setCourseLearningState] = useState<LocalCourseLearningState | null>(
     null,
   );
@@ -1616,6 +2106,7 @@ export function CourseWorkspace({
   const [scheduleNote, setScheduleNote] = useState('');
   const [scheduleKind, setScheduleKind] = useState<LocalCourseEventKind>('other');
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const chatDropTargetRef = useRef<HTMLElement>(null);
   const problemUploadInputRef = useRef<HTMLInputElement>(null);
   const noteUploadInputRef = useRef<HTMLInputElement>(null);
   const syllabusInputRef = useRef<HTMLInputElement>(null);
@@ -1682,7 +2173,7 @@ export function CourseWorkspace({
   useEffect(() => {
     let cancelled = false;
     const courseId = workspace.course.id;
-    setScheduleItems([]);
+    if (!courseDataRevision) setScheduleItems([]);
 
     void getLocalRepository()
       .then(async (repository) => {
@@ -1714,7 +2205,7 @@ export function CourseWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [workspace.course.id]);
+  }, [courseDataRevision, workspace.course.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1760,7 +2251,7 @@ export function CourseWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [workspace.course.id, workspace.notebooks]);
+  }, [courseDataRevision, workspace.course.id, workspace.notebooks]);
 
   const refreshPlatformAiAccess = useCallback(() => {
     const requestId = ++platformAccessRequestRef.current;
@@ -1772,9 +2263,6 @@ export function CourseWorkspace({
     void Promise.allSettled([getAiSettings(), getNativePlatformCapabilities()]).then(
       ([settingsResult, capabilitiesResult]) => {
         if (requestId !== platformAccessRequestRef.current) return;
-        if (settingsResult.status === 'fulfilled') {
-          setAiSettings(settingsResult.value);
-        }
         if (
           capabilitiesResult.status === 'fulfilled' &&
           capabilitiesResult.value.available === true
@@ -1841,6 +2329,9 @@ export function CourseWorkspace({
     setMiniLectureLoadingDeckId(null);
     setActiveMiniLecture(null);
     setMiniLectureGenerationByMessageId(new Map());
+    setVisibleMessageCount(LIST_WINDOW_SIZE);
+    setOlderMessageCursor(null);
+    setOlderMessagesState('idle');
 
     if (!selectedConversationId) {
       setMessages([]);
@@ -1880,6 +2371,36 @@ export function CourseWorkspace({
         }
       });
 
+    // 网页对话：点开时再下载最近 30 条，之前只预先下载了最近几段。
+    const conversationId = selectedConversationId;
+    void getLocalRepository()
+      .then(async (repository) => {
+        const page = await refreshConversationMessages(
+          repository,
+          courseIdRef.current,
+          conversationId,
+        );
+        if (!page || cancelled || requestId !== conversationLoadRequestRef.current) return;
+        setOlderMessageCursor(page.olderCursor);
+        if (!page.inserted || busyRef.current) return;
+        const [loadedMessages, decks] = await Promise.all([
+          repository.listMessages(conversationId),
+          repository.listMiniLectureDecks(conversationId),
+        ]);
+        if (cancelled || requestId !== conversationLoadRequestRef.current || busyRef.current) {
+          return;
+        }
+        setMessages(loadedMessages);
+        setMiniLectureDecksByMessageId(
+          new Map(
+            decks
+              .filter((deck) => deck.status === 'ready')
+              .map((deck) => [deck.messageId, deck] as const),
+          ),
+        );
+      })
+      .catch((cause) => console.warn('[chat-sync] conversation refresh failed', cause));
+
     return () => {
       cancelled = true;
     };
@@ -1895,22 +2416,106 @@ export function CourseWorkspace({
   useEffect(() => {
     const courseId = workspace.course.id;
     let cancelled = false;
+    setConversationPage({ nextCursor: null, totalCount: 0, state: 'idle' });
     void (async () => {
       const repository = await getLocalRepository();
-      const changed = await pullCourseConversations(repository, courseId, conversationsRef.current);
-      if (cancelled || !changed) return;
-      await onWorkspaceChangedRef.current();
+      const page = await pullCourseConversations(repository, courseId, conversationsRef.current);
+      if (cancelled) return;
+      const changed = page.changed;
+      setConversationPage({
+        nextCursor: page.nextCursor,
+        totalCount: page.totalCount,
+        state: 'idle',
+      });
+      if (changed) await onWorkspaceChangedRef.current();
+      // 笔记、学习记忆、日历、网页上生成的课堂和题库也跟着同步到本机。
+      const synced = await syncCourseData(repository, courseId).catch((cause) => {
+        console.warn('[course-sync] sync failed', cause);
+        return null;
+      });
+      if (cancelled) return;
+      if (synced?.notebooks || synced?.memories || synced?.problems)
+        await onWorkspaceChangedRef.current();
+      if (synced?.events || synced?.lectures || synced?.progress) {
+        setCourseDataRevision((value) => value + 1);
+      }
       const conversationId = activeConversationIdRef.current;
-      if (!conversationId || busyRef.current) return;
-      const loadedMessages = await repository.listMessages(conversationId);
+      if (!(changed || synced?.lectures) || !conversationId || busyRef.current) return;
+      const [loadedMessages, decks] = await Promise.all([
+        repository.listMessages(conversationId),
+        repository.listMiniLectureDecks(conversationId),
+      ]);
       if (!cancelled && activeConversationIdRef.current === conversationId && !busyRef.current) {
         setMessages(loadedMessages);
+        setMiniLectureDecksByMessageId(
+          new Map(
+            decks
+              .filter((deck) => deck.status === 'ready')
+              .map((deck) => [deck.messageId, deck] as const),
+          ),
+        );
       }
     })().catch((cause) => console.warn('[chat-sync] pull failed', cause));
     return () => {
       cancelled = true;
     };
   }, [workspace.course.id]);
+
+  const loadMoreConversations = useCallback(async () => {
+    const cursor = conversationPage.nextCursor;
+    if (!cursor || conversationPage.state === 'loading') return;
+    const courseId = workspace.course.id;
+    setConversationPage((current) => ({ ...current, state: 'loading' }));
+    try {
+      const repository = await getLocalRepository();
+      const page = await pullMoreCourseConversations(
+        repository,
+        courseId,
+        cursor,
+        conversationsRef.current,
+      );
+      if (courseIdRef.current !== courseId) return;
+      if (page.changed) await onWorkspaceChangedRef.current();
+      setConversationPage({
+        nextCursor: page.nextCursor,
+        totalCount: page.totalCount,
+        state: 'idle',
+      });
+    } catch (cause) {
+      console.warn('[chat-sync] next conversation page failed', cause);
+      if (courseIdRef.current === courseId) {
+        setConversationPage((current) => ({ ...current, state: 'error' }));
+      }
+    }
+  }, [conversationPage, workspace.course.id]);
+
+  const conversationPaging = useMemo<ConversationPaging>(
+    () => ({
+      hasMore: Boolean(conversationPage.nextCursor),
+      state: conversationPage.state,
+      onLoadMore: loadMoreConversations,
+    }),
+    [conversationPage, loadMoreConversations],
+  );
+
+  const searchRemoteConversations = useCallback(
+    (query: string) => {
+      const courseId = workspace.course.id;
+      void getLocalRepository()
+        .then((repository) =>
+          searchCourseConversations(repository, courseId, query, conversationsRef.current),
+        )
+        .then((changed) => {
+          if (changed && courseIdRef.current === courseId) return onWorkspaceChangedRef.current();
+        })
+        .catch((cause) => console.warn('[chat-sync] conversation search failed', cause));
+    },
+    [workspace.course.id],
+  );
+  useRemoteConversationSearch(
+    conversationSearchQuery,
+    allConversationsOpen ? searchRemoteConversations : undefined,
+  );
 
   useEffect(() => {
     const query = librarySearchQuery.trim();
@@ -1954,6 +2559,10 @@ export function CourseWorkspace({
       conversation.title.normalize('NFKC').toLocaleLowerCase().includes(query),
     );
   }, [conversationSearchQuery, workspace.conversations]);
+  const allConversationsWindow = useListWindow(
+    filteredConversations.length,
+    `${workspace.course.id}:${conversationSearchQuery}`,
+  );
 
   const collapseLeftRail = useCallback(() => {
     window.localStorage.setItem(LEFT_RAIL_STORAGE_KEY, 'true');
@@ -2012,6 +2621,22 @@ export function CourseWorkspace({
             pendingCourseProgressSaveRef.current = null;
             try {
               const saved = await repository.saveCourseLearningState(pending);
+              const pushed = pending;
+              // 网页课程：同时写回账号，网页右侧的学习进度跟着变。
+              void pushLearningProgress(
+                repository,
+                pushed.courseId,
+                pushed.completedNotebookCount,
+                pushed.currentNotebookId ?? null,
+              ).catch((cause) => {
+                console.warn('[course-sync] progress push failed', cause);
+                if (
+                  activeCourseIdRef.current === pushed.courseId &&
+                  pushed.requestId === courseProgressSaveRequestRef.current
+                ) {
+                  setError('学习进度已存在手机上，但同步到账号失败，联网后再拖一次即可。');
+                }
+              });
               if (
                 activeCourseIdRef.current === pending.courseId &&
                 pending.requestId === courseProgressSaveRequestRef.current
@@ -2059,13 +2684,6 @@ export function CourseWorkspace({
     },
     [workspace.course.id, workspace.notebooks.length],
   );
-
-  const changeAiModel = useCallback((model: SupportedAiModel) => {
-    setAiModel(model);
-    window.localStorage.setItem(AI_MODEL_STORAGE_KEY, model);
-    const label = supportedAiModels.find((item) => item.id === model)?.label || model;
-    setNotice(`后续平台 AI 将使用 ${label}。`);
-  }, []);
 
   const closeScheduleEditor = useCallback(() => {
     setScheduleDialogOpen(false);
@@ -2288,33 +2906,91 @@ export function CourseWorkspace({
     ],
   );
 
+  const addChatImages = useCallback(
+    async (files: File[]) => {
+      if (!files.length) return;
+      const courseId = workspace.course.id;
+      const room = Math.max(0, MAX_CHAT_IMAGES - pendingImages.length);
+      const prepared = await Promise.allSettled(files.slice(0, room).map(prepareChatImage));
+      if (activeCourseIdRef.current !== courseId) return;
+      const images = prepared.flatMap((result) =>
+        result.status === 'fulfilled' ? [result.value] : [],
+      );
+      const failures = prepared.flatMap((result) =>
+        result.status === 'rejected' ? [errorMessage(result.reason)] : [],
+      );
+      if (files.length > room)
+        failures.push(`一次最多发送 ${MAX_CHAT_IMAGES} 张图片，多出的已忽略。`);
+      setPendingImages((current) => [...current, ...images].slice(0, MAX_CHAT_IMAGES));
+      if (failures.length) setError((current) => [current, ...failures].filter(Boolean).join('\n'));
+    },
+    [pendingImages.length, workspace.course.id],
+  );
+
+  const addChatFiles = useCallback(
+    async (files: File[]) => {
+      if (!files.length) return;
+      const courseId = workspace.course.id;
+      const room = Math.max(0, MAX_CHAT_FILES - pendingFiles.length);
+      const prepared = await Promise.allSettled(files.slice(0, room).map(prepareChatFile));
+      if (activeCourseIdRef.current !== courseId) return;
+      const ready = prepared.flatMap((result) =>
+        result.status === 'fulfilled' ? [result.value] : [],
+      );
+      const failures = prepared.flatMap((result) =>
+        result.status === 'rejected' ? [errorMessage(result.reason)] : [],
+      );
+      if (files.length > room) failures.push(`一次最多发送 ${MAX_CHAT_FILES} 个文件。`);
+      setPendingFiles((current) => [...current, ...ready].slice(0, MAX_CHAT_FILES));
+      if (failures.length) setError((current) => [current, ...failures].filter(Boolean).join('\n'));
+    },
+    [pendingFiles.length, workspace.course.id],
+  );
+
+  /** 聊天“+”和拖进聊天的东西：图片走照片，其余当文件发给助教。 */
+  const addChatAttachments = useCallback(
+    async (files: File[]) => {
+      await Promise.all([
+        addChatImages(files.filter(isChatImageFile)),
+        addChatFiles(files.filter((file) => !isChatImageFile(file))),
+      ]);
+    },
+    [addChatFiles, addChatImages],
+  );
+
   const handleImageSelection = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.target.files || []);
       event.target.value = '';
-      if (!files.length) return;
-      void (async () => {
-        setError(null);
-        const room = MAX_CHAT_IMAGES - pendingImages.length;
-        if (room <= 0) {
-          setError(`一次最多发送 ${MAX_CHAT_IMAGES} 张图片。`);
-          return;
-        }
-        if (files.length > room) setError(`一次最多发送 ${MAX_CHAT_IMAGES} 张图片，多出的已忽略。`);
-        const prepared = await Promise.all(files.slice(0, room).map(prepareChatImage));
-        setPendingImages((current) => [...current, ...prepared].slice(0, MAX_CHAT_IMAGES));
-      })().catch((cause) => setError(errorMessage(cause)));
+      setError(null);
+      void addChatAttachments(files).catch((cause) => setError(errorMessage(cause)));
     },
-    [pendingImages.length],
+    [addChatAttachments],
+  );
+
+  const handleChatFileDrop = useCallback(
+    (files: File[]) => {
+      setError(null);
+      setNotice(null);
+      void addChatAttachments(files).catch((cause) => setError(errorMessage(cause)));
+    },
+    [addChatAttachments],
+  );
+
+  const chatFileDragging = useChatFileDrop(
+    chatDropTargetRef,
+    !phoneLayout && !phonePage && !resource && !activeMiniLecture,
+    handleChatFileDrop,
   );
 
   const handleAttachmentSelection = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.target.files || []);
       event.target.value = '';
-      void addFiles(files, 'attachment').catch((cause) => setError(errorMessage(cause)));
+      setError(null);
+      void addChatAttachments(files).catch((cause) => setError(errorMessage(cause)));
     },
-    [addFiles],
+    [addChatAttachments],
   );
 
   const handleProblemUploadSelection = useCallback(
@@ -2432,6 +3108,7 @@ export function CourseWorkspace({
       setSelectedConversationId(conversation.id);
       setMessages([]);
       setMobilePanel(null);
+      setPhonePage(null);
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -2445,6 +3122,7 @@ export function CourseWorkspace({
     activeConversationIdRef.current = conversationId;
     setSelectedConversationId(conversationId);
     setMobilePanel(null);
+    setPhonePage(null);
   }, []);
 
   const saveCourseSettings = useCallback(async () => {
@@ -2487,6 +3165,8 @@ export function CourseWorkspace({
       // 网页课程的对话先在网页删除，失败就保留本机记录，避免下次同步又出现。
       await deleteRemoteConversation(repository, deleting);
       await repository.deleteConversation(deleting.id);
+      // 这条对话里记下的记忆一起删掉（网页同步下来的不动）。
+      await deleteConversationMemories(repository, deleting.id);
       if (selectedConversationId === deleting.id) {
         conversationLoadRequestRef.current += 1;
         skipConversationLoadRef.current = null;
@@ -2496,7 +3176,7 @@ export function CourseWorkspace({
       }
       setConversationToDelete(null);
       await onWorkspaceChanged();
-      setNotice(`已删除会话“${deleting.title}”。`);
+      setNotice(null);
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -2505,30 +3185,54 @@ export function CourseWorkspace({
   }, [busy, conversationToDelete, onWorkspaceChanged, selectedConversationId]);
 
   const openNotebook = useCallback(async (notebook: LocalNotebook) => {
+    const requestId = ++notebookLoadRequestRef.current;
     setResourceBusy(true);
     setError(null);
     try {
       const repository = await getLocalRepository();
-      const document = await repository.loadNotebookDocument(notebook.id);
+      const document = await loadNotebookForReading(repository, notebook.id);
       if (!document) throw new Error('本地找不到这个笔记本。');
+      if (requestId !== notebookLoadRequestRef.current) return;
       setResource({ kind: 'notebook', document });
       setMobilePanel(null);
     } catch (cause) {
-      setError(errorMessage(cause));
+      if (requestId === notebookLoadRequestRef.current) setError(errorMessage(cause));
     } finally {
-      setResourceBusy(false);
+      if (requestId === notebookLoadRequestRef.current) setResourceBusy(false);
     }
   }, []);
 
+  const openNotebookById = useCallback(
+    (notebookId: string) => {
+      const notebook = workspace.notebooks.find(({ id }) => id === notebookId);
+      if (notebook) void openNotebook(notebook);
+    },
+    [openNotebook, workspace.notebooks],
+  );
+
+  // iPad 和桌面上题库也占满右侧聊天区，侧边栏保留；做题时才进入全屏。
   const openProblemBank = useCallback(() => {
-    onOpenProblemBank();
+    if (phoneLayout) onOpenProblemBank();
+    else setPhonePage('problems');
     setMobilePanel(null);
-  }, [onOpenProblemBank]);
+  }, [onOpenProblemBank, phoneLayout]);
+
+  const openPracticeFromBank = useCallback(
+    (launch: ProblemBankLaunch) => {
+      try {
+        window.sessionStorage.setItem(OPEN_PHONE_PAGE_KEY, 'problems');
+      } catch {
+        // 存不了就做完题回到聊天。
+      }
+      onOpenPractice(launch);
+    },
+    [onOpenPractice],
+  );
 
   const openNotebookLibrary = useCallback(() => {
-    onOpenNotebookLibrary();
     setMobilePanel(null);
-  }, [onOpenNotebookLibrary]);
+    setPhonePage('notes');
+  }, []);
 
   const openCalendarDialog = useCallback(() => {
     setCalendarDialogOpen(true);
@@ -2538,8 +3242,33 @@ export function CourseWorkspace({
 
   const openMemoryDialog = useCallback((memoryId: string | null = null) => {
     setFocusedMemoryId(memoryId);
-    setMemoryDialogOpen(true);
     setMobilePanel(null);
+    setPhonePage('memory');
+  }, []);
+
+  const openCourseJar = useCallback(
+    (courseId: string) => {
+      if (courseId === workspace.course.id) {
+        setFocusedMemoryId(null);
+        setPhonePage('memory');
+        return;
+      }
+      try {
+        window.sessionStorage.setItem(OPEN_PHONE_PAGE_KEY, 'memory');
+      } catch {
+        // 存不了就只换课，不自动打开记忆页。
+      }
+      onSwitchCourse(courseId);
+    },
+    [onSwitchCourse, workspace.course.id],
+  );
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.removeItem(OPEN_PHONE_PAGE_KEY);
+    } catch {
+      // ignore
+    }
   }, []);
 
   const closeMemoryDialog = useCallback(() => {
@@ -2741,6 +3470,18 @@ export function CourseWorkspace({
       setActiveMiniLecture(runtimeDeck);
     } catch (cause) {
       if (requestId === miniLectureLoadRequestRef.current) setError(errorMessage(cause));
+    } finally {
+      if (requestId === miniLectureLoadRequestRef.current) setMiniLectureLoadingDeckId(null);
+    }
+  }, []);
+
+  const openRemoteMiniLecture = useCallback(async (lecture: NativeSyncedMiniLecture) => {
+    const requestId = ++miniLectureLoadRequestRef.current;
+    setMiniLectureLoadingDeckId(lecture.id);
+    try {
+      const manifest = await getNativeMiniLecture(lecture.id);
+      const runtimeDeck = miniLectureManifestToRuntime(manifest);
+      if (requestId === miniLectureLoadRequestRef.current) setActiveMiniLecture(runtimeDeck);
     } finally {
       if (requestId === miniLectureLoadRequestRef.current) setMiniLectureLoadingDeckId(null);
     }
@@ -2962,29 +3703,72 @@ export function CourseWorkspace({
           const memoryValue = Object.keys(candidate).length ? candidate : payload;
           const text = payloadText(memoryValue, 'text', 'content', 'summary');
           if (!text) throw new Error('这个记忆提案缺少可写入的学习结论。');
+          const kind = payloadText(memoryValue, 'kind') || 'learner_state';
+          const notebookId = payloadText(memoryValue, 'notebookId');
+          // 星图按这些字符串连线：section:笔记节、concept:概念、problem:题目。
+          const references = payloadStringList(memoryValue.sourceReferences);
+          // 同一个点已经有珠子了（AI 指明的那颗，或同章节、同种类、共用一个概念的那颗）：合并，不新增。
+          const requestedId = payloadText(memoryValue, 'id', 'memoryId');
+          const existing =
+            workspace.memories.find((item) => item.id === requestedId) ??
+            workspace.memories.find(
+              (item) =>
+                item.status === 'active' &&
+                item.kind === kind &&
+                (item.notebookId ?? '') === notebookId &&
+                item.sourceReferences.some(
+                  (ref) =>
+                    typeof ref === 'string' &&
+                    ref.startsWith('concept:') &&
+                    references.includes(ref),
+                ),
+            );
           const timestamp = Date.now();
           const memory = await repository.upsertStudyMemory({
-            id:
-              payloadText(memoryValue, 'id', 'memoryId') || `native-memory-${crypto.randomUUID()}`,
+            id: existing?.id ?? `native-memory-${crypto.randomUUID()}`,
             courseId: workspace.course.id,
-            notebookId: payloadText(memoryValue, 'notebookId') || null,
+            notebookId: notebookId || existing?.notebookId || null,
             targetType: payloadText(memoryValue, 'targetType') || 'course',
             scope: payloadText(memoryValue, 'scope') || 'course',
-            kind: payloadText(memoryValue, 'kind') || 'learner_state',
+            kind,
             status: 'active',
             source: 'ai-proposal-confirmed',
+            // 合并进旧珠子时，它还算最初记下它的那条对话。
+            conversationId: existing ? (existing.conversationId ?? null) : message.conversationId,
             title: payloadText(memoryValue, 'title') || action.label,
             text,
             reason: payloadText(memoryValue, 'reason') || action.summary || null,
             question: payloadText(memoryValue, 'question') || null,
-            sourceReferences: Array.isArray(memoryValue.sourceReferences)
-              ? memoryValue.sourceReferences
-              : (message.metadata?.evidence ?? []),
+            sourceReferences: [
+              ...new Set([
+                ...(existing?.sourceReferences ?? []).filter(
+                  (ref): ref is string => typeof ref === 'string',
+                ),
+                ...references,
+              ]),
+            ],
             confidence: typeof memoryValue.confidence === 'number' ? memoryValue.confidence : null,
-            createdAt: timestamp,
+            createdAt: existing?.createdAt ?? timestamp,
             updatedAt: timestamp,
           });
+          if (existing) markMemoryReviewed(existing.id, timestamp);
           await onWorkspaceChanged();
+          // 推到服务器，iPad / 电脑上也能看到这颗珠子（网页看不到）。
+          void syncAppMemories(repository, workspace.course.id).catch((cause) =>
+            console.warn('[memory-sync] push failed', cause),
+          );
+          // 记住了：右下角浮出这门课的小星图，卡片上的珠子飞进去，再蹦到它的章节旁边。
+          setMarbleCatch({
+            key: `${memory.id}:${Date.now()}`,
+            courseId: workspace.course.id,
+            courseLabel: workspace.course.courseCode || workspace.course.name,
+            notebooks: workspace.notebooks,
+            memories: workspace.memories.filter((item) => item.id !== memory.id),
+            incoming: memory,
+            from: document.querySelector(
+              `[data-learning-action-id="${CSS.escape(action.id)}"] .learning-confirmation-mark`,
+            ),
+          });
           summary = `已写入本机学习记忆：${memory.title}`;
           output = { memoryId: memory.id };
         } else if (action.kind === 'practice.propose_generation') {
@@ -3085,15 +3869,27 @@ export function CourseWorkspace({
       openMemoryDialog,
       scheduleItems,
       workspace.course.id,
+      workspace.course.courseCode,
+      workspace.course.name,
+      workspace.memories,
+      workspace.notebooks,
       workspace.problems,
     ],
   );
 
+  const sendButtonRef = useRef<HTMLButtonElement | null>(null);
   const send = useCallback(
     async (event: FormEvent) => {
       event.preventDefault();
       const images = pendingImages;
-      const text = draft.trim() || (images.length ? '请看图片里的题目，帮我讲解。' : '');
+      const attachedFiles = pendingFiles;
+      const text =
+        draft.trim() ||
+        (images.length
+          ? '请看图片里的题目，帮我讲解。'
+          : attachedFiles.length
+            ? '帮我看看这个文件。'
+            : '');
       if (!text || busy) return;
       if (!teachingTurnAvailable) {
         setError(platformAiAccess.message);
@@ -3103,6 +3899,8 @@ export function CourseWorkspace({
       setError(null);
       setDraft('');
       setPendingImages([]);
+      setPendingFiles([]);
+      replayClass(sendButtonRef.current, 'is-rolling');
       let userMessage: LocalMessage | null = null;
       let optimisticAssistantId: string | null = null;
       try {
@@ -3123,13 +3921,28 @@ export function CourseWorkspace({
           conversationId,
           role: 'user',
           text,
-          ...(images.length
+          ...(images.length || attachedFiles.length
             ? {
                 metadata: {
-                  images: images.map(({ name, thumbnailDataUrl }) => ({
-                    name,
-                    thumbnailDataUrl,
-                  })),
+                  ...(images.length
+                    ? {
+                        images: images.map(({ name, thumbnailDataUrl }) => ({
+                          name,
+                          thumbnailDataUrl,
+                        })),
+                      }
+                    : {}),
+                  // 原文件不存，只记名字和类型，历史里显示成文件药丸。
+                  ...(attachedFiles.length
+                    ? {
+                        files: attachedFiles.map(({ name, kind, size, mimeType }) => ({
+                          name,
+                          kind,
+                          size,
+                          mimeType,
+                        })),
+                      }
+                    : {}),
                 },
               }
             : {}),
@@ -3151,136 +3964,48 @@ export function CourseWorkspace({
           orderedProgressNotebooks.length,
           Math.max(0, courseLearningState?.completedNotebookCount ?? 0),
         );
-        const readableNotebooks = orderedProgressNotebooks.slice(0, completedNotebookCount);
-        const readableNotebookIds = new Set(readableNotebooks.map((notebook) => notebook.id));
-        const recentReadableNotebooks = readableNotebooks.slice(-8);
-        const readableMemories = workspace.memories.filter(
-          (memory) => !memory.notebookId || readableNotebookIds.has(memory.notebookId),
-        );
-        const [problemProgress, notebookDocuments] = await Promise.all([
-          repository.listProblemProgress(workspace.course.id),
-          Promise.all(
-            recentReadableNotebooks.map((notebook) => repository.loadNotebookDocument(notebook.id)),
-          ),
-        ]);
-        const progressByProblemId = new Map(
-          problemProgress.map((progress) => [progress.problemId, progress]),
-        );
-        const recentProblemDocuments = await Promise.all(
-          problemProgress
-            .filter((progress) => Boolean(progress.latestAttemptId))
-            .slice(0, 12)
-            .map((progress) => repository.loadProblemDocument(progress.problemId)),
-        );
-        const recentAttemptContext = recentProblemDocuments
-          .flatMap((document) => {
-            if (!document) return [];
-            const progress = progressByProblemId.get(document.problem.id);
-            return document.attempts.slice(0, 2).map((attempt) => {
-              const result = attempt.result ?? {};
-              return {
-                id: attempt.id,
-                problemId: document.problem.id,
-                problemTitle: document.problem.title.slice(0, 300),
-                problemType: document.problem.type,
-                status: attempt.status.slice(0, 80),
-                score: attempt.score,
-                attemptedCount: progress?.attemptedCount,
-                passedCount: progress?.passedCount,
-                answer: boundedJson(attempt.answer, 2_400),
-                feedback: payloadText(result, 'feedback').slice(0, 1_200),
-                attemptedAt: new Date(attempt.createdAt).toISOString(),
-              };
-            });
-          })
-          .sort((left, right) => right.attemptedAt.localeCompare(left.attemptedAt))
-          .slice(0, 16);
-        const notebookExcerpts = notebookDocuments.flatMap((document) => {
-          if (!document) return [];
-          const markdown = document.markdownSections
-            .slice(0, 4)
-            .map((section) => `## ${section.title}\n${section.markdown}`)
-            .join('\n\n')
-            .slice(0, 8000);
-          const pageSummary = document.pages
-            .slice(0, 4)
-            .map((page) => `${page.title}\n${boundedJson(page.content)}`)
-            .join('\n\n')
-            .slice(0, 8000);
-          const content = markdown || pageSummary;
-          return content
-            ? [
-                {
-                  id: document.notebook.id,
-                  title: document.notebook.name,
-                  content,
-                  sourceRef: `native-notebook:${document.notebook.id}`,
-                },
-              ]
-            : [];
+        const surface = detectChatSurface(phoneLayout);
+        const context = await buildNativeChatContext({
+          repository,
+          workspace,
+          surface,
+          readableNotebooks: orderedProgressNotebooks.slice(0, completedNotebookCount),
+          learningState: courseLearningState,
+          scheduleItems,
+          history,
         });
-        const result = await streamAssistantReply(
+        setThinkingRecall({
+          messageId: optimisticAssistantId,
+          memoryKinds: context.memories.map((memory) => memory.kind),
+          noteCount: context.notes.length,
+        });
+        const result = await streamNativeChat(
           {
             requestId: optimisticAssistantId,
-            courseId: workspace.course.id,
-            courseName: workspace.course.name,
-            courseCode: workspace.course.courseCode,
-            courseDescription: workspace.course.description,
-            conversationId,
-            messages: history,
-            model: aiModel,
+            surface,
+            course: {
+              id: workspace.course.id,
+              name: workspace.course.name,
+              code: workspace.course.courseCode,
+              description: workspace.course.description.slice(0, 4000),
+              language: workspace.course.language,
+            },
+            messages: history.flatMap(({ role, text }) =>
+              role === 'user' || role === 'assistant' ? [{ role, text: text.slice(0, 6000) }] : [],
+            ),
             images: images.map(({ name, mimeType, dataBase64 }) => ({
               name,
               mimeType,
               dataBase64,
             })),
-            localContext: {
-              calendarEvents: scheduleItems.slice(0, 120),
-              memories: [
-                {
-                  id: `course-progress:${workspace.course.id}`,
-                  title: '课程学习进度',
-                  kind: 'course_progress',
-                  text: `已完成 ${courseLearningState?.completedNotebookCount ?? 0} / ${workspace.notebooks.length} 本笔记本（${
-                    workspace.notebooks.length
-                      ? Math.round(
-                          ((courseLearningState?.completedNotebookCount ?? 0) /
-                            workspace.notebooks.length) *
-                            100,
-                        )
-                      : 0
-                  }%）。`,
-                  currentNotebookId: courseLearningState?.currentNotebookId ?? null,
-                  readableNotebookIds: readableNotebooks.map((notebook) => notebook.id),
-                  scopeRule:
-                    'Only use notebook content and notebook-scoped memories at or before the saved learning progress.',
-                  updatedAt: courseLearningState?.updatedAt ?? Date.now(),
-                },
-                ...readableMemories,
-              ].slice(0, 40),
-              attempts: recentAttemptContext,
-              problemCandidates: workspace.problems
-                .filter((problem) => problem.status !== 'archived')
-                .slice(0, 40)
-                .map((problem) => ({
-                  id: problem.id,
-                  problemId: problem.id,
-                  title: problem.title,
-                  type: problem.type,
-                  difficulty: problem.difficulty,
-                  tags: problem.tags,
-                  excerpt: boundedJson(problem.publicContent),
-                  latestAttemptStatus: progressByProblemId.get(problem.id)?.status ?? null,
-                })),
-              notebookExcerpts,
-              sourceExcerpts: [],
-              recentPlans: messages
-                .flatMap((message) =>
-                  message.metadata?.reviewPlan ? [message.metadata.reviewPlan] : [],
-                )
-                .slice(-8),
-            },
+            files: attachedFiles.map(({ name, mimeType, dataBase64 }) => ({
+              name,
+              mimeType,
+              dataBase64,
+            })),
+            context,
           },
+          { responseStrength: phoneResponseStrength, model: aiModel },
           (delta) =>
             setMessages((current) => {
               if (activeConversationIdRef.current !== conversationId) return current;
@@ -3318,10 +4043,17 @@ export function CourseWorkspace({
           updatedAt: now,
         }).catch((cause) => console.warn('[chat-sync] push failed', cause));
         await onWorkspaceChanged();
+        // 学生明说“记住…”的那条记忆不用再点确认，直接飞进星图。
+        for (const action of assistantMessage.metadata?.learningActions ?? []) {
+          if (action.kind === 'memory.propose_write' && action.payload?.autoConfirm === true) {
+            await executeLearningAction(assistantMessage, action);
+          }
+        }
       } catch (cause) {
         if (!userMessage) {
           setDraft(draft);
           setPendingImages(images);
+          setPendingFiles(attachedFiles);
         }
         if (optimisticAssistantId) {
           setMessages((current) =>
@@ -3338,27 +4070,25 @@ export function CourseWorkspace({
       busy,
       courseLearningState,
       draft,
+      executeLearningAction,
       messages,
       onWorkspaceChanged,
+      phoneLayout,
+      phoneResponseStrength,
       platformAiAccess.message,
       selectedConversationId,
-      workspace.conversations,
-      workspace.course.description,
-      workspace.course.courseCode,
-      workspace.course.id,
-      workspace.course.name,
-      workspace.memories,
-      workspace.notebooks,
-      workspace.problems,
+      workspace,
       scheduleItems,
       teachingTurnAvailable,
       pendingImages,
+      pendingFiles,
     ],
   );
 
   const sessionPanel = (
     <SessionsPanel
       conversations={workspace.conversations}
+      paging={conversationPaging}
       selectedConversationId={selectedConversationId}
       busy={busy}
       onBack={onBack}
@@ -3458,160 +4188,316 @@ export function CourseWorkspace({
     </div>
   );
 
+  const currentConversationTitle =
+    workspace.conversations.find((conversation) => conversation.id === selectedConversationId)
+      ?.title || '新聊天';
   const courseAvatarUrl = resolveNativeCourseAvatar(
     workspace.course.id,
     workspace.course.courseCode,
     courseAvatarIdDraft,
   );
 
+  const messageWindowStart = Math.max(0, messages.length - visibleMessageCount);
+  const rememberScrollBeforePrepend = () => {
+    const content = conversationContentRef.current;
+    prependScrollRef.current = content
+      ? { height: content.scrollHeight, top: content.scrollTop }
+      : null;
+  };
+  const loadOlderMessages = useCallback(async () => {
+    if (messageWindowStart > 0) {
+      rememberScrollBeforePrepend();
+      setVisibleMessageCount((count) => count + LIST_WINDOW_SIZE);
+      return;
+    }
+    const conversationId = activeConversationIdRef.current;
+    if (!olderMessageCursor || !conversationId) return;
+    setOlderMessagesState('loading');
+    try {
+      const repository = await getLocalRepository();
+      const page = await loadOlderConversationMessages(
+        repository,
+        courseIdRef.current,
+        conversationId,
+        olderMessageCursor,
+      );
+      if (activeConversationIdRef.current !== conversationId) return;
+      if (page?.inserted) {
+        const loaded = await repository.listMessages(conversationId);
+        if (activeConversationIdRef.current !== conversationId) return;
+        rememberScrollBeforePrepend();
+        // 正在回复时也能翻：只补进本地还没有的更早消息，不动正在生成的那几条。
+        setMessages((current) => {
+          const known = new Set(current.map((message) => message.id));
+          const older = loaded.filter((message) => !known.has(message.id));
+          return older.length
+            ? [...older, ...current].sort((left, right) => left.createdAt - right.createdAt)
+            : current;
+        });
+        setVisibleMessageCount((count) => count + LIST_WINDOW_SIZE);
+      }
+      setOlderMessageCursor(page?.olderCursor ?? null);
+      setOlderMessagesState('idle');
+    } catch (cause) {
+      console.warn('[chat-sync] older messages failed', cause);
+      if (activeConversationIdRef.current === conversationId) setOlderMessagesState('error');
+    }
+  }, [messageWindowStart, olderMessageCursor]);
+
+  // 往上加载更早的消息后保持正在看的位置，不跳到顶部。
+  useLayoutEffect(() => {
+    const anchor = prependScrollRef.current;
+    const content = conversationContentRef.current;
+    if (!anchor || !content) return;
+    prependScrollRef.current = null;
+    content.scrollTop = anchor.top + (content.scrollHeight - anchor.height);
+  }, [messages, visibleMessageCount]);
+
+  // 手机聊天：停在底部时新消息、图片加载和键盘弹出都跟着滚到底；往上翻过就不打扰。
+  const scrollToBottomIfPinned = useCallback(() => {
+    const content = conversationContentRef.current;
+    if (!content || !pinnedToBottomRef.current) return;
+    content.scrollTop = content.scrollHeight;
+  }, []);
+
+  useLayoutEffect(() => {
+    pinnedToBottomRef.current = true;
+  }, [selectedConversationId]);
+
+  useLayoutEffect(() => {
+    scrollToBottomIfPinned();
+  }, [messages, scrollToBottomIfPinned]);
+
+  const closePhonePage = () => {
+    setPhonePage(null);
+    if (phonePageFromDrawerRef.current) setMobilePanel('sessions');
+    phonePageFromDrawerRef.current = false;
+  };
+
+  const hasMessages = messages.length > 0;
+  useEffect(() => {
+    const content = conversationContentRef.current;
+    const stream = content?.firstElementChild;
+    if (!stream || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(scrollToBottomIfPinned);
+    observer.observe(stream);
+    return () => observer.disconnect();
+  }, [hasMessages, scrollToBottomIfPinned]);
+
+  // 安卓返回键：依次关掉最上层的确认框、阅读器、课堂、二级页面和抽屉。
+  useBackDismiss(Boolean(conversationToDelete), () => setConversationToDelete(null));
+  useBackDismiss(Boolean(resource), () => setResource(null));
+  useBackDismiss(Boolean(activeMiniLecture), () => setActiveMiniLecture(null));
+  useBackDismiss(Boolean(phonePage), closePhonePage);
+  useBackDismiss(phoneLayout && mobilePanel !== null, () => setMobilePanel(null));
+
+  // iPad 的软键盘同样会挤占可视区域；桌面上可视区域不变，等于不生效。
+  usePhoneKeyboardInset(true, workspaceRef, scrollToBottomIfPinned);
+
+  // 输入框随文字变高，最多五六行。
+  useLayoutEffect(() => {
+    const textarea = composerTextareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 140)}px`;
+  }, [draft]);
+
+  const handleConversationScroll = () => {
+    const content = conversationContentRef.current;
+    if (!content) return;
+    pinnedToBottomRef.current =
+      content.scrollHeight - content.scrollTop - content.clientHeight < 80;
+  };
+
+  // 手指在聊天记录上划动时收起键盘，和 ChatGPT 一样。
+  const dismissKeyboardOnDrag = (event: ReactTouchEvent<HTMLDivElement>) => {
+    const start = swipeStartRef.current;
+    const touch = event.touches[0];
+    if (!phoneLayout || !start || !touch) return;
+    if (Math.abs(touch.clientY - start.y) < 12) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest('.conversation-composer')) active.blur();
+  };
+
+  // 从屏幕左边缘往右划打开侧边栏；打开后往左划关上。
+  const handleWorkspaceTouchStart = (event: ReactTouchEvent<HTMLElement>) => {
+    const touch = event.touches[0];
+    if (!touch || event.touches.length > 1) {
+      swipeStartRef.current = null;
+      return;
+    }
+    swipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleWorkspaceTouchEnd = (event: ReactTouchEvent<HTMLElement>) => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    const touch = event.changedTouches[0];
+    if (!phoneLayout || !start || !touch || phonePage) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (mobilePanel === 'sessions') {
+      if (dx < 0) setMobilePanel(null);
+    } else if (!mobilePanel && dx > 0 && start.x <= 28) {
+      setMobilePanel('sessions');
+    }
+  };
+
+  // 手机上侧边栏是抽屉，打开二级页面时先收起、返回时再打开；iPad 和桌面上侧边栏常驻。
+  const openFromDrawer = (open: () => void) => {
+    if (phoneLayout) {
+      phonePageFromDrawerRef.current = true;
+      setMobilePanel(null);
+    }
+    open();
+  };
+  const courseToolActions: DrawerLearningAction[] = [
+    { id: 'notes', label: '笔记', icon: BookOpen, open: openNotebookLibrary },
+    { id: 'progress', label: '学习进度', icon: Target, open: () => setPhonePage('progress') },
+    {
+      id: 'memory',
+      label: '学习记忆',
+      icon: Brain,
+      open: () => openMemoryDialog(),
+      count: workspace.memories.length,
+    },
+    { id: 'calendar', label: '日历', icon: CalendarDays, open: () => setPhonePage('calendar') },
+    { id: 'classroom', label: '课堂', icon: Presentation, open: () => setPhonePage('classroom') },
+    ...(!phoneLayout
+      ? [{ id: 'problems', label: '题库', icon: FileQuestion, open: openProblemBank }]
+      : []),
+  ];
+
+  const renderPhoneDrawer = () => (
+    <PhoneChatDrawer
+      learningActions={courseToolActions.map((action) => ({
+        ...action,
+        open: () => openFromDrawer(action.open),
+      }))}
+      courses={courses}
+      selectedCourseId={workspace.course.id}
+      selectedCourseAvatarUrl={courseAvatarUrl}
+      conversations={workspace.conversations}
+      paging={conversationPaging}
+      onRemoteSearch={searchRemoteConversations}
+      selectedConversationId={selectedConversationId}
+      busy={busy}
+      onCreateConversation={() => void createConversation()}
+      onDeleteConversation={setConversationToDelete}
+      onSelectCourse={(courseId) => {
+        // Course rows always return to chat, including the currently selected course.
+        notebookLoadRequestRef.current += 1;
+        miniLectureLoadRequestRef.current += 1;
+        phonePageFromDrawerRef.current = false;
+        setMobilePanel(null);
+        setPhonePage(null);
+        setResource(null);
+        setResourceBusy(false);
+        setActiveMiniLecture(null);
+        setMiniLectureLoadingDeckId(null);
+        try {
+          window.sessionStorage.removeItem(OPEN_PHONE_PAGE_KEY);
+        } catch {
+          // Returning to the current chat still works without session storage.
+        }
+        if (courseId !== workspace.course.id) onSwitchCourse(courseId);
+      }}
+      onOpenProfile={() => openFromDrawer(() => setPhonePage('profile'))}
+      onSelectConversation={selectConversation}
+    />
+  );
+
   return (
     <section
+      ref={workspaceRef}
+      onTouchStart={phoneLayout ? handleWorkspaceTouchStart : undefined}
+      onTouchEnd={phoneLayout ? handleWorkspaceTouchEnd : undefined}
       className={`course-workspace${leftRailCollapsed ? ' workspace-left-collapsed' : ''}${
         rightRailCollapsed ? ' workspace-right-collapsed' : ''
-      }${phoneLayout && mobilePanel === 'sessions' ? ' phone-drawer-open' : ''}`}
+      }${phoneLayout && mobilePanel === 'sessions' ? ' phone-drawer-open' : ''}${
+        phoneLayout ? '' : ' is-split'
+      }${!phoneLayout && splitSidebarCollapsed ? ' is-sidebar-collapsed' : ''}`}
       aria-label={`${workspace.course.name} 课程工作台`}
     >
       <aside className="workspace-sidebar workspace-sidebar-left">
-        {leftRailCollapsed ? compactSessionPanel : sessionPanel}
+        {phoneLayout
+          ? leftRailCollapsed
+            ? compactSessionPanel
+            : sessionPanel
+          : renderPhoneDrawer()}
       </aside>
 
-      <main className="conversation-workspace">
-        {phoneLayout ? (
-          <header className="phone-chat-header">
+      <main ref={chatDropTargetRef} className="conversation-workspace">
+        {chatFileDragging ? (
+          <div className="chat-file-drop-overlay" role="status">
+            <div>
+              <CloudUpload size={36} strokeWidth={1.5} />
+              <strong>松开以添加文件</strong>
+              <span>图片加入聊天，文本资料保存到当前课程</span>
+              <small>支持图片、TXT、Markdown、CSV、JSON 和代码文本</small>
+            </div>
+          </div>
+        ) : null}
+        {phoneLayout && mobilePanel === 'sessions' ? (
+          <button
+            type="button"
+            className="phone-drawer-dismiss"
+            onClick={() => setMobilePanel(null)}
+            aria-label="关闭菜单"
+          />
+        ) : null}
+        <header
+          className="phone-chat-header"
+          data-tauri-drag-region={
+            document.documentElement.classList.contains('platform-macos') ? 'deep' : undefined
+          }
+        >
+          {phoneLayout ? (
             <button
               type="button"
-              className="phone-round-button"
+              className="phone-glass-button"
               onClick={() => setMobilePanel('sessions')}
               aria-label="打开菜单"
             >
-              <Menu size={20} />
+              <Menu size={20} strokeWidth={1.8} />
             </button>
+          ) : (
             <button
               type="button"
-              className="phone-course-pill"
-              onClick={onBack}
-              aria-label="切换课程"
+              className="phone-glass-button"
+              onClick={() => setSplitSidebarCollapsed((collapsed) => !collapsed)}
+              aria-label={splitSidebarCollapsed ? '显示侧边栏' : '隐藏侧边栏'}
             >
-              <img src={courseAvatarUrl} alt="" aria-hidden />
-              <span>{workspace.course.courseCode || workspace.course.name}</span>
-              <ChevronDown size={15} />
+              <PanelLeft size={20} strokeWidth={1.8} />
             </button>
-            <button
-              type="button"
-              className="phone-round-button"
-              onClick={() => void createConversation()}
-              disabled={busy}
-              aria-label="新聊天"
-            >
-              <SquarePen size={19} />
-            </button>
-          </header>
-        ) : (
-          <header className="conversation-header">
-            <div className="compact-nav-actions">
-              <button
-                type="button"
-                className="round-outline-button"
-                onClick={() => setMobilePanel('sessions')}
-                aria-label="打开会话历史"
-              >
-                <Menu size={17} />
-              </button>
-            </div>
+          )}
+          <div className="phone-chat-title">
+            <span>
+              <strong>{workspace.course.courseCode || workspace.course.name}</strong>
+              <small>{currentConversationTitle}</small>
+            </span>
+          </div>
+          <button
+            type="button"
+            className="phone-glass-button"
+            onClick={() => void createConversation()}
+            disabled={busy}
+            aria-label="新聊天"
+          >
+            <SquarePen size={20} strokeWidth={1.8} />
+          </button>
+        </header>
 
-            <img
-              className="conversation-course-avatar"
-              src={resolveNativeCourseAvatar(
-                workspace.course.id,
-                workspace.course.courseCode,
-                courseAvatarIdDraft,
-              )}
-              alt=""
-              aria-hidden
-            />
-            <div className="conversation-course-copy">
-              <div className="conversation-course-title">
-                <h1>{workspace.course.courseCode || workspace.course.name}</h1>
-                <span>当前课程上下文</span>
-              </div>
-              <div className="course-status-pills" role="status">
-                <span>
-                  <CircleGauge size={10} />
-                  课程 本机
-                </span>
-                <span className="status-ready">
-                  <CheckCircle2 size={10} />
-                  对话 本机
-                </span>
-                <button
-                  type="button"
-                  className="status-ready"
-                  onClick={openProblemBank}
-                  title="打开题库"
-                >
-                  <CheckCircle2 size={10} />
-                  题库 {workspace.problems.length}
-                </button>
-                <button type="button" onClick={openNotebookLibrary} title="打开笔记本库">
-                  <CircleGauge size={10} />
-                  笔记本 {workspace.notebooks.length}
-                </button>
-              </div>
-            </div>
-
-            <div className="conversation-header-spacer" />
-            <button
-              type="button"
-              className="memory-orb"
-              onClick={() => openMemoryDialog()}
-              aria-label={`打开学习记忆，共 ${workspace.memories.length} 条`}
-              title="学习记忆"
-            >
-              <span />
-              {workspace.memories.length ? <small>{workspace.memories.length}</small> : null}
-            </button>
-            <button
-              type="button"
-              className="round-outline-button compact-tools-button"
-              onClick={() => setMobilePanel('tools')}
-              aria-label="打开课程工具"
-            >
-              <SlidersHorizontal size={17} />
-            </button>
-            <div className="phone-header-actions">
-              <button type="button" onClick={openNotebookLibrary} aria-label="打开笔记">
-                <BookOpen size={17} />
-                <span>笔记</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMobilePanel('progress')}
-                aria-label="打开学习进度"
-              >
-                <Target size={17} />
-                <span>进度</span>
-              </button>
-            </div>
-          </header>
-        )}
-
-        <div className="conversation-content">
+        <div
+          ref={conversationContentRef}
+          className="conversation-content"
+          onScroll={handleConversationScroll}
+          onTouchMove={phoneLayout ? dismissKeyboardOnDrag : undefined}
+        >
           {messages.length === 0 ? (
             <div className="conversation-empty-state">
-              <span className="conversation-empty-glow" aria-hidden />
-              <img
-                src={resolveNativeCourseAvatar(
-                  workspace.course.id,
-                  workspace.course.courseCode,
-                  courseAvatarIdDraft,
-                )}
-                className="conversation-empty-avatar"
-                alt=""
-                aria-hidden
-              />
-              <p className="empty-kicker">LEARNING</p>
               <h2>今天想从哪里开始？</h2>
-              <p>补齐 syllabus 和学习进度后，今天的安排会更准。</p>
               <div className="suggestion-row">
                 {[
                   '我现在学到哪里了？',
@@ -3635,7 +4521,17 @@ export function CourseWorkspace({
             </div>
           ) : (
             <div className="message-stream" aria-label={selectedConversation?.title || '当前会话'}>
-              {messages.map((message) => {
+              {messageWindowStart > 0 || olderMessageCursor ? (
+                <GlassLoadMore
+                  placement="start"
+                  rootMargin="480px 0px 0px 0px"
+                  state={messageWindowStart > 0 ? 'idle' : olderMessagesState}
+                  onLoadMore={loadOlderMessages}
+                  watchKey={`${messages.length}:${visibleMessageCount}`}
+                />
+              ) : null}
+              {messages.slice(messageWindowStart).map((message, offset) => {
+                const index = messageWindowStart + offset;
                 const miniLecture =
                   message.role === 'assistant'
                     ? (miniLectureDecksByMessageId.get(message.id) ?? null)
@@ -3643,6 +4539,17 @@ export function CourseWorkspace({
                 const miniLectureGeneration = miniLectureGenerationByMessageId.get(message.id) ?? {
                   status: 'idle' as const,
                 };
+                let askedBy = '';
+                for (let back = index - 1; back >= 0 && message.role === 'assistant'; back -= 1) {
+                  if (messages[back].role === 'user') {
+                    askedBy = messages[back].text;
+                    break;
+                  }
+                }
+                // 已经点过生成（进行中或失败）的，卡片留着，好看进度或重试。
+                const showLectureCard =
+                  miniLectureGeneration.status !== 'idle' ||
+                  isLectureEligibleMessage(message, askedBy);
                 const nonLectureActions = (message.metadata?.learningActions ?? []).filter(
                   (action) =>
                     action.kind !== 'classroom.propose_temporary_explanation' &&
@@ -3663,13 +4570,18 @@ export function CourseWorkspace({
                       />
                     ) : null}
                     <div>
-                      {message.id.startsWith('stream-') && !message.text ? (
-                        <span className="assistant-thinking">
-                          <Loader2 size={13} />
-                          正在组织回复…
-                        </span>
-                      ) : (
-                        <ChatMessageContent message={message} />
+                      {message.id.startsWith('stream-') ? (
+                        <RecallThinking
+                          recall={thinkingRecall?.messageId === message.id ? thinkingRecall : null}
+                          done={Boolean(message.text)}
+                        />
+                      ) : null}
+                      {message.id.startsWith('stream-') && !message.text ? null : (
+                        <ChatMessageContent
+                          message={message}
+                          onOpenNotebookId={openNotebookById}
+                          onOpenMemoryId={openMemoryDialog}
+                        />
                       )}
                       {message.metadata?.reviewPlan && !phoneLayout ? (
                         <NativeReviewPlanCard
@@ -3686,20 +4598,23 @@ export function CourseWorkspace({
                         <NativeLearningActions
                           actions={nonLectureActions}
                           busyActionId={busyLearningActionId}
+                          compact
                           onExecute={(action) => void executeLearningAction(message, action)}
                         />
                       ) : null}
-                      {phoneLayout ? null : miniLecture ? (
+                      {miniLecture ? (
                         <MiniLectureInviteCard
                           deck={miniLecture}
                           busy={miniLectureLoadingDeckId === miniLecture.id}
+                          compact
                           onOpen={() => void openMiniLecture(miniLecture)}
                         />
-                      ) : isLectureEligibleMessage(message) ? (
+                      ) : showLectureCard ? (
                         <MiniLectureGenerateCard
                           state={miniLectureGeneration}
                           disabled={!miniLectureAvailable}
                           unavailableReason={platformAiAccess.message}
+                          compact
                           onGenerate={() => void generateMiniLecture(message)}
                         />
                       ) : null}
@@ -3713,8 +4628,8 @@ export function CourseWorkspace({
         </div>
 
         <footer className="conversation-composer-footer">
-          {pendingImages.length ? (
-            <div className="composer-image-strip" aria-label="待发送的图片">
+          {pendingImages.length || pendingFiles.length ? (
+            <div className="composer-image-strip" aria-label="待发送的附件">
               {pendingImages.map((image) => (
                 <span key={image.id} className="composer-image-thumb">
                   <img src={image.thumbnailDataUrl} alt={image.name} />
@@ -3729,28 +4644,31 @@ export function CourseWorkspace({
                   </button>
                 </span>
               ))}
+              {pendingFiles.map((file) => (
+                <ChatFilePill
+                  key={file.id}
+                  name={file.name}
+                  kind={file.kind}
+                  size={file.size}
+                  onRemove={() =>
+                    setPendingFiles((current) => current.filter((item) => item.id !== file.id))
+                  }
+                />
+              ))}
             </div>
           ) : null}
           <form className="conversation-composer" onSubmit={(event) => void send(event)}>
             <button
               type="button"
               className="composer-icon-button"
-              onClick={() => imageInputRef.current?.click()}
-              aria-label="拍照或选择图片"
-              title="拍照或从相册选择题目、作业图片"
-            >
-              <ImagePlus size={17} />
-            </button>
-            <button
-              type="button"
-              className="composer-icon-button composer-material-button"
               onClick={() => attachmentInputRef.current?.click()}
-              aria-label="添加本机资料"
-              title="导入到当前课程的本机资料库"
+              aria-label="添加照片或文件"
+              title="照片、PDF、Word、PPT、文本"
             >
-              <Paperclip size={17} />
+              <Plus size={18} />
             </button>
             <textarea
+              ref={composerTextareaRef}
               rows={1}
               maxLength={4000}
               value={draft}
@@ -3785,9 +4703,14 @@ export function CourseWorkspace({
               <ChevronRight size={13} />
             </button>
             <button
+              ref={sendButtonRef}
               type="submit"
               className="composer-send-button"
-              disabled={(!draft.trim() && !pendingImages.length) || busy || !teachingTurnAvailable}
+              disabled={
+                (!draft.trim() && !pendingImages.length && !pendingFiles.length) ||
+                busy ||
+                !teachingTurnAvailable
+              }
               aria-label={teachingTurnAvailable ? '发送' : platformAiAccess.message}
               title={teachingTurnAvailable ? undefined : platformAiAccess.message}
             >
@@ -3824,34 +4747,11 @@ export function CourseWorkspace({
             }
           >
             {mobilePanel === 'sessions' && phoneLayout ? (
-              <PhoneChatDrawer
-                courseTitle={workspace.course.courseCode || workspace.course.name}
-                courseAvatarUrl={courseAvatarUrl}
-                conversations={workspace.conversations}
-                selectedConversationId={selectedConversationId}
-                memoryCount={workspace.memories.length}
-                busy={busy}
-                onBack={onBack}
-                onCreateConversation={() => void createConversation()}
-                onDeleteConversation={setConversationToDelete}
-                onOpenMemory={() => {
-                  setMobilePanel(null);
-                  openMemoryDialog();
-                }}
-                onOpenNotes={() => {
-                  setMobilePanel(null);
-                  openNotebookLibrary();
-                }}
-                onOpenProgress={() => setMobilePanel('progress')}
-                onOpenSettings={() => {
-                  setActiveTool('settings');
-                  setMobilePanel('tools');
-                }}
-                onSelectConversation={selectConversation}
-              />
+              renderPhoneDrawer()
             ) : mobilePanel === 'sessions' ? (
               <SessionsPanel
                 conversations={workspace.conversations}
+                paging={conversationPaging}
                 selectedConversationId={selectedConversationId}
                 busy={busy}
                 onBack={onBack}
@@ -3947,7 +4847,7 @@ export function CourseWorkspace({
             </label>
             <nav className="native-conversation-results" aria-label="全部课程会话">
               {filteredConversations.length ? (
-                filteredConversations.map((conversation) => (
+                filteredConversations.slice(0, allConversationsWindow.count).map((conversation) => (
                   <button
                     type="button"
                     key={conversation.id}
@@ -3972,9 +4872,18 @@ export function CourseWorkspace({
               ) : (
                 <p className="native-dialog-empty">没有找到匹配的会话。</p>
               )}
+              {filteredConversations.length ? (
+                <ConversationListEnd
+                  listWindow={allConversationsWindow}
+                  paging={conversationSearchQuery.trim() ? undefined : conversationPaging}
+                  length={filteredConversations.length}
+                />
+              ) : null}
             </nav>
             <footer>
-              <span>共 {workspace.conversations.length} 个会话</span>
+              <span>
+                共 {Math.max(conversationPage.totalCount, workspace.conversations.length)} 个会话
+              </span>
               <button
                 type="button"
                 className="secondary-button"
@@ -4207,61 +5116,21 @@ export function CourseWorkspace({
       ) : null}
 
       {conversationToDelete ? (
-        <div className="native-dialog-layer">
-          <button
-            type="button"
-            className="native-dialog-backdrop"
-            onClick={() => setConversationToDelete(null)}
-            aria-label="取消删除会话"
-          />
-          <section
-            className="native-action-dialog native-confirm-dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="native-delete-conversation-title"
-          >
-            <header>
-              <div>
-                <span>本机会话</span>
-                <h2 id="native-delete-conversation-title">删除这个会话？</h2>
-              </div>
-              <button
-                type="button"
-                className="round-ghost-button"
-                onClick={() => setConversationToDelete(null)}
-                aria-label="关闭"
-              >
-                <X size={17} />
-              </button>
-            </header>
-            <p className="native-confirm-copy">
-              “{conversationToDelete.title}”及其中的本机消息会一并删除，此操作无法撤销。
-            </p>
-            <footer>
-              <button
-                type="button"
-                className="secondary-button secondary-button-quiet"
-                onClick={() => setConversationToDelete(null)}
-                disabled={busy}
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                className="native-danger-button"
-                onClick={() => void deleteConversation()}
-                disabled={busy}
-              >
-                {busy ? <Loader2 size={15} className="spin-icon" /> : <Trash2 size={15} />}
-                删除会话
-              </button>
-            </footer>
-          </section>
-        </div>
+        <PhoneConfirm
+          title="删除这个对话？"
+          message={`“${conversationToDelete.title}”删除后无法恢复。`}
+          confirmLabel="删除"
+          destructive
+          busy={busy}
+          onConfirm={() => void deleteConversation()}
+          onCancel={() => setConversationToDelete(null)}
+        />
       ) : null}
 
       {scheduleDialogOpen ? (
-        <div className="native-dialog-layer">
+        <div
+          className={`native-dialog-layer${phonePage === 'calendar' ? ' is-calendar-editor' : ''}`}
+        >
           <button
             type="button"
             className="native-dialog-backdrop"
@@ -4361,11 +5230,7 @@ export function CourseWorkspace({
                 className="primary-dialog-button"
                 disabled={!scheduleTitle.trim() || !scheduleDate || scheduleBusy}
               >
-                {scheduleBusy ? (
-                  <Loader2 size={15} className="spin-icon" />
-                ) : (
-                  <CalendarDays size={15} />
-                )}
+                {scheduleBusy ? <GlassSpinner size={15} /> : <CalendarDays size={15} />}
                 {scheduleBusy ? '正在保存…' : editingScheduleId ? '保存修改' : '保存到本机日历'}
               </button>
             </footer>
@@ -4386,7 +5251,7 @@ export function CourseWorkspace({
         ref={attachmentInputRef}
         type="file"
         hidden
-        accept=".txt,.md,.markdown,.csv,.json,.ts,.tsx,.js,.jsx,.py,.html,.css,text/*"
+        accept={CHAT_ATTACH_ACCEPT}
         multiple
         onChange={handleAttachmentSelection}
         tabIndex={-1}
@@ -4423,12 +5288,90 @@ export function CourseWorkspace({
       </span>
       {resourceBusy ? (
         <div className="local-resource-loading" role="status">
-          <Loader2 size={20} />
+          <GlassSpinner size={20} />
           正在从本机打开…
         </div>
       ) : null}
+      {phonePage === 'profile' ? (
+        <PhoneProfilePage
+          courses={courses}
+          currentCourseId={workspace.course.id}
+          currentCourseAvatarUrl={courseAvatarUrl}
+          conversationCount={courses.reduce((sum, course) => sum + course.conversationCount, 0)}
+          responseStrength={phoneResponseStrength}
+          onResponseStrengthChange={changePhoneResponseStrength}
+          onOpenCourseJar={openCourseJar}
+          onBack={closePhonePage}
+        />
+      ) : null}
+      {phonePage === 'notes' ? (
+        <PhoneNotesPage workspace={workspace} onBack={closePhonePage} />
+      ) : null}
+      {phonePage === 'progress' ? (
+        <PhoneProgressPage
+          learningState={courseLearningState}
+          notebooks={workspace.notebooks}
+          onProgressChange={saveCourseProgress}
+          onOpenNotebook={(notebook) => void openNotebook(notebook)}
+          onBack={closePhonePage}
+        />
+      ) : null}
+      {phonePage === 'calendar' ? (
+        <PhoneCalendarPage
+          events={scheduleItems}
+          isResearchCourse={isResearchCourse}
+          onAddEvent={(date) => {
+            openNewSchedule();
+            setScheduleDate(date);
+          }}
+          onEditEvent={openScheduleEditor}
+          onBack={closePhonePage}
+        />
+      ) : null}
+      {phonePage === 'classroom' ? (
+        <PhoneClassroomPage
+          courseId={workspace.course.id}
+          conversations={workspace.conversations}
+          revision={courseDataRevision}
+          loadingDeckId={miniLectureLoadingDeckId}
+          onOpenDeck={(deck) => void openMiniLecture(deck)}
+          onOpenRemoteDeck={openRemoteMiniLecture}
+          onBack={closePhonePage}
+        />
+      ) : null}
+      {phonePage === 'problems' && !phoneLayout ? (
+        <div className="phone-page phone-page-overlay split-problem-bank">
+          <ProblemBankPage
+            workspace={workspace}
+            onBack={closePhonePage}
+            onPractice={openPracticeFromBank}
+          />
+        </div>
+      ) : null}
+      {phonePage === 'memory' ? (
+        <PhoneMemoryPage
+          courseId={workspace.course.id}
+          courseLabel={workspace.course.courseCode || workspace.course.name}
+          backgroundUrl={profileThemeForAvatar(courseAvatarUrl)?.galaxyUrl}
+          notebooks={workspace.notebooks}
+          memories={workspace.memories}
+          focusedMemoryId={focusedMemoryId}
+          onBack={() => {
+            closePhonePage();
+            setFocusedMemoryId(null);
+          }}
+        />
+      ) : null}
       {resource ? (
         <LocalResourceViewer resource={resource} onClose={() => setResource(null)} />
+      ) : null}
+      {marbleCatch ? (
+        <MarbleCatcher
+          key={marbleCatch.key}
+          request={marbleCatch}
+          backgroundUrl={profileThemeForAvatar(courseAvatarUrl)?.galaxyUrl}
+          onDone={() => setMarbleCatch(null)}
+        />
       ) : null}
       <NativeWorkspaceDialog
         open={calendarDialogOpen}
@@ -4447,22 +5390,22 @@ export function CourseWorkspace({
                     {
                       label: isResearchCourse ? 'DDL' : '作业',
                       count: scheduleItems.filter((item) => item.kind === 'assignment').length,
-                      dotClassName: 'bg-sky-500',
+                      dotClassName: 'bg-[var(--marble-blue-mid)]',
                     },
                     {
                       label: isResearchCourse ? '会议' : '考试',
                       count: scheduleItems.filter((item) => item.kind === 'exam').length,
-                      dotClassName: 'bg-rose-500',
+                      dotClassName: 'bg-[var(--marble-pink-mid)]',
                     },
                     {
                       label: isResearchCourse ? '进展' : '进度',
                       count: scheduleItems.filter((item) => item.kind === 'progress').length,
-                      dotClassName: 'bg-amber-500',
+                      dotClassName: 'bg-[var(--marble-amber-mid)]',
                     },
                     {
                       label: isResearchCourse ? '论文阅读' : 'Tutorial',
                       count: scheduleItems.filter((item) => item.kind === 'tutorial').length,
-                      dotClassName: 'bg-violet-500',
+                      dotClassName: 'bg-[var(--marble-purple-mid)]',
                     },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between gap-3">

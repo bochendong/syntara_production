@@ -1,5 +1,5 @@
-import Dexie, { type EntityTable } from 'dexie';
 import { nativeChannel } from '../channel';
+import Dexie, { type EntityTable } from 'dexie';
 import type {
   LocalAsset,
   LocalConversation,
@@ -783,6 +783,21 @@ export class BrowserLocalRepository implements LocalRepository {
     await this.database.courseEvents.delete(eventId);
   }
 
+  async findLectureAnchors(
+    messageIds: string[],
+  ): Promise<{ messages: LocalMessage[]; messageIdsWithDeck: string[] }> {
+    const ids = [...new Set(messageIds)];
+    if (!ids.length) return { messages: [], messageIdsWithDeck: [] };
+    const [messages, decks] = await Promise.all([
+      this.database.messages.bulkGet(ids),
+      this.database.lectureDecks.where('messageId').anyOf(ids).toArray(),
+    ]);
+    return {
+      messages: messages.filter((message): message is LocalMessage => Boolean(message)),
+      messageIdsWithDeck: [...new Set(decks.map((deck) => deck.messageId))],
+    };
+  }
+
   async listMiniLectureDecks(conversationId: string): Promise<PersistedMiniLectureDeck[]> {
     const messages = await this.listMessages(conversationId);
     if (!messages.length) return [];
@@ -983,8 +998,37 @@ export class BrowserLocalRepository implements LocalRepository {
   }
 
   async upsertStudyMemory(memory: LocalStudyMemory): Promise<LocalStudyMemory> {
-    await this.database.studyMemories.put(memory);
+    // 和 SQLite 一样：没带对话 id 的更新，保留原来记下它的那条对话。
+    const previous =
+      memory.conversationId == null ? await this.database.studyMemories.get(memory.id) : undefined;
+    await this.database.studyMemories.put(
+      previous?.conversationId ? { ...memory, conversationId: previous.conversationId } : memory,
+    );
     return memory;
+  }
+
+  async clearNotebookContent(notebookId: string): Promise<void> {
+    const pageIds = (await this.database.notebookPages
+      .where('notebookId')
+      .equals(notebookId)
+      .primaryKeys()) as string[];
+    if (pageIds.length) await this.database.pageAssets.where('pageId').anyOf(pageIds).delete();
+    await this.database.notebookPages.where('notebookId').equals(notebookId).delete();
+    await this.database.markdownSections.where('notebookId').equals(notebookId).delete();
+    await this.database.notebookAssets.where('notebookId').equals(notebookId).delete();
+  }
+
+  async archiveConversationMemories(conversationId: string): Promise<LocalStudyMemory[]> {
+    const memories = await this.database.studyMemories
+      .filter((memory) => memory.conversationId === conversationId && memory.status === 'active')
+      .toArray();
+    const updatedAt = Date.now();
+    await Promise.all(
+      memories.map((memory) =>
+        this.database.studyMemories.update(memory.id, { status: 'archived', updatedAt }),
+      ),
+    );
+    return memories;
   }
 
   async archiveStudyMemory(memoryId: string): Promise<void> {

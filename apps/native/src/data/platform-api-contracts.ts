@@ -1,3 +1,15 @@
+import type { LocalCourseEvent } from '../domain/learning-experiences';
+import type {
+  LocalAsset,
+  LocalMarkdownSection,
+  LocalNotebook,
+  LocalNotebookAssetLink,
+  LocalNotebookPage,
+  LocalPageAsset,
+  LocalProblem,
+  LocalProblemProgress,
+  LocalStudyMemory,
+} from '../domain/models';
 import type { NativeMessageMetadata } from '../domain/teaching';
 
 export interface PlatformApiError {
@@ -19,6 +31,20 @@ export interface PlatformCommandOptions {
   idempotencyKey?: string;
   /** Safe model preference; provider credentials remain server-only. */
   model?: string;
+  /** 回复强度，平台按网页端同一套档位选模型。 */
+  responseStrength?: 'low' | 'medium' | 'high';
+}
+
+export interface NativeWeeklyUsage {
+  databaseEnabled: boolean;
+  period: { start: string; end: string };
+  usedUsd: number;
+  limitUsd: number | null;
+  remainingUsd: number | null;
+  requestCount: number;
+  requestLimit: number | null;
+  remainingRequests: number | null;
+  disabled: boolean;
 }
 
 export interface PlatformJsonCommandRequest<TPayload> extends PlatformCommandOptions {
@@ -74,7 +100,7 @@ export interface NativeDeviceUser {
   name: string | null;
   email: string | null;
   image: string | null;
-  role: 'USER' | 'ADMIN';
+  role: 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN';
 }
 
 export interface NativeDeviceAuthorization {
@@ -419,7 +445,7 @@ export interface NativeSyncedChatMessage {
   role: 'user' | 'assistant';
   text: string;
   createdAt?: number;
-  attachments?: Array<{ id?: string; name?: string; mimeType?: string }>;
+  attachments?: Array<{ id?: string; name?: string; mimeType?: string; size?: number }>;
   [key: string]: unknown;
 }
 
@@ -444,6 +470,8 @@ export interface NativeSyncedConversationSnapshot {
   session: NativeSyncedConversationSummary | null;
   messages: NativeSyncedChatMessage[];
   deletedMessageIds: string[];
+  /** 更早的消息还有没有；nextCursor 传给 before 取上一页。 */
+  messagePage?: { hasMore: boolean; nextCursor: string | null; limit: number };
   currentRevision: number;
 }
 
@@ -458,4 +486,66 @@ export interface NativeConversationSyncPayload {
 export interface NativeConversationSyncResult {
   accepted: boolean;
   currentRevision: number;
+}
+
+/** 网页笔记的列表信息；contentVersion 变了才需要重新下载正文。 */
+export type NativeSyncedNotebook = LocalNotebook & { contentVersion: number };
+
+/** 网页上已生成好的课堂，answerMessageId 是挂课堂的那条老师回复。 */
+export interface NativeSyncedMiniLecture {
+  id: string;
+  answerMessageId: string;
+  title: string;
+  createdAt: number;
+}
+
+/** 网页右侧可拖动的学习进度：学到哪一本，或还没开始 / 已学完。 */
+export interface NativeLearningProgress {
+  kind: 'not_started' | 'notebook' | 'completed_all';
+  notebookId: string | null;
+  updatedAt: number;
+}
+
+/** App 打开课程时从网页拉取的笔记列表、学习记忆、日历、学习进度和课堂清单。 */
+export interface NativeCourseData {
+  courseId: string;
+  notebooks: NativeSyncedNotebook[];
+  memories: LocalStudyMemory[];
+  events: LocalCourseEvent[];
+  miniLectures: NativeSyncedMiniLecture[];
+  learningProgress: NativeLearningProgress | null;
+}
+
+/** 网页题库：since 之后改过的题、当前全部题目 id，以及这个账号的做题进度（得分率 0–1）。 */
+export interface NativeProblemSnapshot {
+  courseId: string;
+  serverTime: number;
+  problemIds: string[];
+  /** false 表示题目太多被截断，没出现在 problemIds 里的不一定是网页上删掉的。 */
+  complete: boolean;
+  problems: LocalProblem[];
+  progress: Array<Omit<LocalProblemProgress, 'id'>>;
+}
+
+/** 一条 App 作答，传到网页题库；id 固定，重复上传只记一次。 */
+export interface NativeProblemAttemptUpload {
+  id: string;
+  problemId: string;
+  status: 'pending' | 'passed' | 'failed' | 'partial';
+  score: number | null;
+  answer: { selectedOptionIds?: string[]; text?: string; code?: string };
+  feedback?: string | null;
+  autoGraded?: boolean;
+  createdAt: number;
+}
+
+/** 一本网页笔记的完整内容，字段与本机迁移包一致。 */
+export interface NativeNotebookArchive {
+  notebook: NativeSyncedNotebook;
+  notebookPages: LocalNotebookPage[];
+  markdownSections: LocalMarkdownSection[];
+  assets: LocalAsset[];
+  pageAssets: LocalPageAsset[];
+  notebookAssets: LocalNotebookAssetLink[];
+  missingAssetPaths: string[];
 }

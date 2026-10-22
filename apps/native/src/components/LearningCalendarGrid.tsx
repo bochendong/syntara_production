@@ -81,20 +81,20 @@ export function buildEventsByDay(
 }
 
 function eventTone(kind: LocalScheduleKind): string {
-  if (kind === 'assignment') return 'bg-sky-500';
-  if (kind === 'exam') return 'bg-rose-500';
-  if (kind === 'progress') return 'bg-amber-500';
-  if (kind === 'tutorial') return 'bg-violet-500';
-  if (kind === 'holiday') return 'bg-emerald-500';
+  if (kind === 'assignment') return 'bg-[var(--marble-blue-mid)]';
+  if (kind === 'exam') return 'bg-[var(--marble-pink-mid)]';
+  if (kind === 'progress') return 'bg-[var(--marble-amber-mid)]';
+  if (kind === 'tutorial') return 'bg-[var(--marble-purple-mid)]';
+  if (kind === 'holiday') return 'bg-[var(--marble-green-mid)]';
   return 'bg-slate-400';
 }
 
 function eventPillTone(kind: LocalScheduleKind): string {
-  if (kind === 'assignment') return 'bg-sky-100 text-sky-800';
-  if (kind === 'exam') return 'bg-rose-100 text-rose-800';
-  if (kind === 'progress') return 'bg-amber-100 text-amber-800';
-  if (kind === 'tutorial') return 'bg-violet-100 text-violet-800';
-  if (kind === 'holiday') return 'bg-emerald-100 text-emerald-800';
+  if (kind === 'assignment') return 'bg-[var(--marble-blue-light)] text-[var(--marble-blue-ink)]';
+  if (kind === 'exam') return 'bg-[var(--marble-pink-light)] text-[var(--marble-pink-ink)]';
+  if (kind === 'progress') return 'bg-[var(--marble-amber-light)] text-[var(--marble-amber-ink)]';
+  if (kind === 'tutorial') return 'bg-[var(--marble-purple-light)] text-[var(--marble-purple-ink)]';
+  if (kind === 'holiday') return 'bg-[var(--marble-green-light)] text-[var(--marble-green-ink)]';
   return 'bg-slate-100 text-slate-700';
 }
 
@@ -174,7 +174,9 @@ export function LearningCalendarGrid({
                   className={cn(
                     'grid size-7 place-items-center rounded-full text-sm font-semibold leading-none',
                     day.inMonth ? 'text-slate-800' : 'text-slate-300',
-                    day.isToday ? 'bg-[#ff3b30] text-white' : null,
+                    day.isToday
+                      ? 'bg-[radial-gradient(circle_at_32%_28%,#fff_0_12%,var(--marble-blue-mid)_48%,var(--marble-blue-deep))] text-white'
+                      : null,
                   )}
                 >
                   {day.day}
@@ -266,13 +268,15 @@ export function LearningCalendarMini({
             className={cn(
               'relative grid aspect-square place-items-center rounded-full text-[11px] font-semibold',
               day.inMonth ? 'text-slate-700' : 'text-slate-300',
-              day.isToday ? 'bg-[#ff3b30] text-white' : null,
+              day.isToday
+                ? 'bg-[radial-gradient(circle_at_32%_28%,#fff_0_12%,var(--marble-blue-mid)_48%,var(--marble-blue-deep))] text-white'
+                : null,
               !day.isToday && day.eventCount > 0 ? 'ring-1 ring-slate-200' : null,
             )}
           >
             {day.day}
             {day.eventCount > 0 && !day.isToday ? (
-              <span className="absolute bottom-0.5 size-1 rounded-full bg-sky-500" />
+              <span className="absolute bottom-0.5 size-1 rounded-full bg-[var(--marble-blue-mid)]" />
             ) : null}
           </span>
         ))}

@@ -3,6 +3,9 @@
 The test App uses ordinary verified Google accounts. There is no App activation
 code or email allowlist. Google must allow external users on its consent screen.
 The browser asks the user to confirm the device before issuing App tokens.
+New Google testers without accessible courses receive a private `TEST101`
+starter course on the first native course-list request. This provisioning is
+restricted to `staging` + `google-test`; production does not create test courses.
 Only `openid email profile` is requested. Google's
 [basic identity exception](https://support.google.com/cloud/answer/15549945?hl=en)
 allows ordinary accounts without a test-user allowlist while the OAuth project
@@ -73,6 +76,10 @@ Its app-data directory, SQLite database and keychain entry are separate from
 `com.syntara.local`; browser preview IndexedDB uses a separate staging name too.
 Cargo output is under `apps/native/src-tauri/target/staging/`.
 It builds macOS `.app` with the repository's existing ad-hoc signing setting.
+The supported App is the current imported `apps/native/src/App.tsx` with
+`CourseWorkspace` and `PhonePages`, recorded in `current-native-imports.json`.
+The old desktop home, Haru resources, and standalone profile/calendar components
+have been removed. The obsolete test bundle/ZIP created from main was deleted.
 Public distribution requires the owner's Apple signing/notarization setup;
 this build is not a notarized release or an iOS TestFlight package.
 

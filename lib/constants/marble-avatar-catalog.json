@@ -1,0 +1,362 @@
+[
+  {
+    "id": "R01",
+    "name": "蓝调书生",
+    "rarity": "R",
+    "species": "marble",
+    "filename": "R01.webp",
+    "url": "/avatars/marble-collection-v1/R01.webp"
+  },
+  {
+    "id": "R02",
+    "name": "薄荷信使",
+    "rarity": "R",
+    "species": "marble",
+    "filename": "R02.webp",
+    "url": "/avatars/marble-collection-v1/R02.webp"
+  },
+  {
+    "id": "R03",
+    "name": "琥珀慢拍",
+    "rarity": "R",
+    "species": "marble",
+    "filename": "R03.webp",
+    "url": "/avatars/marble-collection-v1/R03.webp"
+  },
+  {
+    "id": "R04",
+    "name": "紫罗兰电台",
+    "rarity": "R",
+    "species": "marble",
+    "filename": "R04.webp",
+    "url": "/avatars/marble-collection-v1/R04.webp"
+  },
+  {
+    "id": "R05",
+    "name": "赤陶骑手",
+    "rarity": "R",
+    "species": "marble",
+    "filename": "R05.webp",
+    "url": "/avatars/marble-collection-v1/R05.webp"
+  },
+  {
+    "id": "R06",
+    "name": "晴空旅人",
+    "rarity": "R",
+    "species": "marble",
+    "filename": "R06.webp",
+    "url": "/avatars/marble-collection-v1/R06.webp"
+  },
+  {
+    "id": "R07",
+    "name": "烟灰侦探",
+    "rarity": "R",
+    "species": "marble",
+    "filename": "R07.webp",
+    "url": "/avatars/marble-collection-v1/R07.webp"
+  },
+  {
+    "id": "R08",
+    "name": "桃色夜猫",
+    "rarity": "R",
+    "species": "marble",
+    "filename": "R08.webp",
+    "url": "/avatars/marble-collection-v1/R08.webp"
+  },
+  {
+    "id": "R09",
+    "name": "钴蓝学长",
+    "rarity": "R",
+    "species": "cat",
+    "filename": "R09.webp",
+    "url": "/avatars/marble-collection-v1/R09.webp"
+  },
+  {
+    "id": "R10",
+    "name": "蜜糖眼镜",
+    "rarity": "R",
+    "species": "cat",
+    "filename": "R10.webp",
+    "url": "/avatars/marble-collection-v1/R10.webp"
+  },
+  {
+    "id": "R11",
+    "name": "青玉浪客",
+    "rarity": "R",
+    "species": "cat",
+    "filename": "R11.webp",
+    "url": "/avatars/marble-collection-v1/R11.webp"
+  },
+  {
+    "id": "R12",
+    "name": "雾紫耳语",
+    "rarity": "R",
+    "species": "cat",
+    "filename": "R12.webp",
+    "url": "/avatars/marble-collection-v1/R12.webp"
+  },
+  {
+    "id": "R13",
+    "name": "珊瑚调音师",
+    "rarity": "R",
+    "species": "cat",
+    "filename": "R13.webp",
+    "url": "/avatars/marble-collection-v1/R13.webp"
+  },
+  {
+    "id": "R14",
+    "name": "奶青漫步",
+    "rarity": "R",
+    "species": "cat",
+    "filename": "R14.webp",
+    "url": "/avatars/marble-collection-v1/R14.webp"
+  },
+  {
+    "id": "R15",
+    "name": "金眸策士",
+    "rarity": "R",
+    "species": "cat",
+    "filename": "R15.webp",
+    "url": "/avatars/marble-collection-v1/R15.webp"
+  },
+  {
+    "id": "R16",
+    "name": "冰蓝搭档",
+    "rarity": "R",
+    "species": "cat",
+    "filename": "R16.webp",
+    "url": "/avatars/marble-collection-v1/R16.webp"
+  },
+  {
+    "id": "R17",
+    "name": "柴犬课代表",
+    "rarity": "R",
+    "species": "dog:shiba",
+    "filename": "R17.webp",
+    "url": "/avatars/marble-collection-v1/R17.webp"
+  },
+  {
+    "id": "R18",
+    "name": "金毛午后",
+    "rarity": "R",
+    "species": "dog:golden-retriever",
+    "filename": "R18.webp",
+    "url": "/avatars/marble-collection-v1/R18.webp"
+  },
+  {
+    "id": "R19",
+    "name": "哈士奇节拍",
+    "rarity": "R",
+    "species": "dog:husky",
+    "filename": "R19.webp",
+    "url": "/avatars/marble-collection-v1/R19.webp"
+  },
+  {
+    "id": "R20",
+    "name": "柯基小站",
+    "rarity": "R",
+    "species": "dog:corgi",
+    "filename": "R20.webp",
+    "url": "/avatars/marble-collection-v1/R20.webp"
+  },
+  {
+    "id": "R21",
+    "name": "比格侦察员",
+    "rarity": "R",
+    "species": "dog:beagle",
+    "filename": "R21.webp",
+    "url": "/avatars/marble-collection-v1/R21.webp"
+  },
+  {
+    "id": "R22",
+    "name": "边牧笔记",
+    "rarity": "R",
+    "species": "dog:border-collie",
+    "filename": "R22.webp",
+    "url": "/avatars/marble-collection-v1/R22.webp"
+  },
+  {
+    "id": "R23",
+    "name": "杜宾风纪",
+    "rarity": "R",
+    "species": "dog:doberman",
+    "filename": "R23.webp",
+    "url": "/avatars/marble-collection-v1/R23.webp"
+  },
+  {
+    "id": "R24",
+    "name": "拉布拉多晴日",
+    "rarity": "R",
+    "species": "dog:labrador",
+    "filename": "R24.webp",
+    "url": "/avatars/marble-collection-v1/R24.webp"
+  },
+  {
+    "id": "SR01",
+    "name": "天台蓝调",
+    "rarity": "SR",
+    "species": "marble",
+    "filename": "SR01.webp",
+    "url": "/avatars/marble-collection-v1/SR01.webp"
+  },
+  {
+    "id": "SR02",
+    "name": "极光听众",
+    "rarity": "SR",
+    "species": "marble",
+    "filename": "SR02.webp",
+    "url": "/avatars/marble-collection-v1/SR02.webp"
+  },
+  {
+    "id": "SR03",
+    "name": "落日邮差",
+    "rarity": "SR",
+    "species": "marble",
+    "filename": "SR03.webp",
+    "url": "/avatars/marble-collection-v1/SR03.webp"
+  },
+  {
+    "id": "SR04",
+    "name": "月光胶片",
+    "rarity": "SR",
+    "species": "marble",
+    "filename": "SR04.webp",
+    "url": "/avatars/marble-collection-v1/SR04.webp"
+  },
+  {
+    "id": "SR05",
+    "name": "书海青玉",
+    "rarity": "SR",
+    "species": "cat",
+    "filename": "SR05.webp",
+    "url": "/avatars/marble-collection-v1/SR05.webp"
+  },
+  {
+    "id": "SR06",
+    "name": "樱云吉他手",
+    "rarity": "SR",
+    "species": "cat",
+    "filename": "SR06.webp",
+    "url": "/avatars/marble-collection-v1/SR06.webp"
+  },
+  {
+    "id": "SR07",
+    "name": "霜夜巡游",
+    "rarity": "SR",
+    "species": "cat",
+    "filename": "SR07.webp",
+    "url": "/avatars/marble-collection-v1/SR07.webp"
+  },
+  {
+    "id": "SR08",
+    "name": "暖灯策展人",
+    "rarity": "SR",
+    "species": "cat",
+    "filename": "SR08.webp",
+    "url": "/avatars/marble-collection-v1/SR08.webp"
+  },
+  {
+    "id": "SR09",
+    "name": "星途柴犬",
+    "rarity": "SR",
+    "species": "dog:shiba",
+    "filename": "SR09.webp",
+    "url": "/avatars/marble-collection-v1/SR09.webp"
+  },
+  {
+    "id": "SR10",
+    "name": "观测站金毛",
+    "rarity": "SR",
+    "species": "dog:golden-retriever",
+    "filename": "SR10.webp",
+    "url": "/avatars/marble-collection-v1/SR10.webp"
+  },
+  {
+    "id": "SR11",
+    "name": "北极光哈士奇",
+    "rarity": "SR",
+    "species": "dog:husky",
+    "filename": "SR11.webp",
+    "url": "/avatars/marble-collection-v1/SR11.webp"
+  },
+  {
+    "id": "SR12",
+    "name": "云上柯基",
+    "rarity": "SR",
+    "species": "dog:corgi",
+    "filename": "SR12.webp",
+    "url": "/avatars/marble-collection-v1/SR12.webp"
+  },
+  {
+    "id": "SSR01",
+    "name": "紫宙守望者",
+    "rarity": "SSR",
+    "species": "marble",
+    "filename": "SSR01.webp",
+    "url": "/avatars/marble-collection-v1/SSR01.webp"
+  },
+  {
+    "id": "SSR02",
+    "name": "日蚀旅客",
+    "rarity": "SSR",
+    "species": "marble",
+    "filename": "SSR02.webp",
+    "url": "/avatars/marble-collection-v1/SSR02.webp"
+  },
+  {
+    "id": "SSR03",
+    "name": "银河灵猫",
+    "rarity": "SSR",
+    "species": "cat",
+    "filename": "SSR03.webp",
+    "url": "/avatars/marble-collection-v1/SSR03.webp"
+  },
+  {
+    "id": "SSR04",
+    "name": "金曜猎星犬",
+    "rarity": "SSR",
+    "species": "dog:golden-retriever",
+    "filename": "SSR04.webp",
+    "url": "/avatars/marble-collection-v1/SSR04.webp"
+  },
+  {
+    "id": "EX01",
+    "name": "晶格化学家",
+    "rarity": "EX",
+    "species": "marble",
+    "filename": "EX01.webp",
+    "url": "/avatars/marble-collection-v1/EX01.webp"
+  },
+  {
+    "id": "EX02",
+    "name": "雨林守林猫",
+    "rarity": "EX",
+    "species": "cat",
+    "filename": "EX02.webp",
+    "url": "/avatars/marble-collection-v1/EX02.webp"
+  },
+  {
+    "id": "EX03",
+    "name": "细胞漫游者",
+    "rarity": "EX",
+    "species": "marble",
+    "filename": "EX03.webp",
+    "url": "/avatars/marble-collection-v1/EX03.webp"
+  },
+  {
+    "id": "EX04",
+    "name": "鱼群领航犬",
+    "rarity": "EX",
+    "species": "dog:golden-retriever",
+    "filename": "EX04.webp",
+    "url": "/avatars/marble-collection-v1/EX04.webp"
+  },
+  {
+    "id": "EX05",
+    "name": "菌菇夜行猫",
+    "rarity": "EX",
+    "species": "cat",
+    "filename": "EX05.webp",
+    "url": "/avatars/marble-collection-v1/EX05.webp"
+  }
+]

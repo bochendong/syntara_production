@@ -1,0 +1,63 @@
+/* AI 思考时的记忆珠子：滚入 → 绕圈 → 收拢淡出。 */
+.recall-thinking {
+  display: block;
+  height: 22px;
+  overflow: visible;
+  transition:
+    height 0.36s ease,
+    opacity 0.36s ease;
+}
+
+.recall-thinking-done {
+  height: 0;
+}
+
+.recall-ring {
+  position: relative;
+  display: block;
+  height: 18px;
+}
+
+.recall-marble {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 1px 1.5px rgb(40 30 20 / 22%));
+}
+
+.recall-marble-note {
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 28%, #fff 0 16%, transparent 34%),
+    radial-gradient(circle at 50% 60%, rgb(214 228 248 / 70%), rgb(160 186 226 / 75%));
+  box-shadow:
+    inset 0 -1px 2px rgb(70 100 160 / 25%),
+    0 0 0 0.5px rgb(60 80 120 / 30%);
+}
+
+/* 减少动态效果：静止排成一行，只淡入淡出。 */
+.recall-thinking-still .recall-ring {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.recall-thinking-still .recall-marble {
+  position: static;
+  opacity: 1;
+  animation: recall-fade-in 0.3s ease both;
+}
+
+.recall-thinking-still.recall-thinking-done {
+  opacity: 0;
+}
+
+@keyframes recall-fade-in {
+  from {
+    opacity: 0;
+  }
+}
