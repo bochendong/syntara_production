@@ -23,7 +23,7 @@ server-providers-*.yml
 
 db-backups
 coverage
-assets
+/assets
 design-mocks
 logs
 output

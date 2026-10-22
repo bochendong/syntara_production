@@ -1,3 +1,4 @@
+import { browserApp } from '../data/browser-runtime';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   CheckCircle2,
@@ -53,11 +54,11 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
   const [testerPassword, setTesterPassword] = useState('');
   const [testerBusy, setTesterBusy] = useState(false);
   const pollGenerationRef = useRef(0);
-  const browserPreview = !isTauriRuntime();
+  const browserPreview = !isTauriRuntime() && !browserApp;
 
   useEffect(() => {
     let cancelled = false;
-    if (!browserPreview && nativeChannel !== 'staging') {
+    if (!browserPreview && !browserApp && nativeChannel !== 'staging') {
       void getTesterLoginConfig()
         .then((config) => {
           if (!cancelled && config.enabled) {
@@ -131,6 +132,10 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
   }, []);
 
   const startLogin = useCallback(async () => {
+    if (browserApp) {
+      window.location.assign('/test');
+      return;
+    }
     stopPolling();
     setLoginState('starting');
     setAuthorization(null);
@@ -222,7 +227,7 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
             <br />
             都延续上一次的理解。
           </h1>
-          <p className="native-auth-lead">登录后进入你的课程、课堂讲解、复习计划与学习记忆。</p>
+          <p className="native-auth-lead">登录后进入你的课程、课堂讲解与学习记忆。</p>
         </div>
         <div className="native-auth-trust">
           <span>
@@ -231,7 +236,7 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
           </span>
           <span>
             <LockKeyhole size={16} />
-            凭据由系统钥匙串保护
+            {browserApp ? 'Google 安全登录' : '凭据由系统钥匙串保护'}
           </span>
         </div>
       </section>
@@ -246,9 +251,11 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
           <p className="native-account-copy">
             {browserPreview
               ? '当前是浏览器预览，无法使用平台登录与平台 AI。可先进入本机预览改界面；正式登录请打开 macOS 开发版窗口。'
-              : nativeChannel === 'staging'
-                ? '使用你自己的 Google 账号登录，在浏览器中确认后即可返回测试版 App。'
-                : '在浏览器中登录并完成当前环境的身份验证。'}
+              : browserApp
+                ? '使用 Google 账号登录后，即可在浏览器中使用。'
+                : nativeChannel === 'staging'
+                  ? '使用你自己的 Google 账号登录，在浏览器中确认后即可返回测试版 App。'
+                  : '在浏览器中登录并完成当前环境的身份验证。'}
           </p>
 
           {browserPreview ? (
@@ -372,7 +379,9 @@ export function NativeAuthGate({ children }: { children: ReactNode }) {
           <div className="native-auth-divider" />
           <p className="native-account-footnote">
             <CheckCircle2 size={13} />
-            课程资料保存在本机；AI 密钥不会写入安装包。
+            {browserApp
+              ? '课程和聊天同步到测试账号，学习缓存保存在当前浏览器。'
+              : '课程资料保存在本机；AI 密钥不会写入安装包。'}
           </p>
         </div>
       </section>

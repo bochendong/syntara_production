@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * 个人中心：头像与头像框
- * （Credits / Token 在下方独立卡片 `NotificationCenterUsageCard`）
+ * （Token 用量 在下方独立卡片 `NotificationCenterUsageCard`）
  */
 export function ProfileUsageCard({ className }: { className?: string }) {
   const [activeTab, setActiveTab] = useState('avatar');

@@ -14,6 +14,9 @@ out/
 *.min.js
 *.min.css
 
+# Standalone design experiments and generated QA output
+artifacts/
+
 # Markdown & YAML
 *.md
 *.yml

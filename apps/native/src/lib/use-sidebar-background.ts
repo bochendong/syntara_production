@@ -1,3 +1,4 @@
+import { accountStorageKey } from '../data/browser-runtime';
 import { useSyncExternalStore } from 'react';
 
 const STORAGE_KEY = 'syntara.native.sidebar-background.v1';
@@ -6,7 +7,7 @@ let sessionEnabled = false;
 
 function readEnabled(): boolean {
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === 'true';
+    return window.localStorage.getItem(accountStorageKey(STORAGE_KEY)) === 'true';
   } catch {
     return sessionEnabled;
   }
@@ -27,7 +28,7 @@ function subscribe(listener: () => void) {
 function setEnabled(enabled: boolean) {
   sessionEnabled = enabled;
   try {
-    window.localStorage.setItem(STORAGE_KEY, String(enabled));
+    window.localStorage.setItem(accountStorageKey(STORAGE_KEY), String(enabled));
   } catch {
     // Keep the setting usable for this session when storage is unavailable.
   }

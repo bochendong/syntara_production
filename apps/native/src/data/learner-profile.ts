@@ -1,3 +1,4 @@
+import { accountStorageKey } from './browser-runtime';
 const LEARNER_PROFILE_STORAGE_KEY = 'syntara.native.learner-profile.v1';
 const LEARNER_PROFILE_CHANGED_EVENT = 'syntara-native-learner-profile-changed';
 
@@ -31,7 +32,7 @@ function isLearnerProfile(value: unknown): value is LearnerProfile {
 
 export function readStoredLearnerProfile(): LearnerProfile {
   try {
-    const raw = window.localStorage.getItem(LEARNER_PROFILE_STORAGE_KEY);
+    const raw = window.localStorage.getItem(accountStorageKey(LEARNER_PROFILE_STORAGE_KEY));
     if (!raw) return { ...DEFAULT_LEARNER_PROFILE };
     const parsed = JSON.parse(raw) as unknown;
     if (!isLearnerProfile(parsed)) return { ...DEFAULT_LEARNER_PROFILE };
@@ -58,7 +59,10 @@ export function writeStoredLearnerProfile(
     updatedAt: Date.now(),
   };
   try {
-    window.localStorage.setItem(LEARNER_PROFILE_STORAGE_KEY, JSON.stringify(next));
+    window.localStorage.setItem(
+      accountStorageKey(LEARNER_PROFILE_STORAGE_KEY),
+      JSON.stringify(next),
+    );
     window.dispatchEvent(new Event(LEARNER_PROFILE_CHANGED_EVENT));
   } catch {
     // Ignore storage failures; in-memory draft still works for this session.

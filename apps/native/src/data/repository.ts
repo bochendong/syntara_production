@@ -93,6 +93,7 @@ export interface LocalRepository {
   bootstrap(): Promise<void>;
   listCourses(): Promise<LocalCourse[]>;
   listCourseSummaries(): Promise<LocalCourseSummary[]>;
+  latestCourseConversation(courseId: string): Promise<LocalConversation | null>;
   loadCourseWorkspace(courseId: string): Promise<LocalCourseWorkspace | null>;
   loadNotebookDocument(notebookId: string): Promise<LocalNotebookDocument | null>;
   loadProblemDocument(problemId: string): Promise<LocalProblemDocument | null>;

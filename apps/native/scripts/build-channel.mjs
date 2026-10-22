@@ -17,6 +17,14 @@ if (
   throw new Error('The staging API must be an HTTPS origin without credentials or a path.');
 }
 const cwd = fileURLToPath(new URL('..', import.meta.url));
+const guard = spawnSync(
+  process.execPath,
+  [path.join(cwd, '../../scripts/maintenance/verify-native-staging-source.mjs')],
+  { cwd, stdio: 'inherit' },
+);
+if (guard.error) throw guard.error;
+if (guard.status !== 0) process.exit(guard.status ?? 1);
+
 const result = spawnSync(
   'pnpm',
   ['exec', 'tauri', 'build', '--bundles', 'app', '--config', 'src-tauri/tauri.staging.conf.json'],

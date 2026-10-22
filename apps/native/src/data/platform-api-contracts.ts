@@ -10,7 +10,6 @@ import type {
   LocalProblemProgress,
   LocalStudyMemory,
 } from '../domain/models';
-import type { NativeMessageMetadata } from '../domain/teaching';
 
 export interface PlatformApiError {
   code?: string;
@@ -63,9 +62,8 @@ export interface NativePlatformCapabilities {
     providerCredentials: 'server-only' | string;
   };
   capabilities: {
-    teachingTurn?: boolean;
+    chat?: boolean;
     miniLecture?: boolean;
-    reviewPlan?: boolean;
     grading?: boolean;
     transcription?: boolean;
     syllabus?: boolean;
@@ -74,7 +72,7 @@ export interface NativePlatformCapabilities {
   };
   models?: Array<{ id: string; label?: string; recommended?: boolean }>;
   details?: {
-    teachingTurn?: {
+    chat?: {
       path: string;
       transport: Array<'json' | 'sse' | string>;
     };
@@ -126,45 +124,6 @@ export type NativeDevicePollResult =
   | NativeDeviceTokenPair
   | { status: 'pending'; intervalSeconds: number };
 
-export interface NativeTeachingTurnMessage {
-  id?: string;
-  role: 'user' | 'assistant';
-  text: string;
-}
-
-export interface NativeTeachingTurnPayload {
-  requestId: string;
-  clientTurnId?: string;
-  question: string;
-  course: {
-    id?: string;
-    name: string;
-    code?: string;
-    description?: string;
-    language?: 'zh-CN' | 'en-US';
-  };
-  conversation: {
-    id?: string;
-    recentMessages: NativeTeachingTurnMessage[];
-  };
-  /** Compressed photos of the problem or the learner's work for this turn only. */
-  images?: Array<{ name: string; mimeType: 'image/jpeg'; dataBase64: string }>;
-  localContext?: {
-    calendarEvents?: unknown[];
-    memories?: unknown[];
-    attempts?: unknown[];
-    problemCandidates?: unknown[];
-    notebookExcerpts?: unknown[];
-    sourceExcerpts?: unknown[];
-    recentPlans?: unknown[];
-    [key: string]: unknown;
-  };
-  preferences?: {
-    language?: 'zh-CN' | 'en-US';
-    allowWebSearch?: boolean;
-  };
-}
-
 export interface NativePlatformStreamEvent {
   requestId: string;
   sequence: number;
@@ -184,7 +143,7 @@ export interface NativePlatformStreamEvent {
   data: unknown;
 }
 
-export interface NativeTeachingTurnResult {
+export interface NativeChatTurnResult {
   requestId: string;
   text: string;
   model: string | null;
@@ -330,29 +289,6 @@ export interface NativeMiniLectureManifest {
   };
   pages: NativeMiniLecturePage[];
   createdAt: string;
-}
-
-export interface NativeReviewPlanRequest {
-  course: { id: string; name?: string; code?: string };
-  query: string;
-  today?: string;
-  scheduleEvents?: unknown[];
-  attempts?: unknown[];
-  memories?: unknown[];
-  problemCandidates?: unknown[];
-  constraints?: {
-    totalMinutes?: number;
-    questionCount?: number;
-    maxTasks?: number;
-  };
-}
-
-export interface NativeReviewPlanResponse {
-  decision: unknown;
-  messageMetadata?: Pick<
-    NativeMessageMetadata,
-    'reviewPlan' | 'problemSelection' | 'evidence' | 'teachingRunId'
-  >;
 }
 
 export interface NativeGradeRequest {

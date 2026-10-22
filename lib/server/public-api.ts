@@ -5,6 +5,10 @@ import {
   nativePlatformApiAuthMode,
   SHARED_NATIVE_PLATFORM_PRINCIPAL,
 } from '@/lib/server/native-platform-access';
+import {
+  authenticateNativeBrowserRequest,
+  nativeBrowserEnabled,
+} from '@/lib/server/native-browser-auth';
 import { authenticateNativeDeviceRequest, NativeAuthError } from '@/lib/server/native-device-auth';
 
 export type PublicApiPrincipal = {
@@ -187,7 +191,9 @@ export async function requireNativePlatformApi(
   }
   if (nativePlatformApiAuthMode() === 'authenticated') {
     try {
-      return await authenticateNativeDeviceRequest(request);
+      return !request.headers.has('authorization') && nativeBrowserEnabled()
+        ? await authenticateNativeBrowserRequest(request)
+        : await authenticateNativeDeviceRequest(request);
     } catch (error) {
       if (error instanceof NativeAuthError) {
         return publicApiError(requestId, error.status, error.code, error.message);

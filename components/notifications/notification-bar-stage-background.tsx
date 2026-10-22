@@ -117,7 +117,7 @@ type NotificationBarStageBackgroundProps = {
 };
 
 /**
- * 与补给站 `live2d-companion-hub` 中可选舞台动效一一对应；用于通知弹层/个人中心预览，默认关闭鼠标交互以减轻顶栏与设置页压力。
+ * 用于通知弹层与个人中心的舞台预览；用于通知弹层/个人中心预览，默认关闭鼠标交互以减轻顶栏与设置页压力。
  */
 export function NotificationBarStageBackground({
   id,

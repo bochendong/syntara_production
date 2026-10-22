@@ -2888,6 +2888,11 @@ textarea:focus-visible {
   padding-top: var(--workspace-titlebar-height);
 }
 
+/* Avoid retaining a translucent entrance frame when WKWebView adds a page layer. */
+.tauri-runtime .course-workspace {
+  animation: none;
+}
+
 .platform-macos .course-workspace::before {
   position: absolute;
   z-index: 80;

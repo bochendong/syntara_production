@@ -1,3 +1,4 @@
+import { reviewLearningDescription } from '@/lib/learning/review-learning-description';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { callLLM } from '@/lib/ai/llm';
@@ -188,14 +189,12 @@ function normalizeRewardKind(value: unknown, kind: string): string {
   const allowed = [
     'none',
     'run_card',
-    'reward_coin',
     'card_back_shard',
     'relic_shard',
     'forgiveness',
     'card_upgrade',
     'hint_card',
     'mentor_cosmetic_shard',
-    'multiplier',
   ];
   if (allowed.includes(text)) return text;
   if (text.includes('升级')) return 'card_upgrade';
@@ -204,67 +203,13 @@ function normalizeRewardKind(value: unknown, kind: string): string {
   if (text.includes('遗物')) return 'relic_shard';
   if (text.includes('卡背')) return 'card_back_shard';
   if (text.includes('装饰') || text.includes('导师')) return 'mentor_cosmetic_shard';
-  if (text.includes('倍率')) return 'multiplier';
-  if (text.includes('奖励币') || text.includes('coin')) return 'reward_coin';
+  if (text.includes('倍率')) return 'none';
+  if (text.includes('奖励币') || text.includes('coin')) return 'none';
   if (text.includes('卡')) return 'run_card';
   if (kind === 'treasure') return 'run_card';
   if (kind === 'camp') return 'forgiveness';
   if (kind === 'shop') return 'hint_card';
   return 'none';
-}
-
-function parseRewardPointsFromText(value: unknown): number | undefined {
-  const text = String(value ?? '').trim();
-  if (!text) return undefined;
-  const match = text.match(/(?:\+|获得|奖励)?\s*(\d{1,3})\s*(?:奖励积分|积分|奖励币)/);
-  if (!match) return undefined;
-  const numeric = Number(match[1]);
-  return Number.isFinite(numeric) ? Math.max(0, Math.min(999, Math.round(numeric))) : undefined;
-}
-
-function defaultRewardPoints(
-  kind: string,
-  difficulty: string,
-  questionCount: number,
-  rewardKind: string,
-): number {
-  const baseByKind: Record<string, number> = {
-    normal: 10,
-    elite: 24,
-    boss: 60,
-    camp: 8,
-    treasure: 18,
-    event: 14,
-    shop: 0,
-  };
-  const difficultyBonus = difficulty === 'hard' ? 10 : difficulty === 'medium' ? 4 : 0;
-  const questionBonus = ['normal', 'elite', 'boss'].includes(kind)
-    ? Math.max(0, questionCount - 2) * 2
-    : 0;
-  const rewardKindBonus = ['reward_coin', 'relic_shard', 'card_back_shard'].includes(rewardKind)
-    ? 6
-    : ['run_card', 'forgiveness', 'card_upgrade'].includes(rewardKind)
-      ? 4
-      : 0;
-  return Math.max(
-    0,
-    Math.min(120, (baseByKind[kind] ?? 10) + difficultyBonus + questionBonus + rewardKindBonus),
-  );
-}
-
-function normalizeRewardPoints(args: {
-  value: unknown;
-  rewardPreview: unknown;
-  kind: string;
-  difficulty: string;
-  questionCount: number;
-  rewardKind: string;
-}): number {
-  const numeric = typeof args.value === 'number' ? args.value : Number(args.value);
-  if (Number.isFinite(numeric)) return Math.max(0, Math.min(999, Math.round(numeric)));
-  const fromPreview = parseRewardPointsFromText(args.rewardPreview);
-  if (typeof fromPreview === 'number') return fromPreview;
-  return defaultRewardPoints(args.kind, args.difficulty, args.questionCount, args.rewardKind);
 }
 
 function normalizeEventOptions(value: unknown): unknown[] {
@@ -275,15 +220,9 @@ function normalizeEventOptions(value: unknown): unknown[] {
       if (!option) return null;
       return {
         label: String(option.label ?? option.title ?? '事件选择'),
-        effect: String(option.effect ?? option.description ?? '调整本局复习收益'),
-        tradeoff:
-          typeof option.tradeoff === 'string' && option.tradeoff.trim()
-            ? option.tradeoff
-            : undefined,
-        rewardPreview:
-          typeof option.rewardPreview === 'string' && option.rewardPreview.trim()
-            ? option.rewardPreview
-            : undefined,
+        effect: reviewLearningDescription(option.effect ?? option.description, '调整本局练习节奏'),
+        tradeoff: reviewLearningDescription(option.tradeoff, '稍后仍可继续练习'),
+        rewardPreview: reviewLearningDescription(option.rewardPreview, '完成本关后保存学习进度'),
       };
     })
     .filter(Boolean)
@@ -314,14 +253,7 @@ function normalizeReviewRoutePayload(value: unknown): unknown {
               const questionCount = normalizeQuestionCount(node.questionCount, kind);
               const difficulty = normalizeDifficulty(node.difficulty, kind);
               const rewardKind = normalizeRewardKind(node.rewardKind, kind);
-              const rewardPoints = normalizeRewardPoints({
-                value: node.rewardPoints,
-                rewardPreview: node.rewardPreview,
-                kind,
-                difficulty,
-                questionCount,
-                rewardKind,
-              });
+              const rewardPoints = 0;
               return {
                 ...node,
                 id: String(node.id ?? `node-${layerIndex + 1}-${nodeIndex + 1}`),
@@ -353,10 +285,10 @@ function normalizeReviewRoutePayload(value: unknown): unknown {
                 requiresQuestion: normalizeRequiresQuestion(node.requiresQuestion, kind),
                 rewardKind,
                 rewardPoints,
-                rewardPreview:
-                  typeof node.rewardPreview === 'string' && node.rewardPreview.trim()
-                    ? node.rewardPreview
-                    : undefined,
+                rewardPreview: reviewLearningDescription(
+                  node.rewardPreview,
+                  '完成本关后保存学习进度',
+                ),
                 eventOptions: normalizeEventOptions(node.eventOptions),
               };
             })
@@ -500,9 +432,9 @@ export async function POST(req: NextRequest) {
 2. 但是每条分支路径都必须通过 normal/elite/boss 题目节点覆盖完整知识点集合；趣味节点只能提供补给、奖励或选择，不能替代核心检测。
 3. 节点 kind 可以是 normal、elite、boss、camp、treasure、event、shop。
 4. normal/elite/boss 必须 requiresQuestion=true；camp/treasure/event/shop 通常 requiresQuestion=false。
-5. 营火：整理错题、恢复一次容错、升级一张局内卡。宝箱：获得局内卡、奖励币、卡背碎片、遗物碎片。事件：二选一，例如“现在做一题高难题换双倍奖励”或“跳过一题但失去倍率”。商店：用奖励币换提示卡、豁免卡、导师装饰碎片。
+5. 营火：整理错题或获得学习提示。宝箱：获得局内学习卡。事件：二选一练习策略。商店节点可直接选择提示或练习策略，不包含购买、积分或兑换。
 6. 题目节点必须像游戏关卡，不要写“XX检测”这种泛泛标题；用“导数链式反应”“极限小疙瘩清理战”“可导性分岔口”这种短标题。
-7. 每个节点必须说明为什么给这个学生这一关、做几题、通过标准、通关后获得多少奖励积分；这些字段要能被地图详情面板直接展示。
+7. 每个节点必须说明为什么给这个学生这一关、做几题、通过标准、完成后保存哪些学习进度；这些字段要能被地图详情面板直接展示。
 8. 第一层只能安排 normal 或 elite 题目节点；营火、商店、宝箱、事件都不能出现在第一层，优先在完成 1-2 层后出现。
 9. 最后一层必须只有 1 个 boss 节点，不能把商店、营火、宝箱、事件和 Boss 放在同一层。
 10. 输出语气是可爱的学习导师，有陪伴感但克制；不绑定性别，不说恋爱承诺，不成人化。
@@ -569,8 +501,8 @@ ${reviewHistoryLines}
           "sourceSignals": ["weak_point", "wrong_problem"],
           "requiresQuestion": true,
           "rewardKind": "none",
-          "rewardPoints": 16,
-          "rewardPreview": "通关 +16 奖励积分，倍率 +0.1",
+          "rewardPoints": 0,
+          "rewardPreview": "完成本关后保存学习进度",
           "eventOptions": []
         },
         {
@@ -587,8 +519,8 @@ ${reviewHistoryLines}
           "sourceSignals": ["recovery"],
           "requiresQuestion": false,
           "rewardKind": "forgiveness",
-          "rewardPoints": 10,
-          "rewardPreview": "通关 +10 奖励积分，恢复一次答错豁免",
+          "rewardPoints": 0,
+          "rewardPreview": "获得一次答题提示",
           "eventOptions": []
         },
         {
@@ -605,19 +537,19 @@ ${reviewHistoryLines}
           "sourceSignals": ["choice"],
           "requiresQuestion": false,
           "rewardKind": "multiplier",
-          "rewardPoints": 18,
-          "rewardPreview": "通关 +18 奖励积分，根据选择调整倍率",
+          "rewardPoints": 0,
+          "rewardPreview": "根据选择调整练习节奏",
           "eventOptions": [
             {
               "label": "现在做一题高难题",
               "effect": "下一题答对获得双倍奖励",
-              "tradeoff": "答错会失去当前倍率",
-              "rewardPreview": "双倍奖励"
+              "tradeoff": "稍后仍可返回练习",
+              "rewardPreview": "进阶练习"
             },
             {
               "label": "跳过一题",
               "effect": "立刻前进到下一关",
-              "tradeoff": "失去当前倍率",
+              "tradeoff": "稍后仍可返回练习",
               "rewardPreview": "保住节奏"
             }
           ]
@@ -643,9 +575,9 @@ ${reviewHistoryLines}
 - “本轮路线必须覆盖的目标概念”是硬约束：每个有候选题 id 的目标概念，至少要出现在 1 个 normal/elite/boss 节点的 knowledgePoints 里，并且该节点 problemIds 必须包含对应概念的候选题 id。没有候选题的目标概念也要以“需要先添加题目入题库”显式暴露。
 - “必须精确修复的私人记忆概念”和“必须精确修复的历史失败概念”也是硬约束；请使用原始概念词写入 normal/elite/boss 的 knowledgePoints，不要用上位概念替代。例如输入是“等价无穷小”时，knowledgePoints 里必须出现“等价无穷小”，不能只写“极限”。
 - normal/elite/boss 的 questionCount 必须是 2-5，boss 必须是 4-6；passCriteria 必须明确几题答对几题。
-- 每个节点必须提供 rewardPoints 整数，并在 rewardPreview 里写清楚“通关 +X 奖励积分”。建议 normal 12-22、elite 28-42、boss 70-100、camp/event 8-22、treasure 18-40、shop 0-10。
+- 不生成积分、奖励币、奖励倍率或提现承诺。rewardPoints 固定为 0，rewardPreview 只描述学习提示或关卡完成后的学习进度。
 - sourceSignals 使用英文短标签，例如 private_memory、review_history、candidate_problem、wrong_problem、weak_point、untried_concept、thin_bank、mastered_review、boss_mix、reward。
-- 事件节点必须给 2 个 eventOptions；商店节点 rewardKind 优先 hint_card/forgiveness/mentor_cosmetic_shard；宝箱节点 rewardKind 优先 run_card/reward_coin/card_back_shard/relic_shard；营火节点 rewardKind 优先 forgiveness/card_upgrade。
+- 事件节点必须给 2 个 eventOptions；商店节点 rewardKind 优先 hint_card/forgiveness/mentor_cosmetic_shard；宝箱节点 rewardKind 优先 run_card/card_back_shard/relic_shard；营火节点 rewardKind 优先 forgiveness/card_upgrade。
 - 路线图要优先安排错题概念、未尝试概念和题量偏薄概念；已掌握概念可以作为 boss 综合题或低频巩固。
 - 如果题库缺少某专题题目，请在节点的 questionStyle 里标注“需要先添加题目入题库”，不要假装题库已经足够。`;
 

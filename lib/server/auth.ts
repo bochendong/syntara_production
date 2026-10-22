@@ -1,12 +1,15 @@
 import { createHash } from 'node:crypto';
 import type { Agent } from 'node:http';
 import type { NextAuthOptions } from 'next-auth';
+import type { AdapterUser } from 'next-auth/adapters';
 import { getServerSession } from 'next-auth';
 import GitHubProvider from 'next-auth/providers/github';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import { MARBLE_AVATAR_URLS } from '@/lib/constants/marble-avatars';
+import { nativeInitialUserData } from '@/lib/server/native-initial-profile';
 import { isDatabaseAvailable, getOptionalPrisma } from '@/lib/server/prisma-safe';
 import { verifyPassword } from '@/lib/server/password-hash';
 import {
@@ -218,9 +221,24 @@ function buildProviders() {
 }
 
 const prismaClient = getOptionalPrisma();
+const databaseAdapter =
+  isDatabaseAvailable() && prismaClient ? PrismaAdapter(prismaClient) : undefined;
+const createUser = databaseAdapter?.createUser;
 
 export const authOptions: NextAuthOptions = {
-  ...(isDatabaseAvailable() && prismaClient ? { adapter: PrismaAdapter(prismaClient) } : {}),
+  ...(databaseAdapter
+    ? {
+        adapter: {
+          ...databaseAdapter,
+          ...(createUser
+            ? {
+                createUser: (user: Omit<AdapterUser, 'id'>) =>
+                  createUser(nativeInitialUserData(process.env, user, MARBLE_AVATAR_URLS)),
+              }
+            : {}),
+        },
+      }
+    : {}),
   secret: resolveAuthSecret(),
   providers: buildProviders(),
   session: {

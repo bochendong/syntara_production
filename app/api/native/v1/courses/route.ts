@@ -1,3 +1,6 @@
+import { z } from 'zod';
+import { nativeBrowserEnabled } from '@/lib/server/native-browser-auth';
+import { createOwnedCourse } from '@/lib/server/repositories/course-repository';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { normalizeCourseDisplay } from '@/lib/course-space/course-display-name';
@@ -10,7 +13,7 @@ import {
   requireNativePlatformApi,
 } from '@/lib/server/public-api';
 import { listAccessibleCoursesForUser } from '@/lib/server/repositories/course-repository';
-import { nativeStagingCourseForUser } from '@/lib/server/native-staging-course';
+import { visibleNativeCourses } from '@/lib/server/native-staging-course';
 
 export const runtime = 'nodejs';
 
@@ -27,13 +30,11 @@ export async function GET(request: NextRequest) {
     where: { id: principal.userId },
     select: { email: true },
   });
-  let courses = await listAccessibleCoursesForUser(prisma, principal.userId, user?.email);
-  const fixture =
-    courses.length === 0 ? nativeStagingCourseForUser(process.env, principal.userId) : null;
-  if (fixture) {
-    await prisma.course.upsert({ where: { id: fixture.id }, create: fixture, update: {} });
-    courses = await listAccessibleCoursesForUser(prisma, principal.userId, user?.email);
-  }
+  const courses = visibleNativeCourses(
+    process.env,
+    principal.userId,
+    await listAccessibleCoursesForUser(prisma, principal.userId, user?.email),
+  );
   return publicApiSuccess(requestId, {
     courses: courses.map((course) => {
       const display = normalizeCourseDisplay(course);
@@ -49,4 +50,48 @@ export async function GET(request: NextRequest) {
       };
     }),
   });
+}
+
+const createSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(2000).default(''),
+});
+/** Explicit user creation only; listing never creates a course. */
+export async function POST(request: NextRequest) {
+  const requestId = publicApiRequestId(request);
+  if (!nativeBrowserEnabled()) return publicApiError(requestId, 404, 'not_found', 'Not found.');
+  const principal = await requireNativePlatformApi(request, requestId);
+  if (principal instanceof NextResponse) return principal;
+  const payload = createSchema.safeParse(await request.json().catch(() => null));
+  if (!payload.success)
+    return publicApiError(
+      requestId,
+      400,
+      'invalid_request',
+      '请输入 1–120 字的课程名称，介绍不超过 2000 字。',
+    );
+  const prisma = getOptionalPrisma();
+  if (!prisma)
+    return publicApiError(requestId, 503, 'auth_not_configured', 'Course storage is unavailable.');
+  const course = await createOwnedCourse(prisma, principal.userId, {
+    ...payload.data,
+    language: 'zh-CN',
+    tags: [],
+    purpose: 'daily',
+  });
+  return publicApiSuccess(
+    requestId,
+    {
+      course: {
+        id: course.id,
+        name: course.name,
+        description: course.description,
+        courseCode: course.courseCode,
+        language: course.language,
+        updatedAt: course.updatedAt.toISOString(),
+        accessRole: 'owner',
+      },
+    },
+    { status: 201 },
+  );
 }

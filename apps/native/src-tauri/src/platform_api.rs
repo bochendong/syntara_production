@@ -17,11 +17,9 @@ const MAX_JSON_RESPONSE_BYTES: usize = 96 * 1024 * 1024;
 const MAX_DOWNLOAD_BYTES: usize = 256 * 1024 * 1024;
 
 const CAPABILITIES_PATH: &str = "/api/native/v1/capabilities";
-const TEACHING_TURN_PATH: &str = "/api/native/v1/turn";
 /// 手机 / 桌面端独立的助教聊天（SSE）。
 const CHAT_PATH: &str = "/api/native/v2/chat";
 const MINI_LECTURES_PATH: &str = "/api/native/v1/mini-lectures";
-const REVIEW_PLANS_PATH: &str = "/api/native/v1/review-plans";
 const GRADE_PATH: &str = "/api/native/v1/grade";
 const TRANSCRIPTIONS_PATH: &str = "/api/native/v1/transcriptions";
 const SYLLABUS_PARSE_PATH: &str = "/api/native/v1/syllabus/parse";
@@ -93,7 +91,7 @@ pub struct PlatformStreamEvent {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PlatformTeachingTurnResult {
+pub struct PlatformChatResult {
     pub request_id: String,
     pub text: String,
     pub model: Option<String>,
@@ -647,16 +645,16 @@ fn collect_stream_frame(
     Ok(())
 }
 
-fn teaching_result_from_payload(
+fn chat_result_from_payload(
     request_id: &str,
     payload: Value,
-) -> Result<PlatformTeachingTurnResult, String> {
+) -> Result<PlatformChatResult, String> {
     let data = envelope_data(&payload);
     let text = response_text(data).unwrap_or_default();
     if text.trim().is_empty() {
         return Err("平台没有返回助教回复。".to_string());
     }
-    Ok(PlatformTeachingTurnResult {
+    Ok(PlatformChatResult {
         request_id: request_id.to_string(),
         text,
         model: string_at_paths(
@@ -699,18 +697,11 @@ fn teaching_result_from_payload(
     })
 }
 
-pub async fn execute_teaching_turn(
-    app: AppHandle,
-    request: PlatformJsonRequest,
-) -> Result<PlatformTeachingTurnResult, String> {
-    execute_streaming_turn(app, request, TEACHING_TURN_PATH).await
-}
-
 async fn execute_streaming_turn(
     app: AppHandle,
     request: PlatformJsonRequest,
     path: &str,
-) -> Result<PlatformTeachingTurnResult, String> {
+) -> Result<PlatformChatResult, String> {
     reject_provider_credentials(&request.payload)?;
     let client = http_client(DEFAULT_TIMEOUT)?;
     let url = endpoint_url(path)?;
@@ -748,7 +739,7 @@ async fn execute_streaming_turn(
         .is_some_and(|value| value.to_ascii_lowercase().contains("text/event-stream"));
     if !is_sse {
         let payload = response_json(response).await?;
-        let result = teaching_result_from_payload(&request.request_id, payload.clone())?;
+        let result = chat_result_from_payload(&request.request_id, payload.clone())?;
         emit_platform_stream(
             &app,
             &PlatformStreamEvent {
@@ -804,7 +795,7 @@ async fn execute_streaming_turn(
         return Err("平台没有返回助教回复。".to_string());
     }
     let metadata = envelope_data(&final_event);
-    Ok(PlatformTeachingTurnResult {
+    Ok(PlatformChatResult {
         request_id: request.request_id,
         text: output.trim().to_string(),
         model: string_at_paths(
@@ -926,29 +917,16 @@ pub async fn native_logout_device(request: PlatformJsonRequest) -> Result<Value,
 }
 
 #[tauri::command]
-pub async fn native_teaching_turn(
-    app: AppHandle,
-    request: PlatformJsonRequest,
-) -> Result<PlatformTeachingTurnResult, String> {
-    execute_teaching_turn(app, request).await
-}
-
-#[tauri::command]
 pub async fn native_chat(
     app: AppHandle,
     request: PlatformJsonRequest,
-) -> Result<PlatformTeachingTurnResult, String> {
+) -> Result<PlatformChatResult, String> {
     execute_streaming_turn(app, request, CHAT_PATH).await
 }
 
 #[tauri::command]
 pub async fn native_create_mini_lecture(request: PlatformJsonRequest) -> Result<Value, String> {
     post_json(MINI_LECTURES_PATH, &request, LONG_RUNNING_TIMEOUT).await
-}
-
-#[tauri::command]
-pub async fn native_create_review_plan(request: PlatformJsonRequest) -> Result<Value, String> {
-    post_json(REVIEW_PLANS_PATH, &request, DEFAULT_TIMEOUT).await
 }
 
 #[tauri::command]

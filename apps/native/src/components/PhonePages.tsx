@@ -28,7 +28,7 @@ import {
 
 import {
   COURSE_AVATAR_PRESETS,
-  courseAvatarUrlById,
+  nativeAccountAvatarUrl,
   profileThemeForAvatar,
   resolveNativeCourseAvatar,
 } from '../assets';
@@ -84,6 +84,7 @@ import {
   readReviewedMap,
 } from '../lib/memory-freshness';
 import { buildMemoryGalaxy, type GalaxyNode, type MemoryGalaxy } from '../lib/memory-galaxy';
+import { useBackDismiss } from '../lib/use-back-dismiss';
 import { useSidebarBackground } from '../lib/use-sidebar-background';
 import {
   MEMORY_MARBLE_LEGEND,
@@ -542,6 +543,8 @@ export function PhoneProfilePage({
   const [draftSignature, setDraftSignature] = useState('');
   const [draftSchool, setDraftSchool] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
+  useBackDismiss(editing, () => setEditing(false), 20);
+  useBackDismiss(Boolean(sheet), () => setSheet(null), 30);
 
   useEffect(() => {
     let cancelled = false;
@@ -560,8 +563,7 @@ export function PhoneProfilePage({
   const displayName = customName || user?.name || DEFAULT_LEARNER_PROFILE.name;
   const signature =
     profile.signature !== DEFAULT_LEARNER_PROFILE.signature ? profile.signature.trim() : '';
-  const avatarUrl =
-    courseAvatarUrlById(profile.avatarId) || user?.image || courseAvatarUrlById('R01') || '';
+  const avatarUrl = nativeAccountAvatarUrl(profile.avatarId, user?.image);
   const profileBackgroundUrl = profileThemeForAvatar(avatarUrl)?.backgroundUrl;
   const school = profile.school.trim();
 
@@ -773,9 +775,7 @@ export function PhoneProfilePage({
                 </header>
                 <div className="phone-sheet-avatars">
                   {COURSE_AVATAR_PRESETS.map((preset) => {
-                    const selected =
-                      profile.avatarId === preset.id ||
-                      (!profile.avatarId && !user?.image && preset.id === 'R01');
+                    const selected = avatarUrl === preset.url;
                     return (
                       <button
                         type="button"
@@ -1436,20 +1436,26 @@ function PhoneEventRow({
 }
 
 export function PhoneCalendarPage({
+  title = '日历',
+  initialDate,
   events,
   isResearchCourse,
   onAddEvent,
   onEditEvent,
   onBack,
 }: {
+  title?: string;
+  initialDate?: string;
   events: LocalCourseEvent[];
   isResearchCourse: boolean;
   onAddEvent: (date: string) => void;
   onEditEvent: (event: LocalCourseEvent) => void;
   onBack: () => void;
 }) {
-  const [referenceDate, setReferenceDate] = useState(() => new Date());
-  const [selectedKey, setSelectedKey] = useState(() => localDayKey(new Date()));
+  const [referenceDate, setReferenceDate] = useState(() =>
+    initialDate ? new Date(`${initialDate}T12:00:00`) : new Date(),
+  );
+  const [selectedKey, setSelectedKey] = useState(() => initialDate ?? localDayKey(new Date()));
   const labels = isResearchCourse ? RESEARCH_EVENT_LABELS : LEARNING_EVENT_LABELS;
   const days = useMemo(
     () => buildLearningCalendarDays(referenceDate, events),
@@ -1480,7 +1486,7 @@ export function PhoneCalendarPage({
     setReferenceDate((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
 
   return (
-    <PhonePage title="日历" overlay wide onBack={onBack}>
+    <PhonePage title={title} overlay wide onBack={onBack}>
       <div className="phone-calendar-layout">
         <section className="phone-group phone-calendar" aria-label="选择日期">
           <div className="phone-calendar-head">

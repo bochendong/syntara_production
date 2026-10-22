@@ -1,3 +1,4 @@
+import { browserApp, browserAccountId } from './browser-runtime';
 import { nativeChannel } from '../channel';
 import Dexie, { type EntityTable } from 'dexie';
 import type {
@@ -114,7 +115,11 @@ class NativePreviewDatabase extends Dexie {
 
   constructor() {
     super(
-      nativeChannel === 'staging' ? 'Syntara-Native-Preview-Staging' : 'Syntara-Native-Preview',
+      browserApp
+        ? `Syntara-Web-Staging-${browserAccountId()}`
+        : nativeChannel === 'staging'
+          ? 'Syntara-Native-Preview-Staging'
+          : 'Syntara-Native-Preview',
     );
     this.version(1).stores({
       courses: 'id, updatedAt',
@@ -457,6 +462,10 @@ export class BrowserLocalRepository implements LocalRepository {
   }
 
   async bootstrap(): Promise<void> {
+    if (browserApp) {
+      await this.database.open();
+      return;
+    }
     const isNewDatabase = (await this.database.courses.count()) === 0;
     if (isNewDatabase) {
       await this.database.transaction(
@@ -520,6 +529,14 @@ export class BrowserLocalRepository implements LocalRepository {
         return { ...course, notebookCount, problemCount, conversationCount };
       }),
     );
+  }
+
+  async latestCourseConversation(courseId: string): Promise<LocalConversation | null> {
+    const conversations = await this.database.conversations
+      .where('courseId')
+      .equals(courseId)
+      .sortBy('updatedAt');
+    return conversations.at(-1) ?? null;
   }
 
   async loadCourseWorkspace(courseId: string): Promise<LocalCourseWorkspace | null> {

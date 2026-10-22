@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   return publicApiSuccess(requestId, {
     service: 'syntara-native-ai',
     schemaVersion: 1,
-    version: 'native.v1',
+    version: 'native.v2',
     available,
     access: {
       mode: authMode,
@@ -31,16 +31,15 @@ export async function GET(request: NextRequest) {
     },
     models: [{ id: systemOpenAI.modelId, label: systemOpenAI.modelId, recommended: true }],
     capabilities: {
-      teachingTurn: available,
+      chat: available,
       miniLecture: available,
-      reviewPlan: available,
       grading: available,
       syllabus: available,
       transcription: available,
       notebookGeneration: false,
     },
     details: {
-      teachingTurn: { path: '/api/native/v1/turn', transport: ['json'] },
+      chat: { path: '/api/native/v2/chat', transport: ['sse'] },
       miniLecture: {
         path: '/api/native/v1/mini-lectures',
         imageProvider: 'openai-image',

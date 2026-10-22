@@ -1,3 +1,4 @@
+import { accountStorageKey } from './browser-runtime';
 import type { LocalNotebook, LocalNotebookDocument, LocalStudyMemory } from '../domain/models';
 import { mergeReviewedMap, readReviewedMap } from '../lib/memory-freshness';
 import { SYNTARA_ARCHIVE_FORMAT, SYNTARA_ARCHIVE_VERSION, type SyntaraArchiveV1 } from './archive';
@@ -47,7 +48,7 @@ const NOTHING_CHANGED: CourseDataSyncResult = {
 
 function readJson<T>(key: string, fallback: T): T {
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = window.localStorage.getItem(accountStorageKey(key));
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
@@ -56,7 +57,7 @@ function readJson<T>(key: string, fallback: T): T {
 
 function writeJson(key: string, value: unknown) {
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    window.localStorage.setItem(accountStorageKey(key), JSON.stringify(value));
   } catch {
     // 存不下时下次打开课程会重新比对，不影响使用。
   }

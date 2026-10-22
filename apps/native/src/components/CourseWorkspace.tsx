@@ -704,13 +704,18 @@ function errorMessage(cause: unknown): string {
 }
 
 type CourseWorkspaceProps = {
+  onOpenGlobalCalendar: () => void;
   workspace: LocalCourseWorkspace;
   initialConversationId?: string | null;
+  initialPage?: 'calendar' | 'memory';
+  newEventDate?: string;
+  calendarDate?: string;
   /** 当前账户的全部课程，常驻侧栏。 */
   courses: LocalCourseSummary[];
   backendLabel: string;
   onBack: () => void;
   onSwitchCourse: (courseId: string) => void;
+  onCreateCourse?: () => void;
   onOpenProblemBank: () => void;
   onOpenPractice: (launch: ProblemBankLaunch) => void;
   onWorkspaceChanged: () => Promise<void>;
@@ -798,7 +803,7 @@ function SessionsPanel({
       <div className="sessions-back-row">
         <button type="button" onClick={onBack} className="plain-row-button">
           <ArrowLeft size={16} strokeWidth={1.8} />
-          <span>Learn 首页</span>
+          <span>聊天</span>
         </button>
         {onClose ? (
           <button type="button" className="round-ghost-button" onClick={onClose} aria-label="关闭">
@@ -1962,13 +1967,18 @@ function CourseToolsPanel({
 export function CourseWorkspace({
   workspace,
   initialConversationId = null,
+  initialPage,
+  newEventDate,
+  calendarDate,
   backendLabel,
   onBack,
   onOpenProblemBank,
+  onOpenGlobalCalendar,
   onOpenPractice,
   onWorkspaceChanged,
   courses,
   onSwitchCourse,
+  onCreateCourse,
 }: CourseWorkspaceProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(() =>
     workspace.conversations.some((conversation) => conversation.id === initialConversationId)
@@ -1998,7 +2008,7 @@ export function CourseWorkspace({
   // iPad 和桌面：侧边栏常驻，可以用聊天页左上角的按钮收起。
   const [splitSidebarCollapsed, setSplitSidebarCollapsed] = useState(false);
 
-  // 没有主页：记下最近用的课程和聊天，下次打开 App 直接回到这里。
+  // 下次启动时恢复当前课程与聊天。
   useEffect(() => {
     writePhoneLastChat({ courseId: workspace.course.id, conversationId: selectedConversationId });
   }, [selectedConversationId, workspace.course.id]);
@@ -2061,7 +2071,7 @@ export function CourseWorkspace({
   /** 网页数据同步到本机后加一，触发日历和课堂重新读取。 */
   const [courseDataRevision, setCourseDataRevision] = useState(0);
   const [scheduleBusy, setScheduleBusy] = useState(false);
-  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(Boolean(newEventDate));
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const [calendarReferenceDate, setCalendarReferenceDate] = useState(() => new Date());
@@ -2071,7 +2081,7 @@ export function CourseWorkspace({
   // 手机上我的、笔记、学习进度、学习记忆都是从右边推进来的整页。
   const [phonePage, setPhonePage] = useState<
     'profile' | 'notes' | 'progress' | 'memory' | 'calendar' | 'classroom' | 'problems' | null
-  >(readOpenPhonePage);
+  >(() => initialPage ?? readOpenPhonePage());
   const [marbleCatch, setMarbleCatch] = useState<MarbleCatch | null>(null);
   const [courseLearningState, setCourseLearningState] = useState<LocalCourseLearningState | null>(
     null,
@@ -2102,7 +2112,7 @@ export function CourseWorkspace({
   );
   const [avatarPickerPage, setAvatarPickerPage] = useState(0);
   const [scheduleTitle, setScheduleTitle] = useState('');
-  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleDate, setScheduleDate] = useState(newEventDate ?? '');
   const [scheduleNote, setScheduleNote] = useState('');
   const [scheduleKind, setScheduleKind] = useState<LocalCourseEventKind>('other');
   const attachmentInputRef = useRef<HTMLInputElement>(null);
@@ -2131,8 +2141,7 @@ export function CourseWorkspace({
   activeConversationIdRef.current = selectedConversationId;
   const platformReady =
     platformAiAccess.status === 'ready' && platformAiAccess.capabilities?.available === true;
-  const teachingTurnAvailable =
-    platformReady && platformAiAccess.capabilities?.capabilities.teachingTurn === true;
+  const chatAvailable = platformReady && platformAiAccess.capabilities?.capabilities.chat === true;
   const miniLectureAvailable =
     platformReady && platformAiAccess.capabilities?.capabilities.miniLecture === true;
   const syllabusAvailable =
@@ -3891,7 +3900,7 @@ export function CourseWorkspace({
             ? '帮我看看这个文件。'
             : '');
       if (!text || busy) return;
-      if (!teachingTurnAvailable) {
+      if (!chatAvailable) {
         setError(platformAiAccess.message);
         return;
       }
@@ -4079,7 +4088,7 @@ export function CourseWorkspace({
       selectedConversationId,
       workspace,
       scheduleItems,
-      teachingTurnAvailable,
+      chatAvailable,
       pendingImages,
       pendingFiles,
     ],
@@ -4144,7 +4153,7 @@ export function CourseWorkspace({
 
   const compactSessionPanel = (
     <div className="compact-workspace-rail">
-      <button type="button" onClick={onBack} aria-label="返回 Learn 首页">
+      <button type="button" onClick={onBack} aria-label="返回 聊天">
         <ArrowLeft size={17} />
       </button>
       <button type="button" onClick={expandLeftRail} aria-label="展开会话历史">
@@ -4285,6 +4294,7 @@ export function CourseWorkspace({
   }, [hasMessages, scrollToBottomIfPinned]);
 
   // 安卓返回键：依次关掉最上层的确认框、阅读器、课堂、二级页面和抽屉。
+  useBackDismiss(scheduleDialogOpen, closeScheduleEditor, 20);
   useBackDismiss(Boolean(conversationToDelete), () => setConversationToDelete(null));
   useBackDismiss(Boolean(resource), () => setResource(null));
   useBackDismiss(Boolean(activeMiniLecture), () => setActiveMiniLecture(null));
@@ -4353,6 +4363,9 @@ export function CourseWorkspace({
     open();
   };
   const courseToolActions: DrawerLearningAction[] = [
+    ...(onCreateCourse
+      ? [{ id: 'add-course', label: '添加课程', icon: BookOpen, open: onCreateCourse }]
+      : []),
     { id: 'notes', label: '笔记', icon: BookOpen, open: openNotebookLibrary },
     { id: 'progress', label: '学习进度', icon: Target, open: () => setPhonePage('progress') },
     {
@@ -4362,7 +4375,8 @@ export function CourseWorkspace({
       open: () => openMemoryDialog(),
       count: workspace.memories.length,
     },
-    { id: 'calendar', label: '日历', icon: CalendarDays, open: () => setPhonePage('calendar') },
+    { id: 'global-calendar', label: '总日历', icon: CalendarDays, open: onOpenGlobalCalendar },
+    { id: 'calendar', label: '课程日历', icon: CalendarDays, open: () => setPhonePage('calendar') },
     { id: 'classroom', label: '课堂', icon: Presentation, open: () => setPhonePage('classroom') },
     ...(!phoneLayout
       ? [{ id: 'problems', label: '题库', icon: FileQuestion, open: openProblemBank }]
@@ -4674,7 +4688,7 @@ export function CourseWorkspace({
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               placeholder={
-                teachingTurnAvailable
+                chatAvailable
                   ? `问 ${workspace.course.courseCode || workspace.course.name} 一个问题`
                   : platformAiAccess.message
               }
@@ -4690,7 +4704,7 @@ export function CourseWorkspace({
             >
               <Cpu size={13} />
               <span>
-                {teachingTurnAvailable
+                {chatAvailable
                   ? `OpenAI · ${aiModel
                       .replace('gpt-5.6-', '')
                       .replace(/^./, (value) => value.toUpperCase())}`
@@ -4709,10 +4723,10 @@ export function CourseWorkspace({
               disabled={
                 (!draft.trim() && !pendingImages.length && !pendingFiles.length) ||
                 busy ||
-                !teachingTurnAvailable
+                !chatAvailable
               }
-              aria-label={teachingTurnAvailable ? '发送' : platformAiAccess.message}
-              title={teachingTurnAvailable ? undefined : platformAiAccess.message}
+              aria-label={chatAvailable ? '发送' : platformAiAccess.message}
+              title={chatAvailable ? undefined : platformAiAccess.message}
             >
               <SendHorizontal size={17} />
             </button>
@@ -5318,6 +5332,7 @@ export function CourseWorkspace({
       ) : null}
       {phonePage === 'calendar' ? (
         <PhoneCalendarPage
+          initialDate={calendarDate}
           events={scheduleItems}
           isResearchCourse={isResearchCourse}
           onAddEvent={(date) => {

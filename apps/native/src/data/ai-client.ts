@@ -1,10 +1,6 @@
-import type { LocalMessage } from '../domain/models';
-import type { NativeMessageMetadata } from '../domain/teaching';
-import {
-  parseNativeSyllabus,
-  runNativeTeachingTurn,
-  type NativePlatformStreamEvent,
-} from './platform-api-client';
+import { browserApp, platformAvailable } from './browser-runtime';
+import { getNativePlatformCapabilities } from './platform-api-client';
+import { parseNativeSyllabus } from './platform-api-client';
 
 export const supportedAiModels = [
   { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', detail: '默认 · 讲义与兜底' },
@@ -22,15 +18,6 @@ export interface AiSettings {
   defaultModel: SupportedAiModel;
   apiBaseUrl?: string | null;
   error?: string | null;
-}
-
-export interface AiChatResult {
-  text: string;
-  model: string;
-  responseId: string | null;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  metadata?: NativeMessageMetadata;
 }
 
 export type SyllabusEventKind =
@@ -59,29 +46,6 @@ export interface ParsedSyllabusDocument {
   model: string;
 }
 
-export interface StreamAssistantInput {
-  requestId: string;
-  courseId: string;
-  courseName: string;
-  courseCode?: string | null;
-  courseDescription: string;
-  conversationId: string;
-  messages: LocalMessage[];
-  model: SupportedAiModel;
-  /** 手机端用回复强度代替具体模型。 */
-  responseStrength?: ChatResponseStrength;
-  images?: Array<{ name: string; mimeType: 'image/jpeg'; dataBase64: string }>;
-  localContext?: {
-    calendarEvents?: unknown[];
-    memories?: unknown[];
-    attempts?: unknown[];
-    problemCandidates?: unknown[];
-    notebookExcerpts?: unknown[];
-    sourceExcerpts?: unknown[];
-    recentPlans?: unknown[];
-  };
-}
-
 interface ParseSyllabusInput {
   courseName: string;
   courseDescription: string;
@@ -101,110 +65,27 @@ function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
-function streamDelta(event: NativePlatformStreamEvent): string | null {
-  if (event.event !== 'text_delta' && event.event !== 'delta') return null;
-  if (!event.data || typeof event.data !== 'object') return null;
-  const payload = event.data as Record<string, unknown>;
-  if (typeof payload.delta === 'string') return payload.delta;
-  if (typeof payload.content === 'string') return payload.content;
-  const data =
-    payload.data && typeof payload.data === 'object'
-      ? (payload.data as Record<string, unknown>)
-      : null;
-  if (typeof data?.delta === 'string') return data.delta;
-  return typeof data?.content === 'string' ? data.content : null;
-}
-
-function recordValue(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function assistantMetadataFromFinalEvent(value: unknown): NativeMessageMetadata | undefined {
-  let current = recordValue(value);
-  if (!current) return undefined;
-  if (recordValue(current.data)) current = recordValue(current.data);
-  const assistantMessage = recordValue(current?.assistantMessage);
-  const metadata = recordValue(assistantMessage?.metadata);
-  return metadata ? (metadata as NativeMessageMetadata) : undefined;
-}
-
 export async function getAiSettings(): Promise<AiSettings> {
+  if (browserApp) {
+    const capabilities = await getNativePlatformCapabilities();
+    const model = capabilities.models?.find((m) => m.recommended)?.id;
+    return {
+      configured: capabilities.available,
+      credentialSource: 'platform-service',
+      defaultModel: supportedAiModels.some((m) => m.id === model)
+        ? (model as SupportedAiModel)
+        : 'gpt-5.6-luna',
+    };
+  }
   if (!isTauriRuntime()) return defaultSettings;
   const { invoke } = await import('@tauri-apps/api/core');
   return invoke<AiSettings>('get_ai_settings');
 }
 
-export async function streamAssistantReply(
-  input: StreamAssistantInput,
-  onDelta: (delta: string) => void,
-): Promise<AiChatResult> {
-  if (!isTauriRuntime()) {
-    throw new Error('模型回复只在 macOS / iPadOS 原生 App 中启用。');
-  }
-
-  const question =
-    input.messages
-      .slice()
-      .reverse()
-      .find((message) => message.role === 'user')
-      ?.text.trim()
-      .slice(0, 4000) || '';
-  if (!question) throw new Error('没有可发送的学生问题。');
-
-  const result = await runNativeTeachingTurn(
-    {
-      requestId: input.requestId,
-      idempotencyKey: input.requestId,
-      model: input.responseStrength ? undefined : input.model,
-      responseStrength: input.responseStrength,
-      payload: {
-        requestId: input.requestId,
-        clientTurnId: input.requestId,
-        question,
-        course: {
-          id: input.courseId,
-          name: input.courseName,
-          code: input.courseCode ?? undefined,
-          description: input.courseDescription,
-          language: 'zh-CN',
-        },
-        conversation: {
-          id: input.conversationId,
-          recentMessages: input.messages.flatMap(({ id, role, text }) =>
-            role === 'user' || role === 'assistant'
-              ? [{ id, role, text: text.slice(0, 4000) }]
-              : [],
-          ),
-        },
-        ...(input.images?.length ? { images: input.images } : {}),
-        localContext: input.localContext ?? {},
-        preferences: {
-          language: 'zh-CN',
-          allowWebSearch: false,
-        },
-      },
-    },
-    (event) => {
-      const delta = streamDelta(event);
-      if (delta) onDelta(delta);
-    },
-  );
-  return {
-    text: result.text,
-    model: result.model || input.model,
-    responseId: result.responseId,
-    inputTokens: result.inputTokens,
-    outputTokens: result.outputTokens,
-    metadata: assistantMetadataFromFinalEvent(result.finalEvent),
-  };
-}
-
 export async function parseSyllabusDocument(
   input: ParseSyllabusInput,
 ): Promise<ParsedSyllabusDocument> {
-  if (!isTauriRuntime()) {
+  if (!platformAvailable()) {
     throw new Error('PDF 和图片 syllabus 解析只在 macOS / iPadOS 原生 App 中启用。');
   }
   const result = await parseNativeSyllabus(

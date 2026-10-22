@@ -3,6 +3,7 @@ import {
   type MarbleAvatarRarity,
 } from '../../../lib/constants/marble-avatars';
 import avatarThemeHues from '../../../lib/constants/marble-avatar-theme-hues.json';
+import { resolveAccountAvatar } from './lib/account-avatar';
 
 const avatarModules = import.meta.glob('../../../public/avatars/marble-collection-v1/*.webp', {
   eager: true,
@@ -114,6 +115,18 @@ export function writeStoredCourseAvatarId(courseId: string, avatarId: string | n
 export function courseAvatarUrlById(avatarId: string | null | undefined): string | null {
   if (!avatarId) return null;
   return COURSE_AVATAR_PRESETS.find((item) => item.id === avatarId)?.url || null;
+}
+
+export function nativeAccountAvatarUrl(
+  avatarId: string | null,
+  accountImage: string | null | undefined,
+): string {
+  return (
+    courseAvatarUrlById(avatarId) ||
+    resolveAccountAvatar(accountImage, MARBLE_AVATAR_CATALOG, courseAvatarUrlById) ||
+    courseAvatarUrlById('R01') ||
+    ''
+  );
 }
 
 export function pickRandomCourseAvatarId(): string {

@@ -1,9 +1,8 @@
 import { motion } from 'motion/react';
-import { CheckCircle2, Flame, Gift, Heart, ShieldCheck, Sparkles, WandSparkles, XCircle } from 'lucide-react';
+import { CheckCircle2, Flame, Gift, Heart, ShieldCheck, WandSparkles, XCircle } from 'lucide-react';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { cn } from '@/lib/utils';
 import type { QuizQuestion } from '@/lib/types/stage';
-import type { GamificationEventResponse } from '@/lib/types/gamification';
 import {
   LEARNING_CARD_DEFINITIONS,
   MENTOR_LEARNING_CARD_PRIORITY,
@@ -103,36 +102,6 @@ export function ScoreBanner({
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="text-lg font-black">{pct}%</span>
           </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-export function GamificationRewardBanner({ reward }: { reward: GamificationEventResponse | null }) {
-  if (!reward || (!reward.rewardedPurchaseCredits && !reward.rewardedAffinity)) return null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-amber-200/70 bg-gradient-to-r from-amber-50 via-white to-rose-50 p-4 dark:border-amber-500/20 dark:from-amber-950/20 dark:via-slate-900 dark:to-rose-950/20"
-    >
-      <div className="flex items-start gap-3">
-        <Sparkles className="mt-0.5 size-4 text-amber-500" />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            {reward.characterName} 把这次进度帮你记下来了
-          </p>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            {reward.rewardedPurchaseCredits > 0
-              ? `+${reward.rewardedPurchaseCredits} 购买积分`
-              : '已记录'}
-            {reward.rewardedAffinity > 0 ? ` · +${reward.rewardedAffinity} 亲密度` : ''}
-          </p>
-        </div>
-        <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-amber-700 shadow-sm dark:bg-slate-900/80 dark:text-amber-200">
-          Lv{reward.affinityLevel}
         </div>
       </div>
     </motion.div>

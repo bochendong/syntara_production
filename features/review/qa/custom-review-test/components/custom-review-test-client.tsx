@@ -1606,12 +1606,6 @@ export default function CustomReviewTestPage() {
                     {metrics.nodeCount}
                   </div>
                 </div>
-                <div className="rounded-md border border-slate-100 bg-slate-50 p-3">
-                  <div className="text-xs font-medium text-slate-500">奖励积分</div>
-                  <div className="mt-1 text-2xl font-semibold tracking-normal">
-                    {metrics.rewardPoints}
-                  </div>
-                </div>
               </div>
             </div>
 

@@ -39,7 +39,7 @@ const PROFILE_SECTIONS: Array<{
   {
     id: 'usage',
     label: '用量统计',
-    description: 'Credits、Token 与学习资产',
+    description: 'Token 用量与学习资产',
     Icon: Gauge,
     iconClassName: 'bg-[#34c759]',
   },

@@ -1,5 +1,5 @@
 /**
- * 课程 /chat 里笔记本会话的快照消息（与 chat-page-client NotebookChatMessage 对齐）
+ * 笔记本会话的快照消息（与共享 NotebookChatMessage 类型对齐）
  */
 export type NotebookContactChatMessage =
   | {

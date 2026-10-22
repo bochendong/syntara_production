@@ -1,0 +1,87 @@
+.native-global-page {
+  position: absolute;
+  z-index: 90;
+  inset: 0;
+}
+
+.platform-macos .native-global-page {
+  top: 28px;
+}
+
+.native-global-page .phone-page-scroll > * {
+  max-width: 1120px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.native-global-page .phone-calendar-layout {
+  width: 100%;
+}
+
+.native-global-status {
+  position: absolute;
+  z-index: 90;
+  top: calc(64px + env(safe-area-inset-top));
+  left: 16px;
+  padding: 8px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.global-calendar-dialog-backdrop {
+  position: absolute;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgb(16 37 31 / 35%);
+}
+
+.global-calendar-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(440px, 100%);
+  max-height: 80%;
+  overflow: hidden;
+  padding: 20px;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.global-calendar-dialog h2 {
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 19px;
+}
+
+.global-calendar-dialog p {
+  flex-shrink: 0;
+  line-height: 1.6;
+}
+
+.global-calendar-dialog-courses {
+  display: grid;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 4px;
+}
+
+.global-calendar-dialog-courses button {
+  min-height: 48px;
+  padding: 10px;
+  border: 1px solid rgb(32 61 52 / 7%);
+  border-radius: 10px;
+  background: #f5f7f4;
+  text-align: left;
+}
+
+.global-calendar-action {
+  flex-shrink: 0;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 9px 14px;
+  border: 1px solid rgb(32 61 52 / 15%);
+  border-radius: 12px;
+  background: #fff;
+}

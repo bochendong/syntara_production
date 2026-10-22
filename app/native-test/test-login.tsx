@@ -1,16 +1,20 @@
 'use client';
 
+import { useEffect } from 'react';
 import { signIn, signOut, useSession } from 'next-auth/react';
 
 export function NativeTestLogin() {
   const { data: session, status } = useSession();
   const active = status === 'authenticated' && session.user?.isActive !== false;
+  useEffect(() => {
+    if (active) window.location.replace('/test/app');
+  }, [active]);
   return (
     <main className="apple-mesh-bg grid min-h-dvh place-items-center px-5 py-12">
       <section className="apple-glass w-full max-w-lg rounded-3xl p-8">
         <p className="text-xs font-semibold tracking-widest text-blue-600">SYNTARA TEST</p>
         <h1 className="mt-4 text-2xl font-semibold">
-          {active ? '测试账号已就绪' : '欢迎测试 Syntara'}
+          {active ? '正在进入 Syntara' : '欢迎测试 Syntara'}
         </h1>
         {status === 'loading' ? (
           <p role="status" className="mt-5 text-sm">
@@ -19,8 +23,7 @@ export function NativeTestLogin() {
         ) : active ? (
           <>
             <p className="mt-5 break-words text-sm leading-7">
-              已使用 {session.user?.email} 登录测试服。打开 Syntara Test App 并点击登录，
-              在浏览器中确认设备后即可开始使用。
+              已使用 {session.user?.email} 登录，正在打开新版学习空间。
             </p>
             <button
               type="button"

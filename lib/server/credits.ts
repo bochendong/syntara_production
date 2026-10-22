@@ -1,12 +1,7 @@
 import type { Prisma, CreditAccountType } from '@/lib/server/generated-prisma';
-import { CreditTransactionKind } from '@/lib/server/generated-prisma';
 import { createLogger } from '@/lib/logger';
-import { getOptionalPrisma } from '@/lib/server/prisma-safe';
-import { creditsFromTokenUsage, creditsFromUsd, formatUsdLabel } from '@/lib/utils/credits';
+import { creditsFromTokenUsage } from '@/lib/utils/credits';
 import {
-  applyCreditDelta as applyCreditDeltaToLedger,
-  ensureCreditLedgerInitialized,
-  getCreditBalance,
   getUserCreditBalances as getLedgerCreditBalances,
   type ApplyCreditDeltaArgs,
   type UserCreditBalances,
@@ -21,7 +16,6 @@ import {
   OPENAI_RETAIL_MARKUP_MULTIPLIER,
 } from '@/lib/utils/openai-pricing';
 import { assertCloudUsageAllowed, recordCloudUsageCost } from '@/lib/server/cloud-usage-limits';
-import { isCreditBillingEnabled } from '@/lib/server/credit-billing-policy';
 
 const log = createLogger('Credits');
 
@@ -37,10 +31,6 @@ interface ChargeCreditsForUsdArgs {
   metadata?: Prisma.InputJsonObject;
 }
 
-function isInsufficientCreditError(error: unknown): boolean {
-  return error instanceof Error && /积分不足|credits/i.test(error.message);
-}
-
 export async function getUserCreditBalances(
   db: DbClient,
   userId: string,
@@ -54,24 +44,13 @@ async function chargeCreditsForUsdCost(args: ChargeCreditsForUsdArgs): Promise<{
   previousBalance: number;
   nextBalance: number;
 } | null> {
-  const userId = args.userId?.trim();
-
-  const usdCost =
-    typeof args.usdCost === 'number' && !Number.isNaN(args.usdCost) ? Math.max(0, args.usdCost) : 0;
-  const hasUsdCost = typeof args.usdCost === 'number' && !Number.isNaN(args.usdCost);
-  const requestedCreditsCost =
-    typeof args.requestedCreditsCostOverride === 'number' &&
-    !Number.isNaN(args.requestedCreditsCostOverride)
-      ? Math.max(0, Math.round(args.requestedCreditsCostOverride))
-      : creditsFromUsd(usdCost, 'ceil');
-  if (requestedCreditsCost <= 0) return null;
-
+  // Retain web-search cost accounting without creating credit transactions.
   if (args.referenceType === 'web_search') {
     await recordCloudUsageCost({
-      userId,
+      userId: args.userId?.trim(),
       route: args.route,
       source: args.source ?? 'web-search',
-      estimatedCostUsd: usdCost,
+      estimatedCostUsd: Number.isFinite(args.usdCost) ? Math.max(0, args.usdCost ?? 0) : 0,
       requestCount:
         typeof args.metadata?.callCount === 'number' && Number.isFinite(args.metadata.callCount)
           ? args.metadata.callCount
@@ -79,142 +58,36 @@ async function chargeCreditsForUsdCost(args: ChargeCreditsForUsdArgs): Promise<{
       metadata: args.metadata,
     });
   }
-
-  // Preserve USD usage accounting above for cloud limits without debiting credits.
-  if (!isCreditBillingEnabled()) return null;
-
-  if (!userId) return null;
-
-  const prisma = getOptionalPrisma();
-  if (!prisma) return null;
-
-  let chargeSummary: {
-    requestedCreditsCost: number;
-    chargedCredits: number;
-    previousBalance: number;
-    nextBalance: number;
-  } | null = null;
-
-  await prisma.$transaction(async (tx) => {
-    const balances = await getUserCreditBalances(tx, userId);
-    const currentBalance = balances.computeCreditsBalance;
-    const chargedCredits = Math.min(currentBalance, requestedCreditsCost);
-    if (chargedCredits <= 0) return;
-
-    try {
-      await applyCreditDelta(tx, {
-        userId,
-        delta: -chargedCredits,
-        kind: CreditTransactionKind.TOKEN_USAGE,
-        accountType: 'COMPUTE',
-        description: hasUsdCost
-          ? `${args.descriptionPrefix}: ${chargedCredits} compute credits (${formatUsdLabel(usdCost)})`
-          : `${args.descriptionPrefix}: ${chargedCredits} compute credits`,
-        referenceType: args.referenceType,
-        referenceId: args.referenceId?.trim() || undefined,
-        metadata: {
-          ...(args.metadata ?? {}),
-          estimatedUsdCost: hasUsdCost ? usdCost : null,
-          requestedCreditsCost,
-          chargedCredits,
-        },
-      });
-    } catch (error) {
-      if (isInsufficientCreditError(error)) return;
-      throw error;
-    }
-
-    chargeSummary = {
-      requestedCreditsCost,
-      chargedCredits,
-      previousBalance: currentBalance,
-      nextBalance: currentBalance - chargedCredits,
-    };
-  });
-
-  return chargeSummary;
+  return null;
 }
 
-export async function ensureUserCreditsInitialized(db: DbClient, userId: string): Promise<number> {
-  if (!isCreditBillingEnabled()) return 0;
-  return ensureCreditLedgerInitialized(db, userId);
+export async function ensureUserCreditsInitialized(
+  _db: DbClient,
+  _userId: string,
+): Promise<number> {
+  return 0;
 }
 
-export async function applyCreditDelta(db: DbClient, args: ApplyCreditDeltaArgs): Promise<number> {
-  if (!isCreditBillingEnabled()) throw new Error('积分系统已停用');
-  return applyCreditDeltaToLedger(db, args);
+export async function applyCreditDelta(
+  _db: DbClient,
+  _args: ApplyCreditDeltaArgs,
+): Promise<number> {
+  throw new Error('积分系统已停用');
 }
 
 export async function assertUserHasCredits(
   userId?: string | null,
-  accountType: CreditAccountType = 'COMPUTE',
+  _accountType: CreditAccountType = 'COMPUTE',
 ): Promise<void> {
-  const normalizedUserId = userId?.trim();
-  await assertCloudUsageAllowed(normalizedUserId);
-  if (!isCreditBillingEnabled()) return;
-  if (!normalizedUserId) return;
-
-  const prisma = getOptionalPrisma();
-  if (!prisma) return;
-
-  const balances = await getUserCreditBalances(prisma, normalizedUserId);
-  if (getCreditBalance(balances, accountType) > 0) return;
-
-  if (accountType === 'PURCHASE') {
-    throw new Error('购买积分不足，无法继续购买课程或笔记本');
-  }
-  if (accountType === 'CASH') {
-    throw new Error('余额不足，请先充值');
-  }
-  throw new Error('算力积分不足，无法继续使用模型能力');
+  await assertCloudUsageAllowed(userId?.trim());
 }
 
-export async function convertCashCredits(args: {
+export async function convertCashCredits(_args: {
   userId: string;
   amount: number;
   targetAccountType: Extract<CreditAccountType, 'COMPUTE' | 'PURCHASE'>;
 }): Promise<{ cashBalance: number; targetBalance: number }> {
-  if (!isCreditBillingEnabled()) throw new Error('积分转换已停用');
-  const prisma = getOptionalPrisma();
-  if (!prisma) throw new Error('数据库不可用，暂时无法转换积分');
-
-  const amount = Math.max(0, Math.round(args.amount));
-  if (amount <= 0) throw new Error('转换积分必须大于 0');
-
-  return prisma.$transaction(async (tx) => {
-    const transferKind =
-      args.targetAccountType === 'COMPUTE'
-        ? CreditTransactionKind.CASH_TO_COMPUTE_TRANSFER
-        : CreditTransactionKind.CASH_TO_PURCHASE_TRANSFER;
-    const targetLabel = args.targetAccountType === 'COMPUTE' ? '算力积分' : '购买积分';
-
-    const cashBalance = await applyCreditDelta(tx, {
-      userId: args.userId,
-      delta: -amount,
-      kind: transferKind,
-      accountType: 'CASH',
-      description: `Transfer to ${targetLabel}`,
-      referenceType: 'credits_transfer_out',
-      metadata: {
-        amount,
-        targetAccountType: args.targetAccountType,
-      },
-    });
-    const targetBalance = await applyCreditDelta(tx, {
-      userId: args.userId,
-      delta: amount,
-      kind: transferKind,
-      accountType: args.targetAccountType,
-      description: `Received from 现金积分`,
-      referenceType: 'credits_transfer_in',
-      metadata: {
-        amount,
-        sourceAccountType: 'CASH',
-      },
-    });
-
-    return { cashBalance, targetBalance };
-  });
+  throw new Error('积分转换已停用');
 }
 
 export async function chargeCreditsForTokenUsage(args: {

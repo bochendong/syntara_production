@@ -1,3 +1,4 @@
+import { browserApp, setBrowserAccount } from './browser-runtime';
 import { invoke } from '@tauri-apps/api/core';
 
 import {
@@ -13,9 +14,9 @@ const DEVICE_ID_STORAGE_KEY = 'syntara.native.device-id.v1';
 const AUTH_CHANGED_EVENT = 'syntara-native-auth-changed';
 const REFRESH_EARLY_MS = 60_000;
 
-export interface NativeAuthSession extends NativeDeviceTokenPair {
-  savedAt: string;
-}
+export type NativeAuthSession =
+  | (NativeDeviceTokenPair & { savedAt: string })
+  | { browser: true; user: NativeDeviceUser; savedAt: string };
 
 let cachedSession: NativeAuthSession | null | undefined;
 let loadPromise: Promise<NativeAuthSession | null> | null = null;
@@ -40,9 +41,9 @@ function isValidUser(value: unknown): value is NativeDeviceUser {
   );
 }
 
-function isValidSession(value: unknown): value is NativeAuthSession {
+function isValidSession(value: unknown): value is NativeDeviceTokenPair & { savedAt: string } {
   if (!value || typeof value !== 'object') return false;
-  const session = value as Partial<NativeAuthSession>;
+  const session = value as Partial<NativeDeviceTokenPair & { savedAt: string }>;
   return (
     session.status === 'authorized' &&
     typeof session.accessToken === 'string' &&
@@ -66,7 +67,7 @@ function emitAuthChanged(session: NativeAuthSession | null) {
   );
 }
 
-async function persistSession(session: NativeAuthSession): Promise<void> {
+async function persistSession(session: NativeDeviceTokenPair & { savedAt: string }): Promise<void> {
   await invoke('save_native_auth_session', { session: JSON.stringify(session) });
   cachedSession = session;
   emitAuthChanged(session);
@@ -89,6 +90,20 @@ export function getNativeDeviceIdentity(): { deviceId: string; deviceName: strin
 
 export async function loadNativeAuthSession(): Promise<NativeAuthSession | null> {
   if (cachedSession !== undefined) return cachedSession;
+  if (browserApp) {
+    const response = await fetch('/api/native/v1/auth/browser', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
+    if (response.status === 401 || response.status === 403) return null;
+    if (!response.ok) throw new Error('暂时无法验证账号，请重试。');
+    const result = await response.json();
+    const user = result.data?.user;
+    if (!isValidUser(user)) throw new Error('账号数据无效。');
+    setBrowserAccount(user.id);
+    cachedSession = { browser: true, user, savedAt: new Date().toISOString() };
+    return cachedSession;
+  }
   if (!isTauriRuntime()) return null;
   if (loadPromise) return loadPromise;
 
@@ -130,7 +145,7 @@ export async function bootstrapNativeLocalTestSession(): Promise<NativeAuthSessi
 export async function saveNativeAuthSession(
   tokenPair: NativeDeviceTokenPair,
 ): Promise<NativeAuthSession> {
-  const session: NativeAuthSession = {
+  const session = {
     ...tokenPair,
     savedAt: new Date().toISOString(),
   };
@@ -150,7 +165,7 @@ export async function clearNativeAuthSession(): Promise<void> {
 
 export async function getNativeAccessToken(): Promise<string | undefined> {
   const session = await loadNativeAuthSession();
-  if (!session) return undefined;
+  if (!session || 'browser' in session) return undefined;
 
   const now = Date.now();
   if (Date.parse(session.refreshTokenExpiresAt) <= now) {
@@ -172,10 +187,12 @@ export async function getNativeAccessToken(): Promise<string | undefined> {
         refreshPromise = null;
       });
   }
-  return (await refreshPromise)?.accessToken;
+  const refreshed = await refreshPromise;
+  return refreshed && !('browser' in refreshed) ? refreshed.accessToken : undefined;
 }
 
 export async function validateNativeAuthSession(): Promise<NativeAuthSession | null> {
+  if (browserApp) return loadNativeAuthSession();
   const token = await getNativeAccessToken();
   if (!token) return null;
   try {
@@ -184,7 +201,7 @@ export async function validateNativeAuthSession(): Promise<NativeAuthSession | n
     if (!session) return null;
     if (current.user.id !== session.user.id) {
       const updated = { ...session, user: current.user, savedAt: new Date().toISOString() };
-      await persistSession(updated);
+      if (!('browser' in updated)) await persistSession(updated);
       return updated;
     }
     return session;
@@ -195,8 +212,26 @@ export async function validateNativeAuthSession(): Promise<NativeAuthSession | n
 }
 
 export async function logoutNativeAuthSession(): Promise<void> {
+  if (browserApp) {
+    const csrf = await fetch('/api/auth/csrf', { credentials: 'same-origin' }).then((r) =>
+      r.json(),
+    );
+    const response = await fetch('/api/auth/signout', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Auth-Return-Redirect': '1',
+      },
+      body: new URLSearchParams({ csrfToken: csrf.csrfToken, callbackUrl: '/test', json: 'true' }),
+    });
+    if (!response.ok) throw new Error('退出登录失败，请重试。');
+    await clearNativeAuthSession();
+    window.location.replace('/test');
+    return;
+  }
   const session = await loadNativeAuthSession();
-  if (session) {
+  if (session && !('browser' in session)) {
     try {
       await logoutNativeDevice(session.accessToken);
     } catch {

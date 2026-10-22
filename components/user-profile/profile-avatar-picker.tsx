@@ -5,12 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useUserProfileStore, AVATAR_OPTIONS } from '@/lib/store/user-profile';
-import { useGamificationSummary } from '@/lib/hooks/use-gamification-summary';
+import { marbleAvatarLabel } from '@/lib/constants/marble-avatars';
 import { UserAvatarWithFrame } from './user-avatar-with-frame';
-
-function isCustomAvatar(avatar: string) {
-  return avatar.startsWith('data:');
-}
 
 /** 大卡片：桌面端 10 列×4 行=40 格/页；窄屏为 5 列 */
 const AVATARS_PER_PAGE_LG = 40;
@@ -25,7 +21,6 @@ export function ProfileAvatarPicker({ size = 'md', className }: ProfileAvatarPic
   const avatar = useUserProfileStore((s) => s.avatar);
   const setAvatar = useUserProfileStore((s) => s.setAvatar);
   const avatarFrameId = useUserProfileStore((s) => s.avatarFrameId);
-  const { summary } = useGamificationSummary(true);
   const [page, setPage] = useState(0);
   /** lg：与网格选择同步，点「应用」后再写入 store */
   const [draftState, setDraftState] = useState(() => ({ avatar, draft: avatar }));
@@ -37,19 +32,11 @@ export function ProfileAvatarPicker({ size = 'md', className }: ProfileAvatarPic
   /** lg：格内不固定 px，避免 10 列+窄容器时比列宽大导致重叠；最大 4.5rem */
   const chipLg = 'min-w-0 w-full max-w-[4.5rem] aspect-square shrink-0';
   const chipMd = 'size-8';
-  const unlockedAvatarOptions =
-    summary?.databaseEnabled && summary.avatarInventory.items.length > 0
-      ? summary.avatarInventory.items.filter((item) => item.owned).map((item) => item.url)
-      : AVATAR_OPTIONS;
-  const availableAvatarOptions =
-    !isCustomAvatar(avatar) && avatar && !unlockedAvatarOptions.includes(avatar)
-      ? [avatar, ...unlockedAvatarOptions]
-      : unlockedAvatarOptions;
   const avatarsPerPage = size === 'lg' ? AVATARS_PER_PAGE_LG : 9;
-  const totalPages = Math.max(1, Math.ceil(availableAvatarOptions.length / avatarsPerPage));
+  const totalPages = Math.max(1, Math.ceil(AVATAR_OPTIONS.length / avatarsPerPage));
   const safePage = Math.min(page, totalPages - 1);
   const pageStart = safePage * avatarsPerPage;
-  const visibleAvatars = availableAvatarOptions.slice(pageStart, pageStart + avatarsPerPage);
+  const visibleAvatars = AVATAR_OPTIONS.slice(pageStart, pageStart + avatarsPerPage);
   const previewSrc = isLg ? draft : avatar;
   const selection = isLg ? draft : avatar;
 
@@ -96,12 +83,15 @@ export function ProfileAvatarPicker({ size = 'md', className }: ProfileAvatarPic
             onClick={() => (isLg ? setDraftState({ avatar, draft: url }) : setAvatar(url))}
             className={cn(
               'rounded-full overflow-hidden bg-gray-50 dark:bg-gray-800 cursor-pointer transition-all duration-150',
-              size === 'lg' ? ['justify-self-center', chipLg, 'active:brightness-95'] : [chipMd, 'hover:scale-110 active:scale-95'],
+              size === 'lg'
+                ? ['justify-self-center', chipLg, 'active:brightness-95']
+                : [chipMd, 'hover:scale-110 active:scale-95'],
               selection === url
                 ? 'ring-2 ring-violet-400 dark:ring-violet-500 ring-offset-1 ring-offset-background z-[1]'
                 : 'hover:ring-1 hover:ring-muted-foreground/30',
             )}
-            aria-label="选择此预设头像"
+            aria-label={`选择头像 ${marbleAvatarLabel(url)}`}
+            title={marbleAvatarLabel(url)}
             aria-pressed={selection === url}
           >
             <img src={url} alt="" className="size-full object-cover" />

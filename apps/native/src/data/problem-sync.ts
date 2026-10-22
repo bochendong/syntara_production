@@ -1,3 +1,4 @@
+import { accountStorageKey } from './browser-runtime';
 import type { LocalProblem, LocalProblemAttempt, LocalProblemProgress } from '../domain/models';
 import { SYNTARA_ARCHIVE_FORMAT, SYNTARA_ARCHIVE_VERSION, type SyntaraArchiveV1 } from './archive';
 import { isPlatformCourse } from './chat-sync';
@@ -28,7 +29,7 @@ type Outbox = Record<string, NativeProblemAttemptUpload[]>;
 
 function readJson<T>(key: string, fallback: T): T {
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = window.localStorage.getItem(accountStorageKey(key));
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
@@ -37,7 +38,7 @@ function readJson<T>(key: string, fallback: T): T {
 
 function writeJson(key: string, value: unknown) {
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    window.localStorage.setItem(accountStorageKey(key), JSON.stringify(value));
   } catch {
     // 存不下时下次同步会整门课重新比对，不影响使用。
   }

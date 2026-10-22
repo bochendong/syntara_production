@@ -1,7 +1,8 @@
 # Syntara Native
 
 这是 Syntara 的本地优先应用壳。它使用同一套 React 界面同时生成 macOS 与 iOS/iPadOS
-应用包，核心业务数据写入设备内的 SQLite，不经过 Next.js API 或 PostgreSQL。
+应用包，并为 Google 测试服生成网页版。学习资料优先写入设备内的 SQLite 或浏览器 IndexedDB；
+账号、课程清单、会话同步与 AI 由平台后端提供。
 
 ## 当前客户端入口
 
@@ -21,21 +22,25 @@
 - 本地会话与用户/助教消息写入
 - 课程日程写入 SQLite；旧版 localStorage 日程在打开课程时一次性迁移
 - 课堂讲解 deck/page/action 写入 SQLite，Image2 PNG 与 OpenAI 语音写入 App Data
-- 教学回合、复习计划、批改、课程表解析和图片课堂统一通过 Rust 平台网关调用
+- v2 助教聊天、批改、课程表解析和图片课堂统一通过 Rust 平台网关调用
 - OpenAI 等供应商密钥只存在于平台服务端，不进入安装包、React、SQLite 或迁移包
-- 启动后直接进入当前账号的课程聊天；课程入口由账号可访问的课程决定
+- App 与桌面版启动均直接进入课程聊天；历史首页与四项底栏已弃用
 - macOS 三栏布局与 iPadOS 原生侧滑课程工具/会话面板
-- 使用 `CourseWorkspace` 与 `PhonePages` 提供桌面、平板和手机布局；个人中心在当前界面内打开
+- 启动恢复上次可访问课程和已有聊天；课程切换与工具入口放在聊天侧栏/手机抽屉
+- 聊天导航提供总日历与课程日历；总日历汇总账号课程安排并跳到对应课程日期
+- “我的”沿用新版资料、偏好和记忆星图；原生端已移除 Live2D，Web 端保持现状
+- 使用 `CourseWorkspace` 与 `PhonePages`，只展示账号可访问课程。
 - 浏览器开发态使用独立 IndexedDB，Tauri 应用使用 SQLite
 
-浏览器预览和原生应用使用相同的 `LocalRepository` 接口。浏览器预览库只用于快速开发；
+浏览器开发预览、发布网页版和原生应用使用相同的 `LocalRepository` 接口。
+发布网页版使用按账号隔离的 IndexedDB，从空数据开始；开发预览可使用独立演示数据。
 发布的 macOS/iPadOS 应用由 `SqliteLocalRepository` 提供数据。
 
 ## 安装包与本机数据边界
 
 | 位置 | 保存内容 |
 | --- | --- |
-| App 安装包 | React/Rust 程序、数据库 migration、图标/字体/头像素材、版本化公开题库快照、MAT136 参考对话及其示范 PNG/MP3 |
+| App 安装包 | React/Rust 程序、数据库 migration、图标/字体/静态图片、版本化公开题库快照、MAT136 参考对话及其示范 PNG/MP3 |
 | SQLite / IndexedDB | 用户课程、会话与消息 metadata、笔记本结构、题目进度与作答、学习记忆、日历、课堂 deck/page/action 与资源索引 |
 | App Data 内容寻址文件库 | 用户导入的文件、生成或迁移得到的 Image2 PNG、OpenAI MP3；SQLite 只存 hash、路径和校验信息 |
 | WebView localStorage | 折叠状态、模型选择等轻量设备 UI 偏好；不保存课程正文或供应商密钥 |
@@ -104,6 +109,8 @@ pnpm native:archive:export -- --email your@email.com --output ~/Downloads/syntar
 ```
 
 当前客户端从账号同步可访问课程；数据迁移包的完整字段范围和隐私边界见
+
+当前新版导航尚未提供手动迁移包导入入口；导出工具仍保留，账号课程与会话使用现有同步链路。迁移包字段范围和隐私边界见
 [docs/migration.md](./docs/migration.md)。
 
 本地数据链路可以独立验证：
@@ -119,7 +126,8 @@ pnpm native:benchmark
 - 不从原生应用读取 `DATABASE_URL`。
 - 本地列表/详情读取不得回退到 `/api/courses`、`/api/notebooks`、
   `/api/learn/conversations` 或题库 API。
-- AI 请求只从 Rust 核心发往 Syntara 平台 API；前端不能提交供应商 Key 或 Base URL。
+- 原生 AI 请求从 Rust 核心发往 Syntara 平台 API；发布网页版使用登录 Cookie 调用同源 API。
+  供应商 Key 和 Base URL 只由服务端配置。
 - 教学请求只附带当前课程的有界对话、证据、题目候选与最近作答，不上传整库或其他课程。
 - 课程与完整历史仍以本机 SQLite 为准；平台响应落为消息 metadata，生成资产落到 App Data。
 
@@ -140,3 +148,33 @@ macOS, iOS/iPadOS and Android share the native tester form. The web login and de
 If a shared database contains encrypted administrator settings made with a different encryption key, set `SYNTARA_LOCAL_LLM_CONFIG_SOURCE=environment` in ignored `.env.local` to use the existing local `OPENAI_API_KEY`. This override applies only to development and does not rewrite the shared database. If the shell's proxy is unavailable, `SYNTARA_LOCAL_AI_PROXY=direct` explicitly selects a direct development connection; production retains its proxy settings.
 
 The SQLite repository serializes complete operations and configures one persistent pool connection, so multi-command transactions stay on the same connection during background sync and chat writes. Verify with `node scripts/maintenance/verify-native-repository-serialization.mjs` and the Rust `local_database::tests` test.
+
+## 聊天入口与返回链验证
+
+```bash
+node scripts/maintenance/verify-retired-chat.mjs
+node --experimental-strip-types scripts/maintenance/verify-native-chat-launch.mjs
+node --experimental-strip-types scripts/maintenance/verify-native-back-dismiss.mjs
+node --experimental-strip-types scripts/maintenance/verify-native-chat-data.mjs
+pnpm --dir apps/native exec tsc --noEmit -p tsconfig.qa.json
+pnpm --dir apps/native build
+```
+
+浏览器交互验收在独立 loopback 端口运行 `pnpm --dir apps/native dev --host 127.0.0.1 --port 1474 --strictPort`，
+打开 `http://127.0.0.1:1474/qa/chat.html`。这是仅开发态可用的隔离浏览器数据夹具，不连接原生 SQLite、账号或 AI；
+请使用新的浏览器 origin，避免覆盖同一 origin 下的其他预览数据。`?count=0`、`?count=1`、默认 12 门及
+`?count=20` 覆盖空账号与多课程目录。夹具不进入生产 dist。主应用仍从 `http://127.0.0.1:1474/` 打开。
+
+必须检查：启动直达已有聊天、侧栏课程切换、跨课程日历归属与新增、
+手机菜单 → 我的 → 返回（重复操作）、浏览器后退按层关闭，以及手机/平板/桌面尺寸。
+浏览器检查不代替原生软键盘、安全区、系统返回或真实账号同步验收。
+
+## Google 测试服网页版
+
+测试服 `/test` 登录后会进入 `/test/app`，使用当前 App 的同一套界面。
+构建命令是 `SYNTARA_APP_ENV=staging SYNTARA_NATIVE_ACCESS_POLICY=google-test node scripts/deploy/build-native-web.mjs`，
+生成的 `public/native-web/` 不进入 Git。普通浏览器开发预览保持隔离；
+只有该构建启用 Google 会话和同源平台 API，账号浏览器数据库从空状态开始。
+网页版通过平台后端调用 AI，供应商密钥仍只保存在服务端。课程和聊天通过现有
+账号接口同步，学习工具及偏好继续使用浏览器本地缓存。详见
+[网页版测试部署](../../docs/api/native-web-staging.md)。

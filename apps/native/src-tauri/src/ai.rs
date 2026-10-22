@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::AppHandle;
 
 use crate::platform_api::{
-    execute_teaching_turn, platform_configuration, post_json, PlatformJsonRequest, DEFAULT_TIMEOUT,
+    platform_configuration, post_json, PlatformJsonRequest, DEFAULT_TIMEOUT,
 };
 
 const DEFAULT_MODEL: &str = "gpt-5.6-terra";
@@ -18,39 +17,6 @@ pub struct AiSettings {
     default_model: &'static str,
     api_base_url: Option<String>,
     error: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiChatMessage {
-    role: String,
-    text: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiChatRequest {
-    request_id: String,
-    course_name: String,
-    course_description: String,
-    messages: Vec<AiChatMessage>,
-    model: Option<String>,
-    #[serde(default)]
-    teaching_plan: Option<Value>,
-    #[serde(default)]
-    context_json: Option<Value>,
-    #[serde(default)]
-    enable_web_search: bool,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiChatResult {
-    text: String,
-    model: String,
-    response_id: Option<String>,
-    input_tokens: Option<u64>,
-    output_tokens: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -245,60 +211,6 @@ fn uuid_like_request_suffix(seed: &str) -> String {
         .take(16)
         .collect::<String>();
     format!("{sanitized}-{nanos:x}")
-}
-
-#[tauri::command]
-pub async fn stream_ai_response(
-    app: AppHandle,
-    request: AiChatRequest,
-) -> Result<AiChatResult, String> {
-    let model = validated_model(request.model.as_deref())?;
-    let request_id = request.request_id.clone();
-    let messages = request
-        .messages
-        .into_iter()
-        .filter(|message| matches!(message.role.as_str(), "user" | "assistant"))
-        .filter(|message| !message.text.trim().is_empty())
-        .collect::<Vec<_>>();
-    let question = messages
-        .iter()
-        .rev()
-        .find(|message| message.role == "user")
-        .map(|message| message.text.trim().to_string())
-        .ok_or_else(|| "没有可发送的学生问题。".to_string())?;
-
-    let platform_request = PlatformJsonRequest {
-        request_id: request_id.clone(),
-        payload: json!({
-            "requestId": request_id,
-            "question": question,
-            "course": {
-                "name": request.course_name.trim(),
-                "description": request.course_description.trim(),
-            },
-            "conversation": {
-                "recentMessages": messages,
-            },
-            "localContext": request.context_json.unwrap_or_else(|| json!({})),
-            "teachingPlan": request.teaching_plan.unwrap_or_else(|| json!({})),
-            "preferences": {
-                "model": model,
-                "allowWebSearch": request.enable_web_search,
-            },
-        }),
-        syntara_token: None,
-        idempotency_key: Some(request.request_id),
-        model: Some(model.clone()),
-        response_strength: None,
-    };
-    let result = execute_teaching_turn(app, platform_request).await?;
-    Ok(AiChatResult {
-        text: result.text,
-        model: result.model.unwrap_or(model),
-        response_id: result.response_id,
-        input_tokens: result.input_tokens,
-        output_tokens: result.output_tokens,
-    })
 }
 
 #[cfg(test)]

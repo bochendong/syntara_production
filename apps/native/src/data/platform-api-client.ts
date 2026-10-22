@@ -1,3 +1,10 @@
+import { browserApp } from './browser-runtime';
+import {
+  browserChat,
+  browserCommand,
+  browserCommandHeaders,
+  browserRequest,
+} from './browser-platform';
 import type {
   NativeConversationSyncPayload,
   NativeConversationSyncResult,
@@ -20,12 +27,9 @@ import type {
   NativeMiniLectureRequest,
   NativePlatformCapabilities,
   NativePlatformStreamEvent,
-  NativeReviewPlanRequest,
-  NativeReviewPlanResponse,
   NativeSyllabusRequest,
   NativeSyllabusResponse,
-  NativeTeachingTurnPayload,
-  NativeTeachingTurnResult,
+  NativeChatTurnResult,
   NativeTranscriptionRequest,
   NativeTranscriptionResponse,
   NativeWeeklyUsage,
@@ -72,6 +76,8 @@ async function invokeJson<TPayload, TResult>(
   command: string,
   request: PlatformJsonCommandRequest<TPayload>,
 ): Promise<TResult> {
+  if (browserApp)
+    return browserCommand(command, request.payload, undefined, browserCommandHeaders(request));
   assertTauriRuntime();
   const { invoke } = await import('@tauri-apps/api/core');
   const authenticatedRequest = {
@@ -90,6 +96,7 @@ async function invokeJson<TPayload, TResult>(
 export async function getNativePlatformCapabilities(
   options: Pick<PlatformCommandOptions, 'syntaraToken'> = {},
 ): Promise<NativePlatformCapabilities> {
+  if (browserApp) return browserRequest('/api/native/v1/capabilities');
   assertTauriRuntime();
   const { invoke } = await import('@tauri-apps/api/core');
   const syntaraToken =
@@ -169,10 +176,11 @@ export function logoutNativeDevice(syntaraToken: string): Promise<{ revoked: boo
 }
 
 async function runStreamingTurn<TPayload>(
-  command: 'native_teaching_turn' | 'native_chat',
+  command: 'native_chat',
   request: PlatformJsonCommandRequest<TPayload>,
   onEvent?: (event: NativePlatformStreamEvent) => void,
-): Promise<NativeTeachingTurnResult> {
+): Promise<NativeChatTurnResult> {
+  if (browserApp) return browserChat(request, onEvent);
   assertTauriRuntime();
   const [{ invoke }, { listen }] = await Promise.all([
     import('@tauri-apps/api/core'),
@@ -191,7 +199,7 @@ async function runStreamingTurn<TPayload>(
           ? await resolveNativePlatformToken()
           : request.syntaraToken,
     };
-    return await invoke<NativeTeachingTurnResult>(command, {
+    return await invoke<NativeChatTurnResult>(command, {
       request: authenticatedRequest,
     });
   } finally {
@@ -199,19 +207,11 @@ async function runStreamingTurn<TPayload>(
   }
 }
 
-/** 旧版教学回合（/api/native/v1/turn），新版 App 已改用 runNativeChatTurn。 */
-export function runNativeTeachingTurn(
-  request: PlatformJsonCommandRequest<NativeTeachingTurnPayload>,
-  onEvent?: (event: NativePlatformStreamEvent) => void,
-): Promise<NativeTeachingTurnResult> {
-  return runStreamingTurn('native_teaching_turn', request, onEvent);
-}
-
 /** 手机 / 桌面端独立的助教聊天（/api/native/v2/chat，SSE 流式）。 */
 export function runNativeChatTurn<TPayload>(
   request: PlatformJsonCommandRequest<TPayload>,
   onEvent?: (event: NativePlatformStreamEvent) => void,
-): Promise<NativeTeachingTurnResult> {
+): Promise<NativeChatTurnResult> {
   return runStreamingTurn('native_chat', request, onEvent);
 }
 
@@ -231,20 +231,6 @@ export function createNativeMiniLecture(
       syntaraToken: options.syntaraToken,
       idempotencyKey,
       model: options.model,
-    },
-  );
-}
-
-export function createNativeReviewPlan(
-  payload: NativeReviewPlanRequest,
-  options: PlatformCommandOptions = {},
-): Promise<NativeReviewPlanResponse> {
-  return invokeJson<NativeReviewPlanRequest, NativeReviewPlanResponse>(
-    'native_create_review_plan',
-    {
-      requestId: crypto.randomUUID(),
-      payload,
-      ...options,
     },
   );
 }
@@ -311,6 +297,16 @@ async function invokeQuery<TResult>(
   command: string,
   query: Record<string, string | number | undefined>,
 ): Promise<TResult> {
+  if (browserApp)
+    return browserCommand(
+      command,
+      undefined,
+      Object.fromEntries(
+        Object.entries(query)
+          .filter((entry) => entry[1] !== undefined)
+          .map(([key, value]) => [key, String(value)]),
+      ),
+    );
   assertTauriRuntime();
   const { invoke } = await import('@tauri-apps/api/core');
   const syntaraToken = await resolveNativePlatformToken();
@@ -326,6 +322,9 @@ async function invokeQuery<TResult>(
 }
 
 export async function listNativePlatformCourses(): Promise<NativePlatformCourse[]> {
+  if (browserApp)
+    return (await browserRequest<{ courses: NativePlatformCourse[] }>('/api/native/v1/courses'))
+      .courses;
   assertTauriRuntime();
   const { invoke } = await import('@tauri-apps/api/core');
   const syntaraToken = await resolveNativePlatformToken();
@@ -337,6 +336,7 @@ export async function listNativePlatformCourses(): Promise<NativePlatformCourse[
 
 /** 本周 AI 用量，和网页侧边栏的「本周剩余用量」同一份数据。 */
 export async function getNativeWeeklyUsage(): Promise<NativeWeeklyUsage> {
+  if (browserApp) return browserRequest('/api/native/v1/usage');
   assertTauriRuntime();
   const { invoke } = await import('@tauri-apps/api/core');
   const syntaraToken = await resolveNativePlatformToken();
@@ -484,12 +484,9 @@ export type {
   NativeMiniLectureRequest,
   NativePlatformCapabilities,
   NativePlatformStreamEvent,
-  NativeReviewPlanRequest,
-  NativeReviewPlanResponse,
   NativeSyllabusRequest,
   NativeSyllabusResponse,
-  NativeTeachingTurnPayload,
-  NativeTeachingTurnResult,
+  NativeChatTurnResult,
   NativeTranscriptionRequest,
   NativeTranscriptionResponse,
   NativeWeeklyUsage,
@@ -497,3 +494,15 @@ export type {
   PlatformCommandOptions,
   PlatformJsonCommandRequest,
 } from './platform-api-contracts';
+
+export async function createBrowserCourse(
+  name: string,
+  description: string,
+): Promise<NativePlatformCourse> {
+  const result = await browserRequest<{ course: NativePlatformCourse }>('/api/native/v1/courses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description }),
+  });
+  return result.course;
+}

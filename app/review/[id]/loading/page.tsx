@@ -40,10 +40,6 @@ import { useNotificationStore } from '@/lib/store/notifications';
 import { backendJson } from '@/lib/utils/backend-api';
 import { getCurrentModelConfig } from '@/lib/utils/model-config';
 import { runQueuedAiTask } from '@/lib/store/ai-task-queue';
-import {
-  confirmComputeCreditsForGeneration,
-  estimateReviewRouteComputeCredits,
-} from '@/lib/utils/generation-credit-preflight';
 import { cn } from '@/lib/utils';
 
 type LoadingPhase =
@@ -170,8 +166,8 @@ export default function ReviewLoadingPage() {
   const enqueueBanner = useNotificationStore((s) => s.enqueueBanner);
   const startedRef = useRef(false);
   const [phase, setPhase] = useState<LoadingPhase>('boot');
-  const [data, setData] = useState<StageStoreData | null>(null);
-  const [sceneSummary, setSceneSummary] = useState<SceneSummary[]>([]);
+  const [, setData] = useState<StageStoreData | null>(null);
+  const [, setSceneSummary] = useState<SceneSummary[]>([]);
   const [problemProfile, setProblemProfile] = useState<ProblemBankLearningProfile | null>(null);
   const [template, setTemplate] = useState<ReviewRouteTemplate | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -180,26 +176,6 @@ export default function ReviewLoadingPage() {
   const wrongProblemCount = problemProfile?.wrongProblems.length ?? 0;
   const missingConcepts = useMemo(() => problemProfile?.missingConcepts ?? [], [problemProfile]);
   const thinConcepts = useMemo(() => problemProfile?.thinConcepts ?? [], [problemProfile]);
-  const weakPointCount = useMemo(() => {
-    if (!data?.stage) return 0;
-    return loadStudyMemory(userId, data.stage.id).weakPoints.filter(
-      (item) => item.status === 'open',
-    ).length;
-  }, [data, userId]);
-  const quizCount = useMemo(
-    () => sceneSummary.reduce((sum, scene) => sum + scene.quizQuestions.length, 0),
-    [sceneSummary],
-  );
-  const estimatedReviewCredits = useMemo(
-    () =>
-      estimateReviewRouteComputeCredits({
-        sceneCount: sceneSummary.length,
-        quizCount,
-        weakPointCount,
-      }),
-    [quizCount, sceneSummary.length, weakPointCount],
-  );
-
   const saveRouteAndOpenMap = useCallback(
     async (args: {
       stageData: StageStoreData;
@@ -251,20 +227,6 @@ export default function ReviewLoadingPage() {
     }) => {
       setPhase('ai_generating');
       const memory = loadStudyMemory(userId, args.stageData.stage.id);
-      const routeWeakPointCount = memory.weakPoints.filter((item) => item.status === 'open').length;
-      const routeQuizCount = args.scenes.reduce(
-        (sum, scene) => sum + scene.quizQuestions.length,
-        0,
-      );
-      await confirmComputeCreditsForGeneration({
-        requiredCredits: estimateReviewRouteComputeCredits({
-          sceneCount: args.scenes.length,
-          quizCount: routeQuizCount,
-          weakPointCount: routeWeakPointCount,
-        }),
-        actionLabel: 'AI 选题并生成复习路线图',
-      });
-
       const response = await runQueuedAiTask(
         {
           kind: 'review-route',
@@ -479,9 +441,9 @@ export default function ReviewLoadingPage() {
               <p className="mt-1 text-3xl font-black">{wrongProblemCount}</p>
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-950/35">
-              <p className="text-xs font-semibold text-slate-400">AI算力</p>
+              <p className="text-xs font-semibold text-slate-400">生成方式</p>
               <p className="mt-2 text-sm font-bold leading-6">
-                {mode === 'ai' ? `约 ${estimatedReviewCredits} 积分` : '无需 AI'}
+                {mode === 'ai' ? 'AI 智能选题' : '无需 AI'}
               </p>
             </div>
           </div>

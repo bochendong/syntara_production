@@ -263,7 +263,7 @@ export function evaluateReviewPlan(
     lastLayer.nodes[0].requiresQuestion;
   const questionNodes = nodes.filter((node) => node.requiresQuestion);
   const supportNodes = nodes.filter((node) => !node.requiresQuestion);
-  const rewardlessNodes = nodes.filter((node) => node.rewardPoints <= 0 && node.kind !== 'shop');
+  const rewardlessNodes = nodes.filter((node) => node.rewardPoints !== 0);
   const genericQuestionTitles = questionNodes.filter((node) =>
     /(检测|小测|练习)$/.test(node.title),
   );
@@ -377,11 +377,11 @@ export function evaluateReviewPlan(
     ),
     makeCheck(
       'review-plan-rewards',
-      '节点奖励已结构化',
+      '不包含积分奖励',
       rewardlessNodes.length === 0,
       rewardlessNodes.length
-        ? `${rewardlessNodes.length} 个非商店节点没有奖励积分。`
-        : '奖励积分完整。',
+        ? `${rewardlessNodes.length} 个节点仍包含已退役的积分奖励。`
+        : '未生成积分奖励。',
     ),
     makeCheck(
       'review-plan-no-study-task',

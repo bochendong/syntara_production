@@ -3,9 +3,11 @@
 The test App uses ordinary verified Google accounts. There is no App activation
 code or email allowlist. Google must allow external users on its consent screen.
 The browser asks the user to confirm the device before issuing App tokens.
-New Google testers without accessible courses receive a private `TEST101`
-starter course on the first native course-list request. This provisioning is
-restricted to `staging` + `google-test`; production does not create test courses.
+New Google testers start with zero courses. Listing courses does not create any.
+The earlier automatic `TEST101` QA course is excluded from the staging account's
+course list; its saved data is retained. Actual owned/joined courses remain visible.
+At first account creation, Google staging users receive a random catalog avatar
+stored in the user record. Signing in again preserves the saved avatar.
 Only `openid email profile` is requested. Google's
 [basic identity exception](https://support.google.com/cloud/answer/15549945?hl=en)
 allows ordinary accounts without a test-user allowlist while the OAuth project
@@ -19,8 +21,9 @@ exception and requires a separate review of the publishing configuration.
 - API: `native-api-staging` (`fd6afb05-6491-451a-b577-abf15fdc0047`).
 - Origin: <https://native-api-staging-staging-95a1.up.railway.app>.
 - Test entry: <https://native-api-staging-staging-95a1.up.railway.app/test>.
-  Staging middleware rewrites this to a dedicated Google login page; the existing
-  production browser QA route at `/test` is preserved.
+  Staging middleware rewrites this to a dedicated Google login page, then opens
+  the current App UI at `/test/app`. See [browser release](native-web-staging.md).
+  The production browser QA route at `/test` is preserved.
 - Independent DB: `staging-postgres` (`ce8c8ac4-adfe-4fa3-a6c4-34dafa2bd883`).
   It starts with migrated empty tables, not the private production dataset.
 - The previously copied production database remains in the production environment.

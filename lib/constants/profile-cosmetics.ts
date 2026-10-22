@@ -119,9 +119,9 @@ export const DEFAULT_UNLOCKED_PROFILE_COSMETIC_KEYS = PROFILE_COSMETIC_ITEMS.fil
  * - 通知框底图：柔极光
  * - 侧边栏：默认、柔极光
  * - 幻灯片背景：学园水彩
- * - 头像框：无、星紫、晴空（头像框由成长等级解锁，不再消耗购买积分）
+ * - 头像框：全部直接可选，无等级或积分限制
  *
- * 头像本体默认由 `DEFAULT_UNLOCKED_USER_AVATAR_IDS` 提供 R1。
+ * 头像本体直接使用弹珠系列，无需解锁。
  */
 export const NEW_USER_DEFAULT_PROFILE_COSMETIC_KEYS = DEFAULT_UNLOCKED_PROFILE_COSMETIC_KEYS;
 

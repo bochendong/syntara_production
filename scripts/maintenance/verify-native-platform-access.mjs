@@ -34,9 +34,7 @@ assert.equal('token' in SHARED_NATIVE_PLATFORM_PRINCIPAL, false);
 
 const nativeRouteFiles = [
   'app/api/native/v1/capabilities/route.ts',
-  'app/api/native/v1/turn/route.ts',
   'app/api/native/v1/mini-lectures/route.ts',
-  'app/api/native/v1/review-plans/route.ts',
   'app/api/native/v1/grade/route.ts',
   'app/api/native/v1/transcriptions/route.ts',
   'app/api/native/v1/syllabus/parse/route.ts',

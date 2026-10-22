@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     'next-env.d.ts',
     // Vendored/generated code:
     'packages/**',
+    // Standalone prototypes own their tooling; generated QA/export files are not app source.
+    'artifacts/**',
     // Claude Code local files:
     '.claude/**',
     '.superpowers/**',

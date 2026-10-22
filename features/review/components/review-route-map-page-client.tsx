@@ -21,15 +21,12 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
+import { reviewLearningDescription } from '@/lib/learning/review-learning-description';
 import { toast } from '@/lib/notifications/client-toast';
 import { CourseProblemBankView } from '@/components/problem-bank/course-problem-bank-view';
 import type { ReviewRoute, ReviewRouteNode } from '@/features/review';
 import { listReviewRouteHistory, MIN_TEMPLATE_REVIEW_PROBLEMS } from '@/features/review';
-import {
-  loadReviewRouteProgress,
-  markReviewRouteNodeCompleted,
-  withdrawReviewRouteReward,
-} from '@/features/review';
+import { loadReviewRouteProgress, markReviewRouteNodeCompleted } from '@/features/review';
 import { useAuthStore } from '@/lib/store/auth';
 import { loadStageData, type StageStoreData } from '@/lib/utils/stage-storage';
 import {
@@ -427,7 +424,7 @@ function rewardKindLabel(kind: ReviewRouteNode['rewardKind'] | undefined): strin
     case 'run_card':
       return '局内卡';
     case 'reward_coin':
-      return '奖励币';
+      return '学习提示';
     case 'card_back_shard':
       return '卡背碎片';
     case 'relic_shard':
@@ -441,89 +438,31 @@ function rewardKindLabel(kind: ReviewRouteNode['rewardKind'] | undefined): strin
     case 'mentor_cosmetic_shard':
       return '导师装饰碎片';
     case 'multiplier':
-      return '倍率调整';
+      return '学习策略';
     default:
       return '局内补给';
   }
 }
 
-function getRewardPoints(node: ReviewRouteNode): number {
-  if (typeof node.rewardPoints === 'number' && Number.isFinite(node.rewardPoints)) {
-    return Math.max(0, Math.round(node.rewardPoints));
-  }
-  const questionCount = getQuestionCount(node);
-  const baseByKind: Record<ReviewRouteNode['kind'], number> = {
-    normal: 10,
-    elite: 24,
-    boss: 60,
-    camp: 8,
-    treasure: 18,
-    event: 14,
-    shop: 0,
-  };
-  const difficultyBonus = node.difficulty === 'hard' ? 10 : node.difficulty === 'medium' ? 4 : 0;
-  const questionBonus = isQuestionNode(node) ? Math.max(0, questionCount - 2) * 2 : 0;
-  const rewardKindBonus = ['reward_coin', 'relic_shard', 'card_back_shard'].includes(
-    node.rewardKind,
-  )
-    ? 6
-    : ['run_card', 'forgiveness', 'card_upgrade'].includes(node.rewardKind)
-      ? 4
-      : 0;
-  return Math.max(
-    0,
-    Math.min(120, baseByKind[node.kind] + difficultyBonus + questionBonus + rewardKindBonus),
-  );
-}
-
-function getRewardPointsLine(node: ReviewRouteNode): string {
-  const points = getRewardPoints(node);
-  return points > 0 ? `通关 +${points} 奖励积分` : '通关不额外发放奖励积分';
-}
-
-function getRewardSummary(node: ReviewRouteNode): string {
-  const preview = node.rewardPreview?.trim();
-  if (!preview) return getRewardPointsLine(node);
-  if (/\d{1,3}\s*(?:奖励积分|积分|奖励币)/.test(preview)) return preview;
-  return `${getRewardPointsLine(node)} · ${preview}`;
-}
-
-function parseMultiplierBonus(text: string | undefined): number | null {
-  if (!text) return null;
-  const match = text.match(/倍率\s*\+\s*(0?\.\d+|[1-9]\d*(?:\.\d+)?)/);
-  if (!match) return null;
-  const value = Number(match[1]);
-  return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : null;
-}
-
-function getNodeMultiplierBonus(node: ReviewRouteNode): number {
-  const parsed = parseMultiplierBonus(node.rewardPreview);
-  if (typeof parsed === 'number') return parsed;
-  if (node.rewardKind === 'multiplier') return 0.2;
-  if (node.kind === 'boss') return 0.25;
-  if (node.kind === 'elite') return 0.12;
-  if (node.kind === 'normal') return 0.05;
-  if (['camp', 'treasure', 'event'].includes(node.kind)) return 0.04;
-  return 0;
-}
-
-function formatMultiplier(multiplier: number): string {
-  return `x${multiplier.toFixed(2)}`;
-}
-
 function defaultEventOptions(node: ReviewRouteNode) {
-  if ((node.eventOptions ?? []).length > 0) return node.eventOptions ?? [];
+  if ((node.eventOptions ?? []).length > 0)
+    return (node.eventOptions ?? []).map((option) => ({
+      ...option,
+      effect: reviewLearningDescription(option.effect, '调整本局练习节奏'),
+      tradeoff: reviewLearningDescription(option.tradeoff, '稍后仍可继续练习'),
+      rewardPreview: reviewLearningDescription(option.rewardPreview, '保存学习进度'),
+    }));
   return [
     {
       label: '现在做一题高难题',
-      effect: '下一题答对时获得双倍奖励',
-      tradeoff: '答错会失去当前倍率',
-      rewardPreview: '双倍奖励',
+      effect: '挑战下一道进阶题',
+      tradeoff: '适合已经掌握基础内容后尝试',
+      rewardPreview: '进阶练习',
     },
     {
       label: '跳过一题',
       effect: '立刻保住节奏继续前进',
-      tradeoff: '失去当前倍率',
+      tradeoff: '稍后仍可返回练习',
       rewardPreview: '稳定推进',
     },
   ];
@@ -534,9 +473,9 @@ function supportNodeActions(node: ReviewRouteNode): string[] {
     case 'camp':
       return ['整理 1 道错题', '恢复 1 次答错豁免', '升级 1 张局内卡'];
     case 'treasure':
-      return ['获得 1 张局内卡', '获得少量奖励币', '获得卡背/遗物碎片'];
+      return ['获得 1 张局内卡', '获得学习提示', '获得卡背/遗物碎片'];
     case 'shop':
-      return ['用奖励币换提示卡', '用奖励币换豁免卡', '兑换导师装饰碎片'];
+      return ['选择提示卡', '选择练习策略', '查看学习建议'];
     default:
       return [];
   }
@@ -627,21 +566,6 @@ export default function ReviewRouteMapPageClient() {
   const [completedNodeIds, setCompletedNodeIds] = useState<string[]>(() =>
     routeId ? loadReviewRouteProgress({ userId, notebookId, routeId }).completedNodeIds : [],
   );
-  const [withdrawnReward, setWithdrawnReward] = useState<{
-    rewardPoints: number;
-    baseRewardPoints: number;
-    multiplier: number;
-    withdrawnAt?: number;
-  }>(() => {
-    if (!routeId) return { rewardPoints: 0, baseRewardPoints: 0, multiplier: 1 };
-    const progress = loadReviewRouteProgress({ userId, notebookId, routeId });
-    return {
-      rewardPoints: progress.withdrawnRewardPoints ?? 0,
-      baseRewardPoints: progress.withdrawnBaseRewardPoints ?? 0,
-      multiplier: progress.withdrawnMultiplier ?? 1,
-      withdrawnAt: progress.withdrawnAt,
-    };
-  });
   const [selectedChallenge, setSelectedChallenge] = useState<ReviewChallenge | null>(null);
   const [activeChallenge, setActiveChallenge] = useState<ReviewChallenge | null>(null);
   const [challengeResult, setChallengeResult] = useState<ChallengeResult | null>(null);
@@ -681,36 +605,6 @@ export default function ReviewRouteMapPageClient() {
     (sum, layer) => sum + layer.nodes.filter((node) => completedNodeSet.has(node.id)).length,
     0,
   );
-  const totalRewardPoints = displayRouteLayers.reduce(
-    (sum, layer) => sum + layer.nodes.reduce((nodeSum, node) => nodeSum + getRewardPoints(node), 0),
-    0,
-  );
-  const completedRewardPoints = displayRouteLayers.reduce(
-    (sum, layer) =>
-      sum +
-      layer.nodes.reduce(
-        (nodeSum, node) => nodeSum + (completedNodeSet.has(node.id) ? getRewardPoints(node) : 0),
-        0,
-      ),
-    0,
-  );
-  const completedMultiplierBonus = displayRouteLayers.reduce(
-    (sum, layer) =>
-      sum +
-      layer.nodes.reduce(
-        (nodeSum, node) =>
-          nodeSum + (completedNodeSet.has(node.id) ? getNodeMultiplierBonus(node) : 0),
-        0,
-      ),
-    0,
-  );
-  const currentMultiplier = Number(Math.min(3, 1 + completedMultiplierBonus).toFixed(2));
-  const withdrawableRewardPoints = Math.round(completedRewardPoints * currentMultiplier);
-  const bossCompleted = displayRouteLayers.some((layer) =>
-    layer.nodes.some((node) => node.kind === 'boss' && completedNodeSet.has(node.id)),
-  );
-  const rewardWithdrawn = Boolean(withdrawnReward.withdrawnAt);
-
   useEffect(() => {
     let cancelled = false;
     if (!notebookId) return undefined;
@@ -762,7 +656,7 @@ export default function ReviewRouteMapPageClient() {
       ok,
       title: ok ? '结果 OK' : '继续完成本关',
       feedback: ok
-        ? `已通过 ${passedCount}/${totalCount}，达到本关标准。可以结算，${getRewardPointsLine(activeChallenge.node)}。`
+        ? `已通过 ${passedCount}/${totalCount}，达到本关标准。可以结算，学习进度已保存。`
         : `已通过 ${passedCount}/${totalCount}，本关需要至少通过 ${requiredCorrect} 题。继续做本关剩下的题就好。`,
     });
   };
@@ -780,7 +674,7 @@ export default function ReviewRouteMapPageClient() {
     setSelectedChallenge(null);
     setChallengeResult(null);
     setPassedReviewProblemIds([]);
-    toast.success(`本关完成，${getRewardPointsLine(activeChallenge.node)}`);
+    toast.success(`本关完成，学习进度已保存`);
   };
 
   const handleCompleteSupportNode = () => {
@@ -797,26 +691,7 @@ export default function ReviewRouteMapPageClient() {
     setChallengeResult(null);
     setPassedReviewProblemIds([]);
     setSelectedEventOptionIndex(0);
-    toast.success(`补给节点完成，${getRewardPointsLine(activeChallenge.node)}`);
-  };
-
-  const handleWithdrawReward = () => {
-    if (!routeId || !bossCompleted || rewardWithdrawn) return;
-    const progress = withdrawReviewRouteReward({
-      userId,
-      notebookId,
-      routeId,
-      baseRewardPoints: completedRewardPoints,
-      multiplier: currentMultiplier,
-      rewardPoints: withdrawableRewardPoints,
-    });
-    setWithdrawnReward({
-      rewardPoints: progress.withdrawnRewardPoints ?? withdrawableRewardPoints,
-      baseRewardPoints: progress.withdrawnBaseRewardPoints ?? completedRewardPoints,
-      multiplier: progress.withdrawnMultiplier ?? currentMultiplier,
-      withdrawnAt: progress.withdrawnAt,
-    });
-    toast.success(`提现成功：+${withdrawableRewardPoints} 奖励积分`);
+    toast.success(`补给节点完成，学习进度已保存`);
   };
 
   if (!route || !routeId) {
@@ -927,7 +802,7 @@ export default function ReviewRouteMapPageClient() {
                   onClick={handleCompleteChallenge}
                   className="shrink-0 rounded-full bg-slate-950 px-5 py-2 text-sm font-black text-white shadow-lg dark:bg-white dark:text-slate-950"
                 >
-                  结算 +{getRewardPoints(activeChallenge.node)} 奖励积分
+                  完成本关
                 </button>
               </div>
             </div>
@@ -995,7 +870,7 @@ export default function ReviewRouteMapPageClient() {
                     ? `${getQuestionCount(activeChallenge.node)} 题`
                     : rewardKindLabel(activeChallenge.node.rewardKind)}
                   {' · '}
-                  {getRewardSummary(activeChallenge.node)}
+                  {'完成本关后保存学习进度'}
                 </p>
               </div>
             </div>
@@ -1013,7 +888,7 @@ export default function ReviewRouteMapPageClient() {
                 </div>
               </div>
               <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold leading-6 text-emerald-900 dark:border-emerald-400/20 dark:bg-emerald-950/30 dark:text-emerald-100">
-                {getRewardSummary(activeChallenge.node)}
+                {'完成本关后保存学习进度'}
               </div>
               {activeChallenge.node.kind === 'event' ? (
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -1064,7 +939,7 @@ export default function ReviewRouteMapPageClient() {
                   onClick={handleCompleteSupportNode}
                   className="rounded-full bg-slate-950 px-5 py-2 text-sm font-black text-white shadow-lg dark:bg-white dark:text-slate-950"
                 >
-                  领取 +{getRewardPoints(activeChallenge.node)} 奖励积分
+                  完成补给
                 </button>
               </div>
             </div>
@@ -1123,44 +998,6 @@ export default function ReviewRouteMapPageClient() {
             </p>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <div className="rounded-lg border border-amber-300/70 bg-[#fff4cd]/72 px-2.5 py-1.5 text-amber-950 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.48)] dark:border-amber-400/20 dark:bg-amber-950/30 dark:text-amber-100">
-            <p className="text-[10px] font-black opacity-70">奖励</p>
-            <p className="text-sm font-black">
-              +{completedRewardPoints}/{totalRewardPoints}
-            </p>
-          </div>
-          <div className="rounded-lg border border-sky-200/80 bg-[#eaf7ff]/72 px-2.5 py-1.5 text-sky-950 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.48)] dark:border-sky-400/20 dark:bg-sky-950/30 dark:text-sky-100">
-            <p className="text-[10px] font-black opacity-70">倍率</p>
-            <p className="text-sm font-black">{formatMultiplier(currentMultiplier)}</p>
-          </div>
-          <div className="min-w-24 flex-1 rounded-lg border border-slate-200/70 bg-[#fffdf8]/72 px-2.5 py-1.5 text-slate-700 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.42)] dark:border-white/10 dark:bg-white/7 dark:text-slate-200">
-            <p className="text-[10px] font-black opacity-60">可提现</p>
-            <p className="text-sm font-black">{withdrawableRewardPoints} 积分</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          disabled={!bossCompleted || rewardWithdrawn}
-          onClick={handleWithdrawReward}
-          className={cn(
-            'mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-black shadow-[0_6px_12px_rgba(148,163,184,0.16)] transition-transform',
-            bossCompleted && !rewardWithdrawn
-              ? 'border-slate-950/80 bg-slate-950 text-white hover:-translate-y-0.5 dark:border-white dark:bg-white dark:text-slate-950'
-              : 'cursor-not-allowed border-slate-300/80 bg-[#e9eef6]/85 text-slate-500 dark:border-white/10 dark:bg-white/10 dark:text-slate-500',
-          )}
-        >
-          {rewardWithdrawn ? (
-            <>已提现 +{withdrawnReward.rewardPoints} 积分</>
-          ) : bossCompleted ? (
-            <>提现 +{withdrawableRewardPoints} 积分</>
-          ) : (
-            <>
-              <Lock className="size-4" />
-              打完 Boss 后才能提现
-            </>
-          )}
-        </button>
       </div>
 
       <div className="absolute right-5 top-5 z-50 w-52 overflow-visible rounded-[1.15rem_1.35rem_1.1rem_1.3rem] border border-sky-100/90 bg-[#fffaf0]/82 p-3 shadow-[0_10px_24px_rgba(92,119,151,0.13)] backdrop-blur-[2px] dark:border-white/10 dark:bg-slate-950/70 dark:shadow-black/25 md:right-8 md:top-7">
@@ -1487,9 +1324,7 @@ export default function ReviewRouteMapPageClient() {
                     <p className="text-xs font-black text-slate-500 dark:text-slate-400">
                       通关奖励
                     </p>
-                    <p className="mt-1 text-xs font-bold leading-5">
-                      {getRewardSummary(selectedNode)}
-                    </p>
+                    <p className="mt-1 text-xs font-bold leading-5">{'完成本关后保存学习进度'}</p>
                   </div>
                 </div>
                 <div className="rounded-[1rem_1.15rem_1.05rem_1.25rem] border border-slate-200/70 bg-[#fffdf7]/72 p-3 text-xs leading-5 text-slate-600 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)] dark:border-white/10 dark:bg-white/7 dark:text-slate-300">

@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import { courseAvatarUrlById, profileThemeForAvatar } from '../assets';
+import { nativeAccountAvatarUrl, profileThemeForAvatar } from '../assets';
 import { readStoredLearnerProfile, subscribeLearnerProfile } from '../data/learner-profile';
 import { loadNativeAuthSession, subscribeNativeAuth } from '../data/native-auth';
 import { useSidebarBackground } from './use-sidebar-background';
@@ -38,8 +38,7 @@ export function useAvatarTheme() {
     };
   }, []);
 
-  const avatarUrl =
-    courseAvatarUrlById(profile.avatarId) || accountImage || courseAvatarUrlById('R01') || '';
+  const avatarUrl = nativeAccountAvatarUrl(profile.avatarId, accountImage);
   const theme = sidebarBackgroundEnabled ? profileThemeForAvatar(avatarUrl) : undefined;
   const style: AvatarThemeStyle | undefined = theme
     ? {

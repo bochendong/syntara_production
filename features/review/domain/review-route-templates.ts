@@ -198,8 +198,8 @@ export const REVIEW_ROUTE_TEMPLATES: ReviewRouteTemplate[] = [
             {
               label: '冲一题难题',
               effect: '下一题答对获得更高奖励',
-              tradeoff: '答错会失去当前倍率',
-              rewardPreview: '倍率 +0.2',
+              tradeoff: '适合已经掌握基础内容后尝试',
+              rewardPreview: '完成进阶练习',
             },
             {
               label: '稳住节奏',
@@ -436,8 +436,8 @@ export const REVIEW_ROUTE_TEMPLATES: ReviewRouteTemplate[] = [
             {
               label: '挑战更难变式',
               effect: '下一关答对时奖励更高',
-              tradeoff: '答错失去本轮倍率',
-              rewardPreview: '倍率 +0.2',
+              tradeoff: '稍后仍可继续练习',
+              rewardPreview: '完成进阶练习',
             },
             {
               label: '保守推进',
@@ -464,7 +464,7 @@ function questionNode(
   kind: Extract<ReviewRouteNode['kind'], 'normal' | 'elite' | 'boss'>,
   difficulty: ReviewRouteNode['difficulty'],
   questionCount: number,
-  rewardPoints: number,
+  _legacyRewardPoints: number,
 ): TemplateNode {
   return {
     id,
@@ -474,8 +474,8 @@ function questionNode(
     questionCount,
     requiresQuestion: true,
     rewardKind: 'none',
-    rewardPoints,
-    rewardPreview: `通关 +${rewardPoints} 奖励积分`,
+    rewardPoints: 0,
+    rewardPreview: '完成本关后保存学习进度',
     eventOptions: [],
   };
 }
@@ -486,7 +486,7 @@ function supportNode(
   kind: Extract<ReviewRouteNode['kind'], 'camp' | 'treasure' | 'event' | 'shop'>,
   difficulty: ReviewRouteNode['difficulty'],
   rewardKind: ReviewRouteNode['rewardKind'],
-  rewardPoints: number,
+  _legacyRewardPoints: number,
   eventOptions: ReviewRouteNode['eventOptions'] = [],
 ): TemplateNode {
   return {
@@ -496,9 +496,9 @@ function supportNode(
     difficulty,
     questionCount: 0,
     requiresQuestion: false,
-    rewardKind,
-    rewardPoints,
-    rewardPreview: `通关 +${rewardPoints} 奖励积分`,
+    rewardKind: rewardKind === 'reward_coin' || rewardKind === 'multiplier' ? 'none' : rewardKind,
+    rewardPoints: 0,
+    rewardPreview: '完成本关后保存学习进度',
     eventOptions,
   };
 }
@@ -786,8 +786,8 @@ function personalReason(args: {
 
 function supportQuestionStyle(kind: ReviewRouteNode['kind']): string {
   if (kind === 'camp') return '整理错题、恢复一次容错、升级一张局内卡';
-  if (kind === 'treasure') return '领取局内卡、奖励币或碎片';
-  if (kind === 'shop') return '用奖励币换提示卡、豁免卡或装饰碎片';
+  if (kind === 'treasure') return '领取局内学习卡或复习提示';
+  if (kind === 'shop') return '选择本关的学习提示或练习策略';
   return '二选一事件，调整后续复习收益';
 }
 
@@ -812,8 +812,8 @@ function defaultEventOptions(node: TemplateNode): ReviewRouteNode['eventOptions'
     {
       label: '现在冲一题难题',
       effect: '下一题答对获得更高奖励',
-      tradeoff: '答错会失去当前倍率',
-      rewardPreview: '倍率 +0.2',
+      tradeoff: '适合已经掌握基础内容后尝试',
+      rewardPreview: '完成进阶练习',
     },
     {
       label: '稳住节奏',

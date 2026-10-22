@@ -1,3 +1,4 @@
+import { platformAvailable } from './browser-runtime';
 import type { LocalConversation, LocalCourse, LocalMessage } from '../domain/models';
 import { chatFileChips } from './chat-files';
 import { chatImageThumbnails } from './chat-images';
@@ -18,10 +19,6 @@ import type { LocalRepository } from './repository';
 const PUSH_MESSAGE_WINDOW = 40;
 const MAX_SYNCED_TEXT_LENGTH = 40_000;
 
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
-
 function timestampOf(value: number | string | undefined, fallback: number): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -36,7 +33,7 @@ function timestampOf(value: number | string | undefined, fallback: number): numb
  * 这样聊天可以直接按课程 id 同步。未登录或网络失败时保留上一次的结果。
  */
 export async function syncPlatformCourses(repository: LocalRepository): Promise<string[] | null> {
-  if (!isTauriRuntime()) return repository.getPlatformCourseIds();
+  if (!platformAvailable()) return repository.getPlatformCourseIds();
   try {
     const courses = await listNativePlatformCourses();
     const now = Date.now();
@@ -66,7 +63,7 @@ export async function isPlatformCourse(
   repository: LocalRepository,
   courseId: string,
 ): Promise<boolean> {
-  if (!isTauriRuntime()) return false;
+  if (!platformAvailable()) return false;
   const ids = await repository.getPlatformCourseIds();
   return Boolean(ids?.includes(courseId));
 }

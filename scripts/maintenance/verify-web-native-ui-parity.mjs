@@ -31,6 +31,7 @@ async function exists(relativePath) {
 
 const errors = [];
 const warnings = [];
+const nativeDifferences = [];
 const registeredNativeFiles = new Set(nativeUiParityManifest.map((entry) => entry.native));
 const nativeComponentFiles = await filesUnder(componentDirectory);
 
@@ -48,7 +49,9 @@ for (const entry of nativeUiParityManifest) {
     if (!(await exists(webFile))) errors.push(`Missing Web visual source: ${webFile}`);
   }
   if (!entry.components.length) errors.push(`No components declared for ${entry.native}`);
-  if (entry.parity !== 'verified') {
+  if (entry.parity === 'intentional-native' && entry.reason) {
+    nativeDifferences.push(`${entry.components.join(', ')}: ${entry.reason}`);
+  } else if (entry.parity !== 'verified') {
     warnings.push(`${entry.parity.padEnd(10)} ${entry.components.join(', ')}`);
   }
 }
@@ -60,6 +63,12 @@ console.log(
     0,
   )}`,
 );
+
+if (nativeDifferences.length) {
+  console.log(
+    `Intentional native-specific entries: ${nativeDifferences.length} (inventory only; device acceptance is separate)`,
+  );
+}
 
 if (warnings.length) {
   console.log('\nParity work remaining:');

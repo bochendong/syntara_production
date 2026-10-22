@@ -11,8 +11,6 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { backendJson } from '@/lib/utils/backend-api';
-import { notifyCreditsBalancesChanged } from '@/lib/utils/credits-balance-events';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import type { QuizQuestion } from '@/lib/types/stage';
 import { useDraftCache } from '@/lib/hooks/use-draft-cache';
@@ -20,12 +18,7 @@ import { useStageStore } from '@/lib/store';
 import { useAuthStore } from '@/lib/store/auth';
 import { useSettingsStore } from '@/lib/store/settings';
 import { useNotificationStore } from '@/lib/store/notifications';
-import {
-  clearQuestionProgress,
-  getQuestionProgress,
-  setQuestionProgress,
-} from '@/lib/utils/quiz-question-progress';
-import type { GamificationEventResponse } from '@/lib/types/gamification';
+import { clearQuestionProgress, setQuestionProgress } from '@/lib/utils/quiz-question-progress';
 import { toast } from '@/lib/notifications/client-toast';
 import {
   LEARNING_CARD_DEFINITIONS,
@@ -47,7 +40,6 @@ import {
   recordQuizMemory,
 } from '@/lib/learning/study-memory';
 import {
-  GamificationRewardBanner,
   LearningAssistPanels,
   LearningCompanionPanel,
   LearningRunSummaryBanner,
@@ -113,9 +105,6 @@ export function QuizView({
   const questionEdits = useMemo(
     () => (questionEditsState.key === questionsKey ? questionEditsState.edits : {}),
     [questionEditsState, questionsKey],
-  );
-  const [gamificationReward, setGamificationReward] = useState<GamificationEventResponse | null>(
-    null,
   );
   const [learningRun, setLearningRun] = useState<LearningRunState | null>(null);
   const [learningRunSummary, setLearningRunSummary] = useState<LearningRunSummary | null>(null);
@@ -443,19 +432,12 @@ export function QuizView({
     }
   }, [singleQuestionMode, initialSnapshot]);
 
-  const rewardEventDoneRef = useRef(false);
   const attemptFinishedDoneRef = useRef(false);
-
-  useEffect(() => {
-    if (initialSnapshot?.phase === 'reviewing') {
-      rewardEventDoneRef.current = true;
-    }
-  }, [initialSnapshot]);
 
   useEffect(() => {
     if (phase !== 'reviewing') {
       persistDoneRef.current = false;
-      rewardEventDoneRef.current = false;
+
       attemptFinishedDoneRef.current = false;
     }
   }, [phase]);
@@ -504,7 +486,7 @@ export function QuizView({
     setPhase(singleQuestionMode ? 'answering' : 'not_started');
     setAnswers({});
     setResults([]);
-    setGamificationReward(null);
+
     setLearningRun(null);
     setLearningRunSummary(null);
     setNewlyUnlockedCards([]);
@@ -519,106 +501,6 @@ export function QuizView({
     sceneId,
     onAttemptFinished,
   ]);
-
-  useEffect(() => {
-    if (phase !== 'reviewing' || rewardEventDoneRef.current || results.length === 0) {
-      return;
-    }
-    rewardEventDoneRef.current = true;
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const correctCount = results.filter((result) => result.status === 'correct').length;
-        const accuracyPercent =
-          effectiveQuestions.length > 0
-            ? Math.round((correctCount / effectiveQuestions.length) * 100)
-            : 0;
-
-        let payload:
-          | {
-              type: 'quiz_completed';
-              sceneId: string;
-              sceneTitle?: string;
-              referenceKey: string;
-              questionCount: number;
-              correctCount: number;
-              accuracyPercent: number;
-            }
-          | {
-              type: 'review_completed';
-              sceneId: string;
-              sceneTitle?: string;
-              referenceKey: string;
-              hadPreviousIncorrect: boolean;
-            };
-
-        if (singleQuestionMode && effectiveQuestions.length === 1) {
-          const question = effectiveQuestions[0];
-          const previous = getQuestionProgress(stageId, userId, sceneId, question.id);
-          const current = results.find((item) => item.questionId === question.id);
-          const referenceKey = `${sceneId}:${question.id}`;
-
-          if (previous?.status === 'incorrect' && current?.status === 'correct') {
-            payload = {
-              type: 'review_completed',
-              sceneId,
-              sceneTitle: question.question,
-              referenceKey,
-              hadPreviousIncorrect: true,
-            };
-          } else {
-            payload = {
-              type: 'quiz_completed',
-              sceneId,
-              sceneTitle: question.question,
-              referenceKey,
-              questionCount: 1,
-              correctCount,
-              accuracyPercent,
-            };
-          }
-        } else {
-          payload = {
-            type: 'quiz_completed',
-            sceneId,
-            referenceKey: sceneId,
-            questionCount: effectiveQuestions.length,
-            correctCount,
-            accuracyPercent,
-          };
-        }
-
-        const reward = await backendJson<GamificationEventResponse>('/api/gamification/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (cancelled) return;
-        notifyCreditsBalancesChanged();
-        setGamificationReward(reward);
-        if (reward.rewardedPurchaseCredits > 0 || reward.rewardedAffinity > 0) {
-          toast.success(
-            [
-              reward.rewardedPurchaseCredits > 0
-                ? `+${reward.rewardedPurchaseCredits} 购买积分`
-                : '',
-              reward.rewardedAffinity > 0 ? `+${reward.rewardedAffinity} 亲密度` : '',
-            ]
-              .filter(Boolean)
-              .join(' · '),
-          );
-        }
-      } catch {
-        // Reward settlement should never block quiz review.
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [phase, results, effectiveQuestions, sceneId, singleQuestionMode, stageId, userId]);
 
   const earnedScore = useMemo(
     () => results.reduce((sum, result) => sum + result.earned, 0),
@@ -967,7 +849,7 @@ export function QuizView({
                         summary={learningRunSummary}
                         unlockedCards={newlyUnlockedCards}
                       />
-                      <GamificationRewardBanner reward={gamificationReward} />
+
                       {effectiveQuestions.map((question, index) =>
                         renderQuestion(
                           question,

@@ -6,6 +6,12 @@ export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   // The public staging backend exposes the App gateway and its login flow only.
   if (process.env.SYNTARA_APP_ENV === 'staging') {
+    if (pathname === '/test/app' || pathname === '/test/app/') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/native-web/index.html';
+      return NextResponse.rewrite(url);
+    }
+    if (pathname === '/') return NextResponse.redirect(new URL('/test', request.url));
     if (pathname === '/test' || pathname === '/test/') {
       const url = request.nextUrl.clone();
       url.pathname = '/native-test';

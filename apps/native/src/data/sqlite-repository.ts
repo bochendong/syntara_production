@@ -986,6 +986,16 @@ export class SqliteLocalRepository implements LocalRepository {
     return rows.map(mapCourseSummary);
   }
 
+  async latestCourseConversation(courseId: string): Promise<LocalConversation | null> {
+    const rows = await (
+      await this.database()
+    ).select<SqlRow[]>(
+      'SELECT * FROM conversations WHERE course_id = $1 ORDER BY updated_at DESC LIMIT 1',
+      [courseId],
+    );
+    return rows[0] ? mapConversation(rows[0]) : null;
+  }
+
   async loadCourseWorkspace(courseId: string): Promise<LocalCourseWorkspace | null> {
     const database = await this.database();
     const [courseRows, notebookRows, problemRows, conversationRows, memoryRows] = await Promise.all(

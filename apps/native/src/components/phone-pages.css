@@ -20,6 +20,13 @@
   animation: phone-page-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* WKWebView can retain the offscreen entrance frame. Keep native pages visible;
+ * the interactive edge-swipe still controls its own transform. */
+.tauri-runtime .phone-page-overlay,
+.tauri-runtime .course-workspace.is-split.is-split .phone-page-overlay {
+  animation: none;
+}
+
 @keyframes phone-page-in {
   from {
     transform: translateX(100%);
@@ -78,6 +85,7 @@
 
 .phone-page-text-button {
   display: inline-flex;
+  flex-shrink: 0;
   height: 36px;
   align-items: center;
   gap: 4px;
@@ -88,6 +96,7 @@
   color: #fff;
   font-size: 15px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .phone-page-text-button:disabled {
@@ -1927,8 +1936,9 @@
 .phone-jar-shelf-jar {
   position: relative;
   display: block;
-  width: 96px;
-  height: 96px;
+  width: min(96px, calc(100% - 8px));
+  height: auto;
+  aspect-ratio: 1;
   padding: 0;
   border: 0;
   background: none;
@@ -1951,8 +1961,9 @@
 }
 
 .phone-jar-shelf-item .galaxy-flat {
-  width: 96px;
-  height: 96px;
+  width: min(96px, calc(100% - 8px));
+  height: auto;
+  aspect-ratio: 1;
 }
 
 .phone-jar-shelf-item strong {

@@ -21,7 +21,6 @@ import {
 import { toast } from '@/lib/notifications/client-toast';
 import { loadStageData, type StageStoreData } from '@/lib/utils/stage-storage';
 import { useAuthStore } from '@/lib/store/auth';
-import { loadStudyMemory } from '@/features/memory';
 import {
   deleteReviewRouteHistoryItem,
   deleteReviewRouteProgress,
@@ -31,7 +30,6 @@ import {
   type ReviewRouteMode,
   type ReviewRouteHistoryItem,
 } from '@/features/review';
-import { estimateReviewRouteComputeCredits } from '@/lib/utils/generation-credit-preflight';
 import {
   deriveProblemBankLearningProfile,
   type ProblemBankLearningProfile,
@@ -153,10 +151,6 @@ export default function ReviewNotebookPage() {
     };
   }, [notebookId]);
 
-  const memory = useMemo(
-    () => (data?.stage ? loadStudyMemory(userId, data.stage.id) : null),
-    [data, userId],
-  );
   const sceneSummary = useMemo(() => (data ? summarizeScenes(data) : []), [data]);
   const expectedConcepts = useMemo(
     () =>
@@ -168,21 +162,6 @@ export default function ReviewNotebookPage() {
         ),
       ).slice(0, 24),
     [sceneSummary],
-  );
-  const quizCount = useMemo(
-    () => sceneSummary.reduce((sum, scene) => sum + scene.quizQuestions.length, 0),
-    [sceneSummary],
-  );
-  const openWeakPointCount =
-    memory?.weakPoints.filter((item) => item.status === 'open').length ?? 0;
-  const estimatedReviewCredits = useMemo(
-    () =>
-      estimateReviewRouteComputeCredits({
-        sceneCount: sceneSummary.length,
-        quizCount,
-        weakPointCount: openWeakPointCount,
-      }),
-    [openWeakPointCount, quizCount, sceneSummary.length],
   );
   const modeAvailabilities = useMemo(
     () =>
@@ -328,8 +307,7 @@ export default function ReviewNotebookPage() {
   )
     .filter(isUsefulReviewConcept)
     .slice(0, 8);
-  const estimatedReviewCostLabel =
-    selectedMode === 'ai' ? `约 ${estimatedReviewCredits}` : '无需 AI';
+  const reviewGenerationLabel = selectedMode === 'ai' ? 'AI 智能选题' : '无需 AI';
   const totalProblemCount = problemProfile?.totalProblems ?? 0;
   const isProblemBankInsufficient =
     problemProfileStatus === 'ready' && totalProblemCount < MIN_TEMPLATE_REVIEW_PROBLEMS;
@@ -596,7 +574,7 @@ export default function ReviewNotebookPage() {
                 复习准备
               </h2>
               <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">
-                {estimatedReviewCostLabel}
+                {reviewGenerationLabel}
               </span>
             </div>
             <div className="divide-y divide-slate-100 dark:divide-white/10">
@@ -604,7 +582,7 @@ export default function ReviewNotebookPage() {
                 ['页面', String(sceneSummary.length), BookOpen],
                 ['题库题目', problemCountLabel, Database],
                 ['待复习错题', String(wrongProblemCount), AlertTriangle],
-                ['AI算力', estimatedReviewCostLabel, Sparkles],
+                ['生成方式', reviewGenerationLabel, Sparkles],
               ].map(([label, value, Icon]) => (
                 <div key={label as string} className="flex items-center justify-between gap-4 py-3">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-300">

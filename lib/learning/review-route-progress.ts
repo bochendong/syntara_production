@@ -101,27 +101,6 @@ export function markReviewRouteNodeCompleted(args: {
   return next;
 }
 
-export function withdrawReviewRouteReward(args: {
-  userId: string;
-  notebookId: string;
-  routeId: string;
-  baseRewardPoints: number;
-  multiplier: number;
-  rewardPoints: number;
-}): ReviewRouteProgress {
-  const current = loadReviewRouteProgress(args);
-  const next: ReviewRouteProgress = {
-    ...current,
-    withdrawnBaseRewardPoints: Math.max(0, Math.round(args.baseRewardPoints)),
-    withdrawnMultiplier: Math.max(1, Number(args.multiplier.toFixed(2))),
-    withdrawnRewardPoints: Math.max(0, Math.round(args.rewardPoints)),
-    withdrawnAt: Date.now(),
-    updatedAt: Date.now(),
-  };
-  saveReviewRouteProgress(next);
-  return next;
-}
-
 export function deleteReviewRouteProgress(args: {
   userId: string;
   notebookId: string;

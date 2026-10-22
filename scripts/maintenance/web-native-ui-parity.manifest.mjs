@@ -3,7 +3,8 @@ export const nativeUiParityManifest = [
     native: 'apps/native/src/App.tsx',
     web: ['components/app-layout-chrome.tsx', 'components/learn/learn-home-page-client.tsx'],
     components: ['App', 'AuthenticatedApp'],
-    parity: 'needs-review',
+    parity: 'intentional-native',
+    reason: 'Native launch opens chat directly; the historical homepage is retired.',
   },
   {
     native: 'apps/native/src/components/NativeAccountControl.tsx',
@@ -29,6 +30,12 @@ export const nativeUiParityManifest = [
     web: ['components/learn/learn-workspace-dialog.tsx'],
     components: ['NativeWorkspaceDialog'],
     parity: 'verified',
+  },
+  {
+    native: 'apps/native/src/components/CreateCourseDialog.tsx',
+    web: ['components/courses/create-course-form.tsx'],
+    components: ['CreateCourseDialog'],
+    parity: 'needs-review',
   },
   {
     native: 'apps/native/src/components/LearningCalendarGrid.tsx',
@@ -176,5 +183,12 @@ export const nativeUiParityManifest = [
     web: [],
     components: ['ChatRichText'],
     parity: 'native-only',
+  },
+  {
+    native: 'apps/native/src/components/GlobalCalendarApp.tsx',
+    web: ['components/learn/learning-calendar-page.tsx'],
+    components: ['GlobalCalendarApp'],
+    parity: 'intentional-native',
+    reason: 'Cross-course native calendar reuses the responsive course-calendar page.',
   },
 ];

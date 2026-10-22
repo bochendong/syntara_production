@@ -5,7 +5,6 @@ import {
   type Prisma,
 } from '@/lib/server/generated-prisma';
 import type { AppNotification, AppNotificationDetail } from '@/lib/notifications/types';
-import { isCreditBillingEnabled } from '@/lib/server/credit-billing-policy';
 import {
   formatComputeCreditsLabel,
   formatCashCreditsLabel,
@@ -18,8 +17,6 @@ const TOKEN_USAGE_GROUP_WINDOW_MS = 3 * 60 * 1000;
 const NOTEBOOK_GENERATION_GROUP_IDLE_GAP_MS = 5 * 60 * 1000;
 const CREDIT_TRANSFER_GROUP_WINDOW_MS = 15 * 1000;
 const QUIZ_REWARD_GROUP_WINDOW_MS = 60 * 1000;
-const LOW_COMPUTE_BALANCE_THRESHOLD = 100;
-const LOW_PURCHASE_BALANCE_THRESHOLD = 30;
 
 const NOTEBOOK_GENERATION_OPERATION_CODES = new Set([
   'notebook_metadata_generation',
@@ -278,7 +275,7 @@ function buildSourceLabel(row: CreditNotificationRow): string {
     case CreditTransactionKind.CHARACTER_UNLOCK_SPEND:
       return '角色解锁';
     case CreditTransactionKind.AVATAR_UNLOCK_SPEND:
-      return '头像收藏解锁';
+      return '外观解锁';
     case CreditTransactionKind.WELCOME_BONUS:
       if (row.referenceType === 'stripe_top_up') return 'Stripe 充值';
       return '系统发放';
@@ -350,7 +347,7 @@ function buildNotificationTitle(row: CreditNotificationRow): string {
     case CreditTransactionKind.CHARACTER_UNLOCK_SPEND:
       return '陪伴角色已解锁';
     case CreditTransactionKind.AVATAR_UNLOCK_SPEND:
-      return '头像收藏已解锁';
+      return '外观已解锁';
     case CreditTransactionKind.WELCOME_BONUS:
       if (row.referenceType === 'stripe_top_up') return '充值积分已到账';
       if (row.referenceType === 'admin_grant') return '积分已到账';
@@ -414,7 +411,7 @@ function buildNotificationBody(row: CreditNotificationRow): string {
     case CreditTransactionKind.CHARACTER_UNLOCK_SPEND:
       return `你花费 ${formatAccountValue(row.accountType, Math.abs(row.delta))} 解锁了新的陪伴角色，${balanceText}。`;
     case CreditTransactionKind.AVATAR_UNLOCK_SPEND:
-      return `你花费 ${formatAccountValue(row.accountType, Math.abs(row.delta))} 解锁了新的头像收藏，${balanceText}。`;
+      return `你花费 ${formatAccountValue(row.accountType, Math.abs(row.delta))} 解锁了新的个人资料外观，${balanceText}。`;
     case CreditTransactionKind.WELCOME_BONUS:
       if (row.referenceType === 'stripe_top_up') {
         const packTitle = getMetadataString(row.metadata, 'packTitle');
@@ -722,36 +719,6 @@ export function mapCreditTransactionToNotification(row: CreditNotificationRow): 
   };
 }
 
-function buildLowBalanceNotification(args: {
-  userId: string;
-  accountType: 'COMPUTE' | 'PURCHASE';
-  balance: number;
-}): AppNotification {
-  const accountLabel = args.accountType === 'COMPUTE' ? '算力积分' : '奖励币';
-  const formatted =
-    args.accountType === 'COMPUTE'
-      ? formatComputeCreditsLabel(args.balance)
-      : formatPurchaseCreditsLabel(args.balance);
-
-  return {
-    id: `low-balance:${args.accountType}:${args.userId}:${new Date().toISOString().slice(0, 10)}`,
-    kind: 'study_nudge',
-    title: `${accountLabel}快不够啦`,
-    body: `我先提醒你一下，当前${accountLabel}只剩 ${formatted}。普通陪伴提醒不会扣你的钱，但生成路线图、专属关卡包时可能会受影响。`,
-    tone: 'negative',
-    presentation: 'banner',
-    amountLabel: formatted,
-    delta: 0,
-    balanceAfter: args.balance,
-    accountType: args.accountType,
-    sourceKind: 'low_balance',
-    sourceLabel: '余额提醒',
-    createdAt: new Date().toISOString(),
-    details: [{ key: 'account', label: '账户', value: accountLabel }],
-    showBalance: false,
-  };
-}
-
 export async function listUserNotifications(
   db: NotificationDbClient,
   userId: string,
@@ -962,32 +929,5 @@ export async function listUserNotifications(
   flushNotebookGenerationGroup();
   flushCreditTransferGroup();
   flushQuizRewardGroup();
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: {
-      computeCreditsBalance: true,
-      purchaseCreditsBalance: true,
-    },
-  });
-  if (user && isCreditBillingEnabled()) {
-    if (user.computeCreditsBalance <= LOW_COMPUTE_BALANCE_THRESHOLD) {
-      notifications.unshift(
-        buildLowBalanceNotification({
-          userId,
-          accountType: 'COMPUTE',
-          balance: user.computeCreditsBalance,
-        }),
-      );
-    }
-    if (user.purchaseCreditsBalance <= LOW_PURCHASE_BALANCE_THRESHOLD) {
-      notifications.unshift(
-        buildLowBalanceNotification({
-          userId,
-          accountType: 'PURCHASE',
-          balance: user.purchaseCreditsBalance,
-        }),
-      );
-    }
-  }
   return notifications.slice(0, Math.max(1, Math.min(limit, 100)));
 }

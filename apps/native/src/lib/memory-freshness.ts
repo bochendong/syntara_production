@@ -1,3 +1,4 @@
+import { accountStorageKey } from '../data/browser-runtime';
 import type { LocalStudyMemory } from '../domain/models';
 
 /**
@@ -16,7 +17,9 @@ export type ReviewedMap = Record<string, number>;
 
 export function readReviewedMap(): ReviewedMap {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(REVIEWED_KEY) ?? '{}');
+    const parsed: unknown = JSON.parse(
+      localStorage.getItem(accountStorageKey(REVIEWED_KEY)) ?? '{}',
+    );
     return parsed && typeof parsed === 'object' ? (parsed as ReviewedMap) : {};
   } catch {
     return {};
@@ -26,7 +29,7 @@ export function readReviewedMap(): ReviewedMap {
 export function markMemoryReviewed(memoryId: string, now = Date.now()): ReviewedMap {
   const map = { ...readReviewedMap(), [memoryId]: now };
   try {
-    localStorage.setItem(REVIEWED_KEY, JSON.stringify(map));
+    localStorage.setItem(accountStorageKey(REVIEWED_KEY), JSON.stringify(map));
   } catch {
     // 存不下也没关系，只是下次打开时弹珠还是雾的。
   }
@@ -45,7 +48,7 @@ export function mergeReviewedMap(incoming: ReviewedMap): ReviewedMap {
   }
   if (changed) {
     try {
-      localStorage.setItem(REVIEWED_KEY, JSON.stringify(map));
+      localStorage.setItem(accountStorageKey(REVIEWED_KEY), JSON.stringify(map));
     } catch {
       // 同上：存不下只影响弹珠的雾。
     }

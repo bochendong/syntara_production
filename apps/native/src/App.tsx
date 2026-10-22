@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { browserApp } from './data/browser-runtime';
+import { CreateCourseDialog } from './components/CreateCourseDialog';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
 import { CourseWorkspace } from './components/CourseWorkspace';
@@ -9,22 +11,32 @@ import { ProblemBankPage, type ProblemBankLaunch } from './components/ProblemBan
 import { ProblemPracticePage } from './components/ProblemPracticePage';
 import { syncPlatformCourses } from './data/chat-sync';
 import { getLocalRepository, type LocalBackendKind } from './data/repository';
+import {
+  accessibleChatCourses,
+  selectChatCourse,
+  type CourseOpenTarget,
+} from './lib/native-launch';
 import { readPhoneLastChat } from './lib/phone-last-chat';
+import { GlobalCalendarApp } from './components/GlobalCalendarApp';
+import { PhoneProfilePage } from './components/PhonePages';
+import { resolveNativeCourseAvatar } from './assets';
+import type { LocalCourseEvent } from './domain/learning-experiences';
+import type { ChatResponseStrength } from './data/ai-client';
+import './components/global-calendar.css';
+import { useBackDismiss } from './lib/use-back-dismiss';
 import { usePhoneLayout } from './lib/use-phone-layout';
 import { useAvatarTheme } from './lib/use-avatar-theme';
 import type { LocalCourseSummary, LocalCourseWorkspace } from './domain/models';
 
-type AppSurface = 'learn' | 'course' | 'problem-bank' | 'notebook-library' | 'problem-practice';
-
-type ViewTransitionDocument = Document & {
-  startViewTransition?: (update: () => void) => unknown;
-};
+type AppSurface = 'launch' | 'course' | 'problem-bank' | 'notebook-library' | 'problem-practice';
 
 function updateWithPlatformTransition(update: () => void) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const viewTransitionDocument = document as ViewTransitionDocument;
-  if (!reduceMotion && viewTransitionDocument.startViewTransition) {
-    viewTransitionDocument.startViewTransition(update);
+  if (!('__TAURI_INTERNALS__' in window) && !reduceMotion && document.startViewTransition) {
+    const transition = document.startViewTransition(update);
+    // Rapid navigation may skip an animation while still applying the update.
+    void transition.ready.catch(() => undefined);
+    void transition.finished.catch((cause) => console.error('[navigation] update failed', cause));
     return;
   }
   update();
@@ -32,12 +44,13 @@ function updateWithPlatformTransition(update: () => void) {
 
 function AuthenticatedApp() {
   const avatarTheme = useAvatarTheme();
+  const [creatingCourse, setCreatingCourse] = useState(false);
   const [courses, setCourses] = useState<LocalCourseSummary[]>([]);
   const [platformCourseIds, setPlatformCourseIds] = useState<string[] | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [initialConversationId, setInitialConversationId] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<LocalCourseWorkspace | null>(null);
-  const [surface, setSurface] = useState<AppSurface>('learn');
+  const [surface, setSurface] = useState<AppSurface>('launch');
   const [practiceLaunch, setPracticeLaunch] = useState<ProblemBankLaunch | null>(null);
   const [backendKind, setBackendKind] = useState<LocalBackendKind>('indexeddb');
   const [loading, setLoading] = useState(true);
@@ -45,9 +58,25 @@ function AuthenticatedApp() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const phoneLayout = usePhoneLayout();
-  const [autoOpened, setAutoOpened] = useState(false);
-  const [lastChat] = useState(readPhoneLastChat);
-  const switchingCourse = surface !== 'learn' && settledCourseId !== selectedCourseId;
+  const [globalPage, setGlobalPage] = useState<'calendar' | 'profile' | null>(null);
+  const [globalEvents, setGlobalEvents] = useState<LocalCourseEvent[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [calendarRevision, setCalendarRevision] = useState(0);
+  const [launchRevision, setLaunchRevision] = useState(0);
+  const navigationRequest = useRef(0);
+  const [responseStrength, setResponseStrength] = useState<ChatResponseStrength>(() => {
+    try {
+      const stored = localStorage.getItem('syntara.phone.response-strength.v1');
+      return stored === 'low' || stored === 'high' ? stored : 'medium';
+    } catch {
+      return 'medium';
+    }
+  });
+  const [initialPage, setInitialPage] = useState<'calendar' | 'memory' | undefined>();
+  const [newEventDate, setNewEventDate] = useState<string | undefined>();
+  const [calendarDate, setCalendarDate] = useState<string | undefined>();
+  const switchingCourse = surface !== 'launch' && settledCourseId !== selectedCourseId;
 
   const loadCourses = useCallback(async (preferredCourseId?: string) => {
     const repository = await getLocalRepository();
@@ -90,7 +119,7 @@ function AuthenticatedApp() {
   }, [loadCourses]);
 
   useEffect(() => {
-    if (surface === 'learn' || !selectedCourseId) return;
+    if (surface === 'launch' || !selectedCourseId) return;
     let cancelled = false;
     void getLocalRepository()
       .then((repository) => repository.loadCourseWorkspace(selectedCourseId))
@@ -114,42 +143,86 @@ function AuthenticatedApp() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const openCourse = useCallback((courseId: string, conversationId?: string) => {
-    updateWithPlatformTransition(() => {
-      setSelectedCourseId(courseId);
-      setInitialConversationId(conversationId ?? null);
-      setPracticeLaunch(null);
-      setSurface('course');
-    });
-  }, []);
-
-  // 手机上只显示网页账号下的课程；还没同步过账号时一门也不显示。
-  const accountCourses = useMemo(
-    () =>
-      platformCourseIds ? courses.filter((course) => platformCourseIds.includes(course.id)) : [],
-    [courses, platformCourseIds],
+  const openCourse = useCallback(
+    (courseId: string, conversationId?: string, target?: CourseOpenTarget) => {
+      updateWithPlatformTransition(() => {
+        setGlobalPage(null);
+        setLaunchRevision((revision) => revision + 1);
+        setSelectedCourseId(courseId);
+        setInitialConversationId(conversationId ?? null);
+        setInitialPage(target?.page);
+        setCalendarDate(target?.date);
+        setNewEventDate(target?.createEvent ? target.date : undefined);
+        setPracticeLaunch(null);
+        setSurface('course');
+      });
+    },
+    [],
   );
 
-  // 没有主页（手机、iPad、桌面都一样）：载入后直接打开上次用的课程和聊天，没有记录就打开第一门课。
-  // 手机只认网页账号下的课程；大屏上账号还没有课程时，退回本机课程。
-  const launchCourses = accountCourses.length || phoneLayout ? accountCourses : courses;
-  if (!loading && surface === 'learn' && !autoOpened && launchCourses.length) {
-    const lastCourse = launchCourses.find((course) => course.id === lastChat?.courseId);
-    const course = lastCourse ?? [...launchCourses].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-    setAutoOpened(true);
-    setSelectedCourseId(course.id);
-    setInitialConversationId(lastCourse ? (lastChat?.conversationId ?? null) : null);
-    setSurface('course');
-  }
+  // Native courses remain account-scoped. The isolated browser preview may use bundled courses.
+  const launchCourses = useMemo(
+    () =>
+      accessibleChatCourses(
+        courses,
+        platformCourseIds,
+        !browserApp && !('__TAURI_INTERNALS__' in window),
+      ),
+    [courses, platformCourseIds],
+  );
+  const openRecentCourse = useCallback(
+    async (courseId: string, target?: CourseOpenTarget) => {
+      const request = ++navigationRequest.current;
+      try {
+        const latest = await (await getLocalRepository()).latestCourseConversation(courseId);
+        const last = readPhoneLastChat();
+        const conversationId =
+          last?.courseId === courseId && last.conversationId ? last.conversationId : latest?.id;
+        if (request === navigationRequest.current) openCourse(courseId, conversationId, target);
+      } catch (cause) {
+        if (request === navigationRequest.current)
+          setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [openCourse],
+  );
 
-  const openLearnHome = useCallback(() => {
-    updateWithPlatformTransition(() => {
-      setSurface('learn');
-      setInitialConversationId(null);
-      setPracticeLaunch(null);
-      setWorkspace(null);
-    });
+  useEffect(() => {
+    if (loading || surface !== 'launch') return;
+    const course = selectChatCourse(launchCourses, readPhoneLastChat());
+    if (course) void openRecentCourse(course.id);
+  }, [loading, surface, launchCourses, openRecentCourse]);
+
+  const openChat = useCallback(() => {
+    setGlobalPage(null);
+    setSurface('course');
   }, []);
+  useBackDismiss(globalPage !== null, () => setGlobalPage(null));
+  useBackDismiss(surface !== 'launch' && surface !== 'course', openChat, 0);
+
+  useEffect(() => {
+    if (globalPage !== 'calendar') return;
+    let cancelled = false;
+    setCalendarLoading(true);
+    setCalendarError(null);
+    void getLocalRepository()
+      .then(async (repository) => {
+        const groups = await Promise.all(
+          launchCourses.map((course) => repository.listCourseEvents(course.id)),
+        );
+        if (!cancelled) setGlobalEvents(groups.flat());
+      })
+      .catch((cause) => {
+        if (!cancelled)
+          setCalendarError(cause instanceof Error ? cause.message : '暂时无法读取课程安排');
+      })
+      .finally(() => {
+        if (!cancelled) setCalendarLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [globalPage, launchCourses, calendarRevision]);
 
   const openProblemBank = useCallback(() => {
     updateWithPlatformTransition(() => {
@@ -193,7 +266,8 @@ function AuthenticatedApp() {
     ]);
   }, [loadCourses, loadWorkspace, selectedCourseId]);
 
-  const backendLabel = backendKind === 'sqlite' ? '本机 SQLite' : '本机预览库';
+  const backendLabel =
+    backendKind === 'sqlite' ? '本机 SQLite' : browserApp ? '浏览器缓存' : '本机预览库';
 
   if (loading) {
     return (
@@ -223,19 +297,36 @@ function AuthenticatedApp() {
   }
 
   let content: ReactNode = null;
-  if (surface === 'learn') {
-    // 没有主页：有课程就直接打开聊天，一门都没有就提示去网页上加入（手机、iPad、桌面一样）。
-    const waiting = launchCourses.length > 0;
+  if (surface === 'launch') {
     content = (
       <div className="launch-state launch-state-light">
-        <span className="launch-orb">
-          {waiting ? <GlassSpinner size={23} /> : <AlertTriangle size={23} />}
-        </span>
-        <strong>{waiting ? '正在打开聊天' : '账号下还没有课程'}</strong>
-        {waiting ? null : <span>请先在网页上创建或加入课程，再回到这里。</span>}
+        {launchCourses.length ? (
+          <>
+            <GlassSpinner size={23} />
+            <strong>正在打开聊天</strong>
+            {error ? <p role="alert">{error}</p> : null}
+          </>
+        ) : (
+          <>
+            <AlertTriangle size={23} />
+            <strong>账号下还没有课程</strong>
+            <span>添加课程后，就会显示在这里。</span>
+            {browserApp ? (
+              <button type="button" onClick={() => setCreatingCourse(true)}>
+                添加课程
+              </button>
+            ) : null}
+          </>
+        )}
+        <button type="button" onClick={() => window.location.reload()}>
+          重新载入
+        </button>
+        <button type="button" onClick={() => setGlobalPage('profile')}>
+          我的
+        </button>
       </div>
     );
-  } else if (!workspace) {
+  } else if (!workspace || workspace.course.id !== selectedCourseId) {
     content = (
       <div className="launch-state launch-state-light">
         <span className="launch-orb">
@@ -273,13 +364,18 @@ function AuthenticatedApp() {
   } else {
     content = (
       <CourseWorkspace
-        key={workspace.course.id}
+        key={`${workspace.course.id}:${launchRevision}`}
         workspace={workspace}
         backendLabel={backendLabel}
-        courses={accountCourses}
-        onBack={openLearnHome}
-        onSwitchCourse={(courseId) => openCourse(courseId)}
+        courses={launchCourses}
+        onBack={openChat}
+        onCreateCourse={browserApp ? () => setCreatingCourse(true) : undefined}
+        onSwitchCourse={(courseId) => void openRecentCourse(courseId)}
+        onOpenGlobalCalendar={() => setGlobalPage('calendar')}
         initialConversationId={initialConversationId}
+        initialPage={initialPage}
+        newEventDate={newEventDate}
+        calendarDate={calendarDate}
         onOpenProblemBank={openProblemBank}
         onOpenPractice={openPractice}
         onWorkspaceChanged={refreshWorkspace}
@@ -293,11 +389,78 @@ function AuthenticatedApp() {
       style={avatarTheme.style}
     >
       {content}
+      {creatingCourse ? (
+        <CreateCourseDialog
+          onCancel={() => setCreatingCourse(false)}
+          onCreated={async (id) => {
+            await loadCourses(id);
+            setCreatingCourse(false);
+            openCourse(id);
+          }}
+        />
+      ) : null}
 
-      {surface !== 'learn' && switchingCourse && workspace ? (
+      {surface !== 'launch' && switchingCourse && workspace ? (
         <div className="course-switch-progress" role="status">
           <GlassSpinner size={14} />
           正在切换课程
+        </div>
+      ) : null}
+
+      {globalPage ? (
+        <div className="native-global-page">
+          {globalPage === 'calendar' ? (
+            <>
+              <GlobalCalendarApp
+                courses={launchCourses}
+                events={globalEvents}
+                onOpenCourse={(id, date, createEvent) =>
+                  void openRecentCourse(id, { page: 'calendar', date, createEvent })
+                }
+                onBack={() => setGlobalPage(null)}
+              />
+              {calendarLoading ? (
+                <div className="native-global-status" role="status">
+                  正在读取课程安排…
+                </div>
+              ) : calendarError ? (
+                <div className="native-global-status" role="alert">
+                  {calendarError}
+                  <button
+                    type="button"
+                    onClick={() => setCalendarRevision((revision) => revision + 1)}
+                  >
+                    重试
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <PhoneProfilePage
+              courses={launchCourses}
+              currentCourseId={selectedCourseId ?? ''}
+              currentCourseAvatarUrl={
+                workspace
+                  ? resolveNativeCourseAvatar(workspace.course.id, workspace.course.courseCode)
+                  : ''
+              }
+              conversationCount={launchCourses.reduce(
+                (sum, course) => sum + course.conversationCount,
+                0,
+              )}
+              responseStrength={responseStrength}
+              onResponseStrengthChange={(strength) => {
+                setResponseStrength(strength);
+                try {
+                  localStorage.setItem('syntara.phone.response-strength.v1', strength);
+                } catch {
+                  /* Retain the session preference. */
+                }
+              }}
+              onOpenCourseJar={(id) => void openRecentCourse(id, { page: 'memory' })}
+              onBack={() => setGlobalPage(null)}
+            />
+          )}
         </div>
       ) : null}
 

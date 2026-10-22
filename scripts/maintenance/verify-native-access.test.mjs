@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { nativeBrowserVerificationUrl } from '../../lib/server/native-login-url.ts';
-import { nativeStagingCourseForUser } from '../../lib/server/native-staging-course.ts';
+import { visibleNativeCourses } from '../../lib/server/native-staging-course.ts';
+import { nativeInitialUserData } from '../../lib/server/native-initial-profile.ts';
+import { resolveAccountAvatar } from '../../apps/native/src/lib/account-avatar.ts';
 import {
   canSignInToGoogleTest,
   nativeAccessDecision,
@@ -14,22 +16,54 @@ import {
 
 const now = 1_800_000_000_000;
 
-test('starter courses are private, deterministic and confined to Google staging', () => {
+test('new accounts stay empty and the retired automatic course is excluded only in staging', () => {
   const env = { SYNTARA_APP_ENV: 'staging', SYNTARA_NATIVE_ACCESS_POLICY: 'google-test' };
-  const course = nativeStagingCourseForUser(env, 'tester-a');
-  assert.equal(course.ownerId, 'tester-a');
-  assert.equal(course.listedInCourseStore, false);
-  assert.deepEqual(nativeStagingCourseForUser(env, 'tester-a'), course);
-  assert.notEqual(nativeStagingCourseForUser(env, 'tester-b').id, course.id);
+  assert.deepEqual(visibleNativeCourses(env, 'tester-a', []), []);
+  const actual = { id: 'real-course' };
+  const courses = [{ id: 'native-staging-tester-a' }, actual];
+  assert.deepEqual(visibleNativeCourses(env, 'tester-a', courses), [actual]);
+  assert.equal(courses.length, 2, 'saved data is not deleted');
   assert.equal(
-    nativeStagingCourseForUser({ ...env, SYNTARA_APP_ENV: 'production' }, 'tester-a'),
-    null,
+    visibleNativeCourses({ ...env, SYNTARA_APP_ENV: 'production' }, 'tester-a', courses),
+    courses,
+  );
+  assert.equal(visibleNativeCourses(env, 'other-user', courses).length, 2);
+});
+
+test('new Google test users receive a stored catalog avatar without changing identity', () => {
+  const env = { SYNTARA_APP_ENV: 'staging', SYNTARA_NATIVE_ACCESS_POLICY: 'google-test' };
+  const user = {
+    name: 'New User',
+    email: 'fixture@example.invalid',
+    image: 'https://google.invalid/photo',
+  };
+  const avatars = ['/avatars/a.webp', '/avatars/b.webp'];
+  assert.deepEqual(
+    nativeInitialUserData(env, user, avatars, () => 0),
+    { ...user, image: avatars[0] },
+  );
+  assert.equal(nativeInitialUserData(env, user, avatars, () => 0.999).image, avatars[1]);
+  assert.equal(user.image, 'https://google.invalid/photo');
+  assert.equal(
+    nativeInitialUserData({ ...env, SYNTARA_APP_ENV: 'production' }, user, avatars),
+    user,
+  );
+  assert.equal(nativeInitialUserData(env, user, []), user);
+});
+
+test('account catalog avatars resolve to native assets and custom images stay intact', () => {
+  const catalog = [{ id: 'a', url: '/avatars/a.webp' }];
+  const asset = (id) => (id === 'a' ? '/assets/a-hash.webp' : null);
+  assert.equal(resolveAccountAvatar('/avatars/a.webp', catalog, asset), '/assets/a-hash.webp');
+  assert.equal(
+    resolveAccountAvatar('https://api.invalid/avatars/a.webp?x=1', catalog, asset),
+    '/assets/a-hash.webp',
   );
   assert.equal(
-    nativeStagingCourseForUser({ ...env, SYNTARA_NATIVE_ACCESS_POLICY: 'speedup' }, 'tester-a'),
-    null,
+    resolveAccountAvatar('https://google.invalid/photo', catalog, asset),
+    'https://google.invalid/photo',
   );
-  assert.equal(nativeStagingCourseForUser(env, ''), null);
+  assert.equal(resolveAccountAvatar(null, catalog, asset), null);
 });
 const user = {
   id: 'fixture',
