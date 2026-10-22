@@ -117,3 +117,45 @@ problem snapshot hash mismatch. Both the snapshot and check are unchanged from
 the recorded value is
 `c9515888fdbefc46aff8901ddd5ba3bd163f28277e21acc047ad5ea5b89a3647`.
 The remaining assertions in that runner have therefore not run.
+
+## Cleanup and current-client verification — 2026-10-22
+
+Commit `07902f35` imports the explicitly selected current Native App source,
+removes 53 retired native files/resources plus the global web sidebar, and removes
+the unused sidebar storage constant and layout styles. The current App enters
+`CourseWorkspace` directly and uses `PhonePages` for account/settings. This does
+not remove unrelated web teaching avatar features. Original-checkout cleanup and
+named staging tooling were synced with private Git checkpoints and registry
+records; unrelated shared WIP was preserved.
+
+The obsolete main-client test App process, generated output, and
+`~/Downloads/Syntara-Test-20261022` package were removed. The replacement is
+`~/Downloads/Syntara-Current-Test-20261022/Syntara-Test-current-macOS-arm64.zip`.
+Its adjacent build manifest records the source commit, SHA-256, bundle identity
+and test origin. This is an Apple Silicon/macOS 14+ ad-hoc-signed build, not an
+Apple-notarized distribution. `codesign --verify --deep --strict` passed.
+
+Verified with the current macOS App: sign out, Google-backed browser device
+authorization using the public HTTPS origin without URL correction, return to
+the current course chat, and a real v2 AI response (`1 加 1 等于 2。`).
+The `/test` page displays only the dedicated login/account-ready view without
+the retired sidebar. Unauthenticated native course/capability endpoints return
+401, excluded web routes return 404, health returns staging/ok, and Google is
+the only exposed OAuth provider.
+
+Local checks passed: selected-file Prettier and ESLint, full root TypeScript,
+root Next.js build, native Vite build, final Tauri app build, six access-policy
+checks, and the UI parity file-inventory check. The parity inventory check does
+not establish visual parity of all newly imported screens. The bundled problem
+snapshot baseline failure described above remains.
+
+Final staging deployment `79fce519-5c70-4f17-9ce5-e07b6b59493a` became live
+at 2026-10-22 18:13 UTC. API and PostgreSQL each have one running replica,
+no pending deployment work, and no recent failures. The final migration check
+reported no pending migrations. Restarting the current App with the same Google
+account automatically provisioned/synced its private `TEST101` course and opened
+that course workspace. The uploaded source hashes match the final backend
+source; subsequent changes are documentation/provenance, a native window
+drag/drop override already included in the downloadable build, and deletion
+of an unused web sidebar constant.
+The final course also returned the real v2 AI response `2 加 3 等于 5。`.
