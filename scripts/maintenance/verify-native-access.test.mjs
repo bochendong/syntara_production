@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { nativeBrowserVerificationUrl } from '../../lib/server/native-login-url.ts';
 import {
   canSignInToGoogleTest,
   nativeAccessDecision,
@@ -18,6 +19,43 @@ const user = {
   nativeAppActivatedAt: null,
   accounts: [],
 };
+
+test('browser verification uses the public origin instead of a container or request hostname', () => {
+  const env = { NODE_ENV: 'production', NEXTAUTH_URL: 'https://staging.example.invalid' };
+  assert.equal(
+    nativeBrowserVerificationUrl(
+      'http://0.0.0.0:3000/api/native/v1/auth/device/start',
+      'ABCD-1234',
+      env,
+    ),
+    'https://staging.example.invalid/native-login?user_code=ABCD-1234',
+  );
+  assert.equal(
+    nativeBrowserVerificationUrl('https://attacker.invalid/api', 'ABCD-1234', env),
+    'https://staging.example.invalid/native-login?user_code=ABCD-1234',
+  );
+  assert.throws(() =>
+    nativeBrowserVerificationUrl('http://0.0.0.0:3000/api', 'ABCD-1234', {
+      NODE_ENV: 'production',
+    }),
+  );
+  assert.throws(() =>
+    nativeBrowserVerificationUrl('https://safe.invalid', 'ABCD-1234', {
+      ...env,
+      NEXTAUTH_URL: 'http://localhost:3000',
+    }),
+  );
+  assert.throws(() =>
+    nativeBrowserVerificationUrl('https://safe.invalid', 'ABCD-1234', {
+      ...env,
+      NEXTAUTH_URL: 'https://user:password@example.invalid',
+    }),
+  );
+  assert.equal(
+    nativeBrowserVerificationUrl('http://127.0.0.1:3000/api', 'ABCD-1234', {}),
+    'http://127.0.0.1:3000/native-login?user_code=ABCD-1234',
+  );
+});
 
 test('Google test access is confined to staging and fails closed on typos', () => {
   assert.equal(

@@ -6,6 +6,7 @@ import {
   requiredNativeAuthString,
 } from '@/lib/server/native-auth-route';
 import { startNativeDeviceAuthorization } from '@/lib/server/native-device-auth';
+import { nativeBrowserVerificationUrl } from '@/lib/server/native-login-url';
 import { publicApiRequestId, publicApiSuccess } from '@/lib/server/public-api';
 
 export const runtime = 'nodejs';
@@ -30,14 +31,17 @@ export async function POST(request: NextRequest) {
       deviceName: requiredNativeAuthString(body, 'deviceName'),
       requestFingerprint: requestFingerprint(request),
     });
-    const verificationUri = new URL('/native-login', request.url);
-    verificationUri.searchParams.set('user_code', authorization.userCode);
+    const verificationUri = nativeBrowserVerificationUrl(
+      request.url,
+      authorization.userCode,
+      process.env,
+    );
     return publicApiSuccess(
       requestId,
       {
         ...authorization,
-        verificationUri: verificationUri.toString(),
-        verificationUriComplete: verificationUri.toString(),
+        verificationUri,
+        verificationUriComplete: verificationUri,
       },
       { status: 201 },
     );
