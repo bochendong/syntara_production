@@ -81,10 +81,13 @@ export async function cloneStoreCourseForUser(
   await ensureCourseEnrollmentTable(db);
 
   const course = await db.$transaction(async (tx) => {
+    // 引用而不是复制：内容一直读机构那份，用户的记忆/进度/做题按 userId + courseId 另存。
     await createCourseEnrollment(tx, {
       userId,
       courseId: source.id,
       priceCents: 0,
+      source: 'store',
+      seenContentVersion: source.contentVersion,
     });
 
     return tx.course.findUniqueOrThrow({ where: { id: source.id } });

@@ -8,12 +8,14 @@ export function AppNavigationRail({
   avatarUrl,
   onOpenChat,
   onOpenCalendar,
+  onOpenStore,
   onOpenSettings,
 }: {
-  active: 'chat' | 'calendar' | 'settings';
+  active: 'chat' | 'calendar' | 'store' | 'settings';
   avatarUrl?: string;
   onOpenChat: () => void;
   onOpenCalendar: () => void;
+  onOpenStore: () => void;
   onOpenSettings: () => void;
 }) {
   const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
@@ -29,7 +31,13 @@ export function AppNavigationRail({
       >
         <Home size={22} strokeWidth={1.7} aria-hidden />
       </button>
-      <button type="button" aria-label="课程商城（即将上线）" title="课程商城 · 即将上线" disabled>
+      <button
+        type="button"
+        aria-label="课程商城"
+        title="课程商城"
+        aria-current={active === 'store' ? 'page' : undefined}
+        onClick={onOpenStore}
+      >
         <Store size={22} strokeWidth={1.7} aria-hidden />
       </button>
       <button

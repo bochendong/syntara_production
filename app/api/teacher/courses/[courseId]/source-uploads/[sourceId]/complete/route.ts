@@ -55,7 +55,7 @@ export async function POST(
 
     const sourceHash = createHash('sha256').update(Buffer.from(source.fileData)).digest('hex');
     const existing = await prisma.courseSource.findUnique({
-      where: { courseId_sourceHash: { courseId, sourceHash } },
+      where: { courseId_ownerId_sourceHash: { courseId, ownerId: teacher.userId, sourceHash } },
     });
     const finalized = await prisma.$transaction(async (tx) => {
       if (existing && existing.id !== source.id) {

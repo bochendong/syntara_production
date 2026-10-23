@@ -87,12 +87,11 @@ export async function POST(request: Request) {
 
     const avatarUrl = payload.data.avatarUrl?.trim() || pickRandomCourseAvatarUrl();
 
-    const { listedInCourseStore, ...rest } = payload.data;
+    // 新建的课程是用户自己的；上架商城只对机构课程开放（见 PATCH /api/courses/[id]）。
+    const { listedInCourseStore: _listedInCourseStore, ...rest } = payload.data;
     const course = await createOwnedCourse(prisma, userId, {
       ...rest,
       avatarUrl,
-      ...(listedInCourseStore ? { storePublishedAt: new Date() } : {}),
-      ...(listedInCourseStore !== undefined ? { listedInCourseStore } : {}),
     });
 
     return NextResponse.json({ course }, { status: 201 });

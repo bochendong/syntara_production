@@ -483,12 +483,16 @@ export async function listReadableNotebooks(db: DbClient, userId: string, course
 
   // The normal /learn path reads the current user's own course. Resolve that
   // common case in one round trip; only fall back to enrollment checks when no
-  // owned notebook exists for the course.
-  const ownedNotebooks = await listOwnedNotebooks(db, userId, courseId);
-  if (ownedNotebooks.length > 0) return ownedNotebooks;
+  // owned notebook exists for the course. A student's own uploads inside a
+  // joined course are owned too, so those still go through the enrollment path.
+  const [ownedNotebooks, ownedCourse] = await Promise.all([
+    listOwnedNotebooks(db, userId, courseId),
+    db.course.findFirst({ where: { id: courseId, ownerId: userId }, select: { id: true } }),
+  ]);
+  if (ownedNotebooks.length > 0 && ownedCourse) return ownedNotebooks;
 
   const access = await resolveCourseNotebookAccess(db, userId, courseId);
-  if (!access || access.role === 'owner') return [];
+  if (!access || access.role === 'owner') return ownedNotebooks;
   const notebooks = await db.notebook.findMany({
     where: { courseId, removedAt: null },
     select: notebookListSelect,
@@ -510,11 +514,11 @@ export async function listReadableNotebookLibraryItems(
   userId: string,
   courseId: string,
 ) {
-  const ownedNotebooks = await listOwnedNotebookLibraryItems(db, userId, courseId);
-  if (ownedNotebooks.length > 0) return ownedNotebooks;
-
   const access = await resolveCourseNotebookAccess(db, userId, courseId);
-  if (!access || access.role === 'owner') return [];
+  if (!access || access.role === 'owner') {
+    return listOwnedNotebookLibraryItems(db, userId, courseId);
+  }
+  // 加入的课程：课程的笔记 + 自己上传的笔记（allowedNotebookIds 已包含两者）。
   const notebooks = await db.notebook.findMany({
     where: { courseId, removedAt: null },
     select: notebookLibraryListSelect,

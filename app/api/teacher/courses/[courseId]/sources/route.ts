@@ -76,7 +76,13 @@ export async function POST(request: Request, context: { params: Promise<{ course
       const uploadId = uploadPayload.data.uploadId || randomUUID();
       const pendingSourceHash = `pending-upload:${uploadId}`;
       const existingUpload = await prisma.courseSource.findUnique({
-        where: { courseId_sourceHash: { courseId, sourceHash: pendingSourceHash } },
+        where: {
+          courseId_ownerId_sourceHash: {
+            courseId,
+            ownerId: teacher.userId,
+            sourceHash: pendingSourceHash,
+          },
+        },
         select: { id: true, ownerId: true, ingestStatus: true },
       });
       if (existingUpload) {
@@ -154,14 +160,14 @@ export async function POST(request: Request, context: { params: Promise<{ course
     const normalizedMimeType = normalizedCourseSourceMimeType(candidate);
     const sourceHash = createHash('sha256').update(buffer).digest('hex');
     const existing = await prisma.courseSource.findUnique({
-      where: { courseId_sourceHash: { courseId, sourceHash } },
+      where: { courseId_ownerId_sourceHash: { courseId, ownerId: teacher.userId, sourceHash } },
       select: { id: true, ownerId: true },
     });
     if (existing && existing.ownerId !== teacher.userId) {
       return NextResponse.json({ error: 'Source belongs to another user' }, { status: 403 });
     }
     const source = await prisma.courseSource.upsert({
-      where: { courseId_sourceHash: { courseId, sourceHash } },
+      where: { courseId_ownerId_sourceHash: { courseId, ownerId: teacher.userId, sourceHash } },
       create: {
         ownerId: teacher.userId,
         courseId,

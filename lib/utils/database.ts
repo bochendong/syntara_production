@@ -52,7 +52,7 @@ export interface CourseRecord {
   courseCode?: string;
   academicYear?: number;
   academicTerm?: AcademicTerm;
-  /** 课程头像，如 `/avatars/notebook-agents/xxx.avif` */
+  /** 课程头像，如 `/avatars/marble-collection-v1/R01.webp` */
   avatarUrl?: string;
   /** 是否在课程商城对其他人可见（仅服务端课程） */
   listedInCourseStore?: boolean;
@@ -449,8 +449,18 @@ export function localUsageUtcDateKey(timestamp: number): string {
 }
 
 /** 课程商城「社区」列表项（含创作者与笔记本数量） */
+export type StoreOrganization = {
+  id: string;
+  slug: string;
+  name: string;
+  logoUrl: string | null;
+  verified: boolean;
+};
+
 export type CommunityCourseListItem = CourseRecord & {
   ownerName: string;
+  /** 商城课程所属机构 */
+  organization?: StoreOrganization | null;
   notebookCount: number;
   averageRating?: number;
   reviewCount?: number;

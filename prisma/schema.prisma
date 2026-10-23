@@ -220,6 +220,7 @@ model User {
   cloudUsageCostLogs        CloudUsageCostLog[]
   coursePurchases           CoursePurchase[]
   courseEnrollments         CourseEnrollment[]
+  organizationMemberships   OrganizationMember[]
   courseHardRules           CourseHardRule[]
   assignmentSubmissions     CourseAssignmentSubmission[]
   notebookPurchases         NotebookPurchase[]
@@ -379,6 +380,14 @@ model Course {
   coursePriceCents      Int                 @default(0)
   storePublishedAt      DateTime?
   sourceCourseId        String?
+  /**
+   * 非空 = 机构课程。商城只展示机构课程，用户从商城添加时只写 CourseEnrollment（引用，不复制）。
+   */
+  organizationId        String?
+  /**
+   * 机构每次「发布新版」+1；加入者的 CourseEnrollment.seenContentVersion 落后时显示更新提示。
+   */
+  contentVersion        Int                 @default(1)
   notebookCount         Int                 @default(0)
   sceneCount            Int                 @default(0)
   problemCount          Int                 @default(0)
@@ -387,6 +396,7 @@ model Course {
   speechTotalCount      Int                 @default(0)
 
   owner                  User                      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  organization           Organization?             @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   notebooks              Notebook[]
   notebookPages          NotebookPage[]
   markdownSections       MarkdownNotebookSection[]
@@ -422,6 +432,39 @@ model Course {
   @@index([ownerId, updatedAt(sort: Desc)])
   @@index([ownerId, academicYear, academicTerm])
   @@index([listedInCourseStore, updatedAt(sort: Desc)])
+  @@index([organizationId, listedInCourseStore, updatedAt(sort: Desc)])
+}
+
+/// 机构：在商城上架课程的主体（学校、培训机构、Syntara 官方等）。
+model Organization {
+  id        String   @id @default(cuid())
+  slug      String   @unique @db.VarChar(80)
+  name      String   @db.VarChar(160)
+  logoUrl   String?
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members OrganizationMember[]
+  courses Course[]
+}
+
+enum OrganizationMemberRole {
+  owner
+  editor
+}
+
+model OrganizationMember {
+  organizationId String
+  userId         String
+  role           OrganizationMemberRole @default(editor)
+  createdAt      DateTime               @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, userId])
+  @@index([userId])
 }
 
 model CourseHardRule {
@@ -1199,7 +1242,7 @@ model StudyMemory {
 
   owner    User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   course   Course?            @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  notebook Notebook?          @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  notebook Notebook?          @relation(fields: [notebookId], references: [id], onDelete: SetNull)
   chunks   StudyMemoryChunk[]
 
   createdAt DateTime @default(now())
@@ -1280,7 +1323,7 @@ model CourseSource {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  @@unique([courseId, sourceHash], map: "CourseSource_course_hash_key")
+  @@unique([courseId, ownerId, sourceHash], map: "CourseSource_course_owner_hash_key")
   @@index([ownerId, courseId, updatedAt(sort: Desc)], map: "CourseSource_owner_course_updated_idx")
   @@index([ingestStatus, ingestLeaseExpiresAt], map: "CourseSource_ingest_status_lease_idx")
   @@index([courseId, ingestStatus, indexStatus, updatedAt(sort: Desc)], map: "CourseSource_course_status_updated_idx")
@@ -1474,6 +1517,9 @@ model CourseEnrollment {
   courseId            String
   priceCents          Int      @default(0)
   notebookAccessLimit Int?
+  /// store | admin | teacher | activation
+  source              String   @default("store") @db.VarChar(24)
+  seenContentVersion  Int      @default(0)
   joinedAt            DateTime @default(now())
   createdAt           DateTime @default(now())
 

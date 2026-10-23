@@ -1,7 +1,13 @@
 import type { LocalCourseSummary } from '../domain/models';
 import type { PhoneLastChat } from './phone-last-chat';
 
-export type CourseLearningPage = 'notes' | 'progress' | 'memory' | 'classroom' | 'problems';
+export type CourseLearningPage =
+  | 'materials'
+  | 'notes'
+  | 'progress'
+  | 'memory'
+  | 'classroom'
+  | 'problems';
 
 export type CourseOpenTarget = {
   page: 'calendar' | CourseLearningPage;

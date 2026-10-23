@@ -14,6 +14,7 @@ import {
 } from '@/lib/server/public-api';
 import { listAccessibleCoursesForUser } from '@/lib/server/repositories/course-repository';
 import { visibleNativeCourses } from '@/lib/server/native-staging-course';
+import { loadNativeCourseStoreMeta } from '@/lib/server/native-store';
 
 export const runtime = 'nodejs';
 
@@ -35,9 +36,15 @@ export async function GET(request: NextRequest) {
     principal.userId,
     await listAccessibleCoursesForUser(prisma, principal.userId, user?.email),
   );
+  const storeMeta = await loadNativeCourseStoreMeta(
+    prisma,
+    principal.userId,
+    courses.map((course) => course.id),
+  ).catch(() => new Map<string, { organizationName: string | null; hasUpdate: boolean }>());
   return publicApiSuccess(requestId, {
     courses: courses.map((course) => {
       const display = normalizeCourseDisplay(course);
+      const meta = storeMeta.get(course.id);
       return {
         id: course.id,
         name: display.name,
@@ -46,6 +53,8 @@ export async function GET(request: NextRequest) {
         language: course.language,
         avatarUrl: course.avatarUrl?.trim() || pickStableCourseAvatarUrl(course.id),
         accessRole: course.accessRole,
+        organizationName: meta?.organizationName ?? null,
+        hasUpdate: meta?.hasUpdate ?? false,
         updatedAt: course.updatedAt.toISOString(),
       };
     }),

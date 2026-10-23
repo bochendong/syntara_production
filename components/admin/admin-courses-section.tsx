@@ -32,6 +32,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { backendJson } from '@/lib/utils/backend-api';
+import {
+  AdminOrganizationsCard,
+  AdminStoreCourseControls,
+  type AdminOrganizationOption,
+} from '@/components/admin/admin-store-organizations';
 import { cn } from '@/lib/utils';
 
 type AdminCourseRow = {
@@ -46,6 +51,8 @@ type AdminCourseRow = {
   academicTerm: AcademicTerm | null;
   avatarUrl: string | null;
   listedInCourseStore: boolean;
+  organizationId: string | null;
+  contentVersion: number;
   coursePriceCents: number;
   storePublishedAt: string | null;
   sourceCourseId: string | null;
@@ -186,6 +193,7 @@ export function AdminCoursesSection() {
   const [newCourseCode, setNewCourseCode] = useState('');
   const [newSemester, setNewSemester] = useState(currentSemesterValue);
   const semesterOptions = useMemo(buildSemesterOptions, []);
+  const [organizations, setOrganizations] = useState<AdminOrganizationOption[]>([]);
 
   const listedCount = useMemo(
     () => courses.filter((course) => course.listedInCourseStore).length,
@@ -234,6 +242,12 @@ export function AdminCoursesSection() {
         setNewOwnerId((current) => current || activeTeachers[0]?.id || '');
       })
       .catch(() => setTeachers([]));
+  }, [refreshTick]);
+
+  useEffect(() => {
+    void backendJson<{ organizations: AdminOrganizationOption[] }>('/api/admin/organizations')
+      .then((payload) => setOrganizations(payload.organizations))
+      .catch(() => setOrganizations([]));
   }, [refreshTick]);
 
   const createCourse = async () => {
@@ -309,6 +323,10 @@ export function AdminCoursesSection() {
 
   return (
     <div className="space-y-5">
+      <AdminOrganizationsCard
+        organizations={organizations}
+        onCreated={() => setRefreshTick((tick) => tick + 1)}
+      />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -534,12 +552,17 @@ export function AdminCoursesSection() {
                         </td>
                         <td className="px-4 py-4 align-top">
                           <div className="flex flex-col items-start gap-2">
-                            <Badge
-                              variant={course.listedInCourseStore ? 'default' : 'outline'}
-                              className={course.listedInCourseStore ? 'bg-emerald-600' : ''}
-                            >
-                              {course.listedInCourseStore ? '商城上架' : '未上架'}
-                            </Badge>
+                            <AdminStoreCourseControls
+                              course={course}
+                              organizations={organizations}
+                              onChanged={(next) =>
+                                setCourses((current) =>
+                                  current.map((row) =>
+                                    row.id === next.id ? { ...row, ...next } : row,
+                                  ),
+                                )
+                              }
+                            />
                             <span className="text-xs text-muted-foreground">
                               {formatMoney(course.coursePriceCents)}
                             </span>

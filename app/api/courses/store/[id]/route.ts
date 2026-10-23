@@ -76,7 +76,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         speechReadyCount: courseSpeechReadyCount,
         speechTotalCount: courseSpeechTotalCount,
         speechStatus: speechStatus(courseSpeechTotalCount, courseSpeechReadyCount),
-        ownerName: ownerDisplayName(course.owner),
+        ownerName: course.organization?.name ?? ownerDisplayName(course.owner),
         averageRating: reviews.length > 0 ? ratingSum / reviews.length : 0,
         reviewCount: reviews.length,
         purchased: Boolean(purchase),

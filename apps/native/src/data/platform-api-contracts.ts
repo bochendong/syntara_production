@@ -372,8 +372,38 @@ export interface NativePlatformCourse {
   language: string;
   avatarUrl: string;
   accessRole: 'owner' | 'enrolled';
+  /** 从商城加入的机构课程才有。 */
+  organizationName?: string | null;
+  /** 机构发布了新版、自己还没打开看过。 */
+  hasUpdate?: boolean;
   updatedAt: string;
 }
+
+/** 商城里的一门机构课程（/api/native/v1/store）。 */
+export interface NativeStoreCourse {
+  id: string;
+  name: string;
+  courseCode: string | null;
+  description: string | null;
+  avatarUrl: string;
+  organization: { id: string; name: string; logoUrl: string | null; verified: boolean } | null;
+  notebookCount: number;
+  joined: boolean;
+  updatedAt: string;
+}
+
+/** 资料页上传到账号的一份笔记或题目。 */
+export interface NativeMaterialUpload {
+  courseId: string;
+  kind: 'notes' | 'problems';
+  clientId: string;
+  name: string;
+  text: string;
+}
+
+export type NativeMaterialUploadResult =
+  | { status: 'saved'; kind: 'notes'; notebookId: string }
+  | { status: 'saved'; kind: 'problems'; problemId: string };
 
 /** Course chat message as stored by the web platform (`learn_message`). */
 export interface NativeSyncedChatMessage {

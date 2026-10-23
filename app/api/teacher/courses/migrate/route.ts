@@ -94,7 +94,11 @@ export async function POST(request: Request) {
       for (const source of sources) {
         const existing = await tx.courseSource.findUnique({
           where: {
-            courseId_sourceHash: { courseId: targetCourse.id, sourceHash: source.sourceHash },
+            courseId_ownerId_sourceHash: {
+              courseId: targetCourse.id,
+              ownerId: teacher.userId,
+              sourceHash: source.sourceHash,
+            },
           },
           select: { id: true },
         });

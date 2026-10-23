@@ -60,7 +60,7 @@ export async function GET() {
       );
       return {
         ...course,
-        ownerName: ownerDisplayName(owner),
+        ownerName: course.organization?.name ?? ownerDisplayName(owner),
         notebookCount: course.notebookCount || _count.notebooks,
         speechReadyCount,
         speechTotalCount,

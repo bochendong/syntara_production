@@ -1,4 +1,4 @@
-import { BookOpen, Brain, FileQuestion, Presentation, Target } from 'lucide-react';
+import { BookOpen, Brain, FileQuestion, FolderUp, Presentation, Target } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CourseLearningPage } from '../lib/native-launch';
@@ -6,6 +6,7 @@ import { usePhoneLayout } from '../lib/use-phone-layout';
 import { useBackDismiss } from '../lib/use-back-dismiss';
 
 const tools = [
+  { page: 'materials', label: '资料', Icon: FolderUp },
   { page: 'notes', label: '笔记', Icon: BookOpen },
   { page: 'progress', label: '学习进度', Icon: Target },
   { page: 'memory', label: '学习记忆', Icon: Brain },

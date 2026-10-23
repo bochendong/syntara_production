@@ -208,8 +208,26 @@ export const nativeUiParityManifest = [
       'PhoneCalendarPage',
       'PhoneClassroomPage',
       'PhoneConfirm',
+      'PhonePage',
+      'PhoneEmpty',
     ],
     parity: 'native-only',
+  },
+  {
+    native: 'apps/native/src/components/CourseMaterialsPage.tsx',
+    web: [],
+    components: ['CourseMaterialsPage'],
+    parity: 'intentional-native',
+    reason:
+      'Students upload their own notes and problems from the App; uploads are written to the account through /api/native/v1/materials.',
+  },
+  {
+    native: 'apps/native/src/components/StorePage.tsx',
+    web: ['app/store/courses/page.tsx'],
+    components: ['StorePage'],
+    parity: 'intentional-native',
+    reason:
+      'App version of the institution course store; same data as the web store via /api/native/v1/store.',
   },
   {
     native: 'apps/native/src/components/RecallThinking.tsx',

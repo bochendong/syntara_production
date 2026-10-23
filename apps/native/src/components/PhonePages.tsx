@@ -187,7 +187,7 @@ function sortNotebooks(notebooks: LocalNotebook[]): LocalNotebook[] {
 }
 
 /** iPhone 二级页面：玻璃顶栏 + 返回按钮，内容从顶栏下面滚过去。 */
-function PhonePage({
+export function PhonePage({
   title,
   subtitle,
   action,
@@ -277,7 +277,7 @@ function PhonePage({
 }
 
 /** 空状态：一块小玻璃屏幕里一颗弹珠，加一行标题和一行提示（和课堂空状态一样）。 */
-function PhoneEmpty({ title, hint }: { title: string; hint: string }) {
+export function PhoneEmpty({ title, hint }: { title: string; hint: string }) {
   return (
     <div className="phone-page-empty">
       <span aria-hidden>

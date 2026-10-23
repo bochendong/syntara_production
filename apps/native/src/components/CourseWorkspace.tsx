@@ -27,6 +27,7 @@ import {
   FileText,
   Library,
   FileQuestion,
+  FolderUp,
   Menu,
   PanelLeft,
   MessageCircle,
@@ -59,6 +60,7 @@ import {
 } from '../assets';
 import { ChatScopePicker } from './ChatScopePicker';
 import { CourseToolsMenu } from './CourseToolsMenu';
+import { CourseMaterialsPage, type CourseMaterialKind } from './CourseMaterialsPage';
 import { LearningWorkspaceTabs } from './LearningWorkspaceTabs';
 import type { CourseLearningPage, CourseOpenTarget } from '../lib/native-launch';
 import { useRecentChats } from '../lib/use-recent-chats';
@@ -99,6 +101,8 @@ import {
   createNativeMiniLecture,
   getNativePlatformCapabilities,
   getNativeMiniLecture,
+  nativeStoreAction,
+  uploadNativeMaterial,
   type NativePlatformCapabilities,
 } from '../data/platform-api-client';
 import {
@@ -108,6 +112,7 @@ import {
 import type { NativeSyncedMiniLecture } from '../data/platform-api-contracts';
 import {
   deleteRemoteConversation,
+  isPlatformCourse,
   loadOlderConversationMessages,
   pullCourseConversations,
   pullMoreCourseConversations,
@@ -123,6 +128,8 @@ import {
   syncCourseData,
 } from '../data/course-sync';
 import { getLocalRepository, type SaveCourseLearningStateInput } from '../data/repository';
+import { clearPlatformCourseUpdate, readPlatformCourseMeta } from '../lib/platform-course-meta';
+import { usePlatformCourseMeta } from '../lib/use-platform-course-meta';
 import {
   courseScopedEventId,
   reviewPlanEventId,
@@ -999,6 +1006,7 @@ export function PhoneChatDrawer<
   newChatDisabled?: boolean;
   onSelectConversation: (conversationId: string) => void;
 }) {
+  const courseMeta = usePlatformCourseMeta();
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   const [courseMenu, setCourseMenu] = useState<{
@@ -1224,6 +1232,14 @@ export function PhoneChatDrawer<
                               data-marble-target={current ? '1' : undefined}
                             />
                             <span>{course.courseCode || course.name}</span>
+                            {courseMeta[course.id]?.hasUpdate ? (
+                              <img
+                                className="phone-drawer-course-update"
+                                src={marbleImages.amber}
+                                alt="有更新"
+                                title="机构发布了新版"
+                              />
+                            ) : null}
                           </button>
                           <div className="phone-drawer-course-actions">
                             <button
@@ -2157,6 +2173,7 @@ export function CourseWorkspace({
   const [pendingFiles, setPendingFiles] = useState<PendingChatFile[]>([]);
   // 手机端做题困难：聊天里不出现练习和复习题单；课堂讲解可以用。
   const phoneLayout = usePhoneLayout();
+  const courseMeta = usePlatformCourseMeta();
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [activeTool, setActiveTool] = useState<CourseTool>('overview');
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
@@ -2242,7 +2259,15 @@ export function CourseWorkspace({
   const [focusedMemoryId, setFocusedMemoryId] = useState<string | null>(null);
   // 学习页在右侧标签中保持挂载，切换时保留搜索和滚动位置。
   const [phonePage, setPhonePageState] = useState<
-    'profile' | 'notes' | 'progress' | 'memory' | 'calendar' | 'classroom' | 'problems' | null
+    | 'profile'
+    | 'materials'
+    | 'notes'
+    | 'progress'
+    | 'memory'
+    | 'calendar'
+    | 'classroom'
+    | 'problems'
+    | null
   >(() => initialPage ?? readOpenPhonePage());
   const [learningPages, setLearningPages] = useState<CourseLearningPage[]>(() => {
     const page = initialPage ?? readOpenPhonePage();
@@ -2634,6 +2659,13 @@ export function CourseWorkspace({
         await onWorkspaceChangedRef.current();
       if (synced?.events || synced?.lectures || synced?.progress) {
         setCourseDataRevision((value) => value + 1);
+      }
+      // 机构发了新版：打开看过就熄灭课程旁的更新弹珠，别的设备下次同步也会熄灭。
+      if (readPlatformCourseMeta()[courseId]?.hasUpdate) {
+        clearPlatformCourseUpdate(courseId);
+        void nativeStoreAction(courseId, 'seen').catch((cause) =>
+          console.warn('[store] mark seen failed', cause),
+        );
       }
       const conversationId = activeConversationIdRef.current;
       if (!(changed || synced?.lectures) || !conversationId || busyRef.current) return;
@@ -4551,7 +4583,13 @@ export function CourseWorkspace({
     }
     open();
   };
+  // 手机没有题库；加入的机构课程里只能补自己的笔记。
+  const materialKinds: CourseMaterialKind[] =
+    phoneLayout || courseMeta[workspace.course.id]?.accessRole === 'enrolled'
+      ? ['notes']
+      : ['notes', 'problems'];
   const courseToolActions: DrawerLearningAction[] = [
+    { id: 'materials', label: '资料', icon: FolderUp, open: () => setPhonePage('materials') },
     { id: 'notes', label: '笔记', icon: BookOpen, open: openNotebookLibrary },
     { id: 'progress', label: '学习进度', icon: Target, open: () => setPhonePage('progress') },
     {
@@ -4566,6 +4604,25 @@ export function CourseWorkspace({
       ? [{ id: 'problems', label: '题库', icon: FileQuestion, open: openProblemBank }]
       : []),
   ];
+
+  /**
+   * 资料页一次导入一个文件，失败时抛出原因，由资料页显示在队列里。
+   * 账号课程先写进账号再同步回本机，网页和其他设备都能看到；本机课程只存本机。
+   */
+  const importMaterialFile = async (kind: CourseMaterialKind, file: File) => {
+    if (!isSupportedTextFile(file)) throw new Error('暂不支持这种格式');
+    if (file.size > MAX_CHAT_ATTACHMENT_BYTES)
+      throw new Error(`超过 ${Math.round(MAX_CHAT_ATTACHMENT_BYTES / 1024)} KB`);
+    const repository = await getLocalRepository();
+    const input = { courseId: workspace.course.id, name: file.name, text: await file.text() };
+    if (await isPlatformCourse(repository, input.courseId)) {
+      await uploadNativeMaterial({ ...input, kind, clientId: crypto.randomUUID() });
+      await syncCourseData(repository, input.courseId);
+      return;
+    }
+    if (kind === 'notes') await repository.importTextMaterial({ ...input, source: 'notes' });
+    else await repository.importTextProblem(input);
+  };
 
   const renderPhoneDrawer = () => (
     <PhoneChatDrawer
@@ -4927,15 +4984,29 @@ export function CourseWorkspace({
         </aside>
       ) : null}
 
-      {activeLearningPage && learningPages.length ? (
+      {learningPages.length ? (
         <LearningWorkspaceTabs
           pages={learningPages}
-          activePage={activeLearningPage}
+          activePage={
+            phonePage && phonePage !== 'profile' && phonePage !== 'calendar' ? phonePage : null
+          }
+          chatTitle={currentConversationTitle}
           onSelect={setPhonePage}
           onClose={closeLearningPage}
           onChat={() => setPhonePage(null)}
           renderPage={(page) => (
             <>
+              {page === 'materials' ? (
+                <CourseMaterialsPage
+                  notebooks={workspace.notebooks}
+                  problems={workspace.problems}
+                  onImport={importMaterialFile}
+                  onImported={onWorkspaceChanged}
+                  onOpenNotes={() => setPhonePage('notes')}
+                  onOpenProblems={() => setPhonePage('problems')}
+                  kinds={materialKinds}
+                />
+              ) : null}
               {page === 'notes' ? (
                 <PhoneNotesPage workspace={workspace} onBack={() => closeLearningPage(page)} />
               ) : null}

@@ -185,7 +185,7 @@ export async function markCourseSourceProcessing(args: {
       FROM "Course"
       WHERE "id" = ${args.courseId}
         AND "ownerId" = ${args.userId}
-      ON CONFLICT ("courseId", "sourceHash") DO UPDATE
+      ON CONFLICT ("courseId", "ownerId", "sourceHash") DO UPDATE
       SET
         "title" = EXCLUDED."title",
         "kind" = EXCLUDED."kind",

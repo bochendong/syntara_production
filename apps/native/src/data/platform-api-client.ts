@@ -18,6 +18,9 @@ import type {
   NativeGradeRequest,
   NativeGradeResponse,
   NativeLearningProgress,
+  NativeMaterialUpload,
+  NativeMaterialUploadResult,
+  NativeStoreCourse,
   NativeDeviceAuthorization,
   NativeDevicePollResult,
   NativeDeviceTokenPair,
@@ -463,6 +466,33 @@ export function uploadNativeProblemAttempts(payload: {
     'native_upload_problem_attempts',
     { requestId: crypto.randomUUID(), payload },
   );
+}
+
+/** 商城里的机构课程，和网页 /store/courses 同一份。 */
+export async function listNativeStoreCourses(): Promise<NativeStoreCourse[]> {
+  const result = await invokeQuery<{ courses: NativeStoreCourse[] }>('native_get_store', {});
+  return result.courses ?? [];
+}
+
+/** join：从商城加入课程；seen：打开过加入的课程，熄灭「有更新」。 */
+export function nativeStoreAction(
+  courseId: string,
+  action: 'join' | 'seen',
+): Promise<{ courseId: string; created?: boolean; seen?: boolean }> {
+  return invokeJson('native_store_action', {
+    requestId: crypto.randomUUID(),
+    payload: { courseId, action },
+  });
+}
+
+/** 资料页的笔记 / 题目写进账号，网页和其他设备都能同步到。 */
+export function uploadNativeMaterial(
+  payload: NativeMaterialUpload,
+): Promise<NativeMaterialUploadResult> {
+  return invokeJson<NativeMaterialUpload, NativeMaterialUploadResult>('native_upload_material', {
+    requestId: crypto.randomUUID(),
+    payload,
+  });
 }
 
 /** 网页上已生成好的课堂清单。 */

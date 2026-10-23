@@ -1,15 +1,26 @@
 import type { DbClient } from '@/lib/server/repositories/types';
 import { findCourseEnrollment } from '@/lib/server/repositories/course-enrollment-repository';
 
+/** 商城只展示机构课程；用户自己建的课程不再能上架。 */
+const STORE_COURSE_WHERE = {
+  listedInCourseStore: true,
+  organizationId: { not: null },
+} as const;
+
+const STORE_ORGANIZATION_SELECT = {
+  select: { id: true, slug: true, name: true, logoUrl: true, verified: true },
+} as const;
+
 export function listPublicStoreCoursesForUser(db: DbClient, userId: string) {
   return db.course.findMany({
     where: {
-      listedInCourseStore: true,
+      ...STORE_COURSE_WHERE,
       ownerId: { not: userId },
     },
     orderBy: { updatedAt: 'desc' },
     include: {
       owner: { select: { name: true, email: true } },
+      organization: STORE_ORGANIZATION_SELECT,
       _count: { select: { notebooks: true } },
       notebooks: {
         select: {
@@ -27,12 +38,14 @@ export function findPublicStoreCourseDetail(db: DbClient, userId: string, course
   return db.course.findFirst({
     where: {
       id: courseId,
-      listedInCourseStore: true,
+      ...STORE_COURSE_WHERE,
       ownerId: { not: userId },
     },
     include: {
       owner: { select: { name: true, email: true } },
+      organization: STORE_ORGANIZATION_SELECT,
       notebooks: {
+        where: { removedAt: null },
         orderBy: { updatedAt: 'desc' },
         select: {
           id: true,
@@ -165,7 +178,7 @@ export function findPublicCourseForClone(db: DbClient, userId: string, sourceCou
   return db.course.findFirst({
     where: {
       id: sourceCourseId,
-      listedInCourseStore: true,
+      ...STORE_COURSE_WHERE,
       ownerId: { not: userId },
     },
     include: {
@@ -189,7 +202,7 @@ export function findPublicCourseForEnrollment(
   return db.course.findFirst({
     where: {
       id: sourceCourseId,
-      listedInCourseStore: true,
+      ...STORE_COURSE_WHERE,
       ownerId: { not: userId },
     },
     select: {
@@ -197,6 +210,7 @@ export function findPublicCourseForEnrollment(
       ownerId: true,
       name: true,
       coursePriceCents: true,
+      contentVersion: true,
     },
   });
 }

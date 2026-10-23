@@ -37,6 +37,10 @@ const LEARNING_PROGRESS_PATH: &str = "/api/native/v1/learning-progress";
 /// App 自己写的学习记忆（网页不可见），三端同步。
 const MEMORIES_PATH: &str = "/api/native/v1/memories";
 const PROBLEMS_PATH: &str = "/api/native/v1/problems";
+/// 商城（机构课程）和加入后的「有更新」。
+const STORE_PATH: &str = "/api/native/v1/store";
+/// 资料页上传的笔记 / 题目。
+const MATERIALS_PATH: &str = "/api/native/v1/materials";
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1021,6 +1025,25 @@ pub async fn native_get_problems(request: PlatformQueryRequest) -> Result<Value,
 #[tauri::command]
 pub async fn native_upload_problem_attempts(request: PlatformJsonRequest) -> Result<Value, String> {
     post_json(PROBLEMS_PATH, &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
+pub async fn native_get_store(request: PlatformQueryRequest) -> Result<Value, String> {
+    get_json(
+        &path_with_query(STORE_PATH, &request.query),
+        request.syntara_token.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn native_store_action(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json(STORE_PATH, &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
+pub async fn native_upload_material(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json(MATERIALS_PATH, &request, DEFAULT_TIMEOUT).await
 }
 
 #[tauri::command]

@@ -21,6 +21,7 @@ import {
 import { readPhoneLastChat } from './lib/phone-last-chat';
 import { GlobalCalendarApp } from './components/GlobalCalendarApp';
 import { PhoneProfilePage } from './components/PhonePages';
+import { StorePage } from './components/StorePage';
 import { resolveNativeCourseAvatar } from './assets';
 import type { LocalCourseEvent } from './domain/learning-experiences';
 import type { ChatResponseStrength } from './data/ai-client';
@@ -70,7 +71,7 @@ function AuthenticatedApp() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const phoneLayout = usePhoneLayout();
-  const [globalPage, setGlobalPage] = useState<'calendar' | 'profile' | null>(null);
+  const [globalPage, setGlobalPage] = useState<'calendar' | 'profile' | 'store' | null>(null);
   const [globalEvents, setGlobalEvents] = useState<LocalCourseEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
@@ -470,13 +471,20 @@ function AuthenticatedApp() {
       <AppNavigationRail
         avatarUrl={avatarTheme.avatarUrl}
         active={
-          globalPage === 'calendar' ? 'calendar' : globalPage === 'profile' ? 'settings' : 'chat'
+          globalPage === 'calendar'
+            ? 'calendar'
+            : globalPage === 'profile'
+              ? 'settings'
+              : globalPage === 'store'
+                ? 'store'
+                : 'chat'
         }
         onOpenChat={() => {
           if (surface === 'general' || surface === 'launch') setGlobalPage(null);
           else openChat();
         }}
         onOpenCalendar={() => setGlobalPage('calendar')}
+        onOpenStore={() => setGlobalPage('store')}
         onOpenSettings={() => setGlobalPage('profile')}
       />
       <div className="app-chat-surface" inert={globalPage !== null}>
@@ -528,6 +536,15 @@ function AuthenticatedApp() {
                 </div>
               ) : null}
             </>
+          ) : globalPage === 'store' ? (
+            <StorePage
+              onBack={() => setGlobalPage(null)}
+              onJoined={(id) => loadCourses(id)}
+              onOpenCourse={(id) => {
+                setGlobalPage(null);
+                void openRecentCourse(id);
+              }}
+            />
           ) : (
             <PhoneProfilePage
               courses={launchCourses}

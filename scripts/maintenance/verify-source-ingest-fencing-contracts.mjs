@@ -78,7 +78,7 @@ requireMatch(
 );
 requireMatch(
   sourceStore,
-  /ON CONFLICT \("courseId", "sourceHash"\) DO UPDATE[\s\S]*?"CourseSource"\."ingestStatus" = 'processing'[\s\S]*?"CourseSource"\."ingestLeaseExpiresAt" <= CURRENT_TIMESTAMP/,
+  /ON CONFLICT \("courseId", "ownerId", "sourceHash"\) DO UPDATE[\s\S]*?"CourseSource"\."ingestStatus" = 'processing'[\s\S]*?"CourseSource"\."ingestLeaseExpiresAt" <= CURRENT_TIMESTAMP/,
   'CourseSource may be reclaimed only from an expired processing lease',
 );
 requireMatchCount(

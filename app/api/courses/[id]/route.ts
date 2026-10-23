@@ -205,6 +205,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     if (payload.data.listedInCourseStore === true) {
+      // 商城只上架机构课程：课程必须挂在机构下，且当前用户是该机构成员。
+      const institution = await prisma.course.findUnique({
+        where: { id },
+        select: {
+          organization: {
+            select: { members: { where: { userId }, select: { userId: true } } },
+          },
+        },
+      });
+      if (!institution?.organization?.members.length) {
+        return NextResponse.json({ error: '只有机构课程可以上架到商城' }, { status: 403 });
+      }
       const purchasedNotebookCount = await countPurchasedNotebooksInOwnedCourse(prisma, userId, id);
       const publishBlockReason = getCoursePublishBlockReasonFromFlags(
         existing,

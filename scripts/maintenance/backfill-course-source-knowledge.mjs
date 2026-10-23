@@ -813,8 +813,9 @@ async function ensureWritableRecoveredSource(tx, course, accumulator) {
 
   const row = await tx.courseSource.findUnique({
     where: {
-      courseId_sourceHash: {
+      courseId_ownerId_sourceHash: {
         courseId: course.id,
+        ownerId: course.ownerId,
         sourceHash: accumulator.sourceHash,
       },
     },

@@ -50,6 +50,9 @@ export const browserEndpoints: Record<string, { path: string; method?: string }>
   native_sync_memories: { path: '/api/native/v1/memories', method: 'POST' },
   native_get_problems: { path: '/api/native/v1/problems' },
   native_upload_problem_attempts: { path: '/api/native/v1/problems', method: 'POST' },
+  native_get_store: { path: '/api/native/v1/store' },
+  native_store_action: { path: '/api/native/v1/store', method: 'POST' },
+  native_upload_material: { path: '/api/native/v1/materials', method: 'POST' },
 };
 
 export function browserCommand<T>(

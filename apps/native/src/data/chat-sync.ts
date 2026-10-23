@@ -14,6 +14,7 @@ import {
   pushSyncedConversation,
 } from './platform-api-client';
 import type { LocalRepository } from './repository';
+import { savePlatformCourseMeta } from '../lib/platform-course-meta';
 
 /** How many recent messages each push re-sends; the server upserts them by id. */
 const PUSH_MESSAGE_WINDOW = 40;
@@ -50,6 +51,7 @@ export async function syncPlatformCourses(repository: LocalRepository): Promise<
       updatedAt: timestampOf(course.updatedAt, now),
     }));
     await repository.upsertPlatformCourses(localCourses);
+    savePlatformCourseMeta(courses);
     const ids = localCourses.map((course) => course.id);
     await repository.setPlatformCourseIds(ids);
     return ids;

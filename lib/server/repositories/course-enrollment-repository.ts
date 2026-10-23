@@ -85,6 +85,12 @@ export async function ensureCourseEnrollmentTable(db: DbClient): Promise<void> {
       'ALTER TABLE "CourseEnrollment" ADD COLUMN IF NOT EXISTS "notebookAccessLimit" INTEGER',
     );
     await db.$executeRawUnsafe(
+      `ALTER TABLE "CourseEnrollment" ADD COLUMN IF NOT EXISTS "source" VARCHAR(24) NOT NULL DEFAULT 'store'`,
+    );
+    await db.$executeRawUnsafe(
+      'ALTER TABLE "CourseEnrollment" ADD COLUMN IF NOT EXISTS "seenContentVersion" INTEGER NOT NULL DEFAULT 0',
+    );
+    await db.$executeRawUnsafe(
       'CREATE INDEX IF NOT EXISTS "CourseEnrollment_userId_joinedAt_idx" ON "CourseEnrollment"("userId", "joinedAt" DESC)',
     );
     await db.$executeRawUnsafe(
@@ -235,11 +241,17 @@ export async function resolveCourseNotebookAccess(
   const notebooks = orderCourseNotebooks(
     (
       await db.notebook.findMany({
-        where: { courseId, removedAt: null },
-        select: { id: true, name: true, createdAt: true, coverSlideJson: true },
+        // 其他学员在这门课里传的笔记是他们自己的私有层，别人看不到。
+        where: {
+          courseId,
+          removedAt: null,
+          OR: [{ ownerId: userId }, { owner: { courseEnrollments: { none: { courseId } } } }],
+        },
+        select: { id: true, ownerId: true, name: true, createdAt: true, coverSlideJson: true },
       })
     ).map((notebook) => ({
       id: notebook.id,
+      ownerId: notebook.ownerId,
       name: notebook.name,
       createdAt: notebook.createdAt.getTime(),
       learningOrder: persistedLearningOrder(notebook.coverSlideJson),
@@ -274,14 +286,21 @@ export async function resolveCourseNotebookAccess(
     enrollment.notebookAccessLimit === null
       ? null
       : Math.max(0, Math.floor(enrollment.notebookAccessLimit));
+  // 自己上传的笔记不占课程的解锁名额。
+  const personalNotebookIds = notebooks
+    .filter((notebook) => notebook.ownerId === userId)
+    .map((notebook) => notebook.id);
+  const courseNotebookIds = orderedNotebookIds.filter((id) => !personalNotebookIds.includes(id));
   return {
     role: 'enrolled',
     notebookAccessLimit,
     orderedNotebookIds,
-    allowedNotebookIds:
-      notebookAccessLimit === null
-        ? orderedNotebookIds
-        : orderedNotebookIds.slice(0, notebookAccessLimit),
+    allowedNotebookIds: [
+      ...(notebookAccessLimit === null
+        ? courseNotebookIds
+        : courseNotebookIds.slice(0, notebookAccessLimit)),
+      ...personalNotebookIds,
+    ],
   };
 }
 
@@ -312,6 +331,9 @@ export async function createCourseEnrollment(
     courseId: string;
     priceCents: number;
     notebookAccessLimit?: number | null;
+    /** store | admin | teacher | activation */
+    source?: string;
+    seenContentVersion?: number;
   },
 ): Promise<CourseEnrollmentRow> {
   await ensureCourseEnrollmentTable(db);
@@ -323,6 +345,8 @@ export async function createCourseEnrollment(
       "courseId",
       "priceCents",
       "notebookAccessLimit",
+      "source",
+      "seenContentVersion",
       "joinedAt",
       "createdAt"
     )
@@ -332,6 +356,8 @@ export async function createCourseEnrollment(
       ${args.courseId},
       ${args.priceCents},
       ${args.notebookAccessLimit ?? null},
+      ${args.source ?? 'store'},
+      ${args.seenContentVersion ?? 0},
       CURRENT_TIMESTAMP,
       CURRENT_TIMESTAMP
     )
@@ -380,4 +406,22 @@ export async function removeCourseEnrollmentForUser(
     WHERE "userId" = ${userId} AND "courseId" = ${courseId}
   `;
   return result;
+}
+
+/** 打开机构课程时记下已看到的版本，用来熄灭「有更新」弹珠。 */
+export async function markCourseEnrollmentSeen(
+  db: DbClient,
+  userId: string,
+  courseId: string,
+): Promise<void> {
+  await ensureCourseEnrollmentTable(db);
+  await db.$executeRaw`
+    UPDATE "CourseEnrollment" e
+    SET "seenContentVersion" = c."contentVersion"
+    FROM "Course" c
+    WHERE c."id" = e."courseId"
+      AND e."userId" = ${userId}
+      AND e."courseId" = ${courseId}
+      AND e."seenContentVersion" < c."contentVersion"
+  `;
 }
