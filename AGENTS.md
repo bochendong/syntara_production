@@ -46,6 +46,15 @@ stage, or commit unrelated files. Inspect the existing diff before editing a
 dirty file and make the smallest necessary patch. Do not run repository-wide
 formatting to fix a task-specific issue.
 
+## Cross-computer handoff
+
+Read `CONTRIBUTING.md` and `CURRENT_STATE.md` before continuing
+work from another machine. Verify the remote branch and commit; a deployed site
+or a local checkpoint is not evidence that its source has been pushed. Record
+the task branch, verification, remaining work, and deployment commit in its PR
+or Issue when handing off. Preserve a user's no-commit restriction and explicitly
+report any local-only changes. Do not send handoff messages without user authorization.
+
 ## Setup and development
 
 Use Node.js 22 (`.nvmrc`) and pnpm 10.28.0 (`packageManager`).
@@ -53,12 +62,15 @@ Use Node.js 22 (`.nvmrc`) and pnpm 10.28.0 (`packageManager`).
 ```bash
 pnpm install
 pnpm db:generate
+pnpm exec next typegen
 pnpm dev
 ```
 
 `postinstall` builds both internal packages. If it fails, run `npm run build`
 inside each package. Prisma client generation is needed even for checks that
-import server modules without connecting to a database.
+import server modules without connecting to a database. On a fresh checkout,
+`pnpm exec next typegen` also generates the ignored Next.js image and route
+declarations needed by the root typecheck; no database or AI request is required.
 
 If `.env.local` is missing, copy `.env.example` and configure only the services
 needed for the task. Preserve existing environment files and never print or
