@@ -127,7 +127,8 @@
 /* ---------- pinned story ---------- */
 .story {
   position: relative;
-  height: 650vh;
+  /* Matches the measured story: one viewport plus 6.5 chapters at 2.5 viewports. */
+  height: 1725vh;
 }
 .stage {
   position: sticky;

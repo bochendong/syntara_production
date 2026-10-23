@@ -15,6 +15,7 @@ import { ScreenBackdrop, type LandingScene } from './screen-backdrop';
 import {
   COVER_SWITCH,
   createMarbleSprites,
+  createRainPlayback,
   drawPixel,
   drawRain,
   drawRoll,
@@ -62,7 +63,7 @@ const FEATURES: {
     title: '按难度练，\n练到真的会',
     body: '基础、进阶、挑战三档题目，做完马上看到解析，错在哪里一眼就清楚。',
     points: ['三档难度', '即时解析', '错题自动记下'],
-    transition: { kind: 'pixel', duration: 0.7 },
+    transition: { kind: 'pixel', duration: 0.85 },
     Mock: ProblemsMock,
   },
   {
@@ -72,7 +73,7 @@ const FEATURES: {
     title: '每一次卡住，\n都变成一颗弹珠',
     body: '错题、知识盲点和你的学习偏好都会被记住。太久没复习，弹珠就会慢慢起雾。',
     points: ['错题和盲点分颜色', '久不复习会起雾', 'AI 聊天时会想起它们'],
-    transition: { kind: 'rain', duration: 0.8 },
+    transition: { kind: 'rain', duration: 0.85 },
     Mock: MemoryMock,
   },
   {
@@ -82,7 +83,7 @@ const FEATURES: {
     title: '作业、考试和进度，\n排在同一张日历上',
     body: '这周要交什么、哪天考试、学到第几讲，打开就知道今天该做什么。',
     points: ['作业和考试提醒', '学习进度同步', '网页和手机一起用'],
-    transition: { kind: 'vortex', duration: 0.75 },
+    transition: { kind: 'vortex', duration: 0.85 },
     Mock: CalendarMock,
   },
 ];
@@ -96,6 +97,13 @@ const SCREEN_TRANSITIONS: ({ kind: TransitionKind; duration: number } | null)[] 
 const SCREENS = SCREEN_TRANSITIONS.length;
 const FIRST_FEATURE = 2;
 const HOLD_TAIL = 0.5;
+// Give every transition and its reading pause more physical scroll distance.
+const CHAPTER_SCROLL_VH = 2.5;
+const SCRUB_SMOOTHING_MS = 160;
+const CHAPTER_NAVIGATION_MS = 1800;
+const STEADY_NAVIGATION_MS = 2600;
+const usesSteadyPacing = (kind: TransitionKind | undefined) =>
+  kind === 'pixel' || kind === 'rain' || kind === 'vortex';
 const RAIL: { label: string; color: MarbleColor }[] = [
   { label: '首页', color: 'purple' },
   { label: '放大', color: 'blue' },
@@ -105,8 +113,8 @@ const RAIL: { label: string; color: MarbleColor }[] = [
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const easeInOut = (v: number) => (v < 0.5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2);
 /** Transitions that cover the stage and swap screens underneath at a fixed point. */
-const coverSwitch = (kind: TransitionKind | undefined) =>
-  kind === 'rain' ? RAIN_SWITCH : kind === 'pixel' || kind === 'vortex' ? COVER_SWITCH : null;
+const coverSwitch = (kind: TransitionKind | undefined, rainSwitch = RAIN_SWITCH) =>
+  kind === 'rain' ? rainSwitch : kind === 'pixel' || kind === 'vortex' ? COVER_SWITCH : null;
 
 export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean }) {
   const loginHref = googleTest ? '/test' : '/login';
@@ -132,6 +140,8 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
   const lensFrozen = useRef(false);
   const lensApi = useRef<ReturnType<typeof createLensScene> | null>(null);
   const galaxyCenter = useRef({ x: 0, y: 0 });
+  const navigationFrame = useRef(0);
+  const skipScrub = useRef(false);
   const [active, setActive] = useState(0);
   const [reduced, setReduced] = useState(false);
 
@@ -142,6 +152,25 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
     mq.addEventListener('change', sync);
     return () => mq.removeEventListener('change', sync);
   }, []);
+
+  // Native scrolling always takes over from a navigation-button animation.
+  useEffect(() => {
+    const cancelNavigation = () => {
+      cancelAnimationFrame(navigationFrame.current);
+      navigationFrame.current = 0;
+    };
+    window.addEventListener('wheel', cancelNavigation, { passive: true });
+    window.addEventListener('touchstart', cancelNavigation, { passive: true });
+    window.addEventListener('pointerdown', cancelNavigation, { passive: true });
+    window.addEventListener('keydown', cancelNavigation);
+    return () => {
+      cancelNavigation();
+      window.removeEventListener('wheel', cancelNavigation);
+      window.removeEventListener('touchstart', cancelNavigation);
+      window.removeEventListener('pointerdown', cancelNavigation);
+      window.removeEventListener('keydown', cancelNavigation);
+    };
+  }, [reduced]);
 
   // Hero: galaxy + title, drawn every frame while the hero is on screen.
   useEffect(() => {
@@ -328,6 +357,10 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
     let storyTop = 0;
     let raf = 0;
     let current = -1;
+    let displayedProgress: number | null = null;
+    let lastFrameTime = 0;
+    const rainIndex = SCREEN_TRANSITIONS.findIndex((transition) => transition?.kind === 'rain');
+    const rainPlayback = createRainPlayback();
     const layers = layerRefs.current;
     const galaxyCanvas = galaxyCanvasRef.current;
     const titleCanvas = titleCanvasRef.current;
@@ -337,7 +370,8 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
       vh = document.documentElement.clientHeight;
       vw = document.documentElement.clientWidth;
       story.style.setProperty('--vh', `${vh}px`);
-      story.style.height = `${(SCREENS + HOLD_TAIL) * vh}px`;
+      story.style.height = `${(1 + (SCREENS - 1 + HOLD_TAIL) * CHAPTER_SCROLL_VH) * vh}px`;
+      displayedProgress = null;
       storyTop = story.getBoundingClientRect().top + window.scrollY;
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       overlay.width = Math.round(vw * dpr);
@@ -348,16 +382,38 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
     const progressFor = (to: number, scroll: number) => {
       const tr = SCREEN_TRANSITIONS[to];
       if (!tr) return 1;
-      return easeInOut(clamp01((scroll - to + tr.duration) / tr.duration));
+      const phase = clamp01((scroll - to + tr.duration) / tr.duration);
+      // These marble sequences already ease their own growth, fall, spin and exit.
+      // Easing them again compresses most of their motion into the midpoint.
+      return usesSteadyPacing(tr.kind) ? phase : easeInOut(phase);
     };
 
-    const update = () => {
+    const update = (now = performance.now()) => {
       raf = 0;
-      const p = Math.min(SCREENS - 1 + HOLD_TAIL, Math.max(0, (window.scrollY - storyTop) / vh));
+      const target = Math.min(
+        SCREENS - 1 + HOLD_TAIL,
+        Math.max(0, (window.scrollY - storyTop) / (vh * CHAPTER_SCROLL_VH)),
+      );
+      // Time-based smoothing absorbs wheel bursts without depending on frame rate.
+      // Restored positions and explicit distant navigation still land immediately.
+      const elapsed = Math.min(now - lastFrameTime, 64);
+      lastFrameTime = now;
+      if (displayedProgress === null || skipScrub.current) {
+        displayedProgress = target;
+        skipScrub.current = false;
+      } else {
+        displayedProgress +=
+          (target - displayedProgress) * (1 - Math.exp(-elapsed / SCRUB_SMOOTHING_MS));
+      }
+      const settling = Math.abs(target - displayedProgress) > 0.0001;
+      if (!settling) displayedProgress = target;
+      const p = displayedProgress;
       const w = vw;
       const far = Math.hypot(w, vh);
       const from = Math.min(SCREENS - 1, Math.floor(p));
-      const next = from < SCREENS - 1 && progressFor(from + 1, p) >= 0.5 ? from + 1 : from;
+      const rain = rainPlayback(progressFor(rainIndex, p));
+      const nextSwitch = coverSwitch(SCREEN_TRANSITIONS[from + 1]?.kind, rain.switchAt) ?? 0.5;
+      const next = from < SCREENS - 1 && progressFor(from + 1, p) >= nextSwitch ? from + 1 : from;
       const lens = lensApi.current?.position() ?? { x: w / 2, y: vh / 2, r: 80 };
       let ringShown = false;
 
@@ -371,7 +427,7 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
         const kind = SCREEN_TRANSITIONS[i]!.kind;
         if (kind === 'roll') edges[i] = drawRoll(stage, e);
         else if (kind === 'pixel') drawPixel(stage, e);
-        else if (kind === 'rain') drawRain(stage, e);
+        else if (kind === 'rain') drawRain(stage, rain.progress);
         else if (kind === 'vortex') drawVortex(stage, e);
         else if (kind === 'lens') {
           const r = lens.r + e * (far - lens.r);
@@ -386,8 +442,8 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
         const outKind = SCREEN_TRANSITIONS[i + 1]?.kind;
         const enter = progressFor(i, p);
         const leave = i === SCREENS - 1 ? 0 : progressFor(i + 1, p);
-        const inSwitch = coverSwitch(inKind);
-        const outSwitch = coverSwitch(outKind);
+        const inSwitch = coverSwitch(inKind, rain.switchAt);
+        const outSwitch = coverSwitch(outKind, rain.switchAt);
         const shown =
           (i === 0 || (inSwitch === null ? enter > 0 : enter >= inSwitch)) &&
           !(outSwitch === null ? leave >= 1 : leave >= outSwitch);
@@ -423,6 +479,11 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
           } else if (inKind === 'pixel' && inSwitch !== null) {
             const k = clamp01((enter - inSwitch) / (1 - inSwitch));
             transforms.push(`scale(${1.08 - 0.08 * k})`);
+          } else if (inKind === 'rain' && rain.reversed) {
+            // In reverse navigation the memory screen is underneath the falling pile.
+            const k = clamp01(rain.progress / RAIN_SWITCH);
+            const shake = Math.sin(rain.progress * 120) * 28 * k * (1 - k);
+            transforms.push(`translate3d(${shake}px, ${k * vh * 0.05}px, 0)`);
           } else if (inKind === 'vortex' && inSwitch !== null) {
             const k = clamp01((enter - inSwitch) / (1 - inSwitch));
             layer.style.clipPath = `circle(${k * far * 0.6}px at 50% 50%)`;
@@ -440,7 +501,7 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
             transforms.push(`translate3d(${leave * w * 0.1}px, 0, 0)`);
           } else if (outKind === 'pixel' && outSwitch !== null) {
             transforms.push(`scale(${1 - 0.06 * clamp01(leave / outSwitch)})`);
-          } else if (outKind === 'rain' && outSwitch !== null) {
+          } else if (outKind === 'rain' && outSwitch !== null && !rain.reversed) {
             // The pile lands hard: the old screen shakes and sinks.
             const k = clamp01(leave / outSwitch);
             const shake = Math.sin(leave * 120) * 28 * k * (1 - k);
@@ -483,6 +544,7 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
         current = next;
         setActive(next);
       }
+      if (settling) schedule();
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(update);
@@ -615,11 +677,30 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
         layerRefs.current[index]?.scrollIntoView({ behavior: 'auto' });
         return;
       }
-      window.scrollTo({
-        top: top + index * document.documentElement.clientHeight,
-        // Distant navigation should not replay all the intervening chapters.
-        behavior: Math.abs(index - active) > 1 ? 'auto' : 'smooth',
-      });
+      cancelAnimationFrame(navigationFrame.current);
+      navigationFrame.current = 0;
+      const destination = top + index * document.documentElement.clientHeight * CHAPTER_SCROLL_VH;
+      // Distant navigation should not replay all the intervening chapters.
+      if (Math.abs(index - active) > 1) {
+        skipScrub.current = true;
+        window.scrollTo({ top: destination, behavior: 'instant' });
+        return;
+      }
+      const origin = window.scrollY;
+      const started = performance.now();
+      const steadyTransition = usesSteadyPacing(SCREEN_TRANSITIONS[Math.max(index, active)]?.kind);
+      const duration = steadyTransition ? STEADY_NAVIGATION_MS : CHAPTER_NAVIGATION_MS;
+      const animate = (now: number) => {
+        const progress = clamp01((now - started) / duration);
+        // Let the marble sequence control its own easing, including in reverse.
+        const travel = steadyTransition ? progress : easeInOut(progress);
+        window.scrollTo({
+          top: origin + (destination - origin) * travel,
+          behavior: 'instant',
+        });
+        navigationFrame.current = progress < 1 ? requestAnimationFrame(animate) : 0;
+      };
+      navigationFrame.current = requestAnimationFrame(animate);
     },
     [active, reduced],
   );

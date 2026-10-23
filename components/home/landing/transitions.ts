@@ -14,6 +14,24 @@ export const COVER_SWITCH = 0.5;
 /** The rain pile reaches the top a little later. */
 export const RAIN_SWITCH = 0.56;
 
+/** Pick the rain's entry direction once, keeping mid-transition scrubbing continuous. */
+export function createRainPlayback() {
+  let previous: number | null = null;
+  let playing = false;
+  let reversed = false;
+  return (phase: number) => {
+    const active = phase > 0 && phase < 1;
+    if (active && !playing) reversed = previous !== null && phase < previous;
+    playing = active;
+    previous = phase;
+    return {
+      reversed,
+      progress: reversed ? 1 - phase : phase,
+      switchAt: reversed ? 1 - RAIN_SWITCH : RAIN_SWITCH,
+    };
+  };
+}
+
 type ArtName = keyof typeof LANDING_MARBLE_ART;
 const ART_NAMES = Object.keys(LANDING_MARBLE_ART) as ArtName[];
 const FALLBACK: MarblePalette[] = Object.values(MARBLE_PALETTE);
@@ -90,6 +108,11 @@ export function drawRoll({ ctx, w, h, sprites }: Stage, e: number) {
   const R = Math.min(h * 0.34, w * 0.42);
   const x = -R + e * (w + 2 * R);
   const y = h * 0.52;
+  // The trailing marbles lag behind the wipe. Fade them out as it reaches
+  // the right edge so a fully revealed classroom never retains a frozen tail.
+  const trailOpacity = 1 - easeOut(clamp01((x - (w - R)) / R));
+  ctx.save();
+  ctx.globalAlpha = trailOpacity;
   // Glow along the wipe edge.
   const edge = ctx.createLinearGradient(x - R * 2.2, 0, x, 0);
   edge.addColorStop(0, 'rgba(165,139,255,0)');
@@ -110,8 +133,9 @@ export function drawRoll({ ctx, w, h, sprites }: Stage, e: number) {
     const bx = x - R * lag;
     const hop = Math.abs(Math.sin(e * 9 + i * 1.7));
     const by = y + R * 0.95 - hop * R * (0.3 + hash(i + 40) * 0.5) - R * 0.06;
-    sprites.draw(ctx, i + 3, bx, by, R * (0.06 + hash(i + 9) * 0.06), e * 20, 1);
+    sprites.draw(ctx, i + 3, bx, by, R * (0.06 + hash(i + 9) * 0.06), e * 20, trailOpacity);
   }
+  ctx.restore();
   sprites.draw(ctx, 'purple', x, y, R, x / R);
   return x;
 }
