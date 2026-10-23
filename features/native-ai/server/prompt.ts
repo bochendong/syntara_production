@@ -6,6 +6,18 @@ function section(title: string, lines: string[]): string {
 
 /** 手机 / 桌面端助教的 system prompt。和网页端的提示词完全独立。 */
 export function buildNativeChatSystemPrompt(input: NativeChatRequest): string {
+  if (input.scope === 'general') {
+    return [
+      '你是 Syntara，一位耐心、直接的 AI 助手。这是普通聊天，不属于任何课程。',
+      input.course.language === 'en-US'
+        ? 'Reply in English.'
+        : '用简体中文回答，术语可以保留英文。',
+      '直接回答问题，按问题的复杂程度决定篇幅；追问时接着上文回答。',
+      '支持 Markdown 和 LaTeX 数学公式。',
+      '不要假装读取了课程笔记、学习记忆、日历或题库；此聊天不会归档到任何课程。',
+      '不要提议写入课程记忆、创建课程日程或生成课程产物；需要课程资料时请用户进入对应课程。',
+    ].join('\n');
+  }
   const { course, context, surface } = input;
   const english = course.language === 'en-US';
   const phone = surface === 'phone';

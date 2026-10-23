@@ -70,8 +70,10 @@ export function browserCommand<T>(
 export async function browserChat<T>(
   request: PlatformJsonCommandRequest<T>,
   onEvent?: (event: NativePlatformStreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<NativeChatTurnResult> {
   const response = await browserFetch('/api/native/v2/chat', {
+    signal,
     method: 'POST',
     headers: browserCommandHeaders(request),
     body: JSON.stringify(request.payload),

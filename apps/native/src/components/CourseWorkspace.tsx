@@ -716,6 +716,7 @@ type CourseWorkspaceProps = {
   onBack: () => void;
   onSwitchCourse: (courseId: string) => void;
   onCreateCourse?: () => void;
+  onOpenGeneralChat?: () => void;
   onOpenProblemBank: () => void;
   onOpenPractice: (launch: ProblemBankLaunch) => void;
   onWorkspaceChanged: () => Promise<void>;
@@ -913,7 +914,9 @@ type DrawerLearningAction = {
 };
 
 /** iPhone 左侧抽屉：参考 ChatGPT，入口、最近聊天和「新聊天」都放在这里。 */
-function PhoneChatDrawer({
+export function PhoneChatDrawer<
+  T extends Pick<LocalConversation, 'id' | 'title' | 'createdAt' | 'updatedAt'>,
+>({
   learningActions,
   courses,
   selectedCourseId,
@@ -922,6 +925,8 @@ function PhoneChatDrawer({
   selectedConversationId,
   busy,
   onCreateConversation,
+  onCreateCourse,
+  onOpenGeneralChat,
   onDeleteConversation,
   onSelectCourse,
   onOpenProfile,
@@ -935,11 +940,13 @@ function PhoneChatDrawer({
   courses: LocalCourseSummary[];
   selectedCourseId: string;
   selectedCourseAvatarUrl: string;
-  conversations: LocalConversation[];
+  conversations: T[];
   selectedConversationId: string | null;
   busy: boolean;
   onCreateConversation: () => void;
-  onDeleteConversation: (conversation: LocalConversation) => void;
+  onCreateCourse?: () => void;
+  onOpenGeneralChat?: () => void;
+  onDeleteConversation: (conversation: T) => void;
   onSelectCourse: (courseId: string) => void;
   onOpenProfile: () => void;
   onSelectConversation: (conversationId: string) => void;
@@ -954,13 +961,13 @@ function PhoneChatDrawer({
   const [pinnedIds, setPinnedIds] = useState(readPinnedChatIds);
   // 菜单贴着被长按的那一行弹出（iOS 上下文菜单），而不是从屏幕底部升起。
   const [menu, setMenu] = useState<{
-    conversation: LocalConversation;
+    conversation: T;
     top: number;
     height: number;
     placeAbove: boolean;
   } | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
-  const openMenuFor = (conversation: LocalConversation, row: Element | null) => {
+  const openMenuFor = (conversation: T, row: Element | null) => {
     const drawer = drawerRef.current?.getBoundingClientRect();
     const rect = row?.getBoundingClientRect();
     if (!drawer || !rect) return;
@@ -978,14 +985,14 @@ function PhoneChatDrawer({
   const longPressFiredRef = useRef(false);
   const pinnedConversations = pinnedIds
     .map((id) => visibleConversations.find((conversation) => conversation.id === id))
-    .filter((conversation): conversation is LocalConversation => Boolean(conversation));
+    .filter((conversation): conversation is T => Boolean(conversation));
   const recentConversations = visibleConversations.filter(
     (conversation) => !pinnedIds.includes(conversation.id),
   );
   const recentWindow = useListWindow(recentConversations.length, `${selectedCourseId}:${keyword}`);
   useRemoteConversationSearch(query, onRemoteSearch);
 
-  const togglePinned = (conversation: LocalConversation) => {
+  const togglePinned = (conversation: T) => {
     const next = pinnedIds.includes(conversation.id)
       ? pinnedIds.filter((id) => id !== conversation.id)
       : [conversation.id, ...pinnedIds];
@@ -999,7 +1006,7 @@ function PhoneChatDrawer({
     longPressTimerRef.current = null;
   };
 
-  const startLongPress = (conversation: LocalConversation, row: Element | null) => {
+  const startLongPress = (conversation: T, row: Element | null) => {
     cancelLongPress();
     longPressFiredRef.current = false;
     longPressTimerRef.current = window.setTimeout(() => {
@@ -1009,7 +1016,7 @@ function PhoneChatDrawer({
     }, 450);
   };
 
-  const renderRow = (conversation: LocalConversation) => {
+  const renderRow = (conversation: T) => {
     const active = conversation.id === selectedConversationId;
     return (
       <div
@@ -1091,6 +1098,14 @@ function PhoneChatDrawer({
       <div className="phone-drawer-scroll">
         {!searching ? (
           <>
+            {onOpenGeneralChat ? (
+              <nav className="phone-drawer-nav" aria-label="普通聊天">
+                <button type="button" className="phone-drawer-tool" onClick={onOpenGeneralChat}>
+                  <MessageCircle size={20} strokeWidth={1.8} aria-hidden />
+                  <span>普通聊天</span>
+                </button>
+              </nav>
+            ) : null}
             <nav className="phone-drawer-nav" aria-label="全部课程">
               <details className="phone-drawer-group" open>
                 <summary className="phone-drawer-section-toggle">
@@ -1098,6 +1113,13 @@ function PhoneChatDrawer({
                   <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
                 </summary>
                 <div className="phone-drawer-group-items">
+                  {onCreateCourse ? (
+                    <button type="button" className="phone-drawer-tool" onClick={onCreateCourse}>
+                      <Plus size={20} strokeWidth={1.8} aria-hidden />
+                      <span>新建课程</span>
+                    </button>
+                  ) : null}
+                  {!courses.length ? <p className="phone-drawer-empty">还没有课程</p> : null}
                   {courses.map((course) => {
                     const current = course.id === selectedCourseId;
                     return (
@@ -1979,6 +2001,7 @@ export function CourseWorkspace({
   courses,
   onSwitchCourse,
   onCreateCourse,
+  onOpenGeneralChat,
 }: CourseWorkspaceProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(() =>
     workspace.conversations.some((conversation) => conversation.id === initialConversationId)
@@ -4363,9 +4386,6 @@ export function CourseWorkspace({
     open();
   };
   const courseToolActions: DrawerLearningAction[] = [
-    ...(onCreateCourse
-      ? [{ id: 'add-course', label: '添加课程', icon: BookOpen, open: onCreateCourse }]
-      : []),
     { id: 'notes', label: '笔记', icon: BookOpen, open: openNotebookLibrary },
     { id: 'progress', label: '学习进度', icon: Target, open: () => setPhonePage('progress') },
     {
@@ -4390,6 +4410,8 @@ export function CourseWorkspace({
         open: () => openFromDrawer(action.open),
       }))}
       courses={courses}
+      onCreateCourse={onCreateCourse}
+      onOpenGeneralChat={onOpenGeneralChat}
       selectedCourseId={workspace.course.id}
       selectedCourseAvatarUrl={courseAvatarUrl}
       conversations={workspace.conversations}

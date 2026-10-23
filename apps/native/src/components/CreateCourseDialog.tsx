@@ -5,9 +5,11 @@ import './create-course.css';
 export function CreateCourseDialog({
   onCancel,
   onCreated,
+  createCourse = createBrowserCourse,
 }: {
   onCancel: () => void;
   onCreated: (id: string) => Promise<void>;
+  createCourse?: (name: string, description: string) => Promise<{ id: string }>;
 }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -31,7 +33,7 @@ export function CreateCourseDialog({
             setBusy(true);
             setError(null);
             try {
-              const course = await createBrowserCourse(name, description);
+              const course = await createCourse(name, description);
               await onCreated(course.id);
             } catch (cause) {
               setError(cause instanceof Error ? cause.message : String(cause));

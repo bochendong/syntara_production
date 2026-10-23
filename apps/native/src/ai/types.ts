@@ -39,6 +39,7 @@ export interface NativeChatContext {
 export interface NativeChatPayload {
   requestId: string;
   surface: NativeChatSurface;
+  scope?: 'course' | 'general';
   course: {
     id?: string;
     name: string;

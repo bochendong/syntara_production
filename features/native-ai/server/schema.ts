@@ -9,6 +9,7 @@ const shortText = (max: number) => z.string().trim().max(max);
 export const nativeChatRequestSchema = z.object({
   requestId: z.string().trim().min(1).max(160),
   surface: nativeChatSurfaceSchema,
+  scope: z.enum(['course', 'general']).default('course'),
   course: z.object({
     id: shortText(200).optional(),
     name: z.string().trim().min(1).max(200),

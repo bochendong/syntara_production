@@ -58,6 +58,16 @@ function messageMetadata(
   proposals: NativeChatProposals,
   model: Record<string, unknown>,
 ) {
+  if (input.scope === 'general') {
+    return {
+      schemaVersion: 1 as const,
+      aiVersion: 'native-v2',
+      surface: input.surface,
+      learningActions: [],
+      evidence: [],
+      model,
+    };
+  }
   const askedForLecture = LECTURE_REQUEST.test(latestQuestion(input));
   const lectureSuggested = Boolean(proposals.classroom) || askedForLecture;
   return {
@@ -106,7 +116,7 @@ export async function runNativeChat(
       model: resolved.model,
       system: buildNativeChatSystemPrompt(input),
       messages: await chatMessages(input),
-      tools: createNativeChatTools(input, proposals),
+      tools: input.scope === 'general' ? undefined : createNativeChatTools(input, proposals),
       stopWhen: stepCountIs(MAX_STEPS),
       maxOutputTokens: input.surface === 'phone' ? 4000 : 6000,
       maxRetries: 0,

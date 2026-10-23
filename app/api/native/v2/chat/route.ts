@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
         route: '/api/native/v2/chat',
         operationCode: 'native_chat',
         chargeReason: '原生端助教聊天',
-        courseId: parsed.data.course.id,
-        courseName: parsed.data.course.name,
+        courseId: parsed.data.scope === 'general' ? undefined : parsed.data.course.id,
+        courseName: parsed.data.scope === 'general' ? undefined : parsed.data.course.name,
       },
       () => runNativeChat(request, parsed.data),
     );

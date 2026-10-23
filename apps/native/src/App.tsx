@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { AlertTriangle } from 'lucide-react';
 
 import { CourseWorkspace } from './components/CourseWorkspace';
+import { GeneralChatWorkspace } from './components/GeneralChatWorkspace';
 import { GlassSpinner } from './components/GlassLoadMore';
 import { NativeAuthGate } from './components/NativeAccountControl';
 import { NotebookLibraryPage } from './components/NotebookLibraryPage';
@@ -28,7 +29,13 @@ import { usePhoneLayout } from './lib/use-phone-layout';
 import { useAvatarTheme } from './lib/use-avatar-theme';
 import type { LocalCourseSummary, LocalCourseWorkspace } from './domain/models';
 
-type AppSurface = 'launch' | 'course' | 'problem-bank' | 'notebook-library' | 'problem-practice';
+type AppSurface =
+  | 'general'
+  | 'launch'
+  | 'course'
+  | 'problem-bank'
+  | 'notebook-library'
+  | 'problem-practice';
 
 function updateWithPlatformTransition(update: () => void) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -191,14 +198,26 @@ function AuthenticatedApp() {
     if (loading || surface !== 'launch') return;
     const course = selectChatCourse(launchCourses, readPhoneLastChat());
     if (course) void openRecentCourse(course.id);
+    else if (browserApp) setSurface('general');
   }, [loading, surface, launchCourses, openRecentCourse]);
+
+  const openGeneralChat = useCallback(() => {
+    setGlobalPage(null);
+    setSurface('general');
+    setSelectedCourseId(null);
+    setWorkspace(null);
+  }, []);
 
   const openChat = useCallback(() => {
     setGlobalPage(null);
     setSurface('course');
   }, []);
   useBackDismiss(globalPage !== null, () => setGlobalPage(null));
-  useBackDismiss(surface !== 'launch' && surface !== 'course', openChat, 0);
+  useBackDismiss(
+    ['problem-bank', 'notebook-library', 'problem-practice'].includes(surface),
+    openChat,
+    0,
+  );
 
   useEffect(() => {
     if (globalPage !== 'calendar') return;
@@ -326,6 +345,17 @@ function AuthenticatedApp() {
         </button>
       </div>
     );
+  } else if (surface === 'general') {
+    content = (
+      <GeneralChatWorkspace
+        courses={launchCourses}
+        onCreateCourse={() => setCreatingCourse(true)}
+        onSwitchCourse={(id) => void openRecentCourse(id)}
+        onOpenCalendar={() => setGlobalPage('calendar')}
+        onOpenProfile={() => setGlobalPage('profile')}
+        responseStrength={responseStrength}
+      />
+    );
   } else if (!workspace || workspace.course.id !== selectedCourseId) {
     content = (
       <div className="launch-state launch-state-light">
@@ -370,6 +400,7 @@ function AuthenticatedApp() {
         courses={launchCourses}
         onBack={openChat}
         onCreateCourse={browserApp ? () => setCreatingCourse(true) : undefined}
+        onOpenGeneralChat={browserApp ? openGeneralChat : undefined}
         onSwitchCourse={(courseId) => void openRecentCourse(courseId)}
         onOpenGlobalCalendar={() => setGlobalPage('calendar')}
         initialConversationId={initialConversationId}
