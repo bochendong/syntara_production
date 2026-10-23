@@ -2,9 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main, codex/automatic-deploy]
+    branches: ['**']
   pull_request:
-    branches: [main]
+    branches: [main, codex/native-google-staging]
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -31,14 +34,27 @@ jobs:
       - name: Generate Prisma client
         run: pnpm exec prisma generate
 
-      - name: Prettier
+      - name: Resolve comparison base
+        id: comparison
         env:
           CI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CI_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: bash
+        run: |
+          base_sha="$CI_BASE_SHA"
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]] || ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
+            base_sha="$(git merge-base HEAD "origin/$CI_DEFAULT_BRANCH")"
+          fi
+          echo "sha=$base_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Prettier
+        env:
+          CI_BASE_SHA: ${{ steps.comparison.outputs.sha }}
         run: pnpm check:changed -- "$CI_BASE_SHA"
 
       - name: ESLint
         env:
-          CI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CI_BASE_SHA: ${{ steps.comparison.outputs.sha }}
         run: pnpm lint:changed -- "$CI_BASE_SHA"
 
       - name: TypeScript

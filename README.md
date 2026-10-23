@@ -2,6 +2,9 @@
 
 Production baseline of Syntara, migrated from OpenMAIC.
 
+Working from another computer? Read [the sync workflow](CONTRIBUTING.md) and
+[the current branch / deployment snapshot](CURRENT_STATE.md) before starting.
+
 ## Included product surface
 
 - `/` — marketing home
@@ -14,8 +17,8 @@ Production baseline of Syntara, migrated from OpenMAIC.
 
 ## Prerequisites
 
-- Node.js `>= 20.9.0`
-- [pnpm](https://pnpm.io/)
+- Node.js 22 (`.nvmrc`)
+- [pnpm](https://pnpm.io/) 10.28.0 (`packageManager`)
 - PostgreSQL (for Learn / Course / Auth persistence)
 
 ## Setup

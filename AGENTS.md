@@ -46,6 +46,15 @@ stage, or commit unrelated files. Inspect the existing diff before editing a
 dirty file and make the smallest necessary patch. Do not run repository-wide
 formatting to fix a task-specific issue.
 
+## Cross-computer handoff
+
+Read `CONTRIBUTING.md` and `CURRENT_STATE.md` before continuing
+work from another machine. Verify the remote branch and commit; a deployed site
+or a local checkpoint is not evidence that its source has been pushed. Record
+the task branch, verification, remaining work, and deployment commit in its PR
+or Issue when handing off. Preserve a user's no-commit restriction and explicitly
+report any local-only changes. Do not send handoff messages without user authorization.
+
 ## Setup and development
 
 Use Node.js 22 (`.nvmrc`) and pnpm 10.28.0 (`packageManager`).
