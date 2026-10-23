@@ -34,6 +34,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm exec prisma generate
 
+      - name: Generate Next.js types
+        run: pnpm exec next typegen
+
       - name: Resolve comparison base
         id: comparison
         env:

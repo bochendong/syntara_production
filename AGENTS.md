@@ -62,12 +62,15 @@ Use Node.js 22 (`.nvmrc`) and pnpm 10.28.0 (`packageManager`).
 ```bash
 pnpm install
 pnpm db:generate
+pnpm exec next typegen
 pnpm dev
 ```
 
 `postinstall` builds both internal packages. If it fails, run `npm run build`
 inside each package. Prisma client generation is needed even for checks that
-import server modules without connecting to a database.
+import server modules without connecting to a database. On a fresh checkout,
+`pnpm exec next typegen` also generates the ignored Next.js image and route
+declarations needed by the root typecheck; no database or AI request is required.
 
 If `.env.local` is missing, copy `.env.example` and configure only the services
 needed for the task. Preserve existing environment files and never print or

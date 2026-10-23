@@ -33,6 +33,7 @@ cp .env.example .env.local
 
 pnpm install
 pnpm db:generate
+pnpm exec next typegen
 # Optional against a real DB:
 # pnpm db:migrate
 # or: pnpm db:push

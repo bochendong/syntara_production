@@ -68,6 +68,6 @@ GitHub Desktop 的 Fetch / Pull / Push 也可以完成相同交接；操作后�
 
 ## 本地工具版本
 
-使用 Node.js 22（`.nvmrc`）和 pnpm 10.28.0（`packageManager`）。完整设置与隔离规则见 [AGENTS.md](AGENTS.md) 和 [WORKTREES.md](WORKTREES.md)。
+使用 Node.js 22（`.nvmrc`）和 pnpm 10.28.0（`packageManager`）。新拉取后，在类型检查前运行 `pnpm exec prisma generate` 和 `pnpm exec next typegen`，避免依赖另一台电脑的构建缓存。完整设置与隔离规则见 [AGENTS.md](AGENTS.md) 和 [WORKTREES.md](WORKTREES.md)。
 
 参考：[GitHub 远端同步说明](https://docs.github.com/en/get-started/using-git/getting-changes-from-a-remote-repository)、[工作流触发与分支筛选](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)。

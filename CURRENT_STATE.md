@@ -16,7 +16,7 @@
 
 首页提交只包含 `app/page.tsx`、`middleware.ts`、`components/home/landing/` 的 9 个文件、两张 `public/home/backgrounds-v2/shared.webp` / `backgrounds-v3/hero-starry.webp` 及 `docs/api/native-web-homepage.md`。已有未跟踪 QA 图片保留在本机，没有混入源码提交。首页产品文件与已验收部署快照的哈希一致；生产构建、类型检查、匿名鉴权、现有 Google 会话跳转和桌面/手机页面已验收。
 
-本 PR 仅新增或更新 6 个协作/CI 文件：`CONTRIBUTING.md`、`CURRENT_STATE.md`、README 入口、AGENTS 接续要求、PR 模板以及 CI。覆盖所有分支推送及面向测试整合分支的 PR，并修正新分支首次推送的比较起点。未修改部署工作流、数据库或环境文件。
+本 PR 仅新增或更新 6 个协作/CI 文件：`CONTRIBUTING.md`、`CURRENT_STATE.md`、README 入口、AGENTS 接续要求、PR 模板以及 CI。覆盖所有分支推送及面向测试整合分支的 PR，并修正新分支首次推送的比较起点；在类型检查前显式生成 Next.js 声明，支持全新拉取后的图片与路由类型。未修改部署工作流、数据库或环境文件。
 
 ## 另一台电脑从哪里继续
 
@@ -31,6 +31,7 @@ git clone --branch codex/cross-computer-sync https://github.com/bochendong/synta
 cd syntara_production
 pnpm install --frozen-lockfile
 pnpm exec prisma generate
+pnpm exec next typegen
 ```
 
 使用 Node.js 22、pnpm 10.28.0；按 `.env.example` 单独配置本机环境。生产数据库和密钥不会通过 Git 同步。开始具体新任务时仍按 AGENTS 创建任务 worktree 和分支。
@@ -41,5 +42,5 @@ pnpm exec prisma generate
 - 仓库中仍有其他历史开发分支和待合并 PR，不根据名称推断已废弃，也不自动整合。
 - 本次核对时 `main` 与测试分支均未标记为 protected。本文是流程约定，不代表 GitHub 已强制保护分支。
 - 原共享工作区仍有独立待归属改动，不作为另一台电脑的已同步基线。
-- 本地已验证格式、YAML、5 种 CI 比较起点场景。GitHub Actions 结果以本 PR 检查页为准，不能把本地验证当成远端检查成功。
+- 本地已验证格式、YAML、5 种 CI 比较起点场景，以及独立新工作区安装依赖、生成 Prisma / Next.js 声明后的完整根类型检查。GitHub Actions 结果以本 PR 检查页为准，不能把本地验证当成远端检查成功。
 - 正式部署仍保留原触发方式。不要把 `main` 当作两台电脑随手同步的中转站。
