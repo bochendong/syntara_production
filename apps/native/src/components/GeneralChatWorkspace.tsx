@@ -1,5 +1,7 @@
+import type { CourseLearningPage } from '../lib/native-launch';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, CalendarDays, MessageCircle, PanelLeft, SquarePen, X } from 'lucide-react';
+import { ArrowUp, MessageCircle, PanelLeft, SquarePen, X } from 'lucide-react';
+import { ChatScopePicker } from './ChatScopePicker';
 import { PhoneChatDrawer } from './CourseWorkspace';
 import { ChatRichText } from './chat-rich/ChatRichText';
 import {
@@ -17,19 +19,27 @@ import { usePhoneKeyboardInset } from '../lib/use-phone-keyboard';
 import './general-chat.css';
 
 export function GeneralChatWorkspace({
+  homeHref,
+  initialConversationId,
+  onOpenRecentChat,
+  initialDraft = '',
+  onChangeChatScope,
   courses,
   onCreateCourse,
-  onSwitchCourse,
-  onOpenCalendar,
-  onOpenProfile,
+  onCreateCourseChat,
+  onOpenCourseTool,
   responseStrength,
   client = generalChatClient,
 }: {
+  homeHref?: string;
+  initialConversationId?: string | null;
+  onOpenRecentChat?: (courseId: string | null, conversationId: string) => void;
+  initialDraft?: string;
+  onChangeChatScope?: (courseId: string | null, draft: string) => void;
   courses: LocalCourseSummary[];
   onCreateCourse: () => void;
-  onSwitchCourse: (id: string) => void;
-  onOpenCalendar: () => void;
-  onOpenProfile: () => void;
+  onCreateCourseChat: (id: string) => void;
+  onOpenCourseTool: (courseId: string, page: CourseLearningPage) => void;
   responseStrength: ChatResponseStrength;
   client?: GeneralChatClient;
 }) {
@@ -38,7 +48,7 @@ export function GeneralChatWorkspace({
   const [conversations, setConversations] = useState<GeneralConversation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [messages, setMessages] = useState<GeneralMessage[]>([]);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(initialDraft);
   const [streaming, setStreaming] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -67,10 +77,18 @@ export function GeneralChatWorkspace({
   useEffect(() => {
     mounted.current = true;
     let cancelled = false;
+    const startupRequest = ++request.current;
     void client
       .list()
-      .then((rows) => {
+      .then(async (rows) => {
         if (!cancelled) setConversations(rows);
+        if (initialConversationId && rows.some((row) => row.id === initialConversationId)) {
+          const history = await client.load(initialConversationId);
+          if (!cancelled && startupRequest === request.current) {
+            setSelected(initialConversationId);
+            setMessages(history);
+          }
+        }
       })
       .catch((cause) => {
         if (!cancelled) setError(cause instanceof Error ? cause.message : '聊天记录暂时无法加载');
@@ -84,7 +102,7 @@ export function GeneralChatWorkspace({
       controller.current?.abort();
       invalidateRequests();
     };
-  }, [client, invalidateRequests]);
+  }, [client, invalidateRequests, initialConversationId]);
   useEffect(() => {
     scrollToBottom();
   }, [messages, streaming, scrollToBottom]);
@@ -283,12 +301,13 @@ export function GeneralChatWorkspace({
           </div>
           <button
             type="button"
-            className="phone-glass-button"
+            className="phone-chat-new"
             aria-label="新聊天"
             onClick={newChat}
             disabled={busy || Boolean(pendingSave)}
           >
-            <SquarePen size={20} />
+            <SquarePen size={18} aria-hidden />
+            <span>新聊天</span>
           </button>
         </header>
         <div
@@ -390,7 +409,12 @@ export function GeneralChatWorkspace({
                 }
               }}
             />
-            <span className="general-composer-hint">普通聊天 · 不关联课程</span>
+            <ChatScopePicker
+              courses={courses}
+              courseId={null}
+              locked={loading || busy || Boolean(pendingSave) || messages.length > 0}
+              onChange={onChangeChatScope ? (id) => onChangeChatScope(id, draft) : undefined}
+            />
             <button
               type="submit"
               className="composer-send-button"
@@ -429,24 +453,20 @@ export function GeneralChatWorkspace({
           </button>
         ) : null}
         <PhoneChatDrawer
-          learningActions={[
-            {
-              id: 'calendar',
-              label: '总日历',
-              icon: CalendarDays,
-              open: () => open(onOpenCalendar),
-            },
-          ]}
+          onOpenRecentChat={onOpenRecentChat}
+          generalChatClient={client}
+          homeHref={homeHref}
+          learningActions={[]}
           courses={courses}
           selectedCourseId=""
           selectedCourseAvatarUrl=""
           conversations={conversations}
           selectedConversationId={selected}
-          busy={busy || Boolean(pendingSave)}
           onCreateCourse={() => open(onCreateCourse)}
-          onCreateConversation={newChat}
-          onSelectCourse={(id) => open(() => onSwitchCourse(id))}
-          onOpenProfile={() => open(onOpenProfile)}
+          onNewChat={newChat}
+          onCreateCourseChat={(id) => open(() => onCreateCourseChat(id))}
+          onOpenCourseTool={(id, page) => open(() => onOpenCourseTool(id, page))}
+          newChatDisabled={busy || Boolean(pendingSave)}
           onSelectConversation={(id) => void selectChat(id)}
           onDeleteConversation={(conversation) => void deleteChat(conversation)}
         />

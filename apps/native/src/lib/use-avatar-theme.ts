@@ -49,5 +49,5 @@ export function useAvatarTheme() {
       }
     : undefined;
 
-  return { themed: Boolean(theme), style };
+  return { themed: Boolean(theme), style, avatarUrl };
 }

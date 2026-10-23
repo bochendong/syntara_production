@@ -36,7 +36,6 @@ import {
   Save,
   Search,
   SendHorizontal,
-  Settings,
   Settings2,
   SlidersHorizontal,
   Sparkles,
@@ -58,6 +57,17 @@ import {
   profileThemeForAvatar,
   writeStoredCourseAvatarId,
 } from '../assets';
+import { ChatScopePicker } from './ChatScopePicker';
+import { CourseToolsMenu } from './CourseToolsMenu';
+import { LearningWorkspaceTabs } from './LearningWorkspaceTabs';
+import type { CourseLearningPage, CourseOpenTarget } from '../lib/native-launch';
+import { useRecentChats } from '../lib/use-recent-chats';
+import type { RecentChat } from '../data/recent-chats';
+import {
+  generalChatClient as defaultGeneralChatClient,
+  type GeneralChatClient,
+} from '../data/general-chat';
+import { browserApp } from '../data/browser-runtime';
 import { streamNativeChat, detectChatSurface } from '../ai/chat';
 import { buildNativeChatContext } from '../ai/context';
 import {
@@ -704,10 +714,14 @@ function errorMessage(cause: unknown): string {
 }
 
 type CourseWorkspaceProps = {
-  onOpenGlobalCalendar: () => void;
+  initialDraft?: string;
+  onChangeChatScope?: (courseId: string | null, draft: string) => void;
+  homeHref?: string;
+  onOpenRecentChat?: (courseId: string | null, conversationId: string) => void;
+  generalChatClient?: GeneralChatClient | null;
   workspace: LocalCourseWorkspace;
   initialConversationId?: string | null;
-  initialPage?: 'calendar' | 'memory';
+  initialPage?: CourseOpenTarget['page'];
   newEventDate?: string;
   calendarDate?: string;
   /** 当前账户的全部课程，常驻侧栏。 */
@@ -715,8 +729,10 @@ type CourseWorkspaceProps = {
   backendLabel: string;
   onBack: () => void;
   onSwitchCourse: (courseId: string) => void;
+  onCreateCourseChat: (courseId: string) => void;
+  onOpenCourseTool: (courseId: string, page: CourseLearningPage) => void;
   onCreateCourse?: () => void;
-  onOpenGeneralChat?: () => void;
+  onNewChat?: () => void;
   onOpenProblemBank: () => void;
   onOpenPractice: (launch: ProblemBankLaunch) => void;
   onWorkspaceChanged: () => Promise<void>;
@@ -913,27 +929,60 @@ type DrawerLearningAction = {
   count?: number;
 };
 
-/** iPhone 左侧抽屉：参考 ChatGPT，入口、最近聊天和「新聊天」都放在这里。 */
+export function LearningToolsCard({ actions }: { actions: DrawerLearningAction[] }) {
+  return (
+    <nav className="phone-drawer-nav phone-drawer-learning" aria-label="学习工具">
+      <details className="phone-drawer-group" open>
+        <summary className="phone-drawer-section-toggle">
+          <h3>学习</h3>
+          <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
+        </summary>
+        <div className="phone-drawer-group-items">
+          {actions.map(({ id, label, icon: Icon, open, count }) => (
+            <button
+              type="button"
+              key={id}
+              className="phone-drawer-tool"
+              onClick={open}
+              data-marble-target={id === 'memory' ? '2' : undefined}
+            >
+              <Icon size={20} strokeWidth={1.8} aria-hidden />
+              <span>{label}</span>
+              {count ? <small>{count}</small> : null}
+            </button>
+          ))}
+        </div>
+      </details>
+    </nav>
+  );
+}
+
+/** Shared course navigation and recent conversations. */
 export function PhoneChatDrawer<
   T extends Pick<LocalConversation, 'id' | 'title' | 'createdAt' | 'updatedAt'>,
 >({
+  homeHref = '/',
+  onOpenRecentChat,
+  generalChatClient = browserApp ? defaultGeneralChatClient : null,
   learningActions,
   courses,
   selectedCourseId,
   selectedCourseAvatarUrl,
   conversations,
   selectedConversationId,
-  busy,
-  onCreateConversation,
   onCreateCourse,
-  onOpenGeneralChat,
+  onNewChat,
   onDeleteConversation,
-  onSelectCourse,
-  onOpenProfile,
+  onCreateCourseChat,
+  onOpenCourseTool,
+  newChatDisabled = false,
   onSelectConversation,
   paging,
   onRemoteSearch,
 }: {
+  homeHref?: string;
+  onOpenRecentChat?: (courseId: string | null, conversationId: string) => void;
+  generalChatClient?: GeneralChatClient | null;
   paging?: ConversationPaging;
   onRemoteSearch?: (query: string) => void;
   learningActions: DrawerLearningAction[];
@@ -942,32 +991,48 @@ export function PhoneChatDrawer<
   selectedCourseAvatarUrl: string;
   conversations: T[];
   selectedConversationId: string | null;
-  busy: boolean;
-  onCreateConversation: () => void;
   onCreateCourse?: () => void;
-  onOpenGeneralChat?: () => void;
+  onNewChat: () => void;
   onDeleteConversation: (conversation: T) => void;
-  onSelectCourse: (courseId: string) => void;
-  onOpenProfile: () => void;
+  onCreateCourseChat: (courseId: string) => void;
+  onOpenCourseTool: (courseId: string, page: CourseLearningPage) => void;
+  newChatDisabled?: boolean;
   onSelectConversation: (conversationId: string) => void;
 }) {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
+  const [courseMenu, setCourseMenu] = useState<{
+    course: LocalCourseSummary;
+    anchor: HTMLButtonElement;
+  } | null>(null);
+  const [expandedCourses, setExpandedCourses] = useState<string[]>(() =>
+    selectedCourseId ? [selectedCourseId] : courses[0] ? [courses[0].id] : [],
+  );
   const keyword = query.trim().toLowerCase();
+  const history = useRecentChats(
+    courses.map((course) => course.id),
+    selectedCourseId || null,
+    conversations,
+    generalChatClient,
+    Boolean(onOpenRecentChat),
+  );
+  const allConversations: RecentChat[] = onOpenRecentChat
+    ? history.conversations
+    : conversations.map((row) => ({ ...row, courseId: selectedCourseId || null }));
   const visibleConversations = keyword
-    ? conversations.filter((conversation) => conversation.title.toLowerCase().includes(keyword))
-    : conversations;
+    ? allConversations.filter((conversation) => conversation.title.toLowerCase().includes(keyword))
+    : allConversations;
   // 置顶和删除：长按一条聊天（或点当前聊天右边的 ⋯）弹出菜单。置顶只记在本机。
   const [pinnedIds, setPinnedIds] = useState(readPinnedChatIds);
   // 菜单贴着被长按的那一行弹出（iOS 上下文菜单），而不是从屏幕底部升起。
   const [menu, setMenu] = useState<{
-    conversation: T;
+    conversation: RecentChat;
     top: number;
     height: number;
     placeAbove: boolean;
   } | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
-  const openMenuFor = (conversation: T, row: Element | null) => {
+  const openMenuFor = (conversation: RecentChat, row: Element | null) => {
     const drawer = drawerRef.current?.getBoundingClientRect();
     const rect = row?.getBoundingClientRect();
     if (!drawer || !rect) return;
@@ -985,14 +1050,14 @@ export function PhoneChatDrawer<
   const longPressFiredRef = useRef(false);
   const pinnedConversations = pinnedIds
     .map((id) => visibleConversations.find((conversation) => conversation.id === id))
-    .filter((conversation): conversation is T => Boolean(conversation));
+    .filter((conversation): conversation is RecentChat => Boolean(conversation));
   const recentConversations = visibleConversations.filter(
     (conversation) => !pinnedIds.includes(conversation.id),
   );
   const recentWindow = useListWindow(recentConversations.length, `${selectedCourseId}:${keyword}`);
-  useRemoteConversationSearch(query, onRemoteSearch);
+  useRemoteConversationSearch(query, onOpenRecentChat ? history.search : onRemoteSearch);
 
-  const togglePinned = (conversation: T) => {
+  const togglePinned = (conversation: RecentChat) => {
     const next = pinnedIds.includes(conversation.id)
       ? pinnedIds.filter((id) => id !== conversation.id)
       : [conversation.id, ...pinnedIds];
@@ -1006,7 +1071,7 @@ export function PhoneChatDrawer<
     longPressTimerRef.current = null;
   };
 
-  const startLongPress = (conversation: T, row: Element | null) => {
+  const startLongPress = (conversation: RecentChat, row: Element | null) => {
     cancelLongPress();
     longPressFiredRef.current = false;
     longPressTimerRef.current = window.setTimeout(() => {
@@ -1016,7 +1081,7 @@ export function PhoneChatDrawer<
     }, 450);
   };
 
-  const renderRow = (conversation: T) => {
+  const renderRow = (conversation: RecentChat) => {
     const active = conversation.id === selectedConversationId;
     return (
       <div
@@ -1030,7 +1095,8 @@ export function PhoneChatDrawer<
               longPressFiredRef.current = false;
               return;
             }
-            onSelectConversation(conversation.id);
+            if (onOpenRecentChat) onOpenRecentChat(conversation.courseId, conversation.id);
+            else onSelectConversation(conversation.id);
           }}
           onTouchStart={(event) =>
             startLongPress(conversation, event.currentTarget.closest('.phone-drawer-row'))
@@ -1046,18 +1112,16 @@ export function PhoneChatDrawer<
         >
           {conversation.title}
         </button>
-        {active ? (
-          <button
-            type="button"
-            className="phone-drawer-delete"
-            onClick={(event) =>
-              openMenuFor(conversation, event.currentTarget.closest('.phone-drawer-row'))
-            }
-            aria-label={`更多操作：${conversation.title}`}
-          >
-            <Ellipsis size={18} />
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="phone-drawer-delete"
+          onClick={(event) =>
+            openMenuFor(conversation, event.currentTarget.closest('.phone-drawer-row'))
+          }
+          aria-label={`更多操作：${conversation.title}`}
+        >
+          <Ellipsis size={18} />
+        </button>
       </div>
     );
   };
@@ -1070,7 +1134,15 @@ export function PhoneChatDrawer<
           document.documentElement.classList.contains('platform-macos') ? 'deep' : undefined
         }
       >
-        <h2>Syntara</h2>
+        <h2>
+          {'__TAURI_INTERNALS__' in window ? (
+            'Syntara'
+          ) : (
+            <a className="phone-drawer-home" href={homeHref} aria-label="Syntara 首页">
+              Syntara
+            </a>
+          )}
+        </h2>
         <button
           type="button"
           className="phone-glass-button"
@@ -1084,6 +1156,17 @@ export function PhoneChatDrawer<
         </button>
       </div>
 
+      <nav className="phone-drawer-nav phone-drawer-primary" aria-label="聊天">
+        <button
+          type="button"
+          className="phone-drawer-tool"
+          onClick={onNewChat}
+          disabled={newChatDisabled}
+        >
+          <SquarePen size={20} strokeWidth={1.8} aria-hidden />
+          <span>新聊天</span>
+        </button>
+      </nav>
       {searching ? (
         <input
           className="phone-drawer-search"
@@ -1098,79 +1181,110 @@ export function PhoneChatDrawer<
       <div className="phone-drawer-scroll">
         {!searching ? (
           <>
-            {onOpenGeneralChat ? (
-              <nav className="phone-drawer-nav" aria-label="普通聊天">
-                <button type="button" className="phone-drawer-tool" onClick={onOpenGeneralChat}>
-                  <MessageCircle size={20} strokeWidth={1.8} aria-hidden />
-                  <span>普通聊天</span>
-                </button>
-              </nav>
-            ) : null}
-            <nav className="phone-drawer-nav" aria-label="全部课程">
+            <nav className="phone-drawer-nav phone-drawer-courses" aria-label="全部课程">
               <details className="phone-drawer-group" open>
                 <summary className="phone-drawer-section-toggle">
                   <h3>课程</h3>
                   <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
                 </summary>
                 <div className="phone-drawer-group-items">
-                  {onCreateCourse ? (
-                    <button type="button" className="phone-drawer-tool" onClick={onCreateCourse}>
-                      <Plus size={20} strokeWidth={1.8} aria-hidden />
-                      <span>新建课程</span>
-                    </button>
-                  ) : null}
                   {!courses.length ? <p className="phone-drawer-empty">还没有课程</p> : null}
                   {courses.map((course) => {
                     const current = course.id === selectedCourseId;
+                    const expanded = expandedCourses.includes(course.id);
+                    const chats = allConversations.filter((chat) => chat.courseId === course.id);
                     return (
-                      <button
-                        type="button"
-                        key={course.id}
-                        className={`phone-drawer-course${current ? ' is-current' : ''}`}
-                        aria-current={current ? 'page' : undefined}
-                        title={course.name}
-                        onClick={() => onSelectCourse(course.id)}
-                      >
-                        <img
-                          src={
-                            current
-                              ? selectedCourseAvatarUrl
-                              : resolveNativeCourseAvatar(course.id, course.courseCode)
-                          }
-                          alt=""
-                          aria-hidden
-                          data-marble-target={current ? '1' : undefined}
-                        />
-                        <span>{course.courseCode || course.name}</span>
-                      </button>
+                      <div className="phone-drawer-course-group" key={course.id}>
+                        <div
+                          className={`phone-drawer-course-heading${current ? ' is-current' : ''}`}
+                        >
+                          <button
+                            type="button"
+                            className="phone-drawer-course"
+                            aria-label={course.courseCode || course.name}
+                            aria-expanded={expanded}
+                            aria-controls={expanded ? 'course-chats-' + course.id : undefined}
+                            title={course.name}
+                            onClick={() =>
+                              setExpandedCourses((ids) =>
+                                expanded
+                                  ? ids.filter((id) => id !== course.id)
+                                  : [...ids, course.id],
+                              )
+                            }
+                          >
+                            <img
+                              src={
+                                current
+                                  ? selectedCourseAvatarUrl
+                                  : resolveNativeCourseAvatar(course.id, course.courseCode)
+                              }
+                              alt=""
+                              aria-hidden
+                              data-marble-target={current ? '1' : undefined}
+                            />
+                            <span>{course.courseCode || course.name}</span>
+                          </button>
+                          <div className="phone-drawer-course-actions">
+                            <button
+                              type="button"
+                              aria-label={`${course.courseCode || course.name}学习工具`}
+                              title="学习工具"
+                              aria-haspopup="menu"
+                              aria-expanded={courseMenu?.course.id === course.id}
+                              onClick={(event) =>
+                                setCourseMenu(
+                                  courseMenu?.course.id === course.id
+                                    ? null
+                                    : { course, anchor: event.currentTarget },
+                                )
+                              }
+                            >
+                              <Ellipsis size={18} strokeWidth={1.7} aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`在${course.courseCode || course.name}中新建聊天`}
+                              title="新聊天"
+                              disabled={newChatDisabled}
+                              onClick={() => onCreateCourseChat(course.id)}
+                            >
+                              <SquarePen size={17} strokeWidth={1.7} aria-hidden />
+                            </button>
+                          </div>
+                        </div>
+                        {expanded ? (
+                          <div
+                            className="phone-drawer-course-chats"
+                            id={'course-chats-' + course.id}
+                            role="group"
+                            aria-label={`${course.courseCode || course.name}的聊天`}
+                          >
+                            {chats.length ? (
+                              chats.map(renderRow)
+                            ) : (
+                              <p className="phone-drawer-course-empty">暂无聊天</p>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
                     );
                   })}
                 </div>
               </details>
+              {onCreateCourse ? (
+                <button
+                  type="button"
+                  className="phone-drawer-create"
+                  aria-label="新课程"
+                  onClick={onCreateCourse}
+                >
+                  <Plus size={14} strokeWidth={1.8} aria-hidden />
+                  <span>新课程</span>
+                </button>
+              ) : null}
             </nav>
-            <nav className="phone-drawer-nav" aria-label="学习工具">
-              <details className="phone-drawer-group" open>
-                <summary className="phone-drawer-section-toggle">
-                  <h3>学习</h3>
-                  <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
-                </summary>
-                <div className="phone-drawer-group-items">
-                  {learningActions.map(({ id, label, icon: Icon, open, count }) => (
-                    <button
-                      type="button"
-                      key={id}
-                      className="phone-drawer-tool"
-                      onClick={open}
-                      data-marble-target={id === 'memory' ? '2' : undefined}
-                    >
-                      <Icon size={20} strokeWidth={1.8} aria-hidden />
-                      <span>{label}</span>
-                      {count ? <small>{count}</small> : null}
-                    </button>
-                  ))}
-                </div>
-              </details>
-            </nav>
+            {learningActions.length ? <LearningToolsCard actions={learningActions} /> : null}
           </>
         ) : null}
         {pinnedConversations.length ? (
@@ -1179,28 +1293,47 @@ export function PhoneChatDrawer<
             {pinnedConversations.map(renderRow)}
           </>
         ) : null}
-        <p className="phone-drawer-section">最近</p>
-        {recentConversations.length ? (
-          <>
-            {recentConversations.slice(0, recentWindow.count).map(renderRow)}
-            <ConversationListEnd
-              listWindow={recentWindow}
-              paging={keyword ? undefined : paging}
-              length={conversations.length}
-            />
-          </>
-        ) : (
-          <p className="phone-drawer-empty">
-            <img src={marbleImages.blue} alt="" aria-hidden />
-            {keyword
-              ? '没有找到相关聊天'
-              : pinnedConversations.length
-                ? '没有其他聊天'
-                : '还没有聊天'}
-          </p>
-        )}
+        <details className="phone-drawer-group phone-drawer-recent" open>
+          <summary className="phone-drawer-section-toggle">
+            <h3>最近</h3>
+            <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
+          </summary>
+          {recentConversations.length ? (
+            <>{recentConversations.slice(0, recentWindow.count).map(renderRow)}</>
+          ) : (
+            <p className="phone-drawer-empty">
+              <img src={marbleImages.blue} alt="" aria-hidden />
+              {keyword
+                ? '没有找到相关聊天'
+                : pinnedConversations.length
+                  ? '没有其他聊天'
+                  : '还没有聊天'}
+            </p>
+          )}
+          <ConversationListEnd
+            listWindow={recentWindow}
+            paging={keyword ? undefined : onOpenRecentChat ? history.paging : paging}
+            length={allConversations.length}
+          />
+        </details>
       </div>
 
+      {onOpenRecentChat && history.error ? (
+        <p className="phone-drawer-empty" role="status">
+          {history.error}
+        </p>
+      ) : null}
+      {courseMenu ? (
+        <CourseToolsMenu
+          anchor={courseMenu.anchor}
+          courseName={courseMenu.course.courseCode || courseMenu.course.name}
+          onClose={() => setCourseMenu(null)}
+          onSelect={(page) => {
+            setCourseMenu(null);
+            onOpenCourseTool(courseMenu.course.id, page);
+          }}
+        />
+      ) : null}
       {menu ? (
         <div className="phone-chat-actions-layer">
           <button
@@ -1241,39 +1374,38 @@ export function PhoneChatDrawer<
             <button
               type="button"
               role="menuitem"
-              className="phone-chat-actions-danger"
+              className={
+                menu.conversation.courseId === (selectedCourseId || null)
+                  ? 'phone-chat-actions-danger'
+                  : undefined
+              }
               onClick={() => {
                 const conversation = menu.conversation;
                 closeMenu();
-                onDeleteConversation(conversation);
+                const original =
+                  conversation.courseId === (selectedCourseId || null)
+                    ? conversations.find((row) => row.id === conversation.id)
+                    : undefined;
+                if (original) onDeleteConversation(original);
+                else onOpenRecentChat?.(conversation.courseId, conversation.id);
               }}
             >
-              <span>删除</span>
-              <Trash2 size={18} />
+              {menu.conversation.courseId === (selectedCourseId || null) &&
+              conversations.some((row) => row.id === menu.conversation.id) ? (
+                <>
+                  <span>删除</span>
+                  <Trash2 size={18} />
+                </>
+              ) : (
+                <>
+                  <span>打开聊天</span>
+                  <MessageCircle size={18} />
+                </>
+              )}
             </button>
           </div>
         </div>
       ) : null}
-
-      <div className="phone-drawer-bottom">
-        <button
-          type="button"
-          className="phone-drawer-new"
-          onClick={onCreateConversation}
-          disabled={busy}
-        >
-          <SquarePen size={19} />
-          <span>新聊天</span>
-        </button>
-        <button
-          type="button"
-          className="phone-round-button"
-          onClick={onOpenProfile}
-          aria-label="我的"
-        >
-          <Settings size={20} />
-        </button>
-      </div>
     </div>
   );
 }
@@ -1987,6 +2119,11 @@ function CourseToolsPanel({
 }
 
 export function CourseWorkspace({
+  initialDraft = '',
+  onChangeChatScope,
+  homeHref,
+  onOpenRecentChat,
+  generalChatClient,
   workspace,
   initialConversationId = null,
   initialPage,
@@ -1995,13 +2132,14 @@ export function CourseWorkspace({
   backendLabel,
   onBack,
   onOpenProblemBank,
-  onOpenGlobalCalendar,
   onOpenPractice,
   onWorkspaceChanged,
   courses,
   onSwitchCourse,
+  onCreateCourseChat,
+  onOpenCourseTool,
   onCreateCourse,
-  onOpenGeneralChat,
+  onNewChat,
 }: CourseWorkspaceProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(() =>
     workspace.conversations.some((conversation) => conversation.id === initialConversationId)
@@ -2009,11 +2147,12 @@ export function CourseWorkspace({
       : null,
   );
   const [messages, setMessages] = useState<LocalMessage[]>([]);
+  const [scopeReady, setScopeReady] = useState(!initialConversationId);
   // 正在回答的那条消息用到的记忆和笔记，思考动画里画成真实颜色的珠子。
   const [thinkingRecall, setThinkingRecall] = useState<
     (ThinkingRecall & { messageId: string }) | null
   >(null);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(initialDraft);
   const [pendingImages, setPendingImages] = useState<PendingChatImage[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingChatFile[]>([]);
   // 手机端做题困难：聊天里不出现练习和复习题单；课堂讲解可以用。
@@ -2101,10 +2240,31 @@ export function CourseWorkspace({
   const [calendarDayItems, setCalendarDayItems] = useState<LocalCourseEvent[]>([]);
   const [memoryDialogOpen, setMemoryDialogOpen] = useState(false);
   const [focusedMemoryId, setFocusedMemoryId] = useState<string | null>(null);
-  // 手机上我的、笔记、学习进度、学习记忆都是从右边推进来的整页。
-  const [phonePage, setPhonePage] = useState<
+  // 学习页在右侧标签中保持挂载，切换时保留搜索和滚动位置。
+  const [phonePage, setPhonePageState] = useState<
     'profile' | 'notes' | 'progress' | 'memory' | 'calendar' | 'classroom' | 'problems' | null
   >(() => initialPage ?? readOpenPhonePage());
+  const [learningPages, setLearningPages] = useState<CourseLearningPage[]>(() => {
+    const page = initialPage ?? readOpenPhonePage();
+    return page && page !== 'calendar' ? [page] : [];
+  });
+  const setPhonePage = useCallback((page: typeof phonePage) => {
+    if (page && page !== 'profile' && page !== 'calendar') {
+      setLearningPages((pages) => (pages.includes(page) ? pages : [...pages, page]));
+    }
+    setPhonePageState(page);
+  }, []);
+  const activeLearningPage =
+    phonePage && phonePage !== 'profile' && phonePage !== 'calendar'
+      ? phonePage
+      : learningPages.at(-1);
+  const closeLearningPage = (page: CourseLearningPage) => {
+    const index = learningPages.indexOf(page);
+    const remaining = learningPages.filter((item) => item !== page);
+    setLearningPages(remaining);
+    if (activeLearningPage === page)
+      setPhonePageState(remaining[index] ?? remaining[index - 1] ?? null);
+  };
   const [marbleCatch, setMarbleCatch] = useState<MarbleCatch | null>(null);
   const [courseLearningState, setCourseLearningState] = useState<LocalCourseLearningState | null>(
     null,
@@ -2366,6 +2526,7 @@ export function CourseWorkspace({
     setOlderMessagesState('idle');
 
     if (!selectedConversationId) {
+      setScopeReady(true);
       setMessages([]);
       setMiniLectureDecksByMessageId(new Map());
       return;
@@ -2373,10 +2534,12 @@ export function CourseWorkspace({
 
     if (skipConversationLoadRef.current === selectedConversationId) {
       skipConversationLoadRef.current = null;
+      setScopeReady(true);
       setMiniLectureDecksByMessageId(new Map());
       return;
     }
 
+    setScopeReady(false);
     setMessages([]);
     setMiniLectureDecksByMessageId(new Map());
     void getLocalRepository()
@@ -2389,6 +2552,7 @@ export function CourseWorkspace({
       .then(([loadedMessages, decks]) => {
         if (cancelled || requestId !== conversationLoadRequestRef.current) return;
         setMessages(loadedMessages);
+        setScopeReady(true);
         setMiniLectureDecksByMessageId(
           new Map(
             decks
@@ -3127,35 +3291,34 @@ export function CourseWorkspace({
     [addFiles, platformAiAccess.message, syllabusAvailable, syllabusBusy],
   );
 
-  const createConversation = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const repository = await getLocalRepository();
-      const conversation = await repository.createConversation(workspace.course.id, '新对话');
-      await onWorkspaceChanged();
-      conversationLoadRequestRef.current += 1;
-      skipConversationLoadRef.current = conversation.id;
-      activeConversationIdRef.current = conversation.id;
-      setSelectedConversationId(conversation.id);
-      setMessages([]);
-      setMobilePanel(null);
-      setPhonePage(null);
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setBusy(false);
-    }
-  }, [onWorkspaceChanged, workspace.course.id]);
-
-  const selectConversation = useCallback((conversationId: string) => {
+  const createConversation = useCallback(() => {
+    if (busyRef.current) return;
     conversationLoadRequestRef.current += 1;
     skipConversationLoadRef.current = null;
-    activeConversationIdRef.current = conversationId;
-    setSelectedConversationId(conversationId);
+    activeConversationIdRef.current = null;
+    setSelectedConversationId(null);
+    setMessages([]);
+    setScopeReady(true);
+    setDraft('');
+    setPendingImages([]);
+    setPendingFiles([]);
+    setError(null);
     setMobilePanel(null);
     setPhonePage(null);
-  }, []);
+  }, [setPhonePage]);
+
+  const selectConversation = useCallback(
+    (conversationId: string) => {
+      setScopeReady(false);
+      conversationLoadRequestRef.current += 1;
+      skipConversationLoadRef.current = null;
+      activeConversationIdRef.current = conversationId;
+      setSelectedConversationId(conversationId);
+      setMobilePanel(null);
+      setPhonePage(null);
+    },
+    [setPhonePage],
+  );
 
   const saveCourseSettings = useCallback(async () => {
     if (!courseNameDraft.trim() || busy) return;
@@ -3247,7 +3410,7 @@ export function CourseWorkspace({
     if (phoneLayout) onOpenProblemBank();
     else setPhonePage('problems');
     setMobilePanel(null);
-  }, [onOpenProblemBank, phoneLayout]);
+  }, [onOpenProblemBank, phoneLayout, setPhonePage]);
 
   const openPracticeFromBank = useCallback(
     (launch: ProblemBankLaunch) => {
@@ -3264,7 +3427,7 @@ export function CourseWorkspace({
   const openNotebookLibrary = useCallback(() => {
     setMobilePanel(null);
     setPhonePage('notes');
-  }, []);
+  }, [setPhonePage]);
 
   const openCalendarDialog = useCallback(() => {
     setCalendarDialogOpen(true);
@@ -3272,11 +3435,14 @@ export function CourseWorkspace({
     setMobilePanel(null);
   }, []);
 
-  const openMemoryDialog = useCallback((memoryId: string | null = null) => {
-    setFocusedMemoryId(memoryId);
-    setMobilePanel(null);
-    setPhonePage('memory');
-  }, []);
+  const openMemoryDialog = useCallback(
+    (memoryId: string | null = null) => {
+      setFocusedMemoryId(memoryId);
+      setMobilePanel(null);
+      setPhonePage('memory');
+    },
+    [setPhonePage],
+  );
 
   const openCourseJar = useCallback(
     (courseId: string) => {
@@ -3292,7 +3458,7 @@ export function CourseWorkspace({
       }
       onSwitchCourse(courseId);
     },
-    [onSwitchCourse, workspace.course.id],
+    [onSwitchCourse, setPhonePage, workspace.course.id],
   );
 
   useEffect(() => {
@@ -4395,8 +4561,6 @@ export function CourseWorkspace({
       open: () => openMemoryDialog(),
       count: workspace.memories.length,
     },
-    { id: 'global-calendar', label: '总日历', icon: CalendarDays, open: onOpenGlobalCalendar },
-    { id: 'calendar', label: '课程日历', icon: CalendarDays, open: () => setPhonePage('calendar') },
     { id: 'classroom', label: '课堂', icon: Presentation, open: () => setPhonePage('classroom') },
     ...(!phoneLayout
       ? [{ id: 'problems', label: '题库', icon: FileQuestion, open: openProblemBank }]
@@ -4405,41 +4569,29 @@ export function CourseWorkspace({
 
   const renderPhoneDrawer = () => (
     <PhoneChatDrawer
-      learningActions={courseToolActions.map((action) => ({
+      onOpenRecentChat={onOpenRecentChat}
+      generalChatClient={generalChatClient}
+      homeHref={homeHref}
+      learningActions={(hasMessages ? courseToolActions : []).map((action) => ({
         ...action,
         open: () => openFromDrawer(action.open),
       }))}
       courses={courses}
       onCreateCourse={onCreateCourse}
-      onOpenGeneralChat={onOpenGeneralChat}
+      onNewChat={onNewChat ?? createConversation}
       selectedCourseId={workspace.course.id}
       selectedCourseAvatarUrl={courseAvatarUrl}
       conversations={workspace.conversations}
       paging={conversationPaging}
       onRemoteSearch={searchRemoteConversations}
       selectedConversationId={selectedConversationId}
-      busy={busy}
-      onCreateConversation={() => void createConversation()}
       onDeleteConversation={setConversationToDelete}
-      onSelectCourse={(courseId) => {
-        // Course rows always return to chat, including the currently selected course.
-        notebookLoadRequestRef.current += 1;
-        miniLectureLoadRequestRef.current += 1;
-        phonePageFromDrawerRef.current = false;
-        setMobilePanel(null);
-        setPhonePage(null);
-        setResource(null);
-        setResourceBusy(false);
-        setActiveMiniLecture(null);
-        setMiniLectureLoadingDeckId(null);
-        try {
-          window.sessionStorage.removeItem(OPEN_PHONE_PAGE_KEY);
-        } catch {
-          // Returning to the current chat still works without session storage.
-        }
-        if (courseId !== workspace.course.id) onSwitchCourse(courseId);
+      onCreateCourseChat={onCreateCourseChat}
+      onOpenCourseTool={(id, page) => {
+        if (id === workspace.course.id) openFromDrawer(() => setPhonePage(page));
+        else onOpenCourseTool(id, page);
       }}
-      onOpenProfile={() => openFromDrawer(() => setPhonePage('profile'))}
+      newChatDisabled={busy}
       onSelectConversation={selectConversation}
     />
   );
@@ -4449,14 +4601,17 @@ export function CourseWorkspace({
       ref={workspaceRef}
       onTouchStart={phoneLayout ? handleWorkspaceTouchStart : undefined}
       onTouchEnd={phoneLayout ? handleWorkspaceTouchEnd : undefined}
-      className={`course-workspace${leftRailCollapsed ? ' workspace-left-collapsed' : ''}${
+      className={`course-workspace${learningPages.length ? ' has-learning-tabs' : hasMessages ? ' has-learning-rail' : ''}${phonePage && phonePage !== 'profile' && phonePage !== 'calendar' ? ' is-learning-active' : ''}${leftRailCollapsed ? ' workspace-left-collapsed' : ''}${
         rightRailCollapsed ? ' workspace-right-collapsed' : ''
       }${phoneLayout && mobilePanel === 'sessions' ? ' phone-drawer-open' : ''}${
         phoneLayout ? '' : ' is-split'
       }${!phoneLayout && splitSidebarCollapsed ? ' is-sidebar-collapsed' : ''}`}
       aria-label={`${workspace.course.name} 课程工作台`}
     >
-      <aside className="workspace-sidebar workspace-sidebar-left">
+      <aside
+        className="workspace-sidebar workspace-sidebar-left"
+        inert={!phoneLayout && splitSidebarCollapsed}
+      >
         {phoneLayout
           ? leftRailCollapsed
             ? compactSessionPanel
@@ -4516,12 +4671,13 @@ export function CourseWorkspace({
           </div>
           <button
             type="button"
-            className="phone-glass-button"
+            className="phone-chat-new"
             onClick={() => void createConversation()}
             disabled={busy}
             aria-label="新聊天"
           >
-            <SquarePen size={20} strokeWidth={1.8} />
+            <SquarePen size={18} strokeWidth={1.8} aria-hidden />
+            <span>新聊天</span>
           </button>
         </header>
 
@@ -4703,6 +4859,13 @@ export function CourseWorkspace({
             >
               <Plus size={18} />
             </button>
+            <ChatScopePicker
+              courses={courses}
+              courseId={workspace.course.id}
+              courseAvatarUrl={courseAvatarUrl}
+              locked={!scopeReady || busy || messages.length > 0}
+              onChange={onChangeChatScope ? (id) => onChangeChatScope(id, draft) : undefined}
+            />
             <textarea
               ref={composerTextareaRef}
               rows={1}
@@ -4757,6 +4920,72 @@ export function CourseWorkspace({
           {error ? <p className="composer-error">{error}</p> : null}
         </footer>
       </main>
+
+      {hasMessages && !learningPages.length ? (
+        <aside className="course-learning-rail" aria-label="课程学习">
+          <LearningToolsCard actions={courseToolActions} />
+        </aside>
+      ) : null}
+
+      {activeLearningPage && learningPages.length ? (
+        <LearningWorkspaceTabs
+          pages={learningPages}
+          activePage={activeLearningPage}
+          onSelect={setPhonePage}
+          onClose={closeLearningPage}
+          onChat={() => setPhonePage(null)}
+          renderPage={(page) => (
+            <>
+              {page === 'notes' ? (
+                <PhoneNotesPage workspace={workspace} onBack={() => closeLearningPage(page)} />
+              ) : null}
+              {page === 'progress' ? (
+                <PhoneProgressPage
+                  learningState={courseLearningState}
+                  notebooks={workspace.notebooks}
+                  onProgressChange={saveCourseProgress}
+                  onOpenNotebook={(notebook) => void openNotebook(notebook)}
+                  onBack={() => closeLearningPage(page)}
+                />
+              ) : null}
+              {page === 'classroom' ? (
+                <PhoneClassroomPage
+                  courseId={workspace.course.id}
+                  conversations={workspace.conversations}
+                  revision={courseDataRevision}
+                  loadingDeckId={miniLectureLoadingDeckId}
+                  onOpenDeck={(deck) => void openMiniLecture(deck)}
+                  onOpenRemoteDeck={openRemoteMiniLecture}
+                  onBack={() => closeLearningPage(page)}
+                />
+              ) : null}
+              {page === 'problems' ? (
+                <div className="phone-page phone-page-overlay split-problem-bank">
+                  <ProblemBankPage
+                    workspace={workspace}
+                    onBack={() => closeLearningPage(page)}
+                    onPractice={openPracticeFromBank}
+                  />
+                </div>
+              ) : null}
+              {page === 'memory' ? (
+                <PhoneMemoryPage
+                  courseId={workspace.course.id}
+                  courseLabel={workspace.course.courseCode || workspace.course.name}
+                  backgroundUrl={profileThemeForAvatar(courseAvatarUrl)?.galaxyUrl}
+                  notebooks={workspace.notebooks}
+                  memories={workspace.memories}
+                  focusedMemoryId={focusedMemoryId}
+                  onBack={() => {
+                    closeLearningPage(page);
+                    setFocusedMemoryId(null);
+                  }}
+                />
+              ) : null}
+            </>
+          )}
+        />
+      ) : null}
 
       <aside className="workspace-sidebar workspace-sidebar-right">
         {rightRailCollapsed ? compactToolsPanel : toolsPanel}
@@ -5340,18 +5569,6 @@ export function CourseWorkspace({
           onBack={closePhonePage}
         />
       ) : null}
-      {phonePage === 'notes' ? (
-        <PhoneNotesPage workspace={workspace} onBack={closePhonePage} />
-      ) : null}
-      {phonePage === 'progress' ? (
-        <PhoneProgressPage
-          learningState={courseLearningState}
-          notebooks={workspace.notebooks}
-          onProgressChange={saveCourseProgress}
-          onOpenNotebook={(notebook) => void openNotebook(notebook)}
-          onBack={closePhonePage}
-        />
-      ) : null}
       {phonePage === 'calendar' ? (
         <PhoneCalendarPage
           initialDate={calendarDate}
@@ -5363,40 +5580,6 @@ export function CourseWorkspace({
           }}
           onEditEvent={openScheduleEditor}
           onBack={closePhonePage}
-        />
-      ) : null}
-      {phonePage === 'classroom' ? (
-        <PhoneClassroomPage
-          courseId={workspace.course.id}
-          conversations={workspace.conversations}
-          revision={courseDataRevision}
-          loadingDeckId={miniLectureLoadingDeckId}
-          onOpenDeck={(deck) => void openMiniLecture(deck)}
-          onOpenRemoteDeck={openRemoteMiniLecture}
-          onBack={closePhonePage}
-        />
-      ) : null}
-      {phonePage === 'problems' && !phoneLayout ? (
-        <div className="phone-page phone-page-overlay split-problem-bank">
-          <ProblemBankPage
-            workspace={workspace}
-            onBack={closePhonePage}
-            onPractice={openPracticeFromBank}
-          />
-        </div>
-      ) : null}
-      {phonePage === 'memory' ? (
-        <PhoneMemoryPage
-          courseId={workspace.course.id}
-          courseLabel={workspace.course.courseCode || workspace.course.name}
-          backgroundUrl={profileThemeForAvatar(courseAvatarUrl)?.galaxyUrl}
-          notebooks={workspace.notebooks}
-          memories={workspace.memories}
-          focusedMemoryId={focusedMemoryId}
-          onBack={() => {
-            closePhonePage();
-            setFocusedMemoryId(null);
-          }}
         />
       ) : null}
       {resource ? (

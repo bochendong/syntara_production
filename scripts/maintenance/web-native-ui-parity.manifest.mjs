@@ -1,5 +1,42 @@
 export const nativeUiParityManifest = [
   {
+    native: 'apps/native/src/components/LearningWorkspaceTabs.tsx',
+    web: [],
+    components: ['LearningWorkspaceTabs'],
+    parity: 'intentional-native',
+    reason:
+      'Shared responsive learning tabs keep chat visible in the App browser and native shell.',
+  },
+  {
+    native: 'apps/native/src/components/CourseToolsMenu.tsx',
+    web: [],
+    components: ['CourseToolsMenu'],
+    parity: 'intentional-native',
+    reason: 'Shared course learning menu for the current App browser and native sidebar.',
+  },
+  {
+    native: 'apps/native/src/components/AppNavigationRail.tsx',
+    web: [],
+    components: ['AppNavigationRail'],
+    parity: 'intentional-native',
+    reason: 'Shared global navigation for the current App browser and native shell.',
+  },
+  {
+    native: 'apps/native/src/components/GeneralChatWorkspace.tsx',
+    web: [],
+    components: ['GeneralChatWorkspace'],
+    parity: 'intentional-native',
+    reason:
+      'The current App browser shell provides account-level ordinary chat without a historical Learn equivalent.',
+  },
+  {
+    native: 'apps/native/src/components/ChatScopePicker.tsx',
+    web: [],
+    components: ['ChatScopePicker'],
+    parity: 'intentional-native',
+    reason: 'Shared by the current App browser build and native course composer.',
+  },
+  {
     native: 'apps/native/src/App.tsx',
     web: ['components/app-layout-chrome.tsx', 'components/learn/learn-home-page-client.tsx'],
     components: ['App', 'AuthenticatedApp'],
@@ -17,6 +54,8 @@ export const nativeUiParityManifest = [
     web: ['components/learn/learn-page-client.tsx'],
     components: [
       'CourseWorkspace',
+      'PhoneChatDrawer',
+      'LearningToolsCard',
       'SessionsPanel',
       'LibrarySearchRow',
       'CourseLearningProgressPanel',

@@ -37,7 +37,20 @@ const post = <T>(payload: unknown) =>
   });
 export const generalChatClient: GeneralChatClient = {
   async list() {
-    return (await browserRequest<{ conversations: GeneralConversation[] }>(endpoint)).conversations;
+    const rows = new Map<string, GeneralConversation>();
+    let cursor: string | null = null;
+    const visited = new Set<string>();
+    do {
+      const page: { conversations: GeneralConversation[]; nextCursor?: string | null } =
+        await browserRequest(
+          cursor ? endpoint + '?cursor=' + encodeURIComponent(cursor) : endpoint,
+        );
+      for (const chat of page.conversations) rows.set(chat.id, chat);
+      cursor = page.nextCursor ?? null;
+      if (cursor && visited.has(cursor)) throw new Error('聊天记录分页异常，请重试');
+      if (cursor) visited.add(cursor);
+    } while (cursor);
+    return [...rows.values()];
   },
   async load(id) {
     return (

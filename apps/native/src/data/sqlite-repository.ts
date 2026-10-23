@@ -986,6 +986,27 @@ export class SqliteLocalRepository implements LocalRepository {
     return rows.map(mapCourseSummary);
   }
 
+  async listConversations(courseIds: string[]): Promise<LocalConversation[]> {
+    if (!courseIds.length) return [];
+    const database = await this.database();
+    const rows: SqlRow[] = [];
+    // Stay below SQLite's parameter limit when an account has many courses.
+    for (let offset = 0; offset < courseIds.length; offset += 500) {
+      const group = courseIds.slice(offset, offset + 500);
+      rows.push(
+        ...(await database.select<SqlRow[]>(
+          'SELECT * FROM conversations WHERE course_id IN (' +
+            group.map((_, index) => '$' + (index + 1)).join(',') +
+            ')',
+          group,
+        )),
+      );
+    }
+    return rows
+      .map(mapConversation)
+      .sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
+  }
+
   async latestCourseConversation(courseId: string): Promise<LocalConversation | null> {
     const rows = await (
       await this.database()

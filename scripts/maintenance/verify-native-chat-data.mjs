@@ -85,6 +85,15 @@ for (const [id, course, updated] of [
 assert.equal((await repository.latestCourseConversation('course-a')).id, 'latest-a');
 assert.equal((await repository.latestCourseConversation('course-b')).id, 'latest-b');
 assert.equal(await repository.latestCourseConversation('course-empty'), null);
+assert.deepEqual(
+  (await repository.listConversations(['course-a', 'course-b'])).map((row) => row.id),
+  ['latest-b', 'latest-a', 'old'],
+);
+assert.deepEqual(
+  (await repository.listConversations(['course-a'])).map((row) => row.id),
+  ['latest-a', 'old'],
+);
+assert.deepEqual(await repository.listConversations([]), []);
 const { courseScopedEventId } = await import(
   path.join(ROOT, 'apps/native/src/domain/learning-experiences.ts')
 );

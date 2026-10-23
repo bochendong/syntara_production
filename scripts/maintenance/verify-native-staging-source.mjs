@@ -16,7 +16,8 @@ assert.doesNotMatch(
 assert.ok(existsSync(path.join(root, 'apps/native/src/assets/marbles/r-blue-swirl.webp')));
 assert.match(app, /from '\.\/components\/CourseWorkspace'/);
 assert.match(app, /useState<AppSurface>\('launch'\)/);
-assert.match(app, /onOpenGlobalCalendar=/);
+assert.match(app, /<AppNavigationRail/);
+assert.match(app, /onOpenCalendar=\{\(\) => setGlobalPage\('calendar'\)\}/);
 assert.match(app, /GlobalCalendarApp/);
 assert.doesNotMatch(app, /LearnHome|ProfileCenterApp|HaruLive2D/);
 assert.match(read('apps/native/src/components/CourseWorkspace.tsx'), /streamNativeChat\(/);

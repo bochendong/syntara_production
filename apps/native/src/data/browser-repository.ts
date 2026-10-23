@@ -531,6 +531,15 @@ export class BrowserLocalRepository implements LocalRepository {
     );
   }
 
+  async listConversations(courseIds: string[]): Promise<LocalConversation[]> {
+    if (!courseIds.length) return [];
+    const rows = await this.database.conversations
+      .where('courseId')
+      .anyOf(courseIds)
+      .sortBy('updatedAt');
+    return rows.reverse();
+  }
+
   async latestCourseConversation(courseId: string): Promise<LocalConversation | null> {
     const conversations = await this.database.conversations
       .where('courseId')

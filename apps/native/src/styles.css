@@ -5172,7 +5172,7 @@ select,
 
 .phone-chat-header {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: 104px minmax(0, 1fr) 104px;
   align-items: center;
   gap: 12px;
   /* The course workspace already reserves the top safe area. */
@@ -5304,6 +5304,146 @@ select,
   color: #0f172a;
 }
 
+.composer-course-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  max-width: 100%;
+  align-self: center;
+  justify-self: start;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.chat-scope-picker {
+  position: relative;
+  padding: 5px 8px;
+  margin-left: -8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-scope-picker.is-locked {
+  cursor: default;
+}
+.chat-scope-picker:not(.is-locked):hover,
+.chat-scope-picker[aria-expanded='true'] {
+  background: rgb(15 23 42 / 5%);
+}
+.chat-scope-picker:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 2px;
+}
+.chat-scope-picker > svg {
+  flex: none;
+}
+.chat-scope-chevron {
+  transition: transform 160ms ease;
+}
+.chat-scope-picker[aria-expanded='true'] .chat-scope-chevron {
+  transform: rotate(180deg);
+}
+.chat-scope-popover {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid rgb(15 23 42 / 8%);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow:
+    0 8px 32px rgb(15 23 42 / 12%),
+    0 2px 6px rgb(15 23 42 / 4%);
+  color: #1e293b;
+  font-size: 14px;
+}
+
+.chat-scope-options {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  outline: none;
+}
+.chat-scope-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  cursor: pointer;
+}
+.chat-scope-option.is-active {
+  background: #f3f4f7;
+}
+.chat-scope-options:focus-visible .chat-scope-option.is-active {
+  box-shadow: inset 0 0 0 1px #c4b5fd;
+}
+.chat-scope-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #f0f2f8;
+  color: #64748b;
+}
+.chat-scope-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.chat-scope-option-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.chat-scope-option-copy > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-scope-check {
+  flex: none;
+  color: #6752b8;
+}
+
+.general-composer .chat-scope-picker {
+  grid-column: 1 / 3;
+  margin-left: 0;
+}
+
+.composer-course-label img {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.composer-course-label > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .conversation-composer .model-chip {
   display: none;
 }
@@ -5373,6 +5513,11 @@ select,
 }
 
 .phone-drawer {
+  --sidebar-label-size: 14px;
+  --sidebar-section-size: 12px;
+  --sidebar-brand-size: 22px;
+  font-size: var(--sidebar-label-size);
+  line-height: 1.45;
   position: relative;
   width: var(--phone-drawer-width);
   display: flex;
@@ -5392,8 +5537,19 @@ select,
 .phone-drawer-top h2 {
   margin: 0;
   color: #0f172a;
-  font-size: 26px;
+  font-size: var(--sidebar-brand-size);
   font-weight: 700;
+}
+
+.phone-drawer-home {
+  color: inherit;
+  text-decoration: none;
+  border-radius: 6px;
+}
+
+.phone-drawer-home:focus-visible {
+  outline: 2px solid #5268a8;
+  outline-offset: 4px;
 }
 
 .phone-drawer-search {
@@ -5414,6 +5570,37 @@ select,
   padding: 0 0 12px;
 }
 
+.phone-drawer-courses {
+  position: relative;
+}
+
+.phone-drawer-courses .phone-drawer-section-toggle {
+  justify-content: flex-start;
+  gap: 6px;
+  padding-right: 86px;
+}
+
+.phone-drawer-nav .phone-drawer-create {
+  position: absolute;
+  top: 12px;
+  right: 6px;
+  height: 36px;
+  gap: 4px;
+  padding: 0 8px;
+  color: #64748b;
+  font-size: var(--sidebar-section-size);
+}
+
+.phone-drawer-create:hover {
+  background: rgb(15 23 42 / 4%);
+}
+
+.phone-drawer-shortcuts {
+  margin-top: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgb(15 23 42 / 7%);
+}
+
 .phone-drawer-nav button {
   display: flex;
   align-items: center;
@@ -5424,14 +5611,15 @@ select,
   border-radius: var(--radius-sm);
   background: transparent;
   color: #0f172a;
-  font-size: 16px;
+  font-size: var(--sidebar-label-size);
   text-align: left;
   cursor: pointer;
 }
 
 .phone-drawer-nav button:active,
-.phone-drawer-row button:active {
+.phone-drawer-row:active {
   background: #f1f5f9;
+  font-size: var(--sidebar-label-size);
 }
 
 .phone-drawer-nav .phone-drawer-tool {
@@ -5446,7 +5634,7 @@ select,
 .phone-drawer-tool small {
   margin-left: auto;
   color: #94a3b8;
-  font-size: 12px;
+  font-size: var(--sidebar-section-size);
 }
 
 .phone-drawer-nav button:focus-visible {
@@ -5456,6 +5644,89 @@ select,
 
 .phone-drawer-nav .phone-drawer-course.is-current {
   background: rgb(15 23 42 / 6%);
+}
+
+.phone-drawer-course-heading {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  transition: background 140ms ease;
+}
+.phone-drawer-course-heading.is-current,
+.phone-drawer-course-heading:hover {
+  background: rgb(15 23 42 / 6%);
+}
+.phone-drawer-course-heading .phone-drawer-course {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding-right: 6px;
+  background: transparent;
+}
+
+.phone-drawer-course-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding-right: 4px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .phone-drawer-course-actions,
+  .phone-drawer-row .phone-drawer-delete {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 140ms ease;
+  }
+
+  .phone-drawer-course-actions:has(button[aria-expanded='true']),
+  .phone-drawer-course-heading:hover .phone-drawer-course-actions,
+  .phone-drawer-course-heading:has(:focus-visible) .phone-drawer-course-actions,
+  .phone-drawer-row:hover .phone-drawer-delete,
+  .phone-drawer-row:has(:focus-visible) .phone-drawer-delete {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.phone-drawer-nav .phone-drawer-course-actions button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 36px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+}
+.phone-drawer-nav .phone-drawer-course-actions button:hover {
+  background: rgb(15 23 42 / 7%);
+  color: #0f172a;
+}
+.phone-drawer-course-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.phone-drawer-course-chats {
+  margin: 2px 0 8px 22px;
+}
+.phone-drawer-course-empty {
+  margin: 0;
+  padding: 10px 12px;
+  color: #64748b;
+  font-size: var(--sidebar-label-size);
+  line-height: 18px;
+}
+
+.phone-drawer-course-chats .phone-drawer-row > button:first-child {
+  height: 38px;
+}
+.phone-drawer-course-chats .phone-drawer-delete {
+  width: 32px;
+  height: 38px;
 }
 
 .phone-drawer-course img {
@@ -5482,7 +5753,7 @@ select,
 .phone-drawer-section {
   margin: 18px 12px 4px;
   color: #8a8a8a;
-  font-size: 14px;
+  font-size: var(--sidebar-section-size);
   font-weight: 500;
 }
 
@@ -5505,7 +5776,7 @@ select,
 
 .phone-drawer-section-toggle h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--sidebar-section-size);
   font-weight: 500;
 }
 
@@ -5533,6 +5804,49 @@ select,
   gap: 2px;
 }
 
+.phone-drawer-nav.phone-drawer-learning {
+  margin: 10px 2px 8px;
+  padding: 8px;
+  border: 1px solid rgb(15 23 42 / 9%);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 88%);
+  box-shadow:
+    0 2px 6px rgb(15 23 42 / 3%),
+    0 8px 20px rgb(15 23 42 / 2%);
+}
+
+.phone-drawer-learning .phone-drawer-section-toggle {
+  min-height: 32px;
+  margin: 0 0 4px;
+  padding: 6px 8px;
+  border-radius: 9px;
+}
+
+.phone-drawer-learning .phone-drawer-group-items {
+  gap: 2px;
+}
+
+.phone-drawer-learning .phone-drawer-tool {
+  height: 36px;
+  gap: 10px;
+  padding-inline: 8px;
+  border-radius: 9px;
+}
+
+.phone-drawer-learning .phone-drawer-tool svg {
+  width: 18px;
+  height: 18px;
+  margin-inline: 0;
+  color: #8a929e;
+}
+
+.phone-drawer-learning .phone-drawer-tool > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .phone-drawer-row {
   display: flex;
   align-items: center;
@@ -5549,7 +5863,7 @@ select,
   border-radius: var(--radius-sm);
   background: transparent;
   color: #0f172a;
-  font-size: 16px;
+  font-size: var(--sidebar-label-size);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -5582,7 +5896,7 @@ select,
   gap: 8px;
   margin: 8px 12px;
   color: #94a3b8;
-  font-size: 15px;
+  font-size: var(--sidebar-section-size);
 }
 
 /* 底部按钮放在列表下面的固定一栏里，不再压住最后几条聊天。 */
@@ -5591,7 +5905,7 @@ select,
   display: flex;
   flex: none;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 10px 16px 8px;
   border-top: 1px solid rgb(15 23 42 / 6%);
 }
@@ -5608,22 +5922,31 @@ select,
   pointer-events: auto;
 }
 
-.phone-drawer-new {
+.phone-chat-new {
   display: inline-flex;
+  justify-self: end;
+  justify-content: center;
   align-items: center;
-  gap: 10px;
-  height: 52px;
-  padding: 0 24px;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
   border: 0;
   border-radius: var(--radius-lg);
   background: #000;
   box-shadow: 0 10px 26px rgb(0 0 0 / 22%);
   color: #fff;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.phone-drawer-new:disabled {
+.phone-chat-new:focus-visible {
+  outline: 2px solid #5268a8;
+  outline-offset: 3px;
+}
+
+.phone-chat-new:disabled {
   opacity: 0.6;
 }
 
@@ -5664,7 +5987,7 @@ select,
   left: 0;
   z-index: 5;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: 104px minmax(0, 1fr) 104px;
   align-items: center;
   gap: 10px;
   padding: calc(8px + env(safe-area-inset-top)) 14px 12px;
@@ -5715,7 +6038,7 @@ select,
   border: 0;
   background: transparent;
   color: #0f172a;
-  text-align: left;
+  text-align: center;
 }
 
 .phone-chat-title > span {
@@ -5725,10 +6048,15 @@ select,
   line-height: 1.2;
 }
 
+.phone-chat-title strong,
+.phone-chat-title small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .phone-chat-title strong {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
+  display: block;
   font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -6253,19 +6581,9 @@ select,
   padding-block: 8px 12px;
 }
 
-/* macOS navigation has a quieter type scale than the shared mobile drawer. */
-.platform-macos .course-workspace.is-split .phone-drawer {
-  --sidebar-label-size: 14px;
-  --sidebar-section-size: 12px;
-}
-
-.platform-macos .course-workspace.is-split .phone-drawer-top h2 {
-  font-size: 22px;
-}
-
-.platform-macos .course-workspace.is-split .phone-drawer-nav button,
+/* macOS navigation keeps its compact spacing with the shared type scale. */
+.platform-macos .course-workspace.is-split .phone-drawer-nav button:not(.phone-drawer-create),
 .platform-macos .course-workspace.is-split .phone-drawer-row > button:first-child,
-.platform-macos .course-workspace.is-split .phone-drawer-new,
 .platform-macos .course-workspace.is-split .phone-drawer-search,
 .platform-macos .course-workspace.is-split .phone-chat-actions-preview {
   font-size: var(--sidebar-label-size);
@@ -6291,12 +6609,6 @@ select,
   width: 18px;
   height: 18px;
   margin-inline: 2px;
-}
-
-.platform-macos .course-workspace.is-split .phone-drawer-new {
-  height: 44px;
-  padding-inline: 20px;
-  border-radius: var(--radius-lg);
 }
 
 .platform-macos .course-workspace.is-split .phone-drawer-bottom svg {
@@ -6367,7 +6679,7 @@ select,
 .course-workspace.is-split.is-split .pb-header,
 .course-workspace.is-split.is-split .nr-header {
   height: var(--workspace-toolbar-height);
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: 104px minmax(0, 1fr) 104px;
   padding: 8px 18px 11px;
 }
 
@@ -6394,7 +6706,14 @@ select,
 }
 
 @media (pointer: fine) {
-  .course-workspace.is-split .phone-drawer-row button:hover,
+  .course-workspace.is-split .phone-drawer-row:hover {
+    background: var(--chat-row-hover, rgb(15 23 42 / 5%));
+  }
+
+  .course-workspace.is-split .phone-drawer-row-active:hover {
+    background: var(--chat-row-active, #ececec);
+  }
+
   .course-workspace.is-split .phone-drawer-nav button:hover {
     background: rgb(15 23 42 / 5%);
   }
@@ -6436,4 +6755,291 @@ select,
 .native-tester-form input:focus-visible {
   outline: 2px solid #7c3aed;
   outline-offset: 2px;
+}
+
+/* Wide screens put the learning card at the upper right of the conversation. */
+.course-learning-rail {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .course-workspace.is-split.is-split.has-learning-rail {
+    --learning-rail-width: 280px;
+    grid-template-columns: var(--phone-drawer-width) minmax(0, 1fr) var(--learning-rail-width);
+    background:
+      radial-gradient(120% 60% at 100% 0%, rgb(224 231 255 / 55%), transparent 60%),
+      radial-gradient(90% 50% at 0% 100%, rgb(241 245 249 / 70%), transparent 60%), #fbfbfd;
+  }
+
+  .course-workspace.is-split.is-split.has-learning-rail.is-sidebar-collapsed {
+    grid-template-columns: 0 minmax(0, 1fr) var(--learning-rail-width);
+  }
+
+  .course-workspace.is-split.is-split.has-learning-rail > .conversation-workspace {
+    overflow: visible;
+    background: transparent;
+  }
+
+  .course-workspace.is-split.is-split.has-learning-rail
+    > .conversation-workspace
+    > .phone-chat-header {
+    right: calc(0px - var(--learning-rail-width));
+    grid-template-columns: 104px minmax(0, 1fr) calc(104px + var(--learning-rail-width));
+  }
+
+  .has-learning-rail > .workspace-sidebar-left .phone-drawer-learning {
+    display: none;
+  }
+
+  .course-workspace.is-split > .course-learning-rail {
+    --sidebar-label-size: 14px;
+    --sidebar-section-size: 12px;
+    display: block;
+    grid-column: 3;
+    grid-row: 1;
+    min-width: 0;
+    height: 100%;
+    overflow-y: auto;
+    padding: calc(var(--workspace-toolbar-height) + 12px) 12px 12px;
+    background: transparent;
+  }
+
+  .course-workspace.is-split.has-learning-rail .phone-page-overlay,
+  .course-workspace.is-split.has-learning-rail > .nr-layer {
+    right: var(--learning-rail-width);
+  }
+
+  .course-learning-rail .phone-drawer-learning {
+    width: 100%;
+    margin: 0;
+  }
+}
+
+.phone-drawer-recent > .phone-drawer-section-toggle {
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+/* The row owns its hover/pressed surface, including the trailing action. */
+.course-workspace .phone-drawer-row > button:hover,
+.course-workspace .phone-drawer-row > button:active,
+.course-workspace.is-split .phone-drawer-row > button:hover {
+  background: transparent;
+}
+
+.course-tools-menu {
+  position: fixed;
+  z-index: 1000;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid rgb(15 23 42 / 8%);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow:
+    0 8px 32px rgb(15 23 42 / 12%),
+    0 2px 6px rgb(15 23 42 / 4%);
+  color: #1e293b;
+}
+.course-tools-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.course-tools-menu button svg {
+  flex: none;
+  color: #8992a1;
+}
+.course-tools-menu button:hover,
+.course-tools-menu button:focus-visible {
+  background: #f3f4f7;
+  outline: none;
+}
+
+.phone-drawer-nav.phone-drawer-primary {
+  padding: 0 10px 8px;
+}
+.phone-drawer-primary button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.learning-workspace {
+  position: absolute;
+  inset: var(--workspace-toolbar-height, 64px) 0 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: #fbfbfd;
+  border-left: 1px solid rgb(15 23 42 / 8%);
+}
+.learning-workspace-bar {
+  display: flex;
+  flex: none;
+  min-width: 0;
+  padding: 8px 8px 0;
+  border-bottom: 1px solid rgb(15 23 42 / 8%);
+  background: rgb(248 249 252 / 95%);
+}
+.learning-workspace-tabs {
+  display: flex;
+  min-width: 0;
+  gap: 3px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.learning-workspace-tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: 0 5px 0 2px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  color: #64748b;
+}
+.learning-workspace-tab.is-active {
+  border-color: rgb(15 23 42 / 9%);
+  background: #fff;
+  color: #0f172a;
+}
+.learning-workspace-bar button {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.learning-workspace-tab .learning-workspace-close {
+  min-height: 26px;
+  width: 26px;
+  padding: 4px;
+}
+.learning-workspace-bar button:hover {
+  background: rgb(15 23 42 / 5%);
+}
+.learning-workspace-bar button:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: -2px;
+}
+.learning-workspace-chat {
+  margin-right: 5px;
+}
+.learning-workspace-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.learning-workspace-panel {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.learning-workspace-panel[hidden] {
+  display: none;
+}
+.course-workspace .learning-workspace-panel > .phone-page.phone-page-overlay {
+  --phone-page-header: 0px;
+  inset: 0;
+  width: 100%;
+  box-shadow: none;
+  animation: none;
+  border: 0;
+  border-radius: 0;
+}
+.learning-workspace-panel > .phone-page > .phone-page-header {
+  display: none;
+}
+.learning-workspace-panel .pb-header {
+  display: none;
+}
+.course-workspace.has-learning-tabs:not(.is-learning-active) > .learning-workspace {
+  display: none;
+}
+@media (min-width: 1100px) {
+  .course-workspace.is-split.is-split.has-learning-tabs {
+    --learning-pane-width: clamp(380px, 40vw, 640px);
+    grid-template-columns: var(--phone-drawer-width) minmax(0, 1fr) var(--learning-pane-width);
+  }
+  .course-workspace.is-split.is-split.has-learning-tabs.is-sidebar-collapsed {
+    grid-template-columns: 0 minmax(0, 1fr) var(--learning-pane-width);
+  }
+  .course-workspace.is-split.has-learning-tabs > .conversation-workspace {
+    overflow: visible;
+  }
+  .course-workspace.is-split.has-learning-tabs > .conversation-workspace > .phone-chat-header {
+    right: calc(0px - var(--learning-pane-width));
+    grid-template-columns: 104px minmax(0, 1fr) 104px;
+  }
+  .course-workspace.is-split.has-learning-tabs > .learning-workspace {
+    position: relative;
+    inset: auto;
+    display: flex;
+    grid-column: 3;
+    grid-row: 1;
+    height: calc(100% - var(--workspace-toolbar-height));
+    margin-top: var(--workspace-toolbar-height);
+  }
+  .learning-workspace-chat {
+    display: none !important;
+  }
+  .has-learning-tabs > .workspace-sidebar-left .phone-drawer-learning {
+    display: none;
+  }
+}
+@media (min-width: 768px) and (max-width: 1099px) {
+  .course-workspace.is-split.has-learning-tabs > .learning-workspace {
+    left: var(--phone-drawer-width);
+  }
+  .course-workspace.is-split.has-learning-tabs.is-sidebar-collapsed > .learning-workspace {
+    left: 0;
+  }
+}
+
+/* The memory layout follows the pane width rather than the window width. */
+.course-workspace .learning-workspace .phone-memory-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.course-workspace .learning-workspace .phone-memory-layout > * {
+  width: 100%;
+  min-width: 0;
+}
+.course-workspace .learning-workspace .phone-memory-layout .phone-memory-galaxy {
+  position: relative;
+}
+.course-workspace .learning-workspace .phone-memory-layout .memory-galaxy,
+.course-workspace .learning-workspace .phone-memory-layout .galaxy-flat {
+  height: min(42vh, 360px);
+  min-height: 220px;
+}
+@media (max-width: 1099px) {
+  .course-workspace.has-learning-tabs.is-learning-active .conversation-content,
+  .course-workspace.has-learning-tabs.is-learning-active .conversation-composer-footer {
+    visibility: hidden;
+  }
 }

@@ -66,6 +66,11 @@
   color: #334155;
 }
 
+.has-avatar-theme .phone-drawer-row {
+  --chat-row-hover: var(--avatar-theme-soft);
+  --chat-row-active: var(--avatar-theme-soft);
+}
+
 .has-avatar-theme .phone-drawer-nav .phone-drawer-course.is-current,
 .has-avatar-theme .phone-drawer-row-active {
   background: var(--avatar-theme-soft);
@@ -120,8 +125,7 @@
 }
 
 @media (hover: hover) {
-  .has-avatar-theme .phone-drawer-nav button:hover,
-  .has-avatar-theme .phone-drawer-row > button:first-child:hover {
+  .has-avatar-theme .phone-drawer-nav button:hover {
     background: var(--avatar-theme-soft);
   }
 }

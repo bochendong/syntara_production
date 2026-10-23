@@ -1,3 +1,4 @@
+import { AppNavigationRail } from './components/AppNavigationRail';
 import { browserApp } from './data/browser-runtime';
 import { CreateCourseDialog } from './components/CreateCourseDialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -52,9 +53,13 @@ function updateWithPlatformTransition(update: () => void) {
 function AuthenticatedApp() {
   const avatarTheme = useAvatarTheme();
   const [creatingCourse, setCreatingCourse] = useState(false);
+  const [chatDraft, setChatDraft] = useState({ text: '', revision: 0 });
   const [courses, setCourses] = useState<LocalCourseSummary[]>([]);
   const [platformCourseIds, setPlatformCourseIds] = useState<string[] | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [initialGeneralConversationId, setInitialGeneralConversationId] = useState<string | null>(
+    null,
+  );
   const [initialConversationId, setInitialConversationId] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<LocalCourseWorkspace | null>(null);
   const [surface, setSurface] = useState<AppSurface>('launch');
@@ -80,7 +85,7 @@ function AuthenticatedApp() {
       return 'medium';
     }
   });
-  const [initialPage, setInitialPage] = useState<'calendar' | 'memory' | undefined>();
+  const [initialPage, setInitialPage] = useState<CourseOpenTarget['page'] | undefined>();
   const [newEventDate, setNewEventDate] = useState<string | undefined>();
   const [calendarDate, setCalendarDate] = useState<string | undefined>();
   const switchingCourse = surface !== 'launch' && settledCourseId !== selectedCourseId;
@@ -151,9 +156,11 @@ function AuthenticatedApp() {
   }, [toast]);
 
   const openCourse = useCallback(
-    (courseId: string, conversationId?: string, target?: CourseOpenTarget) => {
+    (courseId: string, conversationId?: string, target?: CourseOpenTarget, draft = '') => {
+      navigationRequest.current += 1;
       updateWithPlatformTransition(() => {
         setGlobalPage(null);
+        setChatDraft((current) => ({ text: draft, revision: current.revision + 1 }));
         setLaunchRevision((revision) => revision + 1);
         setSelectedCourseId(courseId);
         setInitialConversationId(conversationId ?? null);
@@ -201,12 +208,45 @@ function AuthenticatedApp() {
     else if (browserApp) setSurface('general');
   }, [loading, surface, launchCourses, openRecentCourse]);
 
-  const openGeneralChat = useCallback(() => {
+  const openGeneralChat = useCallback((draft = '', conversationId: string | null = null) => {
+    setInitialGeneralConversationId(conversationId);
+    navigationRequest.current += 1;
+    setChatDraft((current) => ({ text: draft, revision: current.revision + 1 }));
     setGlobalPage(null);
     setSurface('general');
     setSelectedCourseId(null);
     setWorkspace(null);
   }, []);
+
+  const openRecentChat = async (courseId: string | null, conversationId: string) => {
+    if (!courseId) {
+      if (browserApp) openGeneralChat('', conversationId);
+      return;
+    }
+    if (!launchCourses.some((course) => course.id === courseId)) return;
+    const request = ++navigationRequest.current;
+    try {
+      // A newly synced chat may not be in the already-open course snapshot yet.
+      const next = await (await getLocalRepository()).loadCourseWorkspace(courseId);
+      if (request !== navigationRequest.current) return;
+      if (!next) throw new Error('未找到这门课程');
+      setWorkspace(next);
+      openCourse(courseId, conversationId);
+    } catch (cause) {
+      if (request === navigationRequest.current)
+        setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
+  const changeChatScope = useCallback(
+    (courseId: string | null, draft: string) => {
+      if (courseId) {
+        if (!launchCourses.some((course) => course.id === courseId)) return;
+        openCourse(courseId, undefined, undefined, draft);
+      } else openGeneralChat(draft);
+    },
+    [launchCourses, openCourse, openGeneralChat],
+  );
 
   const openChat = useCallback(() => {
     setGlobalPage(null);
@@ -348,11 +388,15 @@ function AuthenticatedApp() {
   } else if (surface === 'general') {
     content = (
       <GeneralChatWorkspace
+        initialConversationId={initialGeneralConversationId}
+        onOpenRecentChat={openRecentChat}
+        key={chatDraft.revision}
+        initialDraft={chatDraft.text}
+        onChangeChatScope={changeChatScope}
         courses={launchCourses}
         onCreateCourse={() => setCreatingCourse(true)}
-        onSwitchCourse={(id) => void openRecentCourse(id)}
-        onOpenCalendar={() => setGlobalPage('calendar')}
-        onOpenProfile={() => setGlobalPage('profile')}
+        onCreateCourseChat={(id) => openCourse(id)}
+        onOpenCourseTool={(id, page) => void openRecentCourse(id, { page })}
         responseStrength={responseStrength}
       />
     );
@@ -394,15 +438,19 @@ function AuthenticatedApp() {
   } else {
     content = (
       <CourseWorkspace
+        onOpenRecentChat={openRecentChat}
         key={`${workspace.course.id}:${launchRevision}`}
+        initialDraft={chatDraft.text}
+        onChangeChatScope={browserApp ? changeChatScope : undefined}
         workspace={workspace}
         backendLabel={backendLabel}
         courses={launchCourses}
         onBack={openChat}
         onCreateCourse={browserApp ? () => setCreatingCourse(true) : undefined}
-        onOpenGeneralChat={browserApp ? openGeneralChat : undefined}
+        onNewChat={browserApp ? () => openGeneralChat() : undefined}
         onSwitchCourse={(courseId) => void openRecentCourse(courseId)}
-        onOpenGlobalCalendar={() => setGlobalPage('calendar')}
+        onCreateCourseChat={(id) => openCourse(id)}
+        onOpenCourseTool={(id, page) => void openRecentCourse(id, { page })}
         initialConversationId={initialConversationId}
         initialPage={initialPage}
         newEventDate={newEventDate}
@@ -416,10 +464,24 @@ function AuthenticatedApp() {
 
   return (
     <main
-      className={`syntara-native-shell${avatarTheme.themed ? ' has-avatar-theme' : ''}`}
+      className={`syntara-native-shell has-global-navigation${avatarTheme.themed ? ' has-avatar-theme' : ''}`}
       style={avatarTheme.style}
     >
-      {content}
+      <AppNavigationRail
+        avatarUrl={avatarTheme.avatarUrl}
+        active={
+          globalPage === 'calendar' ? 'calendar' : globalPage === 'profile' ? 'settings' : 'chat'
+        }
+        onOpenChat={() => {
+          if (surface === 'general' || surface === 'launch') setGlobalPage(null);
+          else openChat();
+        }}
+        onOpenCalendar={() => setGlobalPage('calendar')}
+        onOpenSettings={() => setGlobalPage('profile')}
+      />
+      <div className="app-chat-surface" inert={globalPage !== null}>
+        {content}
+      </div>
       {creatingCourse ? (
         <CreateCourseDialog
           onCancel={() => setCreatingCourse(false)}

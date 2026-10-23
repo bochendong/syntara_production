@@ -38,12 +38,25 @@ export async function GET(request: NextRequest) {
     if (principal instanceof NextResponse) return principal;
     const id = request.nextUrl.searchParams.get('id');
     if (!id) {
+      const cursor = request.nextUrl.searchParams.get('cursor');
+      if (
+        cursor &&
+        !(await prisma.conversation.findFirst({
+          where: { id: cursor, ...scope(principal.userId) },
+        }))
+      )
+        return NextResponse.json({ error: 'Invalid chat cursor' }, { status: 400 });
       const rows = await prisma.conversation.findMany({
         where: scope(principal.userId),
-        orderBy: { updatedAt: 'desc' },
-        take: 100,
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        take: 101,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       });
-      return NextResponse.json({ conversations: rows.map(summary) });
+      const page = rows.slice(0, 100);
+      return NextResponse.json({
+        conversations: page.map(summary),
+        nextCursor: rows.length > 100 ? page.at(-1)!.id : null,
+      });
     }
     const conversation = await prisma.conversation.findFirst({
       where: { id, ...scope(principal.userId) },

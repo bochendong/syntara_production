@@ -1,8 +1,10 @@
 import type { LocalCourseSummary } from '../domain/models';
 import type { PhoneLastChat } from './phone-last-chat';
 
+export type CourseLearningPage = 'notes' | 'progress' | 'memory' | 'classroom' | 'problems';
+
 export type CourseOpenTarget = {
-  page: 'calendar' | 'memory';
+  page: 'calendar' | CourseLearningPage;
   date?: string;
   createEvent?: boolean;
 };

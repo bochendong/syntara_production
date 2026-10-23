@@ -1,0 +1,117 @@
+.syntara-native-shell.has-global-navigation {
+  --app-navigation-width: 52px;
+  padding-left: var(--app-navigation-width);
+}
+
+.app-chat-surface {
+  height: 100%;
+  min-width: 0;
+}
+
+.app-navigation-rail {
+  position: absolute;
+  z-index: 95;
+  inset: 0 auto 0 0;
+  display: flex;
+  width: var(--app-navigation-width);
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: calc(12px + env(safe-area-inset-top)) 6px calc(12px + env(safe-area-inset-bottom));
+  border-right: 1px solid rgb(15 23 42 / 7%);
+  background: #f1f2f5;
+  color: #64748b;
+}
+
+.app-navigation-rail button {
+  display: grid;
+  width: 36px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.app-navigation-rail svg {
+  width: 20px;
+  height: 20px;
+}
+
+.app-navigation-rail button:hover:not(:disabled),
+.app-navigation-rail button[aria-current='page'] {
+  background: rgb(15 23 42 / 7%);
+  color: #0f172a;
+}
+
+.app-navigation-rail button:focus-visible {
+  outline: 2px solid #5268a8;
+  outline-offset: 2px;
+}
+
+.app-navigation-rail button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.app-navigation-rail .app-navigation-settings {
+  margin-top: auto;
+}
+
+.has-global-navigation > .native-global-page,
+.has-global-navigation .mobile-panel-layer {
+  left: var(--app-navigation-width);
+}
+
+.platform-macos .app-navigation-rail {
+  padding-top: 36px;
+}
+
+@media (max-width: 600px) {
+  .syntara-native-shell.has-global-navigation {
+    --app-navigation-width: 44px;
+  }
+
+  .app-navigation-rail {
+    gap: 8px;
+    padding-inline: 4px;
+  }
+
+  .app-navigation-rail button {
+    width: 36px;
+    height: 44px;
+    border-radius: 10px;
+  }
+
+  .has-global-navigation .phone-chat-header {
+    grid-template-columns: 104px minmax(0, 1fr) 104px;
+  }
+
+  .has-global-navigation
+    .course-workspace.is-split.is-split.general-chat-workspace
+    > .general-chat-sidebar {
+    left: var(--app-navigation-width);
+    width: min(300px, calc(100vw - var(--app-navigation-width)));
+  }
+}
+
+.app-navigation-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  border: 1px solid rgb(15 23 42 / 8%);
+  border-radius: 50%;
+  background: #e8ebf1;
+}
+.app-navigation-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

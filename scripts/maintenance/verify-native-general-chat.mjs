@@ -18,7 +18,7 @@ export const conversations=new Map(), messages=new Map(); let counter=0;
 const matches=(row,where)=>Object.entries(where).every(([k,v])=>row[k]===v);
 export const prisma={
 conversation:{
- async findMany({where}){return [...conversations.values()].filter(row=>matches(row,where)).sort((a,b)=>b.updatedAt-a.updatedAt);},
+ async findMany({where,cursor,skip=0,take=100}){const rows=[...conversations.values()].filter(row=>matches(row,where)).sort((a,b)=>b.updatedAt-a.updatedAt||b.id.localeCompare(a.id));const start=cursor?rows.findIndex(row=>row.id===cursor.id)+skip:0;return rows.slice(start,start+take);},
  async findFirst({where}){return [...conversations.values()].find(row=>matches(row,where))||null;},
  async create({data}){const now=new Date();const row={...data,id:'chat-'+(++counter),createdAt:now,updatedAt:now};conversations.set(row.id,row);return row;},
  async update({where,data}){const row=[...conversations.values()].find(row=>matches(row,where));if(!row)throw new Error('Not found');Object.assign(row,data);return row;},
@@ -106,6 +106,31 @@ assert.equal(
   'an id from another chat must not be reassigned',
 );
 assert.equal(db.messages.get(message.id).conversationId, conversation.id);
+// Ordinary-chat pagination must include old chats and reject another account's cursor.
+for (let index = 0; index < 105; index++)
+  db.conversations.set('history-' + index, {
+    ...db.conversations.get(conversation.id),
+    id: 'history-' + index,
+    updatedAt: new Date(index + 1),
+  });
+let cursor = null;
+const seen = new Set();
+do {
+  const pageRequest = request('GET', 'alice');
+  if (cursor) pageRequest.nextUrl.searchParams.set('cursor', cursor);
+  const response = await GET(pageRequest);
+  assert.equal(response.status, 200);
+  const page = await response.json();
+  for (const row of page.conversations) {
+    assert.ok(!seen.has(row.id));
+    seen.add(row.id);
+  }
+  cursor = page.nextCursor;
+} while (cursor);
+assert.equal(seen.size, 107);
+const wrongCursor = request('GET', 'bob');
+wrongCursor.nextUrl.searchParams.set('cursor', conversation.id);
+assert.equal((await GET(wrongCursor)).status, 400);
 const { nativeChatRequestSchema } = await load('features/native-ai/server/schema.ts', {
   zod: pathToFileURL(require.resolve('zod')).href,
 });
