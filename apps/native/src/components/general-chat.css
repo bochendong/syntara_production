@@ -1,21 +1,18 @@
-/* The ordinary chat uses the course chat shell, with navigation on the right. */
+/* Keep ordinary chat navigation aligned with the shared course chat shell. */
 .course-workspace.is-split.is-split.general-chat-workspace {
-  grid-template-columns: minmax(0, 1fr) 300px;
   height: 100dvh;
   min-height: 0;
 }
 .course-workspace.is-split.is-split.general-chat-workspace > .conversation-workspace {
-  grid-column: 1;
+  grid-column: 2;
   grid-row: 1;
 }
 .course-workspace.is-split.is-split.general-chat-workspace > .general-chat-sidebar {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 1;
-  border-right: 0;
-  border-left: 1px solid rgb(15 23 42 / 8%);
 }
 .course-workspace.is-split.is-split.general-chat-workspace .phone-drawer {
-  width: 300px;
+  width: var(--phone-drawer-width);
 }
 .general-chat-welcome {
   display: flex;
@@ -121,14 +118,17 @@
   .course-workspace.is-split.is-split.general-chat-workspace {
     grid-template-columns: minmax(0, 1fr);
   }
+  .course-workspace.is-split.is-split.general-chat-workspace > .conversation-workspace {
+    grid-column: 1;
+  }
   .course-workspace.is-split.is-split.general-chat-workspace > .general-chat-sidebar {
     position: fixed;
-    inset: 0 0 0 auto;
+    inset: 0 auto 0 0;
     z-index: 41;
     width: min(300px, 85vw);
     max-width: 85vw;
     background: #f5f6f9;
-    transform: translateX(100%);
+    transform: translateX(-100%);
     transition: transform 220ms ease;
     visibility: hidden;
   }
@@ -164,7 +164,7 @@
 }
 @media (min-width: 601px) {
   .course-workspace.is-split.is-split.general-chat-workspace.general-sidebar-collapsed {
-    grid-template-columns: minmax(0, 1fr) 0;
+    grid-template-columns: 0 minmax(0, 1fr);
   }
   .course-workspace.is-split.is-split.general-chat-workspace.general-sidebar-collapsed
     > .general-chat-sidebar {

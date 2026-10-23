@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, CalendarDays, MessageCircle, PanelRight, SquarePen, X } from 'lucide-react';
+import { ArrowUp, CalendarDays, MessageCircle, PanelLeft, SquarePen, X } from 'lucide-react';
 import { PhoneChatDrawer } from './CourseWorkspace';
 import { ChatRichText } from './chat-rich/ChatRichText';
 import {
@@ -273,7 +273,7 @@ export function GeneralChatWorkspace({
             aria-expanded={sidebarOpen}
             onClick={() => setSidebarOpen((value) => !value)}
           >
-            <PanelRight size={20} />
+            <PanelLeft size={20} />
           </button>
           <div className="phone-chat-title">
             <span>
