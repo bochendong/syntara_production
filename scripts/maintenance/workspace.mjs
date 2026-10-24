@@ -72,13 +72,26 @@ function changeCounts(directory) {
 
 function status() {
   const shared = optionalConfig('syntara.sharedWorktree');
+  const baselineRef = optionalConfig('syntara.stagingBaselineRef');
+  const developmentBranch = optionalConfig('syntara.stagingDevelopmentBranch');
+  const staging = baselineRef
+    ? {
+        baselineRef,
+        baselineCommit: git('rev-parse', '--verify', `${baselineRef}^{commit}`).trim(),
+        deploymentId: optionalConfig('syntara.stagingDeploymentId'),
+        developmentBranch,
+        reconciliationCheckpoint: optionalConfig('syntara.stagingReconciliationCheckpoint'),
+      }
+    : null;
   const rows = worktrees().map((tree) => {
     const role =
       tree.path === shared || tree.branch?.startsWith('codex/shared-wip-')
         ? 'shared-unassigned'
-        : ['main', 'master', null].includes(tree.branch)
-          ? 'protected-base'
-          : 'task';
+        : developmentBranch && tree.branch === developmentBranch
+          ? 'staging-development'
+          : ['main', 'master', 'codex/staging-baseline', null].includes(tree.branch)
+            ? 'protected-base'
+            : 'task';
     try {
       return { ...tree, current: tree.path === root, role, changes: changeCounts(tree.path) };
     } catch (error) {
@@ -87,7 +100,7 @@ function status() {
   });
   console.log(
     JSON.stringify(
-      { checkpoint: optionalConfig('syntara.sharedCheckpoint'), worktrees: rows },
+      { checkpoint: optionalConfig('syntara.sharedCheckpoint'), staging, worktrees: rows },
       null,
       2,
     ),

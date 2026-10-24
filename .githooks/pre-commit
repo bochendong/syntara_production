@@ -12,7 +12,7 @@ branch=$(git symbolic-ref --quiet --short HEAD || true)
 shared=$(git config --local --get syntara.sharedWorktree || true)
 
 case "$branch" in
-  main|master|codex/shared-wip-*|'') blocked=1 ;;
+  main|master|codex/staging-baseline|codex/shared-wip-*|'') blocked=1 ;;
   *) blocked=0 ;;
 esac
 
@@ -22,7 +22,7 @@ fi
 
 if [ "$blocked" = "1" ]; then
   printf '%s\n' \
-    'Syntara: commits from main, detached HEAD, or the legacy shared checkout are blocked.' \
+    'Syntara: commits from main, staging baseline, detached HEAD, or the legacy shared checkout are blocked.' \
     'Use a separate worktree on a task branch and stage only that task’s changes.' \
     'An explicitly authorized integration may use SYNTARA_ALLOW_SHARED_COMMIT=1.' >&2
   exit 1

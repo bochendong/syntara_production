@@ -1,0 +1,64 @@
+{
+  "verifiedAt": "2026-10-24",
+  "timezone": "America/Toronto",
+  "baselineBranch": "codex/staging-baseline",
+  "baselineCommit": "a5849b24dd445bbaac9351f4ae4f8ace98869b3a",
+  "baselineTree": "500259cd1a8d816a1c7516a064c2d6b2696721c9",
+  "releaseTag": "staging/2026-10-24-7dbd3393",
+  "developmentBranch": "codex/staging-next",
+  "gitBase": "88de16913acd4f464ec523667dce71ab71fa0e02",
+  "sourceFilesVerified": 3101,
+  "integratedFiles": 83,
+  "sourceManifestSha256": "7246abbe3c211d32ad8f24572622f3ddfdd87644a92bbc9d8c9c5571c89d6259",
+  "railway": {
+    "deploymentId": "7dbd3393-7837-49cc-a85d-650cf02d8e64",
+    "projectId": "8cddd1ea-24e1-49a9-8d27-dce86069dc8b",
+    "environmentId": "6697de1f-eb0d-4a6f-8709-cfe477a29f11",
+    "serviceId": "fd6afb05-6491-451a-b577-abf15fdc0047",
+    "url": "https://native-api-staging-staging-95a1.up.railway.app"
+  },
+  "runtimeConfig": "Managed by Railway; railway.toml was excluded from the deployment upload and is retained unchanged from the Git base.",
+  "verifiedAssets": [
+    {
+      "url": "/native-web/assets/index-BRh5QYFW.js",
+      "bytes": 1558617,
+      "sha256": "ae9ce354f09cfe12519e2bd43d5b926b135a22eb9c84840b6616fee1b0790b55",
+      "matchesLocal": true
+    },
+    {
+      "url": "/native-web/assets/index-B8TiAS1Z.css",
+      "bytes": 307922,
+      "sha256": "9f56a31808c937c6e88d80a10103e5903b3df010c7b1e4429a2cbd67fbf7e645",
+      "matchesLocal": true
+    },
+    {
+      "url": "/_next/static/css/7d6d1168e51243b6.css",
+      "bytes": 16783,
+      "sha256": "03efde3449cc2f217f9ccd90098edc8cd98369949a7eef81bfb71b2db214c912",
+      "matchesLocal": true
+    }
+  ],
+  "undeployed": {
+    "scope": [
+      "landing copy",
+      "homepage download link",
+      "desktop download page and streaming API",
+      "branch management tooling and documentation"
+    ],
+    "macInstaller": {
+      "version": "0.1.0",
+      "builtAt": "2026-10-24T21:27:15.765Z",
+      "fileName": "Syntara-Test-0.1.0-macOS-arm64-20261024T212715Z.zip",
+      "size": 46963083,
+      "sha256": "04f504cf0a31b348deb801520bde74a8d47a6135b072ab3e86dc8e683d5ff0c7",
+      "channel": "staging",
+      "architecture": "arm64",
+      "minimumSystemVersion": "14.0",
+      "notarized": false
+    },
+    "installerCommitted": false,
+    "sourceCommit": "96c9841308c9563155293541af65d7a1ca1ac468"
+  },
+  "recoveryCheckpointRelativeToGitCommonDir": "codex/checkpoints/staging-reconcile-20261024",
+  "allWorktreesPreserved": true
+}

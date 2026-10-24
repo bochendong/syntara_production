@@ -72,6 +72,8 @@ test('allows an isolated task and reports rename, staged, unstaged and new-file 
   assert.equal(status.worktrees.find((tree) => !tree.current).role, 'shared-unassigned');
   f.git('-C', isolated, 'switch', '--detach', 'HEAD');
   assert.equal(f.hook(isolated).status, 1);
+  const detached = JSON.parse(f.run(isolated, 'status').stdout);
+  assert.equal(detached.worktrees.find((tree) => tree.current).role, 'protected-base');
 });
 
 test('never replaces an existing custom hook', (t) => {
@@ -83,6 +85,28 @@ test('never replaces an existing custom hook', (t) => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /existing pre-commit hook was left unchanged/);
   assert.equal(readFileSync(file, 'utf8'), content);
+});
+
+test('reports the verified staging base and blocks commits on its baseline branch', (t) => {
+  const f = fixture(t);
+  assert.equal(f.run(f.root, 'install-guard').status, 0);
+  f.git('branch', 'codex/staging-baseline');
+  const isolated = path.join(f.directory, 'staging development');
+  f.git('worktree', 'add', '--quiet', '-b', 'codex/staging-next', isolated);
+  f.git('config', 'syntara.stagingBaselineRef', 'refs/heads/codex/staging-baseline');
+  f.git('config', 'syntara.stagingDevelopmentBranch', 'codex/staging-next');
+  f.git('config', 'syntara.stagingDeploymentId', 'fixture-deployment');
+  const result = f.run(isolated, 'status');
+  assert.equal(result.status, 0, result.stderr);
+  const status = JSON.parse(result.stdout);
+  assert.equal(status.staging.baselineCommit, f.git('rev-parse', 'HEAD').trim());
+  assert.equal(status.staging.deploymentId, 'fixture-deployment');
+  assert.equal(status.worktrees.find((tree) => tree.current).role, 'staging-development');
+  assert.equal(f.hook(isolated).status, 0);
+  f.git('-C', isolated, 'switch', 'codex/staging-baseline');
+  assert.equal(f.hook(isolated).status, 1);
+  const baseline = JSON.parse(f.run(isolated, 'status').stdout);
+  assert.equal(baseline.worktrees.find((tree) => tree.current).role, 'protected-base');
 });
 
 test('respects an effective custom hooksPath and rejects an unrelated shared directory', (t) => {

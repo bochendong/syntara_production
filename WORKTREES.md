@@ -1,5 +1,19 @@
 # Task ownership and worktrees
 
+## Current staging baseline
+
+See [branch-state.md](docs/branch-state.md) for the verified staging release,
+the development branch, undeployed homepage/download changes, and the inventory
+of older worktrees. For staging app work, start a task from
+`codex/staging-baseline`, or explicitly from `codex/staging-next` when the pending
+website changes are needed. `main` is not the current staging source.
+
+`pnpm workspace:status` reports the locally configured staging baseline and
+development branch. The commit guard protects `codex/staging-baseline` alongside
+`main`; record a new deployed version only after verifying its release evidence.
+
+## General workflow
+
 Use a separate worktree and `codex/<task>` branch for each task. Codex should
 reuse a suitable worktree attached to the chat or create a managed worktree from
 `main` (or an explicitly selected reviewed commit). A managed worktree may start
@@ -31,8 +45,8 @@ task commits. Git hooks can be bypassed; the worktree rules still apply.
 ## Preserved shared work
 
 The original checkout was moved from `main` to
-`codex/shared-wip-2026-10-21` without changing its files or index. `main` still
-points to `b8f38fa847d74f53182929c1eb9adb5448926bd4`. No legacy changes were committed
+`codex/shared-wip-2026-10-21` without changing its files or index. At that checkpoint,
+`main` pointed to `b8f38fa847d74f53182929c1eb9adb5448926bd4`. No legacy changes were committed
 or pushed. Existing chats still pointing at the original directory are not
 automatically relocated; their next code task must use its own worktree.
 
