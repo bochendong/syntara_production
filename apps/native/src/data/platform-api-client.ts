@@ -20,7 +20,10 @@ import type {
   NativeLearningProgress,
   NativeMaterialUpload,
   NativeMaterialUploadResult,
+  NativeOnboardingState,
+  NativeOnboardingStep,
   NativeStoreCourse,
+  NativeStoreCourseDetail,
   NativeDeviceAuthorization,
   NativeDevicePollResult,
   NativeDeviceTokenPair,
@@ -474,6 +477,14 @@ export async function listNativeStoreCourses(): Promise<NativeStoreCourse[]> {
   return result.courses ?? [];
 }
 
+/** 商城详情页：章节和评价。 */
+export async function getNativeStoreCourse(courseId: string): Promise<NativeStoreCourseDetail> {
+  const result = await invokeQuery<{ course: NativeStoreCourseDetail }>('native_get_store', {
+    courseId,
+  });
+  return result.course;
+}
+
 /** join：从商城加入课程；seen：打开过加入的课程，熄灭「有更新」。 */
 export function nativeStoreAction(
   courseId: string,
@@ -483,6 +494,25 @@ export function nativeStoreAction(
     requestId: crypto.randomUUID(),
     payload: { courseId, action },
   });
+}
+
+/** 新手引导进度存在账号上，换设备也接着上一步。 */
+export async function getNativeOnboarding(): Promise<NativeOnboardingState> {
+  const result = await invokeQuery<{ onboarding: NativeOnboardingState }>(
+    'native_get_onboarding',
+    {},
+  );
+  return result.onboarding;
+}
+
+export async function nativeOnboardingAction(
+  payload: { action: 'complete'; step: NativeOnboardingStep } | { action: 'skip' },
+): Promise<NativeOnboardingState> {
+  const result = await invokeJson<typeof payload, { onboarding: NativeOnboardingState }>(
+    'native_onboarding_action',
+    { requestId: crypto.randomUUID(), payload },
+  );
+  return result.onboarding;
 }
 
 /** 资料页的笔记 / 题目写进账号，网页和其他设备都能同步到。 */

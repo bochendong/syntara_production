@@ -388,8 +388,28 @@ export interface NativeStoreCourse {
   avatarUrl: string;
   organization: { id: string; name: string; logoUrl: string | null; verified: boolean } | null;
   notebookCount: number;
+  sceneCount: number;
+  problemCount: number;
+  learnerCount: number;
+  averageRating: number;
+  reviewCount: number;
+  purpose: string;
+  university: string | null;
+  tags: string[];
   joined: boolean;
   updatedAt: string;
+}
+
+/** 商城详情（/api/native/v1/store?courseId=）。 */
+export interface NativeStoreCourseDetail extends NativeStoreCourse {
+  notebooks: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    sceneCount: number;
+    problemCount: number;
+  }>;
+  reviews: Array<{ id: string; rating: number; comment: string | null; reviewerName: string }>;
 }
 
 /** 资料页上传到账号的一份笔记或题目。 */
@@ -514,4 +534,14 @@ export interface NativeNotebookArchive {
   pageAssets: LocalPageAsset[];
   notebookAssets: LocalNotebookAssetLink[];
   missingAssetPaths: string[];
+}
+
+/** 新手引导的五步，顺序固定：建课 → 资料 → 第一句 → 记住 → 商城。 */
+export type NativeOnboardingStep = 'course' | 'materials' | 'ask' | 'remember' | 'store';
+
+/** 账号上的新手引导进度，和 lib/server/onboarding.ts 的 OnboardingState 一致。 */
+export interface NativeOnboardingState {
+  status: 'active' | 'done' | 'skipped';
+  completed: NativeOnboardingStep[];
+  next: NativeOnboardingStep | null;
 }

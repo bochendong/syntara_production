@@ -14,6 +14,7 @@ import { ServerProvidersInit } from '@/components/server-providers-init';
 import { AppLayoutChrome } from '@/components/app-layout-chrome';
 import { AuthSessionProvider } from '@/components/auth-session-provider';
 import { NotificationCenterProvider } from '@/components/notifications/notification-center-provider';
+import { WebOnboardingCoach } from '@/components/onboarding/web-onboarding-coach';
 
 const inter = localFont({
   src: '../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2',
@@ -52,6 +53,7 @@ export default function RootLayout({
                     <AppLayoutChrome>{children}</AppLayoutChrome>
                   </Suspense>
                   <NotificationCenterProvider />
+                  <WebOnboardingCoach />
                 </>
               )}
             </AuthSessionProvider>

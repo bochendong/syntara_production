@@ -1,0 +1,235 @@
+/* Chat-only proportions layered over the verified online application baseline. */
+.phone-drawer .phone-drawer-course-heading,
+.phone-drawer .phone-drawer-row,
+.phone-drawer .phone-drawer-row > button:first-child {
+  border-radius: 8px;
+}
+
+.phone-drawer .phone-drawer-course-heading.is-current {
+  background: transparent;
+}
+
+.phone-drawer .phone-drawer-course-heading.is-current .phone-drawer-course {
+  font-weight: 600;
+}
+
+.phone-drawer .phone-drawer-course-heading:hover,
+.phone-drawer .phone-drawer-course-heading:has(:focus-visible) {
+  background: rgb(15 23 42 / 4%);
+}
+
+.course-workspace .phone-drawer .phone-drawer-row-active,
+.course-workspace .phone-drawer .phone-drawer-row-active:hover {
+  background: rgb(15 23 42 / 5%);
+}
+
+.phone-drawer .phone-drawer-row-current {
+  background: transparent;
+}
+
+.phone-drawer .phone-drawer-row-active > button:first-child,
+.phone-drawer .phone-drawer-row-current > button:first-child {
+  color: #334155;
+  font-weight: 500;
+}
+
+.phone-drawer .phone-drawer-nav.phone-drawer-primary {
+  padding-bottom: 4px;
+}
+
+.phone-drawer .phone-drawer-courses {
+  padding-bottom: 4px;
+}
+
+.phone-drawer .phone-drawer-section-toggle {
+  margin-top: 8px;
+}
+
+.phone-drawer .phone-drawer-courses .phone-drawer-create {
+  top: 8px;
+}
+
+.phone-drawer .phone-drawer-course-chats {
+  margin-bottom: 4px;
+}
+
+.phone-drawer .phone-drawer-section {
+  margin-top: 12px;
+}
+
+@media (min-width: 601px) {
+  .course-workspace.is-split.is-split {
+    --workspace-toolbar-height: 56px;
+  }
+
+  .course-workspace.is-split.is-split:not(.has-persistent-sidebar) {
+    --phone-drawer-width: clamp(220px, 18.75vw, 300px);
+  }
+
+  .course-workspace.is-split.is-split .phone-drawer {
+    --sidebar-brand-size: 18px;
+    --sidebar-label-size: 14px;
+    --sidebar-section-size: 12px;
+  }
+
+  .course-workspace.is-split.is-split .conversation-workspace {
+    --phone-header-height: calc(var(--workspace-toolbar-height) + env(safe-area-inset-top));
+  }
+
+  .course-workspace.is-split .phone-chat-title strong {
+    font-size: 14px;
+  }
+
+  .course-workspace.is-split .phone-chat-title small {
+    font-size: 11px;
+  }
+
+  .course-workspace.is-split .phone-glass-button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .course-workspace.is-split .phone-chat-new {
+    height: 36px;
+    padding-inline: 12px;
+    font-size: 13px;
+  }
+
+  .course-workspace.is-split .chat-message p,
+  .course-workspace.is-split .chat-message-markdown,
+  .course-workspace.is-split .general-message {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .course-workspace.is-split .chat-message-markdown :is(h1, h2) {
+    font-size: 18px;
+  }
+
+  .course-workspace.is-split .chat-message-markdown :is(h3, h4) {
+    font-size: 16px;
+  }
+
+  .course-workspace.is-split .chat-message-markdown :is(table, pre) {
+    font-size: 13px;
+  }
+
+  .course-workspace.is-split .chat-message time {
+    font-size: 11px;
+  }
+
+  .course-workspace.is-split.is-split .conversation-composer textarea {
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 601px) and (pointer: fine) {
+  .course-workspace.is-split .phone-drawer-section-toggle {
+    min-height: 28px;
+    padding-block: 4px;
+  }
+
+  .course-workspace.is-split .phone-drawer-courses .phone-drawer-create {
+    height: 28px;
+  }
+
+  .course-workspace.is-split.is-split .phone-drawer-course-heading,
+  .course-workspace.is-split.is-split .phone-drawer-nav .phone-drawer-course,
+  .course-workspace.is-split.is-split .phone-drawer .phone-drawer-tool {
+    min-height: 32px;
+    height: 32px;
+  }
+
+  .course-workspace.is-split.is-split .phone-drawer-row > button:first-child,
+  .course-workspace.is-split.is-split .phone-drawer-row .phone-drawer-delete {
+    height: 32px;
+  }
+
+  .course-workspace.is-split.is-split .phone-drawer-course img {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (min-width: 601px) and (pointer: coarse) {
+  .course-workspace.is-split.is-split {
+    --workspace-toolbar-height: 64px;
+  }
+
+  .course-workspace.is-split .phone-glass-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .course-workspace.is-split .phone-chat-new {
+    height: 44px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .course-workspace.is-split.is-split:not(.has-persistent-sidebar) {
+    --phone-drawer-width: clamp(220px, calc(18.75vw - var(--app-navigation-width)), 300px);
+  }
+
+  .course-workspace.is-split.is-split {
+    --learning-rail-width: clamp(240px, 21.25vw, 352px);
+    --chat-reading-width: min(49vw, 800px);
+  }
+
+  .course-workspace.is-split:has(> .learning-float-card):not(.is-learning-active)
+    > .conversation-workspace
+    > .conversation-content {
+    padding-left: 0.5vw;
+    padding-right: var(--learning-rail-width);
+  }
+
+  .course-workspace.is-split:has(> .learning-float-card):not(.is-learning-active)
+    > .conversation-workspace
+    > .conversation-composer-footer {
+    padding-left: calc(24px + 0.5vw);
+    padding-right: calc(24px + var(--learning-rail-width));
+  }
+
+  .course-workspace.is-split.is-split .message-stream {
+    width: min(var(--chat-reading-width), calc(100% - 48px));
+  }
+
+  .course-workspace.is-split.is-split .conversation-composer-footer > * {
+    max-width: var(--chat-reading-width);
+  }
+
+  .course-workspace.is-split > .learning-float-card {
+    top: calc(var(--workspace-toolbar-height) + 10px);
+    right: 0.75vw;
+    width: calc(var(--learning-rail-width) - 1.25vw);
+    max-height: calc(100% - var(--workspace-toolbar-height) - 22px);
+    padding: 10px 8px 4px;
+    overflow-y: auto;
+    border: 1px solid rgb(255 255 255 / 85%);
+    border-radius: 24px;
+    background: rgb(255 255 255 / 76%);
+    box-shadow:
+      0 2px 6px rgb(15 23 42 / 3%),
+      0 12px 28px -8px rgb(15 23 42 / 8%);
+  }
+
+  .learning-float-card section {
+    padding-top: 0;
+  }
+
+  .learning-float-card section + section {
+    padding-top: 6px;
+  }
+
+  .learning-float-section {
+    height: 24px;
+    padding-inline: 6px;
+    font-size: 12px;
+  }
+
+  .learning-float-row {
+    height: 30px;
+    padding: 4px 6px;
+    font-size: 14px;
+  }
+}

@@ -46,6 +46,9 @@ test('listing an empty account creates no course and hides only the earlier QA f
       export const publicApiError = (_, status) => new Response(null, { status });
     `),
     '@/lib/server/repositories/course-repository': courseRepository,
+    '@/lib/server/native-store': moduleUrl(
+      'export const loadNativeCourseStoreMeta = async () => new Map();',
+    ),
     '@/lib/server/native-staging-course': moduleUrl(
       compile(read('lib/server/native-staging-course.ts')),
     ),

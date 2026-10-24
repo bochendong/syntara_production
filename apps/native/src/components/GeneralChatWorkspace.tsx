@@ -2,6 +2,7 @@ import type { CourseLearningPage } from '../lib/native-launch';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, MessageCircle, PanelLeft, SquarePen, X } from 'lucide-react';
 import { ChatScopePicker } from './ChatScopePicker';
+import { useChatWorkspaceShell, usePublishChatSidebar } from './ChatWorkspaceShell';
 import { PhoneChatDrawer } from './CourseWorkspace';
 import { ChatRichText } from './chat-rich/ChatRichText';
 import {
@@ -44,7 +45,9 @@ export function GeneralChatWorkspace({
   client?: GeneralChatClient;
 }) {
   const phone = usePhoneLayout();
+  const chatShell = useChatWorkspaceShell();
   const [sidebarOpen, setSidebarOpen] = useState(!phone);
+  const sidebarVisible = chatShell ? !chatShell.collapsed : sidebarOpen;
   const [conversations, setConversations] = useState<GeneralConversation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [messages, setMessages] = useState<GeneralMessage[]>([]);
@@ -159,6 +162,10 @@ export function GeneralChatWorkspace({
   };
   const selectChat = async (id: string) => {
     if (busy || pendingSave) return;
+    if (id === selected) {
+      if (phone) setSidebarOpen(false);
+      return;
+    }
     const generation = ++request.current;
     setLoading(true);
     setError(null);
@@ -274,12 +281,33 @@ export function GeneralChatWorkspace({
     if (phone) setSidebarOpen(false);
     action();
   };
+  const drawer = (
+    <PhoneChatDrawer
+      onOpenRecentChat={onOpenRecentChat}
+      generalChatClient={client}
+      homeHref={homeHref}
+      learningActions={[]}
+      courses={courses}
+      selectedCourseId=""
+      selectedCourseAvatarUrl=""
+      conversations={conversations}
+      selectedConversationId={selected}
+      onCreateCourse={() => open(onCreateCourse)}
+      onNewChat={newChat}
+      onCreateCourseChat={(id) => open(() => onCreateCourseChat(id))}
+      onOpenCourseTool={(id, page) => open(() => onOpenCourseTool(id, page))}
+      newChatDisabled={busy || Boolean(pendingSave)}
+      onSelectConversation={(id) => void selectChat(id)}
+      onDeleteConversation={(conversation) => void deleteChat(conversation)}
+    />
+  );
+  usePublishChatSidebar(drawer);
   const title = conversations.find((row) => row.id === selected)?.title || '新聊天';
 
   return (
     <section
       ref={workspaceRef}
-      className={`course-workspace is-split general-chat-workspace${sidebarOpen ? ' general-sidebar-open' : ' general-sidebar-collapsed'}`}
+      className={`course-workspace is-split general-chat-workspace${chatShell ? ' has-persistent-sidebar' : ''}${sidebarVisible ? ' general-sidebar-open' : ' general-sidebar-collapsed'}`}
       aria-label="普通聊天工作台"
     >
       <main className="conversation-workspace">
@@ -287,9 +315,12 @@ export function GeneralChatWorkspace({
           <button
             type="button"
             className="phone-glass-button"
-            aria-label={sidebarOpen ? '隐藏侧边栏' : '显示侧边栏'}
-            aria-expanded={sidebarOpen}
-            onClick={() => setSidebarOpen((value) => !value)}
+            aria-label={sidebarVisible ? '隐藏侧边栏' : '显示侧边栏'}
+            aria-expanded={sidebarVisible}
+            data-onboarding={sidebarVisible ? undefined : 'drawer'}
+            onClick={() =>
+              chatShell ? chatShell.toggleSidebar() : setSidebarOpen((value) => !value)
+            }
           >
             <PanelLeft size={20} />
           </button>
@@ -434,43 +465,28 @@ export function GeneralChatWorkspace({
           onClick={() => setSidebarOpen(false)}
         />
       ) : null}
-      <aside
-        className="workspace-sidebar workspace-sidebar-left general-chat-sidebar"
-        ref={sidebarRef}
-        role={phone ? 'dialog' : undefined}
-        aria-modal={phone && sidebarOpen ? true : undefined}
-        aria-label="聊天与课程侧边栏"
-        inert={!sidebarOpen}
-      >
-        {phone ? (
-          <button
-            type="button"
-            className="general-sidebar-close phone-glass-button"
-            aria-label="关闭侧边栏"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <X size={20} />
-          </button>
-        ) : null}
-        <PhoneChatDrawer
-          onOpenRecentChat={onOpenRecentChat}
-          generalChatClient={client}
-          homeHref={homeHref}
-          learningActions={[]}
-          courses={courses}
-          selectedCourseId=""
-          selectedCourseAvatarUrl=""
-          conversations={conversations}
-          selectedConversationId={selected}
-          onCreateCourse={() => open(onCreateCourse)}
-          onNewChat={newChat}
-          onCreateCourseChat={(id) => open(() => onCreateCourseChat(id))}
-          onOpenCourseTool={(id, page) => open(() => onOpenCourseTool(id, page))}
-          newChatDisabled={busy || Boolean(pendingSave)}
-          onSelectConversation={(id) => void selectChat(id)}
-          onDeleteConversation={(conversation) => void deleteChat(conversation)}
-        />
-      </aside>
+      {!chatShell ? (
+        <aside
+          className="workspace-sidebar workspace-sidebar-left general-chat-sidebar"
+          ref={sidebarRef}
+          role={phone ? 'dialog' : undefined}
+          aria-modal={phone && sidebarOpen ? true : undefined}
+          aria-label="聊天与课程侧边栏"
+          inert={!sidebarOpen}
+        >
+          {phone ? (
+            <button
+              type="button"
+              className="general-sidebar-close phone-glass-button"
+              aria-label="关闭侧边栏"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <X size={20} />
+            </button>
+          ) : null}
+          {drawer}
+        </aside>
+      ) : null}
     </section>
   );
 }

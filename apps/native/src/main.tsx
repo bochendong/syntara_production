@@ -4,7 +4,9 @@ import App from './App';
 import './tailwind.css';
 import './components/marble-tokens.css';
 import './styles.css';
+import './components/compact-layout.css';
 import './components/avatar-theme.css';
+import './components/chat-visual-hierarchy.css';
 
 if ('__TAURI_INTERNALS__' in window) {
   document.documentElement.classList.add('tauri-runtime');

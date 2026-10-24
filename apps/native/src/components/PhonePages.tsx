@@ -69,6 +69,7 @@ import {
 } from './LearningCalendarGrid';
 import { LocalResourceViewer, type LocalResourceDocument } from './LocalResourceViewer';
 import { MemoryGalaxyFlat } from './GlassMarbles';
+import { LearningEmptyState } from './LearningEmptyState';
 import {
   GlassLoadMore,
   GlassSkeletonRows,
@@ -88,7 +89,6 @@ import { useBackDismiss } from '../lib/use-back-dismiss';
 import { useSidebarBackground } from '../lib/use-sidebar-background';
 import {
   MEMORY_MARBLE_LEGEND,
-  classroomMarble,
   marbleImages,
   memoryMarble,
   type MarbleColor,
@@ -193,6 +193,7 @@ export function PhonePage({
   action,
   overlay = false,
   wide = false,
+  largeTitle = false,
   onBack,
   children,
 }: {
@@ -202,10 +203,13 @@ export function PhonePage({
   overlay?: boolean;
   /** 大屏右侧面板放宽（记忆星图要地方）。 */
   wide?: boolean;
+  /** 页面自己在返回键旁画大标题（.phone-large-head），顶栏透明，滚动后才收成玻璃条。 */
+  largeTitle?: boolean;
   onBack: () => void;
   children: ReactNode;
 }) {
   const pageRef = useRef<HTMLElement | null>(null);
+  const [scrolled, setScrolled] = useState(false);
   const dragRef = useRef<{ x: number; y: number; dx: number; horizontal: boolean | null } | null>(
     null,
   );
@@ -254,7 +258,7 @@ export function PhonePage({
   return (
     <section
       ref={pageRef}
-      className={`phone-page${overlay ? ' phone-page-overlay' : ''}${wide ? ' phone-page-wide' : ''}`}
+      className={`phone-page${overlay ? ' phone-page-overlay' : ''}${wide ? ' phone-page-wide' : ''}${largeTitle ? ' phone-page-large' : ''}${largeTitle && scrolled ? ' is-scrolled' : ''}`}
       aria-label={title}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -271,22 +275,21 @@ export function PhonePage({
         </div>
         <div className="phone-page-action">{action}</div>
       </header>
-      <div className="phone-page-scroll">{children}</div>
+      <div
+        className="phone-page-scroll"
+        onScroll={
+          largeTitle ? (event) => setScrolled(event.currentTarget.scrollTop > 36) : undefined
+        }
+      >
+        {children}
+      </div>
     </section>
   );
 }
 
-/** 空状态：一块小玻璃屏幕里一颗弹珠，加一行标题和一行提示（和课堂空状态一样）。 */
+/** Shared empty state for phone pages and the course store. */
 export function PhoneEmpty({ title, hint }: { title: string; hint: string }) {
-  return (
-    <div className="phone-page-empty">
-      <span aria-hidden>
-        <img src={marbleImages.blue} alt="" />
-      </span>
-      <strong>{title}</strong>
-      <small>{hint}</small>
-    </div>
-  );
+  return <LearningEmptyState title={title} hint={hint} />;
 }
 
 type ProfileSheet = 'avatar' | 'logout' | null;
@@ -869,9 +872,12 @@ export function PhoneProfilePage({
 export function PhoneNotesPage({
   workspace,
   onBack,
+  onUpload,
 }: {
   workspace: LocalCourseWorkspace;
   onBack: () => void;
+  /** 空课程时去「资料」上传笔记。 */
+  onUpload?: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -917,15 +923,17 @@ export function PhoneNotesPage({
       overlay
       onBack={onBack}
     >
-      <label className="phone-search">
-        <Search size={17} />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜索笔记"
-          type="search"
-        />
-      </label>
+      {workspace.notebooks.length ? (
+        <label className="phone-search">
+          <Search size={17} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索笔记"
+            type="search"
+          />
+        </label>
+      ) : null}
       {error ? <p className="phone-page-error">{error}</p> : null}
 
       {notebooks.length ? (
@@ -968,12 +976,17 @@ export function PhoneNotesPage({
           ) : null}
         </>
       ) : (
-        <PhoneEmpty
+        <LearningEmptyState
           title={workspace.notebooks.length ? '没有匹配的笔记' : '还没有笔记'}
-          hint={
-            workspace.notebooks.length
-              ? '换个关键词再试。'
-              : '在网页上传课程资料后，这里会出现笔记。'
+          hint={workspace.notebooks.length ? '换个关键词再试。' : undefined}
+          action={
+            !workspace.notebooks.length && onUpload
+              ? {
+                  label: '上传笔记',
+                  icon: <img src={marbleImages.blue} alt="" />,
+                  onClick: onUpload,
+                }
+              : undefined
           }
         />
       )}
@@ -991,12 +1004,14 @@ export function PhoneProgressPage({
   onProgressChange,
   onOpenNotebook,
   onBack,
+  onUpload,
 }: {
   learningState: LocalCourseLearningState | null;
   notebooks: LocalNotebook[];
   onProgressChange: (completedNotebookCount: number, currentNotebookId: string | null) => void;
   onOpenNotebook: (notebook: LocalNotebook) => void;
   onBack: () => void;
+  onUpload?: () => void;
 }) {
   const ordered = useMemo(() => sortNotebooks(notebooks), [notebooks]);
   const total = ordered.length;
@@ -1012,36 +1027,38 @@ export function PhoneProgressPage({
 
   return (
     <PhonePage title="学习进度" overlay onBack={onBack}>
-      <div className="phone-group phone-progress-summary">
-        <div className="phone-progress-figure">
-          <strong>{percent}</strong>
-          <span>%</span>
+      {total ? (
+        <div className="phone-group phone-progress-summary">
+          <div className="phone-progress-figure">
+            <strong>{percent}</strong>
+            <span>%</span>
+          </div>
+          <p>
+            已学完 {completed} / {total} 本笔记
+          </p>
+          {total ? (
+            tubeFlat ? (
+              <div className="phone-progress-tube" aria-hidden="true">
+                {ordered.map((notebook, index) => (
+                  <span key={notebook.id} className={index < completed ? 'is-filled' : undefined}>
+                    {index < completed ? <img src={progressMarble(index)} alt="" /> : null}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <Suspense fallback={<span className="marble-tube-3d" aria-hidden />}>
+                <MarbleTube3D
+                  completed={completed}
+                  total={total}
+                  colors={PROGRESS_MARBLE_COLORS}
+                  onUnavailable={() => setTubeFlat(true)}
+                />
+              </Suspense>
+            )
+          ) : null}
+          <small>AI 只会参考你已经学到的笔记和对应的学习记忆。</small>
         </div>
-        <p>
-          已学完 {completed} / {total} 本笔记
-        </p>
-        {total ? (
-          tubeFlat ? (
-            <div className="phone-progress-tube" aria-hidden="true">
-              {ordered.map((notebook, index) => (
-                <span key={notebook.id} className={index < completed ? 'is-filled' : undefined}>
-                  {index < completed ? <img src={progressMarble(index)} alt="" /> : null}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <Suspense fallback={<span className="marble-tube-3d" aria-hidden />}>
-              <MarbleTube3D
-                completed={completed}
-                total={total}
-                colors={PROGRESS_MARBLE_COLORS}
-                onUnavailable={() => setTubeFlat(true)}
-              />
-            </Suspense>
-          )
-        ) : null}
-        <small>AI 只会参考你已经学到的笔记和对应的学习记忆。</small>
-      </div>
+      ) : null}
 
       {total ? (
         <>
@@ -1104,7 +1121,18 @@ export function PhoneProgressPage({
           ) : null}
         </>
       ) : (
-        <PhoneEmpty title="还没有笔记" hint="在网页上传课程资料后，就可以在这里标记学习进度。" />
+        <LearningEmptyState
+          title="还没有笔记"
+          action={
+            onUpload
+              ? {
+                  label: '上传笔记',
+                  icon: <img src={marbleImages.blue} alt="" />,
+                  onClick: onUpload,
+                }
+              : undefined
+          }
+        />
       )}
     </PhonePage>
   );
@@ -1118,6 +1146,7 @@ export function PhoneMemoryPage({
   memories,
   focusedMemoryId,
   onBack,
+  onChat,
 }: {
   courseId: string;
   courseLabel: string;
@@ -1126,6 +1155,8 @@ export function PhoneMemoryPage({
   memories: LocalStudyMemory[];
   focusedMemoryId: string | null;
   onBack: () => void;
+  /** 空星图时回到聊天。 */
+  onChat?: () => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(focusedMemoryId);
   const [filter, setFilter] = useState<MarbleColor | 'stale' | null>(null);
@@ -1357,18 +1388,20 @@ export function PhoneMemoryPage({
               {listWindow.hasHidden ? (
                 <GlassLoadMore onLoadMore={listWindow.showMore} watchKey={listWindow.count} />
               ) : null}
-              {shown.length === 0 ? <p className="phone-memory-none">没有对上的记忆</p> : null}
+              {shown.length === 0 ? <LearningEmptyState title="没有对上的记忆" compact /> : null}
             </div>
           </div>
         </div>
       ) : (
-        <div className="phone-memory-galaxy is-empty">
-          <MemoryGalaxyHero galaxy={galaxy} label="还没有记忆的星图" />
-          <p className="phone-memory-galaxy-empty">
-            {hasChapters ? '还没有记忆珠' : '星图还是空的'}
-            <small>聊天里确认“记住”后，会有一颗珠子飞进来。</small>
-          </p>
-        </div>
+        <LearningEmptyState
+          title={hasChapters ? '还没有记忆珠' : '星图还是空的'}
+          hint="聊天时点「记住」"
+          action={
+            onChat
+              ? { label: '去聊天', icon: <img src={marbleImages.purple} alt="" />, onClick: onChat }
+              : undefined
+          }
+        />
       )}
     </PhonePage>
   );
@@ -1401,6 +1434,82 @@ function formatDayHeading(key: string): string {
   return key === localDayKey(new Date())
     ? `今天 · ${month}月${day}日`
     : `${month}月${day}日 周${weekday}`;
+}
+
+function addDays(key: string, days: number): string {
+  const [year, month, day] = key.split('-').map(Number);
+  return localDayKey(new Date(year, month - 1, day + days));
+}
+
+/** 空的一天：不只写「没有安排」，而是把接下来一周摆成一排弹珠，有安排的那天是彩色的，点一下跳过去。 */
+function CalendarFreeDay({
+  dateKey,
+  todayKey,
+  eventsByDay,
+  onSelect,
+  onAdd,
+}: {
+  dateKey: string;
+  todayKey: string;
+  eventsByDay: Map<string, LocalCourseEvent[]>;
+  onSelect: (key: string) => void;
+  onAdd: () => void;
+}) {
+  const week = Array.from({ length: 7 }, (_, index) => {
+    const key = addDays(dateKey, index + 1);
+    const [year, month, day] = key.split('-').map(Number);
+    return {
+      key,
+      day,
+      weekday: CALENDAR_WEEKDAYS[new Date(year, month - 1, day).getDay()],
+      events: eventsByDay.get(key) ?? [],
+    };
+  });
+  const next = week.find((entry) => entry.events.length);
+  const busy = week.filter((entry) => entry.events.length).length;
+  // 整个日历一件事都没有：一排空弹珠没意义，只留旋转的玻璃珠和一个按钮。
+  const blank = eventsByDay.size === 0;
+
+  return (
+    <div className={`calendar-free${blank ? ' is-blank' : ''}`}>
+      <div className="calendar-free-hero">
+        <span className="calendar-free-orb" aria-hidden="true" />
+        <div>
+          <strong>{blank ? '日历还是空的' : dateKey === todayKey ? '今天空闲' : '这天空闲'}</strong>
+          <small>
+            {blank
+              ? '考试、作业都可以放进来'
+              : next
+                ? `${calendarCountdown(next.key, dateKey)}有安排`
+                : '接下来一周也很轻松'}
+          </small>
+        </div>
+      </div>
+      {blank ? null : (
+        <div className="calendar-free-week" role="list" aria-label={`接下来一周，${busy} 天有安排`}>
+          {week.map((entry) => (
+            <button
+              type="button"
+              role="listitem"
+              key={entry.key}
+              className={`calendar-free-slot${entry.events.length ? ` is-${entry.events[0].kind}` : ''}`}
+              onClick={() => onSelect(entry.key)}
+              aria-label={`${entry.key}${entry.events.length ? `，${entry.events.length} 项安排` : '，空闲'}`}
+              title={entry.events.map((event) => event.title).join('\n') || undefined}
+            >
+              <small>{entry.weekday}</small>
+              <i aria-hidden="true">{entry.events.length > 1 ? entry.events.length : null}</i>
+              <span>{entry.day}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <button type="button" className="calendar-free-add" onClick={onAdd}>
+        <Plus size={16} />
+        安排点什么
+      </button>
+    </div>
+  );
 }
 
 function calendarCountdown(dateKey: string, todayKey: string): string {
@@ -1486,30 +1595,30 @@ export function PhoneCalendarPage({
     setReferenceDate((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
 
   return (
-    <PhonePage title={title} overlay wide onBack={onBack}>
+    <PhonePage title={title} overlay wide largeTitle onBack={onBack}>
+      <header className="phone-large-head phone-calendar-head">
+        <h1>{formatCalendarMonth(referenceDate)}</h1>
+        <div className="phone-large-head-actions">
+          <button type="button" onClick={() => shiftMonth(-1)} aria-label="上个月">
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            type="button"
+            className="phone-calendar-today"
+            onClick={() => {
+              setReferenceDate(new Date());
+              setSelectedKey(todayKey);
+            }}
+          >
+            今天
+          </button>
+          <button type="button" onClick={() => shiftMonth(1)} aria-label="下个月">
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      </header>
       <div className="phone-calendar-layout">
         <section className="phone-group phone-calendar" aria-label="选择日期">
-          <div className="phone-calendar-head">
-            <strong>{formatCalendarMonth(referenceDate)}</strong>
-            <div>
-              <button type="button" onClick={() => shiftMonth(-1)} aria-label="上个月">
-                <ChevronLeft size={18} />
-              </button>
-              <button
-                type="button"
-                className="phone-calendar-today"
-                onClick={() => {
-                  setReferenceDate(new Date());
-                  setSelectedKey(todayKey);
-                }}
-              >
-                今天
-              </button>
-              <button type="button" onClick={() => shiftMonth(1)} aria-label="下个月">
-                <ChevronRight size={18} />
-              </button>
-            </div>
-          </div>
           <div className="phone-calendar-grid">
             {CALENDAR_WEEKDAYS.map((weekday) => (
               <span key={weekday} className="phone-calendar-weekday">
@@ -1585,10 +1694,17 @@ export function PhoneCalendarPage({
                 />
               ))
             ) : (
-              <div className="phone-calendar-empty">
-                <img src={marbleImages.blue} alt="" aria-hidden />
-                <p>这天没有安排</p>
-              </div>
+              <CalendarFreeDay
+                dateKey={selectedKey}
+                todayKey={todayKey}
+                eventsByDay={eventsByDay}
+                onSelect={(key) => {
+                  const [year, month] = key.split('-').map(Number);
+                  setReferenceDate(new Date(year, month - 1, 1));
+                  setSelectedKey(key);
+                }}
+                onAdd={() => onAddEvent(selectedKey)}
+              />
             )}
           </section>
 
@@ -1700,6 +1816,7 @@ export function PhoneClassroomPage({
   onOpenDeck,
   onOpenRemoteDeck,
   onBack,
+  onChat,
 }: {
   courseId: string;
   conversations: LocalConversation[];
@@ -1709,6 +1826,7 @@ export function PhoneClassroomPage({
   onOpenDeck: (deck: PersistedMiniLectureDeck) => void;
   onOpenRemoteDeck: (lecture: NativeSyncedMiniLecture) => Promise<void>;
   onBack: () => void;
+  onChat?: () => void;
 }) {
   const [entries, setEntries] = useState<ClassroomEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1858,13 +1976,15 @@ export function PhoneClassroomPage({
           ) : null}
         </>
       ) : entries && !error ? (
-        <div className="cl-empty">
-          <span className="cl-empty-screen" aria-hidden>
-            <img src={classroomMarble} alt="" />
-          </span>
-          <strong>还没有课堂</strong>
-          <small>在聊天里说「做成课堂讲解」</small>
-        </div>
+        <LearningEmptyState
+          title="还没有课堂"
+          hint="在聊天里说「做成课堂」"
+          action={
+            onChat
+              ? { label: '去聊天', icon: <img src={marbleImages.pink} alt="" />, onClick: onChat }
+              : undefined
+          }
+        />
       ) : null}
     </PhonePage>
   );

@@ -198,6 +198,8 @@ model User {
   stripeCustomerId       String?   @unique
   /// 兑换激活码后才能登录 Syntara App（手机端）。
   nativeAppActivatedAt   DateTime?
+  /// 新手引导的进度：{ status, marks }，见 lib/server/onboarding.ts。
+  onboarding             Json?
 
   accounts                   Account[]
   sessions                   Session[]

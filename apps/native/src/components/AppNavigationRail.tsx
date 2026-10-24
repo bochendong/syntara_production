@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CalendarDays, Home, UserRound, Store } from 'lucide-react';
 import { nativeAccountAvatarUrl } from '../assets';
+import type { AppNavigation } from './app-navigation-context';
 import './app-navigation-rail.css';
 
 export function AppNavigationRail({
@@ -10,14 +11,7 @@ export function AppNavigationRail({
   onOpenCalendar,
   onOpenStore,
   onOpenSettings,
-}: {
-  active: 'chat' | 'calendar' | 'store' | 'settings';
-  avatarUrl?: string;
-  onOpenChat: () => void;
-  onOpenCalendar: () => void;
-  onOpenStore: () => void;
-  onOpenSettings: () => void;
-}) {
+}: AppNavigation & { onOpenChat: () => void }) {
   const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const image = avatarUrl || nativeAccountAvatarUrl(null, null);
   return (
@@ -35,6 +29,7 @@ export function AppNavigationRail({
         type="button"
         aria-label="课程商城"
         title="课程商城"
+        data-onboarding="store"
         aria-current={active === 'store' ? 'page' : undefined}
         onClick={onOpenStore}
       >

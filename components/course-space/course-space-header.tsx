@@ -192,6 +192,7 @@ export function CourseSpaceNavigation({
             scroll={false}
             aria-current={selected ? 'page' : undefined}
             className={itemClassName}
+            data-onboarding={`course-nav-${key}`}
           >
             {content}
           </Link>
@@ -399,6 +400,7 @@ export function CourseSpaceHeaderContent({
             className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 outline-none transition hover:bg-white hover:text-sky-700 focus-visible:ring-2 focus-visible:ring-sky-400/40 dark:hover:bg-white/[0.07] dark:hover:text-sky-200"
             aria-label="所有课程"
             title="所有课程"
+            data-onboarding="home"
           >
             <Home className="size-4 shrink-0" strokeWidth={1.9} />
           </Link>

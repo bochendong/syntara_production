@@ -112,6 +112,65 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* 大标题页：返回键和标题同一行，顶栏透明；往下滚，标题收进玻璃条。 */
+.phone-page-large > .phone-page-header {
+  border-bottom-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  pointer-events: none;
+  transition:
+    background 220ms ease,
+    border-color 220ms ease;
+}
+.phone-page-large > .phone-page-header > * {
+  pointer-events: auto;
+}
+.phone-page-large > .phone-page-header .phone-page-title {
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 200ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.phone-page-large.is-scrolled > .phone-page-header {
+  border-bottom-color: rgb(255 255 255 / 55%);
+  background: linear-gradient(to bottom, rgb(255 255 255 / 80%), rgb(255 255 255 / 55%));
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(1.8);
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(1.8);
+}
+.phone-page-large.is-scrolled > .phone-page-header .phone-page-title {
+  opacity: 1;
+  transform: none;
+}
+.phone-page-large > .phone-page-scroll {
+  padding-top: calc(8px + env(safe-area-inset-top));
+}
+
+.phone-large-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  min-height: 44px;
+  margin-bottom: 14px;
+  padding-left: 52px;
+}
+.phone-large-head h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 44px;
+  white-space: nowrap;
+}
+.phone-large-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
 /* 分组卡片和行，类似 iOS 设置。 */
 .phone-group {
   overflow: hidden;
@@ -1148,6 +1207,7 @@
   display: grid;
   flex: 1;
   grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   align-items: start;
   gap: 24px;
 }
@@ -1192,33 +1252,15 @@
   padding: 14px 12px 10px;
 }
 
-.phone-calendar-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 4px 10px;
-}
-
-.phone-calendar-head strong {
-  font-size: 17px;
-  font-weight: 600;
-}
-
-.phone-calendar-head > div {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .phone-calendar-head button {
   display: grid;
   min-width: 34px;
   height: 34px;
   place-items: center;
   padding: 0 10px;
-  border: 0;
+  border: 1px solid rgb(255 255 255 / 90%);
   border-radius: 999px;
-  background: #f1f5f9;
+  background: rgb(255 255 255 / 72%);
   color: #0f172a;
   font-size: 14px;
 }
@@ -1341,6 +1383,195 @@
   background: var(--marble-green-mid);
 }
 
+/* 空的一天：一颗慢慢转的玻璃弹珠 + 接下来一周的弹珠排。 */
+.calendar-free {
+  display: grid;
+  gap: 18px;
+  padding: 18px 18px 20px;
+}
+.calendar-free-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.calendar-free-hero strong,
+.calendar-free-hero small {
+  display: block;
+}
+.calendar-free-hero strong {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.calendar-free-hero small {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 13px;
+}
+.calendar-free-orb {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 26%, rgb(255 255 255 / 95%) 0 10%, transparent 34%),
+    conic-gradient(
+      from 40deg,
+      var(--marble-blue-light),
+      var(--marble-green-light),
+      var(--marble-amber-light),
+      var(--marble-pink-light),
+      var(--marble-purple-light),
+      var(--marble-blue-light)
+    );
+  box-shadow:
+    inset 0 -6px 12px rgb(30 41 80 / 14%),
+    inset 0 2px 0 rgb(255 255 255 / 80%),
+    0 10px 20px -10px rgb(30 41 80 / 40%);
+  animation: calendar-free-spin 14s linear infinite;
+}
+.calendar-free-orb::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 26%, rgb(255 255 255 / 85%) 0 9%, transparent 30%);
+  content: '';
+  animation: calendar-free-spin 14s linear infinite reverse;
+}
+@keyframes calendar-free-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.calendar-free-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+.calendar-free-slot {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  color: #0f172a;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+.calendar-free-slot:hover {
+  background: rgb(15 23 42 / 4%);
+}
+.calendar-free-slot small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.calendar-free-slot span {
+  color: #64748b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.calendar-free-slot i {
+  --slot: rgb(15 23 42 / 6%);
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px dashed rgb(15 23 42 / 14%);
+  border-radius: 50%;
+  background: var(--slot);
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.calendar-free-slot:hover i {
+  transform: translateY(-2px) rotate(-10deg);
+}
+.calendar-free-slot[class*=' is-'] i {
+  border: 0;
+  background:
+    radial-gradient(circle at 32% 28%, rgb(255 255 255 / 92%) 0 14%, transparent 42%),
+    radial-gradient(circle at 70% 75%, rgb(0 0 0 / 14%), transparent 60%), var(--slot);
+  box-shadow: 0 4px 8px -3px rgb(30 41 80 / 35%);
+}
+.calendar-free-slot[class*=' is-'] span {
+  color: #0f172a;
+  font-weight: 600;
+}
+.calendar-free-slot.is-assignment i {
+  --slot: var(--marble-blue-mid);
+}
+.calendar-free-slot.is-exam i {
+  --slot: var(--marble-pink-mid);
+}
+.calendar-free-slot.is-progress i {
+  --slot: var(--marble-amber-mid);
+}
+.calendar-free-slot.is-tutorial i {
+  --slot: var(--marble-purple-mid);
+}
+.calendar-free-slot.is-holiday i {
+  --slot: var(--marble-green-mid);
+}
+.calendar-free-slot.is-other i {
+  --slot: #94a3b8;
+}
+
+.calendar-free-add {
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 5%);
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.calendar-free-add:hover {
+  background: rgb(15 23 42 / 8%);
+}
+
+/* 整个日历都是空的：玻璃珠居中放大，碰一下转快一点。 */
+.calendar-free.is-blank {
+  justify-items: center;
+  gap: 16px;
+  padding: 30px 18px 26px;
+  text-align: center;
+}
+.calendar-free.is-blank .calendar-free-hero {
+  flex-direction: column;
+  gap: 12px;
+}
+.calendar-free.is-blank .calendar-free-orb {
+  width: 72px;
+  height: 72px;
+  transition: transform 300ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.calendar-free.is-blank .calendar-free-hero:hover .calendar-free-orb {
+  transform: scale(1.08);
+  animation-duration: 3s;
+}
+.calendar-free.is-blank .calendar-free-add {
+  justify-self: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-free-orb,
+  .calendar-free-orb::after {
+    animation: none;
+  }
+}
+
 .phone-calendar-add {
   display: grid;
   width: 34px;
@@ -1399,15 +1630,6 @@
     min-width: 0;
     flex-direction: column;
     padding: 22px 16px 16px;
-  }
-
-  .phone-calendar-head {
-    flex: none;
-    padding: 0 8px 20px;
-  }
-
-  .phone-calendar-head strong {
-    font-size: 20px;
   }
 
   .phone-calendar-grid {
@@ -1514,6 +1736,10 @@
     align-content: start;
     overflow-y: auto;
     overscroll-behavior: contain;
+    /* 很多安排时底部渐隐，不会像被硬切掉一样。 */
+    padding-bottom: 28px;
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
   }
 
   .phone-calendar-agenda .phone-event-row {

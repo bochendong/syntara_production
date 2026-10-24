@@ -173,6 +173,7 @@ function Preview() {
         active={globalPage ?? 'chat'}
         onOpenChat={() => setGlobalPage(null)}
         onOpenCalendar={() => setGlobalPage('calendar')}
+        onOpenStore={() => setNotice('请在完整 App 预览中打开商城。')}
         onOpenSettings={() => setGlobalPage('settings')}
       />
       <div className="app-chat-surface" inert={globalPage !== null}>

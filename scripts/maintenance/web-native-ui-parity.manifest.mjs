@@ -1,5 +1,33 @@
 export const nativeUiParityManifest = [
   {
+    native: 'apps/native/src/components/OnboardingCoach.tsx',
+    web: ['components/onboarding/web-onboarding-coach.tsx'],
+    components: ['OnboardingCoach'],
+    parity: 'needs-review',
+  },
+  {
+    native: 'apps/native/src/components/LearningEmptyState.tsx',
+    web: [],
+    components: ['LearningEmptyState'],
+    parity: 'intentional-native',
+    reason: 'Shared empty-list animation for notes and problems in the current App builds.',
+  },
+  {
+    native: 'apps/native/src/components/ChatWorkspaceShell.tsx',
+    web: [],
+    components: ['ChatWorkspaceShell'],
+    parity: 'intentional-native',
+    reason:
+      'Persistent chat navigation shared by the current App browser and native desktop shell.',
+  },
+  {
+    native: 'apps/native/src/components/LearningToolIcon.tsx',
+    web: [],
+    components: ['LearningToolIcon'],
+    parity: 'intentional-native',
+    reason: 'Shared semantic line icons for current App browser and native learning tools.',
+  },
+  {
     native: 'apps/native/src/components/LearningWorkspaceTabs.tsx',
     web: [],
     components: ['LearningWorkspaceTabs'],

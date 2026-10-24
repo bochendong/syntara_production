@@ -1,0 +1,227 @@
+/* 新手引导：暗色遮罩 + 玻璃透镜 + 一句话气泡。颜色和玻璃来自 marble-tokens.css。 */
+.onboarding-coach {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+}
+
+.onboarding-blocker {
+  position: fixed;
+  pointer-events: auto;
+}
+
+.onboarding-lens {
+  position: fixed;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 200vmax rgb(15 23 42 / 0.56),
+    0 0 0 2px rgb(255 255 255 / 0.9),
+    0 0 26px 6px rgb(var(--marble-purple-rgb) / 0.75),
+    inset 0 0 12px rgb(255 255 255 / 0.18);
+  transition:
+    top 360ms cubic-bezier(0.2, 0.9, 0.25, 1.15),
+    left 360ms cubic-bezier(0.2, 0.9, 0.25, 1.15),
+    width 360ms cubic-bezier(0.2, 0.9, 0.25, 1.15),
+    height 360ms cubic-bezier(0.2, 0.9, 0.25, 1.15),
+    border-radius 360ms ease;
+}
+
+.onboarding-lens::after {
+  position: absolute;
+  inset: -6px;
+  border: 2px solid rgb(var(--marble-purple-rgb) / 0.55);
+  border-radius: inherit;
+  content: '';
+  animation: onboarding-lens-pulse 1.8s ease-out infinite;
+}
+
+@keyframes onboarding-lens-pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}
+
+.onboarding-bubble {
+  position: fixed;
+  display: flex;
+  width: 220px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  border: 1px solid rgb(255 255 255 / 0.85);
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 0.86);
+  box-shadow: 0 14px 40px rgb(15 23 42 / 0.28);
+  color: #0f172a;
+  pointer-events: auto;
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(1.4);
+  animation: onboarding-bubble-in 320ms cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
+}
+
+.onboarding-bubble.is-above {
+  transform-origin: bottom center;
+}
+
+.onboarding-bubble.is-below {
+  transform-origin: top center;
+}
+
+@keyframes onboarding-bubble-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+.onboarding-bubble strong {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.onboarding-bubble-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.onboarding-progress {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.onboarding-progress img,
+.onboarding-progress i {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.onboarding-progress img {
+  animation: onboarding-marble-drop 420ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+
+@keyframes onboarding-marble-drop {
+  from {
+    transform: translateY(-10px) scale(0.6);
+  }
+}
+
+.onboarding-progress i {
+  border: 1.5px dashed #94a3b8;
+}
+
+.onboarding-progress i.is-current {
+  border-style: solid;
+  border-color: var(--marble-purple-mid);
+  box-shadow: 0 0 8px rgb(var(--marble-purple-rgb) / 0.8);
+}
+
+.onboarding-bubble button {
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.onboarding-bubble button:hover {
+  color: #475569;
+}
+
+/* 课程行的「…」平时悬停才出现；被圈住时一直显示。 */
+.phone-drawer-course-actions:has([data-onboarding='course-tools']) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.onboarding-finish {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 2147483000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 28px;
+  border: 1px solid rgb(255 255 255 / 0.85);
+  border-radius: var(--radius-lg);
+  background: rgb(255 255 255 / 0.82);
+  box-shadow: 0 20px 60px rgb(15 23 42 / 0.25);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
+  animation: onboarding-finish 2400ms ease both;
+}
+
+.onboarding-finish strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.onboarding-finish-marbles {
+  display: flex;
+  gap: 6px;
+}
+
+.onboarding-finish-marbles img {
+  width: 30px;
+  height: 30px;
+  animation: onboarding-marble-drop 520ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+
+.onboarding-finish-marbles img:nth-child(2) {
+  animation-delay: 80ms;
+}
+
+.onboarding-finish-marbles img:nth-child(3) {
+  animation-delay: 160ms;
+}
+
+.onboarding-finish-marbles img:nth-child(4) {
+  animation-delay: 240ms;
+}
+
+.onboarding-finish-marbles img:nth-child(5) {
+  animation-delay: 320ms;
+}
+
+@keyframes onboarding-finish {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.92);
+  }
+  12%,
+  80% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -54%) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-lens,
+  .onboarding-lens::after,
+  .onboarding-bubble,
+  .onboarding-progress img,
+  .onboarding-finish,
+  .onboarding-finish-marbles img {
+    transition: none;
+    animation: none;
+  }
+}

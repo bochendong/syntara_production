@@ -20,9 +20,59 @@ export type NativeStoreCourse = {
   avatarUrl: string;
   organization: { id: string; name: string; logoUrl: string | null; verified: boolean } | null;
   notebookCount: number;
+  sceneCount: number;
+  problemCount: number;
+  /** 已加入的人数（含自己），用来排「热门」。 */
+  learnerCount: number;
+  averageRating: number;
+  reviewCount: number;
+  purpose: string;
+  university: string | null;
+  tags: string[];
   joined: boolean;
   updatedAt: string;
 };
+
+/** 商城详情页：章节（机构的笔记本）和几条评价。 */
+export type NativeStoreCourseDetail = NativeStoreCourse & {
+  notebooks: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    sceneCount: number;
+    problemCount: number;
+  }>;
+  reviews: Array<{ id: string; rating: number; comment: string | null; reviewerName: string }>;
+};
+
+async function loadStoreStats(prisma: PrismaClient, courseIds: string[]) {
+  if (!courseIds.length) {
+    return {
+      learners: new Map<string, number>(),
+      ratings: new Map<string, { sum: number; count: number }>(),
+    };
+  }
+  const [learnerRows, reviewRows] = await Promise.all([
+    prisma.courseEnrollment
+      .groupBy({ by: ['courseId'], where: { courseId: { in: courseIds } }, _count: { _all: true } })
+      .catch(() => [] as Array<{ courseId: string; _count: { _all: number } }>),
+    prisma.courseReview.groupBy({
+      by: ['courseId'],
+      where: { courseId: { in: courseIds } },
+      _sum: { rating: true },
+      _count: { _all: true },
+    }),
+  ]);
+  return {
+    learners: new Map(learnerRows.map((row) => [row.courseId, row._count._all])),
+    ratings: new Map(
+      reviewRows.map((row) => [
+        row.courseId,
+        { sum: row._sum.rating ?? 0, count: row._count._all },
+      ]),
+    ),
+  };
+}
 
 export async function listNativeStoreCourses(
   prisma: PrismaClient,
@@ -38,8 +88,13 @@ export async function listNativeStoreCourses(
       )
     ).map((row) => row.sourceCourseId),
   );
+  const stats = await loadStoreStats(
+    prisma,
+    rows.map((row) => row.id),
+  );
   return rows.map((row) => {
     const display = normalizeCourseDisplay(row);
+    const rating = stats.ratings.get(row.id);
     return {
       id: row.id,
       name: display.name,
@@ -55,6 +110,15 @@ export async function listNativeStoreCourses(
           }
         : null,
       notebookCount: row.notebookCount || row._count.notebooks,
+      sceneCount:
+        row.sceneCount || row.notebooks.reduce((sum, nb) => sum + (nb.sceneCount ?? 0), 0),
+      problemCount: row.publishedProblemCount,
+      learnerCount: stats.learners.get(row.id) ?? 0,
+      averageRating: rating?.count ? Math.round((rating.sum / rating.count) * 10) / 10 : 0,
+      reviewCount: rating?.count ?? 0,
+      purpose: row.purpose,
+      university: row.university ?? null,
+      tags: row.tags,
       joined: joined.has(row.id),
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -62,7 +126,11 @@ export async function listNativeStoreCourses(
 }
 
 /** 从商城加入一门课：只写一条 CourseEnrollment（引用，不复制内容）。 */
-export async function joinNativeStoreCourse(prisma: PrismaClient, userId: string, courseId: string) {
+export async function joinNativeStoreCourse(
+  prisma: PrismaClient,
+  userId: string,
+  courseId: string,
+) {
   const result = await cloneStoreCourseForUser(prisma, userId, courseId);
   return result.status === 'not_found' ? null : { courseId, created: result.status === 'created' };
 }
@@ -80,7 +148,8 @@ export async function loadNativeCourseStoreMeta(
   userId: string,
   courseIds: string[],
 ) {
-  if (!courseIds.length) return new Map<string, { organizationName: string | null; hasUpdate: boolean }>();
+  if (!courseIds.length)
+    return new Map<string, { organizationName: string | null; hasUpdate: boolean }>();
   const [courses, enrollments] = await Promise.all([
     prisma.course.findMany({
       where: { id: { in: courseIds } },
@@ -107,4 +176,61 @@ export async function loadNativeCourseStoreMeta(
       ];
     }),
   );
+}
+
+/** 商城详情：列表里的字段 + 章节 + 最近的评价。下架或不存在时返回 null。 */
+export async function getNativeStoreCourseDetail(
+  prisma: PrismaClient,
+  userId: string,
+  courseId: string,
+): Promise<NativeStoreCourseDetail | null> {
+  const course = (await listNativeStoreCourses(prisma, userId)).find(
+    (item) => item.id === courseId,
+  );
+  if (!course) return null;
+  const [notebooks, reviews] = await Promise.all([
+    prisma.notebook.findMany({
+      where: {
+        courseId,
+        removedAt: null,
+        owner: { courses: { some: { id: courseId } } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 60,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        sceneCount: true,
+        publishedProblemCount: true,
+      },
+    }),
+    prisma.courseReview.findMany({
+      where: { courseId },
+      orderBy: { updatedAt: 'desc' },
+      take: 6,
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        reviewer: { select: { name: true, email: true } },
+      },
+    }),
+  ]);
+  return {
+    ...course,
+    notebooks: notebooks.map((notebook) => ({
+      id: notebook.id,
+      name: notebook.name,
+      description: notebook.description,
+      sceneCount: notebook.sceneCount,
+      problemCount: notebook.publishedProblemCount,
+    })),
+    reviews: reviews.map((review) => ({
+      id: review.id,
+      rating: review.rating,
+      comment: review.comment,
+      reviewerName: review.reviewer.name?.trim() || review.reviewer.email?.split('@')[0] || '同学',
+    })),
+  };
 }

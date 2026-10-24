@@ -46,12 +46,15 @@ import {
   Pin,
   PinOff,
   Ellipsis,
+  Store,
   Upload,
+  UserRound,
   X,
 } from 'lucide-react';
 
 import {
   COURSE_AVATAR_PRESETS,
+  nativeAccountAvatarUrl,
   pickRandomCourseAvatarId,
   readStoredCourseAvatarId,
   resolveNativeCourseAvatar,
@@ -59,6 +62,7 @@ import {
   writeStoredCourseAvatarId,
 } from '../assets';
 import { ChatScopePicker } from './ChatScopePicker';
+import { useChatWorkspaceShell, usePublishChatSidebar } from './ChatWorkspaceShell';
 import { CourseToolsMenu } from './CourseToolsMenu';
 import { CourseMaterialsPage, type CourseMaterialKind } from './CourseMaterialsPage';
 import { LearningWorkspaceTabs } from './LearningWorkspaceTabs';
@@ -154,6 +158,8 @@ import {
 } from './MiniLectureClassroom';
 import { NativeLearningActions } from './NativeLearningActions';
 import { marbleImages } from '../lib/learning-action-marbles';
+import { LearningToolIcon } from './LearningToolIcon';
+import { LearningEmptyState } from './LearningEmptyState';
 import { RecallThinking, type ThinkingRecall } from './RecallThinking';
 import {
   GlassLoadMore,
@@ -198,8 +204,10 @@ import type {
 import { writePhoneLastChat } from '../lib/phone-last-chat';
 import { readPinnedChatIds, writePinnedChatIds } from '../lib/phone-pinned-chats';
 import { useBackDismiss } from '../lib/use-back-dismiss';
+import { completeOnboardingStep, ONBOARDING_PREFILL_EVENT } from '../lib/onboarding';
 import { usePhoneKeyboardInset } from '../lib/use-phone-keyboard';
-import { usePhoneLayout } from '../lib/use-phone-layout';
+import { useCompactLayout, usePhoneLayout } from '../lib/use-phone-layout';
+import { useAppNavigation } from './app-navigation-context';
 
 // 我的页收藏架点了别的课的罐子：换课后直接打开那门课的学习记忆。
 const OPEN_PHONE_PAGE_KEY = 'syntara.open-phone-page';
@@ -950,10 +958,11 @@ export function LearningToolsCard({ actions }: { actions: DrawerLearningAction[]
               type="button"
               key={id}
               className="phone-drawer-tool"
+              data-tool={id}
               onClick={open}
               data-marble-target={id === 'memory' ? '2' : undefined}
             >
-              <Icon size={20} strokeWidth={1.8} aria-hidden />
+              <LearningToolIcon tool={id} fallback={Icon} />
               <span>{label}</span>
               {count ? <small>{count}</small> : null}
             </button>
@@ -964,7 +973,56 @@ export function LearningToolsCard({ actions }: { actions: DrawerLearningAction[]
   );
 }
 
+/**
+ * 宽屏聊天页右上角的浮动学习卡：资料一组、学习一组，点一行在顶栏开标签。
+ */
+function LearningFloatCard({ actions }: { actions: DrawerLearningAction[] }) {
+  const byId = new Map(actions.map((action) => [action.id, action]));
+  const sections = [
+    { title: '资料', add: byId.get('materials'), ids: ['notes', 'problems'] },
+    { title: '学习', ids: ['progress', 'memory', 'classroom'] },
+  ];
+  return (
+    <aside className="learning-float-card" aria-label="课程学习">
+      {sections.map(({ title: sectionTitle, add, ids }) => (
+        <section key={sectionTitle}>
+          <div className="learning-float-section">
+            <span>{sectionTitle}</span>
+            {add ? (
+              <button type="button" onClick={add.open} aria-label="上传资料" title="上传资料">
+                <Plus size={14} strokeWidth={2} />
+              </button>
+            ) : null}
+          </div>
+          {ids.map((id) => {
+            const action = byId.get(id);
+            if (!action) return null;
+            const { label, icon: Icon, open, count } = action;
+            return (
+              <button
+                type="button"
+                key={id}
+                className="learning-float-row"
+                data-tool={id}
+                data-marble-target={id === 'memory' ? '2' : undefined}
+                onClick={open}
+              >
+                <LearningToolIcon tool={id} fallback={Icon} />
+                <span>{label}</span>
+                {count ? <small>{count}</small> : null}
+              </button>
+            );
+          })}
+        </section>
+      ))}
+    </aside>
+  );
+}
+
 /** Shared course navigation and recent conversations. */
+const DRAWER_COURSE_PEEK = 5;
+const DRAWER_CHAT_PEEK = 5;
+
 export function PhoneChatDrawer<
   T extends Pick<LocalConversation, 'id' | 'title' | 'createdAt' | 'updatedAt'>,
 >({
@@ -1007,15 +1065,80 @@ export function PhoneChatDrawer<
   onSelectConversation: (conversationId: string) => void;
 }) {
   const courseMeta = usePlatformCourseMeta();
+  const chatShell = useChatWorkspaceShell();
+  // 手机和窄窗口没有左侧细导航栏：商城、日历放在新聊天下面，「我的」放在底部。
+  const compact = useCompactLayout();
+  const navigation = useAppNavigation();
+  const accountAvatar = navigation?.avatarUrl || nativeAccountAvatarUrl(null, null);
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
+  const [coursesOpen, setCoursesOpen] = useState(true);
+  const [chatSelection, setChatSelection] = useState<{
+    conversationId: string;
+    inCourse: boolean;
+  } | null>(() => {
+    try {
+      const stored: unknown = JSON.parse(
+        sessionStorage.getItem('syntara.drawer-chat-selection') ?? 'null',
+      );
+      if (
+        stored &&
+        typeof stored === 'object' &&
+        'conversationId' in stored &&
+        typeof stored.conversationId === 'string' &&
+        'inCourse' in stored &&
+        typeof stored.inCourse === 'boolean'
+      ) {
+        return { conversationId: stored.conversationId, inCourse: stored.inCourse };
+      }
+    } catch {
+      // Selection still follows clicks when session storage is unavailable.
+    }
+    return null;
+  });
   const [query, setQuery] = useState('');
   const [courseMenu, setCourseMenu] = useState<{
     course: LocalCourseSummary;
     anchor: HTMLButtonElement;
   } | null>(null);
-  const [expandedCourses, setExpandedCourses] = useState<string[]>(() =>
-    selectedCourseId ? [selectedCourseId] : courses[0] ? [courses[0].id] : [],
-  );
+  // Switching courses remounts the drawer; keep each course's disclosure state in this window.
+  const [expandedCourses, setExpandedCourses] = useState<string[]>(() => {
+    const initialIds = selectedCourseId ? [selectedCourseId] : courses[0] ? [courses[0].id] : [];
+    try {
+      const stored: unknown = JSON.parse(
+        sessionStorage.getItem('syntara.drawer-expanded-courses') ?? 'null',
+      );
+      if (Array.isArray(stored) && stored.every((id) => typeof id === 'string')) {
+        return selectedCourseId ? [...new Set([...stored, selectedCourseId])] : stored;
+      }
+    } catch {
+      // Navigation still works when session storage is unavailable.
+    }
+    return initialIds;
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('syntara.drawer-expanded-courses', JSON.stringify(expandedCourses));
+    } catch {
+      // Disclosure state remains available until this drawer unmounts.
+    }
+  }, [expandedCourses]);
+  // 课程很多时只露出前几门（当前课程总在里面），其余收进「还有 N 门」。
+  const [allCoursesShown, setAllCoursesShown] = useState(false);
+  // 一门课聊天很多时，展开也只先露出几条，其余点「还有 N 个」再显示。
+  const [allChatsCourseIds, setAllChatsCourseIds] = useState<string[]>([]);
+  const shownCourses = useMemo(() => {
+    if (allCoursesShown || courses.length <= DRAWER_COURSE_PEEK + 1) return courses;
+    const head = courses.slice(0, DRAWER_COURSE_PEEK);
+    const current = courses.find((course) => course.id === selectedCourseId);
+    return current && !head.includes(current)
+      ? [current, ...head.slice(0, DRAWER_COURSE_PEEK - 1)]
+      : head;
+  }, [allCoursesShown, courses, selectedCourseId]);
+  const hiddenCourses =
+    shownCourses.length < courses.length
+      ? courses.filter((course) => !shownCourses.includes(course))
+      : [];
   const keyword = query.trim().toLowerCase();
   const history = useRecentChats(
     courses.map((course) => course.id),
@@ -1062,7 +1185,7 @@ export function PhoneChatDrawer<
   const recentConversations = visibleConversations.filter(
     (conversation) => !pinnedIds.includes(conversation.id),
   );
-  const recentWindow = useListWindow(recentConversations.length, `${selectedCourseId}:${keyword}`);
+  const recentWindow = useListWindow(recentConversations.length, keyword);
   useRemoteConversationSearch(query, onOpenRecentChat ? history.search : onRemoteSearch);
 
   const togglePinned = (conversation: RecentChat) => {
@@ -1089,22 +1212,55 @@ export function PhoneChatDrawer<
     }, 450);
   };
 
-  const renderRow = (conversation: RecentChat) => {
+  const shownChatsForCourse = (courseId: string) => {
+    const chats = allConversations.filter((conversation) => conversation.courseId === courseId);
+    return allChatsCourseIds.includes(courseId) || chats.length <= DRAWER_CHAT_PEEK + 1
+      ? chats
+      : chats.slice(0, DRAWER_CHAT_PEEK);
+  };
+
+  const activeCourseChatVisible =
+    !searching &&
+    coursesOpen &&
+    expandedCourses.includes(selectedCourseId) &&
+    shownCourses.some((course) => course.id === selectedCourseId) &&
+    shownChatsForCourse(selectedCourseId).some(
+      (conversation) => conversation.id === selectedConversationId,
+    );
+
+  const renderRow = (conversation: RecentChat, inCourse: boolean) => {
     const active = conversation.id === selectedConversationId;
+    const preferCourse =
+      activeCourseChatVisible &&
+      (chatSelection?.conversationId !== selectedConversationId || chatSelection.inCourse);
+    const primary = active && inCourse === preferCourse;
     return (
       <div
         key={conversation.id}
-        className={active ? 'phone-drawer-row phone-drawer-row-active' : 'phone-drawer-row'}
+        className={`phone-drawer-row${primary ? ' phone-drawer-row-active' : active ? ' phone-drawer-row-current' : ''}`}
       >
         <button
           type="button"
+          aria-current={primary ? 'page' : undefined}
           onClick={() => {
             if (longPressFiredRef.current) {
               longPressFiredRef.current = false;
               return;
             }
-            if (onOpenRecentChat) onOpenRecentChat(conversation.courseId, conversation.id);
-            else onSelectConversation(conversation.id);
+            const nextSelection = { conversationId: conversation.id, inCourse };
+            setChatSelection(nextSelection);
+            try {
+              sessionStorage.setItem(
+                'syntara.drawer-chat-selection',
+                JSON.stringify(nextSelection),
+              );
+            } catch {
+              // Keep the clicked location selected until the drawer unmounts.
+            }
+            if (conversation.courseId === (selectedCourseId || null)) {
+              chatShell?.onLocalNavigation();
+              onSelectConversation(conversation.id);
+            } else onOpenRecentChat?.(conversation.courseId, conversation.id);
           }}
           onTouchStart={(event) =>
             startLongPress(conversation, event.currentTarget.closest('.phone-drawer-row'))
@@ -1118,7 +1274,7 @@ export function PhoneChatDrawer<
             openMenuFor(conversation, event.currentTarget.closest('.phone-drawer-row'));
           }}
         >
-          {conversation.title}
+          <span className="phone-drawer-row-title">{conversation.title}</span>
         </button>
         <button
           type="button"
@@ -1174,6 +1330,23 @@ export function PhoneChatDrawer<
           <SquarePen size={20} strokeWidth={1.8} aria-hidden />
           <span>新聊天</span>
         </button>
+        {compact && navigation ? (
+          <>
+            <button
+              type="button"
+              className="phone-drawer-tool"
+              data-onboarding="store"
+              onClick={navigation.onOpenStore}
+            >
+              <Store size={20} strokeWidth={1.8} aria-hidden />
+              <span>商城</span>
+            </button>
+            <button type="button" className="phone-drawer-tool" onClick={navigation.onOpenCalendar}>
+              <CalendarDays size={20} strokeWidth={1.8} aria-hidden />
+              <span>日历</span>
+            </button>
+          </>
+        ) : null}
       </nav>
       {searching ? (
         <input
@@ -1190,14 +1363,18 @@ export function PhoneChatDrawer<
         {!searching ? (
           <>
             <nav className="phone-drawer-nav phone-drawer-courses" aria-label="全部课程">
-              <details className="phone-drawer-group" open>
+              <details
+                className="phone-drawer-group"
+                open={coursesOpen}
+                onToggle={(event) => setCoursesOpen(event.currentTarget.open)}
+              >
                 <summary className="phone-drawer-section-toggle">
                   <h3>课程</h3>
                   <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
                 </summary>
                 <div className="phone-drawer-group-items">
                   {!courses.length ? <p className="phone-drawer-empty">还没有课程</p> : null}
-                  {courses.map((course) => {
+                  {shownCourses.map((course) => {
                     const current = course.id === selectedCourseId;
                     const expanded = expandedCourses.includes(course.id);
                     const chats = allConversations.filter((chat) => chat.courseId === course.id);
@@ -1246,6 +1423,7 @@ export function PhoneChatDrawer<
                               type="button"
                               aria-label={`${course.courseCode || course.name}学习工具`}
                               title="学习工具"
+                              data-onboarding={current ? 'course-tools' : undefined}
                               aria-haspopup="menu"
                               aria-expanded={courseMenu?.course.id === course.id}
                               onClick={(event) =>
@@ -1277,15 +1455,47 @@ export function PhoneChatDrawer<
                             aria-label={`${course.courseCode || course.name}的聊天`}
                           >
                             {chats.length ? (
-                              chats.map(renderRow)
+                              shownChatsForCourse(course.id).map((conversation) =>
+                                renderRow(conversation, true),
+                              )
                             ) : (
                               <p className="phone-drawer-course-empty">暂无聊天</p>
                             )}
+                            {chats.length > DRAWER_CHAT_PEEK + 1 &&
+                            !allChatsCourseIds.includes(course.id) ? (
+                              <button
+                                type="button"
+                                className="phone-drawer-more-chats"
+                                onClick={() => setAllChatsCourseIds((ids) => [...ids, course.id])}
+                              >
+                                还有 {chats.length - DRAWER_CHAT_PEEK} 个
+                              </button>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>
                     );
                   })}
+                  {hiddenCourses.length || allCoursesShown ? (
+                    <button
+                      type="button"
+                      className="phone-drawer-more-courses"
+                      aria-expanded={allCoursesShown}
+                      onClick={() => setAllCoursesShown((shown) => !shown)}
+                    >
+                      <span className="phone-drawer-more-marbles" aria-hidden>
+                        {(allCoursesShown ? [] : hiddenCourses.slice(0, 3)).map((course) => (
+                          <img
+                            key={course.id}
+                            src={resolveNativeCourseAvatar(course.id, course.courseCode)}
+                            alt=""
+                          />
+                        ))}
+                      </span>
+                      <span>{allCoursesShown ? '收起' : `还有 ${hiddenCourses.length} 门`}</span>
+                      <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
+                    </button>
+                  ) : null}
                 </div>
               </details>
               {onCreateCourse ? (
@@ -1293,6 +1503,7 @@ export function PhoneChatDrawer<
                   type="button"
                   className="phone-drawer-create"
                   aria-label="新课程"
+                  data-onboarding="new-course"
                   onClick={onCreateCourse}
                 >
                   <Plus size={14} strokeWidth={1.8} aria-hidden />
@@ -1300,13 +1511,15 @@ export function PhoneChatDrawer<
                 </button>
               ) : null}
             </nav>
-            {learningActions.length ? <LearningToolsCard actions={learningActions} /> : null}
+            {learningActions.length && !compact ? (
+              <LearningToolsCard actions={learningActions} />
+            ) : null}
           </>
         ) : null}
         {pinnedConversations.length ? (
           <>
             <p className="phone-drawer-section">置顶</p>
-            {pinnedConversations.map(renderRow)}
+            {pinnedConversations.map((conversation) => renderRow(conversation, false))}
           </>
         ) : null}
         <details className="phone-drawer-group phone-drawer-recent" open>
@@ -1315,7 +1528,11 @@ export function PhoneChatDrawer<
             <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
           </summary>
           {recentConversations.length ? (
-            <>{recentConversations.slice(0, recentWindow.count).map(renderRow)}</>
+            <>
+              {recentConversations
+                .slice(0, recentWindow.count)
+                .map((conversation) => renderRow(conversation, false))}
+            </>
           ) : (
             <p className="phone-drawer-empty">
               <img src={marbleImages.blue} alt="" aria-hidden />
@@ -1334,6 +1551,23 @@ export function PhoneChatDrawer<
         </details>
       </div>
 
+      {compact && navigation ? (
+        <button
+          type="button"
+          className="phone-drawer-account"
+          onClick={navigation.onOpenSettings}
+          aria-label="我的"
+        >
+          <span className="phone-drawer-account-avatar" aria-hidden>
+            {accountAvatar && failedAvatar !== accountAvatar ? (
+              <img src={accountAvatar} alt="" onError={() => setFailedAvatar(accountAvatar)} />
+            ) : (
+              <UserRound size={18} strokeWidth={1.7} />
+            )}
+          </span>
+          <span>我的</span>
+        </button>
+      ) : null}
       {onOpenRecentChat && history.error ? (
         <p className="phone-drawer-empty" role="status">
           {history.error}
@@ -1586,9 +1820,11 @@ function CourseLearningProgressPanel({
         <small>{progressPercent}%</small>
       </h3>
       {notebookCount === 0 ? (
-        <p className="course-progress-empty">
-          还没有上传笔记本。上传后会出现在这里，方便拖动进度。
-        </p>
+        <LearningEmptyState
+          title="还没有上传笔记本"
+          hint="上传后会出现在这里，方便拖动进度。"
+          compact
+        />
       ) : (
         <>
           <p className="course-progress-scope">AI 只读取蓝色进度点之前的笔记本内容与对应记忆。</p>
@@ -2157,6 +2393,7 @@ export function CourseWorkspace({
   onCreateCourse,
   onNewChat,
 }: CourseWorkspaceProps) {
+  const chatShell = useChatWorkspaceShell();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(() =>
     workspace.conversations.some((conversation) => conversation.id === initialConversationId)
       ? initialConversationId
@@ -2173,6 +2410,9 @@ export function CourseWorkspace({
   const [pendingFiles, setPendingFiles] = useState<PendingChatFile[]>([]);
   // 手机端做题困难：聊天里不出现练习和复习题单；课堂讲解可以用。
   const phoneLayout = usePhoneLayout();
+  const compactLayout = useCompactLayout();
+  // 手机和窄窗口：点顶栏中间的课程名弹出学习菜单。
+  const [headerMenuAnchor, setHeaderMenuAnchor] = useState<HTMLButtonElement | null>(null);
   const courseMeta = usePlatformCourseMeta();
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [activeTool, setActiveTool] = useState<CourseTool>('overview');
@@ -2185,12 +2425,25 @@ export function CourseWorkspace({
   // 从侧边栏进的二级页面，返回时回到打开的侧边栏；从聊天里进的直接回聊天。
   const phonePageFromDrawerRef = useRef(false);
   // iPad 和桌面：侧边栏常驻，可以用聊天页左上角的按钮收起。
-  const [splitSidebarCollapsed, setSplitSidebarCollapsed] = useState(false);
+  const [localSidebarCollapsed, setLocalSidebarCollapsed] = useState(false);
+  const splitSidebarCollapsed = chatShell?.collapsed ?? localSidebarCollapsed;
 
   // 下次启动时恢复当前课程与聊天。
   useEffect(() => {
     writePhoneLastChat({ courseId: workspace.course.id, conversationId: selectedConversationId });
   }, [selectedConversationId, workspace.course.id]);
+
+  // 新手引导圈住输入框时，先替用户想好第一句；已经在写的不覆盖。
+  useEffect(() => {
+    const prefill = (event: Event) => {
+      const text = (event as CustomEvent<{ text?: string }>).detail?.text;
+      if (!text) return;
+      setDraft((current) => (current.trim() ? current : text));
+      composerTextareaRef.current?.focus();
+    };
+    window.addEventListener(ONBOARDING_PREFILL_EVENT, prefill);
+    return () => window.removeEventListener(ONBOARDING_PREFILL_EVENT, prefill);
+  }, []);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   useEffect(() => {
@@ -2273,12 +2526,18 @@ export function CourseWorkspace({
     const page = initialPage ?? readOpenPhonePage();
     return page && page !== 'calendar' ? [page] : [];
   });
-  const setPhonePage = useCallback((page: typeof phonePage) => {
-    if (page && page !== 'profile' && page !== 'calendar') {
-      setLearningPages((pages) => (pages.includes(page) ? pages : [...pages, page]));
-    }
-    setPhonePageState(page);
-  }, []);
+  const setPhonePage = useCallback(
+    (page: typeof phonePage) => {
+      if (page && page !== 'profile' && page !== 'calendar') {
+        // 手机和窄窗口没有标签：一次只开一页，返回就回到聊天。
+        setLearningPages((pages) =>
+          compactLayout ? [page] : pages.includes(page) ? pages : [...pages, page],
+        );
+      }
+      setPhonePageState(page);
+    },
+    [compactLayout],
+  );
   const activeLearningPage =
     phonePage && phonePage !== 'profile' && phonePage !== 'calendar'
       ? phonePage
@@ -3341,6 +3600,11 @@ export function CourseWorkspace({
 
   const selectConversation = useCallback(
     (conversationId: string) => {
+      if (conversationId === activeConversationIdRef.current) {
+        setMobilePanel(null);
+        setPhonePage(null);
+        return;
+      }
       setScopeReady(false);
       conversationLoadRequestRef.current += 1;
       skipConversationLoadRef.current = null;
@@ -4001,6 +4265,7 @@ export function CourseWorkspace({
           });
           summary = `已写入本机学习记忆：${memory.title}`;
           output = { memoryId: memory.id };
+          completeOnboardingStep('remember');
         } else if (action.kind === 'practice.propose_generation') {
           const selectedIds = message.metadata?.problemSelection?.problems.map(
             (problem) => problem.problemId,
@@ -4130,6 +4395,7 @@ export function CourseWorkspace({
       setDraft('');
       setPendingImages([]);
       setPendingFiles([]);
+      completeOnboardingStep('ask');
       replayClass(sendButtonRef.current, 'is-rolling');
       let userMessage: LocalMessage | null = null;
       let optimisticAssistantId: string | null = null;
@@ -4500,8 +4766,15 @@ export function CourseWorkspace({
 
   const closePhonePage = () => {
     setPhonePage(null);
+    // 没有标签时，返回就是离开这一页。
+    if (compactLayout) setLearningPages([]);
     if (phonePageFromDrawerRef.current) setMobilePanel('sessions');
     phonePageFromDrawerRef.current = false;
+  };
+  // 空页面的「去聊天」：直接回到聊天，不再打开抽屉。
+  const backToChat = () => {
+    phonePageFromDrawerRef.current = false;
+    closePhonePage();
   };
 
   const hasMessages = messages.length > 0;
@@ -4590,7 +4863,13 @@ export function CourseWorkspace({
       : ['notes', 'problems'];
   const courseToolActions: DrawerLearningAction[] = [
     { id: 'materials', label: '资料', icon: FolderUp, open: () => setPhonePage('materials') },
-    { id: 'notes', label: '笔记', icon: BookOpen, open: openNotebookLibrary },
+    {
+      id: 'notes',
+      label: '笔记',
+      icon: BookOpen,
+      open: openNotebookLibrary,
+      count: workspace.notebooks.length,
+    },
     { id: 'progress', label: '学习进度', icon: Target, open: () => setPhonePage('progress') },
     {
       id: 'memory',
@@ -4601,7 +4880,15 @@ export function CourseWorkspace({
     },
     { id: 'classroom', label: '课堂', icon: Presentation, open: () => setPhonePage('classroom') },
     ...(!phoneLayout
-      ? [{ id: 'problems', label: '题库', icon: FileQuestion, open: openProblemBank }]
+      ? [
+          {
+            id: 'problems',
+            label: '题库',
+            icon: FileQuestion,
+            open: openProblemBank,
+            count: workspace.problems.length,
+          },
+        ]
       : []),
   ];
 
@@ -4629,10 +4916,7 @@ export function CourseWorkspace({
       onOpenRecentChat={onOpenRecentChat}
       generalChatClient={generalChatClient}
       homeHref={homeHref}
-      learningActions={(hasMessages ? courseToolActions : []).map((action) => ({
-        ...action,
-        open: () => openFromDrawer(action.open),
-      }))}
+      learningActions={[]}
       courses={courses}
       onCreateCourse={onCreateCourse}
       onNewChat={onNewChat ?? createConversation}
@@ -4652,29 +4936,29 @@ export function CourseWorkspace({
       onSelectConversation={selectConversation}
     />
   );
+  const phoneDrawer = renderPhoneDrawer();
+  usePublishChatSidebar(phoneDrawer);
 
   return (
     <section
       ref={workspaceRef}
       onTouchStart={phoneLayout ? handleWorkspaceTouchStart : undefined}
       onTouchEnd={phoneLayout ? handleWorkspaceTouchEnd : undefined}
-      className={`course-workspace${learningPages.length ? ' has-learning-tabs' : hasMessages ? ' has-learning-rail' : ''}${phonePage && phonePage !== 'profile' && phonePage !== 'calendar' ? ' is-learning-active' : ''}${leftRailCollapsed ? ' workspace-left-collapsed' : ''}${
+      className={`course-workspace${compactLayout ? ' is-compact' : ''}${chatShell ? ' has-persistent-sidebar' : ''}${learningPages.length ? ' has-learning-tabs' : ''}${!phoneLayout && hasMessages ? ' has-learning-rail' : ''}${phonePage && phonePage !== 'profile' && phonePage !== 'calendar' ? ' is-learning-active' : ''}${leftRailCollapsed ? ' workspace-left-collapsed' : ''}${
         rightRailCollapsed ? ' workspace-right-collapsed' : ''
       }${phoneLayout && mobilePanel === 'sessions' ? ' phone-drawer-open' : ''}${
         phoneLayout ? '' : ' is-split'
       }${!phoneLayout && splitSidebarCollapsed ? ' is-sidebar-collapsed' : ''}`}
       aria-label={`${workspace.course.name} 课程工作台`}
     >
-      <aside
-        className="workspace-sidebar workspace-sidebar-left"
-        inert={!phoneLayout && splitSidebarCollapsed}
-      >
-        {phoneLayout
-          ? leftRailCollapsed
-            ? compactSessionPanel
-            : sessionPanel
-          : renderPhoneDrawer()}
-      </aside>
+      {!chatShell ? (
+        <aside
+          className="workspace-sidebar workspace-sidebar-left"
+          inert={!phoneLayout && splitSidebarCollapsed}
+        >
+          {phoneLayout ? (leftRailCollapsed ? compactSessionPanel : sessionPanel) : phoneDrawer}
+        </aside>
+      ) : null}
 
       <main ref={chatDropTargetRef} className="conversation-workspace">
         {chatFileDragging ? (
@@ -4707,6 +4991,7 @@ export function CourseWorkspace({
               className="phone-glass-button"
               onClick={() => setMobilePanel('sessions')}
               aria-label="打开菜单"
+              data-onboarding="drawer"
             >
               <Menu size={20} strokeWidth={1.8} />
             </button>
@@ -4714,17 +4999,44 @@ export function CourseWorkspace({
             <button
               type="button"
               className="phone-glass-button"
-              onClick={() => setSplitSidebarCollapsed((collapsed) => !collapsed)}
+              onClick={() =>
+                chatShell
+                  ? chatShell.toggleSidebar()
+                  : setLocalSidebarCollapsed((collapsed) => !collapsed)
+              }
               aria-label={splitSidebarCollapsed ? '显示侧边栏' : '隐藏侧边栏'}
+              data-onboarding={splitSidebarCollapsed ? 'drawer' : undefined}
             >
               <PanelLeft size={20} strokeWidth={1.8} />
             </button>
           )}
           <div className="phone-chat-title">
-            <span>
-              <strong>{workspace.course.courseCode || workspace.course.name}</strong>
-              <small>{currentConversationTitle}</small>
-            </span>
+            {compactLayout ? (
+              <button
+                type="button"
+                className="phone-chat-title-button"
+                aria-haspopup="menu"
+                aria-expanded={Boolean(headerMenuAnchor)}
+                data-onboarding="course-menu"
+                onClick={(event) => {
+                  const anchor = event.currentTarget;
+                  setHeaderMenuAnchor((current) => (current ? null : anchor));
+                }}
+              >
+                <span>
+                  <strong>
+                    {workspace.course.courseCode || workspace.course.name}
+                    <ChevronDown size={14} strokeWidth={2} aria-hidden />
+                  </strong>
+                  <small>{currentConversationTitle}</small>
+                </span>
+              </button>
+            ) : (
+              <span>
+                <strong>{workspace.course.courseCode || workspace.course.name}</strong>
+                <small>{currentConversationTitle}</small>
+              </span>
+            )}
           </div>
           <button
             type="button"
@@ -4906,7 +5218,12 @@ export function CourseWorkspace({
               ))}
             </div>
           ) : null}
-          <form className="conversation-composer" onSubmit={(event) => void send(event)}>
+          <form
+            className="conversation-composer"
+            data-onboarding="composer"
+            data-onboarding-busy={busy ? '' : undefined}
+            onSubmit={(event) => void send(event)}
+          >
             <button
               type="button"
               className="composer-icon-button"
@@ -4920,6 +5237,7 @@ export function CourseWorkspace({
               courses={courses}
               courseId={workspace.course.id}
               courseAvatarUrl={courseAvatarUrl}
+              allowGeneralChat={browserApp}
               locked={!scopeReady || busy || messages.length > 0}
               onChange={onChangeChatScope ? (id) => onChangeChatScope(id, draft) : undefined}
             />
@@ -4978,19 +5296,30 @@ export function CourseWorkspace({
         </footer>
       </main>
 
-      {hasMessages && !learningPages.length ? (
-        <aside className="course-learning-rail" aria-label="课程学习">
-          <LearningToolsCard actions={courseToolActions} />
-        </aside>
+      {!phoneLayout && hasMessages ? <LearningFloatCard actions={courseToolActions} /> : null}
+
+      {headerMenuAnchor ? (
+        <CourseToolsMenu
+          anchor={headerMenuAnchor}
+          align="center"
+          courseName={workspace.course.courseCode || workspace.course.name}
+          onClose={() => setHeaderMenuAnchor(null)}
+          onSelect={(page) => {
+            setHeaderMenuAnchor(null);
+            courseToolActions.find((action) => action.id === page)?.open();
+          }}
+        />
       ) : null}
 
       {learningPages.length ? (
         <LearningWorkspaceTabs
+          compact={compactLayout}
+          onBack={closePhonePage}
+          onOpenMenu={setHeaderMenuAnchor}
           pages={learningPages}
           activePage={
             phonePage && phonePage !== 'profile' && phonePage !== 'calendar' ? phonePage : null
           }
-          chatTitle={currentConversationTitle}
           onSelect={setPhonePage}
           onClose={closeLearningPage}
           onChat={() => setPhonePage(null)}
@@ -5008,7 +5337,11 @@ export function CourseWorkspace({
                 />
               ) : null}
               {page === 'notes' ? (
-                <PhoneNotesPage workspace={workspace} onBack={() => closeLearningPage(page)} />
+                <PhoneNotesPage
+                  workspace={workspace}
+                  onBack={() => closeLearningPage(page)}
+                  onUpload={() => setPhonePage('materials')}
+                />
               ) : null}
               {page === 'progress' ? (
                 <PhoneProgressPage
@@ -5017,6 +5350,7 @@ export function CourseWorkspace({
                   onProgressChange={saveCourseProgress}
                   onOpenNotebook={(notebook) => void openNotebook(notebook)}
                   onBack={() => closeLearningPage(page)}
+                  onUpload={() => setPhonePage('materials')}
                 />
               ) : null}
               {page === 'classroom' ? (
@@ -5028,6 +5362,7 @@ export function CourseWorkspace({
                   onOpenDeck={(deck) => void openMiniLecture(deck)}
                   onOpenRemoteDeck={openRemoteMiniLecture}
                   onBack={() => closeLearningPage(page)}
+                  onChat={backToChat}
                 />
               ) : null}
               {page === 'problems' ? (
@@ -5036,6 +5371,11 @@ export function CourseWorkspace({
                     workspace={workspace}
                     onBack={() => closeLearningPage(page)}
                     onPractice={openPracticeFromBank}
+                    onUpload={
+                      materialKinds.includes('problems')
+                        ? () => setPhonePage('materials')
+                        : undefined
+                    }
                   />
                 </div>
               ) : null}
@@ -5051,6 +5391,7 @@ export function CourseWorkspace({
                     closeLearningPage(page);
                     setFocusedMemoryId(null);
                   }}
+                  onChat={backToChat}
                 />
               ) : null}
             </>
@@ -5206,7 +5547,7 @@ export function CourseWorkspace({
                   </button>
                 ))
               ) : (
-                <p className="native-dialog-empty">没有找到匹配的会话。</p>
+                <LearningEmptyState title="没有找到匹配的会话" compact />
               )}
               {filteredConversations.length ? (
                 <ConversationListEnd
@@ -5324,9 +5665,11 @@ export function CourseWorkspace({
                       </article>
                     ))
                 ) : (
-                  <p className="native-dialog-empty">
-                    当前课程还没有学习记忆。完成对话、做题或确认学习进度后会逐步积累。
-                  </p>
+                  <LearningEmptyState
+                    title="当前课程还没有学习记忆"
+                    hint="完成对话、做题或确认学习进度后会逐步积累。"
+                    compact
+                  />
                 )}
               </div>
             </div>

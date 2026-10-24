@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import './global-calendar.css';
 import { PhoneCalendarPage } from './PhonePages';
+import { LearningEmptyState } from './LearningEmptyState';
 import { useBackDismiss } from '../lib/use-back-dismiss';
 import type { LocalCourseSummary } from '../domain/models';
 import type { LocalCourseEvent } from '../domain/learning-experiences';
@@ -61,7 +62,7 @@ export function GlobalCalendarApp({
                 </button>
               ))}
             </div>
-            {!courses.length ? <p>还没有课程，请先在网页上创建或加入课程。</p> : null}
+            {!courses.length ? <LearningEmptyState title="还没有课程" compact /> : null}
             <button
               type="button"
               className="global-calendar-action"

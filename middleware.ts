@@ -19,7 +19,14 @@ export function middleware(request: NextRequest) {
     }
     const authPath =
       /^\/api\/auth\/(?:csrf|session|providers|signin(?:\/google)?|signout|callback\/google|error)\/?$/;
+    // The web storefront shares the staging account and course catalog with /test/app.
+    const webStorePage = /^\/store\/courses(?:\/[^/]+)?\/?$/.test(pathname);
+    const webStoreApi =
+      /^\/api\/courses\/store(?:\/[^/]+(?:\/reviews)?)?\/?$/.test(pathname) ||
+      pathname === '/api/courses/clone';
     const allowed =
+      webStorePage ||
+      webStoreApi ||
       pathname.startsWith('/api/native/') ||
       authPath.test(pathname) ||
       pathname.startsWith('/_next/') ||

@@ -24,6 +24,7 @@ import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading
 import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
 import './course-pages.css';
 import { GlassSpinner } from './GlassLoadMore';
+import { LearningEmptyState } from './LearningEmptyState';
 
 const PROGRESS_STATUS_LABELS: Record<string, string> = {
   passed: '已通过',
@@ -358,10 +359,7 @@ function NotebookViewer({
               )}
             </article>
           ) : (
-            <div className="nr-empty">
-              <img src={marbleImages.blue} alt="" />
-              <strong>这本笔记还没有内容</strong>
-            </div>
+            <LearningEmptyState title="这本笔记还没有内容" />
           )}
         </div>
       </div>

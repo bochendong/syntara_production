@@ -9,12 +9,14 @@ export function ChatScopePicker({
   courses,
   courseId,
   courseAvatarUrl,
+  allowGeneralChat = true,
   locked,
   onChange,
 }: {
   courses: LocalCourseSummary[];
   courseId: string | null;
   courseAvatarUrl?: string;
+  allowGeneralChat?: boolean;
   locked: boolean;
   onChange?: (courseId: string | null) => void;
 }) {
@@ -29,7 +31,7 @@ export function ChatScopePicker({
   const menuId = useId();
   const visible = open && !disabled;
   const options = [
-    { id: null, label: '不在课程中添加', avatar: null },
+    ...(allowGeneralChat ? [{ id: null, label: '不在课程中添加', avatar: null }] : []),
     ...courses.map((item) => ({
       id: item.id,
       label: item.courseCode || item.name,

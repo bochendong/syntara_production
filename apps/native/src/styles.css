@@ -527,6 +527,56 @@ textarea:focus-visible {
   color: #8d3535;
 }
 
+/* 账号下一门课都没有：弹珠 + 一颗玻璃按钮，其余收成一行小字链接。 */
+.launch-state .launch-empty {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+}
+
+.launch-state .launch-empty button {
+  margin: 0;
+  border-radius: 999px;
+}
+
+.launch-state .launch-empty .learning-empty-marbles {
+  padding: 8px;
+  background: none;
+}
+
+.launch-state .launch-empty .learning-empty-marbles img {
+  width: 52px;
+  height: 52px;
+}
+
+.launch-state .launch-empty .learning-empty-state {
+  min-height: 0;
+  padding: 0;
+}
+
+.launch-state .launch-empty .learning-empty-action {
+  padding: 11px 20px 11px 15px;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.launch-empty-links {
+  display: flex;
+  gap: 4px;
+}
+
+.launch-state .launch-empty-links button {
+  padding: 6px 12px;
+  color: #64748b;
+  font-size: 13px;
+  background: transparent;
+}
+
+.launch-state .launch-empty-links button:hover {
+  color: #0f172a;
+  background: rgba(148, 163, 184, 0.14);
+}
+
 .launch-orb {
   display: grid;
   width: 46px;
@@ -2880,7 +2930,6 @@ textarea:focus-visible {
   padding-top: env(safe-area-inset-top);
   background: #fff;
   view-transition-name: app-surface;
-  animation: workspace-parity-enter 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .platform-macos .course-workspace {
@@ -5655,7 +5704,8 @@ select,
   transition: background 140ms ease;
 }
 .phone-drawer-course-heading.is-current,
-.phone-drawer-course-heading:hover {
+.phone-drawer-course-heading:hover,
+.phone-drawer-course-heading:active {
   background: rgb(15 23 42 / 6%);
 }
 .phone-drawer-course-heading .phone-drawer-course {
@@ -5734,6 +5784,56 @@ select,
 .phone-drawer-course-chats {
   margin: 2px 0 8px 22px;
 }
+/* 课程太多时的「还有 N 门」：叠起来的几颗课程弹珠。 */
+.phone-drawer-more-courses {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  color: #64748b;
+  font-size: var(--sidebar-label-size);
+  background: transparent;
+  cursor: pointer;
+}
+
+.phone-drawer-more-courses:hover {
+  background: rgb(15 23 42 / 4%);
+}
+
+.phone-drawer-more-courses[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.phone-drawer-more-marbles {
+  display: flex;
+  min-width: 22px;
+}
+
+.phone-drawer-more-marbles img {
+  width: 20px;
+  height: 20px;
+  margin-right: -8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgb(248 250 252);
+  transition: transform 180ms ease;
+}
+
+.phone-drawer-more-courses:hover .phone-drawer-more-marbles img:nth-child(1) {
+  transform: translateX(-3px);
+}
+
+.phone-drawer-more-courses:hover .phone-drawer-more-marbles img:nth-child(3) {
+  transform: translateX(3px);
+}
+
+.phone-drawer-more-marbles:empty {
+  display: none;
+}
+
 .phone-drawer-course-empty {
   margin: 0;
   padding: 10px 12px;
@@ -5744,6 +5844,24 @@ select,
 
 .phone-drawer-course-chats .phone-drawer-row > button:first-child {
   height: 38px;
+}
+
+/* 行按钮在侧边栏里是 flex，省略号要加在里面这层文字上。 */
+.phone-drawer-row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-drawer-nav .phone-drawer-more-chats {
+  height: 32px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.phone-drawer-nav .phone-drawer-more-chats:hover {
+  color: #475569;
 }
 .phone-drawer-course-chats .phone-drawer-delete {
   width: 32px;
@@ -6780,9 +6898,174 @@ select,
   outline-offset: 2px;
 }
 
-/* Learning tools open as tabs from the drawer; there is no right-hand column. */
-.course-learning-rail {
+/*
+ * 宽屏聊天页右上角的浮动学习卡（像 Codex 的侧卡）：小标题分组、细分隔线、右侧小计数。
+ * 点一行在顶栏开标签；标签页打开时卡片让开。
+ */
+.learning-float-card {
   display: none;
+}
+
+@media (min-width: 1100px) {
+  .course-workspace.is-split > .learning-float-card {
+    position: absolute;
+    top: calc(var(--workspace-toolbar-height) + 6px);
+    right: 18px;
+    z-index: 6;
+    display: block;
+    width: 216px;
+    padding: 4px 6px 6px;
+    border: 1px solid rgb(255 255 255 / 70%);
+    border-radius: var(--radius-lg);
+    background: rgb(255 255 255 / 62%);
+    box-shadow:
+      0 12px 32px -18px rgb(15 23 42 / 30%),
+      inset 0 1px 0 rgb(255 255 255 / 90%);
+    backdrop-filter: blur(var(--glass-blur-md)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(1.4);
+    color: #1e293b;
+    animation: learning-float-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .course-workspace.is-split.is-learning-active > .learning-float-card {
+    display: none;
+  }
+  /*
+   * 窗口够宽时聊天保持居中，卡片待在右侧留白里；不够宽时消息和输入框一起左移，
+   * 只移到刚好不被卡片盖住（780px 栏 + 卡片占的 250px）。
+   */
+  .course-workspace.is-split > .conversation-workspace {
+    container-type: inline-size;
+  }
+  .course-workspace.is-split:has(> .learning-float-card):not(.is-learning-active)
+    > .conversation-workspace
+    > .conversation-content {
+    padding-right: clamp(0px, calc(1280px - 100cqw), 250px);
+  }
+  .course-workspace.is-split:has(> .learning-float-card):not(.is-learning-active)
+    > .conversation-workspace
+    > .conversation-composer-footer {
+    padding-right: calc(24px + clamp(0px, calc(1280px - 100cqw), 250px));
+  }
+  .learning-float-card button {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .learning-float-section button {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    color: #64748b;
+  }
+  .learning-float-section button:hover {
+    background: rgb(15 23 42 / 6%);
+    color: #0f172a;
+  }
+  .learning-float-card section {
+    padding-top: 4px;
+  }
+  .learning-float-card section + section {
+    margin-top: 4px;
+    border-top: 1px solid rgb(15 23 42 / 7%);
+  }
+  .learning-float-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 26px;
+    padding: 0 2px 0 8px;
+    color: #94a3b8;
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+  .learning-float-row {
+    --tone-light: var(--marble-blue-light);
+    --tone-ink: var(--marble-blue-ink);
+    --tone-rgb: var(--marble-blue-rgb);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    height: 32px;
+    padding: 0 8px;
+    border-radius: 10px;
+    font-size: 13px;
+    text-align: left;
+    transition: background 160ms ease;
+  }
+  .learning-float-row:hover {
+    background: rgb(var(--tone-rgb) / 12%);
+  }
+  .learning-float-row[data-tool='progress'] {
+    --tone-light: var(--marble-amber-light);
+    --tone-ink: var(--marble-amber-ink);
+    --tone-rgb: var(--marble-amber-rgb);
+  }
+  .learning-float-row[data-tool='memory'] {
+    --tone-light: var(--marble-purple-light);
+    --tone-ink: var(--marble-purple-ink);
+    --tone-rgb: var(--marble-purple-rgb);
+  }
+  .learning-float-row[data-tool='classroom'] {
+    --tone-light: var(--marble-green-light);
+    --tone-ink: var(--marble-green-ink);
+    --tone-rgb: var(--marble-green-rgb);
+  }
+  .learning-float-row[data-tool='problems'] {
+    --tone-light: var(--marble-pink-light);
+    --tone-ink: var(--marble-pink-ink);
+    --tone-rgb: var(--marble-pink-rgb);
+  }
+  /* 小号玻璃弹珠图标，和顶栏标签同色。 */
+  .learning-float-row i {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    color: var(--tone-ink);
+    background:
+      radial-gradient(circle at 32% 28%, #fff 0 16%, transparent 17%),
+      radial-gradient(circle at 50% 60%, var(--tone-light), rgb(var(--tone-rgb) / 55%));
+    box-shadow:
+      inset 0 -2px 3px rgb(var(--tone-rgb) / 40%),
+      0 0 0 1px rgb(var(--tone-rgb) / 22%);
+    transition: transform 260ms cubic-bezier(0.3, 1.5, 0.5, 1);
+  }
+  .learning-float-row:hover i {
+    transform: translateY(-1px) rotate(-12deg);
+  }
+  .learning-float-row span {
+    flex: 1;
+    min-width: 0;
+  }
+  .learning-float-row small {
+    color: #94a3b8;
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  /* 宽屏时学习工具只在右上卡片里，不再挤在左侧边栏。 */
+  .course-workspace.is-split.has-learning-rail > .workspace-sidebar-left .phone-drawer-learning {
+    display: none;
+  }
+}
+@keyframes learning-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .learning-float-card,
+  .learning-float-row i {
+    animation: none;
+    transition: none;
+  }
 }
 
 .phone-drawer-recent > .phone-drawer-section-toggle {
@@ -6791,6 +7074,8 @@ select,
 }
 
 /* The row owns its hover/pressed surface, including the trailing action. */
+.course-workspace .phone-drawer-course-heading button:is(:hover, :active),
+.course-workspace.is-split .phone-drawer-course-heading button:is(:hover, :active),
 .course-workspace .phone-drawer-row > button:hover,
 .course-workspace .phone-drawer-row > button:active,
 .course-workspace.is-split .phone-drawer-row > button:hover {
@@ -7107,6 +7392,10 @@ select,
 .learning-workspace-panel .pb-header {
   display: none;
 }
+/* The workspace toolbar replaces the problem bank's own header. */
+.learning-workspace-panel .pb-scroll {
+  padding-top: 20px;
+}
 /* The tab strip replaces the course / chat title in the header. */
 .course-workspace.has-learning-tabs .phone-chat-title {
   visibility: hidden;
@@ -7126,6 +7415,9 @@ select,
 }
 
 /* The memory layout follows the pane width rather than the window width. */
+.learning-workspace-body {
+  container: learning-pane / inline-size;
+}
 .course-workspace .learning-workspace .phone-memory-layout {
   display: flex;
   flex-direction: column;
@@ -7142,6 +7434,21 @@ select,
 .course-workspace .learning-workspace .phone-memory-layout .galaxy-flat {
   height: min(42vh, 360px);
   min-height: 220px;
+}
+@container learning-pane (min-width: 800px) {
+  .course-workspace .learning-workspace .phone-memory-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+  .course-workspace .learning-workspace .phone-memory-layout .phone-memory-galaxy {
+    position: sticky;
+    top: 0;
+  }
+  .course-workspace .learning-workspace .phone-memory-layout .memory-galaxy,
+  .course-workspace .learning-workspace .phone-memory-layout .galaxy-flat {
+    height: calc(100dvh - var(--workspace-toolbar-height, 64px) - 100px);
+    min-height: 360px;
+  }
 }
 @media (max-width: 1099px) {
   .course-workspace.has-learning-tabs.is-learning-active .conversation-content,

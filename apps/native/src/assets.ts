@@ -57,6 +57,34 @@ export const COURSE_AVATAR_PRESETS: CourseAvatarPreset[] = MARBLE_AVATAR_CATALOG
   url: avatarUrls.get(avatar.filename) || '',
 }));
 
+function catalogAvatarForUrl(avatarUrl: string | null | undefined) {
+  if (!avatarUrl) return undefined;
+  let pathname = avatarUrl;
+  try {
+    pathname = new URL(avatarUrl, 'https://syntara.local').pathname;
+  } catch {
+    return undefined;
+  }
+  return MARBLE_AVATAR_CATALOG.find(
+    (item) => avatarUrls.get(item.filename) === avatarUrl || item.url === pathname,
+  );
+}
+
+/** 网页存的弹珠头像地址（/avatars/marble-collection-v1/…）换成 App 打包的那张，并带上它的色相。 */
+export function bundledMarbleAvatar(
+  avatarUrl: string | null | undefined,
+): { url: string; hue: number; sceneUrl?: string } | undefined {
+  const avatar = catalogAvatarForUrl(avatarUrl);
+  const url = avatar && avatarUrls.get(avatar.filename);
+  if (!avatar || !url) return undefined;
+  return {
+    url,
+    hue: avatarThemeHues[avatar.id as keyof typeof avatarThemeHues] ?? 220,
+    // 弹珠所在的场景图（3:1），商城精选卡拿来当整张卡的背景。
+    sceneUrl: profileBackgroundUrls.get(avatar.filename),
+  };
+}
+
 /** Resolve separate card and sidebar artwork, including synced web avatar URLs. */
 export function profileThemeForAvatar(avatarUrl: string) {
   let pathname = avatarUrl;

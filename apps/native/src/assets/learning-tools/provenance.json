@@ -1,0 +1,88 @@
+{
+  "generator": "Built-in imagegen",
+  "approvedReference": "exec-f17ebc08-558b-419f-91be-c36d3097a73e.png",
+  "prompt": "Faithfully isolate each approved large dreamy glass learning marble onto transparent alpha, preserve its interior symbol, colours and refraction, remove labels, other marbles and background. One centered marble with consistent clear margins. Export derivatives resize and encode only; preserve alpha.",
+  "assets": [
+    {
+      "tool": "materials",
+      "file": "materials.webp",
+      "source": "exec-48b60fc2-33f7-40e1-ae8f-ba7936bcca8e.png",
+      "width": 192,
+      "height": 192,
+      "bytes": 16014
+    },
+    {
+      "tool": "notes",
+      "file": "notes.webp",
+      "source": "exec-1aeb243b-db54-4f44-8c2f-5218bb4a3738.png",
+      "width": 192,
+      "height": 192,
+      "bytes": 14966
+    },
+    {
+      "tool": "progress",
+      "file": "progress.webp",
+      "source": "exec-e7650893-50c3-4889-976a-6615498c6321.png",
+      "width": 192,
+      "height": 192,
+      "bytes": 14536
+    },
+    {
+      "tool": "memory",
+      "file": "memory.webp",
+      "source": "exec-d0ff3059-1a35-4c60-840f-d41d812dd070.png",
+      "width": 192,
+      "height": 192,
+      "bytes": 15720
+    },
+    {
+      "tool": "classroom",
+      "file": "classroom.webp",
+      "source": "exec-32ca2dd1-2065-44a0-8225-df814b7ee49e.png",
+      "width": 192,
+      "height": 192,
+      "bytes": 14448
+    },
+    {
+      "tool": "problems",
+      "file": "problems.webp",
+      "source": "exec-8db1d4af-1a45-40c8-b1fd-1a7cb51fba5c.png",
+      "width": 192,
+      "height": 192,
+      "bytes": 15084
+    }
+  ],
+  "prompts": [
+    {
+      "tool": "materials",
+      "prompt": "Use case: background-extraction. Edit target: the supplied approved 6-icon concept sheet. Extract and faithfully preserve ONLY the LARGE top left marble: the turquoise document folder learning icon. This is a production application icon extraction, not a redesign. One single isolated marble centered on a genuinely TRANSPARENT background with alpha. Preserve the approved sphere's shape, pastel glass colours, soft rainbow refraction and large readable translucent interior symbol. Remove all other marbles, miniature examples, Chinese labels, background, ground plane, wide caustic pools and typography. No text. No extra objects. Keep the sphere physically spherical, naturally transparent-glass looking with its original soft optical gradients, rounded central form and restrained highlight. The complete sphere should occupy approximately 88–90% of a square canvas, perfectly centered, with uniform modest clear margins and no cropping. Keep the approved art's perspective and internal symbol rather than inventing a replacement. Avoid solid white vector glyphs and sticker-like graphics. Output one clean square transparent raster icon only."
+    },
+    {
+      "tool": "notes",
+      "prompt": "Use case: background-extraction. Edit target: the supplied approved 6-icon concept sheet. Extract and faithfully preserve ONLY the LARGE top center marble: the champagne peach open notebook learning icon. This is a production application icon extraction, not a redesign. One single isolated marble centered on a genuinely TRANSPARENT background with alpha. Preserve the approved sphere's shape, pastel glass colours, soft rainbow refraction and large readable translucent interior symbol. Remove all other marbles, miniature examples, Chinese labels, background, ground plane, wide caustic pools and typography. No text. No extra objects. Keep the sphere physically spherical, naturally transparent-glass looking with its original soft optical gradients, rounded central form and restrained highlight. The complete sphere should occupy approximately 88–90% of a square canvas, perfectly centered, with uniform modest clear margins and no cropping. Keep the approved art's perspective and internal symbol rather than inventing a replacement. Avoid solid white vector glyphs and sticker-like graphics. Output one clean square transparent raster icon only."
+    },
+    {
+      "tool": "progress",
+      "prompt": "Use case: background-extraction. Edit target: the supplied approved 6-icon concept sheet. Extract and faithfully preserve ONLY the LARGE top right marble: the mint ascending curved path with two luminous endpoints learning icon. This is a production application icon extraction, not a redesign. One single isolated marble centered on a genuinely TRANSPARENT background with alpha. Preserve the approved sphere's shape, pastel glass colours, soft rainbow refraction and large readable translucent interior symbol. Remove all other marbles, miniature examples, Chinese labels, background, ground plane, wide caustic pools and typography. No text. No extra objects. Keep the sphere physically spherical, naturally transparent-glass looking with its original soft optical gradients, rounded central form and restrained highlight. The complete sphere should occupy approximately 88–90% of a square canvas, perfectly centered, with uniform modest clear margins and no cropping. Keep the approved art's perspective and internal symbol rather than inventing a replacement. Avoid solid white vector glyphs and sticker-like graphics. Output one clean square transparent raster icon only."
+    },
+    {
+      "tool": "memory",
+      "prompt": "Use case: background-extraction. Edit target: the supplied approved 6-icon concept sheet. Extract and faithfully preserve ONLY the LARGE bottom left marble: the lavender two-lobed brain learning icon. This is a production application icon extraction, not a redesign. One single isolated marble centered on a genuinely TRANSPARENT background with alpha. Preserve the approved sphere's shape, pastel glass colours, soft rainbow refraction and large readable translucent interior symbol. Remove all other marbles, miniature examples, Chinese labels, background, ground plane, wide caustic pools and typography. No text. No extra objects. Keep the sphere physically spherical, naturally transparent-glass looking with its original soft optical gradients, rounded central form and restrained highlight. The complete sphere should occupy approximately 88–90% of a square canvas, perfectly centered, with uniform modest clear margins and no cropping. Keep the approved art's perspective and internal symbol rather than inventing a replacement. Avoid solid white vector glyphs and sticker-like graphics. Output one clean square transparent raster icon only."
+    },
+    {
+      "tool": "classroom",
+      "prompt": "Use case: background-extraction. Edit target: the supplied approved 6-icon concept sheet. Extract and faithfully preserve ONLY the LARGE bottom center marble: the peach pink presentation screen with play symbol learning icon. This is a production application icon extraction, not a redesign. One single isolated marble centered on a genuinely TRANSPARENT background with alpha. Preserve the approved sphere's shape, pastel glass colours, soft rainbow refraction and large readable translucent interior symbol. Remove all other marbles, miniature examples, Chinese labels, background, ground plane, wide caustic pools and typography. No text. No extra objects. Keep the sphere physically spherical, naturally transparent-glass looking with its original soft optical gradients, rounded central form and restrained highlight. The complete sphere should occupy approximately 88–90% of a square canvas, perfectly centered, with uniform modest clear margins and no cropping. Keep the approved art's perspective and internal symbol rather than inventing a replacement. Avoid solid white vector glyphs and sticker-like graphics. Output one clean square transparent raster icon only."
+    },
+    {
+      "tool": "problems",
+      "prompt": "Use case: background-extraction. Edit target: the supplied approved 6-icon concept sheet. Extract and faithfully preserve ONLY the LARGE bottom right marble: the blue question mark learning icon. This is a production application icon extraction, not a redesign. One single isolated marble centered on a genuinely TRANSPARENT background with alpha. Preserve the approved sphere's shape, pastel glass colours, soft rainbow refraction and large readable translucent interior symbol. Remove all other marbles, miniature examples, Chinese labels, background, ground plane, wide caustic pools and typography. No text. No extra objects. Keep the sphere physically spherical, naturally transparent-glass looking with its original soft optical gradients, rounded central form and restrained highlight. The complete sphere should occupy approximately 88–90% of a square canvas, perfectly centered, with uniform modest clear margins and no cropping. Keep the approved art's perspective and internal symbol rather than inventing a replacement. Avoid solid white vector glyphs and sticker-like graphics. Output one clean square transparent raster icon only."
+    }
+  ],
+  "export": {
+    "width": 192,
+    "height": 192,
+    "format": "webp",
+    "quality": 92,
+    "alphaQuality": 100
+  }
+}

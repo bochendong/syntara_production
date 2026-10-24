@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import {
+  getNativeStoreCourseDetail,
   joinNativeStoreCourse,
   listNativeStoreCourses,
   markNativeCourseSeen,
@@ -24,6 +25,17 @@ export async function GET(request: NextRequest) {
   const prisma = getOptionalPrisma();
   if (!prisma) {
     return publicApiError(requestId, 503, 'auth_not_configured', 'Store is unavailable.');
+  }
+  // ?courseId= 返回一门课的详情（章节 + 评价）；不带参数返回整个商城。
+  const courseId = request.nextUrl.searchParams.get('courseId')?.trim();
+  if (courseId) {
+    const course = await getNativeStoreCourseDetail(prisma, principal.userId, courseId);
+    if (!course) return publicApiError(requestId, 404, 'not_found', '课程不存在或已下架。');
+    return publicApiSuccess(
+      requestId,
+      { course },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
   }
   const courses = await listNativeStoreCourses(prisma, principal.userId);
   return publicApiSuccess(

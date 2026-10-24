@@ -1,0 +1,11 @@
+.learning-tool-icon {
+  display: inline-block;
+  flex: none;
+  color: #64748b;
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+.course-tools-menu > button:has(.learning-tool-icon) {
+  min-height: 44px;
+}

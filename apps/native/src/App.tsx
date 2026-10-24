@@ -1,10 +1,13 @@
 import { AppNavigationRail } from './components/AppNavigationRail';
+import { AppNavigationContext, type AppNavigation } from './components/app-navigation-context';
 import { browserApp } from './data/browser-runtime';
 import { CreateCourseDialog } from './components/CreateCourseDialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
 import { CourseWorkspace } from './components/CourseWorkspace';
+import { ChatWorkspaceShell } from './components/ChatWorkspaceShell';
+import { LearningEmptyState } from './components/LearningEmptyState';
 import { GeneralChatWorkspace } from './components/GeneralChatWorkspace';
 import { GlassSpinner } from './components/GlassLoadMore';
 import { NativeAuthGate } from './components/NativeAccountControl';
@@ -22,12 +25,15 @@ import { readPhoneLastChat } from './lib/phone-last-chat';
 import { GlobalCalendarApp } from './components/GlobalCalendarApp';
 import { PhoneProfilePage } from './components/PhonePages';
 import { StorePage } from './components/StorePage';
+import { OnboardingCoach } from './components/OnboardingCoach';
+import { completeOnboardingStep } from './lib/onboarding';
 import { resolveNativeCourseAvatar } from './assets';
+import { marbleImages } from './lib/learning-action-marbles';
 import type { LocalCourseEvent } from './domain/learning-experiences';
 import type { ChatResponseStrength } from './data/ai-client';
 import './components/global-calendar.css';
 import { useBackDismiss } from './lib/use-back-dismiss';
-import { usePhoneLayout } from './lib/use-phone-layout';
+import { useCompactLayout, usePhoneLayout } from './lib/use-phone-layout';
 import { useAvatarTheme } from './lib/use-avatar-theme';
 import type { LocalCourseSummary, LocalCourseWorkspace } from './domain/models';
 
@@ -71,6 +77,7 @@ function AuthenticatedApp() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const phoneLayout = usePhoneLayout();
+  const compactLayout = useCompactLayout();
   const [globalPage, setGlobalPage] = useState<'calendar' | 'profile' | 'store' | null>(null);
   const [globalEvents, setGlobalEvents] = useState<LocalCourseEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -78,6 +85,9 @@ function AuthenticatedApp() {
   const [calendarRevision, setCalendarRevision] = useState(0);
   const [launchRevision, setLaunchRevision] = useState(0);
   const navigationRequest = useRef(0);
+  const cancelPendingNavigation = useCallback(() => {
+    navigationRequest.current += 1;
+  }, []);
   const [responseStrength, setResponseStrength] = useState<ChatResponseStrength>(() => {
     try {
       const stored = localStorage.getItem('syntara.phone.response-strength.v1');
@@ -159,18 +169,17 @@ function AuthenticatedApp() {
   const openCourse = useCallback(
     (courseId: string, conversationId?: string, target?: CourseOpenTarget, draft = '') => {
       navigationRequest.current += 1;
-      updateWithPlatformTransition(() => {
-        setGlobalPage(null);
-        setChatDraft((current) => ({ text: draft, revision: current.revision + 1 }));
-        setLaunchRevision((revision) => revision + 1);
-        setSelectedCourseId(courseId);
-        setInitialConversationId(conversationId ?? null);
-        setInitialPage(target?.page);
-        setCalendarDate(target?.date);
-        setNewEventDate(target?.createEvent ? target.date : undefined);
-        setPracticeLaunch(null);
-        setSurface('course');
-      });
+      // Chat navigation must commit together with its loaded workspace, without a page transition.
+      setGlobalPage(null);
+      setChatDraft((current) => ({ text: draft, revision: current.revision + 1 }));
+      setLaunchRevision((revision) => revision + 1);
+      setSelectedCourseId(courseId);
+      setInitialConversationId(conversationId ?? null);
+      setInitialPage(target?.page);
+      setCalendarDate(target?.date);
+      setNewEventDate(target?.createEvent ? target.date : undefined);
+      setPracticeLaunch(null);
+      setSurface('course');
     },
     [],
   );
@@ -204,8 +213,14 @@ function AuthenticatedApp() {
 
   useEffect(() => {
     if (loading || surface !== 'launch') return;
-    const course = selectChatCourse(launchCourses, readPhoneLastChat());
-    if (course) void openRecentCourse(course.id);
+    const entry = browserApp ? new URLSearchParams(window.location.search) : null;
+    const requested = launchCourses.find((course) => course.id === entry?.get('courseId'));
+    const course = requested ?? selectChatCourse(launchCourses, readPhoneLastChat());
+    if (course)
+      void openRecentCourse(
+        course.id,
+        requested && entry?.get('page') === 'notes' ? { page: 'notes' } : undefined,
+      );
     else if (browserApp) setSurface('general');
   }, [loading, surface, launchCourses, openRecentCourse]);
 
@@ -232,6 +247,7 @@ function AuthenticatedApp() {
       if (request !== navigationRequest.current) return;
       if (!next) throw new Error('未找到这门课程');
       setWorkspace(next);
+      setSettledCourseId(courseId);
       openCourse(courseId, conversationId);
     } catch (cause) {
       if (request === navigationRequest.current)
@@ -240,10 +256,21 @@ function AuthenticatedApp() {
   };
 
   const changeChatScope = useCallback(
-    (courseId: string | null, draft: string) => {
+    async (courseId: string | null, draft: string) => {
       if (courseId) {
         if (!launchCourses.some((course) => course.id === courseId)) return;
-        openCourse(courseId, undefined, undefined, draft);
+        const request = ++navigationRequest.current;
+        try {
+          const next = await (await getLocalRepository()).loadCourseWorkspace(courseId);
+          if (request !== navigationRequest.current) return;
+          if (!next) throw new Error('未找到这门课程');
+          setWorkspace(next);
+          setSettledCourseId(courseId);
+          openCourse(courseId, undefined, undefined, draft);
+        } catch (cause) {
+          if (request === navigationRequest.current)
+            setError(cause instanceof Error ? cause.message : String(cause));
+        }
       } else openGeneralChat(draft);
     },
     [launchCourses, openCourse, openGeneralChat],
@@ -365,25 +392,43 @@ function AuthenticatedApp() {
             <GlassSpinner size={23} />
             <strong>正在打开聊天</strong>
             {error ? <p role="alert">{error}</p> : null}
+            <button type="button" onClick={() => window.location.reload()}>
+              重新载入
+            </button>
           </>
         ) : (
-          <>
-            <AlertTriangle size={23} />
-            <strong>账号下还没有课程</strong>
-            <span>添加课程后，就会显示在这里。</span>
-            {browserApp ? (
-              <button type="button" onClick={() => setCreatingCourse(true)}>
-                添加课程
+          <div className="launch-empty">
+            <LearningEmptyState
+              title="还没有课程"
+              action={
+                browserApp
+                  ? {
+                      label: '新建课程',
+                      icon: <img src={marbleImages.purple} alt="" />,
+                      onClick: () => setCreatingCourse(true),
+                    }
+                  : {
+                      label: '去商城挑一门',
+                      icon: <img src={marbleImages.blue} alt="" />,
+                      onClick: () => setGlobalPage('store'),
+                    }
+              }
+            />
+            <div className="launch-empty-links">
+              {browserApp ? (
+                <button type="button" onClick={() => setGlobalPage('store')}>
+                  商城
+                </button>
+              ) : null}
+              <button type="button" onClick={() => setGlobalPage('profile')}>
+                我的
               </button>
-            ) : null}
-          </>
+              <button type="button" onClick={() => window.location.reload()}>
+                重新载入
+              </button>
+            </div>
+          </div>
         )}
-        <button type="button" onClick={() => window.location.reload()}>
-          重新载入
-        </button>
-        <button type="button" onClick={() => setGlobalPage('profile')}>
-          我的
-        </button>
       </div>
     );
   } else if (surface === 'general') {
@@ -442,7 +487,7 @@ function AuthenticatedApp() {
         onOpenRecentChat={openRecentChat}
         key={`${workspace.course.id}:${launchRevision}`}
         initialDraft={chatDraft.text}
-        onChangeChatScope={browserApp ? changeChatScope : undefined}
+        onChangeChatScope={changeChatScope}
         workspace={workspace}
         backendLabel={backendLabel}
         courses={launchCourses}
@@ -463,123 +508,138 @@ function AuthenticatedApp() {
     );
   }
 
+  const navigation: AppNavigation = {
+    active:
+      globalPage === 'calendar'
+        ? 'calendar'
+        : globalPage === 'profile'
+          ? 'settings'
+          : globalPage === 'store'
+            ? 'store'
+            : 'chat',
+    avatarUrl: avatarTheme.avatarUrl,
+    onOpenCalendar: () => setGlobalPage('calendar'),
+    onOpenStore: () => {
+      completeOnboardingStep('store');
+      setGlobalPage('store');
+    },
+    onOpenSettings: () => setGlobalPage('profile'),
+  };
+
   return (
-    <main
-      className={`syntara-native-shell has-global-navigation${avatarTheme.themed ? ' has-avatar-theme' : ''}`}
-      style={avatarTheme.style}
-    >
-      <AppNavigationRail
-        avatarUrl={avatarTheme.avatarUrl}
-        active={
-          globalPage === 'calendar'
-            ? 'calendar'
-            : globalPage === 'profile'
-              ? 'settings'
-              : globalPage === 'store'
-                ? 'store'
-                : 'chat'
-        }
-        onOpenChat={() => {
-          if (surface === 'general' || surface === 'launch') setGlobalPage(null);
-          else openChat();
-        }}
-        onOpenCalendar={() => setGlobalPage('calendar')}
-        onOpenStore={() => setGlobalPage('store')}
-        onOpenSettings={() => setGlobalPage('profile')}
-      />
-      <div className="app-chat-surface" inert={globalPage !== null}>
-        {content}
-      </div>
-      {creatingCourse ? (
-        <CreateCourseDialog
-          onCancel={() => setCreatingCourse(false)}
-          onCreated={async (id) => {
-            await loadCourses(id);
-            setCreatingCourse(false);
-            openCourse(id);
-          }}
-        />
-      ) : null}
-
-      {surface !== 'launch' && switchingCourse && workspace ? (
-        <div className="course-switch-progress" role="status">
-          <GlassSpinner size={14} />
-          正在切换课程
+    <AppNavigationContext.Provider value={navigation}>
+      <main
+        className={`syntara-native-shell${compactLayout ? '' : ' has-global-navigation'}${avatarTheme.themed ? ' has-avatar-theme' : ''}`}
+        style={avatarTheme.style}
+      >
+        {compactLayout ? null : (
+          <AppNavigationRail
+            {...navigation}
+            onOpenChat={() => {
+              if (surface === 'general' || surface === 'launch') setGlobalPage(null);
+              else openChat();
+            }}
+          />
+        )}
+        <div className="app-chat-surface" inert={globalPage !== null}>
+          <ChatWorkspaceShell enabled={!phoneLayout} onLocalNavigation={cancelPendingNavigation}>
+            {content}
+          </ChatWorkspaceShell>
         </div>
-      ) : null}
+        {creatingCourse ? (
+          <CreateCourseDialog
+            onCancel={() => setCreatingCourse(false)}
+            onCreated={async (id) => {
+              completeOnboardingStep('course');
+              await loadCourses(id);
+              setCreatingCourse(false);
+              openCourse(id);
+            }}
+          />
+        ) : null}
 
-      {globalPage ? (
-        <div className="native-global-page">
-          {globalPage === 'calendar' ? (
-            <>
-              <GlobalCalendarApp
+        {surface !== 'launch' && switchingCourse && workspace ? (
+          <div className="course-switch-progress" role="status">
+            <GlassSpinner size={14} />
+            正在切换课程
+          </div>
+        ) : null}
+
+        {globalPage ? (
+          <div className="native-global-page">
+            {globalPage === 'calendar' ? (
+              <>
+                <GlobalCalendarApp
+                  courses={launchCourses}
+                  events={globalEvents}
+                  onOpenCourse={(id, date, createEvent) =>
+                    void openRecentCourse(id, { page: 'calendar', date, createEvent })
+                  }
+                  onBack={() => setGlobalPage(null)}
+                />
+                {calendarLoading ? (
+                  <div className="native-global-status" role="status">
+                    正在读取课程安排…
+                  </div>
+                ) : calendarError ? (
+                  <div className="native-global-status" role="alert">
+                    {calendarError}
+                    <button
+                      type="button"
+                      onClick={() => setCalendarRevision((revision) => revision + 1)}
+                    >
+                      重试
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : globalPage === 'store' ? (
+              <StorePage
+                onBack={() => setGlobalPage(null)}
+                onJoined={(id) => loadCourses(id)}
+                onOpenCourse={(id) => {
+                  setGlobalPage(null);
+                  void openRecentCourse(id);
+                }}
+              />
+            ) : (
+              <PhoneProfilePage
                 courses={launchCourses}
-                events={globalEvents}
-                onOpenCourse={(id, date, createEvent) =>
-                  void openRecentCourse(id, { page: 'calendar', date, createEvent })
+                currentCourseId={selectedCourseId ?? ''}
+                currentCourseAvatarUrl={
+                  workspace
+                    ? resolveNativeCourseAvatar(workspace.course.id, workspace.course.courseCode)
+                    : ''
                 }
+                conversationCount={launchCourses.reduce(
+                  (sum, course) => sum + course.conversationCount,
+                  0,
+                )}
+                responseStrength={responseStrength}
+                onResponseStrengthChange={(strength) => {
+                  setResponseStrength(strength);
+                  try {
+                    localStorage.setItem('syntara.phone.response-strength.v1', strength);
+                  } catch {
+                    /* Retain the session preference. */
+                  }
+                }}
+                onOpenCourseJar={(id) => void openRecentCourse(id, { page: 'memory' })}
                 onBack={() => setGlobalPage(null)}
               />
-              {calendarLoading ? (
-                <div className="native-global-status" role="status">
-                  正在读取课程安排…
-                </div>
-              ) : calendarError ? (
-                <div className="native-global-status" role="alert">
-                  {calendarError}
-                  <button
-                    type="button"
-                    onClick={() => setCalendarRevision((revision) => revision + 1)}
-                  >
-                    重试
-                  </button>
-                </div>
-              ) : null}
-            </>
-          ) : globalPage === 'store' ? (
-            <StorePage
-              onBack={() => setGlobalPage(null)}
-              onJoined={(id) => loadCourses(id)}
-              onOpenCourse={(id) => {
-                setGlobalPage(null);
-                void openRecentCourse(id);
-              }}
-            />
-          ) : (
-            <PhoneProfilePage
-              courses={launchCourses}
-              currentCourseId={selectedCourseId ?? ''}
-              currentCourseAvatarUrl={
-                workspace
-                  ? resolveNativeCourseAvatar(workspace.course.id, workspace.course.courseCode)
-                  : ''
-              }
-              conversationCount={launchCourses.reduce(
-                (sum, course) => sum + course.conversationCount,
-                0,
-              )}
-              responseStrength={responseStrength}
-              onResponseStrengthChange={(strength) => {
-                setResponseStrength(strength);
-                try {
-                  localStorage.setItem('syntara.phone.response-strength.v1', strength);
-                } catch {
-                  /* Retain the session preference. */
-                }
-              }}
-              onOpenCourseJar={(id) => void openRecentCourse(id, { page: 'memory' })}
-              onBack={() => setGlobalPage(null)}
-            />
-          )}
-        </div>
-      ) : null}
+            )}
+          </div>
+        ) : null}
 
-      {toast ? (
-        <div className="native-toast" role="status">
-          {toast}
-        </div>
-      ) : null}
-    </main>
+        <OnboardingCoach />
+
+        {toast ? (
+          <div className="native-toast" role="status">
+            {toast}
+          </div>
+        ) : null}
+      </main>
+    </AppNavigationContext.Provider>
   );
 }
 

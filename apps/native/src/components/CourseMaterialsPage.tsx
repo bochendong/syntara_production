@@ -1,7 +1,16 @@
-import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+} from 'react';
 import { Check, FileQuestion, NotebookPen, RotateCcw, X } from 'lucide-react';
 import type { LocalNotebook, LocalProblem } from '../domain/models';
 import { DIFFICULTY_MARBLES, marbleImages, type MarbleColor } from '../lib/learning-action-marbles';
+import { LearningEmptyState } from './LearningEmptyState';
+import { completeOnboardingStep } from '../lib/onboarding';
 import './materials-page.css';
 
 export type CourseMaterialKind = 'notes' | 'problems';
@@ -79,33 +88,42 @@ export function CourseMaterialsPage({
     return () => window.clearTimeout(timer);
   }, [notebooks]);
 
-  const patch = (key: string, next: Partial<QueueItem>) =>
-    setQueue((items) => items.map((item) => (item.key === key ? { ...item, ...next } : item)));
+  const patch = useCallback(
+    (key: string, next: Partial<QueueItem>) =>
+      setQueue((items) => items.map((item) => (item.key === key ? { ...item, ...next } : item))),
+    [],
+  );
 
-  const run = async (items: QueueItem[]) => {
-    let imported = 0;
-    for (const item of items) {
-      const started = Date.now();
-      try {
-        await onImport(item.kind, item.file);
-        await wait(Math.max(0, MIN_ORGANIZE_MS - (Date.now() - started)));
-        patch(item.key, { state: 'done' });
-        imported += 1;
-      } catch (cause) {
-        await wait(Math.max(0, 600 - (Date.now() - started)));
-        patch(item.key, {
-          state: 'failed',
-          message: cause instanceof Error ? cause.message : String(cause),
-        });
+  const run = useCallback(
+    async (items: QueueItem[]) => {
+      let imported = 0;
+      for (const item of items) {
+        const started = Date.now();
+        try {
+          await onImport(item.kind, item.file);
+          await wait(Math.max(0, MIN_ORGANIZE_MS - (Date.now() - started)));
+          patch(item.key, { state: 'done' });
+          imported += 1;
+        } catch (cause) {
+          await wait(Math.max(0, 600 - (Date.now() - started)));
+          patch(item.key, {
+            state: 'failed',
+            message: cause instanceof Error ? cause.message : String(cause),
+          });
+        }
       }
-    }
-    if (imported) await onImported();
-    await wait(DONE_LINGER_MS);
-    const batch = new Set(items.map((item) => item.key));
-    setQueue((current) =>
-      current.filter((item) => !(batch.has(item.key) && item.state === 'done')),
-    );
-  };
+      if (imported) {
+        completeOnboardingStep('materials');
+        await onImported();
+      }
+      await wait(DONE_LINGER_MS);
+      const batch = new Set(items.map((item) => item.key));
+      setQueue((current) =>
+        current.filter((item) => !(batch.has(item.key) && item.state === 'done')),
+      );
+    },
+    [onImport, onImported, patch],
+  );
 
   const accept = (kind: CourseMaterialKind, files: File[]) => {
     if (!files.length) return;
@@ -181,6 +199,7 @@ export function CourseMaterialsPage({
           .filter(Boolean)
           .join(' ')}
         aria-label="上传资料"
+        data-onboarding="materials-drop"
       >
         <div className="mt-basin-core" aria-hidden>
           <span className="mt-halo" />
@@ -319,33 +338,33 @@ export function CourseMaterialsPage({
               ) : null}
             </ul>
           ) : (
-            <p className="mt-empty">还没有</p>
+            <LearningEmptyState title="还没有笔记" compact />
           )}
         </button>
 
         {withProblems ? (
-        <button type="button" className="mt-shelf-card" data-tone="pink" onClick={onOpenProblems}>
-          <header>
-            <FileQuestion size={16} strokeWidth={2} aria-hidden />
-            <strong>题目</strong>
-            <em>{problems.length}</em>
-          </header>
-          {problems.length ? (
-            <div className="mt-difficulty">
-              {difficultyCounts.map(({ difficulty, count }, index) => (
-                <span key={difficulty} style={{ '--i': index } as CSSProperties}>
-                  <img src={marbleImages[DIFFICULTY_MARBLES[difficulty]]} alt="" aria-hidden />
-                  <b>{count}</b>
-                  <small>
-                    {difficulty === 'easy' ? '基础' : difficulty === 'medium' ? '进阶' : '挑战'}
-                  </small>
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-empty">还没有</p>
-          )}
-        </button>
+          <button type="button" className="mt-shelf-card" data-tone="pink" onClick={onOpenProblems}>
+            <header>
+              <FileQuestion size={16} strokeWidth={2} aria-hidden />
+              <strong>题目</strong>
+              <em>{problems.length}</em>
+            </header>
+            {problems.length ? (
+              <div className="mt-difficulty">
+                {difficultyCounts.map(({ difficulty, count }, index) => (
+                  <span key={difficulty} style={{ '--i': index } as CSSProperties}>
+                    <img src={marbleImages[DIFFICULTY_MARBLES[difficulty]]} alt="" aria-hidden />
+                    <b>{count}</b>
+                    <small>
+                      {difficulty === 'easy' ? '基础' : difficulty === 'medium' ? '进阶' : '挑战'}
+                    </small>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <LearningEmptyState title="还没有题目" compact />
+            )}
+          </button>
         ) : null}
       </section>
     </div>

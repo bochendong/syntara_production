@@ -36,6 +36,7 @@ import type { ProblemBankLaunch } from './ProblemBankPage';
 import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
 import './course-pages.css';
 import { GlassSpinner } from './GlassLoadMore';
+import { LearningEmptyState } from './LearningEmptyState';
 
 type ProblemPracticePageProps = {
   problems: LocalProblem[];
@@ -542,7 +543,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                     ))}
                   </section>
                 ) : (
-                  <p className="native-dialog-empty">还没有本机作答记录。</p>
+                  <LearningEmptyState title="还没有本机作答记录" compact />
                 )
               ) : null}
             </div>

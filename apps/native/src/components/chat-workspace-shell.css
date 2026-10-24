@@ -1,0 +1,34 @@
+.course-workspace.is-split.is-split.persistent-chat-workspace {
+  grid-template-rows: minmax(0, 1fr);
+  padding-top: 0;
+  view-transition-name: none;
+}
+
+.persistent-chat-content {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Course content owns its panels and toolbar; the outer shell owns the sidebar column. */
+.persistent-chat-content > .course-workspace.is-split.is-split.has-persistent-sidebar {
+  --phone-drawer-width: 0px;
+  grid-template-columns: minmax(0, 1fr);
+  view-transition-name: none;
+}
+
+.persistent-chat-content
+  > .course-workspace.is-split.is-split.has-persistent-sidebar
+  > .conversation-workspace {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+@media (min-width: 1100px) {
+  .persistent-chat-workspace:has(.learning-float-card)
+    > .workspace-sidebar-left
+    .phone-drawer-learning {
+    display: none;
+  }
+}

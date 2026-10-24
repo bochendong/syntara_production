@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useEffect, useMemo, useState, type ComponentType, type CSSProperties } from 'react';
 import { CalendarDays, ChevronRight, Loader2 } from 'lucide-react';
@@ -15,6 +16,7 @@ import { useLearningCalendarRange } from '@/features/learning-calendar/client/us
 import { useAuthStore } from '@/lib/store/auth';
 import type { CourseRecord } from '@/lib/utils/database';
 import { cn } from '@/lib/utils';
+import { completeWebOnboardingStep } from '@/lib/onboarding/web-store';
 import { LearnHomeDockAppLayer, type LearnDockApp } from '@/components/learn/learn-home-dock-apps';
 
 const STUDENT_HOME_ICONS_PER_PAGE = 20;
@@ -121,6 +123,7 @@ type SystemAppAction =
   | 'settings'
   | 'admin'
   | 'create'
+  | 'store'
   | 'past_courses'
   | 'usage'
   | 'sign_out'
@@ -203,6 +206,18 @@ const SYSTEM_APPS: SystemApp[] = [
 ];
 
 const HOME_GRID_SYSTEM_APPS: SystemApp[] = [
+  {
+    label: '新建课程',
+    secondary: 'New course',
+    iconSrc: '/learn/system-apps/create.svg',
+    action: 'create',
+  },
+  {
+    label: '商城',
+    secondary: 'Store',
+    iconSrc: '/learn/system-apps/store.svg',
+    action: 'store',
+  },
   ...SYSTEM_APPS,
   {
     label: '用量统计',
@@ -503,6 +518,7 @@ export function LearnHomeDashboard({
   onSignOut,
   onRetryCourseLoad,
 }: LearnHomeDashboardProps) {
+  const router = useRouter();
   const userId = useAuthStore((state) => state.userId) || 'anonymous';
   const portalRole = useAuthStore((state) => state.role);
   const companionModelId = useSettingsStore((state) => state.live2dPresenterModelId);
@@ -587,6 +603,11 @@ export function LearnHomeDashboard({
     }
     if (action === 'create') {
       onCreateCourse();
+      return;
+    }
+    if (action === 'store') {
+      completeWebOnboardingStep('store');
+      router.push('/store');
       return;
     }
     if (action === 'past_courses') {

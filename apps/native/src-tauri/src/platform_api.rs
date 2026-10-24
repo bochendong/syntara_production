@@ -41,6 +41,7 @@ const PROBLEMS_PATH: &str = "/api/native/v1/problems";
 const STORE_PATH: &str = "/api/native/v1/store";
 /// 资料页上传的笔记 / 题目。
 const MATERIALS_PATH: &str = "/api/native/v1/materials";
+const ONBOARDING_PATH: &str = "/api/native/v1/onboarding";
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1044,6 +1045,20 @@ pub async fn native_store_action(request: PlatformJsonRequest) -> Result<Value, 
 #[tauri::command]
 pub async fn native_upload_material(request: PlatformJsonRequest) -> Result<Value, String> {
     post_json(MATERIALS_PATH, &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
+pub async fn native_get_onboarding(request: PlatformQueryRequest) -> Result<Value, String> {
+    get_json(
+        &path_with_query(ONBOARDING_PATH, &request.query),
+        request.syntara_token.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn native_onboarding_action(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json(ONBOARDING_PATH, &request, DEFAULT_TIMEOUT).await
 }
 
 #[tauri::command]

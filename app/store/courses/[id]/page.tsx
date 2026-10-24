@@ -1,38 +1,26 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import {
-  ArrowLeft,
-  ArrowRight,
-  BookOpen,
-  CheckCircle2,
-  LayoutGrid,
-  Star,
-  WandSparkles,
-} from 'lucide-react';
-import { toast } from '@/lib/notifications/client-toast';
-import { Button } from '@/components/ui/button';
+import { BadgeCheck, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import { PurchaseConfirmDialog } from '@/components/courses/purchase-confirm-dialog';
-import { Textarea } from '@/components/ui/textarea';
+import { useStoreStaging } from '@/components/courses/store-runtime';
+import { toast } from '@/lib/notifications/client-toast';
 import { backendJson } from '@/lib/utils/backend-api';
 import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
-import { useNotificationStore } from '@/lib/store/notifications';
+import { MARBLE_AVATAR_CATALOG } from '@/lib/constants/marble-avatars';
+import avatarThemeHues from '@/lib/constants/marble-avatar-theme-hues.json';
+import { courseDisplayCode } from '@/lib/course-space/course-display-name';
+import store from '../store.module.css';
+import styles from './detail.module.css';
 
 type StoreNotebook = {
   id: string;
   name: string;
   description: string | null;
-  tags: string[];
-  avatarUrl: string | null;
-  listedInNotebookStore: boolean;
-  notebookPriceCents: number;
-  updatedAt: string;
-  createdAt: string;
-  speechReadyCount?: number;
-  speechTotalCount?: number;
-  speechStatus?: 'no_speech' | 'ready' | 'pending';
+  sectionCount: number;
+  publishedProblemCount: number;
   _count: { scenes: number };
 };
 
@@ -42,20 +30,15 @@ type StoreCourseDetailResponse = {
     name: string;
     description: string | null;
     tags: string[];
-    language: string;
-    purpose: string;
     university: string | null;
     courseCode: string | null;
     avatarUrl: string | null;
-    coursePriceCents: number;
     ownerName: string;
+    organization: { name: string; verified: boolean } | null;
     averageRating: number;
     reviewCount: number;
-    speechReadyCount?: number;
-    speechTotalCount?: number;
-    speechStatus?: 'no_speech' | 'ready' | 'pending';
+    publishedProblemCount: number;
     purchased: boolean;
-    clonedCourseId: string | null;
     notebooks: StoreNotebook[];
   };
   reviews: Array<{
@@ -63,63 +46,55 @@ type StoreCourseDetailResponse = {
     rating: number;
     comment: string | null;
     reviewerName: string;
-    reviewerAvatarUrl: string | null;
     updatedAt: string;
   }>;
 };
 
-function purposeLabel(purpose: string) {
-  if (purpose === 'research') return '科研内容';
-  if (purpose === 'university') return '大学课程';
-  return '日常学习';
+function notebookPages(notebook: StoreNotebook) {
+  return notebook.sectionCount || notebook._count.scenes || 0;
 }
 
-function buildHighlights(course: StoreCourseDetailResponse['course']) {
-  const notebookCount = course.notebooks.length;
-  const totalScenes = course.notebooks.reduce((sum, notebook) => sum + notebook._count.scenes, 0);
-
-  return [
-    {
-      title: '完整内容包',
-      description: `包含 ${notebookCount} 本笔记本与 ${totalScenes} 页内容，加入后可持续看到创建者更新。`,
-    },
-    {
-      title: '适合人群',
-      description:
-        course.purpose === 'research'
-          ? '更适合案例分析、方法拆解与项目推进。'
-          : course.purpose === 'university'
-            ? '更贴近高校课程节奏，适合系统学习与课堂复习。'
-            : '适合日常学习、知识整理与长期积累。',
-    },
-    {
-      title: '学习反馈',
-      description:
-        course.reviewCount > 0
-          ? `当前评分 ${course.averageRating.toFixed(1)}，已有 ${course.reviewCount} 条学习反馈。`
-          : '当前还没有评论，适合成为第一批使用并留下反馈的学习者。',
-    },
-    {
-      title: '语音状态',
-      description: '课程共享讲解稿文本；音频会按你的个人音色设置生成，不受创建者设置影响。',
-    },
-  ];
+function courseArt(id: string, storedUrl: string | null) {
+  const url = resolveCourseAvatarDisplayUrl(id, storedUrl);
+  let pathname = url;
+  try {
+    pathname = new URL(url, 'https://syntara.local').pathname;
+  } catch {
+    /* Custom image URLs have no bundled scene. */
+  }
+  const avatar = MARBLE_AVATAR_CATALOG.find((item) => item.url === pathname);
+  const hue = avatar ? (avatarThemeHues[avatar.id as keyof typeof avatarThemeHues] ?? 220) : 220;
+  return {
+    url,
+    scene: avatar ? `/avatars/marble-backgrounds-v1/${avatar.filename}` : null,
+    tint: {
+      '--st-from': `hsl(${hue} 85% 88%)`,
+      '--st-to': `hsl(${(hue + 40) % 360} 90% 94%)`,
+      '--st-accent': `hsl(${hue} 55% 34%)`,
+    } as CSSProperties,
+  };
 }
 
-function speechStatusLabel(
-  item: Pick<
-    StoreCourseDetailResponse['course'],
-    'speechStatus' | 'speechReadyCount' | 'speechTotalCount'
-  >,
-) {
-  return item.speechTotalCount ? '讲解稿就绪，可生成我的语音' : '可生成我的语音';
+function Stars({ value }: { value: number }) {
+  return (
+    <span className={styles.stars} aria-label={`${value} 星`}>
+      {Array.from({ length: 5 }, (_, index) => (
+        <Star
+          key={index}
+          size={13}
+          fill={index < Math.round(value) ? 'currentColor' : 'none'}
+          aria-hidden
+        />
+      ))}
+    </span>
+  );
 }
 
 export default function StoreCourseDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const staging = useStoreStaging();
   const id = typeof params.id === 'string' ? params.id : '';
-  const refreshNotifications = useNotificationStore((s) => s.refreshNotifications);
   const [data, setData] = useState<StoreCourseDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -127,53 +102,46 @@ export default function StoreCourseDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
+  const [expanded, setExpanded] = useState(false);
   const [coursePurchaseOpen, setCoursePurchaseOpen] = useState(false);
-
-  const load = useCallback(async () => {
-    if (!id) {
-      setLoading(false);
-      setLoadError('课程不存在');
-      return;
-    }
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const next = await backendJson<StoreCourseDetailResponse>(`/api/courses/store/${id}`);
-      setData(next);
-    } catch (error) {
-      setData(null);
-      setLoadError(error instanceof Error ? error.message : '课程详情加载失败');
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    const controller = new AbortController();
+    setLoading(true);
+    setLoadError(null);
+    void backendJson<StoreCourseDetailResponse>(`/api/courses/store/${encodeURIComponent(id)}`, {
+      signal: controller.signal,
+    })
+      .then((next) => {
+        if (!controller.signal.aborted) setData(next);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setData(null);
+          setLoadError(error instanceof Error ? error.message : '课程详情加载失败');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [id, revision]);
 
-  const totalScenes = useMemo(
-    () => data?.course.notebooks.reduce((sum, notebook) => sum + notebook._count.scenes, 0) ?? 0,
-    [data],
-  );
-
-  const highlights = useMemo(() => (data ? buildHighlights(data.course) : []), [data]);
+  const openCourse = useCallback(() => {
+    router.push(`${staging ? '/test/app' : '/learn'}?courseId=${encodeURIComponent(id)}`);
+  }, [id, router, staging]);
 
   const handleBuy = async (): Promise<boolean> => {
-    if (!id) return false;
     setBuying(true);
     try {
-      const response = await backendJson<{ course: { id: string; name: string } }>(
-        '/api/courses/clone',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sourceCourseId: id }),
-        },
-      );
-      await refreshNotifications({ silent: true });
-      toast.success(`已加入课程「${response.course.name}」`);
-      router.push(`/learn?courseId=${encodeURIComponent(response.course.id)}`);
+      await backendJson('/api/courses/clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceCourseId: id }),
+      });
+      toast.success('已加入课程');
+      openCourse();
       return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '加入失败');
@@ -184,17 +152,16 @@ export default function StoreCourseDetailPage() {
   };
 
   const handleReview = async () => {
-    if (!id) return;
     setSubmitting(true);
     try {
-      await backendJson(`/api/courses/store/${id}/reviews`, {
+      await backendJson(`/api/courses/store/${encodeURIComponent(id)}/reviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rating, comment }),
       });
       toast.success('评价已提交');
       setComment('');
-      await load();
+      setRevision((value) => value + 1);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '提交评价失败');
     } finally {
@@ -202,359 +169,252 @@ export default function StoreCourseDetailPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="store-shell flex min-h-full items-center justify-center text-muted-foreground">
-        加载课程详情…
-      </div>
-    );
-  }
+  const backLink = (
+    <Link href="/store/courses" className={styles.back}>
+      <ChevronLeft size={20} aria-hidden />
+      商城
+    </Link>
+  );
 
-  if (!data) {
+  if (loading)
     return (
-      <div className="store-shell flex min-h-full items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-[28px] border border-slate-200/75 bg-white/80 p-6 text-center shadow-[0_18px_46px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/6">
-          <h1 className="text-xl font-semibold text-slate-950 dark:text-white">课程详情不可用</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-            {loadError || '这门课程可能未上架，或你已经拥有它。'}
-          </p>
-          <div className="mt-5 flex flex-col gap-2 min-[420px]:flex-row min-[420px]:justify-center">
-            <Button variant="outline" onClick={() => router.push('/store/courses')}>
-              返回课程商城
-            </Button>
-            {id ? (
-              <Button onClick={() => router.push(`/learn?courseId=${encodeURIComponent(id)}`)}>
-                进入课程学习
-              </Button>
-            ) : null}
+      <div className={store.shell}>
+        <main className={`${store.main} ${styles.page}`}>
+          {backLink}
+          <div className={styles.loading} role="status" aria-label="正在加载课程详情">
+            <div className={styles.loadingCover} />
+            <div className={styles.loadingTitle} />
+            <div className={styles.loadingFacts} />
           </div>
-        </div>
+        </main>
       </div>
     );
-  }
+
+  if (!data)
+    return (
+      <div className={store.shell}>
+        <main className={`${store.main} ${styles.page}`}>
+          {backLink}
+          <div className={styles.empty} role="alert">
+            <h1>课程详情暂不可用</h1>
+            <p>{loadError || '这门课程可能已经下架。'}</p>
+            <button
+              type="button"
+              className={store.get}
+              onClick={() => setRevision((value) => value + 1)}
+            >
+              重试
+            </button>
+          </div>
+        </main>
+      </div>
+    );
 
   const { course, reviews } = data;
+  const art = courseArt(course.id, course.avatarUrl);
+  const title = courseDisplayCode(course) || course.name;
+  const pages = course.notebooks.reduce((sum, notebook) => sum + notebookPages(notebook), 0);
+  const facts = [
+    ...(course.reviewCount > 0
+      ? [{ label: `${course.reviewCount} 个评分`, value: course.averageRating.toFixed(1) }]
+      : []),
+    { label: '章节', value: String(course.notebooks.length) },
+    ...(pages ? [{ label: '内容页', value: String(pages) }] : []),
+    ...(course.publishedProblemCount
+      ? [{ label: '题目', value: String(course.publishedProblemCount) }]
+      : []),
+    ...(course.university ? [{ label: '学校', value: course.university }] : []),
+  ];
 
   return (
-    <div className="store-shell store-grid min-h-full w-full overflow-hidden">
-      <main className="relative z-10 mx-auto w-full max-w-[92rem] px-3 pb-16 pt-4 sm:px-4 sm:pt-6 md:px-8 md:pb-20 lg:px-10 lg:pt-8">
-        <Button variant="ghost" size="sm" className="-ml-2 mb-4 rounded-full px-4" asChild>
-          <Link href="/store/courses">
-            <ArrowLeft className="size-4" />
-            返回课程商城
-          </Link>
-        </Button>
+    <div className={store.shell}>
+      <main className={`${store.main} ${styles.page}`} style={art.tint}>
+        {backLink}
+        {art.scene ? (
+          <div
+            className={styles.cover}
+            style={{ backgroundImage: `url("${art.scene}")` }}
+            aria-hidden
+          />
+        ) : null}
+        <header className={`${styles.identity} ${art.scene ? styles.withCover : ''}`}>
+          <img className={styles.avatar} src={art.url} alt="" />
+          <div className={styles.heading}>
+            <h1>{title}</h1>
+            {title !== course.name ? <p>{course.name}</p> : null}
+            <span className={styles.organization}>
+              {course.organization?.name || course.ownerName}
+              {course.organization?.verified ? <BadgeCheck size={14} aria-label="已认证" /> : null}
+            </span>
+            <button
+              type="button"
+              className={`${store.get} ${styles.get}`}
+              disabled={buying}
+              onClick={() => (course.purchased ? openCourse() : setCoursePurchaseOpen(true))}
+            >
+              {buying ? (
+                <span className={store.getRing} aria-label="正在获取" />
+              ) : course.purchased ? (
+                '打开'
+              ) : (
+                '获取'
+              )}
+            </button>
+          </div>
+        </header>
 
-        <section className="store-hero-panel overflow-hidden px-4 py-6 sm:rounded-[40px] sm:px-6 sm:py-8 md:px-10 md:py-10">
-          <div className="grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.72fr)] xl:items-start">
-            <div className="max-w-3xl">
-              <div className="flex flex-wrap gap-2">
-                <span className="store-chip text-xs">{purposeLabel(course.purpose)}</span>
-                {course.university?.trim() ? (
-                  <span className="store-chip text-xs">{course.university.trim()}</span>
-                ) : null}
-                {course.courseCode?.trim() ? (
-                  <span className="store-chip text-xs">{course.courseCode.trim()}</span>
-                ) : null}
-              </div>
-              <h1 className="mt-5 text-3xl font-semibold text-slate-950 sm:text-4xl md:text-6xl dark:text-white">
-                {course.name}
-              </h1>
-              <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600 md:text-lg dark:text-slate-300">
-                {course.description || '这门课程暂时没有补充描述。'}
-              </p>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <span className="store-chip text-sm">{`创作者 · ${course.ownerName}`}</span>
-                <span className="store-chip text-sm">
-                  <Star className="size-4 fill-current" />
-                  {`${course.averageRating.toFixed(1)} · ${course.reviewCount} 条评论`}
-                </span>
-                <span className="store-chip text-sm">
-                  <LayoutGrid className="size-4" />
-                  {`${course.notebooks.length} 本笔记本 · ${totalScenes} 页`}
-                </span>
-                <span className="store-chip text-sm">{speechStatusLabel(course)}</span>
-              </div>
+        <dl className={styles.facts} aria-label="课程信息">
+          {facts.map((fact) => (
+            <div key={fact.label}>
+              <dt>{fact.label}</dt>
+              <dd>{fact.value}</dd>
+              {fact.label.endsWith('个评分') ? <Stars value={course.averageRating} /> : null}
             </div>
+          ))}
+        </dl>
 
-            <aside className="store-sticky-buy">
-              <div className="store-section-panel p-5 sm:rounded-[32px] sm:p-6">
-                <div className="flex items-center gap-4">
-                  <img
-                    src={resolveCourseAvatarDisplayUrl(course.id, course.avatarUrl)}
-                    alt=""
-                    className="size-18 h-[72px] w-[72px] rounded-[22px] border border-white/75 object-cover shadow-[0_16px_36px_rgba(15,23,42,0.1)] dark:border-white/12"
-                  />
-                  <div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">课程价格</p>
-                    <p className="mt-1 text-3xl font-semibold text-slate-950 dark:text-white">
-                      免费加入
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-6 space-y-3">
-                  <button
-                    type="button"
-                    className="store-cta-primary w-full rounded-full px-5 py-3 text-sm font-semibold"
-                    disabled={buying || course.purchased}
-                    onClick={() => setCoursePurchaseOpen(true)}
-                  >
-                    {course.purchased ? '已加入' : buying ? '加入中…' : '加入课程'}
-                  </button>
-                  {course.purchased ? (
-                    <button
-                      type="button"
-                      className="store-cta-secondary w-full rounded-full px-5 py-3 text-sm font-semibold"
-                      onClick={() =>
-                        router.push(`/learn?courseId=${encodeURIComponent(course.id)}`)
-                      }
-                    >
-                      进入学习
-                    </button>
-                  ) : null}
-                </div>
-
-                <div className="mt-6 space-y-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                  <p>加入后会持续读取创建者维护的同一份课程内容。</p>
-                  <p>你的做题记录、私有记忆和个人语音会单独保存。</p>
-                </div>
-              </div>
-            </aside>
-          </div>
-        </section>
-
-        <section className="mt-10 sm:mt-14">
-          <div className="mb-6">
-            <p className="text-sm font-medium tracking-[0.16em] text-slate-500 uppercase dark:text-slate-400">
-              Why It&apos;s Worth It
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-950 sm:text-3xl dark:text-white">
-              课程亮点
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {highlights.map((highlight) => (
-              <div
-                key={highlight.title}
-                className="store-section-panel p-5 sm:rounded-[30px] sm:p-6"
-              >
-                <p className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-                  <WandSparkles className="size-4" />
-                  亮点
-                </p>
-                <h3 className="mt-3 text-xl font-semibold text-slate-950 sm:text-2xl dark:text-white">
-                  {highlight.title}
-                </h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                  {highlight.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-10 grid gap-5 sm:mt-14 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
-          <div className="store-section-panel p-5 sm:rounded-[34px] md:p-8">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium tracking-[0.16em] text-slate-500 uppercase dark:text-slate-400">
-                  Course Contents
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-slate-950 sm:text-3xl dark:text-white">
-                  课程内容总览
-                </h2>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <span className="store-chip text-xs">{`${course.notebooks.length} 本笔记本`}</span>
-                <span className="store-chip text-xs">{`${totalScenes} 页内容`}</span>
-              </div>
-            </div>
-
-            <div className="mt-6 space-y-4">
+        <section className={styles.section} aria-labelledby="course-chapters-heading">
+          <h2 id="course-chapters-heading">章节</h2>
+          {course.notebooks.length ? (
+            <div className={styles.chapters}>
               {course.notebooks.map((notebook, index) => {
-                return (
-                  <div
+                const content = (
+                  <>
+                    <b>{String(index + 1).padStart(2, '0')}</b>
+                    <strong>{notebook.name}</strong>
+                    <span>
+                      {notebookPages(notebook) ? `${notebookPages(notebook)} 页` : ''}
+                      {notebookPages(notebook) && notebook.publishedProblemCount ? ' · ' : ''}
+                      {notebook.publishedProblemCount ? `${notebook.publishedProblemCount} 题` : ''}
+                    </span>
+                  </>
+                );
+                return course.purchased ? (
+                  <Link
                     key={notebook.id}
-                    className="rounded-[28px] border border-white/75 bg-white/70 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/5"
+                    className={styles.chapter}
+                    href={
+                      staging
+                        ? `/test/app?courseId=${encodeURIComponent(id)}&page=notes`
+                        : `/classroom/${encodeURIComponent(notebook.id)}`
+                    }
+                    aria-label={`打开${notebook.name}`}
                   >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div className="flex min-w-0 flex-col gap-3 min-[420px]:flex-row min-[420px]:gap-4">
-                        <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-                          <BookOpen className="size-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium tracking-[0.16em] text-slate-400 uppercase dark:text-slate-500">
-                            {`Notebook ${String(index + 1).padStart(2, '0')}`}
-                          </p>
-                          <h3 className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">
-                            {notebook.name}
-                          </h3>
-                          <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                            {notebook.description || '该笔记本暂无描述。'}
-                          </p>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <span className="store-chip text-xs">{`${notebook._count.scenes} 页`}</span>
-                            <span className="store-chip text-xs">
-                              {speechStatusLabel(notebook)}
-                            </span>
-                            {notebook.tags.slice(0, 3).map((tag) => (
-                              <span key={tag} className="store-chip text-xs">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {course.purchased ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full rounded-full md:w-auto"
-                          onClick={() => router.push(`/classroom/${notebook.id}`)}
-                        >
-                          打开
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
+                    {content}
+                    <ChevronRight size={17} aria-hidden />
+                  </Link>
+                ) : (
+                  <article key={notebook.id} className={styles.chapter}>
+                    {content}
+                  </article>
                 );
               })}
             </div>
-          </div>
-
-          <div className="space-y-5">
-            <div className="store-section-panel p-5 sm:rounded-[34px] sm:p-6">
-              <p className="text-sm font-medium tracking-[0.16em] text-slate-500 uppercase dark:text-slate-400">
-                Snapshot
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">
-                这门课程适合什么场景？
-              </h2>
-              <div className="mt-5 space-y-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                <div className="flex gap-3">
-                  <CheckCircle2 className="mt-1 size-4 shrink-0 text-sky-500" />
-                  <p>如果你想直接跟随一整套结构化内容，这是最省时的加入方式。</p>
-                </div>
-                <div className="flex gap-3">
-                  <CheckCircle2 className="mt-1 size-4 shrink-0 text-sky-500" />
-                  <p>加入后内容会跟随创建者更新，你的学习记录会保留在自己的账号下。</p>
-                </div>
-                <div className="flex gap-3">
-                  <CheckCircle2 className="mt-1 size-4 shrink-0 text-sky-500" />
-                  <p>课堂语音会按你的个人音色生成，创建者不需要提前附带音频。</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="store-section-panel p-5 sm:rounded-[34px] sm:p-6">
-              <p className="text-sm font-medium tracking-[0.16em] text-slate-500 uppercase dark:text-slate-400">
-                Reviews
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">
-                学习者评价
-              </h2>
-
-              {course.purchased ? (
-                <div className="mt-5 space-y-4">
-                  <div className="flex gap-2">
-                    {Array.from({ length: 5 }).map((_, index) => (
-                      <button key={index} type="button" onClick={() => setRating(index + 1)}>
-                        <Star
-                          className={
-                            index < rating
-                              ? 'size-5 fill-amber-400 text-amber-400'
-                              : 'size-5 text-slate-300'
-                          }
-                        />
-                      </button>
-                    ))}
-                  </div>
-                  <Textarea
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    rows={4}
-                    className="rounded-[24px] border-white/70 bg-white/78 dark:border-white/10 dark:bg-white/5"
-                    placeholder="写下你的学习体验、课堂质量、例题是否完整等。"
-                  />
-                  <button
-                    type="button"
-                    className="store-cta-primary rounded-full px-5 py-3 text-sm font-semibold min-[420px]:w-auto"
-                    disabled={submitting}
-                    onClick={() => void handleReview()}
-                  >
-                    {submitting ? '提交中…' : '提交评论'}
-                  </button>
-                </div>
-              ) : (
-                <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                  加入课程后可以打分和评论。
-                </p>
-              )}
-
-              <div className="mt-6 space-y-4">
-                {reviews.length === 0 ? (
-                  <p className="text-sm leading-7 text-slate-600 dark:text-slate-300">
-                    还没有评论，欢迎成为第一位评价者。
-                  </p>
-                ) : (
-                  reviews.map((review) => (
-                    <div
-                      key={review.id}
-                      className="rounded-[26px] border border-white/70 bg-white/72 p-4 dark:border-white/10 dark:bg-white/5"
-                    >
-                      <div className="flex flex-col gap-1 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between min-[420px]:gap-3">
-                        <p className="font-medium text-slate-950 dark:text-white">
-                          {review.reviewerName}
-                        </p>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {new Date(review.updatedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm text-amber-500">{'★'.repeat(review.rating)}</p>
-                      {review.comment ? (
-                        <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                          {review.comment}
-                        </p>
-                      ) : null}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
+          ) : (
+            <p className={styles.muted}>还没有整理好的章节，机构发布后会出现在这里。</p>
+          )}
         </section>
 
-        <section className="mt-14">
-          <div className="store-section-panel flex flex-col gap-6 px-5 py-6 sm:rounded-[36px] md:flex-row md:items-center md:justify-between md:px-8 md:py-7">
-            <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Next step</p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">
-                想继续挑选别的课程？返回商城继续逛专题货架。
-              </h2>
+        {course.description ? (
+          <section className={styles.section} aria-label="课程简介">
+            <p className={`${styles.description} ${expanded ? styles.expanded : ''}`}>
+              {course.description}
+            </p>
+            {!expanded && course.description.length > 150 ? (
+              <button type="button" className={styles.more} onClick={() => setExpanded(true)}>
+                更多
+              </button>
+            ) : null}
+          </section>
+        ) : null}
+
+        {course.tags.length ? (
+          <div className={styles.tags} aria-label="课程标签">
+            {course.tags.map((tag) => (
+              <span key={tag}>{tag}</span>
+            ))}
+          </div>
+        ) : null}
+
+        <section className={styles.section} aria-labelledby="course-reviews-heading">
+          <h2 id="course-reviews-heading">评分及评价</h2>
+          {course.reviewCount > 0 ? (
+            <div className={styles.reviewSummary}>
+              <strong>{course.averageRating.toFixed(1)}</strong>
+              <div>
+                <Stars value={course.averageRating} />
+                <p>满分 5 分 · {course.reviewCount} 个评分</p>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => router.push('/store/courses')}
-              className="store-cta-primary inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold md:w-auto"
+          ) : (
+            <p className={styles.muted}>还没有评价，欢迎分享你的学习体验。</p>
+          )}
+          {reviews.length ? (
+            <div className={styles.reviews}>
+              {reviews.map((review) => (
+                <article key={review.id} className={styles.review}>
+                  <header>
+                    <Stars value={review.rating} />
+                    <time dateTime={review.updatedAt}>
+                      {new Date(review.updatedAt).toLocaleDateString()}
+                    </time>
+                  </header>
+                  <p>{review.comment || '这位同学留下了评分。'}</p>
+                  <small>{review.reviewerName}</small>
+                </article>
+              ))}
+            </div>
+          ) : null}
+          {course.purchased ? (
+            <form
+              className={styles.reviewForm}
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleReview();
+              }}
             >
-              返回课程商城
-              <ArrowRight className="size-4" />
-            </button>
-          </div>
+              <fieldset>
+                <legend>为这门课程评分</legend>
+                <div className={styles.ratingPicker}>
+                  {Array.from({ length: 5 }, (_, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      aria-label={`${index + 1} 星`}
+                      aria-pressed={rating === index + 1}
+                      onClick={() => setRating(index + 1)}
+                    >
+                      <Star size={22} fill={index < rating ? 'currentColor' : 'none'} aria-hidden />
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <label htmlFor="course-review">写下你的学习体验</label>
+              <textarea
+                id="course-review"
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                rows={3}
+                maxLength={2000}
+                placeholder="课程内容、例题或讲解有哪些帮助？"
+              />
+              <button type="submit" className={store.get} disabled={submitting}>
+                {submitting ? '提交中…' : '提交评价'}
+              </button>
+            </form>
+          ) : (
+            <p className={styles.muted}>获取课程后可以评分和评价。</p>
+          )}
         </section>
-
         <PurchaseConfirmDialog
           open={coursePurchaseOpen}
           onOpenChange={setCoursePurchaseOpen}
           itemTypeLabel="课程"
           itemName={course.name}
-          countSummary={`将加入 ${course.notebooks.length} 本笔记本，共 ${totalScenes} 页共享内容。`}
-          note="课程内容由创建者维护，做题记录和语音缓存属于你自己。"
+          countSummary={`包含 ${course.notebooks.length} 个章节${pages ? `，共 ${pages} 页内容` : ''}。`}
+          note="加入后可在课程列表中找到，学习进度会保存在你的账号里。"
           busy={buying}
-          confirmLabel="确认加入课程"
+          confirmLabel="获取课程"
           onConfirm={handleBuy}
         />
       </main>

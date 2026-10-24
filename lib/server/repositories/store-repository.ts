@@ -45,7 +45,10 @@ export function findPublicStoreCourseDetail(db: DbClient, userId: string, course
       owner: { select: { name: true, email: true } },
       organization: STORE_ORGANIZATION_SELECT,
       notebooks: {
-        where: { removedAt: null },
+        where: {
+          removedAt: null,
+          owner: { courses: { some: { id: courseId } } },
+        },
         orderBy: { updatedAt: 'desc' },
         select: {
           id: true,
@@ -58,6 +61,7 @@ export function findPublicStoreCourseDetail(db: DbClient, userId: string, course
           updatedAt: true,
           createdAt: true,
           sceneCount: true,
+          sectionCount: true,
           problemCount: true,
           publishedProblemCount: true,
           speechReadyCount: true,

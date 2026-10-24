@@ -7,6 +7,8 @@ import {
   LEARN_HOME_PREVIEW_COURSES,
   LearnHomeDashboard,
 } from '@/components/learn/learn-home-dashboard';
+import { CreateCourseDialog } from '@/components/courses/create-course-dialog';
+import { completeWebOnboardingStep } from '@/lib/onboarding/web-store';
 import { useAuthSignOut } from '@/lib/hooks/use-auth-sign-out';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
 import { listCoursesOrThrow } from '@/lib/utils/course-storage';
@@ -41,6 +43,7 @@ export function LearnHomePageClient({
   const [courses, setCourses] = useState<CourseRecord[]>(preview ? LEARN_HOME_PREVIEW_COURSES : []);
   const [coursesLoading, setCoursesLoading] = useState(!preview);
   const [courseLoadError, setCourseLoadError] = useState<string | null>(null);
+  const [createCourseOpen, setCreateCourseOpen] = useState(false);
 
   const loadCourses = useCallback(async (options: { silent?: boolean } = {}) => {
     if (!options.silent) {
@@ -128,17 +131,29 @@ export function LearnHomePageClient({
   );
 
   return (
-    <LearnHomeDashboard
-      courses={preview ? LEARN_HOME_PREVIEW_COURSES : courses}
-      activeCourseId={null}
-      coursesLoading={coursesLoading}
-      courseLoadError={courseLoadError}
-      onCreateCourse={() => {}}
-      onOpenCalendar={() => router.push('/calendar')}
-      onOpenUsage={() => router.push('/student/usage')}
-      onOpenCourse={openCourse}
-      onSignOut={signOut}
-      onRetryCourseLoad={() => void loadCourses().catch(() => {})}
-    />
+    <>
+      <LearnHomeDashboard
+        courses={preview ? LEARN_HOME_PREVIEW_COURSES : courses}
+        activeCourseId={null}
+        coursesLoading={coursesLoading}
+        courseLoadError={courseLoadError}
+        onCreateCourse={() => setCreateCourseOpen(true)}
+        onOpenCalendar={() => router.push('/calendar')}
+        onOpenUsage={() => router.push('/student/usage')}
+        onOpenCourse={openCourse}
+        onSignOut={signOut}
+        onRetryCourseLoad={() => void loadCourses().catch(() => {})}
+      />
+      {preview ? null : (
+        <CreateCourseDialog
+          open={createCourseOpen}
+          onOpenChange={setCreateCourseOpen}
+          onSuccess={async () => {
+            completeWebOnboardingStep('course');
+            await loadCourses({ silent: true }).catch(() => undefined);
+          }}
+        />
+      )}
+    </>
   );
 }

@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Search,
 } from 'lucide-react';
+import { CourseNotesDrop } from '@/components/courses/course-notes-drop';
 import { NotebookMindMapPreview } from '@/components/courses/notebook-mind-map-preview';
 import { COURSE_SPACE_BODY_SURFACE_CLASS } from '@/components/course-space/course-space-header';
 import { StudentCoursePageFrame } from '@/components/course-space/student-course-page-frame';
@@ -335,6 +336,15 @@ export function CourseResourceLibraryPageClient({ courseId, initialNotebookId }:
             />
           </label>
         </div>
+
+        {course ? (
+          <div className="border-b border-slate-200/80 px-5 py-4 dark:border-white/10">
+            <CourseNotesDrop
+              courseId={courseId}
+              onUploaded={() => setNotebooksReloadKey((current) => current + 1)}
+            />
+          </div>
+        ) : null}
 
         {notebooksStatus === 'loading' && notebooks.length === 0 ? (
           <div className="grid min-h-[28rem] place-items-center text-sm text-slate-500">

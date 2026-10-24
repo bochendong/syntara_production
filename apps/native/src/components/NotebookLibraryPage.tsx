@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, CheckCircle2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, BookOpen, ChevronRight } from 'lucide-react';
+import { LearningEmptyState } from './LearningEmptyState';
 
 import { getLocalRepository } from '../data/repository';
 import { loadNotebookForReading } from '../data/course-sync';
@@ -100,17 +101,14 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
 
         <div className="native-notebook-library-grid">
           {notebooks.length === 0 ? (
-            <div className="native-problem-bank-empty">
-              <CheckCircle2 size={28} />
-              <strong>
-                {workspace.notebooks.length ? '没有匹配的笔记本' : '还没有本地笔记本'}
-              </strong>
-              <span>
-                {workspace.notebooks.length
+            <LearningEmptyState
+              title={workspace.notebooks.length ? '没有匹配的笔记本' : '还没有本地笔记本'}
+              hint={
+                workspace.notebooks.length
                   ? '换个关键词再试。'
-                  : '导入课程资料或迁移档案后，这里会出现笔记本。'}
-              </span>
-            </div>
+                  : '导入课程资料或迁移档案后，这里会出现笔记本。'
+              }
+            />
           ) : (
             notebooks.slice(0, listWindow.count).map((notebook) => {
               const busy = busyId === notebook.id;

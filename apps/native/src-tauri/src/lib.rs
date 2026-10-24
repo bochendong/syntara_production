@@ -100,6 +100,8 @@ pub fn run() {
             platform_api::native_get_store,
             platform_api::native_store_action,
             platform_api::native_upload_material,
+            platform_api::native_get_onboarding,
+            platform_api::native_onboarding_action,
             platform_api::native_get_conversations,
             platform_api::native_sync_conversation,
             platform_api::native_delete_conversation,

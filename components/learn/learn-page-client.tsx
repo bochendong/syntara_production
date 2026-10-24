@@ -371,6 +371,8 @@ import {
   listStagesByCourseOrThrow,
   type StageListItem,
 } from '@/lib/utils/stage-storage';
+import { completeWebOnboardingStep } from '@/lib/onboarding/web-store';
+import { ONBOARDING_PREFILL_EVENT } from '@/lib/onboarding/spotlight';
 
 function LearnDeferredPanelLoading({ label }: { label: string }) {
   return (
@@ -5110,6 +5112,9 @@ export function LearnLearningActionCards({
                     size="sm"
                     disabled={disabled || completed}
                     className={LEARN_CONFIRMATION_PRIMARY_CLASS}
+                    data-onboarding={
+                      action.kind === 'memory.propose_write' && !completed ? 'remember' : undefined
+                    }
                     onClick={() => onConfirm(action)}
                   >
                     {learnActionButtonLabel(action)}
@@ -6713,6 +6718,18 @@ export function LearnPageClient() {
     [activeCourseId, activeSessionId, localUserId],
   );
 
+  useEffect(() => {
+    // 新手引导圈住输入框时，帮用户先填好一句；用户自己写了就不动。
+    const onPrefill = (event: Event) => {
+      const text = (event as CustomEvent<{ text?: string }>).detail?.text;
+      if (!text || composerDraftRef.current.trim()) return;
+      updateComposerDraft(text);
+      draftTextareaRef.current?.focus();
+    };
+    window.addEventListener(ONBOARDING_PREFILL_EVENT, onPrefill);
+    return () => window.removeEventListener(ONBOARDING_PREFILL_EVENT, onPrefill);
+  }, [updateComposerDraft]);
+
   const updateComposerAttachments = useCallback(
     (
       action:
@@ -7937,6 +7954,7 @@ export function LearnPageClient() {
   );
 
   const handleCourseCreated = useCallback(async (courseId: string) => {
+    completeWebOnboardingStep('course');
     setCoursesLoadState('loading');
     const items = await listCoursesOrThrow();
     setCourses(items);
@@ -12248,6 +12266,7 @@ export function LearnPageClient() {
               );
             }
             durableMemoryId = writeResult.memory.id;
+            completeWebOnboardingStep('remember');
           } catch (error) {
             if (!actionStillBelongsToVisibleSession()) return;
             const errorMessage = error instanceof Error ? error.message : '未知错误';
@@ -12786,6 +12805,7 @@ export function LearnPageClient() {
         controller.abort(new DOMException('学习回复超时', 'TimeoutError'));
       }, LEARN_TURN_TIMEOUT_MS);
       sendRequestRef.current = turnRequest;
+      completeWebOnboardingStep('ask');
       const canCommitTurn = () =>
         sendRequestRef.current === turnRequest && activeMessageStoreKeyRef.current === turnStoreKey;
       const finishTurn = () => {
@@ -16956,6 +16976,8 @@ export function LearnPageClient() {
             <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-white/55 via-white/20 to-transparent px-6 pb-4 pt-10 dark:from-slate-950/55 dark:via-slate-950/20">
               <div className="pointer-events-auto w-full">
                 <div
+                  data-onboarding="composer"
+                  data-onboarding-busy={sending || undefined}
                   className={cn(
                     composerInputShellClassName,
                     'rounded-[24px] border-slate-200/90 bg-white/95 px-2.5 py-2 shadow-[0_12px_36px_rgba(15,23,42,0.08)] focus-within:border-slate-300 focus-within:shadow-[0_16px_44px_rgba(15,23,42,0.12)] dark:border-white/12 dark:bg-slate-900/95',
