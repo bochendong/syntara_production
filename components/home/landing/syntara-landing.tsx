@@ -40,9 +40,9 @@ const FEATURES: {
     key: 'notes',
     color: 'blue',
     label: 'AI 笔记本',
-    title: '讲义放进来，\n笔记按章节长出来',
-    body: '课件、PDF 和网页整理成一章一章的笔记，每句话都标着出处，点一下就回到原文。',
-    points: ['按章节整理', '每句都能找到出处', '看不懂就直接问'],
+    title: '讲义和笔记，\n放在一起看',
+    body: '按章节看笔记，想核对时就回到原文。哪一段没看懂，可以直接接着问。',
+    points: ['按章节整理', '查看原文出处', '边看边问'],
     transition: { kind: 'lens', duration: 0.6 },
     Mock: NotesMock,
   },
@@ -50,9 +50,9 @@ const FEATURES: {
     key: 'classroom',
     color: 'purple',
     label: 'AI 课堂',
-    title: '一个知识点，\n一节几分钟的小课',
-    body: '幻灯片、讲解旁白和字幕一起播放，像老师在旁边一步一步带你走。',
-    points: ['讲解配旁白和字幕', '随时暂停提问', '手机上也能看'],
+    title: '换个讲法，\n再听一遍',
+    body: '看文字没想明白，可以试试带旁白的讲解。例子会一步步展开，没跟上就暂停，或者回去再看。',
+    points: ['旁白讲解', '同步字幕', '随时暂停回看'],
     transition: { kind: 'roll', duration: 0.65 },
     Mock: ClassroomMock,
   },
@@ -60,9 +60,9 @@ const FEATURES: {
     key: 'problems',
     color: 'amber',
     label: '题库练习',
-    title: '按难度练，\n练到真的会',
-    body: '基础、进阶、挑战三档题目，做完马上看到解析，错在哪里一眼就清楚。',
-    points: ['三档难度', '即时解析', '错题自动记下'],
+    title: '做几道题，\n看看会了没有',
+    body: '先挑一个难度试试。做完看解析，做错的题留着回头再练。',
+    points: ['选择难度', '做完看解析', '回头练错题'],
     transition: { kind: 'pixel', duration: 0.85 },
     Mock: ProblemsMock,
   },
@@ -70,9 +70,9 @@ const FEATURES: {
     key: 'memory',
     color: 'pink',
     label: '学习记忆',
-    title: '每一次卡住，\n都变成一颗弹珠',
-    body: '错题、知识盲点和你的学习偏好都会被记住。太久没复习，弹珠就会慢慢起雾。',
-    points: ['错题和盲点分颜色', '久不复习会起雾', 'AI 聊天时会想起它们'],
+    title: '上次没弄懂的，\n还在这里',
+    body: '把想再看的内容记下来。下次提问或考前复习，就不用再翻一遍聊天记录。',
+    points: ['自己决定记什么', '按课程保存', '复习时再看'],
     transition: { kind: 'rain', duration: 0.85 },
     Mock: MemoryMock,
   },
@@ -80,9 +80,9 @@ const FEATURES: {
     key: 'calendar',
     color: 'green',
     label: '学习日历',
-    title: '作业、考试和进度，\n排在同一张日历上',
-    body: '这周要交什么、哪天考试、学到第几讲，打开就知道今天该做什么。',
-    points: ['作业和考试提醒', '学习进度同步', '网页和手机一起用'],
+    title: '作业哪天交，\n考试哪天考',
+    body: '几门课的作业、考试和上课时间，记在同一张日历里。安排复习时，也能看看哪天有空。',
+    points: ['作业截止日期', '考试安排', '各门课一起看'],
     transition: { kind: 'vortex', duration: 0.85 },
     Mock: CalendarMock,
   },
@@ -106,7 +106,7 @@ const usesSteadyPacing = (kind: TransitionKind | undefined) =>
   kind === 'pixel' || kind === 'rain' || kind === 'vortex';
 const RAIL: { label: string; color: MarbleColor }[] = [
   { label: '首页', color: 'purple' },
-  { label: '放大', color: 'blue' },
+  { label: '课程讲解示例', color: 'blue' },
   ...FEATURES.map((f) => ({ label: f.label, color: f.color })),
 ];
 
@@ -118,9 +118,9 @@ const coverSwitch = (kind: TransitionKind | undefined, rainSwitch = RAIN_SWITCH)
 
 export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean }) {
   const loginHref = googleTest ? '/test' : '/login';
-  const loginLabel = googleTest ? 'Google 登录体验' : 'SpeedUp 登录';
+  const loginLabel = '开始学习';
   const loginHint = googleTest
-    ? '测试版使用 Google 账号登录，登录后即可进入 App。'
+    ? '测试版 · 使用 Google 账号登录'
     : '使用 SpeedUp 账号登录后，从课程页面进入 Syntara。';
   const storyRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -715,9 +715,14 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
           <SyntaraMark className="size-8 rounded-xl" />
           <span>Syntara</span>
         </Link>
-        <Link href={loginHref} className={styles.navLogin}>
-          {loginLabel}
-        </Link>
+        <div className={styles.navActions}>
+          <Link href="/download" className={styles.navDownload}>
+            下载桌面版
+          </Link>
+          <Link href={loginHref} className={styles.navLogin}>
+            登录
+          </Link>
+        </div>
       </header>
 
       <div ref={storyRef} className={styles.story}>
@@ -736,17 +741,17 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
             </div>
             <div ref={heroCopyRef} className={styles.heroCopy}>
               <h1 id="landing-title" className={styles.srOnly}>
-                学过的，真的记得住。
+                上课没听懂，下课接着问。
               </h1>
               <p className={styles.heroLede}>
-                Syntara 把讲义变成笔记和小课堂，把每次卡住记成一颗弹珠，提醒你在忘掉之前回来看看。
+                上传课程讲义，遇到不懂的地方就问。看一段讲解，做几道题；还没弄懂的，留到下次接着学。
               </p>
               <div className={styles.heroActions}>
                 <Link href={loginHref} className={styles.primary}>
                   {loginLabel}
                 </Link>
                 <button type="button" className={styles.ghost} onClick={() => goTo(1)}>
-                  看看能做什么
+                  看看怎么用
                 </button>
               </div>
               <p className={styles.loginHint}>{loginHint}</p>
@@ -770,12 +775,12 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
             </div>
             <div ref={lensCopyRef} className={styles.lensCopy}>
               <h2 id="lens-title" className={styles.srOnly}>
-                哪一句没看懂，就放大哪一句。
+                哪儿没看懂，就从哪儿问。
               </h2>
               <p className={styles.heroLede}>
-                AI 读过你的每一份讲义。哪一句看不懂就直接问，它会带着出处讲给你听。
+                带着你正在看的讲义，把没想明白的那一步问下去。回答里的引用可以点开，回到原文看看。
               </p>
-              <p className={styles.lensHint}>移动鼠标，把弹珠放到你看不清的地方</p>
+              <p className={styles.lensHint}>课程讲解示例 · 移动鼠标查看细节</p>
             </div>
           </section>
 
@@ -854,15 +859,11 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
           ))}
         </div>
         <h2 id="closing-title">
-          今天学的，
+          先拿一页讲义，
           <br />
-          下周还记得。
+          试试看。
         </h2>
-        <p>
-          {googleTest
-            ? '无需下载安装，使用 Google 账号登录，就能在浏览器中体验新版 Syntara App。'
-            : '网页和 iPhone 同步：在网页上拿一个激活码，手机上的聊天、笔记和课堂就都接上了。'}
-        </p>
+        <p>选一门正在学的课，上传讲义，问一个你没想明白的问题。</p>
         <Link href={loginHref} className={styles.primary}>
           {loginLabel}
         </Link>

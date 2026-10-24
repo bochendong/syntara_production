@@ -11,7 +11,9 @@ export function middleware(request: NextRequest) {
       url.pathname = '/native-web/index.html';
       return NextResponse.rewrite(url);
     }
-    if (pathname === '/') return NextResponse.next();
+    if (pathname === '/' || pathname === '/download' || pathname === '/download/') {
+      return NextResponse.next();
+    }
     if (pathname === '/test' || pathname === '/test/') {
       const url = request.nextUrl.clone();
       url.pathname = '/native-test';
@@ -27,6 +29,7 @@ export function middleware(request: NextRequest) {
     const allowed =
       webStorePage ||
       webStoreApi ||
+      pathname === '/api/downloads/macos' ||
       pathname.startsWith('/api/native/') ||
       authPath.test(pathname) ||
       pathname.startsWith('/_next/') ||
@@ -50,6 +53,8 @@ export function middleware(request: NextRequest) {
   if (process.env.TEACHER_ONLY_LAUNCH !== 'true') return NextResponse.next();
   const isStaticAsset = pathname.includes('.');
   const isAllowedPath =
+    pathname === '/download' ||
+    pathname === '/download/' ||
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
     pathname === '/sso/callback' ||

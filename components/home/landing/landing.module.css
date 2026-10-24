@@ -97,6 +97,27 @@
 .nav > * {
   pointer-events: auto;
 }
+.navActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.navDownload {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--ink);
+  font-size: 14px;
+  text-decoration: none;
+}
+.navDownload:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.navDownload:focus-visible {
+  outline: 2px solid #c4b5fd;
+  outline-offset: 4px;
+}
 .brand {
   display: inline-flex;
   align-items: center;

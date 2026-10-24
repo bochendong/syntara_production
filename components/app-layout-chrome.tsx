@@ -93,6 +93,7 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
   const isStudentPortal = pathname === '/student' || Boolean(pathname?.startsWith('/student/'));
   const isRegister = pathname === '/register' || pathname?.startsWith('/register/');
   const isLanding = pathname === '/';
+  const isDownload = pathname === '/download' || pathname === '/download/';
   const isClassroom = pathname?.startsWith('/classroom/');
   const isAdmin = pathname?.startsWith('/admin');
   const isProfile = pathname === '/profile' || pathname?.startsWith('/profile/');
@@ -136,7 +137,7 @@ export function AppLayoutChrome({ children }: { children: ReactNode }) {
     return <CourseSpaceShell route={courseSpaceRoute}>{children}</CourseSpaceShell>;
   }
 
-  if (isLogin || isTeacherLogin || isSpeedupSignedOut || isRegister || isLanding) {
+  if (isLogin || isTeacherLogin || isSpeedupSignedOut || isRegister || isLanding || isDownload) {
     return <>{children}</>;
   }
 

@@ -13,6 +13,9 @@ test('staging exposes the web storefront while keeping unrelated web and admin r
   process.env.SYNTARA_APP_ENV = 'staging';
   try {
     for (const route of [
+      '/download',
+      '/download/',
+      '/api/downloads/macos',
       '/store/courses',
       '/store/courses/course-one',
       '/api/courses/store',
@@ -27,6 +30,8 @@ test('staging exposes the web storefront while keeping unrelated web and admin r
         route,
       );
     for (const route of [
+      '/download/private',
+      '/api/downloads/private',
       '/admin',
       '/api/admin/courses',
       '/api/courses',

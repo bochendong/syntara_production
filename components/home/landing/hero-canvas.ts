@@ -298,7 +298,7 @@ export function createGalaxy(onTextureLoad: () => void) {
   };
 }
 
-const TITLE_LINES = ['学过的，', '真的记得住。'] as const;
+const TITLE_LINES = ['上课没听懂，', '下课接着问。'] as const;
 export const TITLE_FONT = '"PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif';
 
 export function titleGradient(ctx: CanvasRenderingContext2D, x: number, width: number) {

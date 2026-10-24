@@ -57,7 +57,7 @@ export function computeLensLayout(w: number, h: number): LensLayout {
   };
 }
 
-const HEADLINE = ['哪一句没看懂，', '就放大哪一句。'] as const;
+const HEADLINE = ['哪儿没看懂，', '就从哪儿问。'] as const;
 
 type Block =
   | { kind: 'title'; text: string }
