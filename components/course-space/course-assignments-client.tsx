@@ -27,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FileDropZone } from '@/components/ui/file-drop-zone';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { aiFetch } from '@/lib/ai-progress/ai-fetch';
@@ -80,6 +81,10 @@ async function responseData<T>(response: Response): Promise<T> {
   const data = (await response.json().catch(() => ({}))) as T & { error?: string };
   if (!response.ok) throw new Error(data.error || `请求失败（${response.status}）`);
   return data;
+}
+
+function rejectAssignmentFiles(files: File[]) {
+  toast.error(`不支持的文件类型：${files.map((file) => file.name).join('、')}`);
 }
 
 function formatDate(value: string) {
@@ -242,7 +247,6 @@ export function CourseAssignmentsClient({
   const [exemplarFile, setExemplarFile] = useState<File | null>(null);
   const [removeExemplar, setRemoveExemplar] = useState(false);
   const [studentFile, setStudentFile] = useState<File | null>(null);
-  const [uploadKey, setUploadKey] = useState(0);
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
   const [previewText, setPreviewText] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState('');
@@ -424,7 +428,6 @@ export function CourseAssignmentsClient({
         }),
       );
       setStudentFile(null);
-      setUploadKey((value) => value + 1);
       await loadSubmissions(selected.id);
       if (result.reviewStatus === 'complete') toast.success('作业已保存，问题检查完成。');
       else toast.error(result.error || '作业已保存，检查暂时失败，可稍后重试。');
@@ -622,13 +625,16 @@ export function CourseAssignmentsClient({
                       请上传自己完成的作答。检查只指出需要核查的地方，不提供答案。支持
                       PDF、DOCX、图片、.py、.ipynb 及常见代码和文本文件，最大 4 MB。
                     </p>
-                    <input
-                      key={`${selected.id}:${uploadKey}`}
-                      aria-label="上传学生作业"
-                      type="file"
+                    <FileDropZone
+                      className="mt-3"
+                      ariaLabel="上传学生作业"
                       accept={ASSIGNMENT_ACCEPT}
-                      className="mt-3 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2"
-                      onChange={(event) => setStudentFile(event.target.files?.[0] ?? null)}
+                      disabled={checking}
+                      files={studentFile ? [studentFile] : []}
+                      onFiles={([file]) => setStudentFile(file ?? null)}
+                      onClear={() => setStudentFile(null)}
+                      onRejected={rejectAssignmentFiles}
+                      title="点击选择作业，或把文件拖到这里"
                     />
                     <Button
                       className="mt-3"
@@ -889,12 +895,16 @@ export function CourseAssignmentsClient({
                       </label>
                     </div>
                   ) : null}
-                  <input
-                    aria-label="上传学校作业原件"
-                    type="file"
+                  <FileDropZone
+                    className="mt-3"
+                    ariaLabel="上传学校作业原件"
                     accept={ASSIGNMENT_ACCEPT}
-                    className="mt-3 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:text-sky-800"
-                    onChange={(event) => setSchoolFile(event.target.files?.[0] ?? null)}
+                    disabled={saving}
+                    files={schoolFile ? [schoolFile] : []}
+                    onFiles={([file]) => setSchoolFile(file ?? null)}
+                    onClear={() => setSchoolFile(null)}
+                    onRejected={rejectAssignmentFiles}
+                    title="点击选择作业原件，或把文件拖到这里"
                   />
                   <p className="mt-2 text-xs text-slate-500">
                     支持 PDF、DOCX、图片、.py、.ipynb 等代码和文本文件，最大 4 MB。
@@ -955,12 +965,16 @@ export function CourseAssignmentsClient({
                       </label>
                     </div>
                   ) : null}
-                  <input
-                    aria-label="上传老师范本"
-                    type="file"
+                  <FileDropZone
+                    className="mt-3"
+                    ariaLabel="上传老师范本"
                     accept={ASSIGNMENT_ACCEPT}
-                    className="mt-3 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:text-sky-800"
-                    onChange={(event) => setExemplarFile(event.target.files?.[0] ?? null)}
+                    disabled={saving}
+                    files={exemplarFile ? [exemplarFile] : []}
+                    onFiles={([file]) => setExemplarFile(file ?? null)}
+                    onClear={() => setExemplarFile(null)}
+                    onRejected={rejectAssignmentFiles}
+                    title="点击选择范本，或把文件拖到这里"
                   />
                 </div>
               </div>

@@ -88,6 +88,8 @@ import { LearnWorkspaceDialog } from '@/components/learn/learn-workspace-dialog'
 import type { CourseProblemPracticeHeaderState } from '@/components/problem-bank/course-problem-bank-view';
 import type { CourseProblemPracticeAttemptResolvedEvent } from '@/components/problem-bank/use-course-problem-bank-controller';
 import { Button } from '@/components/ui/button';
+import { FileDropOverlay } from '@/components/ui/file-drop-zone';
+import { useFileDrop } from '@/lib/hooks/use-file-drop';
 import { composerInputShellClassName } from '@/components/ui/composer-input-shell';
 import {
   ContextMenu,
@@ -10239,6 +10241,11 @@ export function LearnPageClient() {
     [attachments, updateComposerAttachments],
   );
 
+  const { isDragging: isComposerDragging, dropZoneProps: composerDropZoneProps } = useFileDrop({
+    onFiles: (files) => void handleChatAttachmentFiles(files),
+    disabled: !conversationInteractive,
+  });
+
   const handleLearnUploadFiles = useCallback(
     async (fileList: FileList | null) => {
       if (!canUploadCourseContentFromChat) return;
@@ -16956,11 +16963,13 @@ export function LearnPageClient() {
             <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-white/55 via-white/20 to-transparent px-6 pb-4 pt-10 dark:from-slate-950/55 dark:via-slate-950/20">
               <div className="pointer-events-auto w-full">
                 <div
+                  {...composerDropZoneProps}
                   className={cn(
                     composerInputShellClassName,
-                    'rounded-[24px] border-slate-200/90 bg-white/95 px-2.5 py-2 shadow-[0_12px_36px_rgba(15,23,42,0.08)] focus-within:border-slate-300 focus-within:shadow-[0_16px_44px_rgba(15,23,42,0.12)] dark:border-white/12 dark:bg-slate-900/95',
+                    'relative rounded-[24px] border-slate-200/90 bg-white/95 px-2.5 py-2 shadow-[0_12px_36px_rgba(15,23,42,0.08)] focus-within:border-slate-300 focus-within:shadow-[0_16px_44px_rgba(15,23,42,0.12)] dark:border-white/12 dark:bg-slate-900/95',
                   )}
                 >
+                  <FileDropOverlay active={isComposerDragging} label="松开即可添加到本次聊天" />
                   <input
                     ref={imageInputRef}
                     type="file"

@@ -39,6 +39,8 @@ import {
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { FileDropOverlay } from '@/components/ui/file-drop-zone';
+import { useFileDrop } from '@/lib/hooks/use-file-drop';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
 import { CourseBulkMoveDialog } from '@/components/teacher/course-bulk-move-dialog';
 import { CourseSpaceImageCard } from '@/components/course-space/course-space-image-card';
@@ -787,6 +789,11 @@ export function TeacherCourseStudioClient({
       setUploading(false);
     }
   };
+
+  const { isDragging: isSourceDragging, dropZoneProps: sourceDropZoneProps } = useFileDrop({
+    onFiles: (files) => void handleUpload(files),
+    disabled: uploading || !teacherId,
+  });
 
   const closeHardRuleDialog = () => {
     if (
@@ -2163,7 +2170,11 @@ export function TeacherCourseStudioClient({
           ) : null}
 
           {tab === 'sources' ? (
-            <section className={STUDIO_SECTION_CLASS}>
+            <section {...sourceDropZoneProps} className={cn(STUDIO_SECTION_CLASS, 'relative')}>
+              <FileDropOverlay
+                active={isSourceDragging}
+                label={`松开即可上传到「${SOURCE_CATEGORY_META[sourceCategory].label}」`}
+              />
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50/80 dark:bg-slate-950 lg:flex-row">
                 <aside className="flex shrink-0 flex-col border-b border-slate-200/80 bg-white/90 p-4 dark:border-white/10 dark:bg-white/[0.035] lg:order-2 lg:w-[255px] lg:border-b-0 lg:border-l">
                   <div className="flex items-center justify-between gap-2">
