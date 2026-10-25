@@ -257,7 +257,7 @@
     transform: translateY(-1px);
   }
 
-  .pb-row:hover .pb-row-marble {
+  .pb-row:hover .pb-row-marble img {
     transform: rotate(-120deg);
   }
 
@@ -309,6 +309,246 @@
 
 .pb-start:active {
   transform: translateX(-50%) scale(0.96);
+}
+
+/* 难度玻璃管：三段按题数分，弹珠 + 题数，点一段只看这一档。 */
+.pb-tube {
+  display: flex;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 4px;
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 62%);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    inset 0 -1px 2px rgb(15 23 42 / 4%),
+    0 6px 18px rgb(15 23 42 / 5%);
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.6);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.6);
+}
+
+.pb-tube-seg {
+  --seg-rgb: var(--marble-blue-rgb);
+  --seg-ink: var(--marble-blue-ink);
+  display: flex;
+  min-width: 0;
+  height: 44px;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(var(--seg-rgb) / 24%), rgb(var(--seg-rgb) / 10%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 70%);
+  color: var(--seg-ink);
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    flex-grow 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease,
+    filter 220ms ease,
+    transform 160ms ease;
+}
+
+.pb-tube-seg.is-green {
+  --seg-rgb: var(--marble-green-rgb);
+  --seg-ink: var(--marble-green-ink);
+}
+
+.pb-tube-seg.is-amber {
+  --seg-rgb: var(--marble-amber-rgb);
+  --seg-ink: var(--marble-amber-ink);
+}
+
+.pb-tube-seg.is-pink {
+  --seg-rgb: var(--marble-pink-rgb);
+  --seg-ink: var(--marble-pink-ink);
+}
+
+.pb-tube-seg img {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  filter: drop-shadow(0 3px 5px rgb(var(--seg-rgb) / 45%));
+  transition: transform 520ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pb-tube-seg span {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pb-tube-seg b {
+  margin-left: auto;
+  padding-left: 4px;
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-tube.has-filter .pb-tube-seg:not(.is-active) {
+  opacity: 0.42;
+  filter: saturate(0.5);
+}
+
+.pb-tube-seg.is-active {
+  background: linear-gradient(180deg, rgb(var(--seg-rgb) / 42%), rgb(var(--seg-rgb) / 22%));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 80%),
+    0 4px 12px rgb(var(--seg-rgb) / 30%);
+}
+
+.pb-tube-seg.is-active img {
+  transform: rotate(-360deg) scale(1.08);
+}
+
+.pb-tube-seg:active {
+  transform: scale(0.97);
+}
+
+@media (pointer: fine) {
+  .pb-tube-seg:hover img {
+    transform: translateY(-3px) rotate(-40deg);
+  }
+
+  .pb-tube-seg.is-active:hover img {
+    transform: rotate(-360deg) scale(1.08);
+  }
+}
+
+.pb-chips button small {
+  margin-left: 2px;
+  opacity: 0.5;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 题目行：从弹珠那边透出难度色；做过的题弹珠右下角有个小记号。 */
+.pb-row {
+  --row-rgb: var(--marble-blue-rgb);
+  --row-ink: var(--marble-blue-ink);
+  background:
+    linear-gradient(90deg, rgb(var(--row-rgb) / 13%), transparent 34%),
+    rgb(255 255 255 / 84%);
+}
+
+.pb-row.is-green {
+  --row-rgb: var(--marble-green-rgb);
+  --row-ink: var(--marble-green-ink);
+}
+
+.pb-row.is-amber {
+  --row-rgb: var(--marble-amber-rgb);
+  --row-ink: var(--marble-amber-ink);
+}
+
+.pb-row.is-pink {
+  --row-rgb: var(--marble-pink-rgb);
+  --row-ink: var(--marble-pink-ink);
+}
+
+span.pb-row-marble {
+  position: relative;
+  display: grid;
+  place-items: center;
+  filter: none;
+}
+
+span.pb-row-marble img {
+  width: 34px;
+  height: 34px;
+  filter: drop-shadow(0 3px 5px rgb(var(--row-rgb) / 40%));
+}
+
+.pb-row-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #94a3b8;
+  color: #fff;
+}
+
+.pb-row.is-passed .pb-row-badge {
+  background: #16a34a;
+}
+
+.pb-row.is-failed .pb-row-badge {
+  background: var(--marble-pink-mid);
+}
+
+.pb-row.is-partial .pb-row-badge {
+  background: var(--marble-amber-mid);
+}
+
+/* 通过的题标题稍微淡一点，没做的更显眼。 */
+.pb-row.is-passed .pb-row-copy strong {
+  color: #475569;
+}
+
+@media (pointer: fine) {
+  .pb-row:hover {
+    box-shadow: 0 12px 28px rgb(var(--row-rgb) / 18%);
+  }
+
+  .pb-row:hover .pb-row-play {
+    background: var(--row-ink);
+  }
+}
+
+.pb-start-marbles {
+  display: inline-flex;
+  margin-right: 2px;
+}
+
+.pb-start-marbles img {
+  width: 20px;
+  height: 20px;
+  margin-left: -7px;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 30%));
+  animation: pb-start-roll 2.8s ease-in-out infinite;
+}
+
+.pb-start-marbles img:first-child {
+  margin-left: 0;
+}
+
+.pb-start-marbles img:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.pb-start-marbles img:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes pb-start-roll {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  80% {
+    transform: translateY(-5px) rotate(-120deg);
+  }
+}
+
+.pb-start small {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 18%);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 题库在 iPad/桌面的右侧区域里，不需要额外的外边距。 */
@@ -880,22 +1120,444 @@
   }
 }
 
+/* ---------- 笔记阅读：弹珠点缀 ---------- */
+.nr-page {
+  --nr-rgb: var(--marble-blue-rgb);
+  --nr-ink: var(--marble-blue-ink);
+  --nr-light: var(--marble-blue-light);
+  background:
+    radial-gradient(90% 40% at 100% 0%, rgb(var(--nr-rgb) / 16%), transparent 62%),
+    radial-gradient(70% 36% at 0% 100%, rgb(var(--nr-rgb) / 9%), transparent 70%),
+    #f4f4f6;
+}
+
+/* 顶栏下沿一根细玻璃管：读到哪，弹珠就滚到哪。 */
+.nr-meter {
+  position: absolute;
+  right: 0;
+  bottom: -2px;
+  left: 0;
+  height: 3px;
+  pointer-events: none;
+}
+
+.nr-meter i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--nr-read, 0) * 100%);
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(90deg, rgb(var(--nr-rgb) / 30%), rgb(var(--nr-rgb)));
+}
+
+.nr-meter img {
+  position: absolute;
+  top: -6px;
+  left: calc(var(--nr-read, 0) * (100% - 15px));
+  width: 15px;
+  height: 15px;
+  filter: drop-shadow(0 1px 2px rgb(var(--nr-rgb) / 60%));
+  transform: rotate(calc(var(--nr-read, 0) * 900deg));
+}
+
+.nr-index button.is-read:not(.is-active) .nr-index-dot {
+  background: radial-gradient(circle at 35% 30%, #fff 0 10%, rgb(var(--nr-rgb) / 35%) 70%);
+  color: var(--nr-ink);
+  font-weight: 700;
+}
+
+.nr-article {
+  position: relative;
+  overflow: hidden;
+}
+
+.nr-article::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 150px;
+  background:
+    radial-gradient(60% 120% at 0% 0%, rgb(var(--nr-rgb) / 18%), transparent 70%),
+    linear-gradient(180deg, rgb(var(--nr-rgb) / 7%), transparent);
+  content: '';
+  pointer-events: none;
+}
+
+.nr-article > * {
+  position: relative;
+}
+
+.nr-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.nr-eyebrow-marble {
+  position: relative;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+}
+
+.nr-eyebrow-marble img {
+  width: 36px;
+  height: 36px;
+  filter: drop-shadow(0 4px 6px rgb(var(--nr-rgb) / 40%));
+  animation: pp-marble-drop 520ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nr-eyebrow-marble b {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgb(15 23 42 / 50%);
+}
+
+.nr-eyebrow-steps {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.nr-eyebrow-steps i {
+  width: 16px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 8%);
+  transition:
+    width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 320ms ease;
+}
+
+.nr-eyebrow-steps i.is-read {
+  background: rgb(var(--nr-rgb) / 40%);
+}
+
+.nr-eyebrow-steps i.is-active {
+  width: 30px;
+  background: rgb(var(--nr-rgb));
+}
+
+/* 正文：标题前一颗小弹珠，重点像荧光笔划过，引用是一块有颜色的玻璃。 */
+.nr-article .local-markdown {
+  overflow-wrap: anywhere;
+}
+
+.nr-article .local-markdown h2,
+.nr-article .local-markdown h3 {
+  position: relative;
+}
+
+.nr-article .local-markdown h2 {
+  padding-left: 22px;
+}
+
+.nr-article .local-markdown h2::before {
+  position: absolute;
+  top: 0.32em;
+  left: 0;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    #fff 0 14%,
+    rgb(var(--nr-rgb)) 50%,
+    var(--nr-ink) 100%
+  );
+  box-shadow: 0 2px 4px rgb(var(--nr-rgb) / 45%);
+  content: '';
+}
+
+.nr-article .local-markdown h3 {
+  color: var(--nr-ink);
+}
+
+.nr-article .local-markdown strong {
+  padding: 0 2px;
+  background: linear-gradient(transparent 60%, rgb(var(--nr-rgb) / 26%) 0);
+  color: #0f172a;
+}
+
+.nr-article .local-markdown ul {
+  padding-left: 22px;
+  list-style: none;
+}
+
+.nr-article .local-markdown ul > li {
+  position: relative;
+}
+
+.nr-article .local-markdown ul > li::before {
+  position: absolute;
+  top: 0.72em;
+  left: -16px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff 0 12%, rgb(var(--nr-rgb)) 60%);
+  content: '';
+}
+
+.nr-article .local-markdown ul ul > li::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgb(var(--nr-rgb) / 70%);
+}
+
+.nr-article .local-markdown ol > li::marker {
+  color: var(--nr-ink);
+  font-weight: 700;
+}
+
+.nr-article .local-markdown blockquote {
+  margin: 20px 0;
+  padding: 14px 16px 14px 44px;
+  border: 1px solid rgb(var(--nr-rgb) / 22%);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgb(var(--nr-rgb) / 13%), rgb(255 255 255 / 55%));
+  color: #334155;
+  position: relative;
+}
+
+.nr-article .local-markdown blockquote::before {
+  position: absolute;
+  top: 17px;
+  left: 15px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    #fff 0 14%,
+    rgb(var(--nr-rgb)) 52%,
+    var(--nr-ink) 100%
+  );
+  box-shadow: 0 2px 5px rgb(var(--nr-rgb) / 45%);
+  content: '';
+}
+
+.nr-article .local-markdown blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* 分隔线换成三颗小珠子。 */
+.nr-article .local-markdown hr {
+  width: 54px;
+  height: 10px;
+  margin: 30px auto;
+  background: radial-gradient(circle, rgb(var(--nr-rgb) / 65%) 3px, transparent 3.5px) center /
+    18px 10px repeat-x;
+}
+
+.nr-article .local-markdown :not(pre) > code {
+  border-color: rgb(var(--nr-rgb) / 22%);
+  background: rgb(var(--nr-rgb) / 9%);
+  color: var(--nr-ink);
+}
+
+.nr-article .local-markdown table {
+  border-color: rgb(15 23 42 / 8%);
+  background: rgb(255 255 255 / 60%);
+}
+
+.nr-article .local-markdown th {
+  background: rgb(var(--nr-rgb) / 10%);
+  color: #0f172a;
+}
+
+.nr-article .local-markdown .katex-display {
+  padding: 12px 14px;
+  border: 1px solid rgb(15 23 42 / 6%);
+  border-radius: var(--radius-sm);
+  background: rgb(248 250 252 / 80%);
+}
+
+/* 读完一节：下一节是一张玻璃卡，弹珠在右边等着往前滚。 */
+.nr-next {
+  display: flex;
+  width: min(760px, 100%);
+  align-items: center;
+  gap: 14px;
+  margin: 14px auto 0;
+  padding: 16px 18px 16px 22px;
+  border: 1px solid rgb(255 255 255 / 92%);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(70% 160% at 100% 50%, rgb(var(--nr-rgb) / 20%), transparent 70%),
+    rgb(255 255 255 / 78%);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: nr-article-in 420ms 120ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transition:
+    transform 180ms ease,
+    box-shadow 220ms ease;
+}
+
+.nr-next-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nr-next-copy small {
+  color: var(--nr-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nr-next-copy strong {
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nr-next-marble img {
+  display: block;
+  width: 38px;
+  height: 38px;
+  filter: drop-shadow(0 4px 6px rgb(var(--nr-rgb) / 40%));
+  transition: transform 520ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nr-next:active {
+  transform: scale(0.985);
+}
+
+.nr-next:active .nr-next-marble img {
+  transform: translateX(8px) rotate(220deg);
+}
+
+@media (pointer: fine) {
+  .nr-next:hover {
+    box-shadow: 0 12px 30px rgb(var(--nr-rgb) / 18%);
+    transform: translateY(-2px);
+  }
+
+  .nr-next:hover .nr-next-marble img {
+    transform: translateX(6px) rotate(200deg);
+  }
+}
+
+/* 最后一节：读过几节就有几颗弹珠落进玻璃槽，点一下再弹一次。 */
+.nr-finish {
+  display: flex;
+  width: min(760px, 100%);
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 14px auto 0;
+  padding: 26px 18px 22px;
+  border: 1px solid rgb(255 255 255 / 92%);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(70% 120% at 50% 0%, rgb(var(--nr-rgb) / 18%), transparent 70%),
+    rgb(255 255 255 / 78%);
+  animation: nr-article-in 420ms 120ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.nr-finish-tray {
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 5%);
+  box-shadow: inset 0 2px 4px rgb(15 23 42 / 8%);
+  cursor: pointer;
+}
+
+.nr-finish-tray img {
+  width: 24px;
+  height: 24px;
+  opacity: 0.22;
+  filter: grayscale(1);
+  animation: nr-finish-drop 620ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.nr-finish-tray img.is-lit {
+  opacity: 1;
+  filter: drop-shadow(0 2px 3px rgb(var(--nr-rgb) / 50%));
+}
+
+@keyframes nr-finish-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-34px) rotate(-180deg);
+  }
+}
+
+.nr-finish strong {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.nr-finish-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.nr-finish-actions button {
+  display: inline-flex;
+  height: 38px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  border: 1px solid rgb(15 23 42 / 8%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 85%);
+  color: #334155;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.nr-finish-actions button.is-primary {
+  border-color: transparent;
+  background: #0f172a;
+  color: #fff;
+}
+
+/* 手机/窄窗口：阅读器挂在课程工作区上，盖住上面的「返回 + 页面名」。 */
+.course-workspace.is-compact > .nr-layer {
+  z-index: 260;
+}
+
 /* ---------- 笔记列表 ---------- */
+/* 每本笔记一颗自己颜色的弹珠（编号刻在弹珠上），卡片从弹珠那边透出一点同色的光。 */
 .nb-grid {
   display: grid;
   gap: 10px;
 }
 
 .nb-card {
+  --nb-rgb: var(--marble-blue-rgb);
+  --nb-ink: var(--marble-blue-ink);
   display: grid;
   width: 100%;
-  grid-template-columns: 40px minmax(0, 1fr) 18px;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-  padding: 14px 14px 14px 16px;
+  padding: 14px 16px 14px 14px;
   border: 1px solid rgb(255 255 255 / 90%);
   border-radius: var(--radius-md);
-  background: rgb(255 255 255 / 82%);
+  background:
+    radial-gradient(90% 160% at 0% 50%, rgb(var(--nb-rgb) / 16%), transparent 60%),
+    rgb(255 255 255 / 84%);
   box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
   color: inherit;
   text-align: left;
@@ -903,46 +1565,122 @@
   animation: pb-row-in 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
   transition:
     transform 180ms ease,
-    box-shadow 180ms ease;
+    box-shadow 220ms ease;
 }
 
 .nb-card:disabled {
   cursor: default;
 }
 
-.nb-card-marble {
-  width: 40px;
-  height: 40px;
-  filter: drop-shadow(0 4px 6px rgb(15 23 42 / 14%));
-  transition: transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
+.nb-marble {
+  position: relative;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+}
+
+.nb-marble img {
+  width: 48px;
+  height: 48px;
+  filter: drop-shadow(0 5px 8px rgb(var(--nb-rgb) / 35%));
+  transition: transform 700ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nb-marble b {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  text-shadow:
+    0 1px 2px rgb(15 23 42 / 45%),
+    0 0 8px rgb(15 23 42 / 25%);
+  pointer-events: none;
 }
 
 /* 点开时弹珠转一圈。 */
-.nb-card.is-opening .nb-card-marble {
+.nb-card.is-opening .nb-marble img {
   transform: rotate(-360deg) scale(1.1);
 }
 
-.nb-card-copy {
-  min-width: 0;
+/* 每一节都读过：弹珠外面多一圈光。 */
+.nb-card.is-done .nb-marble::after {
+  position: absolute;
+  inset: -4px;
+  border: 2px solid rgb(var(--nb-rgb) / 45%);
+  border-radius: 50%;
+  content: '';
 }
 
-.nb-card-copy strong,
-.nb-card-copy small {
+.nb-card-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.nb-card-copy strong {
   display: block;
   overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.nb-card-copy strong {
-  font-size: 16px;
-  font-weight: 500;
+.nb-card-foot {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
-.nb-card-copy small {
-  margin-top: 3px;
+.nb-card-foot small {
+  flex: none;
   color: #94a3b8;
-  font-size: 13px;
+  font-size: 12px;
+}
+
+/* 一节一颗小珠子，读过的亮起来。 */
+.nb-dots {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.nb-dots i {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: rgb(15 23 42 / 7%);
+  box-shadow: inset 0 1px 1px rgb(15 23 42 / 8%);
+  transition:
+    background 300ms ease,
+    transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nb-dots i.is-read {
+  background: radial-gradient(
+    circle at 35% 30%,
+    #fff 0 16%,
+    rgb(var(--nb-rgb)) 48%,
+    var(--nb-ink) 100%
+  );
+  box-shadow: 0 1px 3px rgb(var(--nb-rgb) / 45%);
+}
+
+.nb-dots em {
+  color: #94a3b8;
+  font-size: 11px;
+  font-style: normal;
 }
 
 .nb-card-trailing {
@@ -955,19 +1693,200 @@
 
 @media (pointer: fine) {
   .nb-card:not(:disabled):hover {
-    box-shadow: 0 10px 28px rgb(15 23 42 / 8%);
+    box-shadow: 0 12px 30px rgb(var(--nb-rgb) / 18%);
+    transform: translateY(-2px);
+  }
+
+  .nb-card:not(:disabled):hover .nb-marble img {
+    transform: rotate(-200deg);
+  }
+
+  .nb-card:not(:disabled):hover .nb-dots i {
     transform: translateY(-1px);
   }
 
-  .nb-card:not(:disabled):hover .nb-card-marble {
-    transform: rotate(-120deg);
+  .nb-card:not(:disabled):hover .nb-dots i:nth-child(2n) {
+    transform: translateY(1px);
   }
 }
 
-/* iPad/桌面：两列。 */
+.nb-group-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 整门课读了多少：一根彩色细管。 */
+.nb-group-meter {
+  position: relative;
+  overflow: hidden;
+  width: 72px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 6%);
+  box-shadow: inset 0 1px 1px rgb(15 23 42 / 6%);
+}
+
+.nb-group-meter i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  min-width: 6px;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--marble-blue-mid),
+    var(--marble-purple-mid, #a68aff),
+    var(--marble-pink-mid, #ff8db7),
+    var(--marble-amber-mid, #ffae1f)
+  );
+}
+
+/* 「接着读」：最近读的那本放大放在最上面，弹珠慢慢浮着。 */
+.nb-resume {
+  --nb-rgb: var(--marble-blue-rgb);
+  --nb-ink: var(--marble-blue-ink);
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  width: 100%;
+  grid-template-columns: 68px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin: 2px 0 20px;
+  padding: 18px 18px 18px 16px;
+  border: 1px solid rgb(255 255 255 / 92%);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(80% 150% at 0% 0%, rgb(var(--nb-rgb) / 30%), transparent 62%),
+    radial-gradient(60% 120% at 100% 100%, rgb(var(--nb-rgb) / 16%), transparent 70%),
+    rgb(255 255 255 / 80%);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 16px 36px rgb(var(--nb-rgb) / 20%);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: pb-row-in 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transition: transform 180ms ease;
+}
+
+.nb-resume-orb {
+  display: grid;
+  width: 68px;
+  height: 68px;
+  place-items: center;
+}
+
+.nb-resume-orb img {
+  width: 64px;
+  height: 64px;
+  filter: drop-shadow(0 10px 12px rgb(var(--nb-rgb) / 40%));
+  animation: nb-float 4.2s ease-in-out infinite;
+}
+
+@keyframes nb-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-5px) rotate(-14deg);
+  }
+}
+
+.nb-resume.is-opening .nb-resume-orb img {
+  animation: nb-spin 700ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes nb-spin {
+  to {
+    transform: rotate(-360deg) scale(1.08);
+  }
+}
+
+.nb-resume-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nb-resume-copy small {
+  color: var(--nb-ink);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.nb-resume-copy strong {
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nb-resume-go {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 70%);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 6px 16px rgb(15 23 42 / 8%);
+  color: #0f172a;
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nb-resume-go-text {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.nb-resume-go-text i {
+  margin: 0 1px;
+  color: #94a3b8;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.nb-resume:not(:disabled):active {
+  transform: scale(0.985);
+}
+
+@media (pointer: fine) {
+  .nb-resume:not(:disabled):hover .nb-resume-go {
+    transform: scale(1.08);
+  }
+}
+
+/* iPad/桌面：多列。 */
 .course-workspace.is-split .nb-grid {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 12px;
+}
+
+.course-workspace.is-split .nb-resume {
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  padding: 22px 24px 22px 20px;
+}
+
+.course-workspace.is-split .nb-resume-orb,
+.course-workspace.is-split .nb-resume-orb img {
+  width: 80px;
+  height: 80px;
+}
+
+.course-workspace.is-split .nb-resume-copy strong {
+  font-size: 20px;
 }
 
 /* ---------- 课堂列表 ---------- */
