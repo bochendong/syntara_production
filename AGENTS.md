@@ -18,7 +18,7 @@ React/Vite/Tauri app in `apps/native`, and internal packages in
 
 For staging app and UI work, use the verified source baseline documented in
 `docs/branch-state.md`. `codex/staging-baseline` records the deployed version;
-`codex/staging-next` also contains the pending homepage/download work. Do not
+`codex/staging-next` contains current development and release records. Do not
 assume `main`, an older task branch, or a dirty checkout matches the live server.
 
 Use one worktree and one `codex/<task>` branch per task. Before editing, inspect

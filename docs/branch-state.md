@@ -1,15 +1,15 @@
 # 分支与测试服状态
 
-核对日期：2026-10-24（America/Toronto）。本次整理只保存源码和本地状态；测试服仍运行原发布。
+核对日期：2026-10-25（America/Toronto）。当前测试服已更新，源码基线与实际部署对应。
 
 ## 以后从哪里继续
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `a5849b24`，对应 Railway 发布 `7dbd3393` |
-| 固定发布标记 | `staging/2026-10-24-7dbd3393` | 与基线相同，不移动已有标签 |
-| 当前开发 | `codex/staging-next` | 基线 + 尚未部署的首页文案、下载页与整理工具 |
-| 主分支 | `main` | 整理时为 `88de1691`，比测试服少本次集成的 83 个文件改动 |
+| 测试服源码基线 | `codex/staging-baseline` | `e257fc2a`，对应 Railway 发布 `b8d0b5c6` |
+| 固定发布标记 | `staging/2026-10-25-b8d0b5c6` | 与基线相同，旧发布标签继续保留 |
+| 当前开发 | `codex/staging-next` | 当前发布代码 + 后续发布记录 |
+| 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
 
 当前开发仍在本次聊天原来的 `chat-visual-hierarchy/syntara_production` 工作目录。
 目录名未改变，分支已改名为 `codex/staging-next`，避免中断正在运行的本地预览。
@@ -18,36 +18,42 @@
 [测试服基线](https://github.com/bochendong/syntara_production/tree/codex/staging-baseline)、
 [当前开发](https://github.com/bochendong/syntara_production/tree/codex/staging-next)。
 命令行没有写入凭据时，可以继续使用 GitHub Desktop 的登录推送；不要强推覆盖旧分支。
-同步源码不等于部署，首页和下载页仍属于待发布内容。
+首页、下载页及本次功能改动已部署到测试服；后续提交仍需单独构建和验证。
 
 新任务使用独立工作树和任务分支。从测试服开始时，选择 `codex/staging-baseline`；
-需要首页和下载页时，明确选择 `codex/staging-next`。不要因为某个旧目录更“新”就整体覆盖。
+需要后续开发改动时，明确选择 `codex/staging-next`。不要因为某个旧目录更“新”就整体覆盖。
 
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前发布：`7dbd3393-7837-49cc-a85d-650cf02d8e64`。
-- 发布上传快照中的 3,101 个源码文件均按 SHA-256 校验；线上原生 JS/CSS 和商城 CSS 也与发布记录一致。
-- 将该快照相对 `88de1691` 的 83 个新增/修改文件单独提交，未混入后续首页和下载页。
-- `railway.toml` 当时没有上传，Git 中保留原文件。测试服的构建、启动和迁移配置由 Railway 管理，不能直接用该文件替代。
-- 机器可读记录：[staging-2026-10-24.json](releases/staging-2026-10-24.json)。
+- 当前发布：`b8d0b5c6-f3fd-48d5-9199-aea9ae7d03f5`，源码提交：`e257fc2a`。
+- 发布快照包含 3,122 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
+- 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
+- `railway.toml` 没有上传，测试服构建、启动和迁移配置由 Railway 管理；临时资源恢复命令已恢复为正常构建命令。
+- 发布记录：[staging-2026-10-25.json](releases/staging-2026-10-25.json)。
+- 上一次整理记录：[staging-2026-10-24.json](releases/staging-2026-10-24.json)。
 
-基线是对已发布集成源码的保存，不按文件名或修改时间推断历史作者。
+## 本次已部署
 
-## 已保存但未部署
+- 头像、首页文案、日历日期传递、笔记/题库上传入口及录音后转文字按钮。
+- 新手引导、官方「使用教程」课程，以及课程的新聊天、编辑、删除菜单。
+- 笔记书架与章节阅读，新题库章节墙、题号弹珠、筛选和答题页。
+- 首页「下载桌面版」、`/download` 和实际 Mac 安装包下载接口。
+- Mac Apple Silicon 测试包：44.8 MiB，macOS 14+，未经过 Apple 公证。
 
-- 首页文案和顶部「下载桌面版」入口。
-- `/download`、Mac 安装包下载接口，以及安装包元数据、断点续传和校验测试。
-- 当前 Mac Apple Silicon 测试包：44.8 MiB，macOS 14+，未经过 Apple 公证。
-- 分支说明、工作区状态显示及基线提交保护。
+源码来自 `codex/staging-work` 的 `e96a603d` 及其 62 个工作文件，均先保存快照，
+再按文件集成到 `codex/staging-next`；保留了原有下载入口和聊天布局修复。
+源工作树及 `.claude-transfer/`、`Claude outputs/` 保留，不将临时归档作为发布源码。
 
-Mac ZIP 和清单仍在当前目录的 `.data/desktop-releases/`，同时已复制到恢复检查点。
-它们不进入 Git。后续发布下载页时，还必须提供安装包存储，单独推送源码不会让 ZIP 上线。
+Mac ZIP 和清单在当前目录的 `.data/desktop-releases/`，本次部署单独携带了这两项。
+它们不进入 Git；后续部署必须继续携带安装包，或接入持久存储，不能只推送源码。
 打包方法见 [desktop-downloads.md](api/desktop-downloads.md)。
+
+真机麦克风授权及实际转写仍待验证。语音保留录音后转写，未切换 Realtime。
 
 ## 其他工作目录
 
-下面的数量是整理开始时的状态，已先备份并校验；业务源码保持不变。
+下面的数量是 2026-10-24 整理开始时的历史状态，已先备份并校验。
 原始目录只同步已验证的工作区状态工具和提交保护，具体文件与哈希记入本地 registry。
 
 | 工作目录/分支 | 状态 | 后续处理 |
@@ -114,3 +120,6 @@ git diff --stat codex/staging-baseline...codex/staging-next
 
 发布后记录实际部署 ID、源码提交和验证结果，再更新基线。当前开发目录保持有提交可追踪，
 不要再用未提交工作树直接代表一个没有记录的“线上版本”。
+
+本次发布证据位于 Git 公共目录 `codex/tasks/staging-feature-release-20261025/`，
+包含源工作树快照、合并说明、构建日志、线上核验、安装包元数据和验收截图。

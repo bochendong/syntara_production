@@ -3,10 +3,10 @@
 ## Current staging baseline
 
 See [branch-state.md](docs/branch-state.md) for the verified staging release,
-the development branch, undeployed homepage/download changes, and the inventory
+the development branch, release status, and the inventory
 of older worktrees. For staging app work, start a task from
-`codex/staging-baseline`, or explicitly from `codex/staging-next` when the pending
-website changes are needed. `main` is not the current staging source.
+`codex/staging-baseline`, or explicitly from `codex/staging-next` when subsequent
+development changes are needed. `main` is not the current staging source.
 
 `pnpm workspace:status` reports the locally configured staging baseline and
 development branch. The commit guard protects `codex/staging-baseline` alongside

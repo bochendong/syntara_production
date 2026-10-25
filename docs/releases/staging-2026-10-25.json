@@ -1,0 +1,67 @@
+{
+  "verifiedAt": "2026-10-25T17:04:13.166094+00:00",
+  "timezone": "America/Toronto",
+  "baselineBranch": "codex/staging-baseline",
+  "baselineCommit": "e257fc2a57152f6341f84263c347e8e9be38ee1b",
+  "developmentBranch": "codex/staging-next",
+  "releaseTag": "staging/2026-10-25-b8d0b5c6",
+  "previousDeployment": "7dbd3393-7837-49cc-a85d-650cf02d8e64",
+  "previousBaseline": "a5849b24dd445bbaac9351f4ae4f8ace98869b3a",
+  "railway": {
+    "deploymentId": "b8d0b5c6-f3fd-48d5-9199-aea9ae7d03f5",
+    "projectId": "8cddd1ea-24e1-49a9-8d27-dce86069dc8b",
+    "environmentId": "6697de1f-eb0d-4a6f-8709-cfe477a29f11",
+    "serviceId": "fd6afb05-6491-451a-b577-abf15fdc0047"
+  },
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "sourceFiles": 3122,
+  "sourceManifestSha256": "40d1e09fd343745f73e1ee0fbe9410112fcad3bcdae3c3632a025c98d49b27d4",
+  "sourceIntegration": {
+    "branch": "codex/staging-work",
+    "head": "e96a603d",
+    "workingFiles": 62,
+    "transferFolderDeleted": false,
+    "downloadNavigationPreserved": true
+  },
+  "nativeAssets": [
+    {
+      "url": "/native-web/assets/index-CejKucwX.js",
+      "bytes": 1606834,
+      "sha256": "67d920a5e3cc3a1782beb109efcadfb5419492f02b670c6023b07534badc25fb",
+      "matchesVerifiedBuild": true
+    },
+    {
+      "url": "/native-web/assets/index-ChOpJR_0.css",
+      "bytes": 346461,
+      "sha256": "aaef432cf6b14f7f8199cf818a118fc3c863012028ff459fba8697698af18618",
+      "matchesVerifiedBuild": true
+    }
+  ],
+  "macInstaller": {
+    "version": "0.1.0",
+    "builtAt": "2026-10-25T16:41:47.921Z",
+    "fileName": "Syntara-Test-0.1.0-macOS-arm64-20261025T164147Z.zip",
+    "size": 46987740,
+    "sha256": "60cf45331e60512fc8acead9642c612c112aefdf7819c6a8408cdbcd2a0ca16f",
+    "channel": "staging",
+    "architecture": "arm64",
+    "minimumSystemVersion": "14.0",
+    "notarized": false
+  },
+  "checks": {
+    "fullRootAndNativeTypecheck": "passed",
+    "formatAndLint": "passed",
+    "offlineTests": 21,
+    "rustReleaseTests": 3,
+    "macReleaseBuild": "passed",
+    "webProductionBuild": "passed",
+    "liveRoutes": "passed",
+    "authAndOriginGuards": "passed",
+    "installerHashAndZip": "passed",
+    "liveCourseMenuAndUploadNavigation": "passed"
+  },
+  "notVerified": ["real-device microphone permission and transcription"],
+  "voiceMode": "record then transcribe; no Realtime migration",
+  "runtimeConfig": "Railway managed; railway.toml excluded from the upload; normal build command restored.",
+  "installerStorage": "Manifest and ZIP explicitly included in this staging image under .data/desktop-releases; they remain Git-ignored."
+}

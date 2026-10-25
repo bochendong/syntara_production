@@ -99,6 +99,7 @@ next-env.d.ts
 !/docs/branch-state.md
 !/docs/releases/
 !/docs/releases/staging-2026-10-24.json
+!/docs/releases/staging-2026-10-25.json
 !/docs/architecture/
 !/docs/architecture/2026-07-30-ux-performance-audit.md
 !/docs/api/
