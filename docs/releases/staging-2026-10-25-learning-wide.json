@@ -1,0 +1,91 @@
+{
+  "verifiedAt": "2026-10-25T19:11:21.836614+00:00",
+  "baselineBranch": "codex/staging-baseline",
+  "baselineCommit": "ec1634c1e09080b0b04109c65c5fa25ef338df90",
+  "developmentBranch": "codex/staging-next",
+  "taskBranch": "codex/learning-pages-wide",
+  "previousBaseline": "9f3e5d0f2c2534ebe9b3d7ee6880713867859cfb",
+  "railway": {
+    "deploymentId": "8db2d459-e5b3-4613-b584-14e939138013",
+    "previousDeploymentId": "1abe56d1-f998-4e7e-9bd5-812da0e95a92",
+    "projectId": "8cddd1ea-24e1-49a9-8d27-dce86069dc8b",
+    "environmentId": "6697de1f-eb0d-4a6f-8709-cfe477a29f11",
+    "serviceId": "fd6afb05-6491-451a-b577-abf15fdc0047"
+  },
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "scope": [
+    "Three-column wide notebook shelf",
+    "Four-column wide chapter wall",
+    "Question sheet on left; statistics and filters in sticky 280px glass side panel on right"
+  ],
+  "sourceFiles": 3128,
+  "sourceIntegration": {
+    "worktree": "staging-work",
+    "files": 3,
+    "preservedCurrentFilterResetAndCallbackFixes": true,
+    "otherPendingWorkImported": false
+  },
+  "checks": {
+    "format": "passed",
+    "lint": "passed",
+    "rootAndNativeTypechecks": "passed",
+    "productionBuild": "passed",
+    "problemPresentationCheck": "passed",
+    "browserWideNarrowAndPhone": "passed"
+  },
+  "localBrowser": {
+    "fixture": "Existing disposable local MAT136 course, 13 notebooks, 5 chapters, 227 questions",
+    "wideViewport": 1456,
+    "notesColumns": 3,
+    "chapterWallColumns": 4,
+    "answerSheetColumns": "843px 280px",
+    "filterPanelWidth": 280,
+    "mainRight": 1136,
+    "sideLeft": 1156,
+    "mediumDifficultyQuestions": 28,
+    "listQuestionsInitiallyShown": 20,
+    "chapterChangeClearsFilters": true,
+    "newChapterQuestions": 125,
+    "narrowViewport": 1024,
+    "narrowSidebarDisplay": "contents",
+    "mobileViewport": 390,
+    "mobileNotesColumns": 1,
+    "horizontalOverflow": false
+  },
+  "liveBrowser": {
+    "viewport": 1512,
+    "notesColumns": 3,
+    "notesCount": 4,
+    "notesWidth": 1180,
+    "questionCount": 77,
+    "questionSheetWidth": 880,
+    "questionSheetRight": 1187.75,
+    "sidePanelLeft": 1207.75,
+    "sidePanelWidth": 280,
+    "sidePanelPosition": "sticky",
+    "statsVisible": true,
+    "horizontalOverflow": false,
+    "consoleErrors": 0,
+    "emptyCourseProblemBank": "passed",
+    "questionWall": "Verified four columns using local multi-chapter fixture; existing live CSC108 course has a single chapter",
+    "userContentEdits": false
+  },
+  "nativeAssets": [
+    {
+      "url": "/native-web/assets/index-BS8eEi7N.js",
+      "bytes": 1607625,
+      "sha256": "c2f90afbf080742485aa7e519650364d0190e1fb5daa72810165110b46631aa9",
+      "matchesVerifiedBuild": true
+    },
+    {
+      "url": "/native-web/assets/index-BbeGnzeP.css",
+      "bytes": 348498,
+      "sha256": "6aed0a3ec19a873e062eb53bcfd1228ae50f84fdf479da041160e2b9654be679",
+      "matchesVerifiedBuild": true
+    }
+  ],
+  "adminLoginAndReadChecks": "passed",
+  "installerPreserved": true,
+  "environmentVariablesModified": false,
+  "normalBuildCommandRestored": true
+}

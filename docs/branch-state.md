@@ -6,7 +6,7 @@
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `9f3e5d0f`，对应 Railway 发布 `1abe56d1` |
+| 测试服源码基线 | `codex/staging-baseline` | `ec1634c1`，对应 Railway 发布 `8db2d459` |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 当前开发 | `codex/staging-next` | 当前发布代码 + 后续发布记录 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
@@ -26,17 +26,19 @@
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前发布：`1abe56d1-f998-4e7e-9bd5-812da0e95a92`，源码提交：`9f3e5d0f`。
-- 发布快照包含 3,126 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
+- 当前发布：`8db2d459-e5b3-4613-b584-14e939138013`，源码提交：`ec1634c1`。
+- 发布快照包含 3,128 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
 - `railway.toml` 没有上传，测试服构建、启动和迁移配置由 Railway 管理；临时资源恢复命令已恢复为正常构建命令。
-- 当前管理员发布：[staging-2026-10-25-admin.json](releases/staging-2026-10-25-admin.json)。
+- 当前学习页宽屏发布：[staging-2026-10-25-learning-wide.json](releases/staging-2026-10-25-learning-wide.json)。
+- 前次管理员发布：[staging-2026-10-25-admin.json](releases/staging-2026-10-25-admin.json)。
 - 前次布局修复：[staging-2026-10-25-layout.json](releases/staging-2026-10-25-layout.json)。
 - 上一次功能发布：[staging-2026-10-25.json](releases/staging-2026-10-25.json)。
 - 上一次整理记录：[staging-2026-10-24.json](releases/staging-2026-10-24.json)。
 
 ## 本次已部署
 
+- 宽屏笔记三列、题库章节墙四列；章节内答题卡在左，统计和筛选在右侧 280px 玻璃面板。
 - 测试服管理员后台 `/admin`，沿用经用户确认的正式服管理员邮箱和密码；独立的测试服数据库和会话签名。
 - 修复多张动态学习卡片的宽屏比例和聊天区留白；1512px 窗口下卡片约 302px，正文与输入框保持对齐。
 
@@ -139,3 +141,10 @@ git diff --stat codex/staging-baseline...codex/staging-next
 `codex/staging-admin` 单独提交，再快进合入开发分支；正式服配置未更改。
 发布证据位于 Git 公共目录 `codex/tasks/staging-admin-20261025/`，只记录验证结果，
 不记录密码、签名密钥或完整 API Key。
+
+学习页宽屏增量只从 `staging-work` 按三个文件迁入，保留当前题库的状态重置和回调修复，
+其他未提交工作未混入。变更单独保存在 `codex/learning-pages-wide`，再快进合入开发分支。
+在 1456px 本机多章节样例中验证三列笔记、四列章节墙、左右答题卡布局；
+真实测试服 1512px 窗口下验证了三列笔记和 280px 右侧面板，空题库也正常。
+当前真实 CSC108 题库只有一章，四列章节墙使用多章节本机样例验证；线上资源哈希与验证构建一致。
+证据位于 Git 公共目录 `codex/tasks/learning-pages-wide-20261025/`。
