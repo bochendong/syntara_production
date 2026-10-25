@@ -4,6 +4,7 @@ import { SYNTARA_ARCHIVE_FORMAT, SYNTARA_ARCHIVE_VERSION, type SyntaraArchiveV1 
 import { isPlatformCourse } from './chat-sync';
 import type { NativeProblemAttemptUpload } from './platform-api-contracts';
 import { getNativeProblems, uploadNativeProblemAttempts } from './platform-api-client';
+import { saveProblemLayers } from '../lib/course-layers';
 import type { LocalRepository } from './repository';
 
 /**
@@ -171,6 +172,7 @@ export async function syncCourseProblems(
   }
   const notebookIds = new Set(local.notebooks.map((notebook) => notebook.id));
   let changed = false;
+  saveProblemLayers(courseId, remote);
 
   const upserts: LocalProblem[] = remote.problems
     .filter((problem) => {
@@ -179,7 +181,8 @@ export async function syncCourseProblems(
         !existing || existing.updatedAt !== problem.updatedAt || existing.status !== problem.status
       );
     })
-    .map((problem) => ({
+    // 层信息只存在 course-layers 里，不进本机题库表。
+    .map(({ layer: _layer, releaseAddedIn: _added, contentUpdatedAt: _updated, ...problem }) => ({
       ...problem,
       courseId,
       // 笔记还没同步到本机时先不挂，免得外键找不到。

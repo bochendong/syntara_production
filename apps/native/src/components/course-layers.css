@@ -1,0 +1,439 @@
+/* 加入的课：公有层 / 私有层的小标记和操作。 */
+
+.lay-badges {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.pb-row-copy strong,
+.nb-card-copy strong {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.pb-row-copy strong > :first-child,
+.nb-card-copy strong > :first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lay-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 18px;
+  padding: 0 6px 0 2px;
+  border-radius: 999px;
+  background: rgb(var(--marble-blue-rgb) / 16%);
+  color: var(--marble-blue-ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lay-new img {
+  width: 14px;
+  height: 14px;
+  animation: lay-new-bob 2.4s ease-in-out infinite;
+}
+
+@keyframes lay-new-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1.5px) rotate(12deg);
+  }
+}
+
+.lay-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.lay-tag.is-updated {
+  background: rgb(var(--marble-amber-rgb) / 18%);
+  color: var(--marble-amber-ink);
+}
+
+.lay-tag.is-mine {
+  background: rgb(var(--marble-green-rgb) / 18%);
+  color: var(--marble-green-ink);
+}
+
+/* 列表项 + 右侧「…」 */
+.lay-item {
+  position: relative;
+}
+
+.lay-item > .pb-row .pb-row-play {
+  visibility: hidden;
+}
+
+.lay-item > .nb-card {
+  padding-right: 52px;
+}
+
+.lay-more {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0.5px solid rgb(255 255 255 / 80%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 62%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 90%),
+    0 1px 3px rgb(15 23 42 / 10%);
+  color: #475569;
+  transform: translateY(-50%);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  transition: transform 140ms ease;
+}
+
+.lay-more:active {
+  transform: translateY(-50%) scale(0.9);
+}
+
+/* 操作卡 */
+.lay-menu {
+  gap: 0;
+}
+
+.lay-menu-orb img {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 10px;
+  filter: drop-shadow(0 6px 10px rgb(15 23 42 / 18%));
+}
+
+.lay-menu-title {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.lay-menu-actions {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.lay-menu .phone-confirm-button.is-destructive {
+  background: rgb(255 255 255 / 55%);
+  color: #e11d48;
+}
+
+.lay-menu-note {
+  margin: 10px 0 0;
+  color: rgb(15 23 42 / 48%);
+  font-size: 12px;
+}
+
+/* 已隐藏 */
+.lay-hidden-pill {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  margin: 18px auto 4px;
+  padding: 0 14px 0 8px;
+  border: 0.5px solid rgb(255 255 255 / 80%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 58%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 90%),
+    0 1px 3px rgb(15 23 42 / 8%);
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.lay-hidden-stack {
+  display: inline-flex;
+}
+
+.lay-hidden-stack img {
+  width: 20px;
+  height: 20px;
+  opacity: 0.55;
+  filter: saturate(0.6);
+}
+
+.lay-hidden-stack img + img {
+  margin-left: -8px;
+}
+
+.lay-hidden-sheet {
+  width: min(360px, 100%);
+  align-items: stretch;
+  padding: 14px 14px 12px;
+  text-align: left;
+}
+
+.lay-hidden-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 10px;
+}
+
+.lay-hidden-head button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 6%);
+  color: #475569;
+}
+
+.lay-hidden-list {
+  display: grid;
+  max-height: 52vh;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.lay-hidden-list li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 10px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 55%);
+}
+
+.lay-hidden-list img {
+  width: 26px;
+  height: 26px;
+  opacity: 0.6;
+  filter: saturate(0.6);
+}
+
+.lay-hidden-list strong,
+.lay-hidden-list small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lay-hidden-list strong {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.lay-hidden-list small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.lay-hidden-list button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(var(--marble-blue-rgb) / 16%);
+  color: var(--marble-blue-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 有更新：顶栏下面浮着的一张小玻璃卡 */
+.lay-update {
+  position: absolute;
+  top: 68px;
+  left: 50%;
+  z-index: 6;
+  display: grid;
+  width: min(420px, calc(100% - 32px));
+  grid-template-columns: 30px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 9px 9px 12px;
+  border: 0.5px solid rgb(255 255 255 / 80%);
+  border-radius: 20px;
+  background:
+    radial-gradient(120% 180% at 0% 50%, rgb(var(--marble-amber-rgb) / 20%), transparent 62%),
+    rgb(255 255 255 / 66%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 90%),
+    0 10px 30px rgb(15 23 42 / 12%);
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.8);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.8);
+  transform: translateX(-50%);
+  animation: lay-update-in 420ms cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+
+.lay-update img {
+  width: 30px;
+  height: 30px;
+  animation: lay-new-bob 2.4s ease-in-out infinite;
+}
+
+.lay-update strong,
+.lay-update small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lay-update strong {
+  color: var(--marble-amber-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lay-update small {
+  color: #334155;
+  font-size: 13px;
+}
+
+.lay-update button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 6%);
+  color: #475569;
+}
+
+@keyframes lay-update-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.96);
+  }
+}
+
+/* 章节卡上的「新」数 */
+.pb-wall-new {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.pb-wall-card {
+  position: relative;
+}
+
+.pb-wall-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pb-wall-new .lay-badges {
+  margin-left: 0;
+}
+
+.pb-wall-new-count {
+  color: var(--marble-blue-ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* 答题卡格子：新发布的题右上角一颗小蓝珠 */
+.sheet-cell-orb img.sheet-cell-new {
+  inset: -3px -5px auto auto;
+  width: 15px;
+  height: 15px;
+  animation: lay-new-bob 2.4s ease-in-out infinite;
+}
+
+.pb-sheet .lay-more {
+  top: -6px;
+  right: -4px;
+  width: 24px;
+  height: 24px;
+  transform: none;
+}
+.pb-sheet .lay-more:active {
+  transform: scale(0.94);
+}
+.lay-grid-badges {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+.lay-grid-badges .lay-badges {
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-left: 0;
+}
+.lay-grid-badges .lay-tag {
+  height: auto;
+  min-height: 18px;
+  padding: 2px 4px;
+  font-size: 10px;
+  white-space: normal;
+  text-align: center;
+}
+.lay-release {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 16px;
+}
+.lay-release button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgb(15 23 42 / 10%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 70%);
+  color: #334155;
+  font-size: 13px;
+}
+.lay-release p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lay-new img,
+  .lay-update,
+  .lay-update img,
+  .sheet-cell-orb img.sheet-cell-new {
+    animation: none;
+  }
+}

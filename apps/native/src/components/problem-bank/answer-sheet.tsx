@@ -65,6 +65,7 @@ export function SheetCell({
   current = false,
   title,
   size = 'md',
+  fresh = false,
   onClick,
 }: {
   number: number | undefined;
@@ -73,6 +74,8 @@ export function SheetCell({
   current?: boolean;
   title?: string;
   size?: 'sm' | 'md';
+  /** 机构新发布的题：右上角一颗小蓝珠。 */
+  fresh?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -87,13 +90,14 @@ export function SheetCell({
         .filter(Boolean)
         .join(' ')}
       title={title}
-      aria-label={`第 ${number ?? ''} 题${status ? `，${STATUS_LABELS[status]}` : ''}`}
+      aria-label={`${number === undefined ? title || '我的题目' : `第 ${number} 题`}${status ? `，${STATUS_LABELS[status]}` : ''}`}
       aria-current={current ? 'true' : undefined}
       onClick={onClick}
     >
       <span className="sheet-cell-orb">
         {status ? <img src={marbleImages[STATUS_MARBLES[status]]} alt="" /> : null}
-        <b>{number ?? ''}</b>
+        <b>{number ?? '私'}</b>
+        {fresh ? <img className="sheet-cell-new" src={marbleImages.blue} alt="新" /> : null}
       </span>
       {difficulty && size === 'md' ? (
         <span className="sheet-cell-ticks" aria-hidden>

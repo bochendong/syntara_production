@@ -16,6 +16,7 @@ import { useSession } from 'next-auth/react';
 import { useStoreStaging } from '@/components/courses/store-runtime';
 import avatarThemeHues from '@/lib/constants/marble-avatar-theme-hues.json';
 import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
+import { storeCourseCode } from '@/lib/course-space/course-display-name';
 import { enrollCourseFromStore, listCommunityStoreCourses } from '@/lib/utils/course-storage';
 import type { CommunityCourseListItem, StoreOrganization } from '@/lib/utils/database';
 import { toast } from '@/lib/notifications/client-toast';
@@ -63,12 +64,17 @@ function tintFor(course: Course): CSSProperties {
   } as CSSProperties;
 }
 
+/** 商城课程名都带学校前缀，如 "UTM-CSC 108"。 */
+function codeOf(course: Course): string | null {
+  return storeCourseCode({ ...course, organizationName: course.organization?.name });
+}
+
 function titleOf(course: Course): string {
-  return course.courseCode?.trim() || course.name;
+  return codeOf(course) || course.name;
 }
 
 function subtitleOf(course: Course): string {
-  return course.courseCode?.trim() ? course.name : (course.organization?.name ?? '');
+  return codeOf(course) ? course.name : (course.organization?.name ?? '');
 }
 
 function popularity(course: Course): number {

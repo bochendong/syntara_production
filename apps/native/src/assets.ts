@@ -4,6 +4,7 @@ import {
 } from '../../../lib/constants/marble-avatars';
 import avatarThemeHues from '../../../lib/constants/marble-avatar-theme-hues.json';
 import { resolveAccountAvatar } from './lib/account-avatar';
+import { readPlatformCourseMeta } from './lib/platform-course-meta';
 
 const avatarModules = import.meta.glob('../../../public/avatars/marble-collection-v1/*.webp', {
   eager: true,
@@ -167,11 +168,31 @@ export function courseAvatarFor(courseCode: string | null): string {
   return (courseCode && courseAvatarByCode[courseCode.toUpperCase()]) || defaultCourseAvatarUrl;
 }
 
+/** 和网页 pickStableCourseAvatarUrl 同一套哈希，本机课程也各有一颗固定的弹珠。 */
+function stableCourseAvatarUrl(courseId: string): string | undefined {
+  let hash = 2166136261;
+  for (let i = 0; i < courseId.length; i++) {
+    hash ^= courseId.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return COURSE_AVATAR_PRESETS[(hash >>> 0) % COURSE_AVATAR_PRESETS.length]?.url || undefined;
+}
+
+/**
+ * 课程头像：本机手动选过的优先；其次是账号上存的头像（商城课程就是商城里那颗），
+ * 再其次是内置示例课的固定头像，最后按课程 id 固定挑一颗。
+ */
 export function resolveNativeCourseAvatar(
   courseId: string,
   courseCode: string | null,
   avatarId?: string | null,
 ): string {
   const resolvedId = avatarId ?? readStoredCourseAvatarId(courseId);
-  return courseAvatarUrlById(resolvedId) || courseAvatarFor(courseCode);
+  return (
+    courseAvatarUrlById(resolvedId) ||
+    bundledMarbleAvatar(readPlatformCourseMeta()[courseId]?.avatarUrl)?.url ||
+    (courseCode && courseAvatarByCode[courseCode.toUpperCase()]) ||
+    stableCourseAvatarUrl(courseId) ||
+    defaultCourseAvatarUrl
+  );
 }

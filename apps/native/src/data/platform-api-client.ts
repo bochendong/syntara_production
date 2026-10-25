@@ -7,6 +7,7 @@ import {
 } from './browser-platform';
 import type {
   NativeConversationSyncPayload,
+  NativeCourseLayers,
   NativeConversationSyncResult,
   NativeCourseData,
   NativeNotebookArchive,
@@ -493,6 +494,35 @@ export function nativeStoreAction(
   return invokeJson('native_store_action', {
     requestId: crypto.randomUUID(),
     payload: { courseId, action },
+  });
+}
+
+export function releaseNativeCourseVersion(
+  courseId: string,
+): Promise<{ version: number; text: string }> {
+  return invokeJson('native_store_action', {
+    requestId: crypto.randomUUID(),
+    payload: { courseId, action: 'release' },
+  });
+}
+
+/** 加入的课：自己隐藏的内容、「新」笔记、自己加的笔记、还没看过的更新。 */
+export function getNativeCourseLayers(courseId: string): Promise<NativeCourseLayers> {
+  return invokeQuery<NativeCourseLayers>('native_get_store', { layersOf: courseId });
+}
+
+/**
+ * 加入的课里的一项笔记或题目：
+ * remove 删除（公有的只对自己隐藏，自己的真删）、restore 恢复隐藏、copy 复制到我的。
+ */
+export function nativeCourseContentAction(
+  courseId: string,
+  action: 'remove' | 'restore' | 'copy',
+  target: { targetType: 'notebook' | 'problem'; targetId: string },
+): Promise<{ result?: 'hidden' | 'deleted'; restored?: boolean; id?: string }> {
+  return invokeJson('native_store_action', {
+    requestId: crypto.randomUUID(),
+    payload: { courseId, action, ...target },
   });
 }
 

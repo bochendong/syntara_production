@@ -574,6 +574,8 @@ export function useCourseProblemBankController({
   }, [initialPracticeAnswers, isPracticeMode]);
 
   const canEditProblems = !adminReadOnly && courseAccessRole === 'owner';
+  // 加入的机构课程：学员加的题只在自己的私有层。
+  const canAddPrivateProblems = !adminReadOnly && courseAccessRole === 'enrolled';
 
   useEffect(() => {
     if (canEditProblems) return;
@@ -1281,7 +1283,7 @@ export function useCourseProblemBankController({
 
   const handleCreateProblem = useCallback(
     async (draft: NotebookProblemImportDraft, chapterId: string | null) => {
-      if (!canEditProblems) throw new Error('只有课程老师可以添加题目。');
+      if (!canEditProblems && !canAddPrivateProblems) throw new Error('没有权限添加题目。');
       if (isLocalDemoProblemBankCourse(courseId)) {
         const now = Date.now();
         setProblems((items) => [
@@ -1308,7 +1310,7 @@ export function useCourseProblemBankController({
       });
       await loadAll().catch(() => toast.info('题目已保存，刷新题库即可查看。'));
     },
-    [canEditProblems, courseId, loadAll],
+    [canAddPrivateProblems, canEditProblems, courseId, loadAll],
   );
 
   const handleUpdateProblem = useCallback(
@@ -1885,6 +1887,7 @@ export function useCourseProblemBankController({
     codeAnswers,
     codeRunResults,
     courseAccessRole,
+    canAddPrivateProblems,
     courseAcademicTerm,
     courseAcademicYear,
     courseCode,

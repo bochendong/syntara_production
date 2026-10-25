@@ -50,6 +50,12 @@ export type NotebookProblemClientRecord = {
     score?: number | null;
     createdAt: number;
   } | null;
+  /** 加入的机构课程：public 是发布者的，private 是自己加的。 */
+  layer?: 'public' | 'private';
+  /** 机构这次新版里新加的题。 */
+  isNew?: boolean;
+  /** 做过之后发布者又改了题。 */
+  contentUpdated?: boolean;
 };
 
 export type CourseProblemClientSummary = Pick<

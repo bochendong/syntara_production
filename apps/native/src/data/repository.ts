@@ -130,6 +130,8 @@ export interface LocalRepository {
   importArchive(archive: SyntaraArchiveV1): Promise<ArchiveImportSummary>;
   /** 清掉一本笔记的页面、章节和图片链接，重新导入网页上的新版本前调用。 */
   clearNotebookContent(notebookId: string): Promise<void>;
+  /** 网页上删掉或自己隐藏的同步笔记：删掉本机副本，题目和学习记忆留着、只是不再挂在这本上。 */
+  removeNotebook(notebookId: string): Promise<void>;
   /** Courses imported from the web platform keep their server id as the local id. */
   upsertPlatformCourses(courses: LocalCourse[]): Promise<void>;
   /** Ids of the signed-in account's platform courses, or null before the first sync. */

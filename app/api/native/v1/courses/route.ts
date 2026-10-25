@@ -3,8 +3,11 @@ import { nativeBrowserEnabled } from '@/lib/server/native-browser-auth';
 import { createOwnedCourse } from '@/lib/server/repositories/course-repository';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { normalizeCourseDisplay } from '@/lib/course-space/course-display-name';
-import { pickStableCourseAvatarUrl } from '@/lib/constants/course-avatars';
+import { normalizeCourseDisplay, storeCourseCode } from '@/lib/course-space/course-display-name';
+import {
+  pickRandomCourseAvatarUrl,
+  pickStableCourseAvatarUrl,
+} from '@/lib/constants/course-avatars';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import {
   publicApiError,
@@ -14,7 +17,7 @@ import {
 } from '@/lib/server/public-api';
 import { listAccessibleCoursesForUser } from '@/lib/server/repositories/course-repository';
 import { visibleNativeCourses } from '@/lib/server/native-staging-course';
-import { loadNativeCourseStoreMeta } from '@/lib/server/native-store';
+import { loadNativeCourseStoreMeta, type NativeCourseStoreMeta } from '@/lib/server/native-store';
 import { removeCourseForUser } from '@/lib/server/course-removal';
 import { updateOwnedCourse } from '@/lib/server/repositories/course-repository';
 
@@ -42,7 +45,7 @@ export async function GET(request: NextRequest) {
     prisma,
     principal.userId,
     courses.map((course) => course.id),
-  ).catch(() => new Map<string, { organizationName: string | null; hasUpdate: boolean }>());
+  ).catch(() => new Map<string, NativeCourseStoreMeta>());
   return publicApiSuccess(requestId, {
     courses: courses.map((course) => {
       const display = normalizeCourseDisplay(course);
@@ -50,13 +53,21 @@ export async function GET(request: NextRequest) {
       return {
         id: course.id,
         name: display.name,
-        courseCode: display.courseCode ?? null,
+        // 从商城加入的课和商城里一样带学校前缀（UTM-CSC 108）。
+        courseCode: meta?.organizationName
+          ? storeCourseCode({
+              ...display,
+              university: course.university,
+              organizationName: meta.organizationName,
+            })
+          : (display.courseCode ?? null),
         description: course.description ?? null,
         language: course.language,
         avatarUrl: course.avatarUrl?.trim() || pickStableCourseAvatarUrl(course.id),
         accessRole: course.accessRole,
         organizationName: meta?.organizationName ?? null,
         hasUpdate: meta?.hasUpdate ?? false,
+        updateSummary: meta?.updateSummary ?? '',
         updatedAt: course.updatedAt.toISOString(),
       };
     }),
@@ -86,6 +97,8 @@ export async function POST(request: NextRequest) {
     return publicApiError(requestId, 503, 'auth_not_configured', 'Course storage is unavailable.');
   const course = await createOwnedCourse(prisma, principal.userId, {
     ...payload.data,
+    // 自己新建的课随机一颗弹珠头像，存在课程上，网页和 App 看到的是同一颗。
+    avatarUrl: pickRandomCourseAvatarUrl(),
     language: 'zh-CN',
     tags: [],
     purpose: 'daily',
@@ -99,6 +112,7 @@ export async function POST(request: NextRequest) {
         description: course.description,
         courseCode: course.courseCode,
         language: course.language,
+        avatarUrl: course.avatarUrl ?? pickStableCourseAvatarUrl(course.id),
         updatedAt: course.updatedAt.toISOString(),
         accessRole: 'owner',
       },

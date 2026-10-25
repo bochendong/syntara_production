@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   CheckSquare,
   ChevronUp,
+  Copy,
   ChevronLeft,
   ChevronRight,
   Code2,
@@ -95,6 +96,13 @@ import {
   type CourseProblemPracticeAttemptResolvedEvent,
 } from '@/components/problem-bank/use-course-problem-bank-controller';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
+import {
+  CourseReleaseButton,
+  CourseUpdatePill,
+  HiddenContentButton,
+  LayerBadges,
+  useCourseLayers,
+} from '@/components/course-space/course-layer-controls';
 import { useCourseSpaceShell } from '@/components/course-space/course-space-shell-context';
 import {
   COURSE_SPACE_BODY_SURFACE_CLASS,
@@ -1133,6 +1141,7 @@ export function CourseProblemBankView({
     codeAnswers,
     codeRunResults,
     courseAccessRole,
+    canAddPrivateProblems,
     courseAcademicTerm,
     courseAcademicYear,
     courseCode,
@@ -1286,6 +1295,62 @@ export function CourseProblemBankView({
       onChange={() => toggleBulkProblem(problem.id)}
     />
   );
+  const courseLayers = useCourseLayers(
+    courseId,
+    !previewMode && !adminReadOnly && Boolean(courseAccessRole),
+  );
+  const [layerBusyId, setLayerBusyId] = useState<string | null>(null);
+  // 加入的课：公有题「删除」只对自己隐藏，自己的题真删；「复制到我的」得到能改的私有副本。
+  const runLayerAction = async (
+    action: 'remove' | 'copy',
+    problem: NotebookProblemClientRecord,
+  ) => {
+    if (
+      action === 'remove' &&
+      problem.layer === 'private' &&
+      !window.confirm('删除这道自己的题？删除后不能恢复。')
+    )
+      return;
+    setLayerBusyId(problem.id);
+    try {
+      const result = await courseLayers.act(action, {
+        targetType: 'problem',
+        targetId: problem.id,
+      });
+      toast.success(
+        action === 'copy'
+          ? '已复制到我的'
+          : result.result === 'deleted'
+            ? '已删除'
+            : '已隐藏，可在「已隐藏」里恢复',
+      );
+      await reloadProblems();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '操作失败');
+    } finally {
+      setLayerBusyId(null);
+    }
+  };
+  const learnerLayers = courseLayers.layers?.role === 'enrolled' ? courseLayers.layers : null;
+  const ownerLayers = courseLayers.layers?.role === 'owner' ? courseLayers.layers : null;
+  const learnerActions =
+    canAddPrivateProblems && !isPracticeMode ? (
+      <div className="flex flex-wrap items-center gap-2">
+        {learnerLayers?.update?.text ? (
+          <CourseUpdatePill courseId={courseId} text={learnerLayers.update.text} />
+        ) : null}
+        <HiddenContentButton
+          items={learnerLayers?.hidden.filter((item) => item.targetType === 'problem') ?? []}
+          onRestore={async (item) => {
+            await courseLayers.act('restore', item);
+            await reloadProblems();
+          }}
+        />
+        <Button size="sm" onClick={() => setCreateDraft(createBlankProblemDraft())}>
+          添加我的题目
+        </Button>
+      </div>
+    ) : null;
   const renderProblemRowActions = (problem: NotebookProblemClientRecord) => {
     const title = getLocalizedProblemTitle(problem, problemLanguage);
     const disabled = bulkMode || bulkDeleting || Boolean(deletingProblemId);
@@ -1345,6 +1410,38 @@ export function CourseProblemBankView({
             <Play className="size-4" aria-hidden="true" />
           )}
         </Button>
+        {canAddPrivateProblems && !previewMode ? (
+          <>
+            {problem.layer !== 'private' ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                disabled={disabled || layerBusyId === problem.id}
+                title="复制到我的"
+                aria-label={`复制到我的：${title}`}
+                onClick={() => void runLayerAction('copy', problem)}
+              >
+                <Copy className="size-4" aria-hidden="true" />
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              disabled={disabled || layerBusyId === problem.id}
+              title={problem.layer === 'private' ? '删除' : '删除（只对你隐藏）'}
+              aria-label={`删除：${title}`}
+              onClick={() => void runLayerAction('remove', problem)}
+            >
+              {layerBusyId === problem.id ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" aria-hidden="true" />
+              )}
+            </Button>
+          </>
+        ) : null}
         {canEditProblems ? (
           <Button
             type="button"
@@ -1369,6 +1466,13 @@ export function CourseProblemBankView({
   const bulkDeleteActions =
     canEditProblems && !isPracticeMode ? (
       <div className="flex flex-wrap items-center gap-2">
+        {ownerLayers ? (
+          <CourseReleaseButton
+            courseId={courseId}
+            layers={ownerLayers}
+            onReleased={() => void courseLayers.refresh()}
+          />
+        ) : null}
         <Button size="sm" onClick={() => setCreateDraft(createBlankProblemDraft())}>
           {locale === 'zh-CN' ? '添加题目' : 'Add problem'}
         </Button>
@@ -2773,7 +2877,7 @@ export function CourseProblemBankView({
                 {problemSubmissionStatus}
               </div>
             ) : (
-              bulkDeleteActions
+              (bulkDeleteActions ?? learnerActions)
             )
           }
           trailingActions={isPracticeMode ? problemSubmissionActions : undefined}
@@ -2804,7 +2908,7 @@ export function CourseProblemBankView({
             >
               <div className="grid gap-2.5 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
                 <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-                  {!showCourseNavigation ? bulkDeleteActions : null}
+                  {!showCourseNavigation ? (bulkDeleteActions ?? learnerActions) : null}
                   {showCourseTitle && !showCourseNavigation ? (
                     <span className="min-w-0 truncate text-sm font-semibold text-sky-600 dark:text-sky-300">
                       {courseName || (locale === 'zh-CN' ? '课程空间' : 'Course workspace')}
@@ -3263,6 +3367,11 @@ export function CourseProblemBankView({
                                   content={localizedTitle}
                                   className="line-clamp-1 min-w-0 flex-1 text-sm font-semibold text-slate-950 dark:text-white"
                                 />
+                                <LayerBadges
+                                  isNew={problem.isNew}
+                                  contentUpdated={problem.contentUpdated}
+                                  mine={problem.layer === 'private' && canAddPrivateProblems}
+                                />
                               </div>
                               <p className="mt-[3px] min-w-0 truncate text-xs text-slate-400">
                                 {problem.notebookName ||
@@ -3421,7 +3530,7 @@ export function CourseProblemBankView({
       </div>
       <ProblemEditDialog
         key={createDraft?.draftId ?? 'new-problem'}
-        open={Boolean(createDraft) && canEditProblems}
+        open={Boolean(createDraft) && (canEditProblems || canAddPrivateProblems)}
         onOpenChange={(open) => {
           if (!open) setCreateDraft(null);
         }}

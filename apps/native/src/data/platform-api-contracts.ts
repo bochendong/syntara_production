@@ -376,7 +376,32 @@ export interface NativePlatformCourse {
   organizationName?: string | null;
   /** 机构发布了新版、自己还没打开看过。 */
   hasUpdate?: boolean;
+  /** 「+3 题，改了 1 篇笔记」这样的更新摘要；没有更新时为空。 */
+  updateSummary?: string | null;
   updatedAt: string;
+}
+
+/** 加入的课里一项被自己隐藏的公有内容。 */
+export interface NativeHiddenCourseContent {
+  targetType: 'notebook' | 'problem';
+  targetId: string;
+  title: string;
+  hiddenAt: number;
+}
+
+/** 加入的课的两层信息（/api/native/v1/store?layersOf=）。 */
+export interface NativeCourseLayers {
+  hidden: NativeHiddenCourseContent[];
+  newNotebookIds: string[];
+  privateNotebookIds: string[];
+  update: { text: string } | null;
+}
+
+/** 题目在两层里的位置：公有（发布者的）还是自己的；什么时候发布、什么时候改过。 */
+export interface NativeProblemLayerFields {
+  layer?: 'public' | 'private';
+  releaseAddedIn?: number | null;
+  contentUpdatedAt?: number | null;
 }
 
 /** 商城里的一门机构课程（/api/native/v1/store）。 */
@@ -509,7 +534,9 @@ export interface NativeProblemSnapshot {
   problemIds: string[];
   /** false 表示题目太多被截断，没出现在 problemIds 里的不一定是网页上删掉的。 */
   complete: boolean;
-  problems: LocalProblem[];
+  /** 题目的 releaseAddedIn 比它大就标「新」；自己建的课为 null。 */
+  newSinceVersion?: number | null;
+  problems: Array<LocalProblem & NativeProblemLayerFields>;
   progress: Array<Omit<LocalProblemProgress, 'id'>>;
 }
 

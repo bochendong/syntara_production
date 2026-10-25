@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { requireTeacher } from '@/lib/server/teacher-auth';
 import { notebookProblemImportDraftSchema } from '@/lib/problem-bank/schema';
 import { createManualCourseProblem } from '@/features/problems/server/service';
 import { NextResponse } from 'next/server';
@@ -37,6 +36,9 @@ function toClientProblem(problem: Awaited<ReturnType<typeof listCourseProblemsFo
     attemptStats: problem.attemptStats ?? null,
     classStats: problem.classStats ?? null,
     latestAttempt: problem.latestAttempt ?? null,
+    layer: problem.layer ?? 'public',
+    isNew: problem.isNew ?? false,
+    contentUpdated: problem.contentUpdated ?? false,
     ...(problem.secretJudge ? { secretJudge: problem.secretJudge } : {}),
   };
 }
@@ -134,7 +136,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 export const maxDuration = 300;
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   return safeRoute(async () => {
-    const auth = await requireTeacher();
+    // 发布者加到公有层；学员加的只在自己的私有层。
+    const auth = await requireUserId({ ensureFallbackUser: false });
     if ('response' in auth) return auth.response;
     const { id } = await context.params;
     const parsed = z
@@ -155,7 +158,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json(result, { status: 201 });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found')
-        return NextResponse.json({ error: '课程不存在或无管理权限。' }, { status: 404 });
+        return NextResponse.json({ error: '课程不存在或没有权限。' }, { status: 404 });
       if (
         error instanceof Error &&
         /^(题型|暂时无法发布|所选章节|题库中已存在)/.test(error.message)

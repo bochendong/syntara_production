@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
+import { releaseCourseVersion } from '@/lib/server/store-course-layers';
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin();
@@ -98,7 +99,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         listedInCourseStore: listed,
         ...(listed && !existing.listedInCourseStore ? { storePublishedAt: new Date() } : {}),
         ...(!listed ? { storePublishedAt: null } : {}),
-        ...(publishNewVersion ? { contentVersion: { increment: 1 } } : {}),
       },
       select: {
         id: true,
@@ -109,7 +109,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       },
     });
 
-    return apiSuccess({ course });
+    // 发布新版：给新增 / 改过的公有内容盖版本号，加入的人会看到更新摘要。
+    const release = publishNewVersion ? await releaseCourseVersion(prisma, id) : null;
+    return apiSuccess({
+      course: release ? { ...course, contentVersion: release.version } : course,
+      release,
+    });
   } catch (error) {
     return apiError('INTERNAL_ERROR', 500, error instanceof Error ? error.message : String(error));
   }

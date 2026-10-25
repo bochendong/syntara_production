@@ -222,6 +222,8 @@ model User {
   cloudUsageCostLogs        CloudUsageCostLog[]
   coursePurchases           CoursePurchase[]
   courseEnrollments         CourseEnrollment[]
+  ownedProblems             NotebookProblem[]            @relation("NotebookProblemOwner")
+  courseContentHides        CourseContentHide[]
   organizationMemberships   OrganizationMember[]
   courseHardRules           CourseHardRule[]
   assignmentSubmissions     CourseAssignmentSubmission[]
@@ -390,6 +392,10 @@ model Course {
    * 机构每次「发布新版」+1；加入者的 CourseEnrollment.seenContentVersion 落后时显示更新提示。
    */
   contentVersion        Int                 @default(1)
+  /**
+   * 上次「发布新版」的时间；之后改动的公有内容在下一次发布时盖上新版本号。
+   */
+  lastReleasedAt        DateTime?
   notebookCount         Int                 @default(0)
   sceneCount            Int                 @default(0)
   problemCount          Int                 @default(0)
@@ -409,6 +415,7 @@ model Course {
   sourcePurchases        CoursePurchase[]          @relation("CoursePurchaseSource")
   clonePurchase          CoursePurchase?           @relation("CoursePurchaseClone")
   enrollments            CourseEnrollment[]
+  contentHides           CourseContentHide[]
   reviews                CourseReview[]
   backgroundJobs         BackgroundJob[]
   studyMemories          StudyMemory[]
@@ -584,6 +591,10 @@ model Notebook {
   mindMapMime           String?
   removedAt             DateTime?
   contentVersion        Int          @default(1)
+  /// 机构课程公有层：哪一版加进来的（null = 还没随新版发布）、哪一版改过、发布时的 contentVersion
+  releaseAddedIn        Int?
+  releaseUpdatedIn      Int?
+  releasedContentVersion Int?
 
   owner              User                      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   course             Course?                   @relation(fields: [courseId], references: [id], onDelete: SetNull)
@@ -774,7 +785,16 @@ model NotebookProblem {
   gradingJson       Json
   sourceMeta        Json?
   dedupeKey         String?
+  /// null = 课程公有层（发布者的题）；非空 = 这个学员自己的私有题，别人看不到
+  ownerId           String?
+  /// 机构课程公有层的版本标记，见 Notebook 同名字段；releasedHash 是发布时题面的指纹
+  releaseAddedIn    Int?
+  releaseUpdatedIn  Int?
+  releasedHash      String?
+  /// 发布新版时题面变了的时间；学员最近一次作答早于它就显示「题目已更新」
+  contentUpdatedAt  DateTime?
 
+  owner          User?                          @relation("NotebookProblemOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   course         Course?                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   notebook       Notebook?                      @relation(fields: [notebookId], references: [id], onDelete: SetNull)
   chapter        CourseProblemChapter?          @relation(fields: [chapterId], references: [id], onDelete: SetNull)
@@ -789,6 +809,7 @@ model NotebookProblem {
 
   @@unique([courseId, dedupeKey], map: "NotebookProblem_course_dedupe_key")
   @@index([courseId, order])
+  @@index([courseId, ownerId])
   @@index([courseId, problemNumber])
   @@index([courseId, chapterId, problemNumber])
   @@index([courseId, status, order])
@@ -1522,6 +1543,8 @@ model CourseEnrollment {
   /// store | admin | teacher | activation
   source              String   @default("store") @db.VarChar(24)
   seenContentVersion  Int      @default(0)
+  /// 上一次打开时看到的版本；比它新的公有内容显示「新」弹珠，直到下一版
+  newSinceVersion     Int      @default(0)
   joinedAt            DateTime @default(now())
   createdAt           DateTime @default(now())
 
@@ -1531,6 +1554,23 @@ model CourseEnrollment {
   @@unique([userId, courseId])
   @@index([userId, joinedAt(sort: Desc)])
   @@index([courseId, joinedAt(sort: Desc)])
+}
+
+/// 学员在加入的课程里「删除」公有层的笔记或题目：只对自己隐藏，公有层不动，可以恢复。
+model CourseContentHide {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String
+  /// notebook | problem
+  targetType String   @db.VarChar(16)
+  targetId   String
+  createdAt  DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([userId, courseId, targetType])
 }
 
 model ExternalCourseBinding {

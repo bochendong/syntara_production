@@ -1884,6 +1884,21 @@ export class SqliteLocalRepository implements LocalRepository {
     await database.execute('DELETE FROM notebook_assets WHERE notebook_id = $1', [notebookId]);
   }
 
+  async removeNotebook(notebookId: string): Promise<void> {
+    await this.clearNotebookContent(notebookId);
+    const database = await this.database();
+    await database.execute('UPDATE problems SET notebook_id = NULL WHERE notebook_id = $1', [
+      notebookId,
+    ]);
+    await database.execute('UPDATE study_memories SET notebook_id = NULL WHERE notebook_id = $1', [
+      notebookId,
+    ]);
+    await database.execute('UPDATE conversations SET notebook_id = NULL WHERE notebook_id = $1', [
+      notebookId,
+    ]);
+    await database.execute('DELETE FROM notebooks WHERE id = $1', [notebookId]);
+  }
+
   async archiveConversationMemories(conversationId: string): Promise<LocalStudyMemory[]> {
     const database = await this.database();
     const rows = await database.select<SqlRow[]>(

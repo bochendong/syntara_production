@@ -5751,6 +5751,20 @@ select,
     transition: opacity 140ms ease;
   }
 
+  /* 藏起来时不占宽度，课程名（如 UTM-CSC 108）不会被空白挤成省略号。 */
+  .phone-drawer-course-actions {
+    width: 0;
+    overflow: hidden;
+    padding-right: 0;
+  }
+  .phone-drawer-course-actions:has(button[aria-expanded='true']),
+  .phone-drawer-course-heading:hover .phone-drawer-course-actions,
+  .phone-drawer-course-heading:has(:focus-visible) .phone-drawer-course-actions,
+  .phone-drawer-course-actions:has([data-onboarding='course-tools']) {
+    width: auto;
+    padding-right: 4px;
+  }
+
   .phone-drawer-course-actions:has(button[aria-expanded='true']),
   .phone-drawer-course-heading:hover .phone-drawer-course-actions,
   .phone-drawer-course-heading:has(:focus-visible) .phone-drawer-course-actions,

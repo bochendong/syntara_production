@@ -73,9 +73,7 @@ export async function uploadNativeMaterial(
     return { status: 'saved', kind: 'notes', notebookId: input.clientId };
   }
 
-  if (role !== 'owner') {
-    return { status: 'forbidden', message: '加入的课程里不能上传题目。' };
-  }
+  // 加入的课程里上传的题放在自己的私有层（createManualCourseProblem 按身份分层）。
   const stem = input.text.trim().slice(0, MAX_PROBLEM_STEM);
   if (!stem) return { status: 'conflict', message: '题目是空的。' };
   const draft = notebookProblemImportDraftSchema.parse({

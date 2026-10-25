@@ -4,6 +4,7 @@ import { Prisma } from '@/lib/server/generated-prisma';
 import { courseProblemDedupeKey } from '@/features/problems/domain/problem-dedupe';
 import { prisma } from '@/lib/server/prisma';
 import { toPrismaJson, toPrismaNullableJson } from '@/lib/server/prisma-json';
+import { problemLayerSql, problemLayerWhere } from '@/lib/server/store-course-layers';
 import {
   buildLegacyProblemDraftsFromScene,
   codeDraftReadinessErrors,
@@ -27,6 +28,7 @@ import {
 import type { Scene } from '@/lib/types/stage';
 import {
   findCourseAccessRole,
+  resolveCourseNotebookAccess,
   type CourseAccessRole,
   withCourseEnrollmentSchemaFallback,
 } from '@/lib/server/repositories/course-enrollment-repository';
@@ -121,6 +123,12 @@ type ProblemWithSecretRow = ProblemRow & {
 
 type NotebookProblemSummaryForUser = NotebookProblemSummary & {
   secretJudge?: NotebookProblemSecretJudge;
+  /** public = 课程公有层；mine = 自己加的私有题 */
+  layer?: 'public' | 'mine';
+  /** 上次打开课程以来，发布者新加的题 */
+  isNew?: boolean;
+  /** 发布者改过题面，而自己上次作答在那之前 */
+  contentUpdated?: boolean;
 };
 
 type NotebookProblemRecordForOwner = NotebookProblemRecord & {
@@ -214,6 +222,9 @@ type FlatCourseProblemRow = {
   classAttemptedStudentCount: number;
   classPassedStudentCount: number;
   filteredCount: number;
+  ownerId: string | null;
+  isNewForUser: boolean;
+  contentUpdatedAt: Date | null;
 };
 
 export type CourseProblemPageFilters = {
@@ -574,7 +585,7 @@ async function requireNotebookReadAccess(
   notebookId: string,
 ): Promise<ReadableNotebook> {
   const notebook = await prisma.notebook.findFirst({
-    where: { id: notebookId },
+    where: { id: notebookId, removedAt: null },
     select: { id: true, name: true, courseId: true, ownerId: true },
   });
   if (!notebook) {
@@ -591,15 +602,15 @@ async function requireNotebookReadAccess(
   if (!notebook.courseId) {
     throw new Error('Notebook not found');
   }
-  const courseAccessRole = await findCourseAccessRole(prisma, userId, notebook.courseId);
-  if (!courseAccessRole) {
+  const notebookAccess = await resolveCourseNotebookAccess(prisma, userId, notebook.courseId);
+  if (!notebookAccess?.allowedNotebookIds.includes(notebookId)) {
     throw new Error('Notebook not found');
   }
   return {
     id: notebook.id,
     name: notebook.name,
     courseId: notebook.courseId,
-    accessRole: courseAccessRole,
+    accessRole: notebookAccess.role,
   };
 }
 
@@ -713,6 +724,8 @@ async function withCodeReferenceVerification(
 async function createProblemFromDraftTx(args: {
   tx: Prisma.TransactionClient;
   courseId?: string | null;
+  /** 学员私有题：所有者 id；不填就是课程公有层 */
+  ownerId?: string | null;
   notebookId?: string | null;
   chapterId?: string | null;
   draft: NotebookProblemImportDraft;
@@ -734,7 +747,8 @@ async function createProblemFromDraftTx(args: {
       publicContentJson: toPrismaJson(normalized.publicContent),
       gradingJson: toPrismaJson(normalized.grading),
       sourceMeta: toPrismaNullableJson(normalized.sourceMeta),
-      dedupeKey: args.courseId ? courseProblemDedupeKey(normalized) : null,
+      dedupeKey: args.courseId && !args.ownerId ? courseProblemDedupeKey(normalized) : null,
+      ownerId: args.ownerId ?? null,
       courseId: args.courseId ?? null,
       notebookId: args.notebookId ?? null,
       chapterId: args.chapterId ?? null,
@@ -774,8 +788,9 @@ async function ensureCourseProblemDedupeStateTx(
       AND notebook."courseId" = ${courseId}
   `;
 
+  // 去重只管公有层；学员的私有题不占课程的去重键（见 createCourseProblemsFromDraftsInternal）。
   const rows = await tx.notebookProblem.findMany({
-    where: { courseId },
+    where: { courseId, ownerId: null },
     select: {
       id: true,
       title: true,
@@ -809,7 +824,7 @@ async function ensureCourseProblemDedupeStateTx(
   );
   if (requiresKeyRebuild) {
     await tx.notebookProblem.updateMany({
-      where: { courseId },
+      where: { courseId, ownerId: null },
       data: { dedupeKey: null },
     });
   }
@@ -1112,7 +1127,8 @@ async function assignMissingProblemNumbersTx(
   where: Prisma.NotebookProblemWhereInput,
 ): Promise<void> {
   const rows = await tx.notebookProblem.findMany({
-    where,
+    // 题号只排公有层；学员私有题不占号。
+    where: { AND: [where, { ownerId: null }] },
     select: {
       id: true,
       order: true,
@@ -1173,7 +1189,7 @@ async function nextProblemNumberForScopeTx(
 ): Promise<number> {
   await assignMissingProblemNumbersTx(tx, where);
   const aggregate = await tx.notebookProblem.aggregate({
-    where,
+    where: { AND: [where, { ownerId: null }] },
     _max: { problemNumber: true },
   });
   return (aggregate._max.problemNumber ?? 0) + 1;
@@ -1405,7 +1421,19 @@ async function loadCourseProblemsForUserFast(args: {
           AS "classAttemptedStudentCount",
         COALESCE("classProblemProgress"."passedStudentCount", 0)::int
           AS "classPassedStudentCount",
-        COUNT(*) OVER()::int AS "filteredCount"
+        COUNT(*) OVER()::int AS "filteredCount",
+        p."ownerId",
+        p."contentUpdatedAt",
+        (
+          p."ownerId" IS NULL
+          AND p."releaseAddedIn" > COALESCE(
+            (
+              SELECT e."newSinceVersion" FROM "CourseEnrollment" e
+              WHERE e."courseId" = p."courseId" AND e."userId" = ${args.userId}
+            ),
+            2147483647
+          )
+        ) AS "isNewForUser"
       FROM "NotebookProblem" p
       JOIN "Course" c ON c."id" = p."courseId"
       LEFT JOIN "Notebook" n ON n."id" = p."notebookId"
@@ -1418,6 +1446,7 @@ async function loadCourseProblemsForUserFast(args: {
       LEFT JOIN "classProblemProgress" ON "classProblemProgress"."problemId" = p."id"
       WHERE p."courseId" = ${args.courseId}
         AND ${filterSql}
+        AND ${problemLayerSql(args.userId)}
         AND (
           (
             NOT EXISTS (SELECT 1 FROM "ExternalCourseBinding" b WHERE b."courseId" = c."id")
@@ -1462,8 +1491,8 @@ async function loadCourseProblemsForUserFast(args: {
     `,
   );
 
-  const problems = rows.map((row) =>
-    mapProblemRow(
+  const problems = rows.map((row) => ({
+    ...mapProblemRow(
       {
         id: row.id,
         courseId: row.courseId,
@@ -1517,7 +1546,14 @@ async function loadCourseProblemsForUserFast(args: {
         passedStudentCount: row.classPassedStudentCount,
       },
     ),
-  );
+    layer: row.ownerId ? ('mine' as const) : ('public' as const),
+    isNew: Boolean(row.isNewForUser),
+    contentUpdated: Boolean(
+      row.contentUpdatedAt &&
+      row.latestAttemptCreatedAt &&
+      row.latestAttemptCreatedAt < row.contentUpdatedAt,
+    ),
+  }));
   return {
     problems,
     totalCount: rows[0]?.filteredCount ?? 0,
@@ -1548,6 +1584,7 @@ async function loadCourseProblemBankStatsForUser(
         ON progress."problemId" = p."id" AND progress."userId" = ${userId}
       WHERE p."courseId" = ${courseId}
         AND p."status"::text <> 'archived'
+        AND ${problemLayerSql(userId)}
     ),
     "chapterRows" AS (
       SELECT
@@ -1586,7 +1623,8 @@ async function loadCourseProblemBankStatsForUser(
     )
     SELECT
       (SELECT COUNT(*)::int FROM "NotebookProblem" allProblems
-        WHERE allProblems."courseId" = ${courseId}) AS "allProblemCount",
+        WHERE allProblems."courseId" = ${courseId}
+          AND ${problemLayerSql(userId, 'allProblems')}) AS "allProblemCount",
       COUNT(*)::int AS "total",
       COUNT(*) FILTER (WHERE "practiceState" <> 'unattempted')::int AS "attempted",
       COUNT(*) FILTER (WHERE "practiceState" = 'mastered')::int AS "mastered",
@@ -1697,6 +1735,7 @@ function reviewProblemTargetAccessSql(args: {
           AND purchase."buyerId" = ${args.userId}
       )
     )
+    AND ${problemLayerSql(args.userId)}
   `;
 }
 
@@ -1846,7 +1885,12 @@ export async function listNotebookProblemsForUser(
     await ensureProblemNumbersBackfilledForNotebook(userId, notebookId);
   }
   const problems = await loadProblemsWithNotebook({
-    where: { notebookId },
+    where: {
+      notebookId,
+      ...(notebook.courseId
+        ? await problemLayerWhere(prismaDb, userId, notebook.courseId)
+        : { OR: [{ ownerId: null }, { ownerId: userId }] }),
+    },
     includeSecret: notebook.accessRole === 'owner',
   });
   const progressByProblemId = await listLatestAttemptsForUser(
@@ -1936,6 +1980,7 @@ export async function listCourseProblemsByIdsForUser(
     where: {
       id: { in: uniqueProblemIds },
       courseId,
+      ...(await problemLayerWhere(prismaDb, userId, courseId)),
     },
     includeSecret: accessRole === 'owner',
     latestAttemptUserId: userId,
@@ -2160,7 +2205,7 @@ export async function listCourseProblemSummariesForUser(
   }
 
   const problems = (await prismaDb.notebookProblem.findMany({
-    where: { courseId },
+    where: { courseId, ...(await problemLayerWhere(prismaDb, userId, courseId)) },
     select: {
       id: true,
       courseId: true,
@@ -2242,6 +2287,7 @@ export async function publishNotebookProblemBankForUser(args: {
   const rows = (await prismaDb.notebookProblem.findMany({
     where: {
       notebookId: args.notebookId,
+      OR: [{ ownerId: null }, { ownerId: args.userId }],
       status: { not: 'archived' },
     },
     include: {
@@ -2278,6 +2324,7 @@ export async function publishCourseProblemBankForUser(args: {
 
   const rows = (await prismaDb.notebookProblem.findMany({
     where: {
+      ownerId: null,
       status: { not: 'archived' },
       OR:
         notebookIds.length > 0
@@ -2325,7 +2372,13 @@ export async function getNotebookProblemForUser(
     await ensureProblemNumbersBackfilledForNotebook(userId, notebookId);
   }
   const row = (await prismaDb.notebookProblem.findFirst({
-    where: { id: problemId, notebookId },
+    where: {
+      id: problemId,
+      notebookId,
+      ...(notebookAccess.courseId
+        ? await problemLayerWhere(prismaDb, userId, notebookAccess.courseId)
+        : { OR: [{ ownerId: null }, { ownerId: userId }] }),
+    },
     include: {
       notebook: {
         select: {
@@ -2391,6 +2444,7 @@ export async function getCourseProblemForUser(
     where: {
       id: problemId,
       OR: [{ courseId }, { notebook: { courseId } }],
+      ...(await problemLayerWhere(prismaDb, userId, courseId)),
     },
     include: {
       notebook: {
@@ -2448,6 +2502,15 @@ async function createNotebookProblemsFromDraftsInternal(
   args: CreateNotebookProblemsFromDraftsArgs,
 ): Promise<NotebookProblemDraftWriteResult> {
   const notebook = await requireNotebookOwnership(args.userId, args.notebookId);
+  // 学员在加入的课程里给自己的笔记加题：进私有层。
+  const privateOwnerId =
+    notebook.courseId &&
+    !(await prismaDb.course.findFirst({
+      where: { id: notebook.courseId, ownerId: args.userId },
+      select: { id: true },
+    }))
+      ? args.userId
+      : null;
   await ensureLegacyProblemsBackfilled(args.userId, args.notebookId);
   const problemNumberScopeWhere = notebook.courseId
     ? courseProblemNumberScopeWhere(
@@ -2463,13 +2526,17 @@ async function createNotebookProblemsFromDraftsInternal(
   await prismaDb.$transaction(
     async (tx: Prisma.TransactionClient) => {
       await assertProblemImportBatchCommitLeaseTx(tx, args);
-      const existingProblemIdByKey = notebook.courseId
-        ? await ensureCourseProblemDedupeStateTx(tx, notebook.courseId)
-        : new Map<string, string>();
+      const existingProblemIdByKey = !notebook.courseId
+        ? new Map<string, string>()
+        : privateOwnerId
+          ? await loadPrivateProblemDedupeStateTx(tx, notebook.courseId, privateOwnerId)
+          : await ensureCourseProblemDedupeStateTx(tx, notebook.courseId);
       const count = await tx.notebookProblem.count({
         where: { notebookId: args.notebookId },
       });
-      const firstProblemNumber = await nextProblemNumberForScopeTx(tx, problemNumberScopeWhere);
+      const firstProblemNumber = privateOwnerId
+        ? null
+        : await nextProblemNumberForScopeTx(tx, problemNumberScopeWhere);
       for (let index = 0; index < args.drafts.length; index += 1) {
         const draft = args.drafts[index];
         const dedupeKey = notebook.courseId ? courseProblemDedupeKey(draft) : null;
@@ -2487,10 +2554,12 @@ async function createNotebookProblemsFromDraftsInternal(
         const created = await createProblemFromDraftTx({
           tx,
           courseId: notebook.courseId,
+          ownerId: privateOwnerId,
           notebookId: args.notebookId,
           draft: draftWithImportBatchId(draft, args.importBatchId),
           order: count + insertedProblemIds.length,
-          problemNumber: firstProblemNumber + insertedProblemIds.length,
+          problemNumber:
+            firstProblemNumber === null ? null : firstProblemNumber + insertedProblemIds.length,
         });
         insertedProblemIds.push(created.id);
         if (dedupeKey) existingProblemIdByKey.set(dedupeKey, created.id);
@@ -2588,6 +2657,7 @@ async function loadIndexedCourseProblemDedupeStateTx(args: {
   const indexedRows = await args.tx.notebookProblem.findMany({
     where: {
       dedupeKey: { in: requestedKeys },
+      ownerId: null,
       OR: [
         { courseId: args.courseId },
         ...(args.notebookIds.length > 0
@@ -2611,6 +2681,7 @@ async function loadIndexedCourseProblemDedupeStateTx(args: {
   const legacyRows = await args.tx.notebookProblem.findMany({
     where: {
       dedupeKey: null,
+      ownerId: null,
       OR: [
         { courseId: args.courseId },
         ...(args.notebookIds.length > 0
@@ -2648,12 +2719,46 @@ async function loadIndexedCourseProblemDedupeStateTx(args: {
   return problemIdByKey;
 }
 
+/**
+ * 学员往私有层加题时的去重：和公有层重复就不再加（反正看得到），和自己的私有题重复也跳过。
+ * 私有题不写 dedupeKey，课程的唯一键只属于公有层。
+ */
+async function loadPrivateProblemDedupeStateTx(
+  tx: Prisma.TransactionClient,
+  courseId: string,
+  ownerId: string,
+): Promise<Map<string, string>> {
+  const rows = await tx.notebookProblem.findMany({
+    where: { courseId, OR: [{ ownerId: null }, { ownerId }] },
+    select: { id: true, title: true, type: true, publicContentJson: true, dedupeKey: true },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    take: LEGACY_DEDUPE_FALLBACK_LIMIT * 4,
+  });
+  const problemIdByKey = new Map<string, string>();
+  for (const row of rows) {
+    let key = row.dedupeKey;
+    if (!key) {
+      const parsedContent = notebookProblemPublicContentSchema.safeParse(row.publicContentJson);
+      if (!parsedContent.success) continue;
+      key = courseProblemDedupeKey({
+        title: row.title,
+        type: row.type,
+        publicContent: parsedContent.data,
+      });
+    }
+    if (!problemIdByKey.has(key)) problemIdByKey.set(key, row.id);
+  }
+  return problemIdByKey;
+}
+
 async function createCourseProblemsFromDraftsInternal(
   args: CreateCourseProblemsFromDraftsArgs,
 ): Promise<CourseProblemDraftWriteResult> {
-  await requireCourseOwnership(args.userId, args.courseId);
+  // 课程主人写进公有层；加入课程的学员写进自己的私有层（ownerId = 学员，别人看不到）。
+  const accessRole = await requireCourseReadAccess(args.userId, args.courseId);
+  const privateOwnerId = accessRole === 'owner' ? null : args.userId;
   const dedupeReadStrategy = args.dedupeReadStrategy ?? 'full_course_backfill';
-  if (dedupeReadStrategy === 'full_course_backfill') {
+  if (dedupeReadStrategy === 'full_course_backfill' && !privateOwnerId) {
     await ensureLegacyProblemsBackfilledForCourse(args.userId, args.courseId);
   }
 
@@ -2672,8 +2777,9 @@ async function createCourseProblemsFromDraftsInternal(
   await prismaDb.$transaction(
     async (tx: Prisma.TransactionClient) => {
       await assertProblemImportBatchCommitLeaseTx(tx, args);
-      const existingProblemIdByKey =
-        dedupeReadStrategy === 'indexed_input_keys'
+      const existingProblemIdByKey = privateOwnerId
+        ? await loadPrivateProblemDedupeStateTx(tx, args.courseId, privateOwnerId)
+        : dedupeReadStrategy === 'indexed_input_keys'
           ? await loadIndexedCourseProblemDedupeStateTx({
               tx,
               courseId: args.courseId,
@@ -2684,7 +2790,10 @@ async function createCourseProblemsFromDraftsInternal(
       const count = await tx.notebookProblem.count({
         where: problemNumberScopeWhere,
       });
-      const firstProblemNumber = await nextProblemNumberForScopeTx(tx, problemNumberScopeWhere);
+      // 私有题不占课程的题号，公有层的编号保持连续。
+      const firstProblemNumber = privateOwnerId
+        ? null
+        : await nextProblemNumberForScopeTx(tx, problemNumberScopeWhere);
       const touchedNotebookIds = new Set<string>();
       for (let index = 0; index < args.drafts.length; index += 1) {
         const draft = args.drafts[index];
@@ -2704,10 +2813,12 @@ async function createCourseProblemsFromDraftsInternal(
         const created = await createProblemFromDraftTx({
           tx,
           courseId: args.courseId,
+          ownerId: privateOwnerId,
           notebookId,
           draft: draftWithImportBatchId({ ...draft, notebookId }, args.importBatchId),
           order: count + insertedProblemIds.length,
-          problemNumber: firstProblemNumber + insertedProblemIds.length,
+          problemNumber:
+            firstProblemNumber === null ? null : firstProblemNumber + insertedProblemIds.length,
         });
         insertedProblemIds.push(created.id);
         existingProblemIdByKey.set(dedupeKey, created.id);
@@ -2931,10 +3042,17 @@ export async function updateCourseProblem(args: {
     secretJudge?: unknown | null;
   };
 }): Promise<NotebookProblemRecordForOwner> {
-  await requireCourseOwnership(args.userId, args.courseId);
+  // 学员可以改自己的私有题；公有层只有课程主人能改（学员要改先「复制到我的」）。
+  const ownPrivateProblem = await prismaDb.notebookProblem.findFirst({
+    where: { id: args.problemId, courseId: args.courseId, ownerId: args.userId },
+    select: { id: true },
+  });
+  if (!ownPrivateProblem) await requireCourseOwnership(args.userId, args.courseId);
   const notebooks = await listOwnedCourseNotebooks(args.userId, args.courseId);
   const allowedNotebookIds = new Set(notebooks.map((notebook) => notebook.id));
-  const current = await getCourseProblemForUser(args.userId, args.courseId, args.problemId);
+  const current = await getCourseProblemForUser(args.userId, args.courseId, args.problemId, {
+    includeSecretJudgeForEvaluation: Boolean(ownPrivateProblem),
+  });
 
   const publicContent = args.patch.publicContent
     ? notebookProblemPublicContentSchema.parse(args.patch.publicContent)
@@ -3120,7 +3238,7 @@ export async function assignUnassignedCourseProblemsToNotebooks(args: {
   if (accessRole !== 'owner') throw new Error('Course not found');
 
   const notebooks = await prisma.notebook.findMany({
-    where: { courseId: args.courseId, removedAt: null },
+    where: { courseId: args.courseId, ownerId: args.userId, removedAt: null },
     select: { id: true },
   });
   const allowedNotebookIds = new Set(notebooks.map((notebook) => notebook.id));
@@ -3148,6 +3266,7 @@ export async function assignUnassignedCourseProblemsToNotebooks(args: {
           id: { in: ids },
           courseId: args.courseId,
           notebookId: null,
+          ownerId: null,
           status: { not: 'archived' },
         },
         select: { id: true },
@@ -3377,7 +3496,9 @@ export async function createManualCourseProblem(args: {
   chapterId?: string | null;
   draft: NotebookProblemImportDraft;
 }) {
-  await requireCourseOwnership(args.userId, args.courseId);
+  // 学员（商城加入的课）手动加的题放在自己的私有层，别人看不到。
+  const accessRole = await requireCourseReadAccess(args.userId, args.courseId);
+  const privateOwnerId = accessRole === 'owner' ? null : args.userId;
   const parsed = notebookProblemImportDraftSchema.parse({
     ...args.draft,
     source: 'manual',
@@ -3401,7 +3522,9 @@ export async function createManualCourseProblem(args: {
         }))
       )
         throw new Error('所选章节不存在或不属于当前课程。');
-      const keys = await ensureCourseProblemDedupeStateTx(tx, args.courseId);
+      const keys = privateOwnerId
+        ? await loadPrivateProblemDedupeStateTx(tx, args.courseId, privateOwnerId)
+        : await ensureCourseProblemDedupeStateTx(tx, args.courseId);
       if (keys.has(courseProblemDedupeKey(verified)))
         throw new Error('题库中已存在相同题目，请勿重复添加。');
       const last = await tx.notebookProblem.aggregate({
@@ -3414,7 +3537,10 @@ export async function createManualCourseProblem(args: {
         chapterId: args.chapterId,
         draft: verified,
         order: (last._max.order ?? -1) + 1,
-        problemNumber: await nextProblemNumberForScopeTx(tx, { courseId: args.courseId }),
+        problemNumber: privateOwnerId
+          ? null
+          : await nextProblemNumberForScopeTx(tx, { courseId: args.courseId }),
+        ownerId: privateOwnerId,
       });
       await touchOwnersAfterProblemWriteTx({ tx, courseId: args.courseId, notebookIds: [] });
       return { id: created.id, status: created.status };

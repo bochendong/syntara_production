@@ -1,4 +1,5 @@
-import { normalizeCourseDisplay } from '@/lib/course-space/course-display-name';
+import { normalizeCourseDisplay, storeCourseCode } from '@/lib/course-space/course-display-name';
+import { loadNativeCourseStoreMeta } from '@/lib/server/native-store';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/server/prisma';
@@ -56,15 +57,28 @@ export async function GET() {
     await reconcileSpeedupCourseMembershipsIfAvailable(userId);
 
     const courses = await readAccessibleCourses(userId, userEmail);
+    const storeMeta = await loadNativeCourseStoreMeta(
+      prisma,
+      userId,
+      courses.map((course) => course.id),
+    ).catch(() => new Map<string, { organizationName: string | null }>());
 
     return NextResponse.json(
       {
-        courses: courses.map((course) => ({
-          ...normalizeCourseDisplay(course),
-          avatarUrl: course.avatarUrl?.trim() || pickStableCourseAvatarUrl(course.id),
-          joinedAt: course.joinedAt ?? undefined,
-          sourceOwnerName: course.sourceOwnerName ?? undefined,
-        })),
+        courses: courses.map((course) => {
+          const display = normalizeCourseDisplay(course);
+          const organizationName = storeMeta.get(course.id)?.organizationName;
+          return {
+            ...display,
+            // 从商城加入的课和商城里一样带学校前缀（UTM-CSC 108），App 课程列表同一规则。
+            courseCode: organizationName
+              ? storeCourseCode({ ...display, university: course.university, organizationName })
+              : display.courseCode,
+            avatarUrl: course.avatarUrl?.trim() || pickStableCourseAvatarUrl(course.id),
+            joinedAt: course.joinedAt ?? undefined,
+            sourceOwnerName: course.sourceOwnerName ?? undefined,
+          };
+        }),
       },
       { headers: { 'Cache-Control': 'private, no-store' } },
     );

@@ -35,6 +35,7 @@ export function middleware(request: NextRequest) {
       adminApi ||
       webStorePage ||
       webStoreApi ||
+      /^\/api\/courses\/[^/]+\/layers\/?$/.test(pathname) ||
       pathname === '/api/downloads/macos' ||
       pathname.startsWith('/api/native/') ||
       authPath.test(pathname) ||

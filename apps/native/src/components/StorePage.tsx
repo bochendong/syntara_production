@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import { BadgeCheck, ChevronRight, Search, Star, X } from 'lucide-react';
+import { storeCourseCode } from '../../../../lib/course-space/course-display-name';
 import { bundledMarbleAvatar, resolveNativeCourseAvatar } from '../assets';
 import {
   getNativeStoreCourse,
@@ -51,12 +52,17 @@ function marbleFor(course: Pick<NativeStoreCourse, 'id' | 'courseCode' | 'avatar
   );
 }
 
+/** 商城课程名都带学校前缀，如 "UTM-CSC 108"。 */
+function codeOf(course: NativeStoreCourse): string | null {
+  return storeCourseCode({ ...course, organizationName: course.organization?.name });
+}
+
 function titleOf(course: NativeStoreCourse): string {
-  return course.courseCode || course.name;
+  return codeOf(course) || course.name;
 }
 
 function subtitleOf(course: NativeStoreCourse): string {
-  return course.courseCode ? course.name : (course.organization?.name ?? '');
+  return codeOf(course) ? course.name : (course.organization?.name ?? '');
 }
 
 /** 精选 / 热门的排序：评分、学习人数、内容量。 */

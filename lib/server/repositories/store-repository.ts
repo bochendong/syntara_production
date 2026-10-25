@@ -252,6 +252,7 @@ export function listPublishedCourseProblemsForClone(
   return db.notebookProblem.findMany({
     where: {
       status: 'published',
+      ownerId: null,
       OR:
         sourceNotebookIds.length > 0
           ? [{ courseId: sourceCourseId }, { notebookId: { in: sourceNotebookIds } }]
@@ -266,6 +267,7 @@ export function listPublishedNotebookProblemsForClone(db: DbClient, sourceNotebo
   return db.notebookProblem.findMany({
     where: {
       status: 'published',
+      ownerId: null,
       notebookId: sourceNotebookId,
     },
     include: { secret: true },

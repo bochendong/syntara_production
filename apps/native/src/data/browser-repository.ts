@@ -1044,6 +1044,22 @@ export class BrowserLocalRepository implements LocalRepository {
     await this.database.notebookAssets.where('notebookId').equals(notebookId).delete();
   }
 
+  async removeNotebook(notebookId: string): Promise<void> {
+    await this.clearNotebookContent(notebookId);
+    await this.database.problems
+      .where('notebookId')
+      .equals(notebookId)
+      .modify({ notebookId: null });
+    await this.database.studyMemories
+      .filter((memory) => memory.notebookId === notebookId)
+      .modify({ notebookId: null });
+    await this.database.conversations
+      .where('notebookId')
+      .equals(notebookId)
+      .modify({ notebookId: null });
+    await this.database.notebooks.delete(notebookId);
+  }
+
   async archiveConversationMemories(conversationId: string): Promise<LocalStudyMemory[]> {
     const memories = await this.database.studyMemories
       .filter((memory) => memory.conversationId === conversationId && memory.status === 'active')

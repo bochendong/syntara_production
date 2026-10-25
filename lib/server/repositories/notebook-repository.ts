@@ -374,8 +374,10 @@ export function summarizeNotebookScenesForMetadata(
 }
 
 export async function refreshCourseSummaryFields(db: DbClient, courseId: string) {
+  // 只数公有层：学员自己在课里加的笔记和题（私有层）不算进课程的统计。
+  const course = await db.course.findUnique({ where: { id: courseId }, select: { ownerId: true } });
   const notebookAggregate = await db.notebook.aggregate({
-    where: { courseId },
+    where: { courseId, removedAt: null, ...(course ? { ownerId: course.ownerId } : {}) },
     _sum: {
       sceneCount: true,
       speechReadyCount: true,
@@ -387,10 +389,11 @@ export async function refreshCourseSummaryFields(db: DbClient, courseId: string)
   // acquiring both counters concurrently then exhausts the pool before Prisma
   // has a chance to replace the stale connections.
   const problemCount = await db.notebookProblem.count({
-    where: { OR: [{ courseId }, { notebook: { courseId } }] },
+    where: { ownerId: null, OR: [{ courseId }, { notebook: { courseId } }] },
   });
   const publishedProblemCount = await db.notebookProblem.count({
     where: {
+      ownerId: null,
       status: 'published',
       OR: [{ courseId }, { notebook: { courseId } }],
     },

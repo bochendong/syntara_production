@@ -15,10 +15,19 @@ export async function copyCourseContentsTx(
     keys: Map<string, string>;
     chapterMap: Map<string, string>;
     tagMap: Map<string, string>;
+    /** 复制别人（课程发布者）的笔记时填；默认只复制 userId 自己的。 */
+    sourceOwnerId?: string;
+    /** 复制出来的题归谁：null = 公有层（默认），学员 id = 学员私有题。 */
+    problemOwnerId?: string | null;
   },
 ) {
   const books = await tx.notebook.findMany({
-    where: { id: { in: input.bookIds }, courseId: input.sourceId, ownerId: input.userId },
+    where: {
+      id: { in: input.bookIds },
+      courseId: input.sourceId,
+      ownerId: input.sourceOwnerId ?? input.userId,
+      removedAt: null,
+    },
     include: {
       scenes: true,
       markdownSections: true,
@@ -165,7 +174,14 @@ export async function copyCourseContentsTx(
     }
   }
   const problems = await tx.notebookProblem.findMany({
-    where: { id: { in: input.problemIds } },
+    where: {
+      id: { in: input.problemIds },
+      OR: [
+        { courseId: input.sourceId },
+        { courseId: null, notebook: { courseId: input.sourceId } },
+      ],
+      AND: [{ OR: [{ ownerId: null }, { ownerId: input.sourceOwnerId ?? input.userId }] }],
+    },
     include: { secret: true, tagAssignments: true },
     orderBy: [{ order: 'asc' }, { id: 'asc' }],
   });
@@ -184,6 +200,7 @@ export async function copyCourseContentsTx(
     const clone = await tx.notebookProblem.create({
       data: {
         courseId: input.targetId,
+        ownerId: input.problemOwnerId ?? null,
         notebookId: problem.notebookId ? (bookMap.get(problem.notebookId) ?? null) : null,
         chapterId: problem.chapterId ? (input.chapterMap.get(problem.chapterId) ?? null) : null,
         title: problem.title,
@@ -191,7 +208,7 @@ export async function copyCourseContentsTx(
         status: problem.status,
         source: problem.source,
         order: ++order,
-        problemNumber: ++number,
+        problemNumber: input.problemOwnerId ? null : ++number,
         points: problem.points,
         tags: problem.tags,
         difficulty: problem.difficulty,
@@ -208,7 +225,7 @@ export async function copyCourseContentsTx(
           copiedFromCourseId: input.sourceId,
           copiedFromProblemId: problem.id,
         }),
-        dedupeKey: input.keys.get(problem.id),
+        dedupeKey: input.problemOwnerId ? null : input.keys.get(problem.id),
       },
     });
     if (problem.secret)

@@ -12,6 +12,11 @@ import {
 import { cloneStoreCourseForUser } from '@/lib/server/services/store-purchase-service';
 import { recordTutorialStep } from '@/lib/server/onboarding';
 import { ensurePlatformTutorial } from '@/lib/server/platform-tutorial';
+import {
+  formatCourseUpdateSummary,
+  type CourseUpdateSummary,
+} from '@/lib/course-space/course-update-summary';
+import { courseUpdateSummariesForUser } from '@/lib/server/store-course-layers';
 import { PLATFORM_TUTORIAL_COURSE_ID } from '@/lib/onboarding/spotlight';
 
 /** App 商城的一门机构课程（和网页 /store/courses 同一份数据）。 */
@@ -153,14 +158,20 @@ export async function markNativeCourseSeen(prisma: PrismaClient, userId: string,
   return true;
 }
 
+export type NativeCourseStoreMeta = {
+  organizationName: string | null;
+  hasUpdate: boolean;
+  /** 「+3 题，改了 1 篇笔记」；发布新版但说不出具体变化时为空串 */
+  updateSummary: string;
+};
+
 /** 课程列表上的机构名和「有更新」标记，按课程 id 返回。 */
 export async function loadNativeCourseStoreMeta(
   prisma: PrismaClient,
   userId: string,
   courseIds: string[],
 ) {
-  if (!courseIds.length)
-    return new Map<string, { organizationName: string | null; hasUpdate: boolean }>();
+  if (!courseIds.length) return new Map<string, NativeCourseStoreMeta>();
   const [courses, enrollments] = await Promise.all([
     prisma.course.findMany({
       where: { id: { in: courseIds } },
@@ -175,7 +186,10 @@ export async function loadNativeCourseStoreMeta(
       .catch(() => []),
   ]);
   const seen = new Map(enrollments.map((row) => [row.courseId, row.seenContentVersion]));
-  return new Map(
+  const summaries = await courseUpdateSummariesForUser(prisma, userId, courseIds).catch(
+    () => new Map<string, CourseUpdateSummary>(),
+  );
+  return new Map<string, NativeCourseStoreMeta>(
     courses.map((course) => {
       const seenVersion = seen.get(course.id);
       return [
@@ -183,6 +197,7 @@ export async function loadNativeCourseStoreMeta(
         {
           organizationName: course.organization?.name ?? null,
           hasUpdate: seenVersion !== undefined && seenVersion < course.contentVersion,
+          updateSummary: formatCourseUpdateSummary(summaries.get(course.id)),
         },
       ];
     }),

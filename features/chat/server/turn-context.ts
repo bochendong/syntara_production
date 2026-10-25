@@ -9,6 +9,7 @@ import type { TrustedCourseAccess } from './trusted-course-turn';
 import { resolveCourseNotebookAccess } from '@/lib/server/repositories/course-enrollment-repository';
 import { listLearningCalendarEvents } from '@/features/learning-calendar/server/repository';
 import { loadCourseLearningOverview } from '@/features/teacher-analytics/server/course-learning-analytics';
+import { problemLayerWhere } from '@/lib/server/store-course-layers';
 
 export function localDateBoundary(date: string, timeZone = 'UTC'): Date {
   const target = new Date(`${date}T00:00:00Z`).getTime();
@@ -170,21 +171,37 @@ export async function prepareCourseTurnContext(args: {
     ? await resolveCourseNotebookAccess(db, access.userId, courseId)
     : null;
   const courseWhere: Prisma.NotebookProblemWhereInput = {
-    status: isStudent ? 'published' : { not: 'archived' },
+    status: isStudent ? undefined : { not: 'archived' },
     OR: [{ courseId }, { notebook: { courseId } }],
     ...(isStudent
       ? {
           AND: [
+            // 学员只看公有层的已发布题和自己的私有题。
+            {
+              OR: [
+                { ownerId: null, status: 'published' },
+                { ownerId: access.userId, status: { not: 'archived' } },
+              ],
+            },
             {
               OR: [
                 { notebookId: null },
                 { notebookId: { in: notebookAccess?.allowedNotebookIds || [] } },
+                { ownerId: access.userId },
               ],
             },
           ],
         }
       : {}),
   };
+  courseWhere.AND = [
+    ...(Array.isArray(courseWhere.AND)
+      ? courseWhere.AND
+      : courseWhere.AND
+        ? [courseWhere.AND]
+        : []),
+    await problemLayerWhere(db, access.userId, courseId),
+  ];
   const assertNotebook = (notebookId: string | null) => {
     if (isStudent && notebookId && !notebookAccess?.allowedNotebookIds.includes(notebookId))
       throw new CourseContextError('该课程资料尚未开放。', 403);

@@ -23,6 +23,8 @@ const SYNC_STATE_PREFIX = 'syntara.course-sync.v1:';
 const NOTEBOOK_VERSION_KEY = 'syntara.notebook-sync.v1';
 
 type CourseSyncState = {
+  /** 从网页同步下来的笔记 id；网页上删掉或自己隐藏后只收回这些，手机自己导入的不动。 */
+  notebookIds: string[];
   memoryIds: string[];
   eventIds: string[];
   lectureIds: string[];
@@ -66,6 +68,7 @@ function writeJson(key: string, value: unknown) {
 function readCourseState(courseId: string): CourseSyncState {
   const state = readJson<Partial<CourseSyncState>>(`${SYNC_STATE_PREFIX}${courseId}`, {});
   return {
+    notebookIds: Array.isArray(state.notebookIds) ? state.notebookIds : [],
     memoryIds: Array.isArray(state.memoryIds) ? state.memoryIds : [],
     eventIds: Array.isArray(state.eventIds) ? state.eventIds : [],
     lectureIds: Array.isArray(state.lectureIds) ? state.lectureIds : [],
@@ -149,6 +152,13 @@ export async function syncCourseData(
   const versions = readJson<NotebookVersions>(NOTEBOOK_VERSION_KEY, {});
   for (const notebook of remote.notebooks) {
     versions[notebook.id] = { ...versions[notebook.id], remote: notebookVersion(notebook) };
+  }
+  const remoteNotebookIdSet = new Set(remote.notebooks.map((notebook) => notebook.id));
+  for (const notebookId of state.notebookIds) {
+    if (remoteNotebookIdSet.has(notebookId) || !localNotebooks.has(notebookId)) continue;
+    await repository.removeNotebook(notebookId);
+    delete versions[notebookId];
+    result.notebooks = true;
   }
   writeJson(NOTEBOOK_VERSION_KEY, versions);
 
@@ -269,6 +279,7 @@ export async function syncCourseData(
   }
 
   writeJson(`${SYNC_STATE_PREFIX}${courseId}`, {
+    notebookIds: [...remoteNotebookIdSet],
     memoryIds: remoteMemoriesComplete
       ? [...remoteMemoryIds]
       : [...new Set([...state.memoryIds, ...remoteMemoryIds])],

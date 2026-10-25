@@ -126,7 +126,9 @@
 .phone-page-large > .phone-page-header > * {
   pointer-events: auto;
 }
+/* 收起的标题只是文字：透明时也占着顶栏中间一整列，不能挡住下面大标题行的按钮（日历的上/下个月）。 */
 .phone-page-large > .phone-page-header .phone-page-title {
+  pointer-events: none;
   opacity: 0;
   transform: translateY(6px);
   transition:

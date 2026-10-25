@@ -1,4 +1,11 @@
-import { useCallback, useMemo, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { ArrowLeft, Check, ChevronLeft, LayoutGrid, List, Play, Search, X } from 'lucide-react';
 
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
@@ -15,6 +22,25 @@ import type { LocalCourseWorkspace, LocalProblem } from '../domain/models';
 import { DIFFICULTY_MARBLES, marbleImages, type MarbleColor } from '../lib/learning-action-marbles';
 import { notebookMarbleColor, splitNotebookName } from '../lib/notebook-reading';
 import { MaterialUploadButton } from './MaterialUploadButton';
+import {
+  CourseReleaseButton,
+  HiddenContentShelf,
+  LayerActionMenu,
+  LayerBadges,
+  LayerItem,
+  type LayerMenuTarget,
+} from './CourseLayerControls';
+import { getLocalRepository } from '../data/repository';
+import {
+  copyCourseContent,
+  isPrivateProblem,
+  isProblemContentUpdated,
+  isProblemNew,
+  refreshCourseLayers,
+  removeCourseContent,
+  restoreCourseContent,
+  useCourseLayers,
+} from '../lib/course-layers';
 import './course-pages.css';
 
 export type ProblemBankLaunch = {
@@ -34,6 +60,11 @@ type ProblemBankPageProps = {
   onUpload?: () => void;
   /** 搜索框旁上传键选好的文件，交给「资料」页整理。 */
   onUploadFiles?: (files: File[]) => void;
+  /** 从商城加入的课：题目可以删除（公有的只对自己隐藏）、复制到我的，显示「新」。 */
+  layered?: boolean;
+  canRelease?: boolean;
+  /** 删除、恢复、复制之后重新同步这门课。 */
+  onContentChanged?: () => Promise<void> | void;
 };
 
 type TypeFilter = 'all' | string;
@@ -188,11 +219,13 @@ function ProblemRow({
   problem,
   number,
   status,
+  badges,
   onClick,
 }: {
   problem: LocalProblem;
   number: number | undefined;
   status: ProblemStatus | undefined;
+  badges?: ReactNode;
   onClick: () => void;
 }) {
   const color = DIFFICULTY_MARBLES[problem.difficulty] ?? 'blue';
@@ -216,6 +249,7 @@ function ProblemRow({
       <span className="pb-row-copy">
         <strong>
           <ProblemTitleText content={listTitle(problem)} />
+          {badges}
         </strong>
         <small>
           <span className="pb-row-type">{problemTypeLabel(problem.type)}</span>
@@ -262,17 +296,83 @@ export function ProblemBankPage({
   onPractice,
   onUpload,
   onUploadFiles,
+  layered = false,
+  canRelease = false,
+  onContentChanged,
 }: ProblemBankPageProps) {
   const courseId = workspace.course.id;
+  const releaseControl = canRelease ? <CourseReleaseButton courseId={courseId} /> : null;
   const [statuses] = useProblemStatuses(courseId, workspace.problems);
+  const layers = useCourseLayers(courseId);
+  const [menuTarget, setMenuTarget] = useState<LayerMenuTarget | null>(null);
+  const lastAttemptAt = useLastAttemptTimes(courseId, workspace.problems);
+  useEffect(() => {
+    if (layered) void refreshCourseLayers(courseId).catch(() => undefined);
+  }, [courseId, layered]);
+  const badgesFor = (problem: LocalProblem, showFresh = true) =>
+    layered ? (
+      <LayerBadges
+        fresh={showFresh && isProblemNew(layers, problem.id)}
+        updated={isProblemContentUpdated(layers, problem.id, lastAttemptAt.get(problem.id))}
+        mine={isPrivateProblem(layers, problem.id)}
+      />
+    ) : null;
+  const moreFor = (problem: LocalProblem) =>
+    layered
+      ? () =>
+          setMenuTarget({
+            targetType: 'problem',
+            targetId: problem.id,
+            title: listTitle(problem).replace(/\$+/g, ''),
+            mine: isPrivateProblem(layers, problem.id),
+          })
+      : undefined;
+  const afterChange = async () => {
+    await onContentChanged?.();
+  };
+  const layerOverlays = (
+    <>
+      {menuTarget ? (
+        <LayerActionMenu
+          target={menuTarget}
+          onClose={() => setMenuTarget(null)}
+          onCopy={async () => {
+            await copyCourseContent(courseId, menuTarget);
+            await afterChange();
+          }}
+          onRemove={async () => {
+            await removeCourseContent(courseId, menuTarget);
+            await afterChange();
+          }}
+        />
+      ) : null}
+    </>
+  );
+  const hiddenProblems = layered
+    ? layers.hidden.filter((item) => item.targetType === 'problem')
+    : [];
+  const hiddenShelf = (
+    <HiddenContentShelf
+      items={hiddenProblems}
+      onRestore={async (item) => {
+        await restoreCourseContent(courseId, item);
+        await afterChange();
+      }}
+    />
+  );
 
   // 学生只看已发布的题；课程里还没有发布的题时（本机自建课程）就全部显示。
+  // 加入的课里自己上传的题（私有层）还是草稿也照样显示。
   const bankProblems = useMemo(() => {
-    const published = workspace.problems.filter((problem) => problem.status === 'published');
+    const published = workspace.problems.filter(
+      (problem) =>
+        problem.status === 'published' ||
+        (layered && problem.status === 'draft' && isPrivateProblem(layers, problem.id)),
+    );
     return published.length
       ? published
       : workspace.problems.filter((problem) => problem.status !== 'archived');
-  }, [workspace.problems]);
+  }, [layered, layers, workspace.problems]);
 
   // 章节 = 题目挂的笔记本，按笔记编号排；同步来的题如果都没挂笔记本，就按第一个知识点分组。
   const chapterOf = useMemo(() => {
@@ -349,10 +449,14 @@ export function ProblemBankPage({
   const numberById = useMemo(() => {
     const numbers = new Map<string, number>();
     for (const chapter of chapters) {
-      chapter.problems.forEach((problem, index) => numbers.set(problem.id, index + 1));
+      let publicNumber = 0;
+      for (const problem of chapter.problems) {
+        if (!layered || !isPrivateProblem(layers, problem.id))
+          numbers.set(problem.id, ++publicNumber);
+      }
     }
     return numbers;
-  }, [chapters]);
+  }, [chapters, layered, layers]);
   const chapterByKey = useMemo(
     () => new Map(chapters.map((chapter) => [chapter.key, chapter])),
     [chapters],
@@ -394,7 +498,9 @@ export function ProblemBankPage({
         problemIds: problems.map((problem) => problem.id),
         initialProblemId: start.id,
         numbers: Object.fromEntries(
-          problems.map((problem) => [problem.id, numberById.get(problem.id) ?? 0]),
+          problems
+            .filter((problem) => numberById.has(problem.id))
+            .map((problem) => [problem.id, numberById.get(problem.id)!]),
         ),
         title,
       });
@@ -433,6 +539,7 @@ export function ProblemBankPage({
     writeJson('local', VIEW_STORAGE_KEY, next);
   };
   const [listCount, setListCount] = useState(LIST_PAGE_SIZE);
+
   const chapterProblems = useMemo(() => openChapter?.problems ?? [], [openChapter]);
   const typeOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -477,6 +584,7 @@ export function ProblemBankPage({
         <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
         <div className="pb-scroll">
           <div className="pb-column">
+            {releaseControl}
             <LearningEmptyState
               title="还没有题目"
               action={
@@ -489,6 +597,7 @@ export function ProblemBankPage({
                   : undefined
               }
             />
+            {hiddenShelf}
           </div>
         </div>
       </section>
@@ -525,6 +634,7 @@ export function ProblemBankPage({
         <BankHeader title={openChapter.title} subtitle={courseLabel} onBack={onBack} />
         <div className="pb-scroll">
           <div className="pb-column">
+            {releaseControl}
             <div className="pb-chapter-head" style={accentVars(openChapter.color)}>
               {chapters.length > 1 ? (
                 <button
@@ -650,13 +760,19 @@ export function ProblemBankPage({
                           role="listitem"
                           style={{ animationDelay: `${Math.min(index, 40) * 10}ms` }}
                         >
-                          <SheetCell
-                            number={numberById.get(problem.id)}
-                            status={statuses.get(problem.id)}
-                            difficulty={problem.difficulty}
-                            title={problem.title}
-                            onClick={() => practice(problem)}
-                          />
+                          <LayerItem label={problem.title} onMore={moreFor(problem)}>
+                            <SheetCell
+                              number={numberById.get(problem.id)}
+                              status={statuses.get(problem.id)}
+                              difficulty={problem.difficulty}
+                              title={problem.title}
+                              fresh={layered && isProblemNew(layers, problem.id)}
+                              onClick={() => practice(problem)}
+                            />
+                            {layered ? (
+                              <span className="lay-grid-badges">{badgesFor(problem, false)}</span>
+                            ) : null}
+                          </LayerItem>
                         </span>
                       ))}
                     </div>
@@ -677,12 +793,15 @@ export function ProblemBankPage({
                           key={problem.id}
                           style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}
                         >
-                          <ProblemRow
-                            problem={problem}
-                            number={numberById.get(problem.id)}
-                            status={statuses.get(problem.id)}
-                            onClick={() => practice(problem)}
-                          />
+                          <LayerItem label={problem.title} onMore={moreFor(problem)}>
+                            <ProblemRow
+                              problem={problem}
+                              number={numberById.get(problem.id)}
+                              status={statuses.get(problem.id)}
+                              badges={badgesFor(problem)}
+                              onClick={() => practice(problem)}
+                            />
+                          </LayerItem>
                         </li>
                       ))}
                     </ol>
@@ -697,6 +816,7 @@ export function ProblemBankPage({
                     ) : null}
                   </>
                 )}
+                {hiddenShelf}
               </div>
             </div>
           </div>
@@ -710,9 +830,14 @@ export function ProblemBankPage({
               ))}
             </span>
             {allPassed ? '再刷一遍' : '继续刷'}
-            {next ? <small>第 {numberById.get(next.id)} 题</small> : null}
+            {next ? (
+              <small>
+                {numberById.has(next.id) ? `第 ${numberById.get(next.id)} 题` : '我的题目'}
+              </small>
+            ) : null}
           </button>
         ) : null}
+        {layerOverlays}
       </section>
     );
   }
@@ -738,6 +863,7 @@ export function ProblemBankPage({
       <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
       <div className="pb-scroll">
         <div className="pb-column">
+          {releaseControl}
           <div className="material-search-row">
             <label className="pb-search">
               <Search size={17} />
@@ -770,17 +896,20 @@ export function ProblemBankPage({
                       key={problem.id}
                       style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}
                     >
-                      <ProblemRow
-                        problem={problem}
-                        number={numberById.get(problem.id)}
-                        status={statuses.get(problem.id)}
-                        onClick={() => {
-                          const chapter = chapterByKey.get(chapterOf(problem));
-                          if (chapter) {
-                            startPractice(chapter.problems, problem, chapter.title, chapter.key);
-                          }
-                        }}
-                      />
+                      <LayerItem label={problem.title} onMore={moreFor(problem)}>
+                        <ProblemRow
+                          problem={problem}
+                          number={numberById.get(problem.id)}
+                          status={statuses.get(problem.id)}
+                          badges={badgesFor(problem)}
+                          onClick={() => {
+                            const chapter = chapterByKey.get(chapterOf(problem));
+                            if (chapter) {
+                              startPractice(chapter.problems, problem, chapter.title, chapter.key);
+                            }
+                          }}
+                        />
+                      </LayerItem>
                     </li>
                   ))}
                 </ol>
@@ -868,6 +997,9 @@ export function ProblemBankPage({
               <div className="pb-wall">
                 {chapters.map((chapter, index) => {
                   const nextInChapter = firstUnpassed(chapter.problems);
+                  const freshCount = layered
+                    ? chapter.problems.filter((problem) => isProblemNew(layers, problem.id)).length
+                    : 0;
                   return (
                     <div
                       key={chapter.key}
@@ -884,6 +1016,14 @@ export function ProblemBankPage({
                       >
                         <ChapterMarble chapter={chapter} />
                         <strong>{chapter.title}</strong>
+                        {freshCount ? (
+                          <span className="pb-wall-new">
+                            <LayerBadges fresh />
+                            {freshCount > 1 ? (
+                              <b className="pb-wall-new-count">{freshCount}</b>
+                            ) : null}
+                          </span>
+                        ) : null}
                       </button>
                       <div className="pb-wall-foot">
                         <ChapterTube chapter={chapter} />
@@ -907,10 +1047,37 @@ export function ProblemBankPage({
                   );
                 })}
               </div>
+              {hiddenShelf}
             </>
           )}
         </div>
       </div>
+      {layerOverlays}
     </section>
   );
+}
+
+/** 每道题本机最后一次作答的时间，判断「做过之后题目又改过」。 */
+function useLastAttemptTimes(courseId: string, revision: unknown): Map<string, number> {
+  const [times, setTimes] = useState<Map<string, number>>(() => new Map());
+  useEffect(() => {
+    let alive = true;
+    void getLocalRepository()
+      .then((repository) => repository.listProblemProgress(courseId))
+      .then((progress) => {
+        if (!alive) return;
+        setTimes(
+          new Map(
+            progress.flatMap((item) =>
+              item.lastAttemptAt ? [[item.problemId, item.lastAttemptAt] as const] : [],
+            ),
+          ),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [courseId, revision]);
+  return times;
 }

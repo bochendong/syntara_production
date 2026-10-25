@@ -91,6 +91,9 @@ export async function ensureCourseEnrollmentTable(db: DbClient): Promise<void> {
       'ALTER TABLE "CourseEnrollment" ADD COLUMN IF NOT EXISTS "seenContentVersion" INTEGER NOT NULL DEFAULT 0',
     );
     await db.$executeRawUnsafe(
+      'ALTER TABLE "CourseEnrollment" ADD COLUMN IF NOT EXISTS "newSinceVersion" INTEGER NOT NULL DEFAULT 0',
+    );
+    await db.$executeRawUnsafe(
       'CREATE INDEX IF NOT EXISTS "CourseEnrollment_userId_joinedAt_idx" ON "CourseEnrollment"("userId", "joinedAt" DESC)',
     );
     await db.$executeRawUnsafe(
@@ -237,6 +240,8 @@ export async function resolveCourseNotebookAccess(
 ): Promise<CourseNotebookAccess | null> {
   const accessRole = await findCourseAccessRole(db, userId, courseId);
   if (!accessRole) return null;
+  const course = await db.course.findUnique({ where: { id: courseId }, select: { ownerId: true } });
+  if (!course) return null;
 
   const notebooks = orderCourseNotebooks(
     (
@@ -245,7 +250,7 @@ export async function resolveCourseNotebookAccess(
         where: {
           courseId,
           removedAt: null,
-          OR: [{ ownerId: userId }, { owner: { courseEnrollments: { none: { courseId } } } }],
+          OR: [{ ownerId: userId }, { ownerId: course.ownerId }],
         },
         select: { id: true, ownerId: true, name: true, createdAt: true, coverSlideJson: true },
       })
@@ -274,31 +279,36 @@ export async function resolveCourseNotebookAccess(
       select: { id: true },
     });
     if (!legacyPurchase) return null;
-    return {
-      role: 'enrolled',
-      notebookAccessLimit: null,
-      orderedNotebookIds,
-      allowedNotebookIds: orderedNotebookIds,
-    };
   }
 
   const notebookAccessLimit =
-    enrollment.notebookAccessLimit === null
+    !enrollment || enrollment.notebookAccessLimit === null
       ? null
       : Math.max(0, Math.floor(enrollment.notebookAccessLimit));
   // 自己上传的笔记不占课程的解锁名额。
   const personalNotebookIds = notebooks
     .filter((notebook) => notebook.ownerId === userId)
     .map((notebook) => notebook.id);
+  // 学员「删除」的公有笔记只是对自己隐藏。
+  const hiddenNotebookIds = new Set(
+    (
+      await db.courseContentHide.findMany({
+        where: { userId, courseId, targetType: 'notebook' },
+        select: { targetId: true },
+      })
+    ).map((row) => row.targetId),
+  );
   const courseNotebookIds = orderedNotebookIds.filter((id) => !personalNotebookIds.includes(id));
   return {
     role: 'enrolled',
     notebookAccessLimit,
     orderedNotebookIds,
+    // 先按解锁名额截，再去掉隐藏的：隐藏不会让后面的笔记多解锁一篇。
     allowedNotebookIds: [
       ...(notebookAccessLimit === null
         ? courseNotebookIds
-        : courseNotebookIds.slice(0, notebookAccessLimit)),
+        : courseNotebookIds.slice(0, notebookAccessLimit)
+      ).filter((id) => !hiddenNotebookIds.has(id)),
       ...personalNotebookIds,
     ],
   };
@@ -347,6 +357,7 @@ export async function createCourseEnrollment(
       "notebookAccessLimit",
       "source",
       "seenContentVersion",
+      "newSinceVersion",
       "joinedAt",
       "createdAt"
     )
@@ -357,6 +368,7 @@ export async function createCourseEnrollment(
       ${args.priceCents},
       ${args.notebookAccessLimit ?? null},
       ${args.source ?? 'store'},
+      ${args.seenContentVersion ?? 0},
       ${args.seenContentVersion ?? 0},
       CURRENT_TIMESTAMP,
       CURRENT_TIMESTAMP
@@ -408,7 +420,10 @@ export async function removeCourseEnrollmentForUser(
   return result;
 }
 
-/** 打开机构课程时记下已看到的版本，用来熄灭「有更新」弹珠。 */
+/**
+ * 打开机构课程时记下已看到的版本，用来熄灭「有更新」弹珠。
+ * 之前看到的版本记进 newSinceVersion：比它新的公有内容继续挂「新」弹珠，直到下一版。
+ */
 export async function markCourseEnrollmentSeen(
   db: DbClient,
   userId: string,
@@ -417,7 +432,8 @@ export async function markCourseEnrollmentSeen(
   await ensureCourseEnrollmentTable(db);
   await db.$executeRaw`
     UPDATE "CourseEnrollment" e
-    SET "seenContentVersion" = c."contentVersion"
+    SET "newSinceVersion" = e."seenContentVersion",
+      "seenContentVersion" = c."contentVersion"
     FROM "Course" c
     WHERE c."id" = e."courseId"
       AND e."userId" = ${userId}

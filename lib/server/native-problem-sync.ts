@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createNotebookProblemAttempt } from '@/lib/server/notebook-problems/service';
 import type { PrismaClient } from '@/lib/server/generated-prisma';
 import { resolveCourseNotebookAccess } from '@/lib/server/repositories/course-enrollment-repository';
+import { problemLayerWhere } from '@/lib/server/store-course-layers';
 
 /**
  * App 端题库同步：题目按 updatedAt 增量下发，字段与 apps/native 的 LocalProblem 一致；
@@ -23,18 +24,33 @@ function jsonRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-/** 老师（课程拥有者）看得到草稿；学生只看已发布的，且只看已解锁笔记里的题。 */
+/** 老师（课程拥有者）看得到草稿；学生只看已发布的，且只看已解锁笔记里的题。都只看「公有 + 自己的」，去掉自己隐藏的。 */
 async function visibleProblemWhere(prisma: PrismaClient, userId: string, courseId: string) {
   const access = await resolveCourseNotebookAccess(prisma, userId, courseId);
   if (!access) return null;
   const owner = access.role === 'owner';
   const limited = !owner && access.notebookAccessLimit !== null;
+  const layer = await problemLayerWhere(prisma, userId, courseId);
   return {
     courseId,
-    status: owner ? { in: ['draft' as const, 'published' as const] } : ('published' as const),
-    ...(limited
-      ? { OR: [{ notebookId: null }, { notebookId: { in: access.allowedNotebookIds } }] }
-      : {}),
+    AND: [
+      layer,
+      // 学员自己的私有题连草稿也看得到。
+      owner
+        ? { status: { in: ['draft' as const, 'published' as const] } }
+        : { OR: [{ status: 'published' as const }, { ownerId: userId, status: 'draft' as const }] },
+      ...(limited
+        ? [
+            {
+              OR: [
+                { notebookId: null },
+                { notebookId: { in: access.allowedNotebookIds } },
+                { ownerId: userId },
+              ],
+            },
+          ]
+        : []),
+    ],
   };
 }
 
@@ -71,6 +87,9 @@ export async function readNativeProblems(
             order: true,
             publicContentJson: true,
             gradingJson: true,
+            ownerId: true,
+            releaseAddedIn: true,
+            contentUpdatedAt: true,
             createdAt: true,
             updatedAt: true,
           },
@@ -94,9 +113,15 @@ export async function readNativeProblems(
       take: NATIVE_PROBLEM_LIMIT,
     }),
   ]);
+  const enrollment = await prisma.courseEnrollment.findFirst({
+    where: { userId, courseId },
+    select: { newSinceVersion: true },
+  });
   return {
     courseId,
     serverTime,
+    /** 题目的 releaseAddedIn 比它大就标「新」。课程拥有者没有这个值。 */
+    newSinceVersion: enrollment?.newSinceVersion ?? null,
     /** 网页上这门课当前所有可见题目的 id；本机有、这里没有的就是网页上删掉或收回的。 */
     problemIds: ids.map((row) => row.id),
     complete: ids.length < NATIVE_PROBLEM_LIMIT,
@@ -111,6 +136,9 @@ export async function readNativeProblems(
       tags: problem.tags,
       publicContent: jsonRecord(problem.publicContentJson),
       grading: jsonRecord(problem.gradingJson),
+      layer: problem.ownerId ? ('private' as const) : ('public' as const),
+      releaseAddedIn: problem.releaseAddedIn,
+      contentUpdatedAt: problem.contentUpdatedAt ? timestamp(problem.contentUpdatedAt) : null,
       createdAt: timestamp(problem.createdAt),
       updatedAt: timestamp(problem.updatedAt),
     })),

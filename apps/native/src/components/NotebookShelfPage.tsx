@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Search } from 'lucide-react';
 
 import { getLocalRepository } from '../data/repository';
@@ -17,6 +17,20 @@ import { LocalResourceViewer, type LocalResourceDocument } from './LocalResource
 import { PhonePage } from './PhonePages';
 import './course-pages.css';
 import { MaterialUploadButton } from './MaterialUploadButton';
+import {
+  HiddenContentShelf,
+  LayerActionMenu,
+  LayerBadges,
+  LayerItem,
+  type LayerMenuTarget,
+} from './CourseLayerControls';
+import {
+  copyCourseContent,
+  refreshCourseLayers,
+  removeCourseContent,
+  restoreCourseContent,
+  useCourseLayers,
+} from '../lib/course-layers';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** 节数太多时只画这么多颗，剩下的收成「+N」。 */
@@ -71,6 +85,8 @@ export function PhoneNotesPage({
   onBack,
   onUpload,
   onUploadFiles,
+  layered = false,
+  onContentChanged,
 }: {
   workspace: LocalCourseWorkspace;
   onBack: () => void;
@@ -78,7 +94,19 @@ export function PhoneNotesPage({
   onUpload?: () => void;
   /** 搜索框旁上传键选好的文件，交给「资料」页整理。 */
   onUploadFiles?: (files: File[]) => void;
+  /** 从商城加入的课：笔记可以删除（公有的只对自己隐藏）、复制到我的，显示「新」。 */
+  layered?: boolean;
+  /** 删除、恢复、复制之后重新同步这门课。 */
+  onContentChanged?: () => Promise<void> | void;
 }) {
+  const courseId = workspace.course.id;
+  const layers = useCourseLayers(courseId);
+  const [menuTarget, setMenuTarget] = useState<LayerMenuTarget | null>(null);
+  useEffect(() => {
+    if (layered) void refreshCourseLayers(courseId).catch(() => undefined);
+  }, [courseId, layered]);
+  const freshIds = useMemo(() => new Set(layers.newNotebookIds), [layers.newNotebookIds]);
+  const mineIds = useMemo(() => new Set(layers.privateNotebookIds), [layers.privateNotebookIds]);
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -221,29 +249,52 @@ export function PhoneNotesPage({
                 notebook.sectionCount > 0 &&
                 (reading?.visited.length ?? 0) >= notebook.sectionCount;
               return (
-                <button
+                <LayerItem
                   key={notebook.id}
-                  type="button"
-                  className={`nb-card${busy ? ' is-opening' : ''}${done ? ' is-done' : ''}`}
-                  style={{
-                    ...accentStyle(color),
-                    animationDelay: `${Math.min(index % 40, 12) * 28}ms`,
-                  }}
-                  disabled={busyId !== null}
-                  onClick={() => void openNotebook(notebook)}
+                  label={title}
+                  onMore={
+                    layered
+                      ? () =>
+                          setMenuTarget({
+                            targetType: 'notebook',
+                            targetId: notebook.id,
+                            title,
+                            mine: mineIds.has(notebook.id),
+                          })
+                      : undefined
+                  }
                 >
-                  <NotebookMarble color={color} number={number} />
-                  <span className="nb-card-copy">
-                    <strong>{title}</strong>
-                    <span className="nb-card-foot">
-                      <SectionDots total={notebook.sectionCount} reading={reading} />
-                      <small title={new Date(notebook.updatedAt).toLocaleString()}>
-                        {formatAgo(notebook.updatedAt)}
-                      </small>
+                  <button
+                    type="button"
+                    className={`nb-card${busy ? ' is-opening' : ''}${done ? ' is-done' : ''}`}
+                    style={{
+                      ...accentStyle(color),
+                      animationDelay: `${Math.min(index % 40, 12) * 28}ms`,
+                    }}
+                    disabled={busyId !== null}
+                    onClick={() => void openNotebook(notebook)}
+                  >
+                    <NotebookMarble color={color} number={number} />
+                    <span className="nb-card-copy">
+                      <strong>
+                        <span>{title}</span>
+                        {layered ? (
+                          <LayerBadges
+                            fresh={freshIds.has(notebook.id)}
+                            mine={mineIds.has(notebook.id)}
+                          />
+                        ) : null}
+                      </strong>
+                      <span className="nb-card-foot">
+                        <SectionDots total={notebook.sectionCount} reading={reading} />
+                        <small title={new Date(notebook.updatedAt).toLocaleString()}>
+                          {formatAgo(notebook.updatedAt)}
+                        </small>
+                      </span>
                     </span>
-                  </span>
-                  {busy ? <GlassSpinner size={17} className="nb-card-trailing" /> : null}
-                </button>
+                    {busy ? <GlassSpinner size={17} className="nb-card-trailing" /> : null}
+                  </button>
+                </LayerItem>
               );
             })}
           </div>
@@ -266,6 +317,31 @@ export function PhoneNotesPage({
           }
         />
       )}
+
+      {layered ? (
+        <HiddenContentShelf
+          items={layers.hidden.filter((item) => item.targetType === 'notebook')}
+          onRestore={async (item) => {
+            await restoreCourseContent(courseId, item);
+            await onContentChanged?.();
+          }}
+        />
+      ) : null}
+
+      {menuTarget ? (
+        <LayerActionMenu
+          target={menuTarget}
+          onClose={() => setMenuTarget(null)}
+          onCopy={async () => {
+            await copyCourseContent(courseId, menuTarget);
+            await onContentChanged?.();
+          }}
+          onRemove={async () => {
+            await removeCourseContent(courseId, menuTarget);
+            await onContentChanged?.();
+          }}
+        />
+      ) : null}
 
       {resource ? (
         <LocalResourceViewer

@@ -11,7 +11,7 @@ import { backendJson } from '@/lib/utils/backend-api';
 import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
 import { MARBLE_AVATAR_CATALOG } from '@/lib/constants/marble-avatars';
 import avatarThemeHues from '@/lib/constants/marble-avatar-theme-hues.json';
-import { courseDisplayCode } from '@/lib/course-space/course-display-name';
+import { storeCourseCode } from '@/lib/course-space/course-display-name';
 import store from '../store.module.css';
 import styles from './detail.module.css';
 import { PLATFORM_TUTORIAL_COURSE_ID } from '@/lib/onboarding/spotlight';
@@ -213,7 +213,8 @@ export default function StoreCourseDetailPage() {
 
   const { course, reviews } = data;
   const art = courseArt(course.id, course.avatarUrl);
-  const title = courseDisplayCode(course) || course.name;
+  const title =
+    storeCourseCode({ ...course, organizationName: course.organization?.name }) || course.name;
   const pages = course.notebooks.reduce((sum, notebook) => sum + notebookPages(notebook), 0);
   const facts = [
     ...(course.reviewCount > 0

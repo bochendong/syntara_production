@@ -192,6 +192,7 @@ import { PhoneNotesPage } from './NotebookShelfPage';
 import { notebookAccentFor } from '../lib/notebook-reading';
 import { ProblemPracticePage } from './ProblemPracticePage';
 import { ProblemBankPage, type ProblemBankLaunch } from './ProblemBankPage';
+import { CourseUpdateCard } from './CourseLayerControls';
 import { ChatRichText, type ChatRichMemory, type ChatRichSource } from './chat-rich/ChatRichText';
 import type {
   LocalConversation,
@@ -1517,7 +1518,7 @@ export function PhoneChatDrawer<
                                 className="phone-drawer-course-update"
                                 src={marbleImages.amber}
                                 alt="有更新"
-                                title="机构发布了新版"
+                                title={courseMeta[course.id]?.updateSummary || '机构发布了新版'}
                               />
                             ) : null}
                           </button>
@@ -2668,6 +2669,9 @@ export function CourseWorkspace({
     courseIdRef.current = workspace.course.id;
   }, [workspace.course.id]);
   const [notice, setNotice] = useState<string | null>(null);
+  /** 机构发了新版：打开课程时在输入框上方亮一下更新摘要。 */
+  const [updateNote, setUpdateNote] = useState<{ courseId: string; text: string } | null>(null);
+  const updateNoteText = updateNote?.courseId === workspace.course.id ? updateNote.text : null;
   const [scheduleItems, setScheduleItems] = useState<LocalCourseEvent[]>([]);
   /** 网页数据同步到本机后加一，触发日历和课堂重新读取。 */
   const [courseDataRevision, setCourseDataRevision] = useState(0);
@@ -3071,6 +3075,14 @@ export function CourseWorkspace({
     conversationsRef.current = workspace.conversations;
     onWorkspaceChangedRef.current = onWorkspaceChanged;
   }, [onWorkspaceChanged, workspace.conversations]);
+  // 加入的课里删除、恢复、复制笔记或题目之后：重新同步这门课，本机列表马上跟上。
+  const resyncCourseContent = useCallback(async () => {
+    const repository = await getLocalRepository();
+    await syncCourseData(repository, workspace.course.id).catch((cause) =>
+      console.warn('[course-sync] resync failed', cause),
+    );
+    await onWorkspaceChangedRef.current();
+  }, [workspace.course.id]);
   useEffect(() => {
     const courseId = workspace.course.id;
     let cancelled = false;
@@ -3098,7 +3110,9 @@ export function CourseWorkspace({
         setCourseDataRevision((value) => value + 1);
       }
       // 机构发了新版：打开看过就熄灭课程旁的更新弹珠，别的设备下次同步也会熄灭。
-      if (readPlatformCourseMeta()[courseId]?.hasUpdate) {
+      const courseMetaNow = readPlatformCourseMeta()[courseId];
+      if (courseMetaNow?.hasUpdate) {
+        setUpdateNote({ courseId, text: courseMetaNow.updateSummary || '机构发布了新版' });
         clearPlatformCourseUpdate(courseId);
         void nativeStoreAction(courseId, 'seen').catch((cause) =>
           console.warn('[store] mark seen failed', cause),
@@ -5040,11 +5054,9 @@ export function CourseWorkspace({
     }
     open();
   };
-  // 手机没有题库；加入的机构课程里只能补自己的笔记。
-  const materialKinds: CourseMaterialKind[] =
-    phoneLayout || courseMeta[workspace.course.id]?.accessRole === 'enrolled'
-      ? ['notes']
-      : ['notes', 'problems'];
+  // 手机没有题库；加入的机构课程里补的笔记和题目只在自己的私有层。
+  const materialKinds: CourseMaterialKind[] = phoneLayout ? ['notes'] : ['notes', 'problems'];
+  const enrolledCourse = courseMeta[workspace.course.id]?.accessRole === 'enrolled';
   const courseToolActions: DrawerLearningAction[] = [
     { id: 'materials', label: '资料', icon: FolderUp, open: () => setPhonePage('materials') },
     {
@@ -5321,6 +5333,9 @@ export function CourseWorkspace({
       ) : null}
 
       <main ref={chatDropTargetRef} className="conversation-workspace">
+        {updateNoteText ? (
+          <CourseUpdateCard text={updateNoteText} onClose={() => setUpdateNote(null)} />
+        ) : null}
         {chatFileDragging ? (
           <div className="chat-file-drop-overlay" role="status">
             <div>
@@ -5730,6 +5745,8 @@ export function CourseWorkspace({
                   onBack={() => closeLearningPage(page)}
                   onUpload={() => setPhonePage('materials')}
                   onUploadFiles={(files) => uploadFromPage('notes', files)}
+                  layered={enrolledCourse}
+                  onContentChanged={resyncCourseContent}
                 />
               ) : null}
               {page === 'progress' ? (
@@ -5770,6 +5787,12 @@ export function CourseWorkspace({
                         ? (files) => uploadFromPage('problems', files)
                         : undefined
                     }
+                    canRelease={
+                      courseMeta[workspace.course.id]?.accessRole === 'owner' &&
+                      Boolean(courseMeta[workspace.course.id]?.organizationName)
+                    }
+                    layered={enrolledCourse}
+                    onContentChanged={resyncCourseContent}
                   />
                 </div>
               ) : null}

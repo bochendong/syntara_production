@@ -8,6 +8,10 @@ export type PlatformCourseMeta = {
   accessRole: NativePlatformCourse['accessRole'];
   organizationName: string | null;
   hasUpdate: boolean;
+  /** 「+3 题，改了 1 篇笔记」；打开课程时在聊天上方亮一下。 */
+  updateSummary?: string | null;
+  /** 账号上存的课程头像：商城课程用商城里那颗，自己建的课是创建时随机的那颗。 */
+  avatarUrl?: string | null;
 };
 
 const STORAGE_KEY = 'syntara.platform-course-meta.v1';
@@ -17,7 +21,9 @@ export function readPlatformCourseMeta(): Record<string, PlatformCourseMeta> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : {};
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, PlatformCourseMeta>) : {};
+    return parsed && typeof parsed === 'object'
+      ? (parsed as Record<string, PlatformCourseMeta>)
+      : {};
   } catch {
     return {};
   }
@@ -41,6 +47,8 @@ export function savePlatformCourseMeta(courses: NativePlatformCourse[]) {
           accessRole: course.accessRole,
           organizationName: course.organizationName ?? null,
           hasUpdate: Boolean(course.hasUpdate),
+          updateSummary: course.updateSummary || null,
+          avatarUrl: course.avatarUrl || null,
         },
       ]),
     ),
