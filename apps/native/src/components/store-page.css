@@ -216,6 +216,10 @@
     0 18px 40px -22px rgb(30 41 80 / 45%);
   scroll-snap-align: start;
   cursor: pointer;
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.st-feature:active {
+  transform: scale(0.98);
 }
 /* 有场景图时：整张卡铺满场景，文字压在下半部分的渐变上。 */
 .st-feature.has-scene {
@@ -239,6 +243,10 @@
   margin-top: 0;
   background: rgb(255 255 255 / 72%);
 }
+.st-feature.has-scene:hover {
+  background-size: auto, 104%;
+}
+
 .st-feature-copy {
   position: relative;
   z-index: 1;

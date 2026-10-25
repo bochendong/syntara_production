@@ -195,17 +195,26 @@
     0 18px 40px -22px rgb(30 41 80 / 45%);
   scroll-snap-align: start;
   cursor: pointer;
+  transition:
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-size 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 @media (min-width: 900px) {
   .feature {
     height: 380px;
   }
 }
+.feature:active {
+  transform: scale(0.98);
+}
 /* 有场景图时：整张卡铺满场景，文字压在下半部分的渐变上。 */
 .featureScene {
   background:
     linear-gradient(180deg, transparent 30%, rgb(10 14 30 / 55%) 72%, rgb(10 14 30 / 70%)),
     var(--st-scene) center / cover no-repeat;
+}
+.featureScene:hover {
+  background-size: auto, 104%;
 }
 .featureScene .featureCopy {
   margin-top: auto;

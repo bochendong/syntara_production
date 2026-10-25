@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
-import { ChevronLeft, Play, Search, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, ChevronLeft, Play, Search, X } from 'lucide-react';
 
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
 import { LearningEmptyState } from './LearningEmptyState';
+import { getLocalRepository } from '../data/repository';
 import type { LocalCourseWorkspace, LocalProblem } from '../domain/models';
 import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
 import './course-pages.css';
@@ -32,6 +33,14 @@ const DIFFICULTY_OPTIONS = (['easy', 'medium', 'hard'] as const).map((value) => 
   label: difficultyLabel(value),
   color: DIFFICULTY_MARBLES[value],
 }));
+
+type ProblemStatus = 'passed' | 'partial' | 'failed' | 'pending';
+
+function progressStatus(value: string | undefined): ProblemStatus | null {
+  return value === 'passed' || value === 'partial' || value === 'failed' || value === 'pending'
+    ? value
+    : null;
+}
 
 function difficultyMarble(difficulty: LocalProblem['difficulty']): string {
   return marbleImages[DIFFICULTY_MARBLES[difficulty] ?? 'blue'];
@@ -67,6 +76,27 @@ export function ProblemBankPage({ workspace, onBack, onPractice, onUpload }: Pro
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('all');
   const [visibleCount, setVisibleCount] = useState(PROBLEM_BANK_PAGE_SIZE);
+  const [statuses, setStatuses] = useState<Map<string, ProblemStatus>>(() => new Map());
+
+  // 做过的题在弹珠上留个小记号：对了绿勾，错了粉点。
+  useEffect(() => {
+    let alive = true;
+    void getLocalRepository()
+      .then((repository) => repository.listProblemProgress(workspace.course.id))
+      .then((progress) => {
+        if (!alive) return;
+        const next = new Map<string, ProblemStatus>();
+        for (const item of progress) {
+          const status = progressStatus(item.status);
+          if (status) next.set(item.problemId, status);
+        }
+        setStatuses(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [workspace.course.id, workspace.problems]);
 
   // 学生只看已发布的题；课程里还没有发布的题时（本机自建课程）就全部显示。
   const bankProblems = useMemo(() => {
@@ -83,6 +113,18 @@ export function ProblemBankPage({ workspace, onBack, onPractice, onUpload }: Pro
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
   }, [bankProblems]);
+
+  const difficultyCounts = useMemo(() => {
+    const counts = { easy: 0, medium: 0, hard: 0 } as Record<LocalProblem['difficulty'], number>;
+    for (const problem of bankProblems) {
+      if (problem.difficulty in counts) counts[problem.difficulty] += 1;
+    }
+    return counts;
+  }, [bankProblems]);
+  const passedCount = useMemo(
+    () => bankProblems.filter((problem) => statuses.get(problem.id) === 'passed').length,
+    [bankProblems, statuses],
+  );
 
   const filteredProblems = useMemo(() => {
     return bankProblems
@@ -116,6 +158,7 @@ export function ProblemBankPage({ workspace, onBack, onPractice, onUpload }: Pro
           <strong>题库</strong>
           <small>
             {workspace.course.courseCode || workspace.course.name} · {filteredProblems.length} 题
+            {passedCount ? ` · ${passedCount} 已过` : ''}
           </small>
         </div>
         <span className="pb-header-spacer" aria-hidden />
@@ -150,37 +193,53 @@ export function ProblemBankPage({ workspace, onBack, onPractice, onUpload }: Pro
                 ) : null}
               </label>
 
-              <div className="pb-chips" role="group" aria-label="难度">
-                <button
-                  type="button"
-                  className={difficultyFilter === 'all' ? 'is-active' : ''}
-                  onClick={() => {
-                    if (difficultyFilter === 'all') return;
-                    setDifficultyFilter('all');
-                    setVisibleCount(PROBLEM_BANK_PAGE_SIZE);
-                  }}
-                >
-                  全部
-                </button>
-                {DIFFICULTY_OPTIONS.map((option) => (
+              {/* 一根玻璃管：三种难度的弹珠按题数分段，点一段只看这一档。 */}
+              <div
+                className={`pb-tube${difficultyFilter !== 'all' ? ' has-filter' : ''}`}
+                role="group"
+                aria-label="难度"
+              >
+                {DIFFICULTY_OPTIONS.map((option) => {
+                  const count = difficultyCounts[option.value];
+                  if (!count) return null;
+                  const active = difficultyFilter === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`pb-tube-seg is-${option.color}${active ? ' is-active' : ''}`}
+                      style={{ flexGrow: Math.max(count, bankProblems.length * 0.14) }}
+                      aria-pressed={active}
+                      onClick={() => {
+                        setDifficultyFilter((current) =>
+                          current === option.value ? 'all' : option.value,
+                        );
+                        setVisibleCount(PROBLEM_BANK_PAGE_SIZE);
+                      }}
+                    >
+                      <img src={marbleImages[option.color]} alt="" />
+                      <span>{option.label}</span>
+                      <b>{count}</b>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="pb-chips" role="group" aria-label="题型">
+                {typeOptions.length > 1 ? (
                   <button
-                    key={option.value}
                     type="button"
-                    className={difficultyFilter === option.value ? 'is-active' : ''}
+                    className={typeFilter === 'all' ? 'is-active' : ''}
                     onClick={() => {
-                      setDifficultyFilter((current) =>
-                        current === option.value ? 'all' : option.value,
-                      );
+                      setTypeFilter('all');
                       setVisibleCount(PROBLEM_BANK_PAGE_SIZE);
                     }}
                   >
-                    <img src={marbleImages[option.color]} alt="" />
-                    {option.label}
+                    全部
                   </button>
-                ))}
-                {typeOptions.length > 1 ? <span className="pb-chips-divider" aria-hidden /> : null}
+                ) : null}
                 {typeOptions.length > 1
-                  ? typeOptions.map(([type]) => (
+                  ? typeOptions.map(([type, count]) => (
                       <button
                         key={type}
                         type="button"
@@ -191,6 +250,7 @@ export function ProblemBankPage({ workspace, onBack, onPractice, onUpload }: Pro
                         }}
                       >
                         {problemTypeLabel(type)}
+                        <small>{count}</small>
                       </button>
                     ))
                   : null}
@@ -215,18 +275,25 @@ export function ProblemBankPage({ workspace, onBack, onPractice, onUpload }: Pro
             <LearningEmptyState title="没有找到题目" />
           ) : (
             <ol className="pb-list">
-              {visibleProblems.map((problem, index) => (
+              {visibleProblems.map((problem, index) => {
+                const status = statuses.get(problem.id);
+                return (
                 <li key={problem.id} style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}>
                   <button
                     type="button"
-                    className="pb-row"
+                    className={`pb-row is-${DIFFICULTY_MARBLES[problem.difficulty] ?? 'blue'}${status ? ` is-${status}` : ''}`}
                     onClick={() => startPractice(problem.id)}
                   >
-                    <img
-                      className="pb-row-marble"
-                      src={difficultyMarble(problem.difficulty)}
-                      alt=""
-                    />
+                    <span className="pb-row-marble">
+                      <img src={difficultyMarble(problem.difficulty)} alt="" />
+                      {status === 'passed' ? (
+                        <i className="pb-row-badge" aria-label="已通过">
+                          <Check size={10} strokeWidth={3.5} />
+                        </i>
+                      ) : status ? (
+                        <i className="pb-row-badge" aria-label="做过" />
+                      ) : null}
+                    </span>
                     <span className="pb-row-copy">
                       <strong>
                         <ProblemTitleText content={listTitle(problem)} />
@@ -241,7 +308,8 @@ export function ProblemBankPage({ workspace, onBack, onPractice, onUpload }: Pro
                     </span>
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ol>
           )}
 
@@ -259,8 +327,13 @@ export function ProblemBankPage({ workspace, onBack, onPractice, onUpload }: Pro
 
       {filteredProblems.length ? (
         <button type="button" className="pb-start" onClick={() => startPractice()}>
-          <Play size={16} fill="currentColor" />
+          <span className="pb-start-marbles" aria-hidden>
+            {(['green', 'amber', 'pink'] as const).map((color) => (
+              <img key={color} src={marbleImages[color]} alt="" />
+            ))}
+          </span>
           开始练习
+          <small>{filteredProblems.length}</small>
         </button>
       ) : null}
     </section>

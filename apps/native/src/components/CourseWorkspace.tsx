@@ -169,7 +169,12 @@ import {
   GlassSpinner,
 } from './GlassLoadMore';
 import { MarbleCatcher, type MarbleCatch } from './MarbleCatcher';
-import { markMemoryReviewed } from '../lib/memory-freshness';
+import {
+  STALE_FRESHNESS,
+  markMemoryReviewed,
+  memoryFreshness,
+  readReviewedMap,
+} from '../lib/memory-freshness';
 import { useChatFileDrop } from '../lib/use-chat-file-drop';
 import { NativeReviewPlanCard } from './NativeReviewPlanCard';
 import { NativeWorkspaceDialog } from './NativeWorkspaceDialog';
@@ -178,10 +183,11 @@ import {
   PhoneClassroomPage,
   PhoneConfirm,
   PhoneMemoryPage,
-  PhoneNotesPage,
   PhoneProfilePage,
   PhoneProgressPage,
 } from './PhonePages';
+import { PhoneNotesPage } from './NotebookShelfPage';
+import { notebookAccentFor } from '../lib/notebook-reading';
 import { ProblemPracticePage } from './ProblemPracticePage';
 import { ProblemBankPage, type ProblemBankLaunch } from './ProblemBankPage';
 import { ChatRichText, type ChatRichMemory, type ChatRichSource } from './chat-rich/ChatRichText';
@@ -973,51 +979,132 @@ export function LearningToolsCard({ actions }: { actions: DrawerLearningAction[]
   );
 }
 
+/** 学习卡里随上下文出现的一组：没有内容的组不显示。 */
+type LearningFloatSection = {
+  id: string;
+  title: string;
+  count?: number;
+  rows: {
+    id: string;
+    tool: string;
+    icon: typeof BookOpen;
+    label: string;
+    hint?: string;
+    open: () => void;
+  }[];
+};
+
+/** 卡片怎么分：聊天相关一张、提醒一张，课程工具固定在最下面一张。 */
+const FLOAT_CARD_GROUPS = [
+  { id: 'chat', sections: ['outputs', 'sources'] },
+  { id: 'reminders', sections: ['upcoming', 'review'] },
+];
+
+function LearningFloatSectionView({ section }: { section: LearningFloatSection }) {
+  const { id, title, count, rows } = section;
+  return (
+    <section className="is-context" data-section={id}>
+      <div className="learning-float-section">
+        <span>{title}</span>
+        {count ? <small>{count}</small> : null}
+      </div>
+      {rows.map(({ id: rowId, tool, icon, label, hint, open }) => (
+        <button
+          type="button"
+          key={rowId}
+          className="learning-float-row"
+          data-tool={tool}
+          onClick={open}
+          title={label}
+        >
+          <LearningToolIcon tool={tool} fallback={icon} />
+          <span>{label}</span>
+          {hint ? <small>{hint}</small> : null}
+        </button>
+      ))}
+    </section>
+  );
+}
+
 /**
- * 宽屏聊天页右上角的浮动学习卡：资料一组、学习一组，点一行在顶栏开标签。
+ * 宽屏聊天页右上角的一叠浮动卡片（像 Codex 的侧卡）。上面的卡片跟着当前聊天和课程出现或消失：
+ * 这次聊天的产出和引用一张，接下来的日程和该复习的记忆一张；最下面一张固定是资料和学习工具。
  */
-function LearningFloatCard({ actions }: { actions: DrawerLearningAction[] }) {
+function LearningFloatCard({
+  actions,
+  sections: contextSections,
+}: {
+  actions: DrawerLearningAction[];
+  sections: LearningFloatSection[];
+}) {
   const byId = new Map(actions.map((action) => [action.id, action]));
-  const sections = [
+  const tools = [
     { title: '资料', add: byId.get('materials'), ids: ['notes', 'problems'] },
     { title: '学习', ids: ['progress', 'memory', 'classroom'] },
   ];
+  const cards = FLOAT_CARD_GROUPS.map(({ id, sections }) => ({
+    id,
+    sections: contextSections.filter((section) => sections.includes(section.id)),
+  })).filter((card) => card.sections.length);
   return (
-    <aside className="learning-float-card" aria-label="课程学习">
-      {sections.map(({ title: sectionTitle, add, ids }) => (
-        <section key={sectionTitle}>
-          <div className="learning-float-section">
-            <span>{sectionTitle}</span>
-            {add ? (
-              <button type="button" onClick={add.open} aria-label="上传资料" title="上传资料">
-                <Plus size={14} strokeWidth={2} />
-              </button>
-            ) : null}
-          </div>
-          {ids.map((id) => {
-            const action = byId.get(id);
-            if (!action) return null;
-            const { label, icon: Icon, open, count } = action;
-            return (
-              <button
-                type="button"
-                key={id}
-                className="learning-float-row"
-                data-tool={id}
-                data-marble-target={id === 'memory' ? '2' : undefined}
-                onClick={open}
-              >
-                <LearningToolIcon tool={id} fallback={Icon} />
-                <span>{label}</span>
-                {count ? <small>{count}</small> : null}
-              </button>
-            );
-          })}
-        </section>
+    <aside className="learning-float-stack" aria-label="课程学习">
+      {cards.map((card) => (
+        <div key={card.id} className="learning-float-card is-context" data-card={card.id}>
+          {card.sections.map((section) => (
+            <LearningFloatSectionView key={section.id} section={section} />
+          ))}
+        </div>
       ))}
+      <div className="learning-float-card" data-card="tools">
+        {tools.map(({ title: sectionTitle, add, ids }) => (
+          <section key={sectionTitle}>
+            <div className="learning-float-section">
+              <span>{sectionTitle}</span>
+              {add ? (
+                <button type="button" onClick={add.open} aria-label="上传资料" title="上传资料">
+                  <Plus size={14} strokeWidth={2} />
+                </button>
+              ) : null}
+            </div>
+            {ids.map((id) => {
+              const action = byId.get(id);
+              if (!action) return null;
+              const { label, icon: Icon, open, count } = action;
+              return (
+                <button
+                  type="button"
+                  key={id}
+                  className="learning-float-row"
+                  data-tool={id}
+                  data-marble-target={id === 'memory' ? '2' : undefined}
+                  onClick={open}
+                >
+                  <LearningToolIcon tool={id} fallback={Icon} />
+                  <span>{label}</span>
+                  {count ? <small>{count}</small> : null}
+                </button>
+              );
+            })}
+          </section>
+        ))}
+      </div>
     </aside>
   );
 }
+
+/** 日程离今天几天，卡片里只说“今天 / 明天 / N 天后”。 */
+function daysUntilLabel(date: string, today: string) {
+  const days = Math.round((Date.parse(date) - Date.parse(today)) / 86_400_000);
+  return days <= 0 ? '今天' : days === 1 ? '明天' : `${days} 天后`;
+}
+
+const FLOAT_SOURCE_TYPES = new Set([
+  'notebook',
+  'course_material',
+  'source',
+  'memory',
+  'problem_bank',
+]);
 
 /** Shared course navigation and recent conversations. */
 const DRAWER_COURSE_PEEK = 5;
@@ -4892,6 +4979,182 @@ export function CourseWorkspace({
       : []),
   ];
 
+  const floatSections = useMemo<LearningFloatSection[]>(() => {
+    if (phoneLayout) return [];
+    const sections: LearningFloatSection[] = [];
+    const today = new Date().toLocaleDateString('en-CA');
+    const horizon = new Date(Date.now() + 14 * 86_400_000).toLocaleDateString('en-CA');
+    const upcoming = scheduleItems
+      .filter((item) => item.status === 'active' && item.date >= today && item.date <= horizon)
+      .sort((left, right) => left.date.localeCompare(right.date))
+      .slice(0, 2);
+    if (upcoming.length) {
+      sections.push({
+        id: 'upcoming',
+        title: '接下来',
+        rows: upcoming.map((item) => ({
+          id: item.id,
+          tool: 'calendar',
+          icon: CalendarDays,
+          label: item.title,
+          hint: daysUntilLabel(item.date, today),
+          open: openCalendarDialog,
+        })),
+      });
+    }
+
+    // 这次聊天产出的：推荐的题、复习计划、课堂、记下的记忆，各取最新一份。
+    const outputs: LearningFloatSection['rows'] = [];
+    const scrollTo = (messageId: string) =>
+      document
+        .querySelector(`[data-message-id="${CSS.escape(messageId)}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const assistantMessages = messages.filter((message) => message.role === 'assistant').reverse();
+    const selection = assistantMessages.find(
+      (message) => message.metadata?.problemSelection?.problems.length,
+    )?.metadata?.problemSelection;
+    const selectedIds = (selection?.problems ?? [])
+      .map(({ problemId }) => problemId)
+      .filter((id) => workspace.problems.some((problem) => problem.id === id));
+    if (selectedIds.length) {
+      outputs.push({
+        id: 'problems',
+        tool: 'problems',
+        icon: FileQuestion,
+        label: selection?.title || '推荐的题',
+        hint: `${selectedIds.length} 道`,
+        open: () => onOpenPractice({ problemIds: selectedIds, initialProblemId: selectedIds[0] }),
+      });
+    }
+    const planMessage = assistantMessages.find((message) => message.metadata?.reviewPlan);
+    const plan = planMessage?.metadata?.reviewPlan;
+    if (planMessage && plan) {
+      outputs.push({
+        id: 'plan',
+        tool: 'progress',
+        icon: Target,
+        label: plan.title || '复习计划',
+        hint: plan.tasks.length ? `${plan.tasks.length} 项` : undefined,
+        open: () => scrollTo(planMessage.id),
+      });
+    }
+    const lectureDeck = assistantMessages
+      .map((message) => miniLectureDecksByMessageId.get(message.id))
+      .find(Boolean);
+    if (lectureDeck) {
+      outputs.push({
+        id: 'lecture',
+        tool: 'classroom',
+        icon: Presentation,
+        label: lectureDeck.title || '这次的课堂',
+        open: () => void openMiniLecture(lectureDeck),
+      });
+    }
+    const caught = selectedConversationId
+      ? workspace.memories.filter((memory) => memory.conversationId === selectedConversationId)
+      : [];
+    if (caught.length) {
+      outputs.push({
+        id: 'caught',
+        tool: 'memory',
+        icon: Brain,
+        label: '记下的记忆',
+        hint: `${caught.length} 颗`,
+        open: () => openMemoryDialog(caught[0].id),
+      });
+    }
+    if (outputs.length) sections.push({ id: 'outputs', title: '这次聊天', rows: outputs });
+
+    // 回答引用到的笔记、资料、记忆和题，能在本机打开的才列出来。
+    const sources: LearningFloatSection['rows'] = [];
+    const seen = new Set<string>();
+    for (const message of assistantMessages) {
+      for (const evidence of message.metadata?.evidence ?? []) {
+        if (!FLOAT_SOURCE_TYPES.has(evidence.sourceType) || !evidence.sourceId) continue;
+        const key = `${evidence.sourceType}:${evidence.sourceId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const sourceId = evidence.sourceId;
+        if (evidence.sourceType === 'memory') {
+          const memory = workspace.memories.find(({ id }) => id === sourceId);
+          if (memory)
+            sources.push({
+              id: key,
+              tool: 'memory',
+              icon: Brain,
+              label: memory.title,
+              open: () => openMemoryDialog(memory.id),
+            });
+        } else if (evidence.sourceType === 'problem_bank') {
+          const problem = workspace.problems.find(({ id }) => id === sourceId);
+          if (problem)
+            sources.push({
+              id: key,
+              tool: 'problems',
+              icon: FileQuestion,
+              label: problem.title,
+              open: () => openProblem(problem),
+            });
+        } else {
+          const notebook = workspace.notebooks.find(({ id }) => id === sourceId);
+          if (notebook)
+            sources.push({
+              id: key,
+              tool: 'notes',
+              icon: BookOpen,
+              label: notebook.name,
+              open: () => void openNotebook(notebook),
+            });
+        }
+      }
+    }
+    if (sources.length) {
+      sections.push({
+        id: 'sources',
+        title: '引用',
+        count: sources.length > 3 ? sources.length : undefined,
+        rows: sources.slice(0, 3),
+      });
+    }
+
+    // 好几天没复习、已经起雾的记忆。
+    const reviewed = readReviewedMap();
+    const stale = workspace.memories
+      .map((memory) => ({ memory, freshness: memoryFreshness(memory, reviewed) }))
+      .filter(({ freshness }) => freshness < STALE_FRESHNESS)
+      .sort((left, right) => left.freshness - right.freshness);
+    if (stale.length) {
+      sections.push({
+        id: 'review',
+        title: '该复习',
+        count: stale.length,
+        rows: stale.slice(0, 2).map(({ memory }) => ({
+          id: memory.id,
+          tool: 'memory',
+          icon: Brain,
+          label: memory.title,
+          open: () => openMemoryDialog(memory.id),
+        })),
+      });
+    }
+    return sections;
+  }, [
+    messages,
+    miniLectureDecksByMessageId,
+    onOpenPractice,
+    openCalendarDialog,
+    openMemoryDialog,
+    openMiniLecture,
+    openNotebook,
+    openProblem,
+    phoneLayout,
+    scheduleItems,
+    selectedConversationId,
+    workspace.memories,
+    workspace.notebooks,
+    workspace.problems,
+  ]);
+
   /**
    * 资料页一次导入一个文件，失败时抛出原因，由资料页显示在队列里。
    * 账号课程先写进账号再同步回本机，网页和其他设备都能看到；本机课程只存本机。
@@ -5118,7 +5381,11 @@ export function CourseWorkspace({
                     !(phoneLayout && action.kind === 'practice.propose_generation'),
                 );
                 return (
-                  <article className={`chat-message chat-message-${message.role}`} key={message.id}>
+                  <article
+                    className={`chat-message chat-message-${message.role}`}
+                    key={message.id}
+                    data-message-id={message.id}
+                  >
                     {message.role !== 'user' ? (
                       <img
                         src={resolveNativeCourseAvatar(
@@ -5296,7 +5563,9 @@ export function CourseWorkspace({
         </footer>
       </main>
 
-      {!phoneLayout && hasMessages ? <LearningFloatCard actions={courseToolActions} /> : null}
+      {!phoneLayout && hasMessages ? (
+        <LearningFloatCard actions={courseToolActions} sections={floatSections} />
+      ) : null}
 
       {headerMenuAnchor ? (
         <CourseToolsMenu
@@ -5997,7 +6266,15 @@ export function CourseWorkspace({
         />
       ) : null}
       {resource ? (
-        <LocalResourceViewer resource={resource} onClose={() => setResource(null)} />
+        <LocalResourceViewer
+          resource={resource}
+          accent={
+            resource.kind === 'notebook'
+              ? notebookAccentFor(workspace.notebooks, resource.document.notebook.id)
+              : undefined
+          }
+          onClose={() => setResource(null)}
+        />
       ) : null}
       {marbleCatch ? (
         <MarbleCatcher

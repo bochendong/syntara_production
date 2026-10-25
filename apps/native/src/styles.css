@@ -6902,18 +6902,29 @@ select,
  * 宽屏聊天页右上角的浮动学习卡（像 Codex 的侧卡）：小标题分组、细分隔线、右侧小计数。
  * 点一行在顶栏开标签；标签页打开时卡片让开。
  */
-.learning-float-card {
+.learning-float-stack {
   display: none;
 }
 
 @media (min-width: 1100px) {
-  .course-workspace.is-split > .learning-float-card {
+  .course-workspace.is-split > .learning-float-stack {
     position: absolute;
     top: calc(var(--workspace-toolbar-height) + 6px);
-    right: 18px;
+    right: 10px;
     z-index: 6;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 232px;
+    /* 留出阴影的位置，不让滚动容器把卡片阴影切掉。 */
+    padding: 0 8px 20px;
+    max-height: calc(100% - var(--workspace-toolbar-height) - 140px);
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .learning-float-card {
     display: block;
-    width: 216px;
+    flex: none;
     padding: 4px 6px 6px;
     border: 1px solid rgb(255 255 255 / 70%);
     border-radius: var(--radius-lg);
@@ -6926,7 +6937,7 @@ select,
     color: #1e293b;
     animation: learning-float-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
-  .course-workspace.is-split.is-learning-active > .learning-float-card {
+  .course-workspace.is-split.is-learning-active > .learning-float-stack {
     display: none;
   }
   /*
@@ -6936,12 +6947,12 @@ select,
   .course-workspace.is-split > .conversation-workspace {
     container-type: inline-size;
   }
-  .course-workspace.is-split:has(> .learning-float-card):not(.is-learning-active)
+  .course-workspace.is-split:has(> .learning-float-stack):not(.is-learning-active)
     > .conversation-workspace
     > .conversation-content {
     padding-right: clamp(0px, calc(1280px - 100cqw), 250px);
   }
-  .course-workspace.is-split:has(> .learning-float-card):not(.is-learning-active)
+  .course-workspace.is-split:has(> .learning-float-stack):not(.is-learning-active)
     > .conversation-workspace
     > .conversation-composer-footer {
     padding-right: calc(24px + clamp(0px, calc(1280px - 100cqw), 250px));
@@ -7043,6 +7054,24 @@ select,
   .learning-float-row span {
     flex: 1;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .learning-float-row small {
+    flex: none;
+  }
+  .learning-float-section small {
+    padding-right: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  /* 跟着聊天出现的组：长出来时轻轻落下，卡片太高就在卡片里滚。 */
+  /* 跟着聊天出现的卡片从上面轻轻落下。 */
+  .learning-float-card.is-context {
+    animation: learning-float-section-in 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .learning-float-card section[data-section='review'] .learning-float-row span {
+    color: #64748b;
   }
   .learning-float-row small {
     color: #94a3b8;
@@ -7054,6 +7083,12 @@ select,
     display: none;
   }
 }
+@keyframes learning-float-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
 @keyframes learning-float-in {
   from {
     opacity: 0;
@@ -7062,6 +7097,7 @@ select,
 }
 @media (prefers-reduced-motion: reduce) {
   .learning-float-card,
+  .learning-float-card.is-context,
   .learning-float-row i {
     animation: none;
     transition: none;

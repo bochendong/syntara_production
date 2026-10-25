@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { code } from '@streamdown/code';
 import { createMathPlugin } from '@streamdown/math';
 import { Streamdown } from 'streamdown';
@@ -10,6 +11,7 @@ import {
   FileQuestion,
   HardDrive,
   ImageOff,
+  RotateCcw,
 } from 'lucide-react';
 
 import { readLocalAsset } from '../data/asset-storage';
@@ -21,7 +23,12 @@ import type {
 } from '../domain/models';
 import { NativeWorkspaceDialog } from './NativeWorkspaceDialog';
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
-import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
+import { DIFFICULTY_MARBLES, marbleImages, type MarbleColor } from '../lib/learning-action-marbles';
+import {
+  loadNotebookReading,
+  saveNotebookReading,
+  splitNotebookName,
+} from '../lib/notebook-reading';
 import './course-pages.css';
 import { GlassSpinner } from './GlassLoadMore';
 import { LearningEmptyState } from './LearningEmptyState';
@@ -39,6 +46,8 @@ export type LocalResourceDocument =
 
 type LocalResourceViewerProps = {
   resource: LocalResourceDocument;
+  /** 笔记本的弹珠颜色（跟着它在课程里的顺序），阅读器的点缀色都用它。 */
+  accent?: MarbleColor;
   onClose: () => void;
 };
 
@@ -292,34 +301,77 @@ function NotebookPageView({
 
 function NotebookViewer({
   document,
+  accent,
   onClose,
 }: {
   document: LocalNotebookDocument;
+  accent: MarbleColor;
   onClose: () => void;
 }) {
   const entries =
     document.notebook.kind === 'markdown' && document.markdownSections.length
       ? document.markdownSections
       : document.pages;
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const notebookId = document.notebook.id;
+  // 从上次读到的那一节打开。
+  const [selectedIndex, setSelectedIndex] = useState(() => {
+    const last = loadNotebookReading(notebookId)?.last ?? 0;
+    return last >= 0 && last < entries.length ? last : 0;
+  });
+  const [visited, setVisited] = useState<Set<number>>(
+    () => new Set(loadNotebookReading(notebookId)?.visited ?? []),
+  );
   const resolveAsset = useMemo(() => assetResolver(document.assets), [document.assets]);
 
   const selected = entries[selectedIndex] ?? null;
+  const next = entries[selectedIndex + 1] ?? null;
+  const isLast = entries.length > 0 && selectedIndex === entries.length - 1;
+  const { number: notebookNumber, title: notebookTitle } = splitNotebookName(
+    document.notebook.name,
+  );
 
-  // 换一节时回到顶部。
+  useEffect(() => {
+    if (!entries.length) return;
+    setVisited(new Set(saveNotebookReading(notebookId, selectedIndex).visited));
+  }, [entries.length, notebookId, selectedIndex]);
+
+  // 换一节时回到顶部；阅读进度写进 CSS 变量，顶上的弹珠跟着滚。
+  const pageRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const updateScroll = () => {
+    const scroller = scrollRef.current;
+    if (!scroller || !pageRef.current) return;
+    const max = scroller.scrollHeight - scroller.clientHeight;
+    const value = max > 4 ? Math.min(1, Math.max(0, scroller.scrollTop / max)) : 1;
+    pageRef.current.style.setProperty('--nr-read', value.toFixed(4));
+  };
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
+    const frame = window.requestAnimationFrame(updateScroll);
+    return () => window.cancelAnimationFrame(frame);
   }, [selectedIndex]);
 
+  const goTo = (index: number) => setSelectedIndex(Math.max(0, Math.min(entries.length - 1, index)));
+
   return (
-    <section className="nr-page" aria-label={`${document.notebook.name} 阅读`}>
+    <section
+      ref={pageRef}
+      className="nr-page"
+      style={
+        {
+          '--nr-rgb': `var(--marble-${accent}-rgb)`,
+          '--nr-ink': `var(--marble-${accent}-ink)`,
+          '--nr-light': `var(--marble-${accent}-light)`,
+        } as CSSProperties
+      }
+      aria-label={`${document.notebook.name} 阅读`}
+    >
       <header className="nr-header">
         <button type="button" className="phone-glass-button" onClick={onClose} aria-label="返回">
           <ChevronLeft size={22} />
         </button>
         <div className="nr-title">
-          <strong>{document.notebook.name}</strong>
+          <strong>{notebookTitle}</strong>
           {entries.length ? (
             <small>
               {selectedIndex + 1} / {entries.length}
@@ -327,6 +379,11 @@ function NotebookViewer({
           ) : null}
         </div>
         <span aria-hidden />
+        {/* 一根细玻璃管：读到哪，弹珠就滚到哪。 */}
+        <span className="nr-meter" aria-hidden>
+          <i />
+          <img src={marbleImages[accent]} alt="" />
+        </span>
       </header>
 
       <div className="nr-body">
@@ -336,11 +393,16 @@ function NotebookViewer({
               <button
                 type="button"
                 key={entry.id}
-                className={index === selectedIndex ? 'is-active' : ''}
+                className={[
+                  index === selectedIndex ? 'is-active' : '',
+                  visited.has(index) ? 'is-read' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 onClick={() => setSelectedIndex(index)}
               >
                 <span className="nr-index-dot">
-                  {index === selectedIndex ? <img src={marbleImages.blue} alt="" /> : index + 1}
+                  {index === selectedIndex ? <img src={marbleImages[accent]} alt="" /> : index + 1}
                 </span>
                 <span className="nr-index-label">{entry.title}</span>
               </button>
@@ -348,16 +410,70 @@ function NotebookViewer({
           </nav>
         ) : null}
 
-        <div ref={scrollRef} className="nr-scroll">
+        <div ref={scrollRef} className="nr-scroll" onScroll={updateScroll}>
           {selected ? (
-            <article key={selected.id} className="nr-article">
-              <h1>{selected.title}</h1>
-              {'markdown' in selected ? (
-                <MarkdownBlock markdown={selected.markdown} resolveAsset={resolveAsset} />
-              ) : (
-                <NotebookPageView page={selected} document={document} resolveAsset={resolveAsset} />
-              )}
-            </article>
+            <>
+              <article key={selected.id} className="nr-article">
+                <div className="nr-eyebrow" aria-hidden>
+                  <span className="nr-eyebrow-marble">
+                    <img src={marbleImages[accent]} alt="" />
+                    {notebookNumber ? <b>{notebookNumber}</b> : null}
+                  </span>
+                  <span className="nr-eyebrow-steps">
+                    {entries.length > 1
+                      ? entries.map((entry, index) => (
+                          <i
+                            key={entry.id}
+                            className={
+                              index === selectedIndex
+                                ? 'is-active'
+                                : visited.has(index)
+                                  ? 'is-read'
+                                  : undefined
+                            }
+                          />
+                        ))
+                      : null}
+                  </span>
+                </div>
+                <h1>{selected.title}</h1>
+                {'markdown' in selected ? (
+                  <MarkdownBlock markdown={selected.markdown} resolveAsset={resolveAsset} />
+                ) : (
+                  <NotebookPageView
+                    page={selected}
+                    document={document}
+                    resolveAsset={resolveAsset}
+                  />
+                )}
+              </article>
+
+              {next ? (
+                <button
+                  type="button"
+                  key={`next-${selectedIndex}`}
+                  className="nr-next"
+                  onClick={() => goTo(selectedIndex + 1)}
+                >
+                  <span className="nr-next-copy">
+                    <small>下一节</small>
+                    <strong>{next.title}</strong>
+                  </span>
+                  <span className="nr-next-marble" aria-hidden>
+                    <img src={marbleImages[accent]} alt="" />
+                  </span>
+                </button>
+              ) : isLast && entries.length > 1 ? (
+                <NotebookFinish
+                  key={`finish-${notebookId}`}
+                  accent={accent}
+                  total={entries.length}
+                  readCount={visited.size}
+                  onRestart={() => goTo(0)}
+                  onClose={onClose}
+                />
+              ) : null}
+            </>
           ) : (
             <LearningEmptyState title="这本笔记还没有内容" />
           )}
@@ -369,7 +485,7 @@ function NotebookViewer({
           <button
             type="button"
             disabled={selectedIndex === 0}
-            onClick={() => setSelectedIndex((current) => Math.max(0, current - 1))}
+            onClick={() => goTo(selectedIndex - 1)}
             aria-label="上一节"
           >
             <ChevronLeft size={20} />
@@ -380,7 +496,7 @@ function NotebookViewer({
           <button
             type="button"
             disabled={selectedIndex >= entries.length - 1}
-            onClick={() => setSelectedIndex((current) => Math.min(entries.length - 1, current + 1))}
+            onClick={() => goTo(selectedIndex + 1)}
             aria-label="下一节"
           >
             <ChevronRight size={20} />
@@ -388,6 +504,57 @@ function NotebookViewer({
         </footer>
       ) : null}
     </section>
+  );
+}
+
+/** 读到最后一节：弹珠一颗颗落进玻璃槽，读过几节就落几颗。 */
+function NotebookFinish({
+  accent,
+  total,
+  readCount,
+  onRestart,
+  onClose,
+}: {
+  accent: MarbleColor;
+  total: number;
+  readCount: number;
+  onRestart: () => void;
+  onClose: () => void;
+}) {
+  const shown = Math.min(total, 12);
+  const lit = Math.min(shown, Math.round((Math.min(readCount, total) / total) * shown));
+  const [hop, setHop] = useState(0);
+  return (
+    <div className="nr-finish">
+      <button
+        type="button"
+        className="nr-finish-tray"
+        key={hop}
+        aria-label="再弹一下"
+        onClick={() => setHop((value) => value + 1)}
+      >
+        {Array.from({ length: shown }, (_, index) => (
+          <img
+            key={index}
+            src={marbleImages[accent]}
+            alt=""
+            className={index < lit ? 'is-lit' : undefined}
+            style={{ animationDelay: `${index * 70}ms` }}
+          />
+        ))}
+      </button>
+      <strong>{readCount >= total ? '读完了' : `读了 ${readCount} / ${total} 节`}</strong>
+      <div className="nr-finish-actions">
+        <button type="button" onClick={onRestart}>
+          <RotateCcw size={15} />
+          从头
+        </button>
+        <button type="button" className="is-primary" onClick={onClose}>
+          <CheckCircle2 size={15} />
+          合上
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -505,19 +672,34 @@ function ProblemViewer({
   );
 }
 
-export function LocalResourceViewer({ resource, onClose }: LocalResourceViewerProps) {
+export function LocalResourceViewer({ resource, accent = 'blue', onClose }: LocalResourceViewerProps) {
   const title = resource.kind === 'notebook' ? resource.document.notebook.name : '本地题目';
+  // 手机/窄窗口里页面上面还有一条「返回 + 页面名」，阅读器要整页盖住它，
+  // 所以挂到最近的课程工作区上；宽屏照旧只盖住右侧内容区。
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const host = anchorRef.current?.closest<HTMLElement>('.course-workspace.is-compact');
+    setPortalHost(host && !anchorRef.current?.parentElement?.isSameNode(host) ? host : null);
+  }, []);
 
   // 笔记本是推进来的一整页（iPad/桌面上只盖住右侧区域）；题目仍然用弹窗。
   if (resource.kind === 'notebook') {
-    return (
+    const layer = (
       <div className="nr-layer">
         <NotebookViewer
           key={resource.document.notebook.id}
           document={resource.document}
+          accent={accent}
           onClose={onClose}
         />
       </div>
+    );
+    return (
+      <>
+        <span ref={anchorRef} hidden />
+        {portalHost ? createPortal(layer, portalHost) : layer}
+      </>
     );
   }
 
