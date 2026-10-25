@@ -1,0 +1,137 @@
+{
+  "verifiedAt": "2026-10-25T18:12:33.954648+00:00",
+  "baselineBranch": "codex/staging-baseline",
+  "baselineCommit": "9f3e5d0f2c2534ebe9b3d7ee6880713867859cfb",
+  "developmentBranch": "codex/staging-next",
+  "taskBranch": "codex/staging-admin",
+  "previousBaseline": "707327ca736830e0de12122daa54c9f496f46ed1",
+  "railway": {
+    "deploymentId": "1abe56d1-f998-4e7e-9bd5-812da0e95a92",
+    "previousDeploymentId": "9b99c565-ea45-47fd-ac43-1b2415651999",
+    "projectId": "8cddd1ea-24e1-49a9-8d27-dce86069dc8b",
+    "environmentId": "6697de1f-eb0d-4a6f-8709-cfe477a29f11",
+    "serviceId": "fd6afb05-6491-451a-b577-abf15fdc0047"
+  },
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "adminPath": "/admin",
+  "sourceFiles": 3126,
+  "adminConfiguration": {
+    "credentialMode": "Existing verified production administrator email/password; explicitly selected by user",
+    "sameEmailAndPassword": true,
+    "separateSessionSigningSecret": true,
+    "databaseMatchesStagingPostgres": true,
+    "existingRailwayApiKeyPreserved": true,
+    "otherEnvironmentVariablesPreserved": true,
+    "credentialValuesRecorded": false
+  },
+  "checks": {
+    "format": "passed",
+    "lint": "passed",
+    "rootTypes": "passed",
+    "productionBuild": "passed",
+    "offlineTests": 5
+  },
+  "liveBrowser": {
+    "adminPasswordLogin": "passed",
+    "environmentLabel": "测试服管理中心",
+    "modelSettings": "passed",
+    "courseManagement": "passed",
+    "usageDetails": "passed",
+    "returnToTestApp": "passed",
+    "consoleErrors": 0,
+    "horizontalOverflow": false,
+    "adminConfigurationSaved": false,
+    "userDataChanged": false
+  },
+  "liveAdminApiChecks": [
+    {
+      "path": "/api/admin/llm-config",
+      "status": 200,
+      "apiKeyConfigured": true,
+      "configurationSource": "environment"
+    },
+    {
+      "path": "/api/admin/courses?take=1",
+      "status": 200
+    },
+    {
+      "path": "/api/admin/teachers",
+      "status": 200
+    },
+    {
+      "path": "/api/admin/students",
+      "status": 200
+    },
+    {
+      "path": "/api/admin/llm-usage?limit=1",
+      "status": 200
+    },
+    {
+      "path": "/api/admin/site-provider-status",
+      "status": 200
+    },
+    {
+      "path": "/api/admin/usage-limits",
+      "status": 200
+    },
+    {
+      "path": "/api/admin/activation-codes",
+      "status": 200
+    }
+  ],
+  "unauthenticatedApiChecks": [
+    {
+      "path": "/admin",
+      "status": 200
+    },
+    {
+      "path": "/test/app",
+      "status": 200
+    },
+    {
+      "path": "/download",
+      "status": 200
+    },
+    {
+      "path": "/api/health",
+      "status": 200
+    },
+    {
+      "path": "/api/admin/llm-config",
+      "unauthenticatedStatus": 401
+    },
+    {
+      "path": "/api/admin/courses",
+      "unauthenticatedStatus": 401
+    },
+    {
+      "path": "/api/admin/students",
+      "unauthenticatedStatus": 401
+    },
+    {
+      "path": "/api/admin/llm-usage",
+      "unauthenticatedStatus": 401
+    },
+    {
+      "path": "/api/admin/site-provider-status",
+      "unauthenticatedStatus": 401
+    }
+  ],
+  "nativeAssets": [
+    {
+      "url": "/native-web/assets/index-DoEQKFrS.js",
+      "bytes": 1606834,
+      "sha256": "f5cca6efde15b01d7a88bdca9aa16e5597ef519f3a77cbf1997d3a919733b66f",
+      "matchesVerifiedBuild": true
+    },
+    {
+      "url": "/native-web/assets/index-MFx4gI0I.css",
+      "bytes": 346537,
+      "sha256": "0a7d9865f9e8e3ed4d06671df0e48adc19a707b7a1cd1e726703a49a2f77b52e",
+      "matchesVerifiedBuild": true
+    }
+  ],
+  "installerPreserved": true,
+  "noProductionConfigurationModified": true,
+  "secretValuesInSource": false
+}

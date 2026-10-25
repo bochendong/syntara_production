@@ -6,7 +6,7 @@
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `707327ca`，对应 Railway 发布 `9b99c565` |
+| 测试服源码基线 | `codex/staging-baseline` | `9f3e5d0f`，对应 Railway 发布 `1abe56d1` |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 当前开发 | `codex/staging-next` | 当前发布代码 + 后续发布记录 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
@@ -26,16 +26,18 @@
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前发布：`9b99c565-ea45-47fd-ac43-1b2415651999`，源码提交：`707327ca`。
-- 发布快照包含 3,124 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
+- 当前发布：`1abe56d1-f998-4e7e-9bd5-812da0e95a92`，源码提交：`9f3e5d0f`。
+- 发布快照包含 3,126 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
 - `railway.toml` 没有上传，测试服构建、启动和迁移配置由 Railway 管理；临时资源恢复命令已恢复为正常构建命令。
-- 当前布局修复：[staging-2026-10-25-layout.json](releases/staging-2026-10-25-layout.json)。
+- 当前管理员发布：[staging-2026-10-25-admin.json](releases/staging-2026-10-25-admin.json)。
+- 前次布局修复：[staging-2026-10-25-layout.json](releases/staging-2026-10-25-layout.json)。
 - 上一次功能发布：[staging-2026-10-25.json](releases/staging-2026-10-25.json)。
 - 上一次整理记录：[staging-2026-10-24.json](releases/staging-2026-10-24.json)。
 
 ## 本次已部署
 
+- 测试服管理员后台 `/admin`，沿用经用户确认的正式服管理员邮箱和密码；独立的测试服数据库和会话签名。
 - 修复多张动态学习卡片的宽屏比例和聊天区留白；1512px 窗口下卡片约 302px，正文与输入框保持对齐。
 
 - 头像、首页文案、日历日期传递、笔记/题库上传入口及录音后转文字按钮。
@@ -132,3 +134,8 @@ git diff --stat codex/staging-baseline...codex/staging-next
 真实测试服 1512px 窗口的卡片从 216px 恢复为约 302px，无横向溢出。
 这次只发布网页版 CSS；现有 Mac 安装包继续保留。证据位于 Git 公共目录
 `codex/tasks/learning-rail-proportions-20261025/`。
+
+测试服后台说明见 [staging-admin.md](api/staging-admin.md)。管理员发布在
+`codex/staging-admin` 单独提交，再快进合入开发分支；正式服配置未更改。
+发布证据位于 Git 公共目录 `codex/tasks/staging-admin-20261025/`，只记录验证结果，
+不记录密码、签名密钥或完整 API Key。
