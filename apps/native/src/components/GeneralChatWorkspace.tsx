@@ -2,6 +2,7 @@ import type { CourseLearningPage } from '../lib/native-launch';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, MessageCircle, PanelLeft, SquarePen, X } from 'lucide-react';
 import { ChatScopePicker } from './ChatScopePicker';
+import { VoiceInputButton } from './VoiceInputButton';
 import { useChatWorkspaceShell, usePublishChatSidebar } from './ChatWorkspaceShell';
 import { PhoneChatDrawer } from './CourseWorkspace';
 import { ChatRichText } from './chat-rich/ChatRichText';
@@ -445,6 +446,13 @@ export function GeneralChatWorkspace({
               courseId={null}
               locked={loading || busy || Boolean(pendingSave) || messages.length > 0}
               onChange={onChangeChatScope ? (id) => onChangeChatScope(id, draft) : undefined}
+            />
+            <VoiceInputButton
+              disabled={busy || Boolean(pendingSave)}
+              onText={(text) => {
+                setDraft((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text));
+                textareaRef.current?.focus();
+              }}
             />
             <button
               type="submit"

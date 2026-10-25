@@ -9,16 +9,15 @@ import { getCoursePublishBlockReasonFromFlags } from '@/lib/utils/course-publish
 import {
   type CourseAccessRole,
   findCourseAccessRole,
-  removeCourseEnrollmentForUser,
   withCourseEnrollmentSchemaFallback,
 } from '@/lib/server/repositories/course-enrollment-repository';
 import {
   countPurchasedNotebooksInOwnedCourse,
-  deleteOwnedCourseWithNotebooks,
   findOwnedCourse,
   syncOwnedCourseNotebookStoreState,
   updateOwnedCourse,
 } from '@/lib/server/repositories/course-repository';
+import { removeCourseForUser } from '@/lib/server/course-removal';
 import { publishCourseProblemBankForUser } from '@/features/problems/server/service';
 import { reconcileSpeedupCourseMembershipsIfAvailable } from '@/lib/server/speedup-course-provisioning';
 
@@ -275,40 +274,13 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     const { userId } = auth;
     const { id } = await context.params;
 
-    const accessRole = await findCourseAccessRole(prisma, userId, id);
-    if (!accessRole) {
+    const result = await removeCourseForUser(prisma, userId, id);
+    if (result.status === 'not_found') {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
-
-    if (accessRole === 'owner') {
-      const externalBinding = await prisma.externalCourseBinding.findUnique({
-        where: { courseId: id },
-        select: { id: true },
-      });
-      if (externalBinding) {
-        return NextResponse.json(
-          { error: 'Speedup 托管课程不能在 Syntara 中永久删除。' },
-          { status: 409 },
-        );
-      }
-      await deleteOwnedCourseWithNotebooks(prisma, userId, id);
-      return NextResponse.json({ ok: true, action: 'deleted' });
+    if (result.status === 'locked') {
+      return NextResponse.json({ error: result.message }, { status: 409 });
     }
-
-    const { removedEnrollment, removedLegacyPurchases } = await prisma.$transaction(async (tx) => ({
-      removedEnrollment: await removeCourseEnrollmentForUser(tx, userId, id),
-      removedLegacyPurchases: await tx.coursePurchase.deleteMany({
-        where: {
-          buyerId: userId,
-          sourceCourseId: id,
-        },
-      }),
-    }));
-
-    if (removedEnrollment === 0 && removedLegacyPurchases.count === 0) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ ok: true, action: 'removed' });
+    return NextResponse.json({ ok: true, action: result.status });
   });
 }

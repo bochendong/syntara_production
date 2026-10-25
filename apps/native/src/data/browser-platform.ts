@@ -53,6 +53,8 @@ export const browserEndpoints: Record<string, { path: string; method?: string }>
   native_get_store: { path: '/api/native/v1/store' },
   native_store_action: { path: '/api/native/v1/store', method: 'POST' },
   native_upload_material: { path: '/api/native/v1/materials', method: 'POST' },
+  native_delete_course: { path: '/api/native/v1/courses', method: 'DELETE' },
+  native_edit_course: { path: '/api/native/v1/courses', method: 'PATCH' },
   native_get_onboarding: { path: '/api/native/v1/onboarding' },
   native_onboarding_action: { path: '/api/native/v1/onboarding', method: 'POST' },
 };

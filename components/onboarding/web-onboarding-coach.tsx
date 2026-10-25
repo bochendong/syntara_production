@@ -8,6 +8,8 @@ import {
   bubblePlacement,
   ONBOARDING_STEP_MARBLES,
   ONBOARDING_STEPS,
+  PLATFORM_TUTORIAL_COURSE_ID,
+  PLATFORM_TUTORIAL_QUESTION,
   prefillOnboardingDraft,
   watchSpotlight,
   type CoachTargets,
@@ -17,42 +19,29 @@ import { webOnboardingStore } from '@/lib/onboarding/web-store';
 import { useAuthStore } from '@/lib/store/auth';
 import './web-onboarding-coach.css';
 
-const NAV_CHAT = {
-  selector: '[data-onboarding="course-nav-chat"]',
-  text: '回到聊天',
-  unless: '[data-onboarding="composer"]',
-};
+const TUTORIAL_ICON = `[data-home-icon-id="${PLATFORM_TUTORIAL_COURSE_ID}"]`;
 
-/** 和 App 同样的五步，只是圈住网页上的真按钮。 */
+/** 和 App 同样的四步，只是圈住网页上的真按钮。 */
 const TARGETS: CoachTargets = {
   course: [{ selector: '[data-home-icon-id="create"]', text: '先建一门自己的课' }],
-  materials: [
-    { selector: '[data-onboarding="materials-drop"]', text: '把笔记拖进来' },
-    { selector: '[data-onboarding="course-nav-resources"]', text: '资料在这里' },
-    { selector: '[data-home-icon-group="course"]', text: '打开你的课' },
+  store: [
+    { selector: '[data-onboarding="tutorial-get"]', text: '加「使用教程」' },
+    { selector: '[data-home-icon-id="store"]', text: '去商城' },
+    { selector: '[data-onboarding="home"]', text: '回到主页' },
   ],
   ask: [
     {
-      selector: '[data-onboarding="composer"]',
+      selector: `[data-onboarding="composer"][data-onboarding-course="${PLATFORM_TUTORIAL_COURSE_ID}"]`,
       text: '问它一句',
-      prefill: '用我的资料，讲讲第一部分',
+      prefill: PLATFORM_TUTORIAL_QUESTION,
     },
-    NAV_CHAT,
-    { selector: '[data-home-icon-group="course"]', text: '打开你的课' },
-  ],
-  remember: [
-    { selector: '[data-onboarding="remember"]', text: '接住它' },
-    {
-      selector: '[data-onboarding="composer"]',
-      text: '让它记住你',
-      prefill: '记住：我刚开始学这门课，讲慢一点',
-    },
-    NAV_CHAT,
-    { selector: '[data-home-icon-group="course"]', text: '打开你的课' },
-  ],
-  store: [
-    { selector: '[data-home-icon-id="store"]', text: '学校的课在这' },
+    { selector: TUTORIAL_ICON, text: '打开教程' },
     { selector: '[data-onboarding="home"]', text: '回到主页' },
+  ],
+  delete: [
+    { selector: '[data-onboarding="course-delete-confirm"]', text: '删掉它', waitIdle: true },
+    { selector: '[data-onboarding="course-delete"]', text: '删除', waitIdle: true },
+    { selector: '[data-onboarding="home"]', text: '回到主页', waitIdle: true },
   ],
 };
 
@@ -88,7 +77,6 @@ function Coach() {
     return watchSpotlight(step, TARGETS, {
       onSpot: setSpot,
       prefill: prefillOnboardingDraft,
-      complete: webOnboardingStore.complete,
     });
   }, [step]);
 

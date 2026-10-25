@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useUserProfileStore, AVATAR_OPTIONS } from '@/lib/store/user-profile';
 import { marbleAvatarLabel } from '@/lib/constants/marble-avatars';
+import { backendJson } from '@/lib/utils/backend-api';
 import { UserAvatarWithFrame } from './user-avatar-with-frame';
 
 /** 大卡片：桌面端 10 列×4 行=40 格/页；窄屏为 5 列 */
@@ -19,7 +21,18 @@ type ProfileAvatarPickerProps = {
 
 export function ProfileAvatarPicker({ size = 'md', className }: ProfileAvatarPickerProps) {
   const avatar = useUserProfileStore((s) => s.avatar);
-  const setAvatar = useUserProfileStore((s) => s.setAvatar);
+  const setLocalAvatar = useUserProfileStore((s) => s.setAvatar);
+  const { status } = useSession();
+  // The account keeps the chosen marble so the App shows the same one.
+  const setAvatar = (url: string) => {
+    setLocalAvatar(url);
+    if (status !== 'authenticated') return;
+    void backendJson('/api/me', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ image: url }),
+    }).catch(() => undefined);
+  };
   const avatarFrameId = useUserProfileStore((s) => s.avatarFrameId);
   const [page, setPage] = useState(0);
   /** lg：与网格选择同步，点「应用」后再写入 store */

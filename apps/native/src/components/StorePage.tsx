@@ -16,6 +16,7 @@ import {
 import type { NativeStoreCourse, NativeStoreCourseDetail } from '../data/platform-api-contracts';
 import { GlassSkeletonRows } from './GlassLoadMore';
 import { PhoneEmpty, PhonePage } from './PhonePages';
+import { completeOnboardingStep, PLATFORM_TUTORIAL_COURSE_ID } from '../lib/onboarding';
 import { groupStoreCoursesByCategory, storeCourseCategory } from '../lib/store-course-categories';
 import './store-page.css';
 
@@ -118,6 +119,13 @@ function GetButton({
       type="button"
       className={`st-get st-get-${size}${course.joined ? ' is-open' : ''}${joining ? ' is-busy' : ''}`}
       aria-label={course.joined ? `打开${course.name}` : `获取${course.name}`}
+      data-onboarding={
+        course.id === PLATFORM_TUTORIAL_COURSE_ID
+          ? course.joined
+            ? 'tutorial-open'
+            : 'tutorial-get'
+          : undefined
+      }
       disabled={joining}
       onClick={(event) => {
         event.stopPropagation();
@@ -510,6 +518,7 @@ export function StorePage({
     setError(null);
     try {
       await nativeStoreAction(course.id, 'join');
+      if (course.id === PLATFORM_TUTORIAL_COURSE_ID) completeOnboardingStep('store');
       flyMarble(marble, marbleFor(course));
       setCourses((current) =>
         (current ?? []).map((item) => (item.id === course.id ? { ...item, joined: true } : item)),

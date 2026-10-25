@@ -20,6 +20,7 @@ test('listing an empty account creates no course and hides only the earlier QA f
     };
     export const setCourses = rows => { courses = rows; };
     export const listAccessibleCoursesForUser = async () => courses;
+    export const updateOwnedCourse = async () => { throw Error('Listing must not edit a course'); };
   `);
   const stubs = {
     zod: import.meta.resolve('zod'),
@@ -48,6 +49,9 @@ test('listing an empty account creates no course and hides only the earlier QA f
     '@/lib/server/repositories/course-repository': courseRepository,
     '@/lib/server/native-store': moduleUrl(
       'export const loadNativeCourseStoreMeta = async () => new Map();',
+    ),
+    '@/lib/server/course-removal': moduleUrl(
+      'export const removeCourseForUser = async () => { throw Error("Listing must not remove a course"); };',
     ),
     '@/lib/server/native-staging-course': moduleUrl(
       compile(read('lib/server/native-staging-course.ts')),

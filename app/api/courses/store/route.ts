@@ -1,3 +1,4 @@
+import { ensurePlatformTutorial } from '@/lib/server/platform-tutorial';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/prisma';
 import { requireUserId } from '@/lib/server/api-auth';
@@ -30,6 +31,7 @@ export async function GET() {
     if ('response' in auth) return auth.response;
     const { userId } = auth;
 
+    await ensurePlatformTutorial(prisma);
     const rows = await listPublicStoreCoursesForUser(prisma, userId);
 
     const courseIds = rows.map((row) => row.id);

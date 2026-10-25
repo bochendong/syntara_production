@@ -9,7 +9,11 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { MARBLE_AVATAR_URLS } from '@/lib/constants/marble-avatars';
-import { nativeInitialUserData } from '@/lib/server/native-initial-profile';
+import {
+  isMarbleAvatarImage,
+  nativeInitialUserData,
+  pickMarbleAvatar,
+} from '@/lib/server/native-initial-profile';
 import { isDatabaseAvailable, getOptionalPrisma } from '@/lib/server/prisma-safe';
 import { verifyPassword } from '@/lib/server/password-hash';
 import {
@@ -233,7 +237,7 @@ export const authOptions: NextAuthOptions = {
           ...(createUser
             ? {
                 createUser: (user: Omit<AdapterUser, 'id'>) =>
-                  createUser(nativeInitialUserData(process.env, user, MARBLE_AVATAR_URLS)),
+                  createUser(nativeInitialUserData(user, MARBLE_AVATAR_URLS)),
               }
             : {}),
         },
@@ -292,8 +296,16 @@ export const authOptions: NextAuthOptions = {
             select: { name: true, image: true, role: true, isActive: true },
           });
           if (current) {
+            // Accounts made before marble avatars still carry the Google/GitHub photo.
+            let image = current.image;
+            if (!isMarbleAvatarImage(image, MARBLE_AVATAR_URLS)) {
+              image = pickMarbleAvatar(MARBLE_AVATAR_URLS) ?? image;
+              if (image !== current.image) {
+                await prismaClient.user.update({ where: { id: token.sub }, data: { image } });
+              }
+            }
             token.name = current.name;
-            token.picture = current.image;
+            token.picture = image;
             token.role = current.role;
           }
           token.isActive = current?.isActive === true;

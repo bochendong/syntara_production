@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { LocalCourseSummary } from '../domain/models';
 
 export type AppNavigationPage = 'chat' | 'calendar' | 'store' | 'settings';
 
@@ -9,6 +10,8 @@ export type AppNavigation = {
   onOpenCalendar: () => void;
   onOpenStore: () => void;
   onOpenSettings: () => void;
+  /** 侧栏课程条目菜单里的编辑、删除。 */
+  onManageCourse?: (course: LocalCourseSummary, action: 'edit' | 'delete') => void;
 };
 
 export const AppNavigationContext = createContext<AppNavigation | null>(null);

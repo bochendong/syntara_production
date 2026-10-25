@@ -42,6 +42,7 @@ import {
   Sparkles,
   SquarePen,
   Target,
+  PencilLine,
   Trash2,
   Pin,
   PinOff,
@@ -63,8 +64,9 @@ import {
 } from '../assets';
 import { ChatScopePicker } from './ChatScopePicker';
 import { useChatWorkspaceShell, usePublishChatSidebar } from './ChatWorkspaceShell';
-import { CourseToolsMenu } from './CourseToolsMenu';
+import { CourseToolsMenu, GlassMenu } from './CourseToolsMenu';
 import { CourseMaterialsPage, type CourseMaterialKind } from './CourseMaterialsPage';
+import { VoiceInputButton } from './VoiceInputButton';
 import { LearningWorkspaceTabs } from './LearningWorkspaceTabs';
 import type { CourseLearningPage, CourseOpenTarget } from '../lib/native-launch';
 import { useRecentChats } from '../lib/use-recent-chats';
@@ -210,7 +212,12 @@ import type {
 import { writePhoneLastChat } from '../lib/phone-last-chat';
 import { readPinnedChatIds, writePinnedChatIds } from '../lib/phone-pinned-chats';
 import { useBackDismiss } from '../lib/use-back-dismiss';
-import { completeOnboardingStep, ONBOARDING_PREFILL_EVENT } from '../lib/onboarding';
+import {
+  completeOnboardingStep,
+  ONBOARDING_PREFILL_EVENT,
+  PLATFORM_TUTORIAL_COURSE_ID,
+  PLATFORM_TUTORIAL_QUESTION,
+} from '../lib/onboarding';
 import { usePhoneKeyboardInset } from '../lib/use-phone-keyboard';
 import { useCompactLayout, usePhoneLayout } from '../lib/use-phone-layout';
 import { useAppNavigation } from './app-navigation-context';
@@ -1188,6 +1195,10 @@ export function PhoneChatDrawer<
     course: LocalCourseSummary;
     anchor: HTMLButtonElement;
   } | null>(null);
+  const [courseActions, setCourseActions] = useState<{
+    course: LocalCourseSummary;
+    anchor: HTMLButtonElement;
+  } | null>(null);
   // Switching courses remounts the drawer; keep each course's disclosure state in this window.
   const [expandedCourses, setExpandedCourses] = useState<string[]>(() => {
     const initialIds = selectedCourseId ? [selectedCourseId] : courses[0] ? [courses[0].id] : [];
@@ -1473,6 +1484,11 @@ export function PhoneChatDrawer<
                           <button
                             type="button"
                             className="phone-drawer-course"
+                            data-onboarding={
+                              course.id === PLATFORM_TUTORIAL_COURSE_ID
+                                ? 'tutorial-course'
+                                : undefined
+                            }
                             aria-label={course.courseCode || course.name}
                             aria-expanded={expanded}
                             aria-controls={expanded ? 'course-chats-' + course.id : undefined}
@@ -1525,10 +1541,22 @@ export function PhoneChatDrawer<
                             </button>
                             <button
                               type="button"
-                              aria-label={`在${course.courseCode || course.name}中新建聊天`}
+                              aria-label={`${course.courseCode || course.name}：新聊天、编辑、删除`}
                               title="新聊天"
-                              disabled={newChatDisabled}
-                              onClick={() => onCreateCourseChat(course.id)}
+                              data-onboarding={
+                                course.id === PLATFORM_TUTORIAL_COURSE_ID
+                                  ? 'tutorial-course-menu'
+                                  : undefined
+                              }
+                              aria-haspopup="menu"
+                              aria-expanded={courseActions?.course.id === course.id}
+                              onClick={(event) =>
+                                setCourseActions(
+                                  courseActions?.course.id === course.id
+                                    ? null
+                                    : { course, anchor: event.currentTarget },
+                                )
+                              }
                             >
                               <SquarePen size={17} strokeWidth={1.7} aria-hidden />
                             </button>
@@ -1659,6 +1687,60 @@ export function PhoneChatDrawer<
         <p className="phone-drawer-empty" role="status">
           {history.error}
         </p>
+      ) : null}
+      {courseActions ? (
+        <GlassMenu
+          anchor={courseActions.anchor}
+          label={courseActions.course.courseCode || courseActions.course.name}
+          onClose={() => setCourseActions(null)}
+          items={[
+            {
+              key: 'chat',
+              label: '新聊天',
+              icon: <SquarePen size={17} strokeWidth={1.7} aria-hidden />,
+              onboarding:
+                courseActions.course.id === PLATFORM_TUTORIAL_COURSE_ID
+                  ? 'tutorial-chat'
+                  : undefined,
+              onSelect: () => {
+                setCourseActions(null);
+                if (!newChatDisabled) onCreateCourseChat(courseActions.course.id);
+              },
+            },
+            ...(courseMeta[courseActions.course.id]?.accessRole === 'enrolled' ||
+            !navigation?.onManageCourse
+              ? []
+              : [
+                  {
+                    key: 'edit',
+                    label: '编辑',
+                    icon: <PencilLine size={17} strokeWidth={1.7} aria-hidden />,
+                    onSelect: () => {
+                      setCourseActions(null);
+                      navigation?.onManageCourse?.(courseActions.course, 'edit');
+                    },
+                  },
+                ]),
+            ...(navigation?.onManageCourse
+              ? [
+                  {
+                    key: 'delete',
+                    label: '删除',
+                    icon: <Trash2 size={17} strokeWidth={1.7} aria-hidden />,
+                    destructive: true,
+                    onboarding:
+                      courseActions.course.id === PLATFORM_TUTORIAL_COURSE_ID
+                        ? 'course-delete'
+                        : undefined,
+                    onSelect: () => {
+                      setCourseActions(null);
+                      navigation?.onManageCourse?.(courseActions.course, 'delete');
+                    },
+                  },
+                ]
+              : []),
+          ]}
+        />
       ) : null}
       {courseMenu ? (
         <CourseToolsMenu
@@ -2635,6 +2717,15 @@ export function CourseWorkspace({
     setLearningPages(remaining);
     if (activeLearningPage === page)
       setPhonePageState(remaining[index] ?? remaining[index - 1] ?? null);
+  };
+  // 笔记 / 题库页的上传键：文件交给资料页，用同一条整理队列。
+  const [pendingMaterialUpload, setPendingMaterialUpload] = useState<{
+    kind: CourseMaterialKind;
+    files: File[];
+  } | null>(null);
+  const uploadFromPage = (kind: CourseMaterialKind, files: File[]) => {
+    setPendingMaterialUpload({ kind, files });
+    setPhonePage('materials');
   };
   const [marbleCatch, setMarbleCatch] = useState<MarbleCatch | null>(null);
   const [courseLearningState, setCourseLearningState] = useState<LocalCourseLearningState | null>(
@@ -4352,7 +4443,6 @@ export function CourseWorkspace({
           });
           summary = `已写入本机学习记忆：${memory.title}`;
           output = { memoryId: memory.id };
-          completeOnboardingStep('remember');
         } else if (action.kind === 'practice.propose_generation') {
           const selectedIds = message.metadata?.problemSelection?.problems.map(
             (problem) => problem.problemId,
@@ -4460,6 +4550,8 @@ export function CourseWorkspace({
   );
 
   const sendButtonRef = useRef<HTMLButtonElement | null>(null);
+  const composerFormRef = useRef<HTMLFormElement | null>(null);
+  const [autoSendTick, setAutoSendTick] = useState(0);
   const send = useCallback(
     async (event: FormEvent) => {
       event.preventDefault();
@@ -4482,7 +4574,7 @@ export function CourseWorkspace({
       setDraft('');
       setPendingImages([]);
       setPendingFiles([]);
-      completeOnboardingStep('ask');
+      if (workspace.course.id === PLATFORM_TUTORIAL_COURSE_ID) completeOnboardingStep('ask');
       replayClass(sendButtonRef.current, 'is-rolling');
       let userMessage: LocalMessage | null = null;
       let optimisticAssistantId: string | null = null;
@@ -4667,6 +4759,11 @@ export function CourseWorkspace({
       pendingFiles,
     ],
   );
+
+  // 点了教程里的默认问题：草稿填好后立刻发出去。
+  useEffect(() => {
+    if (autoSendTick) composerFormRef.current?.requestSubmit();
+  }, [autoSendTick]);
 
   const sessionPanel = (
     <SessionsPanel
@@ -5323,20 +5420,31 @@ export function CourseWorkspace({
             <div className="conversation-empty-state">
               <h2>今天想从哪里开始？</h2>
               <div className="suggestion-row">
-                {[
-                  '我现在学到哪里了？',
-                  '帮我安排今天复习',
-                  phoneLayout ? '拍一道题问 Haru' : '给我开一个小测',
-                  '我最近哪里最薄弱？',
-                ].map((suggestion) => (
+                {(workspace.course.id === PLATFORM_TUTORIAL_COURSE_ID
+                  ? [PLATFORM_TUTORIAL_QUESTION, '课程从哪里来？', '怎么删掉一门课？']
+                  : [
+                      '我现在学到哪里了？',
+                      '帮我安排今天复习',
+                      phoneLayout ? '拍一道题问 Haru' : '给我开一个小测',
+                      '我最近哪里最薄弱？',
+                    ]
+                ).map((suggestion) => (
                   <button
                     type="button"
                     key={suggestion}
-                    onClick={() =>
-                      suggestion === '拍一道题问 Haru'
-                        ? imageInputRef.current?.click()
-                        : setDraft(suggestion)
+                    data-onboarding={
+                      suggestion === PLATFORM_TUTORIAL_QUESTION ? 'tutorial-ask' : undefined
                     }
+                    onClick={() => {
+                      if (suggestion === '拍一道题问 Haru') {
+                        imageInputRef.current?.click();
+                        return;
+                      }
+                      setDraft(suggestion);
+                      // 教程里的默认问题点一下就直接问。
+                      if (workspace.course.id === PLATFORM_TUTORIAL_COURSE_ID)
+                        setAutoSendTick((tick) => tick + 1);
+                    }}
                   >
                     {suggestion}
                   </button>
@@ -5487,7 +5595,9 @@ export function CourseWorkspace({
           ) : null}
           <form
             className="conversation-composer"
+            ref={composerFormRef}
             data-onboarding="composer"
+            data-onboarding-course={workspace.course.id}
             data-onboarding-busy={busy ? '' : undefined}
             onSubmit={(event) => void send(event)}
           >
@@ -5543,6 +5653,13 @@ export function CourseWorkspace({
               </span>
               <ChevronRight size={13} />
             </button>
+            <VoiceInputButton
+              disabled={!chatAvailable}
+              onText={(text) => {
+                setDraft((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text));
+                composerTextareaRef.current?.focus();
+              }}
+            />
             <button
               ref={sendButtonRef}
               type="submit"
@@ -5603,6 +5720,8 @@ export function CourseWorkspace({
                   onOpenNotes={() => setPhonePage('notes')}
                   onOpenProblems={() => setPhonePage('problems')}
                   kinds={materialKinds}
+                  initialUpload={pendingMaterialUpload}
+                  onInitialUploadTaken={() => setPendingMaterialUpload(null)}
                 />
               ) : null}
               {page === 'notes' ? (
@@ -5610,6 +5729,7 @@ export function CourseWorkspace({
                   workspace={workspace}
                   onBack={() => closeLearningPage(page)}
                   onUpload={() => setPhonePage('materials')}
+                  onUploadFiles={(files) => uploadFromPage('notes', files)}
                 />
               ) : null}
               {page === 'progress' ? (
@@ -5643,6 +5763,11 @@ export function CourseWorkspace({
                     onUpload={
                       materialKinds.includes('problems')
                         ? () => setPhonePage('materials')
+                        : undefined
+                    }
+                    onUploadFiles={
+                      materialKinds.includes('problems')
+                        ? (files) => uploadFromPage('problems', files)
                         : undefined
                     }
                   />

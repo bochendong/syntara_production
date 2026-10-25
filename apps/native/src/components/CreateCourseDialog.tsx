@@ -6,13 +6,16 @@ export function CreateCourseDialog({
   onCancel,
   onCreated,
   createCourse = createBrowserCourse,
+  editing,
 }: {
   onCancel: () => void;
   onCreated: (id: string) => Promise<void>;
   createCourse?: (name: string, description: string) => Promise<{ id: string }>;
+  /** 编辑已有课程：预填名字和介绍，按钮改成「保存」。 */
+  editing?: { name: string; description: string };
 }) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useState(editing?.name ?? '');
+  const [description, setDescription] = useState(editing?.description ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useBackDismiss(!busy, onCancel, 50);
@@ -24,8 +27,8 @@ export function CreateCourseDialog({
         aria-modal="true"
         aria-labelledby="create-course-title"
       >
-        <h2 id="create-course-title">添加课程</h2>
-        <p>创建自己的课程，然后开始聊天、添加资料和安排学习。</p>
+        <h2 id="create-course-title">{editing ? '编辑课程' : '添加课程'}</h2>
+        {editing ? null : <p>创建自己的课程，然后开始聊天、添加资料和安排学习。</p>}
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -68,7 +71,7 @@ export function CreateCourseDialog({
               取消
             </button>
             <button type="submit" disabled={busy || !name.trim()}>
-              {busy ? '正在创建…' : '创建课程'}
+              {editing ? (busy ? '正在保存…' : '保存') : busy ? '正在创建…' : '创建课程'}
             </button>
           </div>
         </form>

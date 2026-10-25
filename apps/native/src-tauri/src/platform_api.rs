@@ -1081,6 +1081,36 @@ pub async fn native_delete_conversation(request: PlatformQueryRequest) -> Result
     .await
 }
 
+#[tauri::command]
+pub async fn native_delete_course(request: PlatformQueryRequest) -> Result<Value, String> {
+    request_json(
+        Method::DELETE,
+        &path_with_query(COURSES_PATH, &request.query),
+        None,
+        request.syntara_token.as_deref(),
+        None,
+        None,
+        None,
+        DEFAULT_TIMEOUT,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn native_edit_course(request: PlatformJsonRequest) -> Result<Value, String> {
+    request_json(
+        Method::PATCH,
+        COURSES_PATH,
+        Some(&request.payload),
+        request.syntara_token.as_deref(),
+        Some(&request.request_id),
+        request.idempotency_key.as_deref(),
+        request.model.as_deref(),
+        DEFAULT_TIMEOUT,
+    )
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::{

@@ -126,9 +126,6 @@ export function NativeLearningActions({
                 type="button"
                 className={state.className}
                 disabled={disabled}
-                data-onboarding={
-                  action.kind === 'memory.propose_write' && !disabled ? 'remember' : undefined
-                }
                 onClick={() => onExecute(action)}
               >
                 {compact && !busy ? null : (

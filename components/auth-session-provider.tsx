@@ -7,6 +7,8 @@ import { usePersistHydrated } from '@/lib/hooks/use-persist-hydrated';
 import { useAuthStore } from '@/lib/store/auth';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 import { backendJson } from '@/lib/utils/backend-api';
+import { MARBLE_AVATAR_URLS } from '@/lib/constants/marble-avatars';
+import { isMarbleAvatarImage } from '@/lib/server/native-initial-profile';
 
 function AuthSessionSync() {
   const { data: session, status } = useSession();
@@ -27,10 +29,19 @@ function AuthSessionSync() {
       return;
     const before = useUserProfileStore.getState();
     const controller = new AbortController();
-    void backendJson<{ id: string; name: string | null }>('/api/me', { signal: controller.signal })
+    void backendJson<{ id: string; name: string | null; image: string | null }>('/api/me', {
+      signal: controller.signal,
+    })
       .then((profile) => {
         if (controller.signal.aborted || useAuthStore.getState().userId !== profile.id) return;
         const current = useUserProfileStore.getState();
+        // The account's marble (random for new users) wins unless it was just changed here.
+        if (
+          current.avatar === before.avatar &&
+          isMarbleAvatarImage(profile.image, MARBLE_AVATAR_URLS)
+        ) {
+          current.setAvatar(new URL(profile.image!, window.location.origin).pathname);
+        }
         // A slower initial read must not overwrite a name saved in the meantime.
         if (
           current.nickname !== before.nickname ||

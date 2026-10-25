@@ -16,7 +16,6 @@ import { useLearningCalendarRange } from '@/features/learning-calendar/client/us
 import { useAuthStore } from '@/lib/store/auth';
 import type { CourseRecord } from '@/lib/utils/database';
 import { cn } from '@/lib/utils';
-import { completeWebOnboardingStep } from '@/lib/onboarding/web-store';
 import { LearnHomeDockAppLayer, type LearnDockApp } from '@/components/learn/learn-home-dock-apps';
 
 const STUDENT_HOME_ICONS_PER_PAGE = 20;
@@ -606,7 +605,6 @@ export function LearnHomeDashboard({
       return;
     }
     if (action === 'store') {
-      completeWebOnboardingStep('store');
       router.push('/store');
       return;
     }

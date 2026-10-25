@@ -1,6 +1,8 @@
 import { courseDisplayCode } from '@/lib/course-space/course-display-name';
 import { encode } from 'next-auth/jwt';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
+import { MARBLE_AVATAR_URLS } from '@/lib/constants/marble-avatars';
+import { pickMarbleAvatar } from '@/lib/server/native-initial-profile';
 
 const SPEEDUP_PROVIDER = 'speedup';
 const REQUEST_TIMEOUT_MS = 12_000;
@@ -393,7 +395,6 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
           data: {
             // The local profile is authoritative after the account is created.
             ...(!existingAccount.user.name?.trim() ? { name: identity.name } : {}),
-            ...(identity.image ? { image: identity.image } : {}),
             role: identity.role,
             isActive: true,
           },
@@ -405,7 +406,7 @@ export async function createSpeedupUserSession(identity: SpeedupVerifiedIdentity
       user = await prisma.user.create({
         data: {
           name: identity.name,
-          image: identity.image,
+          image: pickMarbleAvatar(MARBLE_AVATAR_URLS),
           role: identity.role,
           isActive: true,
           accounts: {

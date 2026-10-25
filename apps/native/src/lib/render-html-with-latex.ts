@@ -69,7 +69,7 @@ function repairSplitMathAcrossParagraphs(html: string): string {
 function isInsideLatexIgnoredElement(node: Text): boolean {
   let element = node.parentElement;
   while (element) {
-    if (['CODE', 'PRE', 'SCRIPT', 'STYLE'].includes(element.tagName)) return true;
+    if (['A', 'CODE', 'PRE', 'SCRIPT', 'STYLE'].includes(element.tagName)) return true;
     element = element.parentElement;
   }
   return false;

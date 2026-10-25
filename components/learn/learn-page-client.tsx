@@ -371,6 +371,7 @@ import {
   listStagesByCourseOrThrow,
   type StageListItem,
 } from '@/lib/utils/stage-storage';
+import { PLATFORM_TUTORIAL_COURSE_ID } from '@/lib/onboarding/spotlight';
 import { completeWebOnboardingStep } from '@/lib/onboarding/web-store';
 import { ONBOARDING_PREFILL_EVENT } from '@/lib/onboarding/spotlight';
 
@@ -5112,9 +5113,6 @@ export function LearnLearningActionCards({
                     size="sm"
                     disabled={disabled || completed}
                     className={LEARN_CONFIRMATION_PRIMARY_CLASS}
-                    data-onboarding={
-                      action.kind === 'memory.propose_write' && !completed ? 'remember' : undefined
-                    }
                     onClick={() => onConfirm(action)}
                   >
                     {learnActionButtonLabel(action)}
@@ -12266,7 +12264,6 @@ export function LearnPageClient() {
               );
             }
             durableMemoryId = writeResult.memory.id;
-            completeWebOnboardingStep('remember');
           } catch (error) {
             if (!actionStillBelongsToVisibleSession()) return;
             const errorMessage = error instanceof Error ? error.message : '未知错误';
@@ -12805,7 +12802,8 @@ export function LearnPageClient() {
         controller.abort(new DOMException('学习回复超时', 'TimeoutError'));
       }, LEARN_TURN_TIMEOUT_MS);
       sendRequestRef.current = turnRequest;
-      completeWebOnboardingStep('ask');
+      if (activeCourseIdRef.current === PLATFORM_TUTORIAL_COURSE_ID)
+        completeWebOnboardingStep('ask');
       const canCommitTurn = () =>
         sendRequestRef.current === turnRequest && activeMessageStoreKeyRef.current === turnStoreKey;
       const finishTurn = () => {
@@ -16977,6 +16975,7 @@ export function LearnPageClient() {
               <div className="pointer-events-auto w-full">
                 <div
                   data-onboarding="composer"
+                  data-onboarding-course={activeCourseId ?? undefined}
                   data-onboarding-busy={sending || undefined}
                   className={cn(
                     composerInputShellClassName,

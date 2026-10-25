@@ -33,7 +33,6 @@ import {
   resolveNativeCourseAvatar,
 } from '../assets';
 import { getLocalRepository } from '../data/repository';
-import { loadNotebookForReading } from '../data/course-sync';
 import { loadNativeAuthSession, logoutNativeAuthSession } from '../data/native-auth';
 import {
   getNativeMiniLecturePage,
@@ -58,7 +57,6 @@ import type {
   LocalConversation,
   LocalCourseLearningState,
   LocalCourseSummary,
-  LocalCourseWorkspace,
   LocalNotebook,
   LocalStudyMemory,
 } from '../domain/models';
@@ -67,7 +65,6 @@ import {
   formatCalendarMonth,
   localDayKey,
 } from './LearningCalendarGrid';
-import { LocalResourceViewer, type LocalResourceDocument } from './LocalResourceViewer';
 import { MemoryGalaxyFlat } from './GlassMarbles';
 import { LearningEmptyState } from './LearningEmptyState';
 import {
@@ -1509,7 +1506,13 @@ export function PhoneCalendarPage({
                   onClick={() => setSelectedKey(day.key)}
                 >
                   <span className="phone-calendar-number">{day.day}</span>
-                  {day.eventCount ? <i aria-hidden="true" /> : null}
+                  {dayEvents.length ? (
+                    <span className="phone-calendar-marbles" aria-hidden="true">
+                      {dayEvents.slice(0, 3).map((event) => (
+                        <i key={event.id} className={`is-${event.kind}`} />
+                      ))}
+                    </span>
+                  ) : null}
                   <span className="phone-calendar-day-events" aria-hidden="true">
                     {dayEvents.slice(0, 2).map((event) => (
                       <span
@@ -1517,7 +1520,7 @@ export function PhoneCalendarPage({
                         className={`phone-calendar-event-chip is-${event.kind}`}
                         title={`${labels[event.kind]} · ${event.title}`}
                       >
-                        {event.title}
+                        <span>{event.title}</span>
                       </span>
                     ))}
                     {dayEvents.length > 2 ? (
@@ -1869,6 +1872,7 @@ export function PhoneConfirm({
   cancelLabel = '取消',
   destructive = false,
   busy = false,
+  confirmOnboarding,
   onConfirm,
   onCancel,
 }: {
@@ -1878,6 +1882,8 @@ export function PhoneConfirm({
   cancelLabel?: string;
   destructive?: boolean;
   busy?: boolean;
+  /** 新手引导圈住确认按钮用。 */
+  confirmOnboarding?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -1899,6 +1905,7 @@ export function PhoneConfirm({
           <button
             type="button"
             className={`phone-confirm-button is-primary${destructive ? ' is-destructive' : ''}`}
+            data-onboarding={confirmOnboarding}
             onClick={onConfirm}
             disabled={busy}
           >

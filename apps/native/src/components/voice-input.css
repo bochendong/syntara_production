@@ -1,0 +1,135 @@
+/* 输入框里的麦克风：录音时三颗弹珠跟着音量跳，转文字时按钮里一颗弹珠在转。 */
+.voice-input {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.conversation-composer .voice-input .voice-input-button.is-recording,
+.voice-input-button.is-recording {
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 32% 28%,
+    #fff 0 12%,
+    var(--marble-pink-mid) 48%,
+    var(--marble-pink-deep)
+  );
+  box-shadow: 0 0 0 4px rgb(var(--marble-pink-rgb) / 22%);
+  animation: voice-input-pulse 1.4s ease-in-out infinite;
+}
+
+.voice-input-stop {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: #fff;
+}
+
+.voice-input-button.is-transcribing {
+  position: relative;
+  opacity: 1;
+}
+
+.voice-input-button.is-transcribing svg {
+  opacity: 0;
+}
+
+.voice-input-button.is-transcribing::after {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--marble-blue-mid),
+    var(--marble-purple-mid),
+    var(--marble-pink-mid),
+    var(--marble-blue-mid)
+  );
+  content: '';
+  animation: voice-input-spin 0.9s linear infinite;
+  -webkit-mask: radial-gradient(circle, transparent 0 4px, #000 5px);
+  mask: radial-gradient(circle, transparent 0 4px, #000 5px);
+}
+
+.voice-input-meter {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 24px;
+  padding: 0 8px 0 6px;
+  border-radius: 999px;
+  background: rgb(var(--marble-pink-rgb) / 12%);
+}
+
+.voice-input-meter img {
+  width: 12px;
+  height: 12px;
+  margin-bottom: 6px;
+  transition: transform 0.08s linear;
+}
+
+.voice-input-meter small {
+  margin: 0 0 4px 4px;
+  color: var(--marble-pink-ink);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.voice-input-hint {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  padding: 5px 10px;
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 6px 18px rgb(15 23 42 / 12%);
+  color: #475569;
+  font-size: 12px;
+  white-space: nowrap;
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+}
+
+@keyframes voice-input-pulse {
+  50% {
+    box-shadow: 0 0 0 7px rgb(var(--marble-pink-rgb) / 12%);
+  }
+}
+
+@keyframes voice-input-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-input-button.is-recording,
+  .voice-input-button.is-transcribing::after {
+    animation: none;
+  }
+}
+
+/* 麦克风放在发送键左边，占第二行单独一格。 */
+.conversation-composer:has(> .voice-input) {
+  grid-template-columns: 40px minmax(0, 1fr) auto 40px;
+  grid-template-areas:
+    'text text text text'
+    'photo . voice send';
+}
+
+.conversation-composer > .voice-input {
+  grid-area: voice;
+  justify-self: end;
+}
+
+.conversation-composer .voice-input-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: #0f172a;
+}

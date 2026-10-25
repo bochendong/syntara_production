@@ -3,7 +3,6 @@
 import { useRef, useState, type DragEvent } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import { LANDING_MARBLE_ART } from '@/components/home/landing/marble-art';
-import { completeWebOnboardingStep } from '@/lib/onboarding/web-store';
 import { cn } from '@/lib/utils';
 
 const ACCEPT = '.txt,.md,.markdown,.csv,.json,.ts,.tsx,.js,.jsx,.py,.html,.css,text/*';
@@ -52,10 +51,7 @@ export function CourseNotesDrop({
         failure = cause instanceof Error ? cause.message : String(cause);
       }
     }
-    if (imported) {
-      completeWebOnboardingStep('materials');
-      onUploaded();
-    }
+    if (imported) onUploaded();
     setState(failure ? 'failed' : 'done');
     setMessage(failure);
     window.setTimeout(() => setState((current) => (current === 'done' ? 'idle' : current)), 1600);

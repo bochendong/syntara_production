@@ -19,6 +19,7 @@ import { resolveCourseAvatarDisplayUrl } from '@/lib/constants/course-avatars';
 import { enrollCourseFromStore, listCommunityStoreCourses } from '@/lib/utils/course-storage';
 import type { CommunityCourseListItem, StoreOrganization } from '@/lib/utils/database';
 import { toast } from '@/lib/notifications/client-toast';
+import { PLATFORM_TUTORIAL_COURSE_ID } from '@/lib/onboarding/spotlight';
 import { cn } from '@/lib/utils';
 import styles from './store.module.css';
 
@@ -126,6 +127,9 @@ function GetButton({ course, busy, onGet }: { course: Course; busy: boolean; onG
       type="button"
       className={cn(styles.get, busy && styles.getBusy)}
       aria-label={course.purchased ? `打开${course.name}` : `获取${course.name}`}
+      data-onboarding={
+        course.id === PLATFORM_TUTORIAL_COURSE_ID && !course.purchased ? 'tutorial-get' : undefined
+      }
       disabled={busy}
       onClick={(event) => {
         event.stopPropagation();

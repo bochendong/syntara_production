@@ -1250,6 +1250,57 @@
 
 .phone-calendar {
   padding: 14px 12px 10px;
+  border: 1px solid rgb(255 255 255 / 85%);
+  background: linear-gradient(180deg, rgb(255 255 255 / 84%), rgb(255 255 255 / 60%));
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 4%),
+    0 22px 44px -28px rgb(var(--marble-purple-rgb) / 45%);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+}
+
+/* 每类安排一种弹珠色：日期下的小弹珠、大日历里的胶囊都用它。 */
+.phone-calendar-marbles i,
+.phone-calendar-event-chip {
+  --ev-mid: #b4bfcf;
+  --ev-deep: #64748b;
+  --ev-light: #eef2f7;
+  --ev-ink: #334155;
+}
+
+.phone-calendar .is-assignment {
+  --ev-mid: var(--marble-blue-mid);
+  --ev-deep: var(--marble-blue-deep);
+  --ev-light: var(--marble-blue-light);
+  --ev-ink: var(--marble-blue-ink);
+}
+
+.phone-calendar .is-exam {
+  --ev-mid: var(--marble-pink-mid);
+  --ev-deep: var(--marble-pink-deep);
+  --ev-light: var(--marble-pink-light);
+  --ev-ink: var(--marble-pink-ink);
+}
+
+.phone-calendar .is-progress {
+  --ev-mid: var(--marble-amber-mid);
+  --ev-deep: var(--marble-amber-deep);
+  --ev-light: var(--marble-amber-light);
+  --ev-ink: var(--marble-amber-ink);
+}
+
+.phone-calendar .is-tutorial {
+  --ev-mid: var(--marble-purple-mid);
+  --ev-deep: var(--marble-purple-deep);
+  --ev-light: var(--marble-purple-light);
+  --ev-ink: var(--marble-purple-ink);
+}
+
+.phone-calendar .is-holiday {
+  --ev-mid: var(--marble-green-mid);
+  --ev-deep: var(--marble-green-deep);
+  --ev-light: var(--marble-green-light);
+  --ev-ink: var(--marble-green-ink);
 }
 
 .phone-calendar-head button {
@@ -1305,6 +1356,7 @@
 }
 
 .phone-calendar-day.is-today .phone-calendar-number {
+  box-shadow: inset 0 0 0 1.5px rgb(var(--marble-blue-rgb) / 55%);
   color: var(--marble-blue-deep);
   font-weight: 700;
 }
@@ -1324,13 +1376,19 @@
   font-weight: 600;
 }
 
-.phone-calendar-day > i {
+.phone-calendar-marbles {
   position: absolute;
-  bottom: 2px;
-  width: 5px;
-  height: 5px;
+  bottom: 0;
+  display: flex;
+  gap: 2px;
+}
+
+.phone-calendar-marbles i {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #f59e0b;
+  background: radial-gradient(circle at 32% 28%, #fff 0 16%, var(--ev-mid) 52%, var(--ev-deep));
+  box-shadow: 0 1px 2px rgb(15 23 42 / 18%);
 }
 
 .phone-calendar-empty {
@@ -1360,27 +1418,31 @@
   height: 10px;
   flex: none;
   border-radius: 50%;
-  background: #94a3b8;
+  background-color: #94a3b8;
+  background-image: radial-gradient(circle at 32% 28%, #fff 0 16%, transparent 46%);
+  box-shadow:
+    inset 0 -2px 3px rgb(15 23 42 / 22%),
+    0 1px 2px rgb(15 23 42 / 14%);
 }
 
 .phone-event-dot.is-assignment {
-  background: var(--marble-blue-mid);
+  background-color: var(--marble-blue-mid);
 }
 
 .phone-event-dot.is-exam {
-  background: var(--marble-pink-mid);
+  background-color: var(--marble-pink-mid);
 }
 
 .phone-event-dot.is-progress {
-  background: var(--marble-amber-mid);
+  background-color: var(--marble-amber-mid);
 }
 
 .phone-event-dot.is-tutorial {
-  background: var(--marble-purple-mid);
+  background-color: var(--marble-purple-mid);
 }
 
 .phone-event-dot.is-holiday {
-  background: var(--marble-green-mid);
+  background-color: var(--marble-green-mid);
 }
 
 /* 空的一天：一颗慢慢转的玻璃弹珠 + 接下来一周的弹珠排。 */
@@ -1635,7 +1697,7 @@
   .phone-calendar-grid {
     flex: 1;
     grid-template-rows: 30px repeat(6, minmax(90px, 1fr));
-    gap: 0;
+    gap: 6px;
   }
 
   .phone-calendar-weekday {
@@ -1650,22 +1712,34 @@
     justify-content: flex-start;
     gap: 4px;
     padding: 6px;
-    border-top: 1px solid rgb(15 23 42 / 7%);
-    border-right: 1px solid rgb(15 23 42 / 5%);
+    border-radius: 12px;
+    background: rgb(255 255 255 / 62%);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 90%),
+      0 1px 2px rgb(15 23 42 / 4%);
     text-align: left;
+    transition:
+      background 0.18s ease,
+      box-shadow 0.18s ease,
+      transform 0.18s ease;
   }
 
-  .phone-calendar-day:nth-child(7n) {
-    border-right: 0;
+  .phone-calendar-layout .phone-calendar-day:hover {
+    background: rgb(255 255 255 / 92%);
+    transform: translateY(-1px);
   }
 
-  .phone-calendar-day.is-muted {
-    background: #f8fafc;
-    color: #94a3b8;
+  .phone-calendar-layout .phone-calendar-day.is-muted {
+    background: transparent;
+    box-shadow: none;
+    color: #cbd5e1;
   }
 
-  .phone-calendar-day.is-selected {
-    background: #f0f2fb;
+  .phone-calendar-layout .phone-calendar-day.is-selected {
+    background: rgb(var(--marble-blue-rgb) / 12%);
+    box-shadow:
+      inset 0 0 0 1.5px rgb(var(--marble-blue-rgb) / 50%),
+      0 8px 18px -12px rgb(var(--marble-blue-rgb) / 70%);
   }
 
   .phone-calendar-number {
@@ -1674,7 +1748,7 @@
     flex: none;
   }
 
-  .phone-calendar-day > i {
+  .phone-calendar-marbles {
     display: none;
   }
 
@@ -1686,46 +1760,43 @@
   }
 
   .phone-calendar-event-chip {
+    display: flex;
     overflow: hidden;
-    padding: 3px 5px;
-    border-radius: 4px;
-    background: #e2e8f0;
-    color: #334155;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 5px 2px 3px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ev-light) 80%, transparent);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 70%);
+    color: var(--ev-ink);
     font-size: 11px;
     line-height: 1.3;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .phone-calendar-event-chip.is-assignment {
-    background: var(--marble-blue-light);
-    color: var(--marble-blue-ink);
+  .phone-calendar-event-chip::before {
+    width: 7px;
+    height: 7px;
+    flex: none;
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 28%, #fff 0 16%, var(--ev-mid) 52%, var(--ev-deep));
+    content: '';
   }
 
-  .phone-calendar-event-chip.is-exam {
-    background: var(--marble-pink-light);
-    color: var(--marble-pink-ink);
-  }
-
-  .phone-calendar-event-chip.is-progress {
-    background: var(--marble-amber-light);
-    color: var(--marble-amber-ink);
-  }
-
-  .phone-calendar-event-chip.is-tutorial {
-    background: var(--marble-purple-light);
-    color: var(--marble-purple-ink);
-  }
-
-  .phone-calendar-event-chip.is-holiday {
-    background: var(--marble-green-light);
-    color: var(--marble-green-ink);
+  .phone-calendar-event-chip > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .phone-calendar-more {
     position: absolute;
-    top: 14px;
-    right: 5px;
+    top: 9px;
+    right: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 80%);
+    box-shadow: inset 0 0 0 1px rgb(15 23 42 / 6%);
     color: #64748b;
     font-size: 10px;
   }

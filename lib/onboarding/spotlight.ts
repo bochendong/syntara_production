@@ -3,8 +3,11 @@
  * 步骤、进度存储、在页面上找真按钮、量透镜位置。
  */
 
-/** 先建自己的课、放资料、问第一句、第一次「记住」，最后去商城。 */
-export const ONBOARDING_STEPS = ['course', 'materials', 'ask', 'remember', 'store'] as const;
+/**
+ * 先建自己的课，再去商城加「使用教程」，在教程里点默认问题问一句，
+ * 最后把教程删掉（顺便学会删课）。
+ */
+export const ONBOARDING_STEPS = ['course', 'store', 'ask', 'delete'] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 export type OnboardingState = {
@@ -18,11 +21,14 @@ export type OnboardingState = {
 /** 进度条上每一步的弹珠颜色。 */
 export const ONBOARDING_STEP_MARBLES = {
   course: 'blue',
-  materials: 'amber',
-  ask: 'green',
-  remember: 'purple',
   store: 'pink',
+  ask: 'green',
+  delete: 'purple',
 } as const satisfies Record<OnboardingStep, string>;
+
+/** 商城里平台自己的「使用教程」课程，新手引导会带用户加入、提问、再删掉。 */
+export const PLATFORM_TUTORIAL_COURSE_ID = 'syntara-tutorial';
+export const PLATFORM_TUTORIAL_QUESTION = '平台AI能做什么？';
 
 /** 引导要预填进输入框的话，由聊天页接住。 */
 export const ONBOARDING_PREFILL_EVENT = 'syntara:onboarding-prefill';
@@ -108,6 +114,8 @@ export type CoachTarget = {
   prefill?: string;
   /** 这个元素可见时跳过当前目标（比如已经在聊天页，就不用再圈「聊天」标签）。 */
   unless?: string;
+  /** AI 还在回答时先不圈（比如等教程的回答说完再引导删课）。 */
+  waitIdle?: boolean;
 };
 
 export type CoachTargets = Record<OnboardingStep, CoachTarget[]>;
@@ -154,6 +162,7 @@ function offscreenElement(selector: string): HTMLElement | null {
 /** 当前这一步该圈哪里；正在回答时返回 'hold'，先不打扰。 */
 function resolveTarget(targets: CoachTarget[]) {
   for (const target of targets) {
+    if (target.waitIdle && document.querySelector('[data-onboarding-busy]')) return 'hold' as const;
     if (target.unless && visibleElement(target.unless)) continue;
     const element = visibleElement(target.selector);
     if (!element) continue;
@@ -197,33 +206,20 @@ function sameSpot(a: Spot | null, b: Spot | null) {
   );
 }
 
-/**
- * 盯着页面找这一步的真按钮，量好透镜位置交给 onSpot。返回停止函数。
- * 「记住」的那句已经发过、回答也结束了，还是没有可以接住的记忆，就不再卡在这一步。
- */
+/** 盯着页面找这一步的真按钮，量好透镜位置交给 onSpot。返回停止函数。 */
 export function watchSpotlight(
   step: OnboardingStep,
   targets: CoachTargets,
   handlers: {
     onSpot: (update: (current: Spot | null) => Spot | null) => void;
     prefill: (text: string) => void;
-    complete: (step: OnboardingStep) => void;
   },
 ) {
-  const rememberSelector = targets.remember[0]?.selector;
   const prefilled = new Set<string>();
   const scrolled = new Set<string>();
-  let fallbackSent = false;
-  let heldAfterFallback = false;
   const measure = () => {
     const resolved = resolveTarget(targets[step]);
     if (resolved === 'hold') {
-      if (fallbackSent) heldAfterFallback = true;
-      handlers.onSpot(() => null);
-      return;
-    }
-    if (heldAfterFallback && resolved?.target.selector !== rememberSelector) {
-      handlers.complete('remember');
       handlers.onSpot(() => null);
       return;
     }
@@ -241,7 +237,6 @@ export function watchSpotlight(
     const key = `${step}:${target.selector}`;
     if (target.prefill && !prefilled.has(key)) {
       prefilled.add(key);
-      if (step === 'remember') fallbackSent = true;
       handlers.prefill(target.prefill);
     }
     const next: Spot = { key, text: target.text, hole: holeFor(element) };

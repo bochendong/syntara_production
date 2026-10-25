@@ -496,6 +496,22 @@ export function nativeStoreAction(
   });
 }
 
+/** 删课：自己建的课连笔记和聊天一起删；从商城加入的只从列表里移走。 */
+export function deleteNativeCourse(
+  courseId: string,
+): Promise<{ ok: true; action: 'deleted' | 'removed' }> {
+  return invokeQuery('native_delete_course', { courseId });
+}
+
+/** 改自己建的课的名字和简介。 */
+export function editNativeCourse(payload: {
+  courseId: string;
+  name: string;
+  description?: string;
+}): Promise<unknown> {
+  return invokeJson('native_edit_course', { requestId: crypto.randomUUID(), payload });
+}
+
 /** 新手引导进度存在账号上，换设备也接着上一步。 */
 export async function getNativeOnboarding(): Promise<NativeOnboardingState> {
   const result = await invokeQuery<{ onboarding: NativeOnboardingState }>(

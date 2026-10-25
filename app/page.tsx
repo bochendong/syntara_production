@@ -3,8 +3,8 @@ import type { Metadata } from 'next';
 import { SyntaraLanding } from '@/components/home/landing/syntara-landing';
 
 export const metadata: Metadata = {
-  title: 'Syntara · 上课没听懂，下课接着问',
-  description: '上传课程讲义，提问、看讲解、做题。把想再看的内容记下来，作业和考试放进同一张日历。',
+  title: 'Syntara · 课件变笔记，错题有人记',
+  description: '上传课件，生成笔记、小课堂和练习题，记下你的错题。网页和 iPhone 同步。',
 };
 
 export default function HomePage() {

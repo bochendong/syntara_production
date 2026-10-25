@@ -16,6 +16,7 @@ import { LearningEmptyState } from './LearningEmptyState';
 import { LocalResourceViewer, type LocalResourceDocument } from './LocalResourceViewer';
 import { PhonePage } from './PhonePages';
 import './course-pages.css';
+import { MaterialUploadButton } from './MaterialUploadButton';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** 节数太多时只画这么多颗，剩下的收成「+N」。 */
@@ -69,11 +70,14 @@ export function PhoneNotesPage({
   workspace,
   onBack,
   onUpload,
+  onUploadFiles,
 }: {
   workspace: LocalCourseWorkspace;
   onBack: () => void;
   /** 空课程时去「资料」上传笔记。 */
   onUpload?: () => void;
+  /** 搜索框旁上传键选好的文件，交给「资料」页整理。 */
+  onUploadFiles?: (files: File[]) => void;
 }) {
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -113,7 +117,10 @@ export function PhoneNotesPage({
 
   const readCount = useMemo(
     () =>
-      sortedNotebooks.reduce((sum, notebook) => sum + (readings[notebook.id]?.visited.length ?? 0), 0),
+      sortedNotebooks.reduce(
+        (sum, notebook) => sum + (readings[notebook.id]?.visited.length ?? 0),
+        0,
+      ),
     [readings, sortedNotebooks],
   );
   const sectionTotal = useMemo(
@@ -148,15 +155,18 @@ export function PhoneNotesPage({
       onBack={onBack}
     >
       {workspace.notebooks.length ? (
-        <label className="phone-search">
-          <Search size={17} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索笔记"
-            type="search"
-          />
-        </label>
+        <div className="material-search-row">
+          <label className="phone-search">
+            <Search size={17} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索笔记"
+              type="search"
+            />
+          </label>
+          {onUploadFiles ? <MaterialUploadButton label="上传笔记" onFiles={onUploadFiles} /> : null}
+        </div>
       ) : null}
       {error ? <p className="phone-page-error">{error}</p> : null}
 

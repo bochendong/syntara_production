@@ -1,6 +1,6 @@
 import { AppNavigationRail } from './components/AppNavigationRail';
 import { AppNavigationContext, type AppNavigation } from './components/app-navigation-context';
-import { browserApp } from './data/browser-runtime';
+import { browserApp, platformAvailable } from './data/browser-runtime';
 import { CreateCourseDialog } from './components/CreateCourseDialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
@@ -23,10 +23,12 @@ import {
 } from './lib/native-launch';
 import { readPhoneLastChat } from './lib/phone-last-chat';
 import { GlobalCalendarApp } from './components/GlobalCalendarApp';
-import { PhoneProfilePage } from './components/PhonePages';
+import { PhoneConfirm, PhoneProfilePage } from './components/PhonePages';
 import { StorePage } from './components/StorePage';
 import { OnboardingCoach } from './components/OnboardingCoach';
-import { completeOnboardingStep } from './lib/onboarding';
+import { completeOnboardingStep, PLATFORM_TUTORIAL_COURSE_ID } from './lib/onboarding';
+import { deleteNativeCourse, editNativeCourse } from './data/platform-api-client';
+import { readPlatformCourseMeta } from './lib/platform-course-meta';
 import { resolveNativeCourseAvatar } from './assets';
 import { marbleImages } from './lib/learning-action-marbles';
 import type { LocalCourseEvent } from './domain/learning-experiences';
@@ -57,9 +59,18 @@ function updateWithPlatformTransition(update: () => void) {
   update();
 }
 
+function courseMetaFor(courseId: string) {
+  return readPlatformCourseMeta()[courseId];
+}
+
 function AuthenticatedApp() {
   const avatarTheme = useAvatarTheme();
   const [creatingCourse, setCreatingCourse] = useState(false);
+  const [managedCourse, setManagedCourse] = useState<{
+    course: LocalCourseSummary;
+    action: 'edit' | 'delete';
+  } | null>(null);
+  const [removingCourse, setRemovingCourse] = useState(false);
   const [chatDraft, setChatDraft] = useState({ text: '', revision: 0 });
   const [courses, setCourses] = useState<LocalCourseSummary[]>([]);
   const [platformCourseIds, setPlatformCourseIds] = useState<string[] | null>(null);
@@ -519,11 +530,33 @@ function AuthenticatedApp() {
             : 'chat',
     avatarUrl: avatarTheme.avatarUrl,
     onOpenCalendar: () => setGlobalPage('calendar'),
-    onOpenStore: () => {
-      completeOnboardingStep('store');
-      setGlobalPage('store');
-    },
+    onOpenStore: () => setGlobalPage('store'),
     onOpenSettings: () => setGlobalPage('profile'),
+    onManageCourse: platformAvailable()
+      ? (course, action) => setManagedCourse({ course, action })
+      : undefined,
+  };
+
+  const removeCourse = async (course: LocalCourseSummary) => {
+    setRemovingCourse(true);
+    try {
+      await deleteNativeCourse(course.id);
+      if (course.id === PLATFORM_TUTORIAL_COURSE_ID) completeOnboardingStep('delete');
+      await loadCourses();
+      setManagedCourse(null);
+      if (course.id === selectedCourseId) {
+        // 删掉的是正在看的课：回到上次的其他课，没有就回到普通聊天。
+        setSelectedCourseId(null);
+        setWorkspace(null);
+        setSurface('launch');
+      }
+      setToast(`已删除「${course.courseCode || course.name}」`);
+    } catch (cause) {
+      setManagedCourse(null);
+      setToast(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setRemovingCourse(false);
+    }
   };
 
   return (
@@ -546,6 +579,42 @@ function AuthenticatedApp() {
             {content}
           </ChatWorkspaceShell>
         </div>
+        {managedCourse?.action === 'edit' ? (
+          <CreateCourseDialog
+            editing={{
+              name: managedCourse.course.name,
+              description: managedCourse.course.description,
+            }}
+            createCourse={async (name, description) => {
+              await editNativeCourse({ courseId: managedCourse.course.id, name, description });
+              return { id: managedCourse.course.id };
+            }}
+            onCancel={() => setManagedCourse(null)}
+            onCreated={async () => {
+              await refreshWorkspace();
+              setManagedCourse(null);
+            }}
+          />
+        ) : managedCourse ? (
+          <PhoneConfirm
+            title={`删除「${managedCourse.course.courseCode || managedCourse.course.name}」？`}
+            message={
+              courseMetaFor(managedCourse.course.id)?.accessRole === 'enrolled'
+                ? '只是从你的课程里移走，以后还能去商城加回来。'
+                : '课程里的笔记、题目和聊天会一起删掉，无法恢复。'
+            }
+            confirmLabel="删除"
+            destructive
+            busy={removingCourse}
+            confirmOnboarding={
+              managedCourse.course.id === PLATFORM_TUTORIAL_COURSE_ID
+                ? 'course-delete-confirm'
+                : undefined
+            }
+            onConfirm={() => void removeCourse(managedCourse.course)}
+            onCancel={() => setManagedCourse(null)}
+          />
+        ) : null}
         {creatingCourse ? (
           <CreateCourseDialog
             onCancel={() => setCreatingCourse(false)}

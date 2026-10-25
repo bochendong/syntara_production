@@ -226,3 +226,227 @@
 .chat-cite-memory.chat-cite-purple {
   color: #7151a8;
 }
+
+/* 代码块：VS Code Dark Modern 编辑器，外面一圈玻璃描边 */
+.chat-rich .chat-code {
+  --code-bg: #1f1f1f;
+  --code-bar: #181818;
+  --code-line: rgb(255 255 255 / 6%);
+  --code-font:
+    ui-monospace, 'SF Mono', SFMono-Regular, Menlo, 'Cascadia Code', Consolas, 'PingFang SC',
+    monospace;
+  margin: 6px 0 14px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 14px;
+  background: var(--code-bg);
+  box-shadow:
+    0 0 0 1px rgb(15 23 42 / 10%),
+    0 10px 28px -12px rgb(15 23 42 / 45%),
+    inset 0 1px 0 rgb(255 255 255 / 8%);
+  color: #cccccc;
+  font-size: 13px;
+}
+
+.chat-code-bar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  height: 34px;
+  padding-right: 6px;
+  border-bottom: 1px solid #2b2b2b;
+  background: var(--code-bar);
+}
+
+/* 像 VS Code 的当前标签页：比顶栏亮一点，顶上一条蓝线 */
+.chat-code-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px 0 12px;
+  border-top: 1.5px solid #0078d4;
+  border-right: 1px solid #2b2b2b;
+  color: #ffffff;
+  background: var(--code-bg);
+  font-family: var(--code-font);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.chat-code-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 -1px 2px rgb(0 0 0 / 35%),
+    inset 0 1px 1px rgb(255 255 255 / 55%);
+}
+
+.chat-code-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  color: #9d9d9d;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.chat-code-copy:hover {
+  color: #ffffff;
+  background: rgb(255 255 255 / 8%);
+}
+
+.chat-code-copy:active {
+  transform: scale(0.95);
+}
+
+.chat-code-copy.is-copied {
+  color: #89d185;
+}
+
+.chat-code-body {
+  display: flex;
+  min-width: 0;
+  padding: 10px 0 12px;
+  font-family: var(--code-font);
+  font-size: 1em;
+  line-height: 1.6;
+}
+
+.chat-code-gutter {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 2.6em;
+  padding: 0 10px 0 8px;
+  color: #6e7681;
+  text-align: right;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.chat-message-markdown.chat-rich .chat-code-pre {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0 16px 0 6px;
+  overflow-x: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  tab-size: 4;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 18%) transparent;
+}
+
+.chat-code-pre code {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.chat-code-line {
+  display: block;
+}
+
+/* Dark Modern / Dark+ 的 token 配色 */
+.chat-code .tk-comment {
+  color: #6a9955;
+}
+.chat-code .tk-string {
+  color: #ce9178;
+}
+.chat-code .tk-number {
+  color: #b5cea8;
+}
+.chat-code .tk-keyword,
+.chat-code .tk-constant,
+.chat-code .tk-tag {
+  color: #569cd6;
+}
+.chat-code .tk-control {
+  color: #c586c0;
+}
+.chat-code .tk-type {
+  color: #4ec9b0;
+}
+.chat-code .tk-function,
+.chat-code .tk-decorator {
+  color: #dcdcaa;
+}
+.chat-code .tk-variable,
+.chat-code .tk-property,
+.chat-code .tk-attr {
+  color: #9cdcfe;
+}
+.chat-code .tk-punct {
+  color: #cccccc;
+}
+
+@media (max-width: 600px) {
+  .chat-rich .chat-code {
+    margin-inline: -2px;
+    border-radius: 12px;
+    font-size: 12.5px;
+  }
+
+  .chat-code-gutter {
+    min-width: 2.2em;
+    padding: 0 8px 0 4px;
+  }
+}
+
+.chat-code .tk-inserted {
+  color: #89d185;
+}
+.chat-code .tk-deleted {
+  color: #f48771;
+}
+.chat-code .tk-meta {
+  color: #569cd6;
+}
+.chat-code-line:has(.tk-inserted) {
+  background: rgb(72 160 80 / 14%);
+}
+.chat-code-line:has(.tk-deleted) {
+  background: rgb(240 80 70 / 14%);
+}
+
+/* 回答里的链接：蓝色细下划线，长链接可以折行 */
+.chat-rich a.problem-rich-link {
+  color: var(--marble-blue-deep, #2f5fa8);
+  text-decoration: underline;
+  text-decoration-color: rgb(59 110 190 / 35%);
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.chat-rich a.problem-rich-link:hover {
+  text-decoration-color: currentColor;
+}
+
+/* 嵌套列表 */
+.chat-message-markdown.chat-rich li > :is(ul, ol) {
+  margin: 4px 0 2px;
+}

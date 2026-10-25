@@ -72,3 +72,7 @@
 .create-course-dialog [role='alert'] {
   color: #be123c;
 }
+.course-tools-menu button.is-destructive,
+.course-tools-menu button.is-destructive svg {
+  color: #d9466f;
+}

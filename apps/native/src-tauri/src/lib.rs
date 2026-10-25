@@ -105,6 +105,8 @@ pub fn run() {
             platform_api::native_get_conversations,
             platform_api::native_sync_conversation,
             platform_api::native_delete_conversation,
+            platform_api::native_delete_course,
+            platform_api::native_edit_course,
             assets::persist_archive_assets,
             assets::read_local_asset,
             assets::verify_local_assets,

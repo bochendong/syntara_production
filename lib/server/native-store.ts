@@ -10,6 +10,9 @@ import {
   listPublicStoreCoursesForUser,
 } from '@/lib/server/repositories/store-repository';
 import { cloneStoreCourseForUser } from '@/lib/server/services/store-purchase-service';
+import { recordTutorialStep } from '@/lib/server/onboarding';
+import { ensurePlatformTutorial } from '@/lib/server/platform-tutorial';
+import { PLATFORM_TUTORIAL_COURSE_ID } from '@/lib/onboarding/spotlight';
 
 /** App 商城的一门机构课程（和网页 /store/courses 同一份数据）。 */
 export type NativeStoreCourse = {
@@ -78,6 +81,7 @@ export async function listNativeStoreCourses(
   prisma: PrismaClient,
   userId: string,
 ): Promise<NativeStoreCourse[]> {
+  await ensurePlatformTutorial(prisma);
   const rows = await listPublicStoreCoursesForUser(prisma, userId);
   const joined = new Set(
     (
@@ -92,7 +96,12 @@ export async function listNativeStoreCourses(
     prisma,
     rows.map((row) => row.id),
   );
-  return rows.map((row) => {
+  // 「使用教程」排在最前面，新手引导好找。
+  const ordered = [...rows].sort(
+    (a, b) =>
+      Number(b.id === PLATFORM_TUTORIAL_COURSE_ID) - Number(a.id === PLATFORM_TUTORIAL_COURSE_ID),
+  );
+  return ordered.map((row) => {
     const display = normalizeCourseDisplay(row);
     const rating = stats.ratings.get(row.id);
     return {
@@ -132,7 +141,9 @@ export async function joinNativeStoreCourse(
   courseId: string,
 ) {
   const result = await cloneStoreCourseForUser(prisma, userId, courseId);
-  return result.status === 'not_found' ? null : { courseId, created: result.status === 'created' };
+  if (result.status === 'not_found') return null;
+  await recordTutorialStep(prisma, userId, courseId, 'store');
+  return { courseId, created: result.status === 'created' };
 }
 
 /** 打开加入的机构课程后熄灭「有更新」；自己建的课程没有这一步。 */

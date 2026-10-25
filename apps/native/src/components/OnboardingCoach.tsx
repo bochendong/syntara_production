@@ -1,7 +1,12 @@
 import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { marbleImages } from '../lib/learning-action-marbles';
-import { onboardingStore, ONBOARDING_STEPS } from '../lib/onboarding';
+import {
+  onboardingStore,
+  ONBOARDING_STEPS,
+  PLATFORM_TUTORIAL_COURSE_ID,
+  PLATFORM_TUTORIAL_QUESTION,
+} from '../lib/onboarding';
 import {
   blockerRects,
   bubblePlacement,
@@ -13,17 +18,7 @@ import {
 } from '../../../../lib/onboarding/spotlight';
 import './onboarding-coach.css';
 
-const CHAT_TAB = {
-  selector: '[data-onboarding="chat-tab"]',
-  text: '回到聊天',
-  unless: '[data-onboarding="composer"]',
-};
-// 手机和窄窗口没有标签，学习页左上角是返回。
-const PAGE_BACK = {
-  selector: '[data-onboarding="page-back"]',
-  text: '回到聊天',
-  unless: '[data-onboarding="composer"]',
-};
+const TUTORIAL_COMPOSER = `[data-onboarding="composer"][data-onboarding-course="${PLATFORM_TUTORIAL_COURSE_ID}"]`;
 
 /** 每一步按顺序找第一个看得见的真按钮（带 data-onboarding）。 */
 const TARGETS: CoachTargets = {
@@ -31,41 +26,35 @@ const TARGETS: CoachTargets = {
     { selector: '[data-onboarding="new-course"]', text: '先建一门自己的课' },
     { selector: '[data-onboarding="drawer"]', text: '课程在这里' },
   ],
-  materials: [
-    { selector: '[data-onboarding="materials-drop"]', text: '把笔记拖进来' },
-    { selector: '[data-onboarding="tool-materials"]', text: '打开资料' },
-    { selector: '[data-onboarding="course-menu"]', text: '资料在这里' },
-    { selector: '[data-onboarding="course-tools"]', text: '资料在这里' },
-    { selector: '[data-onboarding="drawer"]', text: '资料在这里' },
+  store: [
+    { selector: '[data-onboarding="tutorial-get"]', text: '加「使用教程」' },
+    { selector: '[data-onboarding="store"]', text: '去商城' },
+    { selector: '[data-onboarding="drawer"]', text: '商城在这里' },
   ],
   ask: [
-    {
-      selector: '[data-onboarding="composer"]',
-      text: '问它一句',
-      prefill: '用我的资料，讲讲第一部分',
-    },
-    CHAT_TAB,
-    PAGE_BACK,
+    { selector: '[data-onboarding="tutorial-ask"]', text: '点它问问' },
+    { selector: TUTORIAL_COMPOSER, text: '问它一句', prefill: PLATFORM_TUTORIAL_QUESTION },
+    { selector: '[data-onboarding="tutorial-open"]', text: '打开教程' },
+    { selector: '[data-onboarding="tutorial-chat"]', text: '打开教程' },
+    { selector: '[data-onboarding="tutorial-course-menu"]', text: '打开教程' },
+    { selector: '[data-onboarding="drawer"]', text: '教程在这里' },
   ],
-  remember: [
-    { selector: '[data-onboarding="remember"]', text: '接住它' },
+  // 等教程回答完再引导删掉它，顺便学会删课。
+  delete: [
+    { selector: '[data-onboarding="course-delete-confirm"]', text: '删掉它', waitIdle: true },
+    { selector: '[data-onboarding="course-delete"]', text: '删除', waitIdle: true },
     {
-      selector: '[data-onboarding="composer"]',
-      text: '让它记住你',
-      prefill: '记住：我刚开始学这门课，讲慢一点',
+      selector: '[data-onboarding="tutorial-course-menu"]',
+      text: '用完就删掉',
+      waitIdle: true,
     },
-    CHAT_TAB,
-    PAGE_BACK,
-  ],
-  store: [
-    { selector: '[data-onboarding="store"]', text: '学校的课在这' },
-    { selector: '[data-onboarding="drawer"]', text: '商城在这里' },
+    { selector: '[data-onboarding="drawer"]', text: '用完就删掉', waitIdle: true },
   ],
 };
 
 /**
  * 新手引导：暗色遮罩上开一个玻璃透镜，只圈住真按钮，只有透镜里能点。
- * 真的做成了（建好课、资料入库、发出第一句、记住、打开商城）才走到下一步。
+ * 真的做成了（建好课、加入教程、在教程里问一句、删掉教程）才走到下一步。
  */
 export function OnboardingCoach() {
   const state = useSyncExternalStore(onboardingStore.subscribe, onboardingStore.snapshot);
@@ -87,7 +76,6 @@ export function OnboardingCoach() {
     return watchSpotlight(step, TARGETS, {
       onSpot: setSpot,
       prefill: prefillOnboardingDraft,
-      complete: onboardingStore.complete,
     });
   }, [step]);
 

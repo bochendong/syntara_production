@@ -191,33 +191,59 @@ function renderInlineFormatting(text: string): string {
     .replace(/\n/g, '<br/>');
 }
 
-function renderInlineMarkdown(text: string): string {
-  let html = '';
-  let cursor = 0;
+const INLINE_TOKEN = /@@SYNINLINE(\d+)@@/g;
 
+function safeHref(url: string): string | null {
+  return /^(?:https?:\/\/|mailto:)/i.test(url) ? url : null;
+}
+
+function renderLink(label: string, url: string): string {
+  return `<a class="problem-rich-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+}
+
+/**
+ * 行内 Markdown：先把 `代码`、[文字](链接)、裸链接换成占位符，再处理加粗/斜体，
+ * 这样 **加粗里有 `code`** 也能成对匹配，链接里的 / 和 _ 不会被当成斜体或公式。
+ */
+function renderInlineMarkdown(text: string): string {
+  const pieces: string[] = [];
+  const hold = (html: string) => `@@SYNINLINE${pieces.push(html) - 1}@@`;
+
+  let held = '';
+  let cursor = 0;
   while (cursor < text.length) {
     const tickStart = text.indexOf('`', cursor);
     if (tickStart === -1) {
-      html += renderInlineFormatting(text.slice(cursor));
+      held += text.slice(cursor);
       break;
     }
-
-    html += renderInlineFormatting(text.slice(cursor, tickStart));
-    const codeStart = tickStart + 1;
-    const tickEnd = text.indexOf('`', codeStart);
+    held += text.slice(cursor, tickStart);
+    const tickEnd = text.indexOf('`', tickStart + 1);
     if (tickEnd === -1) {
-      html += '&#96;';
-      cursor = codeStart;
+      held += hold('&#96;');
+      cursor = tickStart + 1;
       continue;
     }
-
-    html += `<code class="problem-rich-inline-code">${escapeHtml(
-      text.slice(codeStart, tickEnd),
-    )}</code>`;
+    held += hold(
+      `<code class="problem-rich-inline-code">${escapeHtml(text.slice(tickStart + 1, tickEnd))}</code>`,
+    );
     cursor = tickEnd + 1;
   }
 
-  return html;
+  held = held
+    .replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (match, label: string, url: string) => {
+      const href = safeHref(url);
+      return href ? hold(renderLink(renderInlineFormatting(label), href)) : match;
+    })
+    .replace(
+      /(^|[^"'(=\w])(https?:\/\/[^\s<>()（）\u4e00-\u9fff，。、；！？]+[^\s<>()（）\u4e00-\u9fff，。、；！？.,;:!?'"])/g,
+      (_match, before: string, url: string) => `${before}${hold(renderLink(escapeHtml(url), url))}`,
+    );
+
+  return renderInlineFormatting(held).replace(
+    INLINE_TOKEN,
+    (_match, index: string) => pieces[Number(index)],
+  );
 }
 
 function protectFencedCodeBlocks(text: string): { text: string; blocks: string[] } {
@@ -422,15 +448,64 @@ function renderTable(lines: string[]): string {
     .join('')}</tbody></table></div>`;
 }
 
-function renderList(lines: string[], ordered: boolean): string {
-  const tag = ordered ? 'ol' : 'ul';
-  const itemPattern = ordered ? /^\s*\d+[\.)]\s+(.+)$/ : /^\s*[-*]\s+(.+)$/;
-  return `<${tag}>${lines
-    .map((line) => {
-      const item = line.match(itemPattern)?.[1] ?? line.trim();
-      return `<li>${renderInlineMarkdown(item)}</li>`;
-    })
-    .join('')}</${tag}>`;
+const LIST_ITEM = /^(\s*)([-*]|\d+[.)])\s+(.*)$/;
+
+function isListItem(line: string): boolean {
+  return LIST_ITEM.test(line);
+}
+
+interface ListNode {
+  ordered: boolean;
+  start: number;
+  text: string;
+  indent: number;
+  children: ListNode[];
+}
+
+/** 列表块：按缩进套出嵌套列表，有序列表沿用模型写的起始编号（中间隔了空行也不会都变成 1.）。 */
+function renderList(lines: string[]): string {
+  const roots: ListNode[] = [];
+  const stack: ListNode[] = [];
+  for (const line of lines) {
+    const match = line.match(LIST_ITEM);
+    if (!match) continue;
+    const node: ListNode = {
+      ordered: /\d/.test(match[2]),
+      start: Number.parseInt(match[2], 10) || 1,
+      text: match[3],
+      indent: match[1].replace(/\t/g, '    ').length,
+      children: [],
+    };
+    while (stack.length && stack[stack.length - 1].indent >= node.indent) stack.pop();
+    // 至少缩进 2 格才算子项，避免 1 格的随手缩进把列表拆碎。
+    const parent = stack[stack.length - 1];
+    if (parent && node.indent - parent.indent >= 2) parent.children.push(node);
+    else {
+      while (stack.length) stack.pop();
+      roots.push(node);
+    }
+    stack.push(node);
+  }
+
+  const renderGroup = (nodes: ListNode[]): string => {
+    let html = '';
+    let index = 0;
+    while (index < nodes.length) {
+      const ordered = nodes[index].ordered;
+      const tag = ordered ? 'ol' : 'ul';
+      const start = ordered && nodes[index].start !== 1 ? ` start="${nodes[index].start}"` : '';
+      let items = '';
+      while (index < nodes.length && nodes[index].ordered === ordered) {
+        const node = nodes[index];
+        items += `<li>${renderInlineMarkdown(node.text)}${node.children.length ? renderGroup(node.children) : ''}</li>`;
+        index += 1;
+      }
+      html += `<${tag}${start}>${items}</${tag}>`;
+    }
+    return html;
+  };
+
+  return renderGroup(roots);
 }
 
 function renderHeading(line: string): string | null {
@@ -640,23 +715,13 @@ function textToHtml(text: string): string {
       continue;
     }
 
-    if (/^\s*[-*]\s+/.test(line)) {
+    if (isListItem(line)) {
       const listLines: string[] = [];
-      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
+      while (index < lines.length && isListItem(lines[index])) {
         listLines.push(lines[index]);
         index += 1;
       }
-      blocks.push(renderList(listLines, false));
-      continue;
-    }
-
-    if (/^\s*\d+[\.)]\s+/.test(line)) {
-      const listLines: string[] = [];
-      while (index < lines.length && /^\s*\d+[\.)]\s+/.test(lines[index])) {
-        listLines.push(lines[index]);
-        index += 1;
-      }
-      blocks.push(renderList(listLines, true));
+      blocks.push(renderList(listLines));
       continue;
     }
 
@@ -672,8 +737,7 @@ function textToHtml(text: string): string {
       !isHorizontalRule(lines[index]) &&
       !/^\s*>\s?/.test(lines[index]) &&
       !(isPipeTableRow(lines[index]) && lines[index + 1] && isTableSeparator(lines[index + 1])) &&
-      !/^\s*[-*]\s+/.test(lines[index]) &&
-      !/^\s*\d+[\.)]\s+/.test(lines[index])
+      !isListItem(lines[index])
     ) {
       paragraphLines.push(lines[index]);
       index += 1;

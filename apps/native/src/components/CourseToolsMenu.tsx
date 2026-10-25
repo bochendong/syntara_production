@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { CourseLearningPage } from '../lib/native-launch';
 import { usePhoneLayout } from '../lib/use-phone-layout';
@@ -46,6 +46,47 @@ export function CourseToolsMenu({
 }) {
   const phone = usePhoneLayout();
   const items = phone ? tools.filter((tool) => tool.page !== 'problems') : tools;
+  return (
+    <GlassMenu
+      anchor={anchor}
+      label={`${courseName}学习工具`}
+      align={align}
+      onClose={onClose}
+      items={items.map(({ page, label }) => ({
+        key: page,
+        label,
+        icon: <LearningToolIcon tool={page} />,
+        onboarding: page === 'materials' ? 'tool-materials' : undefined,
+        onSelect: () => onSelect(page),
+      }))}
+    />
+  );
+}
+
+export type GlassMenuItem = {
+  key: string;
+  label: string;
+  icon: ReactNode;
+  onSelect: () => void;
+  /** 新手引导圈住的按钮。 */
+  onboarding?: string;
+  destructive?: boolean;
+};
+
+/** 从按钮下面展开的玻璃小菜单，点外面、按 Esc 或返回就收起。 */
+export function GlassMenu({
+  anchor,
+  label,
+  items,
+  onClose,
+  align = 'end',
+}: {
+  anchor: HTMLButtonElement;
+  label: string;
+  items: GlassMenuItem[];
+  onClose: () => void;
+  align?: 'end' | 'center';
+}) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(() => menuPosition(anchor, items.length, align));
   useBackDismiss(true, onClose, 30);
@@ -65,7 +106,9 @@ export function CourseToolsMenu({
       if (
         event.target instanceof Node &&
         !anchor.contains(event.target) &&
-        !menuRef.current?.contains(event.target)
+        !menuRef.current?.contains(event.target) &&
+        // 新手引导的透镜不算点到外面。
+        !(event.target instanceof Element && event.target.closest('[data-onboarding-layer]'))
       )
         onClose();
     };
@@ -82,7 +125,7 @@ export function CourseToolsMenu({
       className={align === 'center' ? 'course-tools-menu is-centered' : 'course-tools-menu'}
       style={position}
       role="menu"
-      aria-label={`${courseName}学习工具`}
+      aria-label={label}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();
@@ -106,16 +149,17 @@ export function CourseToolsMenu({
         }
       }}
     >
-      {items.map(({ page, label }) => (
+      {items.map((item) => (
         <button
           type="button"
           role="menuitem"
-          key={page}
-          data-onboarding={page === 'materials' ? 'tool-materials' : undefined}
-          onClick={() => onSelect(page)}
+          key={item.key}
+          className={item.destructive ? 'is-destructive' : undefined}
+          data-onboarding={item.onboarding}
+          onClick={item.onSelect}
         >
-          <LearningToolIcon tool={page} />
-          <span>{label}</span>
+          {item.icon}
+          <span>{item.label}</span>
         </button>
       ))}
     </div>,

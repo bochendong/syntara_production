@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { nativeBrowserVerificationUrl } from '../../lib/server/native-login-url.ts';
 import { visibleNativeCourses } from '../../lib/server/native-staging-course.ts';
-import { nativeInitialUserData } from '../../lib/server/native-initial-profile.ts';
+import {
+  isMarbleAvatarImage,
+  nativeInitialUserData,
+} from '../../lib/server/native-initial-profile.ts';
 import { resolveAccountAvatar } from '../../apps/native/src/lib/account-avatar.ts';
 import {
   canSignInToGoogleTest,
@@ -30,8 +33,7 @@ test('new accounts stay empty and the retired automatic course is excluded only 
   assert.equal(visibleNativeCourses(env, 'other-user', courses).length, 2);
 });
 
-test('new Google test users receive a stored catalog avatar without changing identity', () => {
-  const env = { SYNTARA_APP_ENV: 'staging', SYNTARA_NATIVE_ACCESS_POLICY: 'google-test' };
+test('new accounts receive a random catalog marble instead of the OAuth photo', () => {
   const user = {
     name: 'New User',
     email: 'fixture@example.invalid',
@@ -39,16 +41,15 @@ test('new Google test users receive a stored catalog avatar without changing ide
   };
   const avatars = ['/avatars/a.webp', '/avatars/b.webp'];
   assert.deepEqual(
-    nativeInitialUserData(env, user, avatars, () => 0),
+    nativeInitialUserData(user, avatars, () => 0),
     { ...user, image: avatars[0] },
   );
-  assert.equal(nativeInitialUserData(env, user, avatars, () => 0.999).image, avatars[1]);
+  assert.equal(nativeInitialUserData(user, avatars, () => 0.999).image, avatars[1]);
   assert.equal(user.image, 'https://google.invalid/photo');
-  assert.equal(
-    nativeInitialUserData({ ...env, SYNTARA_APP_ENV: 'production' }, user, avatars),
-    user,
-  );
-  assert.equal(nativeInitialUserData(env, user, []), user);
+  assert.equal(nativeInitialUserData(user, []), user);
+  assert.equal(isMarbleAvatarImage('https://api.invalid/avatars/b.webp?v=1', avatars), true);
+  assert.equal(isMarbleAvatarImage('https://google.invalid/photo', avatars), false);
+  assert.equal(isMarbleAvatarImage(null, avatars), false);
 });
 
 test('account catalog avatars resolve to native assets and custom images stay intact', () => {

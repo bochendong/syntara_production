@@ -39,30 +39,30 @@ const FEATURES: {
   {
     key: 'notes',
     color: 'blue',
-    label: 'AI 笔记本',
-    title: '讲义和笔记，\n放在一起看',
-    body: '按章节看笔记，想核对时就回到原文。哪一段没看懂，可以直接接着问。',
-    points: ['按章节整理', '查看原文出处', '边看边问'],
+    label: '笔记',
+    title: '上传课件，\n按章节出笔记',
+    body: 'PPT、PDF、Word 和网页都能传。笔记里每一段都能点回原文那一页。',
+    points: ['按章节分好', '点一下回到原文', '不懂直接问'],
     transition: { kind: 'lens', duration: 0.6 },
     Mock: NotesMock,
   },
   {
     key: 'classroom',
     color: 'purple',
-    label: 'AI 课堂',
-    title: '换个讲法，\n再听一遍',
-    body: '看文字没想明白，可以试试带旁白的讲解。例子会一步步展开，没跟上就暂停，或者回去再看。',
-    points: ['旁白讲解', '同步字幕', '随时暂停回看'],
+    label: '小课堂',
+    title: '一个知识点，\n讲五分钟',
+    body: '幻灯片配语音和字幕，听不懂就停下来问。',
+    points: ['有语音和字幕', '随时暂停提问', '手机上也能看'],
     transition: { kind: 'roll', duration: 0.65 },
     Mock: ClassroomMock,
   },
   {
     key: 'problems',
     color: 'amber',
-    label: '题库练习',
-    title: '做几道题，\n看看会了没有',
-    body: '先挑一个难度试试。做完看解析，做错的题留着回头再练。',
-    points: ['选择难度', '做完看解析', '回头练错题'],
+    label: '题库',
+    title: '做完题，\n马上看解析',
+    body: '题目分基础、进阶、挑战三档。提交就出解析，做错的题自动记下来。',
+    points: ['三档难度', '提交就有解析', '错题自动收集'],
     transition: { kind: 'pixel', duration: 0.85 },
     Mock: ProblemsMock,
   },
@@ -70,19 +70,19 @@ const FEATURES: {
     key: 'memory',
     color: 'pink',
     label: '学习记忆',
-    title: '上次没弄懂的，\n还在这里',
-    body: '把想再看的内容记下来。下次提问或考前复习，就不用再翻一遍聊天记录。',
-    points: ['自己决定记什么', '按课程保存', '复习时再看'],
+    title: '做错过什么，\n它都记着',
+    body: '错题、没弄懂的概念、你喜欢的讲法，各存成一颗弹珠。几天不复习，弹珠会变模糊。',
+    points: ['按颜色分类', '不复习会变模糊', '聊天时会用上'],
     transition: { kind: 'rain', duration: 0.85 },
     Mock: MemoryMock,
   },
   {
     key: 'calendar',
     color: 'green',
-    label: '学习日历',
-    title: '作业哪天交，\n考试哪天考',
-    body: '几门课的作业、考试和上课时间，记在同一张日历里。安排复习时，也能看看哪天有空。',
-    points: ['作业截止日期', '考试安排', '各门课一起看'],
+    label: '日历',
+    title: '作业和考试，\n放在一张日历上',
+    body: '截止日期、考试和复习计划都在这里，打开就知道今天要做什么。',
+    points: ['截止前提醒', '学习进度同步', '网页和手机都能看'],
     transition: { kind: 'vortex', duration: 0.85 },
     Mock: CalendarMock,
   },
@@ -120,8 +120,8 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
   const loginHref = googleTest ? '/test' : '/login';
   const loginLabel = '开始学习';
   const loginHint = googleTest
-    ? '测试版 · 使用 Google 账号登录'
-    : '使用 SpeedUp 账号登录后，从课程页面进入 Syntara。';
+    ? '测试版用 Google 账号登录。'
+    : '用 SpeedUp 账号登录，再从课程页进入 Syntara。';
   const storyRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const galaxyCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -741,17 +741,17 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
             </div>
             <div ref={heroCopyRef} className={styles.heroCopy}>
               <h1 id="landing-title" className={styles.srOnly}>
-                上课没听懂，下课接着问。
+                没听懂的，回来再问。
               </h1>
               <p className={styles.heroLede}>
-                上传课程讲义，遇到不懂的地方就问。看一段讲解，做几道题；还没弄懂的，留到下次接着学。
+                上传课件或 PDF，Syntara 帮你整理成笔记、出练习题，还会记下你做错过什么。
               </p>
               <div className={styles.heroActions}>
                 <Link href={loginHref} className={styles.primary}>
                   {loginLabel}
                 </Link>
                 <button type="button" className={styles.ghost} onClick={() => goTo(1)}>
-                  看看怎么用
+                  先看看
                 </button>
               </div>
               <p className={styles.loginHint}>{loginHint}</p>
@@ -775,12 +775,10 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
             </div>
             <div ref={lensCopyRef} className={styles.lensCopy}>
               <h2 id="lens-title" className={styles.srOnly}>
-                哪儿没看懂，就从哪儿问。
+                哪句看不懂，就问哪句。
               </h2>
-              <p className={styles.heroLede}>
-                带着你正在看的讲义，把没想明白的那一步问下去。回答里的引用可以点开，回到原文看看。
-              </p>
-              <p className={styles.lensHint}>课程讲解示例 · 移动鼠标查看细节</p>
+              <p className={styles.heroLede}>AI 只按你上传的讲义回答，每个回答都标着出自第几页。</p>
+              <p className={styles.lensHint}>移动鼠标试试放大镜</p>
             </div>
           </section>
 
@@ -859,16 +857,20 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
           ))}
         </div>
         <h2 id="closing-title">
-          先拿一页讲义，
+          考前复习，
           <br />
-          试试看。
+          从错题开始。
         </h2>
-        <p>选一门正在学的课，上传讲义，问一个你没想明白的问题。</p>
+        <p>
+          {googleTest
+            ? '不用下载，用 Google 账号登录就能在浏览器里用。'
+            : '在网页上领一个激活码，手机上就能接着聊天、看笔记和小课堂。'}
+        </p>
         <Link href={loginHref} className={styles.primary}>
           {loginLabel}
         </Link>
         <p className={styles.loginHint}>{loginHint}</p>
-        <p className={styles.rainHint}>点一下空白处，摇一摇这些弹珠</p>
+        <p className={styles.rainHint}>点空白处，弹珠会动</p>
         <footer className={styles.footer}>© {new Date().getFullYear()} Syntara</footer>
       </section>
     </main>

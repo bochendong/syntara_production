@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
   ChevronLeft,
@@ -33,6 +33,12 @@ import { CodeProblemStatement } from './problem-bank/code-problem-statement';
 import { ProblemImageAssets, ProblemRichText } from './problem-bank/problem-rich-text';
 import type { NotebookProblemPublicContent } from './problem-bank/types';
 import type { ProblemBankLaunch } from './ProblemBankPage';
+import {
+  SheetCell,
+  STATUS_MARBLES,
+  useProblemStatuses,
+  type ProblemStatus,
+} from './problem-bank/answer-sheet';
 import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
 import './course-pages.css';
 import { GlassSpinner } from './GlassLoadMore';
@@ -141,6 +147,52 @@ function CodeTestcasePanel({ code }: { code: string }) {
   );
 }
 
+/** 一组题都做过了：每题一颗弹珠落进玻璃罐，颜色就是结果。 */
+function PracticeFinish({
+  title,
+  ids,
+  statuses,
+  onBack,
+  onStay,
+}: {
+  title?: string;
+  ids: string[];
+  statuses: Map<string, ProblemStatus>;
+  onBack: () => void;
+  onStay: () => void;
+}) {
+  const passed = ids.filter((id) => statuses.get(id) === 'passed').length;
+  const shown = ids.slice(0, 36);
+  return (
+    <div className="pp-finish" role="dialog" aria-label="这一组刷完了">
+      <div className="pp-finish-card">
+        <div className="pp-finish-jar" aria-hidden>
+          {shown.map((id, index) => (
+            <img
+              key={id}
+              src={marbleImages[STATUS_MARBLES[statuses.get(id) ?? 'pending']]}
+              alt=""
+              style={{ animationDelay: `${120 + index * 60}ms` }}
+            />
+          ))}
+        </div>
+        <strong>{title ? `${title} 刷完了` : '这一组刷完了'}</strong>
+        <small>
+          通过 {passed} / {ids.length}
+        </small>
+        <div className="pp-finish-actions">
+          <button type="button" onClick={onStay}>
+            再看看
+          </button>
+          <button type="button" className="is-primary" onClick={onBack}>
+            回题库
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProblemPracticePage({ problems, launch, onBack }: ProblemPracticePageProps) {
   const problemMap = useMemo(
     () => new Map(problems.map((problem) => [problem.id, problem])),
@@ -160,6 +212,11 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>('answer');
+  const [statuses, setStatuses] = useProblemStatuses(problems[0]?.courseId ?? '', launch);
+  const [justGraded, setJustGraded] = useState<ProblemStatus | null>(null);
+  const [finish, setFinish] = useState<'hidden' | 'shown' | 'dismissed'>('hidden');
+  const stripRef = useRef<HTMLDivElement>(null);
+  const autoNextRef = useRef<number | null>(null);
 
   const currentIndex = Math.max(0, orderedIds.indexOf(currentId));
   const currentProblem = problemMap.get(currentId) || null;
@@ -210,6 +267,31 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
       const nextIndex = currentIndex + delta;
       if (nextIndex < 0 || nextIndex >= orderedIds.length) return;
       setCurrentId(orderedIds[nextIndex]);
+    },
+    [currentIndex, orderedIds],
+  );
+
+  // 换题时取消还没跑完的自动下一题，答题卡上当前那颗滑到中间。
+  useEffect(() => {
+    setJustGraded(null);
+    if (autoNextRef.current) window.clearTimeout(autoNextRef.current);
+    autoNextRef.current = null;
+    stripRef.current
+      ?.querySelector<HTMLElement>('.is-current')
+      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [currentId]);
+  useEffect(
+    () => () => {
+      if (autoNextRef.current) window.clearTimeout(autoNextRef.current);
+    },
+    [],
+  );
+
+  /** 下一题：从当前往后第一道还没通过的，没有就按顺序下一道。 */
+  const nextTarget = useCallback(
+    (fromStatuses: Map<string, ProblemStatus>) => {
+      const after = orderedIds.slice(currentIndex + 1);
+      return after.find((id) => fromStatuses.get(id) !== 'passed') ?? after[0] ?? null;
     },
     [currentIndex, orderedIds],
   );
@@ -296,6 +378,21 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
       });
       setDocument(saved.document);
       setFeedback(grade.feedback);
+      const status: ProblemStatus = grade.status === 'pending' ? 'pending' : grade.status;
+      const nextStatuses = new Map(statuses);
+      nextStatuses.set(currentProblem.id, status);
+      setStatuses(nextStatuses);
+      setJustGraded(status);
+      // 这一组每题都做过了：弹珠落进罐子。
+      if (finish === 'hidden' && orderedIds.every((id) => nextStatuses.has(id))) {
+        setFinish('shown');
+      } else if (status === 'passed') {
+        // 做对了就自动进下一题；做错的留在这里看反馈。
+        const target = nextTarget(nextStatuses);
+        if (target) {
+          autoNextRef.current = window.setTimeout(() => setCurrentId(target), 1400);
+        }
+      }
       // 网页课程的作答同步到网页题库；传不上去会排队，下次打开课程再传。
       void queueProblemAttempt(repository, currentProblem.courseId, saved.attempt);
     } catch (cause) {
@@ -303,7 +400,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     } finally {
       setSubmitting(false);
     }
-  }, [answer, currentProblem, submitting]);
+  }, [answer, currentProblem, finish, nextTarget, orderedIds, setStatuses, statuses, submitting]);
 
   if (!currentProblem || orderedIds.length === 0) {
     return (
@@ -376,6 +473,33 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
           </button>
         </div>
       </header>
+
+      {/* 迷你答题卡：一排写着题号的弹珠，随时跳题。 */}
+      <div className="pp-sheet-strip" ref={stripRef} role="list" aria-label="答题卡">
+        {launch.title ? <span className="pp-sheet-title">{launch.title}</span> : null}
+        {orderedIds.map((id, index) => (
+          <span key={id} role="listitem">
+            <SheetCell
+              size="sm"
+              number={launch.numbers?.[id] ?? index + 1}
+              status={statuses.get(id)}
+              current={id === currentId}
+              title={problemMap.get(id)?.title}
+              onClick={() => setCurrentId(id)}
+            />
+          </span>
+        ))}
+      </div>
+
+      {finish === 'shown' ? (
+        <PracticeFinish
+          title={launch.title}
+          ids={orderedIds}
+          statuses={statuses}
+          onBack={onBack}
+          onStay={() => setFinish('dismissed')}
+        />
+      ) : null}
 
       {loading ? (
         <div className="native-problem-practice-loading">
@@ -457,6 +581,20 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                       {submitting ? <GlassSpinner size={15} /> : <SendHorizontal size={15} />}
                       提交作答
                     </button>
+                    {justGraded && currentIndex < total - 1 ? (
+                      <button
+                        type="button"
+                        className={`pp-next is-${justGraded}`}
+                        onClick={() => {
+                          const target = nextTarget(statuses);
+                          if (target) setCurrentId(target);
+                        }}
+                      >
+                        <img src={marbleImages[STATUS_MARBLES[justGraded]]} alt="" />
+                        下一题
+                        <ChevronRight size={15} />
+                      </button>
+                    ) : null}
                     <p className="m-0 text-xs text-slate-500">
                       本机暂不执行公开测试；提交后会保存到本地作答记录。
                     </p>
@@ -522,6 +660,20 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                       {submitting ? <GlassSpinner size={15} /> : <SendHorizontal size={15} />}
                       提交作答
                     </button>
+                    {justGraded && currentIndex < total - 1 ? (
+                      <button
+                        type="button"
+                        className={`pp-next is-${justGraded}`}
+                        onClick={() => {
+                          const target = nextTarget(statuses);
+                          if (target) setCurrentId(target);
+                        }}
+                      >
+                        <img src={marbleImages[STATUS_MARBLES[justGraded]]} alt="" />
+                        下一题
+                        <ChevronRight size={15} />
+                      </button>
+                    ) : null}
                     {feedback ? (
                       <p className="native-problem-practice-feedback">{feedback}</p>
                     ) : null}

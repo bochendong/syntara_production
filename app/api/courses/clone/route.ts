@@ -4,6 +4,7 @@ import { prisma } from '@/lib/server/prisma';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { cloneStoreCourseForUser } from '@/lib/server/services/store-purchase-service';
+import { recordTutorialStep } from '@/lib/server/onboarding';
 
 const bodySchema = z.object({
   sourceCourseId: z.string().trim().min(1),
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
     if (result.status === 'not_found') {
       return NextResponse.json({ error: '课程不存在或未在商城公开' }, { status: 404 });
     }
+    await recordTutorialStep(prisma, userId, parsed.data.sourceCourseId, 'store');
 
     return NextResponse.json(
       { course: result.item },

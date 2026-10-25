@@ -10,7 +10,6 @@ import { Check, FileQuestion, NotebookPen, RotateCcw, X } from 'lucide-react';
 import type { LocalNotebook, LocalProblem } from '../domain/models';
 import { DIFFICULTY_MARBLES, marbleImages, type MarbleColor } from '../lib/learning-action-marbles';
 import { LearningEmptyState } from './LearningEmptyState';
-import { completeOnboardingStep } from '../lib/onboarding';
 import './materials-page.css';
 
 export type CourseMaterialKind = 'notes' | 'problems';
@@ -20,7 +19,8 @@ const kinds = {
   problems: { label: '题目', Icon: FileQuestion, tone: 'pink', marble: marbleImages.pink },
 } as const;
 
-const ACCEPT = '.txt,.md,.markdown,.csv,.json,.ts,.tsx,.js,.jsx,.py,.html,.css,text/*';
+export const MATERIAL_ACCEPT =
+  '.txt,.md,.markdown,.csv,.json,.ts,.tsx,.js,.jsx,.py,.html,.css,text/*';
 /** 笔记的弹珠颜色轮流换，和笔记列表一致。 */
 const NOTEBOOK_COLORS: MarbleColor[] = ['blue', 'purple', 'pink', 'green', 'amber'];
 /** 整理太快时也让「整理中」停留片刻，免得一闪而过看不清。 */
@@ -53,6 +53,8 @@ export function CourseMaterialsPage({
   onOpenNotes,
   onOpenProblems,
   kinds: allowedKinds = ALL_KINDS,
+  initialUpload,
+  onInitialUploadTaken,
 }: {
   notebooks: Pick<LocalNotebook, 'id' | 'name' | 'sectionCount' | 'updatedAt'>[];
   problems: Pick<LocalProblem, 'id' | 'difficulty'>[];
@@ -61,6 +63,9 @@ export function CourseMaterialsPage({
   onOpenNotes: () => void;
   onOpenProblems: () => void;
   kinds?: CourseMaterialKind[];
+  /** 从笔记 / 题库页上传键带过来的文件，进来就开始整理。 */
+  initialUpload?: { kind: CourseMaterialKind; files: File[] } | null;
+  onInitialUploadTaken?: () => void;
 }) {
   // 触屏上拖不了文件，提示改成点一下选。
   const [canDrag] = useState(
@@ -112,10 +117,7 @@ export function CourseMaterialsPage({
           });
         }
       }
-      if (imported) {
-        completeOnboardingStep('materials');
-        await onImported();
-      }
+      if (imported) await onImported();
       await wait(DONE_LINGER_MS);
       const batch = new Set(items.map((item) => item.key));
       setQueue((current) =>
@@ -138,6 +140,16 @@ export function CourseMaterialsPage({
     setQueue((current) => [...items, ...current]);
     void run(items);
   };
+
+  const takenUpload = useRef<typeof initialUpload>(null);
+  useEffect(() => {
+    if (!initialUpload || takenUpload.current === initialUpload) return;
+    takenUpload.current = initialUpload;
+    accept(initialUpload.kind, initialUpload.files);
+    onInitialUploadTaken?.();
+    // accept 每次渲染都是新函数；只认这一批文件。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialUpload]);
 
   const retry = (item: QueueItem) => {
     patch(item.key, { state: 'organizing', message: undefined });
@@ -253,7 +265,7 @@ export function CourseMaterialsPage({
           type="file"
           hidden
           multiple
-          accept={ACCEPT}
+          accept={MATERIAL_ACCEPT}
           tabIndex={-1}
           onChange={(event) => {
             const files = Array.from(event.target.files || []);

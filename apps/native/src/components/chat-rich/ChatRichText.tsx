@@ -17,8 +17,10 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { marbleImages, memoryMarble } from '../../lib/learning-action-marbles';
 import { renderProblemRichTextHtml } from '../problem-bank/problem-rich-text';
+import { ChatCodeBlock } from './ChatCodeBlock';
 import './chat-rich.css';
 
 /** 回答里 [^n] 指向的来源（第 n 条课程笔记片段）。 */
@@ -66,11 +68,16 @@ type CalloutKind = keyof typeof CALLOUTS;
 type Segment =
   | { kind: 'markdown'; text: string }
   | { kind: 'steps'; lines: string[] }
-  | { kind: 'callout'; variant: CalloutKind; title: string; text: string };
+  | { kind: 'callout'; variant: CalloutKind; title: string; text: string }
+  | { kind: 'code'; language: string; code: string };
 
 const SPECIAL_FENCE = /^\s*```(steps|tip|warning|key)\b[ \t]*(.*)$/;
+const CODE_FENCE = /^\s*(`{3,}|~{3,})[ \t]*([^\s`]*)/;
 
-/** 把 ```steps / ```tip / ```warning / ```key 块切出来；流式输出时没闭合的块也照常画。 */
+/**
+ * 把 ```steps / ```tip / ```warning / ```key 和普通代码块切出来；流式输出时没闭合的块也照常画。
+ * 代码块单独渲染，里面的 [^n]、$…$ 不会被当成引用或公式。
+ */
 function splitSegments(text: string): Segment[] {
   const segments: Segment[] = [];
   let markdown: string[] = [];
@@ -81,6 +88,20 @@ function splitSegments(text: string): Segment[] {
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   for (let index = 0; index < lines.length; index += 1) {
     const open = lines[index].match(SPECIAL_FENCE);
+    const fence = open ? null : lines[index].match(CODE_FENCE);
+    if (fence) {
+      flush();
+      const marker = fence[1];
+      const closing = new RegExp(`^\\s*${marker[0] === '`' ? '`' : '~'}{${marker.length},}\\s*$`);
+      const body: string[] = [];
+      index += 1;
+      while (index < lines.length && !closing.test(lines[index])) {
+        body.push(lines[index]);
+        index += 1;
+      }
+      segments.push({ kind: 'code', language: fence[2], code: body.join('\n') });
+      continue;
+    }
     if (!open) {
       markdown.push(lines[index]);
       continue;
@@ -261,6 +282,14 @@ export const ChatRichText = memo(function ChatRichText({
   const segments = useMemo(() => splitSegments(text), [text]);
   const refs = useMemo(() => ({ sources, memories }), [sources, memories]);
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+    // 回答里的链接交给系统浏览器打开，别把 App 自己的 WebView 跳走。
+    const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]');
+    if (link) {
+      event.preventDefault();
+      if ('__TAURI_INTERNALS__' in window) void openUrl(link.href).catch(() => undefined);
+      else window.open(link.href, '_blank', 'noopener');
+      return;
+    }
     const memoryChip = (event.target as HTMLElement).closest<HTMLElement>('[data-memory]');
     if (memoryChip) {
       const memory = memories[Number(memoryChip.dataset.memory?.split(',')[0]) - 1];
@@ -278,6 +307,8 @@ export const ChatRichText = memo(function ChatRichText({
       {segments.map((segment, index) =>
         segment.kind === 'markdown' ? (
           <Markdown key={index} text={segment.text} refs={refs} />
+        ) : segment.kind === 'code' ? (
+          <ChatCodeBlock key={index} code={segment.code} language={segment.language} />
         ) : segment.kind === 'steps' ? (
           <Steps key={index} lines={segment.lines} refs={refs} />
         ) : (

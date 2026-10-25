@@ -537,7 +537,7 @@ export interface NativeNotebookArchive {
 }
 
 /** 新手引导的五步，顺序固定：建课 → 资料 → 第一句 → 记住 → 商城。 */
-export type NativeOnboardingStep = 'course' | 'materials' | 'ask' | 'remember' | 'store';
+export type NativeOnboardingStep = 'course' | 'store' | 'ask' | 'delete';
 
 /** 账号上的新手引导进度，和 lib/server/onboarding.ts 的 OnboardingState 一致。 */
 export interface NativeOnboardingState {

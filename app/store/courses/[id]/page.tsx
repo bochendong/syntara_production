@@ -14,6 +14,7 @@ import avatarThemeHues from '@/lib/constants/marble-avatar-theme-hues.json';
 import { courseDisplayCode } from '@/lib/course-space/course-display-name';
 import store from '../store.module.css';
 import styles from './detail.module.css';
+import { PLATFORM_TUTORIAL_COURSE_ID } from '@/lib/onboarding/spotlight';
 
 type StoreNotebook = {
   id: string;
@@ -249,6 +250,9 @@ export default function StoreCourseDetailPage() {
             <button
               type="button"
               className={`${store.get} ${styles.get}`}
+              data-onboarding={
+                id === PLATFORM_TUTORIAL_COURSE_ID && !course.purchased ? 'tutorial-get' : undefined
+              }
               disabled={buying}
               onClick={() => (course.purchased ? openCourse() : setCoursePurchaseOpen(true))}
             >

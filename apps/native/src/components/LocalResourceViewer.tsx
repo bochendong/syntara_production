@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { code } from '@streamdown/code';
 import { createMathPlugin } from '@streamdown/math';
@@ -6,6 +6,7 @@ import { Streamdown } from 'streamdown';
 import {
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileQuestion,
@@ -319,9 +320,34 @@ function NotebookViewer({
     return last >= 0 && last < entries.length ? last : 0;
   });
   const [visited, setVisited] = useState<Set<number>>(
-    () => new Set(loadNotebookReading(notebookId)?.visited ?? []),
+    () =>
+      new Set([
+        ...(loadNotebookReading(notebookId)?.visited ?? []),
+        ...(entries.length ? [selectedIndex] : []),
+      ]),
   );
   const resolveAsset = useMemo(() => assetResolver(document.assets), [document.assets]);
+  // 章节目录收在一颗胶囊里：点开是一块玻璃列表，名字再长也整行显示。
+  const [chaptersOpen, setChaptersOpen] = useState(false);
+  const indexRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!chaptersOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!indexRef.current?.contains(event.target as Node)) setChaptersOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setChaptersOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', escape);
+    indexRef.current
+      ?.querySelector<HTMLElement>('.nr-chapter-list .is-active')
+      ?.scrollIntoView({ block: 'nearest' });
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', escape);
+    };
+  }, [chaptersOpen]);
 
   const selected = entries[selectedIndex] ?? null;
   const next = entries[selectedIndex + 1] ?? null;
@@ -332,7 +358,7 @@ function NotebookViewer({
 
   useEffect(() => {
     if (!entries.length) return;
-    setVisited(new Set(saveNotebookReading(notebookId, selectedIndex).visited));
+    saveNotebookReading(notebookId, selectedIndex);
   }, [entries.length, notebookId, selectedIndex]);
 
   // 换一节时回到顶部；阅读进度写进 CSS 变量，顶上的弹珠跟着滚。
@@ -351,7 +377,37 @@ function NotebookViewer({
     return () => window.cancelAnimationFrame(frame);
   }, [selectedIndex]);
 
-  const goTo = (index: number) => setSelectedIndex(Math.max(0, Math.min(entries.length - 1, index)));
+  const chapterButtons = (onPick?: () => void) =>
+    entries.map((entry, index) => (
+      <li key={entry.id} style={{ animationDelay: `${Math.min(index, 10) * 18}ms` }}>
+        <button
+          type="button"
+          role="option"
+          aria-selected={index === selectedIndex}
+          className={[
+            index === selectedIndex ? 'is-active' : '',
+            visited.has(index) ? 'is-read' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => {
+            goTo(index);
+            onPick?.();
+          }}
+        >
+          <span className="nr-index-dot">
+            {index === selectedIndex ? <img src={marbleImages[accent]} alt="" /> : index + 1}
+          </span>
+          <span className="nr-chapter-list-label">{entry.title}</span>
+        </button>
+      </li>
+    ));
+
+  const goTo = (index: number) => {
+    const nextIndex = Math.max(0, Math.min(entries.length - 1, index));
+    setVisited((current) => new Set([...current, nextIndex]));
+    setSelectedIndex(nextIndex);
+  };
 
   return (
     <section
@@ -388,26 +444,27 @@ function NotebookViewer({
 
       <div className="nr-body">
         {entries.length > 1 ? (
-          <nav className="nr-index" aria-label="章节">
-            {entries.map((entry, index) => (
-              <button
-                type="button"
-                key={entry.id}
-                className={[
-                  index === selectedIndex ? 'is-active' : '',
-                  visited.has(index) ? 'is-read' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                onClick={() => setSelectedIndex(index)}
-              >
-                <span className="nr-index-dot">
-                  {index === selectedIndex ? <img src={marbleImages[accent]} alt="" /> : index + 1}
-                </span>
-                <span className="nr-index-label">{entry.title}</span>
-              </button>
-            ))}
-          </nav>
+          <div ref={indexRef} className={`nr-chapters${chaptersOpen ? ' is-open' : ''}`}>
+            <button
+              type="button"
+              className="nr-chapter-pill"
+              aria-expanded={chaptersOpen}
+              aria-haspopup="listbox"
+              onClick={() => setChaptersOpen((open) => !open)}
+            >
+              <img src={marbleImages[accent]} alt="" />
+              <span className="nr-chapter-pill-label">{selected?.title}</span>
+              <small>
+                {selectedIndex + 1}/{entries.length}
+              </small>
+              <ChevronDown size={16} className="nr-chapter-pill-chevron" />
+            </button>
+            {chaptersOpen ? (
+              <ol className="nr-chapter-list" role="listbox" aria-label="章节">
+                {chapterButtons(() => setChaptersOpen(false))}
+              </ol>
+            ) : null}
+          </div>
         ) : null}
 
         <div ref={scrollRef} className="nr-scroll" onScroll={updateScroll}>
@@ -418,22 +475,6 @@ function NotebookViewer({
                   <span className="nr-eyebrow-marble">
                     <img src={marbleImages[accent]} alt="" />
                     {notebookNumber ? <b>{notebookNumber}</b> : null}
-                  </span>
-                  <span className="nr-eyebrow-steps">
-                    {entries.length > 1
-                      ? entries.map((entry, index) => (
-                          <i
-                            key={entry.id}
-                            className={
-                              index === selectedIndex
-                                ? 'is-active'
-                                : visited.has(index)
-                                  ? 'is-read'
-                                  : undefined
-                            }
-                          />
-                        ))
-                      : null}
                   </span>
                 </div>
                 <h1>{selected.title}</h1>
@@ -478,6 +519,12 @@ function NotebookViewer({
             <LearningEmptyState title="这本笔记还没有内容" />
           )}
         </div>
+        {/* 宽屏：章节目录竖在右边，离左侧的应用侧边栏远一点。 */}
+        {entries.length > 1 ? (
+          <aside className="nr-toc" aria-label="章节">
+            <ol role="listbox">{chapterButtons()}</ol>
+          </aside>
+        ) : null}
       </div>
 
       {entries.length > 1 ? (
@@ -672,15 +719,18 @@ function ProblemViewer({
   );
 }
 
-export function LocalResourceViewer({ resource, accent = 'blue', onClose }: LocalResourceViewerProps) {
+export function LocalResourceViewer({
+  resource,
+  accent = 'blue',
+  onClose,
+}: LocalResourceViewerProps) {
   const title = resource.kind === 'notebook' ? resource.document.notebook.name : '本地题目';
   // 手机/窄窗口里页面上面还有一条「返回 + 页面名」，阅读器要整页盖住它，
   // 所以挂到最近的课程工作区上；宽屏照旧只盖住右侧内容区。
-  const anchorRef = useRef<HTMLSpanElement>(null);
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
-  useEffect(() => {
-    const host = anchorRef.current?.closest<HTMLElement>('.course-workspace.is-compact');
-    setPortalHost(host && !anchorRef.current?.parentElement?.isSameNode(host) ? host : null);
+  const mountAnchor = useCallback((anchor: HTMLSpanElement | null) => {
+    const host = anchor?.closest<HTMLElement>('.course-workspace.is-compact');
+    setPortalHost(host && !anchor?.parentElement?.isSameNode(host) ? host : null);
   }, []);
 
   // 笔记本是推进来的一整页（iPad/桌面上只盖住右侧区域）；题目仍然用弹窗。
@@ -697,7 +747,7 @@ export function LocalResourceViewer({ resource, accent = 'blue', onClose }: Loca
     );
     return (
       <>
-        <span ref={anchorRef} hidden />
+        <span ref={mountAnchor} hidden />
         {portalHost ? createPortal(layer, portalHost) : layer}
       </>
     );

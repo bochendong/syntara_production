@@ -4,6 +4,8 @@ import { prisma } from '@/lib/server/prisma';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { hashPassword } from '@/lib/server/password-hash';
 import { safeRoute } from '@/lib/server/json-error-response';
+import { MARBLE_AVATAR_URLS } from '@/lib/constants/marble-avatars';
+import { pickMarbleAvatar } from '@/lib/server/native-initial-profile';
 
 const createStudentSchema = z.object({
   email: z.string().trim().email().max(240),
@@ -113,6 +115,7 @@ export async function POST(request: Request) {
         data: {
           email,
           name: parsed.data.name,
+          image: pickMarbleAvatar(MARBLE_AVATAR_URLS),
           role: 'STUDENT',
           isActive: true,
           passwordHash,
