@@ -498,6 +498,26 @@ export function ProblemBankPage({
   if (openChapter) {
     const next = firstUnpassed(sheetProblems);
     const allPassed = sheetProblems.length > 0 && !next;
+    // 这一章的作答情况：宽屏放在右侧栏，窄屏是标题下的一行。
+    const chapterStats = (() => {
+      let passed = 0;
+      let wrong = 0;
+      for (const problem of openChapter.problems) {
+        const status = statuses.get(problem.id);
+        if (status === 'passed') passed += 1;
+        else if (status === 'failed' || status === 'partial') wrong += 1;
+      }
+      return [
+        { key: 'passed', label: '通过', count: passed, color: STATUS_MARBLES.passed },
+        { key: 'failed', label: '错题', count: wrong, color: STATUS_MARBLES.failed },
+        {
+          key: 'todo',
+          label: '没做',
+          count: openChapter.problems.length - passed - wrong,
+          color: null,
+        },
+      ] as const;
+    })();
     const practice = (problem?: LocalProblem) =>
       startPractice(sheetProblems, problem, openChapter.title, openChapter.key);
     return (
@@ -521,145 +541,164 @@ export function ProblemBankPage({
               <ChapterTube chapter={openChapter} />
             </div>
 
-            <div
-              className={`pb-tube${difficultyFilter !== 'all' ? ' has-filter' : ''}`}
-              role="group"
-              aria-label="难度"
-            >
-              {DIFFICULTY_OPTIONS.map((option) => {
-                const count = difficultyCounts[option.value];
-                if (!count) return null;
-                const active = difficultyFilter === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`pb-tube-seg is-${option.color}${active ? ' is-active' : ''}`}
-                    style={{ flexGrow: Math.max(count, chapterProblems.length * 0.14) }}
-                    aria-pressed={active}
-                    onClick={() => {
-                      setDifficultyFilter((current) =>
-                        current === option.value ? 'all' : option.value,
-                      );
-                      setListCount(LIST_PAGE_SIZE);
-                    }}
-                  >
-                    <img src={marbleImages[option.color]} alt="" />
-                    <span>{option.label}</span>
-                    <b>{count}</b>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="pb-toolbar">
-              <div className="pb-chips" role="group" aria-label="题型">
-                {typeOptions.length > 1 ? (
-                  <button
-                    type="button"
-                    className={typeFilter === 'all' ? 'is-active' : ''}
-                    onClick={() => setTypeFilter('all')}
-                  >
-                    全部题型
-                  </button>
-                ) : null}
-                {typeOptions.length > 1
-                  ? typeOptions.map(([type, count]) => (
+            <div className="pb-chapter-body">
+              <aside className="pb-chapter-side">
+                <div className="pb-chapter-stats" aria-label="这一章">
+                  {chapterStats.map((stat) => (
+                    <span key={stat.key} className={`is-${stat.key}`}>
+                      {stat.color ? (
+                        <img src={marbleImages[stat.color]} alt="" />
+                      ) : (
+                        <i aria-hidden />
+                      )}
+                      <b>{stat.count}</b>
+                      <small>{stat.label}</small>
+                    </span>
+                  ))}
+                </div>
+                <div
+                  className={`pb-tube${difficultyFilter !== 'all' ? ' has-filter' : ''}`}
+                  role="group"
+                  aria-label="难度"
+                >
+                  {DIFFICULTY_OPTIONS.map((option) => {
+                    const count = difficultyCounts[option.value];
+                    if (!count) return null;
+                    const active = difficultyFilter === option.value;
+                    return (
                       <button
-                        key={type}
+                        key={option.value}
                         type="button"
-                        className={typeFilter === type ? 'is-active' : ''}
+                        className={`pb-tube-seg is-${option.color}${active ? ' is-active' : ''}`}
+                        style={{ flexGrow: Math.max(count, chapterProblems.length * 0.14) }}
+                        aria-pressed={active}
                         onClick={() => {
-                          setTypeFilter((current) => (current === type ? 'all' : type));
+                          setDifficultyFilter((current) =>
+                            current === option.value ? 'all' : option.value,
+                          );
                           setListCount(LIST_PAGE_SIZE);
                         }}
                       >
-                        {problemTypeLabel(type)}
-                        <small>{count}</small>
+                        <img src={marbleImages[option.color]} alt="" />
+                        <span>{option.label}</span>
+                        <b>{count}</b>
                       </button>
-                    ))
-                  : null}
-              </div>
-              <div className="pb-view-toggle" role="group" aria-label="显示方式">
-                <button
-                  type="button"
-                  className={view === 'grid' ? 'is-active' : ''}
-                  onClick={() => setView('grid')}
-                  aria-label="答题卡"
-                  aria-pressed={view === 'grid'}
-                >
-                  <LayoutGrid size={16} />
-                </button>
-                <button
-                  type="button"
-                  className={view === 'list' ? 'is-active' : ''}
-                  onClick={() => setView('list')}
-                  aria-label="列表"
-                  aria-pressed={view === 'list'}
-                >
-                  <List size={16} />
-                </button>
+                    );
+                  })}
+                </div>
+
+                <div className="pb-toolbar">
+                  <div className="pb-chips" role="group" aria-label="题型">
+                    {typeOptions.length > 1 ? (
+                      <button
+                        type="button"
+                        className={typeFilter === 'all' ? 'is-active' : ''}
+                        onClick={() => setTypeFilter('all')}
+                      >
+                        全部题型
+                      </button>
+                    ) : null}
+                    {typeOptions.length > 1
+                      ? typeOptions.map(([type, count]) => (
+                          <button
+                            key={type}
+                            type="button"
+                            className={typeFilter === type ? 'is-active' : ''}
+                            onClick={() => {
+                              setTypeFilter((current) => (current === type ? 'all' : type));
+                              setListCount(LIST_PAGE_SIZE);
+                            }}
+                          >
+                            {problemTypeLabel(type)}
+                            <small>{count}</small>
+                          </button>
+                        ))
+                      : null}
+                  </div>
+                  <div className="pb-view-toggle" role="group" aria-label="显示方式">
+                    <button
+                      type="button"
+                      className={view === 'grid' ? 'is-active' : ''}
+                      onClick={() => setView('grid')}
+                      aria-label="答题卡"
+                      aria-pressed={view === 'grid'}
+                    >
+                      <LayoutGrid size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className={view === 'list' ? 'is-active' : ''}
+                      onClick={() => setView('list')}
+                      aria-label="列表"
+                      aria-pressed={view === 'list'}
+                    >
+                      <List size={16} />
+                    </button>
+                  </div>
+                </div>
+              </aside>
+
+              <div className="pb-chapter-main">
+                {sheetProblems.length === 0 ? (
+                  <LearningEmptyState title="没有找到题目" />
+                ) : view === 'grid' ? (
+                  <>
+                    <div className="pb-sheet" role="list">
+                      {sheetProblems.map((problem, index) => (
+                        <span
+                          key={problem.id}
+                          role="listitem"
+                          style={{ animationDelay: `${Math.min(index, 40) * 10}ms` }}
+                        >
+                          <SheetCell
+                            number={numberById.get(problem.id)}
+                            status={statuses.get(problem.id)}
+                            difficulty={problem.difficulty}
+                            title={problem.title}
+                            onClick={() => practice(problem)}
+                          />
+                        </span>
+                      ))}
+                    </div>
+                    <div className="pb-legend" aria-hidden>
+                      {(['passed', 'partial', 'failed'] as const).map((status) => (
+                        <span key={status}>
+                          <img src={marbleImages[STATUS_MARBLES[status]]} alt="" />
+                          {STATUS_LABELS[status]}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <ol className="pb-list">
+                      {sheetProblems.slice(0, listCount).map((problem, index) => (
+                        <li
+                          key={problem.id}
+                          style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}
+                        >
+                          <ProblemRow
+                            problem={problem}
+                            number={numberById.get(problem.id)}
+                            status={statuses.get(problem.id)}
+                            onClick={() => practice(problem)}
+                          />
+                        </li>
+                      ))}
+                    </ol>
+                    {sheetProblems.length > listCount ? (
+                      <button
+                        type="button"
+                        className="pb-more"
+                        onClick={() => setListCount((count) => count + LIST_PAGE_SIZE)}
+                      >
+                        再看 {Math.min(LIST_PAGE_SIZE, sheetProblems.length - listCount)} 题
+                      </button>
+                    ) : null}
+                  </>
+                )}
               </div>
             </div>
-
-            {sheetProblems.length === 0 ? (
-              <LearningEmptyState title="没有找到题目" />
-            ) : view === 'grid' ? (
-              <>
-                <div className="pb-sheet" role="list">
-                  {sheetProblems.map((problem, index) => (
-                    <span
-                      key={problem.id}
-                      role="listitem"
-                      style={{ animationDelay: `${Math.min(index, 40) * 10}ms` }}
-                    >
-                      <SheetCell
-                        number={numberById.get(problem.id)}
-                        status={statuses.get(problem.id)}
-                        difficulty={problem.difficulty}
-                        title={problem.title}
-                        onClick={() => practice(problem)}
-                      />
-                    </span>
-                  ))}
-                </div>
-                <div className="pb-legend" aria-hidden>
-                  {(['passed', 'partial', 'failed'] as const).map((status) => (
-                    <span key={status}>
-                      <img src={marbleImages[STATUS_MARBLES[status]]} alt="" />
-                      {STATUS_LABELS[status]}
-                    </span>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <>
-                <ol className="pb-list">
-                  {sheetProblems.slice(0, listCount).map((problem, index) => (
-                    <li
-                      key={problem.id}
-                      style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}
-                    >
-                      <ProblemRow
-                        problem={problem}
-                        number={numberById.get(problem.id)}
-                        status={statuses.get(problem.id)}
-                        onClick={() => practice(problem)}
-                      />
-                    </li>
-                  ))}
-                </ol>
-                {sheetProblems.length > listCount ? (
-                  <button
-                    type="button"
-                    className="pb-more"
-                    onClick={() => setListCount((count) => count + LIST_PAGE_SIZE)}
-                  >
-                    再看 {Math.min(LIST_PAGE_SIZE, sheetProblems.length - listCount)} 题
-                  </button>
-                ) : null}
-              </>
-            )}
           </div>
         </div>
 

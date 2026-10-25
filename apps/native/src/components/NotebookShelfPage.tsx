@@ -152,6 +152,7 @@ export function PhoneNotesPage({
       title="笔记"
       subtitle={workspace.course.courseCode || workspace.course.name}
       overlay
+      wide
       onBack={onBack}
     >
       {workspace.notebooks.length ? (
