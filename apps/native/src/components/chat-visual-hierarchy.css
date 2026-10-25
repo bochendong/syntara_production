@@ -57,13 +57,64 @@
   margin-top: 12px;
 }
 
+/* Course tools and chat menus share the first of the two action columns. */
+.phone-drawer {
+  --sidebar-action-size: 32px;
+  --sidebar-action-gap: 2px;
+  --sidebar-action-inset: 4px;
+  --sidebar-chat-action-size: 44px;
+}
+
+.phone-drawer .phone-drawer-course-actions {
+  gap: var(--sidebar-action-gap);
+}
+
+.phone-drawer .phone-drawer-course-actions button {
+  width: var(--sidebar-action-size);
+}
+
+.phone-drawer .phone-drawer-row {
+  position: relative;
+}
+
+.phone-drawer .phone-drawer-row > button:first-child {
+  padding-right: calc(2 * var(--sidebar-action-size) + var(--sidebar-action-gap) + 12px);
+}
+
+.phone-drawer .phone-drawer-delete {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  right: calc(
+    var(--sidebar-action-inset) + var(--sidebar-action-size) + var(--sidebar-action-gap) +
+      (var(--sidebar-action-size) - var(--sidebar-chat-action-size)) / 2
+  );
+  width: var(--sidebar-chat-action-size);
+  padding: 0;
+  color: #64748b;
+}
+
+.phone-drawer .phone-drawer-delete svg {
+  stroke-width: 1.7;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .phone-drawer .phone-drawer-row > button:first-child {
+    padding-right: 12px;
+  }
+
+  .phone-drawer .phone-drawer-row:is(:hover, :focus-within) > button:first-child {
+    padding-right: calc(2 * var(--sidebar-action-size) + var(--sidebar-action-gap) + 12px);
+  }
+}
+
 @media (min-width: 601px) {
   .course-workspace.is-split.is-split {
     --workspace-toolbar-height: 56px;
   }
 
   .course-workspace.is-split.is-split:not(.has-persistent-sidebar) {
-    --phone-drawer-width: clamp(220px, 18.75vw, 300px);
+    --phone-drawer-width: clamp(248px, 20vw, 320px);
   }
 
   .course-workspace.is-split.is-split .phone-drawer {
@@ -168,7 +219,7 @@
 
 @media (min-width: 1100px) {
   .course-workspace.is-split.is-split:not(.has-persistent-sidebar) {
-    --phone-drawer-width: clamp(220px, calc(18.75vw - var(--app-navigation-width)), 300px);
+    --phone-drawer-width: clamp(248px, calc(20vw - var(--app-navigation-width)), 320px);
   }
 
   .course-workspace.is-split.is-split {
@@ -234,5 +285,68 @@
     height: 30px;
     padding: 4px 6px;
     font-size: 14px;
+  }
+}
+
+/* Generated glass caustics sit over the artwork matched to this row's avatar. */
+.phone-drawer .phone-drawer-course-heading {
+  position: relative;
+  isolation: isolate;
+}
+
+.phone-drawer .phone-drawer-course-heading::before,
+.phone-drawer .phone-drawer-course-heading::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  content: '';
+  transition: opacity 160ms ease;
+}
+
+.phone-drawer .phone-drawer-course-heading::before {
+  background-image: var(--course-hover-art);
+  background-position: left center;
+  background-size: cover;
+  mask-image: linear-gradient(90deg, #000 0%, #000 16%, transparent 86%);
+}
+
+.phone-drawer .phone-drawer-course-heading::after {
+  background: url('../assets/course-hover-glass-v1.png') left center / 100% 100% no-repeat;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 55%);
+}
+
+.phone-drawer .phone-drawer-course-heading:has(:focus-visible) {
+  background: var(--course-hover-tint);
+}
+
+.phone-drawer .phone-drawer-course-heading:has(:focus-visible)::before {
+  opacity: 0.3;
+}
+
+.phone-drawer .phone-drawer-course-heading:has(:focus-visible)::after {
+  opacity: 0.65;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .phone-drawer .phone-drawer-course-heading:hover {
+    background: var(--course-hover-tint);
+  }
+
+  .phone-drawer .phone-drawer-course-heading:hover::before {
+    opacity: 0.3;
+  }
+
+  .phone-drawer .phone-drawer-course-heading:hover::after {
+    opacity: 0.65;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-drawer .phone-drawer-course-heading::before,
+  .phone-drawer .phone-drawer-course-heading::after {
+    transition: none;
   }
 }

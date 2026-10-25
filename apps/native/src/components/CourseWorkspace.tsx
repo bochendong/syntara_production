@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
   type TouchEvent as ReactTouchEvent,
@@ -54,6 +55,7 @@ import {
 } from 'lucide-react';
 
 import {
+  bundledMarbleAvatar,
   COURSE_AVATAR_PRESETS,
   nativeAccountAvatarUrl,
   pickRandomCourseAvatarId,
@@ -1475,12 +1477,21 @@ export function PhoneChatDrawer<
                   {!courses.length ? <p className="phone-drawer-empty">还没有课程</p> : null}
                   {shownCourses.map((course) => {
                     const current = course.id === selectedCourseId;
+                    const avatarUrl = current
+                      ? selectedCourseAvatarUrl
+                      : resolveNativeCourseAvatar(course.id, course.courseCode);
+                    const avatarTheme = bundledMarbleAvatar(avatarUrl);
+                    const hoverStyle = {
+                      '--course-hover-art': `url(${JSON.stringify(avatarTheme?.sceneUrl ?? avatarUrl)})`,
+                      '--course-hover-tint': `hsl(${avatarTheme?.hue ?? 220} 55% 94%)`,
+                    } as CSSProperties;
                     const expanded = expandedCourses.includes(course.id);
                     const chats = allConversations.filter((chat) => chat.courseId === course.id);
                     return (
                       <div className="phone-drawer-course-group" key={course.id}>
                         <div
                           className={`phone-drawer-course-heading${current ? ' is-current' : ''}`}
+                          style={hoverStyle}
                         >
                           <button
                             type="button"
@@ -1503,11 +1514,7 @@ export function PhoneChatDrawer<
                             }
                           >
                             <img
-                              src={
-                                current
-                                  ? selectedCourseAvatarUrl
-                                  : resolveNativeCourseAvatar(course.id, course.courseCode)
-                              }
+                              src={avatarUrl}
                               alt=""
                               aria-hidden
                               data-marble-target={current ? '1' : undefined}
