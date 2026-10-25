@@ -8,7 +8,7 @@ const root = path.resolve(import.meta.dirname, '../..');
 const jiti = createJiti(import.meta.url, { alias: { '@': root } });
 const { middleware } = jiti('../../middleware.ts');
 
-test('staging exposes the web storefront while keeping unrelated web and admin routes closed', () => {
+test('staging exposes its store and protected admin handlers while keeping unrelated routes closed', () => {
   const before = process.env.SYNTARA_APP_ENV;
   process.env.SYNTARA_APP_ENV = 'staging';
   try {
@@ -23,6 +23,14 @@ test('staging exposes the web storefront while keeping unrelated web and admin r
       '/api/courses/store/course-one/reviews',
       '/api/courses/clone',
       '/api/native/v1/onboarding',
+      '/admin',
+      '/admin/',
+      '/admin?section=llm',
+      '/admin/courses/course-one',
+      '/api/admin/session',
+      '/api/admin/llm-config',
+      '/api/admin/courses',
+      '/api/admin/courses/course-one/export',
     ])
       assert.equal(
         middleware(new NextRequest(`https://fixture.invalid${route}`)).status,
@@ -32,8 +40,9 @@ test('staging exposes the web storefront while keeping unrelated web and admin r
     for (const route of [
       '/download/private',
       '/api/downloads/private',
-      '/admin',
-      '/api/admin/courses',
+      '/admin/mock',
+      '/administer',
+      '/api/administrator',
       '/api/courses',
       '/learn',
       '/chat',

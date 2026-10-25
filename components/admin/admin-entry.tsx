@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Loader2, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { toast } from '@/lib/notifications/client-toast';
 import { AdminConsole } from '@/components/admin/admin-console';
@@ -31,7 +32,7 @@ type AdminDebugEnvResponse = {
   railwayEnv: string | null;
 };
 
-export function AdminEntry() {
+export function AdminEntry({ staging = false }: { staging?: boolean }) {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [email, setEmail] = useState('dongbochen1218@icloud.com');
@@ -94,7 +95,7 @@ export function AdminEntry() {
 
   if (checking) {
     return (
-      <div className="flex min-h-full items-center justify-center apple-mesh-bg">
+      <div className="flex min-h-dvh items-center justify-center apple-mesh-bg">
         <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
           正在检查管理员会话…
@@ -104,11 +105,25 @@ export function AdminEntry() {
   }
 
   if (authenticated) {
-    return <AdminConsole />;
+    return <AdminConsole staging={staging} />;
   }
 
   return (
     <div className="relative min-h-full overflow-hidden apple-mesh-bg px-4 py-10 md:px-8">
+      {staging ? (
+        <div className="relative mx-auto mb-6 flex max-w-5xl items-center justify-between gap-4 text-sm">
+          <span className="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-900">
+            Syntara 测试服
+          </span>
+          <Link
+            className="text-muted-foreground underline-offset-4 hover:underline"
+            href="/test/app"
+            prefetch={false}
+          >
+            返回测试版
+          </Link>
+        </div>
+      ) : null}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-[12%] top-[10%] h-[320px] w-[320px] rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.14)_0%,transparent_72%)]" />
         <div className="absolute right-[10%] top-[20%] h-[280px] w-[280px] rounded-full bg-[radial-gradient(circle,rgba(245,158,11,0.12)_0%,transparent_72%)]" />
@@ -122,10 +137,12 @@ export function AdminEntry() {
               Admin Access
             </div>
             <h1 className="mt-4 text-4xl font-bold tracking-tight text-[#1d1d1f] dark:text-white">
-              管理员控制台登录
+              {staging ? '测试服管理员登录' : '管理员控制台登录'}
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              这里用于登录站点管理员后台。登录成功后，你可以管理模型配置、用量明细、课程与用户等全站级设置。
+              {staging
+                ? '使用原来的管理员账号登录。这里管理测试服的模型配置、用量、课程与用户。'
+                : '这里用于登录站点管理员后台。登录成功后，你可以管理模型配置、用量明细、课程与用户等全站级设置。'}
             </p>
           </div>
         </div>
@@ -136,7 +153,9 @@ export function AdminEntry() {
               <LockKeyhole className="size-5" />
             </div>
             <h2 className="text-2xl font-semibold tracking-tight text-foreground">管理员登录</h2>
-            <p className="text-sm text-muted-foreground">登录后进入 `/admin` 管理控制台。</p>
+            <p className="text-sm text-muted-foreground">
+              {staging ? '当前环境：测试服' : '登录后进入 `/admin` 管理控制台。'}
+            </p>
           </div>
 
           <form className="space-y-4" onSubmit={handleLogin}>

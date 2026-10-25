@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   BookOpen,
@@ -40,7 +41,13 @@ const SECTIONS = [
 
 type SectionId = (typeof SECTIONS)[number]['id'];
 
-export function AdminConsole({ basePath = '/admin' }: { basePath?: string }) {
+export function AdminConsole({
+  basePath = '/admin',
+  staging = false,
+}: {
+  basePath?: string;
+  staging?: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [refreshKey, setRefreshKey] = useState(0);
@@ -66,9 +73,19 @@ export function AdminConsole({ basePath = '/admin' }: { basePath?: string }) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            管理员控制台
+            {staging ? '管理员控制台 · 测试服' : '管理员控制台'}
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">管理中心</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+            {staging ? '测试服管理中心' : '管理中心'}
+          </h1>
+          {staging ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              当前操作作用于测试服的数据和模型配置。
+              <Link className="ml-3 underline underline-offset-4" href="/test/app" prefetch={false}>
+                返回测试版
+              </Link>
+            </p>
+          ) : null}
         </div>
         <Button
           variant="outline"

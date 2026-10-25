@@ -4,7 +4,7 @@ const CLASSROOM_TASK_HISTORY_PATH = /^\/classroom\/([^/]+)\/tasks(?:\/.*)?$/;
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  // Staging exposes the public landing page, App gateway, and Google login flow.
+  // Staging exposes the App gateway and its own authenticated administration.
   if (process.env.SYNTARA_APP_ENV === 'staging') {
     if (pathname === '/test/app' || pathname === '/test/app/') {
       const url = request.nextUrl.clone();
@@ -26,7 +26,13 @@ export function middleware(request: NextRequest) {
     const webStoreApi =
       /^\/api\/courses\/store(?:\/[^/]+(?:\/reviews)?)?\/?$/.test(pathname) ||
       pathname === '/api/courses/clone';
+    // Page/API handlers still enforce requireAdmin; mock administration stays closed.
+    const adminPage =
+      /^\/admin\/?$/.test(pathname) || /^\/admin\/courses\/[^/]+\/?$/.test(pathname);
+    const adminApi = pathname.startsWith('/api/admin/');
     const allowed =
+      adminPage ||
+      adminApi ||
       webStorePage ||
       webStoreApi ||
       pathname === '/api/downloads/macos' ||
