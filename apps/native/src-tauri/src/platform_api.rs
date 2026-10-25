@@ -1152,8 +1152,8 @@ mod tests {
     }
 
     #[test]
-    fn validates_debug_base_urls() {
-        assert!(validate_api_base_url(DEV_API_BASE_URL).is_ok());
+    fn validates_build_profile_base_urls() {
+        assert_eq!(validate_api_base_url(DEV_API_BASE_URL).is_ok(), cfg!(debug_assertions));
         assert!(validate_api_base_url("https://api.example.com").is_ok());
         assert!(validate_api_base_url("http://example.com").is_err());
         assert!(validate_api_base_url("https://user:password@example.com").is_err());
