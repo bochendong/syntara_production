@@ -1,0 +1,165 @@
+{
+  "baselineBranch": "codex/staging-baseline",
+  "baselineCommit": "e1991eeb257ce577f30f432143a286147754b5f6",
+  "sourceTree": "7e3e2431aed465aebc3ec9196f786079fa4c14b3",
+  "developmentBranch": "codex/staging-next",
+  "taskBranch": "codex/course-layers-release",
+  "previousBaseline": "ec1634c1e09080b0b04109c65c5fa25ef338df90",
+  "railway": {
+    "deploymentId": "46569731-1777-401f-8a89-21f0f1fe664d",
+    "previousDeploymentId": "8db2d459-e5b3-4613-b584-14e939138013",
+    "projectId": "8cddd1ea-24e1-49a9-8d27-dce86069dc8b",
+    "environmentId": "6697de1f-eb0d-4a6f-8709-cfe477a29f11",
+    "serviceId": "fd6afb05-6491-451a-b577-abf15fdc0047",
+    "status": "SUCCESS"
+  },
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "scope": [
+    "Persisted store/owned course marble avatars shared by web and App",
+    "Campus-qualified store/sidebar course labels",
+    "Clickable calendar month arrows and compact sidebar action spacing",
+    "Public publisher content and learner-private notebooks/problems; personal hide/restore and copy-to-mine",
+    "Publisher course releases and learner summary/new/updated badges; preserve attempts",
+    "Release action available in the currently deployed native web question bank",
+    "Rebuilt staging Mac Apple Silicon installer"
+  ],
+  "sourceFiles": 3139,
+  "sourceIntegration": {
+    "sourceWorktree": "staging-work",
+    "sourceHead": "e96a603dd2b364e43959d35e221a805e74f6a7f5",
+    "integratedFiles": 48,
+    "sourceWorkingTreePreserved": true,
+    "unrelatedRealtimeWorkImported": false,
+    "homepageDownloadAndWideLearningLayoutPreserved": true,
+    "additionalCorrections": [
+      "Notebook ownership and locked-content access guards",
+      "Private numbering, hidden restore and actions in grid view",
+      "Incremental release metadata timestamps and serialized release versions",
+      "Published public content only in release summaries"
+    ]
+  },
+  "checks": {
+    "formatAndLint": "passed",
+    "rootAndNativeTypechecks": "passed",
+    "productionBuild": "passed",
+    "nativeMacBuildAndSignature": "passed",
+    "migrationRehearsal": "passed; disposable schema, baseline with schema-qualified pgvector type",
+    "courseLayerRuntime": "passed; privacy, limits, hide/restore/copy/delete, private upload/numbering, release summaries, incremental sync and preserved attempts",
+    "nativeHiddenNotebookSQLite": "passed",
+    "storeDownloadRegressionTests": "7 passed",
+    "nativeAccessTests": "8 passed",
+    "localCalendarMonthNavigation": "passed",
+    "legacyNativeVerify": {
+      "status": "known baseline failure",
+      "reason": "Bundled problem snapshot integrity hash mismatch",
+      "unchangedFromParent": true,
+      "actual": "bfbdfc3c1b22ca87273f7b31dd8d84498c952043c70f73bbefb67b4f04651829",
+      "expected": "c9515888fdbefc46aff8901ddd5ba3bd163f28277e21acc047ad5ea5b89a3647"
+    }
+  },
+  "databaseMigration": "20261025200000_store_course_layers",
+  "macInstaller": {
+    "version": "0.1.0",
+    "builtAt": "2026-10-25T20:26:15.409Z",
+    "fileName": "Syntara-Test-0.1.0-macOS-arm64-20261025T202615Z.zip",
+    "size": 46991283,
+    "sha256": "f45704030153b610eca4dafbd4d58f47b04891ca3a6bcb238bb04e010dbdfee8",
+    "channel": "staging",
+    "architecture": "arm64",
+    "minimumSystemVersion": "14.0",
+    "notarized": false,
+    "headAndRangeVerified": true
+  },
+  "temporaryVerificationInfrastructureRemoved": true,
+  "verifiedAt": "2026-10-25T20:42:42.358Z",
+  "nativeAssets": [
+    {
+      "url": "/native-web/assets/index-BXkQYoDQ.js",
+      "sha256": "d40405cfeebf427888577cfab9caaae5f1e9fab23505bcb1c0f48ad7f83b5cc2",
+      "bytes": 1618710,
+      "matchesVerifiedBuild": true
+    },
+    {
+      "url": "/native-web/assets/index-f8Sng3cb.css",
+      "sha256": "945c16dbddfcdd8cf2741c9910883d4f9a98e909768b9e23929e66d0ee4db968",
+      "bytes": 355091,
+      "matchesVerifiedBuild": true
+    }
+  ],
+  "liveBrowser": {
+    "courseLabels": ["UTM-MAT 102", "UTSG-CSC 108"],
+    "courseAvatarMatchesStore": true,
+    "avatar": "/native-web/assets/SR11-DCABTxqU.webp",
+    "calendarNextAndPreviousMonthClickable": true,
+    "publicNotebookMenu": {
+      "copyToMine": true,
+      "remove": true,
+      "explainsPersonalHideAndRestore": true
+    },
+    "wideNotesColumns": 3,
+    "adminAuthenticated": true,
+    "counts": {
+      "courses": 27,
+      "notebooks": 174,
+      "problems": 2532
+    },
+    "realContentMutationPerformed": false
+  },
+  "liveHttpChecks": [
+    {
+      "path": "/api/health",
+      "status": 200
+    },
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/download",
+      "status": 200
+    },
+    {
+      "path": "/test/app",
+      "status": 200
+    },
+    {
+      "path": "/admin",
+      "status": 200
+    },
+    {
+      "path": "/api/native/v1/store?layersOf=missing-course",
+      "status": 401
+    },
+    {
+      "path": "/api/native/v1/store",
+      "status": 401
+    },
+    {
+      "path": "/api/courses/missing-course/layers",
+      "status": 401
+    },
+    {
+      "path": "/api/admin/courses",
+      "status": 401
+    }
+  ],
+  "database": {
+    "migrationApplied": true,
+    "migrationCount": 48,
+    "recordsBefore": {
+      "user": 4,
+      "course": 27,
+      "notebook": 174,
+      "notebookProblem": 2532,
+      "notebookProblemAttempt": 0,
+      "notebookProblemProgress": 0
+    },
+    "recordsAfterBrowser": {
+      "courses": 27,
+      "notebooks": 174,
+      "problems": 2532
+    },
+    "migrationRehearsalCleanup": true
+  },
+  "screenshot": "syntara-course-layers-live-menu-20261025.png"
+}
