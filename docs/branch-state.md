@@ -14,12 +14,11 @@
 当前开发仍在本次聊天原来的 `chat-visual-hierarchy/syntara_production` 工作目录。
 目录名未改变，分支已改名为 `codex/staging-next`，避免中断正在运行的本地预览。
 
-这两条分支和发布标签目前只在本机保存。Git 命令行没有可用的 GitHub HTTPS 写入登录，
-SSH 也未获授权，本次远程同步未完成。完成登录后，用普通推送同步，不能强推覆盖旧分支：
-
-```sh
-git push --atomic origin codex/staging-baseline codex/staging-next staging/2026-10-24-7dbd3393
-```
+这两条分支已通过 GitHub Desktop 同步到 GitHub：
+[测试服基线](https://github.com/bochendong/syntara_production/tree/codex/staging-baseline)、
+[当前开发](https://github.com/bochendong/syntara_production/tree/codex/staging-next)。
+命令行没有写入凭据时，可以继续使用 GitHub Desktop 的登录推送；不要强推覆盖旧分支。
+同步源码不等于部署，首页和下载页仍属于待发布内容。
 
 新任务使用独立工作树和任务分支。从测试服开始时，选择 `codex/staging-baseline`；
 需要首页和下载页时，明确选择 `codex/staging-next`。不要因为某个旧目录更“新”就整体覆盖。

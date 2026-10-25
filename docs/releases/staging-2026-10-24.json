@@ -60,5 +60,12 @@
     "sourceCommit": "96c9841308c9563155293541af65d7a1ca1ac468"
   },
   "recoveryCheckpointRelativeToGitCommonDir": "codex/checkpoints/staging-reconcile-20261024",
-  "allWorktreesPreserved": true
+  "allWorktreesPreserved": true,
+  "sourceSynchronization": {
+    "repository": "https://github.com/bochendong/syntara_production",
+    "method": "GitHub Desktop",
+    "baselineBranchPublished": true,
+    "developmentBranchPublished": true,
+    "deploymentChanged": false
+  }
 }
