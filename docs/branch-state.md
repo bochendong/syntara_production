@@ -6,7 +6,7 @@
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `e1991eeb`，对应 Railway 发布 `46569731` |
+| 测试服源码基线 | `codex/staging-baseline` | `ae042399`，对应 Railway 发布 `46a1a26b` |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 当前开发 | `codex/staging-next` | 当前发布代码 + 后续发布记录 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
@@ -20,9 +20,11 @@
 命令行没有写入凭据时，可以继续使用 GitHub Desktop 的登录推送；不要强推覆盖旧分支。
 首页、下载页及本次课程头像、私有内容、隐藏恢复和版本发布改动已部署到测试服；后续提交仍需单独构建和验证。
 
-本次从 `staging-work` 明确迁移了相关文件，并补齐权限、私有题号和增量同步边界；源工作区未重置，其他待办继续保留。`codex/course-layers-release` 保留本次发布的独立源码。此前的笔记三列、题库章节墙四列和右侧筛选面板保持在当前基线中。
+此前课程分层发布从 `staging-work` 明确迁移了相关文件，并补齐权限、私有题号和增量同步边界；源工作区未重置，其他待办继续保留。`codex/course-layers-release` 保留本次发布的独立源码。此前的笔记三列、题库章节墙四列和右侧筛选面板保持在当前基线中。
 
 本次格式、lint、根项目与 App 类型检查、完整构建、Mac 编译及独立数据库迁移/分层运行检查通过。旧 `pnpm native:verify` 仍因内置题库快照的完整性哈希不匹配而失败；该测试和快照与发布前基线相同，详见本次发布记录。新增的隐藏笔记 SQLite 检查已通过。
+
+本次侧栏样式修复保存在 `codex/sidebar-action-alignment`：课程和聊天菜单的省略号共用一列，桌面侧栏调整为 248–320px；课程 hover/键盘聚焦时使用与头像对应的场景和 ImageGen 生成的透明玻璃光纹。手机抽屉宽度和 44px 聊天菜单点击范围保持原样。已检查 1456px、1024px、390px；线上资源哈希、Mac 下载包和菜单图标中心已核对。
 
 新任务使用独立工作树和任务分支。从测试服开始时，选择 `codex/staging-baseline`；
 需要后续开发改动时，明确选择 `codex/staging-next`。不要因为某个旧目录更“新”就整体覆盖。
@@ -30,13 +32,14 @@
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前发布：`46569731-1777-401f-8a89-21f0f1fe664d`，源码提交：`e1991eeb`。
-- 发布快照包含 3,139 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
+- 当前发布：`46a1a26b-db63-4c30-872a-1995894285e5`，源码提交：`ae042399`。
+- 发布快照包含 3,142 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
 - `railway.toml` 没有上传，测试服构建、启动和迁移配置由 Railway 管理；临时资源恢复命令已恢复为正常构建命令。
-- 本次课程头像、课程分层与版本发布：[staging-2026-10-25-course-layers.json](releases/staging-2026-10-25-course-layers.json)。
+- 本次侧栏菜单对齐、宽度和头像 hover 背景：[staging-2026-10-25-sidebar-hover.json](releases/staging-2026-10-25-sidebar-hover.json)。
+- 前次课程头像、课程分层与版本发布：[staging-2026-10-25-course-layers.json](releases/staging-2026-10-25-course-layers.json)。
 - 数据库第 48 个迁移已执行；测试服仍有 27 门课程、174 本笔记、2,532 道题，与发布前一致。
-- Mac 测试包已重新编译，下载页当前提供 `20261025T202615Z` 构建。
+- Mac 测试包已重新编译，下载页当前提供 `20261025T224540Z` 构建。
 - 前次学习页宽屏发布：[staging-2026-10-25-learning-wide.json](releases/staging-2026-10-25-learning-wide.json)。
 - 前次管理员发布：[staging-2026-10-25-admin.json](releases/staging-2026-10-25-admin.json)。
 - 前次布局修复：[staging-2026-10-25-layout.json](releases/staging-2026-10-25-layout.json)。

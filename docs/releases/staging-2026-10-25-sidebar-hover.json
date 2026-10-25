@@ -1,0 +1,146 @@
+{
+  "sourceCommit": "ae0423999a9aca875288b0389fcfb09d562084da",
+  "sourceTree": "edcec3f8144d604f0393704c20dff87b81d07098",
+  "sourceFiles": 3142,
+  "previousBaseline": "e1991eeb257ce577f30f432143a286147754b5f6",
+  "parentDevelopment": "afc83fe556789554a01de8f63c1bd8f2df75048a",
+  "taskBranch": "codex/sidebar-action-alignment",
+  "railway": {
+    "deploymentId": "46a1a26b-db63-4c30-872a-1995894285e5",
+    "projectId": "8cddd1ea-24e1-49a9-8d27-dce86069dc8b",
+    "environmentId": "6697de1f-eb0d-4a6f-8709-cfe477a29f11",
+    "serviceId": "fd6afb05-6491-451a-b577-abf15fdc0047",
+    "status": "SUCCESS"
+  },
+  "scope": [
+    "Align course and conversation ellipsis glyph centers in a shared action column",
+    "Widen desktop chat sidebar from 220–300px to 248–320px; preserve phone drawer width",
+    "Course hover/focus backdrop uses its resolved avatar scene and hue, with a generated transparent glass-light overlay"
+  ],
+  "artwork": {
+    "tool": "built-in ImageGen",
+    "asset": "apps/native/src/assets/course-hover-glass-v1.png",
+    "prompt": "apps/native/src/assets/course-hover-glass-v1.prompt.md",
+    "sha256": "1278e184c45653037182fad88a00fccb6489412a0a850e468fbb48d41cacb9ff",
+    "transparencyPreserved": true,
+    "dimensions": [2172, 724]
+  },
+  "checks": {
+    "formatLintRootAndNativeTypes": "passed",
+    "productionBuild": "passed",
+    "macBuildAndSignature": "passed",
+    "avatarCatalogIntegration": "45 avatars passed; offline",
+    "responsiveMenuGeometry": [
+      {
+        "chatIconCenters": [236, 236],
+        "courseIconCenter": 236,
+        "horizontalOverflow": false,
+        "sidebarWidth": 248,
+        "viewport": 1456
+      },
+      {
+        "chatIconCenters": [184, 184],
+        "courseIconCenter": 184,
+        "horizontalOverflow": false,
+        "sidebarWidth": 248,
+        "viewport": 1024
+      },
+      {
+        "chatIconCenters": [240.1953125, 240.1953125],
+        "chatMenuTargetWidth": 44,
+        "courseIconCenter": 240.1953125,
+        "horizontalOverflow": false,
+        "sidebarWidth": 304.1953125,
+        "viewport": 390
+      }
+    ]
+  },
+  "macInstaller": {
+    "version": "0.1.0",
+    "builtAt": "2026-10-25T22:45:40.068Z",
+    "fileName": "Syntara-Test-0.1.0-macOS-arm64-20261025T224540Z.zip",
+    "size": 48131785,
+    "sha256": "e69da8bd929460181ce81180f6dcf901a71561291a97f428c945bcc5e89f2100",
+    "channel": "staging",
+    "architecture": "arm64",
+    "minimumSystemVersion": "14.0",
+    "notarized": false,
+    "headAndRangeVerified": true
+  },
+  "databaseChanges": false,
+  "verifiedAt": "2026-10-25T22:54:35.383Z",
+  "baselineBranch": "codex/staging-baseline",
+  "baselineCommit": "ae0423999a9aca875288b0389fcfb09d562084da",
+  "developmentBranch": "codex/staging-next",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "nativeAssets": [
+    {
+      "url": "/native-web/assets/index-B-cxwxXe.js",
+      "sha256": "223bb5f909d29eafff4e281283bacbc508f38f2893bd0a3f076a88b0291d0c77",
+      "bytes": 1618857,
+      "matchesVerifiedBuild": true
+    },
+    {
+      "url": "/native-web/assets/index-Be4mUtw8.css",
+      "sha256": "54341957b38b66528a9381c2a33044c6669e805b61530b9cec942254d10b716a",
+      "bytes": 357654,
+      "matchesVerifiedBuild": true
+    },
+    {
+      "url": "/native-web/assets/course-hover-glass-v1-BT7DZmbJ.png",
+      "sha256": "1278e184c45653037182fad88a00fccb6489412a0a850e468fbb48d41cacb9ff",
+      "bytes": 1405443,
+      "matchesVerifiedBuild": true
+    }
+  ],
+  "liveBrowser": {
+    "artOpacity": "0.3",
+    "chatIconCenters": [236, 236],
+    "courseIconCenter": 236,
+    "courseNameFits": true,
+    "glassTexture": "url(\"https://native-api-staging-staging-95a1.up.railway.app/native-web/assets/course-hover-glass-v1-BT7DZmbJ.png\")",
+    "horizontalOverflow": false,
+    "hoverArt": "url(\"/native-web/assets/SR05-e57LMcnM.webp\")",
+    "hoverTint": "hsl(165 55% 94%)",
+    "sidebarWidth": 248,
+    "viewport": 1280
+  },
+  "liveHttpChecks": [
+    {
+      "path": "/api/health",
+      "status": 200
+    },
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/download",
+      "status": 200
+    },
+    {
+      "path": "/test/app",
+      "status": 200
+    },
+    {
+      "path": "/admin",
+      "status": 200
+    },
+    {
+      "path": "/api/native/v1/store?layersOf=missing-course",
+      "status": 401
+    },
+    {
+      "path": "/api/native/v1/store",
+      "status": 401
+    },
+    {
+      "path": "/api/courses/missing-course/layers",
+      "status": 401
+    },
+    {
+      "path": "/api/admin/courses",
+      "status": 401
+    }
+  ]
+}
