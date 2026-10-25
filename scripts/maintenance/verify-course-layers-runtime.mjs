@@ -11,7 +11,16 @@ process.env.DATABASE_URL = url.href;
 process.env.NODE_ENV = 'test';
 const root = path.resolve(import.meta.dirname, '../..');
 const jiti = createJiti(import.meta.url, { alias: { '@': root } });
-const { prisma: db } = await jiti.import('../../lib/server/prisma.ts');
+const { prisma } = await jiti.import('../../lib/server/prisma.ts');
+// The disposable schema is reached over a public QA tunnel; allow network latency
+// without changing the application's transaction deadlines.
+const db = new Proxy(prisma, {
+  get(target, property) {
+    if (property === '$transaction')
+      return (work, options) => target.$transaction(work, { ...options, timeout: 60000 });
+    return Reflect.get(target, property);
+  },
+});
 const ids = {
   publisher: 'qa-publisher',
   a: 'qa-a',
@@ -183,20 +192,23 @@ try {
         ids.public,
       ),
     );
-    assert.equal(
-      await layers.removeCourseContentForUser(db, target('problem', ids.problem)),
-      'hidden',
+    await assert.rejects(
+      layers.removeCourseContentForUser(db, target('problem', ids.problem)),
+      layers.PublicProblemReadOnlyError,
     );
+    await assert.rejects(
+      layers.copyCourseContentToMine(db, target('problem', ids.problem)),
+      layers.PublicProblemReadOnlyError,
+    );
+    // Old personal hides must no longer conceal read-only public questions.
+    await db.courseContentHide.create({
+      data: { userId: ids.a, courseId: ids.course, targetType: 'problem', targetId: ids.problem },
+    });
     assert.ok(
-      !(await sync.readNativeProblems(db, ids.a, ids.course, null)).problemIds.includes(
-        ids.problem,
-      ),
+      (await sync.readNativeProblems(db, ids.a, ids.course, null)).problemIds.includes(ids.problem),
     );
-    assert.ok(
-      (await sync.readNativeProblems(db, ids.b, ids.course, null)).problemIds.includes(ids.problem),
-    );
+    assert.equal((await layers.courseLayersForUser(db, ids.a, ids.course)).hidden.length, 0);
     assert.ok(await db.notebookProblemAttempt.findUnique({ where: { id: 'qa-attempt' } }));
-    await layers.restoreCourseContentForUser(db, target('problem', ids.problem));
     const publicMaxBefore = (
       await db.notebookProblem.aggregate({
         where: { courseId: ids.course, ownerId: null },
@@ -238,14 +250,6 @@ try {
       layers.removeCourseContentForUser(db, target('problem', created.id, ids.publisher)),
       layers.CourseContentNotFoundError,
     );
-    const copied = await layers.copyCourseContentToMine(db, target('problem', ids.problem));
-    const clone = await db.notebookProblem.findUniqueOrThrow({ where: { id: copied.id } });
-    assert.equal(clone.ownerId, ids.a);
-    assert.equal(clone.problemNumber, null);
-    assert.equal(clone.notebookId, null);
-    assert.equal(await db.notebookProblemAttempt.count({ where: { problemId: copied.id } }), 0);
-    assert.ok(await db.notebookProblemAttempt.findUnique({ where: { id: 'qa-attempt' } }));
-    await layers.restoreCourseContentForUser(db, target('problem', ids.problem));
     const copiedNotebook = await layers.copyCourseContentToMine(db, target('notebook', ids.public));
     assert.equal(
       (await db.notebook.findUniqueOrThrow({ where: { id: copiedNotebook.id } })).ownerId,
@@ -260,10 +264,10 @@ try {
       (await db.notebook.findUniqueOrThrow({ where: { id: copiedNotebook.id } })).removedAt,
     );
     assert.equal(
-      await layers.removeCourseContentForUser(db, target('problem', copied.id)),
+      await layers.removeCourseContentForUser(db, target('problem', created.id)),
       'deleted',
     );
-    assert.equal(await db.notebookProblem.findUnique({ where: { id: copied.id } }), null);
+    assert.equal(await db.notebookProblem.findUnique({ where: { id: created.id } }), null);
     const uploaded = await materials.uploadNativeMaterial(db, ids.a, {
       courseId: ids.course,
       kind: 'notes',

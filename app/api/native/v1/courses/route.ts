@@ -53,13 +53,16 @@ export async function GET(request: NextRequest) {
       return {
         id: course.id,
         name: display.name,
-        // 从商城加入的课和商城里一样带学校前缀（UTM-CSC 108）。
+        // 从商城加入的课统一写成 "CSC 108"，侧栏不带校区（商城里才带）。
         courseCode: meta?.organizationName
-          ? storeCourseCode({
-              ...display,
-              university: course.university,
-              organizationName: meta.organizationName,
-            })
+          ? storeCourseCode(
+              {
+                ...display,
+                university: course.university,
+                organizationName: meta.organizationName,
+              },
+              { withPrefix: false },
+            )
           : (display.courseCode ?? null),
         description: course.description ?? null,
         language: course.language,

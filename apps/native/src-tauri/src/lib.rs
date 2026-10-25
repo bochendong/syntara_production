@@ -86,6 +86,7 @@ pub fn run() {
             platform_api::native_create_mini_lecture,
             platform_api::native_grade_answer,
             platform_api::native_transcribe_audio,
+            platform_api::native_start_realtime_transcription,
             platform_api::native_parse_syllabus,
             platform_api::native_list_platform_courses,
             platform_api::native_get_weekly_usage,

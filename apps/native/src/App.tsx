@@ -14,6 +14,7 @@ import { NativeAuthGate } from './components/NativeAccountControl';
 import { NotebookLibraryPage } from './components/NotebookLibraryPage';
 import { ProblemBankPage, type ProblemBankLaunch } from './components/ProblemBankPage';
 import { ProblemPracticePage } from './components/ProblemPracticePage';
+import { PracticeOverlay } from './components/PracticeOverlay';
 import { syncPlatformCourses } from './data/chat-sync';
 import { getLocalRepository, type LocalBackendKind } from './data/repository';
 import {
@@ -336,13 +337,22 @@ function AuthenticatedApp() {
     });
   }, []);
 
-  // iPad 和桌面的题库在课程工作台右侧，做完题回到那里。
+  // iPad 和桌面的题库在课程工作台右侧，做题是盖在上面的弹窗，关掉就回到刚才的答题卡。
   const backFromPractice = useCallback(() => {
+    if (!phoneLayout) {
+      try {
+        // 工作台一直开着，不用再靠它重新打开题库。
+        window.sessionStorage.removeItem('syntara.open-phone-page');
+      } catch {
+        // ignore
+      }
+    }
     updateWithPlatformTransition(() => {
       setPracticeLaunch(null);
       setSurface(phoneLayout ? 'problem-bank' : 'course');
     });
   }, [phoneLayout]);
+  const practiceOverlay = !phoneLayout && surface === 'problem-practice' && practiceLaunch;
 
   const backFromProblemBank = useCallback(() => {
     updateWithPlatformTransition(() => {
@@ -482,7 +492,7 @@ function AuthenticatedApp() {
         <NotebookLibraryPage workspace={workspace} onBack={backFromNotebookLibrary} />
       </div>
     );
-  } else if (surface === 'problem-practice' && practiceLaunch) {
+  } else if (surface === 'problem-practice' && practiceLaunch && phoneLayout) {
     content = (
       <div className="native-course-subview">
         <ProblemPracticePage
@@ -574,11 +584,20 @@ function AuthenticatedApp() {
             }}
           />
         )}
-        <div className="app-chat-surface" inert={globalPage !== null}>
+        <div className="app-chat-surface" inert={globalPage !== null || Boolean(practiceOverlay)}>
           <ChatWorkspaceShell enabled={!phoneLayout} onLocalNavigation={cancelPendingNavigation}>
             {content}
           </ChatWorkspaceShell>
         </div>
+        {practiceOverlay && workspace ? (
+          <PracticeOverlay onClose={backFromPractice}>
+            <ProblemPracticePage
+              problems={workspace.problems}
+              launch={practiceOverlay}
+              onBack={backFromPractice}
+            />
+          </PracticeOverlay>
+        ) : null}
         {managedCourse?.action === 'edit' ? (
           <CreateCourseDialog
             editing={{

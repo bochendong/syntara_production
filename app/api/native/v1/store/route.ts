@@ -13,6 +13,7 @@ import { findCourseAccessRole } from '@/lib/server/repositories/course-enrollmen
 import {
   copyCourseContentToMine,
   CourseContentNotFoundError,
+  PublicProblemReadOnlyError,
   courseLayersForUser,
   releaseCourseVersion,
   removeCourseContentForUser,
@@ -119,6 +120,8 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       if (error instanceof CourseContentNotFoundError)
         return publicApiError(requestId, 404, 'not_found', error.message);
+      if (error instanceof PublicProblemReadOnlyError)
+        return publicApiError(requestId, 403, 'invalid_request', error.message);
       throw error;
     }
   }

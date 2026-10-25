@@ -77,7 +77,7 @@ export function LayerActionMenu({
   onClose,
 }: {
   target: LayerMenuTarget;
-  onCopy: () => Promise<void>;
+  onCopy?: () => Promise<void>;
   onRemove: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -110,7 +110,7 @@ export function LayerActionMenu({
         </span>
         <strong className="phone-confirm-title lay-menu-title">{target.title}</strong>
         <div className="lay-menu-actions">
-          {target.mine ? null : (
+          {target.mine || !onCopy ? null : (
             <button
               type="button"
               className="phone-confirm-button"

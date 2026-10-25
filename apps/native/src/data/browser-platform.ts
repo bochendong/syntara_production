@@ -38,6 +38,10 @@ export const browserEndpoints: Record<string, { path: string; method?: string }>
   native_create_mini_lecture: { path: '/api/native/v1/mini-lectures', method: 'POST' },
   native_grade_answer: { path: '/api/native/v1/grade', method: 'POST' },
   native_transcribe_audio: { path: '/api/native/v1/transcriptions', method: 'POST' },
+  native_start_realtime_transcription: {
+    path: '/api/native/v1/realtime-transcription',
+    method: 'POST',
+  },
   native_parse_syllabus: { path: '/api/native/v1/syllabus/parse', method: 'POST' },
   native_get_conversations: { path: '/api/native/v1/conversations' },
   native_sync_conversation: { path: '/api/native/v1/conversations', method: 'POST' },

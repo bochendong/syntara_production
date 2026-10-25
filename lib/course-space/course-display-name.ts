@@ -66,11 +66,16 @@ function spacedCode(code: string): string {
  * 商城课程统一带学校前缀显示，如 "UTM-CSC 108"、"UTM-ECON 101"。
  * 课程代码已有前缀（"UTM-CSC108"）就沿用；没有时按学校或机构名补上。
  */
-export function storeCourseCode(course: StoreCourseIdentity): string | null {
+export function storeCourseCode(
+  course: StoreCourseIdentity,
+  { withPrefix = true }: { withPrefix?: boolean } = {},
+): string | null {
   const raw = courseDisplayCode(course);
   const match = raw.match(/^(?:([A-Z][A-Za-z]*)-)?([A-Z]{2,}\s*\d+[A-Z\d]*)$/i);
   if (!match) return course.courseCode?.trim() || null;
-  const prefix = match[1] || campusPrefix(course.university, course.organizationName);
   const code = spacedCode(match[2]);
+  // 聊天侧栏太窄，只显示 "CSC 108"；商城才带校区。
+  if (!withPrefix) return code;
+  const prefix = match[1] || campusPrefix(course.university, course.organizationName);
   return prefix ? `${prefix}-${code}` : code;
 }

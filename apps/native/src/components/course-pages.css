@@ -3628,3 +3628,100 @@ span.pb-row-marble img {
     left: calc(50% - 150px);
   }
 }
+
+/* iPad/桌面：做题弹窗盖住导航和侧栏，四周留一圈让人知道下面还是题库。 */
+.practice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  padding: 14px;
+}
+
+.practice-overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(15 23 42 / 22%);
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+  animation: practice-overlay-fade 200ms ease both;
+}
+
+.practice-overlay-card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 85%);
+  border-radius: 22px;
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 30px 80px rgb(15 23 42 / 24%);
+  animation: practice-overlay-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.practice-overlay-card > .native-problem-practice {
+  min-height: 0;
+  flex: 1;
+}
+
+.practice-overlay .native-problem-practice-panes {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+@keyframes practice-overlay-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes practice-overlay-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .practice-overlay-backdrop,
+  .practice-overlay-card {
+    animation: none;
+  }
+}
+
+/* 题目区是 grid：宽代码块在自己里面横向滚动，不把整列撑出去。 */
+.native-problem-practice .native-problem-practice-pane-body > * {
+  min-width: 0;
+}
+
+/* 选项里的代码：直接铺在选项卡片上，不再套一层卡片。 */
+.native-problem-practice .native-problem-choice .problem-rich-code-block {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* 证明、简答、计算：答题框跟着弹窗变高。 */
+.practice-overlay .native-problem-practice-text {
+  min-height: 280px;
+}
+
+.pp-answer-preview {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px dashed rgb(15 23 42 / 12%);
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 60%);
+}
+
+.pp-answer-preview > small {
+  display: block;
+  margin-bottom: 4px;
+  color: #94a3b8;
+  font-size: 11px;
+}

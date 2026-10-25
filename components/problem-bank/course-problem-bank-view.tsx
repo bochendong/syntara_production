@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   CheckSquare,
   ChevronUp,
-  Copy,
   ChevronLeft,
   ChevronRight,
   Code2,
@@ -99,7 +98,6 @@ import { CourseSpaceHeader } from '@/components/course-space/course-space-header
 import {
   CourseReleaseButton,
   CourseUpdatePill,
-  HiddenContentButton,
   LayerBadges,
   useCourseLayers,
 } from '@/components/course-space/course-layer-controls';
@@ -1300,33 +1298,16 @@ export function CourseProblemBankView({
     !previewMode && !adminReadOnly && Boolean(courseAccessRole),
   );
   const [layerBusyId, setLayerBusyId] = useState<string | null>(null);
-  // 加入的课：公有题「删除」只对自己隐藏，自己的题真删；「复制到我的」得到能改的私有副本。
-  const runLayerAction = async (
-    action: 'remove' | 'copy',
-    problem: NotebookProblemClientRecord,
-  ) => {
-    if (
-      action === 'remove' &&
-      problem.layer === 'private' &&
-      !window.confirm('删除这道自己的题？删除后不能恢复。')
-    )
-      return;
+  // 加入的课：只有自己加的题能删（真删）；发布者的题只读。
+  const deleteOwnProblem = async (problem: NotebookProblemClientRecord) => {
+    if (!window.confirm('删除这道自己的题？删除后不能恢复。')) return;
     setLayerBusyId(problem.id);
     try {
-      const result = await courseLayers.act(action, {
-        targetType: 'problem',
-        targetId: problem.id,
-      });
-      toast.success(
-        action === 'copy'
-          ? '已复制到我的'
-          : result.result === 'deleted'
-            ? '已删除'
-            : '已隐藏，可在「已隐藏」里恢复',
-      );
+      await courseLayers.act('remove', { targetType: 'problem', targetId: problem.id });
+      toast.success('已删除');
       await reloadProblems();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '操作失败');
+      toast.error(error instanceof Error ? error.message : '删除失败');
     } finally {
       setLayerBusyId(null);
     }
@@ -1339,13 +1320,6 @@ export function CourseProblemBankView({
         {learnerLayers?.update?.text ? (
           <CourseUpdatePill courseId={courseId} text={learnerLayers.update.text} />
         ) : null}
-        <HiddenContentButton
-          items={learnerLayers?.hidden.filter((item) => item.targetType === 'problem') ?? []}
-          onRestore={async (item) => {
-            await courseLayers.act('restore', item);
-            await reloadProblems();
-          }}
-        />
         <Button size="sm" onClick={() => setCreateDraft(createBlankProblemDraft())}>
           添加我的题目
         </Button>
@@ -1410,37 +1384,23 @@ export function CourseProblemBankView({
             <Play className="size-4" aria-hidden="true" />
           )}
         </Button>
-        {canAddPrivateProblems && !previewMode ? (
-          <>
-            {problem.layer !== 'private' ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                disabled={disabled || layerBusyId === problem.id}
-                title="复制到我的"
-                aria-label={`复制到我的：${title}`}
-                onClick={() => void runLayerAction('copy', problem)}
-              >
-                <Copy className="size-4" aria-hidden="true" />
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              disabled={disabled || layerBusyId === problem.id}
-              title={problem.layer === 'private' ? '删除' : '删除（只对你隐藏）'}
-              aria-label={`删除：${title}`}
-              onClick={() => void runLayerAction('remove', problem)}
-            >
-              {layerBusyId === problem.id ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Trash2 className="size-4" aria-hidden="true" />
-              )}
-            </Button>
-          </>
+        {/* 题库对学员只读：发布者的题不能删、不能复制，只有自己加的题可以删。 */}
+        {canAddPrivateProblems && !previewMode && problem.layer === 'private' ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            disabled={disabled || layerBusyId === problem.id}
+            title="删除"
+            aria-label={`删除：${title}`}
+            onClick={() => void deleteOwnProblem(problem)}
+          >
+            {layerBusyId === problem.id ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Trash2 className="size-4" aria-hidden="true" />
+            )}
+          </Button>
         ) : null}
         {canEditProblems ? (
           <Button

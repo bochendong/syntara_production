@@ -24,7 +24,6 @@ import { notebookMarbleColor, splitNotebookName } from '../lib/notebook-reading'
 import { MaterialUploadButton } from './MaterialUploadButton';
 import {
   CourseReleaseButton,
-  HiddenContentShelf,
   LayerActionMenu,
   LayerBadges,
   LayerItem,
@@ -32,13 +31,11 @@ import {
 } from './CourseLayerControls';
 import { getLocalRepository } from '../data/repository';
 import {
-  copyCourseContent,
   isPrivateProblem,
   isProblemContentUpdated,
   isProblemNew,
   refreshCourseLayers,
   removeCourseContent,
-  restoreCourseContent,
   useCourseLayers,
 } from '../lib/course-layers';
 import './course-pages.css';
@@ -318,7 +315,7 @@ export function ProblemBankPage({
       />
     ) : null;
   const moreFor = (problem: LocalProblem) =>
-    layered
+    layered && isPrivateProblem(layers, problem.id)
       ? () =>
           setMenuTarget({
             targetType: 'problem',
@@ -336,10 +333,6 @@ export function ProblemBankPage({
         <LayerActionMenu
           target={menuTarget}
           onClose={() => setMenuTarget(null)}
-          onCopy={async () => {
-            await copyCourseContent(courseId, menuTarget);
-            await afterChange();
-          }}
           onRemove={async () => {
             await removeCourseContent(courseId, menuTarget);
             await afterChange();
@@ -348,19 +341,6 @@ export function ProblemBankPage({
       ) : null}
     </>
   );
-  const hiddenProblems = layered
-    ? layers.hidden.filter((item) => item.targetType === 'problem')
-    : [];
-  const hiddenShelf = (
-    <HiddenContentShelf
-      items={hiddenProblems}
-      onRestore={async (item) => {
-        await restoreCourseContent(courseId, item);
-        await afterChange();
-      }}
-    />
-  );
-
   // 学生只看已发布的题；课程里还没有发布的题时（本机自建课程）就全部显示。
   // 加入的课里自己上传的题（私有层）还是草稿也照样显示。
   const bankProblems = useMemo(() => {
@@ -597,7 +577,6 @@ export function ProblemBankPage({
                   : undefined
               }
             />
-            {hiddenShelf}
           </div>
         </div>
       </section>
@@ -816,7 +795,6 @@ export function ProblemBankPage({
                     ) : null}
                   </>
                 )}
-                {hiddenShelf}
               </div>
             </div>
           </div>
@@ -1047,7 +1025,6 @@ export function ProblemBankPage({
                   );
                 })}
               </div>
-              {hiddenShelf}
             </>
           )}
         </div>

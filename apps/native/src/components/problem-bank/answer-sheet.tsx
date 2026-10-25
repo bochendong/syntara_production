@@ -27,9 +27,21 @@ export const STATUS_LABELS: Record<ProblemStatus, string> = {
   pending: '待批改',
 };
 
+const PROGRESS_EVENT = 'syntara:problem-progress';
+
+export function notifyProblemProgress() {
+  window.dispatchEvent(new Event(PROGRESS_EVENT));
+}
+
 /** 本机作答进度：每道题最新的状态。 */
 export function useProblemStatuses(courseId: string, revision: unknown) {
   const [statuses, setStatuses] = useState<Map<string, ProblemStatus>>(() => new Map());
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setTick((value) => value + 1);
+    window.addEventListener(PROGRESS_EVENT, bump);
+    return () => window.removeEventListener(PROGRESS_EVENT, bump);
+  }, []);
   useEffect(() => {
     let alive = true;
     void getLocalRepository()
@@ -47,7 +59,7 @@ export function useProblemStatuses(courseId: string, revision: unknown) {
     return () => {
       alive = false;
     };
-  }, [courseId, revision]);
+  }, [courseId, revision, tick]);
   return [statuses, setStatuses] as const;
 }
 

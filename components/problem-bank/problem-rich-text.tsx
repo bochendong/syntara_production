@@ -191,7 +191,10 @@ function renderInlineFormatting(text: string): string {
       // Only attribute-free line breaks are markup; all other HTML stays escaped.
       .replace(/&lt;br\s*\/?&gt;/gi, '<br/>')
       .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
+      // `__init__`、`__len__` 这类 Python 名字不是粗体。
+      .replace(/__([^_\n]+)__/g, (match, inner: string) =>
+        /^[A-Za-z][A-Za-z0-9_]*$/.test(inner) ? match : `<strong>${inner}</strong>`,
+      )
       .replace(/~~([^~\n]+)~~/g, '<del>$1</del>')
       .replace(/(^|[\s（(])\*([^*\n]+)\*(?=$|[\s，。！？；、,.!?)）])/g, '$1<em>$2</em>')
       .replace(/(^|[\s（(])_([^_\n]+)_(?=$|[\s，。！？；、,.!?)）])/g, '$1<em>$2</em>')
@@ -226,6 +229,93 @@ function renderInlineMarkdown(text: string): string {
   }
 
   return html;
+}
+
+const DOCTEST_PROMPT = /^\s*>>>(?:\s|$)/;
+
+function dedentLines(lines: string[]): string[] {
+  const indents = lines
+    .filter((line) => line.trim())
+    .map((line) => line.match(/^[ \t]*/)?.[0].length ?? 0);
+  const indent = indents.length ? Math.min(...indents) : 0;
+  return lines.map((line) => line.slice(indent));
+}
+
+/**
+ * 题目里直接写的 Python 交互示例（`>>> ...` 加输出行，多半是从 docstring 抽出来的）
+ * 原样当成 markdown 会被吃掉一个 `>` 变成引用，`a = B(...)` 还会被认成公式。
+ * 这里在别的规则之前把它们包成 python 代码块；紧跟着又有一份一模一样的代码块时只留那一份。
+ */
+function fenceDoctestBlocks(text: string): string {
+  if (!text.includes('>>>')) return text;
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  const output: string[] = [];
+  let fence: CodeFenceInfo | null = null;
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    if (fence) {
+      output.push(line);
+      if (isCodeFenceEnd(line, fence.marker)) fence = null;
+      index += 1;
+      continue;
+    }
+    const fenceStart = parseCodeFenceStart(line);
+    if (fenceStart) {
+      fence = fenceStart;
+      output.push(line);
+      index += 1;
+      continue;
+    }
+    if (!DOCTEST_PROMPT.test(line)) {
+      output.push(line);
+      index += 1;
+      continue;
+    }
+
+    // 一段交互示例：从 >>> 开始，带上后面的输出行；空行后如果还是 >>> 就接着算同一段。
+    const block: string[] = [];
+    while (index < lines.length) {
+      const current = lines[index];
+      if (current.trim()) {
+        if (parseCodeFenceStart(current)) break;
+        block.push(current);
+        index += 1;
+        continue;
+      }
+      let next = index;
+      while (next < lines.length && !lines[next].trim()) next += 1;
+      if (next < lines.length && DOCTEST_PROMPT.test(lines[next])) {
+        index = next;
+        continue;
+      }
+      break;
+    }
+    const code = dedentLines(block);
+
+    let next = index;
+    while (next < lines.length && !lines[next].trim()) next += 1;
+    const nextFence = next < lines.length ? parseCodeFenceStart(lines[next]) : null;
+    if (nextFence) {
+      const fenced: string[] = [];
+      for (let cursor = next + 1; cursor < lines.length; cursor += 1) {
+        if (isCodeFenceEnd(lines[cursor], nextFence.marker)) break;
+        fenced.push(lines[cursor]);
+      }
+      const squash = (value: string[]) =>
+        value
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .join('\n');
+      if (squash(dedentLines(fenced)).includes(squash(code))) continue;
+    }
+
+    if (output.length && output[output.length - 1].trim()) output.push('');
+    output.push('```python', ...code, '```', '');
+  }
+
+  return output.join('\n');
 }
 
 function protectFencedCodeBlocks(text: string): { text: string; blocks: string[] } {
@@ -343,6 +433,43 @@ function splitQuestionTextAfterInlineList(text: string): string {
     .join('\n');
 }
 
+const ENUM_MARKER =
+  /(^|[\s:：;；,，.。])\(((?:i|ii|iii|iv|v|vi|vii|viii|ix|x)|\d{1,2}|[a-h])\)\s+/g;
+const ROMAN = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
+
+function enumerationIndex(marker: string, kind: 'roman' | 'number' | 'letter'): number {
+  if (kind === 'roman') return ROMAN.indexOf(marker);
+  if (kind === 'number') return Number(marker) - 1;
+  return marker.charCodeAt(0) - 97;
+}
+
+/**
+ * 「(1) … (2) … (3) …」「(i) Left-Total (ii) Symmetric …」挤在一段里时拆成一行一条。
+ * 只在编号从 1 / i / a 开始、按顺序连着出现至少两次时才拆，`f(1)` 这种不动。
+ */
+function splitInlineEnumeration(text: string): string {
+  const markers = [...text.matchAll(ENUM_MARKER)];
+  if (markers.length < 2) return text;
+  const first = markers[0][2].toLowerCase();
+  const kind =
+    first === 'i' ? 'roman' : /^\d/.test(first) ? 'number' : first === 'a' ? 'letter' : null;
+  if (!kind || enumerationIndex(first, kind) !== 0) return text;
+  const picked: RegExpMatchArray[] = [];
+  for (const match of markers) {
+    const marker = match[2].toLowerCase();
+    if (enumerationIndex(marker, kind) === picked.length) picked.push(match);
+  }
+  if (picked.length < 2) return text;
+  let output = '';
+  let cursor = 0;
+  for (const match of picked) {
+    const start = (match.index ?? 0) + match[1].length;
+    output += `${text.slice(cursor, start).trimEnd()}\n- `;
+    cursor = start;
+  }
+  return output + text.slice(cursor);
+}
+
 function normalizeInlineStructuralMarkdown(text: string): string {
   const normalizeProse = (value: string) => {
     let normalized = value;
@@ -362,6 +489,7 @@ function normalizeInlineStructuralMarkdown(text: string): string {
       '\n\n$1',
     );
 
+    if (normalized === value) normalized = splitInlineEnumeration(normalized);
     normalized = normalized.replace(/\s+(Hint\s*:)/gi, '\n\n$1');
     return normalized;
   };
@@ -552,7 +680,7 @@ function renderDisplayMath(lines: string[]): string {
 
 function textToHtml(text: string): string {
   const fencedCode = protectFencedCodeBlocks(
-    expandLegacyCodeTables(repairMalformedProblemMath(text)),
+    expandLegacyCodeTables(repairMalformedProblemMath(fenceDoctestBlocks(text))),
   );
   const normalized = restoreFencedCodeBlocks(
     inlineSimpleDisplayMath(normalizeInlineStructuralMarkdown(fencedCode.text)),

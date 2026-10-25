@@ -2,12 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { Mic } from 'lucide-react';
 import { transcribeNativeAudio } from '../data/platform-api-client';
 import { marbleImages } from '../lib/learning-action-marbles';
+import {
+  connectRealtimeTranscription,
+  type RealtimeTranscription,
+} from '../lib/realtime-transcription';
 import './voice-input.css';
 
-/** 一段最多录两分钟，够说一个问题，也不会把转写拖得太久。 */
+/** 一段最多说两分钟，够说一个问题。 */
 const MAX_RECORDING_MS = 120_000;
 
-type VoiceState = 'idle' | 'recording' | 'transcribing';
+type VoiceState = 'connecting' | 'idle' | 'recording' | 'transcribing';
 
 function pickMimeType(): string {
   const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
@@ -23,27 +27,44 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary);
 }
 
+const joinDraft = (base: string, spoken: string) =>
+  !spoken ? base : base.trim() ? `${base.trimEnd()} ${spoken}` : spoken;
+
 /**
- * 输入框里的麦克风：点一下开始录，再点一下停，说的话转成文字放进输入框，
- * 不会直接发出去，用户可以先改。转写走平台的 /api/native/v1/transcriptions。
+ * 输入框里的麦克风：点一下开始说，字边说边出现在输入框里（OpenAI Realtime 转写），
+ * 再点一下停。不会直接发出去，用户可以先改。
+ * Realtime 连不上时退回「录完再转」（/api/native/v1/transcriptions）。
  */
 export function VoiceInputButton({
   disabled = false,
-  onText,
+  value,
+  onChange,
 }: {
   disabled?: boolean;
-  onText: (text: string) => void;
+  /** 输入框当前的文字；说的话接在它后面。 */
+  value: string;
+  onChange: (next: string) => void;
 }) {
   const [state, setState] = useState<VoiceState>('idle');
   const [seconds, setSeconds] = useState(0);
   const [level, setLevel] = useState(0);
   const [hint, setHint] = useState<string | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
+  const stopRef = useRef<(() => void) | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
-  const onTextRef = useRef(onText);
-  onTextRef.current = onText;
-
-  useEffect(() => () => cleanupRef.current?.(), []);
+  const valueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
+  const activeRef = useRef(false);
+  useEffect(() => {
+    valueRef.current = value;
+    onChangeRef.current = onChange;
+  }, [value, onChange]);
+  useEffect(() => {
+    activeRef.current = true;
+    return () => {
+      activeRef.current = false;
+      cleanupRef.current?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (!hint) return;
@@ -56,54 +77,105 @@ export function VoiceInputButton({
     typeof MediaRecorder !== 'undefined' &&
     Boolean(navigator.mediaDevices?.getUserMedia);
 
-  const start = async () => {
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      setHint('没有麦克风权限');
-      return;
-    }
-    const mimeType = pickMimeType();
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-    const chunks: Blob[] = [];
-    const startedAt = Date.now();
-
-    // 音量只用来让弹珠跟着声音跳，不存。
+  /** 音量只用来让弹珠跟着声音跳，不存。到两分钟自动停。 */
+  const watchLevel = (stream: MediaStream, startedAt: number, onLimit: () => void) => {
     const audioContext = new AudioContext();
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 256;
     audioContext.createMediaStreamSource(stream).connect(analyser);
     const samples = new Uint8Array(analyser.frequencyBinCount);
     let frame = 0;
+    let limited = false;
     const tick = () => {
       analyser.getByteTimeDomainData(samples);
       let peak = 0;
       for (const sample of samples) peak = Math.max(peak, Math.abs(sample - 128));
       setLevel(Math.min(1, peak / 48));
       setSeconds(Math.floor((Date.now() - startedAt) / 1000));
-      if (Date.now() - startedAt >= MAX_RECORDING_MS && recorder.state === 'recording') {
-        recorder.stop();
+      if (!limited && Date.now() - startedAt >= MAX_RECORDING_MS) {
+        limited = true;
+        onLimit();
       }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
-
-    const cleanup = () => {
+    return () => {
       cancelAnimationFrame(frame);
-      stream.getTracks().forEach((track) => track.stop());
       void audioContext.close();
+      if (activeRef.current) setLevel(0);
+    };
+  };
+
+  const startRealtime = async (stream: MediaStream, base: string) => {
+    const startedAt = Date.now();
+    let live: RealtimeTranscription | null = null;
+    const stopLevel = watchLevel(stream, startedAt, () => stopRef.current?.());
+    const cleanup = () => {
+      stopLevel();
+      live?.close();
+      stream.getTracks().forEach((track) => track.stop());
       cleanupRef.current = null;
+      stopRef.current = null;
     };
     cleanupRef.current = cleanup;
+    live = await connectRealtimeTranscription(
+      stream,
+      (text) => activeRef.current && onChangeRef.current(joinDraft(base, text)),
+    );
+    if (!activeRef.current) {
+      cleanup();
+      return;
+    }
+    setSeconds(0);
+    setState('recording');
+    stopRef.current = () => {
+      stopRef.current = null;
+      setState('transcribing');
+      stopLevel();
+      stream.getTracks().forEach((track) => track.stop());
+      void live!
+        .finish()
+        .then((text) => {
+          cleanup();
+          if (!activeRef.current) return;
+          setState('idle');
+          if (text) onChangeRef.current(joinDraft(base, text));
+          else setHint('没听清，再说一次');
+        })
+        .catch(() => {
+          cleanup();
+          if (activeRef.current) {
+            setState('idle');
+            setHint('转文字失败了');
+          }
+        });
+    };
+  };
 
+  const startRecording = (stream: MediaStream, base: string) => {
+    const mimeType = pickMimeType();
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    const chunks: Blob[] = [];
+    const startedAt = Date.now();
+    const stopLevel = watchLevel(stream, startedAt, () => stopRef.current?.());
+    const cleanup = () => {
+      stopLevel();
+      stream.getTracks().forEach((track) => track.stop());
+      cleanupRef.current = null;
+      stopRef.current = null;
+    };
+    cleanupRef.current = () => {
+      recorder.onstop = null;
+      recorder.ondataavailable = null;
+      if (recorder.state === 'recording') recorder.stop();
+      cleanup();
+    };
     recorder.ondataavailable = (event) => {
       if (event.data.size) chunks.push(event.data);
     };
     recorder.onstop = async () => {
       cleanup();
-      recorderRef.current = null;
-      setLevel(0);
+      if (!activeRef.current) return;
       const type = recorder.mimeType || mimeType || 'audio/webm';
       const blob = new Blob(chunks, { type });
       if (Date.now() - startedAt < 600 || !blob.size) {
@@ -120,30 +192,78 @@ export function VoiceInputButton({
           dataBase64: await blobToBase64(blob),
           language: 'auto',
         });
+        if (!activeRef.current) return;
         const text = result.text.trim();
-        if (text) onTextRef.current(text);
+        if (text) onChangeRef.current(joinDraft(base, text));
         else setHint('没听清，再说一次');
       } catch {
-        setHint('转文字失败了');
+        if (activeRef.current) setHint('转文字失败了');
       } finally {
-        setState('idle');
+        if (activeRef.current) setState('idle');
       }
     };
-    recorderRef.current = recorder;
+    stopRef.current = () => {
+      stopRef.current = null;
+      if (recorder.state === 'recording') recorder.stop();
+    };
     recorder.start(250);
     setSeconds(0);
     setState('recording');
   };
 
+  const start = async () => {
+    setState('connecting');
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+    } catch {
+      setState('idle');
+      setHint('没有麦克风权限');
+      return;
+    }
+    if (!activeRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    const base = valueRef.current;
+    try {
+      await startRealtime(stream, base);
+    } catch {
+      // Realtime 连不上（没配置、网络拦了 WebRTC 等）：同一个麦克风改成录完再转。
+      cleanupRef.current?.();
+      if (!activeRef.current) return;
+      try {
+        const fallback = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!activeRef.current) {
+          fallback.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        startRecording(fallback, base);
+      } catch {
+        setState('idle');
+        setHint('没有麦克风权限');
+      }
+    }
+  };
+
   const toggle = () => {
-    if (state === 'recording') recorderRef.current?.stop();
+    if (state === 'recording') stopRef.current?.();
     else if (state === 'idle') void start();
   };
 
   if (!supported) return null;
 
+  const busy = state === 'connecting' || state === 'transcribing';
   const label =
-    state === 'recording' ? '停止录音' : state === 'transcribing' ? '正在转文字' : '语音输入';
+    state === 'recording'
+      ? '停止说话'
+      : state === 'connecting'
+        ? '正在打开麦克风'
+        : state === 'transcribing'
+          ? '正在整理文字'
+          : '语音输入';
   return (
     <span className="voice-input">
       {state === 'recording' ? (
@@ -161,9 +281,9 @@ export function VoiceInputButton({
       ) : null}
       <button
         type="button"
-        className={`composer-icon-button voice-input-button is-${state}`}
+        className={`composer-icon-button voice-input-button is-${busy ? 'transcribing' : state}`}
         onClick={toggle}
-        disabled={disabled || state === 'transcribing'}
+        disabled={disabled || busy}
         aria-label={label}
         aria-pressed={state === 'recording'}
         title={label}

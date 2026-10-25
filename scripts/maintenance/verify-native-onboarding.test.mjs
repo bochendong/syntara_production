@@ -29,10 +29,10 @@ test('listing an empty account creates no course and hides only the earlier QA f
     ),
     'next/server': moduleUrl('export const NextResponse = Response;'),
     '@/lib/course-space/course-display-name': moduleUrl(
-      'export const normalizeCourseDisplay = course => course;',
+      compile(read('lib/course-space/course-display-name.ts')),
     ),
     '@/lib/constants/course-avatars': moduleUrl(
-      'export const pickStableCourseAvatarUrl = () => "fixture-avatar";',
+      'export const pickRandomCourseAvatarUrl = () => "fixture-avatar"; export const pickStableCourseAvatarUrl = () => "fixture-avatar";',
     ),
     '@/lib/server/prisma-safe': moduleUrl(`
       export const getOptionalPrisma = () => ({

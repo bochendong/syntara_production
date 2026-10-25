@@ -228,6 +228,11 @@ import { useAppNavigation } from './app-navigation-context';
 // 我的页收藏架点了别的课的罐子：换课后直接打开那门课的学习记忆。
 const OPEN_PHONE_PAGE_KEY = 'syntara.open-phone-page';
 
+/** Compact course names in chat navigation; the store retains the campus prefix. */
+function sidebarCourseLabel(label: string): string {
+  return label.replace(/^[A-Za-z]{2,6}\s*[-·]\s*(?=[A-Z]{2,}\s?\d)/, '');
+}
+
 function readOpenPhonePage(): 'memory' | 'problems' | null {
   try {
     const page = window.sessionStorage.getItem(OPEN_PHONE_PAGE_KEY);
@@ -1519,7 +1524,7 @@ export function PhoneChatDrawer<
                               aria-hidden
                               data-marble-target={current ? '1' : undefined}
                             />
-                            <span>{course.courseCode || course.name}</span>
+                            <span>{sidebarCourseLabel(course.courseCode || course.name)}</span>
                             {courseMeta[course.id]?.hasUpdate ? (
                               <img
                                 className="phone-drawer-course-update"
@@ -5675,13 +5680,7 @@ export function CourseWorkspace({
               </span>
               <ChevronRight size={13} />
             </button>
-            <VoiceInputButton
-              disabled={!chatAvailable}
-              onText={(text) => {
-                setDraft((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text));
-                composerTextareaRef.current?.focus();
-              }}
-            />
+            <VoiceInputButton disabled={!chatAvailable} value={draft} onChange={setDraft} />
             <button
               ref={sendButtonRef}
               type="submit"

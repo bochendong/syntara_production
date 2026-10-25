@@ -36,6 +36,7 @@ import type { ProblemBankLaunch } from './ProblemBankPage';
 import {
   SheetCell,
   STATUS_MARBLES,
+  notifyProblemProgress,
   useProblemStatuses,
   type ProblemStatus,
 } from './problem-bank/answer-sheet';
@@ -382,6 +383,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
       const nextStatuses = new Map(statuses);
       nextStatuses.set(currentProblem.id, status);
       setStatuses(nextStatuses);
+      notifyProblemProgress();
       setJustGraded(status);
       // 这一组每题都做过了：弹珠落进罐子。
       if (finish === 'hidden' && orderedIds.every((id) => nextStatuses.has(id))) {
@@ -646,8 +648,14 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                         setFeedback(null);
                         setAnswer({ kind: 'text', text: event.target.value });
                       }}
-                      placeholder="写下你的解答（支持纯文本）"
+                      placeholder="写下你的解答，公式用 $…$"
                     />
+                  ) : null}
+                  {answer?.kind === 'text' && /\$|\\\(|\\\[/.test(answer.text) ? (
+                    <div className="pp-answer-preview">
+                      <small>预览</small>
+                      <ProblemRichText content={answer.text} />
+                    </div>
                   ) : null}
 
                   <footer className="native-problem-practice-footer">

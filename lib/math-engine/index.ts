@@ -876,7 +876,7 @@ export function normalizeLooseMathDelimiters(text: string): string {
 }
 
 function isComplexMath(latex: string): boolean {
-  return COMPLEX_ENV_PATTERN.test(latex) || /\\left|\\right/.test(latex);
+  return COMPLEX_ENV_PATTERN.test(latex) || /\\(?:left|right)(?![a-zA-Z])/.test(latex);
 }
 
 function shouldTreatDoubleDollarAsInline(

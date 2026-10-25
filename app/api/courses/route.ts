@@ -70,9 +70,12 @@ export async function GET() {
           const organizationName = storeMeta.get(course.id)?.organizationName;
           return {
             ...display,
-            // 从商城加入的课和商城里一样带学校前缀（UTM-CSC 108），App 课程列表同一规则。
+            // 从商城加入的课统一写成 "CSC 108"，侧栏不带校区（商城里才带），App 课程列表同一规则。
             courseCode: organizationName
-              ? storeCourseCode({ ...display, university: course.university, organizationName })
+              ? storeCourseCode(
+                  { ...display, university: course.university, organizationName },
+                  { withPrefix: false },
+                )
               : display.courseCode,
             avatarUrl: course.avatarUrl?.trim() || pickStableCourseAvatarUrl(course.id),
             joinedAt: course.joinedAt ?? undefined,

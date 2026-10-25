@@ -449,10 +449,8 @@ export function GeneralChatWorkspace({
             />
             <VoiceInputButton
               disabled={busy || Boolean(pendingSave)}
-              onText={(text) => {
-                setDraft((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text));
-                textareaRef.current?.focus();
-              }}
+              value={draft}
+              onChange={setDraft}
             />
             <button
               type="submit"

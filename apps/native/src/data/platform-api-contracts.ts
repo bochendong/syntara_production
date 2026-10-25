@@ -327,6 +327,18 @@ export interface NativeTranscriptionResponse {
   durationSeconds?: number;
 }
 
+export interface NativeRealtimeTranscriptionRequest {
+  /** ISO-639-1，比如 zh、en；不传就让模型自己判断。 */
+  language?: string;
+}
+
+export interface NativeRealtimeTranscriptionResponse {
+  clientSecret: string;
+  expiresAt: number;
+  model: string;
+  callsUrl: string;
+}
+
 export interface NativeSyllabusRequest {
   course: {
     id?: string;

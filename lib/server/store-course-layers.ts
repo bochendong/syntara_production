@@ -9,30 +9,21 @@ import {
 } from '@/lib/server/repositories/course-enrollment-repository';
 import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-repository';
 import type { DbClient, RootDbClient } from '@/lib/server/repositories/types';
-import { toPrismaJson } from '@/lib/server/prisma-json';
 import { copyCourseContentsTx } from '@/lib/server/teacher-course-content-copy';
 
 /**
  * 加入的课程分两层：
  * - 公有层：发布者（课程主人）的笔记和题目，所有人共用一份。题目 ownerId = null，笔记 ownerId = 课程主人。
  * - 私有层：学员自己加的笔记和题目，只有自己看得到。题目 / 笔记的 ownerId = 学员。
- * 学员「删除」公有内容只对自己隐藏（CourseContentHide），公有层不动；删除自己的东西才是真删。
+ * 学员可隐藏公有笔记（CourseContentHide）；公有题目只读。自己的内容才可删除。
  */
 
 export type CourseContentTarget = 'notebook' | 'problem';
 
-/** 题目可见：公有的或自己的，并去掉自己隐藏的。alias 是 SQL 里 NotebookProblem 的别名。 */
+/** 题目可见：公有的或自己的；公有题不支持隐藏。alias 是 SQL 里 NotebookProblem 的别名。 */
 export function problemLayerSql(userId: string, alias = 'p'): Prisma.Sql {
   const p = Prisma.raw(`"${alias}"`);
-  return Prisma.sql`(
-    (${p}."ownerId" IS NULL OR ${p}."ownerId" = ${userId})
-    AND NOT EXISTS (
-      SELECT 1 FROM "CourseContentHide" hide
-      WHERE hide."userId" = ${userId}
-        AND hide."targetType" = 'problem'
-        AND hide."targetId" = ${p}."id"
-    )
-  )`;
+  return Prisma.sql`(${p}."ownerId" IS NULL OR ${p}."ownerId" = ${userId})`;
 }
 
 export async function hiddenCourseContentIds(
@@ -54,13 +45,16 @@ export async function problemLayerWhere(
   userId: string,
   courseId: string,
 ): Promise<Prisma.NotebookProblemWhereInput> {
-  const hidden = await hiddenCourseContentIds(db, userId, courseId, 'problem');
-  return {
-    AND: [
-      { OR: [{ ownerId: null }, { ownerId: userId }] },
-      ...(hidden.length ? [{ id: { notIn: hidden } }] : []),
-    ],
-  };
+  // Public questions are read-only; historical hide records must not keep them invisible.
+  void db;
+  void courseId;
+  return { OR: [{ ownerId: null }, { ownerId: userId }] };
+}
+
+export class PublicProblemReadOnlyError extends Error {
+  constructor() {
+    super('发布者的题目不能删除、隐藏或复制。');
+  }
 }
 
 export class CourseContentNotFoundError extends Error {
@@ -72,7 +66,7 @@ export class CourseContentNotFoundError extends Error {
 /**
  * 「删除」一项课程内容。
  * - 自己的（私有层，或发布者删自己的公有内容）：真删。笔记是软删（removedAt），挂在上面的学习记忆保留。
- * - 学员删公有内容：只对自己隐藏。
+ * - 学员删公有笔记：只对自己隐藏；公有题目拒绝删除。
  */
 export async function removeCourseContentForUser(
   db: RootDbClient,
@@ -117,11 +111,8 @@ export async function removeCourseContentForUser(
     await refreshCourseSummaryFields(db, args.courseId);
     return 'deleted';
   }
-  if (problem.ownerId !== null || role !== 'enrolled') throw new CourseContentNotFoundError();
-  if (problem.notebookId)
-    await requireVisibleNotebook(db, args.userId, args.courseId, problem.notebookId);
-  await hide(db, args);
-  return 'hidden';
+  if (problem.ownerId === null && role === 'enrolled') throw new PublicProblemReadOnlyError();
+  throw new CourseContentNotFoundError();
 }
 
 async function hide(
@@ -188,7 +179,7 @@ export async function listHiddenCourseContent(
   const course = await db.course.findUnique({ where: { id: courseId }, select: { ownerId: true } });
   if (!course) return [];
   const hides = await db.courseContentHide.findMany({
-    where: { userId, courseId },
+    where: { userId, courseId, targetType: 'notebook' },
     orderBy: { createdAt: 'desc' },
     select: { targetType: true, targetId: true, createdAt: true },
   });
@@ -390,8 +381,8 @@ export async function courseLayersForUser(db: DbClient, userId: string, courseId
 }
 
 /**
- * 「复制到我的」：把一项公有内容复制成自己的私有副本，原件对自己收起（可在「已隐藏」里恢复）。
- * 学员不能改公有层，要改就先复制。
+ * 「复制到我的」仅用于公有笔记：生成私有副本，原件对自己收起（可恢复）。
+ * 公有题目只读，不能隐藏、删除或复制。
  */
 export async function copyCourseContentToMine(
   db: RootDbClient,
@@ -400,52 +391,9 @@ export async function copyCourseContentToMine(
   const role = await findCourseAccessRole(db, args.userId, args.courseId);
   if (role !== 'enrolled') throw new CourseContentNotFoundError();
 
-  return db.$transaction(async (tx) => {
-    if (args.targetType === 'problem') {
-      const source = await tx.notebookProblem.findFirst({
-        where: { id: args.targetId, courseId: args.courseId, ownerId: null },
-        include: { secret: true },
-      });
-      if (!source) throw new CourseContentNotFoundError();
-      if (source.notebookId)
-        await requireVisibleNotebook(tx, args.userId, args.courseId, source.notebookId);
-      const meta =
-        source.sourceMeta &&
-        typeof source.sourceMeta === 'object' &&
-        !Array.isArray(source.sourceMeta)
-          ? (source.sourceMeta as Prisma.JsonObject)
-          : {};
-      const clone = await tx.notebookProblem.create({
-        data: {
-          courseId: args.courseId,
-          ownerId: args.userId,
-          notebookId: null,
-          chapterId: source.chapterId,
-          title: source.title,
-          type: source.type,
-          status: source.status,
-          source: source.source,
-          order: source.order,
-          points: source.points,
-          tags: source.tags,
-          difficulty: source.difficulty,
-          publicContentJson: toPrismaJson(source.publicContentJson),
-          gradingJson: toPrismaJson(source.gradingJson),
-          sourceMeta: toPrismaJson({ ...meta, copiedFromProblemId: source.id }),
-          dedupeKey: null,
-        },
-      });
-      if (source.secret)
-        await tx.notebookProblemSecret.create({
-          data: {
-            problemId: clone.id,
-            secretJudgeJson: toPrismaJson(source.secret.secretJudgeJson),
-          },
-        });
-      await hide(tx, args);
-      return { id: clone.id };
-    }
+  if (args.targetType === 'problem') throw new PublicProblemReadOnlyError();
 
+  return db.$transaction(async (tx) => {
     const course = await tx.course.findUnique({
       where: { id: args.courseId },
       select: { ownerId: true },

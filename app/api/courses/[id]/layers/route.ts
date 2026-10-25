@@ -12,6 +12,7 @@ import {
 import {
   copyCourseContentToMine,
   CourseContentNotFoundError,
+  PublicProblemReadOnlyError,
   courseLayersForUser,
   releaseCourseVersion,
   removeCourseContentForUser,
@@ -100,6 +101,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     } catch (error) {
       if (error instanceof CourseContentNotFoundError)
         return NextResponse.json({ error: error.message }, { status: 404 });
+      if (error instanceof PublicProblemReadOnlyError)
+        return NextResponse.json({ error: error.message }, { status: 403 });
       throw error;
     }
   });

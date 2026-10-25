@@ -8,6 +8,8 @@ import {
 import type {
   NativeConversationSyncPayload,
   NativeCourseLayers,
+  NativeRealtimeTranscriptionRequest,
+  NativeRealtimeTranscriptionResponse,
   NativeConversationSyncResult,
   NativeCourseData,
   NativeNotebookArchive,
@@ -611,4 +613,18 @@ export async function createBrowserCourse(
     body: JSON.stringify({ name, description }),
   });
   return result.course;
+}
+
+export function startNativeRealtimeTranscription(
+  payload: NativeRealtimeTranscriptionRequest,
+  options: PlatformCommandOptions = {},
+): Promise<NativeRealtimeTranscriptionResponse> {
+  return invokeJson<NativeRealtimeTranscriptionRequest, NativeRealtimeTranscriptionResponse>(
+    'native_start_realtime_transcription',
+    {
+      requestId: crypto.randomUUID(),
+      payload,
+      ...options,
+    },
+  );
 }
