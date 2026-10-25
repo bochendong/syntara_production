@@ -1,0 +1,65 @@
+{
+  "verifiedAt": "2026-10-25T17:43:01.308021+00:00",
+  "baselineBranch": "codex/staging-baseline",
+  "baselineCommit": "707327ca736830e0de12122daa54c9f496f46ed1",
+  "developmentBranch": "codex/staging-next",
+  "taskBranch": "codex/learning-rail-proportions",
+  "previousBaseline": "e257fc2a57152f6341f84263c347e8e9be38ee1b",
+  "railway": {
+    "deploymentId": "9b99c565-ea45-47fd-ac43-1b2415651999",
+    "previousDeploymentId": "b8d0b5c6-f3fd-48d5-9199-aea9ae7d03f5",
+    "projectId": "8cddd1ea-24e1-49a9-8d27-dce86069dc8b",
+    "environmentId": "6697de1f-eb0d-4a6f-8709-cfe477a29f11",
+    "serviceId": "fd6afb05-6491-451a-b577-abf15fdc0047"
+  },
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "scope": [
+    "Restore width and conversation padding selectors for learning-float-stack",
+    "Apply individual card visuals to each child rather than its scroll container",
+    "Preserve 8px shadow gutters and dynamic card groups"
+  ],
+  "checks": {
+    "format": "passed",
+    "fullRootTypecheck": "passed",
+    "webAndNativeProductionBuild": "passed",
+    "responsiveWidths": [390, 1024, 1100, 1280, 1456, 1920],
+    "cardWidths": {
+      "1100": 226.25,
+      "1280": 256,
+      "1456": 291.1953125,
+      "1920": 328
+    },
+    "streamAndComposerAligned": true,
+    "horizontalOverflow": false,
+    "dynamicReviewPlanCardAppearsAndDisappears": true,
+    "mobileToolsMenu": ["materials", "notes", "progress", "memory", "classroom"]
+  },
+  "liveBrowser": {
+    "viewport": 1512,
+    "cardWidth": 302.3984375,
+    "cardLeft": 1198.265625,
+    "streamWidth": 740.875,
+    "streamRight": 1111.3125,
+    "composerWidth": 740.875,
+    "composerRight": 1111.3125,
+    "contentPaddingRight": "321.3px",
+    "horizontalOverflow": false,
+    "consoleErrors": 0,
+    "userDataMutated": false,
+    "screenshot": "live.png"
+  },
+  "nativeAssets": [
+    {
+      "url": "/native-web/assets/index-DoEQKFrS.js",
+      "bytes": 1606834,
+      "sha256": "f5cca6efde15b01d7a88bdca9aa16e5597ef519f3a77cbf1997d3a919733b66f"
+    },
+    {
+      "url": "/native-web/assets/index-MFx4gI0I.css",
+      "bytes": 346537,
+      "sha256": "0a7d9865f9e8e3ed4d06671df0e48adc19a707b7a1cd1e726703a49a2f77b52e"
+    }
+  ],
+  "macInstaller": "Existing 20261025T164147Z package preserved; this release updates web CSS only.",
+  "environmentVariables": "Railway-managed values preserved; no secret copied into source snapshot."
+}

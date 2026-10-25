@@ -6,15 +6,15 @@
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `e257fc2a`，对应 Railway 发布 `b8d0b5c6` |
-| 固定发布标记 | `staging/2026-10-25-b8d0b5c6` | 与基线相同，旧发布标签继续保留 |
+| 测试服源码基线 | `codex/staging-baseline` | `707327ca`，对应 Railway 发布 `9b99c565` |
+| 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 当前开发 | `codex/staging-next` | 当前发布代码 + 后续发布记录 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
 
 当前开发仍在本次聊天原来的 `chat-visual-hierarchy/syntara_production` 工作目录。
 目录名未改变，分支已改名为 `codex/staging-next`，避免中断正在运行的本地预览。
 
-这两条分支已通过 GitHub Desktop 同步到 GitHub：
+这两条分支已同步到 GitHub：
 [测试服基线](https://github.com/bochendong/syntara_production/tree/codex/staging-baseline)、
 [当前开发](https://github.com/bochendong/syntara_production/tree/codex/staging-next)。
 命令行没有写入凭据时，可以继续使用 GitHub Desktop 的登录推送；不要强推覆盖旧分支。
@@ -26,14 +26,17 @@
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前发布：`b8d0b5c6-f3fd-48d5-9199-aea9ae7d03f5`，源码提交：`e257fc2a`。
-- 发布快照包含 3,122 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
+- 当前发布：`9b99c565-ea45-47fd-ac43-1b2415651999`，源码提交：`707327ca`。
+- 发布快照包含 3,124 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
 - `railway.toml` 没有上传，测试服构建、启动和迁移配置由 Railway 管理；临时资源恢复命令已恢复为正常构建命令。
-- 发布记录：[staging-2026-10-25.json](releases/staging-2026-10-25.json)。
+- 当前布局修复：[staging-2026-10-25-layout.json](releases/staging-2026-10-25-layout.json)。
+- 上一次功能发布：[staging-2026-10-25.json](releases/staging-2026-10-25.json)。
 - 上一次整理记录：[staging-2026-10-24.json](releases/staging-2026-10-24.json)。
 
 ## 本次已部署
+
+- 修复多张动态学习卡片的宽屏比例和聊天区留白；1512px 窗口下卡片约 302px，正文与输入框保持对齐。
 
 - 头像、首页文案、日历日期传递、笔记/题库上传入口及录音后转文字按钮。
 - 新手引导、官方「使用教程」课程，以及课程的新聊天、编辑、删除菜单。
@@ -123,3 +126,9 @@ git diff --stat codex/staging-baseline...codex/staging-next
 
 本次发布证据位于 Git 公共目录 `codex/tasks/staging-feature-release-20261025/`，
 包含源工作树快照、合并说明、构建日志、线上核验、安装包元数据和验收截图。
+
+2026-10-25 的比例修复在 `codex/learning-rail-proportions` 单独提交，再快进合入开发分支。
+验证了 390、1024、1100、1280、1456、1920px 屏宽，以及复习计划卡片的出现与消失；
+真实测试服 1512px 窗口的卡片从 216px 恢复为约 302px，无横向溢出。
+这次只发布网页版 CSS；现有 Mac 安装包继续保留。证据位于 Git 公共目录
+`codex/tasks/learning-rail-proportions-20261025/`。
