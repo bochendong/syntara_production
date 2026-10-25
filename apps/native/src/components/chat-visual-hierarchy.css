@@ -176,14 +176,14 @@
     --chat-reading-width: min(49vw, 800px);
   }
 
-  .course-workspace.is-split:has(> .learning-float-card):not(.is-learning-active)
+  .course-workspace.is-split:has(> .learning-float-stack):not(.is-learning-active)
     > .conversation-workspace
     > .conversation-content {
     padding-left: 0.5vw;
     padding-right: var(--learning-rail-width);
   }
 
-  .course-workspace.is-split:has(> .learning-float-card):not(.is-learning-active)
+  .course-workspace.is-split:has(> .learning-float-stack):not(.is-learning-active)
     > .conversation-workspace
     > .conversation-composer-footer {
     padding-left: calc(24px + 0.5vw);
@@ -198,13 +198,16 @@
     max-width: var(--chat-reading-width);
   }
 
-  .course-workspace.is-split > .learning-float-card {
+  .course-workspace.is-split > .learning-float-stack {
     top: calc(var(--workspace-toolbar-height) + 10px);
-    right: 0.75vw;
-    width: calc(var(--learning-rail-width) - 1.25vw);
+    /* Include the shadow gutter without changing the visible card proportions. */
+    right: calc(0.75vw - 8px);
+    width: calc(var(--learning-rail-width) - 1.25vw + 16px);
     max-height: calc(100% - var(--workspace-toolbar-height) - 22px);
+  }
+
+  .course-workspace.is-split > .learning-float-stack > .learning-float-card {
     padding: 10px 8px 4px;
-    overflow-y: auto;
     border: 1px solid rgb(255 255 255 / 85%);
     border-radius: 24px;
     background: rgb(255 255 255 / 76%);
