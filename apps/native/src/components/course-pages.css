@@ -1724,6 +1724,7 @@ span.pb-row-marble img {
 
 .content-language-switch {
   display: flex;
+  width: max-content;
   align-items: center;
   gap: 2px;
   padding: 3px;
@@ -1733,6 +1734,7 @@ span.pb-row-marble img {
 }
 
 .content-language-switch button {
+  flex: none;
   min-height: 36px;
   padding: 0 10px;
   border: 0;
@@ -1740,6 +1742,7 @@ span.pb-row-marble img {
   background: transparent;
   color: #475569;
   font-size: 12px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
