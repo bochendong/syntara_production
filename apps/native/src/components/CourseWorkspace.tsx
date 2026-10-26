@@ -6385,9 +6385,6 @@ export function CourseWorkspace({
         tabIndex={-1}
       />
 
-      <span className="workspace-sparkle" aria-hidden>
-        <Sparkles size={16} />
-      </span>
       {resourceBusy ? (
         <div className="local-resource-loading" role="status">
           <GlassSpinner size={20} />
