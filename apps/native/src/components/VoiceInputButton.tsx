@@ -86,7 +86,9 @@ export function VoiceInputButton({
     const samples = new Uint8Array(analyser.frequencyBinCount);
     let frame = 0;
     let limited = false;
+    let stopped = false;
     const tick = () => {
+      if (stopped) return;
       analyser.getByteTimeDomainData(samples);
       let peak = 0;
       for (const sample of samples) peak = Math.max(peak, Math.abs(sample - 128));
@@ -96,10 +98,12 @@ export function VoiceInputButton({
         limited = true;
         onLimit();
       }
-      frame = requestAnimationFrame(tick);
+      if (!stopped) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => {
+      if (stopped) return;
+      stopped = true;
       cancelAnimationFrame(frame);
       void audioContext.close();
       if (activeRef.current) setLevel(0);
@@ -233,6 +237,7 @@ export function VoiceInputButton({
     } catch {
       // Realtime 连不上（没配置、网络拦了 WebRTC 等）：同一个麦克风改成录完再转。
       cleanupRef.current?.();
+      stream.getTracks().forEach((track) => track.stop());
       if (!activeRef.current) return;
       try {
         const fallback = await navigator.mediaDevices.getUserMedia({ audio: true });
