@@ -39,8 +39,15 @@ import {
   useCourseLayers,
 } from '../lib/course-layers';
 import './course-pages.css';
+import { ContentLanguageSwitch } from './ContentLanguageSwitch';
+import {
+  hasBilingualProblem,
+  localizeProblem,
+  type ProblemContentLanguage,
+} from '../lib/problem-language';
 
 export type ProblemBankLaunch = {
+  language?: ProblemContentLanguage;
   problemIds: string[];
   initialProblemId: string;
   /** 每道题在这一章里的题号，做题页的答题卡用。 */
@@ -264,13 +271,15 @@ function BankHeader({
   title,
   subtitle,
   onBack,
+  languageSwitch,
 }: {
   title: string;
   subtitle: string;
   onBack: () => void;
+  languageSwitch?: ReactNode;
 }) {
   return (
-    <header className="pb-header">
+    <header className={`pb-header${languageSwitch ? ' pb-header-bilingual' : ''}`}>
       <button type="button" className="phone-glass-button" onClick={onBack} aria-label="返回">
         <ChevronLeft size={22} />
       </button>
@@ -278,7 +287,7 @@ function BankHeader({
         <strong>{title}</strong>
         <small>{subtitle}</small>
       </div>
-      <span className="pb-header-spacer" aria-hidden />
+      {languageSwitch ?? <span className="pb-header-spacer" aria-hidden />}
     </header>
   );
 }
@@ -298,6 +307,14 @@ export function ProblemBankPage({
   onContentChanged,
 }: ProblemBankPageProps) {
   const courseId = workspace.course.id;
+  const sourceProblems = useMemo(
+    () => new Map(workspace.problems.map((problem) => [problem.id, problem])),
+    [workspace.problems],
+  );
+  const [language, setLanguage] = useState<ProblemContentLanguage>('zh-CN');
+  const languageSwitch = workspace.problems.some(hasBilingualProblem) ? (
+    <ContentLanguageSwitch label="题库语言" value={language} onChange={setLanguage} />
+  ) : undefined;
   const releaseControl = canRelease ? <CourseReleaseButton courseId={courseId} /> : null;
   const [statuses] = useProblemStatuses(courseId, workspace.problems);
   const layers = useCourseLayers(courseId);
@@ -349,10 +366,11 @@ export function ProblemBankPage({
         problem.status === 'published' ||
         (layered && problem.status === 'draft' && isPrivateProblem(layers, problem.id)),
     );
-    return published.length
+    const visible = published.length
       ? published
       : workspace.problems.filter((problem) => problem.status !== 'archived');
-  }, [layered, layers, workspace.problems]);
+    return visible.map((problem) => localizeProblem(problem, language));
+  }, [layered, layers, workspace.problems, language]);
 
   // 章节 = 题目挂的笔记本，按笔记编号排；同步来的题如果都没挂笔记本，就按第一个知识点分组。
   const chapterOf = useMemo(() => {
@@ -416,14 +434,16 @@ export function ProblemBankPage({
             : a.order - b.order,
     );
     list.forEach((chapter, index) => {
-      chapter.problems.sort(problemOrder);
+      chapter.problems.sort((a, b) =>
+        problemOrder(sourceProblems.get(a.id) ?? a, sourceProblems.get(b.id) ?? b),
+      );
       // 知识点分组没有自己的颜色，按顺序轮着给。
       if (!chapter.color && chapter.key !== UNSORTED_CHAPTER) {
         chapter.color = notebookMarbleColor(index);
       }
     });
     return list;
-  }, [bankProblems, chapterOf, statuses, workspace.notebooks]);
+  }, [bankProblems, chapterOf, statuses, workspace.notebooks, sourceProblems]);
 
   // 题号：每一章里按出题顺序 1、2、3…，筛选时不变。
   const numberById = useMemo(() => {
@@ -475,6 +495,7 @@ export function ProblemBankPage({
         setLastSession(next);
       }
       onPractice({
+        language,
         problemIds: problems.map((problem) => problem.id),
         initialProblemId: start.id,
         numbers: Object.fromEntries(
@@ -485,7 +506,7 @@ export function ProblemBankPage({
         title,
       });
     },
-    [courseId, numberById, onPractice],
+    [courseId, numberById, onPractice, language],
   );
 
   /** 「继续刷」：这一组里第一道还没通过的题。 */
@@ -552,16 +573,23 @@ export function ProblemBankPage({
     const q = query.trim();
     if (!q) return [];
     return chapters.flatMap((chapter) =>
-      chapter.problems.filter((problem) => matchesQuery(problem, q)),
+      chapter.problems.filter((problem) =>
+        matchesQuery(sourceProblems.get(problem.id) ?? problem, q),
+      ),
     );
-  }, [chapters, query]);
+  }, [chapters, query, sourceProblems]);
 
   const courseLabel = workspace.course.courseCode || workspace.course.name;
 
   if (!bankProblems.length) {
     return (
       <section className="pb-page" aria-label="课程题库">
-        <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
+        <BankHeader
+          title="题库"
+          subtitle={courseLabel}
+          onBack={onBack}
+          languageSwitch={languageSwitch}
+        />
         <div className="pb-scroll">
           <div className="pb-column">
             {releaseControl}
@@ -610,7 +638,12 @@ export function ProblemBankPage({
       startPractice(sheetProblems, problem, openChapter.title, openChapter.key);
     return (
       <section className="pb-page" aria-label={`${openChapter.title} 题目`}>
-        <BankHeader title={openChapter.title} subtitle={courseLabel} onBack={onBack} />
+        <BankHeader
+          title={openChapter.title}
+          subtitle={courseLabel}
+          onBack={onBack}
+          languageSwitch={languageSwitch}
+        />
         <div className="pb-scroll">
           <div className="pb-column">
             {releaseControl}
@@ -838,7 +871,12 @@ export function ProblemBankPage({
 
   return (
     <section className="pb-page" aria-label="课程题库">
-      <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
+      <BankHeader
+        title="题库"
+        subtitle={courseLabel}
+        onBack={onBack}
+        languageSwitch={languageSwitch}
+      />
       <div className="pb-scroll">
         <div className="pb-column">
           {releaseControl}

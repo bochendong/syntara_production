@@ -6419,6 +6419,7 @@ export function CourseWorkspace({
       {resource ? (
         <LocalResourceViewer
           resource={resource}
+          notebooks={workspace.notebooks}
           accent={
             resource.kind === 'notebook'
               ? notebookAccentFor(workspace.notebooks, resource.document.notebook.id)

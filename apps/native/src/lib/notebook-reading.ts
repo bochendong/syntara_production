@@ -58,7 +58,7 @@ export function saveNotebookReading(notebookId: string, index: number): Notebook
 
 /** 「02 · 集合与命题证明」拆成编号和标题，编号放进弹珠里。 */
 export function splitNotebookName(name: string): { number: string | null; title: string } {
-  const match = /^\s*(\d{1,3})\s*[·.、:：\-–—]\s*(.+)$/.exec(name);
+  const match = /^\s*(\d{1,3})(?:\s*[·.、:：\-–—]\s*|\s+)(.+)$/.exec(name);
   return match ? { number: match[1], title: match[2] } : { number: null, title: name };
 }
 

@@ -30,6 +30,17 @@
   -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(1.8);
 }
 
+.pb-header-bilingual {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+}
+
+.pb-header-bilingual .pb-title strong {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pb-title {
   display: flex;
   min-width: 0;
@@ -1143,6 +1154,7 @@ span.pb-row-marble img {
 
 /* ---------- 做题 ---------- */
 .native-problem-practice {
+  container: practice / inline-size;
   position: relative;
   padding: 0;
   gap: 0;
@@ -1191,6 +1203,23 @@ span.pb-row-marble img {
 .pp-nav {
   display: flex;
   gap: 8px;
+}
+
+.pp-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+@container practice (max-width: 520px) {
+  .pp-header:has(.content-language-switch) {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .pp-header-tools:has(.content-language-switch) {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+  }
 }
 
 .pp-nav .phone-glass-button:disabled {
@@ -1689,6 +1718,74 @@ span.pb-row-marble img {
   font-variant-numeric: tabular-nums;
 }
 
+.nr-header-bilingual {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+}
+
+.content-language-switch {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgb(255 255 255 / 80%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 50%);
+}
+
+.content-language-switch button {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.content-language-switch button[aria-pressed='true'] {
+  background: rgb(var(--nr-rgb, var(--marble-blue-rgb)) / 16%);
+  color: rgb(var(--nr-ink, var(--marble-blue-ink)));
+  font-weight: 600;
+}
+
+.content-language-switch button:focus-visible {
+  outline: 2px solid rgb(var(--nr-ink, var(--marble-blue-ink)));
+  outline-offset: 2px;
+}
+
+.content-language-switch button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.content-language-switch > span {
+  display: flex;
+  padding: 0 4px;
+}
+
+.nr-language-error {
+  margin: 10px 16px 0;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+@container nr-page (max-width: 420px) {
+  .nr-header-bilingual {
+    gap: 6px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .nr-header-bilingual .nr-title strong {
+    font-size: 14px;
+  }
+
+  .content-language-switch button {
+    padding: 0 8px;
+  }
+}
+
 .nr-body {
   display: flex;
   min-height: 0;
@@ -2085,8 +2182,6 @@ span.pb-row-marble img {
 
 /* ---------- 笔记阅读：弹珠点缀 ---------- */
 .nr-page {
-  --nr-rgb: var(--marble-blue-rgb);
-  --nr-ink: var(--marble-blue-ink);
   --nr-light: var(--marble-blue-light);
   background:
     radial-gradient(90% 40% at 100% 0%, rgb(var(--nr-rgb) / 16%), transparent 62%),

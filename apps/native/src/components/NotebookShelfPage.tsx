@@ -6,6 +6,11 @@ import { loadNotebookForReading } from '../data/course-sync';
 import type { LocalCourseWorkspace, LocalNotebook } from '../domain/models';
 import { marbleImages, type MarbleColor } from '../lib/learning-action-marbles';
 import {
+  groupNotebookTranslations,
+  notebookSearchText,
+  notebookVariants,
+} from '../lib/notebook-translations';
+import {
   loadNotebookReadings,
   notebookMarbleColor,
   splitNotebookName,
@@ -35,11 +40,6 @@ import {
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** 节数太多时只画这么多颗，剩下的收成「+N」。 */
 const MAX_SECTION_DOTS = 12;
-
-function sortNotebooks(notebooks: LocalNotebook[]): LocalNotebook[] {
-  // 按笔记本编号排列（01 → 11），编号相同时按名称。
-  return [...notebooks].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN', { numeric: true }));
-}
 
 function formatAgo(timestamp: number): string {
   const days = Math.floor((Date.now() - timestamp) / DAY_MS);
@@ -115,7 +115,23 @@ export function PhoneNotesPage({
   // 关掉阅读器时重新读一次，刚读过的节马上亮起来。
   const [readings, setReadings] = useState(loadNotebookReadings);
 
-  const sortedNotebooks = useMemo(() => sortNotebooks(workspace.notebooks), [workspace.notebooks]);
+  const sortedNotebooks = useMemo(
+    () => groupNotebookTranslations(workspace.notebooks),
+    [workspace.notebooks],
+  );
+  const readingById = useMemo(
+    () =>
+      new Map(
+        sortedNotebooks.map((notebook) => {
+          const latest = notebookVariants(workspace.notebooks, notebook.id)
+            .map((variant) => ({ notebook: variant, reading: readings[variant.id] }))
+            .filter((item) => item.reading)
+            .sort((a, b) => b.reading.at - a.reading.at)[0];
+          return [notebook.id, latest] as const;
+        }),
+      ),
+    [readings, sortedNotebooks, workspace.notebooks],
+  );
   // 每本笔记的弹珠颜色跟着它在课程里的顺序走（和学习进度页一样），搜索时不会变色。
   const colorById = useMemo(
     () =>
@@ -126,10 +142,10 @@ export function PhoneNotesPage({
     const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (!terms.length) return sortedNotebooks;
     return sortedNotebooks.filter((notebook) => {
-      const haystack = notebook.name.toLowerCase();
+      const haystack = notebookSearchText(workspace.notebooks, notebook.id);
       return terms.every((term) => haystack.includes(term));
     });
-  }, [query, sortedNotebooks]);
+  }, [query, sortedNotebooks, workspace.notebooks]);
   const listWindow = useListWindow(notebooks.length, `${workspace.course.id}:${query}`, 40);
 
   // 最近读过的那本放在最上面，点一下接着读。
@@ -137,19 +153,19 @@ export function PhoneNotesPage({
     if (query.trim()) return null;
     let best: { notebook: LocalNotebook; reading: NotebookReading } | null = null;
     for (const notebook of sortedNotebooks) {
-      const reading = readings[notebook.id];
+      const reading = readingById.get(notebook.id)?.reading;
       if (reading && (!best || reading.at > best.reading.at)) best = { notebook, reading };
     }
     return best;
-  }, [query, readings, sortedNotebooks]);
+  }, [query, readingById, sortedNotebooks]);
 
   const readCount = useMemo(
     () =>
       sortedNotebooks.reduce(
-        (sum, notebook) => sum + (readings[notebook.id]?.visited.length ?? 0),
+        (sum, notebook) => sum + (readingById.get(notebook.id)?.reading.visited.length ?? 0),
         0,
       ),
-    [readings, sortedNotebooks],
+    [readingById, sortedNotebooks],
   );
   const sectionTotal = useMemo(
     () => sortedNotebooks.reduce((sum, notebook) => sum + Math.max(0, notebook.sectionCount), 0),
@@ -161,7 +177,8 @@ export function PhoneNotesPage({
     setError(null);
     try {
       const repository = await getLocalRepository();
-      const document = await loadNotebookForReading(repository, notebook.id);
+      const edition = readingById.get(notebook.id)?.notebook ?? notebook;
+      const document = await loadNotebookForReading(repository, edition.id);
       if (!document) throw new Error('本地找不到这个笔记本。');
       setAccent(colorById.get(notebook.id) ?? 'blue');
       setResource({ kind: 'notebook', document });
@@ -232,7 +249,7 @@ export function PhoneNotesPage({
       {notebooks.length ? (
         <>
           <p className="phone-group-title nb-group-title">
-            <span>{workspace.notebooks.length} 本笔记</span>
+            <span>{sortedNotebooks.length} 本笔记</span>
             {sectionTotal ? (
               <span className="nb-group-meter" title={`读过 ${readCount} / ${sectionTotal} 节`}>
                 <i style={{ width: `${Math.min(100, (readCount / sectionTotal) * 100)}%` }} />
@@ -244,7 +261,7 @@ export function PhoneNotesPage({
               const busy = busyId === notebook.id;
               const color = colorById.get(notebook.id) ?? notebookMarbleColor(index);
               const { number, title } = splitNotebookName(notebook.name);
-              const reading = readings[notebook.id];
+              const reading = readingById.get(notebook.id)?.reading;
               const done =
                 notebook.sectionCount > 0 &&
                 (reading?.visited.length ?? 0) >= notebook.sectionCount;
@@ -286,6 +303,9 @@ export function PhoneNotesPage({
                         ) : null}
                       </strong>
                       <span className="nb-card-foot">
+                        {notebookVariants(workspace.notebooks, notebook.id).length > 1 ? (
+                          <small>中文 / English</small>
+                        ) : null}
                         <SectionDots total={notebook.sectionCount} reading={reading} />
                         <small title={new Date(notebook.updatedAt).toLocaleString()}>
                           {formatAgo(notebook.updatedAt)}
@@ -346,6 +366,7 @@ export function PhoneNotesPage({
       {resource ? (
         <LocalResourceViewer
           resource={resource}
+          notebooks={workspace.notebooks}
           accent={accent}
           onClose={() => {
             setResource(null);

@@ -142,6 +142,7 @@ export async function syncCourseData(
       !existing ||
       existing.name !== notebook.name ||
       existing.updatedAt !== notebook.updatedAt ||
+      JSON.stringify(existing.tags) !== JSON.stringify(notebook.tags) ||
       existing.sectionCount !== notebook.sectionCount
     );
   });

@@ -18,6 +18,7 @@ import {
 import { readLocalAsset } from '../data/asset-storage';
 import type {
   LocalAsset,
+  LocalNotebook,
   LocalNotebookDocument,
   LocalNotebookPage,
   LocalProblemDocument,
@@ -33,6 +34,14 @@ import {
 import './course-pages.css';
 import { GlassSpinner } from './GlassLoadMore';
 import { LearningEmptyState } from './LearningEmptyState';
+import { ContentLanguageSwitch } from './ContentLanguageSwitch';
+import { getLocalRepository } from '../data/repository';
+import { loadNotebookForReading } from '../data/course-sync';
+import {
+  notebookDisplayName,
+  notebookLanguage,
+  notebookVariants,
+} from '../lib/notebook-translations';
 
 const PROGRESS_STATUS_LABELS: Record<string, string> = {
   passed: '已通过',
@@ -47,6 +56,7 @@ export type LocalResourceDocument =
 
 type LocalResourceViewerProps = {
   resource: LocalResourceDocument;
+  notebooks?: LocalNotebook[];
   /** 笔记本的弹珠颜色（跟着它在课程里的顺序），阅读器的点缀色都用它。 */
   accent?: MarbleColor;
   onClose: () => void;
@@ -301,14 +311,26 @@ function NotebookPageView({
 }
 
 function NotebookViewer({
-  document,
+  document: initialDocument,
+  variants,
   accent,
   onClose,
 }: {
   document: LocalNotebookDocument;
+  variants: LocalNotebook[];
   accent: MarbleColor;
   onClose: () => void;
 }) {
+  const [document, setDocument] = useState(initialDocument);
+  const [languageBusy, setLanguageBusy] = useState(false);
+  const [languageError, setLanguageError] = useState<string | null>(null);
+  const languageRequest = useRef(0);
+  useEffect(
+    () => () => {
+      languageRequest.current += 1;
+    },
+    [],
+  );
   const entries =
     document.notebook.kind === 'markdown' && document.markdownSections.length
       ? document.markdownSections
@@ -327,6 +349,39 @@ function NotebookViewer({
       ]),
   );
   const resolveAsset = useMemo(() => assetResolver(document.assets), [document.assets]);
+  const selectedIndexRef = useRef(selectedIndex);
+  selectedIndexRef.current = selectedIndex;
+  const switchLanguage = async (notebook: LocalNotebook) => {
+    if (languageBusy || notebook.id === document.notebook.id) return;
+    const request = ++languageRequest.current;
+    setLanguageBusy(true);
+    setLanguageError(null);
+    setChaptersOpen(false);
+    try {
+      const repository = await getLocalRepository();
+      const translated = await loadNotebookForReading(repository, notebook.id);
+      if (!translated) throw new Error('找不到这个语言版本。');
+      if (request !== languageRequest.current) return;
+      const count =
+        translated.notebook.kind === 'markdown'
+          ? translated.markdownSections.length
+          : translated.pages.length;
+      const index = Math.max(0, Math.min(selectedIndexRef.current, count - 1));
+      setDocument(translated);
+      setSelectedIndex(index);
+      setVisited(
+        new Set([...(loadNotebookReading(notebook.id)?.visited ?? []), ...(count ? [index] : [])]),
+      );
+    } catch (cause) {
+      if (request === languageRequest.current) {
+        setLanguageError(
+          `切换失败，请重试：${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+      }
+    } finally {
+      if (request === languageRequest.current) setLanguageBusy(false);
+    }
+  };
   // 章节目录收在一颗胶囊里：点开是一块玻璃列表，名字再长也整行显示。
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const indexRef = useRef<HTMLDivElement>(null);
@@ -353,7 +408,7 @@ function NotebookViewer({
   const next = entries[selectedIndex + 1] ?? null;
   const isLast = entries.length > 0 && selectedIndex === entries.length - 1;
   const { number: notebookNumber, title: notebookTitle } = splitNotebookName(
-    document.notebook.name,
+    notebookDisplayName(document.notebook),
   );
 
   useEffect(() => {
@@ -375,7 +430,7 @@ function NotebookViewer({
     scrollRef.current?.scrollTo({ top: 0 });
     const frame = window.requestAnimationFrame(updateScroll);
     return () => window.cancelAnimationFrame(frame);
-  }, [selectedIndex]);
+  }, [selectedIndex, notebookId]);
 
   const chapterButtons = (onPick?: () => void) =>
     entries.map((entry, index) => (
@@ -420,9 +475,10 @@ function NotebookViewer({
           '--nr-light': `var(--marble-${accent}-light)`,
         } as CSSProperties
       }
-      aria-label={`${document.notebook.name} 阅读`}
+      aria-label={`${notebookDisplayName(document.notebook)} 阅读`}
+      lang={notebookLanguage(document.notebook) ?? undefined}
     >
-      <header className="nr-header">
+      <header className={`nr-header${variants.length > 1 ? ' nr-header-bilingual' : ''}`}>
         <button type="button" className="phone-glass-button" onClick={onClose} aria-label="返回">
           <ChevronLeft size={22} />
         </button>
@@ -434,7 +490,21 @@ function NotebookViewer({
             </small>
           ) : null}
         </div>
-        <span aria-hidden />
+        {variants.length > 1 ? (
+          <ContentLanguageSwitch
+            label="讲义语言"
+            value={notebookLanguage(document.notebook) === 'en' ? 'en-US' : 'zh-CN'}
+            busy={languageBusy}
+            onChange={(language) => {
+              const variant = variants.find(
+                (item) => notebookLanguage(item) === (language === 'en-US' ? 'en' : 'zh-CN'),
+              );
+              if (variant) void switchLanguage(variant);
+            }}
+          />
+        ) : (
+          <span aria-hidden />
+        )}
         {/* 一根细玻璃管：读到哪，弹珠就滚到哪。 */}
         <span className="nr-meter" aria-hidden>
           <i />
@@ -443,6 +513,11 @@ function NotebookViewer({
       </header>
 
       <div className="nr-body">
+        {languageError ? (
+          <p className="nr-language-error" role="alert">
+            {languageError}
+          </p>
+        ) : null}
         {entries.length > 1 ? (
           <div ref={indexRef} className={`nr-chapters${chaptersOpen ? ' is-open' : ''}`}>
             <button
@@ -721,6 +796,7 @@ function ProblemViewer({
 
 export function LocalResourceViewer({
   resource,
+  notebooks,
   accent = 'blue',
   onClose,
 }: LocalResourceViewerProps) {
@@ -740,6 +816,10 @@ export function LocalResourceViewer({
         <NotebookViewer
           key={resource.document.notebook.id}
           document={resource.document}
+          variants={notebookVariants(
+            notebooks ?? [resource.document.notebook],
+            resource.document.notebook.id,
+          )}
           accent={accent}
           onClose={onClose}
         />

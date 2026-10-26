@@ -7,6 +7,11 @@ import { loadNotebookForReading } from '../data/course-sync';
 import type { LocalCourseWorkspace, LocalNotebook } from '../domain/models';
 import { GlassLoadMore, useListWindow, GlassSpinner } from './GlassLoadMore';
 import { LocalResourceViewer, type LocalResourceDocument } from './LocalResourceViewer';
+import {
+  groupNotebookTranslations,
+  notebookSearchText,
+  notebookVariants,
+} from '../lib/notebook-translations';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -29,16 +34,21 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resource, setResource] = useState<LocalResourceDocument | null>(null);
+  const library = useMemo(
+    () => groupNotebookTranslations(workspace.notebooks),
+    [workspace.notebooks],
+  );
 
   const notebooks = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = [...workspace.notebooks].sort(
-      // 按笔记本编号排列（01 → 11），编号相同时按名称。
-      (a, b) => a.name.localeCompare(b.name, 'zh-CN', { numeric: true }),
-    );
+    const list = library;
     if (!q) return list;
     return list.filter((notebook) => {
-      const haystack = [notebook.name, notebook.kind, String(notebook.sectionCount)]
+      const haystack = [
+        notebookSearchText(workspace.notebooks, notebook.id),
+        notebook.kind,
+        String(notebook.sectionCount),
+      ]
         .join('\n')
         .toLowerCase();
       return q
@@ -46,7 +56,7 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
         .filter(Boolean)
         .every((term) => haystack.includes(term));
     });
-  }, [query, workspace.notebooks]);
+  }, [query, workspace.notebooks, library]);
 
   const openNotebook = async (notebook: LocalNotebook) => {
     setBusyId(notebook.id);
@@ -86,13 +96,13 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
               />
             </label>
             <span className="native-problem-bank-count">
-              {notebooks.length}/{workspace.notebooks.length}
+              {notebooks.length}/{library.length}
             </span>
           </div>
           <div className="native-problem-bank-meta">
             <span>
               <BookOpen size={14} />
-              笔记本库 · {workspace.notebooks.length} 本
+              笔记本库 · {library.length} 本
             </span>
             <span>点开后在本机阅读器中查看</span>
           </div>
@@ -132,6 +142,9 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
                   <span className="native-notebook-library-cover">
                     <span className="native-notebook-library-card-kind">
                       {notebook.kind === 'markdown' ? 'Markdown' : '讲义'}
+                      {notebookVariants(workspace.notebooks, notebook.id).length > 1
+                        ? ' · 中文 / English'
+                        : ''}
                     </span>
                     <strong className="native-notebook-library-card-title">{notebook.name}</strong>
                     <span className="native-notebook-library-card-meta">
@@ -159,7 +172,11 @@ export function NotebookLibraryPage({ workspace, onBack }: NotebookLibraryPagePr
       </div>
 
       {resource ? (
-        <LocalResourceViewer resource={resource} onClose={() => setResource(null)} />
+        <LocalResourceViewer
+          resource={resource}
+          notebooks={workspace.notebooks}
+          onClose={() => setResource(null)}
+        />
       ) : null}
     </section>
   );

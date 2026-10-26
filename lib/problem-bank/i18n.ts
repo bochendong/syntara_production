@@ -1,10 +1,28 @@
-import type { NotebookProblemPublicContent } from './schema';
-
 export type ProblemContentLanguage = 'zh-CN' | 'en-US';
+
+/** Structural contract shared with the native client, without server schema dependencies. */
+export type LocalizableProblemContent = {
+  type: string;
+  stem?: string;
+  stemTemplate?: string;
+  explanation?: string;
+  options?: Array<{ id: string; label: string }>;
+  translations?: Partial<
+    Record<
+      ProblemContentLanguage,
+      {
+        stem?: string;
+        stemTemplate?: string;
+        explanation?: string;
+        options?: Array<{ id: string; label: string }>;
+      }
+    >
+  >;
+};
 
 export type LocalizableProblemRecord = {
   title: string;
-  publicContent: NotebookProblemPublicContent;
+  publicContent: LocalizableProblemContent;
   sourceMeta?: Record<string, unknown> | null;
 };
 
@@ -33,7 +51,7 @@ export function getLocalizedProblemTitle(
   return readTitleTranslation(problem.sourceMeta, language) ?? problem.title;
 }
 
-export function getLocalizedProblemContent<T extends NotebookProblemPublicContent>(
+export function getLocalizedProblemContent<T extends LocalizableProblemContent>(
   content: T,
   language: ProblemContentLanguage,
 ): T {
@@ -45,15 +63,15 @@ export function getLocalizedProblemContent<T extends NotebookProblemPublicConten
   if ('stem' in next && translation.stem) {
     next.stem = translation.stem;
   }
-  if (next.type === 'fill_blank' && translation.stem) {
-    next.stemTemplate = translation.stem;
+  if (next.type === 'fill_blank' && (translation.stemTemplate || translation.stem)) {
+    next.stemTemplate = translation.stemTemplate || translation.stem;
   }
   if (translation.explanation) {
     next.explanation = translation.explanation;
   }
   if (next.type === 'choice' && translation.options?.length) {
     const labelsById = new Map(translation.options.map((option) => [option.id, option.label]));
-    next.options = next.options.map((option) => ({
+    next.options = next.options?.map((option) => ({
       ...option,
       label: labelsById.get(option.id) ?? option.label,
     }));

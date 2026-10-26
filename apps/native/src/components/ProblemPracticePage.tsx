@@ -70,6 +70,12 @@ import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles
 import './course-pages.css';
 import { GlassSpinner } from './GlassLoadMore';
 import { LearningEmptyState } from './LearningEmptyState';
+import { ContentLanguageSwitch } from './ContentLanguageSwitch';
+import {
+  hasBilingualProblem,
+  localizeProblem,
+  type ProblemContentLanguage,
+} from '../lib/problem-language';
 
 type ProblemPracticePageProps = {
   problems: LocalProblem[];
@@ -246,6 +252,7 @@ function PracticeFinish({
 }
 
 export function ProblemPracticePage({ problems, launch, onBack }: ProblemPracticePageProps) {
+  const [language, setLanguage] = useState<ProblemContentLanguage>(launch.language ?? 'zh-CN');
   const problemMap = useMemo(
     () => new Map(problems.map((problem) => [problem.id, problem])),
     [problems],
@@ -336,12 +343,16 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
 
   const currentIndex = Math.max(0, orderedIds.indexOf(currentId));
   const currentProblem = problemMap.get(currentId) || null;
+  const displayedProblem = useMemo(
+    () => (currentProblem ? localizeProblem(currentProblem, language) : null),
+    [currentProblem, language],
+  );
   const total = orderedIds.length;
   const isCode = currentProblem ? problemIsCode(currentProblem) : false;
-  const publicContent = currentProblem ? problemPublicContent(currentProblem) : {};
+  const publicContent = displayedProblem ? problemPublicContent(displayedProblem) : {};
   const codeContent = isCode ? asCodeContent(publicContent) : null;
-  const stem = currentProblem ? problemStem(currentProblem) : '';
-  const options = currentProblem ? problemOptions(currentProblem) : [];
+  const stem = displayedProblem ? problemStem(displayedProblem) : '';
+  const options = displayedProblem ? problemOptions(displayedProblem) : [];
   const testcaseCode = currentProblem ? buildPublicTestsPython(currentProblem) : '';
 
   useEffect(() => {
@@ -542,11 +553,11 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             : 10;
         try {
           const result = await gradeNativeAnswer({
-            question: problemStem(currentProblem),
+            question: stem,
             userAnswer: answer.text || '请查看附图中的作答。',
             images: answer.images,
             points,
-            language: 'zh-CN',
+            language,
             questionType: currentProblem.type === 'proof' ? 'proof' : 'short_answer',
             referenceAnswer: optionalText(grading.referenceAnswer),
             proof: optionalText(grading.proof),
@@ -620,6 +631,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     setStatuses,
     statuses,
     submitting,
+    language,
+    stem,
   ]);
 
   if (!currentProblem || orderedIds.length === 0) {
@@ -728,25 +741,35 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             </span>
           </span>
         </div>
-        <div className="pp-nav">
-          <button
-            type="button"
-            className="phone-glass-button"
-            disabled={currentIndex <= 0}
-            onClick={() => goRelative(-1)}
-            aria-label="上一题"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <button
-            type="button"
-            className="phone-glass-button"
-            disabled={currentIndex >= total - 1}
-            onClick={() => goRelative(1)}
-            aria-label="下一题"
-          >
-            <ChevronRight size={20} />
-          </button>
+        <div className="pp-header-tools">
+          {hasBilingualProblem(currentProblem) ? (
+            <ContentLanguageSwitch
+              label="题目语言"
+              value={language}
+              onChange={setLanguage}
+              busy={submitting}
+            />
+          ) : null}
+          <div className="pp-nav">
+            <button
+              type="button"
+              className="phone-glass-button"
+              disabled={currentIndex <= 0}
+              onClick={() => goRelative(-1)}
+              aria-label="上一题"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              type="button"
+              className="phone-glass-button"
+              disabled={currentIndex >= total - 1}
+              onClick={() => goRelative(1)}
+              aria-label="下一题"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -851,7 +874,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             <div className="native-problem-practice-pane-body native-problem-rich-scroll">
               {leftTab === 'formulas' && answer?.kind === 'text' ? (
                 <FormulaReferencePanel
-                  locale="zh-CN"
+                  locale={language}
                   onInsert={(latex) => {
                     const input = textAnswerRef.current;
                     const start = input?.selectionStart ?? answer.text.length;
@@ -884,7 +907,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                 ) : leftTab === 'testcase' ? (
                   <CodeTestcasePanel code={testcaseCode} />
                 ) : (
-                  <CodeProblemStatement content={codeContent} locale="zh-CN" />
+                  <CodeProblemStatement content={codeContent} locale={language} />
                 )
               ) : (
                 <>

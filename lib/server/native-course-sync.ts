@@ -49,6 +49,25 @@ function jsonArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+/** These tags survive both browser and SQLite archives without a local schema migration. */
+function translationTags(notebook: {
+  tags: string[];
+  language: string | null;
+  coverSlideJson: unknown;
+}) {
+  const source = jsonRecord(notebook.coverSlideJson).sourceSha256;
+  const language = notebook.language;
+  if (typeof source !== 'string' || !/^[a-f0-9]{64}$/.test(source)) return notebook.tags;
+  if (language !== 'en' && language !== 'zh-CN') return notebook.tags;
+  return [
+    ...new Set([
+      ...notebook.tags,
+      `translation-source:${source}`,
+      `translation-language:${language}`,
+    ]),
+  ];
+}
+
 function sha256(value: Uint8Array): string {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -148,6 +167,14 @@ export async function buildNativeCourseData(
     loadLearnerState(prisma, userId, courseId),
   ]);
 
+  const translationRows = notebooks.length
+    ? await prisma.notebook.findMany({
+        where: { id: { in: notebooks.map((notebook) => notebook.id) } },
+        select: { id: true, language: true, coverSlideJson: true },
+      })
+    : [];
+  const translations = new Map(translationRows.map((notebook) => [notebook.id, notebook]));
+
   return {
     courseId,
     notebooks: notebooks.map((notebook) => ({
@@ -156,7 +183,9 @@ export async function buildNativeCourseData(
       name: notebook.name,
       description: '',
       kind: notebook.notebookKind === 'markdown' ? 'markdown' : 'image',
-      tags: notebook.tags,
+      tags: translations.has(notebook.id)
+        ? translationTags({ ...translations.get(notebook.id)!, tags: notebook.tags })
+        : notebook.tags,
       sectionCount:
         notebook.notebookKind === 'markdown' ? notebook.sectionCount : notebook.sceneCount,
       contentVersion: notebook.contentVersion,
@@ -296,6 +325,8 @@ export async function buildNativeNotebookArchive(
       description: true,
       notebookKind: true,
       tags: true,
+      language: true,
+      coverSlideJson: true,
       sectionCount: true,
       sceneCount: true,
       contentVersion: true,
@@ -467,7 +498,7 @@ export async function buildNativeNotebookArchive(
       name: notebook.name,
       description: notebook.description ?? '',
       kind: notebook.notebookKind === 'markdown' ? 'markdown' : 'image',
-      tags: notebook.tags,
+      tags: translationTags(notebook),
       sectionCount:
         notebook.notebookKind === 'markdown' ? notebook.sectionCount : notebook.sceneCount,
       contentVersion: notebook.contentVersion,
