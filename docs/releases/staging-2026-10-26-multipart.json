@@ -1,0 +1,73 @@
+{
+  "source": "e4ab470af1e370ba67676eee5848a93e565f343a",
+  "deploymentId": "8da11be7-c98a-4673-8a3a-0ff52a1efd6e",
+  "status": "SUCCESS",
+  "verifiedAt": "2026-10-26T20:55:40.952529+00:00",
+  "migration": {
+    "name": "20261026200000_multipart_problems",
+    "operation": "ALTER TYPE NotebookProblemType ADD VALUE IF NOT EXISTS multipart",
+    "verifiedInDeploymentLog": true
+  },
+  "assets": [
+    {
+      "path": "/native-web/assets/index-G1XNXCtV.js",
+      "bytes": 1681580,
+      "sha256": "19cdcfb754c0c50f5ee69f44d05d5fe10e4f0d874490cd9bfc38b008c8fabcde",
+      "liveSha256": "19cdcfb754c0c50f5ee69f44d05d5fe10e4f0d874490cd9bfc38b008c8fabcde",
+      "matches": true
+    },
+    {
+      "path": "/native-web/assets/index-D0iMJW2s.css",
+      "bytes": 375049,
+      "sha256": "3c2598617f03720d00b0c749671ed1ac647c15345ea3d9bdbcf3e7f68da27343",
+      "liveSha256": "3c2598617f03720d00b0c749671ed1ac647c15345ea3d9bdbcf3e7f68da27343",
+      "matches": true
+    }
+  ],
+  "courseUpdate": {
+    "courseId": "cmu0zx9s10007l404smwwr9f7",
+    "questionCount": 252,
+    "preservedQuestionIds": true,
+    "updatedParents": 48,
+    "effectiveParts": 112,
+    "typeCounts": {
+      "choice": 180,
+      "multipart": 48,
+      "proof": 24
+    },
+    "untouchedQuestionsExact": 204,
+    "notebooks": 24,
+    "originalSources": 22,
+    "notebookSourceAndMediaFilesExact": true,
+    "chapterDefinitionsExact": true,
+    "allMetadataBeyondStructuralFieldsPreserved": true,
+    "allReferencesAndTranslationsMatchReviewedJSON": true
+  },
+  "validation": {
+    "multipartReferenceAndDraftTests": {
+      "passed": 14,
+      "failed": 0
+    },
+    "formatLintRootAndNativeTypes": "passed (4 unused-import warnings in existing import.pipeline imports)",
+    "nativeBuild": "passed",
+    "photoAnswerRegression": "passed",
+    "sourceAndJsonContentAcceptance": "complete, no errors or exclusions",
+    "originalProofProseAndMath": "preserved across all 48 repaired parents",
+    "browserIsolated": "per-part choice/calculation submission, retained scores/counts, reset, reference confirmation, wide cards and 390px next-part navigation",
+    "browserStaging": "A/B/H related questions rendered after actual structured updates; English/Chinese prompts and reference confirmation checked; no fake student submission created",
+    "existingCompilerCheck": {
+      "baselineSameAsCurrent": true,
+      "sampleIOCount": 0,
+      "baselineErrors": ["代码题至少需要 2 个可执行并已验证的 sampleIO 示例"],
+      "assertionExpects": [],
+      "verifiedPreexisting": true
+    }
+  },
+  "notes": [
+    "MAT102 stays at 252 parent question IDs; 48 are multipart with 112 parts, 204 other questions unchanged.",
+    "Original 339 rubric criteria are retained in matching parts.",
+    "24 notebooks, 22 original sources, chapter definitions, source/notebook/media files are unchanged.",
+    "The source staging-work checkout remains uncommitted and the 43 migrated source files still match their saved hashes.",
+    "The existing Mac download was not rebuilt."
+  ]
+}

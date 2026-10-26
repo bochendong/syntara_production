@@ -2,19 +2,19 @@
 
 核对日期：2026-10-26（America/Toronto）。当前测试服已更新，源码基线与实际部署对应。
 
-最新做题页应用源码为 `b44da6a4`，Railway 发布 `14799e4e` 已成功。六种题型均支持重置和参考答案；首次查看前保存未评分快照与求助记忆，可记住确认选择。题库语言工具栏已移除，MAT102 TT2 十套题与原始附件保持在此前导入状态。基线还包含本次发布文档，应用代码与上述运行提交相同。见 [题目答案发布记录](releases/staging-2026-10-26-problem-solutions.json)。
+最新应用源码为 `e4ab470a`，Railway 发布 `8da11be7` 已成功，`multipart` 题型迁移已执行。MAT102 已原地整理 48 道大题为 112 个独立小问，题目总数仍为 252；原有 24 本讲义、22 份原始资料及其他 204 道题保持不变。分小问的宽窄屏布局、独立提交判分、中英文切换及原有重置/答案确认已验证。见 [本次小问发布记录](releases/staging-2026-10-26-multipart.json)。此前答案功能记录仍见 [题目答案发布记录](releases/staging-2026-10-26-problem-solutions.json)。基线附带发布文档，应用代码与上述运行提交相同。
 
 ## 以后从哪里继续
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `b44da6a4` 的应用源码及发布记录，对应 Railway 发布 `14799e4e` |
+| 测试服源码基线 | `codex/staging-baseline` | `e4ab470a` 的应用源码及发布记录，对应 Railway 发布 `8da11be7` |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 测试服主要发布分支 | `codex/staging-next` | GitHub 是发布源；已授权目标仓库并启用自动部署 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
 
 本次题库改动使用 `lecture-language-switch/syntara_production` 工作树与
-`codex/lecture-language-switch` 任务分支，再发布到 `codex/staging-next`。
+`codex/mat102-multipart` 任务分支，再发布到 `codex/staging-next`。
 此前 `chat-visual-hierarchy/syntara_production` 工作目录及其他聊天的未提交工作保持原样。
 
 这两条分支已同步到 GitHub：
@@ -49,7 +49,7 @@
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前应用发布：`14799e4e-10e3-45ab-9242-e88f9a7762f6`，源码提交：`b44da6a4`。
+- 当前应用发布：`8da11be7-c98a-4673-8a3a-0ff52a1efd6e`，源码提交：`e4ab470a`。
 - 线上原生 JS/CSS 与本次本地验证构建的 SHA-256 一致；本次发布记录包含资源哈希。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
 - 测试服直接拉取 GitHub 的 `codex/staging-next`，使用 `railway.toml` 的 `staging` 覆盖配置；不再依赖本机源码快照上传。
@@ -189,3 +189,5 @@ git diff --stat codex/staging-baseline...codex/staging-next
 真实测试服 1512px 窗口下验证了三列笔记和 280px 右侧面板，空题库也正常。
 当前真实 CSC108 题库只有一章，四列章节墙使用多章节本机样例验证；线上资源哈希与验证构建一致。
 证据位于 Git 公共目录 `codex/tasks/learning-pages-wide-20261025/`。
+
+本次 MAT102 小问整理按文件迁入 `staging-work` 中 43 个相关源文件，并补充了当前测试版答案快照、双语与图片作答的兼容。原工作区没有提交或覆盖。14 项相关离线测试、类型、格式/lint 和构建通过；既有导入编译器检查的代码题测试夹具缺少 sampleIO，在发布前同一实现上复现失败，详见发布记录。实际分批应用了 A/B/H 三套相关题及其余改动，回读校验完整，重放 48 项全部 unchanged。
