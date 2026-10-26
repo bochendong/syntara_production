@@ -402,7 +402,15 @@ export const notebookCodeCaseSummarySchema = z.object({
 
 export const notebookCodeRunTargetSchema = z.enum(['code', 'public', 'secret']);
 
+export const notebookProblemProgressSnapshotSchema = z.object({
+  status: z.string().trim().min(1).max(40),
+  score: z.number().min(0).max(1).nullable(),
+  attemptedCount: z.number().int().nonnegative(),
+});
+
 export const notebookProblemAttemptResultSchema = z.object({
+  event: z.enum(['solution_viewed', 'answer_reset']).optional(),
+  progressSnapshot: notebookProblemProgressSnapshotSchema.nullable().optional(),
   correct: z.boolean().nullable().optional(),
   feedback: z.string().trim().min(1).max(16000).optional(),
   analysis: z.string().trim().min(1).max(16000).optional(),

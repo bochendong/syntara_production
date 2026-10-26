@@ -89,10 +89,30 @@ function uploadOf(attempt: LocalProblemAttempt): NativeProblemAttemptUpload | nu
   const answer = attempt.answer;
   const result = attempt.result ?? {};
   const selected = answer.selectedOptionIds;
+  const event =
+    result.event === 'solution_viewed' || result.event === 'answer_reset'
+      ? result.event
+      : undefined;
+  const rawSnapshot = result.progressSnapshot;
+  const snapshot =
+    rawSnapshot && typeof rawSnapshot === 'object'
+      ? (rawSnapshot as Record<string, unknown>)
+      : null;
+  const progressSnapshot =
+    snapshot &&
+    typeof snapshot.status === 'string' &&
+    (snapshot.score === null ||
+      (typeof snapshot.score === 'number' && snapshot.score >= 0 && snapshot.score <= 1)) &&
+    typeof snapshot.attemptedCount === 'number' &&
+    Number.isInteger(snapshot.attemptedCount) &&
+    snapshot.attemptedCount >= 0
+      ? { status: snapshot.status, score: snapshot.score, attemptedCount: snapshot.attemptedCount }
+      : null;
   return {
     // 服务器只收字母、数字、- 和 _。
     id: attempt.id.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80),
     problemId: attempt.problemId,
+    ...(event ? { event, progressSnapshot } : {}),
     status: attempt.status as NativeProblemAttemptUpload['status'],
     score: typeof attempt.score === 'number' ? Math.max(0, Math.min(1, attempt.score)) : null,
     answer: {

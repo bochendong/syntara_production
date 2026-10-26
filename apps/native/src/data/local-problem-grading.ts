@@ -64,6 +64,8 @@ function textMatchesAccepted(answer: string, accepted: string[], caseSensitive =
 export function problemStem(problem: LocalProblem): string {
   const content = asRecord(problem.publicContent);
   if (typeof content.stem === 'string' && content.stem.trim()) return content.stem;
+  if (typeof content.stemTemplate === 'string' && content.stemTemplate.trim())
+    return content.stemTemplate;
   return problem.title;
 }
 

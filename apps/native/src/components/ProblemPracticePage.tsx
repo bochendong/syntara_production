@@ -18,6 +18,7 @@ import {
   Code2,
   FileCode2,
   FileText,
+  Eye,
   Play,
   RotateCcw,
   SendHorizontal,
@@ -48,7 +49,7 @@ import { getLocalRepository } from '../data/repository';
 import { accountStorageKey } from '../data/browser-runtime';
 import {
   problemCodeDraftKey,
-  readProblemCodeDraft,
+  readProblemCodeDraftRecord,
   saveProblemCodeDraft,
 } from '../data/problem-code-draft';
 import { runPythonDebug } from '../data/python-debug-runner';
@@ -73,6 +74,16 @@ import './course-pages.css';
 import { GlassSpinner } from './GlassLoadMore';
 import { LearningEmptyState } from './LearningEmptyState';
 import { ContentLanguageSwitch } from './ContentLanguageSwitch';
+import { problemSolution } from '../lib/problem-solution';
+import { syncAppMemories } from '../data/course-sync';
+import {
+  saveProblemLearningSnapshot,
+  solutionReminderKey,
+  skipsSolutionReminder,
+  rememberSolutionReminder,
+  type ProblemLearningEvent,
+} from '../data/problem-learning-snapshot';
+import { ProblemSolutionConfirmation } from './problem-bank/ProblemSolutionConfirmation';
 import {
   hasBilingualProblem,
   localizeProblem,
@@ -85,7 +96,7 @@ type ProblemPracticePageProps = {
   onBack: () => void;
 };
 
-type RightTab = 'answer' | 'code' | 'history';
+type RightTab = 'answer' | 'code' | 'history' | 'solution';
 
 const PANE_RATIO_KEY = 'syntara.practice-pane-ratio';
 const clampPaneRatio = (value: number) => Math.min(75, Math.max(25, value));
@@ -278,6 +289,12 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   }, [saveDraft]);
   const [loading, setLoading] = useState(true);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [snapshotBusy, setSnapshotBusy] = useState(false);
+  const [solutionConfirm, setSolutionConfirm] = useState(false);
+  const [solutionSeen, setSolutionSeen] = useState(false);
+  const [solutionError, setSolutionError] = useState<string | null>(null);
+  const [solutionNotice, setSolutionNotice] = useState<string | null>(null);
+  const snapshotSequence = useRef(0);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -347,6 +364,10 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   const stem = displayedProblem ? problemStem(displayedProblem) : '';
   const options = displayedProblem ? problemOptions(displayedProblem) : [];
   const testcaseCode = currentProblem ? buildPublicTestsPython(currentProblem) : '';
+  const solution = useMemo(
+    () => (displayedProblem ? problemSolution(displayedProblem) : null),
+    [displayedProblem],
+  );
 
   useEffect(() => {
     debugSequence.current += 1;
@@ -424,8 +445,9 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
       let next = restoreAnswerFromAttempt(currentProblem, nextDocument);
       if (next.kind === 'code') {
         try {
-          const code = readProblemCodeDraft(window.localStorage, draftKey);
-          if (code !== null) next = { kind: 'code', code };
+          const draft = readProblemCodeDraftRecord(window.localStorage, draftKey);
+          if (draft && draft.savedAt >= (nextDocument?.attempts[0]?.createdAt ?? 0))
+            next = { kind: 'code', code: draft.code };
         } catch {
           setDraftError('无法读取代码草稿，请检查本机存储是否可用。');
         }
@@ -433,6 +455,12 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
       }
       setAnswer(next);
     };
+    snapshotSequence.current += 1;
+    setSnapshotBusy(false);
+    setSolutionConfirm(false);
+    setSolutionSeen(false);
+    setSolutionError(null);
+    setSolutionNotice(null);
     setLoading(true);
     setError(null);
     setFeedback(null);
@@ -457,6 +485,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     })();
     return () => {
       alive = false;
+      snapshotSequence.current += 1;
       saveDraft();
     };
   }, [currentProblem, saveDraft]);
@@ -622,6 +651,103 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     stem,
   ]);
 
+  const cancelAutoNext = () => {
+    if (autoNextRef.current) window.clearTimeout(autoNextRef.current);
+    autoNextRef.current = null;
+  };
+  const persistLearningAction = async (
+    event: ProblemLearningEvent,
+    nextAnswer: LocalProblemAnswer,
+  ) => {
+    if (!currentProblem || snapshotBusy) return false;
+    cancelAutoNext();
+    saveDraft();
+    const problem = currentProblem;
+    const sequence = ++snapshotSequence.current;
+    setSnapshotBusy(true);
+    setSolutionError(null);
+    try {
+      const repository = await getLocalRepository();
+      const saved = await saveProblemLearningSnapshot(repository, {
+        problem,
+        answer: nextAnswer,
+        progress: document?.progress ?? null,
+        event,
+        at: Date.now(),
+        id: crypto.randomUUID(),
+      });
+      void queueProblemAttempt(repository, problem.courseId, saved.attempt).catch(() => undefined);
+      if (event === 'solution_viewed')
+        void syncAppMemories(repository, problem.courseId).catch(() => undefined);
+      if (sequence !== snapshotSequence.current) return false;
+      setDocument(saved.document);
+      if (event === 'answer_reset') {
+        setAnswer(nextAnswer);
+        if (nextAnswer.kind === 'code' && draftRef.current) {
+          draftRef.current.code = nextAnswer.code;
+          draftRef.current.dirty = true;
+          saveDraft();
+        }
+        setFeedback(null);
+        setError(null);
+        setJustGraded(null);
+        setFinish('hidden');
+        setSolutionSeen(false);
+        setSolutionNotice(null);
+        setDebugResult({ phase: 'idle', output: '', error: '' });
+        setRightTab(problemIsCode(problem) ? 'code' : 'answer');
+      } else {
+        setSolutionSeen(true);
+        setSolutionConfirm(false);
+        setSolutionNotice('查看前的作答与求助记录已保存。');
+        setRightTab('solution');
+      }
+      return true;
+    } catch (cause) {
+      if (sequence === snapshotSequence.current)
+        setSolutionError(cause instanceof Error ? cause.message : '保存进度失败，请重试。');
+      return false;
+    } finally {
+      if (sequence === snapshotSequence.current) setSnapshotBusy(false);
+    }
+  };
+  const revealSolution = async (remember: boolean) => {
+    if (!answer) return;
+    const saved = await persistLearningAction('solution_viewed', answer);
+    if (saved && remember) {
+      try {
+        rememberSolutionReminder(
+          window.localStorage,
+          solutionReminderKey(accountStorageKey('syntara.problem-preferences')),
+        );
+      } catch {
+        setSolutionNotice('作答与求助记录已保存；提醒设置未能保存，下次仍会询问。');
+      }
+    }
+  };
+  const requestSolution = () => {
+    cancelAutoNext();
+    if (!solution || !(solution.answer || solution.code || solution.explanation)) {
+      setSolutionError('这道题尚未配置参考答案。');
+      return;
+    }
+    if (solutionSeen) {
+      setRightTab('solution');
+      return;
+    }
+    if (
+      skipsSolutionReminder(
+        window.localStorage,
+        solutionReminderKey(accountStorageKey('syntara.problem-preferences')),
+      )
+    ) {
+      void revealSolution(false);
+    } else {
+      setSolutionError(null);
+      setSolutionConfirm(true);
+    }
+  };
+
   if (!currentProblem || orderedIds.length === 0) {
     return (
       <section className="native-problem-practice">
@@ -633,6 +759,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             type="button"
             className="phone-glass-button pp-close"
             onClick={onBack}
+            disabled={snapshotBusy}
             aria-label="关闭做题"
           >
             <X size={22} />
@@ -674,6 +801,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
               className="pp-question-trigger"
               aria-expanded={sheetOpen}
               aria-controls={sheetId}
+              disabled={snapshotBusy}
               aria-label={'第 ' + (currentIndex + 1) + ' 题，共 ' + total + ' 题，答题卡'}
               onClick={() => setSheetOpen((open) => !open)}
             >
@@ -731,14 +859,14 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
               label="题目语言"
               value={language}
               onChange={setLanguage}
-              busy={submitting}
+              busy={submitting || snapshotBusy}
             />
           ) : null}
           <div className="pp-nav">
             <button
               type="button"
               className="phone-glass-button"
-              disabled={currentIndex <= 0}
+              disabled={currentIndex <= 0 || snapshotBusy}
               onClick={() => goRelative(-1)}
               aria-label="上一题"
             >
@@ -747,7 +875,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             <button
               type="button"
               className="phone-glass-button"
-              disabled={currentIndex >= total - 1}
+              disabled={currentIndex >= total - 1 || snapshotBusy}
               onClick={() => goRelative(1)}
               aria-label="下一题"
             >
@@ -759,6 +887,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
           type="button"
           className="phone-glass-button pp-close"
           onClick={onBack}
+          disabled={snapshotBusy}
           aria-label="关闭做题"
         >
           <X size={22} />
@@ -994,58 +1123,61 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   );
                 })}
               </div>
-              {rightTab !== 'history' ? (
-                <div className="pp-header-actions">
-                  {answer?.kind === 'text' ? (
-                    <PhotoAnswerInput
-                      containerId={photoContainerId}
-                      key={currentId}
-                      images={answer.images ?? []}
-                      disabled={loading || submitting}
-                      onBusyChange={setPhotoBusy}
-                      onChange={(images) => {
-                        setAnswer((current) =>
-                          current?.kind === 'text' ? { ...current, images } : current,
-                        );
-                        setFeedback(null);
-                      }}
-                    />
-                  ) : null}
-                  {isCode ? (
-                    <button
-                      type="button"
-                      className="pp-run-button pp-reset-button"
-                      title="恢复起始代码"
-                      disabled={loading || submitting || debugRunning}
-                      onClick={() => {
-                        const initial = emptyAnswerForProblem(currentProblem);
-                        if (initial.kind !== 'code') return;
-                        setAnswer(initial);
-                        if (draftRef.current) {
-                          draftRef.current.code = initial.code;
-                          draftRef.current.dirty = true;
-                        }
-                        saveDraft();
-                        setFeedback(null);
-                        setError(null);
-                        setDebugResult({ phase: 'idle', output: '', error: '' });
-                      }}
-                    >
-                      <RotateCcw size={13} />
-                      重置
-                    </button>
-                  ) : null}
-                  {isCode ? (
-                    <button
-                      type="button"
-                      className="pp-run-button"
-                      disabled={loading || submitting || answer?.kind !== 'code'}
-                      onClick={runDebug}
-                    >
-                      {debugRunning ? <Square size={13} /> : <Play size={13} />}
-                      {debugRunning ? '停止' : '运行'}
-                    </button>
-                  ) : null}
+              <div className="pp-header-actions">
+                {rightTab === 'answer' && answer?.kind === 'text' ? (
+                  <PhotoAnswerInput
+                    containerId={photoContainerId}
+                    key={currentId}
+                    images={answer.images ?? []}
+                    disabled={loading || submitting || snapshotBusy}
+                    onBusyChange={setPhotoBusy}
+                    onChange={(images) => {
+                      setAnswer((current) =>
+                        current?.kind === 'text' ? { ...current, images } : current,
+                      );
+                      setFeedback(null);
+                    }}
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  className="pp-run-button pp-reset-button"
+                  title={isCode ? '恢复起始代码并重新作答' : '清空本次作答'}
+                  disabled={loading || submitting || snapshotBusy || debugRunning || photoBusy}
+                  onClick={() =>
+                    void persistLearningAction(
+                      'answer_reset',
+                      emptyAnswerForProblem(currentProblem),
+                    )
+                  }
+                >
+                  <RotateCcw size={13} />
+                  重置
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    'pp-run-button pp-solution-button',
+                    rightTab === 'solution' && 'is-active',
+                  )}
+                  aria-pressed={rightTab === 'solution'}
+                  disabled={loading || submitting || snapshotBusy || debugRunning || photoBusy}
+                  onClick={requestSolution}
+                >
+                  {snapshotBusy ? <GlassSpinner size={13} /> : <Eye size={13} />}查看答案
+                </button>
+                {isCode && rightTab === 'code' ? (
+                  <button
+                    type="button"
+                    className="pp-run-button"
+                    disabled={loading || submitting || snapshotBusy || answer?.kind !== 'code'}
+                    onClick={runDebug}
+                  >
+                    {debugRunning ? <Square size={13} /> : <Play size={13} />}
+                    {debugRunning ? '停止' : '运行'}
+                  </button>
+                ) : null}
+                {rightTab !== 'history' && rightTab !== 'solution' ? (
                   <button
                     type="button"
                     className="pp-submit pp-header-submit"
@@ -1054,17 +1186,22 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                       !answerHasContent(answer) ||
                       submitting ||
                       debugRunning ||
-                      photoBusy
+                      photoBusy ||
+                      snapshotBusy
                     }
                     onClick={() => void submitAnswer()}
                   >
-                    {submitting ? <GlassSpinner size={14} /> : <SendHorizontal size={14} />}
-                    提交作答
+                    {submitting ? <GlassSpinner size={14} /> : <SendHorizontal size={14} />}提交作答
                   </button>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </header>
 
+            {solutionError && !solutionConfirm ? (
+              <p role="alert" className="native-problem-practice-error">
+                {solutionError}
+              </p>
+            ) : null}
             {draftError ? (
               <p role="alert" className="native-problem-practice-error">
                 {draftError}
@@ -1077,6 +1214,28 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                 rightTab === 'answer' && answer?.kind === 'text' && 'pp-text-body',
               )}
             >
+              {rightTab === 'solution' && solutionSeen && solution ? (
+                <section className="pp-solution-content" aria-label="参考答案">
+                  <h3>参考答案</h3>
+                  {solutionNotice ? (
+                    <p className="pp-solution-notice" role="status">
+                      {solutionNotice}
+                    </p>
+                  ) : null}
+                  {solution.answer ? <ProblemRichText content={solution.answer} /> : null}
+                  {solution.code ? (
+                    <pre className="pp-solution-code">
+                      <code>{solution.code}</code>
+                    </pre>
+                  ) : null}
+                  {solution.explanation ? (
+                    <>
+                      <h4>解析</h4>
+                      <ProblemRichText content={solution.explanation} />
+                    </>
+                  ) : null}
+                </section>
+              ) : null}
               {rightTab === 'code' && isCode && answer?.kind === 'code' ? (
                 <div className="pp-code-workspace">
                   <CodeAnswerEditor
@@ -1150,7 +1309,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   ) : null}
                   {(currentProblem.type === 'short_answer' ||
                     currentProblem.type === 'calculation' ||
-                    currentProblem.type === 'proof') &&
+                    currentProblem.type === 'proof' ||
+                    currentProblem.type === 'fill_blank') &&
                   answer?.kind === 'text' ? (
                     <textarea
                       ref={textAnswerRef}
@@ -1201,7 +1361,13 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                     {document.attempts.slice(0, 8).map((attempt) => (
                       <article key={attempt.id}>
                         <span>{new Date(attempt.createdAt).toLocaleString()}</span>
-                        <strong>{attempt.status}</strong>
+                        <strong>
+                          {attempt.result?.event === 'solution_viewed'
+                            ? '查看答案前的进度快照'
+                            : attempt.result?.event === 'answer_reset'
+                              ? '重置作答'
+                              : attempt.status}
+                        </strong>
                         <span>{attempt.score === null ? '未评分' : `${attempt.score}`}</span>
                         {Array.isArray(attempt.answer.images) ? (
                           <div className="pp-history-photos">
@@ -1229,6 +1395,17 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
           </section>
         </div>
       )}
+      {solutionConfirm ? (
+        <ProblemSolutionConfirmation
+          busy={snapshotBusy}
+          error={solutionError}
+          onCancel={() => {
+            setSolutionConfirm(false);
+            setSolutionError(null);
+          }}
+          onConfirm={(remember) => void revealSolution(remember)}
+        />
+      ) : null}
     </section>
   );
 }

@@ -255,8 +255,17 @@ export async function buildNativeChatContext(
   }
 
   const readableIds = new Set(readableNotebooks.map((notebook) => notebook.id));
+  // A solution may have been revealed while the chat workspace stayed mounted.
+  // Read local help memories again so the very next AI turn sees that snapshot.
+  let memoryCandidates = workspace.memories;
+  try {
+    memoryCandidates =
+      (await repository.loadCourseWorkspace(workspace.course.id))?.memories ?? memoryCandidates;
+  } catch {
+    // Keep the last readable workspace available if a refresh cannot be read.
+  }
   const memories = recallMemories(
-    workspace.memories
+    memoryCandidates
       .filter((memory) => memory.status === 'active')
       .filter((memory) => !memory.notebookId || readableIds.has(memory.notebookId)),
     notes,
@@ -305,7 +314,9 @@ export async function buildNativeChatContext(
         .map((item) => repository.loadProblemDocument(item.problemId)),
     );
     context.attempts = recent.flatMap((document) => {
-      const attempt = document?.attempts[0];
+      const attempt = document?.attempts.find(
+        (item) => item.result?.event !== 'solution_viewed' && item.result?.event !== 'answer_reset',
+      );
       if (!document || !attempt) return [];
       const result = (attempt.result ?? {}) as Record<string, unknown>;
       return [

@@ -1,4 +1,7 @@
-import { notebookProblemAttemptImageSchema } from '@/lib/problem-bank/schema';
+import {
+  notebookProblemAttemptImageSchema,
+  notebookProblemProgressSnapshotSchema,
+} from '@/lib/problem-bank/schema';
 import { isValidPhotoAnswerUpload } from '@/lib/problem-bank/photo-answer';
 import { z } from 'zod';
 
@@ -189,6 +192,8 @@ export const nativeProblemAttemptUploadSchema = z.object({
         }),
         feedback: z.string().max(8000).nullable().optional(),
         autoGraded: z.boolean().optional(),
+        event: z.enum(['solution_viewed', 'answer_reset']).optional(),
+        progressSnapshot: notebookProblemProgressSnapshotSchema.nullable().optional(),
         createdAt: z.number().int().positive(),
       }),
     )
@@ -244,16 +249,24 @@ export async function saveNativeProblemAttempts(
       userId,
       problemId: attempt.problemId,
       kind: 'answer',
-      status: attempt.status,
-      score,
+      status: attempt.event ? 'pending' : attempt.status,
+      score: attempt.event ? null : score,
       answer: attempt.answer,
       result: {
-        correct: attempt.status === 'passed',
+        correct: attempt.event ? null : attempt.status === 'passed',
+        ...(attempt.event
+          ? { event: attempt.event, progressSnapshot: attempt.progressSnapshot ?? null }
+          : {}),
         feedback: attempt.feedback ?? '',
-        earnedPoints: score ?? undefined,
+        earnedPoints: attempt.event ? undefined : (score ?? undefined),
         publicCases: [],
       },
-      timingSource: attempt.autoGraded ? 'native-auto' : 'native',
+      timingSource: attempt.event
+        ? 'native-learning-snapshot'
+        : attempt.autoGraded
+          ? 'native-auto'
+          : 'native',
+      preserveProgress: Boolean(attempt.event),
     });
     saved.push(attempt.id);
   }

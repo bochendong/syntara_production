@@ -1105,14 +1105,18 @@ async function listLatestAttemptsForUser(
     orderBy: [{ createdAt: 'desc' }],
   })) as unknown as ProblemAttemptRow[];
 
+  const gradedAttempts = attempts.filter((attempt) => {
+    const event = (attempt.resultJson as { event?: unknown } | null)?.event;
+    return event !== 'solution_viewed' && event !== 'answer_reset';
+  });
   const fallbackCounts = new Map<string, { attemptedCount: number; passedCount: number }>();
-  for (const attempt of attempts) {
+  for (const attempt of gradedAttempts) {
     const counts = fallbackCounts.get(attempt.problemId) ?? { attemptedCount: 0, passedCount: 0 };
     counts.attemptedCount += 1;
     if (attempt.status === 'passed') counts.passedCount += 1;
     fallbackCounts.set(attempt.problemId, counts);
   }
-  for (const attempt of attempts) {
+  for (const attempt of gradedAttempts) {
     if (!latestByProblemId.has(attempt.problemId)) {
       latestByProblemId.set(attempt.problemId, {
         attempt,
@@ -3479,6 +3483,8 @@ export async function createNotebookProblemAttempt(args: {
   result?: NotebookProblemAttemptResult;
   activeDurationMs?: number | null;
   timingSource?: string | null;
+  /** Ungraded learning snapshots retain the learner's assessed progress and counts. */
+  preserveProgress?: boolean;
 }): Promise<NotebookProblemAttemptRecord> {
   const created = (await prismaDb.$transaction(async (tx: Prisma.TransactionClient) => {
     const attempt = await tx.notebookProblemAttempt.create({
@@ -3497,34 +3503,36 @@ export async function createNotebookProblemAttempt(args: {
       },
     });
 
-    await tx.notebookProblemProgress.upsert({
-      where: {
-        problemId_userId: {
+    if (!args.preserveProgress) {
+      await tx.notebookProblemProgress.upsert({
+        where: {
+          problemId_userId: {
+            problemId: args.problemId,
+            userId: args.userId,
+          },
+        },
+        update: {
+          latestAttemptId: attempt.id,
+          status: args.status,
+          score: args.score ?? null,
+          lastAttemptAt: attempt.createdAt,
+          attemptedCount: { increment: 1 },
+          ...(args.status === 'passed' ? { passedCount: { increment: 1 } } : {}),
+        },
+        create: {
           problemId: args.problemId,
           userId: args.userId,
+          latestAttemptId: attempt.id,
+          status: args.status,
+          score: args.score ?? null,
+          attemptedCount: 1,
+          passedCount: args.status === 'passed' ? 1 : 0,
+          lastAttemptAt: attempt.createdAt,
         },
-      },
-      update: {
-        latestAttemptId: attempt.id,
-        status: args.status,
-        score: args.score ?? null,
-        lastAttemptAt: attempt.createdAt,
-        attemptedCount: { increment: 1 },
-        ...(args.status === 'passed' ? { passedCount: { increment: 1 } } : {}),
-      },
-      create: {
-        problemId: args.problemId,
-        userId: args.userId,
-        latestAttemptId: attempt.id,
-        status: args.status,
-        score: args.score ?? null,
-        attemptedCount: 1,
-        passedCount: args.status === 'passed' ? 1 : 0,
-        lastAttemptAt: attempt.createdAt,
-      },
-    });
+      });
+    }
 
-    if (args.kind !== 'run') {
+    if (args.kind !== 'run' && !args.preserveProgress) {
       const problem = await tx.notebookProblem.findUnique({
         where: { id: args.problemId },
         select: { courseId: true, notebookId: true, notebook: { select: { courseId: true } } },

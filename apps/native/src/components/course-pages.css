@@ -4276,3 +4276,84 @@ span.pb-row-marble img {
   opacity: 0.5;
   cursor: default;
 }
+
+.pp-solution-button.is-active {
+  background: #e6f1ff;
+  color: #1d4ed8;
+}
+.pp-solution-content {
+  padding: 18px;
+}
+.pp-solution-content h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 650;
+}
+.pp-solution-content h4 {
+  margin: 20px 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.pp-solution-notice {
+  margin: 0 0 16px;
+  color: #64748b;
+  font-size: 12px;
+}
+.pp-solution-code {
+  max-width: 100%;
+  margin: 12px 0;
+  padding: 16px;
+  overflow: auto;
+  border-radius: 16px;
+  background: #f4f6fa;
+  font:
+    13px/1.7 ui-monospace,
+    monospace;
+  white-space: pre;
+}
+.pp-solution-confirm {
+  width: min(440px, calc(100vw - 32px));
+  box-sizing: border-box;
+  margin: auto;
+  padding: 26px;
+  border: 1px solid #ffffffc9;
+  border-radius: 24px;
+  background: #f8faff;
+  color: #172033;
+  box-shadow: 0 24px 80px #15213b30;
+}
+.pp-solution-confirm::backdrop {
+  background: #14213b4d;
+  backdrop-filter: blur(6px);
+}
+.pp-solution-confirm h2 {
+  margin: 0 0 12px;
+  font-size: 19px;
+  font-weight: 650;
+}
+.pp-solution-confirm > p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.pp-solution-remember {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+}
+.pp-solution-remember input {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+}
+.pp-solution-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+.pp-solution-confirm-actions button {
+  min-height: 38px;
+}
