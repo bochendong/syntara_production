@@ -126,6 +126,13 @@
     "repositoryAccess": "Only select repositories; syntara_production added; three existing repositories preserved",
     "approvalReceived": true,
     "evidence": "railway-auto-deploy-enabled.png",
-    "pushDeliveryVerification": "Pending this deployment-record push"
+    "pushDeliveryVerification": {
+      "verified": true,
+      "commit": "c12c7a27c101a90bfc8a049e80af9c63e2b64116",
+      "deploymentId": "65e6eec0-d7bb-4550-bafd-e6c1a610e4e3",
+      "status": "SKIPPED",
+      "reason": "no changes detected in watch paths, build will skip",
+      "verifiedAt": "2026-10-26T05:14:00Z"
+    }
   }
 }

@@ -20,7 +20,8 @@
 `codex/staging-next` 是测试服的主要发布分支，Railway 已连接
 `bochendong/syntara_production@codex/staging-next`。本次已从该分支成功部署。账号本人完成身份复核并批准后，已将目标仓库加入 Railway GitHub App
 的选择名单，原有三个仓库保持不变；Railway 已显示“Auto deploys when pushed to GitHub”。
-构建配置已排除文档和发布记录更新。`codex/staging-baseline` 仍只记录验证通过的线上提交。
+已用一次部署记录推送验证：Railway 收到 `c12c7a27`，部署事件 `65e6eec0` 按文档过滤规则
+标为 `SKIPPED`，没有替换当前运行版本。构建配置已排除文档和发布记录更新。`codex/staging-baseline` 仍只记录验证通过的线上提交。
 `main` 和正式服来源未更改。发布证据见
 [staging-2026-10-26-github-source.json](releases/staging-2026-10-26-github-source.json)。
 命令行没有写入凭据时，可以继续使用 GitHub Desktop 或 GitHub connector 推送；不要强推覆盖旧分支。
