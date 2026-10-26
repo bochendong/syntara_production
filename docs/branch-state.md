@@ -6,7 +6,7 @@
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `d7807ae8`，对应 Railway 发布 `5b0d8d12` |
+| 测试服源码基线 | `codex/staging-baseline` | `4fa935e1`，对应 Railway 发布 `fc3ab193` |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 测试服主要发布分支 | `codex/staging-next` | GitHub 是发布源；已授权目标仓库并启用自动部署 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
@@ -36,16 +36,23 @@
 新任务使用独立工作树和任务分支。从测试服开始时，选择 `codex/staging-baseline`；
 需要后续开发改动时，明确选择 `codex/staging-next`。不要因为某个旧目录更“新”就整体覆盖。
 
+2026-10-26 已整合 GitHub `codex/preview-style-parity` 的 `661d3243`（26 个文件），并删除聊天页右下角的金色星光及四处无用定位规则。
+新版做题布局、可拖动分栏、Python 调试、代码草稿、公式参考和图片作答的校验、批改与同步已部署。
+根项目和 App 类型、改动格式/lint、完整测试服构建、16 项 Python/草稿/缩进测试和两组图片作答回归通过；
+隔离浏览器实际运行 Python 输出“调试验收 5”。线上 8 个资源 SHA-256 与本地构建一致，真实聊天页星光为 0。
+图片批改使用模拟模型完成服务回归；本次未重复调用真实 AI 或重新打包 Mac，下载页保留已发布的桌面测试包。
+发布记录：[staging-2026-10-26-integration.json](releases/staging-2026-10-26-integration.json)。
+
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前发布：`5b0d8d12-56b4-454d-a85a-0b87535ee2eb`，源码提交：`d7807ae8`。
-- 发布快照包含 3,152 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
+- 当前发布：`fc3ab193-3429-40a9-a67e-4c934d88a14b`，源码提交：`4fa935e1`。
+- 发布快照包含 3,166 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
 - 测试服直接拉取 GitHub 的 `codex/staging-next`，使用 `railway.toml` 的 `staging` 覆盖配置；不再依赖本机源码快照上传。
 - 前次侧栏菜单对齐、宽度和头像 hover 背景：[staging-2026-10-25-sidebar-hover.json](releases/staging-2026-10-25-sidebar-hover.json)。
 - 前次课程头像、课程分层与版本发布：[staging-2026-10-25-course-layers.json](releases/staging-2026-10-25-course-layers.json)。
-- 数据库已执行 48 个迁移；前次发布核对为 27 门课程、174 本笔记、2,532 道题。本次只改部署链路，没有结构迁移。
+- 数据库已执行 48 个迁移；前次发布核对为 27 门课程、174 本笔记、2,532 道题。本次做题页整合与星光移除没有数据库结构迁移。
 - Mac 测试包已重新编译，下载页当前提供 `20261026T000156Z` 构建（Toronto 10 月 25 日）。
 - 前次学习页宽屏发布：[staging-2026-10-25-learning-wide.json](releases/staging-2026-10-25-learning-wide.json)。
 - 前次管理员发布：[staging-2026-10-25-admin.json](releases/staging-2026-10-25-admin.json)。

@@ -1,0 +1,183 @@
+{
+  "source": "4fa935e199dec48661cc8dd2f43174546bdbfde5",
+  "integratedCommit": "661d324374dbab6a7525f8932900dc92888c4cd6",
+  "previousDevelopment": "2327cf22ae6a46820e5ed336060ee18b6c26ced0",
+  "previousBaseline": "d7807ae8525078a7c9abf3671a59080e107dbf22",
+  "sourceTree": "db56bdf3a806b0508274eb99e1de29d1c629d32c",
+  "assets": [
+    {
+      "path": "/native-web/assets/index-BO-Rvrjn.css",
+      "sha256": "26730ed70855b43d99c8487c709ebfeb003a1a21258792ed429220b455734fbf",
+      "bytes": 369110
+    },
+    {
+      "path": "/native-web/assets/index-CEcfoEOF.js",
+      "sha256": "0e4655a313e4644da54b75d25242db6a05015dd2ffc68991407550cf1d279c81",
+      "bytes": 1654207
+    },
+    {
+      "path": "/native-web/assets/python-debug.worker-DbFtUTz0.js",
+      "sha256": "8e15b99c4052a216c1971496d3c7c0db7b9eab3b91dc105705a4a76149690507",
+      "bytes": 1047
+    },
+    {
+      "path": "/native-web/python-runtime/pyodide-lock.json",
+      "sha256": "3256ffc76388de0e37f4b34d42ab484268d1afc675179ff97b2a5bb14f84ccac",
+      "bytes": 120010
+    },
+    {
+      "path": "/native-web/python-runtime/pyodide.asm.js",
+      "sha256": "1263f02b5b26099b96112378156f242dd98b39a8201ba7765e5fe3d455c5ce91",
+      "bytes": 1074322
+    },
+    {
+      "path": "/native-web/python-runtime/pyodide.asm.wasm",
+      "sha256": "e2f4ee75b325e35eb31bfb8c613d4dd5098f5502c156a97847686875b5025480",
+      "bytes": 8647684
+    },
+    {
+      "path": "/native-web/python-runtime/pyodide.mjs",
+      "sha256": "23213d27e9dacbda6f25f955fb38dabfc40ada082c04ee253047ea5dddcaa3b5",
+      "bytes": 17616
+    },
+    {
+      "path": "/native-web/python-runtime/python_stdlib.zip",
+      "sha256": "4298b6ee445cb724c3973437da47789752b9e6ff4e26619026b283ec801fc46b",
+      "bytes": 2423989
+    }
+  ],
+  "checks": {
+    "rootAndNativeTypes": "passed",
+    "changedFormatLint": "passed",
+    "fullStagingWebBuild": "passed",
+    "pythonRuntimeAndDraftTests": 16,
+    "nativePhotoAnswerRegression": "passed",
+    "webPhotoAnswerGradingRegression": "passed",
+    "browserPythonOutput": "调试验收 5",
+    "browserSparkleCount": 0
+  },
+  "databaseMigrationChanges": false,
+  "desktopInstallerChanged": false,
+  "scope": [
+    "Remove fixed decorative gold sparkle and all unused positioning rules",
+    "Integrate all 26 files of GitHub preview-style-parity: practice layout, Python debug runtime, code drafts, formula reference and photo answer UI/grading/sync"
+  ],
+  "deployment": {
+    "id": "fc3ab193-3429-40a9-a67e-4c934d88a14b",
+    "status": "SUCCESS",
+    "createdAt": "2026-10-26T07:22:38.673Z",
+    "updatedAt": "2026-10-26T07:29:50.065Z",
+    "serviceId": "fd6afb05-6491-451a-b577-abf15fdc0047",
+    "environmentId": "6697de1f-eb0d-4a6f-8709-cfe477a29f11",
+    "meta": {
+      "reason": "deploy",
+      "commitMessage": "Remove unused floating gold sparkle from course chat",
+      "commitHash": "4fa935e199dec48661cc8dd2f43174546bdbfde5",
+      "branch": "codex/staging-next"
+    }
+  },
+  "live": {
+    "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+    "checkedAt": "2026-10-26T07:30:44.859Z",
+    "checks": [
+      {
+        "path": "/api/health",
+        "status": 200
+      },
+      {
+        "path": "/",
+        "status": 200
+      },
+      {
+        "path": "/download",
+        "status": 200
+      },
+      {
+        "path": "/test/app",
+        "status": 200
+      },
+      {
+        "path": "/admin",
+        "status": 200
+      },
+      {
+        "path": "/api/native/v1/grade",
+        "method": "POST",
+        "status": 401
+      },
+      {
+        "path": "/api/native/v1/problems",
+        "method": "POST",
+        "status": 401
+      }
+    ],
+    "assets": [
+      {
+        "path": "/native-web/assets/index-BO-Rvrjn.css",
+        "sha256": "26730ed70855b43d99c8487c709ebfeb003a1a21258792ed429220b455734fbf",
+        "bytes": 369110,
+        "matchesVerifiedBuild": true
+      },
+      {
+        "path": "/native-web/assets/index-CEcfoEOF.js",
+        "sha256": "0e4655a313e4644da54b75d25242db6a05015dd2ffc68991407550cf1d279c81",
+        "bytes": 1654207,
+        "matchesVerifiedBuild": true
+      },
+      {
+        "path": "/native-web/assets/python-debug.worker-DbFtUTz0.js",
+        "sha256": "8e15b99c4052a216c1971496d3c7c0db7b9eab3b91dc105705a4a76149690507",
+        "bytes": 1047,
+        "matchesVerifiedBuild": true
+      },
+      {
+        "path": "/native-web/python-runtime/pyodide-lock.json",
+        "sha256": "3256ffc76388de0e37f4b34d42ab484268d1afc675179ff97b2a5bb14f84ccac",
+        "bytes": 120010,
+        "matchesVerifiedBuild": true
+      },
+      {
+        "path": "/native-web/python-runtime/pyodide.asm.js",
+        "sha256": "1263f02b5b26099b96112378156f242dd98b39a8201ba7765e5fe3d455c5ce91",
+        "bytes": 1074322,
+        "matchesVerifiedBuild": true
+      },
+      {
+        "path": "/native-web/python-runtime/pyodide.asm.wasm",
+        "sha256": "e2f4ee75b325e35eb31bfb8c613d4dd5098f5502c156a97847686875b5025480",
+        "bytes": 8647684,
+        "matchesVerifiedBuild": true
+      },
+      {
+        "path": "/native-web/python-runtime/pyodide.mjs",
+        "sha256": "23213d27e9dacbda6f25f955fb38dabfc40ada082c04ee253047ea5dddcaa3b5",
+        "bytes": 17616,
+        "matchesVerifiedBuild": true
+      },
+      {
+        "path": "/native-web/python-runtime/python_stdlib.zip",
+        "sha256": "4298b6ee445cb724c3973437da47789752b9e6ff4e26619026b283ec801fc46b",
+        "bytes": 2423989,
+        "matchesVerifiedBuild": true
+      }
+    ],
+    "installerAvailable": true,
+    "sparkleAbsentFromEntryAssets": true
+  },
+  "repository": "bochendong/syntara_production",
+  "branch": "codex/staging-next",
+  "baselineBranch": "codex/staging-baseline",
+  "sourceFiles": 3166,
+  "evidence": "Git common directory codex/tasks/staging-integration-20261026/",
+  "limitations": [
+    "Photo grading service tested with mocked model; no new real AI grading call",
+    "Mac installer remains previously published build"
+  ],
+  "liveBrowser": {
+    "course": "CSC 108",
+    "notes": 4,
+    "problems": 77,
+    "sparkleCount": 0,
+    "horizontalOverflow": false
+  }
+}
