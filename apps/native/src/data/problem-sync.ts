@@ -133,8 +133,14 @@ function uploadOf(attempt: LocalProblemAttempt): NativeProblemAttemptUpload | nu
               .slice(0, 4),
           }
         : {}),
+      ...(answer.kind === 'parts' && answer.parts && typeof answer.parts === 'object'
+        ? { parts: answer.parts as NonNullable<NativeProblemAttemptUpload['answer']['parts']> }
+        : {}),
       ...(typeof answer.code === 'string' ? { code: answer.code.slice(0, 120_000) } : {}),
     },
+    ...(Array.isArray(result.parts)
+      ? { parts: result.parts as NonNullable<NativeProblemAttemptUpload['parts']> }
+      : {}),
     feedback: typeof result.feedback === 'string' ? result.feedback.slice(0, 8000) : null,
     autoGraded: result.autoGraded === true,
     createdAt: attempt.createdAt,

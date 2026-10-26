@@ -567,9 +567,24 @@ export interface NativeProblemAttemptUpload {
     text?: string;
     code?: string;
     images?: PhotoAnswerImage[];
+    /** 分小问的大题：按小问编号存每问的作答 */
+    parts?: Record<
+      string,
+      { selectedOptionIds?: string[]; text?: string; blanks?: Record<string, string> }
+    >;
   };
   feedback?: string | null;
   autoGraded?: boolean;
+  /** 大题每问的结果；share 是这一问占整题的比例，score 是这一问得分率（0–1） */
+  parts?: Array<{
+    label: string;
+    status: 'pending' | 'passed' | 'failed' | 'partial';
+    score: number;
+    share: number;
+    feedback?: string;
+    gradedAt?: number;
+    submissions?: number;
+  }>;
   createdAt: number;
 }
 

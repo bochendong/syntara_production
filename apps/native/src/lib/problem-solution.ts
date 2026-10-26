@@ -10,7 +10,24 @@ export function problemSolution(problem: LocalProblem): ProblemSolution {
   let answer = '';
   let code = '';
   const explanation = text(grading.analysis) || text(problem.publicContent.explanation);
-  if (problem.type === 'choice') {
+  if (problem.type === 'multipart' && Array.isArray(problem.publicContent.parts)) {
+    const grades = Array.isArray(grading.parts)
+      ? (grading.parts as Array<{ label: string; grading: Record<string, unknown> }>)
+      : [];
+    answer = (
+      problem.publicContent.parts as Array<{ label: string; content: Record<string, unknown> }>
+    )
+      .map((part) => {
+        const result = problemSolution({
+          ...problem,
+          type: String(part.content.type),
+          publicContent: part.content,
+          grading: grades.find((g) => g.label === part.label)?.grading ?? {},
+        });
+        return `**小问 (${part.label})**\n\n${result.answer}${result.explanation ? '\n\n' + result.explanation : ''}`;
+      })
+      .join('\n\n');
+  } else if (problem.type === 'choice') {
     const correct = Array.isArray(grading.correctOptionIds) ? grading.correctOptionIds : [];
     answer = problemOptions(problem)
       .filter((option) => correct.includes(option.id))

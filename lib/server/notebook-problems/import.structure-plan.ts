@@ -290,7 +290,7 @@ export function buildStructurePlanPrompt(
       "index": 1,
       "topLevelLabel": "1",
       "title": "概念导向标题",
-      "problemTypeHint": "choice|proof|calculation|short_answer|code|fill_blank|unknown",
+      "problemTypeHint": "choice|proof|calculation|short_answer|code|fill_blank|multipart|unknown",
       "pageStart": 2,
       "pageEnd": 3,
       "sourceAnchors": [{"pageNumber":2,"sourcePageId":"page_2","textQuote":"题目开头短引文","role":"problem"}],
@@ -304,7 +304,7 @@ export function buildStructurePlanPrompt(
 }
 
 要求：
-- 顶层题号是一道题；(i)/(ii)/(a)/(b) 是 subparts。
+- 顶层题号是一道题；(i)/(ii)/(a)/(b) 是 subparts，不要拆成多个条目，problemTypeHint 写 multipart。
 - 考试说明、答题卡说明、封面、空白页、additional work 不进入 topLevelProblems。
 - 换科目也一样：代码、实验数据、案例材料、图表都要进入对应题目的 contextBlocks。
 
@@ -324,7 +324,7 @@ Return shape:
       "index": 1,
       "topLevelLabel": "1",
       "title": "concept-focused title",
-      "problemTypeHint": "choice|proof|calculation|short_answer|code|fill_blank|unknown",
+      "problemTypeHint": "choice|proof|calculation|short_answer|code|fill_blank|multipart|unknown",
       "pageStart": 2,
       "pageEnd": 3,
       "sourceAnchors": [{"pageNumber":2,"sourcePageId":"page_2","textQuote":"short opening quote","role":"problem"}],
@@ -338,7 +338,7 @@ Return shape:
 }
 
 Rules:
-- A top-level question number is one problem; (i)/(ii)/(a)/(b) are subparts.
+- A top-level question number is one problem; (i)/(ii)/(a)/(b) are subparts, never separate items, and problemTypeHint is multipart.
 - Exam instructions, answer-sheet directions, covers, blanks, and additional-work pages are non-problem regions.
 - This must work across subjects: code, experimental data, case material, diagrams, and tables should become contextBlocks for the owning problem.
 

@@ -13,6 +13,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  emptyPart,
+  MultipartPartsEditor,
+  type RawGradingPart,
+  type RawPart,
+} from './multipart-parts-editor';
 
 type Locale = 'zh-CN' | 'en-US';
 
@@ -83,6 +89,35 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
     publicContent.taskKind = 'implementation';
     publicContent.responseKind = 'code_submission';
     grading.graderKind = 'code_runner';
+  } else if (type === 'multipart') {
+    publicContent.responseKind = 'multipart';
+    grading.graderKind = 'per_part';
+    const rawParts = Array.isArray(publicContent.parts) ? (publicContent.parts as RawPart[]) : [];
+    const rawGrading = Array.isArray(grading.parts) ? (grading.parts as RawGradingPart[]) : [];
+    // 每一问按普通题规范化一遍，再放回大题
+    const normalizedParts = rawParts.map((part) => {
+      const partGrading = rawGrading.find((item) => item.label === part.label)?.grading ?? {};
+      const partType = typeof part.content?.type === 'string' ? part.content.type : 'short_answer';
+      const normalized = normalizeDraftForValidation({
+        type: partType,
+        publicContent: part.content,
+        grading: partGrading,
+      });
+      const content = { ...(normalized.publicContent as Record<string, unknown>) };
+      delete content.contractVersion;
+      delete content.statementFormat;
+      return {
+        part: {
+          label: String(part.label ?? '').trim(),
+          points: Number.isFinite(part.points) ? Math.max(0, part.points) : 0,
+          ...(part.dependsOn?.length ? { dependsOn: part.dependsOn } : {}),
+          content,
+        },
+        grading: { label: String(part.label ?? '').trim(), grading: normalized.grading },
+      };
+    });
+    publicContent.parts = normalizedParts.map((item) => item.part);
+    grading.parts = normalizedParts.map((item) => item.grading);
   }
 
   if (type === 'choice') {
@@ -354,6 +389,12 @@ export function ProblemDraftForm({
       content.blanks = [{ id: 'blank_1', answerKind: 'text' }];
       nextGrading.blanks = [{ id: 'blank_1', acceptedAnswers: [], caseSensitive: false }];
     }
+    if (type === 'multipart') {
+      const first = emptyPart('a');
+      const second = emptyPart('b');
+      content.parts = [first.part, second.part];
+      nextGrading.parts = [first.grading, second.grading];
+    }
     if (type === 'code') {
       content.language = 'python';
       content.starterCode = '';
@@ -414,6 +455,9 @@ export function ProblemDraftForm({
           {currentType === 'choice' ? (
             <TabsTrigger value="options">{locale === 'zh-CN' ? '选项' : 'Options'}</TabsTrigger>
           ) : null}
+          {currentType === 'multipart' ? (
+            <TabsTrigger value="parts">{locale === 'zh-CN' ? '小问' : 'Parts'}</TabsTrigger>
+          ) : null}
           <TabsTrigger value="analysis">{locale === 'zh-CN' ? '解析' : 'Analysis'}</TabsTrigger>
           {currentType === 'code' ? (
             <TabsTrigger value="examples">{locale === 'zh-CN' ? '示例' : 'Examples'}</TabsTrigger>
@@ -451,13 +495,27 @@ export function ProblemDraftForm({
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm"
               >
                 {(
-                  ['short_answer', 'choice', 'proof', 'calculation', 'fill_blank', 'code'] as const
+                  [
+                    'short_answer',
+                    'choice',
+                    'proof',
+                    'calculation',
+                    'fill_blank',
+                    'code',
+                    'multipart',
+                  ] as const
                 ).map((type, index) => (
                   <option key={type} value={type}>
                     {locale === 'zh-CN'
-                      ? ['简答题', '选择题', '证明题', '计算题', '填空题（含代码填空）', '编程题'][
-                          index
-                        ]
+                      ? [
+                          '简答题',
+                          '选择题',
+                          '证明题',
+                          '计算题',
+                          '填空题（含代码填空）',
+                          '编程题',
+                          '分小问的大题',
+                        ][index]
                       : [
                           'Short answer',
                           'Choice',
@@ -465,6 +523,7 @@ export function ProblemDraftForm({
                           'Calculation',
                           'Fill blanks (including code)',
                           'Programming',
+                          'Multi-part',
                         ][index]}
                   </option>
                 ))}
@@ -544,10 +603,17 @@ export function ProblemDraftForm({
           currentType === 'proof' ||
           currentType === 'calculation' ||
           currentType === 'code' ||
-          currentType === 'choice' ? (
+          currentType === 'choice' ||
+          currentType === 'multipart' ? (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                {locale === 'zh-CN' ? '题面' : 'Problem statement'}
+                {currentType === 'multipart'
+                  ? locale === 'zh-CN'
+                    ? '共享题干（背景、条件、表格，所有小问共用）'
+                    : 'Shared stem (context used by every part)'
+                  : locale === 'zh-CN'
+                    ? '题面'
+                    : 'Problem statement'}
               </label>
               <Textarea
                 className={
@@ -792,6 +858,25 @@ export function ProblemDraftForm({
                   })
                 : null}
             </div>
+          ) : null}
+        </TabsContent>
+        <TabsContent value="parts" className="space-y-4">
+          {currentType === 'multipart' ? (
+            <MultipartPartsEditor
+              parts={Array.isArray(publicContent.parts) ? (publicContent.parts as RawPart[]) : []}
+              gradingParts={Array.isArray(grading.parts) ? (grading.parts as RawGradingPart[]) : []}
+              locale={locale}
+              onChange={(parts, gradingParts) => {
+                setWorkingDraft((prev) => ({
+                  ...prev,
+                  publicContent: {
+                    ...(prev.publicContent as Record<string, unknown>),
+                    parts,
+                  },
+                  grading: { ...(prev.grading as Record<string, unknown>), parts: gradingParts },
+                }));
+              }}
+            />
           ) : null}
         </TabsContent>
         <TabsContent value="analysis" className="space-y-4">

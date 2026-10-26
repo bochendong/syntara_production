@@ -11,7 +11,14 @@ export type PhotoAnswerImage = {
 export type LocalProblemAnswer =
   | { kind: 'choice'; selectedOptionIds: string[] }
   | { kind: 'text'; text: string; images?: PhotoAnswerImage[] }
-  | { kind: 'code'; code: string };
+  | { kind: 'code'; code: string }
+  | {
+      kind: 'parts';
+      parts: Record<
+        string,
+        { selectedOptionIds?: string[]; text?: string; blanks?: Record<string, string> }
+      >;
+    };
 
 export type LocalGradeResult = {
   status: 'passed' | 'partial' | 'failed' | 'pending';
@@ -164,6 +171,10 @@ export function problemTypeLabel(type: string): string {
       return '证明题';
     case 'code':
       return '编程题';
+    case 'fill_blank':
+      return '填空题';
+    case 'multipart':
+      return '分小问';
     default:
       return type || '题目';
   }
@@ -182,6 +193,7 @@ export function emptyAnswerForProblem(problem: LocalProblem): LocalProblemAnswer
   if (problem.type === 'code') {
     return { kind: 'code', code: problemStarterCode(problem) };
   }
+  if (problem.type === 'multipart') return { kind: 'parts', parts: {} };
   return { kind: 'text', text: '' };
 }
 
@@ -189,6 +201,14 @@ export function answerHasContent(answer: LocalProblemAnswer | null | undefined):
   if (!answer) return false;
   if (answer.kind === 'choice') return answer.selectedOptionIds.length > 0;
   if (answer.kind === 'code') return answer.code.trim().length > 0;
+  if (answer.kind === 'parts')
+    return Object.values(answer.parts).some((p) =>
+      Boolean(
+        p.text?.trim() ||
+        p.selectedOptionIds?.length ||
+        Object.values(p.blanks ?? {}).some((v) => v.trim()),
+      ),
+    );
   return answer.text.trim().length > 0 || Boolean(answer.images?.length);
 }
 

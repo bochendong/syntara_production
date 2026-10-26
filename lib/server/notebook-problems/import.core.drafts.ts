@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { jsonrepair } from 'jsonrepair';
 import { ZodError } from 'zod';
 import {
+  problemStatementText,
   notebookProblemImportDraftSchema,
   type NotebookProblemImportDraft,
   type NotebookProblemSource,
@@ -51,6 +52,27 @@ function deliveryContractValidationErrors(draft: NotebookProblemImportDraft): st
   const grading = draft.grading;
   const stem = 'stem' in content ? content.stem : content.stemTemplate;
   const errors = markdownFenceValidationErrors(stem);
+  if (content.type === 'multipart' && grading.type === 'multipart') {
+    if (content.responseKind && content.responseKind !== 'multipart') {
+      errors.push('题型 multipart 的 responseKind 必须是 multipart');
+    }
+    for (const part of content.parts) {
+      const partGrading = grading.parts.find((item) => item.label === part.label)?.grading;
+      if (!partGrading || partGrading.type !== part.content.type) {
+        errors.push(`小问 (${part.label}) 缺少与题型一致的评分数据`);
+        continue;
+      }
+      for (const error of deliveryContractValidationErrors({
+        ...draft,
+        type: part.content.type,
+        publicContent: part.content,
+        grading: partGrading,
+      })) {
+        errors.push(`小问 (${part.label})：${error}`);
+      }
+    }
+    return errors;
+  }
   const usesDeliveryContract = content.contractVersion === 'syntara.problem.v1';
 
   if (usesDeliveryContract && content.statementFormat !== 'syntara-markdown-v1') {
@@ -65,6 +87,7 @@ function deliveryContractValidationErrors(draft: NotebookProblemImportDraft): st
       calculation: 'math_expression',
       fill_blank: 'fill_blank',
       code: 'code_submission',
+      multipart: 'multipart',
     }[content.type];
     const expectedGraderKind = {
       short_answer: 'rubric',
@@ -73,6 +96,7 @@ function deliveryContractValidationErrors(draft: NotebookProblemImportDraft): st
       calculation: 'numeric_or_exact',
       fill_blank: 'blank_match',
       code: 'code_runner',
+      multipart: 'per_part',
     }[grading.type];
     if (content.responseKind !== expectedResponseKind) {
       errors.push(`题型 ${content.type} 的 responseKind 必须是 ${expectedResponseKind}`);
@@ -311,9 +335,7 @@ export function normalizeFillBlankStemTemplate(text: string): string {
 }
 
 export function problemStemText(draft: NotebookProblemImportDraft): string {
-  return 'stem' in draft.publicContent
-    ? draft.publicContent.stem
-    : draft.publicContent.stemTemplate;
+  return problemStatementText(draft.publicContent);
 }
 
 export type SubpartSection = {
@@ -688,6 +710,69 @@ export function normalizeRawCandidate(
   const expandedPublicOptions = expandChoiceOptions(publicContent.options);
   if (expandedPublicOptions) {
     publicContent.options = expandedPublicOptions;
+  }
+
+  if (type === 'multipart') {
+    // 每个小问按普通题规范化一遍，再放回 parts / grading.parts
+    const rawParts = Array.isArray(publicContent.parts) ? publicContent.parts : [];
+    const rawGradingParts = Array.isArray(grading.parts) ? grading.parts : [];
+    const parts: Record<string, unknown>[] = [];
+    const gradingParts: Record<string, unknown>[] = [];
+    rawParts.forEach((item, index) => {
+      const part = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+      const label = String(part.label ?? String.fromCharCode(97 + index)).trim();
+      const content =
+        part.content && typeof part.content === 'object'
+          ? (part.content as Record<string, unknown>)
+          : {};
+      const matched = rawGradingParts.find(
+        (row) => row && typeof row === 'object' && (row as Record<string, unknown>).label === label,
+      ) as Record<string, unknown> | undefined;
+      const partType = typeof content.type === 'string' ? content.type : 'short_answer';
+      const normalized = normalizeRawCandidate(
+        { type: partType, title: label, publicContent: content, grading: matched?.grading ?? {} },
+        source,
+      );
+      const normalizedContent = { ...(normalized.publicContent as Record<string, unknown>) };
+      delete normalizedContent.contractVersion;
+      delete normalizedContent.statementFormat;
+      parts.push({
+        label,
+        points: typeof part.points === 'number' && part.points >= 0 ? part.points : 1,
+        ...(Array.isArray(part.dependsOn) ? { dependsOn: part.dependsOn } : {}),
+        content: normalizedContent,
+      });
+      gradingParts.push({ label, grading: normalized.grading });
+      for (const error of normalized.validationErrors as string[]) {
+        validationErrors.push(`小问 (${label})：${error}`);
+      }
+    });
+    publicContent.parts = parts;
+    publicContent.responseKind = 'multipart';
+    if (typeof publicContent.stem === 'string') {
+      publicContent.stem = normalizeMathMarkdown(publicContent.stem);
+    }
+    grading.parts = gradingParts;
+    grading.graderKind = 'per_part';
+    return {
+      source,
+      draftId: randomUUID(),
+      status: 'draft',
+      points: 1,
+      difficulty: 'medium',
+      sourceMeta: {},
+      ...base,
+      tags: [],
+      validationErrors,
+      title: normalizeTitle(
+        typeof base.title === 'string'
+          ? base.title
+          : pickFirstString(publicContent.stem, String(base.title ?? '')) || 'Untitled problem',
+        'multipart',
+      ),
+      publicContent,
+      grading,
+    };
   }
 
   if (

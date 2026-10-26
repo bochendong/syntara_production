@@ -41,6 +41,7 @@ import {
   renderProblemRichTextHtml,
 } from '@/components/problem-bank/problem-rich-text';
 import {
+  multipartStatementMarkdown,
   notebookProblemImportDraftSchema,
   type NotebookProblemAttemptRecord,
   type NotebookProblemAttemptStatus,
@@ -73,6 +74,7 @@ function typeLabel(type: NotebookProblemClientRecord['type'], locale: 'zh-CN' | 
     calculation: '计算题',
     code: '代码题',
     fill_blank: '填空题',
+    multipart: '分小问',
   } as const;
   const en = {
     short_answer: 'Short answer',
@@ -81,6 +83,7 @@ function typeLabel(type: NotebookProblemClientRecord['type'], locale: 'zh-CN' | 
     calculation: 'Calculation',
     code: 'Code',
     fill_blank: 'Fill in the blank',
+    multipart: 'Multi-part',
   } as const;
   return locale === 'zh-CN' ? zh[type] : en[type];
 }
@@ -212,6 +215,7 @@ function renderProblemStem(problem: NotebookProblemClientRecord): string {
 }
 
 function renderProblemContentStem(content: NotebookProblemPublicContent): string {
+  if (content.type === 'multipart') return multipartStatementMarkdown(content);
   if ('stem' in content) return content.stem;
   if (content.type === 'fill_blank') {
     const blankNumberById = new Map(
@@ -228,6 +232,7 @@ function renderProblemContentStem(content: NotebookProblemPublicContent): string
 
 function renderDraftStem(draft: NotebookProblemImportDraft): string {
   const content = draft.publicContent;
+  if (content.type === 'multipart') return multipartStatementMarkdown(content);
   if ('stem' in content) return content.stem;
   if (content.type === 'fill_blank') return content.stemTemplate;
   return '';

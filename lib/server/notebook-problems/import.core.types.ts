@@ -67,6 +67,7 @@ export interface ProblemStructureItem {
     | 'short_answer'
     | 'code'
     | 'fill_blank'
+    | 'multipart'
     | 'unknown';
   pageStart?: number;
   pageEnd?: number;
@@ -166,7 +167,16 @@ export const problemStructurePlanSchema = z.object({
         title: z.string().trim().min(1).max(200),
         points: z.number().int().min(0).max(1000).optional(),
         problemTypeHint: z
-          .enum(['choice', 'proof', 'calculation', 'short_answer', 'code', 'fill_blank', 'unknown'])
+          .enum([
+            'choice',
+            'proof',
+            'calculation',
+            'short_answer',
+            'code',
+            'fill_blank',
+            'multipart',
+            'unknown',
+          ])
           .default('unknown'),
         pageStart: z.number().int().positive().optional(),
         pageEnd: z.number().int().positive().optional(),

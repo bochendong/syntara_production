@@ -3,15 +3,25 @@ import { callLLM } from '@/lib/ai/llm';
 import type {
   NotebookProblemAttemptAnswer,
   NotebookProblemAttemptResult,
+  NotebookProblemPartResult,
   NotebookProblemRecord,
 } from '@/lib/problem-bank';
 import {
+  aggregatePartStatus,
+  buildPartProblem,
+  formatPartLabel,
+  isAutoGradedPartType,
   isNotebookCalculationProblemRecord,
   isNotebookChoiceProblemRecord,
   isNotebookFillBlankProblemRecord,
+  isNotebookMultipartProblemRecord,
   isNotebookProofProblemRecord,
   isNotebookShortAnswerProblemRecord,
+  MULTIPART_PART_SUBMISSION_LIMIT,
+  partPointShares,
+  submittedPartAnswers,
 } from '@/lib/problem-bank';
+import { maxScoreForAttempt } from '@/lib/problem-bank/scoring-policy';
 import { parseNumericPair, parseNumericScalar } from '@/lib/problem-bank/numeric-answer';
 
 function normalizeText(value: string): string {
@@ -403,6 +413,156 @@ export async function evaluateNotebookNonCodeProblem(args: {
           : 'This problem type requires a dedicated evaluation flow.',
       earnedPoints: 0,
       publicCases: [],
+    },
+  };
+}
+
+/**
+ * 大题逐问判分：只批改这次交了的小问，其余小问沿用上一次的结果。
+ * 每问复用对应题型的判分器；自动判分的小问各自最多交 3 次，分数上限 100% → 60% → 30%。
+ */
+export async function evaluateNotebookMultipartProblem(args: {
+  problem: NotebookProblemRecord;
+  answer: NotebookProblemAttemptAnswer;
+  previous?: { answer: NotebookProblemAttemptAnswer; result?: NotebookProblemAttemptResult } | null;
+  model?: LanguageModel;
+  language: 'zh-CN' | 'en-US';
+}): Promise<{
+  status: 'pending' | 'passed' | 'failed' | 'partial' | 'error';
+  score: number;
+  answer: NotebookProblemAttemptAnswer;
+  result: NotebookProblemAttemptResult;
+}> {
+  const zh = args.language === 'zh-CN';
+  const { problem } = args;
+  if (!isNotebookMultipartProblemRecord(problem)) {
+    return {
+      status: 'error',
+      score: 0,
+      answer: args.answer,
+      result: {
+        correct: false,
+        feedback: zh ? '这道题不是分小问的大题。' : 'This is not a multi-part problem.',
+        earnedPoints: 0,
+        publicCases: [],
+      },
+    };
+  }
+  const content = problem.publicContent;
+  const submitted = submittedPartAnswers(content, args.answer);
+  if (Object.keys(submitted).length === 0) {
+    return {
+      status: 'error',
+      score: 0,
+      answer: args.answer,
+      result: {
+        correct: false,
+        feedback: zh ? '请至少回答一个小问。' : 'Answer at least one part.',
+        earnedPoints: 0,
+        publicCases: [],
+      },
+    };
+  }
+
+  const shares = partPointShares(content.parts, problem.points);
+  const previousResults = new Map(
+    (args.previous?.result?.parts ?? []).map((part) => [part.label, part] as const),
+  );
+  const mergedAnswers = { ...(args.previous?.answer.parts ?? {}), ...submitted };
+  const now = Date.now();
+
+  const partResults = await Promise.all(
+    content.parts.map(async (part, index): Promise<NotebookProblemPartResult> => {
+      const points = Math.round(shares[index] * 100) / 100;
+      const previous = previousResults.get(part.label);
+      const carried: NotebookProblemPartResult = previous
+        ? { ...previous, points }
+        : { label: part.label, status: 'pending', score: 0, points, submissions: 0 };
+      const partAnswer = submitted[part.label];
+      if (!partAnswer) return carried;
+
+      const priorSubmissions = previous?.submissions ?? 0;
+      const limited = isAutoGradedPartType(part.content.type);
+      if (limited && priorSubmissions >= MULTIPART_PART_SUBMISSION_LIMIT) {
+        return {
+          ...carried,
+          feedback: zh
+            ? `${formatPartLabel(part.label)} 已经交满 ${MULTIPART_PART_SUBMISSION_LIMIT} 次，保留上次结果。`
+            : `${formatPartLabel(part.label)} already used ${MULTIPART_PART_SUBMISSION_LIMIT} submissions; the last result is kept.`,
+        };
+      }
+      const partProblem = buildPartProblem(problem, index, points);
+      if (!partProblem) {
+        return {
+          ...carried,
+          status: 'pending',
+          feedback: zh
+            ? '这一问缺少评分标准，已保存作答，等待老师批改。'
+            : 'This part has no grading data; the answer was saved for manual grading.',
+        };
+      }
+      const graded = await evaluateNotebookNonCodeProblem({
+        problem: partProblem,
+        answer: partAnswer,
+        model: args.model,
+        language: args.language,
+      });
+      if (graded.status === 'error') {
+        // 批改失败不算一次提交，保留上次结果
+        return { ...carried, feedback: graded.result.feedback };
+      }
+      const submissions = priorSubmissions + 1;
+      const cap = limited ? maxScoreForAttempt(submissions) / 100 : 1;
+      const score = Math.round(Math.min(points, graded.score) * cap * 100) / 100;
+      return {
+        label: part.label,
+        status: graded.status,
+        score,
+        points,
+        correct: graded.result.correct ?? null,
+        feedback: graded.result.feedback,
+        analysis: graded.result.analysis,
+        gradedAt: now,
+        submissions,
+      };
+    }),
+  );
+
+  const graderFailures = partResults.filter(
+    (part) => submitted[part.label] && part.gradedAt !== now,
+  );
+  if (graderFailures.length === Object.keys(submitted).length) {
+    return {
+      status: 'error',
+      score: 0,
+      answer: args.answer,
+      result: {
+        correct: false,
+        feedback:
+          graderFailures.map((part) => part.feedback).find(Boolean) ||
+          (zh ? 'AI 批改暂时失败，请稍后重试。' : 'Grading failed. Please retry.'),
+        earnedPoints: 0,
+        publicCases: [],
+      },
+    };
+  }
+
+  const score = Math.round(partResults.reduce((acc, part) => acc + part.score, 0) * 100) / 100;
+  const status = aggregatePartStatus(partResults);
+  const done = partResults.filter((part) => part.status === 'passed').length;
+  return {
+    status,
+    score,
+    answer: { ...args.answer, parts: mergedAnswers },
+    result: {
+      correct: status === 'passed',
+      feedback: zh
+        ? `答对 ${done}/${partResults.length} 个小问。`
+        : `${done}/${partResults.length} parts correct.`,
+      analysis: problem.grading.analysis,
+      earnedPoints: score,
+      publicCases: [],
+      parts: partResults,
     },
   };
 }

@@ -626,7 +626,10 @@ async function requireNotebookReadAccess(
   };
 }
 
-async function requireCourseOwnership(userId: string, courseId: string): Promise<OwnedCourse> {
+export async function requireCourseOwnership(
+  userId: string,
+  courseId: string,
+): Promise<OwnedCourse> {
   const course = await prisma.course.findFirst({
     where: { id: courseId, ownerId: userId },
     select: { id: true, name: true },
@@ -934,7 +937,7 @@ async function touchOwnersAfterProblemWriteTx(args: {
   }
 }
 
-async function touchOwnersAfterProblemWrite(args: {
+export async function touchOwnersAfterProblemWrite(args: {
   courseId?: string | null;
   notebookIds?: Array<string | null | undefined>;
 }) {
@@ -3174,6 +3177,8 @@ export async function updateCourseProblem(args: {
     points?: number;
     order?: number;
     difficulty?: string;
+    type?: 'multipart';
+    sourceMeta?: Record<string, unknown>;
     publicContent?: unknown;
     grading?: unknown;
     secretJudge?: unknown | null;
@@ -3231,7 +3236,7 @@ export async function updateCourseProblem(args: {
         draftId: current.problem.id,
         notebookId: nextNotebookId,
         title: args.patch.title ?? current.problem.title,
-        type: current.problem.type,
+        type: args.patch.type ?? current.problem.type,
         status,
         source: current.problem.source,
         points: args.patch.points ?? current.problem.points,
@@ -3240,7 +3245,7 @@ export async function updateCourseProblem(args: {
         publicContent,
         grading,
         secretJudge: effectiveSecretJudge,
-        sourceMeta: current.problem.sourceMeta,
+        sourceMeta: args.patch.sourceMeta ?? current.problem.sourceMeta,
         validationErrors: [],
       }),
     ),
@@ -3259,6 +3264,7 @@ export async function updateCourseProblem(args: {
       where: { id: args.problemId },
       data: {
         title: normalizedDraft.title,
+        type: normalizedDraft.type,
         status: normalizedDraft.status,
         order: args.patch.order ?? current.problem.order,
         points: normalizedDraft.points,
@@ -3592,6 +3598,29 @@ export async function countNotebookProblemSubmissions(args: {
       kind: { in: ['submit', 'answer'] },
     },
   });
+}
+
+/** 大题逐问判分要沿用上一次各小问的结果和作答。 */
+export async function getLatestNotebookProblemSubmission(args: {
+  userId: string;
+  problemId: string;
+}): Promise<Pick<NotebookProblemAttemptRecord, 'answer' | 'result'> | null> {
+  const rows = (await prismaDb.notebookProblemAttempt.findMany({
+    where: {
+      userId: args.userId,
+      problemId: args.problemId,
+      kind: { in: ['submit', 'answer'] },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  })) as unknown as ProblemAttemptRow[];
+  const row = rows.find((row) => {
+    const event = (row.resultJson as { event?: string } | null)?.event;
+    return event !== 'solution_viewed' && event !== 'answer_reset';
+  });
+  if (!row) return null;
+  const attempt = mapAttemptRow(row);
+  return { answer: attempt.answer, result: attempt.result };
 }
 
 export async function listNotebookProblemAttempts(args: {

@@ -1,5 +1,6 @@
 'use client';
 import { InteractiveFillBlank } from './interactive-fill-blank';
+import { MultipartAnswerPanel } from './multipart-answer-panel';
 import { buildCodeTestFile } from '@/lib/problem-bank/code-test-files';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
@@ -45,6 +46,7 @@ import { ProblemEditDialog } from '@/components/problem-bank/problem-edit-dialog
 import { ProblemDraftForm } from '@/components/problem-bank/problem-draft-form';
 import { ProblemLanguageToggle } from '@/components/problem-bank/problem-language-toggle';
 import { ProblemChapterManagerDialog } from '@/components/problem-bank/problem-chapter-manager-dialog';
+import { MultipartCheckupDialog } from '@/components/problem-bank/multipart-checkup-dialog';
 import { ProblemForumPublishDialog } from '@/components/problem-bank/problem-forum-publish-dialog';
 import { RecentProblemSubmissionsDialog } from '@/components/problem-bank/recent-problem-submissions-dialog';
 import { CodeAnswerEditor, highlightPython } from '@/components/problem-bank/code-answer-editor';
@@ -1164,6 +1166,9 @@ export function CourseProblemBankView({
     handleRemovePhotoAnswer,
     handleRunCodeAnswer,
     handleSubmitInlineAnswer,
+    handleSubmitMultipartAnswer,
+    partAnswers,
+    setPartAnswers,
     handleUpdateProblem,
     handleCreateProblem,
     reloadProblems,
@@ -1436,6 +1441,14 @@ export function CourseProblemBankView({
         <Button size="sm" onClick={() => setCreateDraft(createBlankProblemDraft())}>
           {locale === 'zh-CN' ? '添加题目' : 'Add problem'}
         </Button>
+        {!previewMode && !isLocalDemoProblemBankCourse(courseId) ? (
+          <MultipartCheckupDialog
+            courseId={courseId}
+            locale={locale}
+            disabled={loading || bulkMode}
+            onApplied={reloadProblems}
+          />
+        ) : null}
         {bulkMode ? (
           <>
             <Button
@@ -2240,7 +2253,8 @@ export function CourseProblemBankView({
                 {activeCodeRunLabel}
               </Button>
             ) : null}
-            {activeTab === 'answer' || activeTab === 'code' ? (
+            {(activeTab === 'answer' || activeTab === 'code') &&
+            selectedProblem?.type !== 'multipart' ? (
               <Button
                 onClick={handleSubmitInlineAnswer}
                 disabled={
@@ -2306,6 +2320,8 @@ export function CourseProblemBankView({
                   onFocusBlank={setActiveFillBlankId}
                   onChangeBlank={updateSelectedFillBlankAnswer}
                 />
+              ) : selectedProblemContent?.type === 'multipart' ? (
+                <ProblemRichText content={selectedProblemContent.stem} />
               ) : selectedProblemContent && renderProblemContentStem(selectedProblemContent) ? (
                 <ProblemRichText content={renderProblemContentStem(selectedProblemContent)} />
               ) : (
@@ -2366,7 +2382,26 @@ export function CourseProblemBankView({
       >
         {tab === 'answer' ? (
           <div className={cn('flex flex-col', codeAnswerActive ? 'min-h-0 flex-1' : 'min-h-full')}>
-            {selectedProblem.type === 'choice' && selectedProblemContent?.type === 'choice' ? (
+            {selectedProblem.type === 'multipart' &&
+            selectedProblemContent?.type === 'multipart' ? (
+              <MultipartAnswerPanel
+                content={selectedProblemContent}
+                drafts={partAnswers[selectedProblem.id] ?? {}}
+                latestAttempt={
+                  selectedProblemAttempts.find((attempt) => attempt.kind !== 'run') ?? null
+                }
+                disabled={false}
+                submitting={submittingAnswer}
+                locale={locale}
+                onChangePart={(label, answer) =>
+                  setPartAnswers((prev) => ({
+                    ...prev,
+                    [selectedProblem.id]: { ...(prev[selectedProblem.id] ?? {}), [label]: answer },
+                  }))
+                }
+                onSubmit={(labels) => void handleSubmitMultipartAnswer(labels)}
+              />
+            ) : selectedProblem.type === 'choice' && selectedProblemContent?.type === 'choice' ? (
               <div className="space-y-2">
                 {selectedProblemContent.options.map((option) => {
                   const selected = choiceAnswers[selectedProblem.id] ?? [];

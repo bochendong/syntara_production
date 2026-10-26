@@ -21,6 +21,7 @@ import {
   parseProblemDraftArrayFromLLMText,
 } from './import.core.drafts';
 import { buildProblemImportSystemPrompt } from './import.core.prompts';
+import { restructureMultipartDrafts } from './import.multipart';
 import {
   isMissingChoiceAnswerDraft,
   llmUsageFromResult,
@@ -121,6 +122,23 @@ function parseOpenAIFileStructurePlan(text: string): ProblemStructurePlan | null
 
 export function draftHasCompleteAnswer(draft: NotebookProblemImportDraft): boolean {
   if (draft.validationErrors.some((error) => error.includes('未识别到正确答案'))) return false;
+  if (draft.publicContent.type === 'multipart' && draft.grading.type === 'multipart') {
+    const gradingParts = draft.grading.parts;
+    return draft.publicContent.parts.every((part) => {
+      const grading = gradingParts.find((item) => item.label === part.label)?.grading;
+      return Boolean(
+        grading &&
+        grading.type === part.content.type &&
+        draftHasCompleteAnswer({
+          ...draft,
+          type: part.content.type,
+          publicContent: part.content,
+          grading,
+          validationErrors: [],
+        }),
+      );
+    });
+  }
   if (draft.grading.type === 'choice') return draft.grading.correctOptionIds.length > 0;
   if (draft.grading.type === 'calculation') {
     return Boolean(draft.grading.referenceAnswer?.trim() || draft.grading.acceptedForms.length > 0);
@@ -361,7 +379,12 @@ export async function ensureImportedDraftAnswers(args: {
   model?: LanguageModel;
   language: 'zh-CN' | 'en-US';
 }): Promise<{ drafts: NotebookProblemImportDraft[]; usage: ImportUsageSummary | null }> {
-  const choiceResult = await solveMissingChoiceAnswersWithLLM(args);
+  // 先把拆散/挤在一起的小问整理成大题，切出来的小问答案由下面一起补
+  const restructured = restructureMultipartDrafts(args.drafts);
+  const choiceResult = await solveMissingChoiceAnswersWithLLM({
+    ...args,
+    drafts: restructured.drafts,
+  });
   let drafts = choiceResult.drafts;
   const candidates = drafts.filter(
     (draft) => draft.type !== 'code' && !draftHasCompleteAnswer(draft),
@@ -382,6 +405,7 @@ export async function ensureImportedDraftAnswers(args: {
 - short_answer 和 proof 必须给 rubricCriteria=[{id,description,points}]，每项是可独立核验的得分点，points 总和必须等于题目 points；不能只给一段笼统 rubric。
 - fill_blank 必须为每个空格选择 answerKind 与 matcher；数值空格使用 numeric_tolerance，并在需要时给 tolerance。
 - fill_blank 的 acceptedAnswers 只能包含可直接接受的学生答案，不能混入 JSON 字段名、标点碎片、序列化辅助表达式或解释文字。
+- multipart 大题：保留共享题干和每个小问的 label/题型，在 grading.parts 里按 label 为每一问分别给出上面对应题型的答案；不要把小问合并成一段，也不要拆成多道题。
 - 保留 draftId、完整题干、选项、sourceMeta 和来源定位。不要要求老师确认。
 
 待补全题目：
@@ -396,6 +420,7 @@ Requirements:
 - short_answer and proof require rubricCriteria=[{id,description,points}] with independently verifiable criteria whose points sum exactly to the problem points; a single vague rubric paragraph is insufficient.
 - Every fill_blank blank requires an answerKind and matcher. Use numeric_tolerance for numeric blanks and include tolerance when needed.
 - fill_blank acceptedAnswers must contain only answers a student may enter, never JSON keys, punctuation fragments, serialization helper expressions, or explanations.
+- multipart: keep the shared stem and each part's label/type, and give every part its own type-appropriate answer in grading.parts (matched by label). Never merge parts into one text or split them into separate problems.
 - Preserve draftId, complete prompt, options, sourceMeta, and source location. Do not request teacher confirmation.
 
 Drafts:
@@ -983,20 +1008,20 @@ export async function llmExtractProblemDraftsFromOpenAIFile(args: {
     args.language === 'zh-CN'
       ? `请通读附件的每一页，但本轮只生成题目结构目录，不要解题。返回严格 JSON 对象，不要 markdown。
 必须区分印刷的原始题面与学生手写答案、圈选气泡、阅卷批注、得分和评分反馈。后五者都不是题目。封面、参考页、答题卡和空白页必须放入 nonProblemRegions。
-默认按最顶层题号建立条目；共享同一推导的小问放入 subparts。表格逐行作答、逐段代码追踪等彼此独立且独立计分的重复单元，要分别建立 topLevelProblems 条目，并携带原题号与行号。仔细识别原题能力和适合平台交付的题型。
+一个顶层题号建立一个条目；(a)(b)/(i)(ii) 等小问全部放进该条目的 subparts，problemTypeHint 写 multipart。只有小问超过 12 个（如长表格逐行作答）才拆成多个 topLevelProblems 条目，并携带原题号与行号。仔细识别原题能力和适合平台交付的题型。
 JSON 格式：
 {
   "sourceSummary": "...",
   "nonProblemRegions": [{"kind":"cover|instructions|additional_work|blank|header_footer|other","pageNumbers":[1],"reason":"..."}],
   "sharedContexts": [{"id":"...","title":"...","pageNumbers":[1],"summary":"..."}],
-  "topLevelProblems": [{"index":1,"topLevelLabel":"1","title":"...","points":3,"problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],
+  "topLevelProblems": [{"index":1,"topLevelLabel":"1","title":"...","points":3,"problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|multipart|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],
   "warnings": [],
   "generatedBy": "llm"
 }`
       : `Read every page of the attached file, but in this pass create only a structural problem index; do not solve anything. Return one strict JSON object without markdown.
 Separate printed source questions from student handwriting, marked bubbles, grader annotations, scores, and grading feedback. The latter are not problems. Put covers, reference sheets, answer sheets, and blank pages in nonProblemRegions.
-Create items by top-level number by default and keep subparts that share one derivation together. Split independently answered and independently scored repeated units, such as table rows and code-tracing rows, into separate topLevelProblems items carrying the original number and row label. Identify both the source capability and the best supported delivery type.
-Record the printed total points for every problem as points. Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|additional_work|blank|header_footer|other","pageNumbers":[1],"reason":"..."}],"sharedContexts":[],"topLevelProblems":[{"index":1,"topLevelLabel":"1","title":"...","points":3,"problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],"warnings":[],"generatedBy":"llm"}`;
+Create one item per top-level number; put every (a)(b)/(i)(ii) part into that item's subparts and set problemTypeHint to multipart. Only when there are more than 12 parts (e.g. a long table answered row by row) split into several topLevelProblems items carrying the original number and row label. Identify both the source capability and the best supported delivery type.
+Record the printed total points for every problem as points. Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|additional_work|blank|header_footer|other","pageNumbers":[1],"reason":"..."}],"sharedContexts":[],"topLevelProblems":[{"index":1,"topLevelLabel":"1","title":"...","points":3,"problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|multipart|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],"warnings":[],"generatedBy":"llm"}`;
   const structureResult = await callLLM(
     {
       model: args.model,
@@ -1111,12 +1136,12 @@ Record the printed total points for every problem as points. Return: {"sourceSum
         args.language === 'zh-CN'
           ? `现在只处理下列 ${batch.length} 道顶层题：${batchOutline}
 请回到附件指定页面，完整转写印刷题面，并独立解出每道题。忽略学生手写、勾选、阅卷痕迹、得分和评分反馈；不得把它们当成标准答案。
-必须恰好返回 ${batch.length} 个题目草稿，顺序与目录一致，小问保留在同一道题中。每题 sourceMeta.scaffoldIndex 填对应 index，并保留目录中的原卷分值。
+必须恰好返回 ${batch.length} 个题目草稿，顺序与目录一致；有 subparts 的条目输出一道 type="multipart" 大题（共享题干写在 stem，每个小问是 parts 里一项，各自题型和 grading.parts 答案）。每题 sourceMeta.scaffoldIndex 填对应 index，并保留目录中的原卷分值。
 每道题都必须有可判分答案。保持原题的作答方式与认知要求；代码输出预测和报错判断属于 code_reading，不得误做成代码编辑器题。代码题用于函数或 class 实现，AI 负责在初始代码、参考实现和测试文件中生成匹配的 imports 与接口，提供 LeetCode 式题面、带类型注解和 docstring 的 starterCode、完整 solutionCode、publicTestCode 和 secretTestCode 完整 unittest 文件，且参考答案能通过全部 unittest。input、stdin、print 判分和文件读写必须等价改写。
 只返回严格 JSON 数组。`
           : `Process only these ${batch.length} top-level problems: ${batchOutline}
 Return to the cited pages, transcribe the complete printed prompt, and independently solve every problem. Ignore handwriting, marked bubbles, grading marks, scores, and grader feedback; none is an answer source.
-Return exactly ${batch.length} drafts in the same order, with subparts kept in their top-level problem. Set sourceMeta.scaffoldIndex to the corresponding index and preserve the printed points from the outline.
+Return exactly ${batch.length} drafts in the same order; an item with subparts becomes one type="multipart" problem (shared stem in stem, each subpart one entry in parts with its own type and grading.parts answer). Set sourceMeta.scaffoldIndex to the corresponding index and preserve the printed points from the outline.
 Every problem must have a gradable answer. Preserve the original response demand and cognitive load; code-output prediction and error diagnosis are code_reading, not code-editor tasks. Code supports function and class implementations with matching imports and interfaces, a LeetCode-style statement, annotated starterCode with a docstring, complete solutionCode, complete publicTestCode and secretTestCode unittest files, and a solution that passes all unittests. Equivalently adapt input(), stdin, print-based grading, and file I/O. Return a strict JSON array only.`;
 
       let bestDrafts: NotebookProblemImportDraft[] = [];

@@ -42,6 +42,20 @@ import {
   problemTypeLabel,
   type LocalProblemAnswer,
 } from '../data/local-problem-grading';
+import {
+  aggregatePartResults,
+  capPartScore,
+  gradeLocalPart,
+  isAutoGradedPart,
+  isMultipartProblem,
+  multipartParts,
+  partAnswerHasContent,
+  partQuestionText,
+  partShares,
+  PART_SUBMISSION_LIMIT,
+  type LocalPartAnswer,
+  type LocalPartResult,
+} from '../data/multipart-problem';
 import { gradeNativeAnswer } from '../data/platform-api-client';
 import { problemAiGradeRequest } from '../data/problem-ai-grading';
 import { queueProblemAttempt } from '../data/problem-sync';
@@ -72,6 +86,7 @@ import {
 import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
 import './course-pages.css';
 import { GlassSpinner } from './GlassLoadMore';
+import { MultipartPractice } from './problem-bank/multipart-practice';
 import { LearningEmptyState } from './LearningEmptyState';
 import { ContentLanguageSwitch } from './ContentLanguageSwitch';
 import { problemSolution } from '../lib/problem-solution';
@@ -111,6 +126,46 @@ function readPaneRatio() {
   }
 }
 
+function useStackedPanes(): boolean {
+  const query = '(max-width: 980px)';
+  const [stacked, setStacked] = useState(() =>
+    typeof window === 'undefined' ? false : window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setStacked(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return stacked;
+}
+
+function latestPartState(document: LocalProblemDocument | null): {
+  answers: Record<string, LocalPartAnswer>;
+  results: LocalPartResult[];
+} {
+  const latest = document?.attempts[0];
+  const graded = document?.attempts.find(
+    (a) =>
+      a.result?.event !== 'solution_viewed' &&
+      a.result?.event !== 'answer_reset' &&
+      Array.isArray(a.result?.parts),
+  );
+  const answer = recordValue(latest?.answer);
+  const result = recordValue(graded?.result);
+  return {
+    answers:
+      answer.kind === 'parts' ? (recordValue(answer.parts) as Record<string, LocalPartAnswer>) : {},
+    results: Array.isArray(result.parts) ? (result.parts as LocalPartResult[]) : [],
+  };
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function restoreAnswerFromAttempt(
   problem: LocalProblem,
   document: LocalProblemDocument | null,
@@ -127,6 +182,8 @@ function restoreAnswerFromAttempt(
       ),
     };
   }
+  if (record.kind === 'parts')
+    return { kind: 'parts', parts: recordValue(record.parts) as Record<string, LocalPartAnswer> };
   if (record.kind === 'code' && typeof record.code === 'string') {
     return { kind: 'code', code: record.code };
   }
@@ -320,6 +377,9 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   const sheetAnchorRef = useRef<HTMLDivElement>(null);
   const sheetTriggerRef = useRef<HTMLButtonElement>(null);
   const autoNextRef = useRef<number | null>(null);
+  const stackedPanes = useStackedPanes();
+  const [partDrafts, setPartDrafts] = useState<Record<string, LocalPartAnswer>>({});
+  const [stemCollapsed, setStemCollapsed] = useState(true);
   const [paneRatio, setPaneRatio] = useState(readPaneRatio);
   const [resizing, setResizing] = useState(false);
   const panesRef = useRef<HTMLDivElement>(null);
@@ -364,6 +424,12 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   const stem = displayedProblem ? problemStem(displayedProblem) : '';
   const options = displayedProblem ? problemOptions(displayedProblem) : [];
   const testcaseCode = currentProblem ? buildPublicTestsPython(currentProblem) : '';
+  const isMultipart = currentProblem ? isMultipartProblem(currentProblem) : false;
+  const parts = useMemo(
+    () => (displayedProblem && isMultipart ? multipartParts(displayedProblem) : []),
+    [displayedProblem, isMultipart],
+  );
+  const savedParts = useMemo(() => latestPartState(document), [document]);
   const solution = useMemo(
     () => (displayedProblem ? problemSolution(displayedProblem) : null),
     [displayedProblem],
@@ -461,6 +527,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     setSolutionSeen(false);
     setSolutionError(null);
     setSolutionNotice(null);
+    setPartDrafts({});
+    setStemCollapsed(true);
     setLoading(true);
     setError(null);
     setFeedback(null);
@@ -651,6 +719,152 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     stem,
   ]);
 
+  /** 大题：只批改这几问，其余小问沿用上次结果，再存成一条完整的作答。 */
+  const submitParts = useCallback(
+    async (labels: string[]) => {
+      if (!currentProblem || !isMultipart || submitting || snapshotBusy) return;
+      const sequence = snapshotSequence.current;
+      setSubmitting(true);
+      setError(null);
+      try {
+        const shares = partShares(parts);
+        const now = Date.now();
+        const previous = new Map(savedParts.results.map((item) => [item.label, item]));
+        const answers = { ...savedParts.answers };
+        const results: LocalPartResult[] = await Promise.all(
+          parts.map(async (part, index): Promise<LocalPartResult> => {
+            const share = shares[index];
+            const before = previous.get(part.label);
+            const carried: LocalPartResult = before
+              ? { ...before, share }
+              : { label: part.label, status: 'pending', score: 0, share, submissions: 0 };
+            const draft = partDrafts[part.label];
+            if (!labels.includes(part.label) || !partAnswerHasContent(draft)) return carried;
+            const used = before?.submissions ?? 0;
+            if (isAutoGradedPart(part) && used >= PART_SUBMISSION_LIMIT) return carried;
+            let grade = gradeLocalPart(currentProblem, part, draft);
+            if (
+              grade.status === 'pending' &&
+              (part.type === 'short_answer' || part.type === 'proof')
+            ) {
+              try {
+                const request = problemAiGradeRequest(
+                  {
+                    ...currentProblem,
+                    type: part.type,
+                    publicContent: part.content,
+                    grading: part.grading,
+                  },
+                  draft.text ?? '',
+                );
+                const reply = await gradeNativeAnswer({
+                  ...request,
+                  question: partQuestionText(displayedProblem ?? currentProblem, index),
+                  language,
+                });
+                const ratio = Math.max(0, Math.min(1, reply.score / request.points));
+                grade = {
+                  status: ratio >= 0.8 ? 'passed' : ratio >= 0.4 ? 'partial' : 'failed',
+                  score: ratio,
+                  feedback: reply.comment,
+                  autoGraded: true,
+                };
+              } catch (cause) {
+                return {
+                  ...carried,
+                  feedback: `AI 批改没完成：${cause instanceof Error ? cause.message : String(cause)}`,
+                };
+              }
+            }
+            answers[part.label] = draft;
+            const submissions = used + 1;
+            const raw = grade.score ?? 0;
+            return {
+              label: part.label,
+              status: grade.status,
+              score: isAutoGradedPart(part) ? capPartScore(raw, submissions) : raw,
+              share,
+              feedback: grade.feedback,
+              gradedAt: now,
+              submissions,
+            };
+          }),
+        );
+        const completedLabels = new Set(
+          results.filter((r) => r.gradedAt === now).map((r) => r.label),
+        );
+        if (!completedLabels.size)
+          throw new Error(
+            results.find((r) => r.feedback)?.feedback ?? '这一问尚未完成批改，请重试。',
+          );
+        const overall = aggregatePartResults(results);
+        const passedCount = results.filter((item) => item.status === 'passed').length;
+        const summary = `答对 ${passedCount}/${results.length} 个小问。`;
+        const repository = await getLocalRepository();
+        const saved = await repository.saveProblemAttempt({
+          problemId: currentProblem.id,
+          answer: { kind: 'parts', parts: answers },
+          status: overall.status,
+          score: overall.score,
+          feedback: summary,
+          result: {
+            feedback: summary,
+            autoGraded: results.every((item) => item.status !== 'pending'),
+            gradingProvider: 'local',
+            parts: results,
+          },
+        });
+        void queueProblemAttempt(repository, currentProblem.courseId, saved.attempt).catch(
+          () => undefined,
+        );
+        if (sequence !== snapshotSequence.current) return;
+        setDocument(saved.document);
+        setPartDrafts((current) => {
+          const next = { ...current };
+          for (const label of completedLabels) delete next[label];
+          return next;
+        });
+        const status: ProblemStatus = overall.status;
+        const nextStatuses = new Map(statuses);
+        nextStatuses.set(currentProblem.id, status);
+        setStatuses(nextStatuses);
+        notifyProblemProgress();
+        setJustGraded(status);
+        if (
+          finish === 'hidden' &&
+          results.every((part) => Boolean(part.gradedAt)) &&
+          orderedIds.every(
+            (id) =>
+              id === currentProblem.id ||
+              nextStatuses.get(id) === 'passed' ||
+              nextStatuses.get(id) === 'failed',
+          )
+        ) {
+          setFinish('shown');
+        }
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        if (sequence === snapshotSequence.current) setSubmitting(false);
+      }
+    },
+    [
+      currentProblem,
+      displayedProblem,
+      language,
+      finish,
+      isMultipart,
+      orderedIds,
+      partDrafts,
+      parts,
+      savedParts,
+      setStatuses,
+      statuses,
+      submitting,
+      snapshotBusy,
+    ],
+  );
+
   const cancelAutoNext = () => {
     if (autoNextRef.current) window.clearTimeout(autoNextRef.current);
     autoNextRef.current = null;
@@ -683,6 +897,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
       setDocument(saved.document);
       if (event === 'answer_reset') {
         setAnswer(nextAnswer);
+        if (nextAnswer.kind === 'parts')
+          setPartDrafts(Object.fromEntries(parts.map((p) => [p.label, {}])));
         if (nextAnswer.kind === 'code' && draftRef.current) {
           draftRef.current.code = nextAnswer.code;
           draftRef.current.dirty = true;
@@ -713,7 +929,10 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   };
   const revealSolution = async (remember: boolean) => {
     if (!answer) return;
-    const saved = await persistLearningAction('solution_viewed', answer);
+    const saved = await persistLearningAction(
+      'solution_viewed',
+      isMultipart ? { kind: 'parts', parts: { ...savedParts.answers, ...partDrafts } } : answer,
+    );
     if (saved && remember) {
       try {
         rememberSolutionReminder(
@@ -1030,6 +1249,25 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                 ) : (
                   <CodeProblemStatement content={codeContent} locale={language} />
                 )
+              ) : isMultipart ? (
+                <div className={cn('mp-stem', stackedPanes && stemCollapsed && 'is-collapsed')}>
+                  <div className="mp-stem-body">
+                    <ProblemRichText
+                      content={stem}
+                      className="text-[15px] leading-7 text-slate-800"
+                    />
+                  </div>
+                  <ProblemImageAssets content={publicContent as NotebookProblemPublicContent} />
+                  {stackedPanes ? (
+                    <button
+                      type="button"
+                      className="mp-stem-toggle"
+                      onClick={() => setStemCollapsed((value) => !value)}
+                    >
+                      {stemCollapsed ? '展开题干' : '收起题干'}
+                    </button>
+                  ) : null}
+                </div>
               ) : (
                 <>
                   <ProblemRichText
@@ -1177,7 +1415,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                     {debugRunning ? '停止' : '运行'}
                   </button>
                 ) : null}
-                {rightTab !== 'history' && rightTab !== 'solution' ? (
+                {rightTab !== 'history' && rightTab !== 'solution' && !isMultipart ? (
                   <button
                     type="button"
                     className="pp-submit pp-header-submit"
@@ -1275,7 +1513,24 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                 </div>
               ) : null}
 
-              {rightTab === 'answer' && !isCode ? (
+              {rightTab === 'answer' && isMultipart ? (
+                <MultipartPractice
+                  key={currentProblem.id}
+                  parts={parts}
+                  drafts={partDrafts}
+                  saved={savedParts.answers}
+                  results={savedParts.results}
+                  paged={stackedPanes}
+                  submitting={submitting || snapshotBusy}
+                  error={error}
+                  onChange={(label, next) =>
+                    setPartDrafts((current) => ({ ...current, [label]: next }))
+                  }
+                  onSubmit={(labels) => void submitParts(labels)}
+                />
+              ) : null}
+
+              {rightTab === 'answer' && !isCode && !isMultipart ? (
                 <>
                   {currentProblem.type === 'choice' && answer?.kind === 'choice' ? (
                     <div className="native-problem-practice-choices">

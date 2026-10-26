@@ -7,6 +7,7 @@ export type LocalizableProblemContent = {
   stemTemplate?: string;
   explanation?: string;
   options?: Array<{ id: string; label: string }>;
+  parts?: Array<{ label: string; content: LocalizableProblemContent }>;
   translations?: Partial<
     Record<
       ProblemContentLanguage,
@@ -63,9 +64,13 @@ export function getLocalizedProblemContent<T extends LocalizableProblemContent>(
 ): T {
   if (language === 'en-US') return content;
   const translation = content.translations?.[language];
-  if (!translation) return content;
-
   const next = { ...content };
+  if (content.type === 'multipart' && content.parts)
+    next.parts = content.parts.map((part) => ({
+      ...part,
+      content: getLocalizedProblemContent(part.content, language),
+    }));
+  if (!translation) return next as T;
   if ('stem' in next && translation.stem) {
     next.stem = translation.stem;
   }

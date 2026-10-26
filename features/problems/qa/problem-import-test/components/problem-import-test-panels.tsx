@@ -71,6 +71,7 @@ function typeLabel(type: NotebookProblemImportDraft['type']) {
     calculation: '计算题',
     code: '代码题',
     fill_blank: '填空题',
+    multipart: '分小问',
   } as const;
   return labels[type];
 }

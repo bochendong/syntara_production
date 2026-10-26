@@ -295,6 +295,8 @@ function buildPublicContent(
         explanation,
       });
     }
+    case 'multipart':
+      return fail('Multi-part problems must include publicContent with parts.');
   }
 }
 
@@ -385,6 +387,8 @@ function buildGrading(
         analysis,
       });
     }
+    case 'multipart':
+      return fail('Multi-part problems must include grading with parts.');
   }
 }
 

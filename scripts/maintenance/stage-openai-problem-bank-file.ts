@@ -30,6 +30,7 @@ function hasAnswer(draft: ExtractedDraft): boolean {
       grading.blanks.length > 0 && grading.blanks.every((blank) => blank.acceptedAnswers.length > 0)
     );
   }
+  if (grading.type === 'multipart') return grading.parts.length > 0;
   return Boolean(grading.solutionCode || grading.referenceAnswer);
 }
 

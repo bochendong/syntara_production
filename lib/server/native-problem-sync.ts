@@ -185,6 +185,16 @@ export const nativeProblemAttemptUploadSchema = z.object({
           selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
           text: z.string().max(40_000).optional(),
           code: z.string().max(120_000).optional(),
+          parts: z
+            .record(
+              z.string().trim().min(1).max(40),
+              z.object({
+                selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
+                text: z.string().max(40_000).optional(),
+                blanks: z.record(z.string(), z.string().max(4000)).optional(),
+              }),
+            )
+            .optional(),
           images: z
             .array(notebookProblemAttemptImageSchema.refine(isValidPhotoAnswerUpload))
             .max(4)
@@ -194,6 +204,20 @@ export const nativeProblemAttemptUploadSchema = z.object({
         autoGraded: z.boolean().optional(),
         event: z.enum(['solution_viewed', 'answer_reset']).optional(),
         progressSnapshot: notebookProblemProgressSnapshotSchema.nullable().optional(),
+        parts: z
+          .array(
+            z.object({
+              label: z.string().trim().min(1).max(40),
+              status: z.enum(['pending', 'passed', 'failed', 'partial']),
+              score: z.number().min(0).max(1),
+              share: z.number().min(0).max(1),
+              feedback: z.string().max(8000).optional(),
+              gradedAt: z.number().int().positive().optional(),
+              submissions: z.number().int().min(0).max(1000).optional(),
+            }),
+          )
+          .max(12)
+          .optional(),
         createdAt: z.number().int().positive(),
       }),
     )
@@ -260,6 +284,20 @@ export async function saveNativeProblemAttempts(
         feedback: attempt.feedback ?? '',
         earnedPoints: attempt.event ? undefined : (score ?? undefined),
         publicCases: [],
+        ...(attempt.parts
+          ? {
+              parts: attempt.parts.map((part) => ({
+                label: part.label,
+                status: part.status,
+                points: Math.round(part.share * points * 100) / 100,
+                score: Math.round(part.score * part.share * points * 100) / 100,
+                correct: part.status === 'passed',
+                ...(part.feedback ? { feedback: part.feedback } : {}),
+                ...(part.gradedAt ? { gradedAt: part.gradedAt } : {}),
+                ...(part.submissions !== undefined ? { submissions: part.submissions } : {}),
+              })),
+            }
+          : {}),
       },
       timingSource: attempt.event
         ? 'native-learning-snapshot'

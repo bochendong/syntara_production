@@ -1,8 +1,46 @@
+import { formatPartLabel } from './multipart';
 import type { NotebookProblemImportDraft } from './schema';
+
+/** 大题：共享题干和每一问分别按普通题检查，再查小问之间的对应关系。 */
+function multipartReadinessErrors(draft: NotebookProblemImportDraft): string[] {
+  const content = draft.publicContent;
+  if (content.type !== 'multipart') return [];
+  const errors = problemContentReadinessErrors({
+    ...draft,
+    type: 'short_answer',
+    publicContent: { type: 'short_answer', stem: content.stem },
+    grading: { type: 'short_answer' },
+  });
+  const labels = content.parts.map((part) => part.label);
+  if (content.parts.length < 2) errors.push('小问：只有一问的题请改成普通题');
+  if (new Set(labels).size !== labels.length) errors.push('小问：编号不能重复');
+  const gradingParts = draft.grading.type === 'multipart' ? draft.grading.parts : [];
+  for (const part of content.parts) {
+    const label = formatPartLabel(part.label);
+    const grading = gradingParts.find((item) => item.label === part.label)?.grading;
+    if (!grading || grading.type !== part.content.type) {
+      errors.push(`小问 ${label}：缺少与题型一致的评分数据`);
+      continue;
+    }
+    for (const error of problemContentReadinessErrors({
+      ...draft,
+      type: part.content.type,
+      publicContent: part.content,
+      grading,
+    })) {
+      errors.push(`小问 ${label}：${error}`);
+    }
+  }
+  if (gradingParts.some((item) => !labels.includes(item.label))) {
+    errors.push('小问：评分数据里有题面不存在的小问');
+  }
+  return errors;
+}
 
 /** Delivery invariants apply to all generated/imported/edited subjects. */
 export function problemContentReadinessErrors(draft: NotebookProblemImportDraft): string[] {
   const content = draft.publicContent;
+  if (content.type === 'multipart') return multipartReadinessErrors(draft);
   const text = content.type === 'fill_blank' ? content.stemTemplate : content.stem;
   const errors: string[] = [];
   let fence = '';

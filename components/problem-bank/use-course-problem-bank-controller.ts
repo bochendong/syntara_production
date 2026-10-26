@@ -12,6 +12,8 @@ import {
   getLocalizedProblemContent,
   getLocalizedProblemTitle,
   hasProblemTranslation,
+  partAnswerIsEmpty,
+  type NotebookProblemPartAnswer,
   type NotebookProblemAttemptAnswer,
   type NotebookProblemAttemptRecord,
   type NotebookProblemAttemptStatus,
@@ -253,6 +255,10 @@ export function useCourseProblemBankController({
   const [choiceAnswers, setChoiceAnswers] = useState<Record<string, string[]>>({});
   const [blankAnswers, setBlankAnswers] = useState<Record<string, Record<string, string>>>({});
   const [codeAnswers, setCodeAnswers] = useState<Record<string, string>>({});
+  /** 大题：problemId → 小问 label → 这一问还没提交的作答 */
+  const [partAnswers, setPartAnswers] = useState<
+    Record<string, Record<string, NotebookProblemPartAnswer>>
+  >({});
   const [runningCode, setRunningCode] = useState(false);
   const [runningCodeTarget, setRunningCodeTarget] = useState<CourseCodeRunTarget | null>(null);
   const [codeRunResults, setCodeRunResults] = useState<Record<string, CourseCodeRunResult>>({});
@@ -1025,7 +1031,12 @@ export function useCourseProblemBankController({
     if (selectedProblemAttemptsLoaded) return;
     const problem = selectedProblemRef.current;
     if (!problem || problem.id !== selectedProblemId) return;
-    if (answerPanelTab !== 'history' && !hasLimitedSubmissions(problem.type)) return;
+    if (
+      answerPanelTab !== 'history' &&
+      !hasLimitedSubmissions(problem.type) &&
+      problem.type !== 'multipart'
+    )
+      return;
 
     if (previewMode) {
       setAttemptsByProblemId((prev) => ({ ...prev, [selectedProblemId]: [] }));
@@ -1708,6 +1719,90 @@ export function useCourseProblemBankController({
     textAnswers,
   ]);
 
+  /** 大题提交：只交传入的这几问（默认全部填过的），其余小问服务端沿用上次结果。 */
+  const handleSubmitMultipartAnswer = useCallback(
+    async (labels?: string[]) => {
+      if (!selectedProblem || submittingAnswer) return false;
+      if (selectedProblem.type !== 'multipart' || selectedProblemContent?.type !== 'multipart')
+        return false;
+      const drafts = partAnswers[selectedProblem.id] ?? {};
+      const parts = Object.fromEntries(
+        Object.entries(drafts).filter(
+          ([label, answer]) => (!labels || labels.includes(label)) && !partAnswerIsEmpty(answer),
+        ),
+      );
+      if (Object.keys(parts).length === 0) {
+        toast.error(locale === 'zh-CN' ? '请先回答这一问。' : 'Answer the part first.');
+        return false;
+      }
+      setSubmittingAnswer(true);
+      try {
+        const { attempt, result } = await submitCourseProblem({
+          courseId,
+          problemId: selectedProblem.id,
+          language: locale,
+          activeDurationMs: problemActiveTimer.getActiveDuration(),
+          parts,
+        });
+        problemActiveTimer.reset();
+        setPartAnswers((prev) => {
+          const remaining = { ...(prev[selectedProblem.id] ?? {}) };
+          for (const label of Object.keys(parts)) delete remaining[label];
+          return { ...prev, [selectedProblem.id]: remaining };
+        });
+        setProblems((prev) =>
+          prev.map((problem) =>
+            problem.id === selectedProblem.id
+              ? { ...problem, latestAttempt: latestAttemptFromRecord(attempt) }
+              : problem,
+          ),
+        );
+        setAttemptsByProblemId((prev) => ({
+          ...prev,
+          [selectedProblem.id]: [
+            attempt,
+            ...(prev[selectedProblem.id] ?? []).filter((item) => item.id !== attempt.id),
+          ],
+        }));
+        const score = canEditProblems ? null : (attempt.score ?? null);
+        const feedback = result?.feedback || (locale === 'zh-CN' ? '已提交。' : 'Submitted.');
+        setAnswerFeedbackByProblemId((prev) => ({
+          ...prev,
+          [selectedProblem.id]: { status: attempt.status, score, feedback, saving: false },
+        }));
+        if (!canEditProblems)
+          onPracticeAttemptResolved?.({
+            problemId: selectedProblem.id,
+            problemTitle: selectedProblemTitle || selectedProblem.title,
+            concepts: [
+              selectedProblem.chapterName || selectedProblemTitle || selectedProblem.title,
+            ],
+            status: attempt.status,
+            score,
+            feedback,
+          });
+        return true;
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Submit failed');
+        return false;
+      } finally {
+        setSubmittingAnswer(false);
+      }
+    },
+    [
+      canEditProblems,
+      courseId,
+      locale,
+      onPracticeAttemptResolved,
+      partAnswers,
+      problemActiveTimer,
+      selectedProblem,
+      selectedProblemContent,
+      selectedProblemTitle,
+      submittingAnswer,
+    ],
+  );
+
   const handleRunCodeAnswer = useCallback(
     async (target: CourseCodeRunTarget = 'public') => {
       if (!selectedProblem || runningCode) return false;
@@ -1913,6 +2008,9 @@ export function useCourseProblemBankController({
     handleRemovePhotoAnswer,
     handleRunCodeAnswer,
     handleSubmitInlineAnswer,
+    handleSubmitMultipartAnswer,
+    partAnswers,
+    setPartAnswers,
     handleUpdateProblem,
     handleCreateProblem,
     reloadProblems: loadAll,

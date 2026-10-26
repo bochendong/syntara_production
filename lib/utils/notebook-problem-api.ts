@@ -597,6 +597,7 @@ export async function submitNotebookProblem(args: {
   blanks?: Record<string, string>;
   code?: string;
   images?: NotebookProblemAttemptAnswer['images'];
+  parts?: NotebookProblemAttemptAnswer['parts'];
   language: 'zh-CN' | 'en-US';
   activeDurationMs?: number;
 }) {
@@ -630,6 +631,7 @@ export async function submitCourseProblem(args: {
   blanks?: Record<string, string>;
   code?: string;
   images?: NotebookProblemAttemptAnswer['images'];
+  parts?: NotebookProblemAttemptAnswer['parts'];
   language: 'zh-CN' | 'en-US';
   activeDurationMs?: number;
 }) {
@@ -674,5 +676,48 @@ export async function selfReportCourseProblem(args: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(args),
     },
+  );
+}
+
+export type MultipartCheckupSuggestion = {
+  id: string;
+  kind: 'merge' | 'split';
+  notebookId: string | null;
+  chapterId: string | null;
+  problems: Array<{ id: string; title: string; type: string; stem: string }>;
+  preview: Extract<NotebookProblemPublicContent, { type: 'multipart' }>;
+  title: string;
+};
+
+export async function scanCourseMultipartCheckup(courseId: string) {
+  return backendJson<{ suggestions: MultipartCheckupSuggestion[] }>(
+    `/api/courses/${encodeURIComponent(courseId)}/problems/multipart-checkup`,
+  );
+}
+
+export async function applyCourseMultipartCheckup(args: {
+  courseId: string;
+  action: 'apply' | 'dismiss';
+  suggestionIds: string[];
+  language: 'zh-CN' | 'en-US';
+}) {
+  const request = () =>
+    backendJson<{
+      applied?: Array<{ suggestionId: string; problemId: string }>;
+      failed?: Array<{ suggestionId: string; error: string }>;
+      dismissed?: number;
+    }>(`/api/courses/${encodeURIComponent(args.courseId)}/problems/multipart-checkup`, {
+      method: 'POST',
+      headers: withModelHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        action: args.action,
+        suggestionIds: args.suggestionIds,
+        language: args.language,
+      }),
+    });
+  if (args.action === 'dismiss') return request();
+  return runQueuedAiTask(
+    { kind: 'other', title: '修复分小问题目', description: '正在整理小问并补答案' },
+    () => request(),
   );
 }

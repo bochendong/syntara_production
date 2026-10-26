@@ -199,6 +199,7 @@ export async function generateProblemDraftsFromPdfWithStructurePlan(args: {
 - 图像题必须保留 structure.visualRefs 和页码锚点；不要伪造图片 URL，系统会把对应 sourceImages 挂到 publicContent.assets.images。
 - publicContent.stem 必须是学生可见题面，不是 OCR dump；必须可独立作答。
 - 使用结构计划的 contextBlocks/subparts/sourceAnchors，但最终题干仍以 PDF 视觉内容为准。
+- 结构计划条目有 subparts 时，输出一道 type="multipart" 大题：共享背景只写在 publicContent.stem，每个小问是 publicContent.parts 里的一项（各自题型），答案按 label 写在 grading.parts。
 - 不要输出封面、考试说明、答题卡说明、additional work。
 - 每一道题都要独立求解并生成完整 grading；忽略学生手写作答、勾选、分数和教师批注。选择、计算、简答、证明、填空和代码题都必须提供对应的评分答案，并标记 sourceMeta.answerSource="llm-solved"。
 
@@ -217,6 +218,7 @@ Hard requirements:
 - Image/graph/diagram problems must preserve structure.visualRefs and page anchors. Do not invent image URLs; the system will attach matching sourceImages to publicContent.assets.images.
 - publicContent.stem must be a student-facing statement, not an OCR dump, and must be independently answerable.
 - Use contextBlocks/subparts/sourceAnchors from the plan, but the final stem should still follow the visible PDF.
+- When a plan item has subparts, output one type="multipart" problem: shared context only in publicContent.stem, each subpart one entry of publicContent.parts with its own type, answers by label in grading.parts.
 - Ignore covers, exam instructions, answer-sheet directions, and additional-work pages.
 - Independently solve every problem and generate complete grading data. Ignore student handwriting, selected bubbles, scores, and grader comments. Choice, calculation, short-answer, proof, fill-blank, and code problems must all include their corresponding grading answers and sourceMeta.answerSource="llm-solved".
 

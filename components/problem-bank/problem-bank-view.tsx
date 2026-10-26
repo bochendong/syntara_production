@@ -31,7 +31,10 @@ import {
   type ProblemContentLanguage,
   type NotebookProblemAttemptRecord,
   type NotebookProblemImportDraft,
+  partAnswerIsEmpty,
+  type NotebookProblemPartAnswer,
 } from '@/lib/problem-bank';
+import { MultipartAnswerPanel } from './multipart-answer-panel';
 import {
   commitNotebookProblemImport,
   deleteNotebookProblem,
@@ -77,6 +80,7 @@ function typeLabel(type: NotebookProblemClientRecord['type'], locale: 'zh-CN' | 
     calculation: '计算题',
     code: '代码题',
     fill_blank: '填空题',
+    multipart: '分小问',
   } as const;
   const en = {
     short_answer: 'Short answer',
@@ -85,6 +89,7 @@ function typeLabel(type: NotebookProblemClientRecord['type'], locale: 'zh-CN' | 
     calculation: 'Calculation',
     code: 'Code',
     fill_blank: 'Fill in the blank',
+    multipart: 'Multi-part',
   } as const;
   return locale === 'zh-CN' ? zh[type] : en[type];
 }
@@ -496,6 +501,9 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
     'all',
   );
   const [textAnswer, setTextAnswer] = useState<Record<string, string>>({});
+  const [partDrafts, setPartDrafts] = useState<
+    Record<string, Record<string, NotebookProblemPartAnswer>>
+  >({});
   const [choiceAnswer, setChoiceAnswer] = useState<Record<string, string[]>>({});
   const [blankAnswer, setBlankAnswer] = useState<Record<string, Record<string, string>>>({});
   const [codeAnswer, setCodeAnswer] = useState<Record<string, string>>({});
@@ -637,65 +645,86 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
     [notebookId],
   );
 
-  const handleSubmit = useCallback(async () => {
-    if (!selectedProblem || submitting) return;
-    setSubmitting(true);
-    try {
-      const payload =
-        selectedProblem.type === 'choice'
-          ? {
-              selectedOptionIds: choiceAnswer[selectedProblem.id] ?? [],
-            }
-          : selectedProblem.type === 'fill_blank'
+  const handleSubmit = useCallback(
+    async (partLabels?: string[]) => {
+      if (!selectedProblem || submitting) return;
+      setSubmitting(true);
+      try {
+        const drafts = partDrafts[selectedProblem.id] ?? {};
+        const payload =
+          selectedProblem.type === 'multipart'
             ? {
-                blanks: blankAnswer[selectedProblem.id] ?? {},
+                parts: Object.fromEntries(
+                  Object.entries(drafts).filter(
+                    ([label, answer]) =>
+                      (!partLabels || partLabels.includes(label)) && !partAnswerIsEmpty(answer),
+                  ),
+                ),
               }
-            : selectedProblem.type === 'code'
+            : selectedProblem.type === 'choice'
               ? {
-                  code: codeAnswer[selectedProblem.id] || '',
+                  selectedOptionIds: choiceAnswer[selectedProblem.id] ?? [],
                 }
-              : {
-                  text: textAnswer[selectedProblem.id] || '',
-                };
-      const { attempt, result } = await submitNotebookProblem({
-        notebookId,
-        problemId: selectedProblem.id,
-        language: locale,
-        ...payload,
-      });
-      await refreshAfterAttempt(attempt);
+              : selectedProblem.type === 'fill_blank'
+                ? {
+                    blanks: blankAnswer[selectedProblem.id] ?? {},
+                  }
+                : selectedProblem.type === 'code'
+                  ? {
+                      code: codeAnswer[selectedProblem.id] || '',
+                    }
+                  : {
+                      text: textAnswer[selectedProblem.id] || '',
+                    };
+        const { attempt, result } = await submitNotebookProblem({
+          notebookId,
+          problemId: selectedProblem.id,
+          language: locale,
+          ...payload,
+        });
+        await refreshAfterAttempt(attempt);
+        if ('parts' in payload) {
+          setPartDrafts((prev) => {
+            const remaining = { ...(prev[selectedProblem.id] ?? {}) };
+            for (const label of Object.keys(payload.parts ?? {})) delete remaining[label];
+            return { ...prev, [selectedProblem.id]: remaining };
+          });
+        }
 
-      enqueueBanner(
-        buildPracticeNotification({
-          locale,
-          problem: selectedProblem,
-          attempt,
-        }),
-      );
-      if (selectedProblem.type === 'code' && attempt.status !== 'passed') {
-        toast.error(
-          result?.feedback || (locale === 'zh-CN' ? '代码未通过测试' : 'Code failed tests'),
+        enqueueBanner(
+          buildPracticeNotification({
+            locale,
+            problem: selectedProblem,
+            attempt,
+          }),
         );
-      } else {
-        toast.success(locale === 'zh-CN' ? '已提交答案' : 'Answer submitted');
+        if (selectedProblem.type === 'code' && attempt.status !== 'passed') {
+          toast.error(
+            result?.feedback || (locale === 'zh-CN' ? '代码未通过测试' : 'Code failed tests'),
+          );
+        } else {
+          toast.success(locale === 'zh-CN' ? '已提交答案' : 'Answer submitted');
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Submit failed');
+      } finally {
+        setSubmitting(false);
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Submit failed');
-    } finally {
-      setSubmitting(false);
-    }
-  }, [
-    blankAnswer,
-    choiceAnswer,
-    codeAnswer,
-    enqueueBanner,
-    locale,
-    notebookId,
-    refreshAfterAttempt,
-    selectedProblem,
-    submitting,
-    textAnswer,
-  ]);
+    },
+    [
+      blankAnswer,
+      choiceAnswer,
+      codeAnswer,
+      enqueueBanner,
+      locale,
+      notebookId,
+      partDrafts,
+      refreshAfterAttempt,
+      selectedProblem,
+      submitting,
+      textAnswer,
+    ],
+  );
 
   const handleRunCode = useCallback(async () => {
     if (!selectedProblem || selectedProblem.type !== 'code' || runningCode) return;
@@ -1224,7 +1253,7 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                         )}
                         {locale === 'zh-CN' ? '运行公开测试' : 'Run public tests'}
                       </Button>
-                      <Button onClick={handleSubmit} disabled={submitting}>
+                      <Button onClick={() => void handleSubmit()} disabled={submitting}>
                         {submitting ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
@@ -1261,7 +1290,7 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                         <Pencil className="mr-2 h-4 w-4" />
                         {locale === 'zh-CN' ? '编辑题目' : 'Edit problem'}
                       </Button>
-                      <Button onClick={handleSubmit} disabled={submitting}>
+                      <Button onClick={() => void handleSubmit()} disabled={submitting}>
                         {submitting ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
@@ -1419,6 +1448,29 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                         }))
                       }
                       className="min-h-[320px] font-mono text-sm"
+                    />
+                  </div>
+                ) : selectedProblemContent?.type === 'multipart' ? (
+                  <div className="space-y-4">
+                    <ProblemRichText content={selectedProblemContent.stem} />
+                    <ProblemImageAssets content={selectedProblemContent} />
+                    <MultipartAnswerPanel
+                      content={selectedProblemContent}
+                      drafts={partDrafts[selectedProblem.id] ?? {}}
+                      latestAttempt={attempts.find((attempt) => attempt.kind !== 'run') ?? null}
+                      disabled={false}
+                      submitting={submitting}
+                      locale={locale}
+                      onChangePart={(label, answer) =>
+                        setPartDrafts((prev) => ({
+                          ...prev,
+                          [selectedProblem.id]: {
+                            ...(prev[selectedProblem.id] ?? {}),
+                            [label]: answer,
+                          },
+                        }))
+                      }
+                      onSubmit={(labels) => void handleSubmit(labels)}
                     />
                   </div>
                 ) : (

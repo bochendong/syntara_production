@@ -62,7 +62,9 @@ export function problemLearningArchive(input: {
         ? answer.selectedOptionIds.join(', ') || '尚未选择选项'
         : answer.kind === 'code'
           ? answer.code
-          : `${answer.text || '尚未填写文字'}${answer.images?.length ? `；另有 ${answer.images.length} 张作答图片` : ''}`;
+          : answer.kind === 'parts'
+            ? JSON.stringify(answer.parts)
+            : `${answer.text || '尚未填写文字'}${answer.images?.length ? `；另有 ${answer.images.length} 张作答图片` : ''}`;
     memories.push({
       id: `solution-help:${problem.id}`,
       courseId: problem.courseId,
@@ -117,7 +119,7 @@ export function problemLearningArchive(input: {
   };
 }
 
-/** Snapshots and help memories are atomic; assessed progress and historical scores are not rewritten. */
+/** Reveal only after the snapshot and memory are saved; assessed progress is not rewritten. */
 export async function saveProblemLearningSnapshot(
   repository: Pick<LocalRepository, 'importArchive' | 'loadProblemDocument'>,
   input: Parameters<typeof problemLearningArchive>[0],

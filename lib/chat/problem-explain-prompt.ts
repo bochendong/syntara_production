@@ -5,6 +5,7 @@ import type {
   NotebookProblemPublicContent,
 } from '@/lib/problem-bank';
 import type { NotebookProblemClientRecord } from '@/lib/utils/notebook-problem-api';
+import { formatPartLabel, partPromptText } from '@/lib/problem-bank/multipart';
 
 function decodeBasicHtmlEntities(text: string): string {
   return text
@@ -123,7 +124,18 @@ function formatStudentContextForPrompt(args: {
 
 function formatProblemContentForPrompt(content: NotebookProblemPublicContent): string {
   const lines: string[] = [];
-  if ('stem' in content) {
+  if (content.type === 'multipart') {
+    lines.push(`共享题干：${cleanPromptText(content.stem)}`);
+    for (const part of content.parts) {
+      const options =
+        part.content.type === 'choice'
+          ? `\n${part.content.options.map((option) => `${option.id}. ${cleanPromptText(option.label)}`).join('\n')}`
+          : '';
+      lines.push(
+        `小问 ${formatPartLabel(part.label)}（${part.content.type}）：${cleanPromptText(partPromptText(part.content))}${options}`,
+      );
+    }
+  } else if ('stem' in content) {
     lines.push(`题干：${cleanPromptText(content.stem)}`);
   }
   if (content.type === 'choice') {
@@ -202,6 +214,16 @@ function formatGradingForPrompt(grading: NotebookProblemGrading): string {
         .join('\n');
     case 'code':
       return grading.analysis ? `解析：${cleanPromptText(grading.analysis)}` : '';
+    case 'multipart':
+      return [
+        ...grading.parts.map(
+          (part) =>
+            `小问 ${formatPartLabel(part.label)}：\n${formatGradingForPrompt(part.grading)}`,
+        ),
+        grading.analysis ? `解析：${cleanPromptText(grading.analysis)}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
     default:
       return '';
   }

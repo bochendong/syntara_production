@@ -1,6 +1,7 @@
 import type { QuizQuestion } from '@/lib/types/stage';
 import type { NotebookProblemClientRecord } from '@/lib/utils/notebook-problem-api';
 import type { ProblemBankLearningProfile } from '@/lib/learning/problem-bank-profile';
+import { problemStatementText } from '@/lib/problem-bank/multipart';
 
 export type ReviewRouteCandidateProblem = {
   id: string;
@@ -26,6 +27,7 @@ function normalizeConcept(value: string): string {
 
 function getPublicStem(problem: NotebookProblemClientRecord): string {
   const content = problem.publicContent;
+  if (content.type === 'multipart') return normalizeText(problemStatementText(content));
   if ('stem' in content) return normalizeText(content.stem);
   if (content.type === 'fill_blank') return normalizeText(content.stemTemplate);
   return normalizeText(problem.title);

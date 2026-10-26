@@ -2,18 +2,26 @@ import { createTeacherPreviewAttempt } from '@/lib/problem-bank/teacher-preview-
 import { isValidPhotoAnswerUpload } from '@/lib/problem-bank/photo-answer';
 
 import { NextRequest, NextResponse } from 'next/server';
+import type { NotebookProblemAttemptAnswer } from '@/lib/problem-bank';
 import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { resolveModelFromHeaders } from '@/lib/server/resolve-model';
 import { runWithRequestContext } from '@/lib/server/request-context';
-import { evaluateNotebookNonCodeProblem } from '@/features/problems/server/evaluate';
+import {
+  evaluateNotebookMultipartProblem,
+  evaluateNotebookNonCodeProblem,
+} from '@/features/problems/server/evaluate';
 import { judgeNotebookCodeProblem } from '@/features/problems/server/judge';
-import { notebookProblemAttemptImageSchema } from '@/features/problems';
+import {
+  notebookProblemAttemptImageSchema,
+  notebookProblemPartAnswerSchema,
+} from '@/features/problems';
 import {
   hasPassedPublicCodeRun,
   countNotebookProblemSubmissions,
   createNotebookProblemAttempt,
+  getLatestNotebookProblemSubmission,
   getCourseProblemForUser,
 } from '@/features/problems/server/service';
 import { resolveNotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
@@ -27,19 +35,27 @@ import {
 
 export const maxDuration = 300;
 
+const photoAnswersSchema = z
+  .array(
+    notebookProblemAttemptImageSchema.refine(
+      isValidPhotoAnswerUpload,
+      '图片格式不支持或过大，请重新选择照片上传。',
+    ),
+  )
+  .max(4)
+  .optional();
+
 const submitSchema = z.object({
   text: z.string().max(40000).optional(),
   selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
   blanks: z.record(z.string(), z.string().max(4000)).optional(),
   code: z.string().max(120000).optional(),
-  images: z
-    .array(
-      notebookProblemAttemptImageSchema.refine(
-        isValidPhotoAnswerUpload,
-        '图片格式不支持或过大，请重新选择照片上传。',
-      ),
+  images: photoAnswersSchema,
+  parts: z
+    .record(
+      z.string().trim().min(1).max(40),
+      notebookProblemPartAnswerSchema.extend({ images: photoAnswersSchema }),
     )
-    .max(4)
     .optional(),
   language: z.enum(['zh-CN', 'en-US']).default('zh-CN'),
   activeDurationMs: z.number().int().min(0).max(14_400_000).optional(),
@@ -108,12 +124,13 @@ export async function POST(
       courseId: loaded.problem.courseId ?? id,
       notebookId: loaded.problem.notebookId,
     });
-    const answer = {
+    let answer: NotebookProblemAttemptAnswer = {
       text: payload.data.text,
       selectedOptionIds: payload.data.selectedOptionIds,
       blanks: payload.data.blanks,
       code: payload.data.code,
       images: payload.data.images,
+      parts: payload.data.parts,
     };
 
     const evaluated = await runWithRequestContext(
@@ -129,6 +146,30 @@ export async function POST(
             language: payload.data.language,
             courseIdentity,
           });
+        }
+
+        if (loaded.problem.type === 'multipart') {
+          const needsModel =
+            loaded.problem.publicContent.type === 'multipart' &&
+            loaded.problem.publicContent.parts.some(
+              (part) =>
+                Boolean(answer.parts?.[part.label]) &&
+                (part.content.type === 'short_answer' ||
+                  part.content.type === 'proof' ||
+                  Boolean(answer.parts?.[part.label]?.images?.length)),
+            );
+          const model = needsModel
+            ? (await resolveModelFromHeaders(req, { allowOpenAIModelOverride: true })).model
+            : undefined;
+          const graded = await evaluateNotebookMultipartProblem({
+            problem: scoringProblem,
+            answer,
+            previous: await getLatestNotebookProblemSubmission({ userId: auth.userId, problemId }),
+            model,
+            language: payload.data.language,
+          });
+          answer = graded.answer;
+          return graded;
         }
 
         if (
