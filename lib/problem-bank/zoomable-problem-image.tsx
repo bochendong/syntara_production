@@ -57,7 +57,7 @@ function ImagePreview({
           <button
             type="button"
             aria-label="缩小图片"
-            disabled={zoom <= 1}
+            aria-disabled={zoom <= 1}
             onClick={() => setZoom((value) => Math.max(1, value - 0.5))}
           >
             −
@@ -68,7 +68,7 @@ function ImagePreview({
           <button
             type="button"
             aria-label="放大图片"
-            disabled={zoom >= 4}
+            aria-disabled={zoom >= 4}
             onClick={() => setZoom((value) => Math.min(4, value + 0.5))}
           >
             +

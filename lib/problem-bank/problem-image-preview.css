@@ -86,7 +86,7 @@
   cursor: pointer;
 }
 
-.problem-image-preview-actions button:disabled {
+.problem-image-preview-actions button[aria-disabled='true'] {
   opacity: 0.4;
   cursor: default;
 }
