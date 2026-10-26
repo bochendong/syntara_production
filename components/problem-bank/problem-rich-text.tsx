@@ -879,11 +879,11 @@ export function ProblemImageAssets({
   if (!resolvedImages.length) return null;
 
   return (
-    <div className={cn('grid gap-3 sm:grid-cols-2', className)}>
+    <div className={cn('problem-image-gallery', className)}>
       {resolvedImages.map((image) => (
         <figure
           key={image.id}
-          className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60"
+          className="problem-image-thumbnail-frame overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60"
         >
           <ZoomableProblemImage image={image} />
         </figure>
