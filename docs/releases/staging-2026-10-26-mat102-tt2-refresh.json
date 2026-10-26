@@ -1,0 +1,93 @@
+{
+  "kind": "course-content-update",
+  "verifiedAt": "2026-10-26T22:17:37.488026+00:00",
+  "courseId": "cmu0zx9s10007l404smwwr9f7",
+  "courseName": "UTM-MAT102",
+  "applicationSourceUnchanged": "1c290206ddbe7e67a6a272031584b634c2d49a7f",
+  "applicationDeploymentUnchanged": "15c5dc5a-c902-4838-97bb-8227537f3f63",
+  "newApplicationBuildRequired": false,
+  "databaseMigrationRequired": false,
+  "sourceEdition": "MAT102 TT2 A–J past-paper-priority revised edition",
+  "comparison": {
+    "sourceQuestions": 140,
+    "changedPositions": 61,
+    "changedChoicePositions": 35,
+    "changedLongPositions": 26,
+    "unchangedPositions": 79,
+    "movedDuplicateSkipped": "Revised D-MC2 is identical to former D-MC4, which is retained.",
+    "addedQuestions": 60
+  },
+  "import": {
+    "batchId": "structured_import_657429e0e0a5037b830673278b3c962fde24292e",
+    "payloadHash": "6463369e1cf15e3acc8bc633ad3054f42c73d620c527d9481b34b8e62490d837",
+    "newTypeCounts": {
+      "choice": 34,
+      "multipart": 16,
+      "proof": 10
+    },
+    "newMultipartParts": 39,
+    "newAssessableTasks": 83,
+    "questionCountBefore": 252,
+    "questionCountAfter": 312,
+    "typeCountsAfter": {
+      "choice": 214,
+      "multipart": 64,
+      "proof": 34
+    },
+    "status": "published",
+    "titles": "Revised / 修订版",
+    "bilingualQuestionsAndChapters": true,
+    "allNewQuestionsHaveReferenceAnswers": true,
+    "sameKeyReplayReturnsSameIds": true
+  },
+  "originals": {
+    "newPdfFiles": 20,
+    "newLatexSourceZip": 1,
+    "newArchivedSources": 21,
+    "all21DownloadedHashesMatch": true,
+    "sourceCountAfter": 43
+  },
+  "preservation": {
+    "existingQuestionRecordsExact": 252,
+    "existingNotebooks": 24,
+    "notebooksCreated": 0,
+    "oldSourcesExact": 22,
+    "oldNotebookSourceMediaFilesExact": 344,
+    "chapterDefinitionsExact": true,
+    "attemptsAndProgressNotRewritten": true
+  },
+  "validation": {
+    "sourceAndJsonAcceptance": "complete; no errors or warnings; 83 ready effective leaves and 90 existing source leaves preserved",
+    "renderedFields": 859,
+    "validMathExpressions": 2046,
+    "exactChoiceGradingCases": 442,
+    "allOriginalPublicAndReferenceFormulasPreserved": true,
+    "allSourceRubricWeightsPreserved": true,
+    "sourceImagesInspected": 2,
+    "all20OriginalPdfsRead": true,
+    "originalSourceZipMatchesDesktop": true,
+    "liveUi": {
+      "checkedOn": "actual staging /test/app, existing authorized session",
+      "courseCountVisible": 312,
+      "revisedSearchVisible": true,
+      "restoredSixElementsPart": true,
+      "recursionPartLabels": ["i", "ii"],
+      "recursionPartCards": 2,
+      "englishChineseQuestionAndChapterSwitch": "passed",
+      "sourceDiagram": {
+        "loaded": true,
+        "width": 375,
+        "height": 230
+      },
+      "mathErrorsInInspectedViews": 0,
+      "studentSubmissionsCreated": 0,
+      "narrowScreenRetested": false
+    }
+  },
+  "notes": [
+    "All 60 additions were read back exactly against accepted JSON, including private grading, bilingual fields, figures and provenance.",
+    "The complete bank was exported again after the same-key retry; it remains 312 and all original 252 records remain exact.",
+    "Existing course-import authorization was reused without expanding scope.",
+    "Private drafts, reference answers, backups and file contents are not committed to Git."
+  ]
+}
