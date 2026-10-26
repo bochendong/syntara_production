@@ -10,9 +10,6 @@ import { ArrowLeft, Check, ChevronLeft, LayoutGrid, List, Play, Search, X } from
 
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
 import { matchesProblemFilters } from '../data/problem-bank-filters';
-import { browserApp } from '../data/browser-runtime';
-import { syncCourseProblems } from '../data/problem-sync';
-import { ProblemImport } from './problem-bank/ProblemImport';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
 import {
   SheetCell,
@@ -302,7 +299,10 @@ export function ProblemBankPage({
   );
   const [language, setLanguage] = useState<ProblemContentLanguage>('zh-CN');
   const languageSwitch = workspace.problems.some(hasBilingualProblem) ? (
-    <ContentLanguageSwitch label="题库语言" value={language} onChange={setLanguage} />
+    <header className="pb-language-toolbar" aria-label="题库语言设置">
+      <span>{language === 'zh-CN' ? '题库语言' : 'Language'}</span>
+      <ContentLanguageSwitch label="题库语言" value={language} onChange={setLanguage} />
+    </header>
   ) : undefined;
   const releaseControl = canRelease ? <CourseReleaseButton courseId={courseId} /> : null;
   const [statuses] = useProblemStatuses(courseId, workspace.problems);
@@ -445,7 +445,7 @@ export function ProblemBankPage({
     () => ({
       key: ALL_CHAPTERS,
       number: null,
-      title: '全部章节',
+      title: language === 'zh-CN' ? '全部章节' : 'All chapters',
       color: 'blue',
       order: -1,
       problems: chapters.flatMap((chapter) => chapter.problems),
@@ -453,7 +453,7 @@ export function ProblemBankPage({
       failed: chapters.reduce((sum, chapter) => sum + chapter.failed, 0),
       partial: chapters.reduce((sum, chapter) => sum + chapter.partial, 0),
     }),
-    [chapters],
+    [chapters, language],
   );
 
   // 题号：每一章里按出题顺序 1、2、3…，筛选时不变。
@@ -581,14 +581,14 @@ export function ProblemBankPage({
   const sheetProblems = useMemo(
     () =>
       chapterProblems.filter((problem) =>
-        matchesProblemFilters(problem, {
+        matchesProblemFilters(sourceProblems.get(problem.id) ?? problem, {
           query,
           type: activeTypeFilter,
           difficulty: activeDifficultyFilter,
           chapter: 'all',
         }),
       ),
-    [chapterProblems, query, activeDifficultyFilter, activeTypeFilter],
+    [chapterProblems, query, activeDifficultyFilter, activeTypeFilter, sourceProblems],
   );
 
   // ---------- 章节墙：搜索 ----------
@@ -609,58 +609,13 @@ export function ProblemBankPage({
   }, [chapters, query, sourceProblems]);
 
   const courseLabel = workspace.course.courseCode || workspace.course.name;
-  const importControl = browserApp ? (
-    <ProblemImport
-      key={courseId}
-      courseId={courseId}
-      onImported={async () => {
-        await syncCourseProblems(await getLocalRepository(), courseId);
-        await onContentChanged?.();
-      }}
-    />
-  ) : null;
-  const selectChapterScope = (key: string) => {
-    setOpenKey(key);
-    setListCount(LIST_PAGE_SIZE);
-    writeCourseValue('session', OPEN_CHAPTER_KEY, courseId, key);
-  };
-  const allChaptersControl = (
-    <div className="pb-chips" role="group" aria-label="章节范围">
-      <button
-        type="button"
-        className={openChapter?.key === ALL_CHAPTERS ? 'is-active' : ''}
-        aria-pressed={openChapter?.key === ALL_CHAPTERS}
-        onClick={() => selectChapterScope(ALL_CHAPTERS)}
-      >
-        全部章节 · {bankProblems.length} 题
-      </button>
-      {chapters.map((chapter) => (
-        <button
-          key={chapter.key}
-          type="button"
-          className={openChapter?.key === chapter.key ? 'is-active' : ''}
-          aria-pressed={openChapter?.key === chapter.key}
-          onClick={() => selectChapterScope(chapter.key)}
-        >
-          {chapter.title} · {chapter.problems.length}
-        </button>
-      ))}
-    </div>
-  );
-
   if (!bankProblems.length) {
     return (
       <section className="pb-page" aria-label="课程题库">
-        <BankHeader
-          title="题库"
-          subtitle={courseLabel}
-          onBack={onBack}
-          languageSwitch={languageSwitch}
-        />
+        <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
         <div className="pb-scroll">
           <div className="pb-column">
             {releaseControl}
-            {importControl}
             <LearningEmptyState
               title="还没有题目"
               action={
@@ -706,16 +661,11 @@ export function ProblemBankPage({
       startPractice(sheetProblems, problem, openChapter.title, openChapter.key);
     return (
       <section className="pb-page" aria-label={`${openChapter.title} 题目`}>
-        <BankHeader
-          title={openChapter.title}
-          subtitle={courseLabel}
-          onBack={onBack}
-          languageSwitch={languageSwitch}
-        />
+        <BankHeader title={openChapter.title} subtitle={courseLabel} onBack={onBack} />
         <div className="pb-scroll">
           <div className="pb-column">
+            {languageSwitch}
             {releaseControl}
-            {importControl}
             <div className="pb-chapter-head" style={accentVars(openChapter.color)}>
               {chapters.length > 1 || openChapter.key === ALL_CHAPTERS ? (
                 <button
@@ -732,7 +682,6 @@ export function ProblemBankPage({
               <ChapterTube chapter={openChapter} />
             </div>
 
-            {allChaptersControl}
             <label className="pb-search">
               <Search size={17} />
               <input
@@ -963,17 +912,11 @@ export function ProblemBankPage({
 
   return (
     <section className="pb-page" aria-label="课程题库">
-      <BankHeader
-        title="题库"
-        subtitle={courseLabel}
-        onBack={onBack}
-        languageSwitch={languageSwitch}
-      />
+      <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
       <div className="pb-scroll">
         <div className="pb-column">
+          {languageSwitch}
           {releaseControl}
-          {importControl}
-          {allChaptersControl}
           <div className="material-search-row">
             <label className="pb-search">
               <Search size={17} />

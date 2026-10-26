@@ -338,6 +338,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     () => (currentProblem ? localizeProblem(currentProblem, language) : null),
     [currentProblem, language],
   );
+  const chapterTitle = displayedProblem?.chapterName || launch.title;
   const total = orderedIds.length;
   const isCode = currentProblem ? problemIsCode(currentProblem) : false;
   const publicContent = displayedProblem ? problemPublicContent(displayedProblem) : {};
@@ -678,7 +679,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
               aria-label={'第 ' + (currentIndex + 1) + ' 题，共 ' + total + ' 题，答题卡'}
               onClick={() => setSheetOpen((open) => !open)}
             >
-              {launch.title ? <span className="pp-question-chapter">{launch.title}</span> : null}
+              {chapterTitle ? <span className="pp-question-chapter">{chapterTitle}</span> : null}
               <span className="pp-question-count">
                 第 {currentIndex + 1} / {total} 题
               </span>
@@ -760,7 +761,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
 
       {finish === 'shown' ? (
         <PracticeFinish
-          title={launch.title}
+          title={chapterTitle}
           ids={orderedIds}
           statuses={statuses}
           onBack={onBack}

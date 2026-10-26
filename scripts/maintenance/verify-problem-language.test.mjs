@@ -25,6 +25,8 @@ const problem = {
   notebookId: null,
   type: 'choice',
   title: 'Sets',
+  chapterId: 'chapter-sets',
+  chapterName: 'Sets',
   publicContent: {
     type: 'choice',
     stem: 'Which is a set?',
@@ -34,6 +36,8 @@ const problem = {
     ],
     translations: {
       'zh-CN': {
+        title: '集合选择题',
+        chapterName: '集合',
         stem: '哪一个是集合？',
         options: [
           { id: 'B', label: '不是集合' },
@@ -51,6 +55,11 @@ test('both language views keep one problem ID, grading and option order', () => 
   const zh = localizeProblem(problem, 'zh-CN');
   const en = localizeProblem(problem, 'en-US');
   assert.equal(zh.id, en.id);
+  assert.equal(zh.title, '集合选择题');
+  assert.equal(zh.chapterName, '集合');
+  assert.equal(en.title, 'Sets');
+  assert.equal(en.chapterName, 'Sets');
+  assert.equal(zh.chapterId, en.chapterId);
   assert.equal(zh.grading, en.grading);
   assert.equal(zh.publicContent.stem, '哪一个是集合？');
   assert.equal(en.publicContent.stem, 'Which is a set?');

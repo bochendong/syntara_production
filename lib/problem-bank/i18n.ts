@@ -11,6 +11,8 @@ export type LocalizableProblemContent = {
     Record<
       ProblemContentLanguage,
       {
+        title?: string;
+        chapterName?: string;
         stem?: string;
         stemTemplate?: string;
         explanation?: string;
@@ -48,7 +50,11 @@ export function getLocalizedProblemTitle(
   problem: LocalizableProblemRecord,
   language: ProblemContentLanguage,
 ): string {
-  return readTitleTranslation(problem.sourceMeta, language) ?? problem.title;
+  return (
+    (language === 'zh-CN' ? problem.publicContent.translations?.[language]?.title : null) ??
+    readTitleTranslation(problem.sourceMeta, language) ??
+    problem.title
+  );
 }
 
 export function getLocalizedProblemContent<T extends LocalizableProblemContent>(

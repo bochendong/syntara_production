@@ -79,6 +79,8 @@ export const notebookChoiceOptionSchema = z.object({
 });
 
 export const notebookProblemLocalizedContentSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  chapterName: z.string().trim().min(1).max(200).optional(),
   stem: z.string().trim().min(1).max(16000).optional(),
   stemTemplate: z.string().trim().min(1).max(16000).optional(),
   explanation: z.string().trim().min(1).max(8000).optional(),
