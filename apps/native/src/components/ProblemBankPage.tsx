@@ -40,12 +40,7 @@ import {
   useCourseLayers,
 } from '../lib/course-layers';
 import './course-pages.css';
-import { ContentLanguageSwitch } from './ContentLanguageSwitch';
-import {
-  hasBilingualProblem,
-  localizeProblem,
-  type ProblemContentLanguage,
-} from '../lib/problem-language';
+import { localizeProblem, type ProblemContentLanguage } from '../lib/problem-language';
 
 export type ProblemBankLaunch = {
   language?: ProblemContentLanguage;
@@ -257,15 +252,13 @@ function BankHeader({
   title,
   subtitle,
   onBack,
-  languageSwitch,
 }: {
   title: string;
   subtitle: string;
   onBack: () => void;
-  languageSwitch?: ReactNode;
 }) {
   return (
-    <header className={`pb-header${languageSwitch ? ' pb-header-bilingual' : ''}`}>
+    <header className="pb-header">
       <button type="button" className="phone-glass-button" onClick={onBack} aria-label="返回">
         <ChevronLeft size={22} />
       </button>
@@ -273,7 +266,7 @@ function BankHeader({
         <strong>{title}</strong>
         <small>{subtitle}</small>
       </div>
-      {languageSwitch ?? <span className="pb-header-spacer" aria-hidden />}
+      <span className="pb-header-spacer" aria-hidden />
     </header>
   );
 }
@@ -297,13 +290,6 @@ export function ProblemBankPage({
     () => new Map(workspace.problems.map((problem) => [problem.id, problem])),
     [workspace.problems],
   );
-  const [language, setLanguage] = useState<ProblemContentLanguage>('zh-CN');
-  const languageSwitch = workspace.problems.some(hasBilingualProblem) ? (
-    <header className="pb-language-toolbar" aria-label="题库语言设置">
-      <span>{language === 'zh-CN' ? '题库语言' : 'Language'}</span>
-      <ContentLanguageSwitch label="题库语言" value={language} onChange={setLanguage} />
-    </header>
-  ) : undefined;
   const releaseControl = canRelease ? <CourseReleaseButton courseId={courseId} /> : null;
   const [statuses] = useProblemStatuses(courseId, workspace.problems);
   const layers = useCourseLayers(courseId);
@@ -358,8 +344,8 @@ export function ProblemBankPage({
     const visible = published.length
       ? published
       : workspace.problems.filter((problem) => problem.status !== 'archived');
-    return visible.map((problem) => localizeProblem(problem, language));
-  }, [layered, layers, workspace.problems, language]);
+    return visible.map((problem) => localizeProblem(problem, 'zh-CN'));
+  }, [layered, layers, workspace.problems]);
 
   // 真实课程章节优先；未分课程章节的旧题仍沿用笔记 / 知识点分组。
   const chapterOf = useMemo(() => {
@@ -445,7 +431,7 @@ export function ProblemBankPage({
     () => ({
       key: ALL_CHAPTERS,
       number: null,
-      title: language === 'zh-CN' ? '全部章节' : 'All chapters',
+      title: '全部章节',
       color: 'blue',
       order: -1,
       problems: chapters.flatMap((chapter) => chapter.problems),
@@ -453,7 +439,7 @@ export function ProblemBankPage({
       failed: chapters.reduce((sum, chapter) => sum + chapter.failed, 0),
       partial: chapters.reduce((sum, chapter) => sum + chapter.partial, 0),
     }),
-    [chapters, language],
+    [chapters],
   );
 
   // 题号：每一章里按出题顺序 1、2、3…，筛选时不变。
@@ -512,7 +498,7 @@ export function ProblemBankPage({
         setLastSession(next);
       }
       onPractice({
-        language,
+        language: 'zh-CN',
         problemIds: problems.map((problem) => problem.id),
         initialProblemId: start.id,
         numbers: Object.fromEntries(
@@ -523,7 +509,7 @@ export function ProblemBankPage({
         title,
       });
     },
-    [courseId, numberById, onPractice, language],
+    [courseId, numberById, onPractice],
   );
 
   /** 「继续刷」：这一组里第一道还没通过的题。 */
@@ -664,7 +650,6 @@ export function ProblemBankPage({
         <BankHeader title={openChapter.title} subtitle={courseLabel} onBack={onBack} />
         <div className="pb-scroll">
           <div className="pb-column">
-            {languageSwitch}
             {releaseControl}
             <div className="pb-chapter-head" style={accentVars(openChapter.color)}>
               {chapters.length > 1 || openChapter.key === ALL_CHAPTERS ? (
@@ -915,7 +900,6 @@ export function ProblemBankPage({
       <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
       <div className="pb-scroll">
         <div className="pb-column">
-          {languageSwitch}
           {releaseControl}
           <div className="material-search-row">
             <label className="pb-search">
