@@ -22,8 +22,12 @@ It does not install the app, publish a release, or upload files.
 The default output directory is `.data/desktop-releases`, which is Git-ignored.
 Set `SYNTARA_DESKTOP_RELEASES_DIR` to use another directory for both packaging and
 the web server. Publishing source code alone does not publish the installer:
-provision the manifest and ZIP in a persistent directory on the web server, then
-point this variable at that directory. Never place credentials or environment
+for GitHub-source staging deploys, `scripts/deploy/desktop-release.json` pins a
+public GitHub Release asset. The staging build runs
+`node scripts/deploy/restore-desktop-release.mjs`, checks its size and SHA-256,
+and writes the ZIP and manifest before building the site. Invalid or missing
+artifacts fail the build rather than silently removing the download. Other
+deployments can provision a persistent directory and point this variable at it. Never place credentials or environment
 files in the package directory.
 
 `GET /api/downloads/macos` streams the current ZIP as an attachment. `HEAD`, ETags,

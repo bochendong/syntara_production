@@ -13,3 +13,15 @@ preDeployCommand = "npx prisma migrate deploy"
 # Use Node directly: Nixpacks runtime image may not have `pnpm` on PATH (catatonit: failed to exec pid1).
 startCommand = "node scripts/workers/start-with-worker.mjs"
 restartPolicyType = "ON_FAILURE"
+
+# GitHub codex/staging-next is the authoritative staging source. Keep production
+# defaults above unchanged. Documentation-only commits do not redeploy staging.
+[environments.staging.build]
+buildCommand = "node scripts/deploy/restore-desktop-release.mjs && pnpm install --frozen-lockfile && pnpm run build"
+watchPatterns = ["**", "!docs/**", "!**/*.md"]
+
+[environments.staging.deploy]
+preDeployCommand = "node node_modules/prisma/build/index.js migrate deploy"
+startCommand = "node node_modules/next/dist/bin/next start --hostname 0.0.0.0"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
