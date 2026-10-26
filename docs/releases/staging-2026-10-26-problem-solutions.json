@@ -1,0 +1,65 @@
+{
+  "source": "b44da6a4d1a91205e24c326bebb48d7d7956618e",
+  "deploymentId": "14799e4e-10e3-45ab-9242-e88f9a7762f6",
+  "status": "SUCCESS",
+  "verifiedAt": "2026-10-26T19:47:25.724844+00:00",
+  "assets": [
+    {
+      "path": "/native-web/assets/index-DC-o99jp.js",
+      "bytes": 1668682,
+      "sha256": "903c28ed69b037e6c79d90d5dad8aeb45c91cbb1875be28e94fb437d003d8230",
+      "liveSha256": "903c28ed69b037e6c79d90d5dad8aeb45c91cbb1875be28e94fb437d003d8230",
+      "matches": true
+    },
+    {
+      "path": "/native-web/assets/index-Cp6j6wpT.css",
+      "bytes": 372100,
+      "sha256": "a4b1067e5feadc71a1561b50b50bffad14175a866ce5d3797ed377c3c42a1101",
+      "liveSha256": "a4b1067e5feadc71a1561b50b50bffad14175a866ce5d3797ed377c3c42a1101",
+      "matches": true
+    }
+  ],
+  "checks": {
+    "formatLintRootAndNativeTypes": "passed",
+    "referenceAndCodeDraftTests": 9,
+    "nativeBuild": "passed",
+    "photoRegression": "passed",
+    "answerCoverage": {
+      "count": 551,
+      "typeCounts": {
+        "code": 77,
+        "short_answer": 99,
+        "calculation": 22,
+        "choice": 273,
+        "fill_blank": 3,
+        "proof": 77
+      },
+      "missing": [],
+      "passed": true
+    },
+    "isolatedBrowser": "all six types reset; cancel has no record; confirm snapshots and help memory; remember survives reload; existing grades preserved; code starter survives reopen"
+  },
+  "live": {
+    "confirmationDialog": true,
+    "rememberCheckbox": true,
+    "resetButton": true,
+    "cancelHidesDialogAndAnswer": true,
+    "studentAnswerNotSubmittedForLiveQA": true,
+    "removedBankLanguageToolbar": true,
+    "screenshots": [
+      "problem-answer-confirmation.png",
+      "problem-practice-answer-actions.png",
+      "mat102-bank-toolbar-removed.png"
+    ]
+  },
+  "limits": [
+    "Reference save/remember/AI memory persistence were exercised with isolated local fixtures and service-function tests, not by creating fake live student attempts.",
+    "Existing Mac downloads were not rebuilt."
+  ],
+  "features": [
+    "Reset current input for all six question types; preserve graded history.",
+    "Stored reference answers with save-before-reveal confirmation and account-scoped remembered preference.",
+    "Ungraded snapshot events preserve server assessment counters; help memory is refreshed for the next native/test-app AI turn.",
+    "Bank language toolbar, upload section and chapter-scope row remain removed."
+  ]
+}

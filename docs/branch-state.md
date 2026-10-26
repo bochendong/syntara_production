@@ -2,17 +2,20 @@
 
 核对日期：2026-10-26（America/Toronto）。当前测试服已更新，源码基线与实际部署对应。
 
+最新做题页应用源码为 `b44da6a4`，Railway 发布 `14799e4e` 已成功。六种题型均支持重置和参考答案；首次查看前保存未评分快照与求助记忆，可记住确认选择。题库语言工具栏已移除，MAT102 TT2 十套题与原始附件保持在此前导入状态。基线还包含本次发布文档，应用代码与上述运行提交相同。见 [题目答案发布记录](releases/staging-2026-10-26-problem-solutions.json)。
+
 ## 以后从哪里继续
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `4fa935e1`，对应 Railway 发布 `fc3ab193` |
+| 测试服源码基线 | `codex/staging-baseline` | `b44da6a4` 的应用源码及发布记录，对应 Railway 发布 `14799e4e` |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 测试服主要发布分支 | `codex/staging-next` | GitHub 是发布源；已授权目标仓库并启用自动部署 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
 
-当前开发仍在本次聊天原来的 `chat-visual-hierarchy/syntara_production` 工作目录。
-目录名未改变，分支已改名为 `codex/staging-next`，避免中断正在运行的本地预览。
+本次题库改动使用 `lecture-language-switch/syntara_production` 工作树与
+`codex/lecture-language-switch` 任务分支，再发布到 `codex/staging-next`。
+此前 `chat-visual-hierarchy/syntara_production` 工作目录及其他聊天的未提交工作保持原样。
 
 这两条分支已同步到 GitHub：
 [测试服基线](https://github.com/bochendong/syntara_production/tree/codex/staging-baseline)、
@@ -46,8 +49,8 @@
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前发布：`fc3ab193-3429-40a9-a67e-4c934d88a14b`，源码提交：`4fa935e1`。
-- 发布快照包含 3,166 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
+- 当前应用发布：`14799e4e-10e3-45ab-9242-e88f9a7762f6`，源码提交：`b44da6a4`。
+- 线上原生 JS/CSS 与本次本地验证构建的 SHA-256 一致；本次发布记录包含资源哈希。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
 - 测试服直接拉取 GitHub 的 `codex/staging-next`，使用 `railway.toml` 的 `staging` 覆盖配置；不再依赖本机源码快照上传。
 - 前次侧栏菜单对齐、宽度和头像 hover 背景：[staging-2026-10-25-sidebar-hover.json](releases/staging-2026-10-25-sidebar-hover.json)。
