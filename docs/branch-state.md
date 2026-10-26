@@ -6,7 +6,7 @@
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `ae042399`，对应 Railway 发布 `46a1a26b` |
+| 测试服源码基线 | `codex/staging-baseline` | `0a8f4730`，对应 Railway 发布 `b0872c7e` |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 当前开发 | `codex/staging-next` | 当前发布代码 + 后续发布记录 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
@@ -32,19 +32,31 @@
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前发布：`46a1a26b-db63-4c30-872a-1995894285e5`，源码提交：`ae042399`。
-- 发布快照包含 3,142 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
+- 当前发布：`b0872c7e-8c49-4740-9d20-88825fdcbe30`，源码提交：`0a8f4730`。
+- 发布快照包含 3,148 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
 - `railway.toml` 没有上传，测试服构建、启动和迁移配置由 Railway 管理；临时资源恢复命令已恢复为正常构建命令。
-- 本次侧栏菜单对齐、宽度和头像 hover 背景：[staging-2026-10-25-sidebar-hover.json](releases/staging-2026-10-25-sidebar-hover.json)。
+- 前次侧栏菜单对齐、宽度和头像 hover 背景：[staging-2026-10-25-sidebar-hover.json](releases/staging-2026-10-25-sidebar-hover.json)。
 - 前次课程头像、课程分层与版本发布：[staging-2026-10-25-course-layers.json](releases/staging-2026-10-25-course-layers.json)。
 - 数据库第 48 个迁移已执行；测试服仍有 27 门课程、174 本笔记、2,532 道题，与发布前一致。
-- Mac 测试包已重新编译，下载页当前提供 `20261025T224540Z` 构建。
+- Mac 测试包已重新编译，下载页当前提供 `20261026T000156Z` 构建（Toronto 10 月 25 日）。
 - 前次学习页宽屏发布：[staging-2026-10-25-learning-wide.json](releases/staging-2026-10-25-learning-wide.json)。
 - 前次管理员发布：[staging-2026-10-25-admin.json](releases/staging-2026-10-25-admin.json)。
 - 前次布局修复：[staging-2026-10-25-layout.json](releases/staging-2026-10-25-layout.json)。
 - 上一次功能发布：[staging-2026-10-25.json](releases/staging-2026-10-25.json)。
 - 上一次整理记录：[staging-2026-10-24.json](releases/staging-2026-10-24.json)。
+
+本次六组功能与增量发布记录：[staging-2026-10-25-daily.json](releases/staging-2026-10-25-daily.json)。
+从保存的 `staging-work` 快照逐项迁入 33 个发布文件，并补了语音自动停止清理；原工作区的
+49 个差异文件经哈希核对未变。保留此前权限、私有题号、发布锁、增量同步与侧栏样式修复。
+公有题现在只读，学员不能隐藏、删除或复制；公有笔记继续支持隐藏、恢复和复制到私有层。
+宽屏新增全屏做题弹窗，修复 Python `>>>`、公式、代码与小问；侧栏课程去校区，商城保留校区。
+
+本次完整网页构建、根项目和 App 类型检查、改动文件格式/lint、Mac 编译签名、Rust 平台检查、
+Realtime/渲染回归和独立数据库运行检查通过。填空题静态契约检查在未改动基线同样失败，
+已保存对照证据；没有据此宣称所有历史测试通过。语音使用合成音频收到 13 次实时增量和最终文字，
+另验证了两分钟自动停止与重复清理；真实麦克风授权及硬件 WebRTC 链路仍待真机验证。
+本次没有数据库结构变更；独立测试 schema 和临时 TCP 代理已清理。
 
 ## 本次已部署
 
@@ -52,11 +64,11 @@
 - 测试服管理员后台 `/admin`，沿用经用户确认的正式服管理员邮箱和密码；独立的测试服数据库和会话签名。
 - 修复多张动态学习卡片的宽屏比例和聊天区留白；1512px 窗口下卡片约 302px，正文与输入框保持对齐。
 
-- 头像、首页文案、日历日期传递、笔记/题库上传入口及录音后转文字按钮。
+- 头像、首页文案、日历日期传递、笔记/题库上传入口及 Realtime 边说边出字（连接失败时回退录音后转文字）。
 - 新手引导、官方「使用教程」课程，以及课程的新聊天、编辑、删除菜单。
 - 笔记书架与章节阅读，新题库章节墙、题号弹珠、筛选和答题页。
 - 首页「下载桌面版」、`/download` 和实际 Mac 安装包下载接口。
-- Mac Apple Silicon 测试包：44.8 MiB，macOS 14+，未经过 Apple 公证。
+- Mac Apple Silicon 测试包：45.9 MiB，macOS 14+，未经过 Apple 公证。
 
 源码来自 `codex/staging-work` 的 `e96a603d` 及其 62 个工作文件，均先保存快照，
 再按文件集成到 `codex/staging-next`；保留了原有下载入口和聊天布局修复。
@@ -66,7 +78,7 @@ Mac ZIP 和清单在当前目录的 `.data/desktop-releases/`，本次部署单�
 它们不进入 Git；后续部署必须继续携带安装包，或接入持久存储，不能只推送源码。
 打包方法见 [desktop-downloads.md](api/desktop-downloads.md)。
 
-真机麦克风授权及实际转写仍待验证。语音保留录音后转写，未切换 Realtime。
+Realtime 已接入并用合成语音验证服务端增量转写。实际设备麦克风授权与 WebRTC 音频采集仍待真机验证。
 
 ## 其他工作目录
 

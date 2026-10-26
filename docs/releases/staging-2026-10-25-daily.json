@@ -1,0 +1,144 @@
+{
+  "sourceCommit": "0a8f4730b33476445368876214fa562102f2911c",
+  "sourceTree": "cfba3b685cfd4be2bb541752a0b2e92cafa2a8ae",
+  "sourceFiles": 3148,
+  "parentDevelopment": "3f4984e774df7c26824007428848d860623ec210",
+  "previousBaseline": "ae0423999a9aca875288b0389fcfb09d562084da",
+  "taskBranch": "codex/daily-staging-integration",
+  "railway": {
+    "projectId": "8cddd1ea-24e1-49a9-8d27-dce86069dc8b",
+    "environmentId": "6697de1f-eb0d-4a6f-8709-cfe477a29f11",
+    "serviceId": "fd6afb05-6491-451a-b577-abf15fdc0047",
+    "deploymentId": "b0872c7e-8c49-4740-9d20-88825fdcbe30",
+    "status": "SUCCESS"
+  },
+  "sourceWorktree": {
+    "branch": "codex/staging-work",
+    "head": "e96a603dd2b364e43959d35e221a805e74f6a7f5",
+    "preserved": true,
+    "method": "selected files from checkpoint, not entire mixed working tree"
+  },
+  "scope": [
+    "Retain marble bookshelf, wide layouts, chapter filters and right-hand reading chapters; add fullscreen practice overlay and rendering repairs",
+    "Retain VS Code chat code blocks already deployed",
+    "Retain avatar/home/calendar/uploads; add Realtime voice with recording fallback",
+    "Retain tutorial onboarding and course new/edit/delete menus",
+    "Persist course avatars, campus-qualified store labels, campus-free sidebar labels and working calendar arrows",
+    "Learner private content; public notebook hide/restore/copy; public questions read-only; serialized publisher release and incremental updates retained"
+  ],
+  "checks": {
+    "formatLintRootAndNativeTypes": "passed",
+    "fullWebBuild": "passed",
+    "macArm64BuildSignature": "passed",
+    "rustPlatformTests": 3,
+    "renderingTests": "passed on web and native renderers",
+    "realtimeMockTests": "live deltas, final correction, commit race, cleanup passed",
+    "onboardingListingTest": "passed after refreshing stale mock exports",
+    "nativePlatformAccess": "passed",
+    "databaseLayerRuntime": "passed in disposable schema; temporary schema and TCP proxy removed",
+    "realtimeProviderCanary": {
+      "fixture": "synthesized speech; no microphone capture",
+      "deltaCount": 13,
+      "finalTranscriptVerified": true
+    },
+    "knownBaselineFailure": "fill-blank source contract failed identically on unmodified parent baseline",
+    "unverified": "physical microphone permission and hardware WebRTC path",
+    "audioMeterAutoStop": "passed; no post-cleanup animation and close is idempotent",
+    "liveBrowser": {
+      "sidebarLabels": ["MAT 102", "CSC 108"],
+      "storeCampusPrefixesRetained": true,
+      "calendarArrows": "October to November and back",
+      "fullscreenPractice": "1280x720, no horizontal overflow; doctest code preserved",
+      "publicQuestionActions": "no learner remove/hide/copy entry"
+    }
+  },
+  "macInstaller": {
+    "version": "0.1.0",
+    "builtAt": "2026-10-26T00:01:56.185Z",
+    "fileName": "Syntara-Test-0.1.0-macOS-arm64-20261026T000156Z.zip",
+    "size": 48140166,
+    "sha256": "5d92dfcaa7b125f06d014909a7bd39d7b65ca9cd635b7db26625f36f1ae840a0",
+    "channel": "staging",
+    "architecture": "arm64",
+    "minimumSystemVersion": "14.0",
+    "notarized": false,
+    "headAndRangeVerified": true
+  },
+  "databaseChanges": false,
+  "preserved": [
+    "sidebar action alignment and wider desktop width",
+    "ImageGen avatar hover scene/hue",
+    "dynamic right-hand learning cards and proportions",
+    "homepage and desktop download page",
+    "staging administrator configuration"
+  ],
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "nativeAssets": [
+    {
+      "url": "/native-web/assets/index-DrJvrAk9.js",
+      "sha256": "a8703dd6e3fe3600d636834806e9d39173dfc5b46293d7da2e6a2d1e93d2defb",
+      "bytes": 1626087,
+      "matchesVerifiedBuild": true
+    },
+    {
+      "url": "/native-web/assets/index-DClbb4Q5.css",
+      "sha256": "88420d5aa33bfffdcb258924dcd1948d0439f7526ec25e13885b8097ebe785af",
+      "bytes": 359180,
+      "matchesVerifiedBuild": true
+    }
+  ],
+  "intermediateDeployment": {
+    "id": "c8246486-26da-49cc-b1dd-6741eca68ae9",
+    "sourceCommit": "13a707f998e3799738e1a2f397fe1eccc61f7db1",
+    "status": "SUCCESS",
+    "supersededByAudioMeterFix": true
+  },
+  "verifiedAt": "2026-10-26T00:11:35.254Z",
+  "baselineBranch": "codex/staging-baseline",
+  "baselineCommit": "0a8f4730b33476445368876214fa562102f2911c",
+  "developmentBranch": "codex/staging-next",
+  "liveChecks": [
+    {
+      "path": "/api/health",
+      "status": 200
+    },
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/download",
+      "status": 200
+    },
+    {
+      "path": "/test/app",
+      "status": 200
+    },
+    {
+      "path": "/admin",
+      "status": 200
+    },
+    {
+      "path": "/api/native/v1/store?layersOf=missing-course",
+      "status": 401
+    },
+    {
+      "path": "/api/native/v1/store",
+      "status": 401
+    },
+    {
+      "path": "/api/courses/missing-course/layers",
+      "status": 401
+    },
+    {
+      "path": "/api/admin/courses",
+      "status": 401
+    },
+    {
+      "path": "/api/native/v1/realtime-transcription",
+      "status": 401
+    }
+  ],
+  "buildCommandRestored": true,
+  "evidence": "Git common directory codex/tasks/daily-staging-integration-20261025/"
+}
