@@ -1,0 +1,68 @@
+{
+  "source": "37c075a6cc5c7e2e8799eab8fc053c7100483105",
+  "deploymentId": "59c540f4-d57e-405b-801b-b21974f4cb97",
+  "scope": ["web problem image assets", "native/browser problem image assets"],
+  "databaseChanges": false,
+  "desktopInstallerRebuilt": false,
+  "localVerification": {
+    "formatLintRootAndNativeTypes": "passed",
+    "nativeStagingBuild": "passed",
+    "nextProductionBuild": "passed",
+    "browser": [
+      "thumbnail click opens modal",
+      "keyboard Enter opens modal",
+      "zoom 150% creates scrollable image",
+      "fit resets to 100%",
+      "Escape closes preview without closing practice",
+      "Escape restores thumbnail focus",
+      "backdrop closes preview without closing practice",
+      "close button closes preview",
+      "draft retained",
+      "web and native renderer both tested",
+      "390px iframe viewport: toolbar and image fit, zoom/fit/close tested",
+      "Tab stays in modal controls",
+      "400% max control keeps focus and Escape preserves practice",
+      "landscape, portrait, square thumbnail frames all measured 180x180 in both renderers",
+      "native and web portrait preview opens and Escape restores correct thumbnail"
+    ]
+  },
+  "thumbnailSize": {
+    "width": 180,
+    "height": 180,
+    "objectFit": "contain"
+  },
+  "status": "SUCCESS",
+  "verifiedAt": "2026-10-26T23:15:16.090955+00:00",
+  "assets": [
+    {
+      "path": "/native-web/assets/index-DW6rqrko.js",
+      "bytes": 1683452,
+      "sha256": "8cfb1b314ad37c8cc43455c7f585e285efabd1a40f73a69fa959410d71b031ac",
+      "liveSha256": "8cfb1b314ad37c8cc43455c7f585e285efabd1a40f73a69fa959410d71b031ac",
+      "matches": true
+    },
+    {
+      "path": "/native-web/assets/index-CRSc6w_J.css",
+      "bytes": 377437,
+      "sha256": "69e46608a521112d84ab5f379be5e0aa3365115debe9c1f49c2df63f97506769",
+      "liveSha256": "69e46608a521112d84ab5f379be5e0aa3365115debe9c1f49c2df63f97506769",
+      "matches": true
+    }
+  ],
+  "liveVerification": {
+    "course": "MAT102",
+    "question": "TT2 D MC04 revised, Functions 53/57",
+    "thumbnail": {
+      "width": 180,
+      "height": 180
+    },
+    "loadedEntry": "/native-web/assets/index-DW6rqrko.js",
+    "previewOpened": true,
+    "zoom150Percent": true,
+    "escapeClosesPreviewOnly": true,
+    "focusRestoredToThumbnail": true,
+    "katexErrors": 0,
+    "attemptSubmitted": false
+  },
+  "screenshots": ["problem-image-thumbnail-staging.png", "problem-image-zoom-staging.png"]
+}
