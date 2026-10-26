@@ -1,14 +1,14 @@
 # 分支与测试服状态
 
-核对日期：2026-10-25（America/Toronto）。当前测试服已更新，源码基线与实际部署对应。
+核对日期：2026-10-26（America/Toronto）。当前测试服已更新，源码基线与实际部署对应。
 
 ## 以后从哪里继续
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `0a8f4730`，对应 Railway 发布 `b0872c7e` |
+| 测试服源码基线 | `codex/staging-baseline` | `d7807ae8`，对应 Railway 发布 `5b0d8d12` |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
-| 当前开发 | `codex/staging-next` | 当前发布代码 + 后续发布记录 |
+| 测试服主要发布分支 | `codex/staging-next` | GitHub 是发布源；自动部署权限待 GitHub 身份复核 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
 
 当前开发仍在本次聊天原来的 `chat-visual-hierarchy/syntara_production` 工作目录。
@@ -17,7 +17,13 @@
 这两条分支已同步到 GitHub：
 [测试服基线](https://github.com/bochendong/syntara_production/tree/codex/staging-baseline)、
 [当前开发](https://github.com/bochendong/syntara_production/tree/codex/staging-next)。
-命令行没有写入凭据时，可以继续使用 GitHub Desktop 的登录推送；不要强推覆盖旧分支。
+`codex/staging-next` 是测试服的主要发布分支，Railway 已连接
+`bochendong/syntara_production@codex/staging-next`。本次已从该分支成功部署。Railway 网页仍提示自动部署不可用，
+GitHub App 配置页要求账号本人完成身份复核，因此还不能认定后续 push 会自动部署。
+构建配置已排除文档和发布记录更新。`codex/staging-baseline` 仍只记录验证通过的线上提交。
+`main` 和正式服来源未更改。发布证据见
+[staging-2026-10-26-github-source.json](releases/staging-2026-10-26-github-source.json)。
+命令行没有写入凭据时，可以继续使用 GitHub Desktop 或 GitHub connector 推送；不要强推覆盖旧分支。
 首页、下载页及本次课程头像、私有内容、隐藏恢复和版本发布改动已部署到测试服；后续提交仍需单独构建和验证。
 
 此前课程分层发布从 `staging-work` 明确迁移了相关文件，并补齐权限、私有题号和增量同步边界；源工作区未重置，其他待办继续保留。`codex/course-layers-release` 保留本次发布的独立源码。此前的笔记三列、题库章节墙四列和右侧筛选面板保持在当前基线中。
@@ -32,13 +38,13 @@
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前发布：`b0872c7e-8c49-4740-9d20-88825fdcbe30`，源码提交：`0a8f4730`。
-- 发布快照包含 3,148 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
+- 当前发布：`5b0d8d12-56b4-454d-a85a-0b87535ee2eb`，源码提交：`d7807ae8`。
+- 发布快照包含 3,152 个 Git 源码文件；线上原生 JS/CSS 与本地验证构建的 SHA-256 一致。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
-- `railway.toml` 没有上传，测试服构建、启动和迁移配置由 Railway 管理；临时资源恢复命令已恢复为正常构建命令。
+- 测试服直接拉取 GitHub 的 `codex/staging-next`，使用 `railway.toml` 的 `staging` 覆盖配置；不再依赖本机源码快照上传。
 - 前次侧栏菜单对齐、宽度和头像 hover 背景：[staging-2026-10-25-sidebar-hover.json](releases/staging-2026-10-25-sidebar-hover.json)。
 - 前次课程头像、课程分层与版本发布：[staging-2026-10-25-course-layers.json](releases/staging-2026-10-25-course-layers.json)。
-- 数据库第 48 个迁移已执行；测试服仍有 27 门课程、174 本笔记、2,532 道题，与发布前一致。
+- 数据库已执行 48 个迁移；前次发布核对为 27 门课程、174 本笔记、2,532 道题。本次只改部署链路，没有结构迁移。
 - Mac 测试包已重新编译，下载页当前提供 `20261026T000156Z` 构建（Toronto 10 月 25 日）。
 - 前次学习页宽屏发布：[staging-2026-10-25-learning-wide.json](releases/staging-2026-10-25-learning-wide.json)。
 - 前次管理员发布：[staging-2026-10-25-admin.json](releases/staging-2026-10-25-admin.json)。
@@ -74,9 +80,11 @@ Realtime/渲染回归和独立数据库运行检查通过。填空题静态契�
 再按文件集成到 `codex/staging-next`；保留了原有下载入口和聊天布局修复。
 源工作树及 `.claude-transfer/`、`Claude outputs/` 保留，不将临时归档作为发布源码。
 
-Mac ZIP 和清单在当前目录的 `.data/desktop-releases/`，本次部署单独携带了这两项。
-它们不进入 Git；后续部署必须继续携带安装包，或接入持久存储，不能只推送源码。
-打包方法见 [desktop-downloads.md](api/desktop-downloads.md)。
+Mac ZIP 和清单仍在 `.data/desktop-releases/`，不进入 Git；安装包已保存到
+[GitHub Release](https://github.com/bochendong/syntara_production/releases/tag/staging-desktop-20261026-000156)。
+`scripts/deploy/desktop-release.json` 固定文件、下载地址、大小和 SHA-256，测试服构建会运行
+`restore-desktop-release.mjs` 取回并验证，再构建网站；失败时终止构建，保留上个线上版本。
+打包和更新清单的方法见 [desktop-downloads.md](api/desktop-downloads.md)。
 
 Realtime 已接入并用合成语音验证服务端增量转写。实际设备麦克风授权与 WebRTC 音频采集仍待真机验证。
 

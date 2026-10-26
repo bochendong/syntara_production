@@ -1,0 +1,126 @@
+{
+  "repository": "bochendong/syntara_production",
+  "authoritativeStagingBranch": "codex/staging-next",
+  "sourceCommit": "d7807ae8525078a7c9abf3671a59080e107dbf22",
+  "sourceTree": "1ea84261b4642aba3af8420f5c377ee43d087f38",
+  "previousBaseline": "0a8f4730b33476445368876214fa562102f2911c",
+  "parentDevelopment": "2d9e99eee669ec84c912bbe4cadc6f511ae11221",
+  "taskBranch": "codex/staging-github-source",
+  "railway": {
+    "projectId": "8cddd1ea-24e1-49a9-8d27-dce86069dc8b",
+    "environmentId": "6697de1f-eb0d-4a6f-8709-cfe477a29f11",
+    "serviceId": "fd6afb05-6491-451a-b577-abf15fdc0047",
+    "deploymentId": "5b0d8d12-56b4-454d-a85a-0b87535ee2eb",
+    "status": "SUCCESS",
+    "source": "GitHub",
+    "branch": "codex/staging-next"
+  },
+  "macInstaller": {
+    "version": "0.1.0",
+    "builtAt": "2026-10-26T00:01:56.185Z",
+    "fileName": "Syntara-Test-0.1.0-macOS-arm64-20261026T000156Z.zip",
+    "size": 48140166,
+    "sha256": "5d92dfcaa7b125f06d014909a7bd39d7b65ca9cd635b7db26625f36f1ae840a0",
+    "channel": "staging",
+    "architecture": "arm64",
+    "minimumSystemVersion": "14.0",
+    "notarized": false,
+    "headAndRangeVerified": true
+  },
+  "githubRelease": "https://github.com/bochendong/syntara_production/releases/tag/staging-desktop-20261026-000156",
+  "installerRestoration": {
+    "manifest": "scripts/deploy/desktop-release.json",
+    "command": "node scripts/deploy/restore-desktop-release.mjs",
+    "sha256Checked": true,
+    "freshDownloadFromGitHubVerified": true,
+    "invalidDownloadsCannotReplaceValidRelease": true
+  },
+  "scope": [
+    "Keep all deployed learning features intact; use GitHub source rather than local archive uploads",
+    "Staging-specific build/start/migrate/watch overrides in existing railway.toml; production defaults unchanged",
+    "Pin and verify the public Mac installer from GitHub Release during builds"
+  ],
+  "checks": {
+    "formatLintAndRootTypes": "passed",
+    "artifactRestoreAndDownloadTests": 6,
+    "coldGitHubArtifactDownload": "passed",
+    "macRebuildRequired": false,
+    "applicationCodeChanged": false
+  },
+  "sourceChangeApproval": {
+    "explicitUserConfirmationReceived": true,
+    "connectorApplyRefusedTwice": true,
+    "cliScopedEditNoChanges": true,
+    "appliedThroughRailwayReviewedUI": true,
+    "reviewedChangedFields": ["source.repo", "source.branch"]
+  },
+  "productionModified": false,
+  "databaseMigrationChanges": false,
+  "nativeAssets": [
+    {
+      "url": "/native-web/assets/index-DrJvrAk9.js",
+      "sha256": "a8703dd6e3fe3600d636834806e9d39173dfc5b46293d7da2e6a2d1e93d2defb",
+      "bytes": 1626087,
+      "matchesVerifiedBuild": true
+    },
+    {
+      "url": "/native-web/assets/index-DClbb4Q5.css",
+      "sha256": "88420d5aa33bfffdcb258924dcd1948d0439f7526ec25e13885b8097ebe785af",
+      "bytes": 359180,
+      "matchesVerifiedBuild": true
+    }
+  ],
+  "verifiedAt": "2026-10-26T05:02:57.763Z",
+  "liveChecks": [
+    {
+      "path": "/api/health",
+      "status": 200
+    },
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/download",
+      "status": 200
+    },
+    {
+      "path": "/test/app",
+      "status": 200
+    },
+    {
+      "path": "/admin",
+      "status": 200
+    },
+    {
+      "path": "/api/native/v1/store?layersOf=missing-course",
+      "status": 401
+    },
+    {
+      "path": "/api/native/v1/store",
+      "status": 401
+    },
+    {
+      "path": "/api/courses/missing-course/layers",
+      "status": 401
+    },
+    {
+      "path": "/api/admin/courses",
+      "status": 401
+    },
+    {
+      "path": "/api/native/v1/realtime-transcription",
+      "status": 401
+    }
+  ],
+  "sourceFiles": 3152,
+  "baselineBranch": "codex/staging-baseline",
+  "baselineCommit": "d7807ae8525078a7c9abf3671a59080e107dbf22",
+  "developmentBranch": "codex/staging-next",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "evidence": "Git common directory codex/tasks/staging-github-source-20261026/",
+  "automaticDeployment": {
+    "verified": false,
+    "status": "GitHub App permission audit awaiting account owner identity confirmation; Railway UI reports Auto deploy unavailable"
+  }
+}
