@@ -20,6 +20,7 @@ export function PracticeOverlay({
     const previous = document.activeElement as HTMLElement | null;
     dialogRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing) return;
       if (event.key === 'Tab') {
         const items = Array.from(
           dialogRef.current?.querySelectorAll<HTMLElement>(

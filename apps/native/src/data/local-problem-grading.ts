@@ -1,8 +1,16 @@
 import type { LocalProblem } from '../domain/models';
 
+export type PhotoAnswerImage = {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  dataUrl: string;
+};
+
 export type LocalProblemAnswer =
   | { kind: 'choice'; selectedOptionIds: string[] }
-  | { kind: 'text'; text: string }
+  | { kind: 'text'; text: string; images?: PhotoAnswerImage[] }
   | { kind: 'code'; code: string };
 
 export type LocalGradeResult = {
@@ -179,7 +187,7 @@ export function answerHasContent(answer: LocalProblemAnswer | null | undefined):
   if (!answer) return false;
   if (answer.kind === 'choice') return answer.selectedOptionIds.length > 0;
   if (answer.kind === 'code') return answer.code.trim().length > 0;
-  return answer.text.trim().length > 0;
+  return answer.text.trim().length > 0 || Boolean(answer.images?.length);
 }
 
 export function gradeLocalProblem(
@@ -224,6 +232,14 @@ export function gradeLocalProblem(
       autoGraded: true,
     };
   }
+
+  if (answer.kind === 'text' && answer.images?.length)
+    return {
+      status: 'pending',
+      score: null,
+      feedback: '图片作答已保存，等待批改。',
+      autoGraded: false,
+    };
 
   if (problem.type === 'calculation' && answer.kind === 'text') {
     const accepted = [

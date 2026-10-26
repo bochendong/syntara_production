@@ -1,3 +1,5 @@
+import { notebookProblemAttemptImageSchema } from '@/lib/problem-bank/schema';
+import { isValidPhotoAnswerUpload } from '@/lib/problem-bank/photo-answer';
 import { z } from 'zod';
 
 import { createNotebookProblemAttempt } from '@/lib/server/notebook-problems/service';
@@ -176,6 +178,10 @@ export const nativeProblemAttemptUploadSchema = z.object({
           selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
           text: z.string().max(40_000).optional(),
           code: z.string().max(120_000).optional(),
+          images: z
+            .array(notebookProblemAttemptImageSchema.refine(isValidPhotoAnswerUpload))
+            .max(4)
+            .optional(),
         }),
         feedback: z.string().max(8000).nullable().optional(),
         autoGraded: z.boolean().optional(),

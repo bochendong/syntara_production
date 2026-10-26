@@ -1,3 +1,5 @@
+import { notebookProblemAttemptImageSchema } from '@/lib/problem-bank/schema';
+import { isValidPhotoAnswerUpload } from '@/lib/problem-bank/photo-answer';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -16,6 +18,10 @@ export const maxDuration = 120;
 const requestSchema = z
   .object({
     question: z.string().trim().min(1).max(20_000),
+    images: z
+      .array(notebookProblemAttemptImageSchema.refine(isValidPhotoAnswerUpload))
+      .max(4)
+      .optional(),
     userAnswer: z.string().trim().min(1).max(20_000),
     points: z.number().int().min(1).max(100),
     commentPrompt: z.string().trim().max(12_000).optional(),

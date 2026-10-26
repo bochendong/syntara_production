@@ -1,3 +1,5 @@
+import { isValidPhotoAnswerUpload } from '../../../../lib/problem-bank/photo-answer';
+import type { PhotoAnswerImage } from './local-problem-grading';
 import { accountStorageKey } from './browser-runtime';
 import type { LocalProblem, LocalProblemAttempt, LocalProblemProgress } from '../domain/models';
 import { SYNTARA_ARCHIVE_FORMAT, SYNTARA_ARCHIVE_VERSION, type SyntaraArchiveV1 } from './archive';
@@ -26,7 +28,8 @@ type ProblemSyncState = {
   problemIds: string[];
 };
 
-type Outbox = Record<string, NativeProblemAttemptUpload[]>;
+type QueuedAttempt = NativeProblemAttemptUpload & { photoAttemptId?: string };
+type Outbox = Record<string, QueuedAttempt[]>;
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -93,6 +96,19 @@ function uploadOf(attempt: LocalProblemAttempt): NativeProblemAttemptUpload | nu
         ? { selectedOptionIds: selected.filter((id): id is string => typeof id === 'string') }
         : {}),
       ...(typeof answer.text === 'string' ? { text: answer.text.slice(0, 40_000) } : {}),
+      ...(Array.isArray(answer.images)
+        ? {
+            images: answer.images
+              .filter((image): image is PhotoAnswerImage =>
+                Boolean(
+                  image &&
+                  typeof image === 'object' &&
+                  isValidPhotoAnswerUpload(image as PhotoAnswerImage),
+                ),
+              )
+              .slice(0, 4),
+          }
+        : {}),
       ...(typeof answer.code === 'string' ? { code: answer.code.slice(0, 120_000) } : {}),
     },
     feedback: typeof result.feedback === 'string' ? result.feedback.slice(0, 8000) : null,
@@ -114,18 +130,38 @@ export async function queueProblemAttempt(
   const upload = uploadOf(attempt);
   if (!upload || upload.id.length < 8) return;
   const outbox = readJson<Outbox>(OUTBOX_KEY, {});
-  outbox[courseId] = [...(outbox[courseId] ?? []), upload].slice(-OUTBOX_LIMIT);
+  // Images already live in the attempt repository; queue only their reference.
+  const queued: QueuedAttempt = upload.answer.images?.length
+    ? { ...upload, answer: { ...upload.answer, images: undefined }, photoAttemptId: attempt.id }
+    : upload;
+  outbox[courseId] = [...(outbox[courseId] ?? []), queued].slice(-OUTBOX_LIMIT);
   writeJson(OUTBOX_KEY, outbox);
-  await flushProblemAttempts(courseId).catch((cause) =>
+  await flushProblemAttempts(repository, courseId).catch((cause) =>
     console.warn('[problem-sync] attempt upload failed', cause),
   );
 }
 
-async function flushProblemAttempts(courseId: string): Promise<void> {
+async function flushProblemAttempts(repository: LocalRepository, courseId: string): Promise<void> {
   for (;;) {
     const pending = readJson<Outbox>(OUTBOX_KEY, {})[courseId] ?? [];
     if (!pending.length) return;
-    const batch = pending.slice(0, UPLOAD_BATCH);
+    const batch: NativeProblemAttemptUpload[] = [];
+    let bytes = 0;
+    for (const queued of pending.slice(0, UPLOAD_BATCH)) {
+      let upload: NativeProblemAttemptUpload = queued;
+      if (queued.photoAttemptId) {
+        const document = await repository.loadProblemDocument(queued.problemId);
+        const attempt = document?.attempts.find((item) => item.id === queued.photoAttemptId);
+        const hydrated = attempt && uploadOf(attempt);
+        if (!hydrated?.answer.images?.length)
+          throw new Error('本机图片作答尚未读取成功，将稍后重试同步。');
+        upload = hydrated;
+      }
+      const size = new TextEncoder().encode(JSON.stringify(upload)).length;
+      if (batch.length && bytes + size > 3_500_000) break;
+      batch.push(upload);
+      bytes += size;
+    }
     const result = await uploadNativeProblemAttempts({ courseId, attempts: batch });
     const done = new Set([...result.saved, ...result.skipped]);
     // 重新读一次：上传期间可能又做了新的题。
@@ -149,7 +185,7 @@ export async function syncCourseProblems(
 ): Promise<boolean> {
   if (!(await isPlatformCourse(repository, courseId))) return false;
   try {
-    await flushProblemAttempts(courseId);
+    await flushProblemAttempts(repository, courseId);
   } catch (cause) {
     console.warn('[problem-sync] attempt upload failed', cause);
   }

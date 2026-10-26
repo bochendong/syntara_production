@@ -1,6 +1,8 @@
-import { useRef, type KeyboardEvent } from 'react';
+import { useCallback, useLayoutEffect, useRef, type KeyboardEvent } from 'react';
 import { Code2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { pythonNewlineEdit } from './python-editor-indentation';
+import './code-answer-editor.css';
 
 const INDENT = '    ';
 const PYTHON_KEYWORDS = new Set([
@@ -237,7 +239,21 @@ export function CodeAnswerEditor({
 }) {
   const lineGutterRef = useRef<HTMLDivElement>(null);
   const codeLayerRef = useRef<HTMLPreElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbers = lineNumbersFor(value);
+
+  const syncScroll = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    if (lineGutterRef.current) {
+      lineGutterRef.current.style.transform = `translateY(-${input.scrollTop}px)`;
+    }
+    if (codeLayerRef.current) {
+      codeLayerRef.current.style.transform = `translate(${-input.scrollLeft}px, ${-input.scrollTop}px)`;
+    }
+  }, []);
+
+  useLayoutEffect(syncScroll, [value, syncScroll]);
 
   const updateSelection = (target: HTMLTextAreaElement, start: number, end = start) => {
     requestAnimationFrame(() => {
@@ -247,8 +263,33 @@ export function CodeAnswerEditor({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== 'Tab' || disabled) return;
+    if (disabled || event.nativeEvent.isComposing) return;
+    if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      const target = event.currentTarget;
+      const edit = pythonNewlineEdit(value, target.selectionStart, target.selectionEnd);
+      onChange(edit.value);
+      updateSelection(target, edit.caret);
+      requestAnimationFrame(() => {
+        const style = getComputedStyle(target);
+        const rowTop =
+          parseFloat(style.paddingTop) +
+          (edit.value.slice(0, edit.caret).split('\n').length - 1) * parseFloat(style.lineHeight);
+        const rowBottom = rowTop + parseFloat(style.lineHeight);
+        if (rowBottom > target.scrollTop + target.clientHeight) {
+          target.scrollTop = rowBottom - target.clientHeight;
+        } else if (rowTop < target.scrollTop) {
+          target.scrollTop = rowTop;
+        }
+        target.scrollLeft = 0;
+        syncScroll();
+      });
+      return;
+    }
+    if (event.key !== 'Tab') return;
     event.preventDefault();
+    event.stopPropagation();
 
     const target = event.currentTarget;
     const start = target.selectionStart;
@@ -279,7 +320,7 @@ export function CodeAnswerEditor({
   return (
     <div
       className={cn(
-        'group flex min-h-[280px] flex-1 flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-xs transition focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 dark:border-slate-700 dark:bg-white dark:focus-within:border-sky-500 dark:focus-within:ring-sky-200/70',
+        'code-answer-editor group flex min-h-[280px] flex-1 flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-xs transition focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 dark:border-slate-700 dark:bg-white dark:focus-within:border-sky-500 dark:focus-within:ring-sky-200/70',
         disabled && 'opacity-60',
         className,
       )}
@@ -297,7 +338,7 @@ export function CodeAnswerEditor({
         <div className="min-h-0 overflow-hidden border-r border-slate-200 bg-slate-50 text-right dark:border-slate-200 dark:bg-slate-50">
           <div
             ref={lineGutterRef}
-            className="px-2 py-3 font-mono text-[11px] leading-6 text-slate-400"
+            className="code-answer-gutter px-2 py-3 font-mono text-[11px] leading-6 text-slate-400"
           >
             {lineNumbers.map((lineNumber) => (
               <div key={lineNumber}>{lineNumber}</div>
@@ -308,24 +349,21 @@ export function CodeAnswerEditor({
           <pre
             ref={codeLayerRef}
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 min-w-max whitespace-pre px-4 py-3 font-mono text-[13px] leading-6 text-slate-900"
+            className="code-answer-highlight pointer-events-none absolute inset-0 min-w-max whitespace-pre px-4 py-3 font-mono text-[13px] leading-6 text-slate-900"
             style={{ tabSize: 4 }}
           >
-            <code>{highlightPython(value)}</code>
+            <code>
+              {highlightPython(value)}
+              {value.endsWith('\n') ? ' ' : null}
+            </code>
           </pre>
           <textarea
+            ref={inputRef}
             aria-label={locale === 'zh-CN' ? '代码编辑器' : 'Code editor'}
             value={value}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={handleKeyDown}
-            onScroll={(event) => {
-              if (lineGutterRef.current) {
-                lineGutterRef.current.style.transform = `translateY(-${event.currentTarget.scrollTop}px)`;
-              }
-              if (codeLayerRef.current) {
-                codeLayerRef.current.style.transform = `translate(${-event.currentTarget.scrollLeft}px, ${-event.currentTarget.scrollTop}px)`;
-              }
-            }}
+            onScroll={syncScroll}
             disabled={disabled}
             placeholder={placeholder}
             spellCheck={false}
@@ -333,7 +371,7 @@ export function CodeAnswerEditor({
             autoComplete="off"
             autoCorrect="off"
             wrap="off"
-            className="relative z-10 h-full min-h-0 w-full resize-none overflow-auto border-0 bg-transparent px-4 py-3 font-mono text-[13px] leading-6 text-transparent caret-sky-600 outline-none selection:bg-sky-200/80 placeholder:text-slate-400 disabled:cursor-not-allowed"
+            className="code-answer-input relative z-10 h-full min-h-0 w-full resize-none overflow-auto border-0 bg-transparent px-4 py-3 font-mono text-[13px] leading-6 text-transparent caret-sky-600 outline-none selection:bg-sky-200/80 placeholder:text-slate-400 disabled:cursor-not-allowed"
             style={{ tabSize: 4 }}
           />
         </div>

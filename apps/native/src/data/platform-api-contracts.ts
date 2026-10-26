@@ -1,3 +1,4 @@
+import type { PhotoAnswerImage } from './local-problem-grading';
 import type { LocalCourseEvent } from '../domain/learning-experiences';
 import type {
   LocalAsset,
@@ -294,6 +295,7 @@ export interface NativeMiniLectureManifest {
 export interface NativeGradeRequest {
   question: string;
   userAnswer: string;
+  images?: PhotoAnswerImage[];
   points: number;
   language?: string;
   questionType?: 'short_answer' | 'proof' | 'code_tracing';
@@ -558,7 +560,12 @@ export interface NativeProblemAttemptUpload {
   problemId: string;
   status: 'pending' | 'passed' | 'failed' | 'partial';
   score: number | null;
-  answer: { selectedOptionIds?: string[]; text?: string; code?: string };
+  answer: {
+    selectedOptionIds?: string[];
+    text?: string;
+    code?: string;
+    images?: PhotoAnswerImage[];
+  };
   feedback?: string | null;
   autoGraded?: boolean;
   createdAt: number;

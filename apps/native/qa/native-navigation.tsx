@@ -5,10 +5,13 @@ import App from '../src/App';
 import { getLocalRepository } from '../src/data/repository';
 import { localDayKey } from '../src/components/LearningCalendarGrid';
 import { writeStoredCourseAvatarId } from '../src/assets';
+import { bundledProblemCourses, bundledProblems } from '../src/data/bundled-problem-snapshot';
 import '../src/tailwind.css';
 import '../src/components/marble-tokens.css';
 import '../src/styles.css';
+import '../src/components/compact-layout.css';
 import '../src/components/avatar-theme.css';
+import '../src/components/chat-visual-hierarchy.css';
 
 if (
   !import.meta.env.DEV ||
@@ -58,6 +61,40 @@ const repository = await getLocalRepository();
 await repository.bootstrap();
 await repository.upsertPlatformCourses(courses);
 await repository.setPlatformCourseIds(courses.map((course) => course.id));
+// Keep real question formats in the disposable preview, under fixture-only IDs.
+const problemCourses = new Map(bundledProblemCourses.map((course) => [course.courseCode, course]));
+await repository.importArchive({
+  format: 'syntara-native-archive',
+  version: 1,
+  exportedAt: now,
+  source: { kind: 'indexeddb' },
+  courses: [],
+  notebooks: [],
+  notebookPages: [],
+  markdownSections: [],
+  problems: courses.flatMap((course) => {
+    const source = problemCourses.get(course.courseCode);
+    return source
+      ? bundledProblems
+          .filter((problem) => problem.courseId === source.id)
+          .map((problem) => ({
+            ...problem,
+            id: `${course.id}:${problem.id}`,
+            courseId: course.id,
+            notebookId: null,
+          }))
+      : [];
+  }),
+  problemAttempts: [],
+  problemProgress: [],
+  conversations: [],
+  messages: [],
+  studyMemories: [],
+  assets: [],
+  pageAssets: [],
+  notebookAssets: [],
+  missingAssetPaths: [],
+});
 for (const [i, course] of courses.entries()) {
   const conversationId = `qa-native-chat-${count}-${course.courseCode}`;
   await repository.mergeSyncedConversation(

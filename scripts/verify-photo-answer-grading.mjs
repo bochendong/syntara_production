@@ -75,6 +75,7 @@ let captured;
 let modelCalls = 0;
 const evaluator = load('lib/server/notebook-problems/evaluate.ts', {
   '@/lib/problem-bank': guards,
+  '@/lib/problem-bank/numeric-answer': load('lib/problem-bank/numeric-answer.ts'),
   '@/lib/ai/llm': {
     callLLM: async (args) => {
       modelCalls++;
@@ -150,6 +151,9 @@ for (const scope of ['courses', 'notebooks']) {
     getNotebookProblemForUser: async () => ({ problem: makeProblem('calculation') }),
   };
   const route = load(`app/api/${scope}/[id]/problems/[problemId]/attempts/submit/route.ts`, {
+    '@/lib/problem-bank/teacher-preview-attempt': load(
+      'lib/problem-bank/teacher-preview-attempt.ts',
+    ),
     '@/lib/problem-bank/photo-answer': photo,
     '@/lib/server/api-auth': { requireUserId: async () => ({ userId: 'student-1' }) },
     '@/lib/server/json-error-response': { safeRoute: async (fn) => fn() },
