@@ -1,0 +1,152 @@
+.problem-image-thumbnail {
+  display: flex;
+  width: 100%;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border: 0;
+  background: #fff;
+  cursor: zoom-in;
+}
+
+.dark .problem-image-thumbnail {
+  background: #020617;
+}
+
+.problem-image-thumbnail-img {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.problem-image-preview,
+.problem-image-preview * {
+  box-sizing: border-box;
+}
+
+.problem-image-thumbnail:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
+.problem-image-preview {
+  width: min(1200px, calc(100vw - 32px));
+  height: min(900px, calc(100dvh - 32px));
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 18px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 24px 80px #0f172a4d;
+}
+
+.problem-image-preview[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.problem-image-preview::backdrop {
+  background: #0f172ab3;
+}
+
+.problem-image-preview-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  font:
+    14px/1.4 system-ui,
+    sans-serif;
+}
+
+.problem-image-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.problem-image-preview-actions button {
+  min-width: 44px;
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  cursor: pointer;
+}
+
+.problem-image-preview-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.problem-image-preview-actions button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.problem-image-preview-actions output {
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.problem-image-preview-actions .problem-image-preview-close {
+  font-size: 24px;
+}
+
+.problem-image-preview-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #f1f5f9;
+}
+
+.problem-image-preview-canvas {
+  min-width: 100%;
+  min-height: 100%;
+  padding: 12px;
+}
+
+.problem-image-preview-canvas img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  user-select: none;
+}
+
+@media (max-width: 480px) {
+  .problem-image-preview {
+    width: calc(100vw - 12px);
+    height: calc(100dvh - 12px);
+    border-radius: 12px;
+  }
+
+  .problem-image-preview-toolbar {
+    padding: 8px;
+  }
+
+  .problem-image-preview-toolbar > span {
+    display: none;
+  }
+
+  .problem-image-preview-actions {
+    width: 100%;
+    justify-content: center;
+  }
+}

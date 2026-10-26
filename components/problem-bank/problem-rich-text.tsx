@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useMemo } from 'react';
+import { ZoomableProblemImage } from '@/lib/problem-bank/zoomable-problem-image';
 import { expandLegacyCodeTables } from '@/lib/problem-bank/markdown-structure';
 import { repairMalformedProblemMath } from '@/lib/problem-bank/repair-malformed-math';
 import {
@@ -884,17 +885,7 @@ export function ProblemImageAssets({
           key={image.id}
           className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60"
         >
-          <div className="flex min-h-[180px] items-center justify-center bg-white p-2 dark:bg-slate-950">
-            <img
-              src={image.src}
-              alt={image.alt || image.caption || image.id}
-              width={image.width || undefined}
-              height={image.height || undefined}
-              loading="lazy"
-              decoding="async"
-              className="max-h-[420px] w-full rounded-lg object-contain"
-            />
-          </div>
+          <ZoomableProblemImage image={image} />
         </figure>
       ))}
     </div>
