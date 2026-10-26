@@ -2,19 +2,21 @@
 
 核对日期：2026-10-26（America/Toronto）。当前测试服已更新，源码基线与实际部署对应。
 
+最新应用源码为 `1c290206`，Railway 发布 `15c5dc5a` 已成功。MAT135 的 48 道原题已原地整理为分小问；20 问极限拆成两道各 10 问，15 问相关变化率拆成三道各 5 问，两道原题归档保留完整内容及作答历史。现在共 163 道可见题，其中 53 个题组、232 个小问。其余 110 道题、11 本讲义、20 份原始资料和章节定义保持不变。实际测试服已验证范围标题、10 问/5 问卡片、双语题干、图片表格与答案确认。见 [MAT135 小问发布记录](releases/staging-2026-10-26-mat135-multipart.json)。本次不增加数据库迁移，也未改动原生 UI 或 Mac 下载包。
+
 最新应用源码为 `e4ab470a`，Railway 发布 `8da11be7` 已成功，`multipart` 题型迁移已执行。MAT102 已原地整理 48 道大题为 112 个独立小问，题目总数仍为 252；原有 24 本讲义、22 份原始资料及其他 204 道题保持不变。分小问的宽窄屏布局、独立提交判分、中英文切换及原有重置/答案确认已验证。见 [本次小问发布记录](releases/staging-2026-10-26-multipart.json)。此前答案功能记录仍见 [题目答案发布记录](releases/staging-2026-10-26-problem-solutions.json)。基线附带发布文档，应用代码与上述运行提交相同。
 
 ## 以后从哪里继续
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `e4ab470a` 的应用源码及发布记录，对应 Railway 发布 `8da11be7` |
+| 测试服源码基线 | `codex/staging-baseline` | `1c290206` 的应用源码及发布记录，对应 Railway 发布 `15c5dc5a` |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 测试服主要发布分支 | `codex/staging-next` | GitHub 是发布源；已授权目标仓库并启用自动部署 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
 
 本次题库改动使用 `lecture-language-switch/syntara_production` 工作树与
-`codex/mat102-multipart` 任务分支，再发布到 `codex/staging-next`。
+`codex/mat135-multipart` 任务分支（此前为 `codex/mat102-multipart`），再发布到 `codex/staging-next`。
 此前 `chat-visual-hierarchy/syntara_production` 工作目录及其他聊天的未提交工作保持原样。
 
 这两条分支已同步到 GitHub：
@@ -49,7 +51,7 @@
 ## 基线怎样确认
 
 - Railway 服务：`native-api-staging`，环境：`staging`。
-- 当前应用发布：`8da11be7-c98a-4673-8a3a-0ff52a1efd6e`，源码提交：`e4ab470a`。
+- 当前应用发布：`15c5dc5a-c902-4838-97bb-8227537f3f63`，源码提交：`1c290206`。
 - 线上原生 JS/CSS 与本次本地验证构建的 SHA-256 一致；本次发布记录包含资源哈希。
 - 旧基线 `a5849b24` 和 `staging/2026-10-24-7dbd3393` 标签继续保留。
 - 测试服直接拉取 GitHub 的 `codex/staging-next`，使用 `railway.toml` 的 `staging` 覆盖配置；不再依赖本机源码快照上传。
