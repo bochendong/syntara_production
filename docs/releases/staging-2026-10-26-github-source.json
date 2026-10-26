@@ -120,7 +120,12 @@
   "origin": "https://native-api-staging-staging-95a1.up.railway.app",
   "evidence": "Git common directory codex/tasks/staging-github-source-20261026/",
   "automaticDeployment": {
-    "verified": false,
-    "status": "GitHub App permission audit awaiting account owner identity confirmation; Railway UI reports Auto deploy unavailable"
+    "enabled": true,
+    "status": "Railway UI confirms Auto deploys when pushed to GitHub; target repository added to existing selected-repository installation after explicit approval",
+    "githubInstallationId": 108534859,
+    "repositoryAccess": "Only select repositories; syntara_production added; three existing repositories preserved",
+    "approvalReceived": true,
+    "evidence": "railway-auto-deploy-enabled.png",
+    "pushDeliveryVerification": "Pending this deployment-record push"
   }
 }

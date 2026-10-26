@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 测试服源码基线 | `codex/staging-baseline` | `d7807ae8`，对应 Railway 发布 `5b0d8d12` |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
-| 测试服主要发布分支 | `codex/staging-next` | GitHub 是发布源；自动部署权限待 GitHub 身份复核 |
+| 测试服主要发布分支 | `codex/staging-next` | GitHub 是发布源；已授权目标仓库并启用自动部署 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
 
 当前开发仍在本次聊天原来的 `chat-visual-hierarchy/syntara_production` 工作目录。
@@ -18,8 +18,8 @@
 [测试服基线](https://github.com/bochendong/syntara_production/tree/codex/staging-baseline)、
 [当前开发](https://github.com/bochendong/syntara_production/tree/codex/staging-next)。
 `codex/staging-next` 是测试服的主要发布分支，Railway 已连接
-`bochendong/syntara_production@codex/staging-next`。本次已从该分支成功部署。Railway 网页仍提示自动部署不可用，
-GitHub App 配置页要求账号本人完成身份复核，因此还不能认定后续 push 会自动部署。
+`bochendong/syntara_production@codex/staging-next`。本次已从该分支成功部署。账号本人完成身份复核并批准后，已将目标仓库加入 Railway GitHub App
+的选择名单，原有三个仓库保持不变；Railway 已显示“Auto deploys when pushed to GitHub”。
 构建配置已排除文档和发布记录更新。`codex/staging-baseline` 仍只记录验证通过的线上提交。
 `main` 和正式服来源未更改。发布证据见
 [staging-2026-10-26-github-source.json](releases/staging-2026-10-26-github-source.json)。
