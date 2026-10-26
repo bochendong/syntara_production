@@ -72,10 +72,12 @@ const migrationFiles = [
   '0006_app_metadata.sql',
   '0007_course_events_and_lectures.sql',
   '0008_message_metadata.sql',
+  '0009_memory_conversation.sql',
+  '0010_problem_chapters.sql',
 ];
 
-async function migrate(database) {
-  for (const migrationFile of migrationFiles) {
+async function migrate(database, files = migrationFiles) {
+  for (const migrationFile of files) {
     database.exec(
       await readFile(path.join(ROOT, 'apps/native/src-tauri/migrations', migrationFile), 'utf8'),
     );
@@ -93,6 +95,27 @@ const snapshotHash = createHash('sha256')
 assert.equal(snapshotHash, snapshot.integrity.value, '内置题库快照哈希应匹配');
 assert.equal(snapshot.problems.length, 1_223, '内置题库应包含 1,223 道已发布题目');
 const now = 1_785_000_000_000;
+
+const legacyChapterDatabase = new DatabaseSync(':memory:');
+await migrate(legacyChapterDatabase, migrationFiles.slice(0, -1));
+legacyChapterDatabase
+  .prepare('INSERT INTO courses (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
+  .run('legacy-chapter-course', 'Legacy course', now, now);
+legacyChapterDatabase
+  .prepare(
+    `INSERT INTO problems (id, course_id, title, type, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  )
+  .run('legacy-chapter-problem', 'legacy-chapter-course', 'Legacy problem', 'proof', now, now);
+await migrate(legacyChapterDatabase, migrationFiles.slice(-1));
+const legacyChapterRepository = new SqliteLocalRepository();
+legacyChapterRepository.connection = new NodeSqliteAdapter(legacyChapterDatabase);
+const legacyChapterProblem =
+  await legacyChapterRepository.loadProblemDocument('legacy-chapter-problem');
+assert(legacyChapterProblem, '章节迁移后应保留已有题目');
+assert.equal(legacyChapterProblem.problem.chapterId, null);
+assert.equal(legacyChapterProblem.problem.chapterName, null);
+legacyChapterDatabase.close();
 
 const calendarDatabase = new DatabaseSync(':memory:');
 await migrate(calendarDatabase);
@@ -210,8 +233,25 @@ const snapshotDatabase = new DatabaseSync(':memory:');
 await migrate(snapshotDatabase);
 const snapshotRepository = new SqliteLocalRepository();
 snapshotRepository.connection = new NodeSqliteAdapter(snapshotDatabase);
+const { seedProblems } = await import(path.join(ROOT, 'apps/native/src/data/seed.ts'));
+const chapterSeedIndexes = [0, 50, seedProblems.length - 1];
+const originalChapterSeeds = chapterSeedIndexes.map((index) => ({ ...seedProblems[index] }));
+for (const index of chapterSeedIndexes) {
+  seedProblems[index].chapterId = `seed-chapter-${index}`;
+  seedProblems[index].chapterName = `章节 ${index}`;
+}
 await snapshotRepository.bootstrap();
 await snapshotRepository.bootstrap();
+for (const index of chapterSeedIndexes) {
+  const document = await snapshotRepository.loadProblemDocument(seedProblems[index].id);
+  assert.equal(document?.problem.chapterId, `seed-chapter-${index}`);
+  assert.equal(document?.problem.chapterName, `章节 ${index}`);
+}
+chapterSeedIndexes.forEach((index, position) => {
+  Object.assign(seedProblems[index], originalChapterSeeds[position]);
+  if (!('chapterId' in originalChapterSeeds[position])) delete seedProblems[index].chapterId;
+  if (!('chapterName' in originalChapterSeeds[position])) delete seedProblems[index].chapterName;
+});
 const expectedProblemCounts = {
   MAT136: 227,
   CSC148: 298,
@@ -375,6 +415,8 @@ const archive = parseSyntaraArchive({
       id: 'problem-fixture',
       courseId: 'course-fixture',
       notebookId: 'notebook-fixture',
+      chapterId: 'chapter-functions',
+      chapterName: '函数与映射',
       title: '本地题目',
       type: 'multiple_choice',
       status: 'published',
@@ -487,6 +529,27 @@ const problem = await repository.loadProblemDocument('problem-fixture');
 assert(problem, '应能读取导入的题目');
 assert.equal(problem.attempts.length, 1);
 assert.equal(problem.progress?.status, 'passed');
+assert.equal(problem.problem.chapterId, 'chapter-functions');
+assert.equal(problem.problem.chapterName, '函数与映射');
+const reparsedArchive = parseSyntaraArchive(JSON.stringify(archive));
+assert.equal(reparsedArchive.problems[0].chapterId, 'chapter-functions');
+assert.equal(reparsedArchive.problems[0].chapterName, '函数与映射');
+reparsedArchive.problems[0].chapterId = 'chapter-relations';
+reparsedArchive.problems[0].chapterName = '关系';
+await repository.importArchive(reparsedArchive);
+const updatedChapterProblem = await repository.loadProblemDocument('problem-fixture');
+assert.equal(updatedChapterProblem?.problem.chapterId, 'chapter-relations');
+assert.equal(updatedChapterProblem?.problem.chapterName, '关系');
+const legacyArchiveInput = JSON.parse(JSON.stringify(archive));
+delete legacyArchiveInput.problems[0].chapterId;
+delete legacyArchiveInput.problems[0].chapterName;
+const legacyArchive = parseSyntaraArchive(legacyArchiveInput);
+assert.equal(legacyArchive.problems[0].chapterId, null, '旧格式归档缺少章节时兼容为空');
+assert.equal(legacyArchive.problems[0].chapterName, null);
+await repository.importArchive(legacyArchive);
+const unassignedProblem = await repository.loadProblemDocument('problem-fixture');
+assert.equal(unassignedProblem?.problem.chapterId, null);
+assert.equal(unassignedProblem?.problem.chapterName, null);
 
 const searchResults = await repository.searchCourse('course-fixture', '等于多少');
 assert.equal(searchResults[0]?.resourceId, 'problem-fixture');

@@ -81,6 +81,8 @@ export async function readNativeProblems(
           select: {
             id: true,
             notebookId: true,
+            chapterId: true,
+            chapter: { select: { name: true } },
             title: true,
             type: true,
             status: true,
@@ -131,6 +133,8 @@ export async function readNativeProblems(
       id: problem.id,
       courseId,
       notebookId: problem.notebookId,
+      chapterId: problem.chapterId,
+      chapterName: problem.chapter?.name ?? null,
       title: problem.title,
       type: problem.type,
       status: problem.status,

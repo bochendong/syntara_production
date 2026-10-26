@@ -4260,3 +4260,24 @@ span.pb-row-marble img {
   height: 84px;
   object-fit: contain;
 }
+
+.pb-import {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid rgb(0 0 0 / 8%);
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.pb-import > button {
+  font-weight: 600;
+}
+.pb-import input {
+  display: block;
+  max-width: 100%;
+  margin: 8px 0;
+}
+.pb-import button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -43,6 +43,7 @@ test('staging admin uses password authentication and rejects ordinary sessions a
     '@/lib/server/prisma-safe': moduleUrl(
       'export const getOptionalPrisma = () => null; export const isDatabaseConfigured = () => false;',
     ),
+    '@/lib/server/admin-identity': compile('lib/server/admin-identity.ts', {}),
   };
   const authUrl = compile('lib/server/admin-auth.ts', replacements);
   const { requireAdmin } = await import(authUrl);

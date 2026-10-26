@@ -63,6 +63,12 @@ pub fn run() {
             sql: include_str!("../migrations/0009_memory_conversation.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 10,
+            description: "add_problem_chapters",
+            sql: include_str!("../migrations/0010_problem_chapters.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

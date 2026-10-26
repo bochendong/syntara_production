@@ -14,7 +14,8 @@ import type { LocalRepository } from './repository';
  * 手机上的作答先进本机，再传到网页题库，网页和别的设备都能看到做过哪些题。
  */
 
-const SYNC_STATE_PREFIX = 'syntara.problem-sync.v1:';
+// v2 fetches chapter metadata once for clients with an existing v1 checkpoint.
+const SYNC_STATE_PREFIX = 'syntara.problem-sync.v2:';
 const OUTBOX_KEY = 'syntara.problem-attempt-outbox.v1';
 /** 和服务器 NATIVE_ATTEMPT_UPLOAD_LIMIT 一致。 */
 const UPLOAD_BATCH = 100;
@@ -49,10 +50,13 @@ function writeJson(key: string, value: unknown) {
 }
 
 function readState(courseId: string): ProblemSyncState {
-  const state = readJson<Partial<ProblemSyncState>>(`${SYNC_STATE_PREFIX}${courseId}`, {});
+  const state = readJson<Partial<ProblemSyncState> | null>(`${SYNC_STATE_PREFIX}${courseId}`, null);
+  // Preserve the v1 server-owned IDs so withdrawn questions are still archived after upgrading.
+  const previous =
+    state ?? readJson<Partial<ProblemSyncState>>(`syntara.problem-sync.v1:${courseId}`, {});
   return {
-    since: typeof state.since === 'number' ? state.since : null,
-    problemIds: Array.isArray(state.problemIds) ? state.problemIds : [],
+    since: typeof state?.since === 'number' ? state.since : null,
+    problemIds: Array.isArray(previous.problemIds) ? previous.problemIds : [],
   };
 }
 
@@ -214,7 +218,11 @@ export async function syncCourseProblems(
     .filter((problem) => {
       const existing = localById.get(problem.id);
       return (
-        !existing || existing.updatedAt !== problem.updatedAt || existing.status !== problem.status
+        !existing ||
+        existing.updatedAt !== problem.updatedAt ||
+        existing.status !== problem.status ||
+        existing.chapterId !== problem.chapterId ||
+        existing.chapterName !== problem.chapterName
       );
     })
     // 层信息只存在 course-layers 里，不进本机题库表。

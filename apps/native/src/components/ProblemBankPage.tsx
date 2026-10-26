@@ -9,6 +9,10 @@ import {
 import { ArrowLeft, Check, ChevronLeft, LayoutGrid, List, Play, Search, X } from 'lucide-react';
 
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
+import { matchesProblemFilters } from '../data/problem-bank-filters';
+import { browserApp } from '../data/browser-runtime';
+import { syncCourseProblems } from '../data/problem-sync';
+import { ProblemImport } from './problem-bank/ProblemImport';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
 import {
   SheetCell,
@@ -90,6 +94,8 @@ type Chapter = {
 type LastSession = { chapterKey: string; problemId: string; at: number };
 
 const UNSORTED_CHAPTER = '__unsorted__';
+const ALL_CHAPTERS = '__all_chapters__';
+const COURSE_CHAPTER_PREFIX = 'course-chapter:';
 const LAST_STORAGE_KEY = 'syntara.problem-bank-last.v1';
 const VIEW_STORAGE_KEY = 'syntara.problem-bank-view.v1';
 // 从做题页回来时回到刚才那一章（只在这次打开 App 期间记着）。
@@ -151,23 +157,6 @@ const DIFFICULTY_OPTIONS = (['easy', 'medium', 'hard'] as const).map((value) => 
   label: difficultyLabel(value),
   color: DIFFICULTY_MARBLES[value],
 }));
-
-function matchesQuery(problem: LocalProblem, query: string): boolean {
-  if (!query) return true;
-  const haystack = [
-    problem.title,
-    problem.type,
-    problem.tags.join(' '),
-    JSON.stringify(problem.publicContent),
-  ]
-    .join('\n')
-    .toLowerCase();
-  return query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .every((term) => haystack.includes(term));
-}
 
 // 同步来的标题会在公式中间截断（比如 "$mx\equiv nx\..."），公式就渲染不出来；
 // 这种情况改用完整题干，一行放不下交给 CSS 省略。
@@ -257,7 +246,7 @@ function ProblemRow({
         </strong>
         <small>
           <span className="pb-row-type">{problemTypeLabel(problem.type)}</span>
-          {problem.tags.slice(0, 2).join(' · ')}
+          {[problem.chapterName, ...problem.tags.slice(0, 2)].filter(Boolean).join(' · ')}
         </small>
       </span>
       <span className="pb-row-play" aria-hidden>
@@ -372,13 +361,14 @@ export function ProblemBankPage({
     return visible.map((problem) => localizeProblem(problem, language));
   }, [layered, layers, workspace.problems, language]);
 
-  // 章节 = 题目挂的笔记本，按笔记编号排；同步来的题如果都没挂笔记本，就按第一个知识点分组。
+  // 真实课程章节优先；未分课程章节的旧题仍沿用笔记 / 知识点分组。
   const chapterOf = useMemo(() => {
     const notebookIds = new Set(workspace.notebooks.map((notebook) => notebook.id));
     const anyLinked = bankProblems.some(
-      (problem) => problem.notebookId && notebookIds.has(problem.notebookId),
+      (problem) => !problem.chapterId && problem.notebookId && notebookIds.has(problem.notebookId),
     );
     return (problem: LocalProblem): string => {
+      if (problem.chapterId) return `${COURSE_CHAPTER_PREFIX}${problem.chapterId}`;
       if (anyLinked) {
         return problem.notebookId && notebookIds.has(problem.notebookId)
           ? problem.notebookId
@@ -401,14 +391,20 @@ export function ProblemBankPage({
         const index = notebookIndex.get(key);
         const notebook = index === undefined ? null : sortedNotebooks[index];
         const name = notebook ? splitNotebookName(notebook.name) : null;
+        const courseChapter = key.startsWith(COURSE_CHAPTER_PREFIX);
         chapter = {
           key,
           number: name?.number ?? null,
-          title:
-            name?.title ??
-            (key === UNSORTED_CHAPTER ? '未分章节' : key.startsWith('tag:') ? key.slice(4) : key),
+          title: courseChapter
+            ? problem.chapterName?.trim() || '未命名章节'
+            : (name?.title ??
+              (key === UNSORTED_CHAPTER
+                ? '未分章节'
+                : key.startsWith('tag:')
+                  ? key.slice(4)
+                  : key)),
           color: index === undefined ? null : notebookMarbleColor(index),
-          order: index ?? Number.MAX_SAFE_INTEGER,
+          order: courseChapter ? Number.MAX_SAFE_INTEGER - 1 : (index ?? Number.MAX_SAFE_INTEGER),
           problems: [],
           passed: 0,
           failed: 0,
@@ -445,6 +441,21 @@ export function ProblemBankPage({
     return list;
   }, [bankProblems, chapterOf, statuses, workspace.notebooks, sourceProblems]);
 
+  const allChapter = useMemo<Chapter>(
+    () => ({
+      key: ALL_CHAPTERS,
+      number: null,
+      title: '全部章节',
+      color: 'blue',
+      order: -1,
+      problems: chapters.flatMap((chapter) => chapter.problems),
+      passed: chapters.reduce((sum, chapter) => sum + chapter.passed, 0),
+      failed: chapters.reduce((sum, chapter) => sum + chapter.failed, 0),
+      partial: chapters.reduce((sum, chapter) => sum + chapter.partial, 0),
+    }),
+    [chapters],
+  );
+
   // 题号：每一章里按出题顺序 1、2、3…，筛选时不变。
   const numberById = useMemo(() => {
     const numbers = new Map<string, number>();
@@ -458,8 +469,8 @@ export function ProblemBankPage({
     return numbers;
   }, [chapters, layered, layers]);
   const chapterByKey = useMemo(
-    () => new Map(chapters.map((chapter) => [chapter.key, chapter])),
-    [chapters],
+    () => new Map([...chapters, allChapter].map((chapter) => [chapter.key, chapter])),
+    [chapters, allChapter],
   );
 
   const [openKey, setOpenKey] = useState<string | null>(() =>
@@ -467,7 +478,13 @@ export function ProblemBankPage({
   );
   // 只有一章时不需要章节墙，直接进这一章。
   const openChapter =
-    chapters.length === 1 ? chapters[0] : openKey ? (chapterByKey.get(openKey) ?? null) : null;
+    openKey === ALL_CHAPTERS
+      ? allChapter
+      : chapters.length === 1
+        ? chapters[0]
+        : openKey
+          ? (chapterByKey.get(openKey) ?? null)
+          : null;
   const openChapterKey = (key: string | null) => {
     setTypeFilter('all');
     setDifficultyFilter('all');
@@ -540,6 +557,7 @@ export function ProblemBankPage({
     writeJson('local', VIEW_STORAGE_KEY, next);
   };
   const [listCount, setListCount] = useState(LIST_PAGE_SIZE);
+  const [query, setQuery] = useState('');
 
   const chapterProblems = useMemo(() => openChapter?.problems ?? [], [openChapter]);
   const typeOptions = useMemo(() => {
@@ -556,30 +574,79 @@ export function ProblemBankPage({
     }
     return counts;
   }, [chapterProblems]);
+  const activeTypeFilter =
+    typeFilter === 'all' || typeOptions.some(([type]) => type === typeFilter) ? typeFilter : 'all';
+  const activeDifficultyFilter =
+    difficultyFilter === 'all' || difficultyCounts[difficultyFilter] > 0 ? difficultyFilter : 'all';
   const sheetProblems = useMemo(
     () =>
-      chapterProblems.filter(
-        (problem) =>
-          (typeFilter === 'all' || problem.type === typeFilter) &&
-          (difficultyFilter === 'all' || problem.difficulty === difficultyFilter),
+      chapterProblems.filter((problem) =>
+        matchesProblemFilters(problem, {
+          query,
+          type: activeTypeFilter,
+          difficulty: activeDifficultyFilter,
+          chapter: 'all',
+        }),
       ),
-    [chapterProblems, difficultyFilter, typeFilter],
+    [chapterProblems, query, activeDifficultyFilter, activeTypeFilter],
   );
 
   // ---------- 章节墙：搜索 ----------
-  const [query, setQuery] = useState('');
   const [searchCount, setSearchCount] = useState(LIST_PAGE_SIZE);
   const searchResults = useMemo(() => {
     const q = query.trim();
     if (!q) return [];
     return chapters.flatMap((chapter) =>
       chapter.problems.filter((problem) =>
-        matchesQuery(sourceProblems.get(problem.id) ?? problem, q),
+        matchesProblemFilters(sourceProblems.get(problem.id) ?? problem, {
+          query: q,
+          type: 'all',
+          difficulty: 'all',
+          chapter: 'all',
+        }),
       ),
     );
   }, [chapters, query, sourceProblems]);
 
   const courseLabel = workspace.course.courseCode || workspace.course.name;
+  const importControl = browserApp ? (
+    <ProblemImport
+      key={courseId}
+      courseId={courseId}
+      onImported={async () => {
+        await syncCourseProblems(await getLocalRepository(), courseId);
+        await onContentChanged?.();
+      }}
+    />
+  ) : null;
+  const selectChapterScope = (key: string) => {
+    setOpenKey(key);
+    setListCount(LIST_PAGE_SIZE);
+    writeCourseValue('session', OPEN_CHAPTER_KEY, courseId, key);
+  };
+  const allChaptersControl = (
+    <div className="pb-chips" role="group" aria-label="章节范围">
+      <button
+        type="button"
+        className={openChapter?.key === ALL_CHAPTERS ? 'is-active' : ''}
+        aria-pressed={openChapter?.key === ALL_CHAPTERS}
+        onClick={() => selectChapterScope(ALL_CHAPTERS)}
+      >
+        全部章节 · {bankProblems.length} 题
+      </button>
+      {chapters.map((chapter) => (
+        <button
+          key={chapter.key}
+          type="button"
+          className={openChapter?.key === chapter.key ? 'is-active' : ''}
+          aria-pressed={openChapter?.key === chapter.key}
+          onClick={() => selectChapterScope(chapter.key)}
+        >
+          {chapter.title} · {chapter.problems.length}
+        </button>
+      ))}
+    </div>
+  );
 
   if (!bankProblems.length) {
     return (
@@ -593,6 +660,7 @@ export function ProblemBankPage({
         <div className="pb-scroll">
           <div className="pb-column">
             {releaseControl}
+            {importControl}
             <LearningEmptyState
               title="还没有题目"
               action={
@@ -647,8 +715,9 @@ export function ProblemBankPage({
         <div className="pb-scroll">
           <div className="pb-column">
             {releaseControl}
+            {importControl}
             <div className="pb-chapter-head" style={accentVars(openChapter.color)}>
-              {chapters.length > 1 ? (
+              {chapters.length > 1 || openChapter.key === ALL_CHAPTERS ? (
                 <button
                   type="button"
                   className="pb-wall-back"
@@ -663,6 +732,25 @@ export function ProblemBankPage({
               <ChapterTube chapter={openChapter} />
             </div>
 
+            {allChaptersControl}
+            <label className="pb-search">
+              <Search size={17} />
+              <input
+                value={query}
+                aria-label="搜索题目、章节或知识点"
+                placeholder="搜索题目、章节或知识点"
+                type="search"
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setListCount(LIST_PAGE_SIZE);
+                }}
+              />
+              {query ? (
+                <button type="button" onClick={() => setQuery('')} aria-label="清空搜索">
+                  <X size={14} />
+                </button>
+              ) : null}
+            </label>
             <div className="pb-chapter-body">
               <aside className="pb-chapter-side">
                 <div className="pb-chapter-stats" aria-label="这一章">
@@ -679,14 +767,14 @@ export function ProblemBankPage({
                   ))}
                 </div>
                 <div
-                  className={`pb-tube${difficultyFilter !== 'all' ? ' has-filter' : ''}`}
+                  className={`pb-tube${activeDifficultyFilter !== 'all' ? ' has-filter' : ''}`}
                   role="group"
                   aria-label="难度"
                 >
                   {DIFFICULTY_OPTIONS.map((option) => {
                     const count = difficultyCounts[option.value];
                     if (!count) return null;
-                    const active = difficultyFilter === option.value;
+                    const active = activeDifficultyFilter === option.value;
                     return (
                       <button
                         key={option.value}
@@ -714,7 +802,7 @@ export function ProblemBankPage({
                     {typeOptions.length > 1 ? (
                       <button
                         type="button"
-                        className={typeFilter === 'all' ? 'is-active' : ''}
+                        className={activeTypeFilter === 'all' ? 'is-active' : ''}
                         onClick={() => setTypeFilter('all')}
                       >
                         全部题型
@@ -725,7 +813,7 @@ export function ProblemBankPage({
                           <button
                             key={type}
                             type="button"
-                            className={typeFilter === type ? 'is-active' : ''}
+                            className={activeTypeFilter === type ? 'is-active' : ''}
                             onClick={() => {
                               setTypeFilter((current) => (current === type ? 'all' : type));
                               setListCount(LIST_PAGE_SIZE);
@@ -777,7 +865,11 @@ export function ProblemBankPage({
                               number={numberById.get(problem.id)}
                               status={statuses.get(problem.id)}
                               difficulty={problem.difficulty}
-                              title={problem.title}
+                              title={
+                                problem.chapterName
+                                  ? `${problem.chapterName} · ${problem.title}`
+                                  : problem.title
+                              }
                               fresh={layered && isProblemNew(layers, problem.id)}
                               onClick={() => practice(problem)}
                             />
@@ -880,6 +972,8 @@ export function ProblemBankPage({
       <div className="pb-scroll">
         <div className="pb-column">
           {releaseControl}
+          {importControl}
+          {allChaptersControl}
           <div className="material-search-row">
             <label className="pb-search">
               <Search size={17} />
@@ -889,7 +983,8 @@ export function ProblemBankPage({
                   setQuery(event.target.value);
                   setSearchCount(LIST_PAGE_SIZE);
                 }}
-                placeholder="搜索题目或知识点"
+                aria-label="搜索题目、章节或知识点"
+                placeholder="搜索题目、章节或知识点"
                 type="search"
               />
               {query ? (

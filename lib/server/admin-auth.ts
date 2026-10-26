@@ -6,6 +6,10 @@ import { requireServerSession } from '@/lib/server/auth';
 import { ensureUserForApi } from '@/lib/server/ensure-user';
 import { isTrustedInternalHeaders } from '@/lib/server/internal-request';
 import { getOptionalPrisma, isDatabaseConfigured } from '@/lib/server/prisma-safe';
+import {
+  isAllowlistedAdminIdentity as isFallbackAdmin,
+  isAuthorizedAdminIdentity,
+} from '@/lib/server/admin-identity';
 
 export interface AdminIdentity {
   userId: string;
@@ -150,27 +154,6 @@ export function validateAdminLogin(email: string, password: string): boolean {
   return normalized === config.email && safeEqualStrings(password.trim(), config.password);
 }
 
-function fallbackAdminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-function fallbackAdminIds(): string[] {
-  return (process.env.ADMIN_USER_IDS || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
-
-function isFallbackAdmin(identity: AdminIdentity): boolean {
-  const email = identity.email?.trim().toLowerCase();
-  const adminEmails = fallbackAdminEmails();
-  const adminIds = fallbackAdminIds();
-  return Boolean((email && adminEmails.includes(email)) || adminIds.includes(identity.userId));
-}
-
 async function resolveIdentity(): Promise<AdminIdentity | null> {
   const cookieIdentity = await resolveAdminLoginIdentity();
   if (cookieIdentity) {
@@ -279,7 +262,7 @@ export async function requireAdmin() {
     name: nameFromDb || identity.name,
   };
 
-  if (dbRole === 'ADMIN' || isFallbackAdmin(resolvedIdentity)) {
+  if (isAuthorizedAdminIdentity(resolvedIdentity, dbRole)) {
     return {
       identity: resolvedIdentity,
     } as const;

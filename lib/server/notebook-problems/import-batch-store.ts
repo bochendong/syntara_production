@@ -210,6 +210,8 @@ export async function createProblemImportBatch(args: {
   usage?: unknown;
   webSearch?: unknown;
   warnings?: string[];
+  /** Stable, server-derived operation identity for prepared structured imports. */
+  batchId?: string;
 }): Promise<ProblemImportBatchRecord> {
   await ensureProblemImportBatchTable(args.prisma);
   const rows = await args.prisma.$queryRawUnsafe<RawProblemImportBatchRow[]>(
@@ -226,9 +228,10 @@ export async function createProblemImportBatch(args: {
         $10, 0, $11::jsonb, $12::jsonb,
         $13::jsonb, $14::text[], CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
+      ON CONFLICT ("id") DO NOTHING
       RETURNING *
     `,
-    createBatchId(),
+    args.batchId || createBatchId(),
     args.userId,
     args.courseId ?? null,
     args.notebookId ?? null,
@@ -243,7 +246,19 @@ export async function createProblemImportBatch(args: {
     jsonParam(args.webSearch),
     args.warnings ?? [],
   );
-  return serializeRow(rows[0]);
+  if (rows[0]) return serializeRow(rows[0]);
+  if (args.batchId) {
+    const existing = await getProblemImportBatchForTarget({
+      prisma: args.prisma,
+      userId: args.userId,
+      batchId: args.batchId,
+      targetType: args.targetType,
+      courseId: args.courseId,
+      notebookId: args.notebookId,
+    });
+    if (existing) return existing;
+  }
+  throw new Error('Problem import operation identity is already in use.');
 }
 
 export async function getProblemImportBatchForTarget(args: {

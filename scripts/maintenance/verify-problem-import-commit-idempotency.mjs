@@ -94,9 +94,14 @@ assertMatch(
 );
 assertMatchCount(
   problemService,
-  /await assertProblemImportBatchCommitLeaseTx\(tx, args\);/g,
+  /await assertProblemImportBatchCommitLeaseTx\(tx, (?:args|batchScope)\);/g,
   2,
   'notebook and source-ingestion course writes must fence stale lease holders inside their insert transaction',
+);
+assertMatch(
+  problemService,
+  /const batchScope = \{ \.\.\.args, userId: dataOwnerId \};[\s\S]*?await assertProblemImportBatchCommitLeaseTx\(tx, batchScope\);/,
+  'privileged course imports must fence the historical batch owner field using the authorized data owner',
 );
 assertMatch(
   problemDedupe,

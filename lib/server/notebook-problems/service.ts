@@ -36,6 +36,18 @@ import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-r
 import { verifyCodeBlankDraft, verifyNotebookCodeDraftReferenceAnswer } from './judge';
 import { normalizeDraftMathFields } from './import.core.drafts';
 import { STANDARD_PROBLEM_POINTS } from '@/lib/problem-bank/scoring-policy';
+import {
+  assertStagingProblemImportOperator,
+  type StagingProblemImportOperator,
+} from '@/lib/server/course-problem-import-operator';
+import {
+  assertCourseProblemImportAdmin,
+  type CourseProblemImportAdmin,
+} from '@/lib/server/course-problem-import-admin';
+import {
+  assertCourseProblemImportGrant,
+  type CourseProblemImportGrant,
+} from '@/lib/server/course-problem-import-grant';
 
 const prismaDb = prisma;
 
@@ -650,8 +662,10 @@ async function listOwnedCourseNotebooks(
 function normalizeDraftForPersistence(
   draftInput: NotebookProblemImportDraft,
   order: number,
+  preservePreparedContent = false,
 ): NotebookProblemImportDraft {
-  const draft = normalizeDraftMathFields(notebookProblemImportDraftSchema.parse(draftInput));
+  const parsed = notebookProblemImportDraftSchema.parse(draftInput);
+  const draft = preservePreparedContent ? parsed : normalizeDraftMathFields(parsed);
   const isCode = draft.type === 'code';
   const codeErrors = [...codeDraftReadinessErrors(draft), ...problemContentReadinessErrors(draft)];
   const codeVerification =
@@ -731,8 +745,13 @@ async function createProblemFromDraftTx(args: {
   draft: NotebookProblemImportDraft;
   order: number;
   problemNumber?: number | null;
+  preservePreparedContent?: boolean;
 }) {
-  const normalized = normalizeDraftForPersistence(args.draft, args.order);
+  const normalized = normalizeDraftForPersistence(
+    args.draft,
+    args.order,
+    args.preservePreparedContent,
+  );
   const created = await args.tx.notebookProblem.create({
     data: {
       title: normalized.title,
@@ -2615,8 +2634,32 @@ export async function createNotebookProblemsFromDraftsWithSummary(
   return createNotebookProblemsFromDraftsInternal(args);
 }
 
-type CreateCourseProblemsFromDraftsArgs = {
-  userId: string;
+type CreateCourseProblemsFromDraftsArgs = (
+  | {
+      userId: string;
+      operatorContext?: never;
+      adminContext?: never;
+      grantContext?: never;
+    }
+  | {
+      userId?: never;
+      operatorContext: StagingProblemImportOperator;
+      adminContext?: never;
+      grantContext?: never;
+    }
+  | {
+      userId?: never;
+      operatorContext?: never;
+      adminContext: CourseProblemImportAdmin;
+      grantContext?: never;
+    }
+  | {
+      userId?: never;
+      operatorContext?: never;
+      adminContext?: never;
+      grantContext: CourseProblemImportGrant;
+    }
+) & {
   courseId: string;
   drafts: NotebookProblemImportDraft[];
   importBatchId?: string | null;
@@ -2629,6 +2672,16 @@ type CreateCourseProblemsFromDraftsArgs = {
   dedupeReadStrategy?: 'full_course_backfill' | 'indexed_input_keys';
   /** Avoid reloading the complete problem bank when the caller only needs the write summary. */
   returnProblems?: boolean;
+  /** Explicit, course-validated chapter assignment; never inferred from draft aliases. */
+  chapterIdByDraftId?: Record<string, string | null>;
+  publishCourseVersion?: boolean;
+  /** Prepared imports can require exact immutable reuse before any question writes. */
+  validateReusedDraft?: (
+    draft: NotebookProblemImportDraft,
+    existing: ProblemRow & { ownerId: string | null },
+  ) => void;
+  /** Internal structured-import mode; never accepted directly from HTTP. */
+  preservePreparedContent?: boolean;
 };
 
 const INDEXED_DEDUPE_INPUT_LIMIT = 5_000;
@@ -2754,15 +2807,57 @@ async function loadPrivateProblemDedupeStateTx(
 async function createCourseProblemsFromDraftsInternal(
   args: CreateCourseProblemsFromDraftsArgs,
 ): Promise<CourseProblemDraftWriteResult> {
-  // 课程主人写进公有层；加入课程的学员写进自己的私有层（ownerId = 学员，别人看不到）。
-  const accessRole = await requireCourseReadAccess(args.userId, args.courseId);
-  const privateOwnerId = accessRole === 'owner' ? null : args.userId;
+  let dataOwnerId: string;
+  let privateOwnerId: string | null;
+  if (args.operatorContext || args.adminContext || args.grantContext) {
+    const course = await prisma.course.findUnique({
+      where: { id: args.courseId },
+      select: { ownerId: true },
+    });
+    if (!course) throw new Error('Course not found');
+    if (args.operatorContext)
+      assertStagingProblemImportOperator(args.operatorContext, args.courseId, course.ownerId);
+    else if (args.adminContext)
+      assertCourseProblemImportAdmin(args.adminContext, args.courseId, course.ownerId);
+    else {
+      assertCourseProblemImportGrant(args.grantContext!, args.courseId, course.ownerId);
+      if (
+        args.drafts.some((draft) => draft.notebookId) ||
+        args.returnProblems !== false ||
+        !args.validateReusedDraft
+      )
+        throw new Error('Scoped grants only allow validated append-only course questions.');
+    }
+    dataOwnerId = course.ownerId;
+    // Authenticated maintenance imports always append to the shared public layer.
+    privateOwnerId = null;
+  } else {
+    // Preserve the staging learner path: enrolled users add only their own private questions.
+    const accessRole = await requireCourseReadAccess(args.userId, args.courseId);
+    dataOwnerId = args.userId;
+    privateOwnerId = accessRole === 'owner' ? null : args.userId;
+  }
   const dedupeReadStrategy = args.dedupeReadStrategy ?? 'full_course_backfill';
+  if (
+    args.preservePreparedContent &&
+    (dedupeReadStrategy !== 'indexed_input_keys' ||
+      args.drafts.some((draft) => draft.notebookId) ||
+      !args.importBatchId ||
+      !args.importBatchLeaseToken ||
+      !args.validateReusedDraft)
+  )
+    throw new Error(
+      'Prepared content preservation requires a validated, leased structured course import.',
+    );
+  if (args.operatorContext || args.adminContext || args.grantContext) {
+    if (dedupeReadStrategy !== 'indexed_input_keys')
+      throw new Error('Privileged imports require indexed dedupe reads.');
+  }
   if (dedupeReadStrategy === 'full_course_backfill' && !privateOwnerId) {
-    await ensureLegacyProblemsBackfilledForCourse(args.userId, args.courseId);
+    await ensureLegacyProblemsBackfilledForCourse(dataOwnerId, args.courseId);
   }
 
-  const notebooks = await listOwnedCourseNotebooks(args.userId, args.courseId);
+  const notebooks = await listOwnedCourseNotebooks(dataOwnerId, args.courseId);
   const allowedNotebookIds = new Set(notebooks.map((notebook) => notebook.id));
   const allowedNotebookIdList = Array.from(allowedNotebookIds);
   const problemNumberScopeWhere = courseProblemNumberScopeWhere(
@@ -2773,10 +2868,28 @@ async function createCourseProblemsFromDraftsInternal(
   const reusedProblemIds = new Set<string>();
   const skippedDraftIds: string[] = [];
   const reusedDrafts: ProblemDraftWriteSummary['reusedDrafts'] = [];
+  // This historical table field is the batch's data owner, not the authenticated
+  // operator. Maintenance authorization above is explicit and never impersonates
+  // a user request. The operator identity is retained in the import audit receipt.
+  const batchScope = { ...args, userId: dataOwnerId };
 
   await prismaDb.$transaction(
     async (tx: Prisma.TransactionClient) => {
-      await assertProblemImportBatchCommitLeaseTx(tx, args);
+      await assertProblemImportBatchCommitLeaseTx(tx, batchScope);
+      if (args.grantContext)
+        assertCourseProblemImportGrant(args.grantContext, args.courseId, dataOwnerId);
+      const chapterIds = [
+        ...new Set(
+          Object.values(args.chapterIdByDraftId ?? {}).filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      if (
+        chapterIds.length > 0 &&
+        (await tx.courseProblemChapter.count({
+          where: { courseId: args.courseId, id: { in: chapterIds } },
+        })) !== chapterIds.length
+      )
+        throw new Error('An import chapter does not belong to this course.');
       const existingProblemIdByKey = privateOwnerId
         ? await loadPrivateProblemDedupeStateTx(tx, args.courseId, privateOwnerId)
         : dedupeReadStrategy === 'indexed_input_keys'
@@ -2787,6 +2900,19 @@ async function createCourseProblemsFromDraftsInternal(
               drafts: args.drafts,
             })
           : await ensureCourseProblemDedupeStateTx(tx, args.courseId);
+      if (args.validateReusedDraft && existingProblemIdByKey.size > 0) {
+        const existingRows = await tx.notebookProblem.findMany({
+          where: { id: { in: Array.from(existingProblemIdByKey.values()) } },
+        });
+        const byId = new Map(existingRows.map((row) => [row.id, row]));
+        for (const draft of args.drafts) {
+          const existingId = existingProblemIdByKey.get(courseProblemDedupeKey(draft));
+          if (!existingId) continue;
+          const existing = byId.get(existingId);
+          if (!existing) throw new Error('An existing question disappeared during import.');
+          args.validateReusedDraft(draft, existing);
+        }
+      }
       const count = await tx.notebookProblem.count({
         where: problemNumberScopeWhere,
       });
@@ -2815,6 +2941,8 @@ async function createCourseProblemsFromDraftsInternal(
           courseId: args.courseId,
           ownerId: privateOwnerId,
           notebookId,
+          chapterId: args.chapterIdByDraftId?.[draft.draftId] ?? null,
+          preservePreparedContent: args.preservePreparedContent,
           draft: draftWithImportBatchId({ ...draft, notebookId }, args.importBatchId),
           order: count + insertedProblemIds.length,
           problemNumber:
@@ -2825,7 +2953,7 @@ async function createCourseProblemsFromDraftsInternal(
         if (notebookId) touchedNotebookIds.add(notebookId);
       }
       await recordProblemImportBatchPersistedCountTx(tx, {
-        ...args,
+        ...batchScope,
         persistedCount: insertedProblemIds.length,
         writeSummary: {
           requestedCount: args.drafts.length,
@@ -2841,6 +2969,11 @@ async function createCourseProblemsFromDraftsInternal(
           courseId: args.courseId,
           notebookIds: Array.from(touchedNotebookIds),
         });
+        if (args.publishCourseVersion && !privateOwnerId)
+          await tx.course.update({
+            where: { id: args.courseId },
+            data: { contentVersion: { increment: 1 } },
+          });
       }
     },
     {
@@ -2850,9 +2983,9 @@ async function createCourseProblemsFromDraftsInternal(
   );
 
   const problems =
-    args.returnProblems === false
+    args.returnProblems === false || args.operatorContext || args.adminContext || args.grantContext
       ? []
-      : await listCourseProblemsForUser(args.userId, args.courseId);
+      : await listCourseProblemsForUser(dataOwnerId, args.courseId);
   return {
     problems,
     writeSummary: {

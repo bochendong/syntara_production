@@ -144,3 +144,24 @@ does not establish that the corresponding browser/API flow works end to end.
 Report checks run, failures, and unverified behavior accurately. Existing
 lint/format/type failures may exist; compare against the task's diff before
 attributing them. Do not dismiss a new failure as pre-existing without evidence.
+
+## AI course uploads on staging
+
+Use the HTTPS import commands in `docs/api/ai-course-problem-upload.md` for
+prepared question banks and shared Markdown lectures. This MacBook's backend
+device credential is stored outside Git at
+`~/.config/syntara/staging-backend.json`; reuse it with `--credential-file`.
+The CLI validates its API origin and refreshes native access tokens as needed.
+Never print or copy token values into commands, chat, manifests, or repository files.
+
+List courses with `scripts/learn/import-course-problems.mjs --list-courses`, then
+use `--course-context COURSE_ID` to read its chapters and Hard Rules before
+preparing content. Pass the same `--credential-file` on these commands.
+Upload questions with that CLI and Markdown lectures with
+`scripts/learn/import-course-shared-lectures.mjs`. Keep source files, manifests,
+answers, and receipts in an ignored private directory. Run the read-only preview
+first; when the user has requested upload, apply the reviewed manifest within
+that request and verify the saved receipt. Routine uploads use the native device
+credential and do not require Railway SSH or database credentials. Course access
+is controlled by the server's device-scoped grant; staging and production remain
+separate targets.

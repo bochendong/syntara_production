@@ -43,17 +43,27 @@ export async function PATCH(
       });
       if (duplicate) return NextResponse.json({ error: '已经存在同名章节。' }, { status: 409 });
     }
-    const chapter = await prisma.courseProblemChapter.update({
-      where: { id: chapterId },
-      data: {
-        ...(payload.data.name !== undefined ? { name: payload.data.name } : {}),
-        ...(payload.data.description !== undefined
-          ? { description: payload.data.description || null }
-          : {}),
-      },
-      include: {
-        _count: { select: { problems: { where: { status: { not: 'archived' } } } } },
-      },
+    const chapter = await prisma.$transaction(async (tx) => {
+      const updated = await tx.courseProblemChapter.update({
+        where: { id: chapterId },
+        data: {
+          ...(payload.data.name !== undefined ? { name: payload.data.name } : {}),
+          ...(payload.data.description !== undefined
+            ? { description: payload.data.description || null }
+            : {}),
+        },
+        include: {
+          _count: { select: { problems: { where: { status: { not: 'archived' } } } } },
+        },
+      });
+      // Native clients fetch metadata through problem updatedAt deltas.
+      if (payload.data.name !== undefined) {
+        await tx.notebookProblem.updateMany({
+          where: { courseId, chapterId },
+          data: { updatedAt: new Date() },
+        });
+      }
+      return updated;
     });
     return NextResponse.json({
       chapter: {
@@ -77,7 +87,14 @@ export async function DELETE(
     const { id: courseId, chapterId } = await context.params;
     if (!(await requireOwner(auth.userId, courseId, chapterId)))
       return NextResponse.json({ error: 'Chapter not found' }, { status: 404 });
-    await prisma.courseProblemChapter.delete({ where: { id: chapterId } });
+    await prisma.$transaction(async (tx) => {
+      // Explicitly detach and touch first: FK SET NULL alone does not advance updatedAt.
+      await tx.notebookProblem.updateMany({
+        where: { courseId, chapterId },
+        data: { chapterId: null, updatedAt: new Date() },
+      });
+      await tx.courseProblemChapter.delete({ where: { id: chapterId } });
+    });
     return NextResponse.json({ ok: true });
   });
 }

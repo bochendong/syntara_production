@@ -483,6 +483,7 @@ function AuthenticatedApp() {
           workspace={workspace}
           onBack={backFromProblemBank}
           onPractice={openPractice}
+          onContentChanged={refreshWorkspace}
         />
       </div>
     );

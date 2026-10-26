@@ -41,6 +41,7 @@ import {
   type LocalProblemAnswer,
 } from '../data/local-problem-grading';
 import { gradeNativeAnswer } from '../data/platform-api-client';
+import { problemAiGradeRequest } from '../data/problem-ai-grading';
 import { queueProblemAttempt } from '../data/problem-sync';
 import { getLocalRepository } from '../data/repository';
 import { accountStorageKey } from '../data/browser-runtime';
@@ -96,16 +97,6 @@ function readPaneRatio() {
   } catch {
     return 50;
   }
-}
-
-function recordValue(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function optionalText(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function restoreAnswerFromAttempt(
@@ -546,23 +537,17 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
         answer.kind === 'text' &&
         ['short_answer', 'calculation', 'proof'].includes(currentProblem.type)
       ) {
-        const grading = recordValue(currentProblem.grading);
-        const points =
-          typeof grading.points === 'number' && grading.points > 0
-            ? Math.min(100, Math.round(grading.points))
-            : 10;
+        const request = problemAiGradeRequest(
+          currentProblem,
+          answer.text || '请查看附图中的作答。',
+        );
+        const points = request.points;
         try {
           const result = await gradeNativeAnswer({
+            ...request,
             question: stem,
-            userAnswer: answer.text || '请查看附图中的作答。',
-            images: answer.images,
-            points,
             language,
-            questionType: currentProblem.type === 'proof' ? 'proof' : 'short_answer',
-            referenceAnswer: optionalText(grading.referenceAnswer),
-            proof: optionalText(grading.proof),
-            analysis: optionalText(grading.analysis),
-            commentPrompt: optionalText(grading.commentPrompt),
+            images: answer.images,
           });
           const normalizedScore = Math.max(0, Math.min(1, result.score / points));
           grade = {

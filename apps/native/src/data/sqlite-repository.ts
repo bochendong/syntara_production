@@ -169,6 +169,8 @@ function mapProblem(row: SqlRow): LocalProblem {
     id: stringValue(row.id),
     courseId: stringValue(row.course_id),
     notebookId: nullableString(row.notebook_id),
+    chapterId: nullableString(row.chapter_id),
+    chapterName: nullableString(row.chapter_name),
     title: stringValue(row.title),
     type: stringValue(row.type),
     status: stringValue(row.status) as LocalProblem['status'],
@@ -487,11 +489,13 @@ export class SqliteLocalRepository implements LocalRepository {
       for (const problemBatch of chunks(seedProblems, 50)) {
         const bindings: unknown[] = [];
         const valueGroups = problemBatch.map((problem, rowIndex) => {
-          const firstParameter = rowIndex * 12 + 1;
+          const firstParameter = rowIndex * 14 + 1;
           bindings.push(
             problem.id,
             problem.courseId,
             problem.notebookId,
+            problem.chapterId ?? null,
+            problem.chapterName ?? null,
             problem.title,
             problem.type,
             problem.status,
@@ -503,17 +507,18 @@ export class SqliteLocalRepository implements LocalRepository {
             problem.updatedAt,
           );
           return `(${Array.from(
-            { length: 12 },
+            { length: 14 },
             (_, parameterIndex) => `$${firstParameter + parameterIndex}`,
           ).join(', ')})`;
         });
         await database.execute(
           `INSERT INTO problems
-            (id, course_id, notebook_id, title, type, status, difficulty, tags_json,
+            (id, course_id, notebook_id, chapter_id, chapter_name, title, type, status, difficulty, tags_json,
              public_content_json, grading_json, created_at, updated_at)
            VALUES ${valueGroups.join(', ')}
            ON CONFLICT(id) DO UPDATE SET
              course_id = excluded.course_id, notebook_id = excluded.notebook_id,
+             chapter_id = excluded.chapter_id, chapter_name = excluded.chapter_name,
              title = excluded.title, type = excluded.type, status = excluded.status,
              difficulty = excluded.difficulty, tags_json = excluded.tags_json,
              public_content_json = excluded.public_content_json,
@@ -1994,6 +1999,8 @@ export class SqliteLocalRepository implements LocalRepository {
       id: crypto.randomUUID(),
       courseId: input.courseId,
       notebookId: null,
+      chapterId: null,
+      chapterName: null,
       title,
       type: 'short_answer',
       status: 'published',
@@ -2012,12 +2019,14 @@ export class SqliteLocalRepository implements LocalRepository {
     };
     await database.execute(
       `INSERT INTO problems
-        (id, course_id, notebook_id, title, type, status, difficulty, tags_json,
+        (id, course_id, notebook_id, chapter_id, chapter_name, title, type, status, difficulty, tags_json,
          public_content_json, grading_json, created_at, updated_at)
-       VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+       VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
         problem.id,
         problem.courseId,
+        problem.chapterId,
+        problem.chapterName,
         problem.title,
         problem.type,
         problem.status,
@@ -2222,11 +2231,12 @@ export class SqliteLocalRepository implements LocalRepository {
     for (const problem of archive.problems) {
       await database.execute(
         `INSERT INTO problems
-          (id, course_id, notebook_id, title, type, status, difficulty, tags_json,
+          (id, course_id, notebook_id, chapter_id, chapter_name, title, type, status, difficulty, tags_json,
            public_content_json, grading_json, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          ON CONFLICT(id) DO UPDATE SET
            course_id = excluded.course_id, notebook_id = excluded.notebook_id,
+           chapter_id = excluded.chapter_id, chapter_name = excluded.chapter_name,
            title = excluded.title, type = excluded.type, status = excluded.status,
            difficulty = excluded.difficulty, tags_json = excluded.tags_json,
            public_content_json = excluded.public_content_json,
@@ -2236,6 +2246,8 @@ export class SqliteLocalRepository implements LocalRepository {
           problem.id,
           problem.courseId,
           problem.notebookId,
+          problem.chapterId ?? null,
+          problem.chapterName ?? null,
           problem.title,
           problem.type,
           problem.status,

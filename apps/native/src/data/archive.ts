@@ -299,6 +299,8 @@ export function parseSyntaraArchive(input: string | unknown): SyntaraArchiveV1 {
         courseId,
         notebookId: notebookId && notebookIds.has(notebookId) ? notebookId : null,
         title: stringValue(row.title, '未命名题目'),
+        chapterId: nullableString(row.chapterId),
+        chapterName: nullableString(row.chapterName),
         type: stringValue(row.type, 'short_answer'),
         status: row.status === 'published' || row.status === 'archived' ? row.status : 'draft',
         difficulty:
