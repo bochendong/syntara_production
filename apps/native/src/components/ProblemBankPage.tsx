@@ -680,6 +680,26 @@ export function ProblemBankPage({
               <ChapterMarble chapter={openChapter} />
               <strong>{openChapter.title}</strong>
               <ChapterTube chapter={openChapter} />
+              <div className="pb-view-toggle" role="group" aria-label="显示方式">
+                <button
+                  type="button"
+                  className={view === 'grid' ? 'is-active' : ''}
+                  onClick={() => setView('grid')}
+                  aria-label="答题卡"
+                  aria-pressed={view === 'grid'}
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button
+                  type="button"
+                  className={view === 'list' ? 'is-active' : ''}
+                  onClick={() => setView('list')}
+                  aria-label="列表"
+                  aria-pressed={view === 'list'}
+                >
+                  <List size={16} />
+                </button>
+              </div>
             </div>
 
             <label className="pb-search">
@@ -773,26 +793,6 @@ export function ProblemBankPage({
                           </button>
                         ))
                       : null}
-                  </div>
-                  <div className="pb-view-toggle" role="group" aria-label="显示方式">
-                    <button
-                      type="button"
-                      className={view === 'grid' ? 'is-active' : ''}
-                      onClick={() => setView('grid')}
-                      aria-label="答题卡"
-                      aria-pressed={view === 'grid'}
-                    >
-                      <LayoutGrid size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      className={view === 'list' ? 'is-active' : ''}
-                      onClick={() => setView('list')}
-                      aria-label="列表"
-                      aria-pressed={view === 'list'}
-                    >
-                      <List size={16} />
-                    </button>
                   </div>
                 </div>
               </aside>

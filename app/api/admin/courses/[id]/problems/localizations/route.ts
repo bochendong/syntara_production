@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { buildRequestOrigin } from '@/lib/server/classroom-storage';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import {
@@ -18,10 +19,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { id } = await context.params;
   return NextResponse.json(await readCourseProblemLocalizations(db, id), noStore);
 }
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin();
   if ('response' in admin) return admin.response;
-  if (request.headers.get('origin') !== new URL(request.url).origin)
+  if (request.headers.get('origin') !== buildRequestOrigin(request))
     return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
   const text = await request.text();
   if (Buffer.byteLength(text, 'utf8') > 2000000)

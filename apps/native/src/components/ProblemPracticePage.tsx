@@ -24,6 +24,7 @@ import {
   Square,
   SquareFunction,
   Terminal,
+  X,
 } from 'lucide-react';
 
 import {
@@ -625,17 +626,17 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     return (
       <section className="native-problem-practice">
         <header className="pp-header">
-          <button
-            type="button"
-            className="phone-glass-button"
-            onClick={onBack}
-            aria-label="返回题库"
-          >
-            <ChevronLeft size={22} />
-          </button>
           <div className="pp-progress">
             <strong>没有可练习的题目</strong>
           </div>
+          <button
+            type="button"
+            className="phone-glass-button pp-close"
+            onClick={onBack}
+            aria-label="关闭做题"
+          >
+            <X size={22} />
+          </button>
         </header>
       </section>
     );
@@ -654,9 +655,6 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   return (
     <section className="native-problem-practice" aria-label="本地做题器">
       <header className="pp-header">
-        <button type="button" className="phone-glass-button" onClick={onBack} aria-label="返回题库">
-          <ChevronLeft size={22} />
-        </button>
         <div className="pp-header-context">
           <div
             className="pp-question-picker"
@@ -757,6 +755,14 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             </button>
           </div>
         </div>
+        <button
+          type="button"
+          className="phone-glass-button pp-close"
+          onClick={onBack}
+          aria-label="关闭做题"
+        >
+          <X size={22} />
+        </button>
       </header>
 
       {finish === 'shown' ? (
