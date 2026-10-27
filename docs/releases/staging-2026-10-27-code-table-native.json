@@ -1,0 +1,30 @@
+{
+  "source": "d74747980bd1c44f2044888df1fbbba298e1a7d8",
+  "deploymentId": "165a3f76-f0e0-430d-b490-c40fc9e0f313",
+  "status": "SUCCESS",
+  "verifiedAt": "2026-10-27T05:58:06.973969+00:00",
+  "migration": {
+    "name": "20261026230000_table_problems",
+    "verifiedInDeploymentLog": true
+  },
+  "scope": [
+    "Native code slots, browser Python playground and table question support",
+    "Native code submissions use public and hidden tests with replay-safe server attempt IDs",
+    "Table cells and results are synchronized",
+    "Import verification flags unverified tables for review"
+  ],
+  "checks": {
+    "localVerification": "PASS",
+    "nativeBuild": "PASS",
+    "nextBuild": "PASS",
+    "regressionTests": 32,
+    "importCompiler": "PASS",
+    "pythonRunner": "public/hidden, locked header, stdin and files passed",
+    "browserFixture": "slots, CSV, expression, output files, row copy and table grading passed",
+    "liveAuthAndLock": "PASS; no attempt created, progress unchanged",
+    "liveSuccessfulSubmission": "not exercised on real student data",
+    "assets": "online JS/CSS match local staging build"
+  },
+  "desktopInstaller": "unchanged; new native command requires a rebuilt desktop application",
+  "dataChanges": "schema migration only; no course content deleted or modified"
+}
