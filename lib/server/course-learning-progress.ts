@@ -1,3 +1,8 @@
+import {
+  groupNotebookTranslations,
+  notebookVariants,
+} from '../../apps/native/src/lib/notebook-translations';
+import type { LocalNotebook } from '../../apps/native/src/domain/models';
 import type { PrismaClient } from '@/lib/server/generated-prisma';
 import { isLearnerCourseState, type LearnerCourseState } from '@/lib/learning/course-learner-state';
 import type { CourseChatContext } from '@/lib/types/chat';
@@ -9,6 +14,7 @@ type ProgressNotebook = {
   name: string;
   createdAt: Date;
   learningOrder?: number;
+  variantIds?: string[];
 };
 
 export type TrustedCourseLearningProgress = {
@@ -70,10 +76,16 @@ function progressBoundary(state: LearnerCourseState, notebooks: ProgressNotebook
   if (checkpoint.kind === 'not_started') return 0;
   if (checkpoint.kind === 'completed_all') return notebooks.length;
   const checkpointId = checkpoint.notebookId || state.currentNotebookId;
-  const index = notebooks.findIndex((notebook) => notebook.id === checkpointId);
+  const index = notebooks.findIndex(
+    (notebook) =>
+      notebook.id === checkpointId ||
+      Boolean(checkpointId && notebook.variantIds?.includes(checkpointId)),
+  );
   if (index >= 0) return index + 1;
   const completed = new Set(state.completedNotebookIds);
-  return notebooks.filter((notebook) => completed.has(notebook.id)).length;
+  return notebooks.filter((notebook) =>
+    (notebook.variantIds ?? [notebook.id]).some((id) => completed.has(id)),
+  ).length;
 }
 
 export async function loadTrustedCourseLearningProgress(args: {
@@ -97,16 +109,58 @@ export async function loadTrustedCourseLearningProgress(args: {
     }),
     args.prisma.notebook.findMany({
       where: { courseId: args.courseId },
-      select: { id: true, name: true, createdAt: true, coverSlideJson: true },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+        coverSlideJson: true,
+        language: true,
+        notebookKind: true,
+        tags: true,
+      },
     }),
   ]);
-  const notebooks = orderNotebooks(
-    rawNotebooks.map((notebook) => ({
+  const localNotebooks: LocalNotebook[] = rawNotebooks.map((notebook) => {
+    const cover =
+      notebook.coverSlideJson &&
+      typeof notebook.coverSlideJson === 'object' &&
+      !Array.isArray(notebook.coverSlideJson)
+        ? (notebook.coverSlideJson as Record<string, unknown>)
+        : {};
+    const source = cover.sourceSha256;
+    const language = notebook.language;
+    const pairedTags =
+      typeof source === 'string' &&
+      /^[a-f0-9]{64}$/.test(source) &&
+      (language === 'en' || language === 'zh-CN')
+        ? [`translation-source:${source}`, `translation-language:${language}`]
+        : [];
+    return {
       id: notebook.id,
+      courseId: args.courseId,
       name: notebook.name,
-      createdAt: notebook.createdAt,
-      learningOrder: persistedLearningOrder(notebook.coverSlideJson),
-    })),
+      description: '',
+      kind: notebook.notebookKind === 'markdown' ? 'markdown' : 'image',
+      tags: [...notebook.tags, ...pairedTags],
+      sectionCount: 0,
+      createdAt: notebook.createdAt.getTime(),
+      updatedAt: notebook.updatedAt.getTime(),
+    };
+  });
+  const rawById = new Map(rawNotebooks.map((notebook) => [notebook.id, notebook]));
+  const notebooks = orderNotebooks(
+    groupNotebookTranslations(localNotebooks).map((notebook) => {
+      const row = rawById.get(notebook.id)!;
+      const variants = notebookVariants(localNotebooks, notebook.id);
+      return {
+        id: notebook.id,
+        name: notebook.name,
+        createdAt: row.createdAt,
+        learningOrder: persistedLearningOrder(row.coverSlideJson),
+        variantIds: variants.map((variant) => variant.id),
+      };
+    }),
   );
   if (!fact || !isLearnerCourseState(fact.valueJson, args.courseId)) {
     return { learner: emptyLearner(notebooks), allowedNotebookIds: null, futureNotebookIds: [] };
@@ -122,8 +176,8 @@ export async function loadTrustedCourseLearningProgress(args: {
   const currentNotebook = allowed.at(-1);
   const checkpoint = state.progressCheckpoint;
   return {
-    allowedNotebookIds: allowed.map((notebook) => notebook.id),
-    futureNotebookIds: future.map((notebook) => notebook.id),
+    allowedNotebookIds: allowed.flatMap((notebook) => notebook.variantIds ?? [notebook.id]),
+    futureNotebookIds: future.flatMap((notebook) => notebook.variantIds ?? [notebook.id]),
     learner: {
       progressKnown: true,
       progressLabel: checkpoint?.label,
@@ -133,8 +187,8 @@ export async function loadTrustedCourseLearningProgress(args: {
       courseNotebookNames: notebooks.map((notebook) => notebook.name),
       currentNotebookId: currentNotebook?.id,
       currentNotebookName: currentNotebook?.name,
-      completedNotebookIds: allowed.map((notebook) => notebook.id),
-      futureNotebookIds: future.map((notebook) => notebook.id),
+      completedNotebookIds: allowed.flatMap((notebook) => notebook.variantIds ?? [notebook.id]),
+      futureNotebookIds: future.flatMap((notebook) => notebook.variantIds ?? [notebook.id]),
       futureNotebookNames: future.map((notebook) => notebook.name),
       attemptedProblemCount: state.recentProblemAttempts.length,
       totalProblemCount: Math.max(0, args.totalProblemCount || 0),

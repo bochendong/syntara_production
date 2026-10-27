@@ -1,4 +1,9 @@
 import {
+  groupNotebookTranslations,
+  notebookProgressCount,
+  readableProgressNotebooks,
+} from '../lib/notebook-translations';
+import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -396,13 +401,6 @@ function AssistantMessageContent({
         if (source.notebookId) onOpenNotebookId?.(source.notebookId);
       }}
     />
-  );
-}
-
-function orderCourseNotebooks(notebooks: LocalNotebook[]): LocalNotebook[] {
-  return [...notebooks].sort(
-    (left, right) =>
-      left.name.localeCompare(right.name, 'zh-CN') || left.updatedAt - right.updatedAt,
   );
 }
 
@@ -1891,12 +1889,12 @@ function CourseLearningProgressPanel({
   const listRef = useRef<HTMLUListElement | null>(null);
   const itemRefs = useRef<Array<HTMLLIElement | null>>([]);
   const [completedNotebookCount, setCompletedNotebookCount] = useState(() =>
-    Math.min(notebooks.length, Math.max(0, learningState?.completedNotebookCount ?? 0)),
+    notebookProgressCount(notebooks, learningState),
   );
   const [anchorPercents, setAnchorPercents] = useState<number[]>([]);
   const [dragging, setDragging] = useState(false);
 
-  const orderedNotebooks = useMemo(() => orderCourseNotebooks(notebooks), [notebooks]);
+  const orderedNotebooks = useMemo(() => groupNotebookTranslations(notebooks), [notebooks]);
 
   const notebookCount = orderedNotebooks.length;
 
@@ -3299,7 +3297,7 @@ export function CourseWorkspace({
         currentNotebookId,
         updatedAt: optimistic.updatedAt,
         requestId,
-        notebookCount: workspace.notebooks.length,
+        notebookCount: groupNotebookTranslations(workspace.notebooks).length,
       };
       if (courseProgressSaveRunningRef.current) return;
 
@@ -3373,7 +3371,7 @@ export function CourseWorkspace({
         }
       })();
     },
-    [workspace.course.id, workspace.notebooks.length],
+    [workspace.course.id, workspace.notebooks],
   );
 
   const closeScheduleEditor = useCallback(() => {
@@ -4660,17 +4658,16 @@ export function CourseWorkspace({
         setMessages((current) => [...current, userMessage!, optimisticAssistant]);
         await onWorkspaceChanged();
 
-        const orderedProgressNotebooks = orderCourseNotebooks(workspace.notebooks);
-        const completedNotebookCount = Math.min(
-          orderedProgressNotebooks.length,
-          Math.max(0, courseLearningState?.completedNotebookCount ?? 0),
+        const completedNotebookCount = notebookProgressCount(
+          workspace.notebooks,
+          courseLearningState,
         );
         const surface = detectChatSurface(phoneLayout);
         const context = await buildNativeChatContext({
           repository,
           workspace,
           surface,
-          readableNotebooks: orderedProgressNotebooks.slice(0, completedNotebookCount),
+          readableNotebooks: readableProgressNotebooks(workspace.notebooks, completedNotebookCount),
           learningState: courseLearningState,
           scheduleItems,
           history,

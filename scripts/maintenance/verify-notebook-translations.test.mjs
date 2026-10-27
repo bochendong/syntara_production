@@ -10,9 +10,14 @@ const compile = (source) =>
   ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-const { groupNotebookTranslations, notebookVariants, notebookSearchText } = await import(
-  moduleUrl(compile(read('apps/native/src/lib/notebook-translations.ts')))
-);
+const {
+  groupNotebookTranslations,
+  notebookVariants,
+  notebookSearchText,
+  notebookProgressCount,
+  readableProgressNotebooks,
+  checkpointProgressCount,
+} = await import(moduleUrl(compile(read('apps/native/src/lib/notebook-translations.ts'))));
 const notebook = (id, language, number = 1, courseId = 'course') => ({
   id,
   courseId,
@@ -51,6 +56,35 @@ test('same number alone, different courses and ambiguous copies never merge', ()
   assert.equal(groupNotebookTranslations([...pair, { ...pair[0], id: 'copy' }]).length, 3);
   assert.equal(groupNotebookTranslations([pair[0]]).length, 1);
   assert.equal(groupNotebookTranslations([{ ...pair[0], tags: [] }])[0].name, pair[0].name);
+});
+
+test('progress counts each bilingual lecture once and maps either existing checkpoint', () => {
+  const all = [
+    notebook('en-1', 'en', 1),
+    notebook('zh-1', 'zh-CN', 1),
+    notebook('en-2', 'en', 2),
+    notebook('zh-2', 'zh-CN', 2),
+  ];
+  assert.equal(
+    notebookProgressCount(all, { completedNotebookCount: 3, currentNotebookId: 'en-1' }),
+    1,
+  );
+  assert.equal(
+    notebookProgressCount(all, { completedNotebookCount: 2, currentNotebookId: 'zh-2' }),
+    2,
+  );
+  assert.equal(
+    notebookProgressCount(all, { completedNotebookCount: 0, currentNotebookId: null }),
+    0,
+  );
+  assert.deepEqual(
+    new Set(readableProgressNotebooks(all, 1).map((item) => item.id)),
+    new Set(['en-1', 'zh-1']),
+  );
+  assert.equal(readableProgressNotebooks(all, 0).length, 0);
+  assert.equal(checkpointProgressCount(all, 'notebook', 'en-2'), 2);
+  assert.equal(checkpointProgressCount(all, 'completed_all', null), 2);
+  assert.equal(checkpointProgressCount(all, 'not_started', null), 0);
 });
 
 test('sync exposes only source-verified language metadata and preserves readable IDs', async () => {

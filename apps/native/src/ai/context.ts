@@ -1,3 +1,4 @@
+import { groupNotebookTranslations } from '../lib/notebook-translations';
 import type { LocalCourseEvent } from '../domain/learning-experiences';
 import type {
   LocalCourseLearningState,
@@ -292,8 +293,8 @@ export async function buildNativeChatContext(
   const context: NativeChatContext = {
     today,
     progress: {
-      completedNotebooks: readableNotebooks.length,
-      totalNotebooks: workspace.notebooks.length,
+      completedNotebooks: groupNotebookTranslations(readableNotebooks).length,
+      totalNotebooks: groupNotebookTranslations(workspace.notebooks).length,
       currentNotebook: currentNotebook?.name ?? null,
     },
     notes,

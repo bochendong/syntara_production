@@ -53,3 +53,45 @@ export function notebookSearchText(notebooks: LocalNotebook[], notebookId: strin
     .join('\n')
     .toLowerCase();
 }
+
+/** Interpret either language's stored checkpoint as the same completed lecture. */
+export function notebookProgressCount(
+  notebooks: LocalNotebook[],
+  state: { completedNotebookCount: number; currentNotebookId: string | null } | null,
+): number {
+  if (!state || state.completedNotebookCount <= 0) return 0;
+  const groups = groupNotebookTranslations(notebooks);
+  const index = state.currentNotebookId
+    ? groups.findIndex((notebook) =>
+        notebookVariants(notebooks, notebook.id).some(
+          (variant) => variant.id === state.currentNotebookId,
+        ),
+      )
+    : -1;
+  return index >= 0 ? index + 1 : Math.min(groups.length, state.completedNotebookCount);
+}
+
+/** A completed bilingual lecture makes both language editions readable to the AI. */
+export function readableProgressNotebooks(
+  notebooks: LocalNotebook[],
+  count: number,
+): LocalNotebook[] {
+  return groupNotebookTranslations(notebooks)
+    .slice(0, Math.max(0, count))
+    .flatMap((notebook) => notebookVariants(notebooks, notebook.id));
+}
+
+/** Map a server checkpoint, including an English edition ID, to the lecture count. */
+export function checkpointProgressCount(
+  notebooks: LocalNotebook[],
+  kind: string,
+  notebookId: string | null,
+): number {
+  const groups = groupNotebookTranslations(notebooks);
+  if (kind === 'completed_all') return groups.length;
+  if (kind !== 'notebook' || !notebookId) return 0;
+  const index = groups.findIndex((notebook) =>
+    notebookVariants(notebooks, notebook.id).some((variant) => variant.id === notebookId),
+  );
+  return index < 0 ? 0 : index + 1;
+}

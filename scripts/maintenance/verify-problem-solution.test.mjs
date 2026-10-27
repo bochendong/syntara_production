@@ -349,7 +349,12 @@ test('the next AI prompt sees freshly persisted help memory even when its mounte
     at: 100,
     id: 'view',
   });
-  const { buildNativeChatContext } = load('apps/native/src/ai/context.ts');
+  const notebookTranslations = await jiti.import(
+    '../../apps/native/src/lib/notebook-translations.ts',
+  );
+  const { buildNativeChatContext } = load('apps/native/src/ai/context.ts', {
+    '../lib/notebook-translations': notebookTranslations,
+  });
   const workspace = {
     course: { id: 'course', name: 'Math' },
     notebooks: [],

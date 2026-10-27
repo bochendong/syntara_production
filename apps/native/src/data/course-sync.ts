@@ -1,4 +1,5 @@
 import { accountStorageKey } from './browser-runtime';
+import { checkpointProgressCount, groupNotebookTranslations } from '../lib/notebook-translations';
 import type { LocalNotebook, LocalNotebookDocument, LocalStudyMemory } from '../domain/models';
 import { mergeReviewedMap, readReviewedMap } from '../lib/memory-freshness';
 import { SYNTARA_ARCHIVE_FORMAT, SYNTARA_ARCHIVE_VERSION, type SyntaraArchiveV1 } from './archive';
@@ -218,16 +219,13 @@ export async function syncCourseData(
       const notebookById = new Map(local.notebooks.map((notebook) => [notebook.id, notebook]));
       for (const notebook of remote.notebooks)
         notebookById.set(notebook.id, toLocalNotebook(notebook));
-      const ordered = phoneNotebookOrder([...notebookById.values()]);
-      const index = progress.notebookId
-        ? ordered.findIndex((notebook) => notebook.id === progress.notebookId)
-        : -1;
-      const completedNotebookCount =
-        progress.kind === 'completed_all'
-          ? ordered.length
-          : progress.kind === 'notebook' && index >= 0
-            ? index + 1
-            : 0;
+      const allNotebooks = [...notebookById.values()];
+      const ordered = groupNotebookTranslations(allNotebooks);
+      const completedNotebookCount = checkpointProgressCount(
+        allNotebooks,
+        progress.kind,
+        progress.notebookId,
+      );
       await repository.saveCourseLearningState({
         courseId,
         completedNotebookCount,
@@ -488,11 +486,6 @@ export async function loadNotebookForReading(
   return document;
 }
 
-/** 和手机「学习进度」页同样的排序：按笔记名里的编号。 */
-function phoneNotebookOrder(notebooks: LocalNotebook[]): LocalNotebook[] {
-  return [...notebooks].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN', { numeric: true }));
-}
-
 /** 手机上改了学习进度后写回账号；不是网页课程时什么都不做。 */
 export async function pushLearningProgress(
   repository: LocalRepository,
@@ -502,7 +495,7 @@ export async function pushLearningProgress(
 ): Promise<void> {
   if (!(await isPlatformCourse(repository, courseId))) return;
   const workspace = await repository.loadCourseWorkspace(courseId);
-  const ordered = phoneNotebookOrder(workspace?.notebooks ?? []);
+  const ordered = groupNotebookTranslations(workspace?.notebooks ?? []);
   const kind =
     completedNotebookCount <= 0
       ? 'not_started'
