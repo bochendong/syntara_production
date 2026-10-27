@@ -86,7 +86,7 @@ node scripts/learn/import-course-problems.mjs \
 
 单个 API 批次最多 100 题、正文最多 2 MB。CLI 可接收更大 manifest，按原顺序稳定拆为 100 题一批，key 后加 `:part:1`、`:part:2`；CLI 的基础 key 限 8–130 字符。重试必须保持文件顺序、内容和 key 不变。全部批次先完成只读预览，再逐批事务提交；多个批次不是一个跨批事务。也可为每套模拟题各准备一个 manifest/key。
 
-题目复用 [现有 draft schema](../../lib/problem-bank/schema.ts)，难度为 `easy|medium|hard`，类型支持 `choice|proof|short_answer|calculation|fill_blank`。本接口拒绝 code、secretJudge 和 code_token 填空，执行题需独立 runner 验证流程。课程题目沿用统一 100 分制；原卷分数应保存在 sourceMeta。证明/简答必须有完整参考答案及任务专属 rubric，结构化 rubricCriteria 总和必须为 100。题面、grading、draft 类型必须一致，validationErrors 必须为空。已审查内容按 schema 和实际 Markdown 结构校验，不再运行 AI 抽取启发式清理，保留真值表构造任务、题内定义和合法 Markdown 表格。批量持久化使用仅服务器内部的 preservePreparedContent 模式，仍保留结构、评分与状态检查；原 AI 抽取导入路径保持原有清理规则。请求不能设置该内部模式。
+题目复用 [现有 draft schema](../../lib/problem-bank/schema.ts)，难度为 `easy|medium|hard`，类型支持 `choice|proof|short_answer|calculation|fill_blank`。未经预检的 code、secretJudge 和 code_token 填空拒绝导入；测试服执行题的独立 runner 验证流程见文末。课程题目沿用统一 100 分制；原卷分数应保存在 sourceMeta。证明/简答必须有完整参考答案及任务专属 rubric，结构化 rubricCriteria 总和必须为 100。题面、grading、draft 类型必须一致，validationErrors 必须为空。已审查内容按 schema 和实际 Markdown 结构校验，不再运行 AI 抽取启发式清理，保留真值表构造任务、题内定义和合法 Markdown 表格。批量持久化使用仅服务器内部的 preservePreparedContent 模式，仍保留结构、评分与状态检查；原 AI 抽取导入路径保持原有清理规则。请求不能设置该内部模式。
 
 题目去重沿用现有课程题面内容 key。相同 key 仅在题名、题型、状态、难度、标签、题面、grading、来源和章节完全一致时复用；不同则 409，不覆盖任何题目。仅改变来源或新建 idempotencyKey 不会绕过内容冲突。源文件及审查证据保留本机，manifest 记录其 SHA-256；本接口不上传原 PDF。
 
@@ -135,7 +135,7 @@ node /tmp/reviewed-import/scripts/learn/import-course-problems-operator.mjs \
 # 核对只读 preview 后，在同一明确选定的运维环境增加 --apply。
 ```
 
-临时包必须包含两个 CLI 和以下七个 TS 文件，按仓库相对路径摆放：`course-problem-import.ts`、`course-problem-import-operator.ts`、`course-problem-import-admin.ts`、`course-problem-import-grant.ts`、`admin-identity.ts`（均位于 `lib/server`），以及 `lib/server/notebook-problems/service.ts`、`import-batch-store.ts`。jiti 为这七个模块设精确 overlay，原 bulk service 的 judge/normalize 依赖回退 `/app`；不复制整个 working tree、原 PDF、token 或 SSH 私钥。
+临时包必须包含两个 CLI 和以下八个 TS 文件，按仓库相对路径摆放：`course-problem-import.ts`、`course-problem-import-operator.ts`、`course-problem-import-admin.ts`、`course-problem-import-grant.ts`、`admin-identity.ts`、`course-code-preflight.ts`（均位于 `lib/server`），以及 `lib/server/notebook-problems/service.ts`、`import-batch-store.ts`。jiti 为这八个模块设精确 overlay，原 bulk service 的 judge/normalize 依赖回退 `/app`；不复制整个 working tree、原 PDF、token 或 SSH 私钥。
 
 CLI 保存这些源码和 manifest 的哈希、操作者、数据 owner、全量私有前后读回；核对原全部 notebook 正文/版本哈希和旧 question 哈希不变。新题写入后刷新课程汇总并增加课程 contentVersion；同批次重放不增加版本。现有讲义不创建、不修改。native API 日常入口需要将该路由与服务正常集成部署；独立运维包可提前调用同一受审业务，无须覆盖其他正在部署的工作。
 
@@ -145,4 +145,19 @@ CLI 保存这些源码和 manifest 的哈希、操作者、数据 owner、全量
 node --test scripts/learn/import-course-problems.test.mjs
 ```
 
-覆盖 owner/admin/enrolled 授权、默认关闭/过期/跨课程/伪造 grant 拒绝、跨课程章节、同批重放、不同内容冲突、证明字段和来源/难度/章节读回、真实 native handler 鉴权分支、HTTP 认证失败/瞬时重试，以及独立七文件 source overlay 加载。测试只使用内存假库和 loopback HTTP，不写真实数据库，不代表实际 staging 上传已经完成。
+覆盖 owner/admin/enrolled 授权、默认关闭/过期/跨课程/伪造 grant 拒绝、跨课程章节、同批重放、不同内容冲突、证明字段和来源/难度/章节读回、真实 native handler 鉴权分支、HTTP 认证失败/瞬时重试，以及独立八文件 source overlay 加载。测试只使用内存假库和 loopback HTTP，不写真实数据库，不代表实际 staging 上传已经完成。
+
+## 测试服代码题预检与写入
+
+`POST /api/native/v1/course-code-preflight` 在 staging 接受 `{courseId,draft,counterexamples:[{id,code,reason}]}`。调用者必须有该课程的现有导入授权；请求不能自定 owner、身份或授权。只支持 Python，至少 1、最多 2 个有代表性的错误实现。服务端用隔离 Python 判题器验证参考答案、样例、空实现及错误实现，不写题目、作答、学生进度或计费记录。参考答案必须通过；空实现和错误实现必须因测试失败而被拒绝，运行器故障不算成功预检。
+
+```sh
+node scripts/learn/course-code-preflight.mjs \
+  /absolute/private/code-question-input.json \
+  ~/.config/syntara/staging-backend.json \
+  /absolute/private/code-question-preflight.json
+```
+
+结果含 `valid`、`checkedBy:python-runner`、`courseId`、`draftFingerprint`、`referencePassed`、`starterRejected`、`incorrectRejected`、`validatedDraft` 和成功时的 `proof`。保存完整私有收据，使用返回的 `validatedDraft` 原样填入 import manifest 的 item.draft，并将 proof 填入该 item 的 `codePreflight`。之后仍使用本文的只读预览与 `--apply`，章节、去重、幂等与逐题读回流程保持相同。
+
+预检证明由服务端签名，绑定题目全部内容（包括隐藏测试）、课程、用户及设备 session，有效 24 小时。任何内容更改、跨课程或跨设备都需要重新预检；proof 不能替代登录和当前课程授权。不要把证明或私有收据公开。当前只有 staging 接受执行题，production 的预检路由关闭；未通过预检的 code、secretJudge 仍拒绝写入。公开读取接口不会因此获得隐藏测试。

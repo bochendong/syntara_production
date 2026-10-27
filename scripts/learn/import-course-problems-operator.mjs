@@ -15,6 +15,7 @@ const SOURCES = [
   'lib/server/admin-identity.ts',
   'lib/server/notebook-problems/service.ts',
   'lib/server/notebook-problems/import-batch-store.ts',
+  'lib/server/course-code-preflight.ts',
 ];
 const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 

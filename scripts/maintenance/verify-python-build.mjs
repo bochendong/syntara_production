@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 // Fail the release build if any judging function loses its bundled runtime.
 const routes = [
   'quiz-code-run',
+  'native/v1/course-code-preflight',
   ...['courses', 'notebooks'].flatMap((scope) =>
     ['run', 'submit'].map((action) => `${scope}/[id]/problems/[problemId]/attempts/${action}`),
   ),

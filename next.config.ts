@@ -47,6 +47,7 @@ const nextConfig: NextConfig = {
     '/api/notebooks/*/problems/**': ['./node_modules/pyodide/*'],
     '/api/teacher/courses/*/sources/*/process': ['./node_modules/pyodide/*'],
     '/api/quiz-code-run': ['./node_modules/pyodide/*'],
+    '/api/native/v1/course-code-preflight': ['./node_modules/pyodide/*'],
     '/*': [
       './node_modules/.pnpm/@prisma+client*/node_modules/.prisma/client/**/*',
       './node_modules/@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff2',

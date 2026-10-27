@@ -870,7 +870,7 @@ test('native route authenticates, refuses shared-test and enrolled principals an
   }
 });
 
-test('reviewed seven-file overlay loads from an independent temporary directory using workspace dependencies', async () => {
+test('reviewed eight-file overlay loads from an independent temporary directory using workspace dependencies', async () => {
   const temp = await mkdtemp(path.join(tmpdir(), 'syntara-import-overlay-test-'));
   try {
     for (const filename of [
@@ -881,6 +881,7 @@ test('reviewed seven-file overlay loads from an independent temporary directory 
       'lib/server/admin-identity.ts',
       'lib/server/notebook-problems/service.ts',
       'lib/server/notebook-problems/import-batch-store.ts',
+      'lib/server/course-code-preflight.ts',
     ]) {
       await mkdir(path.dirname(path.join(temp, filename)), { recursive: true });
       await copyFile(path.join(root, filename), path.join(temp, filename));
@@ -900,5 +901,54 @@ test('reviewed seven-file overlay loads from an independent temporary directory 
     );
   } finally {
     await rm(temp, { recursive: true, force: true });
+  }
+});
+
+test('code preflight authenticates and authorizes before executing any code; production stays disabled', async () => {
+  const oldStage = process.env.SYNTARA_APP_ENV;
+  process.env.SYNTARA_APP_ENV = 'staging';
+  let principal = { userId: 'enrolled', keyId: 'device' };
+  let executions = 0;
+  let allowed = false;
+  mocks.set('@/lib/server/prisma-safe', { getOptionalPrisma: () => ({}) });
+  mocks.set('@/lib/server/native-platform-access', { nativePlatformApiAuthMode: () => 'device' });
+  mocks.set('@/lib/server/public-api', {
+    requireNativePlatformApi: async () => principal,
+    publicApiRequestId: () => 'fixture',
+    publicApiError: (id, status, code) => NextResponse.json({ code }, { status }),
+    publicApiSuccess: (id, data) => NextResponse.json({ data }),
+  });
+  mocks.set('@/lib/server/course-import-catalog', {
+    getBackendImportCourseContext: async () => (allowed ? { course: { id: 'course' } } : null),
+  });
+  mocks.set('@/lib/server/course-code-preflight', {
+    codePreflightSchema: require('zod').z.object({ courseId: require('zod').z.string() }),
+    validateCodeQuestion: async () => {
+      executions++;
+      return { valid: true };
+    },
+  });
+  const route = loadSource('app/api/native/v1/course-code-preflight/route.ts');
+  const request = () =>
+    new NextRequest('http://localhost/api/native/v1/course-code-preflight', {
+      method: 'POST',
+      body: JSON.stringify({ courseId: 'course' }),
+    });
+  try {
+    assert.equal((await route.POST(request())).status, 403);
+    assert.equal(executions, 0);
+    principal = NextResponse.json({}, { status: 401 });
+    assert.equal((await route.POST(request())).status, 401);
+    assert.equal(executions, 0);
+    principal = { userId: 'owner', keyId: 'device' };
+    allowed = true;
+    assert.equal((await route.POST(request())).status, 200);
+    assert.equal(executions, 1);
+    process.env.SYNTARA_APP_ENV = 'production';
+    assert.equal((await route.POST(request())).status, 404);
+    assert.equal(executions, 1);
+  } finally {
+    if (oldStage === undefined) delete process.env.SYNTARA_APP_ENV;
+    else process.env.SYNTARA_APP_ENV = oldStage;
   }
 });

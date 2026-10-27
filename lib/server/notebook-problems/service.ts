@@ -2685,7 +2685,10 @@ type CreateCourseProblemsFromDraftsArgs = (
   /** Prepared imports can require exact immutable reuse before any question writes. */
   validateReusedDraft?: (
     draft: NotebookProblemImportDraft,
-    existing: ProblemRow & { ownerId: string | null },
+    existing: ProblemRow & {
+      ownerId: string | null;
+      secret: { secretJudgeJson: Prisma.JsonValue } | null;
+    },
   ) => void;
   /** Internal structured-import mode; never accepted directly from HTTP. */
   preservePreparedContent?: boolean;
@@ -2910,6 +2913,7 @@ async function createCourseProblemsFromDraftsInternal(
       if (args.validateReusedDraft && existingProblemIdByKey.size > 0) {
         const existingRows = await tx.notebookProblem.findMany({
           where: { id: { in: Array.from(existingProblemIdByKey.values()) } },
+          include: { secret: true },
         });
         const byId = new Map(existingRows.map((row) => [row.id, row]));
         for (const draft of args.drafts) {

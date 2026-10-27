@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { verifyCodePreflight } from '@/lib/server/course-code-preflight';
 import { z } from 'zod';
 import { prisma } from '@/lib/server/prisma';
 import type { PrismaClient } from '@/lib/server/generated-prisma';
@@ -46,7 +47,15 @@ export const structuredCourseProblemImportSchema = z
       .min(1)
       .max(100),
     items: z
-      .array(z.object({ chapterRef: ref, draft: notebookProblemImportDraftSchema }).strict())
+      .array(
+        z
+          .object({
+            chapterRef: ref,
+            draft: notebookProblemImportDraftSchema,
+            codePreflight: z.string().min(1).max(4096).optional(),
+          })
+          .strict(),
+      )
       .min(1)
       .max(100),
   })
@@ -101,7 +110,7 @@ function validateDraft(draft: NotebookProblemImportDraft) {
     'Question, statement and grading types must agree.',
   );
   requireImport(
-    draft.type !== 'code' && !draft.secretJudge,
+    draft.type === 'code' || !draft.secretJudge,
     400,
     'invalid_request',
     'Executable questions require the separate runner validation workflow.',
@@ -194,7 +203,11 @@ export function parseStructuredCourseProblemImport(input: unknown) {
       'Duplicate question content within this batch must be reconciled before import.',
     );
     keys.add(key);
-    return { chapterRef: item.chapterRef, draft: { ...draft, notebookId: null } };
+    return {
+      chapterRef: item.chapterRef,
+      draft: { ...draft, notebookId: null },
+      ...(item.codePreflight ? { codePreflight: item.codePreflight } : {}),
+    };
   });
   return { ...parsed, items };
 }
@@ -236,6 +249,7 @@ type SavedQuestion = {
   publicContentJson: unknown;
   gradingJson: unknown;
   sourceMeta: unknown;
+  secret: { secretJudgeJson: unknown } | null;
 };
 function requireExactSavedQuestion(
   row: SavedQuestion | undefined,
@@ -258,6 +272,7 @@ function requireExactSavedQuestion(
       stable(row.tags) === stable(draft.tags) &&
       stable(row.publicContentJson) === stable(draft.publicContent) &&
       stable(row.gradingJson) === stable(draft.grading) &&
+      stable(row.secret?.secretJudgeJson ?? null) === stable(draft.secretJudge ?? null) &&
       stable(sourceMetadata(row.sourceMeta)) === stable(sourceMetadata(draft.sourceMeta)),
     409,
     'readback_conflict',
@@ -306,6 +321,39 @@ export function createStructuredCourseProblemImportService(
         'Course question import requires the real course owner, an existing administrator, or an explicit unexpired grant for this course.',
       );
     }
+    const payloadHash = hash(data);
+    const batchId = `structured_import_${hash([course.id, course.ownerId, data.idempotencyKey]).slice(0, 40)}`;
+    const previous = await db.problemImportBatch.findUnique({ where: { id: batchId } });
+    for (const item of data.items) {
+      if (item.draft.type === 'code') {
+        requireImport(
+          process.env.SYNTARA_APP_ENV === 'staging' &&
+            !actor.operatorContext &&
+            !!actor.userId &&
+            !!actor.keyId &&
+            !!item.codePreflight &&
+            verifyCodePreflight(item.codePreflight, {
+              courseId: course.id,
+              userId: actor.userId,
+              keyId: actor.keyId,
+              draft: item.draft,
+              allowExpiredCommittedReplay:
+                previous?.status === 'committed' &&
+                hash(previous.draftSnapshotJson) === payloadHash,
+            }),
+          403,
+          'forbidden',
+          'A valid device-bound executable preflight is required for each code question.',
+        );
+      } else {
+        requireImport(
+          !item.codePreflight,
+          400,
+          'invalid_request',
+          'Preflight is only valid for executable questions.',
+        );
+      }
+    }
     const audit = actor.operatorContext
       ? problemImportOperatorAudit(actor.operatorContext)
       : adminContext
@@ -313,8 +361,6 @@ export function createStructuredCourseProblemImportService(
         : grantContext
           ? courseProblemImportGrantAudit(grantContext)
           : { kind: 'course-owner', userId: actor.userId, dataOwnerId: course.ownerId };
-    const payloadHash = hash(data);
-    const batchId = `structured_import_${hash([course.id, course.ownerId, data.idempotencyKey]).slice(0, 40)}`;
     const chapters = [];
     for (const chapter of data.chapters) {
       const existing = chapter.id
@@ -340,7 +386,6 @@ export function createStructuredCourseProblemImportService(
         state: existing ? ('reuse' as const) : ('create' as const),
       });
     }
-    const previous = await db.problemImportBatch.findUnique({ where: { id: batchId } });
     requireImport(
       !previous ||
         (previous.courseId === course.id &&
@@ -386,7 +431,7 @@ export function createStructuredCourseProblemImportService(
     const ids = [...new Set([...result.insertedProblemIds, ...result.reusedProblemIds])];
     const rows = await db.notebookProblem.findMany({
       where: { courseId: planned.course.id, id: { in: ids } },
-      include: { chapter: true },
+      include: { chapter: true, secret: true },
     });
     const byKey = new Map(rows.map((row) => [row.dedupeKey, row]));
     const byId = new Map(rows.map((row) => [row.id, row]));
@@ -415,6 +460,7 @@ export function createStructuredCourseProblemImportService(
           difficulty: row.difficulty,
           publicContent: row.publicContentJson,
           grading: row.gradingJson,
+          secretJudge: row.secret?.secretJudgeJson ?? null,
           sourceMeta: row.sourceMeta,
           contentUpdatedAt: row.updatedAt.toISOString(),
         },
