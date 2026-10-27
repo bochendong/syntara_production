@@ -1517,6 +1517,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                 <MultipartPractice
                   key={currentProblem.id}
                   parts={parts}
+                  locale={language}
                   drafts={partDrafts}
                   saved={savedParts.answers}
                   results={savedParts.results}

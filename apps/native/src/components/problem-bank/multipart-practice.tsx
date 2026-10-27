@@ -16,6 +16,7 @@ import { marbleImages } from '../../lib/learning-action-marbles';
 import { GlassSpinner } from '../GlassLoadMore';
 import { STATUS_MARBLES } from './answer-sheet';
 import { ProblemRichText } from './problem-rich-text';
+import { PartTextAnswer } from '../../../../../lib/problem-bank/part-text-answer';
 
 const PART_TYPE_LABELS: Record<LocalProblemPart['type'], string> = {
   choice: '选择',
@@ -69,9 +70,13 @@ function PartPrompt({
   part,
   answer,
   onChange,
+  disabled,
+  locale,
 }: {
   part: LocalProblemPart;
   answer: LocalPartAnswer;
+  disabled: boolean;
+  locale: 'zh-CN' | 'en-US';
   onChange: (next: LocalPartAnswer) => void;
 }) {
   if (part.type === 'fill_blank') {
@@ -147,11 +152,18 @@ function PartPrompt({
   return (
     <>
       <ProblemRichText content={part.prompt} className="text-[15px] leading-7 text-slate-800" />
-      <textarea
+      <PartTextAnswer
+        disabled={disabled}
+        locale={locale}
+        label={
+          locale === 'zh-CN'
+            ? `小问 ${formatPartLabel(part.label)} 的解答`
+            : `Answer to part ${formatPartLabel(part.label)}`
+        }
         className="native-problem-practice-text mp-text"
         rows={part.type === 'calculation' ? 2 : 5}
         value={answer.text ?? ''}
-        onChange={(event) => onChange({ ...answer, text: event.target.value })}
+        onChange={(text) => onChange({ ...answer, text })}
         placeholder={part.type === 'calculation' ? '最终结果，公式用 $…$' : '写下这一问的解答'}
       />
       {answer.text && /\$|\\\(|\\\[/.test(answer.text) ? (
@@ -167,6 +179,7 @@ function PartPrompt({
 function PartCard({
   part,
   share,
+  locale,
   answer,
   dirty,
   result,
@@ -176,6 +189,7 @@ function PartCard({
 }: {
   part: LocalProblemPart;
   share: number;
+  locale: 'zh-CN' | 'en-US';
   answer: LocalPartAnswer;
   /** 和上次交的不一样，才能再交 */
   dirty: boolean;
@@ -205,7 +219,13 @@ function PartCard({
           <b className="mp-score">{Math.round(result.score * share * 100)}</b>
         ) : null}
       </header>
-      <PartPrompt part={part} answer={answer} onChange={onChange} />
+      <PartPrompt
+        part={part}
+        answer={answer}
+        onChange={onChange}
+        disabled={submitting}
+        locale={locale}
+      />
       {result?.feedback ? <p className={`mp-feedback is-${tone}`}>{result.feedback}</p> : null}
       <footer>
         {limited ? (
@@ -232,6 +252,7 @@ function PartCard({
  */
 export function MultipartPractice({
   parts,
+  locale = 'zh-CN',
   drafts,
   saved,
   results,
@@ -242,6 +263,7 @@ export function MultipartPractice({
   onSubmit,
 }: {
   parts: LocalProblemPart[];
+  locale?: 'zh-CN' | 'en-US';
   drafts: Record<string, LocalPartAnswer>;
   /** 上一次交过的作答，打开题目时先显示它 */
   saved: Record<string, LocalPartAnswer>;
@@ -297,6 +319,7 @@ export function MultipartPractice({
       key={part.label}
       part={part}
       share={shares[index]}
+      locale={locale}
       answer={drafts[part.label] ?? saved[part.label] ?? {}}
       dirty={isDirty(part.label)}
       result={resultOf(part.label)}

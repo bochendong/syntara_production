@@ -1,0 +1,89 @@
+.part-text-answer {
+  min-width: 0;
+}
+
+.part-text-answer-toolbar {
+  display: flex;
+  margin: 8px 0;
+}
+
+.part-text-answer-toolbar button,
+.part-symbol-group button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  font: inherit;
+  cursor: pointer;
+}
+
+.part-text-answer-toolbar button[aria-expanded='true'],
+.part-symbol-group button:hover {
+  border-color: #7dd3fc;
+  background: #e0f2fe;
+}
+
+.part-text-answer button:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+}
+
+.part-text-answer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.part-symbol-panel {
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-bottom: 8px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.part-symbol-group + .part-symbol-group {
+  margin-top: 12px;
+}
+
+.part-symbol-group p {
+  margin: 0 0 6px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.part-symbol-group > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.part-symbol-group button {
+  min-width: 44px;
+  font-family: 'Cambria Math', 'STIX Two Math', math, serif;
+  font-size: 18px;
+}
+
+.dark .part-text-answer-toolbar button,
+.dark .part-symbol-group button {
+  border-color: #475569;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.dark .part-symbol-panel {
+  border-color: #334155;
+  background: #020617;
+}
+
+.dark .part-symbol-group p {
+  color: #94a3b8;
+}

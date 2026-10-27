@@ -3,6 +3,7 @@
 import { CheckCircle2, CornerDownRight, Loader2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { PartTextAnswer } from '@/lib/problem-bank/part-text-answer';
 import { InteractiveFillBlank } from './interactive-fill-blank';
 import { ProblemRichText } from './problem-rich-text';
 import {
@@ -172,7 +173,13 @@ function PartAnswerControl({
   return (
     <div className="space-y-2">
       <ProblemRichText content={content.stem} />
-      <textarea
+      <PartTextAnswer
+        locale={locale}
+        label={
+          locale === 'zh-CN'
+            ? `小问 ${formatPartLabel(part.label)} 的解答`
+            : `Answer to part ${formatPartLabel(part.label)}`
+        }
         value={value.text ?? ''}
         disabled={disabled}
         rows={content.type === 'calculation' ? 2 : 5}
@@ -185,7 +192,7 @@ function PartAnswerControl({
               ? '写下这一问的答案'
               : 'Your answer to this part'
         }
-        onChange={(event) => onChange({ ...value, text: event.target.value })}
+        onChange={(text) => onChange({ ...value, text })}
         className="w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-[15px] leading-7 shadow-none outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
       />
     </div>
