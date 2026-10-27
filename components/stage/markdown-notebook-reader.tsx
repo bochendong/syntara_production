@@ -6,6 +6,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, FileText, HardDrive } from 'lucid
 import { MessageResponse } from '@/components/ai-elements/message';
 import type { Scene, Stage as StageData } from '@/lib/types/stage';
 import { cn } from '@/lib/utils';
+import { normalizeLectureMarkdownForRendering } from '@/lib/markdown/lecture-markdown';
 
 type MarkdownNotebookReaderProps = {
   stage: StageData;
@@ -121,7 +122,7 @@ export function MarkdownNotebookReader({
               <MessageResponse
                 className={cn('mx-auto w-full max-w-[900px]', appNotebookMarkdownClassName)}
               >
-                {selected.content.markdown}
+                {normalizeLectureMarkdownForRendering(selected.content.markdown)}
               </MessageResponse>
             </>
           ) : (

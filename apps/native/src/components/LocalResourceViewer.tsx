@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { code } from '@streamdown/code';
 import { createMathPlugin } from '@streamdown/math';
 import { Streamdown } from 'streamdown';
+import { normalizeLectureMarkdownForRendering } from '../../../../lib/markdown/lecture-markdown';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -241,7 +242,7 @@ function MarkdownBlock({
         },
       }}
     >
-      {markdown}
+      {normalizeLectureMarkdownForRendering(markdown)}
     </Streamdown>
   );
 }

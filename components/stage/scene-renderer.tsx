@@ -7,6 +7,7 @@ import { QuizView } from '../scene-renderers/quiz-view';
 import { InteractiveRenderer } from '../scene-renderers/interactive-renderer';
 import { PBLRenderer } from '../scene-renderers/pbl-renderer';
 import { MessageResponse } from '@/components/ai-elements/message';
+import { normalizeLectureMarkdownForRendering } from '@/lib/markdown/lecture-markdown';
 import { SemanticScrollPage } from './semantic-scroll-page';
 import { normalizeSemanticDocumentForRender } from '@/lib/notebook-content/semantic-slide-render';
 
@@ -52,7 +53,7 @@ export function SceneRenderer({ scene, mode, showMaskDebugOverlay = false }: Sce
         return (
           <article className="h-full overflow-auto bg-white px-10 py-8 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
             <MessageResponse className="mx-auto max-w-3xl text-[15px] leading-8">
-              {scene.content.markdown}
+              {normalizeLectureMarkdownForRendering(scene.content.markdown)}
             </MessageResponse>
           </article>
         );
