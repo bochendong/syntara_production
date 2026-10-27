@@ -1,0 +1,198 @@
+{
+  "date": "2026-10-27",
+  "verifiedAt": "2026-10-27T08:27:19.804176+00:00",
+  "applicationCommit": "34214745126d00e4f49d3d4e234171611936c65b",
+  "applicationTree": "3f8509a8eefa9b92484c2bb387fb0686da2a3616",
+  "deployment": {
+    "id": "f51c28bd-0533-4466-a59d-fdf49357395a",
+    "environment": "staging",
+    "service": "native-api-staging",
+    "status": "SUCCESS"
+  },
+  "userCorrections": [
+    "Organize CSC108 by knowledge point rather than Midterm Practice Set.",
+    "Use editable text, code and tables rather than screenshot question bodies."
+  ],
+  "contentRepair": {
+    "totalQuestionRecords": 174,
+    "questionRecordsCreated": 0,
+    "questionRecordsDeleted": 0,
+    "sameQuestionIds": true,
+    "screenshotBodiesTranscribed": 106,
+    "memoryModelsTranscribedPerCourse": 10,
+    "inverseMemoryTargetTablesPerCourse": 5,
+    "publicImageReferencesAfter": 0,
+    "originalSetAndQuestionProvenanceRetained": true,
+    "privateReferenceAnswersRetained": true,
+    "privateExecutableCheckersRetained": true,
+    "rubricCorrection": "03-Q2 now accepts Not Possible for D without demanding an explanation absent from the original prompt. Reference answers are unchanged.",
+    "chapterIdsReused": 20,
+    "courses": [
+      {
+        "id": "cmsq4yi7k0001kv04zxlzy7ct",
+        "name": "UTSG-CSC108Y",
+        "questions": 87,
+        "originalSourceQuestions": 80,
+        "sameQuestionIds": true,
+        "publishedQuestions": 87,
+        "codeQuestions": 34,
+        "screenshotQuestionBodies": 0,
+        "knowledgeChapters": [
+          {
+            "id": "cmvqcs4s10001n10198d30a4b",
+            "name": "基础类型、表达式与运行追踪",
+            "count": 7
+          },
+          {
+            "id": "cmvqcs569000ln101aifd7s81",
+            "name": "布尔逻辑与条件分支",
+            "count": 7
+          },
+          {
+            "id": "cmvqcs5gq0013n101omjn8b4s",
+            "name": "字符串与字符串方法",
+            "count": 10
+          },
+          {
+            "id": "cmvqcs5uc001nn101a8yk08b1",
+            "name": "函数、契约与 Doctest",
+            "count": 6
+          },
+          {
+            "id": "cmvqcs6660025n101h6sti2gk",
+            "name": "循环、累加器与算法",
+            "count": 10
+          },
+          {
+            "id": "cmvqcs6oz002nn101wqwlhcc7",
+            "name": "索引、切片与列表基础",
+            "count": 9
+          },
+          {
+            "id": "cmvqcs72j0037n101oo2gynsn",
+            "name": "别名、可变性与内存模型",
+            "count": 15
+          },
+          {
+            "id": "cmvqcs7e3003rn1015mwswu79",
+            "name": "辅助函数、并行列表与记录",
+            "count": 11
+          },
+          {
+            "id": "cmvqcs7p8004bn101iqpaiuu2",
+            "name": "嵌套列表与矩阵",
+            "count": 5
+          },
+          {
+            "id": "cmvqcs800004tn101bwwne20r",
+            "name": "测试、边界、调试与重构",
+            "count": 7
+          }
+        ],
+        "notebookCount": 4,
+        "notebookContentsUnchanged": true,
+        "privateCheckersUnchanged": true,
+        "sourceAndJsonAccepted": true
+      },
+      {
+        "id": "cmvq7r8j10001tf7bwoo3j5z8",
+        "name": "UTM-CSC108",
+        "questions": 87,
+        "originalSourceQuestions": 80,
+        "sameQuestionIds": true,
+        "publishedQuestions": 87,
+        "codeQuestions": 34,
+        "screenshotQuestionBodies": 0,
+        "knowledgeChapters": [
+          {
+            "id": "cmvqcvqz90001ml01htp05085",
+            "name": "基础类型、表达式与运行追踪",
+            "count": 7
+          },
+          {
+            "id": "cmvqcvrel000lml017getxf4d",
+            "name": "布尔逻辑与条件分支",
+            "count": 7
+          },
+          {
+            "id": "cmvqcvrp10013ml010jd1c4rx",
+            "name": "字符串与字符串方法",
+            "count": 10
+          },
+          {
+            "id": "cmvqcvs0o001nml010c5cifh6",
+            "name": "函数、契约与 Doctest",
+            "count": 6
+          },
+          {
+            "id": "cmvqcvsb20025ml01otxmjn5o",
+            "name": "循环、累加器与算法",
+            "count": 10
+          },
+          {
+            "id": "cmvqcvskf002nml01e51xo2d7",
+            "name": "索引、切片与列表基础",
+            "count": 9
+          },
+          {
+            "id": "cmvqcvswy0037ml010ecynq0q",
+            "name": "别名、可变性与内存模型",
+            "count": 15
+          },
+          {
+            "id": "cmvqcvt5r003rml01z3qts750",
+            "name": "辅助函数、并行列表与记录",
+            "count": 11
+          },
+          {
+            "id": "cmvqcvten004bml01roscfnms",
+            "name": "嵌套列表与矩阵",
+            "count": 5
+          },
+          {
+            "id": "cmvqcvtq9004tml01n6xv5p54",
+            "name": "测试、边界、调试与重构",
+            "count": 7
+          }
+        ],
+        "notebookCount": 0,
+        "notebookContentsUnchanged": true,
+        "privateCheckersUnchanged": true,
+        "sourceAndJsonAccepted": true
+      }
+    ]
+  },
+  "implementation": {
+    "preserveReviewedMarkdownAndPrivateAnswers": true,
+    "courseDetailRetainsChapterIdForPartialEdits": true,
+    "localAdminTools": "scripts/staging-admin",
+    "localCommands": [
+      "pnpm staging:admin",
+      "pnpm staging:course METHOD /v1/courses/COURSE_ID/... [body.json]"
+    ],
+    "localToolkitSourceBranch": "codex/staging-code-question-import",
+    "localTunnelCleanup": "Verified locally that API and detached SSH listeners stop and the local token is removed."
+  },
+  "validation": {
+    "regressionTestsPassed": 32,
+    "rootTypecheckFormatLint": "passed",
+    "nativeWebBuild": "passed",
+    "nextWebpackBuild": "passed",
+    "pythonFunctionTraces": 6,
+    "freshRealCodePreflights": 68,
+    "referenceProgramsPassed": 68,
+    "emptyStartersRejected": 68,
+    "incorrectImplementationsRejected": 68,
+    "sourceCodeTranscriptionComparisons": 53,
+    "exactQuestionReadbacks": 174,
+    "nativeCourseContextReadbacks": 2,
+    "localPartialEditPreservesChapterTextAndGrading": true,
+    "localApiAndTunnelLifecycleVerified": true,
+    "acceptance": "source-and-json",
+    "liveBrowserUiInspected": false,
+    "externalOpenResponseAiGradingSmokeTested": false
+  },
+  "databaseMigrations": [],
+  "desktopRepackaged": false,
+  "privateEvidence": "Original materials, complete before/after snapshots, private answers, prepared updates, checks and receipts remain in the protected local CSC108 import workspace."
+}
