@@ -2,6 +2,14 @@
 import { InteractiveFillBlank } from './interactive-fill-blank';
 import type { PartFormulaHandle } from '@/lib/problem-bank/use-part-formula-editor';
 import { MultipartAnswerPanel } from './multipart-answer-panel';
+import { TableAnswerPanel } from './table-answer-panel';
+import { CodeSlotEditor } from './code-slot-editor';
+import { CodePlayground } from './code-playground';
+import {
+  codeSlotTemplateFor,
+  defaultCodeAnswerFor,
+  type NotebookProblemPublicCode,
+} from '@/lib/problem-bank';
 import { buildCodeTestFile } from '@/lib/problem-bank/code-test-files';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
@@ -812,30 +820,55 @@ function SolutionChoiceOptions({
 }
 
 function CodeAnswerWorkspace({
+  problemId,
+  content,
   value,
   onChange,
   disabled,
   locale,
 }: {
+  problemId: string;
+  content: NotebookProblemPublicCode;
   value: string;
   onChange: (value: string) => void;
   disabled: boolean;
   locale: 'zh-CN' | 'en-US';
 }) {
+  // 有空位（老师定的 template，或旧 docstring 题推出来的函数体）就只让填空位
+  const slotTemplate = useMemo(() => codeSlotTemplateFor(content), [content]);
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white dark:bg-slate-950">
       <div className="min-h-0 flex-1 overflow-hidden">
-        <CodeAnswerEditor
-          value={value}
-          onChange={onChange}
-          disabled={disabled}
-          locale={locale}
-          className="h-full min-h-0 rounded-none border-0 shadow-none focus-within:ring-0"
-          placeholder={
-            locale === 'zh-CN' ? '在这里编写代码并提交。' : 'Write code here and submit.'
-          }
-        />
+        {slotTemplate ? (
+          <CodeSlotEditor
+            slotTemplate={slotTemplate}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            locale={locale}
+            className="h-full min-h-0 rounded-none border-0 shadow-none"
+          />
+        ) : (
+          <CodeAnswerEditor
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            locale={locale}
+            className="h-full min-h-0 rounded-none border-0 shadow-none focus-within:ring-0"
+            placeholder={
+              locale === 'zh-CN' ? '在这里编写代码并提交。' : 'Write code here and submit.'
+            }
+          />
+        )}
       </div>
+      <CodePlayground
+        problemId={problemId}
+        code={value}
+        files={content.files}
+        stdin={content.stdin}
+        locale={locale}
+        className="shrink-0"
+      />
     </div>
   );
 }
@@ -1565,8 +1598,9 @@ export function CourseProblemBankView({
       return {
         code:
           codeAnswers[selectedProblem.id] ??
-          (selectedProblemContent?.type === 'code' ? selectedProblemContent.starterCode : '') ??
-          '',
+          (selectedProblemContent?.type === 'code'
+            ? defaultCodeAnswerFor(selectedProblemContent)
+            : ''),
       };
     }
     return { text: textAnswers[selectedProblem.id] ?? '' };
@@ -2423,6 +2457,25 @@ export function CourseProblemBankView({
                 }
                 onSubmit={(labels) => void handleSubmitMultipartAnswer(labels)}
               />
+            ) : selectedProblem.type === 'table' && selectedProblemContent?.type === 'table' ? (
+              <TableAnswerPanel
+                content={selectedProblemContent}
+                values={blankAnswers[selectedProblem.id] ?? {}}
+                onChange={(key, value) =>
+                  setBlankAnswers((prev) => ({
+                    ...prev,
+                    [selectedProblem.id]: { ...(prev[selectedProblem.id] ?? {}), [key]: value },
+                  }))
+                }
+                results={(() => {
+                  const cells = selectedProblemAttempts.find((attempt) => attempt.kind !== 'run')
+                    ?.result?.cells;
+                  return cells ? new Map(cells.map((cell) => [cell.key, cell.correct])) : null;
+                })()}
+                disabled={submittingAnswer}
+                locale={locale}
+                showStem={false}
+              />
             ) : selectedProblem.type === 'choice' && selectedProblemContent?.type === 'choice' ? (
               <div className="space-y-2">
                 {selectedProblemContent.options.map((option) => {
@@ -2555,7 +2608,11 @@ export function CourseProblemBankView({
               </div>
             ) : selectedProblem.type === 'code' && selectedProblemContent?.type === 'code' ? (
               <CodeAnswerWorkspace
-                value={codeAnswers[selectedProblem.id] ?? selectedProblemContent.starterCode ?? ''}
+                problemId={selectedProblem.id}
+                content={selectedProblemContent}
+                value={
+                  codeAnswers[selectedProblem.id] ?? defaultCodeAnswerFor(selectedProblemContent)
+                }
                 onChange={(value) =>
                   setCodeAnswers((prev) => ({
                     ...prev,
@@ -2674,7 +2731,7 @@ export function CourseProblemBankView({
             ) : selectedProblem.type === 'code' && selectedProblem.publicContent.type === 'code' ? (
               <pre className="min-h-[180px] overflow-x-auto rounded-lg border border-slate-200 bg-slate-950 p-4 text-xs leading-6 text-slate-50 dark:border-slate-700">
                 {codeAnswers[selectedProblem.id] ??
-                  selectedProblem.publicContent.starterCode ??
+                  (defaultCodeAnswerFor(selectedProblem.publicContent) || undefined) ??
                   (locale === 'zh-CN' ? '还没有代码。' : 'No code yet.')}
               </pre>
             ) : supportsPhotoAnswer(selectedProblem) && selectedAnswerMode === 'photo' ? (
@@ -2772,7 +2829,9 @@ export function CourseProblemBankView({
     if (tab === 'code') {
       return (
         <CodeAnswerWorkspace
-          value={codeAnswers[selectedProblem.id] ?? selectedProblemContent.starterCode ?? ''}
+          problemId={selectedProblem.id}
+          content={selectedProblemContent}
+          value={codeAnswers[selectedProblem.id] ?? defaultCodeAnswerFor(selectedProblemContent)}
           onChange={(value) =>
             setCodeAnswers((prev) => ({
               ...prev,

@@ -16,6 +16,8 @@ import { marbleImages } from '../../lib/learning-action-marbles';
 import { GlassSpinner } from '../GlassLoadMore';
 import { STATUS_MARBLES } from './answer-sheet';
 import { ProblemRichText } from './problem-rich-text';
+import { NativeTableAnswer } from './native-table-answer';
+import type { NotebookProblemPublicTable } from '../../../../../lib/problem-bank/schema';
 import {
   usePartFormulaEditor,
   type PartFormulaHandle,
@@ -26,6 +28,7 @@ import {
 } from '../../../../../lib/problem-bank/part-text-answer';
 
 const PART_TYPE_LABELS: Record<LocalProblemPart['type'], string> = {
+  table: '表格',
   choice: '选择',
   fill_blank: '填空',
   calculation: '计算',
@@ -81,13 +84,25 @@ function PartPrompt({
   locale,
   onEditorReady,
   onEditorFocus,
+  result,
 }: {
   part: LocalProblemPart;
+  result?: LocalPartResult;
   answer: LocalPartAnswer;
   disabled: boolean;
   locale: 'zh-CN' | 'en-US';
   onChange: (next: LocalPartAnswer) => void;
 } & PartEditorRegistration) {
+  if (part.type === 'table')
+    return (
+      <NativeTableAnswer
+        content={part.content as NotebookProblemPublicTable}
+        values={answer.cells ?? {}}
+        results={result?.cells}
+        disabled={disabled}
+        onChange={(cells) => onChange({ ...answer, cells })}
+      />
+    );
   if (part.type === 'fill_blank') {
     const ids = partBlankIds(part);
     const numbered = part.prompt.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_match, raw: string) => {
@@ -234,6 +249,7 @@ function PartCard({
       </header>
       <PartPrompt
         part={part}
+        result={result}
         answer={answer}
         onChange={onChange}
         disabled={submitting}

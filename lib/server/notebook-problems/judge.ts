@@ -13,9 +13,13 @@ import type {
 } from '@/lib/problem-bank';
 import {
   codeDraftReadinessErrors,
+  assembleCodeFromSlots,
   codeReferenceSolution,
+  codeSlotTemplateFor,
+  extractSlotValues,
   isNotebookCodeProblemRecord,
 } from '@/lib/problem-bank';
+import type { NotebookCodeFile } from '@/lib/problem-bank';
 import { validateCourseAnswerContract } from '@/features/memory/domain/course-answer-contract';
 import type { NotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 
@@ -27,6 +31,8 @@ import sys
 import traceback
 import importlib.util
 import io
+import os
+import ast
 import contextlib
 import runpy
 
@@ -57,8 +63,120 @@ def emit(payload):
     sys.__stdout__.flush()
 
 
+def write_files(files):
+    written = {}
+    for item in files or []:
+        rel = os.path.normpath(item["path"])
+        if rel.startswith("..") or os.path.isabs(rel):
+            continue
+        folder = os.path.dirname(rel)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
+        with open(rel, "w", encoding="utf-8") as handle:
+            handle.write(item["content"])
+        written[rel] = item["content"]
+    return written
+
+
+def collect_files(work_dir, written):
+    changed = []
+    for root, dirs, names in os.walk(work_dir):
+        dirs[:] = [name for name in dirs if name != "__pycache__"]
+        for name in names:
+            full = os.path.join(root, name)
+            rel = os.path.relpath(full, work_dir)
+            if rel in ("submission.py", "runner.py"):
+                continue
+            try:
+                with open(full, encoding="utf-8") as handle:
+                    content = handle.read()
+            except Exception:
+                continue
+            if written.get(rel) == content:
+                continue
+            changed.append({"path": rel, "content": content[:200000]})
+    return changed[:8]
+
+
+def strict_equal(left, right):
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, (list, tuple)):
+        return len(left) == len(right) and all(strict_equal(a, b) for a, b in zip(left, right))
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(strict_equal(left[k], right[k]) for k in left)
+    return left == right
+
+
+def run_table_cells(payload):
+    results = []
+    for item in payload["items"]:
+        correct = False
+        try:
+            if item["matcher"] == "python_value":
+                value = ast.literal_eval(item["answer"].strip())
+                for accepted in item["accepted"]:
+                    try:
+                        if strict_equal(value, ast.literal_eval(accepted.strip())):
+                            correct = True
+                            break
+                    except Exception:
+                        pass
+            elif item["matcher"] == "run_check":
+                namespace = {"__name__": "__main__"}
+                with contextlib.redirect_stdout(io.StringIO()):
+                    if payload.get("setup"):
+                        exec(payload["setup"], namespace)
+                    correct = bool(eval(item["check"].replace("{answer}", item["answer"]), namespace))
+        except BaseException:
+            correct = False
+        results.append({"key": item["key"], "correct": correct})
+    emit({"cells": results})
+
+
+def run_table_rows(payload):
+    rows = []
+    for item in payload["rows"]:
+        write_files(payload.get("files"))
+        namespace = {"__name__": "__main__"}
+        capture = io.StringIO()
+        error_type = None
+        value = None
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                if payload.get("setup"):
+                    exec(payload["setup"], namespace)
+            with contextlib.redirect_stdout(capture):
+                try:
+                    compiled = compile(item["code"], "<row>", "eval")
+                except SyntaxError:
+                    compiled = None
+                if compiled is not None:
+                    value = repr(eval(compiled, namespace))
+                else:
+                    exec(compile(item["code"], "<row>", "exec"), namespace)
+        except BaseException as exc:
+            error_type = type(exc).__name__
+            value = None
+        rows.append({"id": item["id"], "stdout": capture.getvalue()[:8000], "value": value, "errorType": error_type})
+    emit({"rows": rows})
+
+
 def main():
     payload = json.loads(sys.argv[1])
+    work_dir = os.path.dirname(payload["codePath"])
+    os.chdir(work_dir)
+    written = write_files(payload.get("files"))
+    if payload.get("stdin") is not None:
+        sys.stdin = io.StringIO(payload["stdin"])
+
+    if payload.get("mode") == "table_cells":
+        run_table_cells(payload)
+        return
+
+    if payload.get("mode") == "table_rows":
+        run_table_rows(payload)
+        return
 
     if payload.get("mode") == "script":
         script_stdout_capture = io.StringIO()
@@ -70,12 +188,14 @@ def main():
                 "cases": [],
                 "moduleStdout": script_stdout_capture.getvalue(),
                 "moduleError": "".join(traceback.format_exception_only(type(exc), exc)).strip(),
+                "files": collect_files(work_dir, written),
             })
             return
 
         emit({
             "cases": [],
             "moduleStdout": script_stdout_capture.getvalue(),
+            "files": collect_files(work_dir, written),
         })
         return
 
@@ -87,6 +207,8 @@ def main():
         class Result(unittest.TestResult):
             def startTest(self, test):
                 super().startTest(test)
+                if payload.get("stdin") is not None:
+                    sys.stdin = io.StringIO(payload["stdin"])
                 self.current = {"id": test.id(), "description": test.shortDescription(), "passed": True}
             def addSuccess(self, test):
                 super().addSuccess(test)
@@ -172,6 +294,8 @@ def main():
     globals_dict.update(module.__dict__)
 
     for case in payload["testCases"]:
+        if payload.get("stdin") is not None:
+            sys.stdin = io.StringIO(payload["stdin"])
         expected = parse_expected(case["expected"])
         stdout_capture = io.StringIO()
         try:
@@ -226,7 +350,10 @@ type RawRunnerPayload = {
   cases?: RawRunnerCaseResult[];
   moduleStdout?: string;
   moduleError?: string;
+  files?: Array<{ path: string; content: string }>;
 };
+
+type RunnerFile = { path: string; content: string };
 
 type JudgeKind = 'run' | 'submit';
 type JudgeRunTarget = 'code' | 'public' | 'secret';
@@ -295,6 +422,8 @@ async function executePythonCases(args: {
   starterCode?: string;
   testCases: CodeCase[];
   timeoutMs: number;
+  files?: RunnerFile[];
+  stdin?: string;
 }): Promise<RawRunnerCaseResult[]> {
   const payload = await executePythonPayload(args);
   return payload.cases ?? [];
@@ -305,7 +434,10 @@ async function executePythonPayload(args: {
   starterCode?: string;
   testCases: CodeCase[];
   timeoutMs: number;
-  mode?: 'tests' | 'script';
+  mode?: 'tests' | 'script' | 'table_cells' | 'table_rows';
+  files?: RunnerFile[];
+  stdin?: string;
+  extra?: Record<string, unknown>;
 }): Promise<RawRunnerPayload> {
   const tempDir = path.join(os.tmpdir(), `problem_bank_${randomUUID()}`);
   const codePath = path.join(tempDir, 'submission.py');
@@ -321,6 +453,9 @@ async function executePythonPayload(args: {
       testCases: args.testCases,
       mode: args.mode ?? 'tests',
       testCode: args.testCases[0]?.testCode,
+      files: args.files,
+      stdin: args.stdin,
+      ...args.extra,
     };
     return await runPythonJson<RawRunnerPayload>({
       runnerPath,
@@ -331,6 +466,60 @@ async function executePythonPayload(args: {
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+function runnerFiles(files: NotebookCodeFile[] | undefined): RunnerFile[] {
+  return (files ?? [])
+    .filter((file) => file.role !== 'expected_output')
+    .map((file) => ({ path: file.path, content: file.content }));
+}
+
+/** 表格题里需要 Python 才能判的格子（python_value / run_check）。 */
+export async function runTableCellChecks(args: {
+  items: Array<{
+    key: string;
+    matcher: 'python_value' | 'run_check';
+    answer: string;
+    accepted: string[];
+    check?: string;
+  }>;
+  setup?: string;
+  files?: NotebookCodeFile[];
+}): Promise<Map<string, boolean>> {
+  if (args.items.length === 0) return new Map();
+  const payload = (await executePythonPayload({
+    code: '',
+    testCases: [],
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+    mode: 'table_cells',
+    files: runnerFiles(args.files),
+    extra: { items: args.items, setup: args.setup ?? '' },
+  })) as RawRunnerPayload & { cells?: Array<{ key: string; correct: boolean }> };
+  return new Map((payload.cells ?? []).map((cell) => [cell.key, cell.correct]));
+}
+
+export type TableRowRun = {
+  id: string;
+  stdout: string;
+  value: string | null;
+  errorType: string | null;
+};
+
+/** 真跑表格里每一行的代码片段：导入核对答案、老师「用代码生成答案」都用它。 */
+export async function runTableRows(args: {
+  rows: Array<{ id: string; code: string }>;
+  setup?: string;
+  files?: NotebookCodeFile[];
+}): Promise<TableRowRun[]> {
+  if (args.rows.length === 0) return [];
+  const payload = (await executePythonPayload({
+    code: '',
+    testCases: [],
+    timeoutMs: Math.min(20_000, DEFAULT_TIMEOUT_MS + args.rows.length * 500),
+    mode: 'table_rows',
+    extra: { rows: args.rows, setup: args.setup ?? '', files: runnerFiles(args.files) },
+  })) as RawRunnerPayload & { rows?: TableRowRun[] };
+  return payload.rows ?? [];
 }
 
 /** Compile the completed Python blocks without executing student/source code. */
@@ -458,6 +647,16 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
     };
   }
 
+  const draftFiles = [
+    ...runnerFiles(draft.publicContent.files),
+    ...runnerFiles(draft.secretJudge?.files),
+  ];
+  const draftStdin = draft.publicContent.stdin;
+  const draftSlots = codeSlotTemplateFor(draft.publicContent);
+  // 有空位时「初始空实现」= 空位全空拼出来的代码
+  const draftStarterCode = draftSlots
+    ? assembleCodeFromSlots(draftSlots.template, draftSlots.slots, {})
+    : (draft.publicContent.starterCode ?? '');
   try {
     const run = async (tests: CodeCase[]) =>
       completeRunnerCaseResults(
@@ -466,6 +665,8 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
           code: codeReferenceSolution(draft),
           testCases: tests,
           timeoutMs: draft.secretJudge?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+          files: draftFiles,
+          stdin: draftStdin,
         }),
       );
     const publicResults = await run(publicTests);
@@ -496,9 +697,11 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
       if (secretResults.length < 3) errors.push('代码题至少需要 3 个隐藏测试');
       if (errors.length === 0) {
         const starterResults = await executePythonCases({
-          code: draft.publicContent.starterCode ?? '',
+          code: draftStarterCode,
           testCases: publicTests,
           timeoutMs: draft.secretJudge?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+          files: draftFiles,
+          stdin: draftStdin,
         });
         if (starterResults.length > 0 && starterResults.every((result) => result.passed)) {
           errors.push('代码题公开测试未能拒绝初始空实现，请检查测试是否实际验证题目要求');
@@ -679,6 +882,34 @@ export async function judgeNotebookCodeProblem(args: {
   }
 
   const problem = args.problem;
+  const content = problem.publicContent;
+  // 老师定了空位的题，锁住的代码不能改（防止绕过界面直接改函数头或测试）
+  const slotTemplate = codeSlotTemplateFor(content);
+  const slotValues = slotTemplate
+    ? extractSlotValues(slotTemplate.template, slotTemplate.slots, code)
+    : null;
+  if (
+    slotTemplate &&
+    (!slotValues ||
+      assembleCodeFromSlots(slotTemplate.template, slotTemplate.slots, slotValues).trim() !==
+        code.trim())
+  ) {
+    return {
+      status: 'error',
+      score: 0,
+      result: {
+        correct: false,
+        feedback:
+          locale === 'zh-CN'
+            ? '只能修改空位里的代码，题目给出的部分被改动了。'
+            : 'Only the blanks can be edited; the provided code was changed.',
+        earnedPoints: 0,
+        publicCases: [],
+      },
+    };
+  }
+  const publicFiles = runnerFiles(content.files);
+  const secretFiles = [...publicFiles, ...runnerFiles(args.secretJudge?.files)];
 
   const payload = buildCodePayload(problem, args.secretJudge, args.kind, runTarget);
 
@@ -690,6 +921,8 @@ export async function judgeNotebookCodeProblem(args: {
         testCases: [],
         timeoutMs: payload.timeoutMs,
         mode: 'script',
+        files: publicFiles,
+        stdin: content.stdin,
       });
       const hasError = Boolean(runnerPayload.moduleError);
       return {
@@ -708,6 +941,7 @@ export async function judgeNotebookCodeProblem(args: {
           runTarget: 'code',
           stdout: runnerPayload.moduleStdout || undefined,
           error: runnerPayload.moduleError || undefined,
+          files: runnerPayload.files?.length ? runnerPayload.files : undefined,
           publicCases: [],
         },
       };
@@ -784,6 +1018,8 @@ export async function judgeNotebookCodeProblem(args: {
           starterCode: problem.publicContent.starterCode,
           testCases: payload.secretCases,
           timeoutMs: payload.timeoutMs,
+          files: secretFiles,
+          stdin: content.stdin,
         }),
       );
       const secretCaseResults = secretCases.map((caseResult) => ({
@@ -828,6 +1064,8 @@ export async function judgeNotebookCodeProblem(args: {
         starterCode: problem.publicContent.starterCode,
         testCases: payload.publicCases,
         timeoutMs: payload.timeoutMs,
+        files: publicFiles,
+        stdin: content.stdin,
       }),
     );
     const publicCaseResults = publicCases.map((caseResult) => ({
@@ -875,6 +1113,8 @@ export async function judgeNotebookCodeProblem(args: {
         starterCode: problem.publicContent.starterCode,
         testCases: payload.secretCases,
         timeoutMs: payload.timeoutMs,
+        files: secretFiles,
+        stdin: content.stdin,
       }),
     );
     const secretPassed = secretCases.filter((caseResult) => caseResult.passed).length;

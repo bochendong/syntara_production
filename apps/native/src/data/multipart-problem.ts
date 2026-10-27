@@ -6,9 +6,16 @@ export type LocalPartAnswer = {
   selectedOptionIds?: string[];
   text?: string;
   blanks?: Record<string, string>;
+  cells?: Record<string, string>;
 };
 
-export type LocalPartType = 'choice' | 'fill_blank' | 'calculation' | 'short_answer' | 'proof';
+export type LocalPartType =
+  | 'choice'
+  | 'fill_blank'
+  | 'calculation'
+  | 'short_answer'
+  | 'proof'
+  | 'table';
 
 export type LocalProblemPart = {
   label: string;
@@ -31,6 +38,7 @@ export type LocalPartResult = {
   feedback?: string;
   gradedAt?: number;
   submissions?: number;
+  cells?: Array<{ key: string; correct: boolean }>;
 };
 
 export const PART_SUBMISSION_LIMIT = 3;
@@ -41,6 +49,7 @@ const PART_TYPES: LocalPartType[] = [
   'calculation',
   'short_answer',
   'proof',
+  'table',
 ];
 
 function record(value: unknown): Record<string, unknown> {
@@ -109,12 +118,18 @@ export function partAnswerHasContent(answer: LocalPartAnswer | undefined): boole
   return Boolean(
     answer.text?.trim() ||
     answer.selectedOptionIds?.length ||
-    Object.values(answer.blanks ?? {}).some((value) => value.trim()),
+    Object.values(answer.blanks ?? {}).some((value) => value.trim()) ||
+    Object.values(answer.cells ?? {}).some((value) => value.trim()),
   );
 }
 
 export function isAutoGradedPart(part: LocalProblemPart): boolean {
-  return part.type === 'choice' || part.type === 'fill_blank' || part.type === 'calculation';
+  return (
+    part.type === 'choice' ||
+    part.type === 'fill_blank' ||
+    part.type === 'calculation' ||
+    part.type === 'table'
+  );
 }
 
 function normalize(value: string): string {

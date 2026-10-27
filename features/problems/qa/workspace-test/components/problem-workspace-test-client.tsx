@@ -58,6 +58,7 @@ const TYPE_LABELS: Record<NotebookProblemPublicContent['type'], string> = {
   code: '代码题',
   fill_blank: '填空题',
   multipart: '分小问',
+  table: '表格题',
 };
 
 const DIFFICULTY_LABELS: Record<WorkspaceProblem['difficulty'], string> = {

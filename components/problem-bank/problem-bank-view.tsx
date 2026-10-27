@@ -81,6 +81,7 @@ function typeLabel(type: NotebookProblemClientRecord['type'], locale: 'zh-CN' | 
     code: '代码题',
     fill_blank: '填空题',
     multipart: '分小问',
+    table: '表格题',
   } as const;
   const en = {
     short_answer: 'Short answer',
@@ -90,6 +91,7 @@ function typeLabel(type: NotebookProblemClientRecord['type'], locale: 'zh-CN' | 
     code: 'Code',
     fill_blank: 'Fill in the blank',
     multipart: 'Multi-part',
+    table: 'Table',
   } as const;
   return locale === 'zh-CN' ? zh[type] : en[type];
 }

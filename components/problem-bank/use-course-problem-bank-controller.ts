@@ -1,6 +1,7 @@
 'use client';
 
 import { backendJson } from '@/lib/utils/backend-api';
+import { defaultCodeAnswerFor } from '@/lib/problem-bank/code-slots';
 import { notebookProblemImportDraftSchema } from '@/lib/problem-bank/schema';
 import { createTeacherPreviewAttempt } from '@/lib/problem-bank/teacher-preview-attempt';
 import { preparePhotoAnswer } from '@/lib/problem-bank/photo-answer';
@@ -1544,13 +1545,21 @@ export function useCourseProblemBankController({
       toast.error(locale === 'zh-CN' ? '请填写所有空格。' : 'Fill in every blank first.');
       return false;
     }
+    // 表格题的格子和填空共用 blankAnswers，key 为 rowId:colId
+    if (
+      selectedProblem.type === 'table' &&
+      !Object.values(selectedBlankAnswers).some((value) => value.trim())
+    ) {
+      toast.error(locale === 'zh-CN' ? '请先填写表格。' : 'Fill in the table first.');
+      return false;
+    }
     const immediateChoiceFeedback =
       selectedProblem.type === 'choice'
         ? buildChoiceAnswerFeedback(selectedProblem, selectedChoiceOptionIds, locale)
         : null;
     const selectedCodeAnswer =
       selectedProblem.type === 'code' && selectedProblemContent?.type === 'code'
-        ? (codeAnswers[selectedProblem.id] ?? selectedProblemContent.starterCode ?? '')
+        ? (codeAnswers[selectedProblem.id] ?? defaultCodeAnswerFor(selectedProblemContent))
         : '';
     if (selectedProblem.type === 'code' && !selectedCodeAnswer.trim()) {
       toast.error(locale === 'zh-CN' ? '请先填写代码。' : 'Code is required.');
@@ -1592,11 +1601,13 @@ export function useCourseProblemBankController({
           ? { selectedOptionIds: selectedChoiceOptionIds }
           : selectedProblem.type === 'fill_blank'
             ? { blanks: selectedBlankAnswers }
-            : selectedProblem.type === 'code'
-              ? { code: selectedCodeAnswer }
-              : photoMode
-                ? { images: selectedPhotos }
-                : { text: textAnswers[selectedProblem.id] ?? '' };
+            : selectedProblem.type === 'table'
+              ? { cells: selectedBlankAnswers }
+              : selectedProblem.type === 'code'
+                ? { code: selectedCodeAnswer }
+                : photoMode
+                  ? { images: selectedPhotos }
+                  : { text: textAnswers[selectedProblem.id] ?? '' };
       const demoTeacherAttempt =
         canEditProblems && isLocalDemoProblemBankCourse(courseId) && immediateChoiceFeedback
           ? createTeacherPreviewAttempt({
@@ -1817,7 +1828,7 @@ export function useCourseProblemBankController({
       }
 
       const selectedCodeAnswer =
-        codeAnswers[selectedProblem.id] ?? selectedProblemContent.starterCode ?? '';
+        codeAnswers[selectedProblem.id] ?? defaultCodeAnswerFor(selectedProblemContent);
       if (!selectedCodeAnswer.trim()) {
         toast.error(locale === 'zh-CN' ? '请先填写代码。' : 'Code is required.');
         return false;

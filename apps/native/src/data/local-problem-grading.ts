@@ -1,4 +1,6 @@
 import type { LocalProblem } from '../domain/models';
+import { defaultCodeAnswerFor } from '../../../../lib/problem-bank/code-slots';
+import type { NotebookCodeSlot } from '../../../../lib/problem-bank/schema';
 
 export type PhotoAnswerImage = {
   id: string;
@@ -12,11 +14,17 @@ export type LocalProblemAnswer =
   | { kind: 'choice'; selectedOptionIds: string[] }
   | { kind: 'text'; text: string; images?: PhotoAnswerImage[] }
   | { kind: 'code'; code: string }
+  | { kind: 'table'; cells: Record<string, string> }
   | {
       kind: 'parts';
       parts: Record<
         string,
-        { selectedOptionIds?: string[]; text?: string; blanks?: Record<string, string> }
+        {
+          selectedOptionIds?: string[];
+          text?: string;
+          blanks?: Record<string, string>;
+          cells?: Record<string, string>;
+        }
       >;
     };
 
@@ -175,6 +183,8 @@ export function problemTypeLabel(type: string): string {
       return '填空题';
     case 'multipart':
       return '分小问';
+    case 'table':
+      return '表格题';
     default:
       return type || '题目';
   }
@@ -191,9 +201,18 @@ export function emptyAnswerForProblem(problem: LocalProblem): LocalProblemAnswer
     return { kind: 'choice', selectedOptionIds: [] };
   }
   if (problem.type === 'code') {
-    return { kind: 'code', code: problemStarterCode(problem) };
+    const content = asRecord(problem.publicContent);
+    return {
+      kind: 'code',
+      code: defaultCodeAnswerFor({
+        starterCode: problemStarterCode(problem),
+        template: typeof content.template === 'string' ? content.template : undefined,
+        slots: Array.isArray(content.slots) ? (content.slots as NotebookCodeSlot[]) : undefined,
+      }),
+    };
   }
   if (problem.type === 'multipart') return { kind: 'parts', parts: {} };
+  if (problem.type === 'table') return { kind: 'table', cells: {} };
   return { kind: 'text', text: '' };
 }
 
@@ -201,12 +220,14 @@ export function answerHasContent(answer: LocalProblemAnswer | null | undefined):
   if (!answer) return false;
   if (answer.kind === 'choice') return answer.selectedOptionIds.length > 0;
   if (answer.kind === 'code') return answer.code.trim().length > 0;
+  if (answer.kind === 'table') return Object.values(answer.cells).some((value) => value.trim());
   if (answer.kind === 'parts')
     return Object.values(answer.parts).some((p) =>
       Boolean(
         p.text?.trim() ||
         p.selectedOptionIds?.length ||
-        Object.values(p.blanks ?? {}).some((v) => v.trim()),
+        Object.values(p.blanks ?? {}).some((v) => v.trim()) ||
+        Object.values(p.cells ?? {}).some((v) => v.trim()),
       ),
     );
   return answer.text.trim().length > 0 || Boolean(answer.images?.length);

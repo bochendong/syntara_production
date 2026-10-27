@@ -185,6 +185,7 @@ export const nativeProblemAttemptUploadSchema = z.object({
           selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
           text: z.string().max(40_000).optional(),
           code: z.string().max(120_000).optional(),
+          cells: z.record(z.string().max(140), z.string().max(8000)).optional(),
           parts: z
             .record(
               z.string().trim().min(1).max(40),
@@ -192,6 +193,7 @@ export const nativeProblemAttemptUploadSchema = z.object({
                 selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
                 text: z.string().max(40_000).optional(),
                 blanks: z.record(z.string(), z.string().max(4000)).optional(),
+                cells: z.record(z.string().max(140), z.string().max(8000)).optional(),
               }),
             )
             .optional(),
@@ -214,9 +216,17 @@ export const nativeProblemAttemptUploadSchema = z.object({
               feedback: z.string().max(8000).optional(),
               gradedAt: z.number().int().positive().optional(),
               submissions: z.number().int().min(0).max(1000).optional(),
+              cells: z
+                .array(z.object({ key: z.string().max(140), correct: z.boolean() }))
+                .max(160)
+                .optional(),
             }),
           )
           .max(12)
+          .optional(),
+        cells: z
+          .array(z.object({ key: z.string().max(140), correct: z.boolean() }))
+          .max(160)
           .optional(),
         createdAt: z.number().int().positive(),
       }),
@@ -284,6 +294,7 @@ export async function saveNativeProblemAttempts(
         feedback: attempt.feedback ?? '',
         earnedPoints: attempt.event ? undefined : (score ?? undefined),
         publicCases: [],
+        ...(attempt.cells ? { cells: attempt.cells } : {}),
         ...(attempt.parts
           ? {
               parts: attempt.parts.map((part) => ({
@@ -293,6 +304,7 @@ export async function saveNativeProblemAttempts(
                 score: Math.round(part.score * part.share * points * 100) / 100,
                 correct: part.status === 'passed',
                 ...(part.feedback ? { feedback: part.feedback } : {}),
+                ...(part.cells ? { cells: part.cells } : {}),
                 ...(part.gradedAt ? { gradedAt: part.gradedAt } : {}),
                 ...(part.submissions !== undefined ? { submissions: part.submissions } : {}),
               })),

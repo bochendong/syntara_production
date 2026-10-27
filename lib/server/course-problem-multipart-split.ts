@@ -157,7 +157,10 @@ export async function splitCourseMultipartGroups(
                     ? grading.referenceAnswer || grading.acceptedForms.length
                     : grading.type === 'choice'
                       ? grading.correctOptionIds.length
-                      : grading.blanks.every((b) => b.acceptedAnswers.length);
+                      : grading.type === 'table'
+                        ? grading.cells.length > 0 &&
+                          grading.cells.every((cell) => cell.acceptedAnswers.length || cell.check)
+                        : grading.blanks.every((b) => b.acceptedAnswers.length);
             if (!answer) throw new MultipartRepairConflict('Every part needs a reference answer.');
           }
           const draft = notebookProblemImportDraftSchema.parse({

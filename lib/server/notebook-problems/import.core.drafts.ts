@@ -1,4 +1,6 @@
 import { problemContentReadinessErrors } from '@/lib/problem-bank/content-readiness';
+import { assembleCodeFromSlots } from '@/lib/problem-bank/code-slots';
+import type { NotebookCodeSlot } from '@/lib/problem-bank/schema';
 import { randomUUID } from 'node:crypto';
 import { jsonrepair } from 'jsonrepair';
 import { ZodError } from 'zod';
@@ -88,6 +90,7 @@ function deliveryContractValidationErrors(draft: NotebookProblemImportDraft): st
       fill_blank: 'fill_blank',
       code: 'code_submission',
       multipart: 'multipart',
+      table: 'table_cells',
     }[content.type];
     const expectedGraderKind = {
       short_answer: 'rubric',
@@ -97,6 +100,7 @@ function deliveryContractValidationErrors(draft: NotebookProblemImportDraft): st
       fill_blank: 'blank_match',
       code: 'code_runner',
       multipart: 'per_part',
+      table: 'table_match',
     }[grading.type];
     if (content.responseKind !== expectedResponseKind) {
       errors.push(`题型 ${content.type} 的 responseKind 必须是 ${expectedResponseKind}`);
@@ -793,7 +797,8 @@ export function normalizeRawCandidate(
       type === 'choice' ||
       type === 'proof' ||
       type === 'calculation' ||
-      type === 'code')
+      type === 'code' ||
+      type === 'table')
   ) {
     publicContent.stem = pickFirstString(
       publicContent.stem,
@@ -911,28 +916,44 @@ export function normalizeRawCandidate(
   publicContent.responseKind =
     type === 'code'
       ? 'code_submission'
-      : type === 'choice'
-        ? 'choice'
-        : type === 'fill_blank'
-          ? 'fill_blank'
-          : type === 'calculation'
-            ? 'math_expression'
-            : type === 'proof'
-              ? 'long_text'
-              : 'short_text';
+      : type === 'table'
+        ? 'table_cells'
+        : type === 'choice'
+          ? 'choice'
+          : type === 'fill_blank'
+            ? 'fill_blank'
+            : type === 'calculation'
+              ? 'math_expression'
+              : type === 'proof'
+                ? 'long_text'
+                : 'short_text';
 
   grading.graderKind =
     type === 'code'
       ? 'code_runner'
-      : type === 'choice'
-        ? 'exact_choice'
-        : type === 'fill_blank'
-          ? 'blank_match'
-          : type === 'calculation'
-            ? 'numeric_or_exact'
-            : 'rubric';
+      : type === 'table'
+        ? 'table_match'
+        : type === 'choice'
+          ? 'exact_choice'
+          : type === 'fill_blank'
+            ? 'blank_match'
+            : type === 'calculation'
+              ? 'numeric_or_exact'
+              : 'rubric';
 
   if (type === 'code') {
+    // 只给了带空位的 template 时，初始代码就是空位全空的版本
+    if (
+      typeof publicContent.template === 'string' &&
+      Array.isArray(publicContent.slots) &&
+      typeof publicContent.starterCode !== 'string'
+    ) {
+      publicContent.starterCode = assembleCodeFromSlots(
+        publicContent.template,
+        publicContent.slots as NotebookCodeSlot[],
+        {},
+      );
+    }
     const codeLanguage =
       typeof publicContent.language === 'string' ? publicContent.language.toLowerCase() : 'python';
     publicContent.runnerAdapter =

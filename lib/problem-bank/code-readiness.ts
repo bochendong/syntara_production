@@ -1,4 +1,5 @@
 import type { NotebookProblemImportDraft } from './schema';
+import { assembleCodeFromSlots } from './code-slots';
 
 export const MIN_PUBLIC_CODE_TESTS = 2;
 export const MIN_SECRET_CODE_TESTS = 3;
@@ -11,7 +12,15 @@ const GENERIC_TEST_ID_RE = /^(?:public|secret|test|case)[_-]?\d+$/i;
 
 export function codeReferenceSolution(draft: NotebookProblemImportDraft): string {
   if (draft.grading.type !== 'code') return '';
-  return draft.grading.solutionCode?.trim() || draft.grading.referenceAnswer?.trim() || '';
+  const direct = draft.grading.solutionCode?.trim() || draft.grading.referenceAnswer?.trim();
+  if (direct) return direct;
+  // 只给了每个空位的答案时，拼回整段代码
+  const slots = draft.publicContent.type === 'code' ? draft.publicContent.slots : undefined;
+  const template = draft.publicContent.type === 'code' ? draft.publicContent.template : undefined;
+  if (template && slots?.length && draft.grading.solutionSlots) {
+    return assembleCodeFromSlots(template, slots, draft.grading.solutionSlots);
+  }
+  return '';
 }
 
 function normalizedTestKey(testCase: { expression: string; expected: string }): string {

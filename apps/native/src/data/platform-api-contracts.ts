@@ -566,11 +566,17 @@ export interface NativeProblemAttemptUpload {
     selectedOptionIds?: string[];
     text?: string;
     code?: string;
+    cells?: Record<string, string>;
     images?: PhotoAnswerImage[];
     /** 分小问的大题：按小问编号存每问的作答 */
     parts?: Record<
       string,
-      { selectedOptionIds?: string[]; text?: string; blanks?: Record<string, string> }
+      {
+        selectedOptionIds?: string[];
+        text?: string;
+        blanks?: Record<string, string>;
+        cells?: Record<string, string>;
+      }
     >;
   };
   feedback?: string | null;
@@ -584,7 +590,9 @@ export interface NativeProblemAttemptUpload {
     feedback?: string;
     gradedAt?: number;
     submissions?: number;
+    cells?: Array<{ key: string; correct: boolean }>;
   }>;
+  cells?: Array<{ key: string; correct: boolean }>;
   createdAt: number;
 }
 

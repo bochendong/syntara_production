@@ -1,0 +1,39 @@
+.native-table-answer {
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.native-table-answer table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+.native-table-answer th,
+.native-table-answer td {
+  border: 1px solid #dce4ee;
+  padding: 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+.native-table-answer th {
+  background: #f2f7fc;
+}
+.native-table-answer pre {
+  white-space: pre-wrap;
+  font-family: monospace;
+}
+.native-table-answer textarea {
+  display: block;
+  min-width: 8rem;
+  width: 100%;
+  border: 1px solid #bdcce0;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  font-family: monospace;
+}
+.native-table-answer button {
+  border: 1px solid #d3e1ee;
+  background: #f5faff;
+  border-radius: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  margin: 0.25rem;
+}

@@ -148,6 +148,7 @@ enum NotebookProblemType {
   fill_blank
   /// 分小问的大题：共享题干 + parts[]，每问复用上面的一种题型
   multipart
+  table
 }
 
 enum NotebookProblemStatus {

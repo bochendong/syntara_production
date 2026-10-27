@@ -9,6 +9,7 @@ export const notebookProblemTypeSchema = z.enum([
   'code',
   'fill_blank',
   'multipart',
+  'table',
 ]);
 export const notebookProblemStatusSchema = z.enum(['draft', 'published', 'archived']);
 export const notebookProblemSourceSchema = z.enum([
@@ -35,6 +36,7 @@ export const notebookProblemResponseKindSchema = z.enum([
   'math_expression',
   'fill_blank',
   'code_submission',
+  'table_cells',
 ]);
 export const notebookProblemGraderKindSchema = z.enum([
   'rubric',
@@ -42,6 +44,7 @@ export const notebookProblemGraderKindSchema = z.enum([
   'numeric_or_exact',
   'blank_match',
   'code_runner',
+  'table_match',
 ]);
 export const notebookProblemAttemptKindSchema = z.enum(['run', 'submit', 'answer']);
 export const notebookProblemAttemptStatusSchema = z.enum([
@@ -153,6 +156,74 @@ export const notebookProblemPublicFillBlankSchema = notebookProblemPublicBaseSch
     .max(12),
 });
 
+/// 题目自带的文件：运行前写进工作目录，代码里 open('scores.csv') 就能读到
+export const notebookCodeFileSchema = z.object({
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(120)
+    .regex(/^(?!\/)(?!.*\.\.)[\w .\/-]+$/, 'File path must be relative'),
+  content: z.string().max(200_000),
+  format: z.enum(['csv', 'txt', 'json']).optional(),
+  /// input = 程序读入的数据；expected_output = 程序写完后文件应有的内容
+  role: z.enum(['input', 'expected_output']).default('input'),
+  visible: z.boolean().default(true),
+});
+
+/// 代码空位：template 里的 {{id}}；expr 行内表达式，line 一整行，block 多行（函数体）
+export const notebookCodeSlotSchema = z.object({
+  id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(/^[\w-]+$/),
+  kind: z.enum(['expr', 'line', 'block']).default('expr'),
+  placeholder: z.string().trim().min(1).max(200).optional(),
+  hint: z.string().trim().min(1).max(500).optional(),
+});
+
+export const notebookTableColumnSchema = z.object({
+  id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(/^[\w-]+$/),
+  header: z.string().trim().max(200).default(''),
+  /// given = 题目给的格子；answer = 学生要填的格子
+  role: z.enum(['given', 'answer']),
+  cellKind: z.enum(['code', 'text', 'python_value', 'output']).default('text'),
+});
+
+export const notebookTableRowSchema = z.object({
+  id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(/^[\w-]+$/),
+  cells: z.record(z.string(), z.string().max(8000)).default({}),
+});
+
+/// 表格题：「Code → What is printed」、逐轮追踪表、docstring 例子补全
+export const notebookProblemPublicTableSchema = notebookProblemPublicBaseSchema.extend({
+  type: z.literal('table'),
+  taskKind: notebookProblemTaskKindSchema.optional(),
+  responseKind: z.literal('table_cells').optional(),
+  stem: z.string().trim().min(1).max(16000),
+  /// 每行运行前先跑的共享代码（表格上方给的代码）
+  setupCode: z.string().max(40000).optional(),
+  files: z.array(notebookCodeFileSchema).max(8).optional(),
+  columns: z.array(notebookTableColumnSchema).min(2).max(8),
+  rows: z.array(notebookTableRowSchema).min(1).max(40),
+  /// 一点就填的常用答案，如 ERROR / NOTHING
+  quickAnswers: z.array(z.string().trim().min(1).max(40)).max(6).optional(),
+  /// 每行的 code 格可以真跑（提交后可用来看真实输出）
+  runnable: z.boolean().optional(),
+});
+
 /// 大题里的一问：复用现有非代码题型的题面结构，content.stem（填空为 stemTemplate）只写这一问的问法
 export const notebookProblemPartPublicContentSchema = z.discriminatedUnion('type', [
   notebookProblemPublicShortAnswerSchema,
@@ -160,6 +231,7 @@ export const notebookProblemPartPublicContentSchema = z.discriminatedUnion('type
   notebookProblemPublicProofSchema,
   notebookProblemPublicCalculationSchema,
   notebookProblemPublicFillBlankSchema,
+  notebookProblemPublicTableSchema,
 ]);
 
 export const notebookProblemPartLabelSchema = z.string().trim().min(1).max(40);
@@ -234,6 +306,12 @@ export const notebookProblemPublicCodeSchema = notebookProblemPublicBaseSchema.e
   statementSections: z.array(notebookCodeStatementSectionSchema).max(10).optional(),
   starterCodeDescription: z.string().trim().min(1).max(1000).optional(),
   secretConfigPresent: z.boolean().default(false),
+  /// 带空位的代码：{{slot_id}} 以外的部分学生改不了；没有时整段 starterCode 可改
+  template: z.string().max(40000).optional(),
+  slots: z.array(notebookCodeSlotSchema).max(16).optional(),
+  files: z.array(notebookCodeFileSchema).max(8).optional(),
+  /// 自由运行时喂给 input() 的内容
+  stdin: z.string().max(20000).optional(),
 });
 
 export const notebookProblemPublicContentSchema = z.discriminatedUnion('type', [
@@ -244,6 +322,7 @@ export const notebookProblemPublicContentSchema = z.discriminatedUnion('type', [
   notebookProblemPublicFillBlankSchema,
   notebookProblemPublicCodeSchema,
   notebookProblemPublicMultipartSchema,
+  notebookProblemPublicTableSchema,
 ]);
 
 export const notebookProblemGradingShortAnswerSchema = z.object({
@@ -325,6 +404,26 @@ export const notebookProblemGradingCodeSchema = z.object({
   solutionCode: z.string().trim().min(1).max(40000).optional(),
   analysis: z.string().trim().min(1).max(12000).optional(),
   publishRequirementsMet: z.boolean().default(false),
+  /// 每个空位的参考答案（讲解用；判分以测试为准）
+  solutionSlots: z.record(z.string(), z.string().max(20000)).optional(),
+});
+
+export const notebookTableCellGradingSchema = z.object({
+  rowId: z.string().trim().min(1).max(64),
+  colId: z.string().trim().min(1).max(64),
+  acceptedAnswers: z.array(z.string().max(8000)).max(16).default([]),
+  /// output 按 print 输出比；python_value 解析成 Python 值比；run_check 把答案代入 check 运行
+  matcher: z.enum(['output', 'python_value', 'normalized_exact', 'run_check']).default('output'),
+  /// run_check：含 {answer} 的 Python 表达式，结果为 True 就算对
+  check: z.string().max(4000).optional(),
+  points: z.number().nonnegative().max(1000).optional(),
+});
+
+export const notebookProblemGradingTableSchema = z.object({
+  type: z.literal('table'),
+  graderKind: z.literal('table_match').optional(),
+  cells: z.array(notebookTableCellGradingSchema).max(160).default([]),
+  analysis: z.string().trim().min(1).max(12000).optional(),
 });
 
 export const notebookProblemPartGradingSchema = z.discriminatedUnion('type', [
@@ -333,6 +432,7 @@ export const notebookProblemPartGradingSchema = z.discriminatedUnion('type', [
   notebookProblemGradingProofSchema,
   notebookProblemGradingCalculationSchema,
   notebookProblemGradingFillBlankSchema,
+  notebookProblemGradingTableSchema,
 ]);
 
 export const notebookProblemGradingMultipartSchema = z.object({
@@ -359,6 +459,7 @@ export const notebookProblemGradingSchema = z.discriminatedUnion('type', [
   notebookProblemGradingFillBlankSchema,
   notebookProblemGradingCodeSchema,
   notebookProblemGradingMultipartSchema,
+  notebookProblemGradingTableSchema,
 ]);
 
 export const notebookProblemSecretJudgeSchema = z.object({
@@ -367,6 +468,8 @@ export const notebookProblemSecretJudgeSchema = z.object({
   secretTestCode: z.string().max(80000).optional(),
   secretTests: z.array(notebookCodeTestSchema).max(48).default([]),
   timeoutMs: z.number().int().positive().max(20000).default(5000),
+  /// 只给隐藏测试用的文件，不下发到前端
+  files: z.array(notebookCodeFileSchema).max(8).optional(),
 });
 
 export const notebookProblemRecordSchema = z.object({
@@ -436,6 +539,7 @@ export const notebookProblemPartAnswerSchema = z.object({
   selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
   blanks: z.record(z.string(), z.string().max(4000)).optional(),
   images: z.array(notebookProblemAttemptImageSchema).max(4).optional(),
+  cells: z.record(z.string(), z.string().max(8000)).optional(),
 });
 
 export const notebookProblemAttemptAnswerSchema = z.object({
@@ -444,6 +548,8 @@ export const notebookProblemAttemptAnswerSchema = z.object({
   blanks: z.record(z.string(), z.string().max(4000)).optional(),
   code: z.string().max(120000).optional(),
   images: z.array(notebookProblemAttemptImageSchema).max(4).optional(),
+  /// 表格题：key 为 `${rowId}:${colId}`
+  cells: z.record(z.string(), z.string().max(8000)).optional(),
   /// 大题：按小问 label 存作答；只交了其中几问时，其余小问沿用上一次的结果
   parts: z.record(z.string(), notebookProblemPartAnswerSchema).optional(),
 });
@@ -466,6 +572,12 @@ export const notebookCodeCaseSummarySchema = z.object({
 
 export const notebookCodeRunTargetSchema = z.enum(['code', 'public', 'secret']);
 
+export const notebookTableCellResultSchema = z.object({
+  key: z.string().trim().min(1).max(140),
+  correct: z.boolean(),
+  expected: z.string().max(8000).optional(),
+});
+
 export const notebookProblemProgressSnapshotSchema = z.object({
   status: z.string().trim().min(1).max(40),
   score: z.number().min(0).max(1).nullable(),
@@ -473,6 +585,7 @@ export const notebookProblemProgressSnapshotSchema = z.object({
 });
 
 export const notebookProblemPartResultSchema = z.object({
+  cells: z.array(notebookTableCellResultSchema).optional(),
   label: notebookProblemPartLabelSchema,
   status: notebookProblemAttemptStatusSchema,
   score: z.number().min(0).max(1000),
@@ -501,6 +614,11 @@ export const notebookProblemAttemptResultSchema = z.object({
   publicSummary: notebookCodeCaseSummarySchema.optional(),
   secretSummary: notebookCodeCaseSummarySchema.optional(),
   parts: z.array(notebookProblemPartResultSchema).optional(),
+  cells: z.array(notebookTableCellResultSchema).optional(),
+  /// 运行后程序新写出 / 改过的文件
+  files: z
+    .array(z.object({ path: z.string().max(120), content: z.string().max(200_000) }))
+    .optional(),
 });
 
 export const notebookProblemAttemptRecordSchema = z.object({
@@ -573,6 +691,19 @@ export type NotebookProblemGradingCode = z.infer<typeof notebookProblemGradingCo
 export type NotebookProblemPublicMultipart = z.infer<typeof notebookProblemPublicMultipartSchema>;
 export type NotebookProblemGradingMultipart = z.infer<typeof notebookProblemGradingMultipartSchema>;
 export type NotebookProblemPart = z.infer<typeof notebookProblemPartSchema>;
+export type NotebookCodeFile = z.infer<typeof notebookCodeFileSchema>;
+export type NotebookCodeSlot = z.infer<typeof notebookCodeSlotSchema>;
+export type NotebookTableColumn = z.infer<typeof notebookTableColumnSchema>;
+export type NotebookTableRow = z.infer<typeof notebookTableRowSchema>;
+export type NotebookTableCellGrading = z.infer<typeof notebookTableCellGradingSchema>;
+export type NotebookTableCellResult = z.infer<typeof notebookTableCellResultSchema>;
+export type NotebookProblemPublicTable = z.infer<typeof notebookProblemPublicTableSchema>;
+export type NotebookProblemGradingTable = z.infer<typeof notebookProblemGradingTableSchema>;
+export type NotebookTableProblemRecord = NotebookProblemRecord & {
+  type: 'table';
+  publicContent: NotebookProblemPublicTable;
+  grading: NotebookProblemGradingTable;
+};
 export type NotebookProblemPartPublicContent = z.infer<
   typeof notebookProblemPartPublicContentSchema
 >;
@@ -985,5 +1116,15 @@ export function isNotebookMultipartProblemRecord(
     problem.type === 'multipart' &&
     problem.publicContent.type === 'multipart' &&
     problem.grading.type === 'multipart'
+  );
+}
+
+export function isNotebookTableProblemRecord(
+  problem: NotebookProblemRecord,
+): problem is NotebookTableProblemRecord {
+  return (
+    problem.type === 'table' &&
+    problem.publicContent.type === 'table' &&
+    problem.grading.type === 'table'
   );
 }

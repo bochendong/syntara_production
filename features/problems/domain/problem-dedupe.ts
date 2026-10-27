@@ -154,6 +154,14 @@ function publicQuestionIdentity(content: NotebookProblemPublicContent): StableDe
         stem: normalizeProblemDedupeText(content.stem),
         type: content.type,
       };
+    case 'table':
+      return {
+        ...common,
+        type: content.type,
+        stem: normalizeProblemDedupeText(content.stem),
+        columns: content.columns,
+        rows: content.rows,
+      };
     case 'multipart':
       return {
         ...common,

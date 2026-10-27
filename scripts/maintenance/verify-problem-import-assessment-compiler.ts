@@ -92,7 +92,10 @@ async function main() {
         { id: 'positive_integers', expression: 'add(1, 2)', expected: '3' },
         { id: 'both_zero', expression: 'add(0, 0)', expected: '0' },
       ],
-      sampleIO: [],
+      sampleIO: [
+        { input: 'add(1, 2)', output: '3' },
+        { input: 'add(0, 0)', output: '0' },
+      ],
       secretConfigPresent: true,
     },
     grading: {
@@ -173,10 +176,10 @@ async function main() {
   const zhPrompt = prompts.buildProblemImportSystemPrompt('zh-CN');
   assert.match(zhPrompt, /保持原题的作答方式与认知要求/);
   assert.match(zhPrompt, /code_reading/);
-  assert.match(zhPrompt, /至少 2 个 public tests 和 3 个 secret tests/);
-  assert.match(zhPrompt, /不得使用 input、stdin、print 判分或文件读写/);
-  assert.match(zhPrompt, /彼此独立作答和计分的表格行/);
-  assert.match(zhPrompt, /public_tests\.py/);
+  assert.match(zhPrompt, /公开至少 2 个 test_ 方法，隐藏至少 3 个/);
+  assert.match(zhPrompt, /读写文件、input\(\) 的题保留原样/);
+  assert.match(zhPrompt, /表格题/);
+  assert.match(zhPrompt, /publicContent\.publicTestCode/);
   assert.match(zhPrompt, /unittest/);
   assert.match(zhPrompt, /rubricCriteria/);
 

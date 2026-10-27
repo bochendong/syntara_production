@@ -37,6 +37,19 @@ export function problemSolution(problem: LocalProblem): ProblemSolution {
     code = text(grading.solutionCode);
     const reference = text(grading.referenceAnswer);
     answer = reference === code ? '' : reference;
+  } else if (problem.type === 'table' && Array.isArray(grading.cells)) {
+    answer = grading.cells
+      .map((cell) => {
+        const item = cell as Record<string, unknown>;
+        const accepted = Array.isArray(item.acceptedAnswers)
+          ? item.acceptedAnswers.map(text).filter(Boolean)
+          : [];
+        return accepted.length
+          ? `**${text(item.rowId)} · ${text(item.colId)}**: ${accepted.join(' / ')}`
+          : '';
+      })
+      .filter(Boolean)
+      .join('\n\n');
   } else if (problem.type === 'fill_blank' && Array.isArray(grading.blanks)) {
     answer = grading.blanks
       .map((blank, index) => {

@@ -17,6 +17,7 @@ const AUTO_GRADED_PART_TYPES = new Set<NotebookProblemPartPublicContent['type']>
   'choice',
   'fill_blank',
   'calculation',
+  'table',
 ]);
 
 export const MULTIPART_PART_SUBMISSION_LIMIT = 3;
@@ -116,6 +117,7 @@ export function partAnswerIsEmpty(answer: NotebookProblemPartAnswer | undefined)
     !answer.text?.trim() &&
     !(answer.selectedOptionIds ?? []).length &&
     !Object.values(answer.blanks ?? {}).some((value) => value.trim()) &&
+    !Object.values(answer.cells ?? {}).some((value) => value.trim()) &&
     !(answer.images ?? []).length
   );
 }

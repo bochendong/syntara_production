@@ -21,6 +21,7 @@ const CAPABILITIES_PATH: &str = "/api/native/v1/capabilities";
 const CHAT_PATH: &str = "/api/native/v2/chat";
 const MINI_LECTURES_PATH: &str = "/api/native/v1/mini-lectures";
 const GRADE_PATH: &str = "/api/native/v1/grade";
+const CODE_GRADE_PATH: &str = "/api/native/v1/problem-code";
 const TRANSCRIPTIONS_PATH: &str = "/api/native/v1/transcriptions";
 const REALTIME_TRANSCRIPTION_PATH: &str = "/api/native/v1/realtime-transcription";
 const SYLLABUS_PARSE_PATH: &str = "/api/native/v1/syllabus/parse";
@@ -1020,6 +1021,11 @@ pub async fn native_get_memories(request: PlatformQueryRequest) -> Result<Value,
 #[tauri::command]
 pub async fn native_sync_memories(request: PlatformJsonRequest) -> Result<Value, String> {
     post_json(MEMORIES_PATH, &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
+pub async fn native_grade_code(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json(CODE_GRADE_PATH, &request, DEFAULT_TIMEOUT).await
 }
 
 #[tauri::command]

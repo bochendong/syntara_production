@@ -1,4 +1,5 @@
 import { compactSourcePackageForPrompt } from './import.structure-utils';
+import { CODE_TABLE_RULES_EN, CODE_TABLE_RULES_ZH } from './import.code-table-rules';
 import type { ProblemSourcePackage } from './import.core.types';
 
 export function directLlmProblemImportPrompt(args: {
@@ -23,7 +24,7 @@ export function directLlmProblemImportPrompt(args: {
         "index": 1,
         "topLevelLabel": "1",
         "title": "概念导向标题",
-        "problemTypeHint": "choice|proof|calculation|short_answer|code|fill_blank|multipart|unknown",
+        "problemTypeHint": "choice|proof|calculation|short_answer|code|fill_blank|multipart|table|unknown",
         "pageStart": 2,
         "pageEnd": 2,
         "sourceAnchors": [{"pageNumber":2,"sourcePageId":"page_2","textQuote":"题目开头短引文","role":"problem"}],
@@ -39,7 +40,7 @@ export function directLlmProblemImportPrompt(args: {
   "drafts": [
     {
       "title": "简短题名",
-      "type": "short_answer|choice|proof|calculation|code|fill_blank|multipart",
+      "type": "short_answer|choice|proof|calculation|code|fill_blank|multipart|table",
       "points": 1,
       "difficulty": "easy|medium|hard",
       "tags": [],
@@ -56,7 +57,8 @@ export function directLlmProblemImportPrompt(args: {
 - 由你直接决定题目边界；不要照抄 Source Package 里的 roleHint 或本地 heuristic 结论。
 - 必须保留 PDF 原文语言：英文题继续输出英文，中文题继续输出中文；不要翻译、改写成另一种语言或把示例里的中文套进题面。
 - publicContent.stem（填空题使用 stemTemplate）是可直接作答的学生题面。保持考点、认知要求和大致难度，但允许为了适配平台而改写输入输出接口和题型；不要翻译或随意扩展知识点。
-- 一个顶层题号 = 一道题。原题有 (a)(b)/(i)(ii)/(1)(2) 小问时，输出一道 type="multipart" 大题：publicContent.stem 只写所有小问共用的背景/条件/表格/图（只写一次），publicContent.parts 每项 {label, points, dependsOn?, content}，content 是该小问自己的题面，结构与对应题型（choice/fill_blank/calculation/short_answer/proof）完全相同；grading.parts 每项 {label, grading}，按 label 给出该问对应题型的答案。不要把小问拆成多道题，也不要把多个小问挤进一段 stem。每个小问单独选最合适的题型，例如 (a) 选择、(b) 计算、(c) 证明。用到前面小问结论时在 dependsOn 写前面的 label。小问超过 12 个（如长表格逐行作答）才拆成多道题，并在每道题里复制共享材料。编程实现题不能作为小问。
+- 一个顶层题号 = 一道题。原题有 (a)(b)/(i)(ii)/(1)(2) 小问时，输出一道 type="multipart" 大题：publicContent.stem 只写所有小问共用的背景/条件/表格/图（只写一次），publicContent.parts 每项 {label, points, dependsOn?, content}，content 是该小问自己的题面，结构与对应题型（choice/fill_blank/calculation/short_answer/proof）完全相同；grading.parts 每项 {label, grading}，按 label 给出该问对应题型的答案。不要把小问拆成多道题，也不要把多个小问挤进一段 stem。每个小问单独选最合适的题型，例如 (a) 选择、(b) 计算、(c) 证明。用到前面小问结论时在 dependsOn 写前面的 label。小问超过 12 个（如长表格逐行作答）才拆成多道题，并在每道题里复制共享材料。编程实现题不能作为小问；表格题（type="table"）可以作为小问。
+${CODE_TABLE_RULES_ZH}
 - 不要输出封面、考试说明、空白页、additional work。
 - drafts 数量必须等于 structurePlan.topLevelProblems 数量，顺序一致。
 - 每个 draft.sourceMeta.scaffoldIndex 必须等于对应 topLevelProblems.index。
@@ -96,7 +98,7 @@ Return shape:
         "index": 1,
         "topLevelLabel": "1",
         "title": "concept-focused title",
-        "problemTypeHint": "choice|proof|calculation|short_answer|code|fill_blank|multipart|unknown",
+        "problemTypeHint": "choice|proof|calculation|short_answer|code|fill_blank|multipart|table|unknown",
         "pageStart": 2,
         "pageEnd": 2,
         "sourceAnchors": [{"pageNumber":2,"sourcePageId":"page_2","textQuote":"short opening quote","role":"problem"}],
@@ -116,7 +118,8 @@ Hard requirements:
 - You decide the problem boundaries directly; do not copy local roleHint or heuristic conclusions.
 - Preserve the PDF's original language: English questions must remain English and Chinese questions must remain Chinese. Do not translate or localize stems, titles, options, or subparts.
 - publicContent.stem (or stemTemplate for fill blanks) is a directly answerable student prompt. Preserve the objective, cognitive demand, and approximate difficulty, but adapt interfaces and delivery type when required by platform capabilities. Do not translate or introduce unrelated concepts.
-- One top-level question number = one problem. When the source has (a)(b)/(i)(ii)/(1)(2) parts, output ONE problem with type="multipart": publicContent.stem holds only the context, givens, tables, and figures shared by all parts (written once); publicContent.parts items are {label, points, dependsOn?, content}, where content is that part's own prompt with exactly the schema of its type (choice/fill_blank/calculation/short_answer/proof); grading.parts items are {label, grading} with that part's type-specific answer. Never split parts into separate problems and never cram several parts into one stem. Choose the best type per part, e.g. (a) choice, (b) calculation, (c) proof. Use dependsOn to name earlier parts whose results a part builds on. Only split into several problems when there are more than 12 parts (e.g. a long table answered row by row), copying the shared material into each. Code-implementation tasks cannot be parts.
+- One top-level question number = one problem. When the source has (a)(b)/(i)(ii)/(1)(2) parts, output ONE problem with type="multipart": publicContent.stem holds only the context, givens, tables, and figures shared by all parts (written once); publicContent.parts items are {label, points, dependsOn?, content}, where content is that part's own prompt with exactly the schema of its type (choice/fill_blank/calculation/short_answer/proof); grading.parts items are {label, grading} with that part's type-specific answer. Never split parts into separate problems and never cram several parts into one stem. Choose the best type per part, e.g. (a) choice, (b) calculation, (c) proof. Use dependsOn to name earlier parts whose results a part builds on. Only split into several problems when there are more than 12 parts (e.g. a long table answered row by row), copying the shared material into each. Code-implementation tasks cannot be parts; table problems (type="table") can.
+${CODE_TABLE_RULES_EN}
 - Do not output covers, instructions, blank pages, or additional-work pages.
 - drafts count must equal structurePlan.topLevelProblems count, in the same order.
 - Every draft.sourceMeta.scaffoldIndex must match its topLevelProblems.index.
@@ -125,7 +128,7 @@ Hard requirements:
 - Independently solve every problem and generate grading data. Student handwriting, selected bubbles, scores, and grader comments are not part of the problem statement and must not be copied as the authoritative answer.
 - Preserve the source response mode and cognitive demand. Code-output prediction and error diagnosis are code_reading tasks and may use choice, fill_blank, or short_answer according to the source. Adapt a type only when the original interaction cannot be rendered or graded reliably.
 - For choice use correctOptionIds; for calculation use referenceAnswer plus at least one acceptedForms entry containing only the final result and include tolerance/unit when applicable; for short_answer use referenceAnswer/rubric/rubricCriteria; for proof use referenceProof/rubric/rubricCriteria; for every fill_blank blank provide answerKind, acceptedAnswers, and matcher.
-- Use code only for function-implementation tasks. Inputs must be function parameters and results must be returned with return. Do not rely on input(), stdin, print-based grading, or file I/O. Adapt unsupported source interfaces and record the change in sourceMeta.adaptation without requiring teacher confirmation.
+- Use code only for function-implementation tasks. Inputs are function parameters, provided files (publicContent.files) or stdin, and results are returned, written to files, or printed when tests capture them. Record any interface adaptation in sourceMeta.adaptation without requiring teacher confirmation.
 - Code supports function and class implementations, including regex used inside functions. Generate publicContent.starterCode (imports, interface, docstrings), grading.solutionCode, publicContent.publicTestCode and secretJudge.secretTestCode together. Both test fields are complete Python unittest source strings with at least 2 public and 3 secret test_ methods. The platform saves the complete submission as submission.py. AI writes import unittest and from submission import the_interface_name in tests, matching starter and solution interfaces; AI includes re/typing imports in each file that uses them. Test object state, method sequences, exceptions and return values. Do not generate expression/expected arrays, pytest, third-party dependencies, empty tests, skips or expected failures. The reference must pass all tests; tests must reject the unimplemented starter. Cover valid, invalid and boundary examples.
 - Record transformations in sourceMeta.adaptation as {"status":"exact|adapted","originalKind":"...","deliveryType":"...","changes":[],"preservedObjectives":[]}. If the objective and difficulty cannot be preserved as code, choose a supported non-code type rather than emitting an ungradable problem.
 - Fill blanks use publicContent.stemTemplate with a {{blank_id}} marker for each blank. IDs in publicContent.blanks and grading.blanks must match exactly.
@@ -143,13 +146,13 @@ ${compactSource}`;
 }
 
 export function problemStemFormattingContract(language: 'zh-CN' | 'en-US'): string {
-  const delivery = `DELIVERY CHECKS: Keep Markdown table rows and code fences intact, with original newlines and indentation. Put {{blank_id}} markers inside the appropriate table cell or fenced code; never split a code fence around a blank. Code completion blanks use answerKind=code_token. Every code problem MUST include at least two sampleIO entries (normal and boundary): input is a self-contained executable Python expression against solutionCode, output is the expected Python repr, explanation describes behavior. Preserve source examples. Never expose hidden tests. Samples are executed and mismatches block publishing.\n`;
+  const delivery = `DELIVERY CHECKS: Keep Markdown table rows and code fences intact, with original newlines and indentation. Put {{blank_id}} markers inside the appropriate table cell or fenced code; never split a code fence around a blank. Blanks inside a Python function are code problems with template slots, not fill_blank; code_token blanks are only for isolated code tokens outside a runnable function. Every code problem MUST include at least two sampleIO entries (normal and boundary): input is a self-contained executable Python expression against solutionCode, output is the expected Python repr, explanation describes behavior. Preserve source examples. Never expose hidden tests. Samples are executed and mismatches block publishing.\n`;
   return (
     delivery +
     (language === 'zh-CN'
       ? String.raw`Syntara 题库交付协议 v1（科目无关）：
 - 编程题必须有至少 2 个 publicContent.sampleIO（正常与边界示例），input 是对参考实现可直接执行的单行 Python 表达式，output 是对应返回值的 Python repr，explanation 解释行为。保留原文示例，补充的示例必须符合题意，不得把隐藏测试泄露到示例。平台执行全部示例验证，不允许留空或只写 examples 标题。
-- 填空标记 {{blank_id}} 必须留在原表格单元格或完整代码围栏内；不得为放输入框拆开代码块。代码补全用 answerKind=code_token，保留原缩进、换行及周边语法；每个标记对应一个作答项与评分项。
+- 填空标记 {{blank_id}} 必须留在原表格单元格或完整代码围栏内；不得为放输入框拆开代码块。函数里的代码填空改用 code 题的 template 空位；只有脱离可运行函数的零散代码片段才用 answerKind=code_token，保留原缩进、换行及周边语法；每个标记对应一个作答项与评分项。
 - 多行程序、doctest 或输出追踪不得嵌入 Markdown 表格代码围栏；改用逐项独立的带语言代码块，后接对应填空。输出题参考答案必须保留真实换行。表格内短内容换行只可用无属性的 <br>，代码字面量中的 <br> 则保持原样。
 - Markdown 表格须保留独立表头、分隔行和逐行数据，不得合并换行；竖线字符需转义。代码围栏必须成对闭合。
 - 你的角色是“题库编译器”，不是聊天助手、讲课助手或自由写作助手。你要把原始材料编译成学生可以直接阅读、作答且系统可以稳定评分的题目。
@@ -202,7 +205,7 @@ export function buildProblemImportSystemPrompt(language: 'zh-CN' | 'en-US'): str
 每个数组元素都必须尽量贴近以下结构：
 {
   "title": string,
-  "type": "short_answer" | "choice" | "proof" | "calculation" | "code" | "fill_blank" | "multipart",
+  "type": "short_answer" | "choice" | "proof" | "calculation" | "code" | "fill_blank" | "multipart" | "table",
   "points": number,
   "difficulty": "easy" | "medium" | "hard",
   "tags": [],
@@ -214,7 +217,8 @@ export function buildProblemImportSystemPrompt(language: 'zh-CN' | 'en-US'): str
 }
 ${problemStemFormattingContract(language)}
 要求：
-- 一个顶层题号 = 一道题。原题有 (a)(b)/(i)(ii)/(1)(2) 小问时，输出一道 type="multipart" 大题：publicContent.stem 只写所有小问共用的背景/条件/表格/图（只写一次），publicContent.parts 每项 {label, points, dependsOn?, content}，content 是该小问自己的题面，结构与对应题型（choice/fill_blank/calculation/short_answer/proof）完全相同；grading.parts 每项 {label, grading}，按 label 给出该问对应题型的答案。不要把小问拆成多道题，也不要把多个小问挤进一段 stem。每个小问单独选最合适的题型，例如 (a) 选择、(b) 计算、(c) 证明。用到前面小问结论时在 dependsOn 写前面的 label。小问超过 12 个（如长表格逐行作答）才拆成多道题，并在每道题里复制共享材料。编程实现题不能作为小问。
+- 一个顶层题号 = 一道题。原题有 (a)(b)/(i)(ii)/(1)(2) 小问时，输出一道 type="multipart" 大题：publicContent.stem 只写所有小问共用的背景/条件/表格/图（只写一次），publicContent.parts 每项 {label, points, dependsOn?, content}，content 是该小问自己的题面，结构与对应题型（choice/fill_blank/calculation/short_answer/proof）完全相同；grading.parts 每项 {label, grading}，按 label 给出该问对应题型的答案。不要把小问拆成多道题，也不要把多个小问挤进一段 stem。每个小问单独选最合适的题型，例如 (a) 选择、(b) 计算、(c) 证明。用到前面小问结论时在 dependsOn 写前面的 label。小问超过 12 个（如长表格逐行作答）才拆成多道题，并在每道题里复制共享材料。编程实现题不能作为小问；表格题（type="table"）可以作为小问。
+${CODE_TABLE_RULES_ZH}
 - title 必须是简洁、稳定、概念导向的题目名，优先概括知识点与任务，不要直接复制整句题面，不要把公式原样塞进 title
 - tags 必须保持为空数组，不要输出 tagPaths、知识标签或知识树分类；章节归档由老师建立章节后单独完成
 - 每道题的 publicContent 必须能独立作答；不要只写“见上表 / 见图 / front page / Table I / Diagram II”
@@ -239,7 +243,7 @@ ${problemStemFormattingContract(language)}
 Each item should follow this shape as closely as possible:
 {
   "title": string,
-  "type": "short_answer" | "choice" | "proof" | "calculation" | "code" | "fill_blank" | "multipart",
+  "type": "short_answer" | "choice" | "proof" | "calculation" | "code" | "fill_blank" | "multipart" | "table",
   "points": number,
   "difficulty": "easy" | "medium" | "hard",
   "tags": [],
@@ -251,7 +255,8 @@ Each item should follow this shape as closely as possible:
 }
 ${problemStemFormattingContract(language)}
 Requirements:
-- One top-level question number = one problem. When the source has (a)(b)/(i)(ii)/(1)(2) parts, output ONE problem with type="multipart": publicContent.stem holds only the context, givens, tables, and figures shared by all parts (written once); publicContent.parts items are {label, points, dependsOn?, content}, where content is that part's own prompt with exactly the schema of its type (choice/fill_blank/calculation/short_answer/proof); grading.parts items are {label, grading} with that part's type-specific answer. Never split parts into separate problems and never cram several parts into one stem. Choose the best type per part, e.g. (a) choice, (b) calculation, (c) proof. Use dependsOn to name earlier parts whose results a part builds on. Only split into several problems when there are more than 12 parts (e.g. a long table answered row by row), copying the shared material into each. Code-implementation tasks cannot be parts.
+- One top-level question number = one problem. When the source has (a)(b)/(i)(ii)/(1)(2) parts, output ONE problem with type="multipart": publicContent.stem holds only the context, givens, tables, and figures shared by all parts (written once); publicContent.parts items are {label, points, dependsOn?, content}, where content is that part's own prompt with exactly the schema of its type (choice/fill_blank/calculation/short_answer/proof); grading.parts items are {label, grading} with that part's type-specific answer. Never split parts into separate problems and never cram several parts into one stem. Choose the best type per part, e.g. (a) choice, (b) calculation, (c) proof. Use dependsOn to name earlier parts whose results a part builds on. Only split into several problems when there are more than 12 parts (e.g. a long table answered row by row), copying the shared material into each. Code-implementation tasks cannot be parts; table problems (type="table") can.
+${CODE_TABLE_RULES_EN}
 - title must be concise, concept-focused, and stable; summarize the topic/task instead of copying the whole stem, and avoid dumping raw formulas into the title
 - keep tags as an empty array; do not output tagPaths, knowledge tags, or taxonomy categories because chapter filing happens separately after the teacher creates chapters
 - every publicContent item must be independently answerable; do not leave references like "see above", "front page", "Table I", or "Diagram II" without the referenced content

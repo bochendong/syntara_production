@@ -56,7 +56,9 @@ import {
   type LocalPartAnswer,
   type LocalPartResult,
 } from '../data/multipart-problem';
-import { gradeNativeAnswer } from '../data/platform-api-client';
+import { gradeNativeAnswer, gradeNativeCode } from '../data/platform-api-client';
+import { isPlatformCourse } from '../data/chat-sync';
+import { pendingCodeSubmission, clearPendingCodeSubmission } from '../data/code-submission-id';
 import { problemAiGradeRequest } from '../data/problem-ai-grading';
 import { queueProblemAttempt } from '../data/problem-sync';
 import { getLocalRepository } from '../data/repository';
@@ -70,6 +72,16 @@ import { runPythonDebug } from '../data/python-debug-runner';
 import type { LocalProblem, LocalProblemDocument } from '../domain/models';
 import { cn } from '../lib/cn';
 import { CodeAnswerEditor, highlightPython } from './problem-bank/code-answer-editor';
+import { NativeCodeSlots } from './problem-bank/native-code-slots';
+import { NativeCodePlayground } from './problem-bank/native-code-playground';
+import { NativeTableAnswer } from './problem-bank/native-table-answer';
+import { gradeNativeTable } from '../data/table-grading';
+import type {
+  NotebookProblemPublicTable,
+  NotebookProblemGradingTable,
+} from '../../../../lib/problem-bank/schema';
+import { codeSlotTemplateFor } from '../../../../lib/problem-bank/code-slots';
+import type { NotebookCodeSlot, NotebookCodeFile } from '../../../../lib/problem-bank/schema';
 import { FormulaReferencePanel } from './problem-bank/formula-reference-panel';
 import { PythonRunOutput, type PythonDebugResult } from './problem-bank/PythonRunOutput';
 import { CodeProblemStatement } from './problem-bank/code-problem-statement';
@@ -185,6 +197,8 @@ function restoreAnswerFromAttempt(
   }
   if (record.kind === 'parts')
     return { kind: 'parts', parts: recordValue(record.parts) as Record<string, LocalPartAnswer> };
+  if (record.kind === 'table' && record.cells && typeof record.cells === 'object')
+    return { kind: 'table', cells: record.cells as Record<string, string> };
   if (record.kind === 'code' && typeof record.code === 'string') {
     return { kind: 'code', code: record.code };
   }
@@ -423,6 +437,15 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   const isCode = currentProblem ? problemIsCode(currentProblem) : false;
   const publicContent = displayedProblem ? problemPublicContent(displayedProblem) : {};
   const codeContent = isCode ? asCodeContent(publicContent) : null;
+  const codeSlots = codeContent
+    ? codeSlotTemplateFor({
+        starterCode: codeContent.starterCode,
+        template: typeof publicContent.template === 'string' ? publicContent.template : undefined,
+        slots: Array.isArray(publicContent.slots)
+          ? (publicContent.slots as NotebookCodeSlot[])
+          : undefined,
+      })
+    : null;
   const stem = displayedProblem ? problemStem(displayedProblem) : '';
   const options = displayedProblem ? problemOptions(displayedProblem) : [];
   const testcaseCode = currentProblem ? buildPublicTestsPython(currentProblem) : '';
@@ -635,7 +658,50 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     setSubmitting(true);
     setError(null);
     try {
+      const repository = await getLocalRepository();
+      let serverCodeId: string | undefined;
+      let serverCodeResult: Record<string, unknown> | undefined;
+      let codePreview = false;
       let grade = gradeLocalProblem(currentProblem, answer);
+      if (answer.kind === 'code') {
+        if (!(await isPlatformCourse(repository, currentProblem.courseId))) {
+          throw new Error('这道代码题需要连接课程服务器才能提交和判分。');
+        }
+        const attemptId = pendingCodeSubmission(currentProblem.id, answer.code.trim());
+        const reply = await gradeNativeCode({
+          courseId: currentProblem.courseId,
+          problemId: currentProblem.id,
+          attemptId,
+          code: answer.code,
+          language,
+        });
+        if (
+          (!reply.saved && !reply.preview) ||
+          reply.status === 'error' ||
+          reply.status === 'pending'
+        ) {
+          throw new Error(reply.result.feedback || '公开测试未通过，请检查代码后重试。');
+        }
+        codePreview = Boolean(reply.preview);
+        serverCodeId = attemptId;
+        serverCodeResult = reply.result;
+        grade = {
+          status: reply.status,
+          score: reply.score === null ? null : Math.max(0, Math.min(1, reply.score / 100)),
+          feedback: reply.result.feedback || '',
+          autoGraded: true,
+        };
+      }
+      let tableCells: Array<{ key: string; correct: boolean }> | undefined;
+      if (currentProblem.type === 'table' && answer.kind === 'table') {
+        const tableResult = await gradeNativeTable(
+          currentProblem.publicContent as NotebookProblemPublicTable,
+          currentProblem.grading as NotebookProblemGradingTable,
+          answer.cells,
+        );
+        grade = tableResult;
+        tableCells = tableResult.cells;
+      }
       let aiGradingError: string | null = null;
       if (
         grade.status === 'pending' &&
@@ -672,20 +738,31 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
           };
         }
       }
-      const repository = await getLocalRepository();
-      const saved = await repository.saveProblemAttempt({
-        problemId: currentProblem.id,
-        answer,
-        status: grade.status === 'pending' ? 'pending' : grade.status,
-        score: grade.score,
-        feedback: grade.feedback,
-        result: {
-          feedback: grade.feedback,
-          autoGraded: grade.autoGraded,
-          gradingProvider: grade.autoGraded ? 'syntara-platform-ai' : 'local',
-          aiGradingError,
-        },
-      });
+      const previousDocument = serverCodeId
+        ? await repository.loadProblemDocument(currentProblem.id)
+        : null;
+      const priorAttempt = previousDocument?.attempts.find(
+        (item) => item.result?.serverCodeId === serverCodeId,
+      );
+      const saved =
+        priorAttempt && previousDocument
+          ? { attempt: priorAttempt, document: previousDocument }
+          : await repository.saveProblemAttempt({
+              problemId: currentProblem.id,
+              answer,
+              status: grade.status === 'pending' ? 'pending' : grade.status,
+              score: grade.score,
+              feedback: grade.feedback,
+              result: {
+                feedback: grade.feedback,
+                autoGraded: grade.autoGraded,
+                ...(tableCells ? { cells: tableCells } : {}),
+                ...(serverCodeId ? { serverCodeId, serverCodeResult } : {}),
+                gradingProvider: grade.autoGraded ? 'syntara-platform-ai' : 'local',
+                aiGradingError,
+              },
+            });
+      if (serverCodeId) clearPendingCodeSubmission(currentProblem.id, serverCodeId);
       setDocument(saved.document);
       setFeedback(grade.feedback);
       const status: ProblemStatus = grade.status === 'pending' ? 'pending' : grade.status;
@@ -705,7 +782,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
         }
       }
       // 网页课程的作答同步到网页题库；传不上去会排队，下次打开课程再传。
-      void queueProblemAttempt(repository, currentProblem.courseId, saved.attempt);
+      if (!serverCodeId && !codePreview)
+        void queueProblemAttempt(repository, currentProblem.courseId, saved.attempt);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -749,6 +827,16 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             const used = before?.submissions ?? 0;
             if (isAutoGradedPart(part) && used >= PART_SUBMISSION_LIMIT) return carried;
             let grade = gradeLocalPart(currentProblem, part, draft);
+            let tableCells: Array<{ key: string; correct: boolean }> | undefined;
+            if (part.type === 'table') {
+              const tableResult = await gradeNativeTable(
+                part.content as NotebookProblemPublicTable,
+                part.grading as NotebookProblemGradingTable,
+                draft.cells ?? {},
+              );
+              grade = tableResult;
+              tableCells = tableResult.cells;
+            }
             if (
               grade.status === 'pending' &&
               (part.type === 'short_answer' || part.type === 'proof')
@@ -791,6 +879,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
               score: isAutoGradedPart(part) ? capPartScore(raw, submissions) : raw,
               share,
               feedback: grade.feedback,
+              ...(tableCells ? { cells: tableCells } : {}),
               gradedAt: now,
               submissions,
             };
@@ -1503,19 +1592,46 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
               ) : null}
               {rightTab === 'code' && isCode && answer?.kind === 'code' ? (
                 <div className="pp-code-workspace">
-                  <CodeAnswerEditor
-                    value={answer.code}
-                    onChange={(code) => {
-                      setFeedback(null);
-                      if (draftRef.current) {
-                        draftRef.current.code = code;
-                        draftRef.current.dirty = true;
-                      }
-                      setAnswer({ kind: 'code', code });
-                    }}
-                    locale="zh-CN"
-                    placeholder="# 在此编写 Python 代码"
-                    className="pp-code-editor"
+                  {codeSlots ? (
+                    <NativeCodeSlots
+                      template={codeSlots}
+                      value={answer.code}
+                      onChange={(code) => {
+                        setFeedback(null);
+                        if (draftRef.current) {
+                          draftRef.current.code = code;
+                          draftRef.current.dirty = true;
+                        }
+                        setAnswer({ kind: 'code', code });
+                      }}
+                    />
+                  ) : (
+                    <CodeAnswerEditor
+                      value={answer.code}
+                      onChange={(code) => {
+                        setFeedback(null);
+                        if (draftRef.current) {
+                          draftRef.current.code = code;
+                          draftRef.current.dirty = true;
+                        }
+                        setAnswer({ kind: 'code', code });
+                      }}
+                      locale="zh-CN"
+                      placeholder="# 在此编写 Python 代码"
+                      className="pp-code-editor"
+                    />
+                  )}
+                  <NativeCodePlayground
+                    key={currentProblem.id}
+                    code={answer.code}
+                    files={
+                      Array.isArray(publicContent.files)
+                        ? (publicContent.files as NotebookCodeFile[])
+                        : []
+                    }
+                    stdin={
+                      typeof publicContent.stdin === 'string' ? publicContent.stdin : undefined
+                    }
                   />
                   <footer className="native-problem-practice-footer">
                     {justGraded && currentIndex < total - 1 ? (
@@ -1561,6 +1677,22 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
 
               {rightTab === 'answer' && !isCode && !isMultipart ? (
                 <>
+                  {currentProblem.type === 'table' && answer?.kind === 'table' ? (
+                    <NativeTableAnswer
+                      content={publicContent as NotebookProblemPublicTable}
+                      values={answer.cells}
+                      results={
+                        document?.attempts.find((item) => Array.isArray(item.result?.cells))?.result
+                          ?.cells as Array<{ key: string; correct: boolean }> | undefined
+                      }
+                      disabled={submitting}
+                      onChange={(cells) =>
+                        setAnswer((current) =>
+                          current?.kind === 'table' ? { ...current, cells } : current,
+                        )
+                      }
+                    />
+                  ) : null}
                   {currentProblem.type === 'choice' && answer?.kind === 'choice' ? (
                     <div className="native-problem-practice-choices">
                       {options.map((option) => {

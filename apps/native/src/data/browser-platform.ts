@@ -37,6 +37,7 @@ export async function browserFetch(path: string, init: RequestInit = {}) {
 export const browserEndpoints: Record<string, { path: string; method?: string }> = {
   native_create_mini_lecture: { path: '/api/native/v1/mini-lectures', method: 'POST' },
   native_grade_answer: { path: '/api/native/v1/grade', method: 'POST' },
+  native_grade_code: { path: '/api/native/v1/problem-code', method: 'POST' },
   native_transcribe_audio: { path: '/api/native/v1/transcriptions', method: 'POST' },
   native_start_realtime_transcription: {
     path: '/api/native/v1/realtime-transcription',

@@ -50,6 +50,7 @@ const submitSchema = z.object({
   selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
   blanks: z.record(z.string(), z.string().max(4000)).optional(),
   code: z.string().max(120000).optional(),
+  cells: z.record(z.string().max(140), z.string().max(8000)).optional(),
   images: photoAnswersSchema,
   parts: z
     .record(
@@ -129,6 +130,7 @@ export async function POST(
       selectedOptionIds: payload.data.selectedOptionIds,
       blanks: payload.data.blanks,
       code: payload.data.code,
+      cells: payload.data.cells,
       images: payload.data.images,
       parts: payload.data.parts,
     };
@@ -175,6 +177,7 @@ export async function POST(
         if (
           loaded.problem.type === 'choice' ||
           loaded.problem.type === 'fill_blank' ||
+          loaded.problem.type === 'table' ||
           (loaded.problem.type === 'calculation' && !answer.images?.length)
         ) {
           return evaluateNotebookNonCodeProblem({

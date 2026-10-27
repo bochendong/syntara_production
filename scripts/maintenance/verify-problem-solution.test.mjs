@@ -28,7 +28,10 @@ function load(file, mocks = {}) {
   );
   return mod.exports;
 }
-const grading = load('apps/native/src/data/local-problem-grading.ts');
+const codeSlots = await jiti.import('../../lib/problem-bank/code-slots.ts');
+const grading = load('apps/native/src/data/local-problem-grading.ts', {
+  '../../../../lib/problem-bank/code-slots': codeSlots,
+});
 const { problemSolution } = load('apps/native/src/lib/problem-solution.ts', {
   '../data/local-problem-grading': grading,
 });
@@ -75,6 +78,14 @@ test('all six question types expose the stored answer and reset to their correct
     assert.equal(empty.kind, p.type === 'code' ? 'code' : p.type === 'choice' ? 'choice' : 'text');
   }
   assert.match(problemSolution(cases[0]).answer, /B.*Two/);
+  assert.match(
+    problemSolution({
+      ...base,
+      type: 'table',
+      grading: { cells: [{ rowId: 'r1', colId: 'out', acceptedAnswers: ['5'] }] },
+    }).answer,
+    /r1.*out.*5/,
+  );
   assert.equal(problemSolution(cases[5]).code, 'def f():\n    return 42');
   assert.equal(
     problemSolution({
@@ -287,6 +298,34 @@ test('native upload preserves event identity, never grades a reveal, and safely 
   assert.equal(captured[0].answer.code, 'draft code');
   await native.saveNativeProblemAttempts(db, 'user', input);
   assert.equal(captured.length, 1);
+  const tableUpload = native.nativeProblemAttemptUploadSchema.parse({
+    courseId: 'course',
+    attempts: [
+      {
+        id: 'table12345',
+        problemId: 'p',
+        status: 'partial',
+        score: 0.5,
+        answer: { cells: { 'r1:a': '5' }, parts: { a: { cells: { 'r2:b': 'ERROR' } } } },
+        cells: [{ key: 'r1:a', correct: true }],
+        parts: [
+          {
+            label: 'a',
+            status: 'failed',
+            score: 0,
+            share: 1,
+            cells: [{ key: 'r2:b', correct: false }],
+          },
+        ],
+        createdAt: 101,
+      },
+    ],
+  });
+  await native.saveNativeProblemAttempts(db, 'user', tableUpload);
+  assert.deepEqual(captured[1].answer.cells, { 'r1:a': '5' });
+  assert.deepEqual(captured[1].answer.parts.a.cells, { 'r2:b': 'ERROR' });
+  assert.deepEqual(captured[1].result.cells, [{ key: 'r1:a', correct: true }]);
+  assert.deepEqual(captured[1].result.parts[0].cells, [{ key: 'r2:b', correct: false }]);
   assert.equal(
     await native.saveNativeProblemAttempts(db, 'user', { ...input, courseId: 'foreign' }),
     null,

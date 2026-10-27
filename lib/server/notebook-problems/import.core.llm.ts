@@ -1,3 +1,5 @@
+import { verifyImportedTableDrafts } from './table-verify';
+import { tableAnswerKeys, tableCellKey } from '@/lib/problem-bank/table-problem';
 import type { LanguageModel } from 'ai';
 import { jsonrepair } from 'jsonrepair';
 import { callLLM } from '@/lib/ai/llm';
@@ -169,6 +171,24 @@ export function draftHasCompleteAnswer(draft: NotebookProblemImportDraft): boole
               !/\.replace\s*\($/.test(answer.trim()),
           ),
       )
+    );
+  }
+  if (draft.grading.type === 'table') {
+    if (draft.publicContent.type !== 'table') return false;
+    const keys = tableAnswerKeys(draft.publicContent);
+    const cells = new Map(
+      draft.grading.cells.map((cell) => [tableCellKey(cell.rowId, cell.colId), cell] as const),
+    );
+    return (
+      keys.length > 0 &&
+      keys.every((key) => {
+        const cell = cells.get(key);
+        return Boolean(
+          cell &&
+          (cell.acceptedAnswers.some((answer) => answer.trim()) ||
+            (cell.matcher === 'run_check' && cell.check?.trim())),
+        );
+      })
     );
   }
   // Batch completeness only establishes that the model solved the problem.
@@ -572,7 +592,7 @@ export async function ensureImportedCodeDraftsJudgeReady(args: {
 }): Promise<{ drafts: NotebookProblemImportDraft[]; usage: ImportUsageSummary | null }> {
   const structure = await repairGeneratedStructure(args);
   let drafts = await annotateCodeDraftVerification(
-    promoteFunctionImplementationDrafts(structure.drafts),
+    await verifyImportedTableDrafts(promoteFunctionImplementationDrafts(structure.drafts)),
   );
   const failedCodeDrafts = drafts.filter(
     (draft) =>
@@ -590,7 +610,7 @@ export async function ensureImportedCodeDraftsJudgeReady(args: {
 
 平台契约：
 - code 支持函数和 class 实现，包括在函数内部使用 regex。AI 必须一起生成完整的 publicContent.starterCode（必要 imports、接口和 docstring）、grading.solutionCode、publicContent.publicTestCode 和 secretJudge.secretTestCode。后两项是完整 Python unittest 文件字符串；公开至少 2 个 test_ 方法，隐藏至少 3 个，覆盖正常、边界和错误实现。平台将完整提交保存为 submission.py；AI 在测试中写 import unittest 和 from submission import 题目接口名，接口名必须与初始代码及参考实现一致。需要 re/typing 时 AI 在使用它们的文件中导入。不要生成 expression/expected 测试数组，不要生成 pytest，不依赖第三方包。测试可实例化对象、检查状态、异常和返回值；禁止空测试、skip 或 expectedFailure。参考实现必须通过所有测试，初始空实现必须被测试拒绝。
-- 不支持 input、stdin、print 输出判分或文件读写。如果原题使用这些接口，等价改写函数签名和题面，保留核心考点。
+- 读文件、写文件和 input() 用 publicContent.files / secretJudge.files / publicContent.stdin 保留原题接口，测试里打开文件或替换 input；只有 print 判分需要改成 return 或在测试里捕获输出。
 - starterCode 必须包含参数与返回类型注解、完整 docstring 和 pass；题面必须使用 LeetCode 式 statementSections，覆盖描述、要求、接口、示例和约束。
 - 测试覆盖普通情况、边界情况和容易写错的情况；public 与 secret 不重复。
 - publicContent.sampleIO 必须有至少 2 个示例：input 是可直接对参考实现执行的单行 Python 表达式（不是自然语言、JSON 参数对象或 >>> 提示符），output 是结果的 Python repr，explanation 解释行为。覆盖正常和边界情况，保留原题示例；不得复制隐藏测试到公开示例。平台会逐个执行示例，结果必须匹配。
@@ -612,7 +632,7 @@ Return minimal patches:
 
 Contract:
 - Code supports function and class implementations, including regex used inside functions. Generate publicContent.starterCode (imports, interface, docstrings), grading.solutionCode, publicContent.publicTestCode and secretJudge.secretTestCode together. Both test fields are complete Python unittest source strings with at least 2 public and 3 secret test_ methods. The platform saves the complete submission as submission.py. AI writes import unittest and from submission import the_interface_name in tests, matching starter and solution interfaces; AI includes re/typing imports in each file that uses them. Test object state, method sequences, exceptions and return values. Do not generate expression/expected arrays, pytest, third-party dependencies, empty tests, skips or expected failures. The reference must pass all tests; tests must reject the unimplemented starter. Cover valid, invalid and boundary examples.
-- stdin, input(), print-based grading, and file I/O are unsupported. Adapt those interfaces while preserving the assessed concept.
+- Keep file I/O and input() via publicContent.files / secretJudge.files / publicContent.stdin; tests open the files or patch input. Only print-based grading must become a return value or captured output in tests.
 - starterCode must contain annotated parameter and return types, a complete docstring, and pass. Use LeetCode-style statementSections for overview, requirements, interface, examples, and constraints.
 - Cover normal, boundary, and plausible wrong-answer cases. Public and secret tests must not duplicate each other.
 - Provide at least two sampleIO examples: input is a self-contained Python expression evaluated against the reference module (no >>> prefix or prose); output is its expected Python repr; explanation describes the behavior. Include normal and boundary inputs, preserve source examples, and never expose secret tests. All displayed examples are executed and must match.
@@ -1137,12 +1157,12 @@ Record the printed total points for every problem as points. Return: {"sourceSum
           ? `现在只处理下列 ${batch.length} 道顶层题：${batchOutline}
 请回到附件指定页面，完整转写印刷题面，并独立解出每道题。忽略学生手写、勾选、阅卷痕迹、得分和评分反馈；不得把它们当成标准答案。
 必须恰好返回 ${batch.length} 个题目草稿，顺序与目录一致；有 subparts 的条目输出一道 type="multipart" 大题（共享题干写在 stem，每个小问是 parts 里一项，各自题型和 grading.parts 答案）。每题 sourceMeta.scaffoldIndex 填对应 index，并保留目录中的原卷分值。
-每道题都必须有可判分答案。保持原题的作答方式与认知要求；代码输出预测和报错判断属于 code_reading，不得误做成代码编辑器题。代码题用于函数或 class 实现，AI 负责在初始代码、参考实现和测试文件中生成匹配的 imports 与接口，提供 LeetCode 式题面、带类型注解和 docstring 的 starterCode、完整 solutionCode、publicTestCode 和 secretTestCode 完整 unittest 文件，且参考答案能通过全部 unittest。input、stdin、print 判分和文件读写必须等价改写。
+每道题都必须有可判分答案。保持原题的作答方式与认知要求；代码输出预测和报错判断属于 code_reading，不得误做成代码编辑器题。代码题用于函数或 class 实现，AI 负责在初始代码、参考实现和测试文件中生成匹配的 imports 与接口，提供 LeetCode 式题面、带类型注解和 docstring 的 starterCode、完整 solutionCode、publicTestCode 和 secretTestCode 完整 unittest 文件，且参考答案能通过全部 unittest。读写文件和 input() 用 files / stdin 保留原题接口。docstring 题和代码里的填空用 code 的 template 空位；「Code → What is printed」类表格用 type="table"。
 只返回严格 JSON 数组。`
           : `Process only these ${batch.length} top-level problems: ${batchOutline}
 Return to the cited pages, transcribe the complete printed prompt, and independently solve every problem. Ignore handwriting, marked bubbles, grading marks, scores, and grader feedback; none is an answer source.
 Return exactly ${batch.length} drafts in the same order; an item with subparts becomes one type="multipart" problem (shared stem in stem, each subpart one entry in parts with its own type and grading.parts answer). Set sourceMeta.scaffoldIndex to the corresponding index and preserve the printed points from the outline.
-Every problem must have a gradable answer. Preserve the original response demand and cognitive load; code-output prediction and error diagnosis are code_reading, not code-editor tasks. Code supports function and class implementations with matching imports and interfaces, a LeetCode-style statement, annotated starterCode with a docstring, complete solutionCode, complete publicTestCode and secretTestCode unittest files, and a solution that passes all unittests. Equivalently adapt input(), stdin, print-based grading, and file I/O. Return a strict JSON array only.`;
+Every problem must have a gradable answer. Preserve the original response demand and cognitive load; code-output prediction and error diagnosis are code_reading, not code-editor tasks. Code supports function and class implementations with matching imports and interfaces, a LeetCode-style statement, annotated starterCode with a docstring, complete solutionCode, complete publicTestCode and secretTestCode unittest files, and a solution that passes all unittests. Keep file I/O and input() through files / stdin. Docstring tasks and blanks inside code use code template slots; "Code → What is printed" style tables use type="table". Return a strict JSON array only.`;
 
       let bestDrafts: NotebookProblemImportDraft[] = [];
       let batchUsage: ImportUsageSummary | null = null;

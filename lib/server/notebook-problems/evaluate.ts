@@ -17,12 +17,14 @@ import {
   isNotebookMultipartProblemRecord,
   isNotebookProofProblemRecord,
   isNotebookShortAnswerProblemRecord,
+  isNotebookTableProblemRecord,
   MULTIPART_PART_SUBMISSION_LIMIT,
   partPointShares,
   submittedPartAnswers,
 } from '@/lib/problem-bank';
 import { maxScoreForAttempt } from '@/lib/problem-bank/scoring-policy';
 import { parseNumericPair, parseNumericScalar } from '@/lib/problem-bank/numeric-answer';
+import { evaluateNotebookTableProblem } from '@/lib/server/notebook-problems/table-evaluate';
 
 function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -237,6 +239,10 @@ export async function evaluateNotebookNonCodeProblem(args: {
       model: args.model,
       language: args.language,
     });
+  }
+
+  if (isNotebookTableProblemRecord(problem)) {
+    return evaluateNotebookTableProblem({ problem, answer, language: args.language });
   }
 
   if (isNotebookChoiceProblemRecord(problem)) {
@@ -522,6 +528,7 @@ export async function evaluateNotebookMultipartProblem(args: {
         correct: graded.result.correct ?? null,
         feedback: graded.result.feedback,
         analysis: graded.result.analysis,
+        cells: graded.result.cells,
         gradedAt: now,
         submissions,
       };

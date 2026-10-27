@@ -10,6 +10,7 @@ import {
 } from '@/lib/problem-bank/use-part-formula-editor';
 import { PartTextAnswer, type PartEditorRegistration } from '@/lib/problem-bank/part-text-answer';
 import { InteractiveFillBlank } from './interactive-fill-blank';
+import { TableAnswerPanel } from './table-answer-panel';
 import { ProblemRichText } from './problem-rich-text';
 import {
   formatPartLabel,
@@ -27,6 +28,7 @@ import {
 type Locale = 'zh-CN' | 'en-US';
 
 const PART_TYPE_LABELS: Record<NotebookProblemPart['content']['type'], [string, string]> = {
+  table: ['表格题', 'Table'],
   choice: ['选择', 'Choice'],
   fill_blank: ['填空', 'Fill in'],
   calculation: ['计算', 'Calculation'],
@@ -118,8 +120,10 @@ function PartAnswerControl({
   onChange,
   onEditorReady,
   onEditorFocus,
+  result,
 }: {
   part: NotebookProblemPart;
+  result?: NotebookProblemPartResult;
   value: NotebookProblemPartAnswer;
   disabled: boolean;
   locale: Locale;
@@ -161,6 +165,22 @@ function PartAnswerControl({
           </label>
         ))}
       </div>
+    );
+  }
+  if (content.type === 'table') {
+    return (
+      <TableAnswerPanel
+        content={content}
+        values={value.cells ?? {}}
+        disabled={disabled}
+        locale={locale}
+        results={
+          result?.cells ? new Map(result.cells.map((cell) => [cell.key, cell.correct])) : null
+        }
+        onChange={(key, text) =>
+          onChange({ ...value, cells: { ...(value.cells ?? {}), [key]: text } })
+        }
+      />
     );
   }
   if (content.type === 'fill_blank') {
@@ -307,6 +327,7 @@ export function MultipartAnswerPanel({
             </header>
             <PartAnswerControl
               part={part}
+              result={result}
               onEditorReady={formulaEditor.registerEditor}
               onEditorFocus={formulaEditor.activateEditor}
               value={draft}

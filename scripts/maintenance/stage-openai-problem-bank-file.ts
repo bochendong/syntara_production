@@ -31,6 +31,7 @@ function hasAnswer(draft: ExtractedDraft): boolean {
     );
   }
   if (grading.type === 'multipart') return grading.parts.length > 0;
+  if (grading.type === 'table') return grading.cells.length > 0;
   return Boolean(grading.solutionCode || grading.referenceAnswer);
 }
 

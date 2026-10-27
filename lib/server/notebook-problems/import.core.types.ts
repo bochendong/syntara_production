@@ -68,6 +68,7 @@ export interface ProblemStructureItem {
     | 'code'
     | 'fill_blank'
     | 'multipart'
+    | 'table'
     | 'unknown';
   pageStart?: number;
   pageEnd?: number;

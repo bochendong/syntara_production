@@ -455,6 +455,23 @@ export function syncNativeMemories(payload: NativeMemorySnapshot): Promise<Nativ
   });
 }
 
+export function gradeNativeCode(input: {
+  courseId: string;
+  problemId: string;
+  attemptId: string;
+  code: string;
+  language: 'zh-CN' | 'en-US';
+}): Promise<{
+  saved: boolean;
+  preview?: boolean;
+  replayed?: boolean;
+  status: 'passed' | 'partial' | 'failed' | 'pending' | 'error';
+  score: number | null;
+  result: { feedback?: string; [key: string]: unknown };
+}> {
+  return invokeJson('native_grade_code', { requestId: crypto.randomUUID(), payload: input });
+}
+
 /** 网页题库里 since 之后改过的题和做题进度；since 省略时取整门课。 */
 export function getNativeProblems(
   courseId: string,

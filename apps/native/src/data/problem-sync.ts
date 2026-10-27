@@ -137,9 +137,15 @@ function uploadOf(attempt: LocalProblemAttempt): NativeProblemAttemptUpload | nu
         ? { parts: answer.parts as NonNullable<NativeProblemAttemptUpload['answer']['parts']> }
         : {}),
       ...(typeof answer.code === 'string' ? { code: answer.code.slice(0, 120_000) } : {}),
+      ...(answer.cells && typeof answer.cells === 'object'
+        ? { cells: answer.cells as Record<string, string> }
+        : {}),
     },
     ...(Array.isArray(result.parts)
       ? { parts: result.parts as NonNullable<NativeProblemAttemptUpload['parts']> }
+      : {}),
+    ...(Array.isArray(result.cells)
+      ? { cells: result.cells as NonNullable<NativeProblemAttemptUpload['cells']> }
       : {}),
     feedback: typeof result.feedback === 'string' ? result.feedback.slice(0, 8000) : null,
     autoGraded: result.autoGraded === true,
