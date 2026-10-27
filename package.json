@@ -11,6 +11,8 @@
     "dev": "node scripts/workers/start-with-worker.mjs --dev",
     "build": "node scripts/deploy/run-vercel-migrations.mjs && prisma generate && node scripts/deploy/build-native-web.mjs && next build --webpack && node scripts/maintenance/verify-python-build.mjs",
     "start": "node scripts/workers/start-with-worker.mjs",
+    "staging:admin": "node scripts/staging-admin/start.mjs",
+    "staging:course": "node scripts/staging-admin/cli.mjs",
     "worker:ai": "node scripts/workers/ai-worker.mjs",
     "lint": "eslint",
     "lint:changed": "node scripts/maintenance/check-changed-lint.mjs",

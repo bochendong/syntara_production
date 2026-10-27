@@ -2495,6 +2495,7 @@ export async function getCourseProblemForUser(
       courseId: row.courseId ?? row.notebook?.courseId ?? courseId,
       notebookId: row.notebookId,
       notebookName: row.notebook?.name ?? undefined,
+      chapterId: row.chapterId,
       title: row.title,
       type: row.type,
       status: row.status,
@@ -3173,6 +3174,8 @@ export async function updateCourseProblem(args: {
   userId: string;
   courseId: string;
   problemId: string;
+  /** Internal reviewed-content callers can retain exact Markdown and private answers. */
+  preservePreparedContent?: boolean;
   patch: {
     notebookId?: string | null;
     chapterId?: string | null;
@@ -3254,6 +3257,7 @@ export async function updateCourseProblem(args: {
       }),
     ),
     args.patch.order ?? current.problem.order,
+    args.preservePreparedContent === true,
   );
 
   const updated = (await prismaDb.$transaction(async (tx: Prisma.TransactionClient) => {
