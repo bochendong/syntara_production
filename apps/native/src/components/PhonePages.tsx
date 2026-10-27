@@ -33,6 +33,7 @@ import {
   resolveNativeCourseAvatar,
 } from '../assets';
 import { getLocalRepository } from '../data/repository';
+import { groupNotebookTranslations, notebookProgressCount } from '../lib/notebook-translations';
 import { loadNativeAuthSession, logoutNativeAuthSession } from '../data/native-auth';
 import {
   getNativeMiniLecturePage,
@@ -176,11 +177,6 @@ function formatAgo(timestamp: number): string {
   if (days < 30) return `${days} 天前`;
   if (days < 365) return `${Math.floor(days / 30)} 个月前`;
   return `${Math.floor(days / 365)} 年前`;
-}
-
-function sortNotebooks(notebooks: LocalNotebook[]): LocalNotebook[] {
-  // 按笔记本编号排列（01 → 11），编号相同时按名称。
-  return [...notebooks].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN', { numeric: true }));
 }
 
 /** iPhone 二级页面：玻璃顶栏 + 返回按钮，内容从顶栏下面滚过去。 */
@@ -881,9 +877,9 @@ export function PhoneProgressPage({
   onBack: () => void;
   onUpload?: () => void;
 }) {
-  const ordered = useMemo(() => sortNotebooks(notebooks), [notebooks]);
+  const ordered = useMemo(() => groupNotebookTranslations(notebooks), [notebooks]);
   const total = ordered.length;
-  const completed = Math.min(total, Math.max(0, learningState?.completedNotebookCount ?? 0));
+  const completed = notebookProgressCount(notebooks, learningState);
   const percent = total ? Math.round((completed / total) * 100) : 0;
   const [tubeFlat, setTubeFlat] = useState(false);
 

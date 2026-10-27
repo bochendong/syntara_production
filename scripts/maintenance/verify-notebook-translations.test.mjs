@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import ts from 'typescript';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 const moduleUrl = (source) =>
@@ -85,6 +87,65 @@ test('progress counts each bilingual lecture once and maps either existing check
   assert.equal(checkpointProgressCount(all, 'notebook', 'en-2'), 2);
   assert.equal(checkpointProgressCount(all, 'completed_all', null), 2);
   assert.equal(checkpointProgressCount(all, 'not_started', null), 0);
+});
+
+test('the active progress page renders one row per lecture and restores an English checkpoint', () => {
+  const source = read('apps/native/src/components/PhonePages.tsx');
+  const ast = ts.createSourceFile(
+    'PhonePages.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const component = ast.statements.find(
+    (node) => ts.isFunctionDeclaration(node) && node.name?.text === 'PhoneProgressPage',
+  );
+  assert.ok(component);
+  const compiled = ts.transpileModule(component.getText(ast).replace('export ', ''), {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.React,
+    },
+  }).outputText;
+  const frame = ({ children }) => React.createElement('div', null, children);
+  const stub = () => null;
+  const bindings = {
+    React,
+    useMemo: React.useMemo,
+    useState: React.useState,
+    Suspense: React.Suspense,
+    groupNotebookTranslations,
+    notebookProgressCount,
+    PhonePage: frame,
+    MarbleTube3D: stub,
+    progressMarble: () => '/marble.png',
+    PROGRESS_MARBLE_COLORS: [],
+    Check: stub,
+    BookOpen: stub,
+    RotateCcw: stub,
+  };
+  const Page = new Function(...Object.keys(bindings), `${compiled}; return PhoneProgressPage;`)(
+    ...Object.values(bindings),
+  );
+  const notebooks = Array.from({ length: 12 }, (_, i) => [
+    notebook(`en-${i}`, 'en', i + 1),
+    notebook(`zh-${i}`, 'zh-CN', i + 1),
+  ]).flat();
+  const html = renderToStaticMarkup(
+    React.createElement(Page, {
+      notebooks,
+      learningState: { completedNotebookCount: 16, currentNotebookId: 'en-3' },
+      onBack: stub,
+      onOpenNotebook: stub,
+      onProgressChange: stub,
+    }),
+  );
+  assert.match(html, /已学完 4 \/ 12 本笔记/);
+  assert.equal((html.match(/class="phone-progress-mark"/g) ?? []).length, 12);
+  assert.equal((html.match(/aria-pressed="true"/g) ?? []).length, 4);
+  assert.doesNotMatch(html, /\[EN\]|\[中文\]/);
 });
 
 test('sync exposes only source-verified language metadata and preserves readable IDs', async () => {
