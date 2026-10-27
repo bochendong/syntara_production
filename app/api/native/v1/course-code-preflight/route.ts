@@ -47,10 +47,15 @@ export async function POST(request: NextRequest) {
       return publicApiError(requestId, 429, 'invalid_request', 'Preflight is busy; retry later.');
     inFlight++;
     try {
-      const result = await validateCodeQuestion(input, {
-        userId: principal.userId,
-        keyId: principal.keyId,
-      });
+      const result = await validateCodeQuestion(
+        input,
+        { userId: principal.userId, keyId: principal.keyId },
+        {
+          id: access.course.id,
+          name: access.course.name,
+          courseCode: access.course.courseCode,
+        },
+      );
       return publicApiSuccess(requestId, result, {
         headers: { 'Cache-Control': 'private, no-store' },
       });

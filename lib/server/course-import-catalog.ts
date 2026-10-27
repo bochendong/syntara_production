@@ -65,6 +65,7 @@ export async function getBackendImportCourseContext(
       id: true,
       ownerId: true,
       name: true,
+      courseCode: true,
       language: true,
       description: true,
       tags: true,

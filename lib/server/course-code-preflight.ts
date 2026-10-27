@@ -6,6 +6,7 @@ import {
 } from '@/lib/problem-bank/schema';
 import { assembleCodeFromSlots, codeSlotTemplateFor } from '@/lib/problem-bank/code-slots';
 import { codeReferenceSolution } from '@/lib/problem-bank/code-readiness';
+import type { NotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 import {
   judgeNotebookCodeProblem,
   verifyNotebookCodeDraftReferenceAnswer,
@@ -94,6 +95,7 @@ export function verifyCodePreflight(
 export async function validateCodeQuestion(
   input: z.infer<typeof codePreflightSchema>,
   actor: { userId: string; keyId: string },
+  courseIdentity?: NotebookProblemCourseIdentity,
 ) {
   const data = codePreflightSchema.parse(input);
   const draft = { ...data.draft, notebookId: null };
@@ -129,6 +131,7 @@ export async function validateCodeQuestion(
       userAnswer: { code },
       kind: 'submit',
       language: 'en-US',
+      courseIdentity,
     });
   }
   const referenceResult = await judge(codeReferenceSolution(draft));

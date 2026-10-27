@@ -149,7 +149,7 @@ node --test scripts/learn/import-course-problems.test.mjs
 
 ## 测试服代码题预检与写入
 
-`POST /api/native/v1/course-code-preflight` 在 staging 接受 `{courseId,draft,counterexamples:[{id,code,reason}]}`。调用者必须有该课程的现有导入授权；请求不能自定 owner、身份或授权。只支持 Python，至少 1、最多 2 个有代表性的错误实现。服务端用隔离 Python 判题器验证参考答案、样例、空实现及错误实现，不写题目、作答、学生进度或计费记录。参考答案必须通过；空实现和错误实现必须因测试失败而被拒绝，运行器故障不算成功预检。
+`POST /api/native/v1/course-code-preflight` 在 staging 接受 `{courseId,draft,counterexamples:[{id,code,reason}]}`。调用者必须有该课程的现有导入授权；请求不能自定 owner、身份或授权。只支持 Python，至少 1、最多 2 个有代表性的错误实现。服务端读取已授权课程的真实名称和 courseCode，沿用正式代码提交的课程规范检查，并用隔离 Python 判题器验证参考答案、样例、空实现及错误实现，不写题目、作答、学生进度或计费记录。参考答案必须通过；空实现和错误实现必须因测试失败而被拒绝，运行器故障不算成功预检。
 
 ```sh
 node scripts/learn/course-code-preflight.mjs \

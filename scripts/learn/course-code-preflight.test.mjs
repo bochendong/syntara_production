@@ -160,3 +160,20 @@ test('a candidate equivalent to the reference cannot obtain a proof', async () =
   assert.equal(result.incorrectRejected, false);
   assert.equal(result.proof, undefined);
 });
+
+test('preflight applies the authorized course contract used by student submissions', async () => {
+  const input = fixture();
+  const starter = 'def increment(x: int) -> int:\n    pass\n';
+  input.draft.publicContent.starterCode = starter;
+  input.draft.grading.solutionCode = starter.replace('    pass', '    return x + 1');
+  input.counterexamples[0].code = starter.replace('    pass', '    return x');
+  const result = await validateCodeQuestion(input, actor, {
+    id: 'course',
+    name: 'UTSG-CSC108Y',
+    courseCode: 'CSC108',
+  });
+  assert.equal(result.valid, false);
+  assert.equal(result.referencePassed, false);
+  assert.match(result.referenceResult.result.feedback, /contract checks failed/);
+  assert.equal(result.proof, undefined);
+});
