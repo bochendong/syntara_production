@@ -86,6 +86,7 @@ import {
 import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
 import './course-pages.css';
 import { GlassSpinner } from './GlassLoadMore';
+import type { PartFormulaHandle } from '../../../../lib/problem-bank/use-part-formula-editor';
 import { MultipartPractice } from './problem-bank/multipart-practice';
 import { LearningEmptyState } from './LearningEmptyState';
 import { ContentLanguageSwitch } from './ContentLanguageSwitch';
@@ -326,6 +327,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   );
   const [document, setDocument] = useState<LocalProblemDocument | null>(null);
   const textAnswerRef = useRef<HTMLTextAreaElement>(null);
+  const partFormulaRef = useRef<PartFormulaHandle>(null);
   const [answer, setAnswer] = useState<LocalProblemAnswer | null>(null);
   const draftRef = useRef<{ key: string; code: string; dirty: boolean } | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
@@ -429,6 +431,10 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     () => (displayedProblem && isMultipart ? multipartParts(displayedProblem) : []),
     [displayedProblem, isMultipart],
   );
+  const supportsFormulaReference =
+    answer?.kind === 'text' ||
+    (isMultipart &&
+      parts.some((part) => ['short_answer', 'calculation', 'proof'].includes(part.type)));
   const savedParts = useMemo(() => latestPartState(document), [document]);
   const solution = useMemo(
     () => (displayedProblem ? problemSolution(displayedProblem) : null),
@@ -1178,7 +1184,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   {difficultyLabel(currentProblem.difficulty)}
                 </small>
               </header>
-            ) : answer?.kind === 'text' ? (
+            ) : supportsFormulaReference ? (
               <header className="native-problem-practice-pane-tabs pp-statement-tabs">
                 <div className="pp-tabs" role="group" aria-label="题目参考内容">
                   <button
@@ -1212,10 +1218,31 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
               </header>
             )}
             <div className="native-problem-practice-pane-body native-problem-rich-scroll">
-              {leftTab === 'formulas' && answer?.kind === 'text' ? (
+              {leftTab === 'formulas' && supportsFormulaReference ? (
                 <FormulaReferencePanel
                   locale={language}
+                  insertionHint={
+                    isMultipart
+                      ? language === 'zh-CN'
+                        ? '先点击右侧要作答的小问，再点击「插入」；窄屏会插入当前小问。'
+                        : 'Focus the answer for the part on the right, then insert a formula. On narrow screens, formulas go to the visible part.'
+                      : undefined
+                  }
                   onInsert={(latex) => {
+                    if (isMultipart) {
+                      if (!partFormulaRef.current?.insertFormula(latex)) {
+                        setError(
+                          language === 'zh-CN'
+                            ? '请先切换到一个简答、计算或证明小问。'
+                            : 'Select a short-answer, calculation, or proof part first.',
+                        );
+                      } else {
+                        setError(null);
+                        setRightTab('answer');
+                      }
+                      return;
+                    }
+                    if (answer?.kind !== 'text') return;
                     const input = textAnswerRef.current;
                     const start = input?.selectionStart ?? answer.text.length;
                     const end = input?.selectionEnd ?? start;
@@ -1517,6 +1544,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                 <MultipartPractice
                   key={currentProblem.id}
                   parts={parts}
+                  formulaRef={partFormulaRef}
                   locale={language}
                   drafts={partDrafts}
                   saved={savedParts.answers}

@@ -1,5 +1,6 @@
 'use client';
 import { InteractiveFillBlank } from './interactive-fill-blank';
+import type { PartFormulaHandle } from '@/lib/problem-bank/use-part-formula-editor';
 import { MultipartAnswerPanel } from './multipart-answer-panel';
 import { buildCodeTestFile } from '@/lib/problem-bank/code-test-files';
 
@@ -531,6 +532,7 @@ function normalizePracticePaneTabs(
   hideEditTab = false,
   hideSolutionTab = false,
   supportsAiHelpTab = false,
+  supportsSymbolsTab = true,
 ): PracticePaneTabs {
   const nextTabs: PracticePaneTabs = {
     left: [...tabs.left],
@@ -569,7 +571,8 @@ function normalizePracticePaneTabs(
 
   if (supportsFormulaTab) {
     ensureLeftTabAfter(FORMULA_PRACTICE_TAB, 'description');
-    ensureLeftTabAfter('symbols', FORMULA_PRACTICE_TAB);
+    if (supportsSymbolsTab) ensureLeftTabAfter('symbols', FORMULA_PRACTICE_TAB);
+    else removeTab('symbols');
   } else {
     removeTab(FORMULA_PRACTICE_TAB);
     removeTab('symbols');
@@ -1529,6 +1532,7 @@ export function CourseProblemBankView({
     useState<NotebookProblemClientRecord | null>(null);
   const [activeFillBlankId, setActiveFillBlankId] = useState<string | null>(null);
   const fillBlankAnswerInputRef = useRef<HTMLTextAreaElement>(null);
+  const partFormulaRef = useRef<PartFormulaHandle>(null);
   const [practicePaneTabs, setPracticePaneTabs] = useState<PracticePaneTabs>(() => ({
     left: [...DEFAULT_PRACTICE_PANE_TABS.left],
     right: [...DEFAULT_PRACTICE_PANE_TABS.right],
@@ -1541,6 +1545,7 @@ export function CourseProblemBankView({
   const selectedProblemSupportsFormulaTab =
     !selectedProblem ||
     selectedProblem.type === 'fill_blank' ||
+    selectedProblem.type === 'multipart' ||
     supportsPhotoAnswer(selectedProblem);
   const editingProblemPaneSelected =
     canEditProblems && (practicePaneActive.left === 'edit' || practicePaneActive.right === 'edit');
@@ -1625,7 +1630,12 @@ export function CourseProblemBankView({
       ...previous,
       [visiblePracticePaneTabs.left.includes('answer') ? 'left' : 'right']: 'answer',
     }));
-    if (selectedProblem?.type === 'fill_blank') {
+    if (selectedProblem?.type === 'multipart') {
+      if (!partFormulaRef.current?.insertFormula(text))
+        toast.error(
+          locale === 'zh-CN' ? '请先点击一个文本作答小问。' : 'Focus a text-answer part first.',
+        );
+    } else if (selectedProblem?.type === 'fill_blank') {
       insertSymbolIntoActiveBlank(text);
     } else {
       insertFormulaIntoAnswer(text);
@@ -1716,6 +1726,7 @@ export function CourseProblemBankView({
     true,
     true,
     Boolean(practiceAiHelp),
+    selectedProblem?.type !== 'multipart',
   );
   const normalizedPracticePaneActive = normalizePracticePaneActive(
     practicePaneActive,
@@ -2344,7 +2355,17 @@ export function CourseProblemBankView({
             </div>
           </div>
         ) : tab === 'formula' ? (
-          <FormulaReferencePanel locale={locale} onInsert={insertMathIntoAnswer} />
+          <FormulaReferencePanel
+            locale={locale}
+            onInsert={insertMathIntoAnswer}
+            insertionHint={
+              selectedProblem?.type === 'multipart'
+                ? locale === 'zh-CN'
+                  ? '先点击右侧要作答的小问，再点击「插入」。'
+                  : 'Focus the answer for the part on the right, then insert a formula.'
+                : undefined
+            }
+          />
         ) : tab === 'symbols' ? (
           <MathSymbolPanel
             locale={locale}
@@ -2385,6 +2406,7 @@ export function CourseProblemBankView({
             {selectedProblem.type === 'multipart' &&
             selectedProblemContent?.type === 'multipart' ? (
               <MultipartAnswerPanel
+                formulaRef={partFormulaRef}
                 content={selectedProblemContent}
                 drafts={partAnswers[selectedProblem.id] ?? {}}
                 latestAttempt={

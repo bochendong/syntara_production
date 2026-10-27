@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { ChevronLeft, ChevronRight, CornerDownRight, SendHorizontal } from 'lucide-react';
 
 import {
@@ -16,8 +16,14 @@ import { marbleImages } from '../../lib/learning-action-marbles';
 import { GlassSpinner } from '../GlassLoadMore';
 import { STATUS_MARBLES } from './answer-sheet';
 import { ProblemRichText } from './problem-rich-text';
-import { FormulaReferencePanel } from './formula-reference-panel';
-import { PartTextAnswer } from '../../../../../lib/problem-bank/part-text-answer';
+import {
+  usePartFormulaEditor,
+  type PartFormulaHandle,
+} from '../../../../../lib/problem-bank/use-part-formula-editor';
+import {
+  PartTextAnswer,
+  type PartEditorRegistration,
+} from '../../../../../lib/problem-bank/part-text-answer';
 
 const PART_TYPE_LABELS: Record<LocalProblemPart['type'], string> = {
   choice: '选择',
@@ -73,13 +79,15 @@ function PartPrompt({
   onChange,
   disabled,
   locale,
+  onEditorReady,
+  onEditorFocus,
 }: {
   part: LocalProblemPart;
   answer: LocalPartAnswer;
   disabled: boolean;
   locale: 'zh-CN' | 'en-US';
   onChange: (next: LocalPartAnswer) => void;
-}) {
+} & PartEditorRegistration) {
   if (part.type === 'fill_blank') {
     const ids = partBlankIds(part);
     const numbered = part.prompt.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_match, raw: string) => {
@@ -155,8 +163,9 @@ function PartPrompt({
       <ProblemRichText content={part.prompt} className="text-[15px] leading-7 text-slate-800" />
       <PartTextAnswer
         disabled={disabled}
-        locale={locale}
-        FormulaReference={FormulaReferencePanel}
+        editorKey={part.label}
+        onEditorReady={onEditorReady}
+        onEditorFocus={onEditorFocus}
         label={
           locale === 'zh-CN'
             ? `小问 ${formatPartLabel(part.label)} 的解答`
@@ -188,6 +197,8 @@ function PartCard({
   submitting,
   onChange,
   onSubmit,
+  onEditorReady,
+  onEditorFocus,
 }: {
   part: LocalProblemPart;
   share: number;
@@ -199,7 +210,7 @@ function PartCard({
   submitting: boolean;
   onChange: (next: LocalPartAnswer) => void;
   onSubmit: () => void;
-}) {
+} & PartEditorRegistration) {
   const used = result?.submissions ?? 0;
   const limited = isAutoGradedPart(part);
   const exhausted = limited && used >= PART_SUBMISSION_LIMIT;
@@ -227,6 +238,8 @@ function PartCard({
         onChange={onChange}
         disabled={submitting}
         locale={locale}
+        onEditorReady={onEditorReady}
+        onEditorFocus={onEditorFocus}
       />
       {result?.feedback ? <p className={`mp-feedback is-${tone}`}>{result.feedback}</p> : null}
       <footer>
@@ -255,6 +268,7 @@ function PartCard({
 export function MultipartPractice({
   parts,
   locale = 'zh-CN',
+  formulaRef,
   drafts,
   saved,
   results,
@@ -266,6 +280,7 @@ export function MultipartPractice({
 }: {
   parts: LocalProblemPart[];
   locale?: 'zh-CN' | 'en-US';
+  formulaRef?: Ref<PartFormulaHandle>;
   drafts: Record<string, LocalPartAnswer>;
   /** 上一次交过的作答，打开题目时先显示它 */
   saved: Record<string, LocalPartAnswer>;
@@ -286,6 +301,15 @@ export function MultipartPractice({
   const [requestedPage, setPage] = useState(firstOpen);
   const page = Math.min(requestedPage, Math.max(0, parts.length - 1));
   const touchX = useRef<number | null>(null);
+  const formulaEditor = usePartFormulaEditor({
+    disabled: submitting,
+    visiblePartLabel: paged ? parts[page]?.label : undefined,
+    onInsertText: (label, text) =>
+      onChange(label, { ...(drafts[label] ?? saved[label] ?? {}), text }),
+  });
+  useImperativeHandle(formulaRef, () => ({ insertFormula: formulaEditor.insertFormula }), [
+    formulaEditor.insertFormula,
+  ]);
   const isDirty = (label: string) =>
     label in drafts &&
     partAnswerHasContent(drafts[label]) &&
@@ -322,6 +346,8 @@ export function MultipartPractice({
       part={part}
       share={shares[index]}
       locale={locale}
+      onEditorReady={formulaEditor.registerEditor}
+      onEditorFocus={formulaEditor.activateEditor}
       answer={drafts[part.label] ?? saved[part.label] ?? {}}
       dirty={isDirty(part.label)}
       result={resultOf(part.label)}

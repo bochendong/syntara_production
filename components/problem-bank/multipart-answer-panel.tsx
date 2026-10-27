@@ -3,8 +3,12 @@
 import { CheckCircle2, CornerDownRight, Loader2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { FormulaReferencePanel } from './course-problem-bank-helpers';
-import { PartTextAnswer } from '@/lib/problem-bank/part-text-answer';
+import { useImperativeHandle, type Ref } from 'react';
+import {
+  usePartFormulaEditor,
+  type PartFormulaHandle,
+} from '@/lib/problem-bank/use-part-formula-editor';
+import { PartTextAnswer, type PartEditorRegistration } from '@/lib/problem-bank/part-text-answer';
 import { InteractiveFillBlank } from './interactive-fill-blank';
 import { ProblemRichText } from './problem-rich-text';
 import {
@@ -112,13 +116,15 @@ function PartAnswerControl({
   disabled,
   locale,
   onChange,
+  onEditorReady,
+  onEditorFocus,
 }: {
   part: NotebookProblemPart;
   value: NotebookProblemPartAnswer;
   disabled: boolean;
   locale: Locale;
   onChange: (next: NotebookProblemPartAnswer) => void;
-}) {
+} & PartEditorRegistration) {
   const content = part.content;
   if (content.type === 'choice') {
     const selected = value.selectedOptionIds ?? [];
@@ -175,8 +181,9 @@ function PartAnswerControl({
     <div className="space-y-2">
       <ProblemRichText content={content.stem} />
       <PartTextAnswer
-        locale={locale}
-        FormulaReference={FormulaReferencePanel}
+        editorKey={part.label}
+        onEditorReady={onEditorReady}
+        onEditorFocus={onEditorFocus}
         label={
           locale === 'zh-CN'
             ? `小问 ${formatPartLabel(part.label)} 的解答`
@@ -207,6 +214,7 @@ function PartAnswerControl({
  */
 export function MultipartAnswerPanel({
   content,
+  formulaRef,
   drafts,
   latestAttempt,
   disabled,
@@ -216,6 +224,7 @@ export function MultipartAnswerPanel({
   onSubmit,
 }: {
   content: NotebookProblemPublicMultipart;
+  formulaRef?: Ref<PartFormulaHandle>;
   drafts: Record<string, NotebookProblemPartAnswer>;
   latestAttempt: NotebookProblemAttemptRecord | null;
   disabled: boolean;
@@ -227,6 +236,14 @@ export function MultipartAnswerPanel({
   const zh = locale === 'zh-CN';
   const results = latestAttempt?.result?.parts ?? [];
   const savedAnswers = latestAttempt?.answer.parts ?? {};
+  const formulaEditor = usePartFormulaEditor({
+    disabled: disabled || submitting,
+    onInsertText: (label, text) =>
+      onChangePart(label, { ...(drafts[label] ?? savedAnswers[label] ?? {}), text }),
+  });
+  useImperativeHandle(formulaRef, () => ({ insertFormula: formulaEditor.insertFormula }), [
+    formulaEditor.insertFormula,
+  ]);
   const shares = partPointShares(content.parts, 100);
   const dirtyLabels = content.parts
     .map((part) => part.label)
@@ -290,6 +307,8 @@ export function MultipartAnswerPanel({
             </header>
             <PartAnswerControl
               part={part}
+              onEditorReady={formulaEditor.registerEditor}
+              onEditorFocus={formulaEditor.activateEditor}
               value={draft}
               disabled={disabled || submitting || exhausted}
               locale={locale}
