@@ -43,6 +43,7 @@ export function middleware(request: NextRequest) {
       pathname === '/native-login' ||
       pathname === '/native-test' ||
       pathname === '/api/health' ||
+      pathname === '/api/quiz-grade' ||
       (!pathname.startsWith('/api/') && pathname.includes('.'));
     if (!allowed) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });

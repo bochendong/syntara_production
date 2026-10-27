@@ -10,8 +10,9 @@ const photo = await jiti.import('../../lib/problem-bank/photo-answer.ts');
 const code = ts.transpileModule(readFileSync('features/practice/server/grade-answer.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-function setup(replies) {
+function setup(replies, context) {
   const calls = [];
+  const contexts = [];
   const mocks = {
     './grading-response': parser,
     '@/lib/problem-bank/photo-answer': photo,
@@ -27,7 +28,13 @@ function setup(replies) {
     '@/lib/server/resolve-model': {
       resolveModelFromHeaders: async () => ({ model: { modelId: 'fixture' } }),
     },
-    '@/lib/server/request-context': { runWithRequestContext: (_request, _route, fn) => fn() },
+    '@/lib/server/request-context': {
+      getRequestContext: () => context,
+      runWithRequestContext: (_request, route, fn) => {
+        contexts.push(route);
+        return fn();
+      },
+    },
   };
   const mod = { exports: {} };
   new Function('require', 'module', 'exports', code)(
@@ -51,6 +58,7 @@ function setup(replies) {
         {},
       ),
     calls,
+    contexts,
   };
 }
 
@@ -139,4 +147,11 @@ test('illegible images do not trigger a second guessed assessment', async () => 
   };
   await assert.rejects(s.grade({ images: [image] }), /无法辨认/);
   assert.equal(s.calls.length, 1);
+});
+
+test('an already-authenticated native or bearer context is retained', async () => {
+  const s = setup(['{"score":90,"comment":"Valid proof."}'], { userId: 'native-user' });
+  assert.equal((await s.grade()).score, 90);
+  assert.equal(s.calls.length, 1);
+  assert.equal(s.contexts.length, 0);
 });

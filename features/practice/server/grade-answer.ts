@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 import { GradingResponseError, parseGradingJsonObject } from './grading-response';
 import { callLLM } from '@/lib/ai/llm';
 import { resolveModelFromHeaders } from '@/lib/server/resolve-model';
-import { runWithRequestContext } from '@/lib/server/request-context';
+import { getRequestContext, runWithRequestContext } from '@/lib/server/request-context';
 
 export interface GradeQuizAnswerInput {
   question: string;
@@ -110,7 +110,7 @@ export async function gradeQuizAnswer(
   const { model: languageModel } = await resolveModelFromHeaders(request);
   const { systemPrompt, userPrompt } = buildGradePrompts(input);
   const abortSignal = AbortSignal.timeout(105_000);
-  return runWithRequestContext(request, '/api/quiz-grade', async () => {
+  const runGrading = async () => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const result = await callLLM(
         {
@@ -166,5 +166,9 @@ export async function gradeQuizAnswer(
       }
     }
     throw new Error('Grading could not finish.');
-  });
+  };
+  // Native/bearer routes already authenticated the principal before entering this service.
+  return getRequestContext()?.userId
+    ? runGrading()
+    : runWithRequestContext(request, '/api/quiz-grade', runGrading);
 }

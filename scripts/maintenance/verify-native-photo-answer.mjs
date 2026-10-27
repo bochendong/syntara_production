@@ -63,7 +63,10 @@ const service = load('features/practice/server/grade-answer.ts', {
   '@/lib/server/resolve-model': {
     resolveModelFromHeaders: async () => ({ model: { modelId: 'test' } }),
   },
-  '@/lib/server/request-context': { runWithRequestContext: (_request, _route, fn) => fn() },
+  '@/lib/server/request-context': {
+    getRequestContext: () => undefined,
+    runWithRequestContext: (_request, _route, fn) => fn(),
+  },
 });
 await service.gradeQuizAnswer(
   { question: 'Q', userAnswer: '见附图', points: 10, images: [image] },
