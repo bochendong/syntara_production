@@ -1,0 +1,60 @@
+{
+  "source": "e260ae3b228cf9632c76f92784685570f4a13064",
+  "scope": ["native/browser multipart practice", "web multipart answer panel"],
+  "partTypes": ["short_answer", "calculation", "proof"],
+  "databaseChanges": false,
+  "desktopInstallerRebuilt": false,
+  "validation": {
+    "formatLintRootNativeTypes": "passed",
+    "nextProductionBuild": "passed",
+    "nativeStagingBuild": "passed",
+    "multipartRegressionTests": {
+      "passed": 5,
+      "failed": 0
+    },
+    "browserFixtures": [
+      "both real multipart answer components render per-part symbol palettes",
+      "selection replacement ABCD -> A∀D",
+      "cursor restored to answer after inserted symbol",
+      "sibling answer remains unchanged",
+      "web proof insertion second draft -> second draft∃",
+      "English labels",
+      "disabled input and disabled symbol buttons",
+      "390px native pager: insert symbol, next/previous retains draft"
+    ],
+    "initialVerificationRetry": "Initial typecheck overlapped next build regenerating .next/types and reported missing generated files; rerun after build completed passed."
+  },
+  "deploymentId": "1f1e81eb-df1a-4cf3-882c-0ab2572591e2",
+  "status": "SUCCESS",
+  "verifiedAt": "2026-10-27T00:40:44.382148+00:00",
+  "assets": [
+    {
+      "path": "/native-web/assets/index-Df6ySkMd.js",
+      "bytes": 1685999,
+      "sha256": "6e2c75fe017cc0b8576517ceb81ae562f77c50dabcf27e73f069932e998c3744",
+      "liveSha256": "6e2c75fe017cc0b8576517ceb81ae562f77c50dabcf27e73f069932e998c3744",
+      "matches": true
+    },
+    {
+      "path": "/native-web/assets/index-DJrTqt03.css",
+      "bytes": 378744,
+      "sha256": "8ff1a93a712e110c2280314afdf34c65cd652ec8c18657d679b2d2750a5130a4",
+      "liveSha256": "8ff1a93a712e110c2280314afdf34c65cd652ec8c18657d679b2d2750a5130a4",
+      "matches": true
+    }
+  ],
+  "liveVerification": {
+    "course": "MAT102",
+    "question": "TT2 I LA04 revised, mathematical induction 30/31",
+    "editors": 2,
+    "palettes": 2,
+    "symbolGroups": 7,
+    "symbols": 132,
+    "englishLabelsAndGroups": true,
+    "draftsUnchangedAfterPaletteAndLanguageSwitch": true,
+    "katexErrors": 0,
+    "attemptSubmitted": false,
+    "entry": "/native-web/assets/index-Df6ySkMd.js"
+  },
+  "screenshot": "multipart-symbols-staging.png"
+}
