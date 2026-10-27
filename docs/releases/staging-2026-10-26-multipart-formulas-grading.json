@@ -1,0 +1,128 @@
+{
+  "source": "137cda4675ddbfa4027682f2abfa4588402d4382",
+  "databaseChanges": false,
+  "desktopInstallerRebuilt": false,
+  "ui": "Use the original formula sheet in the left reference pane. Right multipart cards contain plain answer inputs; formulas target the focused text answer on wide screens and the visible part on narrow screens.",
+  "grading": "Repair complete JSON objects with raw LaTeX/newlines, preserve escaped math, strict score/comment validation, one format retry within a shared 105-second deadline. Truncated outputs and unreadable images cannot become guessed grades.",
+  "validation": {
+    "multipartRegressionTests": {
+      "passed": 5,
+      "failed": 0
+    },
+    "nativePhotoRegression": "passed",
+    "formatLintRootNativeTypes": "passed",
+    "nextProductionBuild": "passed",
+    "nativeStagingBuild": "passed",
+    "gradingAndRouteTests": {
+      "passed": 21,
+      "failed": 0
+    },
+    "restoredApiFormatLint": "passed after a test-loader variable lint fix",
+    "restoredApiRootTypes": "passed",
+    "restoredApiProductionBuild": "passed",
+    "leftPane": {
+      "nativeWideSelection": "ABCD -> A$\\frac{a}{b}$D; focus and selection restored",
+      "nativeOtherPart": "second draft -> second draft$\\sqrt{x}$; first part unchanged",
+      "webThirdPart": "limit inserted only into calculation part c",
+      "narrowVisiblePart": "without focusing part b after navigation, formula inserted only into visible b; a remained ABCD",
+      "formatLintRootNativeTypes": "passed",
+      "productionBuild": "passed",
+      "nativeBuild": "passed",
+      "gradingRouteAndMultipartTests": {
+        "passed": 26,
+        "failed": 0
+      }
+    },
+    "liveBackendUnchangedInLayoutCommit": true,
+    "allGradingRouteMultipartTests": {
+      "passed": 26,
+      "failed": 0
+    }
+  },
+  "userCredentialChoice": "Reuse existing staging OpenAI configuration; no credential changes.",
+  "deploymentId": "ae7614b3-1bec-485b-9474-727a90159ace",
+  "status": "SUCCESS",
+  "assets": [
+    {
+      "path": "/native-web/assets/index-CfLahRQP.js",
+      "bytes": 1685668,
+      "sha256": "923ea8249aa28b88309b149913800aed41728093732c0ef380900c798d0a513c",
+      "liveSha256": "923ea8249aa28b88309b149913800aed41728093732c0ef380900c798d0a513c",
+      "matches": true
+    },
+    {
+      "path": "/native-web/assets/index-CRSc6w_J.css",
+      "bytes": 377437,
+      "sha256": "69e46608a521112d84ab5f379be5e0aa3365115debe9c1f49c2df63f97506769",
+      "liveSha256": "69e46608a521112d84ab5f379be5e0aa3365115debe9c1f49c2df63f97506769",
+      "matches": true
+    }
+  ],
+  "genericGrading": "Restore /api/quiz-grade on staging using the existing native account gate or same-origin admin session; retain signed-in production web learners. Strip unrecognized model/key fields and validate request bounds.",
+  "qaPage": "Staging-only static page uses existing Google browser authentication to POST two synthetic samples to /api/native/v1/grade without creating problem attempts.",
+  "liveGrading": {
+    "verifiedSource": "137cda4675ddbfa4027682f2abfa4588402d4382",
+    "generic": [
+      {
+        "case": "short-answer-latex",
+        "endpoint": "/api/quiz-grade",
+        "status": 200,
+        "validAssessment": true,
+        "score": 10,
+        "maxScore": 10,
+        "comment": "答案正确且结论明确，直接引用了弧度制下的标准极限，完整回答了题目要求。",
+        "seconds": 1.84,
+        "problemAttemptCreated": false
+      },
+      {
+        "case": "multipart-proof-equivalent",
+        "endpoint": "/api/quiz-grade",
+        "status": 200,
+        "validAssessment": true,
+        "score": 100,
+        "maxScore": 100,
+        "comment": "The proof is correct and complete: surjectivity supplies preimages x and y, and applying f^{\\circ(n-2)} followed by the hypothesis f^{\\circ n}=f yields a=b. The explicit treatment of the n=2 case via f^{\\circ 0}=\\mathrm{id} is also appropriate.",
+        "seconds": 3.47,
+        "problemAttemptCreated": false
+      }
+    ],
+    "native": [
+      {
+        "name": "简答 · LaTeX 极限",
+        "status": 200,
+        "passed": true,
+        "score": 10,
+        "maxScore": 10,
+        "comment": "答案正确，直接引用弧度制下的标准极限，结论与题意完全一致。",
+        "seconds": 1.63,
+        "problemAttemptCreated": false
+      },
+      {
+        "name": "证明 · 复合函数",
+        "status": 200,
+        "passed": true,
+        "score": 100,
+        "maxScore": 100,
+        "comment": "The proof is correct and complete. Surjectivity supplies preimages of a and b, and applying f^{\\circ(n-2)} followed by the relation f^{\\circ n}=f correctly yields a=b, proving injectivity.",
+        "seconds": 2.31,
+        "problemAttemptCreated": false
+      }
+    ],
+    "anonymousGenericStatus": 401,
+    "attemptsCreated": false
+  },
+  "verifiedAt": "2026-10-27T04:41:37.936042+00:00",
+  "liveFrontend": {
+    "course": "MAT102",
+    "question": "Mathematical induction 30/31, TT2 I LA04 revised",
+    "descriptionAndFormulaTabsOnLeft": true,
+    "formulaSheetRightEdge": 633.3984375,
+    "answerLeftEdge": 700.3984375,
+    "inlineFormulaTools": 0,
+    "katexErrors": 0,
+    "insertedFractionOnlyIntoPartII": true,
+    "originalEmptyDraftsRestored": true,
+    "attemptSubmitted": false
+  },
+  "screenshots": ["multipart-formulas-left-staging.png", "native-grading-smoke-staging.png"]
+}
