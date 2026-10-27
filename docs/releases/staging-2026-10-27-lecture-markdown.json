@@ -1,0 +1,87 @@
+{
+  "date": "2026-10-27",
+  "applicationCommit": "608bd04aba14b533cf27c5a2d63966e0961e363c",
+  "applicationTree": "9913670ae2d0111aae795eb5cb2f4332dc99b6c7",
+  "deployment": {
+    "id": "48a7103f-6073-4df4-a2ad-c997fd9ad5fc",
+    "environment": "staging",
+    "service": "native-api-staging",
+    "status": "SUCCESS"
+  },
+  "problem": [
+    "Inverse-function lecture lists showed literal strong markers when paired ** delimiters enclosed boundary spaces.",
+    "Standalone single-line $$ equations were parsed as inline math, so KaTeX rejected the Sigma equation tag."
+  ],
+  "implementation": {
+    "displayTimeNormalizer": "lib/markdown/lecture-markdown.ts",
+    "readers": [
+      "apps/native/src/components/LocalResourceViewer.tsx",
+      "components/stage/markdown-notebook-reader.tsx",
+      "components/stage/scene-renderer.tsx"
+    ],
+    "behavior": [
+      "Move whitespace outside paired strong delimiters.",
+      "Place standalone single-line display equations on separate delimiter lines."
+    ],
+    "preserves": [
+      "Fenced and indented code",
+      "Inline code",
+      "Existing inline and multiline math",
+      "Escaped literal asterisks",
+      "HTML code/pre/script/style blocks"
+    ],
+    "storedCourseContentChanged": false,
+    "databaseMigrations": false,
+    "chatStreamingChanged": false
+  },
+  "validation": {
+    "regressionCommand": "node --test scripts/maintenance/verify-lecture-markdown-rendering.test.mjs",
+    "regressionTestsPassed": 4,
+    "formatLintRootAndNativeTypes": "pnpm verify:local: PASS after Next generated next-env.d.ts; the initial root check reported seven static-image typing errors before that generated declaration existed.",
+    "nativeWebBuild": "PASS (staging / google-test)",
+    "nextWebpackBuild": "PASS",
+    "pythonBuildTraces": "PASS (6 judging functions)",
+    "actualStagingInductionArchive": {
+      "sections": 6,
+      "displayEquationsAfterNormalization": 26,
+      "mathErrorsAfterNormalization": 0,
+      "sourceFetchedReadOnly": true
+    },
+    "visualFixture": {
+      "viewports": [
+        {
+          "width": 1440,
+          "height": 1100
+        },
+        {
+          "width": 390,
+          "height": 1600
+        }
+      ],
+      "nativeLectureTypography": true,
+      "mathFontLoaded": true,
+      "mathErrors": 0,
+      "numberedEquations": 2,
+      "documentOverflow": false,
+      "scope": "Local static rendering using the real Streamdown math plugin; screenshot-derived inverse-function text and actual staging Sigma section. Authenticated live reader interaction was not performed."
+    },
+    "reactReview": "No new dependencies, effects, network requests or state; pure display transformation shared by lecture readers.",
+    "nativeMacInstallerRepackaged": false,
+    "liveReadback": {
+      "appGateway": "/test/app",
+      "health": "/api/health: HTTP 200 staging",
+      "asset": "/native-web/assets/index-DX1ZQ4l2.js",
+      "assetSha256": "2e7facad563dcbc944739aa31b6bfcc56081927d062b54ee25f34364176a637d",
+      "matchesLocallyVerifiedNativeBundle": true,
+      "helperCalls": 1,
+      "inverseBoldPassed": true,
+      "stagingArchiveUnchanged": true,
+      "sections": 6,
+      "displayEquations": 26,
+      "taggedSigmaEquations": 2,
+      "mathErrors": 0
+    }
+  },
+  "userConfirmedTarget": "Staging website",
+  "verifiedAt": "2026-10-27T16:55:12.538Z"
+}
