@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createConnection, createServer } from 'node:net';
 import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile, unlink, chmod } from 'node:fs/promises';
@@ -50,9 +50,35 @@ const tunnel = spawn(
 );
 let api;
 let cleaned = false;
+let ownedTunnelPids = [];
+function tunnelListeners() {
+  try {
+    return execFileSync('lsof', ['-t', `-iTCP:${tunnelPort}`, '-sTCP:LISTEN'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .trim()
+      .split(/\s+/)
+      .map(Number)
+      .filter((pid) => Number.isSafeInteger(pid) && pid > 1);
+  } catch {
+    return [];
+  }
+}
 async function cleanup(code) {
   if (cleaned) return;
   cleaned = true;
+  // Railway's SSH child can start its own session; remember only the listener
+  // created after our free-port check, rather than killing an arbitrary port owner.
+  const listeners = tunnelListeners();
+  for (const pid of ownedTunnelPids) {
+    if (!listeners.includes(pid)) continue;
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch {
+      /* Already stopped. */
+    }
+  }
   for (const child of [api, tunnel]) {
     if (!child?.pid) continue;
     try {
@@ -96,6 +122,7 @@ if (!connected) {
   console.error('Could not start the staging database tunnel.');
   await cleanup(1);
 }
+ownedTunnelPids = tunnelListeners();
 api = spawn(
   'pnpm',
   [
