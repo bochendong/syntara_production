@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>批改接口验收 · 测试服</title>
+    <style>
+      body {
+        font:
+          16px/1.7 system-ui,
+          sans-serif;
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 0 20px;
+        color: #0f172a;
+        background: #f8fafc;
+      }
+      button {
+        min-height: 44px;
+        padding: 10px 20px;
+        border: 0;
+        border-radius: 10px;
+        background: #0f172a;
+        color: white;
+        font: inherit;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+      }
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        background: white;
+        padding: 20px;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>批改接口验收 · 测试服</h1>
+    <p>
+      使用当前 Google 测试账号，发送一个简答和一个证明样例到原生批改接口。会调用现有 AI
+      配置；不会创建题目、作答记录或学习进度。
+    </p>
+    <p><a href="/test/app">返回测试版 App</a></p>
+    <button id="run" type="button">运行两项批改测试</button>
+    <p id="status" role="status">等待运行</p>
+    <pre id="results" aria-label="批改测试结果">[]</pre>
+    <script type="module">
+      const fixtures = [
+        {
+          name: '简答 · LaTeX 极限',
+          question: String.raw`Evaluate $\lim_{x\to0}\frac{\sin x}{x}$ in radians.`,
+          userAnswer: String.raw`The limit is $1$, by the standard sine limit $\lim_{x\to0}\sin(x)/x=1$.`,
+          points: 10,
+          questionType: 'short_answer',
+          language: 'zh-CN',
+        },
+        {
+          name: '证明 · 复合函数',
+          question: String.raw`Let f:S\to S be surjective and suppose f^{\circ n}=f for an integer n\ge2. Prove that f is injective.`,
+          userAnswer: String.raw`Let a,b in S satisfy f(a)=f(b). By surjectivity choose x,y with f(x)=a and f(y)=b. Then f^2(x)=f^2(y). Applying f^{n-2}, using f^0=id if n=2, yields f^n(x)=f^n(y). Since f^n=f, we get a=f(x)=f(y)=b. Thus f is injective.`,
+          points: 100,
+          questionType: 'proof',
+          language: 'en-US',
+        },
+      ];
+      const button = document.querySelector('#run');
+      const status = document.querySelector('#status');
+      const output = document.querySelector('#results');
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        const rows = [];
+        output.textContent = '[]';
+        try {
+          for (const { name, ...payload } of fixtures) {
+            status.textContent = `正在批改：${name}`;
+            const started = performance.now();
+            const response = await fetch('/api/native/v1/grade', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              signal: AbortSignal.timeout(115000),
+            });
+            const envelope = await response.json();
+            const result = envelope.data;
+            const passed =
+              response.ok &&
+              Number.isInteger(result?.score) &&
+              result.score >= 0 &&
+              result.score <= payload.points &&
+              typeof result.comment === 'string' &&
+              result.comment.trim().length > 0;
+            rows.push({
+              name,
+              status: response.status,
+              passed,
+              score: result?.score ?? null,
+              maxScore: payload.points,
+              comment: result?.comment ?? envelope.error?.message ?? '无有效评语',
+              seconds: Math.round((performance.now() - started) / 10) / 100,
+              problemAttemptCreated: false,
+            });
+            output.textContent = JSON.stringify(rows, null, 2);
+            if (!passed) throw new Error(envelope.error?.message ?? `${name}返回了无效评分`);
+          }
+          status.textContent = '通过 2/2；没有创建题目作答记录。';
+        } catch (error) {
+          status.textContent = `验收失败：${error.message}`;
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
