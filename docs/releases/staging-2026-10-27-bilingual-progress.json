@@ -1,0 +1,38 @@
+{
+  "source": "fb5c55acdda550bf8db747808c0b360f6e49f456",
+  "deploymentId": "85ff5f6f-b166-415f-b33c-d7fd46a7d6bc",
+  "status": "SUCCESS",
+  "verifiedAt": "2026-10-27T06:37:40.321088+00:00",
+  "scope": [
+    "Count exactly matched bilingual notebook editions as one lecture in both progress components and native/server synchronization",
+    "Map existing checkpoints from either language and include both completed editions in AI context while excluding future lectures"
+  ],
+  "checks": {
+    "localVerification": "PASS",
+    "nativeAndNextBuild": "PASS",
+    "regressionTests": 14,
+    "courseChatScenarios": 15,
+    "liveCourseMetadata": {
+      "editions": 24,
+      "lectures": 12,
+      "pairs": 12
+    },
+    "liveBrowser": "MAT102 shows 0 / 12 notebooks and 12 rows; no progress modified",
+    "assets": [
+      {
+        "path": "/native-web/assets/index-D9icKlRE.js",
+        "sha256": "edeb6b9b702946868d29212de3bb0320209b72ce22e1eff578c034dfad2a65c7",
+        "match": true
+      },
+      {
+        "path": "/native-web/assets/index-D4rqQ1TL.css",
+        "sha256": "d59ba274add76838069984a74ad47481a6e8c23a924f9828507180d746dc346d",
+        "match": true
+      }
+    ]
+  },
+  "migration": "none added",
+  "dataChanges": "none; stored editions and learner checkpoints preserved",
+  "desktopInstaller": "unchanged",
+  "verificationNote": "The first deployment c8c3b9f3 passed helper tests but missed the active PhoneProgressPage. This final source includes that component and a real render regression test; final browser verification passed."
+}
