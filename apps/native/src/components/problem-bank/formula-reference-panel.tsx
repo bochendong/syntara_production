@@ -136,9 +136,11 @@ function generateEnumerateLatex(items: number) {
 export function FormulaReferencePanel({
   locale,
   onInsert,
+  insertionHint,
 }: {
   locale: 'zh-CN' | 'en-US';
   onInsert: (latex: string) => void;
+  insertionHint?: string;
 }) {
   const [matrixRows, setMatrixRows] = useState(2);
   const [matrixCols, setMatrixCols] = useState(2);
@@ -161,9 +163,10 @@ export function FormulaReferencePanel({
           {locale === 'zh-CN' ? '常见 LaTeX 公式表' : 'Common LaTeX formulas'}
         </h2>
         <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-          {locale === 'zh-CN'
-            ? '点击「插入」将公式放到右侧答案的光标位置。'
-            : 'Use the source snippets on the right when writing an answer.'}
+          {insertionHint ??
+            (locale === 'zh-CN'
+              ? '点击「插入」将公式放到右侧答案的光标位置。'
+              : 'Use the source snippets on the right when writing an answer.')}
         </p>
       </div>
 

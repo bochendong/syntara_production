@@ -9,7 +9,7 @@ const log = createLogger('Generation');
 const JSON_VALID_ESCAPE_LATEX_COMMANDS =
   /(?<!\\)\\(begin|bmod|bar|beta|binom|boldsymbol|boxed|frac|forall|nabla|ne|neq|nmid|not|notin|nu|rightarrow|right|rho|text|theta|tilde|times|to|tan|tau)\b/g;
 
-function protectLatexCommandsBeforeJsonParse(jsonStr: string): string {
+export function protectLatexCommandsBeforeJsonParse(jsonStr: string): string {
   return jsonStr.replace(/"((?:\\.|[^"\\])*)"/g, (_match, content: string) => {
     const fixedContent = content.replace(JSON_VALID_ESCAPE_LATEX_COMMANDS, '\\\\$1');
     return `"${fixedContent}"`;

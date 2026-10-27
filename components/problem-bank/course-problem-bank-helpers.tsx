@@ -921,9 +921,11 @@ function filterOptionText(option: FilterSelectOption) {
 function FormulaReferencePanel({
   locale,
   onInsert,
+  insertionHint,
 }: {
   locale: 'zh-CN' | 'en-US';
   onInsert: (latex: string) => void;
+  insertionHint?: string;
 }) {
   const [matrixRows, setMatrixRows] = useState(2);
   const [matrixCols, setMatrixCols] = useState(2);
@@ -946,9 +948,10 @@ function FormulaReferencePanel({
           {locale === 'zh-CN' ? '常见 LaTeX 公式表' : 'Common LaTeX formulas'}
         </h2>
         <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-          {locale === 'zh-CN'
-            ? '写答案时可以直接照着右侧写法输入。'
-            : 'Use the source snippets on the right when writing an answer.'}
+          {insertionHint ??
+            (locale === 'zh-CN'
+              ? '写答案时可以直接照着右侧写法输入。'
+              : 'Use the source snippets on the right when writing an answer.')}
         </p>
       </div>
 

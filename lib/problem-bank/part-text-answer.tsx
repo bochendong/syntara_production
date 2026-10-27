@@ -1,7 +1,6 @@
 'use client';
 
-import { useId, useRef, useState } from 'react';
-import { MATH_SYMBOL_GROUPS } from '../../components/problem-bank/math-symbol-groups';
+import { useId, useRef, useState, type ComponentType } from 'react';
 import './part-text-answer.css';
 
 /** Each part owns its editor and insertion target, including when several cards are visible. */
@@ -14,6 +13,7 @@ export function PartTextAnswer({
   rows,
   placeholder,
   className,
+  FormulaReference,
 }: {
   value: string;
   onChange: (text: string) => void;
@@ -23,23 +23,28 @@ export function PartTextAnswer({
   rows: number;
   placeholder: string;
   className?: string;
+  FormulaReference: ComponentType<{
+    locale: 'zh-CN' | 'en-US';
+    onInsert: (latex: string) => void;
+    insertionHint?: string;
+  }>;
 }) {
   const input = useRef<HTMLTextAreaElement>(null);
   const panelId = useId();
   const [expanded, setExpanded] = useState(false);
   const zh = locale === 'zh-CN';
-  const insertSymbol = (symbol: string) => {
+  const insertFormula = (latex: string) => {
     if (disabled) return;
     const editor = input.current;
     const start = editor?.selectionStart ?? value.length;
     const end = editor?.selectionEnd ?? start;
     const scrollTop = editor?.scrollTop ?? 0;
-    onChange(value.slice(0, start) + symbol + value.slice(end));
+    onChange(value.slice(0, start) + latex + value.slice(end));
     requestAnimationFrame(() => {
       const target = input.current;
       if (!target) return;
       target.focus({ preventScroll: true });
-      target.setSelectionRange(start + symbol.length, start + symbol.length);
+      target.setSelectionRange(start + latex.length, start + latex.length);
       target.scrollTop = scrollTop;
     });
   };
@@ -55,35 +60,26 @@ export function PartTextAnswer({
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => setExpanded((current) => !current)}
         >
-          <span aria-hidden="true">∑</span> {zh ? '符号表' : 'Symbol palette'}
+          <span aria-hidden="true">∑</span> {zh ? '公式表' : 'Formula table'}
         </button>
       </div>
       {expanded ? (
         <section
           id={panelId}
-          className="part-symbol-panel"
-          aria-label={zh ? '符号表' : 'Symbol palette'}
+          className="part-formula-reference"
+          aria-label={zh ? '公式表' : 'Formula table'}
         >
-          {MATH_SYMBOL_GROUPS.map((group) => (
-            <div key={group.zh} className="part-symbol-group">
-              <p>{zh ? group.zh : group.en}</p>
-              <div>
-                {group.symbols.map((symbol) => (
-                  <button
-                    key={symbol}
-                    type="button"
-                    title={symbol}
-                    aria-label={symbol}
-                    disabled={disabled}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => insertSymbol(symbol)}
-                  >
-                    {symbol}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+          <fieldset disabled={disabled}>
+            <FormulaReference
+              locale={locale}
+              onInsert={insertFormula}
+              insertionHint={
+                zh
+                  ? '点击「插入」将公式放到当前小问答案的光标位置。'
+                  : 'Insert a formula at the cursor in this part’s answer.'
+              }
+            />
+          </fieldset>
         </section>
       ) : null}
       <textarea

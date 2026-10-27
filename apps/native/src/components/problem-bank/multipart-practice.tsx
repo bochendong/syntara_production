@@ -16,6 +16,7 @@ import { marbleImages } from '../../lib/learning-action-marbles';
 import { GlassSpinner } from '../GlassLoadMore';
 import { STATUS_MARBLES } from './answer-sheet';
 import { ProblemRichText } from './problem-rich-text';
+import { FormulaReferencePanel } from './formula-reference-panel';
 import { PartTextAnswer } from '../../../../../lib/problem-bank/part-text-answer';
 
 const PART_TYPE_LABELS: Record<LocalProblemPart['type'], string> = {
@@ -155,6 +156,7 @@ function PartPrompt({
       <PartTextAnswer
         disabled={disabled}
         locale={locale}
+        FormulaReference={FormulaReferencePanel}
         label={
           locale === 'zh-CN'
             ? `小问 ${formatPartLabel(part.label)} 的解答`

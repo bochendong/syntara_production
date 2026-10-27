@@ -7,8 +7,7 @@
   margin: 8px 0;
 }
 
-.part-text-answer-toolbar button,
-.part-symbol-group button {
+.part-text-answer-toolbar button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -23,8 +22,7 @@
   cursor: pointer;
 }
 
-.part-text-answer-toolbar button[aria-expanded='true'],
-.part-symbol-group button:hover {
+.part-text-answer-toolbar button[aria-expanded='true'] {
   border-color: #7dd3fc;
   background: #e0f2fe;
 }
@@ -39,9 +37,9 @@
   cursor: default;
 }
 
-.part-symbol-panel {
-  max-height: 280px;
-  overflow-y: auto;
+.part-formula-reference {
+  max-height: min(420px, 55dvh);
+  overflow: auto;
   overscroll-behavior: contain;
   margin-bottom: 8px;
   padding: 12px;
@@ -50,40 +48,20 @@
   background: #fff;
 }
 
-.part-symbol-group + .part-symbol-group {
-  margin-top: 12px;
+.part-formula-reference fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.part-symbol-group p {
-  margin: 0 0 6px;
-  color: #64748b;
-  font-size: 12px;
-}
-
-.part-symbol-group > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.part-symbol-group button {
-  min-width: 44px;
-  font-family: 'Cambria Math', 'STIX Two Math', math, serif;
-  font-size: 18px;
-}
-
-.dark .part-text-answer-toolbar button,
-.dark .part-symbol-group button {
+.dark .part-text-answer-toolbar button {
   border-color: #475569;
   background: #0f172a;
   color: #e2e8f0;
 }
 
-.dark .part-symbol-panel {
+.dark .part-formula-reference {
   border-color: #334155;
   background: #020617;
-}
-
-.dark .part-symbol-group p {
-  color: #94a3b8;
 }

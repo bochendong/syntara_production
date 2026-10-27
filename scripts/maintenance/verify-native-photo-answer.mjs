@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import ts from 'typescript';
+import { createJiti } from 'jiti';
+const jiti = createJiti(import.meta.url, { alias: { '@': resolve('.') } });
+const responseParser = await jiti.import('../../features/practice/server/grading-response.ts');
 const require = createRequire(import.meta.url);
 function load(file, mocks = {}) {
   const code = ts.transpileModule(readFileSync(resolve(file), 'utf8'), {
@@ -49,6 +52,7 @@ assert.equal(
 );
 let captured;
 const service = load('features/practice/server/grade-answer.ts', {
+  './grading-response': responseParser,
   '@/lib/problem-bank/photo-answer': photo,
   '@/lib/ai/llm': {
     callLLM: async (args) => {
