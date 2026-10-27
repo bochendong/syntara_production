@@ -1,0 +1,222 @@
+{
+  "date": "2026-10-27",
+  "verifiedAt": "2026-10-27T07:23:58.120692+00:00",
+  "applicationCommit": "052a0bcf078c012d2bb23688e31cecb4cfeffb2c",
+  "applicationTree": "17bfac7dc0a4ee27730d704636f7ade462b7d29f",
+  "deployment": {
+    "platform": "Railway",
+    "service": "native-api-staging",
+    "environment": "staging",
+    "id": "139f5454-aba4-454e-9b4c-f88a7ecf6264",
+    "status": "SUCCESS"
+  },
+  "api": {
+    "preflight": "POST /api/native/v1/course-code-preflight",
+    "write": "POST /api/native/v1/course-problem-imports",
+    "courseContext": "GET /api/native/v1/course-problem-imports?courseId=...",
+    "preflightCli": "scripts/learn/course-code-preflight.mjs",
+    "writeCli": "scripts/learn/import-course-problems.mjs",
+    "stagingOnly": true,
+    "checksCourseContractFromDatabaseIdentity": true,
+    "proofBinds": ["courseId", "userId", "keyId", "completeDraftFingerprint", "24hExpiry"],
+    "preflightWritesQuestionsOrAttempts": false,
+    "nativeDeviceCredentialReused": true
+  },
+  "validation": {
+    "regressionTestsPassed": 27,
+    "finalCourseContractRegressionTestsPassed": 3,
+    "localFormatLintAndFullRootTypecheck": "passed",
+    "nativeWebBuild": "passed",
+    "nextWebpackBuild": "passed",
+    "pythonFunctionTraces": 6,
+    "realPreflightReceipts": 68,
+    "referencePassed": 68,
+    "startersRejected": 68,
+    "incorrectImplementationsRejected": 68,
+    "publicTestCasesPerCourse": 104,
+    "privateTestCasesPerCourse": 102,
+    "liveCourseContractNegativeProbe": "rejected; no proof; no question write",
+    "independentReadingChecks": 29,
+    "deterministicNonCodeGraders": 14,
+    "alternateRangeStopAccepted": true,
+    "qualityAcceptance": "source-and-json",
+    "liveQuestionUiInspected": false,
+    "openResponseAiGraderSmokeTested": false
+  },
+  "content": {
+    "source": "Ten user-selected CSC108 UTSG Midterm practice papers; Practice_Set_01 through Practice_Set_10",
+    "sourcePapers": 10,
+    "originalQuestionsPerCourse": 80,
+    "practiceRecordsPerCourse": 87,
+    "reasoningAndExamplePartsSplitOutPerCourse": 7,
+    "totalNewPracticeRecords": 174,
+    "notebooksCreated": 0,
+    "courses": [
+      {
+        "courseId": "cmsq4yi7k0001kv04zxlzy7ct",
+        "name": "UTSG-CSC108Y",
+        "originalQuestionCount": 80,
+        "problemCount": 87,
+        "publishedProblemCount": 87,
+        "codeProblemCount": 34,
+        "choiceProblemCount": 4,
+        "fillBlankProblemCount": 10,
+        "rubricProblemCount": 39,
+        "chapters": 10,
+        "notebookCountBefore": 4,
+        "notebookCountAfter": 4,
+        "inserted": 87,
+        "reused": 0,
+        "exactPublicPrivateReadback": true,
+        "sourceAndJsonAccepted": true,
+        "identicalBatchReplayVerified": true,
+        "manifests": [
+          {
+            "set": "01",
+            "sha256": "5b440ff09aa57ea7ad8ba7ea0600edf3f8d0f67e2f475acd63e4ebb4cb3a5eac",
+            "items": 9,
+            "payloadHash": "90b294159a556d60b1024bf47d2d72f8632655665a7fb9421f1a38becfd19d2b"
+          },
+          {
+            "set": "02",
+            "sha256": "d4d99b12afca212267e3d5438b24d0e32cf688db454f69336e96048c57fa9bdf",
+            "items": 8,
+            "payloadHash": "85c776b7a257d74b47957fe8b886672ac60e8741e4a32beee54faf381b7c61ed"
+          },
+          {
+            "set": "03",
+            "sha256": "c3a155a0554f0ab8dad82e823ed8b860e917aba41f4208354700681cca79847e",
+            "items": 9,
+            "payloadHash": "96734bc42eb7ae22db2bc7b4f4eaed4e42ef054079e52e872ac3982ed7c27b8d"
+          },
+          {
+            "set": "04",
+            "sha256": "1830ab49dbc012689eb939343901cdfd4c8d7f9ea98dc06f5cc1163b787d2ea0",
+            "items": 8,
+            "payloadHash": "c74a60c168ace46167a2ee5947fee08330514b2ae27c55a5ea3b9ab0d9dbd320"
+          },
+          {
+            "set": "05",
+            "sha256": "fd325f319f38b4370acf07068215e0fc1fdd5b3ff0391715541da51a6bba25cf",
+            "items": 8,
+            "payloadHash": "fefed3fa7e97c8335ab624b69355ab2514b0745c19ad4384a382c5d4bd1362eb"
+          },
+          {
+            "set": "06",
+            "sha256": "99051697824b7153e3c742fd93dcdf3e0001180e294cbbd33b9f65fd698b7f62",
+            "items": 9,
+            "payloadHash": "cb9af86daf1338529c8a80b53236de4de73e0733aae7f18643f3aa363453d5f2"
+          },
+          {
+            "set": "07",
+            "sha256": "dd1e1731088b5c16f04fe664a0ee5617427b7170864fbe3c437a9d363f6ec568",
+            "items": 9,
+            "payloadHash": "b9afbb3e29b1031b94742f7cf55196bff38a95ebd13cdd358a51cae9485dec20"
+          },
+          {
+            "set": "08",
+            "sha256": "0751b325d529bedb5ed4ee87fa014f36b4863af7d097a515b9f5d55106c81220",
+            "items": 9,
+            "payloadHash": "65a4f26726819efe1562ea18b4a21ce187cff1badbb90e1caf125a2cff4eceb6"
+          },
+          {
+            "set": "09",
+            "sha256": "c54888aa20f306bbce5d48a980763035b7c2937903c834f8b46620d05fbc5ec1",
+            "items": 8,
+            "payloadHash": "e260e94c0e9f904b67a7670bc9a4eef2863889c8874c2a86a483d30754ef33ce"
+          },
+          {
+            "set": "10",
+            "sha256": "fb0fe87ed636b46b788f0be166ab9dfe13685d5ac24480bf851b2e7529a034e7",
+            "items": 10,
+            "payloadHash": "a1393cbb55352beed855e7781b25b655db4bbf1f3b87c7127cb43a6701172cbe"
+          }
+        ]
+      },
+      {
+        "courseId": "cmvq7r8j10001tf7bwoo3j5z8",
+        "name": "UTM-CSC108",
+        "originalQuestionCount": 80,
+        "problemCount": 87,
+        "publishedProblemCount": 87,
+        "codeProblemCount": 34,
+        "choiceProblemCount": 4,
+        "fillBlankProblemCount": 10,
+        "rubricProblemCount": 39,
+        "chapters": 10,
+        "notebookCountBefore": 0,
+        "notebookCountAfter": 0,
+        "inserted": 87,
+        "reused": 0,
+        "exactPublicPrivateReadback": true,
+        "sourceAndJsonAccepted": true,
+        "identicalBatchReplayVerified": true,
+        "manifests": [
+          {
+            "set": "01",
+            "sha256": "1ce8b3069022db8603734358bf9684500ac891139c897ac7c78f7e0e5e910fb3",
+            "items": 9,
+            "payloadHash": "621574dcf72d5c5cf16f606012783c956e6120e39380be5f2537f8027feff396"
+          },
+          {
+            "set": "02",
+            "sha256": "fe0012d2b7a17cfad52d72d01ab3f7360024b264249bb689cdf7e2b2810108b7",
+            "items": 8,
+            "payloadHash": "b623bda83af3d41d962fb9f2306868090ffa41b2ac6620a0bcfeecfbd2171576"
+          },
+          {
+            "set": "03",
+            "sha256": "86985e344f0af07fe8063889d3ed8eb5520400decaba462225c02a2ff1466586",
+            "items": 9,
+            "payloadHash": "1870b5a1a397fee233a79c917fbe2654d4ce066af82c2913bf6badcfc8c37862"
+          },
+          {
+            "set": "04",
+            "sha256": "b29a20a01e6d1d6d76ebb9819319f6d9f7551361a219a1a88407a61c4c57b8c9",
+            "items": 8,
+            "payloadHash": "957fb11d712268fc30cbc34f2db5a549a534a2f5ddf6079284b078da957015b7"
+          },
+          {
+            "set": "05",
+            "sha256": "106ef1f495b385e8a3f53d1ffccb814f3f6dc4db1140df34d9e81c33ebdd4aeb",
+            "items": 8,
+            "payloadHash": "e550794babb72e938a929b784a683f9306f47fc448bec4561d134c2570e8b64f"
+          },
+          {
+            "set": "06",
+            "sha256": "926fde2af4ebb9e0199e127779e851df8dc84632b49cd9eea1660941e72941a5",
+            "items": 9,
+            "payloadHash": "a7bbc692cce880b255810252570634d1648b0e26a592b61d7dc2015d182e0906"
+          },
+          {
+            "set": "07",
+            "sha256": "0e12169417e73d044a998f7db99b6c9c6a894c1bfb527b7a41107c9f4aa62b22",
+            "items": 9,
+            "payloadHash": "2f84fa1818708fba44aabfb45cf284cb4b968d491e4aacb0fc2f19e0d70745d0"
+          },
+          {
+            "set": "08",
+            "sha256": "0c8c887a8c1d24828636fc4fbca1111acfa7b8dcbd87e7c1aee639330f97bcbc",
+            "items": 9,
+            "payloadHash": "47a00eb0e8f0a75eeb5133648d0ecf38d32da4f94e10d20cac4d85dc40f255f8"
+          },
+          {
+            "set": "09",
+            "sha256": "2011a2b04bc6a19fa1e0b02889f9b074f576cd97e878c13677e0a046eea8db6c",
+            "items": 8,
+            "payloadHash": "af583dd26550810f023ee53af9f30dfe98895913e0525af125721f5342259bf2"
+          },
+          {
+            "set": "10",
+            "sha256": "ff1ec060cf3167b7d1af41ee518afd0712b8ab747f2a7a8e021a881c618096b0",
+            "items": 10,
+            "payloadHash": "7269b11f41e47c16b33104ce811dd19a480f6396c1cf97a810b9832c38982095"
+          }
+        ]
+      }
+    ]
+  },
+  "databaseMigrations": [],
+  "desktopRepackaged": false,
+  "privateEvidence": "Source files, grading references, manifests and receipts remain outside Git in the local protected import workspace."
+}
