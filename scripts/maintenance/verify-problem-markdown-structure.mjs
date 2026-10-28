@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import ts from 'typescript';
+import path from 'node:path';
+import { createJiti } from 'jiti';
+const jiti = createJiti(import.meta.url, { alias: { '@': path.resolve('.') } });
 const require = createRequire(import.meta.url);
 function load(file, dependencies = {}) {
   const loaded = { exports: {} };
@@ -14,7 +17,9 @@ function load(file, dependencies = {}) {
     },
   }).outputText;
   new Function('require', 'module', 'exports', code)(
-    (name) => dependencies[name] ?? require(name),
+    (name) =>
+      dependencies[name] ??
+      (name.startsWith('.') ? jiti(path.resolve(path.dirname(file), name)) : require(name)),
     loaded,
     loaded.exports,
   );
@@ -34,8 +39,10 @@ const { renderProblemRichTextHtml: render } = load(
   {
     '@/lib/problem-bank/markdown-structure': structure,
     '@/lib/problem-bank/repair-malformed-math': mathRepair,
+    '@/lib/problem-bank/problem-prose-math': load('lib/problem-bank/problem-prose-math.ts'),
+    '@/lib/problem-bank/zoomable-problem-image': {},
     '@/lib/render-html-with-latex': { renderHtmlWithLatex: (x) => x },
-    '@/lib/math-engine': {},
+    '@/lib/math-engine': mathEngine,
     '@/lib/utils': {},
   },
 );
@@ -153,13 +160,12 @@ const draft = {
   grading: { type: 'short_answer' },
 };
 assert(problemContentReadinessErrors(draft).some((e) => e.includes('多行代码不得')));
-assert.deepEqual(
-  problemContentReadinessErrors({
-    ...draft,
-    publicContent: { ...draft.publicContent, stem: expanded },
-  }),
-  [],
-);
+const expandedErrors = problemContentReadinessErrors({
+  ...draft,
+  publicContent: { ...draft.publicContent, stem: expanded },
+});
+assert(!expandedErrors.some((error) => error.includes('多行代码不得')));
+assert(expandedErrors.some((error) => error.includes('只有填空题能用')));
 console.log(
   'PASS: legacy code table, indentation, blank preservation, line breaks, escaped HTML, fence protection, incomplete data and generation rejection',
 );

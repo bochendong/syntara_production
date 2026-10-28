@@ -7,6 +7,10 @@ import {
 import { renderMathToHtml, renderTextWithMathToHtml } from '../../lib/math-engine';
 import type { NotebookProblemImageAsset, NotebookProblemPublicContent } from './types';
 import { cn } from '../../lib/cn';
+import {
+  protectProblemMath,
+  repairProblemProseMath,
+} from '../../../../../lib/problem-bank/problem-prose-math';
 
 function escapeHtml(text: string): string {
   return text
@@ -410,6 +414,8 @@ function normalizeInlinePipeTables(text: string): string {
   while ((match = separatorPattern.exec(text))) {
     const separatorStart = match.index;
     if (separatorStart < cursor) continue;
+    const separatorLineStart = text.lastIndexOf('\n', separatorStart - 1) + 1;
+    if (!text.slice(separatorLineStart, separatorStart).trim()) continue;
     const columnCount = tableCellCount(match[0]);
     const before = text.slice(cursor, separatorStart);
     const pipePositions = [...before.matchAll(/\|/g)].map((item) => item.index ?? 0);
@@ -548,12 +554,15 @@ function inlineSimpleDisplayMath(text: string): string {
 }
 
 function isTableSeparator(line: string): boolean {
-  return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+  return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(line);
 }
 
 function isPipeTableRow(line: string): boolean {
   const trimmed = line.trim();
-  return trimmed.includes('|') && trimmed.split('|').filter((cell) => cell.trim()).length >= 2;
+  return (
+    (trimmed.startsWith('|') && trimmed.endsWith('|')) ||
+    (trimmed.includes('|') && trimmed.split('|').filter((cell) => cell.trim()).length >= 2)
+  );
 }
 
 function splitTableRow(line: string): string[] {
@@ -749,9 +758,14 @@ function renderDisplayMath(lines: string[]): string {
 }
 
 function textToHtml(text: string): string {
-  const fencedCode = protectFencedCodeBlocks(fenceDoctestBlocks(text));
+  const fencedCode = protectFencedCodeBlocks(repairProblemProseMath(fenceDoctestBlocks(text)));
+  const protectedMath = protectProblemMath(fencedCode.text, (source) => {
+    const display = source.startsWith('$$') || source.startsWith('\\[');
+    const width = source.startsWith('\\') || display ? 2 : 1;
+    return renderMathToHtml(source.slice(width, -width), { displayMode: display });
+  });
   const normalized = restoreFencedCodeBlocks(
-    inlineSimpleDisplayMath(normalizeInlineStructuralMarkdown(fencedCode.text)),
+    inlineSimpleDisplayMath(normalizeInlineStructuralMarkdown(protectedMath.text)),
     fencedCode.blocks,
   );
   const lines = normalized.replace(/\r\n?/g, '\n').split('\n');
@@ -877,7 +891,7 @@ function textToHtml(text: string): string {
   }
 
   const html = blocks.join('');
-  return renderHtmlWithLatex(html);
+  return protectedMath.restore(renderHtmlWithLatex(html));
 }
 
 export function renderProblemRichTextHtml(content: string): string {

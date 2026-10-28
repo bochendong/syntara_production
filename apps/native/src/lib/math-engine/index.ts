@@ -25,7 +25,7 @@ export interface RenderMathOptions {
 }
 
 const MATH_PATTERN =
-  /\\\[((?:[\s\S]+?))\\\]|\\\(((?:[\s\S]+?))\\\)|\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g;
+  /\\\[((?:[\s\S]+?))\\\]|\\\(((?:[\s\S]+?))\\\)|(?<!\\)\$\$((?:\\[\s\S]|[^\\])+?)\$\$|(?<!\\)\$((?:\\[\s\S]|[^$\\\n])+?)\$/g;
 
 const COMPLEX_ENV_PATTERN =
   /\\begin\{(?:align\*?|aligned|cases|array|matrix|pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix)\}/;
@@ -33,7 +33,7 @@ const LATEX_ROW_BREAK_ENV_PATTERN =
   /\\begin\{(align\*?|aligned|cases|array|matrix|pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix)\}[\s\S]*?\\end\{\1\}/g;
 const LATEX_ROW_BREAK_SENTINEL = '__SYNTARA_LATEX_ROW_BREAK__';
 const LATEX_INLINE_COMMAND_PATTERN =
-  /\\(?:d?frac|neq|ne|to|rightarrow|Rightarrow|Leftrightarrow|equiv|mid|nmid|pmod|bmod|mod|dots|ldots|cdots|approx|sim|times|cdot|circ|exists|forall|in|notin|subseteq|subset|supseteq|leq|geq|mathbb|operatorname|text|sqrt|left|right|begin|end|gcd|tilde|alpha|beta|gamma|delta|lambda|mu|sigma|theta|omega|pi|sum|prod|int|lim|log|ln|sin|cos|tan)\b/;
+  /\\(?:d?frac|neq|ne|to|rightarrow|Rightarrow|Leftrightarrow|equiv|mid|nmid|pmod|bmod|mod|dots|ldots|cdots|approx|sim|times|cdot|circ|exists|forall|in|notin|subseteq|subset|supseteq|leq|geq|mathbb|operatorname|text|sqrt|left|right|begin|end|gcd|tilde|alpha|beta|gamma|delta|lambda|mu|sigma|theta|omega|pi|sum|prod|int|lim|log|ln|sin|cos|tan)(?![A-Za-z])/;
 const BARE_MATH_RUN_CHARS = String.raw`A-Za-z0-9\\{}\(\)\[\]\.,+\-−*/=,:^_<>|!'"’ \t→∘≠⇒≤≥≡∈∉⊆⊂∪∩∅∣∤ℕℤℚℝℂ`;
 const BARE_MATH_PATTERNS = [
   /[ℕℤℚℝℂ](?:\s*[_^]\s*(?:\{[^}]{1,40}\}|[A-Za-z0-9]+))?/g,
@@ -384,7 +384,9 @@ function renderTextFragmentWithInlineCode(text: string): string {
 }
 
 function normalizeDelimiterEscapes(text: string): string {
-  return text.replace(/\\\\(?=[a-zA-Z()[\]])/g, '\\');
+  return restoreLatexEnvironmentRowBreaks(
+    protectLatexEnvironmentRowBreaks(text).replace(/\\\\(?=[a-zA-Z()[\]])/g, '\\'),
+  );
 }
 
 function protectLatexEnvironmentRowBreaks(text: string): string {
@@ -978,9 +980,13 @@ export function renderTextWithMathToHtml(
     }
 
     const normalizedCodeLikeMath = replaceCommonRawLatexText(fragment.value);
+    const symbolicFunctionEquation = /^[A-Za-z]=[A-Za-z]\([A-Za-z]\)$/.test(
+      fragment.value.replace(/\s+/g, ''),
+    );
     if (
       !fragment.displayMode &&
       looksLikeCodeLiteral(normalizedCodeLikeMath) &&
+      !symbolicFunctionEquation &&
       !looksLikeMathCodeLiteral(fragment.value)
     ) {
       html += renderInlineCodeHtml(normalizedCodeLikeMath);
