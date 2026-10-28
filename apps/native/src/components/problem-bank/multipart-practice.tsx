@@ -1,3 +1,4 @@
+import { HandwritingAnswerInput } from './handwriting-answer-input';
 import { visibleCodeTests } from '../../../../../lib/problem-bank/visible-code-tests';
 import { useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
 import { createPortal } from 'react-dom';
@@ -7,6 +8,7 @@ import {
   formatPartLabel,
   isAutoGradedPart,
   partAnswerHasContent,
+  partDraftIsDirty,
   partBlankIds,
   PART_SUBMISSION_LIMIT,
   type LocalPartAnswer,
@@ -231,6 +233,9 @@ function PartPrompt({
   result,
   onRunCode,
   showPrompt = true,
+  handwritingKey,
+  handwritingMode,
+  handwritingHeaderId,
 }: {
   part: LocalProblemPart;
   result?: LocalPartResult;
@@ -240,6 +245,9 @@ function PartPrompt({
   onChange: (next: LocalPartAnswer) => void;
   onRunCode?: RunCodePart;
   showPrompt?: boolean;
+  handwritingKey?: string;
+  handwritingMode?: boolean;
+  handwritingHeaderId?: string;
 } & PartEditorRegistration) {
   if (part.type === 'code')
     return (
@@ -351,22 +359,30 @@ function PartPrompt({
       {showPrompt ? (
         <ProblemRichText content={part.prompt} className="text-[15px] leading-7 text-slate-800" />
       ) : null}
-      <PartTextAnswer
+      <HandwritingAnswerInput
+        draftKey={JSON.stringify([handwritingKey, part.label])}
+        handwriting={handwritingMode}
+        headerContainerId={handwritingHeaderId}
         disabled={disabled}
-        editorKey={part.label}
-        onEditorReady={onEditorReady}
-        onEditorFocus={onEditorFocus}
-        label={
-          locale === 'zh-CN'
-            ? `小问 ${formatPartLabel(part.label)} 的解答`
-            : `Answer to part ${formatPartLabel(part.label)}`
-        }
-        className="native-problem-practice-text mp-text"
-        rows={part.type === 'calculation' ? 2 : 5}
-        value={answer.text ?? ''}
-        onChange={(text) => onChange({ ...answer, text })}
-        placeholder={part.type === 'calculation' ? '最终结果，公式用 $…$' : '写下这一问的解答'}
-      />
+        onHandwritingChange={(page) => onChange({ ...answer, images: [], handwriting: page })}
+      >
+        <PartTextAnswer
+          disabled={disabled}
+          editorKey={part.label}
+          onEditorReady={onEditorReady}
+          onEditorFocus={onEditorFocus}
+          label={
+            locale === 'zh-CN'
+              ? `小问 ${formatPartLabel(part.label)} 的解答`
+              : `Answer to part ${formatPartLabel(part.label)}`
+          }
+          className="native-problem-practice-text mp-text"
+          rows={part.type === 'calculation' ? 2 : 5}
+          value={answer.text ?? ''}
+          onChange={(text) => onChange({ ...answer, text })}
+          placeholder={part.type === 'calculation' ? '最终结果，公式用 $…$' : '写下这一问的解答'}
+        />
+      </HandwritingAnswerInput>
       {answer.text && /\$|\\\(|\\\[/.test(answer.text) ? (
         <div className="pp-answer-preview">
           <small>预览</small>
@@ -377,35 +393,64 @@ function PartPrompt({
   );
 }
 
-function PartCard({
+export function PartSubmitButton({
   part,
-  locale,
   answer,
   dirty,
   result,
   submitting,
-  onChange,
   onSubmit,
+}: {
+  part: LocalProblemPart;
+  answer: LocalPartAnswer;
+  dirty: boolean;
+  result?: LocalPartResult;
+  submitting: boolean;
+  onSubmit: () => void;
+}) {
+  const exhausted = isAutoGradedPart(part) && (result?.submissions ?? 0) >= PART_SUBMISSION_LIMIT;
+  return (
+    <button
+      type="button"
+      className="pp-submit pp-header-submit"
+      disabled={submitting || exhausted || !dirty || !partAnswerHasContent(answer)}
+      onClick={onSubmit}
+    >
+      {submitting ? <GlassSpinner size={14} /> : <SendHorizontal size={14} />}
+      提交本问
+    </button>
+  );
+}
+
+function PartCard({
+  part,
+  locale,
+  answer,
+  result,
+  submitting,
+  onChange,
   onEditorReady,
   onEditorFocus,
   onRunCode,
   showPrompt,
+  handwritingKey,
+  handwritingMode,
+  handwritingHeaderId,
 }: {
   part: LocalProblemPart;
   locale: 'zh-CN' | 'en-US';
   answer: LocalPartAnswer;
-  /** 和上次交的不一样，才能再交 */
-  dirty: boolean;
   result?: LocalPartResult;
   submitting: boolean;
   onChange: (next: LocalPartAnswer) => void;
-  onSubmit: () => void;
   onRunCode?: RunCodePart;
   showPrompt?: boolean;
+  handwritingKey?: string;
+  handwritingMode?: boolean;
+  handwritingHeaderId?: string;
 } & PartEditorRegistration) {
   const used = result?.submissions ?? 0;
   const limited = isAutoGradedPart(part);
-  const exhausted = limited && used >= PART_SUBMISSION_LIMIT;
   const tone = result?.gradedAt ? result.status : 'todo';
   return (
     <article className={`mp-card is-${tone}`} id={`mp-part-${part.label}`}>
@@ -420,6 +465,9 @@ function PartCard({
         onEditorFocus={onEditorFocus}
         onRunCode={onRunCode}
         showPrompt={showPrompt}
+        handwritingKey={handwritingKey}
+        handwritingMode={handwritingMode}
+        handwritingHeaderId={handwritingHeaderId}
       />
       {result?.feedback ? (
         <p className={`mp-feedback is-${tone}`}>
@@ -432,22 +480,13 @@ function PartCard({
           ) : null}
         </p>
       ) : null}
-      <footer>
-        {limited ? (
+      {limited ? (
+        <footer>
           <small>
             已交 {used}/{PART_SUBMISSION_LIMIT}
           </small>
-        ) : null}
-        <button
-          type="button"
-          className="pp-submit mp-submit"
-          disabled={submitting || exhausted || !dirty || !partAnswerHasContent(answer)}
-          onClick={onSubmit}
-        >
-          {submitting ? <GlassSpinner size={14} /> : <SendHorizontal size={14} />}
-          提交这一问
-        </button>
-      </footer>
+        </footer>
+      ) : null}
     </article>
   );
 }
@@ -458,6 +497,9 @@ function PartCard({
 export function MultipartPractice({
   parts,
   locale = 'zh-CN',
+  handwritingKey,
+  handwritingMode,
+  handwritingHeaderId,
   formulaRef,
   navigationTarget,
   activePartLabel,
@@ -474,6 +516,9 @@ export function MultipartPractice({
 }: {
   parts: LocalProblemPart[];
   locale?: 'zh-CN' | 'en-US';
+  handwritingKey?: string;
+  handwritingMode?: boolean;
+  handwritingHeaderId?: string;
   formulaRef?: Ref<PartFormulaHandle>;
   navigationTarget?: HTMLElement | null;
   activePartLabel?: string;
@@ -510,15 +555,16 @@ export function MultipartPractice({
     disabled: submitting,
     visiblePartLabel: parts[page]?.label,
     onInsertText: (label, text) =>
-      onChange(label, { ...(drafts[label] ?? saved[label] ?? {}), text }),
+      onChange(label, {
+        ...(drafts[label] ?? saved[label] ?? {}),
+        images: [],
+        text,
+      }),
   });
   useImperativeHandle(formulaRef, () => ({ insertFormula: formulaEditor.insertFormula }), [
     formulaEditor.insertFormula,
   ]);
-  const isDirty = (label: string) =>
-    label in drafts &&
-    partAnswerHasContent(drafts[label]) &&
-    JSON.stringify(drafts[label]) !== JSON.stringify(saved[label] ?? {});
+  const isDirty = (label: string) => partDraftIsDirty(drafts[label], saved[label]);
   const dirty = parts.filter((part) => isDirty(part.label)).map((part) => part.label);
 
   const strip = (
@@ -542,14 +588,15 @@ export function MultipartPractice({
       locale={locale}
       onEditorReady={formulaEditor.registerEditor}
       onEditorFocus={formulaEditor.activateEditor}
-      answer={drafts[part.label] ?? saved[part.label] ?? {}}
-      dirty={isDirty(part.label)}
+      answer={{ ...(drafts[part.label] ?? saved[part.label] ?? {}), images: [] }}
       result={resultOf(part.label)}
       submitting={submitting}
       onChange={(next) => onChange(part.label, next)}
-      onSubmit={() => onSubmit([part.label])}
       onRunCode={onRunCode}
       showPrompt={!navigationTarget}
+      handwritingKey={handwritingKey}
+      handwritingMode={handwritingMode}
+      handwritingHeaderId={handwritingHeaderId}
     />
   );
 
@@ -559,7 +606,9 @@ export function MultipartPractice({
       <div
         className="mp-pager"
         onTouchStart={(event) => {
-          touchX.current = event.touches[0]?.clientX ?? null;
+          touchX.current = (event.target as HTMLElement).closest('textarea,input,button,dialog')
+            ? null
+            : (event.touches[0]?.clientX ?? null);
         }}
         onTouchEnd={(event) => {
           const start = touchX.current;

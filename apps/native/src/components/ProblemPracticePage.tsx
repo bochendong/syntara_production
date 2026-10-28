@@ -1,3 +1,6 @@
+import { prepareHandwritingAnswers, prepareProblemHandwriting } from '../data/handwriting-answer';
+import { HandwritingAnswerInput } from './problem-bank/handwriting-answer-input';
+import { clearHandwritingDrafts, handwritingDraftKey } from '../data/handwriting-draft';
 import { visibleCodeTests } from '../../../../lib/problem-bank/visible-code-tests';
 import { fillBlankPrompt } from '../../../../lib/problem-bank/fill-blank-presentation';
 import { isValidPhotoAnswerUpload } from '../../../../lib/problem-bank/photo-answer';
@@ -22,6 +25,7 @@ import {
   FileText,
   Eye,
   Play,
+  PenLine,
   RotateCcw,
   SendHorizontal,
   Square,
@@ -52,6 +56,7 @@ import {
   isMultipartProblem,
   multipartParts,
   partAnswerHasContent,
+  partDraftIsDirty,
   partBlankIds,
   partQuestionText,
   partShares,
@@ -105,7 +110,11 @@ import {
   usePartFormulaEditor,
   type PartFormulaHandle,
 } from '../../../../lib/problem-bank/use-part-formula-editor';
-import { MultipartPractice, type PartCodeRun } from './problem-bank/multipart-practice';
+import {
+  MultipartPractice,
+  PartSubmitButton,
+  type PartCodeRun,
+} from './problem-bank/multipart-practice';
 import { LearningEmptyState } from './LearningEmptyState';
 import { ContentLanguageSwitch } from './ContentLanguageSwitch';
 import { problemSolution } from '../lib/problem-solution';
@@ -217,15 +226,8 @@ function restoreAnswerFromAttempt(
     return {
       kind: 'text',
       text: record.text,
-      images: Array.isArray(record.images)
-        ? record.images.filter((image): image is PhotoAnswerImage =>
-            Boolean(
-              image &&
-              typeof image === 'object' &&
-              isValidPhotoAnswerUpload(image as PhotoAnswerImage),
-            ),
-          )
-        : [],
+      // Submitted images remain in history; photo answers are submitted directly.
+      images: [],
     };
   }
   return emptyAnswerForProblem(problem);
@@ -377,6 +379,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   }, [saveDraft]);
   const [loading, setLoading] = useState(true);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [handwritingReset, setHandwritingReset] = useState(0);
+  const [handwritingModes, setHandwritingModes] = useState<Record<string, boolean>>({});
   const [snapshotBusy, setSnapshotBusy] = useState(false);
   const [solutionConfirm, setSolutionConfirm] = useState(false);
   const [solutionSeen, setSolutionSeen] = useState(false);
@@ -415,7 +419,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   const [resizing, setResizing] = useState(false);
   const panesRef = useRef<HTMLDivElement>(null);
   const statementId = useId();
-  const photoContainerId = useId();
+  const handwritingHeaderId = useId();
 
   const resizePanes = useCallback((value: number) => {
     const pane = panesRef.current;
@@ -488,6 +492,18 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
         savedParts.results.find((result) => result.label === part.label)?.status !== 'passed',
     ) ??
     parts[0];
+  const writtenPart =
+    activePart && ['short_answer', 'proof', 'calculation'].includes(activePart.type)
+      ? activePart
+      : null;
+  const handwritingModeKey = JSON.stringify([
+    currentId,
+    writtenPart?.label ?? '',
+    handwritingReset,
+  ]);
+  const handwritingMode =
+    rightTab === 'answer' && !stackedPanes && Boolean(handwritingModes[handwritingModeKey]);
+  const visibleLeftTab = handwritingMode ? 'description' : leftTab;
   const activePartCode = activePart?.type === 'code' ? asCodeContent(activePart.content) : null;
   const activePartPrompt =
     activePart?.type === 'fill_blank'
@@ -705,156 +721,170 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     [currentProblem],
   );
 
-  const submitAnswer = useCallback(async () => {
-    if (!currentProblem || !answer || !answerHasContent(answer) || submitting) return;
-    saveDraft();
-    setSubmitting(true);
-    setError(null);
-    try {
-      const repository = await getLocalRepository();
-      let serverCodeId: string | undefined;
-      let serverCodeResult: Record<string, unknown> | undefined;
-      let codePreview = false;
-      let grade = gradeLocalProblem(currentProblem, answer);
-      if (answer.kind === 'code') {
-        if (!(await isPlatformCourse(repository, currentProblem.courseId))) {
-          throw new Error('这道代码题需要连接课程服务器才能提交和判分。');
+  const submitAnswer = useCallback(
+    async (images?: PhotoAnswerImage[]) => {
+      const answerToSubmit: LocalProblemAnswer | null = images
+        ? { kind: 'text', text: '', images }
+        : answer;
+      if (!currentProblem || !answerToSubmit || !answerHasContent(answerToSubmit) || submitting)
+        return;
+      saveDraft();
+      setSubmitting(true);
+      setError(null);
+      try {
+        let submittedAnswer = answerToSubmit;
+        if (answerToSubmit.kind === 'text' && answerToSubmit.handwriting) {
+          const images = await prepareHandwritingAnswers(answerToSubmit.handwriting);
+          const { handwriting: _handwriting, ...plain } = answerToSubmit;
+          submittedAnswer = { ...plain, images };
+          if (!answerHasContent(submittedAnswer)) throw new Error('请先写下解答。');
         }
-        const attemptId = pendingCodeSubmission(currentProblem.id, answer.code.trim());
-        const reply = await gradeNativeCode({
-          courseId: currentProblem.courseId,
-          problemId: currentProblem.id,
-          attemptId,
-          code: answer.code,
-          language,
-        });
-        if (
-          (!reply.saved && !reply.preview) ||
-          reply.status === 'error' ||
-          reply.status === 'pending'
-        ) {
-          throw new Error(reply.result.feedback || '公开测试未通过，请检查代码后重试。');
-        }
-        codePreview = Boolean(reply.preview);
-        serverCodeId = attemptId;
-        serverCodeResult = reply.result;
-        grade = {
-          status: reply.status,
-          score: reply.score === null ? null : Math.max(0, Math.min(1, reply.score / 100)),
-          feedback: reply.result.feedback || '',
-          autoGraded: true,
-        };
-      }
-      let tableCells: Array<{ key: string; correct: boolean }> | undefined;
-      if (currentProblem.type === 'table' && answer.kind === 'table') {
-        const tableResult = await gradeNativeTable(
-          currentProblem.publicContent as NotebookProblemPublicTable,
-          currentProblem.grading as NotebookProblemGradingTable,
-          answer.cells,
-        );
-        grade = tableResult;
-        tableCells = tableResult.cells;
-      }
-      let aiGradingError: string | null = null;
-      if (
-        grade.status === 'pending' &&
-        answer.kind === 'text' &&
-        ['short_answer', 'calculation', 'proof', 'fill_blank'].includes(currentProblem.type)
-      ) {
-        const request = problemAiGradeRequest(
-          currentProblem,
-          answer.text || '请查看附图中的作答。',
-        );
-        const points = request.points;
-        try {
-          const result = await gradeNativeAnswer({
-            ...request,
-            question: stem,
+        const repository = await getLocalRepository();
+        let serverCodeId: string | undefined;
+        let serverCodeResult: Record<string, unknown> | undefined;
+        let codePreview = false;
+        let grade = gradeLocalProblem(currentProblem, submittedAnswer);
+        if (submittedAnswer.kind === 'code') {
+          if (!(await isPlatformCourse(repository, currentProblem.courseId))) {
+            throw new Error('这道代码题需要连接课程服务器才能提交和判分。');
+          }
+          const attemptId = pendingCodeSubmission(currentProblem.id, submittedAnswer.code.trim());
+          const reply = await gradeNativeCode({
+            courseId: currentProblem.courseId,
+            problemId: currentProblem.id,
+            attemptId,
+            code: submittedAnswer.code,
             language,
-            images: answer.images,
           });
-          const normalizedScore = Math.max(0, Math.min(1, result.score / points));
+          if (
+            (!reply.saved && !reply.preview) ||
+            reply.status === 'error' ||
+            reply.status === 'pending'
+          ) {
+            throw new Error(reply.result.feedback || '公开测试未通过，请检查代码后重试。');
+          }
+          codePreview = Boolean(reply.preview);
+          serverCodeId = attemptId;
+          serverCodeResult = reply.result;
           grade = {
-            status:
-              normalizedScore >= 0.8 ? 'passed' : normalizedScore >= 0.4 ? 'partial' : 'failed',
-            score: normalizedScore,
-            feedback: result.comment,
+            status: reply.status,
+            score: reply.score === null ? null : Math.max(0, Math.min(1, reply.score / 100)),
+            feedback: reply.result.feedback || '',
             autoGraded: true,
           };
-        } catch (cause) {
-          aiGradingError = cause instanceof Error ? cause.message : String(cause);
-          grade = {
-            status: 'pending',
-            score: null,
-            feedback: `作答已保存；本次 AI 批改未完成：${aiGradingError}`,
-            autoGraded: false,
-          };
         }
-      }
-      const previousDocument = serverCodeId
-        ? await repository.loadProblemDocument(currentProblem.id)
-        : null;
-      const priorAttempt = previousDocument?.attempts.find(
-        (item) => item.result?.serverCodeId === serverCodeId,
-      );
-      const saved =
-        priorAttempt && previousDocument
-          ? { attempt: priorAttempt, document: previousDocument }
-          : await repository.saveProblemAttempt({
-              problemId: currentProblem.id,
-              answer,
-              status: grade.status === 'pending' ? 'pending' : grade.status,
-              score: grade.score,
-              feedback: grade.feedback,
-              result: {
-                feedback: grade.feedback,
-                autoGraded: grade.autoGraded,
-                ...(tableCells ? { cells: tableCells } : {}),
-                ...(serverCodeId ? { serverCodeId, serverCodeResult } : {}),
-                gradingProvider: grade.autoGraded ? 'syntara-platform-ai' : 'local',
-                aiGradingError,
-              },
+        let tableCells: Array<{ key: string; correct: boolean }> | undefined;
+        if (currentProblem.type === 'table' && submittedAnswer.kind === 'table') {
+          const tableResult = await gradeNativeTable(
+            currentProblem.publicContent as NotebookProblemPublicTable,
+            currentProblem.grading as NotebookProblemGradingTable,
+            submittedAnswer.cells,
+          );
+          grade = tableResult;
+          tableCells = tableResult.cells;
+        }
+        let aiGradingError: string | null = null;
+        if (
+          grade.status === 'pending' &&
+          submittedAnswer.kind === 'text' &&
+          ['short_answer', 'calculation', 'proof', 'fill_blank'].includes(currentProblem.type)
+        ) {
+          const request = problemAiGradeRequest(
+            currentProblem,
+            submittedAnswer.text || '请查看附图中的作答。',
+          );
+          const points = request.points;
+          try {
+            const result = await gradeNativeAnswer({
+              ...request,
+              question: stem,
+              language,
+              images: submittedAnswer.images,
             });
-      if (serverCodeId) clearPendingCodeSubmission(currentProblem.id, serverCodeId);
-      setDocument(saved.document);
-      setFeedback(grade.feedback);
-      const status: ProblemStatus = grade.status === 'pending' ? 'pending' : grade.status;
-      const nextStatuses = new Map(statuses);
-      nextStatuses.set(currentProblem.id, status);
-      setStatuses(nextStatuses);
-      notifyProblemProgress();
-      setJustGraded(status);
-      // 这一组每题都做过了：弹珠落进罐子。
-      if (finish === 'hidden' && orderedIds.every((id) => nextStatuses.has(id))) {
-        setFinish('shown');
-      } else if (status === 'passed') {
-        // 做对了就自动进下一题；做错的留在这里看反馈。
-        const target = nextTarget(nextStatuses);
-        if (target) {
-          autoNextRef.current = window.setTimeout(() => setCurrentId(target), 1400);
+            const normalizedScore = Math.max(0, Math.min(1, result.score / points));
+            grade = {
+              status:
+                normalizedScore >= 0.8 ? 'passed' : normalizedScore >= 0.4 ? 'partial' : 'failed',
+              score: normalizedScore,
+              feedback: result.comment,
+              autoGraded: true,
+            };
+          } catch (cause) {
+            aiGradingError = cause instanceof Error ? cause.message : String(cause);
+            grade = {
+              status: 'pending',
+              score: null,
+              feedback: `作答已保存；本次 AI 批改未完成：${aiGradingError}`,
+              autoGraded: false,
+            };
+          }
         }
+        const previousDocument = serverCodeId
+          ? await repository.loadProblemDocument(currentProblem.id)
+          : null;
+        const priorAttempt = previousDocument?.attempts.find(
+          (item) => item.result?.serverCodeId === serverCodeId,
+        );
+        const saved =
+          priorAttempt && previousDocument
+            ? { attempt: priorAttempt, document: previousDocument }
+            : await repository.saveProblemAttempt({
+                problemId: currentProblem.id,
+                answer: submittedAnswer,
+                status: grade.status === 'pending' ? 'pending' : grade.status,
+                score: grade.score,
+                feedback: grade.feedback,
+                result: {
+                  feedback: grade.feedback,
+                  autoGraded: grade.autoGraded,
+                  ...(tableCells ? { cells: tableCells } : {}),
+                  ...(serverCodeId ? { serverCodeId, serverCodeResult } : {}),
+                  gradingProvider: grade.autoGraded ? 'syntara-platform-ai' : 'local',
+                  aiGradingError,
+                },
+              });
+        if (serverCodeId) clearPendingCodeSubmission(currentProblem.id, serverCodeId);
+        setDocument(saved.document);
+        setFeedback(grade.feedback);
+        const status: ProblemStatus = grade.status === 'pending' ? 'pending' : grade.status;
+        const nextStatuses = new Map(statuses);
+        nextStatuses.set(currentProblem.id, status);
+        setStatuses(nextStatuses);
+        notifyProblemProgress();
+        setJustGraded(status);
+        // 这一组每题都做过了：弹珠落进罐子。
+        if (finish === 'hidden' && orderedIds.every((id) => nextStatuses.has(id))) {
+          setFinish('shown');
+        } else if (status === 'passed') {
+          // 做对了就自动进下一题；做错的留在这里看反馈。
+          const target = nextTarget(nextStatuses);
+          if (target) {
+            autoNextRef.current = window.setTimeout(() => setCurrentId(target), 1400);
+          }
+        }
+        // 网页课程的作答同步到网页题库；传不上去会排队，下次打开课程再传。
+        if (!serverCodeId && !codePreview)
+          void queueProblemAttempt(repository, currentProblem.courseId, saved.attempt);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        setSubmitting(false);
       }
-      // 网页课程的作答同步到网页题库；传不上去会排队，下次打开课程再传。
-      if (!serverCodeId && !codePreview)
-        void queueProblemAttempt(repository, currentProblem.courseId, saved.attempt);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setSubmitting(false);
-    }
-  }, [
-    answer,
-    currentProblem,
-    finish,
-    nextTarget,
-    orderedIds,
-    saveDraft,
-    setStatuses,
-    statuses,
-    submitting,
-    language,
-    stem,
-  ]);
+    },
+    [
+      answer,
+      currentProblem,
+      finish,
+      nextTarget,
+      orderedIds,
+      saveDraft,
+      setStatuses,
+      statuses,
+      submitting,
+      language,
+      stem,
+    ],
+  );
 
   /** 代码小问「运行公开测试」：服务器只跑公开测试，不算提交。 */
   const runCodePart = useCallback(
@@ -897,7 +927,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
 
   /** 大题：只批改这几问，其余小问沿用上次结果，再存成一条完整的作答。 */
   const submitParts = useCallback(
-    async (labels: string[]) => {
+    async (labels: string[], photoDrafts?: Record<string, LocalPartAnswer>) => {
       if (!currentProblem || !isMultipart || submitting || snapshotBusy) return;
       const sequence = snapshotSequence.current;
       setSubmitting(true);
@@ -914,8 +944,14 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             const carried: LocalPartResult = before
               ? { ...before, share }
               : { label: part.label, status: 'pending', score: 0, share, submissions: 0 };
-            const draft = partDrafts[part.label];
+            let draft = photoDrafts?.[part.label] ?? partDrafts[part.label];
             if (!labels.includes(part.label) || !partAnswerHasContent(draft)) return carried;
+            if (draft.handwriting) {
+              const images = await prepareHandwritingAnswers(draft.handwriting, 180 * 1024);
+              const { handwriting: _handwriting, ...plain } = draft;
+              draft = { ...plain, images };
+              if (!partAnswerHasContent(draft)) return carried;
+            }
             const used = before?.submissions ?? 0;
             if (isAutoGradedPart(part) && used >= PART_SUBMISSION_LIMIT) return carried;
             let grade = gradeLocalPart(currentProblem, part, draft);
@@ -968,7 +1004,9 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             }
             if (
               grade.status === 'pending' &&
-              (part.type === 'short_answer' || part.type === 'proof')
+              (part.type === 'short_answer' ||
+                part.type === 'proof' ||
+                (part.type === 'calculation' && Boolean(draft.images?.length)))
             ) {
               try {
                 const request = problemAiGradeRequest(
@@ -978,11 +1016,12 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                     publicContent: part.content,
                     grading: part.grading,
                   },
-                  draft.text ?? '',
+                  draft.text?.trim() || (draft.images?.length ? '请查看附图中的作答。' : ''),
                 );
                 const reply = await gradeNativeAnswer({
                   ...request,
                   question: partQuestionText(displayedProblem ?? currentProblem, index),
+                  images: draft.images,
                   language,
                 });
                 const ratio = Math.max(0, Math.min(1, reply.score / request.points));
@@ -1107,9 +1146,11 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     setSolutionError(null);
     try {
       const repository = await getLocalRepository();
+      const preparedAnswer =
+        event === 'answer_reset' ? nextAnswer : await prepareProblemHandwriting(nextAnswer);
       const saved = await saveProblemLearningSnapshot(repository, {
         problem,
-        answer: nextAnswer,
+        answer: preparedAnswer,
         progress: document?.progress ?? null,
         event,
         at: Date.now(),
@@ -1119,6 +1160,16 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
       if (event === 'solution_viewed')
         void syncAppMemories(repository, problem.courseId).catch(() => undefined);
       if (sequence !== snapshotSequence.current) return false;
+      if (event === 'answer_reset') {
+        await clearHandwritingDrafts(
+          handwritingDraftKey(
+            accountStorageKey('syntara.handwriting.v1'),
+            problem.courseId,
+            problem.id,
+          ),
+        );
+        setHandwritingReset((value) => value + 1);
+      }
       setDocument(saved.document);
       if (event === 'answer_reset') {
         setAnswer(nextAnswer);
@@ -1303,6 +1354,68 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             </span>
           </span>
         </div>
+        <div className="pp-top-answer-actions" role="group" aria-label="题目操作">
+          {rightTab !== 'answer' || !handwritingMode ? (
+            <>
+              <button
+                type="button"
+                className="pp-run-button pp-reset-button"
+                title={isCode ? '恢复起始代码并重新作答' : '清空本次作答'}
+                disabled={loading || submitting || snapshotBusy || debugRunning || photoBusy}
+                onClick={() =>
+                  void persistLearningAction('answer_reset', emptyAnswerForProblem(currentProblem))
+                }
+              >
+                <RotateCcw size={13} />
+                重置
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  'pp-run-button pp-solution-button',
+                  rightTab === 'solution' && 'is-active',
+                )}
+                aria-pressed={rightTab === 'solution'}
+                disabled={loading || submitting || snapshotBusy || debugRunning || photoBusy}
+                onClick={requestSolution}
+              >
+                {snapshotBusy ? <GlassSpinner size={13} /> : <Eye size={13} />}答案
+              </button>
+            </>
+          ) : null}
+          {isMultipart &&
+          activePart &&
+          (rightTab === 'answer' || (rightTab === 'tests' && activePartCode)) ? (
+            <PartSubmitButton
+              part={activePart}
+              answer={partDrafts[activePart.label] ?? savedParts.answers[activePart.label] ?? {}}
+              dirty={partDraftIsDirty(
+                partDrafts[activePart.label],
+                savedParts.answers[activePart.label],
+              )}
+              result={savedParts.results.find((item) => item.label === activePart.label)}
+              submitting={loading || submitting || snapshotBusy || debugRunning || photoBusy}
+              onSubmit={() => void submitParts([activePart.label])}
+            />
+          ) : null}
+          {rightTab !== 'history' && rightTab !== 'solution' && !isMultipart ? (
+            <button
+              type="button"
+              className="pp-submit pp-header-submit"
+              disabled={
+                loading ||
+                !answerHasContent(answer) ||
+                submitting ||
+                debugRunning ||
+                photoBusy ||
+                snapshotBusy
+              }
+              onClick={() => void submitAnswer()}
+            >
+              {submitting ? <GlassSpinner size={14} /> : <SendHorizontal size={14} />}提交
+            </button>
+          ) : null}
+        </div>
         <div className="pp-header-tools">
           {hasBilingualProblem(currentProblem) ? (
             <ContentLanguageSwitch
@@ -1379,8 +1492,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                 <div className="pp-tabs" role="group" aria-label="题目参考内容">
                   <button
                     type="button"
-                    className={cn('pp-tab', leftTab === 'description' && 'is-active')}
-                    aria-pressed={leftTab === 'description'}
+                    className={cn('pp-tab', visibleLeftTab === 'description' && 'is-active')}
+                    aria-pressed={visibleLeftTab === 'description'}
                     onClick={() => setLeftTab('description')}
                   >
                     <FileText size={13} />
@@ -1388,8 +1501,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   </button>
                   <button
                     type="button"
-                    className={cn('pp-tab', leftTab === 'testcase' && 'is-active')}
-                    aria-pressed={leftTab === 'testcase'}
+                    className={cn('pp-tab', visibleLeftTab === 'testcase' && 'is-active')}
+                    aria-pressed={visibleLeftTab === 'testcase'}
                     onClick={() => setLeftTab('testcase')}
                   >
                     <FileCode2 size={13} />
@@ -1397,8 +1510,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   </button>
                   <button
                     type="button"
-                    className={cn('pp-tab', leftTab === 'output' && 'is-active')}
-                    aria-pressed={leftTab === 'output'}
+                    className={cn('pp-tab', visibleLeftTab === 'output' && 'is-active')}
+                    aria-pressed={visibleLeftTab === 'output'}
                     onClick={() => setLeftTab('output')}
                   >
                     <Terminal size={13} />
@@ -1414,22 +1527,24 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                 <div className="pp-tabs" role="group" aria-label="题目参考内容">
                   <button
                     type="button"
-                    className={cn('pp-tab', leftTab === 'description' && 'is-active')}
-                    aria-pressed={leftTab === 'description'}
+                    className={cn('pp-tab', visibleLeftTab === 'description' && 'is-active')}
+                    aria-pressed={visibleLeftTab === 'description'}
                     onClick={() => setLeftTab('description')}
                   >
                     <FileText size={13} />
                     描述
                   </button>
-                  <button
-                    type="button"
-                    className={cn('pp-tab', leftTab === 'formulas' && 'is-active')}
-                    aria-pressed={leftTab === 'formulas'}
-                    onClick={() => setLeftTab('formulas')}
-                  >
-                    <SquareFunction size={13} />
-                    公式表
-                  </button>
+                  {!handwritingMode ? (
+                    <button
+                      type="button"
+                      className={cn('pp-tab', visibleLeftTab === 'formulas' && 'is-active')}
+                      aria-pressed={visibleLeftTab === 'formulas'}
+                      onClick={() => setLeftTab('formulas')}
+                    >
+                      <SquareFunction size={13} />
+                      公式表
+                    </button>
+                  ) : null}
                 </div>
                 <small className="pp-statement-difficulty">
                   {difficultyLabel(currentProblem.difficulty)}
@@ -1449,7 +1564,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
               </header>
             )}
             <div className="native-problem-practice-pane-body native-problem-rich-scroll">
-              {leftTab === 'formulas' && supportsFormulaReference ? (
+              {visibleLeftTab === 'formulas' && supportsFormulaReference ? (
                 <FormulaReferencePanel
                   locale={language}
                   insertionHint={
@@ -1500,7 +1615,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   }}
                 />
               ) : isCode && codeContent ? (
-                leftTab === 'output' ? (
+                visibleLeftTab === 'output' ? (
                   <PythonRunOutput
                     result={debugResult}
                     stale={
@@ -1509,7 +1624,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                       answer.code !== debugCode
                     }
                   />
-                ) : leftTab === 'testcase' ? (
+                ) : visibleLeftTab === 'testcase' ? (
                   <CodeTestcasePanel code={testcaseCode} />
                 ) : (
                   <CodeProblemStatement content={codeContent} locale={language} />
@@ -1627,67 +1742,82 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
 
           <section className="native-problem-practice-pane">
             <header className="native-problem-practice-pane-tabs pp-answer-header">
-              <div className="pp-tabs">
-                {rightTabs.map((tab) => {
-                  const Icon = tab.icon;
-                  const active = rightTab === tab.id;
-                  return (
+              {!handwritingMode ? (
+                <div className="pp-tabs">
+                  {rightTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const active = rightTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        className={cn('pp-tab', active && 'is-active')}
+                        aria-pressed={active}
+                        onClick={() => setRightTab(tab.id)}
+                      >
+                        <Icon size={13} />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <div className={cn('pp-header-actions', handwritingMode && 'is-handwriting')}>
+                {rightTab === 'answer' && (answer?.kind === 'text' || writtenPart) ? (
+                  <div className="pp-answer-input-actions" role="group" aria-label="作答输入工具">
                     <button
-                      key={tab.id}
                       type="button"
-                      className={cn('pp-tab', active && 'is-active')}
-                      aria-pressed={active}
-                      onClick={() => setRightTab(tab.id)}
+                      className={cn('pp-run-button', handwritingMode && 'is-active')}
+                      aria-pressed={handwritingMode}
+                      disabled={stackedPanes || loading || submitting || snapshotBusy || photoBusy}
+                      title={
+                        stackedPanes
+                          ? '窄屏模式不支持手写，请使用宽屏布局'
+                          : handwritingMode
+                            ? '退出手写，切换到文字作答'
+                            : '切换到手写作答'
+                      }
+                      onClick={() => {
+                        if (!handwritingMode) resizePanes(25);
+                        setHandwritingModes((current) => ({
+                          ...current,
+                          [handwritingModeKey]: !handwritingMode,
+                        }));
+                      }}
                     >
-                      <Icon size={13} />
-                      {tab.label}
+                      <PenLine size={14} /> {handwritingMode ? '退出' : '手写'}
                     </button>
-                  );
-                })}
-              </div>
-              <div className="pp-header-actions">
-                {rightTab === 'answer' && answer?.kind === 'text' ? (
-                  <PhotoAnswerInput
-                    containerId={photoContainerId}
-                    key={currentId}
-                    images={answer.images ?? []}
-                    disabled={loading || submitting || snapshotBusy}
-                    onBusyChange={setPhotoBusy}
-                    onChange={(images) => {
-                      setAnswer((current) =>
-                        current?.kind === 'text' ? { ...current, images } : current,
-                      );
-                      setFeedback(null);
-                    }}
-                  />
+                    <span id={handwritingHeaderId} className="pp-handwriting-page-slot" />
+                    {!handwritingMode ? (
+                      <PhotoAnswerInput
+                        key={handwritingModeKey}
+                        maxImageBytes={writtenPart ? 180 * 1024 : undefined}
+                        disabled={
+                          loading ||
+                          submitting ||
+                          snapshotBusy ||
+                          Boolean(
+                            writtenPart &&
+                            isAutoGradedPart(writtenPart) &&
+                            (savedParts.results.find((item) => item.label === writtenPart.label)
+                              ?.submissions ?? 0) >= PART_SUBMISSION_LIMIT,
+                          )
+                        }
+                        onBusyChange={setPhotoBusy}
+                        onError={setError}
+                        onSubmit={async (images) => {
+                          if (writtenPart) {
+                            await submitParts([writtenPart.label], {
+                              [writtenPart.label]: { images },
+                            });
+                          } else {
+                            await submitAnswer(images);
+                          }
+                        }}
+                      />
+                    ) : null}
+                  </div>
                 ) : null}
-                <button
-                  type="button"
-                  className="pp-run-button pp-reset-button"
-                  title={isCode ? '恢复起始代码并重新作答' : '清空本次作答'}
-                  disabled={loading || submitting || snapshotBusy || debugRunning || photoBusy}
-                  onClick={() =>
-                    void persistLearningAction(
-                      'answer_reset',
-                      emptyAnswerForProblem(currentProblem),
-                    )
-                  }
-                >
-                  <RotateCcw size={13} />
-                  重置
-                </button>
-                <button
-                  type="button"
-                  className={cn(
-                    'pp-run-button pp-solution-button',
-                    rightTab === 'solution' && 'is-active',
-                  )}
-                  aria-pressed={rightTab === 'solution'}
-                  disabled={loading || submitting || snapshotBusy || debugRunning || photoBusy}
-                  onClick={requestSolution}
-                >
-                  {snapshotBusy ? <GlassSpinner size={13} /> : <Eye size={13} />}查看答案
-                </button>
                 {isCode && rightTab === 'code' ? (
                   <button
                     type="button"
@@ -1697,23 +1827,6 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   >
                     {debugRunning ? <Square size={13} /> : <Play size={13} />}
                     {debugRunning ? '停止' : '运行'}
-                  </button>
-                ) : null}
-                {rightTab !== 'history' && rightTab !== 'solution' && !isMultipart ? (
-                  <button
-                    type="button"
-                    className="pp-submit pp-header-submit"
-                    disabled={
-                      loading ||
-                      !answerHasContent(answer) ||
-                      submitting ||
-                      debugRunning ||
-                      photoBusy ||
-                      snapshotBusy
-                    }
-                    onClick={() => void submitAnswer()}
-                  >
-                    {submitting ? <GlassSpinner size={14} /> : <SendHorizontal size={14} />}提交作答
                   </button>
                 ) : null}
               </div>
@@ -1736,7 +1849,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   (activePartCode && (rightTab === 'answer' || rightTab === 'tests'))) &&
                   'pp-code-body',
                 rightTab === 'tests' ? 'is-code-tests' : 'is-code-editor',
-                rightTab === 'answer' && answer?.kind === 'text' && 'pp-text-body',
+                rightTab === 'answer' && (answer?.kind === 'text' || writtenPart) && 'pp-text-body',
+                rightTab === 'answer' && handwritingMode && 'is-handwriting',
               )}
             >
               {rightTab === 'solution' && solutionSeen && solution ? (
@@ -1839,8 +1953,15 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
               {isMultipart ? (
                 <div hidden={rightTab !== 'answer' && !(rightTab === 'tests' && activePartCode)}>
                   <MultipartPractice
-                    key={currentProblem.id}
+                    key={`${currentProblem.id}:${handwritingReset}`}
                     parts={parts}
+                    handwritingMode={handwritingMode}
+                    handwritingHeaderId={handwritingHeaderId}
+                    handwritingKey={handwritingDraftKey(
+                      accountStorageKey('syntara.handwriting.v1'),
+                      currentProblem.courseId,
+                      currentProblem.id,
+                    )}
                     formulaRef={partFormulaRef}
                     navigationTarget={partNavigationTarget}
                     activePartLabel={activePart?.label}
@@ -1958,25 +2079,42 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                     </div>
                   ) : null}
 
-                  {answer?.kind === 'text' ? (
-                    <div id={photoContainerId} className="pp-photo-container" />
-                  ) : null}
                   {(currentProblem.type === 'short_answer' ||
                     currentProblem.type === 'calculation' ||
                     currentProblem.type === 'proof' ||
                     currentProblem.type === 'fill_blank') &&
                   answer?.kind === 'text' ? (
-                    <textarea
-                      ref={textAnswerRef}
-                      aria-label="解答输入框"
-                      className="native-problem-practice-text"
-                      value={answer.text}
-                      onChange={(event) => {
+                    <HandwritingAnswerInput
+                      key={`${currentProblem.id}:${handwritingReset}`}
+                      draftKey={handwritingDraftKey(
+                        accountStorageKey('syntara.handwriting.v1'),
+                        currentProblem.courseId,
+                        currentProblem.id,
+                      )}
+                      handwriting={handwritingMode}
+                      headerContainerId={handwritingHeaderId}
+                      disabled={loading || submitting || snapshotBusy}
+                      onHandwritingChange={(page) => {
                         setFeedback(null);
-                        setAnswer({ ...answer, text: event.target.value });
+                        setAnswer((current) =>
+                          current?.kind === 'text'
+                            ? { ...current, images: [], handwriting: page }
+                            : current,
+                        );
                       }}
-                      placeholder="写下你的解答，公式用 $…$"
-                    />
+                    >
+                      <textarea
+                        ref={textAnswerRef}
+                        aria-label="解答输入框"
+                        className="native-problem-practice-text"
+                        value={answer.text}
+                        onChange={(event) => {
+                          setFeedback(null);
+                          setAnswer({ ...answer, text: event.target.value });
+                        }}
+                        placeholder="写下你的解答，公式用 $…$"
+                      />
+                    </HandwritingAnswerInput>
                   ) : null}
                   {answer?.kind === 'text' && /\$|\\\(|\\\[/.test(answer.text) ? (
                     <div className="pp-answer-preview">
@@ -2023,9 +2161,19 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                               : attempt.status}
                         </strong>
                         <span>{attempt.score === null ? '未评分' : `${attempt.score}`}</span>
-                        {Array.isArray(attempt.answer.images) ? (
+                        {Array.isArray(attempt.answer.images) || attempt.answer.parts ? (
                           <div className="pp-history-photos">
-                            {attempt.answer.images
+                            {[
+                              ...(Array.isArray(attempt.answer.images)
+                                ? attempt.answer.images
+                                : []),
+                              ...Object.values(recordValue(attempt.answer.parts)).flatMap(
+                                (part) => {
+                                  const images = recordValue(part).images;
+                                  return Array.isArray(images) ? images : [];
+                                },
+                              ),
+                            ]
                               .filter((image): image is PhotoAnswerImage =>
                                 Boolean(
                                   image &&

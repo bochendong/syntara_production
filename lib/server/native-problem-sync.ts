@@ -193,6 +193,10 @@ export const nativeProblemAttemptUploadSchema = z.object({
               z.object({
                 selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
                 text: z.string().max(40_000).optional(),
+                images: z
+                  .array(notebookProblemAttemptImageSchema.refine(isValidPhotoAnswerUpload))
+                  .max(4)
+                  .optional(),
                 blanks: z.record(z.string(), z.string().max(4000)).optional(),
                 cells: z.record(z.string().max(140), z.string().max(8000)).optional(),
               }),

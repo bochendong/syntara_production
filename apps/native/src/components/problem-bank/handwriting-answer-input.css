@@ -1,0 +1,486 @@
+.ink-answer-editor {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.ink-text-slot:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.ink-text-slot > textarea {
+  flex: 1;
+  min-height: 140px;
+  resize: vertical;
+}
+.ink-panel-slot {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ink-panel {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: #f3f6fa;
+  color: #243651;
+}
+.ink-tools {
+  position: absolute;
+  z-index: 3;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  display: flex;
+  width: min(812px, calc(100% - 20px));
+  justify-content: space-between;
+  max-width: calc(100% - 20px);
+  min-height: 56px;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid rgb(255 255 255 / 76%);
+  border-radius: 28px;
+  color: #102347;
+  background: rgb(255 255 255 / 42%);
+  backdrop-filter: saturate(135%) blur(12px);
+  -webkit-backdrop-filter: saturate(135%) blur(12px);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 98%),
+    inset 0 -1px 1px rgb(46 57 78 / 14%),
+    0 8px 24px rgb(35 48 70 / 13%),
+    0 2px 4px rgb(35 48 70 / 8%);
+  transition: box-shadow 160ms ease;
+}
+/* Anchor the visible edge directly; collapse/expand never waits for measured positions. */
+.ink-tools[data-corner='top-left'] {
+  top: 10px;
+  left: 10px;
+}
+.ink-tools[data-corner='top-right'] {
+  top: 10px;
+  right: 10px;
+}
+.ink-tools[data-corner='bottom-left'] {
+  bottom: 10px;
+  left: 10px;
+}
+.ink-tools[data-corner='bottom-right'] {
+  bottom: 10px;
+  right: 10px;
+}
+.ink-glass-surface {
+  position: absolute;
+  inset: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.ink-glass-surface[hidden] {
+  display: none;
+}
+.ink-tools > button,
+.ink-tools > .ink-tool-group {
+  position: relative;
+}
+.ink-tool-group {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+.ink-tool-group + .ink-tool-group {
+  padding-left: 8px;
+  border-left: 1px solid rgb(60 76 99 / 12%);
+}
+.ink-tools button {
+  display: inline-flex;
+  height: 44px;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.ink-tools .ink-icon-button {
+  width: 44px;
+}
+.ink-tools .ink-width-button {
+  width: 40px;
+}
+.ink-tools button:hover:not(:disabled) {
+  background: rgb(224 234 247 / 45%);
+}
+.ink-tools .ink-icon-button[aria-pressed='true'],
+.ink-tools .ink-width-button[aria-pressed='true'] {
+  background: rgb(217 231 255 / 72%);
+  color: #172f59;
+  box-shadow: inset 0 1px 1px rgb(255 255 255 / 80%);
+}
+.ink-tools .ink-color-button {
+  width: 34px;
+  border-radius: 50%;
+}
+.ink-color-bead {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  opacity: 0.94;
+  filter: saturate(0.85) contrast(0.88) brightness(1.12);
+  pointer-events: none;
+  user-select: none;
+}
+.ink-color-button.is-navy .ink-color-bead {
+  opacity: 1;
+  filter: saturate(0.2) brightness(0.53);
+}
+.ink-color-button[aria-pressed='true'] .ink-color-bead {
+  outline: 1.5px solid #96add1;
+  outline-offset: 3px;
+}
+/* The same fieldset anchors both sizes, keeping its selected corner. */
+.ink-tools.is-collapsed {
+  width: 60px;
+  height: 60px;
+  min-height: 60px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+.ink-tools .ink-marble-button {
+  width: 60px;
+  height: 60px;
+  border: 0;
+  border-radius: 50%;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ink-tools .ink-marble-button[hidden] {
+  display: none;
+}
+.ink-tools .ink-marble-button:hover:not(:disabled) {
+  background: transparent;
+}
+.ink-marble-button img {
+  display: block;
+  width: 60px;
+  height: 60px;
+  pointer-events: none;
+  user-select: none;
+}
+.ink-tools.is-collapsed.is-dragging {
+  box-shadow: none;
+}
+.ink-tools.is-dragging .ink-marble-button {
+  cursor: grabbing;
+}
+.ink-paper-area {
+  position: relative;
+  flex: 1;
+  min-height: 180px;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  touch-action: none;
+  background: #edf1f6;
+}
+.ink-paper-area:focus-visible {
+  outline: 2px solid #3478ca;
+  outline-offset: -2px;
+}
+.ink-view-controls {
+  position: absolute;
+  left: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid rgb(217 226 239 / 75%);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 90%);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 3px 14px rgb(39 63 98 / 8%);
+}
+.ink-view-controls.at-top {
+  top: 12px;
+}
+.ink-view-controls.at-bottom {
+  bottom: 12px;
+}
+.ink-view-controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: #243651;
+  cursor: pointer;
+}
+.ink-view-controls button[aria-pressed='true'],
+.ink-view-controls button:hover:not(:disabled) {
+  background: #e4edff;
+}
+.ink-view-controls .ink-zoom-reset {
+  width: 56px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ink-paper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 5 / 6;
+  --ink-rule-color: #e9eef5;
+  --ink-rule-spacing: 28px;
+  background-color: white;
+  background-image: linear-gradient(var(--ink-rule-color) 1px, transparent 1px);
+  background-size: 100% var(--ink-rule-spacing);
+  box-shadow: 0 2px 12px #20385814;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: crosshair;
+  border-radius: 4px;
+}
+
+.ink-answer-editor button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ink-answer-editor button:focus-visible,
+.ink-answer-editor select:focus-visible {
+  outline: 2px solid #3478ca;
+  outline-offset: 2px;
+}
+.pp-answer-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pp-answer-input-actions .is-active {
+  color: #245a9d;
+  border-color: #b8d0f1;
+  background: #e7f0ff;
+}
+.native-problem-practice .native-problem-practice-pane-body.is-handwriting {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+.is-handwriting > div:not([hidden]):has(> .mp-root),
+.is-handwriting .mp-root,
+.is-handwriting .mp-pager,
+.is-handwriting .mp-page,
+.is-handwriting .mp-card {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.is-handwriting .mp-card {
+  gap: 0;
+}
+.is-handwriting .mp-card > footer {
+  padding: 8px 12px;
+  flex: none;
+}
+.is-handwriting .mp-feedback {
+  max-height: 100px;
+  overflow: auto;
+  flex: none;
+}
+.is-handwriting .mp-pager-nav {
+  flex: none;
+  padding: 4px 12px;
+}
+@media (max-width: 900px) {
+  .ink-tools .ink-icon-button {
+    width: 40px;
+  }
+  .ink-tools .ink-width-button {
+    width: 34px;
+  }
+  .ink-tools .ink-color-button {
+    width: 30px;
+  }
+  .ink-color-bead {
+    width: 22px;
+    height: 22px;
+  }
+}
+@media (max-width: 600px) {
+  .ink-tools {
+    width: max-content;
+    justify-content: flex-start;
+    min-height: 58px;
+    padding: 5px 6px;
+    gap: 4px;
+  }
+  .ink-tools button {
+    height: 44px;
+  }
+  .ink-color-bead {
+    width: 19px;
+    height: 19px;
+  }
+  .ink-tool-group {
+    gap: 0;
+  }
+  .ink-tool-group + .ink-tool-group {
+    padding-left: 6px;
+  }
+  .ink-tools .ink-icon-button,
+  .ink-tools .ink-width-button {
+    width: 32px;
+  }
+  .ink-tools .ink-color-button {
+    width: 26px;
+  }
+}
+.native-problem-practice .pp-answer-header:has(.pp-answer-input-actions) .pp-header-actions {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.ink-tools.is-dragging {
+  transition: none;
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 12px 32px rgb(35 48 70 / 17%);
+}
+.ink-tools .ink-toolbar-grip {
+  width: 24px;
+  color: #778ba7;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.ink-tools.is-dragging .ink-toolbar-grip {
+  cursor: grabbing;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ink-tools {
+    transition: none;
+  }
+}
+
+/* In the stacked layout, give the writing surface the spare height. */
+@media (max-width: 980px) {
+  .native-problem-practice .pp-resizable-panes:has(.is-handwriting) {
+    grid-template-rows: minmax(110px, min-content) minmax(320px, 1fr);
+  }
+  .native-problem-practice
+    .pp-resizable-panes:has(.is-handwriting)
+    > .native-problem-practice-pane:first-child {
+    max-height: 180px;
+  }
+}
+
+.pp-answer-input-actions {
+  flex-wrap: wrap;
+}
+.pp-handwriting-page-slot:empty {
+  display: none;
+}
+.ink-pages-header,
+.ink-page-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.ink-pages-header {
+  gap: 6px;
+}
+.ink-page-tabs {
+  padding: 2px;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 5%);
+}
+.ink-pages-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 29px;
+  height: 30px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ink-page-tabs button[aria-pressed='true'] {
+  color: #245a9d;
+  background: #e7f0ff;
+  border-color: #b8d0f1;
+}
+.ink-pages-header .ink-add-page {
+  border-color: #dfe6f0;
+  background: rgb(255 255 255 / 80%);
+}
+.ink-pages-header button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ink-pages-header button:focus-visible {
+  outline: 2px solid #3478ca;
+  outline-offset: 2px;
+}
+.ink-document-loading {
+  flex: 1;
+}
+
+.ink-tools .ink-clear-page:hover:not(:disabled),
+.ink-pages-header .ink-delete-page:hover:not(:disabled) {
+  color: #b34c55;
+  background: #fff0f1;
+}
+
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .ink-tools:not(.is-collapsed) {
+    background: #fff;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .ink-glass-surface {
+    visibility: hidden;
+  }
+}

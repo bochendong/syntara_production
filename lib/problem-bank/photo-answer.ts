@@ -16,7 +16,7 @@ export function isValidPhotoAnswerUpload(image: {
   return bytes > 0 && bytes <= MAX_PHOTO_UPLOAD_BYTES && image.size === bytes;
 }
 
-export async function preparePhotoAnswer(file: File) {
+export async function preparePhotoAnswer(file: File, maxBytes = MAX_PHOTO_UPLOAD_BYTES) {
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
@@ -40,7 +40,7 @@ export async function preparePhotoAnswer(file: File) {
       for (const quality of [0.88, 0.76, 0.64]) {
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
         const size = atob(dataUrl.split(',')[1]).length;
-        if (size <= MAX_PHOTO_UPLOAD_BYTES)
+        if (size <= maxBytes)
           return {
             id: crypto.randomUUID(),
             name: file.name.slice(0, 240),

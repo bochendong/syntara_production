@@ -1,12 +1,19 @@
+import { handwritingHasContent, type HandwritingAnswer } from './handwriting-draft';
 import { countCorrectBlankAnswers } from '../../../../lib/problem-bank/blank-answer-variants';
 import type { NotebookProblemGradingFillBlank } from '../../../../lib/problem-bank/schema';
 import type { LocalProblem } from '../domain/models';
-import { gradeLocalProblem, type LocalGradeResult } from './local-problem-grading';
+import {
+  gradeLocalProblem,
+  type LocalGradeResult,
+  type PhotoAnswerImage,
+} from './local-problem-grading';
 
 /** 大题里一问的作答：选项、文字或填空。 */
 export type LocalPartAnswer = {
   selectedOptionIds?: string[];
   text?: string;
+  images?: PhotoAnswerImage[];
+  handwriting?: HandwritingAnswer;
   blanks?: Record<string, string>;
   cells?: Record<string, string>;
   /** 代码小问：拼好的整段代码 */
@@ -126,10 +133,22 @@ export function partAnswerHasContent(answer: LocalPartAnswer | undefined): boole
   if (!answer) return false;
   return Boolean(
     answer.text?.trim() ||
+    answer.images?.length ||
+    handwritingHasContent(answer.handwriting) ||
     answer.selectedOptionIds?.length ||
     Object.values(answer.blanks ?? {}).some((value) => value.trim()) ||
     Object.values(answer.cells ?? {}).some((value) => value.trim()) ||
     answer.code?.trim(),
+  );
+}
+
+/** The header and any bulk action must agree on whether a draft is new content. */
+export function partDraftIsDirty(
+  draft: LocalPartAnswer | undefined,
+  saved?: LocalPartAnswer,
+): boolean {
+  return Boolean(
+    draft && partAnswerHasContent(draft) && JSON.stringify(draft) !== JSON.stringify(saved ?? {}),
   );
 }
 
@@ -188,7 +207,11 @@ export function gradeLocalPart(
       selectedOptionIds: answer.selectedOptionIds ?? [],
     });
   }
-  return gradeLocalProblem(virtual, { kind: 'text', text: answer.text ?? '' });
+  return gradeLocalProblem(virtual, {
+    kind: 'text',
+    text: answer.text ?? '',
+    images: answer.images,
+  });
 }
 
 /** 自动判分的小问按第几次提交封顶：100% → 60% → 30%。 */
@@ -217,5 +240,8 @@ export function partQuestionText(problem: LocalProblem, partIndex: number): stri
   return [
     multipartStem(problem),
     ...parts.slice(0, partIndex + 1).map((part) => `${formatPartLabel(part.label)} ${part.prompt}`),
+    parts[partIndex]
+      ? `评分范围：本次只批改第 ${formatPartLabel(parts[partIndex].label)} 问。其他小问仅作上下文，不要求在本次答案中重复作答，也不因其他小问未作答而扣分。/ Grade only part ${formatPartLabel(parts[partIndex].label)}; other parts are context only. Do not deduct marks for missing answers to other parts.`
+      : '',
   ].join('\n\n');
 }

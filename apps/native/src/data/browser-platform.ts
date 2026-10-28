@@ -13,6 +13,31 @@ export async function browserRequest<T>(path: string, init: RequestInit = {}): P
   return body.data ?? body;
 }
 
+/** Standalone browser previews still use the authenticated, same-origin grader. */
+export async function browserGrade<T>(payload: unknown, headers: HeadersInit): Promise<T> {
+  const response = await fetch('/api/native/v1/grade', {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok || body?.success === false || body?.ok === false) {
+    const message = body?.error?.message || (typeof body?.error === 'string' && body.error);
+    throw new Error(
+      message ||
+        (response.status === 401
+          ? '请先登录网页版后再提交评分。'
+          : response.status === 404
+            ? '当前预览尚未连接平台评分服务。'
+            : `评分请求失败 (${response.status})`),
+    );
+  }
+  if (!body) throw new Error('平台评分没有返回有效结果，请重试。');
+  return body.data ?? body;
+}
+
 export async function browserFetch(path: string, init: RequestInit = {}) {
   if (!path.startsWith('/api/native/')) throw new Error('Unsupported platform endpoint.');
   const headers = new Headers(init.headers);

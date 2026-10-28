@@ -341,3 +341,35 @@ test('dependent written parts receive only declared earlier student text', () =>
   assert.ok(dependent.publicContent.stem.includes('first counterexample'));
   assert.ok(!dependent.publicContent.stem.includes('unrelated answer'));
 });
+
+test('part grading retains prior context but explicitly excludes other unanswered parts from scoring', () => {
+  const prompt = localParts.partQuestionText(fixture, 1);
+  assert.match(prompt, /评分范围：本次只批改第 \(b\) 问/);
+  assert.match(prompt, /不因其他小问未作答而扣分/);
+  assert.match(prompt, /Grade only part \(b\)/);
+  const first = localParts.partQuestionText(fixture, 0);
+  assert.match(first, /Grade only part \(a\)/);
+  assert.ok(!first.includes('Grade only part (b)'));
+});
+
+test('header and bulk submission agree on empty, saved and changed drafts', async () => {
+  const { partDraftIsDirty } = await jiti.import('../../apps/native/src/data/multipart-problem.ts');
+  assert.equal(partDraftIsDirty(undefined, { text: 'saved' }), false);
+  assert.equal(partDraftIsDirty({ text: '   ' }), false);
+  assert.equal(partDraftIsDirty({ text: 'same' }, { text: 'same' }), false);
+  assert.equal(partDraftIsDirty({ text: 'new' }, { text: 'same' }), true);
+  assert.equal(partDraftIsDirty({ images: [{ id: 'photo' }] }), true);
+  assert.equal(
+    partDraftIsDirty({
+      handwriting: {
+        pages: [
+          {
+            imageId: 'page',
+            strokes: [{ tool: 'pen', points: [{ x: 10, y: 10, pressure: 0.5 }] }],
+          },
+        ],
+      },
+    }),
+    true,
+  );
+});

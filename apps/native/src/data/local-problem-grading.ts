@@ -1,3 +1,4 @@
+import { handwritingHasContent, type HandwritingAnswer } from './handwriting-draft';
 import { parseNumericScalar } from '../../../../lib/problem-bank/numeric-answer';
 import { countCorrectBlankAnswers } from '../../../../lib/problem-bank/blank-answer-variants';
 import type { NotebookProblemGradingFillBlank } from '../../../../lib/problem-bank/schema';
@@ -15,7 +16,7 @@ export type PhotoAnswerImage = {
 
 export type LocalProblemAnswer =
   | { kind: 'choice'; selectedOptionIds: string[] }
-  | { kind: 'text'; text: string; images?: PhotoAnswerImage[] }
+  | { kind: 'text'; text: string; images?: PhotoAnswerImage[]; handwriting?: HandwritingAnswer }
   | { kind: 'code'; code: string }
   | { kind: 'table'; cells: Record<string, string> }
   | { kind: 'blanks'; blanks: Record<string, string> }
@@ -26,6 +27,8 @@ export type LocalProblemAnswer =
         {
           selectedOptionIds?: string[];
           text?: string;
+          images?: PhotoAnswerImage[];
+          handwriting?: HandwritingAnswer;
           blanks?: Record<string, string>;
           cells?: Record<string, string>;
         }
@@ -231,12 +234,18 @@ export function answerHasContent(answer: LocalProblemAnswer | null | undefined):
     return Object.values(answer.parts).some((p) =>
       Boolean(
         p.text?.trim() ||
+        p.images?.length ||
+        handwritingHasContent(p.handwriting) ||
         p.selectedOptionIds?.length ||
         Object.values(p.blanks ?? {}).some((v) => v.trim()) ||
         Object.values(p.cells ?? {}).some((v) => v.trim()),
       ),
     );
-  return answer.text.trim().length > 0 || Boolean(answer.images?.length);
+  return (
+    answer.text.trim().length > 0 ||
+    Boolean(answer.images?.length) ||
+    Boolean(handwritingHasContent(answer.handwriting))
+  );
 }
 
 export function gradeLocalProblem(

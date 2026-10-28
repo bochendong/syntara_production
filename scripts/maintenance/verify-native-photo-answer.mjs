@@ -25,7 +25,9 @@ function load(file, mocks = {}) {
           ? (() => {
               throw new Error(`Unmocked ${id}`);
             })()
-          : require(id),
+          : id.startsWith('.')
+            ? createJiti(resolve(file))(id)
+            : require(id),
     mod,
     mod.exports,
   );
@@ -131,6 +133,20 @@ const queued = JSON.parse(values.get('syntara.problem-attempt-outbox.v1')).cours
 assert.equal(queued.answer.images, undefined);
 assert.equal(queued.photoAttemptId, attempt.id);
 assert.deepEqual(uploaded.attempts[0].answer.images, [image]);
+online = true;
+await sync.syncCourseProblems(repository, 'course');
+assert.equal(JSON.parse(values.get('syntara.problem-attempt-outbox.v1')).course, undefined);
+online = false;
+attempt.answer = {
+  kind: 'parts',
+  parts: { i: { text: '', images: [image] }, ii: { text: 'text-only' } },
+};
+attempt.id = 'attempt-123457';
+await sync.queueProblemAttempt(repository, 'course', attempt);
+const partQueued = JSON.parse(values.get('syntara.problem-attempt-outbox.v1')).course[0];
+assert.equal(partQueued.answer.parts, undefined);
+assert.equal(partQueued.photoAttemptId, attempt.id);
+assert.deepEqual(uploaded.attempts[0].answer.parts.i.images, [image]);
 online = true;
 await sync.syncCourseProblems(repository, 'course');
 assert.equal(JSON.parse(values.get('syntara.problem-attempt-outbox.v1')).course, undefined);

@@ -170,9 +170,15 @@ export async function queueProblemAttempt(
   if (!upload || upload.id.length < 8) return;
   const outbox = readJson<Outbox>(OUTBOX_KEY, {});
   // Images already live in the attempt repository; queue only their reference.
-  const queued: QueuedAttempt = upload.answer.images?.length
-    ? { ...upload, answer: { ...upload.answer, images: undefined }, photoAttemptId: attempt.id }
-    : upload;
+  const queued: QueuedAttempt =
+    upload.answer.images?.length ||
+    Object.values(upload.answer.parts ?? {}).some((part) => part.images?.length)
+      ? {
+          ...upload,
+          answer: { ...upload.answer, images: undefined, parts: undefined },
+          photoAttemptId: attempt.id,
+        }
+      : upload;
   outbox[courseId] = [...(outbox[courseId] ?? []), queued].slice(-OUTBOX_LIMIT);
   writeJson(OUTBOX_KEY, outbox);
   await flushProblemAttempts(repository, courseId).catch((cause) =>
@@ -192,7 +198,13 @@ async function flushProblemAttempts(repository: LocalRepository, courseId: strin
         const document = await repository.loadProblemDocument(queued.problemId);
         const attempt = document?.attempts.find((item) => item.id === queued.photoAttemptId);
         const hydrated = attempt && uploadOf(attempt);
-        if (!hydrated?.answer.images?.length)
+        if (
+          !hydrated ||
+          !(
+            hydrated.answer.images?.length ||
+            Object.values(hydrated.answer.parts ?? {}).some((part) => part.images?.length)
+          )
+        )
           throw new Error('本机图片作答尚未读取成功，将稍后重试同步。');
         upload = hydrated;
       }

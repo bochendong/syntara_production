@@ -178,3 +178,25 @@ pnpm --dir apps/native build
 网页版通过平台后端调用 AI，供应商密钥仍只保存在服务端。课程和聊天通过现有
 账号接口同步，学习工具及偏好继续使用浏览器本地缓存。详见
 [网页版测试部署](../../docs/api/native-web-staging.md)。
+
+### 本机手写 / 图片真实评分预览
+
+正式浏览器版使用登录后的同源 `/api/native/v1/grade`；评分不要求 Tauri。
+未启用 `VITE_SYNTARA_WEB_APP` 的独立开发预览也可以调用该接口，仍由服务端认证。
+小问只有图片时会发送非空的图片作答说明，保留实际图片内容。
+
+本机离线题面需要真实评分时，可显式连接现有测试服设备凭据：
+
+```bash
+SYNTARA_QA_GRADING_CREDENTIAL_FILE=/absolute/path/to/private-device-session.json \
+  pnpm --filter @syntara/native exec vite --host 127.0.0.1 --port 1432
+```
+
+打开 `http://localhost:1432/handwriting-preview.html`。该开发连接只接受本机同源的
+评分 POST，沿用凭据文件中已校验的 API origin 和设备会话；密钥不会发送到浏览器。
+它不代理登录、课程或写入接口，不参与生产构建。凭据刷新复用现有带文件锁的后端认证工具。
+不设置该变量时不会启用此连接；不要把设备凭据放入 `VITE_` 变量或前端源码。
+
+`?grading-check=1` 使用独立本机题目、草稿和作答记录，可用“2+2”及答案“4”验证图片
+直接评分、手写提交评分和小问评分，不改动原手写试用的题目及草稿。真实评分会使用平台
+现有模型和账户额度，但 QA 题目与作答不会上传到课程题库。

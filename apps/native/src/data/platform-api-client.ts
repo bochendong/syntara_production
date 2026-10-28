@@ -1,6 +1,7 @@
 import { browserApp } from './browser-runtime';
 import {
   browserChat,
+  browserGrade,
   browserCommand,
   browserCommandHeaders,
   browserRequest,
@@ -248,11 +249,16 @@ export function gradeNativeAnswer(
   payload: NativeGradeRequest,
   options: PlatformCommandOptions = {},
 ): Promise<NativeGradeResponse> {
-  return invokeJson<NativeGradeRequest, NativeGradeResponse>('native_grade_answer', {
+  const request = {
     requestId: crypto.randomUUID(),
     payload,
     ...options,
-  }).then((result) => {
+  };
+  const result =
+    !browserApp && !isTauriRuntime()
+      ? browserGrade<NativeGradeResponse>(payload, browserCommandHeaders(request))
+      : invokeJson<NativeGradeRequest, NativeGradeResponse>('native_grade_answer', request);
+  return result.then((result) => {
     if (
       !result ||
       typeof result !== 'object' ||
