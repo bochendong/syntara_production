@@ -1814,6 +1814,33 @@ export function useCourseProblemBankController({
     ],
   );
 
+  /** 大题里的代码小问「运行公开测试」：不记一次提交，结果只在这一问下面显示。 */
+  const handleRunMultipartCodePart = useCallback(
+    async (label: string, code: string) => {
+      if (!selectedProblem || selectedProblem.type !== 'multipart') return null;
+      if (!code.trim()) {
+        toast.error(locale === 'zh-CN' ? '请先填写代码。' : 'Code is required.');
+        return null;
+      }
+      problemActiveTimer.markActive();
+      try {
+        const { result } = await runCourseCodeProblem({
+          courseId,
+          problemId: selectedProblem.id,
+          code,
+          target: 'public',
+          language: locale,
+          part: label,
+        });
+        return result;
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Run failed');
+        return null;
+      }
+    },
+    [courseId, locale, problemActiveTimer, selectedProblem],
+  );
+
   const handleRunCodeAnswer = useCallback(
     async (target: CourseCodeRunTarget = 'public') => {
       if (!selectedProblem || runningCode) return false;
@@ -1983,6 +2010,7 @@ export function useCourseProblemBankController({
   }, [autoArchiving, canEditProblems, courseId, loadAll, locale, problemChapters.length]);
 
   return {
+    handleRunMultipartCodePart,
     activeBankFilterCount,
     answerPanelTab,
     autoArchiving,

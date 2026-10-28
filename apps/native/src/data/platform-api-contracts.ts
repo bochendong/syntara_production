@@ -565,6 +565,7 @@ export interface NativeProblemAttemptUpload {
   answer: {
     selectedOptionIds?: string[];
     text?: string;
+    blanks?: Record<string, string>;
     code?: string;
     cells?: Record<string, string>;
     images?: PhotoAnswerImage[];

@@ -1473,6 +1473,22 @@ export function ProblemBankView({ notebookId }: { notebookId: string }) {
                         }))
                       }
                       onSubmit={(labels) => void handleSubmit(labels)}
+                      onRunCodePart={async (label, code) => {
+                        try {
+                          const { result } = await runNotebookCodeProblem({
+                            notebookId,
+                            problemId: selectedProblem.id,
+                            code,
+                            target: 'public',
+                            language: locale,
+                            part: label,
+                          });
+                          return result;
+                        } catch (error) {
+                          toast.error(error instanceof Error ? error.message : 'Run failed');
+                          return null;
+                        }
+                      }}
                     />
                   </div>
                 ) : (

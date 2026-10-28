@@ -75,7 +75,16 @@ test('all six question types expose the stored answer and reset to their correct
     const solution = problemSolution(p);
     assert(solution.answer || solution.code);
     const empty = grading.emptyAnswerForProblem(p);
-    assert.equal(empty.kind, p.type === 'code' ? 'code' : p.type === 'choice' ? 'choice' : 'text');
+    assert.equal(
+      empty.kind,
+      p.type === 'code'
+        ? 'code'
+        : p.type === 'choice'
+          ? 'choice'
+          : p.type === 'fill_blank'
+            ? 'blanks'
+            : 'text',
+    );
   }
   assert.match(problemSolution(cases[0]).answer, /B.*Two/);
   assert.match(
@@ -394,4 +403,39 @@ test('remember preferences are account-scoped and code drafts retain timestamps 
   drafts.saveProblemCodeDraft(storage, 'draft', 'starter');
   assert.equal(drafts.readProblemCodeDraft(storage, 'draft'), 'starter');
   assert(drafts.readProblemCodeDraftRecord(storage, 'draft').savedAt > 0);
+});
+
+test('multipart reference answers include the actual code solution for each code part', () => {
+  const result = problemSolution({
+    ...base,
+    type: 'multipart',
+    publicContent: {
+      type: 'multipart',
+      stem: 'Two tasks',
+      parts: [
+        { label: 'a', content: { type: 'code', stem: 'Implement f', language: 'python' } },
+        { label: 'b', content: { type: 'short_answer', stem: 'Explain' } },
+      ],
+    },
+    grading: {
+      type: 'multipart',
+      parts: [
+        {
+          label: 'a',
+          grading: {
+            type: 'code',
+            solutionCode: 'def f(x):\n    return x + 1',
+            analysis: 'Increment once.',
+          },
+        },
+        {
+          label: 'b',
+          grading: { type: 'short_answer', referenceAnswer: 'The result is one greater.' },
+        },
+      ],
+    },
+  });
+  assert.match(result.answer, /```python\ndef f\(x\):\n    return x \+ 1\n```/);
+  assert.match(result.answer, /The result is one greater/);
+  assert.match(result.answer, /Increment once/);
 });

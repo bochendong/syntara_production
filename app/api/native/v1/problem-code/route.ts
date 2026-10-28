@@ -13,6 +13,8 @@ import {
 } from '@/lib/problem-bank/scoring-policy';
 import { resolveNotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
+import { buildPartProblem, partSecretJudge } from '@/lib/problem-bank/multipart';
+import { isNotebookMultipartProblemRecord } from '@/lib/problem-bank';
 import {
   publicApiError,
   publicApiRequestId,
@@ -28,6 +30,9 @@ const requestSchema = z.object({
   attemptId: z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/),
   code: z.string().trim().min(1).max(120000),
   language: z.enum(['zh-CN', 'en-US']).default('zh-CN'),
+  /// 大题里的代码小问：按 label 判这一问；mode=run 只跑公开测试
+  part: z.string().trim().min(1).max(40).optional(),
+  mode: z.enum(['submit', 'run']).default('submit'),
 });
 
 export async function POST(request: NextRequest) {
@@ -37,7 +42,7 @@ export async function POST(request: NextRequest) {
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success)
     return publicApiError(requestId, 400, 'invalid_request', 'Invalid code submission.');
-  const { courseId, problemId, code, language, attemptId } = parsed.data;
+  const { courseId, problemId, code, language, attemptId, part, mode } = parsed.data;
   const prisma = getOptionalPrisma();
   if (!prisma)
     return publicApiError(requestId, 503, 'auth_not_configured', 'Problem storage is unavailable.');
@@ -45,8 +50,62 @@ export async function POST(request: NextRequest) {
     const loaded = await getCourseProblemForUser(principal.userId, courseId, problemId, {
       includeSecretJudgeForEvaluation: true,
     });
+    if (part) {
+      // 代码小问：结果交回 App，和其他小问一起存成整道大题的作答
+      const multipart = { ...loaded.problem, points: STANDARD_PROBLEM_POINTS };
+      if (!isNotebookMultipartProblemRecord(multipart))
+        return publicApiError(
+          requestId,
+          400,
+          'invalid_request',
+          'This is not a multipart problem.',
+        );
+      const index = multipart.publicContent.parts.findIndex((item) => item.label === part);
+      const target = multipart.publicContent.parts[index];
+      const partProblem = target
+        ? buildPartProblem(multipart, index, STANDARD_PROBLEM_POINTS)
+        : null;
+      if (!target || target.content.type !== 'code' || !partProblem)
+        return publicApiError(requestId, 400, 'invalid_request', 'This part is not a code part.');
+      const courseIdentity = await resolveNotebookProblemCourseIdentity({
+        courseId: loaded.problem.courseId ?? courseId,
+        notebookId: loaded.problem.notebookId,
+      });
+      const judged = await judgeNotebookCodeProblem({
+        problem: partProblem,
+        secretJudge: partSecretJudge(loaded.secretJudge, target),
+        kind: mode === 'run' ? 'run' : 'submit',
+        runTarget: 'public',
+        userAnswer: { code },
+        language,
+        courseIdentity,
+      });
+      return publicApiSuccess(requestId, {
+        saved: false,
+        part,
+        status: judged.status,
+        score: judged.score,
+        result: judged.result,
+      });
+    }
     if (loaded.problem.type !== 'code')
       return publicApiError(requestId, 400, 'invalid_request', 'This is not a code problem.');
+    if (mode === 'run') {
+      const courseIdentity = await resolveNotebookProblemCourseIdentity({
+        courseId: loaded.problem.courseId ?? courseId,
+        notebookId: loaded.problem.notebookId,
+      });
+      const judged = await judgeNotebookCodeProblem({
+        problem: { ...loaded.problem, points: STANDARD_PROBLEM_POINTS },
+        secretJudge: loaded.secretJudge,
+        kind: 'run',
+        runTarget: 'public',
+        userAnswer: { code },
+        language,
+        courseIdentity,
+      });
+      return publicApiSuccess(requestId, { saved: false, ...judged });
+    }
     const id = `native_code_${attemptId}`;
     const replay = await prisma.notebookProblemAttempt.findUnique({
       where: { id },

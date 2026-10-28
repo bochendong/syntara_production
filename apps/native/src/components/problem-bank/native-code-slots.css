@@ -1,0 +1,27 @@
+.native-unified-code.code-answer-editor {
+  min-height: 160px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.native-unified-code .code-answer-input,
+.native-unified-code .code-answer-highlight,
+.native-unified-code .code-answer-gutter {
+  font-size: 14px;
+}
+
+.native-unified-code .code-answer-line-column,
+.native-unified-code .code-answer-surface {
+  border: 0;
+  background: transparent;
+}
+
+@media (max-width: 600px) {
+  .native-unified-code .code-answer-input,
+  .native-unified-code .code-answer-highlight,
+  .native-unified-code .code-answer-gutter {
+    font-size: 16px;
+  }
+}

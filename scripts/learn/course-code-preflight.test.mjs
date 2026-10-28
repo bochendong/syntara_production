@@ -161,6 +161,82 @@ test('a candidate equivalent to the reference cannot obtain a proof', async () =
   assert.equal(result.proof, undefined);
 });
 
+test('multipart preflight validates every code part and binds private helper and shared prompt', async () => {
+  const old = process.env.NEXTAUTH_SECRET;
+  process.env.NEXTAUTH_SECRET = 'fixture-multipart-preflight-secret';
+  try {
+    const input = fixture();
+    const child = input.draft;
+    child.publicContent.statementSections = [];
+    child.grading.solutionCode = child.publicContent.starterCode.replace(
+      '    pass',
+      '    return helper(x)',
+    );
+    child.publicContent.assumedHelpers = ['helper'];
+    const secret = { ...child.secretJudge, supportCode: 'def helper(x):\n    return x + 1\n' };
+    const draft = {
+      ...child,
+      type: 'multipart',
+      draftId: 'independent-parts',
+      publicContent: {
+        type: 'multipart',
+        stem: 'Use the helper, assumed correct.',
+        parts: ['a', 'b'].map((label) => ({ label, points: 1, content: child.publicContent })),
+      },
+      grading: {
+        type: 'multipart',
+        parts: ['a', 'b'].map((label) => ({ label, grading: child.grading })),
+      },
+      secretJudge: { language: 'python', secretTests: [], parts: { a: secret, b: secret } },
+    };
+    const code = child.publicContent.starterCode.replace('    pass', '    return x');
+    const counterexamples = ['a', 'b'].map((part) => ({
+      part,
+      id: 'wrong-' + part,
+      code,
+      reason: 'Omits increment.',
+    }));
+    const request = { courseId: 'course', draft, counterexamples };
+    await assert.rejects(
+      validateCodeQuestion({ ...request, counterexamples: [counterexamples[0]] }, actor),
+      /Each code part/,
+    );
+    await assert.rejects(
+      validateCodeQuestion(
+        { ...request, counterexamples: [{ ...counterexamples[0], part: 'missing' }] },
+        actor,
+      ),
+      /existing code part/,
+    );
+    const result = await validateCodeQuestion(request, actor);
+    assert.equal(result.valid, true, JSON.stringify(result));
+    assert.equal(result.parts.length, 2);
+    assert.equal(result.starterRejected, true);
+    assert.equal(result.incorrectRejected, true);
+    const args = { ...actor, courseId: 'course', draft: result.validatedDraft };
+    assert.equal(verifyCodePreflight(result.proof, args), true);
+    assert.equal(verifyCodePreflight(result.proof, { ...args, keyId: 'different' }), false);
+    const changed = structuredClone(result.validatedDraft);
+    changed.publicContent.stem = 'Changed shared condition';
+    assert.equal(verifyCodePreflight(result.proof, { ...args, draft: changed }), false);
+    changed.publicContent.stem = result.validatedDraft.publicContent.stem;
+    changed.secretJudge.parts.b.supportCode = 'def helper(x): return 0';
+    assert.equal(verifyCodePreflight(result.proof, { ...args, draft: changed }), false);
+    assert.equal(
+      JSON.stringify(result.validatedDraft.publicContent).includes('return x + 1'),
+      false,
+    );
+    const altered = structuredClone(request);
+    altered.counterexamples[0].code = code.replace('def increment(', 'def changed(');
+    const invalid = await validateCodeQuestion(altered, actor);
+    assert.equal(invalid.valid, false);
+    assert.equal(invalid.proof, undefined);
+  } finally {
+    if (old === undefined) delete process.env.NEXTAUTH_SECRET;
+    else process.env.NEXTAUTH_SECRET = old;
+  }
+});
+
 test('preflight applies the authorized course contract used by student submissions', async () => {
   const input = fixture();
   const starter = 'def increment(x: int) -> int:\n    pass\n';

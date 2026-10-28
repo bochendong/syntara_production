@@ -1,5 +1,6 @@
 import type { NotebookProblemImportDraft } from './schema';
 import { assembleCodeFromSlots } from './code-slots';
+import { formatPartLabel, multipartCodePartDrafts } from './multipart';
 
 export const MIN_PUBLIC_CODE_TESTS = 2;
 export const MIN_SECRET_CODE_TESTS = 3;
@@ -29,7 +30,19 @@ function normalizedTestKey(testCase: { expression: string; expected: string }): 
     .trim()}`;
 }
 
+/** 大题里代码小问的错误统一以「代码题小问 (x)：」开头，和整道代码题的错误一起被清理、重算。 */
+export function codePartErrorPrefix(label: string): string {
+  return `代码题小问 ${formatPartLabel(label)}：`;
+}
+
 export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): string[] {
+  if (draft.type === 'multipart') {
+    return multipartCodePartDrafts(draft).flatMap(({ label, draft: partDraft }) =>
+      codeDraftReadinessErrors(partDraft).map(
+        (error) => `${codePartErrorPrefix(label)}${error.replace(/^代码题/, '')}`,
+      ),
+    );
+  }
   if (
     draft.type !== 'code' ||
     draft.publicContent.type !== 'code' ||
@@ -68,20 +81,8 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
   }
 
   if (!content.starterCode?.trim()) errors.push('代码题缺少学生编辑器 starterCode');
-  const statementKinds = new Set(
-    (content.statementSections ?? []).map((section) => section.kind ?? 'overview'),
-  );
-  const requiredStatementKinds = [
-    'overview',
-    'requirements',
-    'interface',
-    'examples',
-    'constraints',
-  ] as const;
-  const missingStatementKinds = requiredStatementKinds.filter((kind) => !statementKinds.has(kind));
-  if (missingStatementKinds.length > 0) {
-    errors.push(`代码题缺少 LeetCode 式题面部分：${missingStatementKinds.join(', ')}`);
-  }
+  // Source questions may specify their interface and examples in the supplied
+  // header/docstring. Fixed presentation sections must not force filler text.
   if (!solution) {
     errors.push('代码题缺少参考答案');
   }

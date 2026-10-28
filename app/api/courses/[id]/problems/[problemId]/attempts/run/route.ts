@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
 import { judgeNotebookCodeProblem } from '@/features/problems/server/judge';
+import { runNotebookMultipartCodePart } from '@/features/problems/server/evaluate';
 import {
   createNotebookProblemAttempt,
   getCourseProblemForUser,
@@ -15,6 +16,8 @@ const runSchema = z.object({
   code: z.string().trim().min(1).max(120000),
   target: z.enum(['code', 'public', 'secret']).default('public'),
   language: z.enum(['zh-CN', 'en-US']).default('zh-CN'),
+  /// 大题里的代码小问
+  part: z.string().trim().min(1).max(40).optional(),
 });
 
 export async function POST(
@@ -35,6 +38,23 @@ export async function POST(
     }
 
     const loaded = await getCourseProblemForUser(auth.userId, id, problemId);
+
+    if (payload.data.part && loaded.problem.type === 'multipart') {
+      if (payload.data.target === 'secret') {
+        return NextResponse.json({ error: 'Secret tests run only on submit' }, { status: 400 });
+      }
+      const judged = await runNotebookMultipartCodePart({
+        problem: { ...loaded.problem, points: STANDARD_PROBLEM_POINTS },
+        label: payload.data.part,
+        code: payload.data.code,
+        target: payload.data.target,
+        language: payload.data.language,
+      });
+      if (!judged) {
+        return NextResponse.json({ error: 'This part is not a code part' }, { status: 400 });
+      }
+      return NextResponse.json({ attempt: null, result: judged.result });
+    }
     if (loaded.problem.type !== 'code') {
       return NextResponse.json(
         { error: 'Run is only supported for code problems' },

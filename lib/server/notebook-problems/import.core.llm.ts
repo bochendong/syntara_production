@@ -1034,14 +1034,14 @@ JSON 格式：
   "sourceSummary": "...",
   "nonProblemRegions": [{"kind":"cover|instructions|additional_work|blank|header_footer|other","pageNumbers":[1],"reason":"..."}],
   "sharedContexts": [{"id":"...","title":"...","pageNumbers":[1],"summary":"..."}],
-  "topLevelProblems": [{"index":1,"topLevelLabel":"1","title":"...","points":3,"problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|multipart|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],
+  "topLevelProblems": [{"index":1,"topLevelLabel":"1","title":"...","points":3,"problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|multipart|table|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],
   "warnings": [],
   "generatedBy": "llm"
 }`
       : `Read every page of the attached file, but in this pass create only a structural problem index; do not solve anything. Return one strict JSON object without markdown.
 Separate printed source questions from student handwriting, marked bubbles, grader annotations, scores, and grading feedback. The latter are not problems. Put covers, reference sheets, answer sheets, and blank pages in nonProblemRegions.
 Create one item per top-level number; put every (a)(b)/(i)(ii) part into that item's subparts and set problemTypeHint to multipart. Only when there are more than 12 parts (e.g. a long table answered row by row) split into several topLevelProblems items carrying the original number and row label. Identify both the source capability and the best supported delivery type.
-Record the printed total points for every problem as points. Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|additional_work|blank|header_footer|other","pageNumbers":[1],"reason":"..."}],"sharedContexts":[],"topLevelProblems":[{"index":1,"topLevelLabel":"1","title":"...","points":3,"problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|multipart|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],"warnings":[],"generatedBy":"llm"}`;
+Record the printed total points for every problem as points. Return: {"sourceSummary":"...","nonProblemRegions":[{"kind":"cover|instructions|additional_work|blank|header_footer|other","pageNumbers":[1],"reason":"..."}],"sharedContexts":[],"topLevelProblems":[{"index":1,"topLevelLabel":"1","title":"...","points":3,"problemTypeHint":"choice|proof|calculation|short_answer|code|fill_blank|multipart|table|unknown","pageStart":2,"pageEnd":2,"sourceAnchors":[{"pageNumber":2,"textQuote":"...","role":"problem"}],"subparts":[],"contextBlocks":[],"visualRefs":[],"confidence":0.9}],"warnings":[],"generatedBy":"llm"}`;
   const structureResult = await callLLM(
     {
       model: args.model,

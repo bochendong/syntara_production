@@ -1,9 +1,14 @@
 'use client';
 
 import { useCallback } from 'react';
+import type { FormulaEditorOptions } from './use-part-formula-editor';
 
 export type PartEditorRegistration = {
-  onEditorReady?: (label: string, editor: HTMLTextAreaElement | null) => void;
+  onEditorReady?: (
+    label: string,
+    editor: HTMLTextAreaElement | null,
+    options?: FormulaEditorOptions,
+  ) => void;
   onEditorFocus?: (label: string) => void;
 };
 

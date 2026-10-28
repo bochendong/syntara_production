@@ -1,0 +1,114 @@
+.native-code-tests {
+  padding: 18px 16px;
+  color: #334155;
+}
+.native-code-tests > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.native-code-tests small {
+  margin-left: 6px;
+  color: #94a3b8;
+  font-weight: 400;
+}
+.native-code-tests button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #64748b;
+  font-size: 11px;
+  cursor: pointer;
+}
+.native-code-tests button:hover {
+  border-color: #b7d6fc;
+  color: #2563eb;
+}
+.native-code-tests button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.native-code-test-list {
+  display: grid;
+  gap: 10px;
+}
+.native-code-test-case {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e6edf5;
+  border-radius: 13px;
+  background: #fff;
+}
+.native-code-test-call {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+}
+.native-code-test-number {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 10px;
+}
+.native-code-test-call pre {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.native-code-test-call button {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  padding: 0;
+}
+.native-code-test-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  padding: 9px 12px 9px 42px;
+  border-top: 1px solid #f1f5f9;
+  color: #94a3b8;
+  font-size: 11px;
+}
+.native-code-test-values > span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+.native-code-test-values code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: #475569;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
+.native-code-test-values [data-status='passed'] {
+  color: #059669;
+}
+.native-code-test-values [data-status='failed'] {
+  color: #e11d48;
+}
+.native-code-tests > [role='alert'] {
+  margin-top: 10px;
+  color: #e11d48;
+  font-size: 12px;
+}

@@ -461,6 +461,9 @@ export function gradeNativeCode(input: {
   attemptId: string;
   code: string;
   language: 'zh-CN' | 'en-US';
+  /** 大题里的代码小问 label；mode=run 只跑公开测试 */
+  part?: string;
+  mode?: 'submit' | 'run';
 }): Promise<{
   saved: boolean;
   preview?: boolean;

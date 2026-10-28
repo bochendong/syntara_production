@@ -555,6 +555,8 @@ export async function runNotebookCodeProblem(args: {
   code: string;
   target?: 'code' | 'public' | 'secret';
   language?: 'zh-CN' | 'en-US';
+  /// 大题里的代码小问（只跑，不记录）
+  part?: string;
 }) {
   return backendJson<{
     attempt: NotebookProblemAttemptRecord;
@@ -564,7 +566,12 @@ export async function runNotebookCodeProblem(args: {
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: args.code, target: args.target, language: args.language }),
+      body: JSON.stringify({
+        code: args.code,
+        target: args.target,
+        language: args.language,
+        part: args.part,
+      }),
     },
   );
 }
@@ -575,6 +582,8 @@ export async function runCourseCodeProblem(args: {
   code: string;
   target?: 'code' | 'public' | 'secret';
   language?: 'zh-CN' | 'en-US';
+  /// 大题里的代码小问（只跑，不记录）
+  part?: string;
 }) {
   return backendJson<{
     attempt: NotebookProblemAttemptRecord;
@@ -584,7 +593,12 @@ export async function runCourseCodeProblem(args: {
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: args.code, target: args.target, language: args.language }),
+      body: JSON.stringify({
+        code: args.code,
+        target: args.target,
+        language: args.language,
+        part: args.part,
+      }),
     },
   );
 }

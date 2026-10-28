@@ -176,6 +176,7 @@ export const problemStructurePlanSchema = z.object({
             'code',
             'fill_blank',
             'multipart',
+            'table',
             'unknown',
           ])
           .default('unknown'),

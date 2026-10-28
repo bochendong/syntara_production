@@ -66,6 +66,8 @@ function deliveryContractValidationErrors(draft: NotebookProblemImportDraft): st
       }
       for (const error of deliveryContractValidationErrors({
         ...draft,
+        // 小问的评分量表对的是这一问的分值，不是整道大题的分值
+        points: part.points,
         type: part.content.type,
         publicContent: part.content,
         grading: partGrading,

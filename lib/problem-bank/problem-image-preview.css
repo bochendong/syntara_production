@@ -167,3 +167,17 @@
     justify-content: center;
   }
 }
+
+/* A figure with numbered answer boxes is the question itself, rather than a thumbnail gallery. */
+.problem-image-gallery.is-figure {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.problem-image-gallery.is-figure .problem-image-thumbnail-frame {
+  width: 100%;
+  height: auto;
+}
+
+.problem-image-gallery.is-figure .problem-image-thumbnail-img {
+  height: auto;
+}

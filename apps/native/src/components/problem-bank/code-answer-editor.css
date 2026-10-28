@@ -49,3 +49,12 @@
 .code-answer-editor .code-answer-gutter {
   padding-inline: 8px;
 }
+
+.code-answer-editor .code-answer-empty-hint {
+  position: absolute;
+  color: #94a3b8;
+  font: inherit;
+  line-height: inherit;
+  pointer-events: none;
+  user-select: none;
+}

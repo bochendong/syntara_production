@@ -62,11 +62,13 @@ export function problemLearningArchive(input: {
         ? answer.selectedOptionIds.join(', ') || '尚未选择选项'
         : answer.kind === 'code'
           ? answer.code
-          : answer.kind === 'table'
-            ? JSON.stringify(answer.cells)
-            : answer.kind === 'parts'
-              ? JSON.stringify(answer.parts)
-              : `${answer.text || '尚未填写文字'}${answer.images?.length ? `；另有 ${answer.images.length} 张作答图片` : ''}`;
+          : answer.kind === 'blanks'
+            ? JSON.stringify(answer.blanks)
+            : answer.kind === 'table'
+              ? JSON.stringify(answer.cells)
+              : answer.kind === 'parts'
+                ? JSON.stringify(answer.parts)
+                : `${answer.text || '尚未填写文字'}${answer.images?.length ? `；另有 ${answer.images.length} 张作答图片` : ''}`;
     memories.push({
       id: `solution-help:${problem.id}`,
       courseId: problem.courseId,

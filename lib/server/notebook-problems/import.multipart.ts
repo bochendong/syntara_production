@@ -15,7 +15,15 @@ import { extractSubpartSections } from './import.core.drafts';
 
 const MAX_PARTS = 12;
 const SHARED_STEM_MIN_CHARS = 120;
-const PART_TYPES = new Set(['short_answer', 'choice', 'proof', 'calculation', 'fill_blank']);
+const PART_TYPES = new Set([
+  'short_answer',
+  'choice',
+  'proof',
+  'calculation',
+  'fill_blank',
+  'table',
+  'code',
+]);
 const SPLIT_LABEL_RE =
   /^\s*(\d+)\s*[.\-\s]?\s*[(（]?\s*([a-h]|i{1,3}|iv|vi{0,3}|ix|x|\d{1,2})\s*[)）]?\s*$/i;
 
@@ -74,6 +82,29 @@ function withPrompt(
   return content.type === 'fill_blank'
     ? { ...content, stemTemplate: prompt }
     : { ...content, stem: prompt };
+}
+
+/** 代码小问各自的隐藏测试搬到 secretJudge.parts[label]。 */
+function mergedPartSecrets(
+  group: NotebookProblemImportDraft[],
+  labels: string[],
+): NotebookProblemImportDraft['secretJudge'] {
+  const parts = Object.fromEntries(
+    group.flatMap((draft, index) => {
+      if (draft.type !== 'code' || !draft.secretJudge) return [];
+      const { secretTestCode, secretTests, timeoutMs, files } = draft.secretJudge;
+      return [[labels[index], { secretTestCode, secretTests, timeoutMs, files }]];
+    }),
+  );
+  if (Object.keys(parts).length === 0) return undefined;
+  const firstCode = group.find((draft) => draft.type === 'code' && draft.secretJudge)?.secretJudge;
+  return {
+    language: firstCode?.language ?? 'python',
+    runnerAdapter: firstCode?.runnerAdapter,
+    secretTests: [],
+    timeoutMs: 5000,
+    parts,
+  };
 }
 
 function mergeGroup(
@@ -139,7 +170,7 @@ function mergeGroup(
       ...(first.publicContent.assets ? { assets: first.publicContent.assets } : {}),
     },
     grading: { type: 'multipart', graderKind: 'per_part', parts: gradingParts },
-    secretJudge: undefined,
+    secretJudge: mergedPartSecrets(group, labels),
     sourceMeta: {
       ...first.sourceMeta,
       multipartRepair: 'merged-split-parts',

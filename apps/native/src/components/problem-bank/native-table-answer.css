@@ -1,39 +1,177 @@
 .native-table-answer {
+  margin: 12px 0;
+  color: #1e293b;
+}
+.native-table-scroll {
   overflow-x: auto;
-  margin: 0.75rem 0;
+  border: 1px solid #e8edf3;
+  border-radius: 16px;
+  background: #fff;
 }
 .native-table-answer table {
   width: 100%;
-  border-collapse: collapse;
-  background: white;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
 }
-.native-table-answer th,
-.native-table-answer td {
-  border: 1px solid #dce4ee;
-  padding: 0.5rem;
+.native-table-answer thead th {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e8edf3;
+  color: #7b8ba2;
   text-align: left;
-  vertical-align: top;
+  font-size: 11px;
+  font-weight: 500;
 }
-.native-table-answer th {
-  background: #f2f7fc;
+.native-table-answer tbody td,
+.native-table-answer tbody th {
+  padding: 16px;
+  border-bottom: 1px solid #edf1f6;
+  vertical-align: top;
+  text-align: left;
+}
+.native-table-answer tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.native-table-answer .native-table-index {
+  width: 40px;
+  padding-right: 4px;
+  padding-left: 12px;
+  text-align: center;
+}
+.native-table-row-label {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e6ebf2;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #fff, #edf1f6);
+  box-shadow: 0 2px 4px #1e293b08;
+  color: #66768d;
+  font-size: 11px;
+  font-weight: 600;
+}
+.native-table-answer .native-table-given {
+  background: #f8fafd;
 }
 .native-table-answer pre {
+  margin: 0;
   white-space: pre-wrap;
-  font-family: monospace;
+  overflow-wrap: anywhere;
+  color: #334155;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  line-height: 1.85;
+  tab-size: 4;
+}
+.native-table-answer .native-table-given[data-kind='code'] {
+  min-width: 220px;
+}
+.native-table-input-wrap {
+  position: relative;
+  min-width: 144px;
 }
 .native-table-answer textarea {
   display: block;
-  min-width: 8rem;
+  box-sizing: border-box;
   width: 100%;
-  border: 1px solid #bdcce0;
-  border-radius: 0.5rem;
-  padding: 0.5rem;
-  font-family: monospace;
+  min-height: 90px;
+  resize: vertical;
+  padding: 11px 12px 28px;
+  border: 1px solid #e1e8f0;
+  border-radius: 11px;
+  outline: none;
+  background: #fcfdff;
+  color: #0f172a;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 13px;
+  line-height: 1.75;
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
 }
-.native-table-answer button {
-  border: 1px solid #d3e1ee;
-  background: #f5faff;
-  border-radius: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  margin: 0.25rem;
+.native-table-answer textarea::placeholder {
+  color: #a0aec0;
+  font-family: inherit;
+  font-size: 12px;
+}
+.native-table-answer textarea:focus {
+  border-color: #91bfff;
+  background: #fff;
+  box-shadow: 0 0 0 3px #3b82f612;
+}
+.native-table-answer textarea:disabled {
+  opacity: 0.65;
+}
+.native-table-quick-answers {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.native-table-input-wrap:focus-within .native-table-quick-answers,
+.native-table-input-wrap:hover .native-table-quick-answers {
+  opacity: 1;
+}
+.native-table-quick-answers button {
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: #edf2f8;
+  color: #7b8ba2;
+  font-size: 10px;
+  cursor: pointer;
+}
+.native-table-quick-answers button:hover {
+  background: #e2ecfc;
+  color: #3977c4;
+}
+.native-table-icon-button {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #7b8ba2;
+  cursor: pointer;
+}
+.native-table-icon-button:hover {
+  background: #e7effb;
+  color: #3977c4;
+}
+.native-table-verdict {
+  display: inline-flex;
+  margin-top: 6px;
+  color: #64748b;
+}
+.native-table-answer .native-table-setup,
+.native-table-answer .native-table-run-output {
+  margin: 0 0 12px;
+  padding: 12px 16px;
+  border: 1px solid #e8edf3;
+  border-radius: 12px;
+  background: #f8fafd;
+}
+.native-table-answer .native-table-run-output {
+  margin-top: 12px;
+}
+@media (hover: none) {
+  .native-table-quick-answers {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .native-table-answer textarea,
+  .native-table-quick-answers {
+    transition: none;
+  }
 }

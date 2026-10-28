@@ -221,6 +221,8 @@ const db = {
 mocks.set('@/lib/server/prisma', { prisma: db });
 mocks.set('@/lib/server/repositories/course-enrollment-repository', {
   findCourseAccessRole: async () => accessRole,
+  resolveCourseNotebookAccess: async () =>
+    accessRole ? { role: accessRole, allowedNotebookIds: ['notebook-fixture'] } : null,
 });
 for (const specifier of [
   '@/features/background-jobs/server/store',

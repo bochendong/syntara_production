@@ -13,6 +13,24 @@ export function tableAnswerColumns(content: NotebookProblemPublicTable): Noteboo
   return content.columns.filter((column) => column.role === 'answer');
 }
 
+/** Keep execution setup available to the runner without repeating code already in the prompt. */
+export function tableSetupNeedsDisplay(
+  content: Pick<NotebookProblemPublicTable, 'stem' | 'setupCode'>,
+): boolean {
+  const setup = content.setupCode?.trim();
+  if (!setup) return false;
+  const blocks = [...content.stem.matchAll(/```(?:python|py)?\s*\n([\s\S]*?)```/g)].map((match) =>
+    match[1].trim(),
+  );
+  const normalize = (code: string) =>
+    code
+      .split(/\r?\n/)
+      .map((line) => line.trimEnd())
+      .filter((line) => line.trim())
+      .join('\n');
+  return normalize(blocks.join('\n\n')) !== normalize(setup);
+}
+
 export function tableAnswerKeys(content: NotebookProblemPublicTable): string[] {
   const columns = tableAnswerColumns(content);
   return content.rows.flatMap((row) => columns.map((column) => tableCellKey(row.id, column.id)));

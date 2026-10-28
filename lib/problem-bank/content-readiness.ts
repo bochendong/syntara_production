@@ -83,6 +83,14 @@ export function problemContentReadinessErrors(draft: NotebookProblemImportDraft)
     else if (match[1][0] === fence[0] && match[1].length >= fence.length) fence = '';
   }
   if (fence) errors.push('题面结构：代码围栏未闭合，请保留完整代码块与缩进');
+  // 简答/表格等题型没有空位答题格，留下的 {{answer-1}} 学生只能看着
+  if (
+    content.type !== 'fill_blank' &&
+    content.type !== 'code' &&
+    /\{\{\s*[\w-]+\s*\}\}/.test(text)
+  ) {
+    errors.push('题面结构：只有填空题能用 {{id}} 空位标记；请改成填空题或表格题，或去掉标记');
+  }
   if (content.type === 'fill_blank') {
     for (const blank of content.blanks.filter((blank) => blank.answerKind === 'code_token')) {
       const codeBlocks = [
@@ -100,16 +108,27 @@ export function problemContentReadinessErrors(draft: NotebookProblemImportDraft)
     }
     const ids = content.blanks.map((blank) => blank.id);
     const markers = [...text.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)].map((match) => match[1].trim());
+    const figureBlanks = content.blankLayout === 'figure' && Boolean(content.assets?.images.length);
     const gradingIds =
       draft.grading.type === 'fill_blank' ? draft.grading.blanks.map((blank) => blank.id) : [];
     if (
       new Set(ids).size !== ids.length ||
       new Set(gradingIds).size !== gradingIds.length ||
-      ids.some((id) => !markers.includes(id) || !gradingIds.includes(id)) ||
+      ids.some((id) => (!figureBlanks && !markers.includes(id)) || !gradingIds.includes(id)) ||
       markers.some((id) => !ids.includes(id)) ||
       gradingIds.some((id) => !ids.includes(id))
     ) {
       errors.push('题面结构：填空标记、作答项和评分项必须一一对应');
+    }
+    if (
+      draft.grading.type === 'fill_blank' &&
+      draft.grading.answerVariants?.some(
+        (variant) =>
+          ids.some((id) => !variant[id]?.trim()) ||
+          Object.keys(variant).some((id) => !ids.includes(id)),
+      )
+    ) {
+      errors.push('题面结构：每组替代答案必须完整对应所有填空项');
     }
     if (
       draft.grading.type === 'fill_blank' &&

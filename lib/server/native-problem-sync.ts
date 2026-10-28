@@ -184,6 +184,7 @@ export const nativeProblemAttemptUploadSchema = z.object({
         answer: z.object({
           selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
           text: z.string().max(40_000).optional(),
+          blanks: z.record(z.string(), z.string().max(4000)).optional(),
           code: z.string().max(120_000).optional(),
           cells: z.record(z.string().max(140), z.string().max(8000)).optional(),
           parts: z

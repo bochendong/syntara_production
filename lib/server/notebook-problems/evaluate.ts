@@ -1,3 +1,4 @@
+import { countCorrectBlankAnswers } from '@/lib/problem-bank/blank-answer-variants';
 import type { LanguageModel } from 'ai';
 import { callLLM } from '@/lib/ai/llm';
 import type {
@@ -5,6 +6,7 @@ import type {
   NotebookProblemAttemptResult,
   NotebookProblemPartResult,
   NotebookProblemRecord,
+  NotebookProblemSecretJudge,
 } from '@/lib/problem-bank';
 import {
   aggregatePartStatus,
@@ -20,8 +22,11 @@ import {
   isNotebookTableProblemRecord,
   MULTIPART_PART_SUBMISSION_LIMIT,
   partPointShares,
+  partSecretJudge,
   submittedPartAnswers,
 } from '@/lib/problem-bank';
+import { judgeNotebookCodeProblem } from '@/lib/server/notebook-problems/judge';
+import type { NotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 import { maxScoreForAttempt } from '@/lib/problem-bank/scoring-policy';
 import { parseNumericPair, parseNumericScalar } from '@/lib/problem-bank/numeric-answer';
 import { evaluateNotebookTableProblem } from '@/lib/server/notebook-problems/table-evaluate';
@@ -270,9 +275,10 @@ export async function evaluateNotebookNonCodeProblem(args: {
 
   if (isNotebookFillBlankProblemRecord(problem)) {
     const filled = answer.blanks ?? {};
-    const correctBlanks = problem.grading.blanks.filter((blank) => {
-      const userValue = filled[blank.id] || '';
-      return blank.acceptedAnswers.some((candidate) => {
+    const correctBlanks = countCorrectBlankAnswers(
+      problem.grading,
+      filled,
+      (blank, userValue, candidate) => {
         if (blank.matcher === 'numeric_tolerance') {
           const actual = parseNumericScalar(userValue);
           const expected = parseNumericScalar(candidate);
@@ -286,8 +292,8 @@ export async function evaluateNotebookNonCodeProblem(args: {
           return userValue.trim() === candidate.trim();
         }
         return normalizeText(userValue) === normalizeText(candidate);
-      });
-    }).length;
+      },
+    );
     const total = problem.grading.blanks.length;
     const score = total > 0 ? (problem.points * correctBlanks) / total : 0;
     return {
@@ -433,6 +439,9 @@ export async function evaluateNotebookMultipartProblem(args: {
   previous?: { answer: NotebookProblemAttemptAnswer; result?: NotebookProblemAttemptResult } | null;
   model?: LanguageModel;
   language: 'zh-CN' | 'en-US';
+  /// 代码小问的隐藏测试（secretJudge.parts）
+  secretJudge?: NotebookProblemSecretJudge;
+  courseIdentity?: NotebookProblemCourseIdentity;
 }): Promise<{
   status: 'pending' | 'passed' | 'failed' | 'partial' | 'error';
   score: number;
@@ -497,7 +506,7 @@ export async function evaluateNotebookMultipartProblem(args: {
             : `${formatPartLabel(part.label)} already used ${MULTIPART_PART_SUBMISSION_LIMIT} submissions; the last result is kept.`,
         };
       }
-      const partProblem = buildPartProblem(problem, index, points);
+      const partProblem = buildPartProblem(problem, index, points, mergedAnswers);
       if (!partProblem) {
         return {
           ...carried,
@@ -507,12 +516,22 @@ export async function evaluateNotebookMultipartProblem(args: {
             : 'This part has no grading data; the answer was saved for manual grading.',
         };
       }
-      const graded = await evaluateNotebookNonCodeProblem({
-        problem: partProblem,
-        answer: partAnswer,
-        model: args.model,
-        language: args.language,
-      });
+      const graded =
+        part.content.type === 'code'
+          ? await judgeNotebookCodeProblem({
+              problem: partProblem,
+              secretJudge: partSecretJudge(args.secretJudge, part),
+              kind: 'submit',
+              userAnswer: { code: partAnswer.code },
+              language: args.language,
+              courseIdentity: args.courseIdentity,
+            })
+          : await evaluateNotebookNonCodeProblem({
+              problem: partProblem,
+              answer: partAnswer,
+              model: args.model,
+              language: args.language,
+            });
       if (graded.status === 'error') {
         // 批改失败不算一次提交，保留上次结果
         return { ...carried, feedback: graded.result.feedback };
@@ -531,6 +550,13 @@ export async function evaluateNotebookMultipartProblem(args: {
         cells: graded.result.cells,
         gradedAt: now,
         submissions,
+        ...(part.content.type === 'code'
+          ? {
+              publicSummary: graded.result.publicSummary,
+              secretSummary: graded.result.secretSummary,
+              caseResults: graded.result.publicCases.length ? graded.result.publicCases : undefined,
+            }
+          : {}),
       };
     }),
   );
@@ -572,4 +598,29 @@ export async function evaluateNotebookMultipartProblem(args: {
       parts: partResults,
     },
   };
+}
+
+/** 大题里代码小问的「运行 / 运行测试」：只跑公开测试或直接运行，不记一次提交。 */
+export async function runNotebookMultipartCodePart(args: {
+  problem: NotebookProblemRecord;
+  label: string;
+  code: string;
+  target: 'code' | 'public';
+  language: 'zh-CN' | 'en-US';
+  courseIdentity?: NotebookProblemCourseIdentity;
+}) {
+  if (!isNotebookMultipartProblemRecord(args.problem)) return null;
+  const index = args.problem.publicContent.parts.findIndex((part) => part.label === args.label);
+  const part = args.problem.publicContent.parts[index];
+  if (!part || part.content.type !== 'code') return null;
+  const partProblem = buildPartProblem(args.problem, index, args.problem.points);
+  if (!partProblem) return null;
+  return judgeNotebookCodeProblem({
+    problem: partProblem,
+    kind: 'run',
+    runTarget: args.target,
+    userAnswer: { code: args.code },
+    language: args.language,
+    courseIdentity: args.courseIdentity,
+  });
 }

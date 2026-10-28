@@ -1,4 +1,6 @@
 import { problemContentReadinessErrors } from '@/lib/problem-bank/content-readiness';
+import { codePartErrorPrefix } from '@/lib/problem-bank/code-readiness';
+import { multipartCodePartDrafts } from '@/lib/problem-bank/multipart';
 import { enqueueJob } from '@/features/background-jobs/server/store';
 import { Prisma } from '@/lib/server/generated-prisma';
 import { courseProblemDedupeKey } from '@/features/problems/domain/problem-dedupe';
@@ -669,7 +671,7 @@ function normalizeDraftForPersistence(
 ): NotebookProblemImportDraft {
   const parsed = notebookProblemImportDraftSchema.parse(draftInput);
   const draft = preservePreparedContent ? parsed : normalizeDraftMathFields(parsed);
-  const isCode = draft.type === 'code';
+  const isCode = draft.type === 'code' || multipartCodePartDrafts(draft).length > 0;
   const codeErrors = [...codeDraftReadinessErrors(draft), ...problemContentReadinessErrors(draft)];
   const codeVerification =
     draft.sourceMeta.codeVerification && typeof draft.sourceMeta.codeVerification === 'object'
@@ -694,14 +696,40 @@ function normalizeDraftForPersistence(
             ...draft.publicContent,
             secretConfigPresent: hasSecretTests,
           }
-        : draft.publicContent,
+        : draft.publicContent.type === 'multipart'
+          ? {
+              ...draft.publicContent,
+              parts: draft.publicContent.parts.map((part) => {
+                if (part.content.type !== 'code') return part;
+                const secrets = draft.secretJudge?.parts?.[part.label];
+                return {
+                  ...part,
+                  content: {
+                    ...part.content,
+                    secretConfigPresent: Boolean(
+                      secrets?.secretTestCode?.trim() || (secrets?.secretTests?.length ?? 0) > 0,
+                    ),
+                  },
+                };
+              }),
+            }
+          : draft.publicContent,
     grading:
       isCode && draft.grading.type === 'code'
         ? {
             ...draft.grading,
             publishRequirementsMet,
           }
-        : draft.grading,
+        : draft.grading.type === 'multipart'
+          ? {
+              ...draft.grading,
+              parts: draft.grading.parts.map((item) =>
+                item.grading.type === 'code'
+                  ? { ...item, grading: { ...item.grading, publishRequirementsMet } }
+                  : item,
+              ),
+            }
+          : draft.grading,
     sourceMeta: {
       ...draft.sourceMeta,
       normalizedOrder: order,
@@ -713,6 +741,7 @@ function normalizeDraftForPersistence(
 async function withCodeReferenceVerification(
   draft: NotebookProblemImportDraft,
 ): Promise<NotebookProblemImportDraft> {
+  if (draft.type === 'multipart') return withCodePartVerification(draft);
   if (draft.type !== 'code') return verifyCodeBlankDraft(draft);
   const verification = await verifyNotebookCodeDraftReferenceAnswer(draft);
   return {
@@ -734,6 +763,50 @@ async function withCodeReferenceVerification(
     },
     validationErrors: Array.from(
       new Set([...withoutCodeReadinessErrors(draft.validationErrors), ...verification.errors]),
+    ),
+  };
+}
+
+/** 大题里的代码小问逐个跑参考答案；结果汇总到 sourceMeta.codeVerification。 */
+async function withCodePartVerification(
+  draft: NotebookProblemImportDraft,
+): Promise<NotebookProblemImportDraft> {
+  const codeParts = multipartCodePartDrafts(draft);
+  if (codeParts.length === 0) return draft;
+  const verifications = await Promise.all(
+    codeParts.map(async ({ label, draft: partDraft }) => ({
+      label,
+      verification: await verifyNotebookCodeDraftReferenceAnswer(partDraft),
+    })),
+  );
+  const passed = verifications.every(({ verification }) => verification.passed);
+  const errors = verifications.flatMap(({ label, verification }) =>
+    verification.errors.map(
+      (error) => `${codePartErrorPrefix(label)}${error.replace(/^代码题/, '')}`,
+    ),
+  );
+  return {
+    ...draft,
+    status: passed ? draft.status : 'draft',
+    sourceMeta: {
+      ...draft.sourceMeta,
+      codeVerification: {
+        passed,
+        checkedBy: 'python-runner',
+        parts: Object.fromEntries(
+          verifications.map(({ label, verification }) => [
+            label,
+            {
+              passed: verification.passed,
+              publicTestCount: verification.publicTestCount,
+              secretTestCount: verification.secretTestCount,
+            },
+          ]),
+        ),
+      },
+    },
+    validationErrors: Array.from(
+      new Set([...withoutCodeReadinessErrors(draft.validationErrors), ...errors]),
     ),
   };
 }
@@ -1648,8 +1721,8 @@ async function loadCourseProblemBankStatsForUser(
       ) ranked
     )
     SELECT
-      (SELECT COUNT(*)::int FROM "NotebookProblem" allProblems
-        WHERE allProblems."courseId" = ${courseId}
+      (SELECT COUNT(*)::int FROM "NotebookProblem" "allProblems"
+        WHERE "allProblems"."courseId" = ${courseId}
           AND ${problemLayerSql(userId, 'allProblems')}) AS "allProblemCount",
       COUNT(*)::int AS "total",
       COUNT(*) FILTER (WHERE "practiceState" <> 'unattempted')::int AS "attempted",

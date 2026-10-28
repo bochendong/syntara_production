@@ -143,6 +143,8 @@ export const notebookProblemPublicFillBlankSchema = notebookProblemPublicBaseSch
   type: z.literal('fill_blank'),
   taskKind: notebookProblemTaskKindSchema.optional(),
   responseKind: z.literal('fill_blank').optional(),
+  /// Figure blanks are numbered in the source image; inputs follow blanks array order.
+  blankLayout: z.enum(['inline', 'figure']).optional(),
   stemTemplate: z.string().trim().min(1).max(12000),
   blanks: z
     .array(
@@ -153,7 +155,7 @@ export const notebookProblemPublicFillBlankSchema = notebookProblemPublicBaseSch
       }),
     )
     .min(1)
-    .max(12),
+    .max(32),
 });
 
 /// 题目自带的文件：运行前写进工作目录，代码里 open('scores.csv') 就能读到
@@ -224,35 +226,6 @@ export const notebookProblemPublicTableSchema = notebookProblemPublicBaseSchema.
   runnable: z.boolean().optional(),
 });
 
-/// 大题里的一问：复用现有非代码题型的题面结构，content.stem（填空为 stemTemplate）只写这一问的问法
-export const notebookProblemPartPublicContentSchema = z.discriminatedUnion('type', [
-  notebookProblemPublicShortAnswerSchema,
-  notebookProblemPublicChoiceSchema,
-  notebookProblemPublicProofSchema,
-  notebookProblemPublicCalculationSchema,
-  notebookProblemPublicFillBlankSchema,
-  notebookProblemPublicTableSchema,
-]);
-
-export const notebookProblemPartLabelSchema = z.string().trim().min(1).max(40);
-
-export const notebookProblemPartSchema = z.object({
-  label: notebookProblemPartLabelSchema,
-  points: z.number().nonnegative().max(1000).default(0),
-  /// 用到了哪些前面小问的结论，界面上提示「接着 (a) 的结果」
-  dependsOn: z.array(notebookProblemPartLabelSchema).max(12).optional(),
-  content: notebookProblemPartPublicContentSchema,
-});
-
-export const notebookProblemPublicMultipartSchema = notebookProblemPublicBaseSchema.extend({
-  type: z.literal('multipart'),
-  taskKind: notebookProblemTaskKindSchema.optional(),
-  responseKind: z.literal('multipart').optional(),
-  /// 共享题干：背景、条件、表格、图，所有小问共用，只写一次
-  stem: z.string().trim().min(1).max(16000),
-  parts: z.array(notebookProblemPartSchema).min(1).max(12),
-});
-
 export const notebookCodeTestSchema = z.object({
   id: z.string().trim().min(1).max(64),
   description: z.string().trim().min(1).max(500).optional(),
@@ -292,6 +265,11 @@ export const notebookCodeStatementSectionSchema = z
 
 export const notebookProblemPublicCodeSchema = notebookProblemPublicBaseSchema.extend({
   type: z.literal('code'),
+  /// These supplied helpers are evaluated independently of earlier student answers.
+  assumedHelpers: z
+    .array(z.string().regex(/^[A-Za-z_]\w*$/))
+    .max(12)
+    .optional(),
   taskKind: z.literal('implementation').optional(),
   responseKind: z.literal('code_submission').optional(),
   stem: z.string().trim().min(1).max(16000),
@@ -312,6 +290,36 @@ export const notebookProblemPublicCodeSchema = notebookProblemPublicBaseSchema.e
   files: z.array(notebookCodeFileSchema).max(8).optional(),
   /// 自由运行时喂给 input() 的内容
   stdin: z.string().max(20000).optional(),
+});
+
+/// 大题里的一问：复用现有题型的题面结构（含代码题，隐藏测试放在 secretJudge.parts[label]），content.stem（填空为 stemTemplate）只写这一问的问法
+export const notebookProblemPartPublicContentSchema = z.discriminatedUnion('type', [
+  notebookProblemPublicShortAnswerSchema,
+  notebookProblemPublicChoiceSchema,
+  notebookProblemPublicProofSchema,
+  notebookProblemPublicCalculationSchema,
+  notebookProblemPublicFillBlankSchema,
+  notebookProblemPublicTableSchema,
+  notebookProblemPublicCodeSchema,
+]);
+
+export const notebookProblemPartLabelSchema = z.string().trim().min(1).max(40);
+
+export const notebookProblemPartSchema = z.object({
+  label: notebookProblemPartLabelSchema,
+  points: z.number().nonnegative().max(1000).default(0),
+  /// 用到了哪些前面小问的结论，界面上提示「接着 (a) 的结果」
+  dependsOn: z.array(notebookProblemPartLabelSchema).max(12).optional(),
+  content: notebookProblemPartPublicContentSchema,
+});
+
+export const notebookProblemPublicMultipartSchema = notebookProblemPublicBaseSchema.extend({
+  type: z.literal('multipart'),
+  taskKind: notebookProblemTaskKindSchema.optional(),
+  responseKind: z.literal('multipart').optional(),
+  /// 共享题干：背景、条件、表格、图，所有小问共用，只写一次
+  stem: z.string().trim().min(1).max(16000),
+  parts: z.array(notebookProblemPartSchema).min(1).max(12),
 });
 
 export const notebookProblemPublicContentSchema = z.discriminatedUnion('type', [
@@ -393,7 +401,13 @@ export const notebookProblemGradingFillBlankSchema = z.object({
       }),
     )
     .min(1)
-    .max(12),
+    .max(32),
+  /// Complete alternative diagrams; blanks must all follow the same variant.
+  answerVariants: z
+    .array(z.record(z.string().min(1).max(64), z.string().trim().min(1).max(1000)))
+    .min(1)
+    .max(16)
+    .optional(),
   analysis: z.string().trim().min(1).max(12000).optional(),
 });
 
@@ -433,6 +447,7 @@ export const notebookProblemPartGradingSchema = z.discriminatedUnion('type', [
   notebookProblemGradingCalculationSchema,
   notebookProblemGradingFillBlankSchema,
   notebookProblemGradingTableSchema,
+  notebookProblemGradingCodeSchema,
 ]);
 
 export const notebookProblemGradingMultipartSchema = z.object({
@@ -462,7 +477,17 @@ export const notebookProblemGradingSchema = z.discriminatedUnion('type', [
   notebookProblemGradingTableSchema,
 ]);
 
+export const notebookProblemPartSecretJudgeSchema = z.object({
+  supportCode: z.string().max(40000).optional(),
+  secretTestCode: z.string().max(80000).optional(),
+  secretTests: z.array(notebookCodeTestSchema).max(48).default([]),
+  timeoutMs: z.number().int().positive().max(20000).default(5000),
+  files: z.array(notebookCodeFileSchema).max(8).optional(),
+});
+
 export const notebookProblemSecretJudgeSchema = z.object({
+  /// Private reference helpers, added only after the student's locked ranges are validated.
+  supportCode: z.string().max(40000).optional(),
   language: z.string().trim().min(1).max(40).default('python'),
   runnerAdapter: z.string().trim().min(1).max(80).optional(),
   secretTestCode: z.string().max(80000).optional(),
@@ -470,6 +495,8 @@ export const notebookProblemSecretJudgeSchema = z.object({
   timeoutMs: z.number().int().positive().max(20000).default(5000),
   /// 只给隐藏测试用的文件，不下发到前端
   files: z.array(notebookCodeFileSchema).max(8).optional(),
+  /// 大题里的代码小问：按 label 存各自的隐藏测试
+  parts: z.record(notebookProblemPartLabelSchema, notebookProblemPartSecretJudgeSchema).optional(),
 });
 
 export const notebookProblemRecordSchema = z.object({
@@ -540,6 +567,7 @@ export const notebookProblemPartAnswerSchema = z.object({
   blanks: z.record(z.string(), z.string().max(4000)).optional(),
   images: z.array(notebookProblemAttemptImageSchema).max(4).optional(),
   cells: z.record(z.string(), z.string().max(8000)).optional(),
+  code: z.string().max(120000).optional(),
 });
 
 export const notebookProblemAttemptAnswerSchema = z.object({
@@ -597,6 +625,10 @@ export const notebookProblemPartResultSchema = z.object({
   gradedAt: z.number().optional(),
   /// 这一问累计提交了几次（自动判分的小问最多 3 次，分数上限逐次降低）
   submissions: z.number().int().min(0).max(1000).optional(),
+  /// 代码小问的测试结果
+  publicSummary: notebookCodeCaseSummarySchema.optional(),
+  secretSummary: notebookCodeCaseSummarySchema.optional(),
+  caseResults: z.array(notebookCodeCaseResultSchema).optional(),
 });
 
 export const notebookProblemAttemptResultSchema = z.object({

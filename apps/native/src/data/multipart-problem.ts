@@ -1,3 +1,5 @@
+import { countCorrectBlankAnswers } from '../../../../lib/problem-bank/blank-answer-variants';
+import type { NotebookProblemGradingFillBlank } from '../../../../lib/problem-bank/schema';
 import type { LocalProblem } from '../domain/models';
 import { gradeLocalProblem, type LocalGradeResult } from './local-problem-grading';
 
@@ -7,6 +9,8 @@ export type LocalPartAnswer = {
   text?: string;
   blanks?: Record<string, string>;
   cells?: Record<string, string>;
+  /** 代码小问：拼好的整段代码 */
+  code?: string;
 };
 
 export type LocalPartType =
@@ -15,7 +19,8 @@ export type LocalPartType =
   | 'calculation'
   | 'short_answer'
   | 'proof'
-  | 'table';
+  | 'table'
+  | 'code';
 
 export type LocalProblemPart = {
   label: string;
@@ -39,6 +44,9 @@ export type LocalPartResult = {
   gradedAt?: number;
   submissions?: number;
   cells?: Array<{ key: string; correct: boolean }>;
+  /** 代码小问：公开 / 隐藏测试通过数 */
+  publicSummary?: { passed: number; total: number };
+  secretSummary?: { passed: number; total: number };
 };
 
 export const PART_SUBMISSION_LIMIT = 3;
@@ -50,6 +58,7 @@ const PART_TYPES: LocalPartType[] = [
   'short_answer',
   'proof',
   'table',
+  'code',
 ];
 
 function record(value: unknown): Record<string, unknown> {
@@ -119,7 +128,8 @@ export function partAnswerHasContent(answer: LocalPartAnswer | undefined): boole
     answer.text?.trim() ||
     answer.selectedOptionIds?.length ||
     Object.values(answer.blanks ?? {}).some((value) => value.trim()) ||
-    Object.values(answer.cells ?? {}).some((value) => value.trim()),
+    Object.values(answer.cells ?? {}).some((value) => value.trim()) ||
+    answer.code?.trim(),
   );
 }
 
@@ -128,7 +138,8 @@ export function isAutoGradedPart(part: LocalProblemPart): boolean {
     part.type === 'choice' ||
     part.type === 'fill_blank' ||
     part.type === 'calculation' ||
-    part.type === 'table'
+    part.type === 'table' ||
+    part.type === 'code'
   );
 }
 
@@ -152,13 +163,11 @@ export function gradeLocalPart(
         autoGraded: false,
       };
     }
-    const right = blanks.filter((blank) => {
-      const accepted = Array.isArray(blank.acceptedAnswers)
-        ? blank.acceptedAnswers.filter((item): item is string => typeof item === 'string')
-        : [];
-      const value = answer.blanks?.[String(blank.id)] ?? '';
-      return accepted.some((item) => normalize(item) === normalize(value) && value.trim());
-    }).length;
+    const right = countCorrectBlankAnswers(
+      part.grading as unknown as NotebookProblemGradingFillBlank,
+      answer.blanks ?? {},
+      (_blank, actual, expected) => normalize(actual) === normalize(expected),
+    );
     const score = right / blanks.length;
     return {
       status: score >= 1 ? 'passed' : score > 0 ? 'partial' : 'failed',

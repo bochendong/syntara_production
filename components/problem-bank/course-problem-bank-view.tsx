@@ -1201,6 +1201,7 @@ export function CourseProblemBankView({
     handleProblemInfoTabChange,
     handleRemovePhotoAnswer,
     handleRunCodeAnswer,
+    handleRunMultipartCodePart,
     handleSubmitInlineAnswer,
     handleSubmitMultipartAnswer,
     partAnswers,
@@ -2456,6 +2457,7 @@ export function CourseProblemBankView({
                   }))
                 }
                 onSubmit={(labels) => void handleSubmitMultipartAnswer(labels)}
+                onRunCodePart={handleRunMultipartCodePart}
               />
             ) : selectedProblem.type === 'table' && selectedProblemContent?.type === 'table' ? (
               <TableAnswerPanel

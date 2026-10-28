@@ -5,6 +5,7 @@ import {
   type NotebookProblemImportDraft,
 } from '@/lib/problem-bank/schema';
 import { assembleCodeFromSlots, codeSlotTemplateFor } from '@/lib/problem-bank/code-slots';
+import { multipartCodePartDrafts } from '@/lib/problem-bank/multipart';
 import { codeReferenceSolution } from '@/lib/problem-bank/code-readiness';
 import type { NotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 import {
@@ -15,6 +16,7 @@ import {
 const counterexampleSchema = z
   .object({
     id: z.string().min(1).max(80),
+    part: z.string().min(1).max(40).optional(),
     code: z.string().min(1).max(30000),
     reason: z.string().min(1).max(500),
   })
@@ -23,7 +25,7 @@ export const codePreflightSchema = z
   .object({
     courseId: z.string().min(1).max(200),
     draft: notebookProblemImportDraftSchema,
-    counterexamples: z.array(counterexampleSchema).min(1).max(2),
+    counterexamples: z.array(counterexampleSchema).min(1).max(24),
   })
   .strict();
 function stable(value: unknown): string {
@@ -92,7 +94,7 @@ export function verifyCodePreflight(
     return false;
   }
 }
-export async function validateCodeQuestion(
+async function validateSingleCodeQuestion(
   input: z.infer<typeof codePreflightSchema>,
   actor: { userId: string; keyId: string },
   courseIdentity?: NotebookProblemCourseIdentity,
@@ -112,7 +114,13 @@ export async function validateCodeQuestion(
   const verified = await verifyNotebookCodeDraftReferenceAnswer(draft);
   const slots = codeSlotTemplateFor(draft.publicContent);
   const starter = slots
-    ? assembleCodeFromSlots(slots.template, slots.slots, {})
+    ? assembleCodeFromSlots(
+        slots.template,
+        slots.slots,
+        Object.fromEntries(
+          slots.slots.map((slot) => [slot.id, slot.kind === 'expr' ? 'None' : '']),
+        ),
+      )
     : draft.publicContent.starterCode;
   const problem = {
     ...draft,
@@ -173,6 +181,98 @@ export async function validateCodeQuestion(
     referenceResult,
     starterResult,
     counterexampleResults,
+    validatedDraft,
+    ...(valid
+      ? { proof: signCodePreflight({ ...actor, courseId: data.courseId, draft: validatedDraft }) }
+      : {}),
+  };
+}
+
+/** Validate every code part and bind one proof to the complete multipart payload. */
+export async function validateCodeQuestion(
+  input: z.infer<typeof codePreflightSchema>,
+  actor: { userId: string; keyId: string },
+  courseIdentity?: NotebookProblemCourseIdentity,
+) {
+  const data = codePreflightSchema.parse(input);
+  if (data.draft.type !== 'multipart') {
+    if (data.counterexamples.length > 2 || data.counterexamples.some((candidate) => candidate.part))
+      throw new Error('Standalone code requires one or two unscoped counterexamples');
+    return validateSingleCodeQuestion(data, actor, courseIdentity);
+  }
+  const codeParts = multipartCodePartDrafts(data.draft);
+  const labels = new Set(codeParts.map((part) => part.label));
+  if (
+    !codeParts.length ||
+    data.counterexamples.some((candidate) => !candidate.part || !labels.has(candidate.part))
+  )
+    throw new Error('Counterexamples must identify an existing code part');
+  const reports: Array<{
+    label: string;
+    report: Awaited<ReturnType<typeof validateSingleCodeQuestion>>;
+  }> = [];
+  for (const part of codeParts) {
+    const candidates = data.counterexamples.filter((candidate) => candidate.part === part.label);
+    if (candidates.length < 1 || candidates.length > 2)
+      throw new Error('Each code part requires one or two counterexamples');
+    const report = await validateSingleCodeQuestion(
+      { courseId: data.courseId, draft: part.draft, counterexamples: candidates },
+      actor,
+      courseIdentity,
+    );
+    reports.push({ label: part.label, report });
+  }
+  const valid = reports.every(({ report }) => report.valid);
+  if (data.draft.publicContent.type !== 'multipart' || data.draft.grading.type !== 'multipart')
+    throw new Error('Invalid multipart question');
+  const validatedDraft = notebookProblemImportDraftSchema.parse({
+    ...data.draft,
+    publicContent: {
+      ...data.draft.publicContent,
+      parts: data.draft.publicContent.parts.map((part) => {
+        const report = reports.find((item) => item.label === part.label)?.report;
+        return report ? { ...part, content: report.validatedDraft.publicContent } : part;
+      }),
+    },
+    grading: {
+      ...data.draft.grading,
+      parts: data.draft.grading.parts.map((part) => {
+        const report = reports.find((item) => item.label === part.label)?.report;
+        return report ? { ...part, grading: report.validatedDraft.grading } : part;
+      }),
+    },
+    sourceMeta: {
+      ...data.draft.sourceMeta,
+      codeVerification: {
+        passed: valid,
+        checkedBy: 'python-runner',
+        parts: Object.fromEntries(
+          reports.map(({ label, report }) => [
+            label,
+            {
+              passed: report.valid,
+              publicTestCount: report.publicCases,
+              secretTestCount: report.privateCases,
+            },
+          ]),
+        ),
+      },
+    },
+  });
+  return {
+    valid,
+    checkedBy: 'python-runner',
+    courseId: data.courseId,
+    draftFingerprint: codeDraftFingerprint(validatedDraft),
+    referencePassed: reports.every(({ report }) => report.referencePassed),
+    starterRejected: reports.every(({ report }) => report.starterRejected),
+    incorrectRejected: reports.every(({ report }) => report.incorrectRejected),
+    publicCases: reports.reduce((sum, { report }) => sum + report.publicCases, 0),
+    privateCases: reports.reduce((sum, { report }) => sum + report.privateCases, 0),
+    errors: reports.flatMap(({ label, report }) =>
+      report.errors.map((error) => `${label}: ${error}`),
+    ),
+    parts: reports,
     validatedDraft,
     ...(valid
       ? { proof: signCodePreflight({ ...actor, courseId: data.courseId, draft: validatedDraft }) }

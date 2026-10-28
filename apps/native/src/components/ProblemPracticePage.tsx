@@ -1,3 +1,5 @@
+import { visibleCodeTests } from '../../../../lib/problem-bank/visible-code-tests';
+import { fillBlankPrompt } from '../../../../lib/problem-bank/fill-blank-presentation';
 import { isValidPhotoAnswerUpload } from '../../../../lib/problem-bank/photo-answer';
 import { PhotoAnswerInput } from './problem-bank/photo-answer-input';
 import type { PhotoAnswerImage } from '../data/local-problem-grading';
@@ -50,6 +52,7 @@ import {
   isMultipartProblem,
   multipartParts,
   partAnswerHasContent,
+  partBlankIds,
   partQuestionText,
   partShares,
   PART_SUBMISSION_LIMIT,
@@ -98,8 +101,11 @@ import {
 import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
 import './course-pages.css';
 import { GlassSpinner } from './GlassLoadMore';
-import type { PartFormulaHandle } from '../../../../lib/problem-bank/use-part-formula-editor';
-import { MultipartPractice } from './problem-bank/multipart-practice';
+import {
+  usePartFormulaEditor,
+  type PartFormulaHandle,
+} from '../../../../lib/problem-bank/use-part-formula-editor';
+import { MultipartPractice, type PartCodeRun } from './problem-bank/multipart-practice';
 import { LearningEmptyState } from './LearningEmptyState';
 import { ContentLanguageSwitch } from './ContentLanguageSwitch';
 import { problemSolution } from '../lib/problem-solution';
@@ -124,7 +130,7 @@ type ProblemPracticePageProps = {
   onBack: () => void;
 };
 
-type RightTab = 'answer' | 'code' | 'history' | 'solution';
+type RightTab = 'answer' | 'code' | 'tests' | 'history' | 'solution';
 
 const PANE_RATIO_KEY = 'syntara.practice-pane-ratio';
 const clampPaneRatio = (value: number) => Math.min(75, Math.max(25, value));
@@ -197,6 +203,11 @@ function restoreAnswerFromAttempt(
   }
   if (record.kind === 'parts')
     return { kind: 'parts', parts: recordValue(record.parts) as Record<string, LocalPartAnswer> };
+  if (problem.type === 'fill_blank') {
+    return record.blanks && typeof record.blanks === 'object'
+      ? { kind: 'blanks', blanks: record.blanks as Record<string, string> }
+      : emptyAnswerForProblem(problem);
+  }
   if (record.kind === 'table' && record.cells && typeof record.cells === 'object')
     return { kind: 'table', cells: record.cells as Record<string, string> };
   if (record.kind === 'code' && typeof record.code === 'string') {
@@ -342,6 +353,10 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   const [document, setDocument] = useState<LocalProblemDocument | null>(null);
   const textAnswerRef = useRef<HTMLTextAreaElement>(null);
   const partFormulaRef = useRef<PartFormulaHandle>(null);
+  const [partNavigationTarget, setPartNavigationTarget] = useState<HTMLDivElement | null>(null);
+  const [partSelection, setPartSelection] = useState<{ problemId: string; label: string } | null>(
+    null,
+  );
   const [answer, setAnswer] = useState<LocalProblemAnswer | null>(null);
   const draftRef = useRef<{ key: string; code: string; dirty: boolean } | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
@@ -446,7 +461,16 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
           : undefined,
       })
     : null;
-  const stem = displayedProblem ? problemStem(displayedProblem) : '';
+  const rawStem = displayedProblem ? problemStem(displayedProblem) : '';
+  const stem =
+    displayedProblem?.type === 'fill_blank'
+      ? fillBlankPrompt(
+          rawStem,
+          Array.isArray(publicContent.blanks)
+            ? publicContent.blanks.map((blank) => (blank as { id: string }).id)
+            : [],
+        )
+      : rawStem;
   const options = displayedProblem ? problemOptions(displayedProblem) : [];
   const testcaseCode = currentProblem ? buildPublicTestsPython(currentProblem) : '';
   const isMultipart = currentProblem ? isMultipartProblem(currentProblem) : false;
@@ -454,11 +478,40 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     () => (displayedProblem && isMultipart ? multipartParts(displayedProblem) : []),
     [displayedProblem, isMultipart],
   );
+  const savedParts = useMemo(() => latestPartState(document), [document]);
+  const activePart =
+    parts.find(
+      (part) => partSelection?.problemId === currentId && part.label === partSelection.label,
+    ) ??
+    parts.find(
+      (part) =>
+        savedParts.results.find((result) => result.label === part.label)?.status !== 'passed',
+    ) ??
+    parts[0];
+  const activePartCode = activePart?.type === 'code' ? asCodeContent(activePart.content) : null;
+  const activePartPrompt =
+    activePart?.type === 'fill_blank'
+      ? fillBlankPrompt(activePart.prompt, partBlankIds(activePart))
+      : activePart?.prompt;
   const supportsFormulaReference =
     answer?.kind === 'text' ||
+    answer?.kind === 'blanks' ||
     (isMultipart &&
-      parts.some((part) => ['short_answer', 'calculation', 'proof'].includes(part.type)));
-  const savedParts = useMemo(() => latestPartState(document), [document]);
+      Boolean(
+        activePart &&
+        ['short_answer', 'calculation', 'proof', 'fill_blank'].includes(activePart.type),
+      ));
+  const blankFormulaEditor = usePartFormulaEditor({
+    disabled: submitting || snapshotBusy,
+    onInsertText: (id, text) => {
+      setAnswer((current) =>
+        current?.kind === 'blanks'
+          ? { ...current, blanks: { ...current.blanks, [id]: text } }
+          : current,
+      );
+      setFeedback(null);
+    },
+  });
   const solution = useMemo(
     () => (displayedProblem ? problemSolution(displayedProblem) : null),
     [displayedProblem],
@@ -706,7 +759,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
       if (
         grade.status === 'pending' &&
         answer.kind === 'text' &&
-        ['short_answer', 'calculation', 'proof'].includes(currentProblem.type)
+        ['short_answer', 'calculation', 'proof', 'fill_blank'].includes(currentProblem.type)
       ) {
         const request = problemAiGradeRequest(
           currentProblem,
@@ -803,6 +856,45 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     stem,
   ]);
 
+  /** 代码小问「运行公开测试」：服务器只跑公开测试，不算提交。 */
+  const runCodePart = useCallback(
+    async (label: string, code: string): Promise<PartCodeRun | null> => {
+      if (!currentProblem) return null;
+      try {
+        const reply = await gradeNativeCode({
+          courseId: currentProblem.courseId,
+          problemId: currentProblem.id,
+          attemptId: `run_${crypto.randomUUID().replace(/-/g, '')}`,
+          code,
+          language,
+          part: label,
+          mode: 'run',
+        });
+        const summary = recordValue(reply.result.publicSummary);
+        const cases = Array.isArray(reply.result.publicCases)
+          ? reply.result.publicCases.map(recordValue)
+          : [];
+        return {
+          feedback: reply.result.feedback,
+          passed: typeof summary.passed === 'number' ? summary.passed : 0,
+          total: typeof summary.total === 'number' ? summary.total : 0,
+          cases: cases.map((item) => {
+            const detail = String(item.error ?? item.actual ?? '').trim();
+            return {
+              id: String(item.id ?? ''),
+              passed: item.passed === true,
+              detail: detail ? detail.split('\n').pop() : undefined,
+            };
+          }),
+        };
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        return null;
+      }
+    },
+    [currentProblem, language],
+  );
+
   /** 大题：只批改这几问，其余小问沿用上次结果，再存成一条完整的作答。 */
   const submitParts = useCallback(
     async (labels: string[]) => {
@@ -828,6 +920,43 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             if (isAutoGradedPart(part) && used >= PART_SUBMISSION_LIMIT) return carried;
             let grade = gradeLocalPart(currentProblem, part, draft);
             let tableCells: Array<{ key: string; correct: boolean }> | undefined;
+            let codeSummary: Pick<LocalPartResult, 'publicSummary' | 'secretSummary'> = {};
+            if (part.type === 'code') {
+              // 代码小问在服务器上跑公开 + 隐藏测试；结果和其他小问一起存成整题作答
+              try {
+                const reply = await gradeNativeCode({
+                  courseId: currentProblem.courseId,
+                  problemId: currentProblem.id,
+                  attemptId: `part_${crypto.randomUUID().replace(/-/g, '')}`,
+                  code: draft.code ?? '',
+                  language,
+                  part: part.label,
+                });
+                if (reply.status === 'error' || reply.status === 'pending')
+                  return { ...carried, feedback: reply.result.feedback || '这一问没能判分。' };
+                const summary = (value: unknown) => {
+                  const item = recordValue(value);
+                  return typeof item.total === 'number' && typeof item.passed === 'number'
+                    ? { passed: item.passed, total: item.total }
+                    : undefined;
+                };
+                codeSummary = {
+                  publicSummary: summary(reply.result.publicSummary),
+                  secretSummary: summary(reply.result.secretSummary),
+                };
+                grade = {
+                  status: reply.status,
+                  score: reply.status === 'passed' ? 1 : 0,
+                  feedback: reply.result.feedback || '',
+                  autoGraded: true,
+                };
+              } catch (cause) {
+                return {
+                  ...carried,
+                  feedback: `判分没完成：${cause instanceof Error ? cause.message : String(cause)}`,
+                };
+              }
+            }
             if (part.type === 'table') {
               const tableResult = await gradeNativeTable(
                 part.content as NotebookProblemPublicTable,
@@ -880,6 +1009,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
               share,
               feedback: grade.feedback,
               ...(tableCells ? { cells: tableCells } : {}),
+              ...codeSummary,
               gradedAt: now,
               submissions,
             };
@@ -1086,10 +1216,16 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   const rightTabs: Array<{ id: RightTab; label: string; icon: typeof Code2 }> = isCode
     ? [
         { id: 'code', label: '代码', icon: Code2 },
+        { id: 'tests', label: '测试', icon: FileCode2 },
         { id: 'history', label: '记录', icon: Terminal },
       ]
     : [
-        { id: 'answer', label: '作答', icon: SendHorizontal },
+        {
+          id: 'answer',
+          label: isMultipart && activePart?.type === 'code' ? '代码' : '作答',
+          icon: isMultipart && activePart?.type === 'code' ? Code2 : SendHorizontal,
+        },
+        ...(activePartCode ? [{ id: 'tests' as const, label: '测试', icon: FileCode2 }] : []),
         { id: 'history', label: '记录', icon: Terminal },
       ];
 
@@ -1298,12 +1434,18 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                 <small className="pp-statement-difficulty">
                   {difficultyLabel(currentProblem.difficulty)}
                 </small>
+                {isMultipart ? (
+                  <div ref={setPartNavigationTarget} className="mp-navigation-host" />
+                ) : null}
               </header>
             ) : (
               <header className="pp-pane-head">
                 <img src={marbleImages[DIFFICULTY_MARBLES[currentProblem.difficulty]]} alt="" />
                 <span>{problemTypeLabel(currentProblem.type)}</span>
                 <small>{difficultyLabel(currentProblem.difficulty)}</small>
+                {isMultipart ? (
+                  <div ref={setPartNavigationTarget} className="mp-navigation-host" />
+                ) : null}
               </header>
             )}
             <div className="native-problem-practice-pane-body native-problem-rich-scroll">
@@ -1313,8 +1455,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   insertionHint={
                     isMultipart
                       ? language === 'zh-CN'
-                        ? '先点击右侧要作答的小问，再点击「插入」；窄屏会插入当前小问。'
-                        : 'Focus the answer for the part on the right, then insert a formula. On narrow screens, formulas go to the visible part.'
+                        ? '点击「插入」将公式写入当前小问的光标位置。'
+                        : 'Insert a formula at the cursor in the selected part.'
                       : undefined
                   }
                   onInsert={(latex) => {
@@ -1322,10 +1464,17 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                       if (!partFormulaRef.current?.insertFormula(latex)) {
                         setError(
                           language === 'zh-CN'
-                            ? '请先切换到一个简答、计算或证明小问。'
-                            : 'Select a short-answer, calculation, or proof part first.',
+                            ? '请先选择一个可输入文字或公式的小问。'
+                            : 'Select a part with a text or formula input first.',
                         );
                       } else {
+                        setError(null);
+                        setRightTab('answer');
+                      }
+                      return;
+                    }
+                    if (answer?.kind === 'blanks') {
+                      if (blankFormulaEditor.insertFormula(latex)) {
                         setError(null);
                         setRightTab('answer');
                       }
@@ -1372,6 +1521,25 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                       content={stem}
                       className="text-[15px] leading-7 text-slate-800"
                     />
+                    {activePart ? (
+                      <section
+                        className="mp-current-prompt"
+                        aria-label={`当前小问 ${activePart.label}`}
+                      >
+                        <h3>小问 ({activePart.label})</h3>
+                        {activePartCode ? (
+                          <CodeProblemStatement content={activePartCode} locale={language} />
+                        ) : (
+                          <ProblemRichText
+                            content={activePartPrompt ?? ''}
+                            className="text-[15px] leading-7 text-slate-800"
+                          />
+                        )}
+                        <ProblemImageAssets
+                          content={activePart.content as NotebookProblemPublicContent}
+                        />
+                      </section>
+                    ) : null}
                   </div>
                   <ProblemImageAssets content={publicContent as NotebookProblemPublicContent} />
                   {stackedPanes ? (
@@ -1564,7 +1732,10 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             <div
               className={cn(
                 'native-problem-practice-pane-body native-problem-rich-scroll',
-                rightTab === 'code' && isCode && 'pp-code-body',
+                ((isCode && (rightTab === 'code' || rightTab === 'tests')) ||
+                  (activePartCode && (rightTab === 'answer' || rightTab === 'tests'))) &&
+                  'pp-code-body',
+                rightTab === 'tests' ? 'is-code-tests' : 'is-code-editor',
                 rightTab === 'answer' && answer?.kind === 'text' && 'pp-text-body',
               )}
             >
@@ -1590,89 +1761,118 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   ) : null}
                 </section>
               ) : null}
-              {rightTab === 'code' && isCode && answer?.kind === 'code' ? (
+              {(rightTab === 'code' || rightTab === 'tests') &&
+              isCode &&
+              answer?.kind === 'code' ? (
                 <div className="pp-code-workspace">
-                  {codeSlots ? (
-                    <NativeCodeSlots
-                      template={codeSlots}
-                      value={answer.code}
-                      onChange={(code) => {
-                        setFeedback(null);
-                        if (draftRef.current) {
-                          draftRef.current.code = code;
-                          draftRef.current.dirty = true;
-                        }
-                        setAnswer({ kind: 'code', code });
-                      }}
-                    />
-                  ) : (
-                    <CodeAnswerEditor
-                      value={answer.code}
-                      onChange={(code) => {
-                        setFeedback(null);
-                        if (draftRef.current) {
-                          draftRef.current.code = code;
-                          draftRef.current.dirty = true;
-                        }
-                        setAnswer({ kind: 'code', code });
-                      }}
-                      locale="zh-CN"
-                      placeholder="# 在此编写 Python 代码"
-                      className="pp-code-editor"
-                    />
-                  )}
-                  <NativeCodePlayground
-                    key={currentProblem.id}
-                    code={answer.code}
-                    files={
-                      Array.isArray(publicContent.files)
-                        ? (publicContent.files as NotebookCodeFile[])
-                        : []
-                    }
-                    stdin={
-                      typeof publicContent.stdin === 'string' ? publicContent.stdin : undefined
-                    }
-                  />
-                  <footer className="native-problem-practice-footer">
-                    {justGraded && currentIndex < total - 1 ? (
-                      <button
-                        type="button"
-                        className={`pp-next is-${justGraded}`}
-                        onClick={() => {
-                          const target = nextTarget(statuses);
-                          if (target) setCurrentId(target);
+                  <div className="pp-code-edit-region">
+                    {codeSlots ? (
+                      <NativeCodeSlots
+                        template={codeSlots}
+                        className="min-h-0 flex-1 rounded-none border-0 shadow-none"
+                        value={answer.code}
+                        onChange={(code) => {
+                          setFeedback(null);
+                          if (draftRef.current) {
+                            draftRef.current.code = code;
+                            draftRef.current.dirty = true;
+                          }
+                          setAnswer({ kind: 'code', code });
                         }}
-                      >
-                        <img src={marbleImages[STATUS_MARBLES[justGraded]]} alt="" />
-                        下一题
-                        <ChevronRight size={15} />
-                      </button>
-                    ) : null}
-                    {feedback ? (
-                      <p className="native-problem-practice-feedback">{feedback}</p>
-                    ) : null}
-                    {error ? <p className="native-problem-practice-error">{error}</p> : null}
-                  </footer>
+                      />
+                    ) : (
+                      <CodeAnswerEditor
+                        value={answer.code}
+                        onChange={(code) => {
+                          setFeedback(null);
+                          if (draftRef.current) {
+                            draftRef.current.code = code;
+                            draftRef.current.dirty = true;
+                          }
+                          setAnswer({ kind: 'code', code });
+                        }}
+                        locale="zh-CN"
+                        placeholder="# 在此编写 Python 代码"
+                        className="pp-code-editor"
+                      />
+                    )}
+                  </div>
+                  <div className="pp-code-test-region">
+                    <NativeCodePlayground
+                      key={currentProblem.id}
+                      code={answer.code}
+                      files={
+                        Array.isArray(publicContent.files)
+                          ? (publicContent.files as NotebookCodeFile[])
+                          : []
+                      }
+                      stdin={
+                        typeof publicContent.stdin === 'string' ? publicContent.stdin : undefined
+                      }
+                      tests={visibleCodeTests(codeContent ?? {})}
+                      example={codeContent?.sampleIO?.[0]?.input}
+                    />
+                    <footer className="native-problem-practice-footer">
+                      {justGraded && currentIndex < total - 1 ? (
+                        <button
+                          type="button"
+                          className={`pp-next is-${justGraded}`}
+                          onClick={() => {
+                            const target = nextTarget(statuses);
+                            if (target) setCurrentId(target);
+                          }}
+                        >
+                          <img src={marbleImages[STATUS_MARBLES[justGraded]]} alt="" />
+                          下一题
+                          <ChevronRight size={15} />
+                        </button>
+                      ) : null}
+                      {feedback ? (
+                        <p className="native-problem-practice-feedback">{feedback}</p>
+                      ) : null}
+                      {error ? <p className="native-problem-practice-error">{error}</p> : null}
+                    </footer>
+                  </div>
                 </div>
               ) : null}
 
-              {rightTab === 'answer' && isMultipart ? (
-                <MultipartPractice
-                  key={currentProblem.id}
-                  parts={parts}
-                  formulaRef={partFormulaRef}
-                  locale={language}
-                  drafts={partDrafts}
-                  saved={savedParts.answers}
-                  results={savedParts.results}
-                  paged={stackedPanes}
-                  submitting={submitting || snapshotBusy}
-                  error={error}
-                  onChange={(label, next) =>
-                    setPartDrafts((current) => ({ ...current, [label]: next }))
-                  }
-                  onSubmit={(labels) => void submitParts(labels)}
-                />
+              {isMultipart ? (
+                <div hidden={rightTab !== 'answer' && !(rightTab === 'tests' && activePartCode)}>
+                  <MultipartPractice
+                    key={currentProblem.id}
+                    parts={parts}
+                    formulaRef={partFormulaRef}
+                    navigationTarget={partNavigationTarget}
+                    activePartLabel={activePart?.label}
+                    onSelectPart={(label) => {
+                      setPartSelection({ problemId: currentProblem.id, label });
+                      setRightTab('answer');
+                      setStemCollapsed(false);
+                      if (
+                        !parts.some(
+                          (part) =>
+                            part.label === label &&
+                            ['short_answer', 'calculation', 'proof', 'fill_blank'].includes(
+                              part.type,
+                            ),
+                        )
+                      )
+                        setLeftTab('description');
+                    }}
+                    locale={language}
+                    drafts={partDrafts}
+                    saved={savedParts.answers}
+                    results={savedParts.results}
+                    paged={stackedPanes}
+                    submitting={submitting || snapshotBusy}
+                    error={error}
+                    onChange={(label, next) =>
+                      setPartDrafts((current) => ({ ...current, [label]: next }))
+                    }
+                    onSubmit={(labels) => void submitParts(labels)}
+                    onRunCode={runCodePart}
+                  />
+                </div>
               ) : null}
 
               {rightTab === 'answer' && !isCode && !isMultipart ? (
@@ -1717,6 +1917,44 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                           </button>
                         );
                       })}
+                    </div>
+                  ) : null}
+
+                  {currentProblem.type === 'fill_blank' && answer?.kind === 'blanks' ? (
+                    <div className="native-blank-answer-list">
+                      {(Array.isArray(publicContent.blanks) ? publicContent.blanks : []).map(
+                        (item, index) => {
+                          const blank = item as { id: string; placeholder?: string };
+                          return (
+                            <label key={blank.id} className="native-blank-answer-row">
+                              <span>{index + 1}</span>
+                              <textarea
+                                rows={Math.max(
+                                  1,
+                                  (answer.blanks[blank.id] ?? '').split('\n').length,
+                                )}
+                                ref={(editor) =>
+                                  blankFormulaEditor.registerEditor(blank.id, editor)
+                                }
+                                onFocus={() => blankFormulaEditor.activateEditor(blank.id)}
+                                aria-label={`第 ${index + 1} 空：${blank.placeholder ?? blank.id}`}
+                                placeholder={blank.placeholder ?? '填写答案'}
+                                value={answer.blanks[blank.id] ?? ''}
+                                disabled={submitting}
+                                autoComplete="off"
+                                spellCheck={false}
+                                onChange={(event) => {
+                                  setFeedback(null);
+                                  setAnswer({
+                                    kind: 'blanks',
+                                    blanks: { ...answer.blanks, [blank.id]: event.target.value },
+                                  });
+                                }}
+                              />
+                            </label>
+                          );
+                        },
+                      )}
                     </div>
                   ) : null}
 

@@ -25,12 +25,20 @@ export function InteractiveFillBlank({
   const [slots, setSlots] = useState<{ node: HTMLElement; id: string; code: boolean }[]>([]);
   const template = useMemo(() => {
     const ids: string[] = [];
-    const text = content.stemTemplate.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_, id: string) => {
+    const source =
+      content.blankLayout === 'figure'
+        ? content.stemTemplate +
+          '\n\n' +
+          content.blanks
+            .map((blank, index) => `${index + 1}. ${blank.placeholder ?? ''}: {{${blank.id}}}`)
+            .join('\n\n')
+        : content.stemTemplate;
+    const text = source.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_, id: string) => {
       ids.push(id.trim());
       return `SYNTARABLANKTOKEN${ids.length - 1}END`;
     });
     return { text, ids };
-  }, [content.stemTemplate]);
+  }, [content.stemTemplate, content.blankLayout, content.blanks]);
   useLayoutEffect(() => {
     if (!root.current) return;
     const walker = document.createTreeWalker(root.current, NodeFilter.SHOW_TEXT);

@@ -61,6 +61,13 @@ export function parseCodeTemplate(
 function renderSlot(segment: Extract<TemplateSegment, { kind: 'slot' }>, value: string): string {
   if (segment.slot.kind === 'block') {
     const lines = value.replace(/\s+$/, '').split('\n');
+    // 学生常常连函数体的缩进一起打进来，去掉共同的缩进，否则会多缩一层
+    const common = Math.min(
+      ...lines.filter((line) => line.trim()).map((line) => line.match(/^[ \t]*/)![0].length),
+    );
+    if (Number.isFinite(common) && common > 0) {
+      for (let i = 0; i < lines.length; i += 1) lines[i] = lines[i].slice(common);
+    }
     const body = lines.some((line) => line.trim()) ? lines : [EMPTY_BLOCK];
     return body.map((line) => (line.trim() ? `${segment.indent}${line}` : '')).join('\n');
   }
@@ -220,4 +227,67 @@ export function defaultCodeAnswerFor(
   if (!content) return '';
   const slotTemplate = codeSlotTemplateFor(content);
   return slotTemplate ? initialCodeForSlots(slotTemplate) : (content.starterCode ?? '');
+}
+
+/** A single source document, with editable ranges between the supplied fragments. */
+export type EditableCodeDocument = {
+  text: string;
+  ranges: Array<{ id: string; start: number; end: number; multiline: boolean }>;
+};
+
+export function editableCodeDocument(
+  template: CodeSlotTemplate,
+  values: Record<string, string>,
+): EditableCodeDocument {
+  let text = '';
+  const ranges: EditableCodeDocument['ranges'] = [];
+  for (const segment of parseCodeTemplate(template.template, template.slots) ?? []) {
+    if (segment.kind === 'text') {
+      text += segment.text;
+      continue;
+    }
+    const start = text.length;
+    const value = values[segment.slot.id] ?? '';
+    text +=
+      segment.slot.kind === 'block'
+        ? segment.indent + value.split('\n').join(`\n${segment.indent}`)
+        : value;
+    ranges.push({
+      id: segment.slot.id,
+      start,
+      end: text.length,
+      multiline: segment.slot.kind === 'block',
+    });
+  }
+  return { text, ranges };
+}
+
+/** Reject an edit that touches any supplied code, including cross-boundary deletion. */
+export function editCodeDocument(
+  document: EditableCodeDocument,
+  text: string,
+): EditableCodeDocument | null {
+  const before = document.text;
+  let start = 0;
+  while (start < before.length && start < text.length && before[start] === text[start]) start++;
+  if (before === text) return document;
+  let oldEnd = before.length;
+  let newEnd = text.length;
+  while (oldEnd > start && newEnd > start && before[oldEnd - 1] === text[newEnd - 1]) {
+    oldEnd--;
+    newEnd--;
+  }
+  const range = document.ranges.find((item) => start >= item.start && oldEnd <= item.end);
+  if (!range || (!range.multiline && /[\r\n]/.test(text.slice(start, newEnd)))) return null;
+  const delta = text.length - before.length;
+  return {
+    text,
+    ranges: document.ranges.map((item) =>
+      item === range
+        ? { ...item, end: item.end + delta }
+        : item.start >= range.end
+          ? { ...item, start: item.start + delta, end: item.end + delta }
+          : item,
+    ),
+  };
 }

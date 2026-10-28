@@ -113,7 +113,9 @@ export async function repairCourseMultipart(db: PrismaClient, courseId: string, 
                     : g.type === 'table'
                       ? g.cells.length > 0 &&
                         g.cells.every((cell) => cell.acceptedAnswers.length || cell.check)
-                      : g.blanks.every((b) => b.acceptedAnswers.length);
+                      : g.type === 'code'
+                        ? Boolean(g.solutionCode || g.referenceAnswer || g.solutionSlots)
+                        : g.blanks.every((b) => b.acceptedAnswers.length);
           if (!complete) throw new MultipartRepairConflict('Every part needs a reference answer.');
         }
         const draft = notebookProblemImportDraftSchema.parse({

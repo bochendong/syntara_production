@@ -2,6 +2,7 @@ import type {
   NotebookProblemAttemptAnswer,
   NotebookProblemAttemptStatus,
   NotebookProblemGrading,
+  NotebookProblemImportDraft,
   NotebookProblemPart,
   NotebookProblemPartAnswer,
   NotebookProblemPartGrading,
@@ -10,6 +11,7 @@ import type {
   NotebookProblemPublicContent,
   NotebookProblemPublicMultipart,
   NotebookProblemRecord,
+  NotebookProblemSecretJudge,
 } from './schema';
 
 /** 自动判分、按次数限分的小问题型；文字/证明题交给 AI 批改，不限次数。 */
@@ -18,6 +20,7 @@ const AUTO_GRADED_PART_TYPES = new Set<NotebookProblemPartPublicContent['type']>
   'fill_blank',
   'calculation',
   'table',
+  'code',
 ]);
 
 export const MULTIPART_PART_SUBMISSION_LIMIT = 3;
@@ -85,6 +88,7 @@ export function buildPartProblem(
   problem: NotebookProblemRecord & { publicContent: NotebookProblemPublicMultipart },
   partIndex: number,
   points: number,
+  priorAnswers?: Record<string, NotebookProblemPartAnswer>,
 ): NotebookProblemRecord | null {
   const part = problem.publicContent.parts[partIndex];
   if (!part) return null;
@@ -95,6 +99,12 @@ export function buildPartProblem(
     ...problem.publicContent.parts
       .slice(0, partIndex)
       .map((previous) => `${formatPartLabel(previous.label)} ${partPromptText(previous.content)}`),
+    ...(part.dependsOn ?? []).flatMap((label) => {
+      const answer = priorAnswers?.[label]?.text?.trim();
+      return answer
+        ? [`Student answer to dependent part ${formatPartLabel(label)}:\n${answer}`]
+        : [];
+    }),
   ].join('\n\n');
   const prompt = `${formatPartLabel(part.label)} ${partPromptText(part.content)}`;
   const content =
@@ -118,6 +128,7 @@ export function partAnswerIsEmpty(answer: NotebookProblemPartAnswer | undefined)
     !(answer.selectedOptionIds ?? []).length &&
     !Object.values(answer.blanks ?? {}).some((value) => value.trim()) &&
     !Object.values(answer.cells ?? {}).some((value) => value.trim()) &&
+    !answer.code?.trim() &&
     !(answer.images ?? []).length
   );
 }
@@ -145,4 +156,45 @@ export function aggregatePartStatus(
   if (earned <= 0 && results.every((result) => result.status === 'failed')) return 'failed';
   if (earned <= 0 && results.every((result) => result.status === 'pending')) return 'pending';
   return 'partial';
+}
+
+/** 代码小问的隐藏测试：存在 secretJudge.parts[label]，语言跟着这一问的题面走。 */
+export function partSecretJudge(
+  secretJudge: NotebookProblemSecretJudge | undefined,
+  part: NotebookProblemPart,
+): NotebookProblemSecretJudge | undefined {
+  if (part.content.type !== 'code') return undefined;
+  const secrets = secretJudge?.parts?.[part.label];
+  if (!secrets) return undefined;
+  return {
+    language: part.content.language,
+    runnerAdapter: part.content.runnerAdapter ?? secretJudge?.runnerAdapter,
+    ...secrets,
+  };
+}
+
+/** 大题里的每个代码小问，包装成一道独立的代码题草稿，复用代码题的检查和参考答案校验。 */
+export function multipartCodePartDrafts(
+  draft: NotebookProblemImportDraft,
+): Array<{ label: string; draft: NotebookProblemImportDraft }> {
+  if (draft.publicContent.type !== 'multipart' || draft.grading.type !== 'multipart') return [];
+  const gradingParts = draft.grading.parts;
+  return draft.publicContent.parts.flatMap((part) => {
+    if (part.content.type !== 'code') return [];
+    const grading = gradingParts.find((item) => item.label === part.label)?.grading;
+    if (!grading || grading.type !== 'code') return [];
+    return [
+      {
+        label: part.label,
+        draft: {
+          ...draft,
+          type: 'code' as const,
+          publicContent: part.content,
+          grading,
+          secretJudge: partSecretJudge(draft.secretJudge, part),
+          validationErrors: [],
+        },
+      },
+    ];
+  });
 }

@@ -24,7 +24,8 @@ export function problemSolution(problem: LocalProblem): ProblemSolution {
           publicContent: part.content,
           grading: grades.find((g) => g.label === part.label)?.grading ?? {},
         });
-        return `**小问 (${part.label})**\n\n${result.answer}${result.explanation ? '\n\n' + result.explanation : ''}`;
+        const codeAnswer = result.code ? `\`\`\`python\n${result.code}\n\`\`\`` : '';
+        return `**小问 (${part.label})**\n\n${[result.answer, codeAnswer, result.explanation].filter(Boolean).join('\n\n')}`;
       })
       .join('\n\n');
   } else if (problem.type === 'choice') {

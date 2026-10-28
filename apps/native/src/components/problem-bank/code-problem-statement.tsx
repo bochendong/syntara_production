@@ -12,6 +12,7 @@ import type { NotebookProblemPublicContent } from './types';
 import { cn } from '../../lib/cn';
 import { highlightPython } from './code-answer-editor';
 import { ProblemRichText } from './problem-rich-text';
+import { codeStatementPresentation } from '../../../../../lib/problem-bank/code-statement-presentation';
 
 type CodeProblemPublicContent = Extract<NotebookProblemPublicContent, { type: 'code' }>;
 type CodeStatementSection = NonNullable<CodeProblemPublicContent['statementSections']>[number];
@@ -279,20 +280,30 @@ export function CodeProblemStatement({
   content: CodeProblemPublicContent;
   locale: 'zh-CN' | 'en-US';
 }) {
-  const samples = content.sampleIO ?? [];
-  const constraints = content.constraints ?? [];
-  const sections = content.statementSections ?? [];
+  const { samples, constraints, sections, stem, starterDescription } = codeStatementPresentation(
+    content,
+    locale,
+  );
+  const singleDescription =
+    sections.length === 1 &&
+    (sections[0].kind ?? 'overview') === 'overview' &&
+    !sections[0].code &&
+    sections[0].items.length === 0;
 
   return (
     <div className="space-y-8">
-      {sections.length > 0 ? (
+      {singleDescription ? (
+        <div className="text-[15px] leading-7">
+          <ProblemRichText content={sections[0].body || stem} />
+        </div>
+      ) : sections.length > 0 ? (
         sections.map((section) => <CodeStatementSection key={section.id} section={section} />)
       ) : (
-        <LegacyDescriptionSection stem={content.stem} locale={locale} />
+        <LegacyDescriptionSection stem={stem} locale={locale} />
       )}
       <CodeSamplesSection samples={samples} locale={locale} />
       <CodeConstraintsSection constraints={constraints} locale={locale} />
-      <StarterCodeNote description={content.starterCodeDescription} locale={locale} />
+      <StarterCodeNote description={starterDescription} locale={locale} />
     </div>
   );
 }

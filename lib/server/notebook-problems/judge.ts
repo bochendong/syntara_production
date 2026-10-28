@@ -662,7 +662,9 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
       completeRunnerCaseResults(
         tests,
         await executePythonCases({
-          code: codeReferenceSolution(draft),
+          code: [draft.secretJudge?.supportCode, codeReferenceSolution(draft)]
+            .filter(Boolean)
+            .join('\n\n'),
           testCases: tests,
           timeoutMs: draft.secretJudge?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
           files: draftFiles,
@@ -908,6 +910,13 @@ export async function judgeNotebookCodeProblem(args: {
       },
     };
   }
+  const starterPrelude =
+    !slotTemplate && content.starterCode && !code.trim().startsWith(content.starterCode.trim())
+      ? content.starterCode
+      : undefined;
+  const executionCode = [args.secretJudge?.supportCode, starterPrelude, code]
+    .filter(Boolean)
+    .join('\n\n');
   const publicFiles = runnerFiles(content.files);
   const secretFiles = [...publicFiles, ...runnerFiles(args.secretJudge?.files)];
 
@@ -916,7 +925,7 @@ export async function judgeNotebookCodeProblem(args: {
   if (args.kind === 'run' && runTarget === 'code') {
     try {
       const runnerPayload = await executePythonPayload({
-        code,
+        code: executionCode,
         starterCode: problem.publicContent.starterCode,
         testCases: [],
         timeoutMs: payload.timeoutMs,
@@ -1014,7 +1023,7 @@ export async function judgeNotebookCodeProblem(args: {
       const secretCases = completeRunnerCaseResults(
         payload.secretCases,
         await executePythonCases({
-          code,
+          code: executionCode,
           starterCode: problem.publicContent.starterCode,
           testCases: payload.secretCases,
           timeoutMs: payload.timeoutMs,
@@ -1060,7 +1069,7 @@ export async function judgeNotebookCodeProblem(args: {
     const publicCases = completeRunnerCaseResults(
       payload.publicCases,
       await executePythonCases({
-        code,
+        code: executionCode,
         starterCode: problem.publicContent.starterCode,
         testCases: payload.publicCases,
         timeoutMs: payload.timeoutMs,
@@ -1109,7 +1118,7 @@ export async function judgeNotebookCodeProblem(args: {
     const secretCases = completeRunnerCaseResults(
       payload.secretCases,
       await executePythonCases({
-        code,
+        code: executionCode,
         starterCode: problem.publicContent.starterCode,
         testCases: payload.secretCases,
         timeoutMs: payload.timeoutMs,

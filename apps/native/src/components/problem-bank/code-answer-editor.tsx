@@ -229,18 +229,24 @@ export function CodeAnswerEditor({
   placeholder,
   locale,
   className,
+  plain = false,
+  emptyRegionHints = [],
 }: {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string) => void | boolean;
   disabled?: boolean;
   placeholder?: string;
   locale: 'zh-CN' | 'en-US';
   className?: string;
+  plain?: boolean;
+  emptyRegionHints?: Array<{ offset: number; text: string }>;
 }) {
   const lineGutterRef = useRef<HTMLDivElement>(null);
   const codeLayerRef = useRef<HTMLPreElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const pendingSelection = useRef<{ start: number; end: number } | null>(null);
   const lineNumbers = lineNumbersFor(value);
+  const selectionRef = useRef({ start: 0, end: 0 });
 
   const syncScroll = useCallback(() => {
     const input = inputRef.current;
@@ -255,11 +261,15 @@ export function CodeAnswerEditor({
 
   useLayoutEffect(syncScroll, [value, syncScroll]);
 
-  const updateSelection = (target: HTMLTextAreaElement, start: number, end = start) => {
-    requestAnimationFrame(() => {
-      target.selectionStart = start;
-      target.selectionEnd = end;
-    });
+  useLayoutEffect(() => {
+    const selection = pendingSelection.current;
+    if (!selection || !inputRef.current) return;
+    inputRef.current.setSelectionRange(selection.start, selection.end);
+    pendingSelection.current = null;
+  }, [value]);
+
+  const updateSelection = (_target: HTMLTextAreaElement, start: number, end = start) => {
+    pendingSelection.current = { start, end };
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -269,7 +279,7 @@ export function CodeAnswerEditor({
       event.stopPropagation();
       const target = event.currentTarget;
       const edit = pythonNewlineEdit(value, target.selectionStart, target.selectionEnd);
-      onChange(edit.value);
+      if (onChange(edit.value) === false) return;
       updateSelection(target, edit.caret);
       requestAnimationFrame(() => {
         const style = getComputedStyle(target);
@@ -296,7 +306,7 @@ export function CodeAnswerEditor({
     const end = target.selectionEnd;
 
     if (start === end && !event.shiftKey) {
-      onChange(`${value.slice(0, start)}${INDENT}${value.slice(end)}`);
+      if (onChange(`${value.slice(0, start)}${INDENT}${value.slice(end)}`) === false) return;
       updateSelection(target, start + INDENT.length);
       return;
     }
@@ -309,7 +319,7 @@ export function CodeAnswerEditor({
     const nextValue = `${value.slice(0, lineStart)}${nextBlock}${value.slice(lineEnd)}`;
     const selectionDelta = nextBlock.length - selectedBlock.length;
 
-    onChange(nextValue);
+    if (onChange(nextValue) === false) return;
     updateSelection(
       target,
       Math.max(lineStart, start + (event.shiftKey ? Math.min(0, selectionDelta) : INDENT.length)),
@@ -325,17 +335,19 @@ export function CodeAnswerEditor({
         className,
       )}
     >
-      <div className="flex h-9 shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 dark:border-slate-200 dark:bg-slate-50 dark:text-slate-600">
-        <div className="flex min-w-0 items-center gap-2 font-semibold">
-          <Code2 className="h-3.5 w-3.5 text-sky-600" />
-          <span>Python</span>
+      {!plain ? (
+        <div className="flex h-9 shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 dark:border-slate-200 dark:bg-slate-50 dark:text-slate-600">
+          <div className="flex min-w-0 items-center gap-2 font-semibold">
+            <Code2 className="h-3.5 w-3.5 text-sky-600" />
+            <span>Python</span>
+          </div>
+          <span className="font-mono text-[11px] text-slate-500">
+            {lineNumbers.length} {locale === 'zh-CN' ? '行' : 'lines'}
+          </span>
         </div>
-        <span className="font-mono text-[11px] text-slate-500">
-          {lineNumbers.length} {locale === 'zh-CN' ? '行' : 'lines'}
-        </span>
-      </div>
+      ) : null}
       <div className="grid min-h-0 flex-1 grid-cols-[3rem_minmax(0,1fr)]">
-        <div className="min-h-0 overflow-hidden border-r border-slate-200 bg-slate-50 text-right dark:border-slate-200 dark:bg-slate-50">
+        <div className="code-answer-line-column min-h-0 overflow-hidden border-r border-slate-200 bg-slate-50 text-right dark:border-slate-200 dark:bg-slate-50">
           <div
             ref={lineGutterRef}
             className="code-answer-gutter px-2 py-3 font-mono text-[11px] leading-6 text-slate-400"
@@ -345,7 +357,7 @@ export function CodeAnswerEditor({
             ))}
           </div>
         </div>
-        <div className="relative h-full min-h-0 overflow-hidden bg-white dark:bg-white">
+        <div className="code-answer-surface relative h-full min-h-0 overflow-hidden bg-white dark:bg-white">
           <pre
             ref={codeLayerRef}
             aria-hidden="true"
@@ -356,12 +368,46 @@ export function CodeAnswerEditor({
               {highlightPython(value)}
               {value.endsWith('\n') ? ' ' : null}
             </code>
+            {emptyRegionHints.map(({ offset, text }) => {
+              const prefix = value.slice(0, offset);
+              const lines = prefix.split('\n');
+              const column = [...lines[lines.length - 1]].reduce(
+                (width, char) => (char === '\t' ? width + 4 - (width % 4) : width + 1),
+                0,
+              );
+              return (
+                <span
+                  key={offset}
+                  className="code-answer-empty-hint"
+                  style={{
+                    top: 12 + (lines.length - 1) * 24,
+                    left: `calc(16px + ${column}ch)`,
+                  }}
+                >
+                  {text}
+                </span>
+              );
+            })}
           </pre>
           <textarea
             ref={inputRef}
             aria-label={locale === 'zh-CN' ? '代码编辑器' : 'Code editor'}
             value={value}
-            onChange={(event) => onChange(event.target.value)}
+            onSelect={(event) => {
+              selectionRef.current = {
+                start: event.currentTarget.selectionStart,
+                end: event.currentTarget.selectionEnd,
+              };
+            }}
+            onChange={(event) => {
+              if (onChange(event.target.value) === false) {
+                event.target.value = value;
+                event.target.setSelectionRange(
+                  selectionRef.current.start,
+                  selectionRef.current.end,
+                );
+              }
+            }}
             onKeyDown={handleKeyDown}
             onScroll={syncScroll}
             disabled={disabled}

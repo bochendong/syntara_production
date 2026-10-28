@@ -1,9 +1,12 @@
 import { useState } from 'react';
+import { Check, Copy, Play, X } from 'lucide-react';
+import { highlightPython } from './code-answer-editor';
 import {
   tableAnswerColumns,
   tableCellKey,
   tableRowCode,
   tableRunResultText,
+  tableSetupNeedsDisplay,
 } from '../../../../../lib/problem-bank/table-problem';
 import type { NotebookProblemPublicTable } from '../../../../../lib/problem-bank/schema';
 import { runPythonRowsInBrowser } from '../../../../../lib/client/browser-python';
@@ -47,95 +50,141 @@ export function NativeTableAnswer({
   }
   return (
     <div className="native-table-answer">
-      {content.setupCode && <pre>{content.setupCode}</pre>}
-      <table>
-        <thead>
-          <tr>
-            <th></th>
-            {content.columns.map((column) => (
-              <th key={column.id}>{column.header}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {content.rows.map((row, index) => (
-            <tr key={row.id}>
-              <td>
-                {results && content.runnable && (
-                  <button type="button" onClick={() => void run(row.id)} aria-label="运行这一行">
-                    ▶
-                  </button>
-                )}
-                {index > 0 && answerColumns.length > 1 && !disabled && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onChange({
-                        ...values,
-                        ...Object.fromEntries(
-                          answerColumns.map((column) => [
-                            tableCellKey(row.id, column.id),
-                            values[tableCellKey(content.rows[index - 1].id, column.id)] ?? '',
-                          ]),
-                        ),
-                      })
-                    }
-                    aria-label="复制上一行"
-                  >
-                    ↓
-                  </button>
-                )}
-              </td>
-              {content.columns.map((column) =>
-                column.role === 'given' ? (
-                  <td key={column.id}>
-                    <pre>{row.cells[column.id] ?? ''}</pre>
-                  </td>
-                ) : (
-                  <td key={column.id}>
-                    <textarea
-                      aria-label={`${row.id} ${column.header}`}
-                      disabled={disabled}
-                      value={values[tableCellKey(row.id, column.id)] ?? ''}
-                      onChange={(event) =>
+      {tableSetupNeedsDisplay(content) && (
+        <pre className="native-table-setup">{highlightPython(content.setupCode ?? '')}</pre>
+      )}
+      <div className="native-table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th className="native-table-index">
+                <span className="sr-only">行</span>
+              </th>
+              {content.columns.map((column) => (
+                <th key={column.id} data-kind={column.cellKind} data-role={column.role}>
+                  {column.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {content.rows.map((row, index) => (
+              <tr key={row.id}>
+                <th scope="row" className="native-table-index">
+                  <span className="native-table-row-label">{row.id}</span>
+                  {results && content.runnable && (
+                    <button
+                      type="button"
+                      onClick={() => void run(row.id)}
+                      className="native-table-icon-button"
+                      title="运行这一行"
+                      aria-label="运行这一行"
+                    >
+                      <Play size={13} aria-hidden="true" />
+                    </button>
+                  )}
+                  {index > 0 && answerColumns.length > 1 && !disabled && (
+                    <button
+                      type="button"
+                      onClick={() =>
                         onChange({
                           ...values,
-                          [tableCellKey(row.id, column.id)]: event.target.value,
+                          ...Object.fromEntries(
+                            answerColumns.map((column) => [
+                              tableCellKey(row.id, column.id),
+                              values[tableCellKey(content.rows[index - 1].id, column.id)] ?? '',
+                            ]),
+                          ),
                         })
                       }
-                      rows={2}
-                    />
-                    {(content.quickAnswers?.length
-                      ? content.quickAnswers
-                      : ['ERROR', 'NOTHING']
-                    ).map((answer) => (
-                      <button
-                        type="button"
-                        key={answer}
-                        disabled={disabled}
-                        onClick={() =>
-                          onChange({ ...values, [tableCellKey(row.id, column.id)]: answer })
-                        }
-                      >
-                        {answer === 'ERROR' ? '报错' : answer === 'NOTHING' ? '无输出' : answer}
-                      </button>
-                    ))}
-                    {results?.find((item) => item.key === tableCellKey(row.id, column.id)) && (
-                      <span>
-                        {results.find((item) => item.key === tableCellKey(row.id, column.id))
-                          ?.correct
-                          ? '✓'
-                          : '✗'}
-                      </span>
-                    )}
-                    {runs[row.id] && <pre>{runs[row.id]}</pre>}
-                  </td>
-                ),
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                      className="native-table-icon-button"
+                      title="复制上一行"
+                      aria-label="复制上一行"
+                    >
+                      <Copy size={13} aria-hidden="true" />
+                    </button>
+                  )}
+                </th>
+                {content.columns.map((column) =>
+                  column.role === 'given' ? (
+                    <td key={column.id} className="native-table-given" data-kind={column.cellKind}>
+                      <pre>
+                        {column.cellKind === 'code'
+                          ? highlightPython(row.cells[column.id] ?? '')
+                          : (row.cells[column.id] ?? '')}
+                      </pre>
+                    </td>
+                  ) : (
+                    <td key={column.id} className="native-table-answer-cell">
+                      <div className="native-table-input-wrap">
+                        <textarea
+                          aria-label={`${row.id} ${column.header}`}
+                          disabled={disabled}
+                          value={values[tableCellKey(row.id, column.id)] ?? ''}
+                          onChange={(event) =>
+                            onChange({
+                              ...values,
+                              [tableCellKey(row.id, column.id)]: event.target.value,
+                            })
+                          }
+                          placeholder="填写答案…"
+                          spellCheck={false}
+                          autoCapitalize="off"
+                          autoCorrect="off"
+                          rows={Math.min(
+                            8,
+                            Math.max(
+                              3,
+                              (values[tableCellKey(row.id, column.id)] ?? '').split('\n').length +
+                                1,
+                            ),
+                          )}
+                        />
+                        <div className="native-table-quick-answers">
+                          {(column.cellKind === 'output'
+                            ? (content.quickAnswers ?? ['ERROR', 'NOTHING'])
+                            : []
+                          ).map((answer) => (
+                            <button
+                              type="button"
+                              key={answer}
+                              disabled={disabled}
+                              onClick={() =>
+                                onChange({ ...values, [tableCellKey(row.id, column.id)]: answer })
+                              }
+                            >
+                              {answer === 'ERROR'
+                                ? '报错'
+                                : answer === 'NOTHING'
+                                  ? '无输出'
+                                  : answer}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {results?.find((item) => item.key === tableCellKey(row.id, column.id)) && (
+                        <span className="native-table-verdict">
+                          {results.find((item) => item.key === tableCellKey(row.id, column.id))
+                            ?.correct ? (
+                            <Check size={14} aria-label="答对" />
+                          ) : (
+                            <X size={14} aria-label="答错" />
+                          )}
+                        </span>
+                      )}
+                    </td>
+                  ),
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {Object.entries(runs).map(([rowId, output]) => (
+        <pre className="native-table-run-output" key={rowId}>
+          {rowId} · {output}
+        </pre>
+      ))}
       {error && <p role="alert">{error}</p>}
     </div>
   );

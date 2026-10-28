@@ -4,12 +4,8 @@ import { useMemo, useRef, type KeyboardEvent } from 'react';
 import { Code2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { highlightPython } from './code-answer-editor';
-import {
-  assembleCodeFromSlots,
-  extractSlotValues,
-  parseCodeTemplate,
-  type CodeSlotTemplate,
-} from '@/lib/problem-bank';
+import { parseCodeTemplate, type CodeSlotTemplate } from '@/lib/problem-bank';
+import { useCodeSlotDraft } from '@/lib/problem-bank/use-code-slot-draft';
 
 const INDENT = '    ';
 
@@ -39,23 +35,13 @@ export function CodeSlotEditor({
     () => parseCodeTemplate(slotTemplate.template, slotTemplate.slots) ?? [],
     [slotTemplate],
   );
-  const values = useMemo(
-    () =>
-      extractSlotValues(slotTemplate.template, slotTemplate.slots, value) ??
-      slotTemplate.initialValues,
-    [slotTemplate, value],
-  );
+  const { values, update } = useCodeSlotDraft(slotTemplate, value, onChange);
   const slotRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const slotOrder = segments.flatMap((segment) =>
     segment.kind === 'slot' ? [segment.slot.id] : [],
   );
   const filledCount = slotOrder.filter((id) => values[id]?.trim()).length;
 
-  const update = (id: string, next: string) => {
-    onChange(
-      assembleCodeFromSlots(slotTemplate.template, slotTemplate.slots, { ...values, [id]: next }),
-    );
-  };
   const focusSibling = (id: string, delta: number) => {
     const index = slotOrder.indexOf(id);
     const target = slotRefs.current[slotOrder[index + delta]];

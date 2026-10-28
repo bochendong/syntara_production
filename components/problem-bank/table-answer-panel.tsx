@@ -12,6 +12,7 @@ import {
   tableCellKey,
   tableRowCode,
   tableRunResultText,
+  tableSetupNeedsDisplay,
   type NotebookProblemPublicTable,
   type NotebookTableColumn,
 } from '@/lib/problem-bank';
@@ -89,9 +90,9 @@ export function TableAnswerPanel({
   return (
     <div className="space-y-3">
       {showStem ? <ProblemRichText content={content.stem} /> : null}
-      {content.setupCode?.trim() ? (
+      {tableSetupNeedsDisplay(content) ? (
         <pre className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-[13px] leading-6 text-slate-800">
-          <code>{highlightPython(content.setupCode)}</code>
+          <code>{highlightPython(content.setupCode ?? '')}</code>
         </pre>
       ) : null}
       {content.files?.length ? (

@@ -861,7 +861,7 @@ function docstringDescription(docstring: string): string {
 }
 
 function hasReturnDescription(description: string): boolean {
-  return /\b(?:return|returns|produce|produces|whether|true|false)\b|返回|产生|得到|是否/u.test(
+  return /\b(?:return|returns|produce|produces|whether|true|false)\b|返回|产生|得到|是否/iu.test(
     description,
   );
 }

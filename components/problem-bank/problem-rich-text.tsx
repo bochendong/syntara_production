@@ -871,7 +871,9 @@ export function ProblemImageAssets({
   images,
   className,
 }: {
-  content?: Pick<NotebookProblemPublicContent, 'assets'> | null;
+  content?:
+    | (Pick<NotebookProblemPublicContent, 'assets'> & { blankLayout?: 'inline' | 'figure' })
+    | null;
   images?: NotebookProblemImageAsset[];
   className?: string;
 }) {
@@ -879,7 +881,13 @@ export function ProblemImageAssets({
   if (!resolvedImages.length) return null;
 
   return (
-    <div className={cn('problem-image-gallery', className)}>
+    <div
+      className={cn(
+        'problem-image-gallery',
+        content?.blankLayout === 'figure' && 'is-figure',
+        className,
+      )}
+    >
       {resolvedImages.map((image) => (
         <figure
           key={image.id}

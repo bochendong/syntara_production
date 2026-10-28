@@ -3,12 +3,26 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import ts from 'typescript';
+import { createJiti } from 'jiti';
+const jiti = createJiti(import.meta.url);
+const multipart = await jiti.import('../../lib/problem-bank/multipart.ts');
 const require = createRequire(import.meta.url);
 const { NextRequest, NextResponse } = require('next/server');
-function harness({ authenticated = true, publicPass = true, count = 0, preview = false } = {}) {
+function harness({
+  authenticated = true,
+  publicPass = true,
+  count = 0,
+  preview = false,
+  multipartProblem = null,
+} = {}) {
   const rows = new Map(),
     calls = [];
   const mocks = {
+    '@/lib/problem-bank/multipart': multipart,
+    '@/lib/problem-bank': {
+      isNotebookMultipartProblemRecord: (problem) =>
+        problem.type === 'multipart' && problem.publicContent.type === 'multipart',
+    },
     'next/server': { NextResponse },
     '@/features/problems/server/judge': {
       judgeNotebookCodeProblem: async (args) => {
@@ -26,13 +40,16 @@ function harness({ authenticated = true, publicPass = true, count = 0, preview =
           throw Error('not found');
         return {
           isTeacherPreview: preview,
-          problem: {
+          problem: multipartProblem ?? {
             type: 'code',
             courseId,
             publicContent: { type: 'code', publicTests: [{}] },
             points: 100,
           },
-          secretJudge: { secret: 'never-return' },
+          secretJudge: {
+            secret: 'never-return',
+            parts: { a: { supportCode: 'private helper', secretTests: [] } },
+          },
         };
       },
       countNotebookProblemSubmissions: async () => count,
@@ -155,4 +172,57 @@ test('pending submission identifier persists across retry and changes with code'
   } finally {
     globalThis.window = previousWindow;
   }
+});
+
+test('multipart public runs scope the selected code and private helper without saving attempts', async () => {
+  const p = {
+    id: 'problem',
+    courseId: 'course',
+    type: 'multipart',
+    points: 100,
+    publicContent: {
+      type: 'multipart',
+      stem: 'Shared',
+      parts: [
+        {
+          label: 'a',
+          points: 1,
+          content: { type: 'code', language: 'python', stem: 'Implement', publicTests: [] },
+        },
+        { label: 'b', points: 1, content: { type: 'short_answer', stem: 'Explain' } },
+      ],
+    },
+    grading: {
+      type: 'multipart',
+      parts: [
+        { label: 'a', grading: { type: 'code' } },
+        { label: 'b', grading: { type: 'short_answer' } },
+      ],
+    },
+  };
+  const h = harness({ multipartProblem: p });
+  const result = await h.send({ part: 'a', mode: 'run' });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.data.saved, false);
+  assert.equal(h.rows.size, 0);
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].kind, 'run');
+  assert.equal(h.calls[0].runTarget, 'public');
+  assert.equal(h.calls[0].problem.id, 'problem#a');
+  assert.equal(h.calls[0].secretJudge.supportCode, 'private helper');
+  assert.equal(JSON.stringify(result.body).includes('private helper'), false);
+  assert.equal((await h.send({ part: 'b', mode: 'run' })).status, 400);
+  assert.equal((await h.send({ part: 'missing', mode: 'run' })).status, 400);
+  assert.equal(h.calls.length, 1);
+});
+
+test('standalone public run does not grade hidden cases or consume a submission', async () => {
+  const h = harness({ count: 3 });
+  const response = await h.send({ mode: 'run' });
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.saved, false);
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].kind, 'run');
+  assert.equal(h.calls[0].runTarget, 'public');
+  assert.equal(h.rows.size, 0);
 });

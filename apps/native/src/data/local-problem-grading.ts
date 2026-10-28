@@ -1,3 +1,6 @@
+import { parseNumericScalar } from '../../../../lib/problem-bank/numeric-answer';
+import { countCorrectBlankAnswers } from '../../../../lib/problem-bank/blank-answer-variants';
+import type { NotebookProblemGradingFillBlank } from '../../../../lib/problem-bank/schema';
 import type { LocalProblem } from '../domain/models';
 import { defaultCodeAnswerFor } from '../../../../lib/problem-bank/code-slots';
 import type { NotebookCodeSlot } from '../../../../lib/problem-bank/schema';
@@ -15,6 +18,7 @@ export type LocalProblemAnswer =
   | { kind: 'text'; text: string; images?: PhotoAnswerImage[] }
   | { kind: 'code'; code: string }
   | { kind: 'table'; cells: Record<string, string> }
+  | { kind: 'blanks'; blanks: Record<string, string> }
   | {
       kind: 'parts';
       parts: Record<
@@ -213,6 +217,7 @@ export function emptyAnswerForProblem(problem: LocalProblem): LocalProblemAnswer
   }
   if (problem.type === 'multipart') return { kind: 'parts', parts: {} };
   if (problem.type === 'table') return { kind: 'table', cells: {} };
+  if (problem.type === 'fill_blank') return { kind: 'blanks', blanks: {} };
   return { kind: 'text', text: '' };
 }
 
@@ -221,6 +226,7 @@ export function answerHasContent(answer: LocalProblemAnswer | null | undefined):
   if (answer.kind === 'choice') return answer.selectedOptionIds.length > 0;
   if (answer.kind === 'code') return answer.code.trim().length > 0;
   if (answer.kind === 'table') return Object.values(answer.cells).some((value) => value.trim());
+  if (answer.kind === 'blanks') return Object.values(answer.blanks).some((value) => value.trim());
   if (answer.kind === 'parts')
     return Object.values(answer.parts).some((p) =>
       Boolean(
@@ -238,6 +244,36 @@ export function gradeLocalProblem(
   answer: LocalProblemAnswer,
 ): LocalGradeResult {
   const grading = asRecord(problem.grading);
+
+  if (problem.type === 'fill_blank' && answer.kind === 'blanks') {
+    const spec = problem.grading as unknown as NotebookProblemGradingFillBlank;
+    if (!spec.blanks?.length)
+      return {
+        status: 'pending',
+        score: null,
+        feedback: '没有参考答案，已保存作答。',
+        autoGraded: false,
+      };
+    const right = countCorrectBlankAnswers(spec, answer.blanks, (blank, actual, expected) => {
+      if (blank.matcher === 'numeric_tolerance') {
+        const a = parseNumericScalar(actual),
+          b = parseNumericScalar(expected);
+        return a !== null && b !== null && Math.abs(a - b) <= (blank.tolerance ?? 0);
+      }
+      if (blank.caseSensitive || blank.matcher === 'exact')
+        return actual.trim() === expected.trim();
+      return (
+        actual.trim().replace(/\s+/g, ' ').toLowerCase() ===
+        expected.trim().replace(/\s+/g, ' ').toLowerCase()
+      );
+    });
+    return {
+      status: right === spec.blanks.length ? 'passed' : right ? 'partial' : 'failed',
+      score: right / spec.blanks.length,
+      feedback: `答对 ${right}/${spec.blanks.length} 个空。`,
+      autoGraded: true,
+    };
+  }
 
   if (problem.type === 'choice' && answer.kind === 'choice') {
     const correct = new Set(asStringArray(grading.correctOptionIds));

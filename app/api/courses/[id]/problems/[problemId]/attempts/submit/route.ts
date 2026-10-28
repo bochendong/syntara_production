@@ -169,6 +169,8 @@ export async function POST(
             previous: await getLatestNotebookProblemSubmission({ userId: auth.userId, problemId }),
             model,
             language: payload.data.language,
+            secretJudge: loaded.secretJudge,
+            courseIdentity,
           });
           answer = graded.answer;
           return graded;

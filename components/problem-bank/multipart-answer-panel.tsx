@@ -1,9 +1,9 @@
 'use client';
 
-import { CheckCircle2, CornerDownRight, Loader2, Send } from 'lucide-react';
+import { CheckCircle2, CornerDownRight, FlaskConical, Loader2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useImperativeHandle, type Ref } from 'react';
+import { useImperativeHandle, useMemo, useState, type Ref } from 'react';
 import {
   usePartFormulaEditor,
   type PartFormulaHandle,
@@ -11,14 +11,21 @@ import {
 import { PartTextAnswer, type PartEditorRegistration } from '@/lib/problem-bank/part-text-answer';
 import { InteractiveFillBlank } from './interactive-fill-blank';
 import { TableAnswerPanel } from './table-answer-panel';
-import { ProblemRichText } from './problem-rich-text';
+import { ProblemImageAssets, ProblemRichText } from './problem-rich-text';
+import { CodeSlotEditor } from './code-slot-editor';
+import { CodeAnswerEditor } from './code-answer-editor';
+import { CodePlayground } from './code-playground';
 import {
+  codeSlotTemplateFor,
+  defaultCodeAnswerFor,
   formatPartLabel,
   isAutoGradedPartType,
   MULTIPART_PART_SUBMISSION_LIMIT,
   partAnswerIsEmpty,
   partPointShares,
   type NotebookProblemAttemptRecord,
+  type NotebookProblemAttemptResult,
+  type NotebookProblemPublicCode,
   type NotebookProblemPart,
   type NotebookProblemPartAnswer,
   type NotebookProblemPartResult,
@@ -34,7 +41,153 @@ const PART_TYPE_LABELS: Record<NotebookProblemPart['content']['type'], [string, 
   calculation: ['计算', 'Calculation'],
   short_answer: ['简答', 'Short answer'],
   proof: ['证明', 'Proof'],
+  code: ['代码', 'Code'],
 };
+
+export type RunCodePart = (
+  label: string,
+  code: string,
+) => Promise<NotebookProblemAttemptResult | null | undefined>;
+
+/** 大题里的代码小问：带空位的编辑器 + 自己试 + 只跑公开测试的「运行测试」 */
+function PartCodeControl({
+  label,
+  content,
+  value,
+  disabled,
+  locale,
+  onChange,
+  onRun,
+}: {
+  label: string;
+  content: NotebookProblemPublicCode;
+  value: string | undefined;
+  disabled: boolean;
+  locale: Locale;
+  onChange: (code: string) => void;
+  onRun?: RunCodePart;
+}) {
+  const zh = locale === 'zh-CN';
+  const slotTemplate = useMemo(() => codeSlotTemplateFor(content), [content]);
+  const code = value ?? defaultCodeAnswerFor(content);
+  const [running, setRunning] = useState(false);
+  const [run, setRun] = useState<{ code: string; result: NotebookProblemAttemptResult } | null>(
+    null,
+  );
+  const runTests = async () => {
+    if (!onRun || running) return;
+    setRunning(true);
+    try {
+      const result = await onRun(label, code);
+      if (result) setRun({ code, result });
+    } finally {
+      setRunning(false);
+    }
+  };
+  const cases = run?.result.publicCases ?? [];
+  const summary = run?.result.publicSummary;
+  const stale = run && run.code !== code;
+  return (
+    <div className="space-y-3">
+      <div className="flex max-h-[620px] flex-col overflow-hidden rounded-2xl">
+        {slotTemplate ? (
+          <CodeSlotEditor
+            slotTemplate={slotTemplate}
+            value={code}
+            onChange={onChange}
+            disabled={disabled}
+            locale={locale}
+            className="min-h-0 flex-1"
+          />
+        ) : (
+          <CodeAnswerEditor
+            value={code}
+            onChange={onChange}
+            disabled={disabled}
+            locale={locale}
+            className="min-h-[220px] flex-1"
+            placeholder={zh ? '在这里写代码' : 'Write code here'}
+          />
+        )}
+      </div>
+      <CodePlayground
+        problemId={`part-${label}`}
+        code={code}
+        files={content.files}
+        stdin={content.stdin}
+        locale={locale}
+        className="rounded-2xl"
+      />
+      {onRun ? (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => void runTests()}
+            disabled={disabled || running}
+            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-sky-200 bg-gradient-to-b from-white to-sky-50 px-3 text-xs font-semibold text-sky-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_1px_3px_rgba(14,165,233,0.2)] transition hover:to-sky-100 disabled:opacity-60"
+          >
+            {running ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <FlaskConical className="size-3.5" />
+            )}
+            {zh ? '运行公开测试' : 'Run public tests'}
+          </button>
+          {run ? (
+            <div className={cn('space-y-1.5', stale && 'opacity-60')}>
+              {summary ? (
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {zh
+                    ? `公开测试 ${summary.passed}/${summary.total} 通过${stale ? '（代码已改动）' : ''}`
+                    : `Public tests ${summary.passed}/${summary.total} passed${stale ? ' (code changed)' : ''}`}
+                </p>
+              ) : run.result.feedback ? (
+                <p className="text-xs text-slate-600 dark:text-slate-300">{run.result.feedback}</p>
+              ) : null}
+              <div className="flex flex-wrap gap-1.5">
+                {cases.map((item) => (
+                  <span
+                    key={item.id}
+                    title={item.error || item.actual || undefined}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px]',
+                      item.passed
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : 'border-rose-200 bg-rose-50 text-rose-800',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'size-2 rounded-full',
+                        item.passed ? 'bg-emerald-500' : 'bg-rose-500',
+                      )}
+                    />
+                    {item.description || item.id.replace(/^.*\.test_/, '').replace(/_/g, ' ')}
+                  </span>
+                ))}
+              </div>
+              {cases
+                .filter((item) => !item.passed && (item.error || item.actual))
+                .slice(0, 2)
+                .map((item) => (
+                  <pre
+                    key={item.id}
+                    className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 font-mono text-[11px] text-rose-800"
+                  >
+                    <span className="font-semibold">
+                      {item.id.replace(/^.*\.test_/, '').replace(/_/g, ' ')}
+                    </span>
+                    {'  '}
+                    {(item.error || item.actual || '').trim().split('\n').pop()}
+                  </pre>
+                ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /** 小问状态 → 珠子颜色：绿对、粉错、琥珀部分对、蓝待批改、空心未做 */
 export function partStatusTone(result: NotebookProblemPartResult | undefined) {
@@ -121,6 +274,7 @@ function PartAnswerControl({
   onEditorReady,
   onEditorFocus,
   result,
+  onRunCode,
 }: {
   part: NotebookProblemPart;
   result?: NotebookProblemPartResult;
@@ -128,8 +282,22 @@ function PartAnswerControl({
   disabled: boolean;
   locale: Locale;
   onChange: (next: NotebookProblemPartAnswer) => void;
+  onRunCode?: RunCodePart;
 } & PartEditorRegistration) {
   const content = part.content;
+  if (content.type === 'code') {
+    return (
+      <PartCodeControl
+        label={part.label}
+        content={content}
+        value={value.code}
+        disabled={disabled}
+        locale={locale}
+        onChange={(code) => onChange({ ...value, code })}
+        onRun={onRunCode}
+      />
+    );
+  }
   if (content.type === 'choice') {
     const selected = value.selectedOptionIds ?? [];
     const multi = content.selectionMode === 'multiple';
@@ -185,16 +353,19 @@ function PartAnswerControl({
   }
   if (content.type === 'fill_blank') {
     return (
-      <InteractiveFillBlank
-        content={content}
-        values={value.blanks ?? {}}
-        disabled={disabled}
-        locale={locale}
-        onFocusBlank={() => undefined}
-        onChangeBlank={(blankId, text) =>
-          onChange({ ...value, blanks: { ...(value.blanks ?? {}), [blankId]: text } })
-        }
-      />
+      <div className="space-y-3">
+        <ProblemImageAssets content={content} />
+        <InteractiveFillBlank
+          content={content}
+          values={value.blanks ?? {}}
+          disabled={disabled}
+          locale={locale}
+          onFocusBlank={() => undefined}
+          onChangeBlank={(blankId, text) =>
+            onChange({ ...value, blanks: { ...(value.blanks ?? {}), [blankId]: text } })
+          }
+        />
+      </div>
     );
   }
   return (
@@ -242,6 +413,7 @@ export function MultipartAnswerPanel({
   locale,
   onChangePart,
   onSubmit,
+  onRunCodePart,
 }: {
   content: NotebookProblemPublicMultipart;
   formulaRef?: Ref<PartFormulaHandle>;
@@ -252,6 +424,7 @@ export function MultipartAnswerPanel({
   locale: Locale;
   onChangePart: (label: string, answer: NotebookProblemPartAnswer) => void;
   onSubmit: (labels?: string[]) => void;
+  onRunCodePart?: RunCodePart;
 }) {
   const zh = locale === 'zh-CN';
   const results = latestAttempt?.result?.parts ?? [];
@@ -334,6 +507,7 @@ export function MultipartAnswerPanel({
               disabled={disabled || submitting || exhausted}
               locale={locale}
               onChange={(next) => onChangePart(part.label, next)}
+              onRunCode={onRunCodePart}
             />
             {result?.feedback ? (
               <p
@@ -347,6 +521,13 @@ export function MultipartAnswerPanel({
                 )}
               >
                 {result.feedback}
+                {result.secretSummary ? (
+                  <span className="mt-1 block text-xs opacity-80">
+                    {zh
+                      ? `公开 ${result.publicSummary?.passed ?? 0}/${result.publicSummary?.total ?? 0} · 隐藏 ${result.secretSummary.passed}/${result.secretSummary.total}`
+                      : `Public ${result.publicSummary?.passed ?? 0}/${result.publicSummary?.total ?? 0} · Hidden ${result.secretSummary.passed}/${result.secretSummary.total}`}
+                  </span>
+                ) : null}
               </p>
             ) : null}
             <div className="mt-2 flex items-center gap-2">

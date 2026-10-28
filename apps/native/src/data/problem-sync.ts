@@ -137,6 +137,9 @@ function uploadOf(attempt: LocalProblemAttempt): NativeProblemAttemptUpload | nu
         ? { parts: answer.parts as NonNullable<NativeProblemAttemptUpload['answer']['parts']> }
         : {}),
       ...(typeof answer.code === 'string' ? { code: answer.code.slice(0, 120_000) } : {}),
+      ...(answer.blanks && typeof answer.blanks === 'object'
+        ? { blanks: answer.blanks as Record<string, string> }
+        : {}),
       ...(answer.cells && typeof answer.cells === 'object'
         ? { cells: answer.cells as Record<string, string> }
         : {}),

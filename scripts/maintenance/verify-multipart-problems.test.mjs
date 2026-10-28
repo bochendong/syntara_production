@@ -329,3 +329,15 @@ test('reviewed repair previews, updates in place, rejects stale data and never r
     }),
   );
 });
+
+test('dependent written parts receive only declared earlier student text', () => {
+  const p = structuredClone(fixture);
+  const independent = bank.buildPartProblem(p, 0, 40, { b: { text: 'future answer' } });
+  assert.ok(!independent.publicContent.stem.includes('future answer'));
+  const dependent = bank.buildPartProblem(p, 1, 60, {
+    a: { text: 'first counterexample' },
+    unrelated: { text: 'unrelated answer' },
+  });
+  assert.ok(dependent.publicContent.stem.includes('first counterexample'));
+  assert.ok(!dependent.publicContent.stem.includes('unrelated answer'));
+});

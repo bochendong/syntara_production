@@ -1,3 +1,4 @@
+import { multipartCodePartDrafts } from '@/lib/problem-bank/multipart';
 import { createHash } from 'node:crypto';
 import { verifyCodePreflight } from '@/lib/server/course-code-preflight';
 import { z } from 'zod';
@@ -110,7 +111,7 @@ function validateDraft(draft: NotebookProblemImportDraft) {
     'Question, statement and grading types must agree.',
   );
   requireImport(
-    draft.type === 'code' || !draft.secretJudge,
+    draft.type === 'code' || multipartCodePartDrafts(draft).length > 0 || !draft.secretJudge,
     400,
     'invalid_request',
     'Executable questions require the separate runner validation workflow.',
@@ -124,6 +125,19 @@ function validateDraft(draft: NotebookProblemImportDraft) {
     'Only accepted 100-point drafts with valid statement structure can be imported.',
   );
   const grading = draft.grading;
+  if (draft.publicContent.type === 'multipart' && grading.type === 'multipart') {
+    for (const part of draft.publicContent.parts) {
+      const partGrading = grading.parts.find((item) => item.label === part.label)?.grading;
+      requireImport(partGrading, 400, 'invalid_request', 'Every part requires grading data.');
+      validateDraft({
+        ...draft,
+        type: part.content.type,
+        publicContent: part.content,
+        grading: partGrading,
+        secretJudge: undefined,
+      });
+    }
+  }
   if (grading.type === 'choice' && draft.publicContent.type === 'choice') {
     const options = new Set(draft.publicContent.options.map((option) => option.id));
     requireImport(
@@ -325,7 +339,7 @@ export function createStructuredCourseProblemImportService(
     const batchId = `structured_import_${hash([course.id, course.ownerId, data.idempotencyKey]).slice(0, 40)}`;
     const previous = await db.problemImportBatch.findUnique({ where: { id: batchId } });
     for (const item of data.items) {
-      if (item.draft.type === 'code') {
+      if (item.draft.type === 'code' || multipartCodePartDrafts(item.draft).length > 0) {
         requireImport(
           process.env.SYNTARA_APP_ENV === 'staging' &&
             !actor.operatorContext &&
