@@ -32,6 +32,15 @@
   background: #f3f6fa;
   color: #243651;
 }
+/* Keep iPad long presses and selection gestures inside the writing workspace. */
+.ink-panel,
+.ink-panel *,
+.pp-header-actions.is-handwriting,
+.pp-header-actions.is-handwriting * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 .ink-tools {
   position: absolute;
   z-index: 3;

@@ -190,6 +190,7 @@ function HandwritingPanel({
       className="ink-panel"
       aria-label="手写作答面板"
       onKeyDown={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.preventDefault()}
     >
       <fieldset
         ref={toolbarRef}

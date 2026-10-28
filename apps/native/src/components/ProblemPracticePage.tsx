@@ -1762,7 +1762,10 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                   })}
                 </div>
               ) : null}
-              <div className={cn('pp-header-actions', handwritingMode && 'is-handwriting')}>
+              <div
+                className={cn('pp-header-actions', handwritingMode && 'is-handwriting')}
+                onContextMenu={handwritingMode ? (event) => event.preventDefault() : undefined}
+              >
                 {rightTab === 'answer' && (answer?.kind === 'text' || writtenPart) ? (
                   <div className="pp-answer-input-actions" role="group" aria-label="作答输入工具">
                     <button
