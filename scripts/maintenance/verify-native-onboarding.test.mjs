@@ -332,3 +332,20 @@ test('detailed guide checkpoints remain isolated by account and reset on replay'
     globalThis.localStorage = oldStorage;
   }
 });
+
+test('the tutorial remains directly obtainable among a large real-world catalog during onboarding', async () => {
+  const shared = moduleUrl(compile(read('lib/onboarding/spotlight.ts')));
+  const source = compile(read('lib/onboarding/store-featured.ts')).replaceAll(
+    "'./spotlight'",
+    `'${shared}'`,
+  );
+  const { onboardingFeaturedCourses } = await import(moduleUrl(source));
+  const popular = Array.from({ length: 27 }, (_, i) => ({ id: `course-${i}` }));
+  const tutorial = { id: 'syntara-tutorial' };
+  const ranked = [...popular, tutorial];
+  assert.equal(onboardingFeaturedCourses(ranked, true)[0], tutorial);
+  assert.equal(onboardingFeaturedCourses(ranked, true).length, 5);
+  assert.deepEqual(onboardingFeaturedCourses(ranked, false), popular.slice(0, 5));
+  assert.equal(ranked.at(-1), tutorial);
+  assert.equal(onboardingFeaturedCourses(popular, true).length, 5);
+});

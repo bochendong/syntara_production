@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import { BadgeCheck, ChevronRight, Search, Star, X } from 'lucide-react';
 import { storeCourseCode } from '../../../../lib/course-space/course-display-name';
@@ -17,7 +18,12 @@ import {
 import type { NativeStoreCourse, NativeStoreCourseDetail } from '../data/platform-api-contracts';
 import { GlassSkeletonRows } from './GlassLoadMore';
 import { PhoneEmpty, PhonePage } from './PhonePages';
-import { completeOnboardingStep, PLATFORM_TUTORIAL_COURSE_ID } from '../lib/onboarding';
+import {
+  completeOnboardingStep,
+  PLATFORM_TUTORIAL_COURSE_ID,
+  onboardingStore,
+} from '../lib/onboarding';
+import { onboardingFeaturedCourses } from '../../../../lib/onboarding/store-featured';
 import { groupStoreCoursesByCategory, storeCourseCategory } from '../lib/store-course-categories';
 import './store-page.css';
 
@@ -481,7 +487,8 @@ export function StorePage({
 
   const all = useMemo(() => courses ?? [], [courses]);
   const ranked = useMemo(() => [...all].sort((a, b) => popularity(b) - popularity(a)), [all]);
-  const featured = ranked.slice(0, 5);
+  const onboarding = useSyncExternalStore(onboardingStore.subscribe, onboardingStore.snapshot);
+  const featured = onboardingFeaturedCourses(ranked, onboarding?.status === 'active');
   const categories = useMemo(() => groupStoreCoursesByCategory(ranked), [ranked]);
 
   const terms = useMemo(() => query.trim().toLowerCase().split(/\s+/).filter(Boolean), [query]);
