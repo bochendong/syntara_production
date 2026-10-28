@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-28",
+  "applicationCommit": "6d5cb45a2d672625ea1d9586253592953b28fc2f",
+  "applicationTree": "648acb992e61288bca309bef5a0564aec727e144",
+  "taskSourceCommit": "cd7f76dfd1910ec74a8a35a9e0516a80ef6fe69d",
+  "deployment": {
+    "id": "2e6f7660-9179-4ce8-925e-a2928cd62d29",
+    "environment": "staging",
+    "service": "native-api-staging",
+    "status": "SUCCESS"
+  },
+  "change": "Suppress selection, long-press callouts and context menus only in the handwriting workspace and its page controls.",
+  "validation": {
+    "offlineRegressionTestsPassed": 25,
+    "formatLintRootAndNativeTypes": "PASS",
+    "fullStagingBuild": "PASS",
+    "localBrowser": "Pen controls, new page, zoom, toolbar collapse/expand, mouse drawing and undo passed; normal textarea remained selectable.",
+    "liveHealthAndAssetHashes": "PASS",
+    "ipadPencilHardware": "Not tested on a physical iPad; iPadOS gesture behavior needs user verification."
+  },
+  "databaseMigrations": "No new migrations; Railway reports none pending.",
+  "nativeMacInstallerRepackaged": false,
+  "verifiedAt": "2026-10-28T08:08:14.422191+00:00"
+}
