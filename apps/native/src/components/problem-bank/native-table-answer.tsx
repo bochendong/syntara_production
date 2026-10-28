@@ -71,7 +71,9 @@ export function NativeTableAnswer({
             {content.rows.map((row, index) => (
               <tr key={row.id}>
                 <th scope="row" className="native-table-index">
-                  <span className="native-table-row-label">{row.id}</span>
+                  <span className="native-table-row-label">
+                    {/^(?:\d{1,2}|[a-z])$/i.test(row.id) ? row.id : index + 1}
+                  </span>
                   {results && content.runnable && (
                     <button
                       type="button"
@@ -118,7 +120,8 @@ export function NativeTableAnswer({
                     <td key={column.id} className="native-table-answer-cell">
                       <div className="native-table-input-wrap">
                         <textarea
-                          aria-label={`${row.id} ${column.header}`}
+                          aria-label={`${index + 1} ${column.header}`}
+                          data-kind={column.cellKind}
                           disabled={disabled}
                           value={values[tableCellKey(row.id, column.id)] ?? ''}
                           onChange={(event) =>
@@ -134,9 +137,8 @@ export function NativeTableAnswer({
                           rows={Math.min(
                             8,
                             Math.max(
-                              3,
-                              (values[tableCellKey(row.id, column.id)] ?? '').split('\n').length +
-                                1,
+                              column.cellKind === 'output' ? 3 : 1,
+                              (values[tableCellKey(row.id, column.id)] ?? '').split('\n').length,
                             ),
                           )}
                         />
