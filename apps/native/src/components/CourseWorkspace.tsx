@@ -1494,6 +1494,7 @@ export function PhoneChatDrawer<
                       <div className="phone-drawer-course-group" key={course.id}>
                         <div
                           className={`phone-drawer-course-heading${current ? ' is-current' : ''}`}
+                          data-guide-course-id={course.id}
                           style={hoverStyle}
                         >
                           <button
@@ -4598,7 +4599,9 @@ export function CourseWorkspace({
       setDraft('');
       setPendingImages([]);
       setPendingFiles([]);
-      if (workspace.course.id === PLATFORM_TUTORIAL_COURSE_ID) completeOnboardingStep('ask');
+      if (workspace.course.id === PLATFORM_TUTORIAL_COURSE_ID) {
+        completeOnboardingStep('ask');
+      }
       replayClass(sendButtonRef.current, 'is-rolling');
       let userMessage: LocalMessage | null = null;
       let optimisticAssistantId: string | null = null;
@@ -4729,6 +4732,8 @@ export function CourseWorkspace({
             message.id === optimisticAssistantId ? assistantMessage : message,
           );
         });
+        if (workspace.course.id === PLATFORM_TUTORIAL_COURSE_ID)
+          window.dispatchEvent(new Event('syntara:onboarding-question-sent'));
         const now = Date.now();
         void pushConversation(repository, {
           id: conversationId,

@@ -24,6 +24,7 @@ export async function GET() {
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('complete'), step: z.enum(ONBOARDING_STEPS) }),
   z.object({ action: z.literal('skip') }),
+  z.object({ action: z.literal('finish') }),
   z.object({ action: z.literal('restart') }),
 ]);
 

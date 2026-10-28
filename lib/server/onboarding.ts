@@ -117,6 +117,7 @@ export async function getOnboardingState(
 export type OnboardingAction =
   | { action: 'complete'; step: OnboardingStep }
   | { action: 'skip' }
+  | { action: 'finish' }
   | { action: 'restart' };
 
 export async function updateOnboarding(
@@ -136,6 +137,9 @@ export async function updateOnboarding(
       stored.status = 'skipped';
       stored.finishedAt = now;
     }
+  } else if (input.action === 'finish') {
+    stored.status = 'done';
+    stored.finishedAt = now;
   } else if (input.action === 'restart') {
     stored.status = 'active';
     stored.marks = {};

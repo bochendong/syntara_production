@@ -1,227 +1,178 @@
-/* 新手引导：暗色遮罩 + 玻璃透镜 + 一句话气泡。颜色和玻璃来自 marble-tokens.css。 */
-.onboarding-coach {
+.guided-coach {
   position: fixed;
-  inset: 0;
-  z-index: 2147483000;
-  pointer-events: none;
+  z-index: 2147483101;
+
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  width: 355px;
+  max-width: calc(100vw - 32px);
+  padding: 20px 24px 19px 18px;
+  border: 1px solid #d7e3f7;
+  border-radius: 20px;
+  background: #ffffffed;
+  box-shadow: 0 16px 55px #07152e45;
+  backdrop-filter: blur(24px) saturate(1.25);
+  color: #536781;
+}
+.guided-coach > img {
+  width: 35px;
+  height: 35px;
+  object-fit: contain;
+  margin-top: 3px;
+}
+.guided-coach-copy {
+  flex: 1;
+  min-width: 0;
+}
+.guided-coach-copy small {
+  font-size: 10px;
+  color: #657b9a;
+}
+.guided-coach-copy strong {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  margin-top: 7px;
+}
+.guided-coach-copy p {
+  font-size: 11px;
+  line-height: 1.9;
+  color: #64758d;
+  margin: 10px 0 13px;
+}
+.guided-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.guided-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 10px;
+  color: #466997;
+  background: #eff5ff;
+  border: 1px solid #dce7fa;
+  padding: 8px 10px;
+  border-radius: 18px;
+  cursor: pointer;
+}
+.guided-actions .guided-skip {
+  border: 0;
+  background: none;
+  color: #758197;
+  font-size: 9px;
+  padding: 7px 0;
+}
+.guided-close {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  border: 0;
+  background: none;
+  color: #a2aebe;
+  padding: 5px;
+  cursor: pointer;
+}
+@media (max-width: 750px) {
+  .guided-coach {
+    width: 330px;
+    padding: 17px;
+  }
+  .guided-coach-copy strong {
+    font-size: 13px;
+  }
+  .guided-coach-copy p {
+    font-size: 10px;
+  }
 }
 
-.onboarding-blocker {
+.guided-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483100;
+  pointer-events: none;
+}
+.guided-blocker {
   position: fixed;
   pointer-events: auto;
 }
-
-.onboarding-lens {
+.guided-lens {
   position: fixed;
   pointer-events: none;
   box-shadow:
     0 0 0 200vmax rgb(15 23 42 / 0.56),
-    0 0 0 2px rgb(255 255 255 / 0.9),
-    0 0 26px 6px rgb(var(--marble-purple-rgb) / 0.75),
-    inset 0 0 12px rgb(255 255 255 / 0.18);
+    0 0 0 2px rgb(255 255 255 / 0.95),
+    0 0 28px 5px rgb(141 164 246 / 0.55);
   transition:
-    top 360ms cubic-bezier(0.2, 0.9, 0.25, 1.15),
-    left 360ms cubic-bezier(0.2, 0.9, 0.25, 1.15),
-    width 360ms cubic-bezier(0.2, 0.9, 0.25, 1.15),
-    height 360ms cubic-bezier(0.2, 0.9, 0.25, 1.15),
-    border-radius 360ms ease;
+    top 220ms ease,
+    left 220ms ease,
+    width 220ms ease,
+    height 220ms ease;
 }
-
-.onboarding-lens::after {
-  position: absolute;
-  inset: -6px;
-  border: 2px solid rgb(var(--marble-purple-rgb) / 0.55);
-  border-radius: inherit;
-  content: '';
-  animation: onboarding-lens-pulse 1.8s ease-out infinite;
-}
-
-@keyframes onboarding-lens-pulse {
-  0% {
-    opacity: 0.9;
-    transform: scale(0.96);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.12);
+@media (prefers-reduced-motion: reduce) {
+  .guided-lens {
+    transition: none;
   }
 }
 
-.onboarding-bubble {
-  position: fixed;
-  display: flex;
-  width: 220px;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px 10px;
-  border: 1px solid rgb(255 255 255 / 0.85);
-  border-radius: var(--radius-md);
-  background: rgb(255 255 255 / 0.86);
-  box-shadow: 0 14px 40px rgb(15 23 42 / 0.28);
-  color: #0f172a;
-  pointer-events: auto;
-  backdrop-filter: blur(var(--glass-blur-md)) saturate(1.4);
-  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(1.4);
-  animation: onboarding-bubble-in 320ms cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
-}
-
-.onboarding-bubble.is-above {
-  transform-origin: bottom center;
-}
-
-.onboarding-bubble.is-below {
-  transform-origin: top center;
-}
-
-@keyframes onboarding-bubble-in {
-  from {
-    opacity: 0;
-    transform: scale(0.85);
+@media (max-width: 600px) {
+  .guided-coach {
+    width: calc(100vw - 24px);
+    max-width: 380px;
+    max-height: min(42dvh, 330px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 17px 20px 16px 16px;
+    gap: 10px;
+    border-radius: 22px;
+  }
+  .guided-coach > img {
+    width: 30px;
+    height: 30px;
+  }
+  .guided-coach-copy small {
+    font-size: 11px;
+  }
+  .guided-coach-copy strong {
+    font-size: 15px;
+    line-height: 1.45;
+    margin-top: 5px;
+  }
+  .guided-coach-copy p {
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 8px 0 12px;
+  }
+  .guided-actions {
+    gap: 6px;
+  }
+  .guided-actions button {
+    min-height: 40px;
+    padding: 9px 12px;
+    font-size: 12px;
+  }
+  .guided-actions .guided-skip {
+    min-height: 40px;
+    padding: 8px;
+    font-size: 12px;
+  }
+  .guided-close {
+    right: 4px;
+    top: 4px;
+    min-width: 32px;
+    min-height: 32px;
   }
 }
 
-.onboarding-bubble strong {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.onboarding-bubble-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.onboarding-progress {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.onboarding-progress img,
-.onboarding-progress i {
-  display: block;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-}
-
-.onboarding-progress img {
-  animation: onboarding-marble-drop 420ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
-}
-
-@keyframes onboarding-marble-drop {
-  from {
-    transform: translateY(-10px) scale(0.6);
-  }
-}
-
-.onboarding-progress i {
-  border: 1.5px dashed #94a3b8;
-}
-
-.onboarding-progress i.is-current {
-  border-style: solid;
-  border-color: var(--marble-purple-mid);
-  box-shadow: 0 0 8px rgb(var(--marble-purple-rgb) / 0.8);
-}
-
-.onboarding-bubble button {
-  padding: 2px 4px;
-  border: 0;
-  background: none;
-  color: #94a3b8;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.onboarding-bubble button:hover {
-  color: #475569;
-}
-
-/* 课程行的「…」平时悬停才出现；被圈住时一直显示。 */
-.phone-drawer-course-actions:has([data-onboarding='course-tools']) {
+/* Keep real course tools visible while teaching their location on hover-based layouts. */
+body:has(.guided-coach) .phone-drawer-course-actions {
+  width: auto;
+  padding-right: 4px;
+  overflow: visible;
   opacity: 1;
   pointer-events: auto;
-}
-
-.onboarding-finish {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  z-index: 2147483000;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 22px 28px;
-  border: 1px solid rgb(255 255 255 / 0.85);
-  border-radius: var(--radius-lg);
-  background: rgb(255 255 255 / 0.82);
-  box-shadow: 0 20px 60px rgb(15 23 42 / 0.25);
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-  backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
-  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
-  animation: onboarding-finish 2400ms ease both;
-}
-
-.onboarding-finish strong {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.onboarding-finish-marbles {
-  display: flex;
-  gap: 6px;
-}
-
-.onboarding-finish-marbles img {
-  width: 30px;
-  height: 30px;
-  animation: onboarding-marble-drop 520ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
-}
-
-.onboarding-finish-marbles img:nth-child(2) {
-  animation-delay: 80ms;
-}
-
-.onboarding-finish-marbles img:nth-child(3) {
-  animation-delay: 160ms;
-}
-
-.onboarding-finish-marbles img:nth-child(4) {
-  animation-delay: 240ms;
-}
-
-.onboarding-finish-marbles img:nth-child(5) {
-  animation-delay: 320ms;
-}
-
-@keyframes onboarding-finish {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -46%) scale(0.92);
-  }
-  12%,
-  80% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -54%) scale(0.98);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .onboarding-lens,
-  .onboarding-lens::after,
-  .onboarding-bubble,
-  .onboarding-progress img,
-  .onboarding-finish,
-  .onboarding-finish-marbles img {
-    transition: none;
-    animation: none;
-  }
 }

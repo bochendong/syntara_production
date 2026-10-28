@@ -611,6 +611,7 @@ export async function nativeOnboardingAction(
   payload:
     | { action: 'complete'; step: NativeOnboardingStep }
     | { action: 'skip' }
+    | { action: 'finish' }
     | { action: 'restart' },
 ): Promise<NativeOnboardingState> {
   const result = await invokeJson<typeof payload, { onboarding: NativeOnboardingState }>(

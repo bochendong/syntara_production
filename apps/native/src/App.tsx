@@ -28,6 +28,7 @@ import { PhoneConfirm, PhoneProfilePage } from './components/PhonePages';
 import { StorePage } from './components/StorePage';
 import { OnboardingCoach } from './components/OnboardingCoach';
 import { completeOnboardingStep, PLATFORM_TUTORIAL_COURSE_ID } from './lib/onboarding';
+import { guideCourseCreated } from './lib/onboarding-guide';
 import { deleteNativeCourse, editNativeCourse } from './data/platform-api-client';
 import { readPlatformCourseMeta } from './lib/platform-course-meta';
 import { resolveNativeCourseAvatar } from './assets';
@@ -643,6 +644,7 @@ function AuthenticatedApp() {
               await loadCourses(id);
               setCreatingCourse(false);
               openCourse(id);
+              guideCourseCreated(id);
             }}
           />
         ) : null}
@@ -720,7 +722,7 @@ function AuthenticatedApp() {
           </div>
         ) : null}
 
-        <OnboardingCoach />
+        <OnboardingCoach courses={courses} />
 
         {toast ? (
           <div className="native-toast" role="status">

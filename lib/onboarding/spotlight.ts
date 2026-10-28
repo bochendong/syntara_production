@@ -47,12 +47,14 @@ export function createOnboardingStore(api: {
     payload:
       | { action: 'complete'; step: OnboardingStep }
       | { action: 'skip' }
+      | { action: 'finish' }
       | { action: 'restart' },
   ) => Promise<OnboardingState>;
 }) {
   let state: OnboardingSnapshot | null = null;
   let loading: Promise<void> | null = null;
   const listeners = new Set<() => void>();
+  let generation = 0;
 
   function publish(next: OnboardingSnapshot | null) {
     // 从进行中变成走完，留一小会儿给「都会了」的动画。
@@ -70,6 +72,11 @@ export function createOnboardingStore(api: {
   }
 
   return {
+    reset() {
+      generation += 1;
+      loading = null;
+      publish(null);
+    },
     snapshot: () => state,
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -79,12 +86,15 @@ export function createOnboardingStore(api: {
     },
     load(): Promise<void> {
       if (!api.available()) return Promise.resolve();
+      const epoch = generation;
       loading ??= api
         .load()
-        .then(publish)
+        .then((next) => {
+          if (epoch === generation) publish(next);
+        })
         .catch(() => undefined)
         .finally(() => {
-          loading = null;
+          if (epoch === generation) loading = null;
         });
       return loading;
     },
@@ -96,9 +106,12 @@ export function createOnboardingStore(api: {
       );
       const next = ONBOARDING_STEPS.find((item) => !completed.includes(item)) ?? null;
       publish({ status: next ? 'active' : 'done', completed, next });
+      const epoch = generation;
       void api
         .act({ action: 'complete', step })
-        .then(publish)
+        .then((next) => {
+          if (epoch === generation) publish(next);
+        })
         .catch(() => undefined);
     },
     skip() {
@@ -107,8 +120,18 @@ export function createOnboardingStore(api: {
       void api.act({ action: 'skip' }).catch(() => undefined);
     },
     async restart() {
+      const epoch = generation;
       const next = await api.act({ action: 'restart' });
+      if (epoch !== generation) return;
       publish(next);
+      if (typeof window !== 'undefined')
+        window.dispatchEvent(new Event('syntara:onboarding-restart'));
+    },
+    /** Version two finishes after exploring the course menu, without deleting the course. */
+    async finish() {
+      const epoch = generation;
+      const next = await api.act({ action: 'finish' });
+      if (epoch === generation) publish(next);
     },
   };
 }

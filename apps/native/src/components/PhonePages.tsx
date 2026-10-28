@@ -33,6 +33,7 @@ import {
   resolveNativeCourseAvatar,
 } from '../assets';
 import { getLocalRepository } from '../data/repository';
+import { tutorialMemorySamplesForView } from '../lib/tutorial-memory-samples';
 import { groupNotebookTranslations, notebookProgressCount } from '../lib/notebook-translations';
 import { loadNativeAuthSession, logoutNativeAuthSession } from '../data/native-auth';
 import {
@@ -1043,7 +1044,7 @@ export function PhoneMemoryPage({
   courseLabel,
   backgroundUrl,
   notebooks,
-  memories,
+  memories: learnerMemories,
   focusedMemoryId,
   onBack,
   onChat,
@@ -1058,6 +1059,10 @@ export function PhoneMemoryPage({
   /** 空星图时回到聊天。 */
   onChat?: () => void;
 }) {
+  const memories = useMemo(
+    () => [...tutorialMemorySamplesForView(courseId), ...learnerMemories],
+    [courseId, learnerMemories],
+  );
   const [activeId, setActiveId] = useState<string | null>(focusedMemoryId);
   const [filter, setFilter] = useState<MarbleColor | 'stale' | null>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
