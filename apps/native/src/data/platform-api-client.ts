@@ -580,7 +580,10 @@ export async function getNativeOnboarding(): Promise<NativeOnboardingState> {
 }
 
 export async function nativeOnboardingAction(
-  payload: { action: 'complete'; step: NativeOnboardingStep } | { action: 'skip' },
+  payload:
+    | { action: 'complete'; step: NativeOnboardingStep }
+    | { action: 'skip' }
+    | { action: 'restart' },
 ): Promise<NativeOnboardingState> {
   const result = await invokeJson<typeof payload, { onboarding: NativeOnboardingState }>(
     'native_onboarding_action',

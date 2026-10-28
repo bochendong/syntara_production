@@ -85,6 +85,7 @@ import {
 import { buildMemoryGalaxy, type GalaxyNode, type MemoryGalaxy } from '../lib/memory-galaxy';
 import { useBackDismiss } from '../lib/use-back-dismiss';
 import { useSidebarBackground } from '../lib/use-sidebar-background';
+import { onboardingStore } from '../lib/onboarding';
 import {
   MEMORY_MARBLE_LEGEND,
   marbleImages,
@@ -539,6 +540,8 @@ export function PhoneProfilePage({
   const [draftSignature, setDraftSignature] = useState('');
   const [draftSchool, setDraftSchool] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
+  const [restoringTutorial, setRestoringTutorial] = useState(false);
+  const [tutorialError, setTutorialError] = useState<string | null>(null);
   useBackDismiss(editing, () => setEditing(false), 20);
   useBackDismiss(Boolean(sheet), () => setSheet(null), 30);
 
@@ -588,6 +591,20 @@ export function PhoneProfilePage({
       await logoutNativeAuthSession();
     } finally {
       setLoggingOut(false);
+    }
+  };
+
+  const restoreTutorial = async () => {
+    if (restoringTutorial) return;
+    setRestoringTutorial(true);
+    setTutorialError(null);
+    try {
+      await onboardingStore.restart();
+      onBack();
+    } catch {
+      setTutorialError('恢复新手教程失败，请稍后重试。');
+    } finally {
+      setRestoringTutorial(false);
     }
   };
 
@@ -738,7 +755,26 @@ export function PhoneProfilePage({
             </span>
             <ChevronRight size={18} className="phone-row-trailing" />
           </button>
+          <button
+            type="button"
+            className="phone-row phone-row-button"
+            disabled={restoringTutorial}
+            onClick={() => void restoreTutorial()}
+          >
+            <span className="phone-row-icon phone-row-icon-blue">
+              <RotateCcw size={17} />
+            </span>
+            <span className="phone-row-copy">
+              <strong>{restoringTutorial ? '正在恢复…' : '恢复新手教程'}</strong>
+            </span>
+            <ChevronRight size={18} className="phone-row-trailing" />
+          </button>
         </div>
+        {tutorialError ? (
+          <p className="phone-page-error" role="alert">
+            {tutorialError}
+          </p>
+        ) : null}
 
         <div className="phone-group">
           <button

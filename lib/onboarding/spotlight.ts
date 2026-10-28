@@ -44,7 +44,10 @@ export function createOnboardingStore(api: {
   available: () => boolean;
   load: () => Promise<OnboardingState>;
   act: (
-    payload: { action: 'complete'; step: OnboardingStep } | { action: 'skip' },
+    payload:
+      | { action: 'complete'; step: OnboardingStep }
+      | { action: 'skip' }
+      | { action: 'restart' },
   ) => Promise<OnboardingState>;
 }) {
   let state: OnboardingSnapshot | null = null;
@@ -102,6 +105,10 @@ export function createOnboardingStore(api: {
       if (!state || state.status !== 'active') return;
       publish({ ...state, status: 'skipped', next: null });
       void api.act({ action: 'skip' }).catch(() => undefined);
+    },
+    async restart() {
+      const next = await api.act({ action: 'restart' });
+      publish(next);
     },
   };
 }

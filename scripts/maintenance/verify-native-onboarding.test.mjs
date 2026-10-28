@@ -11,6 +11,52 @@ const compile = (source) =>
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
   }).outputText;
 
+const { createOnboardingStore } = await import(
+  moduleUrl(compile(read('lib/onboarding/spotlight.ts')))
+);
+
+test('restoring a dismissed tutorial publishes the saved account progress', async () => {
+  for (const status of ['done', 'skipped']) {
+    const restored = { status: 'active', completed: ['course'], next: 'store' };
+    const actions = [];
+    const store = createOnboardingStore({
+      available: () => true,
+      load: async () => ({ status, completed: [], next: null }),
+      act: async (input) => {
+        actions.push(input);
+        return restored;
+      },
+    });
+    await store.load();
+    let changes = 0;
+    store.subscribe(() => changes++);
+    await store.restart();
+    assert.deepEqual(actions, [{ action: 'restart' }]);
+    assert.deepEqual(store.snapshot(), restored);
+    assert.equal(changes, 1);
+  }
+});
+
+test('failed tutorial restore keeps the current state and allows retry', async () => {
+  const dismissed = { status: 'skipped', completed: [], next: null };
+  const restored = { status: 'active', completed: [], next: 'course' };
+  let failing = true;
+  const store = createOnboardingStore({
+    available: () => true,
+    load: async () => dismissed,
+    act: async () => {
+      if (failing) throw new Error('Offline');
+      return restored;
+    },
+  });
+  await store.load();
+  await assert.rejects(store.restart(), /Offline/);
+  assert.deepEqual(store.snapshot(), dismissed);
+  failing = false;
+  await store.restart();
+  assert.deepEqual(store.snapshot(), restored);
+});
+
 test('listing an empty account creates no course and hides only the earlier QA fixture', async () => {
   const courseRepository = moduleUrl(`
     let courses = [];
