@@ -1,11 +1,11 @@
 {
   "date": "2026-10-28",
   "environment": "staging",
-  "sourceCommit": "936c86657e167c462689b22dd58d270c12a3020e",
-  "sourceTree": "9247767936f7578936a51a2dace9fa5f57a15f4e",
-  "verifiedLocalCommit": "d42348c507d7f435ec4328f4ed0b8dacb32d9831",
-  "previousLiveCommit": "daf69c7cdde82494c17dd1b0f7eccd6175b59c38",
-  "railwayDeployment": "b0f123fa-0338-4e6a-ace1-fb92bb5495fc",
+  "sourceCommit": "f1001c842d239e48c5c2c36c20058e839f0664a1",
+  "sourceTree": "c6ef1410f85c1b267e0ad832978f99e23aa5703c",
+  "verifiedLocalCommit": "f66612dbfec860871dfb8e05e0bc3ed8043e190f",
+  "previousLiveCommit": "936c86657e167c462689b22dd58d270c12a3020e",
+  "railwayDeployment": "e377bac5-c000-4a3c-b879-a926da8a34bf",
   "status": "SUCCESS",
   "changes": [
     "Replace the native web app onboarding with the reviewed wide and narrow mask-based flow",
@@ -13,22 +13,25 @@
     "Teach course creation and the upload entry only after the user clicks New Course",
     "First-use learning memory and progress tours, scoped to the signed-in account",
     "Keep existing completed/skipped onboarding; restore from Settings; finish without deleting the tutorial course",
-    "Upgrade the fixed platform-owned tutorial course and guide; display five explicitly labeled example memories only in its memory view"
+    "Upgrade the fixed platform-owned tutorial course and guide; display five explicitly labeled example memories only in its memory view",
+    "Pin the tutorial into the first featured slot only while onboarding is active, so real catalog popularity cannot hide its Get button"
   ],
   "verification": [
-    "10 offline onboarding/course-removal runtime regressions passed",
+    "11 offline onboarding/course-removal/catalog runtime regressions passed",
     "Prettier, ESLint, full root/native/Vite TypeScript passed",
     "Full staging production build and six Python judging function bundle checks passed; final native web build passed",
     "Production onboarding component walked through with isolated local transport at 390px and 1280px; prototype also checked at 320px and 768px",
     "No mock QA transport included in the production bundle",
     "Railway SUCCESS for exact source commit; source tree identical to local verified tree",
     "Public staging health and cache-bypassed index verified; JS/CSS SHA-256 matched local build",
-    "Authenticated store API returned updated platform demo course and Syntara guide; live app loaded with existing account completion preserved"
+    "Authenticated store API returned updated platform demo course and Syntara guide; live app loaded with existing account completion preserved",
+    "29-course isolated browser fixture confirmed tutorial Get button and transition are available among higher-popularity courses",
+    "Latest live new-course dialog and narrow guide opened and cancelled without creating a course or changing server onboarding completion"
   ],
   "assets": [
     {
-      "url": "/native-web/assets/index-G3eDR8vz.js",
-      "sha256": "71f77849dceebbc203ccab115dfbc3b7544416a99ba0afbead9430977f52ccfe",
+      "url": "/native-web/assets/index-Cmep1r95.js",
+      "sha256": "5bb488e4fc406c355d6cd04489cb7300fd2fbe9676ce7bca9f875e404cce15a2",
       "verified": true
     },
     {
@@ -52,7 +55,7 @@
       }
     ]
   },
-  "verifiedAt": "2026-10-28T22:02:31.096Z",
+  "verifiedAt": "2026-10-28T22:17:51.296Z",
   "databaseMigration": "none",
   "dataChange": "Idempotent upgrade of the fixed platform-owned tutorial course and its existing guide notebook only; learner data and enrollments not changed by verification",
   "nativeInstallers": "unchanged",
@@ -60,5 +63,10 @@
     "No physical phone/iPad or on-screen keyboard verification",
     "Real new-account AI conversation and actual material upload were not exercised online; browser walkthrough used isolated local responses",
     "First-use memory/progress flags and detailed guide checkpoints are account-scoped on the current device; coarse completion remains on the server"
-  ]
+  ],
+  "initialOnboardingRelease": {
+    "sourceCommit": "936c86657e167c462689b22dd58d270c12a3020e",
+    "railwayDeployment": "b0f123fa-0338-4e6a-ace1-fb92bb5495fc",
+    "previousLiveCommit": "daf69c7cdde82494c17dd1b0f7eccd6175b59c38"
+  }
 }
