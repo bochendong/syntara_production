@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-28",
+  "environment": "staging",
+  "sourceCommit": "daf69c7cdde82494c17dd1b0f7eccd6175b59c38",
+  "sourceTree": "0dc7081ae256f9681a10be9eb4a6b2635742fea4",
+  "previousLiveCommit": "28023fdb23c2ab8ca2b35e0bf86274d05e7b0ba4",
+  "railwayDeployment": "8f1169e0-d85b-4709-a32a-0261c434b352",
+  "status": "SUCCESS",
+  "changes": [
+    "Compact handwriting toolbar, highlighter and eraser preview; browser Scribble note",
+    "Custom code tests and authenticated hidden test reveal/run; answer-return toggle and learning event submission counting",
+    "Problem prose math repair with legacy dollar compatibility, formula protection and one-column Markdown tables",
+    "Includes earlier onboarding restart action and MAT102 paper-series/search practice updates"
+  ],
+  "verification": [
+    "Verified predecessor 28023fd live before central release",
+    "64 offline regressions passed (13 math/lecture plus 51 practice/onboarding/series)",
+    "Markdown structure check passed",
+    "Prettier, ESLint and root/native/Vite TypeScript checks passed",
+    "Full staging build and six Python judging function bundle checks passed",
+    "Railway SUCCESS for exact source commit",
+    "Public cache-bypassed index references expected assets; JS and CSS SHA-256 match local build",
+    "Public /api/health reports ok, staging"
+  ],
+  "assets": [
+    {
+      "url": "/native-web/assets/index-BxkN2l7q.js",
+      "sha256": "d6a9831eaeb1c83a70691be8b6f4ed088adc900e6595810d9826ed434e9f69ca"
+    },
+    {
+      "url": "/native-web/assets/index-RwibHah3.css",
+      "sha256": "f5640c9882e5c48cce1b31515a80c8beb08594866adc173ae70c950d008d95d1"
+    }
+  ],
+  "limitations": [
+    "Physical iPad/Apple Pencil not verified for this release",
+    "Real authenticated hidden test reveal/run/grading flow not verified for this release",
+    "Math repaired renderer tested locally, not visually accepted on live course data"
+  ],
+  "databaseMigration": "none",
+  "nativeInstallers": "unchanged",
+  "newOnboardingDemo": "local only; not part of source commit"
+}
