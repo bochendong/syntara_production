@@ -941,10 +941,7 @@ export function ProblemBankPage({
                           status={statuses.get(problem.id)}
                           badges={badgesFor(problem)}
                           onClick={() => {
-                            const chapter = chapterByKey.get(chapterOf(problem));
-                            if (chapter) {
-                              startPractice(chapter.problems, problem, chapter.title, chapter.key);
-                            }
+                            startPractice(searchResults, problem, query.trim(), null);
                           }}
                         />
                       </LayerItem>
