@@ -35,6 +35,8 @@
 /* Keep iPad long presses and selection gestures inside the writing workspace. */
 .ink-panel,
 .ink-panel *,
+.pp-statement-handwriting,
+.pp-statement-handwriting *,
 .pp-header-actions.is-handwriting,
 .pp-header-actions.is-handwriting * {
   -webkit-user-select: none;

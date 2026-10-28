@@ -1486,7 +1486,14 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             } as CSSProperties
           }
         >
-          <section className="native-problem-practice-pane" id={statementId}>
+          <section
+            className={cn(
+              'native-problem-practice-pane',
+              handwritingMode && 'pp-statement-handwriting',
+            )}
+            id={statementId}
+            onContextMenu={handwritingMode ? (event) => event.preventDefault() : undefined}
+          >
             {isCode ? (
               <header className="native-problem-practice-pane-tabs pp-statement-tabs">
                 <div className="pp-tabs" role="group" aria-label="题目参考内容">
