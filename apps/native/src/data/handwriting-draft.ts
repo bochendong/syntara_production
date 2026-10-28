@@ -3,7 +3,7 @@ import Dexie, { type Table } from 'dexie';
 
 export type InkPoint = { x: number; y: number; pressure: number };
 export type InkStroke = {
-  tool: 'pen' | 'eraser';
+  tool: 'pen' | 'eraser' | 'highlighter';
   width: number;
   color?: InkColor;
   points: InkPoint[];
@@ -27,7 +27,7 @@ export function handwritingPages(answer: HandwritingAnswer): HandwritingPage[] {
 export function handwritingHasContent(answer: HandwritingAnswer | undefined) {
   return (
     !!answer &&
-    handwritingPages(answer).some((page) => page.strokes.some((stroke) => stroke.tool === 'pen'))
+    handwritingPages(answer).some((page) => page.strokes.some((stroke) => stroke.tool !== 'eraser'))
   );
 }
 
@@ -104,9 +104,37 @@ export function drawInkSegment(
   }
 }
 
+/** Draw one translucent path at once so overlapping segments don't create dark joints. */
+export function drawHighlighterStroke(context: CanvasRenderingContext2D, stroke: InkStroke) {
+  if (!stroke.points.length) return;
+  context.save();
+  context.globalCompositeOperation = 'multiply';
+  context.globalAlpha = 0.3;
+  context.strokeStyle = stroke.color ?? DEFAULT_INK_COLOR;
+  context.fillStyle = stroke.color ?? DEFAULT_INK_COLOR;
+  context.lineWidth = stroke.width;
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.beginPath();
+  const [first, ...remaining] = stroke.points;
+  if (!remaining.length) {
+    context.arc(first.x, first.y, stroke.width / 2, 0, Math.PI * 2);
+    context.fill();
+  } else {
+    context.moveTo(first.x, first.y);
+    for (const point of remaining) context.lineTo(point.x, point.y);
+    context.stroke();
+  }
+  context.restore();
+}
+
 export function redrawInk(context: CanvasRenderingContext2D, strokes: InkStroke[]) {
   context.clearRect(0, 0, INK_WIDTH, INK_HEIGHT);
   for (const stroke of strokes) {
+    if (stroke.tool === 'highlighter') {
+      drawHighlighterStroke(context, stroke);
+      continue;
+    }
     stroke.points.forEach((point, index) =>
       drawInkSegment(context, stroke, stroke.points[Math.max(0, index - 1)], point),
     );

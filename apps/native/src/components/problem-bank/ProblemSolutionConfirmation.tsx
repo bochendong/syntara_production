@@ -6,11 +6,13 @@ export function ProblemSolutionConfirmation({
   error,
   onCancel,
   onConfirm,
+  subject = '答案',
 }: {
   busy: boolean;
   error: string | null;
   onCancel: () => void;
   onConfirm: (remember: boolean) => void;
+  subject?: '答案' | '隐藏测试';
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -32,9 +34,10 @@ export function ProblemSolutionConfirmation({
         if (!busy) onCancel();
       }}
     >
-      <h2 id={titleId}>确定查看答案吗？</h2>
+      <h2 id={titleId}>确定查看{subject}吗？</h2>
       <p id={descriptionId}>
-        查看答案前，会保存你当前的作答和题目进度，并记录本题的求助情况，帮助 AI 了解你卡在哪里。
+        查看{subject}前，会保存你当前的作答和题目进度，并记录本题的求助情况，帮助 AI
+        了解你卡在哪里。
       </p>
       <label className="pp-solution-remember">
         <input
@@ -60,7 +63,7 @@ export function ProblemSolutionConfirmation({
           disabled={busy}
           onClick={() => onConfirm(remember)}
         >
-          {busy ? <GlassSpinner size={14} /> : null}保存进度并查看答案
+          {busy ? <GlassSpinner size={14} /> : null}保存进度并查看{subject}
         </button>
       </div>
     </dialog>

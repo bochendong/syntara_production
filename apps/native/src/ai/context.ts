@@ -316,7 +316,10 @@ export async function buildNativeChatContext(
     );
     context.attempts = recent.flatMap((document) => {
       const attempt = document?.attempts.find(
-        (item) => item.result?.event !== 'solution_viewed' && item.result?.event !== 'answer_reset',
+        (item) =>
+          item.result?.event !== 'solution_viewed' &&
+          item.result?.event !== 'hidden_tests_viewed' &&
+          item.result?.event !== 'answer_reset',
       );
       if (!document || !attempt) return [];
       const result = (attempt.result ?? {}) as Record<string, unknown>;

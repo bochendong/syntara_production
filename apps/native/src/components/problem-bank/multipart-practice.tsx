@@ -22,6 +22,8 @@ import { ProblemRichText } from './problem-rich-text';
 import { NativeTableAnswer } from './native-table-answer';
 import { NativeCodeSlots } from './native-code-slots';
 import { NativeCodePlayground } from './native-code-playground';
+import type { ServerCodeTestRun } from './native-code-tests';
+import type { RevealedHiddenTests } from '../../data/platform-api-client';
 import { CodeAnswerEditor } from './code-answer-editor';
 import {
   codeSlotTemplateFor,
@@ -49,6 +51,11 @@ export type PartCodeRun = {
   cases: Array<{ id: string; passed: boolean; detail?: string }>;
 };
 export type RunCodePart = (label: string, code: string) => Promise<PartCodeRun | null>;
+type RunHiddenCodePart = (
+  label: string,
+  code: string,
+  caseIds?: string[],
+) => ReturnType<ServerCodeTestRun>;
 
 function caseName(id: string) {
   return id.replace(/^.*\.test_/, '').replace(/_/g, ' ');
@@ -61,12 +68,18 @@ function PartCode({
   disabled,
   onChange,
   onRun,
+  hiddenTests,
+  onViewHiddenTests,
+  onRunHiddenTests,
 }: {
   part: LocalProblemPart;
   answer: LocalPartAnswer;
   disabled: boolean;
   onChange: (next: LocalPartAnswer) => void;
   onRun?: RunCodePart;
+  hiddenTests?: RevealedHiddenTests;
+  onViewHiddenTests?: (label: string) => void;
+  onRunHiddenTests?: RunHiddenCodePart;
 }) {
   const content = part.content as unknown as NotebookProblemPublicCode;
   const slots = useMemo(() => codeSlotTemplateFor(content), [content]);
@@ -110,6 +123,11 @@ function PartCode({
           }
           example={samples[0]?.input}
           className="rounded-2xl"
+          hiddenTests={hiddenTests}
+          onViewHiddenTests={onViewHiddenTests ? () => onViewHiddenTests(part.label) : undefined}
+          onRunHiddenTests={
+            onRunHiddenTests ? (code, ids) => onRunHiddenTests(part.label, code, ids) : undefined
+          }
         />
         {onRun ? (
           <div className="space-y-2">
@@ -232,6 +250,9 @@ function PartPrompt({
   onEditorFocus,
   result,
   onRunCode,
+  hiddenTests,
+  onViewHiddenTests,
+  onRunHiddenTests,
   showPrompt = true,
   handwritingKey,
   handwritingMode,
@@ -244,6 +265,9 @@ function PartPrompt({
   locale: 'zh-CN' | 'en-US';
   onChange: (next: LocalPartAnswer) => void;
   onRunCode?: RunCodePart;
+  hiddenTests?: RevealedHiddenTests;
+  onViewHiddenTests?: (label: string) => void;
+  onRunHiddenTests?: RunHiddenCodePart;
   showPrompt?: boolean;
   handwritingKey?: string;
   handwritingMode?: boolean;
@@ -257,6 +281,9 @@ function PartPrompt({
         disabled={disabled}
         onChange={onChange}
         onRun={onRunCode}
+        hiddenTests={hiddenTests}
+        onViewHiddenTests={onViewHiddenTests}
+        onRunHiddenTests={onRunHiddenTests}
       />
     );
   if (part.type === 'table')
@@ -432,6 +459,9 @@ function PartCard({
   onEditorReady,
   onEditorFocus,
   onRunCode,
+  hiddenTests,
+  onViewHiddenTests,
+  onRunHiddenTests,
   showPrompt,
   handwritingKey,
   handwritingMode,
@@ -444,6 +474,9 @@ function PartCard({
   submitting: boolean;
   onChange: (next: LocalPartAnswer) => void;
   onRunCode?: RunCodePart;
+  hiddenTests?: RevealedHiddenTests;
+  onViewHiddenTests?: (label: string) => void;
+  onRunHiddenTests?: RunHiddenCodePart;
   showPrompt?: boolean;
   handwritingKey?: string;
   handwritingMode?: boolean;
@@ -464,6 +497,9 @@ function PartCard({
         onEditorReady={onEditorReady}
         onEditorFocus={onEditorFocus}
         onRunCode={onRunCode}
+        hiddenTests={hiddenTests}
+        onViewHiddenTests={onViewHiddenTests}
+        onRunHiddenTests={onRunHiddenTests}
         showPrompt={showPrompt}
         handwritingKey={handwritingKey}
         handwritingMode={handwritingMode}
@@ -513,6 +549,9 @@ export function MultipartPractice({
   onChange,
   onSubmit,
   onRunCode,
+  hiddenTests,
+  onViewHiddenTests,
+  onRunHiddenTests,
 }: {
   parts: LocalProblemPart[];
   locale?: 'zh-CN' | 'en-US';
@@ -533,6 +572,9 @@ export function MultipartPractice({
   onChange: (label: string, next: LocalPartAnswer) => void;
   onSubmit: (labels: string[]) => void;
   onRunCode?: RunCodePart;
+  hiddenTests?: Record<string, RevealedHiddenTests>;
+  onViewHiddenTests?: (label: string) => void;
+  onRunHiddenTests?: RunHiddenCodePart;
 }) {
   const resultOf = (label: string) => results.find((item) => item.label === label);
   // 默认停在第一道还没答对的小问。
@@ -593,6 +635,9 @@ export function MultipartPractice({
       submitting={submitting}
       onChange={(next) => onChange(part.label, next)}
       onRunCode={onRunCode}
+      hiddenTests={hiddenTests?.[part.label]}
+      onViewHiddenTests={onViewHiddenTests}
+      onRunHiddenTests={onRunHiddenTests}
       showPrompt={!navigationTarget}
       handwritingKey={handwritingKey}
       handwritingMode={handwritingMode}

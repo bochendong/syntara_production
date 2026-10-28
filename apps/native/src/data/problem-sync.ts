@@ -90,7 +90,9 @@ function uploadOf(attempt: LocalProblemAttempt): NativeProblemAttemptUpload | nu
   const result = attempt.result ?? {};
   const selected = answer.selectedOptionIds;
   const event =
-    result.event === 'solution_viewed' || result.event === 'answer_reset'
+    result.event === 'solution_viewed' ||
+    result.event === 'hidden_tests_viewed' ||
+    result.event === 'answer_reset'
       ? result.event
       : undefined;
   const rawSnapshot = result.progressSnapshot;

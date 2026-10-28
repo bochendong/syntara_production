@@ -64,7 +64,13 @@ import {
   type LocalPartAnswer,
   type LocalPartResult,
 } from '../data/multipart-problem';
-import { gradeNativeAnswer, gradeNativeCode } from '../data/platform-api-client';
+import {
+  gradeNativeAnswer,
+  gradeNativeCode,
+  getNativeHiddenTests,
+  runNativeHiddenTests,
+  type RevealedHiddenTests,
+} from '../data/platform-api-client';
 import { isPlatformCourse } from '../data/chat-sync';
 import { pendingCodeSubmission, clearPendingCodeSubmission } from '../data/code-submission-id';
 import { problemAiGradeRequest } from '../data/problem-ai-grading';
@@ -137,6 +143,7 @@ type ProblemPracticePageProps = {
   problems: LocalProblem[];
   launch: ProblemBankLaunch;
   onBack: () => void;
+  loadHiddenTests?: (problemId: string, part?: string) => Promise<RevealedHiddenTests>;
 };
 
 type RightTab = 'answer' | 'code' | 'tests' | 'history' | 'solution';
@@ -176,6 +183,7 @@ function latestPartState(document: LocalProblemDocument | null): {
   const graded = document?.attempts.find(
     (a) =>
       a.result?.event !== 'solution_viewed' &&
+      a.result?.event !== 'hidden_tests_viewed' &&
       a.result?.event !== 'answer_reset' &&
       Array.isArray(a.result?.parts),
   );
@@ -339,7 +347,12 @@ function PracticeFinish({
   );
 }
 
-export function ProblemPracticePage({ problems, launch, onBack }: ProblemPracticePageProps) {
+export function ProblemPracticePage({
+  problems,
+  launch,
+  onBack,
+  loadHiddenTests,
+}: ProblemPracticePageProps) {
   const [language, setLanguage] = useState<ProblemContentLanguage>(launch.language ?? 'zh-CN');
   const problemMap = useMemo(
     () => new Map(problems.map((problem) => [problem.id, problem])),
@@ -383,6 +396,10 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
   const [handwritingModes, setHandwritingModes] = useState<Record<string, boolean>>({});
   const [snapshotBusy, setSnapshotBusy] = useState(false);
   const [solutionConfirm, setSolutionConfirm] = useState(false);
+  const [hiddenConfirm, setHiddenConfirm] = useState<string | null>(null);
+  const [revealedHiddenTests, setRevealedHiddenTests] = useState<
+    Record<string, RevealedHiddenTests>
+  >({});
   const [solutionSeen, setSolutionSeen] = useState(false);
   const [solutionError, setSolutionError] = useState<string | null>(null);
   const [solutionNotice, setSolutionNotice] = useState<string | null>(null);
@@ -622,6 +639,8 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
     snapshotSequence.current += 1;
     setSnapshotBusy(false);
     setSolutionConfirm(false);
+    setHiddenConfirm(null);
+    setRevealedHiddenTests({});
     setSolutionSeen(false);
     setSolutionError(null);
     setSolutionNotice(null);
@@ -1157,7 +1176,7 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
         id: crypto.randomUUID(),
       });
       void queueProblemAttempt(repository, problem.courseId, saved.attempt).catch(() => undefined);
-      if (event === 'solution_viewed')
+      if (event === 'solution_viewed' || event === 'hidden_tests_viewed')
         void syncAppMemories(repository, problem.courseId).catch(() => undefined);
       if (sequence !== snapshotSequence.current) return false;
       if (event === 'answer_reset') {
@@ -1185,10 +1204,11 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
         setJustGraded(null);
         setFinish('hidden');
         setSolutionSeen(false);
+        setRevealedHiddenTests({});
         setSolutionNotice(null);
         setDebugResult({ phase: 'idle', output: '', error: '' });
         setRightTab(problemIsCode(problem) ? 'code' : 'answer');
-      } else {
+      } else if (event === 'solution_viewed') {
         setSolutionSeen(true);
         setSolutionConfirm(false);
         setSolutionNotice('查看前的作答与求助记录已保存。');
@@ -1241,6 +1261,68 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
       setSolutionError(null);
       setSolutionConfirm(true);
     }
+  };
+
+  const revealHiddenTests = async (part: string, remember: boolean) => {
+    if (!currentProblem || !answer || snapshotBusy) return;
+    const saved = await persistLearningAction(
+      'hidden_tests_viewed',
+      isMultipart ? { kind: 'parts', parts: { ...savedParts.answers, ...partDrafts } } : answer,
+    );
+    if (!saved) return;
+    const sequence = snapshotSequence.current;
+    setSnapshotBusy(true);
+    try {
+      const result = loadHiddenTests
+        ? await loadHiddenTests(currentProblem.id, part || undefined)
+        : await getNativeHiddenTests({
+            courseId: currentProblem.courseId,
+            problemId: currentProblem.id,
+            ...(part ? { part } : {}),
+          });
+      if (sequence !== snapshotSequence.current) return;
+      setRevealedHiddenTests((current) => ({ ...current, [part]: result }));
+      setHiddenConfirm(null);
+      if (remember) {
+        try {
+          rememberSolutionReminder(
+            window.localStorage,
+            `${solutionReminderKey(accountStorageKey('syntara.problem-preferences'))}:hidden-tests`,
+          );
+        } catch {
+          // The reveal succeeded even if the optional reminder preference could not be saved.
+        }
+      }
+    } catch (cause) {
+      if (sequence === snapshotSequence.current)
+        setSolutionError(cause instanceof Error ? cause.message : '隐藏测试暂时无法读取，请重试。');
+    } finally {
+      if (sequence === snapshotSequence.current) setSnapshotBusy(false);
+    }
+  };
+  const requestHiddenTests = (part = '') => {
+    cancelAutoNext();
+    if (revealedHiddenTests[part] || snapshotBusy) return;
+    setSolutionError(null);
+    setHiddenConfirm(part);
+    if (
+      skipsSolutionReminder(
+        window.localStorage,
+        `${solutionReminderKey(accountStorageKey('syntara.problem-preferences'))}:hidden-tests`,
+      )
+    )
+      void revealHiddenTests(part, false);
+  };
+  const runHiddenTests = (part: string, code: string, caseIds?: string[]) => {
+    if (!currentProblem) return Promise.reject(new Error('题目不可用，请重试。'));
+    return runNativeHiddenTests({
+      courseId: currentProblem.courseId,
+      problemId: currentProblem.id,
+      ...(part ? { part } : {}),
+      code,
+      language,
+      ...(caseIds ? { indices: caseIds.map((id) => Number(id.replace(/^hidden-/, ''))) } : {}),
+    });
   };
 
   if (!currentProblem || orderedIds.length === 0) {
@@ -1357,29 +1439,43 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
         <div className="pp-top-answer-actions" role="group" aria-label="题目操作">
           {rightTab !== 'answer' || !handwritingMode ? (
             <>
-              <button
-                type="button"
-                className="pp-run-button pp-reset-button"
-                title={isCode ? '恢复起始代码并重新作答' : '清空本次作答'}
-                disabled={loading || submitting || snapshotBusy || debugRunning || photoBusy}
-                onClick={() =>
-                  void persistLearningAction('answer_reset', emptyAnswerForProblem(currentProblem))
-                }
-              >
-                <RotateCcw size={13} />
-                重置
-              </button>
+              {rightTab !== 'solution' ? (
+                <button
+                  type="button"
+                  className="pp-run-button pp-reset-button"
+                  title={isCode ? '恢复起始代码并重新作答' : '清空本次作答'}
+                  disabled={loading || submitting || snapshotBusy || debugRunning || photoBusy}
+                  onClick={() =>
+                    void persistLearningAction(
+                      'answer_reset',
+                      emptyAnswerForProblem(currentProblem),
+                    )
+                  }
+                >
+                  <RotateCcw size={13} />
+                  重置
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={cn(
                   'pp-run-button pp-solution-button',
                   rightTab === 'solution' && 'is-active',
                 )}
-                aria-pressed={rightTab === 'solution'}
                 disabled={loading || submitting || snapshotBusy || debugRunning || photoBusy}
-                onClick={requestSolution}
+                onClick={() => {
+                  if (rightTab === 'solution') setRightTab(isCode ? 'code' : 'answer');
+                  else requestSolution();
+                }}
               >
-                {snapshotBusy ? <GlassSpinner size={13} /> : <Eye size={13} />}答案
+                {snapshotBusy ? (
+                  <GlassSpinner size={13} />
+                ) : rightTab === 'solution' ? (
+                  <ChevronLeft size={13} />
+                ) : (
+                  <Eye size={13} />
+                )}
+                {rightTab === 'solution' ? '返回作答' : '答案'}
               </button>
             </>
           ) : null}
@@ -1839,10 +1935,17 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                     {debugRunning ? '停止' : '运行'}
                   </button>
                 ) : null}
+                {handwritingMode &&
+                typeof window !== 'undefined' &&
+                !('__TAURI_INTERNALS__' in window) ? (
+                  <p className="pp-handwriting-browser-note">
+                    iPad 手写提示：请在「设置 → Apple Pencil」中关闭「随手写」，以免出现漏笔。
+                  </p>
+                ) : null}
               </div>
             </header>
 
-            {solutionError && !solutionConfirm ? (
+            {solutionError && !solutionConfirm && hiddenConfirm === null ? (
               <p role="alert" className="native-problem-practice-error">
                 {solutionError}
               </p>
@@ -1935,6 +2038,11 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                       }
                       tests={visibleCodeTests(codeContent ?? {})}
                       example={codeContent?.sampleIO?.[0]?.input}
+                      hiddenTests={revealedHiddenTests['']}
+                      onViewHiddenTests={() => requestHiddenTests()}
+                      onRunHiddenTests={
+                        loadHiddenTests ? undefined : (code, ids) => runHiddenTests('', code, ids)
+                      }
                     />
                     <footer className="native-problem-practice-footer">
                       {justGraded && currentIndex < total - 1 ? (
@@ -2002,6 +2110,9 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                     }
                     onSubmit={(labels) => void submitParts(labels)}
                     onRunCode={runCodePart}
+                    hiddenTests={revealedHiddenTests}
+                    onViewHiddenTests={requestHiddenTests}
+                    onRunHiddenTests={loadHiddenTests ? undefined : runHiddenTests}
                   />
                 </div>
               ) : null}
@@ -2166,9 +2277,11 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
                         <strong>
                           {attempt.result?.event === 'solution_viewed'
                             ? '查看答案前的进度快照'
-                            : attempt.result?.event === 'answer_reset'
-                              ? '重置作答'
-                              : attempt.status}
+                            : attempt.result?.event === 'hidden_tests_viewed'
+                              ? '查看隐藏测试前的进度快照'
+                              : attempt.result?.event === 'answer_reset'
+                                ? '重置作答'
+                                : attempt.status}
                         </strong>
                         <span>{attempt.score === null ? '未评分' : `${attempt.score}`}</span>
                         {Array.isArray(attempt.answer.images) || attempt.answer.parts ? (
@@ -2216,6 +2329,18 @@ export function ProblemPracticePage({ problems, launch, onBack }: ProblemPractic
             setSolutionError(null);
           }}
           onConfirm={(remember) => void revealSolution(remember)}
+        />
+      ) : null}
+      {hiddenConfirm !== null ? (
+        <ProblemSolutionConfirmation
+          subject="隐藏测试"
+          busy={snapshotBusy}
+          error={solutionError}
+          onCancel={() => {
+            setHiddenConfirm(null);
+            setSolutionError(null);
+          }}
+          onConfirm={(remember) => void revealHiddenTests(hiddenConfirm, remember)}
         />
       ) : null}
     </section>

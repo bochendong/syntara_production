@@ -193,6 +193,7 @@ export const nativeProblemAttemptUploadSchema = z.object({
               z.object({
                 selectedOptionIds: z.array(z.string().trim().min(1).max(64)).max(12).optional(),
                 text: z.string().max(40_000).optional(),
+                code: z.string().max(120_000).optional(),
                 images: z
                   .array(notebookProblemAttemptImageSchema.refine(isValidPhotoAnswerUpload))
                   .max(4)
@@ -209,7 +210,7 @@ export const nativeProblemAttemptUploadSchema = z.object({
         }),
         feedback: z.string().max(8000).nullable().optional(),
         autoGraded: z.boolean().optional(),
-        event: z.enum(['solution_viewed', 'answer_reset']).optional(),
+        event: z.enum(['solution_viewed', 'hidden_tests_viewed', 'answer_reset']).optional(),
         progressSnapshot: notebookProblemProgressSnapshotSchema.nullable().optional(),
         parts: z
           .array(

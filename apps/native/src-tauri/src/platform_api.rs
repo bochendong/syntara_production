@@ -1029,6 +1029,11 @@ pub async fn native_grade_code(request: PlatformJsonRequest) -> Result<Value, St
 }
 
 #[tauri::command]
+pub async fn native_get_hidden_tests(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json("api/native/v1/hidden-tests", &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
 pub async fn native_get_problems(request: PlatformQueryRequest) -> Result<Value, String> {
     get_json(
         &path_with_query(PROBLEMS_PATH, &request.query),

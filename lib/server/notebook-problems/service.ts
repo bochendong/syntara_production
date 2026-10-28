@@ -1183,7 +1183,9 @@ async function listLatestAttemptsForUser(
 
   const gradedAttempts = attempts.filter((attempt) => {
     const event = (attempt.resultJson as { event?: unknown } | null)?.event;
-    return event !== 'solution_viewed' && event !== 'answer_reset';
+    return (
+      event !== 'solution_viewed' && event !== 'hidden_tests_viewed' && event !== 'answer_reset'
+    );
   });
   const fallbackCounts = new Map<string, { attemptedCount: number; passedCount: number }>();
   for (const attempt of gradedAttempts) {
@@ -3672,13 +3674,20 @@ export async function countNotebookProblemSubmissions(args: {
   userId: string;
   problemId: string;
 }): Promise<number> {
-  return prismaDb.notebookProblemAttempt.count({
+  const attempts = await prismaDb.notebookProblemAttempt.findMany({
     where: {
       userId: args.userId,
       problemId: args.problemId,
       kind: { in: ['submit', 'answer'] },
     },
+    select: { resultJson: true },
   });
+  return attempts.filter((attempt) => {
+    const event = (attempt.resultJson as { event?: unknown } | null)?.event;
+    return (
+      event !== 'solution_viewed' && event !== 'hidden_tests_viewed' && event !== 'answer_reset'
+    );
+  }).length;
 }
 
 /** 大题逐问判分要沿用上一次各小问的结果和作答。 */
@@ -3697,7 +3706,9 @@ export async function getLatestNotebookProblemSubmission(args: {
   })) as unknown as ProblemAttemptRow[];
   const row = rows.find((row) => {
     const event = (row.resultJson as { event?: string } | null)?.event;
-    return event !== 'solution_viewed' && event !== 'answer_reset';
+    return (
+      event !== 'solution_viewed' && event !== 'hidden_tests_viewed' && event !== 'answer_reset'
+    );
   });
   if (!row) return null;
   const attempt = mapAttemptRow(row);

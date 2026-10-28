@@ -182,6 +182,157 @@ test('reveal snapshots save the original work and an AI help memory; reset snaps
   );
   assert.equal(loaded, false);
 });
+
+test('viewing hidden tests records a separate help snapshot without changing progress', () => {
+  const answer = { kind: 'code', code: 'my_work' };
+  const snapshot = learning.problemLearningArchive({
+    problem: { ...base, type: 'code' },
+    answer,
+    progress: { status: 'passed', score: 1, attemptedCount: 4 },
+    event: 'hidden_tests_viewed',
+    at: 100,
+    id: 'hidden-snapshot',
+  });
+  assert.deepEqual(snapshot.attempt.answer, answer);
+  assert.equal(snapshot.attempt.result.event, 'hidden_tests_viewed');
+  assert.equal(snapshot.attempt.score, null);
+  assert.deepEqual(snapshot.archive.problemProgress, []);
+  assert.match(snapshot.archive.studyMemories[0].text, /隐藏测试/);
+  assert.equal(snapshot.archive.studyMemories[0].source, 'problem-hidden-tests-view');
+});
+
+test('hidden test endpoint checks access and only returns structured cases', async () => {
+  class Response {}
+  let allowed = false;
+  let reads = 0;
+  let mode = 'code';
+  let runPayload;
+  const route = load('app/api/native/v1/hidden-tests/route.ts', {
+    'next/server': { NextResponse: Response },
+    '@/features/problems/server/service': {
+      getCourseProblemForUser: async (user, course, problem, options) => {
+        reads++;
+        assert.deepEqual([user, course, problem], ['user', 'course', 'problem']);
+        assert.equal(options.includeSecretJudgeForEvaluation, true);
+        if (mode === 'denied') throw new Error('No course access');
+        if (mode === 'multipart')
+          return {
+            problem: {
+              type: 'multipart',
+              publicContent: {
+                type: 'multipart',
+                parts: [{ label: 'a', content: { type: 'code' } }],
+              },
+            },
+            secretJudge: {
+              parts: { a: { secretTests: [{ id: 'part', expression: 'g(2)', expected: '4' }] } },
+            },
+          };
+        return {
+          problem: { type: 'code', publicContent: { type: 'code' } },
+          secretJudge: {
+            secretTests: [
+              {
+                id: 'private-id',
+                expression: 'f(3)',
+                expected: '9',
+                description: 'private description',
+              },
+            ],
+            secretTestCode: 'private test script',
+            supportCode: 'private helper',
+            files: [{ path: 'private.txt', content: 'secret file' }],
+          },
+        };
+      },
+    },
+    '@/lib/problem-bank/schema': schemas,
+    '@/features/problems/server/judge': {
+      judgeNotebookCodeProblem: async (args) => {
+        runPayload = args;
+        return {
+          status: 'passed',
+          result: {
+            caseResults: [{ id: 'hidden-0', passed: true, actual: 'private output' }],
+            feedback: 'private feedback',
+          },
+        };
+      },
+    },
+    '@/lib/problem-bank/scoring-policy': { STANDARD_PROBLEM_POINTS: 100 },
+    '@/lib/server/notebook-problems/course-identity': {
+      resolveNotebookProblemCourseIdentity: async () => null,
+    },
+    '@/lib/server/prisma-safe': { getOptionalPrisma: () => ({}) },
+    '@/lib/server/public-api': {
+      publicApiRequestId: () => 'request',
+      requireNativePlatformApi: async () => (allowed ? { userId: 'user' } : new Response()),
+      publicApiError: (_id, status, code) => ({ status, code }),
+      publicApiSuccess: (_id, data, options) => ({ data, options }),
+    },
+  });
+  const request = { json: async () => ({ courseId: 'course', problemId: 'problem' }) };
+  assert.ok((await route.POST(request)) instanceof Response);
+  assert.equal(reads, 0);
+  allowed = true;
+  const result = await route.POST(request);
+  assert.deepEqual(result.data, {
+    cases: [{ expression: 'f(3)', expected: '9' }],
+    hasScript: true,
+  });
+  assert.equal(result.options.headers['Cache-Control'], 'private, no-store');
+  assert.equal(reads, 1);
+  const runResult = await route.POST({
+    json: async () => ({
+      courseId: 'course',
+      problemId: 'problem',
+      mode: 'run',
+      code: 'def f(x): return 9',
+      indices: [0],
+    }),
+  });
+  assert.deepEqual(runResult.data, {
+    cases: [{ id: 'hidden-0', passed: true }],
+    feedback: undefined,
+  });
+  assert.equal(runPayload.kind, 'run');
+  assert.equal(runPayload.runTarget, 'secret');
+  assert.equal(runPayload.secretJudge.secretTestCode, undefined);
+  assert.equal(runPayload.secretJudge.supportCode, 'private helper');
+  assert.equal(runPayload.secretJudge.secretTests[0].id, 'hidden-0');
+  assert.equal(
+    (
+      await route.POST({
+        json: async () => ({
+          courseId: 'course',
+          problemId: 'problem',
+          mode: 'run',
+          code: 'pass',
+          indices: [1],
+        }),
+      })
+    ).status,
+    400,
+  );
+  mode = 'denied';
+  assert.equal((await route.POST(request)).status, 404);
+  mode = 'multipart';
+  const partRequest = {
+    json: async () => ({ courseId: 'course', problemId: 'problem', part: 'a' }),
+  };
+  assert.deepEqual((await route.POST(partRequest)).data, {
+    cases: [{ expression: 'g(2)', expected: '4' }],
+    hasScript: false,
+  });
+  assert.equal(
+    (
+      await route.POST({
+        json: async () => ({ courseId: 'course', problemId: 'problem', part: 'b' }),
+      })
+    ).status,
+    400,
+  );
+});
 function database() {
   const state = {
     rows: [],
@@ -238,7 +389,7 @@ test('the real attempt persistence path leaves scores/counters untouched for sna
     },
   });
   const before = structuredClone(state.progress);
-  for (const event of ['solution_viewed', 'answer_reset'])
+  for (const event of ['solution_viewed', 'hidden_tests_viewed', 'answer_reset'])
     await service.createNotebookProblemAttempt({
       userId: 'user',
       problemId: 'p',
@@ -248,7 +399,7 @@ test('the real attempt persistence path leaves scores/counters untouched for sna
       result: { event, feedback: 'snapshot', publicCases: [] },
       preserveProgress: true,
     });
-  assert.equal(state.rows.length, 2);
+  assert.equal(state.rows.length, 3);
   assert.deepEqual(state.progress, before);
   assert.equal(state.jobs.length, 0);
   await service.createNotebookProblemAttempt({
@@ -263,6 +414,30 @@ test('the real attempt persistence path leaves scores/counters untouched for sna
   assert.equal(state.progress.attemptedCount, 5);
   assert.equal(state.progress.passedCount, 3);
   assert.equal(state.jobs.length, 1);
+});
+test('submission limits exclude learning snapshots while retaining regular attempts', async () => {
+  const service = load('lib/server/notebook-problems/service.ts', {
+    '@/lib/server/prisma': {
+      prisma: {
+        notebookProblemAttempt: {
+          findMany: async () => [
+            { resultJson: null },
+            { resultJson: { correct: false } },
+            { resultJson: { event: 'solution_viewed' } },
+            { resultJson: { event: 'hidden_tests_viewed' } },
+            { resultJson: { event: 'answer_reset' } },
+          ],
+        },
+      },
+    },
+    '@/lib/problem-bank': schemas,
+    '@/lib/server/prisma-json': { toPrismaJson: (x) => x },
+    '@/features/background-jobs/server/store': {},
+  });
+  assert.equal(
+    await service.countNotebookProblemSubmissions({ userId: 'user', problemId: 'p' }),
+    2,
+  );
 });
 test('native upload preserves event identity, never grades a reveal, and safely replays or rejects inaccessible problems', async () => {
   const { db, state } = database();
@@ -307,6 +482,21 @@ test('native upload preserves event identity, never grades a reveal, and safely 
   assert.equal(captured[0].answer.code, 'draft code');
   await native.saveNativeProblemAttempts(db, 'user', input);
   assert.equal(captured.length, 1);
+  const hiddenInput = native.nativeProblemAttemptUploadSchema.parse({
+    courseId: 'course',
+    attempts: [
+      {
+        ...attempt,
+        id: 'hidden12345',
+        event: 'hidden_tests_viewed',
+        answer: { parts: { a: { code: 'part draft' } } },
+      },
+    ],
+  });
+  await native.saveNativeProblemAttempts(db, 'user', hiddenInput);
+  assert.equal(captured[1].result.event, 'hidden_tests_viewed');
+  assert.equal(captured[1].preserveProgress, true);
+  assert.equal(captured[1].answer.parts.a.code, 'part draft');
   const tableUpload = native.nativeProblemAttemptUploadSchema.parse({
     courseId: 'course',
     attempts: [
@@ -331,10 +521,10 @@ test('native upload preserves event identity, never grades a reveal, and safely 
     ],
   });
   await native.saveNativeProblemAttempts(db, 'user', tableUpload);
-  assert.deepEqual(captured[1].answer.cells, { 'r1:a': '5' });
-  assert.deepEqual(captured[1].answer.parts.a.cells, { 'r2:b': 'ERROR' });
-  assert.deepEqual(captured[1].result.cells, [{ key: 'r1:a', correct: true }]);
-  assert.deepEqual(captured[1].result.parts[0].cells, [{ key: 'r2:b', correct: false }]);
+  assert.deepEqual(captured[2].answer.cells, { 'r1:a': '5' });
+  assert.deepEqual(captured[2].answer.parts.a.cells, { 'r2:b': 'ERROR' });
+  assert.deepEqual(captured[2].result.cells, [{ key: 'r1:a', correct: true }]);
+  assert.deepEqual(captured[2].result.parts[0].cells, [{ key: 'r2:b', correct: false }]);
   assert.equal(
     await native.saveNativeProblemAttempts(db, 'user', { ...input, courseId: 'foreign' }),
     null,

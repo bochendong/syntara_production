@@ -8,7 +8,10 @@ import './native-code-tests.css';
 
 type TestCase = ReturnType<typeof visibleCodeTests>[number];
 type CaseResult = { passed: boolean; actual: string; code: string };
-export type ServerCodeTestRun = (code: string) => Promise<{
+export type ServerCodeTestRun = (
+  code: string,
+  caseIds?: string[],
+) => Promise<{
   cases: Array<{ id: string; passed: boolean; detail?: string }>;
   feedback?: string;
 } | null>;
@@ -18,11 +21,13 @@ export function NativeCodeTests({
   tests,
   files,
   onRunTests,
+  label = '公开测试',
 }: {
   code: string;
   tests: TestCase[];
   files: NotebookCodeFile[];
   onRunTests?: ServerCodeTestRun;
+  label?: '公开测试' | '隐藏测试';
 }) {
   const [results, setResults] = useState<Record<string, CaseResult>>({});
   const [running, setRunning] = useState<string[]>([]);
@@ -33,15 +38,18 @@ export function NativeCodeTests({
     const submittedCode = code;
     try {
       if (onRunTests) {
-        const result = await onRunTests(submittedCode);
-        if (!result) throw new Error('公开测试暂时无法运行，请重试。');
+        const result = await onRunTests(
+          submittedCode,
+          cases.map((test) => test.id),
+        );
+        if (!result) throw new Error(`${label}暂时无法运行，请重试。`);
         const updates: Record<string, CaseResult> = {};
         for (const test of cases) {
           const index = tests.indexOf(test) + 1;
           const item = result.cases.find(
             (value) => value.id === test.id || value.id.endsWith(`.test_visible_${index}`),
           );
-          if (!item) throw new Error(result.feedback || '没有返回这项公开测试的结果。');
+          if (!item) throw new Error(result.feedback || `没有返回这项${label}的结果。`);
           updates[test.id] = {
             passed: item.passed,
             actual: item.detail ?? '',
@@ -87,15 +95,20 @@ export function NativeCodeTests({
   }
   if (!tests.length) return null;
   return (
-    <section className="native-code-tests" aria-label="公开测试用例">
-      {onRunTests ? (
+    <section className="native-code-tests" aria-label={`${label}用例`}>
+      {onRunTests && label === '公开测试' ? (
         <p className="native-code-test-hint">本问按题意假定辅助函数正确，可以独立测试。</p>
       ) : null}
       <header>
         <span>
-          公开测试 <small>{tests.length}</small>
+          {label} <small>{tests.length}</small>
         </span>
-        <button type="button" onClick={() => void run(tests)} disabled={running.length > 0}>
+        <button
+          type="button"
+          onClick={() => void run(tests)}
+          disabled={running.length > 0}
+          aria-label={label === '隐藏测试' ? '运行全部隐藏测试' : '运行全部'}
+        >
           {running.length ? <Loader2 size={13} className="animate-spin" /> : <Play size={12} />}
           运行全部
         </button>
@@ -115,7 +128,9 @@ export function NativeCodeTests({
                 <pre>{highlightPython(test.expression)}</pre>
                 <button
                   type="button"
-                  aria-label={`运行测试 ${index + 1}`}
+                  aria-label={
+                    label === '公开测试' ? `运行测试 ${index + 1}` : `运行隐藏测试 ${index + 1}`
+                  }
                   disabled={running.length > 0}
                   onClick={() => void run([test])}
                 >

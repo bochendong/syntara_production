@@ -481,6 +481,34 @@ export function gradeNativeCode(input: {
   return invokeJson('native_grade_code', { requestId: crypto.randomUUID(), payload: input });
 }
 
+/** Only explicit test expressions and expected values are returned. */
+export type RevealedHiddenTests = {
+  cases: Array<{ expression: string; expected: string }>;
+  hasScript: boolean;
+};
+
+export function getNativeHiddenTests(input: {
+  courseId: string;
+  problemId: string;
+  part?: string;
+}): Promise<RevealedHiddenTests> {
+  return invokeJson('native_get_hidden_tests', { requestId: crypto.randomUUID(), payload: input });
+}
+
+export function runNativeHiddenTests(input: {
+  courseId: string;
+  problemId: string;
+  part?: string;
+  code: string;
+  language: 'zh-CN' | 'en-US';
+  indices?: number[];
+}): Promise<{ cases: Array<{ id: string; passed: boolean }>; feedback?: string }> {
+  return invokeJson('native_get_hidden_tests', {
+    requestId: crypto.randomUUID(),
+    payload: { ...input, mode: 'run' },
+  });
+}
+
 /** 网页题库里 since 之后改过的题和做题进度；since 省略时取整门课。 */
 export function getNativeProblems(
   courseId: string,

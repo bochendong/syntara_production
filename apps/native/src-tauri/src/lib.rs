@@ -104,6 +104,7 @@ pub fn run() {
             platform_api::native_sync_memories,
             platform_api::native_get_problems,
             platform_api::native_grade_code,
+            platform_api::native_get_hidden_tests,
             platform_api::native_upload_problem_attempts,
             platform_api::native_get_store,
             platform_api::native_store_action,

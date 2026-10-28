@@ -20,6 +20,7 @@ import {
   Redo2,
   Undo2,
   PenLine,
+  Highlighter,
   Minus,
   Plus,
   ChevronDown,
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react';
 import {
   drawInkSegment,
+  drawHighlighterStroke,
   inkPoint,
   INK_HEIGHT,
   INK_WIDTH,
@@ -79,6 +81,8 @@ function HandwritingPanel({
   writing,
 }: HandwritingPageEditorProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const eraserCursor = useRef<HTMLDivElement>(null);
+  const eraserPosition = useRef<{ x: number; y: number } | null>(null);
   const paintedPage = useRef<string | null>(null);
   const {
     panelRef,
@@ -99,6 +103,7 @@ function HandwritingPanel({
     pointerId: number;
     stroke: InkStroke;
     previousRedo: InkStroke[];
+    snapshot?: HTMLCanvasElement;
   } | null>(null);
   const redo = useRef<InkStroke[]>(initialRedo);
   const [initialPointCount] = useState(() =>
@@ -110,7 +115,7 @@ function HandwritingPanel({
     change.current = onPageChange;
   }, [onPageChange]);
   const historySize = { undo: page.strokes.length, redo: redoStrokes.length };
-  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
+  const [tool, setTool] = useState<InkStroke['tool']>('pen');
   const [width, setWidth] = useState(3);
   const [color, setColor] = useState<InkColor>(DEFAULT_INK_COLOR);
   const marbleButtonRef = useRef<HTMLButtonElement>(null);
@@ -184,6 +189,46 @@ function HandwritingPanel({
     disabled,
     penIsDrawing: () => !!active.current,
   });
+  const updateEraserCursor = () => {
+    const cursor = eraserCursor.current;
+    const area = areaRef.current;
+    const paper = canvas.current;
+    const position = eraserPosition.current;
+    if (!cursor || !area || !paper) return;
+    if (!position || tool !== 'eraser' || disabled) {
+      cursor.hidden = true;
+      return;
+    }
+    const bounds = paper.getBoundingClientRect();
+    const viewport = area.getBoundingClientRect();
+    if (
+      position.x < bounds.left ||
+      position.x > bounds.right ||
+      position.y < bounds.top ||
+      position.y > bounds.bottom ||
+      position.x < viewport.left ||
+      position.x > viewport.right ||
+      position.y < viewport.top ||
+      position.y > viewport.bottom
+    ) {
+      cursor.hidden = true;
+      return;
+    }
+    const diameter = ((width * 10) / INK_WIDTH) * bounds.width;
+    cursor.style.width = `${diameter}px`;
+    cursor.style.height = `${diameter}px`;
+    cursor.style.left = `${position.x - viewport.left}px`;
+    cursor.style.top = `${position.y - viewport.top}px`;
+    cursor.hidden = false;
+  };
+  useLayoutEffect(() => {
+    updateEraserCursor();
+  });
+  const trackEraserCursor = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (event.pointerType === 'touch') return;
+    eraserPosition.current = { x: event.clientX, y: event.clientY };
+    updateEraserCursor();
+  };
   return (
     <section
       ref={panelRef}
@@ -248,6 +293,16 @@ function HandwritingPanel({
               <button
                 type="button"
                 className="ink-icon-button"
+                aria-label="荧光笔"
+                title="荧光笔"
+                aria-pressed={tool === 'highlighter'}
+                onClick={() => setTool('highlighter')}
+              >
+                <Highlighter size={22} strokeWidth={1.7} />
+              </button>
+              <button
+                type="button"
+                className="ink-icon-button"
                 aria-label="橡皮"
                 title="橡皮"
                 aria-pressed={tool === 'eraser'}
@@ -292,7 +347,7 @@ function HandwritingPanel({
                   aria-pressed={color === ink.color}
                   onClick={() => {
                     setColor(ink.color);
-                    setTool('pen');
+                    if (tool === 'eraser') setTool('pen');
                   }}
                 >
                   <img
@@ -307,7 +362,7 @@ function HandwritingPanel({
             <div className="ink-tool-group ink-toolbar-actions">
               <button
                 type="button"
-                className="ink-icon-button"
+                className="ink-icon-button ink-undo"
                 aria-label="撤销笔画"
                 title="撤销"
                 disabled={!historySize.undo}
@@ -374,10 +429,16 @@ function HandwritingPanel({
           ref={canvas}
           width={INK_WIDTH * 2}
           height={INK_HEIGHT * 2}
-          className="ink-paper"
+          className={`ink-paper${tool === 'eraser' ? ' is-erasing' : ''}`}
           style={paperStyle}
           aria-label="手写画布"
+          onPointerEnter={trackEraserCursor}
+          onPointerLeave={() => {
+            eraserPosition.current = null;
+            updateEraserCursor();
+          }}
           onPointerDown={(event) => {
+            trackEraserCursor(event);
             if (disabled || active.current || event.button !== 0 || event.pointerType === 'touch')
               return;
             if (points.current >= MAX_INK_POINTS) {
@@ -392,10 +453,21 @@ function HandwritingPanel({
               return;
             }
             const point = pointOf(event);
+            let snapshot: HTMLCanvasElement | undefined;
+            if (tool === 'highlighter') {
+              const copy = document.createElement('canvas');
+              copy.width = event.currentTarget.width;
+              copy.height = event.currentTarget.height;
+              const copyContext = copy.getContext('2d');
+              if (copyContext) {
+                copyContext.drawImage(event.currentTarget, 0, 0);
+                snapshot = copy;
+              }
+            }
             const stroke: InkStroke = {
               tool,
               color,
-              width: tool === 'eraser' ? width * 10 : width,
+              width: tool === 'eraser' ? width * 10 : tool === 'highlighter' ? width * 6 : width,
               points: [point],
             };
             draft.current.strokes.push(stroke);
@@ -404,14 +476,17 @@ function HandwritingPanel({
               pointerId: event.pointerId,
               stroke,
               previousRedo: redo.current,
+              snapshot,
             };
             redo.current = [];
             onWritingChange(true);
             event.currentTarget.setPointerCapture(event.pointerId);
-            drawInkSegment(context, stroke, point, point);
+            if (tool === 'highlighter') drawHighlighterStroke(context, stroke);
+            else drawInkSegment(context, stroke, point, point);
             refreshGlass(event);
           }}
           onPointerMove={(event) => {
+            trackEraserCursor(event);
             const current = active.current;
             if (!current || current.pointerId !== event.pointerId) return;
             event.preventDefault();
@@ -428,7 +503,21 @@ function HandwritingPanel({
               if (Math.hypot(point.x - previous.x, point.y - previous.y) < 0.5) continue;
               current.stroke.points.push(point);
               points.current++;
-              drawInkSegment(context, current.stroke, previous, point);
+              if (current.stroke.tool !== 'highlighter')
+                drawInkSegment(context, current.stroke, previous, point);
+            }
+            if (current.stroke.tool === 'highlighter') {
+              if (current.snapshot) {
+                context.save();
+                context.globalCompositeOperation = 'source-over';
+                context.globalAlpha = 1;
+                context.clearRect(0, 0, INK_WIDTH, INK_HEIGHT);
+                context.drawImage(current.snapshot, 0, 0, INK_WIDTH, INK_HEIGHT);
+                drawHighlighterStroke(context, current.stroke);
+                context.restore();
+              } else {
+                redrawInk(context, draft.current.strokes);
+              }
             }
             refreshGlass(event);
           }}
@@ -436,6 +525,7 @@ function HandwritingPanel({
           onPointerCancel={finish}
           onLostPointerCapture={finish}
         />
+        <div ref={eraserCursor} className="ink-eraser-cursor" aria-hidden="true" hidden />
       </div>
       <fieldset
         className={`ink-view-controls ${toolbarCorner.startsWith('bottom') ? 'at-top' : 'at-bottom'}`}

@@ -632,7 +632,7 @@ export const notebookProblemPartResultSchema = z.object({
 });
 
 export const notebookProblemAttemptResultSchema = z.object({
-  event: z.enum(['solution_viewed', 'answer_reset']).optional(),
+  event: z.enum(['solution_viewed', 'hidden_tests_viewed', 'answer_reset']).optional(),
   progressSnapshot: notebookProblemProgressSnapshotSchema.nullable().optional(),
   correct: z.boolean().nullable().optional(),
   feedback: z.string().trim().min(1).max(16000).optional(),

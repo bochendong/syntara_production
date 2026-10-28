@@ -556,7 +556,7 @@ export interface NativeProblemSnapshot {
 
 /** 一条 App 作答，传到网页题库；id 固定，重复上传只记一次。 */
 export interface NativeProblemAttemptUpload {
-  event?: 'solution_viewed' | 'answer_reset';
+  event?: 'solution_viewed' | 'hidden_tests_viewed' | 'answer_reset';
   progressSnapshot?: { status: string; score: number | null; attemptedCount: number } | null;
   id: string;
   problemId: string;
@@ -575,6 +575,7 @@ export interface NativeProblemAttemptUpload {
       {
         selectedOptionIds?: string[];
         text?: string;
+        code?: string;
         images?: PhotoAnswerImage[];
         blanks?: Record<string, string>;
         cells?: Record<string, string>;

@@ -35,7 +35,13 @@ const problems: LocalProblem[] = [
         ? '计算 $2+2$，只写出结果。'
         : '证明：若 $f:A \\to B$ 与 $g:B \\to C$ 都是单射，则 $g \\circ f$ 也是单射。',
     },
-    grading: gradingCheck ? { referenceAnswer: '4', points: 5 } : {},
+    grading: gradingCheck
+      ? { referenceAnswer: '4', points: 5 }
+      : {
+          type: 'proof',
+          referenceProof:
+            '设 $x_1,x_2\\in A$ 且 $(g\\circ f)(x_1)=(g\\circ f)(x_2)$。由于 $g$ 是单射，得 $f(x_1)=f(x_2)$；又由于 $f$ 是单射，得 $x_1=x_2$。因此 $g\\circ f$ 是单射。',
+        },
   },
   {
     ...common,
@@ -67,7 +73,28 @@ const problems: LocalProblem[] = [
         },
       ],
     },
-    grading: { type: 'multipart', parts: [] },
+    grading: {
+      type: 'multipart',
+      parts: [
+        {
+          label: 'i',
+          grading: {
+            type: 'short_answer',
+            referenceAnswer: '不是单射：$1$ 和 $-1$ 不同，但 $f(1)=f(-1)=1$。',
+          },
+        },
+        {
+          label: 'ii',
+          grading: gradingCheck
+            ? { type: 'short_answer', referenceAnswer: '4' }
+            : {
+                type: 'proof',
+                referenceProof:
+                  '若 $x,y\\ge 0$ 且 $x^2=y^2$，则 $x=\\sqrt{x^2}=\\sqrt{y^2}=y$。因此 $f$ 限制在非负实数上是单射。',
+              },
+        },
+      ],
+    },
   },
   ...buildAdditionalPreviewProblems(common, fixturePrefix),
 ];
@@ -118,6 +145,19 @@ function Preview() {
         onBack={() => {
           window.location.href = '/handwriting-preview.html';
         }}
+        loadHiddenTests={async (problemId, part) => ({
+          cases:
+            problemId === `${fixturePrefix}-code`
+              ? [
+                  { expression: 'sum_positive([-5, -1, 0])', expected: '0' },
+                  { expression: 'sum_positive([7, 7, -3])', expected: '14' },
+                ]
+              : problemId === `${fixturePrefix}-code-slots` ||
+                  (problemId === `${fixturePrefix}-mixed-parts` && part === 'f')
+                ? [{ expression: 'count_even([-2, 1, 4])', expected: '2' }]
+                : [],
+          hasScript: false,
+        })}
       />
     </main>
   );

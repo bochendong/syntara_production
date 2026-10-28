@@ -6,6 +6,7 @@ const jiti = createJiti(import.meta.url);
 const ink = await jiti.import('../../apps/native/src/data/handwriting-draft.ts');
 const parts = await jiti.import('../../apps/native/src/data/multipart-problem.ts');
 const photo = await jiti.import('../../lib/problem-bank/photo-answer.ts');
+const capture = await jiti.import('../../apps/native/src/data/handwriting-answer.ts');
 
 test('draft keys separate accounts, courses, problems and parts without delimiter collisions', () => {
   const keys = [
@@ -51,6 +52,32 @@ test('pen taps and lines render, eraser removes ink, replay restores the exact i
   ink.redrawInk(context, []);
   assert.equal(context.getImageData(150, 100, 1, 1).data[3], 0);
 });
+test('highlighter remains translucent across joints and survives replay and export', () => {
+  const canvas = createCanvas(ink.INK_WIDTH, ink.INK_HEIGHT);
+  const context = canvas.getContext('2d');
+  const highlight = {
+    tool: 'highlighter',
+    color: '#e7a313',
+    width: 30,
+    points: [
+      { x: 100, y: 100, pressure: 0.5 },
+      { x: 150, y: 100, pressure: 0.5 },
+      { x: 200, y: 100, pressure: 0.5 },
+    ],
+  };
+  const page = { imageId: 'highlight', strokes: [highlight] };
+  assert.equal(ink.handwritingHasContent(page), true);
+  ink.redrawInk(context, page.strokes);
+  const alpha = context.getImageData(125, 100, 1, 1).data[3];
+  assert.ok(alpha > 0 && alpha < 255);
+  assert.equal(context.getImageData(150, 100, 1, 1).data[3], alpha);
+  const original = canvas.toDataURL();
+  ink.redrawInk(context, []);
+  ink.redrawInk(context, page.strokes);
+  assert.equal(canvas.toDataURL(), original);
+  assert.equal(capture.renderHandwritingPage(canvas, page), true);
+  assert.equal(context.getImageData(125, 100, 1, 1).data[3], 255);
+});
 test('white-background handwriting export fits the existing image contract', () => {
   const canvas = createCanvas(ink.INK_WIDTH, ink.INK_HEIGHT);
   const context = canvas.getContext('2d');
@@ -86,7 +113,6 @@ test('image-only multipart answers count as content and defer calculation gradin
   assert.equal(result.status, 'pending');
 });
 
-const capture = await jiti.import('../../apps/native/src/data/handwriting-answer.ts');
 const grading = await jiti.import('../../apps/native/src/data/local-problem-grading.ts');
 test('submission captures ink at the bottom of the full page, with a white background', () => {
   const page = {

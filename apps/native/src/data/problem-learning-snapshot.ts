@@ -8,7 +8,7 @@ import type { LocalProblemAnswer } from './local-problem-grading';
 import type { LocalRepository } from './repository';
 import type { SyntaraArchiveV1 } from './archive';
 
-export type ProblemLearningEvent = 'solution_viewed' | 'answer_reset';
+export type ProblemLearningEvent = 'solution_viewed' | 'hidden_tests_viewed' | 'answer_reset';
 export type ProblemProgressSnapshot = Pick<
   LocalProblemProgress,
   'status' | 'score' | 'attemptedCount'
@@ -43,7 +43,9 @@ export function problemLearningArchive(input: {
   const feedback =
     event === 'solution_viewed'
       ? '查看答案前保存的作答快照（未评分）'
-      : '重置后的作答草稿（未评分）';
+      : event === 'hidden_tests_viewed'
+        ? '查看隐藏测试前保存的作答快照（未评分）'
+        : '重置后的作答草稿（未评分）';
   const attempt: LocalProblemAttempt = {
     id,
     problemId: problem.id,
@@ -56,7 +58,8 @@ export function problemLearningArchive(input: {
     updatedAt: at,
   };
   const memories: LocalStudyMemory[] = [];
-  if (event === 'solution_viewed') {
+  if (event === 'solution_viewed' || event === 'hidden_tests_viewed') {
+    const target = event === 'solution_viewed' ? '参考答案' : '隐藏测试';
     const draft =
       answer.kind === 'choice'
         ? answer.selectedOptionIds.join(', ') || '尚未选择选项'
@@ -70,20 +73,20 @@ export function problemLearningArchive(input: {
                 ? JSON.stringify(answer.parts)
                 : `${answer.text || '尚未填写文字'}${answer.images?.length ? `；另有 ${answer.images.length} 张作答图片` : ''}`;
     memories.push({
-      id: `solution-help:${problem.id}`,
+      id: `${event === 'solution_viewed' ? 'solution-help' : 'hidden-tests-help'}:${problem.id}`,
       courseId: problem.courseId,
       notebookId: null,
       targetType: 'course',
       scope: 'course',
       kind: 'solution_help',
       status: 'active',
-      source: 'problem-solution-view',
-      title: `查看答案求助：${problem.title}`.slice(0, 300),
-      text: `学生在「${problem.chapterName || '未分章节'} · ${problem.title}」查看了参考答案。这是求助信号，请关注其卡点，不代表已经掌握或应判为答错。\n查看前的进度：${progress?.status ?? '未作答'}，已提交 ${progress?.attemptedCount ?? 0} 次。\n题目：${String(problem.publicContent.stem ?? problem.publicContent.stemTemplate ?? '').slice(0, 240)}\n当时的作答：${draft.slice(0, 650)}`.slice(
+      source: event === 'solution_viewed' ? 'problem-solution-view' : 'problem-hidden-tests-view',
+      title: `查看${target}求助：${problem.title}`.slice(0, 300),
+      text: `学生在「${problem.chapterName || '未分章节'} · ${problem.title}」查看了${target}。这是求助信号，请关注其卡点，不代表已经掌握或应判为答错。\n查看前的进度：${progress?.status ?? '未作答'}，已提交 ${progress?.attemptedCount ?? 0} 次。\n题目：${String(problem.publicContent.stem ?? problem.publicContent.stemTemplate ?? '').slice(0, 240)}\n当时的作答：${draft.slice(0, 650)}`.slice(
         0,
         1200,
       ),
-      reason: '用户确认查看参考答案，保留查看前的思路以支持后续个性化讲解。',
+      reason: `用户确认查看${target}，保留查看前的思路以支持后续个性化讲解。`,
       question:
         String(problem.publicContent.stem ?? problem.publicContent.stemTemplate ?? '').slice(
           0,
