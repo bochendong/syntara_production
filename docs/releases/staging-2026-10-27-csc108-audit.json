@@ -1,0 +1,105 @@
+{
+  "date": "2026-10-27",
+  "environment": "staging",
+  "sourceCommit": "4c8e705ae509c6b2f8685f610924c3a46464d228",
+  "sourceTree": "7ca5390245e68fad3bb59f0a5fcb708495c1d581",
+  "baseCommit": "53c23e7372c8ff02911e5c23274de6cd917e68ea",
+  "deploymentId": "595649c5-d940-443d-ba5d-0c1109ce2f50",
+  "deploymentStatus": "SUCCESS",
+  "releaseBranch": "codex/staging-next",
+  "taskBranch": "codex/csc108-question-audit",
+  "codeChanges": [
+    "One code editor with locked supplied ranges, aligned line numbers, working spaces/newlines and empty-code placeholder.",
+    "Selected multipart navigation on the left; type-specific answer controls and test tab on the right.",
+    "Multiline blanks and existing formula sheet, source memory diagrams, interactive tables, code-formatted choices and complete code references.",
+    "Course-bound signed multipart preflight, independent private helper support, server grading and synchronized structured answers.",
+    "Retain current staging lecture Markdown and prepared-content preservation changes."
+  ],
+  "migration": {
+    "command": "prisma migrate deploy",
+    "found": 50,
+    "pending": 0,
+    "message": "No pending migrations to apply.",
+    "newSqlMigrations": 0
+  },
+  "oldQuestionDeletion": {
+    "utsg": 87,
+    "utm": 87,
+    "total": 174,
+    "backedUpBeforeDeletion": true,
+    "studentAttemptsDeleted": 0
+  },
+  "newQuestions": {
+    "utsg": 80,
+    "utm": 80,
+    "total": 160,
+    "allPublished": true,
+    "exactPublicAndPrivateReadback": true,
+    "sourceCampus": "UTSG",
+    "distributionToBothCourses": "Explicit teacher request in this task",
+    "perCourseTypes": {
+      "multipart": 34,
+      "fill_blank": 7,
+      "table": 16,
+      "choice": 4,
+      "code": 19
+    },
+    "perCourseExecutableUnits": 45,
+    "perCourseTables": 35,
+    "perCourseFillBlankUnits": 22,
+    "perCourseBlankFields": 166,
+    "perCourseChoiceUnits": 13,
+    "retainedOpenSubparts": 15,
+    "livePreflightRequests": 70,
+    "newNotebooks": 0
+  },
+  "courseCounts": [
+    {
+      "campus": "utsg",
+      "courseId": "cmsq4yi7k0001kv04zxlzy7ct",
+      "publishedQuestions": 80,
+      "notebooksBefore": 4,
+      "notebooksAfter": 4,
+      "chapters": 10
+    },
+    {
+      "campus": "utm",
+      "courseId": "cmvq7r8j10001tf7bwoo3j5z8",
+      "publishedQuestions": 80,
+      "notebooksBefore": 0,
+      "notebooksAfter": 0,
+      "chapters": 10
+    }
+  ],
+  "verification": {
+    "stagingProductionBuild": true,
+    "rootAndNativeTypes": true,
+    "changedFormatFiles": 79,
+    "changedLintFiles": 72,
+    "codeSubmissionBehaviorChecks": 14,
+    "pythonRunnerBehaviorChecks": 10,
+    "objectiveFieldsPassed": true,
+    "emptyAndWrongAnswersRejected": true,
+    "allCodeReferencesDisclosed": 45,
+    "healthStatus": 200,
+    "nativeAssetsMatchingLocal": 2,
+    "sourcePdfHashesMatched": 10,
+    "sourceFiguresReviewed": 15,
+    "legacyChecklistCompatibility": "Installed checklist does not enumerate table/multipart and requires five sections the teacher explicitly asked to remove. Retained raw reports privately; current schema, actual grader, course-bound live proofs, HTTPS previews and exact readback pass with no unresolved findings."
+  },
+  "limits": {
+    "liveStudentUiSessionExercised": false,
+    "localActualComponentUiChecked": true,
+    "openResponseRubricsReviewedWithoutPerItemModelCalls": true,
+    "macInstallerRebuilt": false
+  },
+  "privateReceiptSha256": {
+    "utsg-upload-manifest.json": "6d76c0388db5e42f33f354b0d9d41d60e8a98920cb3385ed5f7c72ecd71f3c8d",
+    "utm-upload-manifest.json": "719b4ec4167e8817a0d84588a29fac4cdc8fbf2cf4c20ab5c3872ce323617e35",
+    "utsg-upload-receipt.json": "1f114ccce98c1dd0fb95c9aec405c67c6bfd0c2a71459e13c36b59b61170a1b7",
+    "utm-upload-receipt.json": "93e595b9a590d7dd505e8b0eb56818fe4cf66545703a1f4333f93d1c94d15237",
+    "final-readback-verification.json": "cb9e794048627b7850ff88d827c740c91c24e5b395c0b98d62b1f53fe33b372e",
+    "final-course-counts.json": "9dd68e179610b6e7a27384ed76940cf735d12897e1ba24aff5a3311d65b213a0",
+    "clear-old-final-receipt.json": "b646182c95107bc368e723a11e767398682d466263f95f5fda4c54c6e1283cd8"
+  }
+}
