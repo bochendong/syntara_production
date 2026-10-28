@@ -1,51 +1,31 @@
-## Summary
+## 目标与基线
 
-<!-- Briefly describe the changes in this PR. -->
+<!-- 描述具体问题、完成后的行为和验收标准。 -->
 
-## Related Issues
+- 关联 Issue：
+- 目标整合分支：
+- 开始时的基线提交：
+- 本任务范围：
 
-<!-- Link related issues: "Closes #123", "Fixes #456", "Related to #789" -->
+## 验证
 
-## Changes
+- 实际执行的检查及结果：
+- 页面 / API 的实际验证与证据：
+- 未验证的行为或已知问题：
+- 数据库迁移 / 环境变量名（不含密钥）：
 
-<!-- List the key changes: -->
--
+## 跨电脑交接
 
-## Type of Change
+<!-- 换电脑接着做时更新；没有相关内容的条目可以删除。 -->
 
-<!-- Check the relevant options: -->
-- [ ] Bug fix (non-breaking change that fixes an issue)
-- [ ] New feature (non-breaking change that adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to change)
-- [ ] Documentation update
-- [ ] Refactoring (no functional changes)
-- [ ] CI/CD or build changes
+- 最新已推送提交：
+- 正在负责写入的电脑 / 已暂停的电脑：
+- 已完成与下一步：
+- 仍仅保存在本机的改动：
 
-## Verification
+## 部署
 
-### Steps to reproduce / test
+- 目标环境和预览地址：
+- 对应提交、部署编号和健康检查：
 
-1.
-2.
-3.
-
-### What you personally verified
-
-<!-- What did you test beyond CI? Include edge cases checked and anything you did NOT verify. -->
-
--
-
-### Evidence
-
-<!-- Attach at least one: logs, screenshots, recordings, or before/after comparisons. -->
-
-- [ ] CI passes (`pnpm check && pnpm lint && npx tsc --noEmit`)
-- [ ] Manually tested locally
-- [ ] Screenshots / recordings attached (if UI changes)
-
-## Checklist
-
-- [ ] My code follows the project's coding style
-- [ ] I have performed a self-review of my code
-- [ ] I have added/updated documentation as needed
-- [ ] My changes do not introduce new warnings
+<!-- CI 通过、代码已推送和线上已部署分别确认。main 的合并可能触发正式发布。 -->
