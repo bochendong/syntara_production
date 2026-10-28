@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-28",
+  "environment": "staging",
+  "sourceCommit": "f478835b0dd583dc606a56b7a4a1c0896f6bdbc6",
+  "sourceTree": "c27ee7cc97a483b187767194f9702151b66c74d3",
+  "taskSourceCommit": "5ca002bca81a9ea0c21a013972196e154516d59a",
+  "railwayDeployment": "99067aca-cb24-4f75-b20d-30df791b8a74",
+  "status": "SUCCESS",
+  "change": "Prevent selection and context menu on the question pane while handwriting; retain scrolling and restore selection on exit.",
+  "verification": [
+    "25 handwriting regression tests passed",
+    "format, lint, root and native type checks passed",
+    "full staging build passed",
+    "local browser drag selection checked before, during and after handwriting",
+    "staging health and browser asset SHA-256 hashes verified"
+  ],
+  "assets": [
+    {
+      "url": "/native-web/assets/index-CMDaEdNW.js",
+      "sha256": "99925d8b11c335523e407282768818fc8cce53fc7d8c6e84a059b2e6dbfa6850"
+    },
+    {
+      "url": "/native-web/assets/index-Dcg7DaHX.css",
+      "sha256": "38dd96bc9183db90455c04196431cdc7baf4a84310d5740a8fbd395e0d16de6f"
+    }
+  ],
+  "limitations": ["Apple Pencil and long press require verification on a physical iPad"],
+  "databaseMigration": "none",
+  "macInstaller": "unchanged"
+}
