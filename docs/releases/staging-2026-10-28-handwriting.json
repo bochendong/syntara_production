@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-28",
+  "applicationCommit": "11ae0211d16c8067c9e6337cfe32407fa768b7ac",
+  "applicationTree": "675d597ecd8984df55d8c5abfd31e9e9f1f916f9",
+  "taskSourceCommit": "f001b8b069d4bdd877c2660fc35dcefb15fbae82",
+  "priorStagingBranchCommit": "90260bf0f5dd3e127d25a632b3fb12f134136ac6",
+  "previousLiveDeployment": "595649c5-d940-443d-ba5d-0c1109ce2f50",
+  "deployment": {
+    "id": "2438ef64-6615-4652-b250-fa43926ca481",
+    "environment": "staging",
+    "service": "native-api-staging",
+    "status": "SUCCESS"
+  },
+  "scope": [
+    "Four-page inline handwriting with Apple Pencil support, finger navigation, a floating glass toolbar and page controls.",
+    "Direct image and handwritten-page grading through the existing native grading service, including browser requests.",
+    "Compact answer actions in the top bar and full-height multipart text editors.",
+    "Local-only preview fixtures for all supported question types."
+  ],
+  "sourceIntegration": "GitHub connector uploaded all 41 changed blobs and verified each Git SHA and the resulting tree against the reviewed local commit; the release snapshot is a fast-forward descendant of the staging branch. Original 21 task commits remain in the local task branch.",
+  "validation": {
+    "offlineRegressionTestsPassed": 44,
+    "photoAnswerAndStagingSourceGuards": "PASS",
+    "changedFormatAndLint": "PASS",
+    "rootAndNativeTypes": "PASS after build finished; the concurrent initial root check saw a transient missing .next/types file while Next rebuilt the directory.",
+    "stagingNativeWebAndNextBuild": "PASS",
+    "pythonJudgingBuildChecks": 6,
+    "liveChecks": {
+      "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+      "checkedAt": "2026-10-28T07:30:00.450Z",
+      "checks": [
+        {
+          "path": "/api/health",
+          "status": 200
+        },
+        {
+          "path": "/test",
+          "status": 200
+        },
+        {
+          "path": "/test/app",
+          "status": 200
+        },
+        {
+          "path": "/native-web/index.html",
+          "status": 200
+        },
+        {
+          "url": "/native-web/assets/index-zD2ffnjR.js",
+          "sha256": "b31bc00d71c2d610616c6e00185b9c70e307d84dcf4523c2e48e313b054d073a",
+          "bytes": 1853124,
+          "matched": true
+        },
+        {
+          "url": "/native-web/assets/index-CgXAXUuY.css",
+          "sha256": "3d8d12c9546e39e0003433f89c86b425e124fc96c0482341ec8f7c6aace04b11",
+          "bytes": 400008,
+          "matched": true
+        },
+        {
+          "path": "/api/native/v1/grade",
+          "anonymousStatus": 401
+        },
+        {
+          "name": "single-image",
+          "status": 200,
+          "imageCount": 1,
+          "score": 5,
+          "maxScore": 5,
+          "seconds": 3,
+          "problemAttemptCreated": false
+        },
+        {
+          "name": "four-pages",
+          "status": 200,
+          "imageCount": 4,
+          "score": 5,
+          "maxScore": 5,
+          "seconds": 3,
+          "problemAttemptCreated": false
+        }
+      ]
+    },
+    "authenticatedBrowser": "Existing Google test session opened the deployed app, course bank and a multipart code question; top actions visible. No submitted attempt.",
+    "browserGrading": "Cookie-auth request handling covered by offline mocked tests. Live one-image and four-image grading used the existing staging device credential and synthetic images.",
+    "ipadPencilHardware": "Not tested on a physical iPad in this release."
+  },
+  "databaseMigrations": "No new migrations; Railway reports no pending migrations.",
+  "courseContentChanged": false,
+  "nativeMacInstallerRepackaged": false,
+  "verifiedAt": "2026-10-28T07:30:00.450Z"
+}
