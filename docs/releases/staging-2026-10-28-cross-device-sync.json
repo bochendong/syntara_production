@@ -1,0 +1,178 @@
+{
+  "date": "2026-10-28",
+  "environment": "staging",
+  "version": "0.1.1",
+  "release": "2026.10.28-sync.1",
+  "sourceCommit": "bde23d5b24e6b22dfd08a77c11b10473d9d9b2e3",
+  "sourceTree": "24bc093d750acecc8a4bea5dcbc6276d081c437f",
+  "railwayDeployment": "714b7402-af7d-45a8-9d41-7df3bb3e9c06",
+  "status": "SUCCESS",
+  "previousLiveCommit": "f1001c842d239e48c5c2c36c20058e839f0664a1",
+  "changes": [
+    "Round-trip chat image thumbnails, attachment chips, citations, review plans and learning actions; preserve local lecture IDs without uploading provider state",
+    "Consume message and conversation tombstones in IndexedDB and SQLite; persist offline conversation deletion and prevent old uploads from recreating deleted sessions",
+    "Sync manual, syllabus, AI and review-plan calendar changes through owner/course-authorized server storage with typed advisory locks, CAS and generation-aware deletion",
+    "Durable account queues for chat, calendar, learning progress and general-chat messages; compare-and-delete acknowledgements preserve newer pending saves",
+    "Refresh visible app surfaces on focus, online and an interval, including pending changes from courses no longer open; avoid interrupting in-flight chat generation",
+    "Merge app memories, profile and progress inside the existing fact lock, preserving newer progress; share profile and first-use memory/progress flags",
+    "Expose the question bank and problem uploads on phone layouts; remove the actual CourseToolsMenu phone-only filter found during live acceptance",
+    "Share app release/version information and update public Mac installer to 0.1.1; preserve the narrow-screen handwriting restriction"
+  ],
+  "verification": [
+    "25 combined offline regressions passed: synchronization, real menu rendering at 390/834/1440, downloads/staging routing and bilingual notebooks",
+    "SQLite runtime checks passed for metadata refresh, scoped deletion, queue ordering and conditional acknowledgement; full native data verifier passed",
+    "Two actual, isolated IndexedDB origins transferred a valid JPEG image plus references and propagated chat/calendar deletions; received JPEG decoded at 100x100",
+    "Six real staging API scenarios passed using one disposable course: rich chat content, message deletion, whole conversation deletion/list tombstones, calendar create/edit/delete and stale-write suppression; fixture course removed",
+    "Root/native/Vite type checks and changed-file format/lint passed; full production build and six Python judging function bundle checks passed for the main release; final frontend rebuilt for the phone patch",
+    "Calendar, conversation pagination, pool safety and memory read/write contracts passed",
+    "macOS build and Rust checks for macOS and aarch64-apple-ios-sim passed; Mac signature, architecture and minimum OS verified",
+    "Mac ZIP integrity, size and SHA-256 verified locally and by a complete GitHub download readback",
+    "Final Railway source commit SUCCESS; health, version/release/commit and JS/CSS SHA-256 verified",
+    "Final app profile shows 0.1.1 / bde23d5b at 390/834/1440px, with no horizontal overflow",
+    "Live phone menu displays six tools, and its question-bank item opens the real course bank; no answer was submitted",
+    "Authenticated app browser had no warning/error console messages during final acceptance; normal viewport restored"
+  ],
+  "realApi": {
+    "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+    "checks": [
+      "real chat rich-content round trip",
+      "real message tombstone",
+      "real conversation tombstone and deleted-session list",
+      "real calendar create with transaction lock",
+      "real calendar edit",
+      "real calendar delete rejects stale offline edits"
+    ],
+    "cleanup": "deleted",
+    "passed": true,
+    "verifiedAt": "2026-10-29T00:45:22.298Z",
+    "dataBoundary": "Only one newly-created disposable course and synthetic records; normal course deletion applied. Original courses, materials and learner attempts untouched."
+  },
+  "assets": [
+    {
+      "path": "/native-web/assets/index-Dp1zwgrN.js",
+      "sha256": "1d6b1adabd6a7726b4ddca01a5eba0e75b9de5b22cb4bbe34cb86daefab44cc0",
+      "bytes": 1943371,
+      "verified": true
+    },
+    {
+      "path": "/native-web/assets/index-BTcGah3b.css",
+      "sha256": "c3ede7d211a7027c72c5c7d39f2f063f7d78951665b201e576249683eb61948f",
+      "bytes": 399158,
+      "verified": true
+    }
+  ],
+  "nativeInstaller": {
+    "version": "0.1.1",
+    "sourceRevision": "828501804abf3a9613b2a40f91c6c0064cf2139f",
+    "sourceTree": "83c28976ef6683048fbf8d2d7f94c882408212ce",
+    "builtAt": "2026-10-29T00:20:03.968Z",
+    "fileName": "Syntara-Test-0.1.1-macOS-arm64-20261029T002003Z.zip",
+    "size": 53271267,
+    "sha256": "a3850db91fe580566fe7f0e9036748d174ab81c41d9a528c85baf7df5ce4d21a",
+    "channel": "staging",
+    "architecture": "arm64",
+    "minimumSystemVersion": "14.0",
+    "notarized": false,
+    "downloadUrl": "https://github.com/bochendong/syntara_production/releases/download/staging-desktop-20261029-002003/Syntara-Test-0.1.1-macOS-arm64-20261029T002003Z.zip"
+  },
+  "macReleaseUrl": "https://github.com/bochendong/syntara_production/releases/tag/staging-desktop-20261029-002003",
+  "nativeSourceCommitOnGitHub": "c8573c1001497275c915769e1084c894b460c2da",
+  "nativeDistributionNotes": "Mac installer source differs from final web source only in installer pin/verification, the server-only lock cast, and phone-menu filtering below the Mac minimum width. Supported desktop behavior and protocol/release match. iOS config is 0.1.1 and simulator Rust checks pass, but no signed iOS IPA or Xcode app build was produced.",
+  "intermediateRelease": {
+    "sourceCommit": "bf97e005b573d5a0244774d8f053e57e9fcd06df",
+    "sourceTree": "7993302fdc578c9f89a6342781308b27b6f0f5cb",
+    "railwayDeployment": "280ddf1a-c392-4249-838e-42afac3e47d7",
+    "status": "SUCCESS",
+    "liveVerification": {
+      "health": {
+        "status": "ok",
+        "service": "syntara-native",
+        "environment": "staging"
+      },
+      "version": {
+        "version": "0.1.1",
+        "release": "2026.10.28-sync.1",
+        "syncProtocol": 2,
+        "revision": "bf97e005b573d5a0244774d8f053e57e9fcd06df"
+      },
+      "assets": [
+        {
+          "path": "/native-web/assets/index-PR2BQMKp.js",
+          "sha256": "fe768eb8a71d4d3e4d754393aea684f9e0a1e9e212eb13d559c8dd368aa89286",
+          "bytes": 1943420,
+          "verified": true
+        },
+        {
+          "path": "/native-web/assets/index-BTcGah3b.css",
+          "sha256": "c3ede7d211a7027c72c5c7d39f2f063f7d78951665b201e576249683eb61948f",
+          "bytes": 399158,
+          "verified": true
+        }
+      ],
+      "download": {
+        "status": 206,
+        "fileName": "Syntara-Test-0.1.1-macOS-arm64-20261029T002003Z.zip",
+        "size": 53271267,
+        "sha256": "a3850db91fe580566fe7f0e9036748d174ab81c41d9a528c85baf7df5ce4d21a",
+        "contentRange": "bytes 0-0/53271267"
+      },
+      "verifiedAt": "2026-10-29T00:37:23Z"
+    },
+    "acceptanceFinding": "The phone header dropdown had a second old filter despite a unified action list; final source removes it and adds real-component regressions."
+  },
+  "databaseMigration": "none",
+  "dataBoundary": "Only one newly-created disposable staging course and synthetic chat/calendar records were used for API verification; course deleted and absence from course list checked. Original courses, materials and learner attempts untouched.",
+  "baselineCheckCorrections": [
+    "Bundled snapshot had an unchanged pre-existing checksum mismatch; only its integrity value was corrected, with 1,223 problem records unchanged",
+    "Two source-based safety checks pointed at the old wrapper route; redirected to the actual shared conversation handler without weakening assertions"
+  ],
+  "limitations": [
+    "No physical phone/iPad/Apple Pencil or real installed multi-device session verification",
+    "No signed iOS IPA; local iOS initialization lacks libimobiledevice/Homebrew and no signing identities are available",
+    "Chat file chips and compressed image thumbnails synchronize; original uploaded files were not retained by the old design and are not restored",
+    "Transient detailed onboarding checkpoint positions and device layout preferences remain local; account completion and feature-guide seen state synchronize"
+  ],
+  "verifiedAt": "2026-10-29T00:51:09Z",
+  "verifiedLocalCommit": "2a79a172089f735082a2646d288400191c071c5f",
+  "health": {
+    "status": "ok",
+    "service": "syntara-native",
+    "environment": "staging"
+  },
+  "download": {
+    "status": 206,
+    "fileName": "Syntara-Test-0.1.1-macOS-arm64-20261029T002003Z.zip",
+    "size": 53271267,
+    "sha256": "a3850db91fe580566fe7f0e9036748d174ab81c41d9a528c85baf7df5ce4d21a",
+    "contentRange": "bytes 0-0/53271267"
+  },
+  "browserLayouts": [
+    {
+      "surface": "desktop",
+      "width": 1440,
+      "build": "Syntara 0.1.1 · staging · 2026.10.28-sync.1\n构建 bde23d5b",
+      "layout": {
+        "scrollWidth": 1440,
+        "width": 1440
+      }
+    },
+    {
+      "surface": "ipad",
+      "width": 834,
+      "build": "Syntara 0.1.1 · staging · 2026.10.28-sync.1\n构建 bde23d5b",
+      "layout": {
+        "scrollWidth": 834,
+        "width": 834
+      }
+    },
+    {
+      "surface": "phone",
+      "width": 390,
+      "build": "Syntara 0.1.1 · staging · 2026.10.28-sync.1\n构建 bde23d5b",
+      "layout": {
+        "scrollWidth": 390,
+        "width": 390
+      }
+    }
+  ]
+}

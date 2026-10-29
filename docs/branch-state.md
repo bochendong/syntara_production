@@ -2,7 +2,9 @@
 
 核对日期：2026-10-28（America/Toronto）。当前测试服已更新，源码基线与实际部署对应。
 
-2026-10-28 最新发布：新版新手指引（含真实商城中引导期间置顶演示课的修复）已接入测试服真实账号与课程，包含宽窄屏遮罩引导、商城演示课程、侧栏新聊天、课程菜单，以及按入口触发的新课程上传、学习记忆与学习进度说明。应用源码 `f1001c84`，Railway 发布 `e377bac5` 成功；11 项离线回归、格式/lint、根与原生/Vite 类型检查、完整构建通过。线上健康状态、JS/CSS 哈希、真实商城的「Syntara 演示课程」与「Syntara 入门指南」已核对；原有已完成或跳过状态保留，可从「设置 / 我的 → 恢复新手教程」重新开启。示例记忆仅用于展示，不写入学习记录或 AI 上下文。没有新增迁移或重打原生安装包；真机键盘与真实新账号的 AI 对话、上传流程未在线验收。见 [新手指引发布记录](releases/staging-2026-10-28-onboarding.json)。
+2026-10-28 最新发布：跨设备同步修复已上线，网页三种布局与 Mac 安装包均为 `0.1.1`（发布标识 `2026.10.28-sync.1`）。聊天图片缩略图、引用与学习卡片、消息/整段聊天删除、手动及 AI 日历增删改、学习进度和断网重试已接通；恢复联网/回到应用时自动刷新，手机实际菜单补齐题库。最终源码 `bde23d5b`，Railway 发布 `714b7402` 成功；25 项回归、完整构建、根与原生/Vite 类型及格式/lint检查通过，两个隔离 IndexedDB 和一次性测试课程的真实聊天/日历接口均验证，测试课程已删除。线上版本、健康检查、资源哈希、新 Mac 包完整下载哈希和三种屏宽已核对。Mac 新包已发布，原设备需下载安装更新；iOS 原生包尚未签名发布，实体 iPhone/iPad/Apple Pencil 的多机联动仍未验收。原始聊天文件未持久保存，跨端保留附件信息和图片缩略图。没有新增数据库迁移或改动原有课程/学生作答。见 [跨设备同步发布记录](releases/staging-2026-10-28-cross-device-sync.json)。
+
+2026-10-28 上次发布：新版新手指引（含真实商城中引导期间置顶演示课的修复）已接入测试服真实账号与课程，包含宽窄屏遮罩引导、商城演示课程、侧栏新聊天、课程菜单，以及按入口触发的新课程上传、学习记忆与学习进度说明。应用源码 `f1001c84`，Railway 发布 `e377bac5` 成功；11 项离线回归、格式/lint、根与原生/Vite 类型检查、完整构建通过。线上健康状态、JS/CSS 哈希、真实商城的「Syntara 演示课程」与「Syntara 入门指南」已核对；原有已完成或跳过状态保留，可从「设置 / 我的 → 恢复新手教程」重新开启。示例记忆仅用于展示，不写入学习记录或 AI 上下文。没有新增迁移或重打原生安装包；真机键盘与真实新账号的 AI 对话、上传流程未在线验收。见 [新手指引发布记录](releases/staging-2026-10-28-onboarding.json)。
 
 2026-10-28 上次发布：手写与代码练习整合、数学排版兼容修复已上线。应用源码 `daf69c7c`（包含 `28023fd` 及其他线程的新手指引恢复入口、MAT102 系列筛选），Railway 发布 `8f1169e0` 成功；64 项离线回归、Markdown 结构检查、格式/lint、根与原生/Vite 类型检查、完整生产构建通过。测试服健康状态和 JS/CSS SHA-256 已实际核对。没有新增迁移或重打原生安装包。实体 Apple Pencil、真实登录账号的隐藏测试揭示/运行/评分仍需验收。正在调整的新手引导 demo 仅在本地，不包含在此发布中。见 [集中发布记录](releases/staging-2026-10-28-practice-consolidated.json)。
 
@@ -40,7 +42,7 @@ MAT102 双语讲义的学习进度已统一：24 个语言版本按 12 本讲义
 
 | 用途 | 分支或标签 | 内容 |
 | --- | --- | --- |
-| 测试服源码基线 | `codex/staging-baseline` | `f1001c84` 的应用源码及本次发布记录，对应 Railway 发布 `e377bac5` |
+| 测试服源码基线 | `codex/staging-baseline` | `bde23d5b` 的应用源码及本次发布记录，对应 Railway 发布 `714b7402` |
 | 上一次发布标记 | `staging/2026-10-25-b8d0b5c6` | 布局修复前的发布，继续保留 |
 | 测试服主要发布分支 | `codex/staging-next` | GitHub 是发布源；已授权目标仓库并启用自动部署 |
 | 主分支 | `main` | 仍为 `88de1691`，不是当前测试服源码 |
@@ -117,14 +119,14 @@ Realtime/渲染回归和独立数据库运行检查通过。填空题静态契�
 - 新手引导、官方「使用教程」课程，以及课程的新聊天、编辑、删除菜单。
 - 笔记书架与章节阅读，新题库章节墙、题号弹珠、筛选和答题页。
 - 首页「下载桌面版」、`/download` 和实际 Mac 安装包下载接口。
-- Mac Apple Silicon 测试包：45.9 MiB，macOS 14+，未经过 Apple 公证。
+- Mac Apple Silicon 测试包：50.8 MiB，macOS 14+，未经过 Apple 公证。
 
 源码来自 `codex/staging-work` 的 `e96a603d` 及其 62 个工作文件，均先保存快照，
 再按文件集成到 `codex/staging-next`；保留了原有下载入口和聊天布局修复。
 源工作树及 `.claude-transfer/`、`Claude outputs/` 保留，不将临时归档作为发布源码。
 
 Mac ZIP 和清单仍在 `.data/desktop-releases/`，不进入 Git；安装包已保存到
-[GitHub Release](https://github.com/bochendong/syntara_production/releases/tag/staging-desktop-20261026-000156)。
+[GitHub Release](https://github.com/bochendong/syntara_production/releases/tag/staging-desktop-20261029-002003)。
 `scripts/deploy/desktop-release.json` 固定文件、下载地址、大小和 SHA-256，测试服构建会运行
 `restore-desktop-release.mjs` 取回并验证，再构建网站；失败时终止构建，保留上个线上版本。
 打包和更新清单的方法见 [desktop-downloads.md](api/desktop-downloads.md)。
