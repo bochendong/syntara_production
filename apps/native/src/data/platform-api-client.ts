@@ -474,6 +474,8 @@ export function gradeNativeCode(input: {
   /** 大题里的代码小问 label；mode=run 只跑公开测试 */
   part?: string;
   mode?: 'submit' | 'run';
+  /** mode=run：public 跑公开测试，code 直接运行整段代码 */
+  target?: 'public' | 'code';
 }): Promise<{
   saved: boolean;
   preview?: boolean;

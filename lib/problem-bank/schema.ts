@@ -263,6 +263,17 @@ export const notebookCodeStatementSectionSchema = z
     message: 'Code statement sections need body, items, or code.',
   });
 
+/// Racket 代码题的 HtDP 教学语言（DrRacket「How to Design Programs」各级）
+export const HTDP_LANGUAGE_LEVELS = [
+  'beginner',
+  'beginner-abbr',
+  'intermediate',
+  'intermediate-lambda',
+  'advanced',
+] as const;
+export const htdpLanguageLevelSchema = z.enum(HTDP_LANGUAGE_LEVELS);
+export type HtdpLanguageLevel = z.infer<typeof htdpLanguageLevelSchema>;
+
 export const notebookProblemPublicCodeSchema = notebookProblemPublicBaseSchema.extend({
   type: z.literal('code'),
   /// These supplied helpers are evaluated independently of earlier student answers.
@@ -275,6 +286,8 @@ export const notebookProblemPublicCodeSchema = notebookProblemPublicBaseSchema.e
   stem: z.string().trim().min(1).max(16000),
   language: z.string().trim().min(1).max(40).default('python'),
   runnerAdapter: z.string().trim().min(1).max(80).optional(),
+  /// language 为 racket 时必填：学生文件按这一级的 #reader 头运行
+  htdpLanguageLevel: htdpLanguageLevelSchema.optional(),
   starterCode: z.string().max(40000).optional(),
   functionSignature: z.string().trim().min(1).max(4000).optional(),
   constraints: z.array(z.string().trim().min(1).max(500)).max(16).default([]),
@@ -426,8 +439,11 @@ export const notebookTableCellGradingSchema = z.object({
   rowId: z.string().trim().min(1).max(64),
   colId: z.string().trim().min(1).max(64),
   acceptedAnswers: z.array(z.string().max(8000)).max(16).default([]),
-  /// output 按 print 输出比；python_value 解析成 Python 值比；run_check 把答案代入 check 运行
-  matcher: z.enum(['output', 'python_value', 'normalized_exact', 'run_check']).default('output'),
+  /// output 按 print 输出比；python_value 解析成 Python 值比；run_check 把答案代入 check 运行；
+  /// sexp 按 Racket/HtDP 表达式比（忽略空白、注释，[] 与 () 等价）
+  matcher: z
+    .enum(['output', 'python_value', 'normalized_exact', 'run_check', 'sexp'])
+    .default('output'),
   /// run_check：含 {answer} 的 Python 表达式，结果为 True 就算对
   check: z.string().max(4000).optional(),
   points: z.number().nonnegative().max(1000).optional(),

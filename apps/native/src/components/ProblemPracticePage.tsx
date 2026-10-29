@@ -85,7 +85,10 @@ import {
 import { runPythonDebug } from '../data/python-debug-runner';
 import type { LocalProblem, LocalProblemDocument } from '../domain/models';
 import { cn } from '../lib/cn';
-import { CodeAnswerEditor, highlightPython } from './problem-bank/code-answer-editor';
+import { CodeAnswerEditor, highlightCode } from './problem-bank/code-answer-editor';
+import { isRacketLanguage } from '../../../../lib/problem-bank/racket-editor';
+import type { ServerCodeTestRun } from './problem-bank/native-code-tests';
+import type { BrowserScriptResult } from '../../../../lib/client/browser-python';
 import { NativeCodeSlots } from './problem-bank/native-code-slots';
 import { NativeCodePlayground } from './problem-bank/native-code-playground';
 import { NativeTableAnswer } from './problem-bank/native-table-answer';
@@ -281,7 +284,7 @@ function asCodeContent(
   };
 }
 
-function CodeTestcasePanel({ code }: { code: string }) {
+function CodeTestcasePanel({ code, language }: { code: string; language?: string }) {
   const lineNumbers = Array.from(
     { length: Math.max(1, code.split('\n').length) },
     (_, index) => index + 1,
@@ -294,7 +297,7 @@ function CodeTestcasePanel({ code }: { code: string }) {
           {lineNumbers.join('\n')}
         </pre>
         <pre className="min-w-max whitespace-pre px-4 py-4">
-          <code>{highlightPython(code)}</code>
+          <code>{highlightCode(code, language)}</code>
         </pre>
       </div>
     </div>
@@ -473,6 +476,9 @@ export function ProblemPracticePage({
   const isCode = currentProblem ? problemIsCode(currentProblem) : false;
   const publicContent = displayedProblem ? problemPublicContent(displayedProblem) : {};
   const codeContent = isCode ? asCodeContent(publicContent) : null;
+  const codeLanguage = codeContent?.language ?? 'python';
+  // Racket 在浏览器里跑不了：运行、公开测试和「自己试」都交给服务器判题器
+  const serverRunsCode = isRacketLanguage(codeLanguage);
   const codeSlots = codeContent
     ? codeSlotTemplateFor({
         starterCode: codeContent.starterCode,
@@ -493,7 +499,13 @@ export function ProblemPracticePage({
         )
       : rawStem;
   const options = displayedProblem ? problemOptions(displayedProblem) : [];
-  const testcaseCode = currentProblem ? buildPublicTestsPython(currentProblem) : '';
+  const testcaseCode = !currentProblem
+    ? ''
+    : serverRunsCode
+      ? (codeContent?.publicTests ?? [])
+          .map((test) => `(check-expect ${test.expression}\n              ${test.expected})`)
+          .join('\n\n')
+      : buildPublicTestsPython(currentProblem);
   const isMultipart = currentProblem ? isMultipartProblem(currentProblem) : false;
   const parts = useMemo(
     () => (displayedProblem && isMultipart ? multipartParts(displayedProblem) : []),
@@ -562,6 +574,61 @@ export function ProblemPracticePage({
     };
   }, [currentId]);
 
+  /** 服务器整段运行（Racket）：返回和浏览器运行相同的结构。 */
+  const serverRunCode = async (code: string): Promise<BrowserScriptResult> => {
+    if (!currentProblem) return { stdout: '', error: '题目不可用，请重试。', files: [] };
+    try {
+      const reply = await gradeNativeCode({
+        courseId: currentProblem.courseId,
+        problemId: currentProblem.id,
+        attemptId: `run_${crypto.randomUUID().replace(/-/g, '')}`,
+        code,
+        language,
+        mode: 'run',
+        target: 'code',
+      });
+      const stdout = typeof reply.result.stdout === 'string' ? reply.result.stdout : '';
+      const error =
+        typeof reply.result.error === 'string'
+          ? reply.result.error
+          : reply.status === 'error'
+            ? reply.result.feedback || '运行失败，请重试。'
+            : null;
+      return { stdout, error, files: [] };
+    } catch (cause) {
+      return {
+        stdout: '',
+        error: cause instanceof Error ? cause.message : String(cause),
+        files: [],
+      };
+    }
+  };
+  const serverRunPublicTests: ServerCodeTestRun = async (code) => {
+    if (!currentProblem) return null;
+    const reply = await gradeNativeCode({
+      courseId: currentProblem.courseId,
+      problemId: currentProblem.id,
+      attemptId: `run_${crypto.randomUUID().replace(/-/g, '')}`,
+      code,
+      language,
+      mode: 'run',
+    });
+    const cases = Array.isArray(reply.result.publicCases)
+      ? reply.result.publicCases.map(recordValue)
+      : [];
+    return {
+      feedback: reply.result.feedback,
+      cases: cases.map((item) => {
+        const detail = String(item.error ?? item.actual ?? '').trim();
+        return {
+          id: String(item.id ?? ''),
+          passed: item.passed === true,
+          detail: detail ? detail.split('\n').pop() : undefined,
+        };
+      }),
+    };
+  };
+
   const runDebug = () => {
     if (debugRunning) {
       cancelDebugRef.current?.();
@@ -574,6 +641,18 @@ export function ProblemPracticePage({
     setDebugCode(answer.code);
     setDebugResult({ phase: 'loading', output: '', error: '' });
     setLeftTab('output');
+    if (serverRunsCode) {
+      setDebugResult({ phase: 'running', output: '', error: '' });
+      void serverRunCode(answer.code).then((result) => {
+        if (sequence !== debugSequence.current) return;
+        setDebugResult({
+          phase: result.error ? 'error' : 'success',
+          output: result.stdout,
+          error: result.error ?? '',
+        });
+      });
+      return;
+    }
     try {
       cancelDebugRef.current = runPythonDebug(answer.code, (event) => {
         if (sequence !== debugSequence.current) return;
@@ -1728,9 +1807,12 @@ export function ProblemPracticePage({
                     }
                   />
                 ) : visibleLeftTab === 'testcase' ? (
-                  <CodeTestcasePanel code={testcaseCode} />
+                  <CodeTestcasePanel code={testcaseCode} language={codeLanguage} />
                 ) : (
-                  <CodeProblemStatement content={codeContent} locale={language} />
+                  <>
+                    <CodeProblemStatement content={codeContent} locale={language} />
+                    <ProblemImageAssets content={publicContent as NotebookProblemPublicContent} />
+                  </>
                 )
               ) : isMultipart ? (
                 <div className={cn('mp-stem', stackedPanes && stemCollapsed && 'is-collapsed')}>
@@ -2019,7 +2101,10 @@ export function ProblemPracticePage({
                           setAnswer({ kind: 'code', code });
                         }}
                         locale="zh-CN"
-                        placeholder="# 在此编写 Python 代码"
+                        language={codeLanguage}
+                        placeholder={
+                          serverRunsCode ? ';; 在此编写 Racket 代码' : '# 在此编写 Python 代码'
+                        }
                         className="pp-code-editor"
                       />
                     )}
@@ -2038,6 +2123,9 @@ export function ProblemPracticePage({
                       }
                       tests={visibleCodeTests(codeContent ?? {})}
                       example={codeContent?.sampleIO?.[0]?.input}
+                      language={codeLanguage}
+                      onRunTests={serverRunsCode ? serverRunPublicTests : undefined}
+                      onRunScript={serverRunsCode ? serverRunCode : undefined}
                       hiddenTests={revealedHiddenTests['']}
                       onViewHiddenTests={() => requestHiddenTests()}
                       onRunHiddenTests={

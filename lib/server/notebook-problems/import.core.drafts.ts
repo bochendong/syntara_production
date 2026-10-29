@@ -963,7 +963,9 @@ export function normalizeRawCandidate(
         ? publicContent.runnerAdapter
         : codeLanguage === 'java'
           ? 'java-junit5'
-          : 'python-unittest';
+          : codeLanguage === 'racket'
+            ? 'racket-check-expect'
+            : 'python-unittest';
 
     if (base.secretJudge && typeof base.secretJudge === 'object') {
       const secretJudge = { ...(base.secretJudge as Record<string, unknown>) };

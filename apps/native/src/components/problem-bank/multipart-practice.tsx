@@ -1,3 +1,4 @@
+import { isRacketLanguage } from '../../../../../lib/problem-bank/racket-editor';
 import { HandwritingAnswerInput } from './handwriting-answer-input';
 import { visibleCodeTests } from '../../../../../lib/problem-bank/visible-code-tests';
 import { useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
@@ -88,6 +89,8 @@ function PartCode({
   const [run, setRun] = useState<(PartCodeRun & { code: string }) | null>(null);
   const samples = Array.isArray(content.sampleIO) ? content.sampleIO : [];
   const stale = run && run.code !== code;
+  // Racket 小问不能在浏览器跑：公开测试一律交给服务器（和「运行公开测试」同一入口）
+  const serverRuns = isRacketLanguage(content.language);
   return (
     <div className="pp-code-workspace mp-code-workspace">
       <div className="pp-code-edit-region">
@@ -105,7 +108,8 @@ function PartCode({
             onChange={(next) => onChange({ ...answer, code: next })}
             disabled={disabled}
             locale="zh-CN"
-            placeholder="# 在这里写代码"
+            language={content.language}
+            placeholder={serverRuns ? ';; 在这里写代码' : '# 在这里写代码'}
             className="min-h-[220px] flex-1"
           />
         )}
@@ -117,10 +121,11 @@ function PartCode({
           stdin={typeof content.stdin === 'string' ? content.stdin : undefined}
           tests={visibleCodeTests(content)}
           onRunTests={
-            content.assumedHelpers?.length && onRun
+            (content.assumedHelpers?.length || serverRuns) && onRun
               ? (candidate) => onRun(part.label, candidate)
               : undefined
           }
+          language={content.language}
           example={samples[0]?.input}
           className="rounded-2xl"
           hiddenTests={hiddenTests}

@@ -149,7 +149,7 @@ node --test scripts/learn/import-course-problems.test.mjs
 
 ## 测试服代码题预检与写入
 
-`POST /api/native/v1/course-code-preflight` 在 staging 接受 `{courseId,draft,counterexamples:[{id,code,reason}]}`。调用者必须有该课程的现有导入授权；请求不能自定 owner、身份或授权。只支持 Python，至少 1、最多 2 个有代表性的错误实现。服务端读取已授权课程的真实名称和 courseCode，沿用正式代码提交的课程规范检查，并用隔离 Python 判题器验证参考答案、样例、空实现及错误实现，不写题目、作答、学生进度或计费记录。参考答案必须通过；空实现和错误实现必须因测试失败而被拒绝，运行器故障不算成功预检。
+`POST /api/native/v1/course-code-preflight` 在 staging 接受 `{courseId,draft,counterexamples:[{id,code,reason}]}`。调用者必须有该课程的现有导入授权；请求不能自定 owner、身份或授权。支持 Python（`python-unittest`）和 Racket（`racket-check-expect`，需指定 `htdpLanguageLevel`），至少 1、最多 2 个有代表性的错误实现。服务端读取已授权课程的真实名称和 courseCode，沿用正式代码提交的课程规范检查，并用隔离判题器（Python 或 Racket）验证参考答案、样例、空实现及错误实现，不写题目、作答、学生进度或计费记录。参考答案必须通过；空实现和错误实现必须因测试失败而被拒绝，运行器故障不算成功预检。
 
 包含代码小问的 `multipart` 也走同一入口：每个代码小问提供 1–2 个错误实现，并在对应 counterexample 上填写 `part`（小问原始 label）。必须覆盖全部代码小问；未知 label 或缺项会被拒绝。成功证明绑定整个题目，包括共享题干、所有小问及私有测试，修改任一字段后必须重新预检。题目已明确“假定辅助函数正确”时，可在对应 `secretJudge.parts[label].supportCode` 保存教师核对过的辅助实现；学生只能看到 `assumedHelpers` 中的函数名。锁定区校验先检查原始作答，再附加私有辅助代码运行。题干和给定 docstring 已完整时不要求重复的五段式说明。
 
@@ -160,6 +160,6 @@ node scripts/learn/course-code-preflight.mjs \
   /absolute/private/code-question-preflight.json
 ```
 
-结果含 `valid`、`checkedBy:python-runner`、`courseId`、`draftFingerprint`、`referencePassed`、`starterRejected`、`incorrectRejected`、`validatedDraft` 和成功时的 `proof`。保存完整私有收据，使用返回的 `validatedDraft` 原样填入 import manifest 的 item.draft，并将 proof 填入该 item 的 `codePreflight`。之后仍使用本文的只读预览与 `--apply`，章节、去重、幂等与逐题读回流程保持相同。
+结果含 `valid`、`checkedBy:python-runner|racket-runner`、`courseId`、`draftFingerprint`、`referencePassed`、`starterRejected`、`incorrectRejected`、`validatedDraft` 和成功时的 `proof`。保存完整私有收据，使用返回的 `validatedDraft` 原样填入 import manifest 的 item.draft，并将 proof 填入该 item 的 `codePreflight`。之后仍使用本文的只读预览与 `--apply`，章节、去重、幂等与逐题读回流程保持相同。
 
 预检证明由服务端签名，绑定题目全部内容（包括隐藏测试）、课程、用户及设备 session，有效 24 小时。任何内容更改、跨课程或跨设备都需要重新预检；proof 不能替代登录和当前课程授权。不要把证明或私有收据公开。当前只有 staging 接受执行题，production 的预检路由关闭；未通过预检的 code、secretJudge 仍拒绝写入。公开读取接口不会因此获得隐藏测试。

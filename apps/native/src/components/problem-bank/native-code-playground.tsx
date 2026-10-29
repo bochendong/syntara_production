@@ -94,6 +94,8 @@ export function NativeCodePlayground({
   hiddenTests,
   onViewHiddenTests,
   onRunHiddenTests,
+  language,
+  onRunScript,
 }: {
   code: string;
   files: NotebookCodeFile[];
@@ -106,6 +108,9 @@ export function NativeCodePlayground({
   hiddenTests?: RevealedHiddenTests;
   onViewHiddenTests?: () => void;
   onRunHiddenTests?: ServerCodeTestRun;
+  language?: string;
+  /** Racket 等不能在浏览器跑的语言：「自己试」交给服务器运行整段代码 */
+  onRunScript?: (program: string) => Promise<BrowserScriptResult>;
 }) {
   const nextId = useRef(1);
   const [customTests, setCustomTests] = useState<CustomTest[]>([
@@ -122,6 +127,21 @@ export function NativeCodePlayground({
     updateTest(test.id, { running: true, error: '', result: null });
     try {
       const expr = test.expression.trim().replace(/^>>>\s*/, '');
+      if (onRunScript) {
+        // HtDP 顶层表达式会打印自己的值；取最后一行，去掉学生自己测试的汇总
+        const output = await onRunScript(expr ? `${code}\n\n${expr}\n` : code);
+        const printed = output.stdout.replace(
+          /\n?(?:The test passed!|All \d+ tests passed!|Ran \d+ tests?\.)[\s\S]*$/,
+          '',
+        );
+        updateTest(test.id, {
+          result: {
+            ...output,
+            stdout: expr ? (printed.trimEnd().split('\n').at(-1) ?? '') : output.stdout,
+          },
+        });
+        return;
+      }
       const result = await runPythonScriptInBrowser({
         code: expr ? `${code}\n\nprint(repr(${expr}))\n` : code,
         files: files.filter((file) => file.role !== 'expected_output'),
@@ -137,8 +157,15 @@ export function NativeCodePlayground({
   const inputFiles = files.filter((file) => file.role !== 'expected_output');
   return (
     <>
-      <NativeCodeTests code={code} tests={tests} files={files} onRunTests={onRunTests} />
-      {!onRunTests ? (
+      <NativeCodeTests
+        code={code}
+        tests={tests}
+        files={files}
+        onRunTests={onRunTests}
+        language={language}
+        assumedHelpersHint={!onRunScript}
+      />
+      {!onRunTests || onRunScript ? (
         <>
           <section
             aria-label="自己试"
@@ -261,6 +288,7 @@ export function NativeCodePlayground({
             <div>
               <NativeCodeTests
                 label="隐藏测试"
+                language={language}
                 code={code}
                 files={files}
                 tests={hiddenTests.cases.map((test, index) => ({ ...test, id: `hidden-${index}` }))}

@@ -18,6 +18,7 @@ export function CodePlayground({
   stdin,
   locale,
   className,
+  runOnServer,
 }: {
   problemId: string;
   code: string;
@@ -25,6 +26,8 @@ export function CodePlayground({
   stdin?: string;
   locale: 'zh-CN' | 'en-US';
   className?: string;
+  /** Racket 等浏览器跑不了的语言：整段代码交给服务器运行 */
+  runOnServer?: (program: string) => Promise<BrowserScriptResult>;
 }) {
   const zh = locale === 'zh-CN';
   const inputFiles = (files ?? []).filter((file) => file.role !== 'expected_output');
@@ -43,6 +46,20 @@ export function CodePlayground({
     setError(null);
     try {
       const trimmed = expression.trim();
+      if (runOnServer) {
+        // HtDP 顶层表达式会打印自己的值；取最后一行，去掉学生自己测试的汇总
+        const output = await runOnServer(trimmed ? `${code}\n\n${trimmed}\n` : code);
+        const printed = output.stdout.replace(
+          /\n?(?:The test passed!|All \d+ tests passed!|Ran \d+ tests?\.)[\s\S]*$/,
+          '',
+        );
+        setResult({
+          ...output,
+          stdout: trimmed ? (printed.trimEnd().split('\n').at(-1) ?? '') : output.stdout,
+          problemId,
+        });
+        return;
+      }
       const program = trimmed
         ? `${code}\n\n__syntara_value__ = (${trimmed})\nprint(repr(__syntara_value__))\n`
         : code;

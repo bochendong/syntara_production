@@ -6,6 +6,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import {
+  DEFAULT_RUNNER_ADAPTERS,
+  HTDP_LANGUAGE_LEVELS,
   notebookProblemImportDraftSchema,
   type NotebookProblemImportDraft,
   type NotebookProblemType,
@@ -21,6 +23,21 @@ import {
 } from './multipart-parts-editor';
 
 type Locale = 'zh-CN' | 'en-US';
+
+const HTDP_LEVEL_LABELS: Record<(typeof HTDP_LANGUAGE_LEVELS)[number], string> = {
+  beginner: 'Beginning Student (BSL)',
+  'beginner-abbr': 'Beginning Student w/ List Abbreviations',
+  intermediate: 'Intermediate Student (ISL)',
+  'intermediate-lambda': 'Intermediate Student w/ lambda (ISL+)',
+  advanced: 'Advanced Student (ASL)',
+};
+
+/** Racket 题的测试文件就是 check-expect 表单；隐藏测试判题时每个 check-* 算一项。 */
+function racketCheckExpects(tests: Array<{ expression: string; expected: string }>) {
+  return tests
+    .map((test) => `(check-expect ${test.expression}\n              ${test.expected})`)
+    .join('\n\n');
+}
 
 function formatDraftValidationErrors(input: unknown): string[] {
   const parsed = notebookProblemImportDraftSchema.safeParse(input);
@@ -205,8 +222,8 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
         ? publicContent.language.trim().toLowerCase()
         : 'python';
     publicContent.language = language;
-    if (language === 'python') {
-      publicContent.runnerAdapter = 'python-unittest';
+    if (DEFAULT_RUNNER_ADAPTERS[language]) {
+      publicContent.runnerAdapter = DEFAULT_RUNNER_ADAPTERS[language];
     }
     publicContent.constraints = Array.isArray(publicContent.constraints)
       ? (publicContent.constraints as unknown[])
@@ -232,8 +249,8 @@ function normalizeDraftForValidation(rawDraft: Record<string, unknown>) {
         ? ({ ...(draft.secretJudge as Record<string, unknown>) } as Record<string, unknown>)
         : { language: 'python', secretTests: [], timeoutMs: 5000 };
     secretJudge.language = language;
-    if (language === 'python') {
-      secretJudge.runnerAdapter = 'python-unittest';
+    if (DEFAULT_RUNNER_ADAPTERS[language]) {
+      secretJudge.runnerAdapter = DEFAULT_RUNNER_ADAPTERS[language];
     }
     secretJudge.secretTests = Array.isArray(secretJudge.secretTests)
       ? (secretJudge.secretTests as unknown[])
@@ -366,6 +383,10 @@ export function ProblemDraftForm({
   };
 
   const currentType = (workingDraft.type as NotebookProblemType) || 'short_answer';
+  const codeLanguage =
+    typeof publicContent.language === 'string' && publicContent.language.trim()
+      ? publicContent.language.trim().toLowerCase()
+      : 'python';
   const samples = Array.isArray(publicContent.sampleIO)
     ? (publicContent.sampleIO as Array<{ input: string; output: string; explanation?: string }>)
     : [];
@@ -1303,9 +1324,50 @@ export function ProblemDraftForm({
         <TabsContent value="starter" className="space-y-4">
           {currentType === 'code' ? (
             <div className="space-y-2">
-              <p className="text-xs text-slate-500">submission.py</p>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="space-y-1 text-xs">
+                  {locale === 'zh-CN' ? '语言' : 'Language'}
+                  <select
+                    aria-label={locale === 'zh-CN' ? '代码语言' : 'Code language'}
+                    className="h-9 w-40 rounded-md border bg-background px-2"
+                    value={codeLanguage}
+                    onChange={(event) => updatePublicContent('language', event.target.value)}
+                  >
+                    <option value="python">Python</option>
+                    <option value="racket">Racket (HtDP)</option>
+                  </select>
+                </label>
+                {codeLanguage === 'racket' ? (
+                  <label className="space-y-1 text-xs">
+                    {locale === 'zh-CN' ? 'HtDP 教学语言' : 'HtDP language level'}
+                    <select
+                      aria-label={locale === 'zh-CN' ? 'HtDP 教学语言' : 'HtDP language level'}
+                      className="h-9 w-64 rounded-md border bg-background px-2"
+                      value={
+                        typeof publicContent.htdpLanguageLevel === 'string'
+                          ? publicContent.htdpLanguageLevel
+                          : ''
+                      }
+                      onChange={(event) =>
+                        updatePublicContent('htdpLanguageLevel', event.target.value || undefined)
+                      }
+                    >
+                      <option value="">{locale === 'zh-CN' ? '请选择…' : 'Choose…'}</option>
+                      {HTDP_LANGUAGE_LEVELS.map((level) => (
+                        <option key={level} value={level}>
+                          {HTDP_LEVEL_LABELS[level]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+              <p className="text-xs text-slate-500">
+                {codeLanguage === 'racket' ? 'submission.rkt' : 'submission.py'}
+              </p>
               <CodeAnswerEditor
                 locale={locale}
+                language={codeLanguage}
                 className="h-[calc(100dvh-280px)] min-h-[320px]"
                 value={
                   typeof publicContent.starterCode === 'string' ? publicContent.starterCode : ''
@@ -1318,9 +1380,12 @@ export function ProblemDraftForm({
         <TabsContent value="solution" className="space-y-4">
           {currentType === 'code' ? (
             <div className="space-y-2">
-              <p className="text-xs text-slate-500">submission.py</p>
+              <p className="text-xs text-slate-500">
+                {codeLanguage === 'racket' ? 'solution.rkt' : 'submission.py'}
+              </p>
               <CodeAnswerEditor
                 locale={locale}
+                language={codeLanguage}
                 className="h-[calc(100dvh-280px)] min-h-[320px]"
                 value={
                   typeof grading.solutionCode === 'string'
@@ -1337,22 +1402,32 @@ export function ProblemDraftForm({
         <TabsContent value="public" className="space-y-4">
           {currentType === 'code' ? (
             <div className="space-y-2">
-              <p className="text-xs text-slate-500">public_tests.py</p>
+              <p className="text-xs text-slate-500">
+                {codeLanguage === 'racket' ? 'public-tests.rkt' : 'public_tests.py'}
+              </p>
               <CodeAnswerEditor
                 locale={locale}
+                language={codeLanguage}
                 className="h-[calc(100dvh-280px)] min-h-[320px]"
                 value={
                   typeof publicContent.publicTestCode === 'string'
                     ? publicContent.publicTestCode
-                    : buildCodeTestFile(
-                        (publicContent.publicTests ?? []) as Array<{
-                          id: string;
-                          expression: string;
-                          expected: string;
-                        }>,
-                        'public_tests.py',
-                        'PublicTests',
-                      )
+                    : codeLanguage === 'racket'
+                      ? racketCheckExpects(
+                          (publicContent.publicTests ?? []) as Array<{
+                            expression: string;
+                            expected: string;
+                          }>,
+                        )
+                      : buildCodeTestFile(
+                          (publicContent.publicTests ?? []) as Array<{
+                            id: string;
+                            expression: string;
+                            expected: string;
+                          }>,
+                          'public_tests.py',
+                          'PublicTests',
+                        )
                 }
                 onChange={(value) => updatePublicContent('publicTestCode', value)}
               />
@@ -1362,22 +1437,32 @@ export function ProblemDraftForm({
         <TabsContent value="secret" className="space-y-4">
           {currentType === 'code' ? (
             <div className="space-y-2">
-              <p className="text-xs text-slate-500">secret_tests.py</p>
+              <p className="text-xs text-slate-500">
+                {codeLanguage === 'racket' ? 'secret-tests.rkt' : 'secret_tests.py'}
+              </p>
               <CodeAnswerEditor
                 locale={locale}
+                language={codeLanguage}
                 className="h-[calc(100dvh-280px)] min-h-[320px]"
                 value={
                   typeof secretJudge?.secretTestCode === 'string'
                     ? secretJudge.secretTestCode
-                    : buildCodeTestFile(
-                        (secretJudge?.secretTests ?? []) as Array<{
-                          id: string;
-                          expression: string;
-                          expected: string;
-                        }>,
-                        'secret_tests.py',
-                        'SecretTests',
-                      )
+                    : codeLanguage === 'racket'
+                      ? racketCheckExpects(
+                          (secretJudge?.secretTests ?? []) as Array<{
+                            expression: string;
+                            expected: string;
+                          }>,
+                        )
+                      : buildCodeTestFile(
+                          (secretJudge?.secretTests ?? []) as Array<{
+                            id: string;
+                            expression: string;
+                            expected: string;
+                          }>,
+                          'secret_tests.py',
+                          'SecretTests',
+                        )
                 }
                 onChange={(value) => updateSecretJudge('secretTestCode', value)}
               />

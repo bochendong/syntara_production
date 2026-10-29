@@ -3,6 +3,12 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runPythonJson } from '@/lib/server/python-runner';
+import {
+  DEFAULT_HTDP_LANGUAGE_LEVEL,
+  RACKET_DRIVER,
+  racketSubmissionSource,
+  runRacketJson,
+} from '@/lib/server/racket-runner';
 import { codeTestSummaryFeedback } from '@/lib/problem-bank/attempt-feedback';
 import type {
   NotebookProblemAttemptAnswer,
@@ -19,7 +25,7 @@ import {
   extractSlotValues,
   isNotebookCodeProblemRecord,
 } from '@/lib/problem-bank';
-import type { NotebookCodeFile } from '@/lib/problem-bank';
+import type { HtdpLanguageLevel, NotebookCodeFile } from '@/lib/problem-bank';
 import { validateCourseAnswerContract } from '@/features/memory/domain/course-answer-contract';
 import type { NotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 
@@ -474,6 +480,74 @@ function runnerFiles(files: NotebookCodeFile[] | undefined): RunnerFile[] {
     .map((file) => ({ path: file.path, content: file.content }));
 }
 
+/** Which runner judges a code problem; Python is the default for older records. */
+type CodeRuntime = { language: 'python' } | { language: 'racket'; level: HtdpLanguageLevel };
+
+function codeRuntimeFor(content: {
+  language?: string;
+  htdpLanguageLevel?: HtdpLanguageLevel;
+}): CodeRuntime {
+  return content.language?.trim().toLowerCase() === 'racket'
+    ? { language: 'racket', level: content.htdpLanguageLevel ?? DEFAULT_HTDP_LANGUAGE_LEVEL }
+    : { language: 'python' };
+}
+
+async function executeRacketPayload(args: {
+  code: string;
+  level: HtdpLanguageLevel;
+  testCases: CodeCase[];
+  timeoutMs: number;
+  mode?: 'tests' | 'script';
+}): Promise<RawRunnerPayload> {
+  const tempDir = path.join(os.tmpdir(), `problem_bank_${randomUUID()}`);
+  const codePath = path.join(tempDir, 'submission.rkt');
+  const driverPath = path.join(tempDir, 'driver.rkt');
+  const payloadPath = path.join(tempDir, 'payload.json');
+  try {
+    await mkdir(tempDir, { recursive: true });
+    await writeFile(codePath, racketSubmissionSource(args.code, args.level), 'utf8');
+    await writeFile(driverPath, RACKET_DRIVER, 'utf8');
+    await writeFile(
+      payloadPath,
+      JSON.stringify({
+        codePath,
+        mode: args.mode ?? 'tests',
+        testCases: args.testCases,
+        testCode: args.testCases[0]?.testCode,
+        timeoutMs: args.timeoutMs,
+      }),
+      'utf8',
+    );
+    return await runRacketJson<RawRunnerPayload>({
+      driverPath,
+      payloadPath,
+      timeoutMs: args.timeoutMs,
+      caseCount: args.testCases[0]?.testCode
+        ? (args.testCases[0].testCode.match(/\(check-/g)?.length ?? 1)
+        : args.testCases.length,
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+/** Racket problems ignore files and stdin: HtDP design problems are pure functions. */
+function executeCodePayload(
+  runtime: CodeRuntime,
+  args: Parameters<typeof executePythonPayload>[0] & { mode?: 'tests' | 'script' },
+): Promise<RawRunnerPayload> {
+  return runtime.language === 'racket'
+    ? executeRacketPayload({ ...args, level: runtime.level })
+    : executePythonPayload(args);
+}
+
+async function executeCodeCases(
+  runtime: CodeRuntime,
+  args: Parameters<typeof executePythonCases>[0],
+): Promise<RawRunnerCaseResult[]> {
+  return (await executeCodePayload(runtime, args)).cases ?? [];
+}
+
 /** 表格题里需要 Python 才能判的格子（python_value / run_check）。 */
 export async function runTableCellChecks(args: {
   items: Array<{
@@ -652,6 +726,7 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
     ...runnerFiles(draft.secretJudge?.files),
   ];
   const draftStdin = draft.publicContent.stdin;
+  const draftRuntime = codeRuntimeFor(draft.publicContent);
   const draftSlots = codeSlotTemplateFor(draft.publicContent);
   // 有空位时「初始空实现」= 空位全空拼出来的代码
   const draftStarterCode = draftSlots
@@ -661,7 +736,7 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
     const run = async (tests: CodeCase[]) =>
       completeRunnerCaseResults(
         tests,
-        await executePythonCases({
+        await executeCodeCases(draftRuntime, {
           code: [draft.secretJudge?.supportCode, codeReferenceSolution(draft)]
             .filter(Boolean)
             .join('\n\n'),
@@ -698,7 +773,7 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
       if (publicResults.length < 2) errors.push('代码题至少需要 2 个公开测试');
       if (secretResults.length < 3) errors.push('代码题至少需要 3 个隐藏测试');
       if (errors.length === 0) {
-        const starterResults = await executePythonCases({
+        const starterResults = await executeCodeCases(draftRuntime, {
           code: draftStarterCode,
           testCases: publicTests,
           timeoutMs: draft.secretJudge?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
@@ -786,7 +861,9 @@ function visibleCodeProblemContractText(
     `Visible section: ${section.title}`,
     section.body ?? '',
     ...(section.items ?? []),
-    section.code ? `Visible provided code:\n\`\`\`python\n${section.code}\n\`\`\`` : '',
+    section.code
+      ? `Visible provided code:\n\`\`\`${content.language}\n${section.code}\n\`\`\``
+      : '',
   ]);
   return [
     `Visible problem title: ${problem.title}`,
@@ -795,7 +872,7 @@ function visibleCodeProblemContractText(
     ...content.constraints.map((constraint) => `Visible constraint: ${constraint}`),
     ...statementSections,
     content.starterCode
-      ? `Visible starter code:\n\`\`\`python\n${content.starterCode}\n\`\`\``
+      ? `Visible starter code:\n\`\`\`${content.language}\n${content.starterCode}\n\`\`\``
       : '',
   ]
     .filter(Boolean)
@@ -910,8 +987,13 @@ export async function judgeNotebookCodeProblem(args: {
       },
     };
   }
+  const runtime = codeRuntimeFor(content);
+  // Racket starters define the stub the student replaces; prepending it would redefine names.
   const starterPrelude =
-    !slotTemplate && content.starterCode && !code.trim().startsWith(content.starterCode.trim())
+    runtime.language === 'python' &&
+    !slotTemplate &&
+    content.starterCode &&
+    !code.trim().startsWith(content.starterCode.trim())
       ? content.starterCode
       : undefined;
   const executionCode = [args.secretJudge?.supportCode, starterPrelude, code]
@@ -924,7 +1006,7 @@ export async function judgeNotebookCodeProblem(args: {
 
   if (args.kind === 'run' && runTarget === 'code') {
     try {
-      const runnerPayload = await executePythonPayload({
+      const runnerPayload = await executeCodePayload(runtime, {
         code: executionCode,
         starterCode: problem.publicContent.starterCode,
         testCases: [],
@@ -1022,7 +1104,7 @@ export async function judgeNotebookCodeProblem(args: {
     if (args.kind === 'run' && runTarget === 'secret') {
       const secretCases = completeRunnerCaseResults(
         payload.secretCases,
-        await executePythonCases({
+        await executeCodeCases(runtime, {
           code: executionCode,
           starterCode: problem.publicContent.starterCode,
           testCases: payload.secretCases,
@@ -1068,7 +1150,7 @@ export async function judgeNotebookCodeProblem(args: {
 
     const publicCases = completeRunnerCaseResults(
       payload.publicCases,
-      await executePythonCases({
+      await executeCodeCases(runtime, {
         code: executionCode,
         starterCode: problem.publicContent.starterCode,
         testCases: payload.publicCases,
@@ -1117,7 +1199,7 @@ export async function judgeNotebookCodeProblem(args: {
 
     const secretCases = completeRunnerCaseResults(
       payload.secretCases,
-      await executePythonCases({
+      await executeCodeCases(runtime, {
         code: executionCode,
         starterCode: problem.publicContent.starterCode,
         testCases: payload.secretCases,

@@ -1,4 +1,5 @@
 import { problemContentReadinessErrors } from '@/lib/problem-bank/content-readiness';
+import { isRacketLanguage } from '@/lib/problem-bank/racket-editor';
 import { codePartErrorPrefix } from '@/lib/problem-bank/code-readiness';
 import { multipartCodePartDrafts } from '@/lib/problem-bank/multipart';
 import { enqueueJob } from '@/features/background-jobs/server/store';
@@ -757,7 +758,10 @@ async function withCodeReferenceVerification(
         passed: verification.passed,
         publicTestCount: verification.publicTestCount,
         secretTestCount: verification.secretTestCount,
-        checkedBy: 'python-runner',
+        checkedBy:
+          draft.publicContent.type === 'code' && isRacketLanguage(draft.publicContent.language)
+            ? 'racket-runner'
+            : 'python-runner',
         exampleCount: draft.publicContent.type === 'code' ? draft.publicContent.sampleIO.length : 0,
       },
     },

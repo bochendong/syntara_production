@@ -71,6 +71,7 @@
     "test:source-ingest-docx": "node scripts/maintenance/verify-source-ingest-docx-contracts.mjs",
     "test:openai-file-upload-contracts": "node scripts/maintenance/verify-openai-file-upload-contracts.mjs",
     "test:problem-import-assessment-compiler": "jiti scripts/maintenance/verify-problem-import-assessment-compiler.ts",
+    "test:racket-judge": "jiti scripts/maintenance/verify-racket-judge.ts",
     "test:problem-auto-archive-contracts": "node scripts/maintenance/verify-problem-auto-archive-contracts.mjs",
     "test:problem-learning-system": "node scripts/maintenance/verify-problem-learning-system-contracts.mjs",
     "test:python-code-runner": "node scripts/maintenance/verify-python-code-runner.mjs",

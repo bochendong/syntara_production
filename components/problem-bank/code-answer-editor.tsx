@@ -3,8 +3,13 @@
 import { useRef, type KeyboardEvent } from 'react';
 import { Code2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  isRacketLanguage,
+  racketLineTokens,
+  racketNewlineEdit,
+} from '@/lib/problem-bank/racket-editor';
 
-const INDENT = '    ';
+const PYTHON_INDENT = '    ';
 const PYTHON_KEYWORDS = new Set([
   'False',
   'None',
@@ -222,6 +227,30 @@ export function highlightPython(value: string) {
   });
 }
 
+export function highlightRacket(value: string) {
+  const lines = value.split('\n');
+  let state = { blockComment: false, string: false };
+  return lines.map((line, lineIndex) => {
+    const result = racketLineTokens(line, state);
+    state = result.state;
+    return (
+      <span key={lineIndex}>
+        {result.tokens.map((token, index) =>
+          token.kind === 'text'
+            ? token.text
+            : tokenSpan(TOKEN_CLASS[token.kind], token.text, `${lineIndex}-${index}`),
+        )}
+        {lineIndex < lines.length - 1 ? '\n' : null}
+      </span>
+    );
+  });
+}
+
+/** Highlight by problem language; Python stays the default for older problems. */
+export function highlightCode(value: string, language?: string) {
+  return isRacketLanguage(language) ? highlightRacket(value) : highlightPython(value);
+}
+
 export function CodeAnswerEditor({
   value,
   onChange,
@@ -229,6 +258,7 @@ export function CodeAnswerEditor({
   placeholder,
   locale,
   className,
+  language,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -236,7 +266,11 @@ export function CodeAnswerEditor({
   placeholder?: string;
   locale: 'zh-CN' | 'en-US';
   className?: string;
+  /** publicContent.language; Racket gets paren-aware newlines, two-space tabs, no ' pairing */
+  language?: string;
 }) {
+  const racket = isRacketLanguage(language);
+  const INDENT = racket ? '  ' : PYTHON_INDENT;
   const lineGutterRef = useRef<HTMLDivElement>(null);
   const codeLayerRef = useRef<HTMLPreElement>(null);
   const lineNumbers = lineNumbersFor(value);
@@ -256,7 +290,9 @@ export function CodeAnswerEditor({
     const start = target.selectionStart;
     const end = target.selectionEnd;
 
-    const pairs: Record<string, string> = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
+    const pairs: Record<string, string> = racket
+      ? { '(': ')', '[': ']', '{': '}', '"': '"' }
+      : { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
     const before = value.slice(0, start);
     const after = value.slice(end);
     const replace = (text: string, cursor: number, selectionEnd = cursor) => {
@@ -264,11 +300,7 @@ export function CodeAnswerEditor({
       onChange(`${before}${text}${after}`);
       updateSelection(target, cursor, selectionEnd);
     };
-    if (
-      start === end &&
-      [')', ']', '}', '"', "'"].includes(event.key) &&
-      after.startsWith(event.key)
-    ) {
+    if (start === end && Object.values(pairs).includes(event.key) && after.startsWith(event.key)) {
       event.preventDefault();
       updateSelection(target, start + 1);
       return;
@@ -290,6 +322,13 @@ export function CodeAnswerEditor({
       event.preventDefault();
       onChange(before.slice(0, -1) + after.slice(1));
       updateSelection(target, start - 1);
+      return;
+    }
+    if (event.key === 'Enter' && racket) {
+      event.preventDefault();
+      const edit = racketNewlineEdit(value, start, end);
+      onChange(edit.value);
+      updateSelection(target, edit.caret);
       return;
     }
     if (event.key === 'Enter') {
@@ -339,7 +378,7 @@ export function CodeAnswerEditor({
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 dark:border-slate-200 dark:bg-slate-50 dark:text-slate-600">
         <div className="flex min-w-0 items-center gap-2 font-semibold">
           <Code2 className="h-3.5 w-3.5 text-sky-600" />
-          <span>Python</span>
+          <span>{racket ? 'Racket' : 'Python'}</span>
         </div>
         <span className="font-mono text-[11px] text-slate-500">
           {lineNumbers.length} {locale === 'zh-CN' ? '行' : 'lines'}
@@ -363,7 +402,7 @@ export function CodeAnswerEditor({
             className="pointer-events-none absolute inset-0 min-w-max whitespace-pre px-4 py-3 font-mono text-[13px] leading-6 text-slate-900"
             style={{ tabSize: 4 }}
           >
-            <code>{highlightPython(value)}</code>
+            <code>{highlightCode(value, language)}</code>
           </pre>
           <textarea
             aria-label={locale === 'zh-CN' ? '代码编辑器' : 'Code editor'}
