@@ -2,6 +2,11 @@ import { useCallback, useLayoutEffect, useRef, type KeyboardEvent } from 'react'
 import { Code2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { pythonNewlineEdit } from './python-editor-indentation';
+import {
+  isRacketLanguage,
+  racketLineTokens,
+  racketNewlineEdit,
+} from '../../../../../lib/problem-bank/racket-editor';
 import './code-answer-editor.css';
 
 const INDENT = '    ';
@@ -222,6 +227,35 @@ export function highlightPython(value: string) {
   });
 }
 
+export function highlightRacket(value: string) {
+  const lines = value.split('\n');
+  let state = { blockComment: false, string: false };
+  return lines.map((line, lineIndex) => {
+    const result = racketLineTokens(line, state);
+    state = result.state;
+    return (
+      <span key={lineIndex}>
+        {result.tokens.map((token, index) =>
+          token.kind === 'text'
+            ? token.text
+            : tokenSpan(TOKEN_CLASS[token.kind], token.text, `${lineIndex}-${index}`),
+        )}
+        {lineIndex < lines.length - 1 ? '\n' : null}
+      </span>
+    );
+  });
+}
+
+/** Highlight by problem language; Python stays the default for older problems. */
+export function highlightCode(value: string, language?: string) {
+  return isRacketLanguage(language) ? highlightRacket(value) : highlightPython(value);
+}
+
+export function codeLanguageLabel(language?: string) {
+  if (isRacketLanguage(language)) return 'Racket';
+  return language && language.toLowerCase() !== 'python' ? language : 'Python';
+}
+
 export function CodeAnswerEditor({
   value,
   onChange,
@@ -231,6 +265,7 @@ export function CodeAnswerEditor({
   className,
   plain = false,
   emptyRegionHints = [],
+  language,
 }: {
   value: string;
   onChange: (value: string) => void | boolean;
@@ -240,7 +275,11 @@ export function CodeAnswerEditor({
   className?: string;
   plain?: boolean;
   emptyRegionHints?: Array<{ offset: number; text: string }>;
+  /** publicContent.language; Racket gets paren-aware newlines and two-space tabs */
+  language?: string;
 }) {
+  const racket = isRacketLanguage(language);
+  const indentUnit = racket ? '  ' : INDENT;
   const lineGutterRef = useRef<HTMLDivElement>(null);
   const codeLayerRef = useRef<HTMLPreElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -278,7 +317,11 @@ export function CodeAnswerEditor({
       event.preventDefault();
       event.stopPropagation();
       const target = event.currentTarget;
-      const edit = pythonNewlineEdit(value, target.selectionStart, target.selectionEnd);
+      const edit = (racket ? racketNewlineEdit : pythonNewlineEdit)(
+        value,
+        target.selectionStart,
+        target.selectionEnd,
+      );
       if (onChange(edit.value) === false) return;
       updateSelection(target, edit.caret);
       requestAnimationFrame(() => {
@@ -306,15 +349,17 @@ export function CodeAnswerEditor({
     const end = target.selectionEnd;
 
     if (start === end && !event.shiftKey) {
-      if (onChange(`${value.slice(0, start)}${INDENT}${value.slice(end)}`) === false) return;
-      updateSelection(target, start + INDENT.length);
+      if (onChange(`${value.slice(0, start)}${indentUnit}${value.slice(end)}`) === false) return;
+      updateSelection(target, start + indentUnit.length);
       return;
     }
 
     const { lineStart, lineEnd } = getLineBounds(value, start, end);
     const selectedBlock = value.slice(lineStart, lineEnd);
     const lines = selectedBlock.split('\n');
-    const nextLines = event.shiftKey ? lines.map(unindentLine) : lines.map((line) => INDENT + line);
+    const nextLines = event.shiftKey
+      ? lines.map(unindentLine)
+      : lines.map((line) => indentUnit + line);
     const nextBlock = nextLines.join('\n');
     const nextValue = `${value.slice(0, lineStart)}${nextBlock}${value.slice(lineEnd)}`;
     const selectionDelta = nextBlock.length - selectedBlock.length;
@@ -322,7 +367,10 @@ export function CodeAnswerEditor({
     if (onChange(nextValue) === false) return;
     updateSelection(
       target,
-      Math.max(lineStart, start + (event.shiftKey ? Math.min(0, selectionDelta) : INDENT.length)),
+      Math.max(
+        lineStart,
+        start + (event.shiftKey ? Math.min(0, selectionDelta) : indentUnit.length),
+      ),
       Math.max(lineStart, end + selectionDelta),
     );
   };
@@ -339,7 +387,7 @@ export function CodeAnswerEditor({
         <div className="flex h-9 shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 dark:border-slate-200 dark:bg-slate-50 dark:text-slate-600">
           <div className="flex min-w-0 items-center gap-2 font-semibold">
             <Code2 className="h-3.5 w-3.5 text-sky-600" />
-            <span>Python</span>
+            <span>{codeLanguageLabel(language)}</span>
           </div>
           <span className="font-mono text-[11px] text-slate-500">
             {lineNumbers.length} {locale === 'zh-CN' ? '行' : 'lines'}
@@ -365,7 +413,7 @@ export function CodeAnswerEditor({
             style={{ tabSize: 4 }}
           >
             <code>
-              {highlightPython(value)}
+              {highlightCode(value, language)}
               {value.endsWith('\n') ? ' ' : null}
             </code>
             {emptyRegionHints.map(({ offset, text }) => {

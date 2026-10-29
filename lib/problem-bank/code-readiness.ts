@@ -9,6 +9,11 @@ export const MIN_TOTAL_CODE_TESTS = MIN_PUBLIC_CODE_TESTS + MIN_SECRET_CODE_TEST
 const UNSUPPORTED_CODE_IO_RE = /\b(?:input|print|open)\s*\(|\bsys\s*\.\s*stdin\b/;
 const UNSAFE_TEST_EXPRESSION_RE =
   /(?:__|\b(?:import|exec|eval|compile|globals|locals|os|sys|subprocess|pathlib|tempfile)\b|[;\r\n])/;
+/** Each supported language has one adapter; others are stored but cannot be judged. */
+export const DEFAULT_RUNNER_ADAPTERS: Record<string, string> = {
+  python: 'python-unittest',
+  racket: 'racket-check-expect',
+};
 const GENERIC_TEST_ID_RE = /^(?:public|secret|test|case)[_-]?\d+$/i;
 
 export function codeReferenceSolution(draft: NotebookProblemImportDraft): string {
@@ -58,16 +63,19 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
   const secretTests = draft.secretJudge?.secretTests ?? [];
   const solution = codeReferenceSolution(draft);
   const functionSignature = content.functionSignature?.trim() || '';
-  const runnerAdapter =
-    content.runnerAdapter ?? (content.language === 'python' ? 'python-unittest' : '');
+  const runnerAdapter = content.runnerAdapter ?? DEFAULT_RUNNER_ADAPTERS[content.language] ?? '';
+  const supported = DEFAULT_RUNNER_ADAPTERS[content.language] === runnerAdapter;
   const interfaceCode = [functionSignature, content.starterCode, solution]
     .filter(Boolean)
     .join('\n');
 
-  if (content.language !== 'python' || runnerAdapter !== 'python-unittest') {
+  if (!supported) {
     errors.push(
-      `代码题语言包 ${content.language}/${runnerAdapter || '未指定'} 尚未配置可执行适配器；当前仅支持 python/python-unittest`,
+      `代码题语言包 ${content.language}/${runnerAdapter || '未指定'} 尚未配置可执行适配器；当前仅支持 python/python-unittest、racket/racket-check-expect`,
     );
+  }
+  if (content.language === 'racket' && !content.htdpLanguageLevel) {
+    errors.push('Racket 代码题必须指定 htdpLanguageLevel（beginner … advanced）');
   }
   if (
     draft.secretJudge &&
@@ -76,7 +84,7 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
   ) {
     errors.push('代码题公开语言包与隐藏测试必须使用同一个 runner adapter');
   }
-  if (content.language !== 'python' || runnerAdapter !== 'python-unittest') {
+  if (!supported) {
     return Array.from(new Set(errors));
   }
 
@@ -101,7 +109,8 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
       errors.push('代码题缺少隐藏测试代码');
     return Array.from(new Set(errors));
   }
-  if (UNSUPPORTED_CODE_IO_RE.test(interfaceCode)) {
+  const python = content.language === 'python';
+  if (python && UNSUPPORTED_CODE_IO_RE.test(interfaceCode)) {
     errors.push('代码题不得依赖 input、print、stdin 或文件读写；请改写为参数输入和 return 输出');
   }
   if (content.publicTests.length < MIN_PUBLIC_CODE_TESTS) {
@@ -126,19 +135,22 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
   if (new Set(keys).size !== keys.length) {
     errors.push('public tests 与 secret tests 不得重复');
   }
-  if (allTests.some((testCase) => UNSUPPORTED_CODE_IO_RE.test(testCase.expression))) {
+  if (python && allTests.some((testCase) => UNSUPPORTED_CODE_IO_RE.test(testCase.expression))) {
     errors.push('代码题测试只能检查函数返回值，不得使用 input、print、stdin 或文件读写');
   }
-  if (allTests.some((testCase) => UNSAFE_TEST_EXPRESSION_RE.test(testCase.expression))) {
+  if (python && allTests.some((testCase) => UNSAFE_TEST_EXPRESSION_RE.test(testCase.expression))) {
     errors.push('AI 生成的 testcase 必须是单行函数调用，不得执行导入、动态代码或系统操作');
   }
 
-  const functionName = functionSignature.match(/\bdef\s+([A-Za-z_]\w*)\s*\(/)?.[1];
+  const functionName = python
+    ? functionSignature.match(/\bdef\s+([A-Za-z_]\w*)\s*\(/)?.[1]
+    : functionSignature.match(/^\(@htdf\s+([^\s()]+)/)?.[1];
+  const escapedName = functionName?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   if (
-    functionName &&
+    escapedName &&
     allTests.some(
       (testCase) =>
-        !new RegExp(`\\b${functionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\(`).test(
+        !new RegExp(python ? `\\b${escapedName}\\s*\\(` : `\\(\\s*${escapedName}[\\s)]`).test(
           testCase.expression,
         ),
     )

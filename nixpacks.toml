@@ -1,0 +1,19 @@
+# Nixpacks additions for Railway (builder = "NIXPACKS" in railway.toml).
+# Racket judges HtDP (CPSC 110) code problems; see lib/server/racket-runner.ts.
+
+[variables]
+# Keep Racket's user packages inside the app image so build and runtime agree.
+PLTADDONDIR = "/app/.racket"
+
+[phases.setup]
+# "..." keeps the packages Nixpacks detects (Node, pnpm). The full Racket
+# distribution includes htdp-lib (teaching languages, check-expect).
+nixPkgs = ["...", "racket"]
+
+[phases.racket]
+dependsOn = ["setup"]
+cmds = [
+  # UBC's spd/tags collection (CC0), vendored from the course's UBC-SPD package.
+  "raco pkg install --batch --auto --scope user --copy --name spd vendor/racket/spd",
+  "racket -e '(require spd/tags lang/htdp-intermediate-lambda)'",
+]

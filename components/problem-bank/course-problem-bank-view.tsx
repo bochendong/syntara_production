@@ -124,7 +124,12 @@ import {
   remainingSubmissions,
 } from '@/lib/problem-bank/scoring-policy';
 import { isLocalDemoProblemBankCourse } from '@/lib/teacher/local-demo-problem-bank';
-import type { NotebookProblemClientRecord } from '@/lib/utils/notebook-problem-api';
+import {
+  runCourseCodeProblem,
+  type NotebookProblemClientRecord,
+} from '@/lib/utils/notebook-problem-api';
+import { isRacketLanguage } from '@/lib/problem-bank/racket-editor';
+import type { BrowserScriptResult } from '@/lib/client/browser-python';
 
 type PracticePaneId = 'left' | 'right';
 type CodePracticeTab = 'testcase' | 'secret' | 'code' | 'output';
@@ -826,6 +831,7 @@ function CodeAnswerWorkspace({
   onChange,
   disabled,
   locale,
+  onServerRun,
 }: {
   problemId: string;
   content: NotebookProblemPublicCode;
@@ -833,6 +839,7 @@ function CodeAnswerWorkspace({
   onChange: (value: string) => void;
   disabled: boolean;
   locale: 'zh-CN' | 'en-US';
+  onServerRun?: (program: string) => Promise<BrowserScriptResult>;
 }) {
   // 有空位（老师定的 template，或旧 docstring 题推出来的函数体）就只让填空位
   const slotTemplate = useMemo(() => codeSlotTemplateFor(content), [content]);
@@ -854,6 +861,7 @@ function CodeAnswerWorkspace({
             onChange={onChange}
             disabled={disabled}
             locale={locale}
+            language={content.language}
             className="h-full min-h-0 rounded-none border-0 shadow-none focus-within:ring-0"
             placeholder={
               locale === 'zh-CN' ? '在这里编写代码并提交。' : 'Write code here and submit.'
@@ -867,6 +875,7 @@ function CodeAnswerWorkspace({
         files={content.files}
         stdin={content.stdin}
         locale={locale}
+        runOnServer={onServerRun}
         className="shrink-0"
       />
     </div>
@@ -2026,6 +2035,27 @@ export function CourseProblemBankView({
     };
   }, [onPracticeHeaderStateChange, practiceHeaderState]);
 
+  /** Racket 题的「自己试」：交给服务器运行整段代码（浏览器里只有 Python）。 */
+  const runCodeOnServer = async (program: string): Promise<BrowserScriptResult> => {
+    if (!selectedProblem) return { stdout: '', error: null, files: [] };
+    try {
+      const { result } = await runCourseCodeProblem({
+        courseId,
+        problemId: selectedProblem.id,
+        code: program,
+        target: 'code',
+        language: locale,
+      });
+      return { stdout: result?.stdout ?? '', error: result?.error ?? null, files: [] };
+    } catch (runError) {
+      return {
+        stdout: '',
+        error: runError instanceof Error ? runError.message : String(runError),
+        files: [],
+      };
+    }
+  };
+
   const handleRunCodeAndShowOutput = async (pane: PracticePaneId, target: CourseCodeRunTarget) => {
     const ran = await handleRunCodeAnswer(target);
     if (!ran || !visiblePracticePanelTabs.has('output')) return;
@@ -2612,6 +2642,9 @@ export function CourseProblemBankView({
               <CodeAnswerWorkspace
                 problemId={selectedProblem.id}
                 content={selectedProblemContent}
+                onServerRun={
+                  isRacketLanguage(selectedProblemContent.language) ? runCodeOnServer : undefined
+                }
                 value={
                   codeAnswers[selectedProblem.id] ?? defaultCodeAnswerFor(selectedProblemContent)
                 }
@@ -2833,6 +2866,9 @@ export function CourseProblemBankView({
         <CodeAnswerWorkspace
           problemId={selectedProblem.id}
           content={selectedProblemContent}
+          onServerRun={
+            isRacketLanguage(selectedProblemContent.language) ? runCodeOnServer : undefined
+          }
           value={codeAnswers[selectedProblem.id] ?? defaultCodeAnswerFor(selectedProblemContent)}
           onChange={(value) =>
             setCodeAnswers((prev) => ({

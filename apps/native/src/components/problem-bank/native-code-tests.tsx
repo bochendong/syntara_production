@@ -3,7 +3,7 @@ import { Check, Loader2, Play, X } from 'lucide-react';
 import type { NotebookCodeFile } from '../../../../../lib/problem-bank/schema';
 import { runPythonRowsInBrowser } from '../../../../../lib/client/browser-python';
 import { visibleCodeTests } from '../../../../../lib/problem-bank/visible-code-tests';
-import { highlightPython } from './code-answer-editor';
+import { highlightCode } from './code-answer-editor';
 import './native-code-tests.css';
 
 type TestCase = ReturnType<typeof visibleCodeTests>[number];
@@ -22,12 +22,17 @@ export function NativeCodeTests({
   files,
   onRunTests,
   label = '公开测试',
+  language,
+  assumedHelpersHint = true,
 }: {
   code: string;
   tests: TestCase[];
   files: NotebookCodeFile[];
   onRunTests?: ServerCodeTestRun;
   label?: '公开测试' | '隐藏测试';
+  language?: string;
+  /** 服务器跑测试的代码小问才提示「假定辅助函数正确」；Racket 整题也走服务器，不提示 */
+  assumedHelpersHint?: boolean;
 }) {
   const [results, setResults] = useState<Record<string, CaseResult>>({});
   const [running, setRunning] = useState<string[]>([]);
@@ -96,7 +101,7 @@ export function NativeCodeTests({
   if (!tests.length) return null;
   return (
     <section className="native-code-tests" aria-label={`${label}用例`}>
-      {onRunTests && label === '公开测试' ? (
+      {onRunTests && assumedHelpersHint && label === '公开测试' ? (
         <p className="native-code-test-hint">本问按题意假定辅助函数正确，可以独立测试。</p>
       ) : null}
       <header>
@@ -125,7 +130,7 @@ export function NativeCodeTests({
             >
               <div className="native-code-test-call">
                 <span className="native-code-test-number">{index + 1}</span>
-                <pre>{highlightPython(test.expression)}</pre>
+                <pre>{highlightCode(test.expression, language)}</pre>
                 <button
                   type="button"
                   aria-label={

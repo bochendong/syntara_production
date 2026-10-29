@@ -7,6 +7,7 @@ import {
 import { assembleCodeFromSlots, codeSlotTemplateFor } from '@/lib/problem-bank/code-slots';
 import { multipartCodePartDrafts } from '@/lib/problem-bank/multipart';
 import { codeReferenceSolution } from '@/lib/problem-bank/code-readiness';
+import { isRacketLanguage } from '@/lib/problem-bank/racket-editor';
 import type { NotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 import {
   judgeNotebookCodeProblem,
@@ -112,13 +113,18 @@ async function validateSingleCodeQuestion(
   )
     throw new Error('Invalid executable question');
   const verified = await verifyNotebookCodeDraftReferenceAnswer(draft);
+  const racket = isRacketLanguage(draft.publicContent.language);
+  const checkedBy = racket ? 'racket-runner' : 'python-runner';
   const slots = codeSlotTemplateFor(draft.publicContent);
   const starter = slots
     ? assembleCodeFromSlots(
         slots.template,
         slots.slots,
         Object.fromEntries(
-          slots.slots.map((slot) => [slot.id, slot.kind === 'expr' ? 'None' : '']),
+          slots.slots.map((slot) => [
+            slot.id,
+            slot.kind === 'expr' ? (racket ? '...' : 'None') : '',
+          ]),
         ),
       )
     : draft.publicContent.starterCode;
@@ -162,14 +168,14 @@ async function validateSingleCodeQuestion(
         passed: valid,
         publicTestCount: verified.publicTestCount,
         secretTestCount: verified.secretTestCount,
-        checkedBy: 'python-runner',
+        checkedBy,
         exampleCount: draft.publicContent.sampleIO.length,
       },
     },
   });
   return {
     valid,
-    checkedBy: 'python-runner',
+    checkedBy,
     courseId: data.courseId,
     draftFingerprint: codeDraftFingerprint(validatedDraft),
     referencePassed,
@@ -223,6 +229,9 @@ export async function validateCodeQuestion(
     reports.push({ label: part.label, report });
   }
   const valid = reports.every(({ report }) => report.valid);
+  const checkedBy = reports.every(({ report }) => report.checkedBy === 'racket-runner')
+    ? 'racket-runner'
+    : 'python-runner';
   if (data.draft.publicContent.type !== 'multipart' || data.draft.grading.type !== 'multipart')
     throw new Error('Invalid multipart question');
   const validatedDraft = notebookProblemImportDraftSchema.parse({
@@ -245,7 +254,7 @@ export async function validateCodeQuestion(
       ...data.draft.sourceMeta,
       codeVerification: {
         passed: valid,
-        checkedBy: 'python-runner',
+        checkedBy,
         parts: Object.fromEntries(
           reports.map(({ label, report }) => [
             label,
@@ -261,7 +270,7 @@ export async function validateCodeQuestion(
   });
   return {
     valid,
-    checkedBy: 'python-runner',
+    checkedBy,
     courseId: data.courseId,
     draftFingerprint: codeDraftFingerprint(validatedDraft),
     referencePassed: reports.every(({ report }) => report.referencePassed),

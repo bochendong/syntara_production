@@ -54,6 +54,49 @@ export function normalizeTableOutput(value: string): string {
     .replace(/^\n+|\n+$/g, '');
 }
 
+/**
+ * Racket/HtDP 表达式的比较形式：去掉 ; 注释，空白折叠，括号内侧不留空格，
+ * [ ] 当作 ( )，#true/#t、#false/#f 当作 true/false。字符串字面量原样保留。
+ */
+export function normalizeSexp(value: string): string {
+  const tokens: string[] = [];
+  let atom = '';
+  const flush = () => {
+    if (!atom) return;
+    tokens.push(
+      (
+        { '#t': 'true', '#true': 'true', '#f': 'false', '#false': 'false' } as Record<
+          string,
+          string
+        >
+      )[atom] ?? atom,
+    );
+    atom = '';
+  };
+  for (let i = 0; i < value.length; i += 1) {
+    const char = value[i];
+    if (char === '"') {
+      flush();
+      let end = i + 1;
+      while (end < value.length && value[end] !== '"') end += value[end] === '\\' ? 2 : 1;
+      tokens.push(value.slice(i, end + 1));
+      i = end;
+    } else if (char === ';') {
+      flush();
+      while (i < value.length && value[i] !== '\n') i += 1;
+    } else if (/\s/.test(char)) {
+      flush();
+    } else if ('()[]'.includes(char)) {
+      flush();
+      tokens.push(char === '[' ? '(' : char === ']' ? ')' : char);
+    } else {
+      atom += char;
+    }
+  }
+  flush();
+  return tokens.join(' ').replace(/\( /g, '(').replace(/ \)/g, ')');
+}
+
 function isKeyword(value: string, keyword: 'ERROR' | 'NOTHING') {
   return value.trim().toUpperCase().startsWith(keyword);
 }
@@ -76,6 +119,10 @@ export function matchTableCellLocally(
   }
   if (isKeyword(trimmed, 'ERROR') || trimmed.toUpperCase() === 'NOTHING') return false;
   if (cell.matcher === 'python_value' || cell.matcher === 'run_check') return null;
+  if (cell.matcher === 'sexp') {
+    const normalized = normalizeSexp(trimmed);
+    return cell.acceptedAnswers.some((accepted) => normalizeSexp(accepted) === normalized);
+  }
   if (cell.matcher === 'normalized_exact') {
     const normalize = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
     return cell.acceptedAnswers.some((accepted) => normalize(accepted) === normalize(trimmed));

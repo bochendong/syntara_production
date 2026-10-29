@@ -33,6 +33,8 @@ const requestSchema = z.object({
   /// 大题里的代码小问：按 label 判这一问；mode=run 只跑公开测试
   part: z.string().trim().min(1).max(40).optional(),
   mode: z.enum(['submit', 'run']).default('submit'),
+  /// mode=run：public 跑公开测试；code 直接运行整段代码（Racket 题的「运行」和自己试）
+  target: z.enum(['public', 'code']).default('public'),
 });
 
 export async function POST(request: NextRequest) {
@@ -42,7 +44,7 @@ export async function POST(request: NextRequest) {
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success)
     return publicApiError(requestId, 400, 'invalid_request', 'Invalid code submission.');
-  const { courseId, problemId, code, language, attemptId, part, mode } = parsed.data;
+  const { courseId, problemId, code, language, attemptId, part, mode, target } = parsed.data;
   const prisma = getOptionalPrisma();
   if (!prisma)
     return publicApiError(requestId, 503, 'auth_not_configured', 'Problem storage is unavailable.');
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
         problem: { ...loaded.problem, points: STANDARD_PROBLEM_POINTS },
         secretJudge: loaded.secretJudge,
         kind: 'run',
-        runTarget: 'public',
+        runTarget: target,
         userAnswer: { code },
         language,
         courseIdentity,
