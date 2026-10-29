@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import type { HtdpLanguageLevel } from '@/lib/problem-bank/schema';
 
 const MAX_OUTPUT_BYTES = 1024 * 1024;
@@ -228,6 +230,24 @@ type RacketRunInput = {
   caseCount: number;
 };
 
+/**
+ * Do not hand application credentials to student code: keep PATH, HOME and PLT*.
+ * Racket rejects empty path variables (`bytes->path: byte string is empty`), so drop
+ * them, and fall back to the build's add-on dir (nixpacks.toml installs spd into
+ * ./.racket) when PLTADDONDIR is not set at runtime.
+ */
+function racketEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([key, value]) =>
+        Boolean(value?.trim()) && (key === 'PATH' || key === 'HOME' || key.startsWith('PLT')),
+    ),
+  );
+  const buildAddonDir = path.join(process.cwd(), '.racket');
+  if (!env.PLTADDONDIR && existsSync(buildAddonDir)) env.PLTADDONDIR = buildAddonDir;
+  return env;
+}
+
 export function runRacketJson<T>(input: RacketRunInput): Promise<T> {
   // The driver limits every evaluation; this outer limit only catches a stuck process.
   const outerTimeout = Math.min(
@@ -243,13 +263,7 @@ export function runRacketJson<T>(input: RacketRunInput): Promise<T> {
         killSignal: 'SIGKILL',
         maxBuffer: MAX_OUTPUT_BYTES,
         encoding: 'utf8',
-        // Do not hand application credentials to student code. HOME/PLT* locate
-        // user-scope packages such as spd.
-        env: Object.fromEntries(
-          Object.entries(process.env).filter(
-            ([key]) => key === 'PATH' || key === 'HOME' || key.startsWith('PLT'),
-          ),
-        ) as NodeJS.ProcessEnv,
+        env: racketEnv(),
       },
       (error, stdout, stderr) => {
         if (error) {
