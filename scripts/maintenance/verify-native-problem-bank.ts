@@ -69,6 +69,14 @@ assert.equal(
   4,
 );
 assert.deepEqual(problemPaperSeries([problem]), []);
+assert.equal(
+  matchesProblemFilters(shared, { ...base, chapter: 'functions', series: 'TT2模拟A卷' }),
+  true,
+);
+assert.equal(
+  matchesProblemFilters(shared, { ...base, chapter: 'number-theory', series: 'TT2模拟A卷' }),
+  false,
+);
 assert.equal(matchesProblemFilters(problem, base), true);
 assert.equal(
   matchesProblemFilters(problem, {

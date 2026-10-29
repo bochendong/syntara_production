@@ -470,9 +470,8 @@ export function ProblemBankPage({
       ? seriesSelection.tag
       : '';
   // 只有一章时不需要章节墙，直接进这一章。
-  const openChapter = activeSeries
-    ? null
-    : openKey === ALL_CHAPTERS
+  const openChapter =
+    openKey === ALL_CHAPTERS
       ? allChapter
       : chapters.length === 1
         ? chapters[0]
@@ -580,9 +579,17 @@ export function ProblemBankPage({
           type: activeTypeFilter,
           difficulty: activeDifficultyFilter,
           chapter: 'all',
+          series: activeSeries,
         }),
       ),
-    [chapterProblems, query, activeDifficultyFilter, activeTypeFilter, sourceProblems],
+    [
+      chapterProblems,
+      query,
+      activeDifficultyFilter,
+      activeTypeFilter,
+      sourceProblems,
+      activeSeries,
+    ],
   );
 
   // ---------- 章节墙：搜索 ----------
@@ -603,26 +610,39 @@ export function ProblemBankPage({
     );
   }, [chapters, query, sourceProblems, activeSeries]);
 
-  const seriesFilter = seriesOptions.length ? (
-    <div className="pb-series-filter">
-      <label htmlFor="problem-paper-series">系列</label>
-      <select
-        id="problem-paper-series"
-        value={activeSeries}
-        onChange={(event) => {
-          setSeriesSelection({ courseId, tag: event.target.value });
-          setSearchCount(LIST_PAGE_SIZE);
-          openChapterKey(null);
-        }}
-      >
-        <option value="">全部系列</option>
-        {seriesOptions.map(([tag, count]) => (
-          <option key={tag} value={tag}>
-            {tag} · {count}题
-          </option>
+  const visibleSeriesOptions = problemPaperSeries(openChapter?.problems ?? bankProblems);
+  const chooseSeries = (tag: string) => {
+    setSeriesSelection({ courseId, tag });
+    setSearchCount(LIST_PAGE_SIZE);
+    setListCount(LIST_PAGE_SIZE);
+  };
+  const seriesFilter = visibleSeriesOptions.length ? (
+    <section className="pb-series-panel" aria-label="系列筛选">
+      <h3>系列</h3>
+      <div className="pb-series-options" role="group" aria-label="试卷系列">
+        <button
+          type="button"
+          className={!activeSeries ? 'is-active' : ''}
+          aria-pressed={!activeSeries}
+          onClick={() => chooseSeries('')}
+        >
+          <span>全部系列</span>
+          <small>{openChapter?.problems.length ?? bankProblems.length}</small>
+        </button>
+        {visibleSeriesOptions.map(([tag, count]) => (
+          <button
+            key={tag}
+            type="button"
+            className={activeSeries === tag ? 'is-active' : ''}
+            aria-pressed={activeSeries === tag}
+            onClick={() => chooseSeries(activeSeries === tag ? '' : tag)}
+          >
+            <span>{tag}</span>
+            <small>{count}</small>
+          </button>
         ))}
-      </select>
-    </div>
+      </div>
+    </section>
   ) : null;
 
   const courseLabel = workspace.course.courseCode || workspace.course.name;
@@ -675,7 +695,12 @@ export function ProblemBankPage({
       ] as const;
     })();
     const practice = (problem?: LocalProblem) =>
-      startPractice(sheetProblems, problem, openChapter.title, openChapter.key);
+      startPractice(
+        sheetProblems,
+        problem,
+        activeSeries ? `${openChapter.title} · ${activeSeries}` : openChapter.title,
+        openChapter.key,
+      );
     return (
       <section className="pb-page" aria-label={`${openChapter.title} 题目`}>
         <BankHeader title={openChapter.title} subtitle={courseLabel} onBack={onBack} />
@@ -737,7 +762,6 @@ export function ProblemBankPage({
                   </button>
                 ) : null}
               </label>
-              {seriesFilter}
             </div>
             <div className="pb-chapter-body">
               <aside className="pb-chapter-side">
@@ -814,6 +838,7 @@ export function ProblemBankPage({
                       : null}
                   </div>
                 </div>
+                {seriesFilter}
               </aside>
 
               <div className="pb-chapter-main">
@@ -957,195 +982,206 @@ export function ProblemBankPage({
             {onUploadFiles ? (
               <MaterialUploadButton label="上传题目" onFiles={onUploadFiles} />
             ) : null}
-            {seriesFilter}
           </div>
 
-          {query.trim() || activeSeries ? (
-            searchResults.length ? (
-              <>
-                {activeSeries ? (
-                  <div className="pb-series-summary">
-                    <span>
-                      <strong>{activeSeries}</strong> · {searchResults.length} 题
-                    </span>
-                    <button
-                      type="button"
-                      className="pb-wall-go"
-                      onClick={() =>
-                        startPractice(
-                          searchResults,
-                          firstUnpassed(searchResults),
-                          activeSeries,
-                          null,
-                        )
-                      }
-                    >
-                      <Play size={12} fill="currentColor" />
-                      开始练习
-                    </button>
-                  </div>
-                ) : null}
-                <ol className="pb-list pb-search-results">
-                  {searchResults.slice(0, searchCount).map((problem, index) => (
-                    <li
-                      key={problem.id}
-                      style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}
-                    >
-                      <LayerItem label={problem.title} onMore={moreFor(problem)}>
-                        <ProblemRow
-                          problem={problem}
-                          number={numberById.get(problem.id)}
-                          status={statuses.get(problem.id)}
-                          badges={badgesFor(problem)}
-                          onClick={() => {
-                            startPractice(
-                              searchResults,
-                              problem,
-                              activeSeries || query.trim(),
-                              null,
-                            );
-                          }}
-                        />
-                      </LayerItem>
-                    </li>
-                  ))}
-                </ol>
-                {searchResults.length > searchCount ? (
-                  <button
-                    type="button"
-                    className="pb-more"
-                    onClick={() => setSearchCount((count) => count + LIST_PAGE_SIZE)}
-                  >
-                    再看 {Math.min(LIST_PAGE_SIZE, searchResults.length - searchCount)} 题
-                  </button>
-                ) : null}
-              </>
-            ) : (
-              <LearningEmptyState title="没有找到题目" />
-            )
-          ) : (
-            <>
-              {(lastChapter && resumeTarget) || mistakes.length ? (
-                <div className="pb-hero">
-                  {lastChapter && resumeTarget ? (
-                    <button
-                      type="button"
-                      className="pb-hero-card is-resume"
-                      style={accentVars(lastChapter.color)}
-                      onClick={() =>
-                        startPractice(
-                          lastChapter.problems,
-                          resumeTarget,
-                          lastChapter.title,
-                          lastChapter.key,
-                        )
-                      }
-                    >
-                      <span className="pb-hero-orb">
-                        {lastChapter.color ? (
-                          <img src={marbleImages[lastChapter.color]} alt="" />
-                        ) : null}
-                        <b>{numberById.get(resumeTarget.id)}</b>
-                      </span>
-                      <span className="pb-hero-copy">
-                        <small>接着上次</small>
-                        <strong>{lastChapter.title}</strong>
-                        <ChapterTube chapter={lastChapter} />
-                      </span>
-                      <span className="pb-hero-go" aria-hidden>
-                        <Play size={16} fill="currentColor" />
-                      </span>
-                    </button>
-                  ) : null}
-                  {mistakes.length ? (
-                    <button
-                      type="button"
-                      className="pb-hero-card is-mistakes"
-                      style={accentVars('pink')}
-                      onClick={() => startPractice(mistakes, mistakes[0], '错题重练', null)}
-                    >
-                      <span className="pb-hero-stack" aria-hidden>
-                        {mistakes.slice(0, 3).map((problem) => (
-                          <img
-                            key={problem.id}
-                            src={marbleImages[STATUS_MARBLES[statuses.get(problem.id) ?? 'failed']]}
-                            alt=""
-                          />
-                        ))}
-                      </span>
-                      <span className="pb-hero-copy">
-                        <small>错题重练</small>
-                        <strong>{mistakes.length} 道</strong>
-                      </span>
-                      <span className="pb-hero-go" aria-hidden>
-                        <Play size={16} fill="currentColor" />
-                      </span>
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <p className="phone-group-title pb-wall-title">
-                <span>{chapters.length} 章</span>
-                <span>
-                  {passedTotal}/{bankProblems.length} 通过
-                </span>
-              </p>
-              <div className="pb-wall">
-                {chapters.map((chapter, index) => {
-                  const nextInChapter = firstUnpassed(chapter.problems);
-                  const freshCount = layered
-                    ? chapter.problems.filter((problem) => isProblemNew(layers, problem.id)).length
-                    : 0;
-                  return (
-                    <div
-                      key={chapter.key}
-                      className={`pb-wall-card${nextInChapter ? '' : ' is-done'}`}
-                      style={{
-                        ...accentVars(chapter.color),
-                        animationDelay: `${Math.min(index, 16) * 26}ms`,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="pb-wall-open"
-                        onClick={() => openChapterKey(chapter.key)}
-                      >
-                        <ChapterMarble chapter={chapter} />
-                        <strong>{chapter.title}</strong>
-                        {freshCount ? (
-                          <span className="pb-wall-new">
-                            <LayerBadges fresh />
-                            {freshCount > 1 ? (
-                              <b className="pb-wall-new-count">{freshCount}</b>
-                            ) : null}
-                          </span>
-                        ) : null}
-                      </button>
-                      <div className="pb-wall-foot">
-                        <ChapterTube chapter={chapter} />
+          <div className={seriesFilter ? 'pb-chapter-body pb-series-layout' : undefined}>
+            {seriesFilter ? (
+              <aside className="pb-chapter-side pb-series-side" aria-label="筛选题目">
+                {seriesFilter}
+              </aside>
+            ) : null}
+            <div className={seriesFilter ? 'pb-chapter-main' : undefined}>
+              {query.trim() || activeSeries ? (
+                searchResults.length ? (
+                  <>
+                    {activeSeries ? (
+                      <div className="pb-series-summary">
+                        <span>
+                          <strong>{activeSeries}</strong> · {searchResults.length} 题
+                        </span>
                         <button
                           type="button"
                           className="pb-wall-go"
                           onClick={() =>
                             startPractice(
-                              chapter.problems,
-                              nextInChapter,
-                              chapter.title,
-                              chapter.key,
+                              searchResults,
+                              firstUnpassed(searchResults),
+                              activeSeries,
+                              null,
                             )
                           }
                         >
                           <Play size={12} fill="currentColor" />
-                          {nextInChapter ? '继续刷' : '再刷'}
+                          开始练习
                         </button>
                       </div>
+                    ) : null}
+                    <ol className="pb-list pb-search-results">
+                      {searchResults.slice(0, searchCount).map((problem, index) => (
+                        <li
+                          key={problem.id}
+                          style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}
+                        >
+                          <LayerItem label={problem.title} onMore={moreFor(problem)}>
+                            <ProblemRow
+                              problem={problem}
+                              number={numberById.get(problem.id)}
+                              status={statuses.get(problem.id)}
+                              badges={badgesFor(problem)}
+                              onClick={() => {
+                                startPractice(
+                                  searchResults,
+                                  problem,
+                                  activeSeries || query.trim(),
+                                  null,
+                                );
+                              }}
+                            />
+                          </LayerItem>
+                        </li>
+                      ))}
+                    </ol>
+                    {searchResults.length > searchCount ? (
+                      <button
+                        type="button"
+                        className="pb-more"
+                        onClick={() => setSearchCount((count) => count + LIST_PAGE_SIZE)}
+                      >
+                        再看 {Math.min(LIST_PAGE_SIZE, searchResults.length - searchCount)} 题
+                      </button>
+                    ) : null}
+                  </>
+                ) : (
+                  <LearningEmptyState title="没有找到题目" />
+                )
+              ) : (
+                <>
+                  {(lastChapter && resumeTarget) || mistakes.length ? (
+                    <div className="pb-hero">
+                      {lastChapter && resumeTarget ? (
+                        <button
+                          type="button"
+                          className="pb-hero-card is-resume"
+                          style={accentVars(lastChapter.color)}
+                          onClick={() =>
+                            startPractice(
+                              lastChapter.problems,
+                              resumeTarget,
+                              lastChapter.title,
+                              lastChapter.key,
+                            )
+                          }
+                        >
+                          <span className="pb-hero-orb">
+                            {lastChapter.color ? (
+                              <img src={marbleImages[lastChapter.color]} alt="" />
+                            ) : null}
+                            <b>{numberById.get(resumeTarget.id)}</b>
+                          </span>
+                          <span className="pb-hero-copy">
+                            <small>接着上次</small>
+                            <strong>{lastChapter.title}</strong>
+                            <ChapterTube chapter={lastChapter} />
+                          </span>
+                          <span className="pb-hero-go" aria-hidden>
+                            <Play size={16} fill="currentColor" />
+                          </span>
+                        </button>
+                      ) : null}
+                      {mistakes.length ? (
+                        <button
+                          type="button"
+                          className="pb-hero-card is-mistakes"
+                          style={accentVars('pink')}
+                          onClick={() => startPractice(mistakes, mistakes[0], '错题重练', null)}
+                        >
+                          <span className="pb-hero-stack" aria-hidden>
+                            {mistakes.slice(0, 3).map((problem) => (
+                              <img
+                                key={problem.id}
+                                src={
+                                  marbleImages[STATUS_MARBLES[statuses.get(problem.id) ?? 'failed']]
+                                }
+                                alt=""
+                              />
+                            ))}
+                          </span>
+                          <span className="pb-hero-copy">
+                            <small>错题重练</small>
+                            <strong>{mistakes.length} 道</strong>
+                          </span>
+                          <span className="pb-hero-go" aria-hidden>
+                            <Play size={16} fill="currentColor" />
+                          </span>
+                        </button>
+                      ) : null}
                     </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+                  ) : null}
+
+                  <p className="phone-group-title pb-wall-title">
+                    <span>{chapters.length} 章</span>
+                    <span>
+                      {passedTotal}/{bankProblems.length} 通过
+                    </span>
+                  </p>
+                  <div className="pb-wall">
+                    {chapters.map((chapter, index) => {
+                      const nextInChapter = firstUnpassed(chapter.problems);
+                      const freshCount = layered
+                        ? chapter.problems.filter((problem) => isProblemNew(layers, problem.id))
+                            .length
+                        : 0;
+                      return (
+                        <div
+                          key={chapter.key}
+                          className={`pb-wall-card${nextInChapter ? '' : ' is-done'}`}
+                          style={{
+                            ...accentVars(chapter.color),
+                            animationDelay: `${Math.min(index, 16) * 26}ms`,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="pb-wall-open"
+                            onClick={() => openChapterKey(chapter.key)}
+                          >
+                            <ChapterMarble chapter={chapter} />
+                            <strong>{chapter.title}</strong>
+                            {freshCount ? (
+                              <span className="pb-wall-new">
+                                <LayerBadges fresh />
+                                {freshCount > 1 ? (
+                                  <b className="pb-wall-new-count">{freshCount}</b>
+                                ) : null}
+                              </span>
+                            ) : null}
+                          </button>
+                          <div className="pb-wall-foot">
+                            <ChapterTube chapter={chapter} />
+                            <button
+                              type="button"
+                              className="pb-wall-go"
+                              onClick={() =>
+                                startPractice(
+                                  chapter.problems,
+                                  nextInChapter,
+                                  chapter.title,
+                                  chapter.key,
+                                )
+                              }
+                            >
+                              <Play size={12} fill="currentColor" />
+                              {nextInChapter ? '继续刷' : '再刷'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
       {layerOverlays}
