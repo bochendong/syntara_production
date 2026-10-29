@@ -1,12 +1,14 @@
 {
-  "version": "0.1.0",
-  "builtAt": "2026-10-26T00:01:56.185Z",
-  "fileName": "Syntara-Test-0.1.0-macOS-arm64-20261026T000156Z.zip",
-  "size": 48140166,
-  "sha256": "5d92dfcaa7b125f06d014909a7bd39d7b65ca9cd635b7db26625f36f1ae840a0",
+  "version": "0.1.1",
+  "sourceRevision": "828501804abf3a9613b2a40f91c6c0064cf2139f",
+  "sourceTree": "83c28976ef6683048fbf8d2d7f94c882408212ce",
+  "builtAt": "2026-10-29T00:20:03.968Z",
+  "fileName": "Syntara-Test-0.1.1-macOS-arm64-20261029T002003Z.zip",
+  "size": 53271267,
+  "sha256": "a3850db91fe580566fe7f0e9036748d174ab81c41d9a528c85baf7df5ce4d21a",
   "channel": "staging",
   "architecture": "arm64",
   "minimumSystemVersion": "14.0",
   "notarized": false,
-  "downloadUrl": "https://github.com/bochendong/syntara_production/releases/download/staging-desktop-20261026-000156/Syntara-Test-0.1.0-macOS-arm64-20261026T000156Z.zip"
+  "downloadUrl": "https://github.com/bochendong/syntara_production/releases/download/staging-desktop-20261029-002003/Syntara-Test-0.1.1-macOS-arm64-20261029T002003Z.zip"
 }

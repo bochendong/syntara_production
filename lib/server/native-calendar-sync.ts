@@ -60,7 +60,7 @@ export async function syncNativeCalendar(
       async (tx) => {
         // Serialize app writes, including the first create. CAS below also protects
         // against changes from the existing web calendar, which doesn't take this lock.
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`native-calendar:${userId}:${input.courseId}`}, 0))`;
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`native-calendar:${userId}:${input.courseId}`}, 0))::text AS "locked"`;
         for (const change of input.changes) {
           const existing = await tx.learningCalendarEvent.findUnique({ where: { id: change.id } });
           if (existing && (existing.ownerId !== userId || existing.courseId !== input.courseId))

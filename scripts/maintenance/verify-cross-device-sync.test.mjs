@@ -294,7 +294,14 @@ function calendarDatabase() {
   };
   const prisma = {
     learningCalendarEvent: table,
-    $queryRaw: async () => [],
+    $queryRaw: async (strings) => {
+      assert.match(
+        strings.join('?'),
+        /pg_advisory_xact_lock[\s\S]*::text AS "locked"/,
+        'Prisma raw lock results must use a supported PostgreSQL column type',
+      );
+      return [];
+    },
     $transaction: async (operation) => operation(prisma),
   };
   return { prisma, rows };
