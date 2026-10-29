@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { CourseLearningPage } from '../lib/native-launch';
-import { usePhoneLayout } from '../lib/use-phone-layout';
 import { useBackDismiss } from '../lib/use-back-dismiss';
 import { LearningToolIcon } from './LearningToolIcon';
 
@@ -44,15 +43,13 @@ export function CourseToolsMenu({
   /** 'center'：从聊天顶栏中间的标题往下展开。 */
   align?: 'end' | 'center';
 }) {
-  const phone = usePhoneLayout();
-  const items = phone ? tools.filter((tool) => tool.page !== 'problems') : tools;
   return (
     <GlassMenu
       anchor={anchor}
       label={`${courseName}学习工具`}
       align={align}
       onClose={onClose}
-      items={items.map(({ page, label }) => ({
+      items={tools.map(({ page, label }) => ({
         key: page,
         label,
         icon: <LearningToolIcon tool={page} />,
