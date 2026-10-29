@@ -100,6 +100,12 @@ export const RACKET_DRIVER = String.raw`
                 (for/and ([x va] [y vb]) (within? x y delta))))]
         [else (equal? a b)]))
 
+;; The evaluator reads a string argument as program text, so a test whose value is a
+;; string literal ("ce") would evaluate the identifier ce. Pass strings as an expression
+;; that every HtDP level accepts.
+(define (quote-strings d) (if (string? d) (list 'string-append d) d))
+(define (ev-datum d) (ev (quote-strings d)))
+
 (define (run-check id description kind args)
   (define (result passed #:actual [actual #f] #:error [error #f])
     (for/fold ([h (hasheq 'id id 'passed passed)])
@@ -108,28 +114,28 @@ export const RACKET_DRIVER = String.raw`
   (with-handlers ([(lambda (_) #t) (lambda (e) (result #f #:error (exn->text e)))])
     (case kind
       [(check-expect)
-       (define actual (ev (first args)))
-       (define expected (ev (second args)))
+       (define actual (ev-datum (first args)))
+       (define expected (ev-datum (second args)))
        (result (equal? actual expected) #:actual (trim-show actual))]
       [(check-within)
-       (define actual (ev (first args)))
-       (define expected (ev (second args)))
-       (define delta (ev (third args)))
+       (define actual (ev-datum (first args)))
+       (define expected (ev-datum (second args)))
+       (define delta (ev-datum (third args)))
        (result (within? actual expected delta) #:actual (trim-show actual))]
       [(check-error)
        (define raised
          (with-handlers ([exn:fail? (lambda (e) e)])
-           (ev (first args))
+           (ev-datum (first args))
            #f))
        (cond
          [(not raised) (result #f #:error "expected an error, but none was raised")]
-         [(and (= (length args) 2) (not (equal? (exn-message raised) (ev (second args)))))
+         [(and (= (length args) 2) (not (equal? (exn-message raised) (ev-datum (second args)))))
           (result #f #:actual (exn-message raised))]
          [else (result #t)])]
       [(check-satisfied)
-       (define actual (ev (first args)))
+       (define actual (ev-datum (first args)))
        ;; BSL only allows a function name in call position, so apply it in source form.
-       (define ok (ev (list (second args) (first args))))
+       (define ok (ev (list (second args) (quote-strings (first args)))))
        (result (and ok #t) #:actual (trim-show actual))]
       [else (result #f #:error (format "unsupported test form: ~a" kind))])))
 

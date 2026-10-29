@@ -239,6 +239,31 @@ async function main() {
   console.log('infinite loop run', looping.status, looping.result.caseResults?.[0]?.error);
   assert.match(looping.result.caseResults?.[0]?.error ?? '', /out of time/);
 
+  // String-literal expected values must not be re-read as code ("ce" is not the identifier ce).
+  const strings = await judge.judgeNotebookCodeProblem({
+    problem: {
+      ...problem,
+      publicContent: {
+        ...problem.publicContent,
+        publicTests: [
+          { id: 'two_chars', expression: '(abbrev "abcdef" 2 4)', expected: '"ce"' },
+          { id: 'same_char', expression: '(abbrev "012345" 0 0)', expected: '"00"' },
+        ],
+      },
+    },
+    secretJudge: {
+      ...draft.secretJudge!,
+      secretTestCode:
+        '(check-expect (abbrev "abcdef" 4 2) "ec")\n(check-expect "xx" (abbrev "x" 0 0))\n(check-satisfied "ab" string?)',
+    },
+    userAnswer: {
+      code: '(define (abbrev str a b) (string-append (string-ith str a) (string-ith str b)))',
+    },
+    kind: 'submit',
+  });
+  console.log('string literals', strings.status, strings.result.feedback);
+  assert.equal(strings.status, 'passed');
+
   // Run (script target): top-level values print and the student's own tests are summarised.
   const ran = await judge.judgeNotebookCodeProblem({
     problem,
