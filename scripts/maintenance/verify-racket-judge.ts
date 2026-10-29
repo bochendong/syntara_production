@@ -256,7 +256,7 @@ async function main() {
     secretJudge: {
       ...draft.secretJudge!,
       secretTestCode:
-        '(check-expect (abbrev "abcdef" 4 2) "ec")\n(check-expect "xx" (abbrev "x" 0 0))\n(check-satisfied "ab" string?)',
+        '(check-expect (abbrev "abcdef" 4 2) "ec")\n(check-expect "xx" (abbrev "x" 0 0))\n(check-satisfied "ab" string?)\n(check-expect (* 0.1 3) 0.3)\n(check-expect (/ 799 100) 7.99)',
     },
     userAnswer: {
       code: '(define (abbrev str a b) (string-append (string-ith str a) (string-ith str b)))',
