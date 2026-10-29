@@ -249,7 +249,7 @@ async function main() {
           { id: 'two_chars', expression: '(abbrev "abcdef" 2 4)', expected: '"ce"' },
           { id: 'same_char', expression: '(abbrev "012345" 0 0)', expected: '"00"' },
         ],
-      },
+      } as typeof problem.publicContent,
     },
     secretJudge: {
       ...draft.secretJudge!,
