@@ -1,3 +1,4 @@
+import { subscribeVisibleRefresh } from '../lib/visible-refresh';
 import type { CourseLearningPage } from '../lib/native-launch';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, MessageCircle, PanelLeft, SquarePen, X } from 'lucide-react';
@@ -107,6 +108,33 @@ export function GeneralChatWorkspace({
       invalidateRequests();
     };
   }, [client, invalidateRequests, initialConversationId]);
+  useEffect(() => {
+    if (busy || pendingSave || loading) return;
+    let cancelled = false;
+    const generation = request.current;
+    const stop = subscribeVisibleRefresh(async () => {
+      const rows = await client.list();
+      if (cancelled || generation !== request.current) return;
+      setConversations((current) =>
+        JSON.stringify(current) === JSON.stringify(rows) ? current : rows,
+      );
+      if (!selected) return;
+      if (!rows.some((row) => row.id === selected)) {
+        setSelected(null);
+        setMessages([]);
+        return;
+      }
+      const history = await client.load(selected);
+      if (!cancelled && generation === request.current)
+        setMessages((current) =>
+          JSON.stringify(current) === JSON.stringify(history) ? current : history,
+        );
+    });
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, [client, selected, busy, pendingSave, loading]);
   useEffect(() => {
     scrollToBottom();
   }, [messages, streaming, scrollToBottom]);

@@ -74,3 +74,14 @@ export function subscribeLearnerProfile(listener: () => void): () => void {
   window.addEventListener(LEARNER_PROFILE_CHANGED_EVENT, listener);
   return () => window.removeEventListener(LEARNER_PROFILE_CHANGED_EVENT, listener);
 }
+
+/** Apply a newer account profile without overwriting an edit made during a fetch. */
+export function mergeStoredLearnerProfile(profile: LearnerProfile) {
+  if (!isLearnerProfile(profile) || profile.updatedAt <= readStoredLearnerProfile().updatedAt)
+    return;
+  window.localStorage.setItem(
+    accountStorageKey(LEARNER_PROFILE_STORAGE_KEY),
+    JSON.stringify(profile),
+  );
+  window.dispatchEvent(new Event(LEARNER_PROFILE_CHANGED_EVENT));
+}

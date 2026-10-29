@@ -950,7 +950,14 @@ async function patchCourseConversationMessages(
           END,
           "content" = CASE
             WHEN EXCLUDED."deletedAt" IS NOT NULL THEN NULL
-            ELSE EXCLUDED."content"
+            ELSE EXCLUDED."content" || jsonb_build_object(
+              'nativeContent', CASE
+                WHEN COALESCE((EXCLUDED."content"->>'nativeContentAt')::numeric, 0) >= COALESCE(("CourseConversationMessage"."content"->>'nativeContentAt')::numeric, 0)
+                  THEN COALESCE(EXCLUDED."content"->'nativeContent', "CourseConversationMessage"."content"->'nativeContent', 'null'::jsonb)
+                ELSE "CourseConversationMessage"."content"->'nativeContent'
+              END,
+              'nativeContentAt', GREATEST(COALESCE((EXCLUDED."content"->>'nativeContentAt')::numeric, 0), COALESCE(("CourseConversationMessage"."content"->>'nativeContentAt')::numeric, 0))
+            )
           END,
           "plainText" = CASE
             WHEN EXCLUDED."deletedAt" IS NOT NULL THEN NULL

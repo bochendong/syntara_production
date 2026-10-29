@@ -202,6 +202,8 @@ export async function upsertMemoryFact(args: {
   namespace: string;
   key: string;
   valueJson: unknown;
+  /** Merge while holding the row lock, rather than from a stale pre-transaction read. */
+  mergeValue?: (existing: unknown, incoming: unknown) => unknown;
   confidence?: number;
   source?: string;
   sourceRef?: unknown;
@@ -240,8 +242,11 @@ export async function upsertMemoryFact(args: {
         );
 
         const existing = existingRows[0] ? serializeFact(existingRows[0]) : null;
+        const valueJson = args.mergeValue
+          ? args.mergeValue(existing?.valueJson, args.valueJson)
+          : args.valueJson;
         const sameValue = existing
-          ? stableJson(existing.valueJson) === stableJson(args.valueJson)
+          ? stableJson(existing.valueJson) === stableJson(valueJson)
           : false;
         const factId = sameValue && existing ? existing.id : memoryFactId();
         const eventType: MemoryFactEventType = existing
@@ -302,7 +307,7 @@ export async function upsertMemoryFact(args: {
             scopeId,
             args.namespace.trim(),
             args.key.trim(),
-            jsonParam(args.valueJson),
+            jsonParam(valueJson),
             confidence,
             source,
             args.sourceRef === undefined ? null : jsonParam(args.sourceRef),
@@ -332,7 +337,7 @@ export async function upsertMemoryFact(args: {
           args.key.trim(),
           eventType,
           existing ? jsonParam(existing.valueJson) : null,
-          jsonParam(args.valueJson),
+          jsonParam(valueJson),
           source,
           args.sourceRef === undefined ? null : jsonParam(args.sourceRef),
         );

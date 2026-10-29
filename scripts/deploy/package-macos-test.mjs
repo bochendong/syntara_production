@@ -42,6 +42,8 @@ const hash = createHash('sha256');
 for await (const chunk of createReadStream(destination)) hash.update(chunk);
 const info = {
   version,
+  sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  sourceTree: execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim(),
   builtAt,
   fileName,
   size: (await stat(destination)).size,

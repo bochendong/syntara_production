@@ -569,7 +569,12 @@ function persistedLearningOrder(value: unknown): number | undefined {
 export async function saveNativeLearningProgress(
   prisma: PrismaClient,
   userId: string,
-  input: { courseId: string; kind: LearnerProgressCheckpointKind; notebookId?: string | null },
+  input: {
+    courseId: string;
+    kind: LearnerProgressCheckpointKind;
+    notebookId?: string | null;
+    updatedAt?: number;
+  },
 ) {
   const target = await resolveReadableStudyMemoryTarget(prisma, userId, 'course', input.courseId);
   if (!target) return null;
@@ -577,6 +582,8 @@ export async function saveNativeLearningProgress(
     loadLearnerState(prisma, userId, input.courseId),
     listReadableNotebookLibraryItems(prisma, userId, input.courseId),
   ]);
+  if (input.updatedAt && state && state.updatedAt >= input.updatedAt)
+    return learningProgressOf(state);
   const coverRows = await prisma.notebook.findMany({
     where: { id: { in: notebooks.map((notebook) => notebook.id) } },
     select: { id: true, coverSlideJson: true },
@@ -598,17 +605,30 @@ export async function saveNativeLearningProgress(
     kind: input.kind,
     notebookId: input.notebookId ?? undefined,
   });
-  const next: LearnerCourseState = { ...checkpointed, updatedAt: Date.now() };
-  await upsertMemoryFact({
+  const next: LearnerCourseState = {
+    ...checkpointed,
+    updatedAt: Math.min(input.updatedAt ?? Date.now(), Date.now()),
+    progressCheckpoint: checkpointed.progressCheckpoint
+      ? {
+          ...checkpointed.progressCheckpoint,
+          confirmedAt: Math.min(input.updatedAt ?? Date.now(), Date.now()),
+        }
+      : undefined,
+  };
+  const saved = await upsertMemoryFact({
     prisma,
     ownerId: userId,
     scopeType: 'user',
     namespace: LEARNER_STATE_NAMESPACE,
     key: learnerStateKey(input.courseId),
     valueJson: next,
+    mergeValue: (existing, incoming) => {
+      const current = existing as LearnerCourseState | undefined;
+      return current && current.updatedAt > next.updatedAt ? current : incoming;
+    },
     confidence: 1,
     source: 'native-app',
     sourceRef: { courseId: input.courseId, updatedAt: next.updatedAt },
   });
-  return learningProgressOf(next);
+  return learningProgressOf(saved.fact.valueJson as LearnerCourseState);
 }

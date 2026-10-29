@@ -136,17 +136,20 @@ export async function syncNativeMemories(
     reviews: input.reviews,
   });
   if (JSON.stringify(merged) !== JSON.stringify(stored)) {
-    await upsertMemoryFact({
+    const saved = await upsertMemoryFact({
       prisma,
       ownerId: userId,
       scopeType: 'user',
       namespace: NAMESPACE,
       key: courseKey(input.courseId),
       valueJson: merged,
+      mergeValue: (existing, incoming) =>
+        mergeNativeMemories(storedValue(existing), storedValue(incoming)),
       confidence: 1,
       source: 'native-app',
       sourceRef: { courseId: input.courseId, count: merged.memories.length },
     });
+    return storedValue(saved.fact.valueJson);
   }
   return merged;
 }

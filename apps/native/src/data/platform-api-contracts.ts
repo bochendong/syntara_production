@@ -485,6 +485,7 @@ export interface NativeSyncedConversationSummary {
 }
 
 export interface NativeSyncedConversationList {
+  deletedSessionIds?: string[];
   sessions: NativeSyncedConversationSummary[];
   hasMore: boolean;
   nextCursor: string | null;
@@ -510,6 +511,8 @@ export interface NativeConversationSyncPayload {
 
 export interface NativeConversationSyncResult {
   accepted: boolean;
+  deleted?: boolean;
+  serverDeletedMessageIds?: string[];
   currentRevision: number;
 }
 

@@ -6,7 +6,7 @@ import process from 'node:process';
 
 const root = process.cwd();
 const sourcePaths = {
-  conversationRoute: 'app/api/learn/conversations/route.ts',
+  conversationRoute: 'features/learn-conversations/server/learn-conversations-http.ts',
   conversationRepository: 'features/learn-conversations/server/course-conversation-repository.ts',
   learnConversationStore: 'lib/server/learn-conversation-store.ts',
   memoryFactStore: 'lib/server/memory-fact-store.ts',

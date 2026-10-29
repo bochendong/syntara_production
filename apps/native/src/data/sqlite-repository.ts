@@ -1833,7 +1833,7 @@ export class SqliteLocalRepository implements LocalRepository {
     await (
       await this.database()
     ).execute('UPDATE messages SET metadata_json = $1 WHERE id = $2', [
-      JSON.stringify(metadata),
+      JSON.stringify({ ...metadata, syncUpdatedAt: Date.now() }),
       messageId,
     ]);
   }
@@ -2446,6 +2446,7 @@ export class SqliteLocalRepository implements LocalRepository {
   async mergeSyncedConversation(
     conversation: LocalConversation,
     messages: LocalMessage[],
+    deletedMessageIds: string[] = [],
   ): Promise<number> {
     const database = await this.database();
     await database.execute(
@@ -2463,21 +2464,58 @@ export class SqliteLocalRepository implements LocalRepository {
       ],
     );
     let inserted = 0;
-    for (const message of messages) {
+    const deleted = new Set(deletedMessageIds);
+    for (const id of deleted) {
+      await database.execute('DELETE FROM messages WHERE id = $1 AND conversation_id = $2', [
+        id,
+        conversation.id,
+      ]);
+    }
+    for (const message of messages.filter((item) => !deleted.has(item.id))) {
+      const previous = await database.select<Array<{ metadata_json: string }>>(
+        'SELECT metadata_json FROM messages WHERE id = $1 AND conversation_id = $2',
+        [message.id, conversation.id],
+      );
       const result = await database.execute(
-        `INSERT OR IGNORE INTO messages (id, conversation_id, role, text, metadata_json, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+        `INSERT INTO messages (id, conversation_id, role, text, metadata_json, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT(id) DO UPDATE SET text = excluded.text, metadata_json = excluded.metadata_json
+         WHERE messages.conversation_id = excluded.conversation_id`,
         [
           message.id,
           conversation.id,
           message.role,
           message.text,
-          JSON.stringify(message.metadata ?? {}),
+          JSON.stringify({
+            ...(previous[0] ? JSON.parse(previous[0].metadata_json) : {}),
+            ...message.metadata,
+          }),
           message.createdAt,
         ],
       );
-      inserted += result.rowsAffected;
+      if (!previous.length) inserted += result.rowsAffected;
     }
     return inserted;
+  }
+  async putSyncEntry(key: string, value: string, updatedAt = Date.now()): Promise<void> {
+    await (
+      await this.database()
+    ).execute(
+      `INSERT INTO app_metadata (key, value, updated_at) VALUES ($1, $2, $3)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+       WHERE excluded.updated_at >= app_metadata.updated_at`,
+      [key, value, updatedAt],
+    );
+  }
+  async listSyncEntries(prefix: string): Promise<Array<{ key: string; value: string }>> {
+    return (await this.database()).select(
+      'SELECT key, value FROM app_metadata WHERE substr(key, 1, length($1)) = $1',
+      [prefix],
+    );
+  }
+  async removeSyncEntry(key: string, value: string): Promise<void> {
+    await (
+      await this.database()
+    ).execute('DELETE FROM app_metadata WHERE key = $1 AND value = $2', [key, value]);
   }
 }

@@ -1020,7 +1020,9 @@ export class BrowserLocalRepository implements LocalRepository {
   }
 
   async updateMessageMetadata(messageId: string, metadata: NativeMessageMetadata): Promise<void> {
-    await this.database.messages.update(messageId, { metadata });
+    await this.database.messages.update(messageId, {
+      metadata: { ...metadata, syncUpdatedAt: Date.now() },
+    });
   }
 
   async upsertStudyMemory(memory: LocalStudyMemory): Promise<LocalStudyMemory> {
@@ -1230,6 +1232,7 @@ export class BrowserLocalRepository implements LocalRepository {
   async mergeSyncedConversation(
     conversation: LocalConversation,
     messages: LocalMessage[],
+    deletedMessageIds: string[] = [],
   ): Promise<number> {
     return this.database.transaction(
       'rw',
@@ -1241,15 +1244,44 @@ export class BrowserLocalRepository implements LocalRepository {
           ...conversation,
           updatedAt: Math.max(current?.updatedAt ?? 0, conversation.updatedAt),
         });
-        const existing = new Set(
+        const deleted = new Set(deletedMessageIds);
+        const previous = new Map(
           (await this.database.messages.bulkGet(messages.map((message) => message.id)))
-            .filter(Boolean)
-            .map((message) => message!.id),
+            .filter((message): message is LocalMessage => Boolean(message))
+            .map((message) => [message.id, message]),
         );
-        const fresh = messages.filter((message) => !existing.has(message.id));
-        await this.database.messages.bulkAdd(fresh);
-        return fresh.length;
+        const incoming = messages.filter((message) => !deleted.has(message.id));
+        for (const message of incoming) {
+          const existing = previous.get(message.id);
+          if (existing && existing.conversationId !== conversation.id) continue;
+          await this.database.messages.put({
+            ...message,
+            metadata: { ...existing?.metadata, ...message.metadata },
+          });
+        }
+        await this.database.messages
+          .where('conversationId')
+          .equals(conversation.id)
+          .filter((message) => deleted.has(message.id))
+          .delete();
+        return incoming.filter((message) => !previous.has(message.id)).length;
       },
     );
+  }
+  async putSyncEntry(key: string, value: string, updatedAt = Date.now()): Promise<void> {
+    await this.database.transaction('rw', this.database.appMetadata, async () => {
+      const existing = await this.database.appMetadata.get(key);
+      if (!existing || existing.updatedAt <= updatedAt)
+        await this.database.appMetadata.put({ key, value, updatedAt });
+    });
+  }
+  async listSyncEntries(prefix: string): Promise<Array<{ key: string; value: string }>> {
+    return this.database.appMetadata.where('key').startsWith(prefix).toArray();
+  }
+  async removeSyncEntry(key: string, value: string): Promise<void> {
+    await this.database.transaction('rw', this.database.appMetadata, async () => {
+      if ((await this.database.appMetadata.get(key))?.value === value)
+        await this.database.appMetadata.delete(key);
+    });
   }
 }

@@ -60,6 +60,15 @@ export async function browserFetch(path: string, init: RequestInit = {}) {
 }
 
 export const browserEndpoints: Record<string, { path: string; method?: string }> = {
+  native_get_general_conversations: { path: '/api/native/v2/general-conversations' },
+  native_save_general_conversation: {
+    path: '/api/native/v2/general-conversations',
+    method: 'POST',
+  },
+  native_delete_general_conversation: {
+    path: '/api/native/v2/general-conversations',
+    method: 'DELETE',
+  },
   native_create_mini_lecture: { path: '/api/native/v1/mini-lectures', method: 'POST' },
   native_grade_answer: { path: '/api/native/v1/grade', method: 'POST' },
   native_grade_code: { path: '/api/native/v1/problem-code', method: 'POST' },
@@ -79,6 +88,8 @@ export const browserEndpoints: Record<string, { path: string; method?: string }>
   native_save_learning_progress: { path: '/api/native/v1/learning-progress', method: 'POST' },
   native_get_memories: { path: '/api/native/v1/memories' },
   native_sync_memories: { path: '/api/native/v1/memories', method: 'POST' },
+  native_sync_calendar: { path: '/api/native/v1/calendar', method: 'POST' },
+  native_sync_preferences: { path: '/api/native/v1/preferences', method: 'POST' },
   native_get_problems: { path: '/api/native/v1/problems' },
   native_upload_problem_attempts: { path: '/api/native/v1/problems', method: 'POST' },
   native_get_store: { path: '/api/native/v1/store' },

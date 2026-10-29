@@ -16,6 +16,7 @@ const learningProgressSchema = z.object({
   courseId: z.string().trim().min(1).max(200),
   kind: z.enum(['not_started', 'notebook', 'completed_all']),
   notebookId: z.string().trim().min(1).max(200).nullish(),
+  updatedAt: z.number().int().nonnegative().optional(),
 });
 
 /** App 上拖动学习进度后写回账号，和网页右侧的学习进度是同一份。 */

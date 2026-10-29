@@ -189,8 +189,10 @@ async function runStreamingTurn<TPayload>(
   command: 'native_chat',
   request: PlatformJsonCommandRequest<TPayload>,
   onEvent?: (event: NativePlatformStreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<NativeChatTurnResult> {
-  if (browserApp) return browserChat(request, onEvent);
+  if (browserApp) return browserChat(request, onEvent, signal);
+  signal?.throwIfAborted();
   assertTauriRuntime();
   const [{ invoke }, { listen }] = await Promise.all([
     import('@tauri-apps/api/core'),
@@ -198,7 +200,7 @@ async function runStreamingTurn<TPayload>(
   ]);
   const unlisten = onEvent
     ? await listen<NativePlatformStreamEvent>('syntara://platform-ai-stream', ({ payload }) => {
-        if (payload.requestId === request.requestId) onEvent(payload);
+        if (payload.requestId === request.requestId && !signal?.aborted) onEvent(payload);
       })
     : () => {};
   try {
@@ -221,8 +223,9 @@ async function runStreamingTurn<TPayload>(
 export function runNativeChatTurn<TPayload>(
   request: PlatformJsonCommandRequest<TPayload>,
   onEvent?: (event: NativePlatformStreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<NativeChatTurnResult> {
-  return runStreamingTurn('native_chat', request, onEvent);
+  return runStreamingTurn('native_chat', request, onEvent, signal);
 }
 
 export function createNativeMiniLecture(
@@ -434,6 +437,7 @@ export async function saveNativeLearningProgress(payload: {
   courseId: string;
   kind: NativeLearningProgress['kind'];
   notebookId: string | null;
+  updatedAt?: number;
 }): Promise<NativeLearningProgress> {
   const result = await invokeJson<typeof payload, { learningProgress: NativeLearningProgress }>(
     'native_save_learning_progress',
@@ -685,4 +689,46 @@ export function startNativeRealtimeTranscription(
       ...options,
     },
   );
+}
+
+export function syncNativeCalendar(payload: {
+  courseId: string;
+  cursor?: string;
+  changes: Array<{
+    id: string;
+    deleted?: boolean;
+    updatedAt: number;
+    event?: import('../domain/learning-experiences').LocalCourseEvent;
+  }>;
+}): Promise<{
+  events: import('../domain/learning-experiences').LocalCourseEvent[];
+  deletedIds: string[];
+  nextCursor: string | null;
+}> {
+  return invokeJson('native_sync_calendar', { requestId: crypto.randomUUID(), payload });
+}
+
+export function getGeneralConversations<T>(query: Record<string, string>): Promise<T> {
+  return invokeQuery('native_get_general_conversations', query);
+}
+export function saveGeneralConversation<T>(payload: unknown): Promise<T> {
+  return invokeJson('native_save_general_conversation', {
+    requestId: crypto.randomUUID(),
+    payload,
+  });
+}
+export function removeGeneralConversation(id: string): Promise<void> {
+  return invokeQuery('native_delete_general_conversation', { id });
+}
+
+export function syncNativePreferences(payload: {
+  profile?: import('./learner-profile').LearnerProfile;
+  memoryTourSeen?: boolean;
+  progressTourSeen?: boolean;
+}): Promise<{
+  profile?: import('./learner-profile').LearnerProfile;
+  memoryTourSeen?: boolean;
+  progressTourSeen?: boolean;
+}> {
+  return invokeJson('native_sync_preferences', { requestId: crypto.randomUUID(), payload });
 }

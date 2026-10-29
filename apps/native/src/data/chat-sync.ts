@@ -1,3 +1,5 @@
+import { syncedChatContent } from './synced-chat-content';
+import { queueSync, syncPrefix } from './sync-outbox';
 import { platformAvailable } from './browser-runtime';
 import type { LocalConversation, LocalCourse, LocalMessage } from '../domain/models';
 import { chatFileChips } from './chat-files';
@@ -17,7 +19,7 @@ import type { LocalRepository } from './repository';
 import { savePlatformCourseMeta } from '../lib/platform-course-meta';
 
 /** How many recent messages each push re-sends; the server upserts them by id. */
-const PUSH_MESSAGE_WINDOW = 40;
+const PUSH_MESSAGE_WINDOW = 20;
 const MAX_SYNCED_TEXT_LENGTH = 40_000;
 
 function timestampOf(value: number | string | undefined, fallback: number): number {
@@ -80,9 +82,14 @@ function toSyncedMessage(message: LocalMessage): NativeSyncedChatMessage | null 
     role: message.role,
     text: message.text.slice(0, MAX_SYNCED_TEXT_LENGTH),
     createdAt: message.createdAt,
+    nativeContent: syncedChatContent(message.metadata),
+    nativeContentAt:
+      typeof message.metadata?.syncUpdatedAt === 'number'
+        ? message.metadata.syncUpdatedAt
+        : message.createdAt,
     ...(images.length || files.length
       ? {
-          // 只同步附件的名字，原图、缩略图和文件留在手机上。
+          // 文件名和图片缩略图随聊天内容同步；原始上传文件不会重复保存。
           attachments: [
             ...images.map((image) => ({ name: image.name, mimeType: 'image/jpeg' })),
             ...files.map((file) => ({ name: file.name, size: file.size })),
@@ -102,6 +109,19 @@ function fromSyncedMessage(
     conversationId,
     role: message.role,
     text: message.text ?? '',
+    metadata:
+      (syncedChatContent(message.nativeContent)
+        ? { ...syncedChatContent(message.nativeContent), syncUpdatedAt: message.nativeContentAt }
+        : undefined) ??
+      (message.attachments?.length
+        ? {
+            files: message.attachments.map((file) => ({
+              name: file.name ?? '附件',
+              size: file.size,
+              kind: 'text',
+            })),
+          }
+        : undefined),
     createdAt: timestampOf(message.createdAt, fallbackTime),
   };
 }
@@ -112,17 +132,100 @@ export async function pushConversation(
   conversation: LocalConversation,
 ): Promise<void> {
   if (!(await isPlatformCourse(repository, conversation.courseId))) return;
-  const messages = (await repository.listMessages(conversation.id))
-    .slice(-PUSH_MESSAGE_WINDOW)
-    .map(toSyncedMessage)
-    .filter((message): message is NativeSyncedChatMessage => Boolean(message));
-  if (!messages.length) return;
-  await pushSyncedConversation({
-    courseId: conversation.courseId,
-    sessionId: conversation.id,
-    title: conversation.title,
-    messages,
+  if (
+    (
+      await repository.listSyncEntries(
+        syncPrefix('chat-delete', conversation.courseId) + encodeURIComponent(conversation.id),
+      )
+    ).length
+  )
+    return;
+  await queueSync(repository, 'chat', conversation.courseId, conversation.id, {
+    conversation,
+    generation: crypto.randomUUID(),
   });
+  await flushConversationOutbox(repository, conversation.courseId);
+}
+
+const chatFlushes = new WeakMap<LocalRepository, Map<string, Promise<void>>>();
+export async function flushConversationOutbox(
+  repository: LocalRepository,
+  courseId: string,
+): Promise<void> {
+  let running = chatFlushes.get(repository);
+  if (!running) {
+    running = new Map();
+    chatFlushes.set(repository, running);
+  }
+  if (running.has(courseId)) return running.get(courseId);
+  const operation = (async () => {
+    for (const entry of await repository.listSyncEntries(syncPrefix('chat-delete', courseId))) {
+      const conversation = JSON.parse(entry.value) as LocalConversation;
+      const snapshot = await loadSyncedConversation(courseId, conversation.id);
+      if (snapshot.session || snapshot.currentRevision === 0) {
+        const result = await deleteSyncedConversation(
+          courseId,
+          conversation.id,
+          snapshot.currentRevision,
+        );
+        if (!result.accepted) throw new Error('对话删除暂时未同步，将自动重试。');
+      }
+      for (const pending of await repository.listSyncEntries(
+        syncPrefix('chat', courseId) + encodeURIComponent(conversation.id),
+      )) {
+        if (pending.key === syncPrefix('chat', courseId) + encodeURIComponent(conversation.id))
+          await repository.removeSyncEntry(pending.key, pending.value);
+      }
+      await repository.removeSyncEntry(entry.key, entry.value);
+    }
+    for (const entry of await repository.listSyncEntries(syncPrefix('chat', courseId))) {
+      const { conversation } = JSON.parse(entry.value) as { conversation: LocalConversation };
+      const messages = (await repository.listMessages(conversation.id))
+        .map(toSyncedMessage)
+        .filter((message): message is NativeSyncedChatMessage => Boolean(message));
+      let batch: NativeSyncedChatMessage[] = [];
+      const send = async () => {
+        if (!batch.length) return;
+        const result = await pushSyncedConversation({
+          courseId,
+          sessionId: conversation.id,
+          title: conversation.title,
+          messages: batch,
+        });
+        if (result.deleted) {
+          await repository.deleteConversation(conversation.id);
+          return false;
+        }
+        if (!result.accepted) throw new Error('聊天同步冲突，将自动重试。');
+        if (result.serverDeletedMessageIds?.length)
+          await repository.mergeSyncedConversation(
+            conversation,
+            [],
+            result.serverDeletedMessageIds,
+          );
+        batch = [];
+        return true;
+      };
+      let deleted = false;
+      for (const message of messages) {
+        if (
+          batch.length &&
+          (batch.length >= PUSH_MESSAGE_WINDOW ||
+            JSON.stringify([...batch, message]).length > 2_800_000)
+        ) {
+          if ((await send()) === false) {
+            deleted = true;
+            break;
+          }
+        }
+        batch.push(message);
+      }
+      if (!deleted) await send();
+      await repository.removeSyncEntry(entry.key, entry.value);
+    }
+  })().finally(() => running!.delete(courseId));
+  running.set(courseId, operation);
+  return operation;
 }
 
 /** 侧边栏每页的会话数，和网页「全部会话」的下一页一样按最近更新排序。 */
@@ -184,7 +287,11 @@ export async function pullCourseConversations(
   if (!(await isPlatformCourse(repository, courseId))) {
     return { changed: false, hasMore: false, nextCursor: null, totalCount: 0 };
   }
+  await flushConversationOutbox(repository, courseId);
   const remote = await listSyncedConversations(courseId, { limit: CONVERSATION_PAGE_SIZE });
+  for (const id of remote.deletedSessionIds ?? []) {
+    if (localConversations.some((item) => item.id === id)) await repository.deleteConversation(id);
+  }
   const merged = await mergeConversationPage(
     repository,
     courseId,
@@ -197,7 +304,11 @@ export async function pullCourseConversations(
     );
   }
   return {
-    changed: merged.changed,
+    changed:
+      merged.changed ||
+      Boolean(
+        remote.deletedSessionIds?.some((id) => localConversations.some((item) => item.id === id)),
+      ),
     hasMore: remote.hasMore,
     nextCursor: remote.nextCursor,
     totalCount: remote.totalCount,
@@ -264,7 +375,12 @@ async function mergeMessagePage(
   before: string | null,
 ) {
   const snapshot = await loadSyncedConversation(courseId, sessionId, { before });
-  if (!snapshot.session) return null;
+  if (!snapshot.session) {
+    // A positive revision with no session is an explicit server tombstone.
+    // An unknown / never-uploaded local conversation must be preserved.
+    if (snapshot.currentRevision > 0) await repository.deleteConversation(sessionId);
+    return null;
+  }
   const updatedAt = timestampOf(snapshot.session.updatedAt, Date.now());
   const createdAt = timestampOf(snapshot.session.createdAt, updatedAt);
   const messages = snapshot.messages
@@ -280,6 +396,7 @@ async function mergeMessagePage(
       updatedAt,
     },
     messages,
+    snapshot.deletedMessageIds,
   );
   const page = snapshot.messagePage;
   return {
@@ -337,9 +454,9 @@ export async function deleteRemoteConversation(
   conversation: LocalConversation,
 ): Promise<void> {
   if (!(await isPlatformCourse(repository, conversation.courseId))) return;
-  const snapshot = await loadSyncedConversation(conversation.courseId, conversation.id).catch(
-    () => null,
+  await queueSync(repository, 'chat-delete', conversation.courseId, conversation.id, conversation);
+  // The durable deletion survives app restarts. Keep local deletion usable offline.
+  void flushConversationOutbox(repository, conversation.courseId).catch((cause) =>
+    console.warn('[chat-sync] deletion queued', cause),
   );
-  if (!snapshot?.session) return;
-  await deleteSyncedConversation(conversation.courseId, conversation.id, snapshot.currentRevision);
 }

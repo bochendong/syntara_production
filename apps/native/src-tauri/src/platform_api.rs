@@ -1172,10 +1172,61 @@ mod tests {
 
     #[test]
     fn validates_build_profile_base_urls() {
-        assert_eq!(validate_api_base_url(DEV_API_BASE_URL).is_ok(), cfg!(debug_assertions));
+        assert_eq!(
+            validate_api_base_url(DEV_API_BASE_URL).is_ok(),
+            cfg!(debug_assertions)
+        );
         assert!(validate_api_base_url("https://api.example.com").is_ok());
         assert!(validate_api_base_url("http://example.com").is_err());
         assert!(validate_api_base_url("https://user:password@example.com").is_err());
         assert!(validate_api_base_url("https://api.example.com/v1").is_err());
     }
+}
+
+#[tauri::command]
+pub async fn native_sync_calendar(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json("/api/native/v1/calendar", &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
+pub async fn native_get_general_conversations(
+    request: PlatformQueryRequest,
+) -> Result<Value, String> {
+    get_json(
+        &path_with_query("/api/native/v2/general-conversations", &request.query),
+        request.syntara_token.as_deref(),
+    )
+    .await
+}
+#[tauri::command]
+pub async fn native_save_general_conversation(
+    request: PlatformJsonRequest,
+) -> Result<Value, String> {
+    post_json(
+        "/api/native/v2/general-conversations",
+        &request,
+        DEFAULT_TIMEOUT,
+    )
+    .await
+}
+#[tauri::command]
+pub async fn native_delete_general_conversation(
+    request: PlatformQueryRequest,
+) -> Result<Value, String> {
+    request_json(
+        Method::DELETE,
+        &path_with_query("/api/native/v2/general-conversations", &request.query),
+        None,
+        request.syntara_token.as_deref(),
+        None,
+        None,
+        None,
+        DEFAULT_TIMEOUT,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn native_sync_preferences(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json("/api/native/v1/preferences", &request, DEFAULT_TIMEOUT).await
 }

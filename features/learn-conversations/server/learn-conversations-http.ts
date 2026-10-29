@@ -1,3 +1,4 @@
+import { syncedChatContentSchema } from '@/apps/native/src/data/synced-chat-content';
 import { enqueueJob } from '@/features/background-jobs/server/store';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -40,6 +41,8 @@ type LearnMessageContent = {
   publicTrace?: unknown;
   contextCompression?: unknown;
   attachments?: unknown;
+  nativeContent?: unknown;
+  nativeContentAt?: unknown;
 };
 
 const clientRevisionSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
@@ -135,6 +138,8 @@ const learnMessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
   text: z.string().max(40000).default(''),
   createdAt: z.number().finite().optional(),
+  nativeContent: syncedChatContentSchema.optional(),
+  nativeContentAt: z.number().finite().nonnegative().optional(),
   plan: z.unknown().optional(),
   progressProposal: z.unknown().optional(),
   pendingAction: z.unknown().optional(),
@@ -186,6 +191,8 @@ function plainTextFromMessage(message: z.infer<typeof learnMessageSchema>): stri
 function contentFromMessage(message: z.infer<typeof learnMessageSchema>): LearnMessageContent {
   return {
     type: 'learn_message',
+    nativeContent: message.nativeContent,
+    nativeContentAt: Math.min(message.nativeContentAt ?? message.createdAt ?? 0, Date.now()),
     text: message.text,
     plan: message.plan ?? null,
     progressProposal: message.progressProposal ?? null,
@@ -224,6 +231,8 @@ function messageFromRow(row: CourseConversationMessageRow) {
           ? row.plainText
           : '',
     createdAt: new Date(row.createdAt).getTime(),
+    nativeContent: content.nativeContent ?? undefined,
+    nativeContentAt: content.nativeContentAt ?? undefined,
     plan: content.plan ?? undefined,
     progressProposal: content.progressProposal ?? undefined,
     pendingAction: content.pendingAction ?? undefined,
@@ -341,6 +350,12 @@ export async function handleLearnConversationsGet(request: Request, userId: stri
     return NextResponse.json({
       storage: 'database',
       sessions: page.sessions,
+      deletedSessionIds: (
+        await prisma.courseConversation.findMany({
+          where: { ownerId: userId, courseId, deletedAt: { not: null } },
+          select: { sessionId: true },
+        })
+      ).map((row) => row.sessionId),
       hasMore: page.hasMore,
       nextCursor: page.nextCursor,
       totalCount: page.totalCount,

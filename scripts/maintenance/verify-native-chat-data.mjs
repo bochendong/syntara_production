@@ -119,6 +119,54 @@ const events = (
 assert.equal(events.length, 2);
 assert.equal(new Set(events.map((event) => event.courseId)).size, 2);
 assert.equal(new Set(events.map((event) => event.id)).size, 2);
+
+// Synchronization updates existing content, applies scoped tombstones, and never
+// reintroduces a deleted message from the same incoming page.
+const conversation = {
+  id: 'old',
+  courseId: 'course-a',
+  notebookId: null,
+  title: 'synced',
+  createdAt: 1,
+  updatedAt: 50,
+};
+const rich = {
+  id: 'sync-rich',
+  conversationId: 'old',
+  role: 'assistant',
+  text: 'before',
+  createdAt: 2,
+  metadata: { evidence: [{ id: 'source-1' }], lectureDeckId: 'local-only' },
+};
+assert.equal(await repository.mergeSyncedConversation(conversation, [rich]), 1);
+assert.equal(
+  await repository.mergeSyncedConversation(conversation, [
+    { ...rich, text: 'after', metadata: { reviewPlan: { id: 'plan', title: 'plan', tasks: [] } } },
+  ]),
+  0,
+);
+let synced = (await repository.listMessages('old')).find((item) => item.id === rich.id);
+assert.equal(synced.text, 'after');
+assert.equal(synced.metadata.lectureDeckId, 'local-only');
+assert.equal(synced.metadata.reviewPlan.id, 'plan');
+await repository.mergeSyncedConversation(
+  { ...conversation, id: 'latest-b', courseId: 'course-b' },
+  [],
+  [rich.id],
+);
+assert.ok((await repository.listMessages('old')).some((item) => item.id === rich.id));
+await repository.mergeSyncedConversation(conversation, [rich], [rich.id]);
+assert.ok(!(await repository.listMessages('old')).some((item) => item.id === rich.id));
+await repository.putSyncEntry('test:queue', 'old', 1);
+await repository.putSyncEntry('test:queue', 'new', 3);
+await repository.putSyncEntry('test:queue', 'stale', 2);
+await repository.removeSyncEntry('test:queue', 'old');
+assert.deepEqual(
+  (await repository.listSyncEntries('test:')).map((entry) => ({ ...entry })),
+  [{ key: 'test:queue', value: 'new' }],
+);
+await repository.removeSyncEntry('test:queue', 'new');
+assert.deepEqual(await repository.listSyncEntries('test:'), []);
 database.close();
 console.log(
   'Native chat SQLite: latest chat stays course-scoped, empty course, migration-9 compatibility and same-day cross-course schedules passed.',

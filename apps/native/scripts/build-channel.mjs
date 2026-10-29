@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const channel = process.argv[2];
+const platform = process.argv[3] || 'desktop';
+if (!['desktop', 'ios'].includes(platform)) throw new Error('Supported platforms: desktop, ios');
 if (channel !== 'staging') throw new Error('Supported channel: staging');
 const origin = new URL(
   process.env.SYNTARA_STAGING_API_ORIGIN ||
@@ -27,7 +29,29 @@ if (guard.status !== 0) process.exit(guard.status ?? 1);
 
 const result = spawnSync(
   'pnpm',
-  ['exec', 'tauri', 'build', '--bundles', 'app', '--config', 'src-tauri/tauri.staging.conf.json'],
+  platform === 'ios'
+    ? [
+        'exec',
+        'tauri',
+        'ios',
+        'build',
+        '--ci',
+        '--no-sign',
+        '--archive-only',
+        '--target',
+        'aarch64-sim',
+        '--config',
+        'src-tauri/tauri.staging.conf.json',
+      ]
+    : [
+        'exec',
+        'tauri',
+        'build',
+        '--bundles',
+        'app',
+        '--config',
+        'src-tauri/tauri.staging.conf.json',
+      ],
   {
     cwd,
     stdio: 'inherit',

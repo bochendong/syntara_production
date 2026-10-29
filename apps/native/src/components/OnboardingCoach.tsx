@@ -1,3 +1,4 @@
+import { syncAccountPreferences } from '../data/preferences-sync';
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowRight, Check, X } from 'lucide-react';
 import { useCompactLayout } from '../lib/use-phone-layout';
@@ -217,6 +218,12 @@ function FeatureGuide({
         /* Session fallback. */
       }
     }
+    const refreshSeen = () => {
+      for (const kind of ['memory', 'progress'] as const) {
+        if (localStorage.getItem(storageKey(kind))) seen.current.add(kind);
+      }
+    };
+    window.addEventListener('syntara:preferences-synced', refreshSeen);
     const scan = () => {
       if (current.current) {
         if (!visiblePage(featurePages[current.current])) {
@@ -230,6 +237,7 @@ function FeatureGuide({
         seen.current.add(kind);
         try {
           localStorage.setItem(storageKey(kind), 'seen');
+          void syncAccountPreferences().catch(() => undefined);
         } catch {
           /* Session fallback. */
         }
@@ -249,7 +257,10 @@ function FeatureGuide({
       attributeFilter: ['hidden', 'inert'],
     });
     scan();
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('syntara:preferences-synced', refreshSeen);
+    };
   }, [onActive, userId]);
   const finish = () => {
     if (tour?.kind === 'memory' && getGuideStep() === 'memory-tour') setGuideStep('course-menu');

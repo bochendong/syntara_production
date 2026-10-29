@@ -1,3 +1,6 @@
+import { syncCourseCalendar } from './calendar-sync';
+import { flushLearningProgress } from './progress-sync';
+export { pushLearningProgress } from './progress-sync';
 import { accountStorageKey } from './browser-runtime';
 import { checkpointProgressCount, groupNotebookTranslations } from '../lib/notebook-translations';
 import type { LocalNotebook, LocalNotebookDocument, LocalStudyMemory } from '../domain/models';
@@ -10,7 +13,6 @@ import {
   getNativeCourseData,
   getNativeMiniLecture,
   getNativeNotebook,
-  saveNativeLearningProgress,
   syncNativeMemories,
 } from './platform-api-client';
 import { syncCourseProblems } from './problem-sync';
@@ -129,6 +131,7 @@ export async function syncCourseData(
   courseId: string,
 ): Promise<CourseDataSyncResult> {
   if (!(await isPlatformCourse(repository, courseId))) return NOTHING_CHANGED;
+  await flushLearningProgress(repository, courseId);
   const remote = await getNativeCourseData(courseId);
   const local = await repository.loadCourseWorkspace(courseId);
   if (!local) return NOTHING_CHANGED;
@@ -187,29 +190,10 @@ export async function syncCourseData(
     result.memories = true;
   }
 
-  // 日历：网页日程整体覆盖上一次同步下来的那部分，手机自己加的不动。
-  const localEvents = new Map(
-    (await repository.listCourseEvents(courseId)).map((event) => [event.id, event]),
-  );
-  const changedEvents = remote.events.filter((event) => {
-    const existing = localEvents.get(event.id);
-    return (
-      !existing ||
-      existing.updatedAt !== event.updatedAt ||
-      existing.status !== event.status ||
-      existing.date !== event.date
-    );
+  result.events = await syncCourseCalendar(repository, courseId).catch((cause) => {
+    console.warn('[calendar-sync] using cached events', cause);
+    return false;
   });
-  if (changedEvents.length) {
-    await repository.upsertCourseEvents(changedEvents);
-    result.events = true;
-  }
-  const remoteEventIds = new Set(remote.events.map((event) => event.id));
-  for (const eventId of state.eventIds) {
-    if (remoteEventIds.has(eventId) || !localEvents.has(eventId)) continue;
-    await repository.deleteCourseEvent(courseId, eventId);
-    result.events = true;
-  }
 
   // 学习进度：网页上拖动得更晚就用网页的，换算成手机上「完成到第几本」。
   const progress = remote.learningProgress;
@@ -484,30 +468,4 @@ export async function loadNotebookForReading(
     throw new Error('这本笔记还没下载到手机，请联网后再打开。');
   }
   return document;
-}
-
-/** 手机上改了学习进度后写回账号；不是网页课程时什么都不做。 */
-export async function pushLearningProgress(
-  repository: LocalRepository,
-  courseId: string,
-  completedNotebookCount: number,
-  currentNotebookId: string | null,
-): Promise<void> {
-  if (!(await isPlatformCourse(repository, courseId))) return;
-  const workspace = await repository.loadCourseWorkspace(courseId);
-  const ordered = groupNotebookTranslations(workspace?.notebooks ?? []);
-  const kind =
-    completedNotebookCount <= 0
-      ? 'not_started'
-      : completedNotebookCount >= ordered.length
-        ? 'completed_all'
-        : 'notebook';
-  await saveNativeLearningProgress({
-    courseId,
-    kind,
-    notebookId:
-      kind === 'notebook'
-        ? (currentNotebookId ?? ordered[completedNotebookCount - 1]?.id ?? null)
-        : null,
-  });
 }

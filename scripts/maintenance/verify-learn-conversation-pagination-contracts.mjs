@@ -6,7 +6,10 @@ import path from 'node:path';
 import process from 'node:process';
 
 const root = process.cwd();
-const route = fs.readFileSync(path.join(root, 'app/api/learn/conversations/route.ts'), 'utf8');
+const route = fs.readFileSync(
+  path.join(root, 'features/learn-conversations/server/learn-conversations-http.ts'),
+  'utf8',
+);
 const repository = fs.readFileSync(
   path.join(root, 'features/learn-conversations/server/course-conversation-repository.ts'),
   'utf8',

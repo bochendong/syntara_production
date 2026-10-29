@@ -1,6 +1,6 @@
 {
   "name": "@syntara/native",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,7 +16,8 @@
     "android:init": "dotenv -e ../../.env.local -- tauri android init",
     "android:dev": "dotenv -e ../../.env.local -- tauri android dev",
     "android:build": "dotenv -e ../../.env.local -- tauri android build --apk",
-    "desktop:build:staging": "node scripts/build-channel.mjs staging"
+    "desktop:build:staging": "node scripts/build-channel.mjs staging",
+    "ios:build:staging": "node scripts/build-channel.mjs staging ios"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

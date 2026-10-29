@@ -1,3 +1,5 @@
+import { subscribeVisibleRefresh } from '../lib/visible-refresh';
+import { saveSyncedCourseEvents, deleteSyncedCourseEvent } from '../data/calendar-sync';
 import {
   groupNotebookTranslations,
   notebookProgressCount,
@@ -2855,7 +2857,7 @@ export function CourseWorkspace({
             (event) => !storedIds.has(event.id),
           );
           if (legacyEvents.length) {
-            await repository.upsertCourseEvents(legacyEvents);
+            await saveSyncedCourseEvents(repository, legacyEvents);
           }
           window.localStorage.removeItem(legacyStorageKey);
           if (legacyEvents.length) return repository.listCourseEvents(courseId);
@@ -3098,7 +3100,8 @@ export function CourseWorkspace({
     const courseId = workspace.course.id;
     let cancelled = false;
     setConversationPage({ nextCursor: null, totalCount: 0, state: 'idle' });
-    void (async () => {
+    const stop = subscribeVisibleRefresh(async () => {
+      if (busyRef.current) return;
       const repository = await getLocalRepository();
       const page = await pullCourseConversations(repository, courseId, conversationsRef.current);
       if (cancelled) return;
@@ -3130,13 +3133,28 @@ export function CourseWorkspace({
         );
       }
       const conversationId = activeConversationIdRef.current;
-      if (!(changed || synced?.lectures) || !conversationId || busyRef.current) return;
+      if (!conversationId || busyRef.current) return;
+      await refreshConversationMessages(repository, courseId, conversationId);
+      if (cancelled || activeConversationIdRef.current !== conversationId || busyRef.current)
+        return;
+      const stillExists = (await repository.listConversations([courseId])).some(
+        (item) => item.id === conversationId,
+      );
+      if (!stillExists) {
+        activeConversationIdRef.current = null;
+        setSelectedConversationId(null);
+        setMessages([]);
+        await onWorkspaceChangedRef.current();
+        return;
+      }
       const [loadedMessages, decks] = await Promise.all([
         repository.listMessages(conversationId),
         repository.listMiniLectureDecks(conversationId),
       ]);
       if (!cancelled && activeConversationIdRef.current === conversationId && !busyRef.current) {
-        setMessages(loadedMessages);
+        setMessages((current) =>
+          JSON.stringify(current) === JSON.stringify(loadedMessages) ? current : loadedMessages,
+        );
         setMiniLectureDecksByMessageId(
           new Map(
             decks
@@ -3145,9 +3163,10 @@ export function CourseWorkspace({
           ),
         );
       }
-    })().catch((cause) => console.warn('[chat-sync] pull failed', cause));
+    });
     return () => {
       cancelled = true;
+      stop();
     };
   }, [workspace.course.id]);
 
@@ -3318,13 +3337,14 @@ export function CourseWorkspace({
                 pushed.courseId,
                 pushed.completedNotebookCount,
                 pushed.currentNotebookId ?? null,
+                saved.updatedAt,
               ).catch((cause) => {
                 console.warn('[course-sync] progress push failed', cause);
                 if (
                   activeCourseIdRef.current === pushed.courseId &&
                   pushed.requestId === courseProgressSaveRequestRef.current
                 ) {
-                  setError('学习进度已存在手机上，但同步到账号失败，联网后再拖一次即可。');
+                  setError('学习进度已保存在本机，联网后会自动同步到账号。');
                 }
               });
               if (
@@ -3435,13 +3455,15 @@ export function CourseWorkspace({
       setError(null);
       try {
         const repository = await getLocalRepository();
-        await repository.upsertCourseEvents([item]);
+        await saveSyncedCourseEvents(repository, [item]);
         if (activeCourseIdRef.current !== courseId) return;
         setScheduleItems((current) => mergeCourseEvents(current, [item]));
         closeScheduleEditor();
         setActiveTool('calendar');
         setNotice(
-          existing ? `已更新日程“${item.title}”。` : `已把“${item.title}”保存到本机课程日历。`,
+          existing
+            ? `已更新日程“${item.title}”。`
+            : `已把“${item.title}”保存到课程日历，将自动同步到账号。`,
         );
       } catch (cause) {
         if (activeCourseIdRef.current === courseId) setError(errorMessage(cause));
@@ -3474,7 +3496,7 @@ export function CourseWorkspace({
       setError(null);
       try {
         const repository = await getLocalRepository();
-        await repository.deleteCourseEvent(courseId, itemId);
+        await deleteSyncedCourseEvent(repository, courseId, itemId);
         if (activeCourseIdRef.current === courseId) {
           setScheduleItems((current) => current.filter((item) => item.id !== itemId));
           if (editingScheduleId === itemId) closeScheduleEditor();
@@ -3565,7 +3587,7 @@ export function CourseWorkspace({
           existing.add(key);
           return true;
         });
-        if (unique.length) await repository.upsertCourseEvents(unique);
+        if (unique.length) await saveSyncedCourseEvents(repository, unique);
         if (activeCourseIdRef.current === courseId) {
           setScheduleItems((current) => mergeCourseEvents(current, unique));
         }
@@ -3856,7 +3878,7 @@ export function CourseWorkspace({
     setError(null);
     try {
       const repository = await getLocalRepository();
-      // 网页课程的对话先在网页删除，失败就保留本机记录，避免下次同步又出现。
+      // 删除先写入持久队列；离线也能删除，重连后传播到账号和其他设备。
       await deleteRemoteConversation(repository, deleting);
       await repository.deleteConversation(deleting.id);
       // 这条对话里记下的记忆一起删掉（网页同步下来的不动）。
@@ -4083,9 +4105,9 @@ export function CourseWorkspace({
       try {
         const repository = await getLocalRepository();
         if (exists) {
-          await repository.deleteCourseEvent(courseId, eventId);
+          await deleteSyncedCourseEvent(repository, courseId, eventId);
         } else {
-          await repository.upsertCourseEvents([scheduledReview]);
+          await saveSyncedCourseEvents(repository, [scheduledReview]);
         }
         if (activeCourseIdRef.current !== courseId) return;
         setScheduleItems((current) =>
@@ -4137,7 +4159,7 @@ export function CourseWorkspace({
     try {
       const repository = await getLocalRepository();
       for (const eventId of eventIds) {
-        await repository.deleteCourseEvent(courseId, eventId);
+        await deleteSyncedCourseEvent(repository, courseId, eventId);
       }
       if (activeCourseIdRef.current === courseId) {
         setScheduleItems([]);
@@ -4270,6 +4292,13 @@ export function CourseWorkspace({
           lectureDeckId: savedDeck.id,
         };
         await repository.updateMessageMetadata(message.id, nextMetadata);
+        const conversation = workspace.conversations.find(
+          (item) => item.id === message.conversationId,
+        );
+        if (conversation)
+          void pushConversation(repository, conversation).catch((cause) =>
+            console.warn('[chat-sync] card update queued', cause),
+          );
         setMessages((current) =>
           current.map((item) =>
             item.id === message.id ? { ...item, metadata: nextMetadata } : item,
@@ -4304,6 +4333,7 @@ export function CourseWorkspace({
       aiModel,
       miniLectureGenerationByMessageId,
       miniLectureAvailable,
+      workspace.conversations,
       openMiniLecture,
       platformAiAccess.message,
       workspace.course.courseCode,
@@ -4366,7 +4396,7 @@ export function CourseWorkspace({
             createdAt: existingEvent?.createdAt ?? timestamp,
             updatedAt: timestamp,
           };
-          await repository.upsertCourseEvents([courseEvent]);
+          await saveSyncedCourseEvents(repository, [courseEvent]);
           setScheduleItems((current) => mergeCourseEvents(current, [courseEvent]));
           summary = `已写入本机日历：${courseEvent.title}`;
           output = { eventId };
@@ -4385,7 +4415,7 @@ export function CourseWorkspace({
           );
           if (!event) throw new Error('当前课程中找不到这个日历事项，未执行删除。');
           const eventId = event.id;
-          await repository.deleteCourseEvent(workspace.course.id, eventId);
+          await deleteSyncedCourseEvent(repository, workspace.course.id, eventId);
           setScheduleItems((current) => current.filter((item) => item.id !== eventId));
           summary = '已从本机日历删除指定事项。';
           output = { eventId };
@@ -4519,6 +4549,13 @@ export function CourseWorkspace({
           ),
         };
         await repository.updateMessageMetadata(message.id, nextMetadata);
+        const conversation = workspace.conversations.find(
+          (item) => item.id === message.conversationId,
+        );
+        if (conversation)
+          void pushConversation(repository, conversation).catch((cause) =>
+            console.warn('[chat-sync] card update queued', cause),
+          );
         setMessages((current) =>
           current.map((item) =>
             item.id === message.id ? { ...item, metadata: nextMetadata } : item,
@@ -4561,6 +4598,7 @@ export function CourseWorkspace({
     },
     [
       busyLearningActionId,
+      workspace.conversations,
       generateMiniLecture,
       onWorkspaceChanged,
       openMemoryDialog,
@@ -4649,6 +4687,16 @@ export function CourseWorkspace({
               }
             : {}),
         });
+        void pushConversation(repository, {
+          id: conversationId,
+          courseId: workspace.course.id,
+          notebookId: null,
+          title:
+            workspace.conversations.find((item) => item.id === conversationId)?.title ??
+            text.slice(0, 24),
+          createdAt: userMessage.createdAt,
+          updatedAt: userMessage.createdAt,
+        }).catch((cause) => console.warn('[chat-sync] user message queued', cause));
         const history = [...messages, userMessage].slice(-12);
         optimisticAssistantId = `stream-${crypto.randomUUID()}`;
         const optimisticAssistant: LocalMessage = {
@@ -5068,8 +5116,8 @@ export function CourseWorkspace({
     }
     open();
   };
-  // 手机没有题库；加入的机构课程里补的笔记和题目只在自己的私有层。
-  const materialKinds: CourseMaterialKind[] = phoneLayout ? ['notes'] : ['notes', 'problems'];
+  // 各端提供相同的题库和资料入口；加入课程的内容仍写入私有层。
+  const materialKinds: CourseMaterialKind[] = ['notes', 'problems'];
   const enrolledCourse = courseMeta[workspace.course.id]?.accessRole === 'enrolled';
   const courseToolActions: DrawerLearningAction[] = [
     { id: 'materials', label: '资料', icon: FolderUp, open: () => setPhonePage('materials') },
@@ -5089,17 +5137,13 @@ export function CourseWorkspace({
       count: workspace.memories.length,
     },
     { id: 'classroom', label: '课堂', icon: Presentation, open: () => setPhonePage('classroom') },
-    ...(!phoneLayout
-      ? [
-          {
-            id: 'problems',
-            label: '题库',
-            icon: FileQuestion,
-            open: openProblemBank,
-            count: workspace.problems.length,
-          },
-        ]
-      : []),
+    {
+      id: 'problems',
+      label: '题库',
+      icon: FileQuestion,
+      open: openProblemBank,
+      count: workspace.problems.length,
+    },
   ];
 
   const floatSections = useMemo<LearningFloatSection[]>(() => {
@@ -5454,7 +5498,7 @@ export function CourseWorkspace({
                   : [
                       '我现在学到哪里了？',
                       '帮我安排今天复习',
-                      phoneLayout ? '拍一道题问 Haru' : '给我开一个小测',
+                      phoneLayout ? '拍一道题问助教' : '给我开一个小测',
                       '我最近哪里最薄弱？',
                     ]
                 ).map((suggestion) => (
@@ -5465,7 +5509,7 @@ export function CourseWorkspace({
                       suggestion === PLATFORM_TUTORIAL_QUESTION ? 'tutorial-ask' : undefined
                     }
                     onClick={() => {
-                      if (suggestion === '拍一道题问 Haru') {
+                      if (suggestion === '拍一道题问助教') {
                         imageInputRef.current?.click();
                         return;
                       }

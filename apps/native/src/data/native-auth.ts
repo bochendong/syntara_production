@@ -69,6 +69,7 @@ function emitAuthChanged(session: NativeAuthSession | null) {
 
 async function persistSession(session: NativeDeviceTokenPair & { savedAt: string }): Promise<void> {
   await invoke('save_native_auth_session', { session: JSON.stringify(session) });
+  setBrowserAccount(session.user.id);
   cachedSession = session;
   emitAuthChanged(session);
 }
@@ -116,6 +117,7 @@ export async function loadNativeAuthSession(): Promise<NativeAuthSession | null>
       try {
         const parsed: unknown = JSON.parse(serialized);
         if (isValidSession(parsed)) {
+          setBrowserAccount(parsed.user.id);
           cachedSession = parsed;
           return parsed;
         }

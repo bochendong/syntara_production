@@ -16,5 +16,10 @@
         "hiddenTitle": true
       }
     ]
+  },
+  "bundle": {
+    "iOS": {
+      "template": "src-tauri/project.staging.ios.yml"
+    }
   }
 }

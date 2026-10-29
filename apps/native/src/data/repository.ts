@@ -141,7 +141,12 @@ export interface LocalRepository {
   mergeSyncedConversation(
     conversation: LocalConversation,
     messages: LocalMessage[],
+    deletedMessageIds?: string[],
   ): Promise<number>;
+  /** Durable, account-scoped synchronization entries; removal is compare-and-delete. */
+  putSyncEntry(key: string, value: string, updatedAt?: number): Promise<void>;
+  listSyncEntries(prefix: string): Promise<Array<{ key: string; value: string }>>;
+  removeSyncEntry(key: string, value: string): Promise<void>;
 }
 
 let repositoryPromise: Promise<LocalRepository> | null = null;

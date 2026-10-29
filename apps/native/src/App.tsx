@@ -1,3 +1,7 @@
+import { flushPendingAccountChanges } from './data/pending-sync';
+import { syncAccountPreferences } from './data/preferences-sync';
+import { subscribeVisibleRefresh } from './lib/visible-refresh';
+import { syncCourseCalendar } from './data/calendar-sync';
 import { AppNavigationRail } from './components/AppNavigationRail';
 import { AppNavigationContext, type AppNavigation } from './components/app-navigation-context';
 import { browserApp, platformAvailable } from './data/browser-runtime';
@@ -130,6 +134,25 @@ function AuthenticatedApp() {
         : null;
     });
   }, []);
+
+  useEffect(
+    () =>
+      subscribeVisibleRefresh(
+        async () => {
+          const repository = await getLocalRepository();
+          await syncAccountPreferences().catch((cause) =>
+            console.warn('[preferences-sync] deferred', cause),
+          );
+          const ids = await syncPlatformCourses(repository);
+          setPlatformCourseIds(ids);
+          setCourses(await repository.listCourseSummaries());
+          await flushPendingAccountChanges(repository, ids ?? []);
+        },
+        60_000,
+        ['syntara-native-learner-profile-changed'],
+      ),
+    [],
+  );
 
   const loadWorkspace = useCallback(async (courseId: string | null) => {
     if (!courseId) {
@@ -305,22 +328,30 @@ function AuthenticatedApp() {
     let cancelled = false;
     setCalendarLoading(true);
     setCalendarError(null);
-    void getLocalRepository()
-      .then(async (repository) => {
+    const stop = subscribeVisibleRefresh(async () => {
+      const repository = await getLocalRepository();
+      await Promise.all(
+        launchCourses.map((course) =>
+          syncCourseCalendar(repository, course.id).catch((cause) =>
+            console.warn('[calendar-sync] using cached events', cause),
+          ),
+        ),
+      );
+      try {
         const groups = await Promise.all(
           launchCourses.map((course) => repository.listCourseEvents(course.id)),
         );
         if (!cancelled) setGlobalEvents(groups.flat());
-      })
-      .catch((cause) => {
+      } catch (cause) {
         if (!cancelled)
           setCalendarError(cause instanceof Error ? cause.message : '暂时无法读取课程安排');
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setCalendarLoading(false);
-      });
+      }
+    });
     return () => {
       cancelled = true;
+      stop();
     };
   }, [globalPage, launchCourses, calendarRevision]);
 

@@ -1,3 +1,4 @@
+import { appBuild } from '../build-info';
 import {
   Suspense,
   lazy,
@@ -787,7 +788,12 @@ export function PhoneProfilePage({
             退出登录
           </button>
         </div>
-        <p className="phone-group-footer phone-me-footer">聊天记录会和网页账号同步。</p>
+        <p className="phone-group-footer phone-me-footer">聊天、学习进度和日历会自动同步到账号。</p>
+        <p className="phone-group-footer" data-testid="app-build">
+          Syntara {appBuild.version} · {appBuild.channel} · {appBuild.release}
+          <br />
+          构建 {appBuild.revision.slice(0, 8)}
+        </p>
 
         {sheet === 'avatar' ? (
           <div className="phone-sheet-layer">
