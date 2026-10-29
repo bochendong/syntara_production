@@ -242,7 +242,7 @@ function racketEnv(): NodeJS.ProcessEnv {
       ([key, value]) =>
         Boolean(value?.trim()) && (key === 'PATH' || key === 'HOME' || key.startsWith('PLT')),
     ),
-  );
+  ) as NodeJS.ProcessEnv;
   const buildAddonDir = path.join(process.cwd(), '.racket');
   if (!env.PLTADDONDIR && existsSync(buildAddonDir)) env.PLTADDONDIR = buildAddonDir;
   return env;
