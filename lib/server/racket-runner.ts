@@ -46,7 +46,11 @@ export const RACKET_DRIVER = String.raw`
   (if (exn? e) (exn-message e) (format "~a" e)))
 
 (define (read-all-forms str)
-  (parameterize ([read-case-sensitive #t] [read-accept-reader #f] [read-accept-lang #f])
+  ;; Read tests the way the teaching languages do: 7.99 is the exact number 799/100.
+  (parameterize ([read-case-sensitive #t]
+                 [read-decimal-as-inexact #f]
+                 [read-accept-reader #f]
+                 [read-accept-lang #f])
     (with-input-from-string str
       (lambda ()
         (let loop ([acc '()])
