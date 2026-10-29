@@ -23,7 +23,7 @@ after(() => rmSync(temporary, { recursive: true, force: true }));
 
 // Execute the browser worker's real code and installed Python runtime. Only the
 // worker message bridge is adapted to Node; submitted code sees no host globals.
-function execute(code) {
+function execute(code, input = {}) {
   return new Promise((resolveResult, reject) => {
     const worker = new Worker(
       `
@@ -55,7 +55,7 @@ function execute(code) {
       if (message.type === 'done' || message.type === 'output-limit') finish(undefined, message);
     });
     worker.on('error', (error) => finish(error));
-    worker.postMessage({ code, indexURL });
+    worker.postMessage({ code, indexURL, ...input });
   });
 }
 
@@ -106,4 +106,36 @@ test('runs have fresh Python globals and input fails instead of hanging', async 
   assert.equal(output(fresh), 'False\n');
   const input = await execute('input("name: ")');
   assert.match(input.error, /EOFError/);
+});
+
+test('debug reads CSV columns and nested input files in its virtual directory', async () => {
+  const result = await execute(
+    "import csv\nwith open('data/scores.csv', newline='') as file:\n    values = [float(row['score']) for row in csv.DictReader(file)]\nprint(sum(values) / len(values))",
+    {
+      files: [
+        {
+          path: 'data/scores.csv',
+          content: 'name,score\nAlice,80\nBob,90\nCharlie,70\nDiana,100\n',
+        },
+      ],
+    },
+  );
+  assert.equal(result.error, undefined);
+  assert.equal(output(result), '85.0\n');
+  const next = await execute("import os\nprint(os.path.exists('data/scores.csv'))");
+  assert.equal(output(next), 'False\n');
+});
+
+test('debug uses supplied stdin instead of the host input', async () => {
+  const result = await execute('print(input())', { stdin: 'score\n' });
+  assert.equal(result.error, undefined);
+  assert.equal(output(result), 'score\n');
+});
+
+test('debug refuses files outside the virtual working directory', async () => {
+  for (const path of ['../outside.csv', '/outside.csv', 'data/../../outside.csv']) {
+    const result = await execute('print(42)', { files: [{ path, content: 'private' }] });
+    assert.match(result.error, /安全的相对路径/);
+    assert.equal(output(result), '');
+  }
 });

@@ -2712,6 +2712,62 @@ textarea:focus-visible {
   transform: translateX(-50%);
 }
 
+.native-toast-copy {
+  min-width: 0;
+}
+
+.native-toast-copy strong {
+  font-weight: 600;
+}
+
+.native-toast-copy p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.native-toast-icon {
+  flex: none;
+}
+
+.native-toast button {
+  display: grid;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.native-toast button:hover {
+  background: rgb(15 23 42 / 6%);
+}
+
+.native-toast.is-success {
+  border-color: rgb(16 185 129 / 25%);
+  background: rgb(236 253 245 / 96%);
+  color: #065f46;
+}
+
+.native-toast.is-warning {
+  border-color: rgb(245 158 11 / 30%);
+  background: rgb(255 251 235 / 96%);
+  color: #92400e;
+}
+
+.native-toast.is-error {
+  border-color: rgb(244 63 94 / 25%);
+  background: rgb(255 241 242 / 96%);
+  color: #9f1239;
+}
+
 .course-switch-progress svg {
   animation: spin 1s linear infinite;
 }

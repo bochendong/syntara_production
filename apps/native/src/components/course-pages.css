@@ -1475,11 +1475,16 @@ span.pb-row-marble img {
   animation: pp-marble-drop 520ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* 自动下一题前，绿弹珠慢慢滚一圈当作倒计时。 */
-.pp-next.is-passed img {
-  animation:
-    pp-marble-drop 520ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    sheet-cell-spin 1400ms linear;
+/* Submission notifications stay above the handwriting toolbar. */
+.native-toast.pp-submission-notice {
+  z-index: 60;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  width: min(420px, calc(100% - 32px));
+  box-sizing: border-box;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  font-size: 16px;
 }
 
 /* 一组刷完：弹珠一颗颗落进玻璃罐。 */

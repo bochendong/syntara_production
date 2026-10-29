@@ -125,6 +125,8 @@ import {
   type PartCodeRun,
 } from './problem-bank/multipart-practice';
 import { LearningEmptyState } from './LearningEmptyState';
+import { NativeToast } from './NativeToast';
+import { submissionFeedback, type SubmissionFeedback } from '../lib/submission-feedback';
 import { ContentLanguageSwitch } from './ContentLanguageSwitch';
 import { problemSolution } from '../lib/problem-solution';
 import { syncAppMemories } from '../data/course-sync';
@@ -251,6 +253,8 @@ function asCodeContent(
     type: 'code',
     stem: typeof content.stem === 'string' ? content.stem : '',
     language: typeof content.language === 'string' ? content.language : 'python',
+    files: Array.isArray(content.files) ? (content.files as NotebookCodeFile[]) : [],
+    stdin: typeof content.stdin === 'string' ? content.stdin : undefined,
     starterCode: typeof content.starterCode === 'string' ? content.starterCode : undefined,
     functionSignature:
       typeof content.functionSignature === 'string' ? content.functionSignature : undefined,
@@ -431,7 +435,7 @@ export function ProblemPracticePage({
   const sheetRef = useRef<HTMLDivElement>(null);
   const sheetAnchorRef = useRef<HTMLDivElement>(null);
   const sheetTriggerRef = useRef<HTMLButtonElement>(null);
-  const autoNextRef = useRef<number | null>(null);
+  const [submissionNotice, setSubmissionNotice] = useState<SubmissionFeedback | null>(null);
   const stackedPanes = useStackedPanes();
   const [partDrafts, setPartDrafts] = useState<Record<string, LocalPartAnswer>>({});
   const [stemCollapsed, setStemCollapsed] = useState(true);
@@ -654,29 +658,36 @@ export function ProblemPracticePage({
       return;
     }
     try {
-      cancelDebugRef.current = runPythonDebug(answer.code, (event) => {
-        if (sequence !== debugSequence.current) return;
-        if (event.type === 'output') {
-          setDebugResult((previous) => ({ ...previous, output: previous.output + event.text }));
-        } else if (event.type === 'ready') {
-          setDebugResult((previous) => ({ ...previous, phase: 'running' }));
-        } else {
-          cancelDebugRef.current = null;
-          const error =
-            event.type === 'done'
-              ? (event.error ?? '')
-              : event.type === 'timeout'
-                ? event.message
-                : event.type === 'output-limit'
-                  ? '输出超过 64 KB，已停止。'
-                  : '';
-          setDebugResult((previous) => ({
-            ...previous,
-            error,
-            phase: event.type === 'stopped' ? 'stopped' : error ? 'error' : 'success',
-          }));
-        }
-      });
+      cancelDebugRef.current = runPythonDebug(
+        answer.code,
+        (event) => {
+          if (sequence !== debugSequence.current) return;
+          if (event.type === 'output') {
+            setDebugResult((previous) => ({ ...previous, output: previous.output + event.text }));
+          } else if (event.type === 'ready') {
+            setDebugResult((previous) => ({ ...previous, phase: 'running' }));
+          } else {
+            cancelDebugRef.current = null;
+            const error =
+              event.type === 'done'
+                ? (event.error ?? '')
+                : event.type === 'timeout'
+                  ? event.message
+                  : event.type === 'output-limit'
+                    ? '输出超过 64 KB，已停止。'
+                    : '';
+            setDebugResult((previous) => ({
+              ...previous,
+              error,
+              phase: event.type === 'stopped' ? 'stopped' : error ? 'error' : 'success',
+            }));
+          }
+        },
+        {
+          files: (codeContent?.files ?? []).filter((file) => file.role !== 'expected_output'),
+          stdin: codeContent?.stdin,
+        },
+      );
     } catch (cause) {
       setDebugResult({
         phase: 'error',
@@ -778,18 +789,17 @@ export function ProblemPracticePage({
     return () => window.removeEventListener('pointerdown', dismiss);
   }, [sheetOpen]);
 
-  // 换题时取消还没跑完的自动下一题。
   useEffect(() => {
     setJustGraded(null);
-    if (autoNextRef.current) window.clearTimeout(autoNextRef.current);
-    autoNextRef.current = null;
+    setSubmissionNotice(null);
+    setSubmitting(false);
   }, [currentId]);
-  useEffect(
-    () => () => {
-      if (autoNextRef.current) window.clearTimeout(autoNextRef.current);
-    },
-    [],
-  );
+
+  useEffect(() => {
+    if (!submissionNotice) return;
+    const timer = window.setTimeout(() => setSubmissionNotice(null), 6_000);
+    return () => window.clearTimeout(timer);
+  }, [submissionNotice]);
 
   /** 下一题：从当前往后第一道还没通过的，没有就按顺序下一道。 */
   const nextTarget = useCallback(
@@ -827,6 +837,8 @@ export function ProblemPracticePage({
       if (!currentProblem || !answerToSubmit || !answerHasContent(answerToSubmit) || submitting)
         return;
       saveDraft();
+      const sequence = snapshotSequence.current;
+      setSubmissionNotice(null);
       setSubmitting(true);
       setError(null);
       try {
@@ -942,7 +954,12 @@ export function ProblemPracticePage({
                 },
               });
         if (serverCodeId) clearPendingCodeSubmission(currentProblem.id, serverCodeId);
+        // Persist/sync even if the learner changed questions while grading.
+        if (!serverCodeId && !codePreview)
+          void queueProblemAttempt(repository, currentProblem.courseId, saved.attempt);
+        if (sequence !== snapshotSequence.current) return;
         setDocument(saved.document);
+        setSubmissionNotice(submissionFeedback([grade]));
         setFeedback(grade.feedback);
         const status: ProblemStatus = grade.status === 'pending' ? 'pending' : grade.status;
         const nextStatuses = new Map(statuses);
@@ -953,27 +970,20 @@ export function ProblemPracticePage({
         // 这一组每题都做过了：弹珠落进罐子。
         if (finish === 'hidden' && orderedIds.every((id) => nextStatuses.has(id))) {
           setFinish('shown');
-        } else if (status === 'passed') {
-          // 做对了就自动进下一题；做错的留在这里看反馈。
-          const target = nextTarget(nextStatuses);
-          if (target) {
-            autoNextRef.current = window.setTimeout(() => setCurrentId(target), 1400);
-          }
         }
-        // 网页课程的作答同步到网页题库；传不上去会排队，下次打开课程再传。
-        if (!serverCodeId && !codePreview)
-          void queueProblemAttempt(repository, currentProblem.courseId, saved.attempt);
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        if (sequence !== snapshotSequence.current) return;
+        const message = cause instanceof Error ? cause.message : String(cause);
+        setError(message);
+        setSubmissionNotice({ tone: 'error', title: '提交未完成', description: message });
       } finally {
-        setSubmitting(false);
+        if (sequence === snapshotSequence.current) setSubmitting(false);
       }
     },
     [
       answer,
       currentProblem,
       finish,
-      nextTarget,
       orderedIds,
       saveDraft,
       setStatuses,
@@ -1028,6 +1038,7 @@ export function ProblemPracticePage({
     async (labels: string[], photoDrafts?: Record<string, LocalPartAnswer>) => {
       if (!currentProblem || !isMultipart || submitting || snapshotBusy) return;
       const sequence = snapshotSequence.current;
+      setSubmissionNotice(null);
       setSubmitting(true);
       setError(null);
       try {
@@ -1181,6 +1192,16 @@ export function ProblemPracticePage({
         );
         if (sequence !== snapshotSequence.current) return;
         setDocument(saved.document);
+        setSubmissionNotice(
+          submissionFeedback(
+            results
+              .filter((part) => labels.includes(part.label))
+              .map((part) =>
+                part.gradedAt === now ? part : { ...part, status: 'pending' as const },
+              ),
+            true,
+          ),
+        );
         setPartDrafts((current) => {
           const next = { ...current };
           for (const label of completedLabels) delete next[label];
@@ -1205,7 +1226,10 @@ export function ProblemPracticePage({
           setFinish('shown');
         }
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        if (sequence !== snapshotSequence.current) return;
+        const message = cause instanceof Error ? cause.message : String(cause);
+        setError(message);
+        setSubmissionNotice({ tone: 'error', title: '本问提交未完成', description: message });
       } finally {
         if (sequence === snapshotSequence.current) setSubmitting(false);
       }
@@ -1227,16 +1251,12 @@ export function ProblemPracticePage({
     ],
   );
 
-  const cancelAutoNext = () => {
-    if (autoNextRef.current) window.clearTimeout(autoNextRef.current);
-    autoNextRef.current = null;
-  };
   const persistLearningAction = async (
     event: ProblemLearningEvent,
     nextAnswer: LocalProblemAnswer,
   ) => {
     if (!currentProblem || snapshotBusy) return false;
-    cancelAutoNext();
+    setSubmissionNotice(null);
     saveDraft();
     const problem = currentProblem;
     const sequence = ++snapshotSequence.current;
@@ -1320,7 +1340,7 @@ export function ProblemPracticePage({
     }
   };
   const requestSolution = () => {
-    cancelAutoNext();
+    setSubmissionNotice(null);
     if (!solution || !(solution.answer || solution.code || solution.explanation)) {
       setSolutionError('这道题尚未配置参考答案。');
       return;
@@ -1380,7 +1400,7 @@ export function ProblemPracticePage({
     }
   };
   const requestHiddenTests = (part = '') => {
-    cancelAutoNext();
+    setSubmissionNotice(null);
     if (revealedHiddenTests[part] || snapshotBusy) return;
     setSolutionError(null);
     setHiddenConfirm(part);
@@ -1443,6 +1463,13 @@ export function ProblemPracticePage({
 
   return (
     <section className="native-problem-practice" aria-label="本地做题器">
+      {submissionNotice ? (
+        <NativeToast
+          {...submissionNotice}
+          className="pp-submission-notice"
+          onDismiss={() => setSubmissionNotice(null)}
+        />
+      ) : null}
       <header className="pp-header">
         <div className="pp-header-context">
           <div
