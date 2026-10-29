@@ -105,6 +105,7 @@ import { CodeProblemStatement } from './problem-bank/code-problem-statement';
 import { ProblemImageAssets, ProblemRichText } from './problem-bank/problem-rich-text';
 import type { NotebookProblemPublicContent } from './problem-bank/types';
 import type { ProblemBankLaunch } from './ProblemBankPage';
+import { adjacentPracticeProblem } from '../data/problem-practice-scope';
 import {
   SheetCell,
   STATUS_MARBLES,
@@ -475,7 +476,7 @@ export function ProblemPracticePage({
     () => (currentProblem ? localizeProblem(currentProblem, language) : null),
     [currentProblem, language],
   );
-  const chapterTitle = displayedProblem?.chapterName || launch.title;
+  const chapterTitle = launch.title || displayedProblem?.chapterName || undefined;
   const total = orderedIds.length;
   const isCode = currentProblem ? problemIsCode(currentProblem) : false;
   const publicContent = displayedProblem ? problemPublicContent(displayedProblem) : {};
@@ -766,13 +767,13 @@ export function ProblemPracticePage({
   }, [currentProblem, saveDraft]);
 
   const goRelative = useCallback(
-    (delta: number) => {
-      const nextIndex = currentIndex + delta;
-      if (nextIndex < 0 || nextIndex >= orderedIds.length) return;
+    (delta: -1 | 1) => {
+      const target = adjacentPracticeProblem(orderedIds, currentId, delta);
+      if (!target) return;
       setSheetOpen(false);
-      setCurrentId(orderedIds[nextIndex]);
+      setCurrentId(target);
     },
-    [currentIndex, orderedIds],
+    [currentId, orderedIds],
   );
 
   useEffect(() => {
@@ -800,15 +801,6 @@ export function ProblemPracticePage({
     const timer = window.setTimeout(() => setSubmissionNotice(null), 6_000);
     return () => window.clearTimeout(timer);
   }, [submissionNotice]);
-
-  /** 下一题：从当前往后第一道还没通过的，没有就按顺序下一道。 */
-  const nextTarget = useCallback(
-    (fromStatuses: Map<string, ProblemStatus>) => {
-      const after = orderedIds.slice(currentIndex + 1);
-      return after.find((id) => fromStatuses.get(id) !== 'passed') ?? after[0] ?? null;
-    },
-    [currentIndex, orderedIds],
-  );
 
   const toggleChoice = useCallback(
     (optionId: string) => {
@@ -2164,10 +2156,7 @@ export function ProblemPracticePage({
                         <button
                           type="button"
                           className={`pp-next is-${justGraded}`}
-                          onClick={() => {
-                            const target = nextTarget(statuses);
-                            if (target) setCurrentId(target);
-                          }}
+                          onClick={() => goRelative(1)}
                         >
                           <img src={marbleImages[STATUS_MARBLES[justGraded]]} alt="" />
                           下一题
@@ -2364,10 +2353,7 @@ export function ProblemPracticePage({
                       <button
                         type="button"
                         className={`pp-next is-${justGraded}`}
-                        onClick={() => {
-                          const target = nextTarget(statuses);
-                          if (target) setCurrentId(target);
-                        }}
+                        onClick={() => goRelative(1)}
                       >
                         <img src={marbleImages[STATUS_MARBLES[justGraded]]} alt="" />
                         下一题
