@@ -9,7 +9,7 @@ import {
 import { ArrowLeft, Check, ChevronLeft, LayoutGrid, List, Play, Search, X } from 'lucide-react';
 
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
-import { matchesProblemFilters } from '../data/problem-bank-filters';
+import { matchesProblemFilters, problemPaperSeries } from '../data/problem-bank-filters';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
 import {
   SheetCell,
@@ -462,9 +462,17 @@ export function ProblemBankPage({
   const [openKey, setOpenKey] = useState<string | null>(() =>
     readCourseValue<string>('session', OPEN_CHAPTER_KEY, courseId),
   );
+  const seriesOptions = useMemo(() => problemPaperSeries(bankProblems), [bankProblems]);
+  const [seriesSelection, setSeriesSelection] = useState({ courseId, tag: '' });
+  const activeSeries =
+    seriesSelection.courseId === courseId &&
+    seriesOptions.some(([tag]) => tag === seriesSelection.tag)
+      ? seriesSelection.tag
+      : '';
   // 只有一章时不需要章节墙，直接进这一章。
-  const openChapter =
-    openKey === ALL_CHAPTERS
+  const openChapter = activeSeries
+    ? null
+    : openKey === ALL_CHAPTERS
       ? allChapter
       : chapters.length === 1
         ? chapters[0]
@@ -581,7 +589,7 @@ export function ProblemBankPage({
   const [searchCount, setSearchCount] = useState(LIST_PAGE_SIZE);
   const searchResults = useMemo(() => {
     const q = query.trim();
-    if (!q) return [];
+    if (!q && !activeSeries) return [];
     return chapters.flatMap((chapter) =>
       chapter.problems.filter((problem) =>
         matchesProblemFilters(sourceProblems.get(problem.id) ?? problem, {
@@ -589,10 +597,33 @@ export function ProblemBankPage({
           type: 'all',
           difficulty: 'all',
           chapter: 'all',
+          series: activeSeries,
         }),
       ),
     );
-  }, [chapters, query, sourceProblems]);
+  }, [chapters, query, sourceProblems, activeSeries]);
+
+  const seriesFilter = seriesOptions.length ? (
+    <div className="pb-series-filter">
+      <label htmlFor="problem-paper-series">系列</label>
+      <select
+        id="problem-paper-series"
+        value={activeSeries}
+        onChange={(event) => {
+          setSeriesSelection({ courseId, tag: event.target.value });
+          setSearchCount(LIST_PAGE_SIZE);
+          openChapterKey(null);
+        }}
+      >
+        <option value="">全部系列</option>
+        {seriesOptions.map(([tag, count]) => (
+          <option key={tag} value={tag}>
+            {tag} · {count}题
+          </option>
+        ))}
+      </select>
+    </div>
+  ) : null;
 
   const courseLabel = workspace.course.courseCode || workspace.course.name;
   if (!bankProblems.length) {
@@ -687,24 +718,27 @@ export function ProblemBankPage({
               </div>
             </div>
 
-            <label className="pb-search">
-              <Search size={17} />
-              <input
-                value={query}
-                aria-label="搜索题目、章节或知识点"
-                placeholder="搜索题目、章节或知识点"
-                type="search"
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setListCount(LIST_PAGE_SIZE);
-                }}
-              />
-              {query ? (
-                <button type="button" onClick={() => setQuery('')} aria-label="清空搜索">
-                  <X size={14} />
-                </button>
-              ) : null}
-            </label>
+            <div className="material-search-row pb-bank-search-row">
+              <label className="pb-search">
+                <Search size={17} />
+                <input
+                  value={query}
+                  aria-label="搜索题目、章节或知识点"
+                  placeholder="搜索题目、章节或知识点"
+                  type="search"
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setListCount(LIST_PAGE_SIZE);
+                  }}
+                />
+                {query ? (
+                  <button type="button" onClick={() => setQuery('')} aria-label="清空搜索">
+                    <X size={14} />
+                  </button>
+                ) : null}
+              </label>
+              {seriesFilter}
+            </div>
             <div className="pb-chapter-body">
               <aside className="pb-chapter-side">
                 <div className="pb-chapter-stats" aria-label="这一章">
@@ -901,7 +935,7 @@ export function ProblemBankPage({
       <div className="pb-scroll">
         <div className="pb-column">
           {releaseControl}
-          <div className="material-search-row">
+          <div className="material-search-row pb-bank-search-row">
             <label className="pb-search">
               <Search size={17} />
               <input
@@ -923,11 +957,34 @@ export function ProblemBankPage({
             {onUploadFiles ? (
               <MaterialUploadButton label="上传题目" onFiles={onUploadFiles} />
             ) : null}
+            {seriesFilter}
           </div>
 
-          {query.trim() ? (
+          {query.trim() || activeSeries ? (
             searchResults.length ? (
               <>
+                {activeSeries ? (
+                  <div className="pb-series-summary">
+                    <span>
+                      <strong>{activeSeries}</strong> · {searchResults.length} 题
+                    </span>
+                    <button
+                      type="button"
+                      className="pb-wall-go"
+                      onClick={() =>
+                        startPractice(
+                          searchResults,
+                          firstUnpassed(searchResults),
+                          activeSeries,
+                          null,
+                        )
+                      }
+                    >
+                      <Play size={12} fill="currentColor" />
+                      开始练习
+                    </button>
+                  </div>
+                ) : null}
                 <ol className="pb-list pb-search-results">
                   {searchResults.slice(0, searchCount).map((problem, index) => (
                     <li
@@ -941,7 +998,12 @@ export function ProblemBankPage({
                           status={statuses.get(problem.id)}
                           badges={badgesFor(problem)}
                           onClick={() => {
-                            startPractice(searchResults, problem, query.trim(), null);
+                            startPractice(
+                              searchResults,
+                              problem,
+                              activeSeries || query.trim(),
+                              null,
+                            );
                           }}
                         />
                       </LayerItem>

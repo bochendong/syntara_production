@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { matchesProblemFilters } from '../../apps/native/src/data/problem-bank-filters';
+import {
+  matchesProblemFilters,
+  problemPaperSeries,
+} from '../../apps/native/src/data/problem-bank-filters';
 import { problemAiGradeRequest } from '../../apps/native/src/data/problem-ai-grading';
 import type { LocalProblem } from '../../apps/native/src/domain/models';
 
@@ -30,6 +33,42 @@ const problem: LocalProblem = {
   updatedAt: 1,
 };
 const base = { query: '', type: 'all', difficulty: 'all', chapter: 'all' };
+const currentOnly = { ...problem, id: 'current', tags: ['TT2模拟A卷', '函数', 'TT2'] };
+const originalOnly = { ...problem, id: 'original', tags: ['TT2原版模拟A卷'] };
+const shared = { ...problem, id: 'shared', tags: ['TT2模拟A卷', 'TT2原版模拟A卷', 'TT2模拟A卷'] };
+const paperProblems = [currentOnly, originalOnly, shared, problem];
+assert.deepEqual(
+  new Map(problemPaperSeries(paperProblems)),
+  new Map([
+    ['TT2模拟A卷', 2],
+    ['TT2原版模拟A卷', 2],
+  ]),
+);
+assert.deepEqual(
+  paperProblems
+    .filter((p) => matchesProblemFilters(p, { ...base, series: 'TT2模拟A卷' }))
+    .map((p) => p.id),
+  ['current', 'shared'],
+);
+assert.deepEqual(
+  paperProblems
+    .filter((p) => matchesProblemFilters(p, { ...base, series: 'TT2原版模拟A卷' }))
+    .map((p) => p.id),
+  ['original', 'shared'],
+);
+assert.equal(
+  matchesProblemFilters(currentOnly, { ...base, series: 'TT2模拟A卷', query: '不存在' }),
+  false,
+);
+assert.equal(
+  matchesProblemFilters(currentOnly, { ...base, series: 'TT2模拟A卷', query: 'injectivity' }),
+  true,
+);
+assert.equal(
+  paperProblems.filter((p) => matchesProblemFilters(p, { ...base, series: '' })).length,
+  4,
+);
+assert.deepEqual(problemPaperSeries([problem]), []);
 assert.equal(matchesProblemFilters(problem, base), true);
 assert.equal(
   matchesProblemFilters(problem, {

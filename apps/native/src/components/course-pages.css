@@ -95,6 +95,65 @@
   color: #475569;
 }
 
+.pb-bank-search-row {
+  flex-wrap: wrap;
+}
+
+.pb-bank-search-row > .pb-search {
+  flex: 1 1 220px;
+}
+
+.pb-series-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  max-width: 100%;
+  margin-left: auto;
+  padding: 0 14px;
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 70%);
+  box-shadow: 0 4px 16px rgb(15 23 42 / 5%);
+  color: #64748b;
+  font-size: 14px;
+}
+
+.pb-series-filter select {
+  min-width: 0;
+  max-width: 230px;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pb-series-filter select:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 4px;
+}
+
+.pb-series-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.pb-series-summary strong {
+  color: #0f172a;
+}
+
+@media (max-width: 600px) {
+  .pb-bank-search-row > .pb-search {
+    flex-basis: 100%;
+  }
+}
+
 .pb-chips {
   display: flex;
   align-items: center;
