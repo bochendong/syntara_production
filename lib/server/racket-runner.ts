@@ -102,8 +102,8 @@ export const RACKET_DRIVER = String.raw`
 
 ;; The evaluator reads a string argument as program text, so a test whose value is a
 ;; string literal ("ce") would evaluate the identifier ce. Pass strings as an expression
-;; that every HtDP level accepts.
-(define (quote-strings d) (if (string? d) (list 'string-append d) d))
+;; that every HtDP level accepts (BSL's string-append needs at least two arguments).
+(define (quote-strings d) (if (string? d) (list 'string-append d "") d))
 (define (ev-datum d) (ev (quote-strings d)))
 
 (define (run-check id description kind args)

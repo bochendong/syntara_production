@@ -240,11 +240,13 @@ async function main() {
   assert.match(looping.result.caseResults?.[0]?.error ?? '', /out of time/);
 
   // String-literal expected values must not be re-read as code ("ce" is not the identifier ce).
+  // Beginning Student is the strictest level (string-append needs two arguments there).
   const strings = await judge.judgeNotebookCodeProblem({
     problem: {
       ...problem,
       publicContent: {
         ...problem.publicContent,
+        htdpLanguageLevel: 'beginner',
         publicTests: [
           { id: 'two_chars', expression: '(abbrev "abcdef" 2 4)', expected: '"ce"' },
           { id: 'same_char', expression: '(abbrev "012345" 0 0)', expected: '"00"' },
