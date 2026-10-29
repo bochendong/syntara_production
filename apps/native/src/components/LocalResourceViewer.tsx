@@ -4,6 +4,7 @@ import { code } from '@streamdown/code';
 import { createMathPlugin } from '@streamdown/math';
 import { Streamdown } from 'streamdown';
 import { normalizeLectureMarkdownForRendering } from '../../../../lib/markdown/lecture-markdown';
+import { lectureRehypePlugins, lectureUrlTransform } from '../../../../lib/markdown/lecture-images';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -224,6 +225,8 @@ function MarkdownBlock({
       parseIncompleteMarkdown={false}
       normalizeHtmlIndentation
       plugins={{ code, math }}
+      rehypePlugins={lectureRehypePlugins}
+      urlTransform={lectureUrlTransform}
       controls={{ code: false, table: true }}
       components={{
         img: ({ src, alt }) => {

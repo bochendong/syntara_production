@@ -7,6 +7,7 @@ import { MessageResponse } from '@/components/ai-elements/message';
 import type { Scene, Stage as StageData } from '@/lib/types/stage';
 import { cn } from '@/lib/utils';
 import { normalizeLectureMarkdownForRendering } from '@/lib/markdown/lecture-markdown';
+import { lectureRehypePlugins, lectureUrlTransform } from '@/lib/markdown/lecture-images';
 
 type MarkdownNotebookReaderProps = {
   stage: StageData;
@@ -121,6 +122,8 @@ export function MarkdownNotebookReader({
               </div>
               <MessageResponse
                 className={cn('mx-auto w-full max-w-[900px]', appNotebookMarkdownClassName)}
+                rehypePlugins={lectureRehypePlugins}
+                urlTransform={lectureUrlTransform}
               >
                 {normalizeLectureMarkdownForRendering(selected.content.markdown)}
               </MessageResponse>
