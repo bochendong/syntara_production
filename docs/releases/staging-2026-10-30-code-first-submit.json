@@ -1,0 +1,82 @@
+{
+  "date": "2026-10-30",
+  "environment": "staging",
+  "sourceCommit": "51d42687cd30a2524504f29711e0d832155fb229",
+  "railwayDeployment": "0322ea38-1972-4e27-8322-6d0d9ede27a3",
+  "status": "SUCCESS",
+  "problem": "First code submission returned 500 after persisting a passing attempt; retry replayed that saved result successfully.",
+  "rootCause": "Python unittest.shortDescription() returns None for tests without docstrings. The runner emitted description:null, but mapAttemptRow validated description as an optional non-null string after the database transaction committed.",
+  "changes": [
+    "Omit missing unittest descriptions from newly produced runner results.",
+    "Normalize null descriptions in the result schema for historical saved attempts.",
+    "Validate attempt payloads before opening the persistence transaction, so malformed results cannot write attempts, progress or jobs before failing response validation.",
+    "Add real Python + real Next route + real persistence service contract regressions with disposable in-memory database I/O; include them in test:code-submission."
+  ],
+  "observedBeforeFix": [
+    {
+      "at": "2026-10-30T15:37:57.945815720Z",
+      "status": 500,
+      "durationMs": 5210
+    },
+    {
+      "at": "2026-10-30T15:38:08.802097928Z",
+      "status": 200,
+      "durationMs": 38
+    },
+    {
+      "at": "2026-10-30T15:38:34.958435418Z",
+      "status": 500,
+      "durationMs": 4869
+    },
+    {
+      "at": "2026-10-30T15:38:39.533166200Z",
+      "status": 200,
+      "durationMs": 41
+    }
+  ],
+  "verification": [
+    "Before-fix regression reproduced the first POST returning 500 after inserting a row and invalid payloads mutating persistence.",
+    "Five new first-submit regressions passed: first response and idempotent replay, preserved descriptions and hidden failure, validation before writes, public failure without consuming attempts, and historical null descriptions.",
+    "Seven existing native code-grade route regressions passed.",
+    "Fourteen code-submission checks and ten Python runner behavior checks passed (36 distinct checks total).",
+    "Updated test:code-submission package command passed all 14 checks and five new regressions.",
+    "Changed-file format/lint, full root TypeScript and complete native/Next production build passed, including six Python judging bundle checks.",
+    "Railway production build and deployment SUCCESS; actual staging health/revision and full JS/CSS hashes match the verified source build."
+  ],
+  "liveApplication": {
+    "passed": true,
+    "verifiedAt": "2026-10-30T16:00:19.212Z",
+    "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+    "health": {
+      "status": "ok",
+      "service": "syntara-native",
+      "environment": "staging"
+    },
+    "version": {
+      "version": "0.1.1",
+      "release": "2026.10.28-sync.1",
+      "syncProtocol": 2,
+      "revision": "51d42687cd30a2524504f29711e0d832155fb229"
+    },
+    "assets": [
+      {
+        "path": "/native-web/assets/index-CHnVlrH1.js",
+        "sha256": "6cbc72c9199c0d86e75bc2b10885f3297ea16e42cf8b2a91c6b267085ac0405b",
+        "bytes": 1961432
+      },
+      {
+        "path": "/native-web/assets/index-C_4e4YWZ.css",
+        "sha256": "dcff0a2265084fc169419e3a0e36f3d4a5f63444ddbb14ba389ec6483057a8e0",
+        "bytes": 409835
+      }
+    ]
+  },
+  "limits": [
+    "Student submissions on live courses were not replayed or created for acceptance; persistence verification uses disposable in-memory DB I/O with real route/service/schema/Python execution."
+  ],
+  "databaseMigrationsAdded": false,
+  "existingAttemptsModified": false,
+  "courseContentChanged": false,
+  "productionChanged": false,
+  "nativeInstallersRebuilt": false
+}
