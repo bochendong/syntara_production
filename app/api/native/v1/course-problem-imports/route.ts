@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { COURSE_PROBLEM_IMPORT_GUIDE } from '@/lib/course-problem-import-guide';
 import {
   CourseProblemImportError,
   createStructuredCourseProblemImportService,
@@ -127,7 +128,7 @@ export async function GET(request: NextRequest) {
           ? 'This course is unavailable or no matching content import authority exists.'
           : 'A wildcard import grant or existing administrator is required.',
       );
-    return publicApiSuccess(requestId, result);
+    return publicApiSuccess(requestId, { ...result, importGuide: COURSE_PROBLEM_IMPORT_GUIDE });
   } catch (error) {
     if (error instanceof z.ZodError)
       return publicApiError(requestId, 400, 'invalid_request', 'Invalid course catalog query.');

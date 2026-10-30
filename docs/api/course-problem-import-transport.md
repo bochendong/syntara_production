@@ -2,6 +2,14 @@
 
 内容整理请从[给 Agent 的独立说明](./ai-course-problem-upload.md)开始。本文保留认证、HTTP 和运维细节，不作为独立出题协议。
 
+## 测试服上的权威说明
+
+通过盲测的独立说明由测试服直接提供：[读取最终版 Markdown](https://native-api-staging-staging-95a1.up.railway.app/api/native/v1/import-docs/ai-course-problem-upload.md)。本页也可从同目录的 `course-problem-import-transport.md` 读取，说明中的相对链接保持有效。两个入口只公开协议文档，不包含课程资料、答案或凭据。
+
+当前说明版本为 `2026-10-29`，SHA-256 为 `060dded8b4c571c916e41e5ac77659c76bb8a845b81139002a1ef928f74db46f`。HTTP 响应带 `X-Content-SHA256` 与 `Cache-Control: no-store`。课程目录／context 响应的 `importGuide` 返回 path、sha256、version 和 transportPath；CLI 收据保留这些信息，path 相对于收据中的 origin。交给其他 agent 时使用该地址和对应课程 context，避免从旧分支复制说明。
+
+正文直接读取仓库的 `docs/api/ai-course-problem-upload.md`，不维护另一份人工副本；服务端核对已审查的固定哈希，内容不匹配时拒绝冒充该版本。后续修订须重新审查并更新 `lib/course-problem-import-guide.ts` 的版本／哈希再发布，代码变更也会触发测试服部署。当前发布保持盲测正文不变。
+
 复用已有结构化 draft schema、`createCourseProblemsFromDraftsWithSummary`、课程章节与 import-batch store。新入口 `POST /api/native/v1/course-problem-imports` 接收已审查的题目，无须重新 AI 提取，不创建或修改任何讲义。普通日常上传通过 HTTPS 和当前账号完成，不依赖 Railway SSH。
 
 ## 日常操作
