@@ -143,6 +143,8 @@ import {
   syncCourseData,
 } from '../data/course-sync';
 import { getLocalRepository, type SaveCourseLearningStateInput } from '../data/repository';
+import { syncCourseProblems } from '../data/problem-sync';
+import { independentCourseRefresh } from '../lib/independent-course-refresh';
 import { clearPlatformCourseUpdate, readPlatformCourseMeta } from '../lib/platform-course-meta';
 import { usePlatformCourseMeta } from '../lib/use-platform-course-meta';
 import {
@@ -3103,22 +3105,29 @@ export function CourseWorkspace({
     const stop = subscribeVisibleRefresh(async () => {
       if (busyRef.current) return;
       const repository = await getLocalRepository();
-      const page = await pullCourseConversations(repository, courseId, conversationsRef.current);
-      if (cancelled) return;
-      const changed = page.changed;
-      setConversationPage({
-        nextCursor: page.nextCursor,
-        totalCount: page.totalCount,
-        state: 'idle',
-      });
-      if (changed) await onWorkspaceChangedRef.current();
-      // 笔记、学习记忆、日历、网页上生成的课堂和题库也跟着同步到本机。
-      const synced = await syncCourseData(repository, courseId).catch((cause) => {
-        console.warn('[course-sync] sync failed', cause);
-        return null;
+      const refreshed = await independentCourseRefresh({
+        problems: () => syncCourseProblems(repository, courseId),
+        conversations: () =>
+          pullCourseConversations(repository, courseId, conversationsRef.current),
+        content: () => syncCourseData(repository, courseId, { skipProblems: true }),
+        shouldStop: () => cancelled,
+        onError: (source, cause) => console.warn(`[course-sync] ${source} sync failed`, cause),
       });
       if (cancelled) return;
-      if (synced?.notebooks || synced?.memories || synced?.problems)
+      if (refreshed.conversations) {
+        setConversationPage({
+          nextCursor: refreshed.conversations.nextCursor,
+          totalCount: refreshed.conversations.totalCount,
+          state: 'idle',
+        });
+      }
+      const synced = refreshed.content;
+      if (
+        refreshed.problems ||
+        refreshed.conversations?.changed ||
+        synced?.notebooks ||
+        synced?.memories
+      )
         await onWorkspaceChangedRef.current();
       if (synced?.events || synced?.lectures || synced?.progress) {
         setCourseDataRevision((value) => value + 1);

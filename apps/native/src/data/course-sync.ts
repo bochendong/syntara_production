@@ -129,6 +129,7 @@ function toLocalNotebook(notebook: NativeSyncedNotebook): LocalNotebook {
 export async function syncCourseData(
   repository: LocalRepository,
   courseId: string,
+  options: { skipProblems?: boolean } = {},
 ): Promise<CourseDataSyncResult> {
   if (!(await isPlatformCourse(repository, courseId))) return NOTHING_CHANGED;
   await flushLearningProgress(repository, courseId);
@@ -278,10 +279,12 @@ export async function syncCourseData(
   }
 
   // 题库：网页上改过的题拉下来，手机上的作答传上去。
-  try {
-    result.problems = await syncCourseProblems(repository, courseId);
-  } catch (cause) {
-    console.warn('[course-sync] problem sync failed', cause);
+  if (!options.skipProblems) {
+    try {
+      result.problems = await syncCourseProblems(repository, courseId);
+    } catch (cause) {
+      console.warn('[course-sync] problem sync failed', cause);
+    }
   }
   return result;
 }

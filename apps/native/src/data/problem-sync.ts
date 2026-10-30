@@ -8,6 +8,7 @@ import type { NativeProblemAttemptUpload } from './platform-api-contracts';
 import { getNativeProblems, uploadNativeProblemAttempts } from './platform-api-client';
 import { saveProblemLayers } from '../lib/course-layers';
 import type { LocalRepository } from './repository';
+import { singleFlight } from '../lib/single-flight';
 
 /**
  * 网页课程的题库：题目跟网页走（按 updatedAt 增量拉），
@@ -232,7 +233,21 @@ async function flushProblemAttempts(repository: LocalRepository, courseId: strin
  * 打开网页课程时调用：先传上还没传的作答，再拉网页题库里改过的题和做题进度。
  * 返回本机题库或进度有没有变。
  */
-export async function syncCourseProblems(
+const problemSyncs = new WeakMap<LocalRepository, Map<string, Promise<boolean>>>();
+
+export function syncCourseProblems(
+  repository: LocalRepository,
+  courseId: string,
+): Promise<boolean> {
+  let pending = problemSyncs.get(repository);
+  if (!pending) {
+    pending = new Map();
+    problemSyncs.set(repository, pending);
+  }
+  return singleFlight(pending, courseId, () => syncCourseProblemsOnce(repository, courseId));
+}
+
+async function syncCourseProblemsOnce(
   repository: LocalRepository,
   courseId: string,
 ): Promise<boolean> {
