@@ -665,6 +665,7 @@ export function ProblemBankPage({
         ).length
       }
       onUploadFiles={onUploadFiles}
+      onUpload={onUpload}
     />
   );
   const clearFilters = () => {

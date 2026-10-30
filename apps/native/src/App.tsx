@@ -516,6 +516,7 @@ function AuthenticatedApp() {
           workspace={workspace}
           onBack={backFromProblemBank}
           onPractice={openPractice}
+          onUpload={() => void openRecentCourse(workspace.course.id, { page: 'materials' })}
           onContentChanged={refreshWorkspace}
         />
       </div>

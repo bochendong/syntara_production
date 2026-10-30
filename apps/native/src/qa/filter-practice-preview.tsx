@@ -14,6 +14,7 @@ import '../components/compact-layout.css';
 if (!import.meta.env.DEV) throw new Error('仅供本机开发预览。');
 const now = Date.now();
 const layoutPreview = new URLSearchParams(window.location.search).get('layout') === '1';
+const routeUpload = new URLSearchParams(window.location.search).get('upload') === 'route';
 const course: LocalCourse = {
   id: 'filter-practice-preview-course',
   name: '筛选练习本机样例',
@@ -124,7 +125,12 @@ function Preview() {
           workspace={{ course, problems, notebooks: [], conversations: [], memories: [] }}
           onBack={() => window.location.reload()}
           onPractice={setLaunch}
-          onUploadFiles={(files) => setUploads(files.map((file) => file.name).join('、'))}
+          onUpload={() => setUploads('打开资料上传入口')}
+          onUploadFiles={
+            routeUpload
+              ? undefined
+              : (files) => setUploads(files.map((file) => file.name).join('、'))
+          }
         />
         {uploads ? <p role="status">已选择：{uploads}（本地预览，不上传）</p> : null}
       </div>

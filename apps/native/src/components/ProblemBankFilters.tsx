@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Check, ChevronDown, Search, SlidersHorizontal, Upload, X } from 'lucide-react';
 import { GlassMenu } from './CourseToolsMenu';
 import { MaterialUploadButton } from './MaterialUploadButton';
 import { useBackDismiss } from '../lib/use-back-dismiss';
@@ -216,6 +216,7 @@ export function ProblemBankFilters({
   onChange,
   resultCount,
   onUploadFiles,
+  onUpload,
 }: {
   groups: BankFilterGroup[];
   values: BankFilterValues;
@@ -224,6 +225,7 @@ export function ProblemBankFilters({
   onChange: (values: BankFilterValues) => void;
   resultCount: (values: BankFilterValues) => number;
   onUploadFiles?: (files: File[]) => void;
+  onUpload?: () => void;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetTriggerRef = useRef<HTMLButtonElement>(null);
@@ -271,7 +273,20 @@ export function ProblemBankFilters({
         <span>筛选</span>
         {count ? <b>{count}</b> : null}
       </button>
-      {onUploadFiles ? <MaterialUploadButton label="上传题目" onFiles={onUploadFiles} /> : null}
+      {onUploadFiles ? (
+        <MaterialUploadButton label="上传题目" onFiles={onUploadFiles} />
+      ) : onUpload ? (
+        <button
+          type="button"
+          className="material-upload-pill"
+          onClick={onUpload}
+          aria-label="上传题目"
+          title="上传题目"
+        >
+          <Upload size={17} aria-hidden />
+          <span>上传</span>
+        </button>
+      ) : null}
       {sheetOpen ? (
         <FilterSheet
           groups={groups}

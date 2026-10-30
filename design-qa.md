@@ -743,3 +743,8 @@ Scope: the approved desktop one-line toolbar and phone single-column layout; ret
 - Limits: browser checks use disposable local IndexedDB data and do not submit student answers. Physical iPhone keyboard/safe-area behavior and packaged native releases are not verified by these browser screenshots.
 
 final result: passed
+
+
+### Live-phone integration follow-up
+
+Real staging verification at 390 × 844 revealed that the separate phone bank entry in `App.tsx` supplied no upload callback. The toolbar now accepts the existing upload navigation action as a fallback to file selection; the phone entry opens that course's materials upload flow. Desktop file picking is unchanged. The local `upload=route` fixture verifies the fallback trigger, and full format/lint/root/native/Vite type checks plus six relevant regressions pass after the fix. Live follow-up screenshots and deployment details are recorded in the release receipt.
