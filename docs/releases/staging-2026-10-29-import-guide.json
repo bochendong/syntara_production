@@ -1,0 +1,128 @@
+{
+  "date": "2026-10-29",
+  "environment": "staging",
+  "sourceCommit": "3187bad13aef5d3434eed47530771dd859f89720",
+  "sourceTree": "8447cb541a7b319c6b165ca72e611ebf7cf3205c",
+  "railwayDeployment": "097df120-71ab-4725-8e9f-fdb0712276f7",
+  "status": "SUCCESS",
+  "previousLiveCommit": "fa2d7ce7e2370862344412efec14604f743a8726",
+  "github": {
+    "releaseBranch": "codex/staging-next",
+    "verifiedBaseline": "codex/staging-baseline",
+    "mainChanged": false,
+    "pullRequest": "https://github.com/bochendong/syntara_production/pull/16"
+  },
+  "changes": [
+    "Publish the exact frozen blind-tested Markdown and its transport and three verification reports through an allowlisted public endpoint.",
+    "Return guide version/path/SHA-256 in authenticated course context and catalog discovery.",
+    "Serve no-store responses with document digest headers; reject a changed guide hash.",
+    "Include only five public documents in the Docker build context and Next output trace; fail builds with missing documents or changed reviewed bytes.",
+    "Preserve the latest already-deployed staging application changes; do not import questions or create notebooks."
+  ],
+  "verification": [
+    "43 relevant offline regressions passed, including missing-context-file and changed-hash build refusal.",
+    "Changed-file format/lint and full root TypeScript passed; final staging production build and all six Python function bundle checks passed.",
+    "All five public documents were traced into the production route and served byte-for-byte in the local production server.",
+    "Final Railway deployment SUCCESS; actual HTTPS downloads of all five documents match canonical source, with no-store and matching SHA-256 headers.",
+    "Live guide digest equals the frozen blind-test digest; 11-record/5-course holdout content was not changed.",
+    "Real authenticated course context and all catalog pages expose the same guide metadata.",
+    "Live health, commit revision and both primary JS/CSS asset hashes match the verified source build."
+  ],
+  "publishedDocuments": {
+    "passed": true,
+    "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+    "verifiedAt": "2026-10-30T03:24:12.187Z",
+    "documents": [
+      {
+        "path": "/api/native/v1/import-docs/ai-course-problem-upload.md",
+        "bytes": 30499,
+        "sha256": "060dded8b4c571c916e41e5ac77659c76bb8a845b81139002a1ef928f74db46f",
+        "cacheControl": "no-store",
+        "contentType": "text/markdown; charset=utf-8"
+      },
+      {
+        "path": "/api/native/v1/import-docs/course-problem-import-transport.md",
+        "bytes": 18061,
+        "sha256": "133b143cecc52da6279ef44d48ffa71abf3b28a584e5e31ec05118c15ea0515f",
+        "cacheControl": "no-store",
+        "contentType": "text/markdown; charset=utf-8"
+      },
+      {
+        "path": "/api/native/v1/import-docs/problem-import-agent-blind-test.md",
+        "bytes": 8279,
+        "sha256": "772009ed8229bacf6e938ddedf4be15ba319f7ccf3bce17a9fc1aa58b6b60b07",
+        "cacheControl": "no-store",
+        "contentType": "text/markdown; charset=utf-8"
+      },
+      {
+        "path": "/api/native/v1/import-docs/problem-import-cross-subject-blind-test.md",
+        "bytes": 10028,
+        "sha256": "dfe3235d240dee4b80510ee5dc27fcb4c5a0acdcf07497605d3924fb8ad6d6a5",
+        "cacheControl": "no-store",
+        "contentType": "text/markdown; charset=utf-8"
+      },
+      {
+        "path": "/api/native/v1/import-docs/problem-import-frozen-holdout.md",
+        "bytes": 6992,
+        "sha256": "f9635a1089d6504f796ef7ae329e350d3ad1df0b0b8dc7b993f40006dea40971",
+        "cacheControl": "no-store",
+        "contentType": "text/markdown; charset=utf-8"
+      }
+    ],
+    "unlistedDocumentsRejected": true
+  },
+  "liveApplication": {
+    "passed": true,
+    "verifiedAt": "2026-10-30T03:24:16.322Z",
+    "health": {
+      "status": "ok",
+      "service": "syntara-native",
+      "environment": "staging"
+    },
+    "version": {
+      "version": "0.1.1",
+      "release": "2026.10.28-sync.1",
+      "syncProtocol": 2,
+      "revision": "3187bad13aef5d3434eed47530771dd859f89720"
+    },
+    "assets": [
+      {
+        "path": "/native-web/assets/index-DJxauJqM.js",
+        "bytes": 1953516,
+        "sha256": "32df56e27e080dd50bf38fbe633fe702b8910a38b203c13e0b8f389fa2488e05"
+      },
+      {
+        "path": "/native-web/assets/index-4xvHAboi.css",
+        "bytes": 401563,
+        "sha256": "3a3ad8057e718c1a9fd26e0dc0940b35ffa6662ef032a815e7bd7dae4d91a21d"
+      }
+    ],
+    "contextDiscoveryPassed": true,
+    "catalogDiscoveryPassed": true,
+    "importGuide": {
+      "version": "2026-10-29",
+      "path": "/api/native/v1/import-docs/ai-course-problem-upload.md",
+      "sha256": "060dded8b4c571c916e41e5ac77659c76bb8a845b81139002a1ef928f74db46f",
+      "transportPath": "/api/native/v1/import-docs/course-problem-import-transport.md"
+    }
+  },
+  "initialPublicationFailure": {
+    "sourceCommit": "db66f8f67f46c8ce659fc9aad85cb02d7cf59be6",
+    "railwayDeployment": "7779e2d8-3a5a-4625-a1f5-bcf988270802",
+    "applicationStatus": "SUCCESS",
+    "documentationStatus": 500,
+    "cause": "Existing Docker ignore rules excluded docs and *.md; runtime guide file was absent.",
+    "fixCommit": "3187bad13aef5d3434eed47530771dd859f89720",
+    "resolution": "Fixed exact document allowlist and added build-context completeness/hash gate, then re-deployed and verified actual HTTPS content.",
+    "baselineAdvancedBeforeFix": false
+  },
+  "boundaries": {
+    "databaseMigrationsAdded": false,
+    "questionImportApplied": false,
+    "courseContentChanged": false,
+    "studentAttemptsCreated": false,
+    "nativeInstallerRebuilt": false,
+    "productionOrMainChanged": false
+  },
+  "privateEvidence": "~/.codex/syntara-import-audit/deployment/"
+}
