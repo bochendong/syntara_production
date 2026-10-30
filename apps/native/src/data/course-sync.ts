@@ -1,5 +1,6 @@
 import { syncCourseCalendar } from './calendar-sync';
 import { flushLearningProgress } from './progress-sync';
+import { readCourseWithIndependentProgress } from '../lib/course-progress-refresh';
 export { pushLearningProgress } from './progress-sync';
 import { accountStorageKey } from './browser-runtime';
 import { checkpointProgressCount, groupNotebookTranslations } from '../lib/notebook-translations';
@@ -132,8 +133,10 @@ export async function syncCourseData(
   options: { skipProblems?: boolean } = {},
 ): Promise<CourseDataSyncResult> {
   if (!(await isPlatformCourse(repository, courseId))) return NOTHING_CHANGED;
-  await flushLearningProgress(repository, courseId);
-  const remote = await getNativeCourseData(courseId);
+  const remote = await readCourseWithIndependentProgress(
+    () => flushLearningProgress(repository, courseId),
+    () => getNativeCourseData(courseId),
+  );
   const local = await repository.loadCourseWorkspace(courseId);
   if (!local) return NOTHING_CHANGED;
   const state = readCourseState(courseId);

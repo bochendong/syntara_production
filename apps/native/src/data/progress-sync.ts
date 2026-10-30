@@ -41,6 +41,19 @@ export async function pushLearningProgress(
 }
 
 const progressFlushes = new WeakMap<LocalRepository, Map<string, Promise<void>>>();
+
+/** Remove an outbox entry only after the server confirms that exact payload. */
+export async function flushProgressEntries(
+  repository: Pick<LocalRepository, 'listSyncEntries' | 'removeSyncEntry'>,
+  courseId: string,
+  save: typeof saveNativeLearningProgress,
+): Promise<void> {
+  for (const entry of await repository.listSyncEntries(syncPrefix('progress', courseId))) {
+    await save(JSON.parse(entry.value));
+    await repository.removeSyncEntry(entry.key, entry.value);
+  }
+}
+
 export function flushLearningProgress(
   repository: LocalRepository,
   courseId: string,
@@ -51,12 +64,9 @@ export function flushLearningProgress(
     progressFlushes.set(repository, running);
   }
   if (running.has(courseId)) return running.get(courseId)!;
-  const operation = (async () => {
-    for (const entry of await repository.listSyncEntries(syncPrefix('progress', courseId))) {
-      await saveNativeLearningProgress(JSON.parse(entry.value));
-      await repository.removeSyncEntry(entry.key, entry.value);
-    }
-  })().finally(() => running!.delete(courseId));
+  const operation = flushProgressEntries(repository, courseId, saveNativeLearningProgress).finally(
+    () => running!.delete(courseId),
+  );
   running.set(courseId, operation);
   return operation;
 }
