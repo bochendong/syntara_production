@@ -5,11 +5,8 @@ const ENVELOPE_PREFIX = 'enc:v1';
 function encryptionSecret(): string {
   const configured = process.env.SYSTEM_CONFIG_ENCRYPTION_KEY?.trim();
   if (configured) return configured;
-  if (process.env.NODE_ENV !== 'production') {
-    const fallback =
-      process.env.ADMIN_LOGIN_SECRET?.trim() || process.env.NEXTAUTH_SECRET?.trim() || '';
-    if (fallback) return fallback;
-  }
+  // Development can connect to the production database too. An auth-secret
+  // fallback would write ciphertext that production's dedicated key cannot read.
   throw new Error('SYSTEM_CONFIG_ENCRYPTION_KEY 未配置，无法安全保存全站 API Key。');
 }
 
