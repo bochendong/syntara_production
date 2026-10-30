@@ -89,6 +89,41 @@ export const notebookProblemLocalizedContentSchema = z.object({
   stemTemplate: z.string().trim().min(1).max(16000).optional(),
   explanation: z.string().trim().min(1).max(8000).optional(),
   options: z.array(notebookChoiceOptionSchema).max(12).optional(),
+  // IDs refer to existing table structure; they never create or rename grading keys.
+  tableColumns: z
+    .array(
+      z.object({
+        id: z
+          .string()
+          .trim()
+          .min(1)
+          .max(64)
+          .regex(/^[\w-]+$/),
+        header: z.string().trim().min(1).max(200),
+      }),
+    )
+    .max(8)
+    .optional(),
+  tableCells: z
+    .array(
+      z.object({
+        rowId: z
+          .string()
+          .trim()
+          .min(1)
+          .max(64)
+          .regex(/^[\w-]+$/),
+        colId: z
+          .string()
+          .trim()
+          .min(1)
+          .max(64)
+          .regex(/^[\w-]+$/),
+        value: z.string().min(1).max(8000),
+      }),
+    )
+    .max(320)
+    .optional(),
 });
 
 export const notebookProblemTranslationsSchema = z
