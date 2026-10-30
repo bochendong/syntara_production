@@ -427,6 +427,7 @@ export const notebookProblemGradingProofSchema = z.object({
 export const notebookProblemGradingCalculationSchema = z.object({
   type: z.literal('calculation'),
   graderKind: z.literal('numeric_or_exact').optional(),
+  numericEquivalenceVersion: z.literal('scalar-v1').optional(),
   referenceAnswer: z.string().trim().min(1).max(4000).optional(),
   acceptedForms: z.array(z.string().trim().min(1).max(1000)).max(16).default([]),
   tolerance: z.number().nonnegative().optional(),

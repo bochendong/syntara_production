@@ -29,6 +29,7 @@ import { judgeNotebookCodeProblem } from '@/lib/server/notebook-problems/judge';
 import type { NotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 import { maxScoreForAttempt } from '@/lib/problem-bank/scoring-policy';
 import { parseNumericPair, parseNumericScalar } from '@/lib/problem-bank/numeric-answer';
+import { calculationNumericMatches } from '@/lib/problem-bank/calculation-numeric-match';
 import { evaluateNotebookTableProblem } from '@/lib/server/notebook-problems/table-evaluate';
 
 function normalizeText(value: string): string {
@@ -339,6 +340,7 @@ export async function evaluateNotebookNonCodeProblem(args: {
     let numericMatch = false;
     if (
       !directMatch &&
+      problem.grading.numericEquivalenceVersion !== 'scalar-v1' &&
       (typeof problem.grading.tolerance === 'number' ||
         typeof problem.grading.relativeTolerance === 'number')
     ) {
@@ -369,6 +371,8 @@ export async function evaluateNotebookNonCodeProblem(args: {
         });
       });
     }
+    if (!directMatch && !numericMatch && problem.grading.numericEquivalenceVersion === 'scalar-v1')
+      numericMatch = calculationNumericMatches(submitted, accepted, problem.grading);
     const correct = directMatch || numericMatch;
     const score = correct ? problem.points : 0;
     return {

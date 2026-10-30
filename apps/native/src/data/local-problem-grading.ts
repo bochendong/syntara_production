@@ -1,5 +1,6 @@
 import { handwritingHasContent, type HandwritingAnswer } from './handwriting-draft';
 import { parseNumericScalar } from '../../../../lib/problem-bank/numeric-answer';
+import { calculationNumericMatches } from '../../../../lib/problem-bank/calculation-numeric-match';
 import { countCorrectBlankAnswers } from '../../../../lib/problem-bank/blank-answer-variants';
 import type { NotebookProblemGradingFillBlank } from '../../../../lib/problem-bank/schema';
 import type { LocalProblem } from '../domain/models';
@@ -342,7 +343,15 @@ export function gradeLocalProblem(
         autoGraded: false,
       };
     }
-    if (textMatchesAccepted(answer.text, accepted)) {
+    if (
+      textMatchesAccepted(answer.text, accepted) ||
+      (grading.numericEquivalenceVersion === 'scalar-v1' &&
+        calculationNumericMatches(answer.text, accepted, {
+          tolerance: typeof grading.tolerance === 'number' ? grading.tolerance : undefined,
+          relativeTolerance:
+            typeof grading.relativeTolerance === 'number' ? grading.relativeTolerance : undefined,
+        }))
+    ) {
       return {
         status: 'passed',
         score: 1,
