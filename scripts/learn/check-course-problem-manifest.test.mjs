@@ -134,3 +134,81 @@ test('executable multipart must preserve notebookId:null across signing and impo
   data.items[0].draft.notebookId = null;
   assert.equal(checkPreparedManifest(data).valid, true);
 });
+
+const tinyPng =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZQAAAABJRU5ErkJggg==';
+function withImage(src = `data:image/png;base64,${tinyPng}`) {
+  const data = example();
+  data.items[0].draft.publicContent.assets = {
+    images: [{ id: 'given', src, width: 1, height: 1, mimeType: 'image/png' }],
+  };
+  return data;
+}
+
+test('accepts embedded raster assets and reports real HTTP body size', () => {
+  const result = checkPreparedManifest(withImage());
+  assert.equal(result.valid, true, JSON.stringify(result));
+  assert.equal(result.imageCount, 1);
+  assert.ok(result.maxRequestBytes > 100);
+});
+
+test('rejects local paths, truncated base64, wrong MIME and wrong pixel dimensions', () => {
+  for (const src of [
+    'file:///tmp/figure.png',
+    '/Users/teacher/figure.png',
+    'figure.png',
+    'data:image/svg+xml;base64,PHN2Zz4=',
+    'data:image/png;base64,AAAA',
+  ])
+    assert.equal(checkPreparedManifest(withImage(src)).valid, false, src);
+  const dimensions = withImage();
+  dimensions.items[0].draft.publicContent.assets.images[0].width = 2;
+  assert.match(checkPreparedManifest(dimensions).errors.join('\n'), /dimensions/);
+  const mime = withImage();
+  mime.items[0].draft.publicContent.assets.images[0].mimeType = 'image/jpeg';
+  assert.match(checkPreparedManifest(mime).errors.join('\n'), /MIME/);
+  const duplicate = withImage();
+  duplicate.items[0].draft.publicContent.assets.images.push({
+    ...duplicate.items[0].draft.publicContent.assets.images[0],
+  });
+  assert.match(checkPreparedManifest(duplicate).errors.join('\n'), /image IDs/);
+});
+
+test('fewer than 100 questions can still exceed the two-megabyte HTTP import limit', () => {
+  const data = withImage(`data:image/png;base64,${tinyPng}`);
+  data.items[0].draft.sourceMeta.privateSourceNote = 'x'.repeat(2_000_000);
+  assert.match(checkPreparedManifest(data).errors.join('\n'), /request exceeds 2,000,000 bytes/);
+});
+
+test('unittest mode does not make multi-statement sampleIO executable', () => {
+  const data = example();
+  Object.assign(
+    data.items[0].draft,
+    structuredClone(examples.find((x) => x.publicContent?.type === 'code')),
+    { type: 'code' },
+  );
+  data.items[0].draft.publicContent.publicTestCode =
+    'import unittest\nfrom submission import twice\nclass Checks(unittest.TestCase):\n    def test_positive(self): self.assertEqual(twice(2),4)';
+  data.items[0].draft.publicContent.sampleIO[0].input = 'values = [2]\ntwice(values[0])';
+  assert.match(
+    checkPreparedManifest(data).errors.join('\n'),
+    /sampleIO is evaluated as a single expression/,
+  );
+  data.items[0].draft.publicContent.sampleIO[0].input = 'twice(2)';
+  assert.equal(checkPreparedManifest(data).valid, true);
+});
+
+test('sample expression checking preserves semicolon string data and wrapped calls', () => {
+  const data = example();
+  Object.assign(
+    data.items[0].draft,
+    structuredClone(examples.find((x) => x.publicContent?.type === 'code')),
+    { type: 'code' },
+  );
+  for (const input of ["twice(';')", 'twice(\n 2\n)', 'twice("""a;b""")']) {
+    data.items[0].draft.publicContent.sampleIO[0].input = input;
+    assert.equal(checkPreparedManifest(data).valid, true, input);
+  }
+  data.items[0].draft.publicContent.sampleIO[0].input = 'twice(2); twice(3)';
+  assert.equal(checkPreparedManifest(data).valid, false);
+});

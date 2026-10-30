@@ -25,11 +25,11 @@ node scripts/learn/import-course-problems.mjs --credential-file /private/credent
 
 逐题阅读题干、图、选项、页首公共规则和后续页。PDF 必须查看相关整页图；OCR/文本提取会丢缩进、幂、负号、引号或图里的对象 ID。保留原件，计算文件字节的 SHA-256。答案版中含完整题干的题可以整理；只有答案而没有条件的条目留在 coverage 中阻塞，不能反推并编造题干。
 
-只保留教学内容，去掉姓名栏、考试时长、广告、页脚和空答题线。保留会影响解题的公共限制、定义、预条件和工具边界，并把与本题有关的部分放进学生可见位置。不要将考试禁带物品、整卷范围、答卷规则或与本题无关的符号约定机械复制到每题。原文有错误或答案冲突时，私下记录证据和处理决定；不能用猜测偷偷补条件。
+只保留教学内容，去掉姓名栏、考试时长、广告、页脚和空答题线。原卷要求把答案上传 Canvas/Quercus、填答题卡等外部交卷步骤是历史提交后勤，不应要求本平台学生再次执行；在 coverage 记录移除。若原活动含小组讨论、独立完成或禁用工具等学习过程要求，保留其有教学意义的约束/情境，并明确文本判题不能验证实际参与过程，不能谎称自动验证了该流程。保留会影响解题的公共限制、定义、预条件和工具边界，并把与本题有关的部分放进学生可见位置。不要将考试禁带物品、整卷范围、答卷规则或与本题无关的符号约定机械复制到每题。原文有错误或答案冲突时，私下记录证据和处理决定；不能用猜测偷偷补条件。
 
 题库导入新增 **零本笔记**，不创建占位 notebook，不将试卷额外上传成讲义，不绑定具体 notebook；`notebookId` 只能省略或为 null，含代码小问的 multipart 在预检前必须显式为 null（见预检步骤）。章节按知识点组织，复用 context 中准确的章节 ID 和名称；卷名/系列/原题号通过 tags 与 sourceMeta 保留，不能用文件名替代知识章节。每条标签最多 30 字符，最多 16 条。只有本次授权范围内的题进入 manifest，其他题列为范围外。
 
-同一原卷大题有共享背景/子任务时优先用 `multipart`，保留原标签及依赖，不把跨页续题拆丢。完全独立的行/题可以单独整理，但 coverage 要映射完整。不同原题号、不同来源不能合成一题。每组 2–12 问，太长的独立题组按原顺序拆组；真实依赖不可跨组丢失。包含代码、表格、开放说明的混合大题也支持 multipart。
+同一原卷大题有共享背景/子任务时优先用 `multipart`，保留原标签及依赖，不把跨页续题拆丢。完全独立的行/题可以单独整理，但 coverage 要映射完整。不同来源、无共享条件的不同原题号不能合成一题。原件若明确声明“Questions 19–21 are based on this information”或同一活动的连续依赖步骤，可按这个原始案例/题组组织 multipart，保留原标签和逐题来源映射；不能仅因相邻或主题相近就合并。每组 2–12 问，太长的独立题组按原顺序拆组；真实依赖不可跨组丢失。包含代码、表格、开放说明的混合大题也支持 multipart。
 
 先选交互，再填字段：
 
@@ -43,7 +43,7 @@ node scripts/learn/import-course-problems.mjs --credential-file /private/credent
 | 解释概念、原因、结论 | `short_answer`（referenceAnswer + 专属评分标准）。有限匹配能否用选择/表格逐题决定。 |
 | 实现/补全函数、算法、程序 | `code` + 真正的可执行测试。不能因缺 runner 降为简答题或选择现成答案。 |
 | 原题明确要求自己写 header/docstring/doctest | 仍为 `code`，保留这部分作答目标，不在 starter 直接给出被考的答案。若原题已给函数接口，starter 保留它及 pass，使空实现可被真实断言拒绝；省略被考的文档，不要只留一行注释造成函数不存在。私有解答仍完整合规；在 coverage 声明课程格式例外。 |
-| 必须画图/构造空间关系 | 保留构造目标和所有原图条件；若现有交互不能等价表达，标记阻塞。不能用“描述图片”充数。 |
+| 必须画图/构造空间关系 | 当前 staging 开放题支持手写/图片作答：用 `short_answer`（证明用 proof）保留“画出/构造”要求及专属参考/评分标准，让学生提交实际图，不能只改成描述或识别。只有条件缺失或所需操作确实超出当前交互时才 blocked，不要因为没有 drawing 枚举就认定不支持。 |
 
 课程规范来自提供的 context 和原资料：教师明确规则优先；对冲突保留证据。不要把 CSC108 的 Python 格式套到其他课。已给的函数头、参数名、类型、docstring 和禁止工具须保留。通常函数补全只留 `pass` 供学生替换；故意错误的阅读代码原样保留错误。未给函数文档时依课程规范补齐用途、参数、返回/副作用和两个有意义的 doctest；但“写文档”本身被考或原题明确禁止例子时，不给学生泄题。
 
@@ -137,6 +137,8 @@ matcher 为 output（打印文本）、python_value（Python 值比较）、norm
 {"publicContent":{"type":"code","stem":"实现 twice，返回整数 x 的两倍。只替换 pass，保留函数头与文档。","language":"python","runnerAdapter":"python-unittest","functionSignature":"def twice(x: int) -> int:","starterCode":"def twice(x: int) -> int:\n    \"\"\"Return twice x.\n\n    >>> twice(2)\n    4\n    >>> twice(-1)\n    -2\n    \"\"\"\n    pass\n","constraints":["返回结果，不打印；不修改给定接口。"],"sampleIO":[{"input":"twice(2)","output":"4"},{"input":"twice(-1)","output":"-2"}],"publicTests":[{"id":"positive","expression":"twice(2)","expected":"4"},{"id":"negative","expression":"twice(-1)","expected":"-2"}],"secretConfigPresent":true},"grading":{"type":"code","solutionCode":"def twice(x: int) -> int:\n    \"\"\"Return twice x.\n\n    >>> twice(2)\n    4\n    >>> twice(-1)\n    -2\n    \"\"\"\n    return x * 2\n","publishRequirementsMet":true},"secretJudge":{"language":"python","runnerAdapter":"python-unittest","secretTests":[{"id":"zero","expression":"twice(0)","expected":"0"},{"id":"larger_positive","expression":"twice(19)","expected":"38"},{"id":"larger_negative","expression":"twice(-8)","expected":"-16"}],"timeoutMs":5000}}
 ```
 
+**sampleIO 与 unittest 是两条执行路径。** 即使设置了 publicTestCode/secretTestCode，Python 的每条 sampleIO.input 仍交给 `eval`，必须是可求值的单个表达式，推荐一行目标函数调用；不能写赋值、分号分隔语句或多行脚本。对于原地修改、写文件、打印等副作用目标，sampleIO.output 填参考函数这次调用实际返回值（常见为字符串 `"None"`），在 sampleIO.explanation 说明调用后状态/输出；真实状态、别名、文件或 stdout 由 unittest 断言验证。原题未要求返回值时，不能因示例显示 None 就在学生测试里新增 return None 的要求，也不能为迁就示例把修改任务改为返回新列表。无需添加来源未要求的辅助接口或让学生学习 lambda/walrus 样例包装。
+
 该例仅演示字段，不代表任何课程要求都已满足。只在参考程序、样例、starter 和错误实现验收后认可 publishRequirementsMet；设置 true 本身不构成验收。
 
 完整 body 补全题可设 `template` + `slots:[{id,kind:"expr"|"line"|"block",placeholder?}]`。template 中 `{{slot_id}}` 以外部分锁定；`grading.solutionSlots` 为每个空的参考代码，推荐同时给完整 solutionCode。不要把解答放进 starter/template。原题要求编写文档/完整函数时不要用锁定模板预先给出该答案。
@@ -157,13 +159,23 @@ dependsOn 只引用本组前问，不能自指/循环。代码小问的隐藏测
 
 必要图像放 `publicContent.assets.images`，最多 8 张，每张 `{id,src,alt?,caption?,role?}`，role 为 question/context/option/explanation。src 必须是学生能访问的实际课程资源路径，或该入口支持的完整 PNG/JPEG/WebP data URL；不能填本机路径、PDF 页码或尚未上传的占位 URL。图片有尺寸/页码时可给 width/height/pageNumber；未知页码省略。原图裁切需保留坐标/标号/刻度/对象信息，排除答案标记和邻题。空间关系确实可用文本完全表达时可保真转表，否则保留图；不能用 AI 生成近似图冒充原图。
 
+**题干图与学生作答图是两种对象。** 本文 `publicContent.assets.images` 是教师给定的条件图；学生提交的答案图片属于 answer.images，不放进导入 draft 或题干。当前 staging 的 short_answer/proof（以及图像过程解答）支持 PNG/JPEG/WebP 图片，通常最多 4 张，客户端会压缩并按入口限制大小；宽屏提供手写，窄屏可用图片上传，不承诺专用化学结构编辑器。不要发明 type:"drawing" 或 responseKind:"image"。构造题的 referenceAnswer/referenceProof 与 analysis 应明确正确图形的连接关系、标记、坐标/方向等验收条件；私有参考图不得冒充条件图公开。
+
+结构化 rubric/criteria 用于保存和内容审查，不能仅凭其存在就声称所有评分路径严格按该权重执行。当前部分文本/图片批改路径使用通用评分维度，读取参考答案及 analysis，而不逐项执行 rubricCriteria；关键正确性条件应完整写入参考和 analysis，实际评分效果需另行验收，不能靠自填 rubric 证明已验证。
+
+含图时要同时检查 `manifest` 和实际 HTTP 外壳的 UTF-8 字节数，base64 比图片字节约增加三分之一。导入限制是 **2,000,000 字节**，不是 2 MiB，且包含 `{mode,data,expectedHash}` 和 codePreflight。CLI 按题数拆批，不会自动按图片体积拆批；少于 100 题仍可能超限，需在准备阶段按体积另分 manifest/key。图片仍须经真正解码器打开核验，PNG 头、base64 合法或 schema 通过不能证明像素完整。
+
+给每张图记录原文件哈希、源页/Word relationship、裁切坐标、输出字节哈希、MIME 和真实像素尺寸；再次逐张查看最终裁图。选择题的原图选项要保留 A/B/C 等对应关系；共享题干图放 multipart.assets，某一小问独有的图放该 part.content.assets，不能让学生到另一题找图。答案图、选中/判分标记、手写解答和空作图网格不能冒充条件图。化学保留键级/电荷/楔虚线，统计保留轴尺度/图例，金融保留单位与期限，Excel 保留行列号和已给公式；被原件遮挡的必要单元格/图线保持 blocked，不靠猜测修复。
+
+开放学科的样例答案不是唯一合法答案。SWOT、政治概念或论证任务用与原目标对应的 rubric，允许有依据的不同观点/结构，不能用 sample answer 的句子做 exact 匹配；原资料的时期和情境不可擅自更新。R 等语言实现目标只有实际 runner 支持时才能宣称就绪，不能借 code_token、Python 改写或选择题绕过。
+
 JSON 中换行是 `\n`，LaTeX 反斜杠须双写，例如 `"$x \\in A$"`。正文用正常 Markdown 代码围栏，保留 Python 缩进；不要把多行代码塞进 Markdown 表格。普通 Markdown 表格必须有连续表头、分隔行和一致列数，竖线转义。不要遗留不存在的 `{{answer}}`。
 
 双语如有要求，公开 `translations` 键只能 `zh-CN` / `en-US`，每种可含 title、chapterName、stem（填空为 stemTemplate）、options。multipart 的每个 content 也分别给 translations；label、blank ID、option ID 和 grading 共用，不能翻译改变这些 ID。没有翻译要求时保留原题语言。来源路径、内部 ID 和维护标签留在私有 sourceMeta/coverage，不写入学生题干或图注。
 
 ## 验收与真正上传
 
-逐题独立解答后比对参考答案，检查所有条件、选项和数值。代码题除 schema 还必须真跑参考、空实现和 1–2 个合理错误实现；multipart 每个代码小问都需要错误实现并在 counterexample 填 `part:原label`。每条 counterexample 为 `{id,code,reason,part?}`。错误实现必须因测试失败被拒绝，运行器故障不是通过。
+逐题独立解答后比对参考答案，检查所有条件、选项和数值。代码题除 schema 还必须真跑参考、空实现和 1–2 个合理错误实现；multipart 每个代码小问都需要错误实现并在 counterexample 填 `part:原label`。每条 counterexample 为 `{id,code,reason,part?}`。错误实现必须因实际断言失败被拒绝，运行器故障不是通过。带 template/slots 的代码题，counterexample.code 也必须保留全部锁定区，只改允许的空位；把整段函数替换成另一种写法触发“锁定区被修改”，不能算作测试成功拦住了错误算法。每个错误实现仍须可加载并满足接口，不要用缺函数/语法错/依赖缺失来冒充算法反例。
 
 在有仓库工具的执行端先运行无网络、无数据库、无 AI 的本地检查：
 
@@ -172,7 +184,7 @@ node scripts/learn/check-course-problem-manifest.mjs /private/manifest.json
 node scripts/learn/course-code-preflight.mjs /private/one-preflight-input.json /private/credentials.json /private/preflight-receipt.json
 ```
 
-每个代码题/含代码小问的整题分别预检。**含代码小问的 multipart 在发起预检前，必须在顶层 draft 显式写 `"notebookId":null`**。当前导入器会补这个 null；若签名时省略而预览时被补入，整题指纹变化，已通过的预检也会被 403 拒绝。它表示无笔记关联，不是创建笔记；不能在拿到 proof 后再补。单独代码题的预检目前会自动补 null，仍建议准备阶段统一显式为 null。真实服务器返回的 valid/referencePassed/starterRejected/incorrectRejected 必须全部为 true；保存报告，将 `validatedDraft` 原样替换 item.draft，将 `proof` 放 **item.codePreflight**，不是 draft 里。修改任意题面、分数、答案或测试都要重跑；凭证绑定课程、用户及设备，有效 24 小时。准备 agent 没有执行权限时停在 execution_pending，而非编造凭证。当前执行题写入仅在 staging 开启。
+每个代码题/含代码小问的整题分别预检。当前服务器最多同时处理 2 个预检，串行执行最稳妥；429 表示繁忙，等待在途预检完成后以同一输入重试，不能把它当成参考程序错误。预检请求整个 JSON 最多 250,000 字节，含图代码题必须计入原图及隐藏测试；超限时使用已验证可访问的课程图片路径或减小图片体积，不能丢失必要图。**含代码小问的 multipart 在发起预检前，必须在顶层 draft 显式写 `"notebookId":null`**。当前导入器会补这个 null；若签名时省略而预览时被补入，整题指纹变化，已通过的预检也会被 403 拒绝。它表示无笔记关联，不是创建笔记；不能在拿到 proof 后再补。单独代码题的预检目前会自动补 null，仍建议准备阶段统一显式为 null。真实服务器返回的 valid/referencePassed/starterRejected/incorrectRejected 必须全部为 true；保存报告，将 `validatedDraft` 原样替换 item.draft，将 `proof` 放 **item.codePreflight**，不是 draft 里。修改任意题面、分数、答案或测试都要重跑；凭证绑定课程、用户及设备，有效 24 小时。准备 agent 没有执行权限时停在 execution_pending，而非编造凭证。当前执行题写入仅在 staging 开启。
 
 之后用同一 manifest 只读预览：
 
@@ -185,3 +197,5 @@ node scripts/learn/import-course-problems.mjs --credential-file /private/credent
 用户已授权上传且全部检查通过后，才在相同命令加 `--apply`。提交后逐题读回对照题面、选项、答案、测试、来源与章节，核对原笔记和原题没有被修改，并保存完整私有收据。纯准备/盲测不得 apply。不要创建学生作答来试判题。
 
 最后分别报告：范围内原题与小问覆盖、阻塞/排除、题型分布、课程规范和来源审查、实际 runner 结果、预览结果、实际提交和读回。schema 通过不等于数学正确；本地 runner 不等于线上预检；只读预览不等于导入；未看实时界面就不声称 UI 已验证。任一未满足的项要给具体原因。
+
+本说明的真实样本、失败修订及未验证范围见[跨学科含图盲测验收](./problem-import-cross-subject-blind-test.md)；首次无仓库上下文对照见[首轮盲测](./problem-import-agent-blind-test.md)。这些记录不能代替一次新导入的门禁。

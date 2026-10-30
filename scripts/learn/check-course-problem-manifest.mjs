@@ -68,8 +68,83 @@ function unknownKeys(input, parsed, location, errors) {
   }
 }
 
+function reviewImages(content, location, errors) {
+  const images = content.assets?.images ?? [];
+  if (new Set(images.map((image) => image.id)).size !== images.length)
+    errors.push(`${location}: image IDs must be unique within this content`);
+  for (const image of images) {
+    const label = `${location}.image[${image.id}]`;
+    const src = image.src;
+    if (!src.startsWith('data:')) {
+      if (!/^(?:https:\/\/|\/(?!\/|Users\/|home\/|private\/|tmp\/))/.test(src))
+        errors.push(
+          `${label}: use an accessible HTTPS/course path or embedded raster, not a local file`,
+        );
+      continue;
+    }
+    const match = src.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/);
+    if (!match) {
+      errors.push(`${label}: embedded images need complete PNG/JPEG/WebP base64 data URLs`);
+      continue;
+    }
+    const bytes = Buffer.from(match[2], 'base64');
+    const png =
+      bytes.length >= 24 && bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'));
+    const jpeg = bytes.length >= 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+    const webp =
+      bytes.length >= 12 &&
+      bytes.toString('ascii', 0, 4) === 'RIFF' &&
+      bytes.toString('ascii', 8, 12) === 'WEBP';
+    if (
+      bytes.toString('base64') !== match[2] ||
+      !(match[1] === 'image/png' ? png : match[1] === 'image/jpeg' ? jpeg : webp) ||
+      (image.mimeType && image.mimeType !== match[1])
+    )
+      errors.push(`${label}: image bytes/base64/MIME do not agree`);
+    if (
+      png &&
+      ((image.width && image.width !== bytes.readUInt32BE(16)) ||
+        (image.height && image.height !== bytes.readUInt32BE(20)))
+    )
+      errors.push(`${label}: declared PNG dimensions do not match its pixels`);
+  }
+}
+
+// Catch statement separators, without rejecting ';' data or wrapped function arguments.
+// This is not a Python parser; the real runner still validates every expression.
+function hasPythonStatementSeparator(input) {
+  const text = input.trim();
+  let quote = '';
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (quote) {
+      if (char === '\\') i++;
+      else if (text.startsWith(quote, i)) {
+        i += quote.length - 1;
+        quote = '';
+      }
+    } else if (char === '"' || char === "'") {
+      quote = text.startsWith(char.repeat(3), i) ? char.repeat(3) : char;
+      i += quote.length - 1;
+    } else if ('([{'.includes(char)) depth++;
+    else if (')]}'.includes(char)) depth--;
+    else if (
+      char === ';' ||
+      ((char === '\n' || char === '\r') && depth === 0 && text[i - 1] !== '\\')
+    )
+      return true;
+  }
+  return false;
+}
+
 function reviewContent(content, grading, location, errors) {
+  reviewImages(content, location, errors);
   if (content.type === 'code' && content.language === 'python') {
+    if (content.sampleIO.some((sample) => hasPythonStatementSeparator(sample.input)))
+      errors.push(
+        `${location}: Python sampleIO is evaluated as a single expression even with unittest files; move mutation-state assertions into unittest`,
+      );
     // Private tests are checked with their containing draft below.
     if (/\b(?:import\s+solution\b|from\s+solution\s+import\b)/.test(content.publicTestCode ?? ''))
       errors.push(`${location}: Python tests must import submission, not solution`);
@@ -147,8 +222,23 @@ export function checkPreparedManifest(input) {
   }
   let count = 0;
   let executable = 0;
+  let maxRequestBytes = 0;
+  let imageCount = 0;
+  function countImages(content) {
+    imageCount += content.assets?.images.length ?? 0;
+    if (content.type === 'multipart') content.parts.forEach((part) => countImages(part.content));
+  }
   for (const [index, batch] of batches.entries()) {
     try {
+      const requestBytes = Buffer.byteLength(
+        JSON.stringify({ mode: 'commit', data: batch, expectedHash: '0'.repeat(64) }),
+        'utf8',
+      );
+      maxRequestBytes = Math.max(maxRequestBytes, requestBytes);
+      if (requestBytes > 2_000_000)
+        errors.push(
+          `batch[${index}]: request exceeds 2,000,000 bytes; split by image payload size, not just item count`,
+        );
       const parsed = modules.parseStructuredCourseProblemImport(batch);
       for (const item of batch.items) {
         if (
@@ -166,6 +256,7 @@ export function checkPreparedManifest(input) {
         const codeErrors = modules.codeDraftReadinessErrors(item.draft);
         errors.push(...codeErrors.map((error) => `${location}: ${error}`));
         reviewContent(item.draft.publicContent, item.draft.grading, location, errors);
+        countImages(item.draft.publicContent);
         const secrets = item.draft.secretJudge;
         for (const code of [
           secrets?.secretTestCode,
@@ -191,9 +282,11 @@ export function checkPreparedManifest(input) {
     itemCount: count,
     batchCount: batches.length,
     executableQuestionCount: executable,
+    imageCount,
+    maxRequestBytes,
     errors,
     scope:
-      'Offline schema/content/code-readiness only; no runner, proof, source, correctness, authorization or persistence verification.',
+      'Offline schema/content/code-readiness and image-header/body-size checks only; no runner, proof, source, correctness, authorization, persistence or full image-decoder verification.',
   };
 }
 
