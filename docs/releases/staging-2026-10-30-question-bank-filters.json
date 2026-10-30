@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-30",
+  "environment": "staging",
+  "sourceCommit": "bfe36a55f4cdcb5be2ee7e7c6df5a50e31a00ff6",
+  "uiCommit": "c7fe7f24472c7696d3ba2f6d44ef2acb21c54de5",
+  "railwayDeployment": "a4d2c01e-76c7-44d7-b47c-e65d638b9872",
+  "status": "SUCCESS",
+  "previousUiDeployment": "3d622704-60f7-4dd6-9110-3bf617deb72a",
+  "changes": [
+    "One 44px search/series/difficulty/type/upload toolbar; remove the persistent right filter sidebar on both chapter and course views.",
+    "Reuse the platform GlassMenu portal with blue checked selection, gem difficulty icons, aligned counts, keyboard navigation and capped scrolling.",
+    "Phone: single chapter column and one-line search/filter/upload; a native modal bottom sheet with draft selection, reset, cancel, series search and preview count.",
+    "Preserve the existing filtered practice ordering and grading behavior.",
+    "Connect the separate phone bank upload icon to the current course materials upload page; preserve desktop file selection."
+  ],
+  "verification": [
+    "Changed-file formatting and lint passed; root, native and Vite TypeScript checks passed.",
+    "Full native/Next production build passed, including all six Python judging bundle checks; final phone follow-up also passed Railway production build and health checks.",
+    "Six practice-scope and course-progress isolation regressions passed.",
+    "Browser fixtures passed at 320 and 390px (44px toolbar, no overflow), intermediate two-column and wide three-column layouts.",
+    "Desktop menu End/Escape, 380px capped long-series menu, selected focus and focus restoration passed.",
+    "Phone sheet reset/cancel, zero results and clear, long-series search and apply count passed.",
+    "Real authenticated MAT102: TT1 A returns 14; A + medium + choice previews and returns 7.",
+    "Final real-phone upload icon opens MAT102 materials with notes and question-file actions; no file import or student submission was performed.",
+    "Actual HTTPS health, revision and complete primary JS/CSS SHA-256 match the verified bfe36a55 build."
+  ],
+  "liveApplication": {
+    "passed": true,
+    "verifiedAt": "2026-10-30T07:20:39.358Z",
+    "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+    "health": {
+      "status": "ok",
+      "service": "syntara-native",
+      "environment": "staging"
+    },
+    "version": {
+      "version": "0.1.1",
+      "release": "2026.10.28-sync.1",
+      "syncProtocol": 2,
+      "revision": "bfe36a55f4cdcb5be2ee7e7c6df5a50e31a00ff6"
+    },
+    "assets": [
+      {
+        "path": "/native-web/assets/index-1fNXalMU.js",
+        "sha256": "5984119428eed0c6624c9c202aeba91873d49b82401ebb1a3c90ddfede1da210",
+        "bytes": 1959439
+      },
+      {
+        "path": "/native-web/assets/index-C_4e4YWZ.css",
+        "sha256": "dcff0a2265084fc169419e3a0e36f3d4a5f63444ddbb14ba389ec6483057a8e0",
+        "bytes": 409835
+      }
+    ]
+  },
+  "browserEvidenceDirectory": "artifacts/qa/question-bank-toolbar",
+  "screenshots": [
+    "live-desktop-menu.png",
+    "live-mobile.png",
+    "live-mobile-sheet.png"
+  ],
+  "limits": [
+    "Physical iPhone keyboard/safe areas and packaged Mac/iOS apps were not verified or rebuilt.",
+    "An additional legacy root problem-bank presentation script fails on its unchanged CSS import under Node 22; not counted as a passed check."
+  ],
+  "databaseMigrationsAdded": false,
+  "courseContentChanged": false,
+  "studentAttemptsCreated": false,
+  "productionChanged": false,
+  "concurrentDevelopment": "Retain the later origin/codex/staging-next commit 14bfbf63; this receipt certifies deployment bfe36a55 only, without resetting later development."
+}
