@@ -830,13 +830,18 @@ test('native route authenticates, refuses shared-test and enrolled principals an
     403,
   );
   principal = { userId: 'enrolled', keyId: 'device-1' };
+  const contextResponse = await route.GET(
+    new NextRequest('http://localhost/api/native/v1/course-problem-imports?courseId=course'),
+  );
+  assert.equal(contextResponse.status, 200);
+  const contextPayload = await contextResponse.json();
   assert.equal(
-    (
-      await route.GET(
-        new NextRequest('http://localhost/api/native/v1/course-problem-imports?courseId=course'),
-      )
-    ).status,
-    200,
+    contextPayload.data.importGuide.path,
+    '/api/native/v1/import-docs/ai-course-problem-upload.md',
+  );
+  assert.equal(
+    contextPayload.data.importGuide.sha256,
+    '060dded8b4c571c916e41e5ac77659c76bb8a845b81139002a1ef928f74db46f',
   );
   assert.equal(catalogCalls.at(-1).actor.keyId, 'device-1');
   assert.equal(catalogCalls.at(-1).courseId, 'course');

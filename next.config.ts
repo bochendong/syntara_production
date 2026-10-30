@@ -39,6 +39,13 @@ const nextConfig: NextConfig = {
     '/*': ['./assets/**/*', './OpenMAIC-org/**/*', './public/generated-notebooks/**/*'],
   },
   outputFileTracingIncludes: {
+    '/api/native/v1/import-docs/*': [
+      './docs/api/ai-course-problem-upload.md',
+      './docs/api/course-problem-import-transport.md',
+      './docs/api/problem-import-agent-blind-test.md',
+      './docs/api/problem-import-cross-subject-blind-test.md',
+      './docs/api/problem-import-frozen-holdout.md',
+    ],
     // The Python fallback loads its WASM and standard library inside a worker;
     // those files are not visible to Next's static dependency tracing.
     '/api/courses/*/problems': ['./node_modules/pyodide/*'],
