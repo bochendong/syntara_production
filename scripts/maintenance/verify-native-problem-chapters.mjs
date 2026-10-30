@@ -102,12 +102,26 @@ try {
         chapterId: 'functions',
         chapterName: '函数与映射',
         title: 'Prove injectivity',
-        type: 'proof',
+        type: 'table',
         status: 'published',
         difficulty: 'hard',
         tags: [],
-        publicContent: { type: 'proof', stem: 'Prove the stated map is injective.' },
-        grading: { type: 'proof', referenceProof: 'A reference proof.' },
+        publicContent: {
+          type: 'table',
+          stem: 'Complete the table.',
+          columns: [
+            { id: 'a', header: 'Description', role: 'given', cellKind: 'text' },
+            { id: 'answer', header: 'Answer', role: 'answer', cellKind: 'output' },
+          ],
+          rows: [{ id: 'r1', cells: { a: 'First item' } }],
+          translations: {
+            'zh-CN': {
+              tableColumns: [{ id: 'a', header: '说明' }],
+              tableCells: [{ rowId: 'r1', colId: 'a', value: '第一项' }],
+            },
+          },
+        },
+        grading: { type: 'table', cells: {} },
         createdAt: timestamp,
         updatedAt: timestamp,
       },
@@ -126,6 +140,10 @@ try {
   database = new DatabaseSync(filename);
   repo = repository(database);
   const persisted = await repo.loadProblemDocument('problem');
+  assert.deepEqual(
+    persisted.problem.publicContent.translations,
+    archiveInput.problems[0].publicContent.translations,
+  );
   assert.equal(
     persisted?.problem.chapterId,
     'functions',

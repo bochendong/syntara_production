@@ -2226,6 +2226,7 @@ export function ProblemPracticePage({
                   {currentProblem.type === 'table' && answer?.kind === 'table' ? (
                     <NativeTableAnswer
                       content={publicContent as NotebookProblemPublicTable}
+                      locale={language}
                       values={answer.cells}
                       results={
                         document?.attempts.find((item) => Array.isArray(item.result?.cells))?.result

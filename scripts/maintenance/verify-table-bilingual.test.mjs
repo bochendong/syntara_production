@@ -121,3 +121,52 @@ test('non-text and unknown column kinds always retain their original values', ()
     assert.equal(getLocalizedProblemContent(content, 'zh-CN').rows[0].cells.question, 'First item');
   }
 });
+
+test('schema parsed service input survives mock persistence and real native serializer', async () => {
+  const aliasJiti = createJiti(import.meta.url, { alias: { '@': process.cwd() } });
+  const { readNativeProblems } = await aliasJiti.import('../../lib/server/native-problem-sync.ts');
+  const serviceInput = notebookProblemPublicTableSchema.parse(fixture());
+  const stored = JSON.parse(JSON.stringify(serviceInput)); // disposable in-memory persistence, not a database
+  const now = new Date('2026-01-01T00:00:00Z');
+  const mock = {
+    course: { findUnique: async () => ({ ownerId: 'owner', externalBinding: null }) },
+    notebook: { findMany: async () => [] },
+    notebookProblem: {
+      findMany: async ({ select }) =>
+        select.publicContentJson
+          ? [
+              {
+                id: 'p',
+                notebookId: null,
+                chapterId: 'c',
+                chapter: { name: 'Chapter' },
+                title: 'Table',
+                type: 'table',
+                status: 'published',
+                difficulty: 'medium',
+                tags: [],
+                order: 0,
+                publicContentJson: stored,
+                gradingJson: { type: 'table', cells: {} },
+                ownerId: null,
+                releaseAddedIn: 0,
+                contentUpdatedAt: now,
+                createdAt: now,
+                updatedAt: now,
+              },
+            ]
+          : [{ id: 'p', updatedAt: now }],
+    },
+    notebookProblemProgress: { findMany: async () => [] },
+    courseEnrollment: { findFirst: async () => null },
+  };
+  const sync = await readNativeProblems(mock, 'owner', 'course', null);
+  const transmitted = JSON.parse(JSON.stringify(sync)).problems[0];
+  assert.deepEqual(transmitted.publicContent, serviceInput);
+  assert.equal(
+    getLocalizedProblemContent(transmitted.publicContent, 'zh-CN').rows[0].cells.question,
+    '第一项',
+  );
+  assert.equal(transmitted.chapterId, 'c');
+  assert.deepEqual(transmitted.grading, { type: 'table', cells: {} });
+});

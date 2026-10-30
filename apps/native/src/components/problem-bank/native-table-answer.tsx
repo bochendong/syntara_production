@@ -18,13 +18,16 @@ export function NativeTableAnswer({
   onChange,
   results,
   disabled,
+  locale,
 }: {
   content: NotebookProblemPublicTable;
   values: Record<string, string>;
   onChange: (cells: Record<string, string>) => void;
   results?: Array<{ key: string; correct: boolean }>;
   disabled?: boolean;
+  locale: 'zh-CN' | 'en-US';
 }) {
+  const zh = locale === 'zh-CN';
   const [runs, setRuns] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const answerColumns = tableAnswerColumns(content);
@@ -58,7 +61,7 @@ export function NativeTableAnswer({
           <thead>
             <tr>
               <th className="native-table-index">
-                <span className="sr-only">行</span>
+                <span className="sr-only">{zh ? '行' : 'Row'}</span>
               </th>
               {content.columns.map((column) => (
                 <th key={column.id} data-kind={column.cellKind} data-role={column.role}>
@@ -79,8 +82,8 @@ export function NativeTableAnswer({
                       type="button"
                       onClick={() => void run(row.id)}
                       className="native-table-icon-button"
-                      title="运行这一行"
-                      aria-label="运行这一行"
+                      title={zh ? '运行这一行' : 'Run this row'}
+                      aria-label={zh ? '运行这一行' : 'Run this row'}
                     >
                       <Play size={13} aria-hidden="true" />
                     </button>
@@ -100,8 +103,8 @@ export function NativeTableAnswer({
                         })
                       }
                       className="native-table-icon-button"
-                      title="复制上一行"
-                      aria-label="复制上一行"
+                      title={zh ? '复制上一行' : 'Copy previous row'}
+                      aria-label={zh ? '复制上一行' : 'Copy previous row'}
                     >
                       <Copy size={13} aria-hidden="true" />
                     </button>
@@ -130,7 +133,7 @@ export function NativeTableAnswer({
                               [tableCellKey(row.id, column.id)]: event.target.value,
                             })
                           }
-                          placeholder="填写答案…"
+                          placeholder={zh ? '填写答案…' : 'Enter answer…'}
                           spellCheck={false}
                           autoCapitalize="off"
                           autoCorrect="off"
@@ -156,9 +159,13 @@ export function NativeTableAnswer({
                               }
                             >
                               {answer === 'ERROR'
-                                ? '报错'
+                                ? zh
+                                  ? '报错'
+                                  : 'ERROR'
                                 : answer === 'NOTHING'
-                                  ? '无输出'
+                                  ? zh
+                                    ? '无输出'
+                                    : 'NOTHING'
                                   : answer}
                             </button>
                           ))}
@@ -168,9 +175,9 @@ export function NativeTableAnswer({
                         <span className="native-table-verdict">
                           {results.find((item) => item.key === tableCellKey(row.id, column.id))
                             ?.correct ? (
-                            <Check size={14} aria-label="答对" />
+                            <Check size={14} aria-label={zh ? '答对' : 'Correct'} />
                           ) : (
-                            <X size={14} aria-label="答错" />
+                            <X size={14} aria-label={zh ? '答错' : 'Incorrect'} />
                           )}
                         </span>
                       )}

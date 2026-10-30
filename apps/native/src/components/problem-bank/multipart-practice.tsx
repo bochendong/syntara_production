@@ -295,6 +295,7 @@ function PartPrompt({
     return (
       <NativeTableAnswer
         content={part.content as NotebookProblemPublicTable}
+        locale={locale}
         values={answer.cells ?? {}}
         results={result?.cells}
         disabled={disabled}
