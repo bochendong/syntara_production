@@ -716,3 +716,30 @@ final result: passed
 - None required for this scoped change.
 
 final result: passed
+
+
+## 2026-10-30 — Question bank compact filters
+
+Scope: the approved desktop one-line toolbar and phone single-column layout; retain platform navigation, gem assets, fonts and grading/practice semantics.
+
+- Desktop source: `/Users/dongbochen/.codex/generated_images/01a18b7a-e996-7491-9eed-ebe9388350a4/exec-431702b5-b0fd-455b-b0e5-4b93d64a8031.png` (1584 × 993).
+- Phone source: `/Users/dongbochen/.codex/generated_images/01a18b7a-e996-7491-9eed-ebe9388350a4/exec-0629c40c-e559-4eee-bb6b-9bae190742e7.png` (853 × 1844, normalized to 390 × 844).
+- Local implementation: `http://127.0.0.1:1463/filter-practice-preview.html?layout=1`, development-only isolated fixtures: nine chapters, 13 questions, nine series. Counts and chapter order intentionally reflect fixtures, not the mock's illustrative data.
+- Evidence: `artifacts/qa/question-bank-toolbar/desktop.png`, `desktop-menu.png`, `mobile-390.png`, `mobile-sheet.png`.
+- Combined comparisons inspected: `artifacts/qa/question-bank-toolbar/desktop-comparison.png` and `mobile-comparison.png`. Desktop compares equally sized 1216 × 720 content regions (mock x=336 and local x=20); phone compares normalized 390 × 844 frames. Standalone fixture header differs from the unchanged production navigation shell; excluded from scoped fidelity claims.
+
+### Findings and accepted implementation choices
+
+- No remaining actionable P0/P1/P2 issue in the scoped filter and responsive layout.
+- Fonts: retain the existing platform font stack and chapter typography; toolbar text 14px, phone search 16px to avoid iOS input zoom. Smaller existing chapter typography than the generated mock is retained intentionally.
+- Layout: toolbar measures exactly 44px high at 320, 390 and 1440px browser widths; 320px document width equals viewport width. Three desktop chapter columns, two intermediate columns, one phone column. Desktop filter controls become a combined button when the actual bank container is under 800px. Existing application compact navigation remains authoritative at window widths up to 1099px.
+- Colors/tokens: reuse marble color tokens, original raster jewels, and existing glass menu portal. Blue selection, count column and check mark have dedicated spacing; the other platform menus retain their existing styling.
+- Assets: original platform marble assets and Lucide controls, no rasterized UI or replacement gem artwork. Copy: series, difficulty and type labels come from existing data helpers; no invented course/question data in production.
+- Menu QA found and fixed: cap dropdown height at 380px, reserve check-mark width, focus the selected item, maintain 44px option hit areas despite shared stylesheet order.
+- Phone QA found and fixed: restore focus to the trigger after dismiss/apply; keep chapter practice buttons at least 44px high. Native modal handles focus trapping and Escape, back-dismiss integrates with the platform stack.
+- Tested interactions: desktop series + difficulty intersection, result counts and cross-chapter next-question order; mobile draft edits, cancel without applying, reset, zero-result apply and clear; nine-series search and selection; keyboard End and Escape; viewport switch from desktop to phone with filters retained.
+- Native production build and full Next build passed, including all six Python judging bundle checks. `pnpm verify:local` passed format/lint and root/native/Vite type checks after `next typegen` initialized Next image declarations. Three practice-scope regression tests passed.
+- An additional unrelated legacy `verify-problem-bank-presentation.mjs` invocation cannot load its CSS import under Node 22. Its script and imported root problem-bank components/CSS are unchanged by this task; this is not counted as a passed check.
+- Limits: browser checks use disposable local IndexedDB data and do not submit student answers. Physical iPhone keyboard/safe-area behavior and packaged native releases are not verified by these browser screenshots.
+
+final result: passed

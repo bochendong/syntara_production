@@ -6,7 +6,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { ArrowLeft, Check, ChevronLeft, LayoutGrid, List, Play, Search, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, LayoutGrid, List, Play } from 'lucide-react';
 
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
 import { matchesProblemFilters, problemPaperSeries } from '../data/problem-bank-filters';
@@ -23,7 +23,11 @@ import { LearningEmptyState } from './LearningEmptyState';
 import type { LocalCourseWorkspace, LocalProblem } from '../domain/models';
 import { DIFFICULTY_MARBLES, marbleImages, type MarbleColor } from '../lib/learning-action-marbles';
 import { notebookMarbleColor, splitNotebookName } from '../lib/notebook-reading';
-import { MaterialUploadButton } from './MaterialUploadButton';
+import {
+  ProblemBankFilters,
+  type BankFilterValues,
+  type BankFilterGroup,
+} from './ProblemBankFilters';
 import {
   CourseReleaseButton,
   LayerActionMenu,
@@ -587,104 +591,86 @@ export function ProblemBankPage({
   const searchResults = hasFilters ? sheetProblems : [];
 
   const visibleSeriesOptions = problemPaperSeries(openChapter?.problems ?? bankProblems);
-  const chooseSeries = (tag: string) => {
-    setSeriesSelection({ courseId, tag });
+  const filterValues: BankFilterValues = {
+    series: activeSeries,
+    difficulty: activeDifficultyFilter,
+    type: activeTypeFilter,
+  };
+  const filterGroups: BankFilterGroup[] = [
+    ...(visibleSeriesOptions.length
+      ? [
+          {
+            key: 'series' as const,
+            label: '系列',
+            allLabel: '全部系列',
+            options: [
+              { value: '', label: '全部系列', count: scopeProblems.length },
+              ...visibleSeriesOptions.map(([value, count]) => ({ value, label: value, count })),
+            ],
+          },
+        ]
+      : []),
+    {
+      key: 'difficulty',
+      label: '难度',
+      allLabel: '全部难度',
+      options: [
+        { value: 'all', label: '全部难度', count: scopeProblems.length },
+        ...DIFFICULTY_OPTIONS.filter((option) => difficultyCounts[option.value] > 0).map(
+          (option) => ({
+            value: option.value,
+            label: option.label,
+            count: difficultyCounts[option.value],
+            icon: <img className="pb-filter-gem" src={marbleImages[option.color]} alt="" />,
+          }),
+        ),
+      ],
+    },
+    {
+      key: 'type',
+      label: '题型',
+      allLabel: '全部题型',
+      options: [
+        { value: 'all', label: '全部题型', count: scopeProblems.length },
+        ...typeOptions.map(([value, count]) => ({ value, label: problemTypeLabel(value), count })),
+      ],
+    },
+  ];
+  const applyFilters = (values: BankFilterValues) => {
+    setSeriesSelection({ courseId, tag: values.series });
+    setDifficultyFilter(values.difficulty as DifficultyFilter);
+    setTypeFilter(values.type);
     setSearchCount(LIST_PAGE_SIZE);
     setListCount(LIST_PAGE_SIZE);
   };
-  const seriesFilter = visibleSeriesOptions.length ? (
-    <section className="pb-series-panel" aria-label="系列筛选">
-      <h3>系列</h3>
-      <div className="pb-series-options" role="group" aria-label="试卷系列">
-        <button
-          type="button"
-          className={!activeSeries ? 'is-active' : ''}
-          aria-pressed={!activeSeries}
-          onClick={() => chooseSeries('')}
-        >
-          <span>全部系列</span>
-          <small>{openChapter?.problems.length ?? bankProblems.length}</small>
-        </button>
-        {visibleSeriesOptions.map(([tag, count]) => (
-          <button
-            key={tag}
-            type="button"
-            className={activeSeries === tag ? 'is-active' : ''}
-            aria-pressed={activeSeries === tag}
-            onClick={() => chooseSeries(activeSeries === tag ? '' : tag)}
-          >
-            <span>{tag}</span>
-            <small>{count}</small>
-          </button>
-        ))}
-      </div>
-    </section>
-  ) : null;
-
-  const difficultyAndTypeFilters = (
-    <>
-      <div
-        className={`pb-tube${activeDifficultyFilter !== 'all' ? ' has-filter' : ''}`}
-        role="group"
-        aria-label="难度"
-      >
-        {DIFFICULTY_OPTIONS.map((option) => {
-          const count = difficultyCounts[option.value];
-          if (!count) return null;
-          const active = activeDifficultyFilter === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              className={`pb-tube-seg is-${option.color}${active ? ' is-active' : ''}`}
-              style={{ flexGrow: Math.max(count, scopeProblems.length * 0.14) }}
-              aria-pressed={active}
-              onClick={() => {
-                setDifficultyFilter((current) => (current === option.value ? 'all' : option.value));
-                setListCount(LIST_PAGE_SIZE);
-                setSearchCount(LIST_PAGE_SIZE);
-              }}
-            >
-              <img src={marbleImages[option.color]} alt="" />
-              <span>{option.label}</span>
-              <b>{count}</b>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="pb-toolbar">
-        <div className="pb-chips" role="group" aria-label="题型">
-          {typeOptions.length > 1 ? (
-            <button
-              type="button"
-              className={activeTypeFilter === 'all' ? 'is-active' : ''}
-              onClick={() => setTypeFilter('all')}
-            >
-              全部题型
-            </button>
-          ) : null}
-          {typeOptions.length > 1
-            ? typeOptions.map(([type, count]) => (
-                <button
-                  key={type}
-                  type="button"
-                  className={activeTypeFilter === type ? 'is-active' : ''}
-                  onClick={() => {
-                    setTypeFilter((current) => (current === type ? 'all' : type));
-                    setListCount(LIST_PAGE_SIZE);
-                    setSearchCount(LIST_PAGE_SIZE);
-                  }}
-                >
-                  {problemTypeLabel(type)}
-                  <small>{count}</small>
-                </button>
-              ))
-            : null}
-        </div>
-      </div>
-    </>
+  const filterBar = (
+    <ProblemBankFilters
+      key={courseId}
+      groups={filterGroups}
+      values={filterValues}
+      query={query}
+      onQueryChange={(next) => {
+        setQuery(next);
+        setSearchCount(LIST_PAGE_SIZE);
+        setListCount(LIST_PAGE_SIZE);
+      }}
+      onChange={applyFilters}
+      resultCount={(values) =>
+        scopeProblems.filter((problem) =>
+          matchesProblemFilters(sourceProblems.get(problem.id) ?? problem, {
+            query,
+            ...values,
+            chapter: 'all',
+          }),
+        ).length
+      }
+      onUploadFiles={onUploadFiles}
+    />
   );
+  const clearFilters = () => {
+    applyFilters({ series: '', difficulty: 'all', type: 'all' });
+    setQuery('');
+  };
   const filterTitle = [
     activeSeries,
     activeDifficultyFilter !== 'all' ? difficultyLabel(activeDifficultyFilter) : '',
@@ -697,7 +683,7 @@ export function ProblemBankPage({
   const courseLabel = workspace.course.courseCode || workspace.course.name;
   if (!bankProblems.length) {
     return (
-      <section className="pb-page" aria-label="课程题库">
+      <section className="pb-page pb-redesigned" aria-label="课程题库">
         <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
         <div className="pb-scroll">
           <div className="pb-column">
@@ -751,7 +737,7 @@ export function ProblemBankPage({
         openChapter.key,
       );
     return (
-      <section className="pb-page" aria-label={`${openChapter.title} 题目`}>
+      <section className="pb-page pb-redesigned" aria-label={`${openChapter.title} 题目`}>
         <BankHeader title={openChapter.title} subtitle={courseLabel} onBack={onBack} />
         <div className="pb-scroll">
           <div className="pb-column">
@@ -792,28 +778,17 @@ export function ProblemBankPage({
               </div>
             </div>
 
-            <div className="material-search-row pb-bank-search-row">
-              <label className="pb-search">
-                <Search size={17} />
-                <input
-                  value={query}
-                  aria-label="搜索题目、章节或知识点"
-                  placeholder="搜索题目、章节或知识点"
-                  type="search"
-                  onChange={(event) => {
-                    setQuery(event.target.value);
-                    setListCount(LIST_PAGE_SIZE);
-                  }}
-                />
-                {query ? (
-                  <button type="button" onClick={() => setQuery('')} aria-label="清空搜索">
-                    <X size={14} />
-                  </button>
-                ) : null}
-              </label>
-            </div>
+            {filterBar}
+            {hasFilters ? (
+              <div className="pb-filter-result" role="status">
+                <span>找到 {sheetProblems.length} 道题</span>
+                <button type="button" onClick={clearFilters}>
+                  清除筛选
+                </button>
+              </div>
+            ) : null}
             <div className="pb-chapter-body">
-              <aside className="pb-chapter-side">
+              <aside className="pb-chapter-stats-row" aria-label="这一章的作答情况">
                 <div className="pb-chapter-stats" aria-label="这一章">
                   {chapterStats.map((stat) => (
                     <span key={stat.key} className={`is-${stat.key}`}>
@@ -827,8 +802,6 @@ export function ProblemBankPage({
                     </span>
                   ))}
                 </div>
-                {difficultyAndTypeFilters}
-                {seriesFilter}
               </aside>
 
               <div className="pb-chapter-main">
@@ -941,40 +914,22 @@ export function ProblemBankPage({
     : undefined;
 
   return (
-    <section className="pb-page" aria-label="课程题库">
+    <section className="pb-page pb-redesigned" aria-label="课程题库">
       <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
       <div className="pb-scroll">
         <div className="pb-column">
           {releaseControl}
-          <div className="material-search-row pb-bank-search-row">
-            <label className="pb-search">
-              <Search size={17} />
-              <input
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setSearchCount(LIST_PAGE_SIZE);
-                }}
-                aria-label="搜索题目、章节或知识点"
-                placeholder="搜索题目、章节或知识点"
-                type="search"
-              />
-              {query ? (
-                <button type="button" onClick={() => setQuery('')} aria-label="清空搜索">
-                  <X size={14} />
-                </button>
-              ) : null}
-            </label>
-            {onUploadFiles ? (
-              <MaterialUploadButton label="上传题目" onFiles={onUploadFiles} />
-            ) : null}
-          </div>
+          {filterBar}
+          {hasFilters ? (
+            <div className="pb-filter-result" role="status">
+              <span>找到 {sheetProblems.length} 道题</span>
+              <button type="button" onClick={clearFilters}>
+                清除筛选
+              </button>
+            </div>
+          ) : null}
 
-          <div className="pb-chapter-body pb-series-layout">
-            <aside className="pb-chapter-side pb-series-side" aria-label="筛选题目">
-              {seriesFilter}
-              {difficultyAndTypeFilters}
-            </aside>
+          <div className="pb-chapter-body pb-bank-body">
             <div className="pb-chapter-main">
               {hasFilters ? (
                 searchResults.length ? (
@@ -1099,7 +1054,9 @@ export function ProblemBankPage({
                   ) : null}
 
                   <p className="phone-group-title pb-wall-title">
-                    <span>{chapters.length} 章</span>
+                    <span>
+                      {chapters.length} 章 · 共 {bankProblems.length} 道题
+                    </span>
                     <span>
                       {passedTotal}/{bankProblems.length} 通过
                     </span>

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { Check } from 'lucide-react';
 import type { CourseLearningPage } from '../lib/native-launch';
 import { useBackDismiss } from '../lib/use-back-dismiss';
 import { LearningToolIcon } from './LearningToolIcon';
@@ -13,10 +14,16 @@ const tools = [
   { page: 'problems', label: '题库' },
 ] as const;
 
-function menuPosition(anchor: HTMLButtonElement, count: number, align: 'end' | 'center') {
+function menuPosition(
+  anchor: HTMLButtonElement,
+  count: number,
+  align: 'end' | 'center',
+  limit?: number,
+) {
   const rect = anchor.getBoundingClientRect();
   const width = Math.min(216, window.innerWidth - 24);
-  const height = count * 44 + 12;
+  const maxHeight = Math.min(limit ?? Infinity, window.innerHeight - 24);
+  const height = Math.min(count * 44 + 12, maxHeight);
   const left = align === 'center' ? rect.left + rect.width / 2 - width / 2 : rect.right - width;
   return {
     width,
@@ -25,7 +32,7 @@ function menuPosition(anchor: HTMLButtonElement, count: number, align: 'end' | '
       rect.bottom + 8 + height <= window.innerHeight - 12
         ? rect.bottom + 8
         : Math.max(12, rect.top - height - 8),
-    maxHeight: window.innerHeight - 24,
+    maxHeight,
   };
 }
 
@@ -68,6 +75,8 @@ export type GlassMenuItem = {
   /** 新手引导圈住的按钮。 */
   onboarding?: string;
   destructive?: boolean;
+  selected?: boolean;
+  count?: number;
 };
 
 /** 从按钮下面展开的玻璃小菜单，点外面、按 Esc 或返回就收起。 */
@@ -77,27 +86,36 @@ export function GlassMenu({
   items,
   onClose,
   align = 'end',
+  className = '',
+  maxHeight,
 }: {
   anchor: HTMLButtonElement;
   label: string;
   items: GlassMenuItem[];
   onClose: () => void;
   align?: 'end' | 'center';
+  className?: string;
+  maxHeight?: number;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState(() => menuPosition(anchor, items.length, align));
+  const [position, setPosition] = useState(() =>
+    menuPosition(anchor, items.length, align, maxHeight),
+  );
   useBackDismiss(true, onClose, 30);
   useLayoutEffect(() => {
-    const reposition = () => setPosition(menuPosition(anchor, items.length, align));
+    const reposition = () => setPosition(menuPosition(anchor, items.length, align, maxHeight));
     reposition();
-    menuRef.current?.querySelector('button')?.focus();
+    (
+      menuRef.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]') ??
+      menuRef.current?.querySelector('button')
+    )?.focus();
     window.addEventListener('resize', reposition);
     window.addEventListener('scroll', reposition, true);
     return () => {
       window.removeEventListener('resize', reposition);
       window.removeEventListener('scroll', reposition, true);
     };
-  }, [align, anchor, items.length]);
+  }, [align, anchor, items.length, maxHeight]);
   useEffect(() => {
     const dismiss = (event: PointerEvent | FocusEvent) => {
       if (
@@ -119,7 +137,7 @@ export function GlassMenu({
   return createPortal(
     <div
       ref={menuRef}
-      className={align === 'center' ? 'course-tools-menu is-centered' : 'course-tools-menu'}
+      className={`course-tools-menu${align === 'center' ? ' is-centered' : ''} ${className}`}
       style={position}
       role="menu"
       aria-label={label}
@@ -149,14 +167,26 @@ export function GlassMenu({
       {items.map((item) => (
         <button
           type="button"
-          role="menuitem"
+          role={item.selected === undefined ? 'menuitem' : 'menuitemradio'}
+          aria-checked={item.selected}
           key={item.key}
-          className={item.destructive ? 'is-destructive' : undefined}
+          className={
+            item.destructive ? 'is-destructive' : item.selected ? 'is-selected' : undefined
+          }
           data-onboarding={item.onboarding}
           onClick={item.onSelect}
         >
           {item.icon}
           <span>{item.label}</span>
+          {item.count !== undefined ? <small>{item.count}</small> : null}
+          {item.selected !== undefined ? (
+            <Check
+              className="glass-menu-check"
+              size={16}
+              aria-hidden
+              style={{ visibility: item.selected ? 'visible' : 'hidden' }}
+            />
+          ) : null}
         </button>
       ))}
     </div>,
