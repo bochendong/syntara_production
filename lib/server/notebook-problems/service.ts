@@ -372,6 +372,11 @@ type ReviewProblemDetailRow = {
 };
 
 const PUBLISH_PROBLEM_WRITE_BATCH_SIZE = 40;
+const problemAttemptWriteSchema = notebookProblemAttemptRecordSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 
 function mapAttemptRow(row: ProblemAttemptRow): NotebookProblemAttemptRecord {
   return notebookProblemAttemptRecordSchema.parse({
@@ -3579,6 +3584,9 @@ export async function createNotebookProblemAttempt(args: {
   /** Ungraded learning snapshots retain the learner's assessed progress and counts. */
   preserveProgress?: boolean;
 }): Promise<NotebookProblemAttemptRecord> {
+  // mapAttemptRow validates again after commit. Reject invalid payloads before
+  // persistence so a response failure cannot leave a saved, counted submission.
+  problemAttemptWriteSchema.parse(args);
   const created = (await prismaDb.$transaction(async (tx: Prisma.TransactionClient) => {
     const attempt = await tx.notebookProblemAttempt.create({
       data: {

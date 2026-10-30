@@ -215,7 +215,10 @@ def main():
                 super().startTest(test)
                 if payload.get("stdin") is not None:
                     sys.stdin = io.StringIO(payload["stdin"])
-                self.current = {"id": test.id(), "description": test.shortDescription(), "passed": True}
+                self.current = {"id": test.id(), "passed": True}
+                description = test.shortDescription()
+                if description:
+                    self.current["description"] = description
             def addSuccess(self, test):
                 super().addSuccess(test)
             def addFailure(self, test, err):

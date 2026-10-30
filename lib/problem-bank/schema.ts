@@ -636,7 +636,14 @@ export const notebookProblemAttemptAnswerSchema = z.object({
 
 export const notebookCodeCaseResultSchema = z.object({
   id: z.string().trim().min(1).max(64),
-  description: z.string().trim().min(1).max(500).optional(),
+  // Older Python unittest results persisted None as null before response validation.
+  description: z
+    .string()
+    .trim()
+    .min(1)
+    .max(500)
+    .nullish()
+    .transform((value) => value ?? undefined),
   passed: z.boolean(),
   actual: z.string().trim().min(1).max(12000).optional(),
   error: z.string().trim().min(1).max(12000).optional(),
