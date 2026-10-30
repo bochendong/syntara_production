@@ -31,4 +31,14 @@ assets
 coverage
 logs
 docs
+# Runtime import documentation: keep only the published, reviewed allowlist.
+!docs/
+docs/*
+!docs/api/
+docs/api/*
+!docs/api/ai-course-problem-upload.md
+!docs/api/course-problem-import-transport.md
+!docs/api/problem-import-agent-blind-test.md
+!docs/api/problem-import-cross-subject-blind-test.md
+!docs/api/problem-import-frozen-holdout.md
 .claude

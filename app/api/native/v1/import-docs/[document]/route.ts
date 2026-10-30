@@ -1,18 +1,15 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { COURSE_PROBLEM_IMPORT_GUIDE } from '@/lib/course-problem-import-guide';
+import {
+  COURSE_PROBLEM_IMPORT_DOCUMENTS,
+  COURSE_PROBLEM_IMPORT_GUIDE,
+} from '@/lib/course-problem-import-guide';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const documents = new Set([
-  'ai-course-problem-upload.md',
-  'course-problem-import-transport.md',
-  'problem-import-agent-blind-test.md',
-  'problem-import-cross-subject-blind-test.md',
-  'problem-import-frozen-holdout.md',
-]);
+const documents = new Set(COURSE_PROBLEM_IMPORT_DOCUMENTS);
 
 /** Public protocol documentation only. Course data and credentials are never served here. */
 export async function GET(_request: Request, context: { params: Promise<{ document: string }> }) {

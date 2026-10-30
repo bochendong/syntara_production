@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFile, mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { readFile, mkdtemp, mkdir, writeFile, rm, copyFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { verifyPublishedImportDocuments } from '../deploy/verify-import-guide.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const require = createRequire(import.meta.url);
@@ -78,6 +79,28 @@ test('an unreviewed changed guide cannot masquerade as the frozen version', asyn
     assert.ok(!(await response.text()).includes('unreviewed'));
   } finally {
     process.chdir(previous);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('the build refuses missing packaged documentation and changed frozen content', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'syntara-guide-build-'));
+  try {
+    await mkdir(path.join(dir, 'docs/api'), { recursive: true });
+    const expected = await verifyPublishedImportDocuments(root);
+    assert.equal(expected.length, 5);
+    for (const { document } of expected)
+      await copyFile(path.join(root, 'docs/api', document), path.join(dir, 'docs/api', document));
+    assert.deepEqual(await verifyPublishedImportDocuments(dir), expected);
+    await rm(path.join(dir, 'docs/api/problem-import-frozen-holdout.md'));
+    await assert.rejects(verifyPublishedImportDocuments(dir), /missing from build context/);
+    await copyFile(
+      path.join(root, 'docs/api/problem-import-frozen-holdout.md'),
+      path.join(dir, 'docs/api/problem-import-frozen-holdout.md'),
+    );
+    await writeFile(path.join(dir, 'docs/api/ai-course-problem-upload.md'), 'changed');
+    await assert.rejects(verifyPublishedImportDocuments(dir), /reviewed SHA-256/);
+  } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });
