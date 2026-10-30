@@ -4,7 +4,7 @@
 
 ## 测试服上的权威说明
 
-通过盲测的独立说明由测试服直接提供：[读取最终版 Markdown](https://native-api-staging-staging-95a1.up.railway.app/api/native/v1/import-docs/ai-course-problem-upload.md)。本页也可从同目录的 `course-problem-import-transport.md` 读取，说明中的相对链接保持有效。两个入口只公开协议文档，不包含课程资料、答案或凭据。
+通过盲测的独立说明由测试服直接提供：[读取最终版 Markdown](https://native-api-staging-staging-95a1.up.railway.app/api/native/v1/import-docs/ai-course-problem-upload.md)。本页也可从同目录的 `course-problem-import-transport.md` 读取，说明中的相对链接保持有效。同目录同时提供说明中链接的三份盲测记录。白名单入口只公开协议与验证文档，不包含私有课程资料、答案或凭据。
 
 当前说明版本为 `2026-10-29`，SHA-256 为 `060dded8b4c571c916e41e5ac77659c76bb8a845b81139002a1ef928f74db46f`。HTTP 响应带 `X-Content-SHA256` 与 `Cache-Control: no-store`。课程目录／context 响应的 `importGuide` 返回 path、sha256、version 和 transportPath；CLI 收据保留这些信息，path 相对于收据中的 origin。交给其他 agent 时使用该地址和对应课程 context，避免从旧分支复制说明。
 
@@ -16,7 +16,7 @@
 
 账号必须是课程真实所有者、已有全站管理员，或具有明确未到期的本课程题库导入授权。管理员规则与原 `requireAdmin` 相同：数据库 `role: ADMIN`，或已有 `ADMIN_EMAILS` / `ADMIN_USER_IDS`。服务器仅从已认证 principal 的用户 ID 读取数据库身份；请求正文不能指定 owner、管理员身份、grant 或维护身份。单纯 enrolled 学生返回 403；上传不修改角色或 allowlist。
 
-认证复用 [Native device authorization](./native-staging.md) 的登录、浏览器确认、token/refresh 流程。将 access token 保存到仅本人可读的 UTF-8 文件，或明确指定的环境变量。不要在命令行、manifest、聊天或收据中放 token。CLI 不加载环境文件。
+认证复用 [Native device authorization](https://github.com/bochendong/syntara_production/blob/codex/staging-next/docs/api/native-staging.md) 的登录、浏览器确认、token/refresh 流程。将 access token 保存到仅本人可读的 UTF-8 文件，或明确指定的环境变量。不要在命令行、manifest、聊天或收据中放 token。CLI 不加载环境文件。
 
 ```sh
 # 默认只读服务器预览；核对私有 receipt 的章节、数量、难度和题型。
@@ -52,7 +52,7 @@ node scripts/learn/import-course-problems.mjs \
 
 示例时间必须换成实际批准的期限。过期、跨课程、跨用户、keyId 不匹配、非法 JSON、未知能力或重复/歧义匹配都拒绝。HTTP 不能提供 grant；服务器以 native principal、服务器受管配置和当前课程 owner 构造内部 authority，写入事务前再次检查到期时间。只能追加已审查内容，既有内容冲突仍拒绝；不能编辑/删除旧题或旧讲义。题库入口不允许绑定 notebook 或调用 legacy backfill。Course.ownerId、enrollment 和用户 role 保持原值，不授予全站 ADMIN。审计保留真实 actor userId/keyId、实际 courseId、scopeCourseId、原 dataOwnerId、grantId、能力和到期时间。撤去环境配置、撤销设备 session 或到期即停止后续导入，不影响已保存内容的原所有者。未配置 keyId 的旧单课程授权仍按显式 user/course 规则工作。
 
-后台 CLI 可使用本机 0600 credential-file 自动刷新 token；题库命令新增 `--credential-file FILE` 与 `--list-courses`。`GET /api/native/v1/course-problem-imports?limit=100&cursor=...` 仅对有匹配 keyId 的 wildcard grant 或已有管理员开放，返回 `{courses,nextCursor,actor,capabilities}`。每门课含 `id,name,organization:{id,name}|null,notebookCount,problemCount,publishedProblemCount,updatedAt`，不含学生、用户或 owner 身份数据。普通 owner/enrolled 的单课权限不开放全部目录。后台可据目录精确选择 courseId，再调用原题库预览/提交。共享讲义见 [后台共享讲义上传](./ai-course-shared-material-upload.md)。
+后台 CLI 可使用本机 0600 credential-file 自动刷新 token；题库命令新增 `--credential-file FILE` 与 `--list-courses`。`GET /api/native/v1/course-problem-imports?limit=100&cursor=...` 仅对有匹配 keyId 的 wildcard grant 或已有管理员开放，返回 `{courses,nextCursor,actor,capabilities}`。每门课含 `id,name,organization:{id,name}|null,notebookCount,problemCount,publishedProblemCount,updatedAt`，不含学生、用户或 owner 身份数据。普通 owner/enrolled 的单课权限不开放全部目录。后台可据目录精确选择 courseId，再调用原题库预览/提交。共享讲义见 [后台共享讲义上传](https://github.com/bochendong/syntara_production/blob/codex/staging-next/docs/api/ai-course-shared-material-upload.md)。
 
 ## Manifest 与章节
 
@@ -96,7 +96,7 @@ node scripts/learn/import-course-problems.mjs \
 
 单个 API 批次最多 100 题、正文最多 2 MB。CLI 可接收更大 manifest，按原顺序稳定拆为 100 题一批，key 后加 `:part:1`、`:part:2`；CLI 的基础 key 限 8–130 字符。重试必须保持文件顺序、内容和 key 不变。全部批次先完成只读预览，再逐批事务提交；多个批次不是一个跨批事务。也可为每套模拟题各准备一个 manifest/key。
 
-题目复用 [现有 draft schema](../../lib/problem-bank/schema.ts)，难度为 `easy|medium|hard`，类型支持 `choice|proof|short_answer|calculation|fill_blank|table|multipart|code`（执行题受下述预检限制）。未经预检的 code、secretJudge 和 code_token 填空拒绝导入；测试服执行题的独立 runner 验证流程见文末。课程题目沿用统一 100 分制；原卷分数应保存在 sourceMeta。证明/简答必须有完整参考答案及任务专属 rubric，结构化 rubricCriteria 总和必须为 100。题面、grading、draft 类型必须一致，validationErrors 必须为空。已审查内容按 schema 和实际 Markdown 结构校验，不再运行 AI 抽取启发式清理，保留真值表构造任务、题内定义和合法 Markdown 表格。批量持久化使用仅服务器内部的 preservePreparedContent 模式，仍保留结构、评分与状态检查；原 AI 抽取导入路径保持原有清理规则。请求不能设置该内部模式。
+题目复用 [现有 draft schema](https://github.com/bochendong/syntara_production/blob/codex/staging-next/lib/problem-bank/schema.ts)，难度为 `easy|medium|hard`，类型支持 `choice|proof|short_answer|calculation|fill_blank|table|multipart|code`（执行题受下述预检限制）。未经预检的 code、secretJudge 和 code_token 填空拒绝导入；测试服执行题的独立 runner 验证流程见文末。课程题目沿用统一 100 分制；原卷分数应保存在 sourceMeta。证明/简答必须有完整参考答案及任务专属 rubric，结构化 rubricCriteria 总和必须为 100。题面、grading、draft 类型必须一致，validationErrors 必须为空。已审查内容按 schema 和实际 Markdown 结构校验，不再运行 AI 抽取启发式清理，保留真值表构造任务、题内定义和合法 Markdown 表格。批量持久化使用仅服务器内部的 preservePreparedContent 模式，仍保留结构、评分与状态检查；原 AI 抽取导入路径保持原有清理规则。请求不能设置该内部模式。
 
 题目去重沿用现有课程题面内容 key。相同 key 仅在题名、题型、状态、难度、标签、题面、grading、来源和章节完全一致时复用；不同则 409，不覆盖任何题目。仅改变来源或新建 idempotencyKey 不会绕过内容冲突。源文件及审查证据保留本机，manifest 记录其 SHA-256；本接口不上传原 PDF。
 

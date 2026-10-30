@@ -46,13 +46,22 @@ test('the relative transport link resolves to the published, exact transport doc
 });
 
 test('the public documentation endpoint refuses private and arbitrary filesystem paths', async () => {
-  for (const name of [
-    '.env.local',
-    '../.env.local',
-    '/etc/passwd',
-    'problem-import-frozen-holdout.md',
-  ]) {
+  for (const name of ['.env.local', '../.env.local', '/etc/passwd', 'native-staging.md']) {
     assert.equal((await get(name)).status, 404);
+  }
+});
+
+test('relative Markdown links in the guide and transport resolve to exact published documents', async () => {
+  for (const name of ['ai-course-problem-upload.md', 'course-problem-import-transport.md']) {
+    const text = await (await get(name)).text();
+    for (const match of text.matchAll(/\]\(\.\/([^/)]+\.md)\)/g)) {
+      const response = await get(match[1]);
+      assert.equal(response.status, 200, match[1]);
+      assert.equal(
+        await response.text(),
+        await readFile(path.join(root, 'docs/api', match[1]), 'utf8'),
+      );
+    }
   }
 });
 
