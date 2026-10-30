@@ -25,16 +25,14 @@ export function localizeProblem(
     language,
   );
   const translatedStem = 'stem' in publicContent ? publicContent.stem : undefined;
-  const translation = language === 'zh-CN' ? publicContent.translations?.[language] : undefined;
+  const translation = publicContent.translations?.[language];
   return {
     ...problem,
     publicContent,
     ...(translation?.chapterName ? { chapterName: translation.chapterName } : {}),
     title:
       translation?.title ??
-      (language === 'zh-CN' &&
-      typeof translatedStem === 'string' &&
-      translatedStem !== problem.publicContent.stem
+      (typeof translatedStem === 'string' && translatedStem !== problem.publicContent.stem
         ? translatedStem.replace(/\s+/g, ' ')
         : problem.title),
   };

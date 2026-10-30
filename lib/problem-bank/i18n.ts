@@ -39,7 +39,6 @@ function readTitleTranslation(
   sourceMeta: Record<string, unknown> | null | undefined,
   language: ProblemContentLanguage,
 ): string | null {
-  if (language === 'en-US') return null;
   const meta = readRecord(sourceMeta);
   const translations = readRecord(meta?.translations);
   const languageTranslations = readRecord(translations?.[language]);
@@ -52,7 +51,7 @@ export function getLocalizedProblemTitle(
   language: ProblemContentLanguage,
 ): string {
   return (
-    (language === 'zh-CN' ? problem.publicContent.translations?.[language]?.title : null) ??
+    problem.publicContent.translations?.[language]?.title ??
     readTitleTranslation(problem.sourceMeta, language) ??
     problem.title
   );
@@ -62,7 +61,6 @@ export function getLocalizedProblemContent<T extends LocalizableProblemContent>(
   content: T,
   language: ProblemContentLanguage,
 ): T {
-  if (language === 'en-US') return content;
   const translation = content.translations?.[language];
   const next = { ...content };
   if (content.type === 'multipart' && content.parts)
@@ -91,16 +89,32 @@ export function getLocalizedProblemContent<T extends LocalizableProblemContent>(
   return next as T;
 }
 
+function contentHasTranslation(
+  content: LocalizableProblemContent,
+  language: ProblemContentLanguage,
+): boolean {
+  const translation = content.translations?.[language];
+  return Boolean(
+    translation?.title ||
+    translation?.chapterName ||
+    translation?.stem ||
+    translation?.stemTemplate ||
+    translation?.explanation ||
+    translation?.options?.length ||
+    content.parts?.some((part) => contentHasTranslation(part.content, language)),
+  );
+}
+
+/** With no language specified, detect either translation so both kinds of base work. */
 export function hasProblemTranslation(
   problem: LocalizableProblemRecord | null | undefined,
-  language: ProblemContentLanguage = 'zh-CN',
+  language?: ProblemContentLanguage,
 ): boolean {
-  if (!problem || language === 'en-US') return false;
-  const translation = problem.publicContent.translations?.[language];
-  return Boolean(
-    readTitleTranslation(problem.sourceMeta, language) ||
-    translation?.stem ||
-    translation?.explanation ||
-    translation?.options?.length,
+  if (!problem) return false;
+  const languages: ProblemContentLanguage[] = language ? [language] : ['zh-CN', 'en-US'];
+  return languages.some(
+    (locale) =>
+      Boolean(readTitleTranslation(problem.sourceMeta, locale)) ||
+      contentHasTranslation(problem.publicContent, locale),
   );
 }
