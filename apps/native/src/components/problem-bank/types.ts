@@ -1,3 +1,5 @@
+import type { NotebookCodeFile } from '../../../../../lib/problem-bank/schema';
+
 export type NotebookProblemImageAsset = {
   id: string;
   src: string;
@@ -55,6 +57,8 @@ export type NotebookProblemPublicContent =
       stem: string;
       language?: 'python' | string;
       starterCode?: string;
+      files?: NotebookCodeFile[];
+      stdin?: string;
       functionSignature?: string;
       constraints: string[];
       publicTests: CodePublicTest[];

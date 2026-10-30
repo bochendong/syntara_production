@@ -10,6 +10,7 @@ import { ArrowLeft, Check, ChevronLeft, LayoutGrid, List, Play, Search, X } from
 
 import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
 import { matchesProblemFilters, problemPaperSeries } from '../data/problem-bank-filters';
+import { practiceLaunchForResults } from '../data/problem-practice-scope';
 import { ProblemTitleText } from './problem-bank/problem-rich-text';
 import {
   SheetCell,
@@ -46,7 +47,7 @@ export type ProblemBankLaunch = {
   language?: ProblemContentLanguage;
   problemIds: string[];
   initialProblemId: string;
-  /** 每道题在这一章里的题号，做题页的答题卡用。 */
+  /** 每道题在当前筛选结果里的连续题号，做题页的答题卡用。 */
   numbers?: Record<string, number>;
   /** 这一组题的名字（章节名 / 错题重练）。 */
   title?: string;
@@ -504,19 +505,10 @@ export function ProblemBankPage({
         writeCourseValue('local', LAST_STORAGE_KEY, courseId, next);
         setLastSession(next);
       }
-      onPractice({
-        language: 'zh-CN',
-        problemIds: problems.map((problem) => problem.id),
-        initialProblemId: start.id,
-        numbers: Object.fromEntries(
-          problems
-            .filter((problem) => numberById.has(problem.id))
-            .map((problem) => [problem.id, numberById.get(problem.id)!]),
-        ),
-        title,
-      });
+      const launch = practiceLaunchForResults(problems, start.id, title);
+      if (launch) onPractice(launch);
     },
-    [courseId, numberById, onPractice],
+    [courseId, onPractice],
   );
 
   /** 「继续刷」：这一组里第一道还没通过的题。 */
@@ -552,28 +544,31 @@ export function ProblemBankPage({
   const [listCount, setListCount] = useState(LIST_PAGE_SIZE);
   const [query, setQuery] = useState('');
 
-  const chapterProblems = useMemo(() => openChapter?.problems ?? [], [openChapter]);
+  const scopeProblems = useMemo(
+    () => openChapter?.problems ?? allChapter.problems,
+    [openChapter, allChapter],
+  );
   const typeOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const problem of chapterProblems) {
+    for (const problem of scopeProblems) {
       counts.set(problem.type, (counts.get(problem.type) || 0) + 1);
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [chapterProblems]);
+  }, [scopeProblems]);
   const difficultyCounts = useMemo(() => {
     const counts = { easy: 0, medium: 0, hard: 0 } as Record<LocalProblem['difficulty'], number>;
-    for (const problem of chapterProblems) {
+    for (const problem of scopeProblems) {
       if (problem.difficulty in counts) counts[problem.difficulty] += 1;
     }
     return counts;
-  }, [chapterProblems]);
+  }, [scopeProblems]);
   const activeTypeFilter =
     typeFilter === 'all' || typeOptions.some(([type]) => type === typeFilter) ? typeFilter : 'all';
   const activeDifficultyFilter =
     difficultyFilter === 'all' || difficultyCounts[difficultyFilter] > 0 ? difficultyFilter : 'all';
   const sheetProblems = useMemo(
     () =>
-      chapterProblems.filter((problem) =>
+      scopeProblems.filter((problem) =>
         matchesProblemFilters(sourceProblems.get(problem.id) ?? problem, {
           query,
           type: activeTypeFilter,
@@ -582,33 +577,14 @@ export function ProblemBankPage({
           series: activeSeries,
         }),
       ),
-    [
-      chapterProblems,
-      query,
-      activeDifficultyFilter,
-      activeTypeFilter,
-      sourceProblems,
-      activeSeries,
-    ],
+    [scopeProblems, query, activeDifficultyFilter, activeTypeFilter, sourceProblems, activeSeries],
   );
 
-  // ---------- 章节墙：搜索 ----------
+  const hasFilters = Boolean(
+    query.trim() || activeSeries || activeTypeFilter !== 'all' || activeDifficultyFilter !== 'all',
+  );
   const [searchCount, setSearchCount] = useState(LIST_PAGE_SIZE);
-  const searchResults = useMemo(() => {
-    const q = query.trim();
-    if (!q && !activeSeries) return [];
-    return chapters.flatMap((chapter) =>
-      chapter.problems.filter((problem) =>
-        matchesProblemFilters(sourceProblems.get(problem.id) ?? problem, {
-          query: q,
-          type: 'all',
-          difficulty: 'all',
-          chapter: 'all',
-          series: activeSeries,
-        }),
-      ),
-    );
-  }, [chapters, query, sourceProblems, activeSeries]);
+  const searchResults = hasFilters ? sheetProblems : [];
 
   const visibleSeriesOptions = problemPaperSeries(openChapter?.problems ?? bankProblems);
   const chooseSeries = (tag: string) => {
@@ -644,6 +620,79 @@ export function ProblemBankPage({
       </div>
     </section>
   ) : null;
+
+  const difficultyAndTypeFilters = (
+    <>
+      <div
+        className={`pb-tube${activeDifficultyFilter !== 'all' ? ' has-filter' : ''}`}
+        role="group"
+        aria-label="难度"
+      >
+        {DIFFICULTY_OPTIONS.map((option) => {
+          const count = difficultyCounts[option.value];
+          if (!count) return null;
+          const active = activeDifficultyFilter === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              className={`pb-tube-seg is-${option.color}${active ? ' is-active' : ''}`}
+              style={{ flexGrow: Math.max(count, scopeProblems.length * 0.14) }}
+              aria-pressed={active}
+              onClick={() => {
+                setDifficultyFilter((current) => (current === option.value ? 'all' : option.value));
+                setListCount(LIST_PAGE_SIZE);
+                setSearchCount(LIST_PAGE_SIZE);
+              }}
+            >
+              <img src={marbleImages[option.color]} alt="" />
+              <span>{option.label}</span>
+              <b>{count}</b>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="pb-toolbar">
+        <div className="pb-chips" role="group" aria-label="题型">
+          {typeOptions.length > 1 ? (
+            <button
+              type="button"
+              className={activeTypeFilter === 'all' ? 'is-active' : ''}
+              onClick={() => setTypeFilter('all')}
+            >
+              全部题型
+            </button>
+          ) : null}
+          {typeOptions.length > 1
+            ? typeOptions.map(([type, count]) => (
+                <button
+                  key={type}
+                  type="button"
+                  className={activeTypeFilter === type ? 'is-active' : ''}
+                  onClick={() => {
+                    setTypeFilter((current) => (current === type ? 'all' : type));
+                    setListCount(LIST_PAGE_SIZE);
+                    setSearchCount(LIST_PAGE_SIZE);
+                  }}
+                >
+                  {problemTypeLabel(type)}
+                  <small>{count}</small>
+                </button>
+              ))
+            : null}
+        </div>
+      </div>
+    </>
+  );
+  const filterTitle = [
+    activeSeries,
+    activeDifficultyFilter !== 'all' ? difficultyLabel(activeDifficultyFilter) : '',
+    activeTypeFilter !== 'all' ? problemTypeLabel(activeTypeFilter) : '',
+    query.trim(),
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   const courseLabel = workspace.course.courseCode || workspace.course.name;
   if (!bankProblems.length) {
@@ -698,7 +747,7 @@ export function ProblemBankPage({
       startPractice(
         sheetProblems,
         problem,
-        activeSeries ? `${openChapter.title} · ${activeSeries}` : openChapter.title,
+        filterTitle ? `${openChapter.title} · ${filterTitle}` : openChapter.title,
         openChapter.key,
       );
     return (
@@ -778,66 +827,7 @@ export function ProblemBankPage({
                     </span>
                   ))}
                 </div>
-                <div
-                  className={`pb-tube${activeDifficultyFilter !== 'all' ? ' has-filter' : ''}`}
-                  role="group"
-                  aria-label="难度"
-                >
-                  {DIFFICULTY_OPTIONS.map((option) => {
-                    const count = difficultyCounts[option.value];
-                    if (!count) return null;
-                    const active = activeDifficultyFilter === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        className={`pb-tube-seg is-${option.color}${active ? ' is-active' : ''}`}
-                        style={{ flexGrow: Math.max(count, chapterProblems.length * 0.14) }}
-                        aria-pressed={active}
-                        onClick={() => {
-                          setDifficultyFilter((current) =>
-                            current === option.value ? 'all' : option.value,
-                          );
-                          setListCount(LIST_PAGE_SIZE);
-                        }}
-                      >
-                        <img src={marbleImages[option.color]} alt="" />
-                        <span>{option.label}</span>
-                        <b>{count}</b>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="pb-toolbar">
-                  <div className="pb-chips" role="group" aria-label="题型">
-                    {typeOptions.length > 1 ? (
-                      <button
-                        type="button"
-                        className={activeTypeFilter === 'all' ? 'is-active' : ''}
-                        onClick={() => setTypeFilter('all')}
-                      >
-                        全部题型
-                      </button>
-                    ) : null}
-                    {typeOptions.length > 1
-                      ? typeOptions.map(([type, count]) => (
-                          <button
-                            key={type}
-                            type="button"
-                            className={activeTypeFilter === type ? 'is-active' : ''}
-                            onClick={() => {
-                              setTypeFilter((current) => (current === type ? 'all' : type));
-                              setListCount(LIST_PAGE_SIZE);
-                            }}
-                          >
-                            {problemTypeLabel(type)}
-                            <small>{count}</small>
-                          </button>
-                        ))
-                      : null}
-                  </div>
-                </div>
+                {difficultyAndTypeFilters}
                 {seriesFilter}
               </aside>
 
@@ -855,7 +845,7 @@ export function ProblemBankPage({
                         >
                           <LayerItem label={problem.title} onMore={moreFor(problem)}>
                             <SheetCell
-                              number={numberById.get(problem.id)}
+                              number={hasFilters ? index + 1 : numberById.get(problem.id)}
                               status={statuses.get(problem.id)}
                               difficulty={problem.difficulty}
                               title={
@@ -893,7 +883,7 @@ export function ProblemBankPage({
                           <LayerItem label={problem.title} onMore={moreFor(problem)}>
                             <ProblemRow
                               problem={problem}
-                              number={numberById.get(problem.id)}
+                              number={hasFilters ? index + 1 : numberById.get(problem.id)}
                               status={statuses.get(problem.id)}
                               badges={badgesFor(problem)}
                               onClick={() => practice(problem)}
@@ -926,11 +916,7 @@ export function ProblemBankPage({
               ))}
             </span>
             {allPassed ? '再刷一遍' : '继续刷'}
-            {next ? (
-              <small>
-                {numberById.has(next.id) ? `第 ${numberById.get(next.id)} 题` : '我的题目'}
-              </small>
-            ) : null}
+            {next ? <small>{`第 ${sheetProblems.indexOf(next) + 1} 题`}</small> : null}
           </button>
         ) : null}
         {layerOverlays}
@@ -984,20 +970,19 @@ export function ProblemBankPage({
             ) : null}
           </div>
 
-          <div className={seriesFilter ? 'pb-chapter-body pb-series-layout' : undefined}>
-            {seriesFilter ? (
-              <aside className="pb-chapter-side pb-series-side" aria-label="筛选题目">
-                {seriesFilter}
-              </aside>
-            ) : null}
-            <div className={seriesFilter ? 'pb-chapter-main' : undefined}>
-              {query.trim() || activeSeries ? (
+          <div className="pb-chapter-body pb-series-layout">
+            <aside className="pb-chapter-side pb-series-side" aria-label="筛选题目">
+              {seriesFilter}
+              {difficultyAndTypeFilters}
+            </aside>
+            <div className="pb-chapter-main">
+              {hasFilters ? (
                 searchResults.length ? (
                   <>
-                    {activeSeries ? (
+                    {hasFilters ? (
                       <div className="pb-series-summary">
                         <span>
-                          <strong>{activeSeries}</strong> · {searchResults.length} 题
+                          <strong>{filterTitle}</strong> · {searchResults.length} 题
                         </span>
                         <button
                           type="button"
@@ -1006,7 +991,7 @@ export function ProblemBankPage({
                             startPractice(
                               searchResults,
                               firstUnpassed(searchResults),
-                              activeSeries,
+                              filterTitle,
                               null,
                             )
                           }
@@ -1025,16 +1010,11 @@ export function ProblemBankPage({
                           <LayerItem label={problem.title} onMore={moreFor(problem)}>
                             <ProblemRow
                               problem={problem}
-                              number={numberById.get(problem.id)}
+                              number={hasFilters ? index + 1 : numberById.get(problem.id)}
                               status={statuses.get(problem.id)}
                               badges={badgesFor(problem)}
                               onClick={() => {
-                                startPractice(
-                                  searchResults,
-                                  problem,
-                                  activeSeries || query.trim(),
-                                  null,
-                                );
+                                startPractice(searchResults, problem, filterTitle, null);
                               }}
                             />
                           </LayerItem>

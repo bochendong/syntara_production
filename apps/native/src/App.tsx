@@ -19,6 +19,7 @@ import { NotebookLibraryPage } from './components/NotebookLibraryPage';
 import { ProblemBankPage, type ProblemBankLaunch } from './components/ProblemBankPage';
 import { ProblemPracticePage } from './components/ProblemPracticePage';
 import { PracticeOverlay } from './components/PracticeOverlay';
+import { NativeToast } from './components/NativeToast';
 import { syncPlatformCourses } from './data/chat-sync';
 import { getLocalRepository, type LocalBackendKind } from './data/repository';
 import {
@@ -755,11 +756,7 @@ function AuthenticatedApp() {
 
         <OnboardingCoach courses={courses} />
 
-        {toast ? (
-          <div className="native-toast" role="status">
-            {toast}
-          </div>
-        ) : null}
+        {toast ? <NativeToast title={toast} /> : null}
       </main>
     </AppNavigationContext.Provider>
   );

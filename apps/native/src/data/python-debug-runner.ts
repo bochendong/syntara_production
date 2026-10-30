@@ -6,7 +6,11 @@ export type PythonDebugEvent =
   | { type: 'stopped' };
 
 /** A fresh worker per run keeps Python state isolated and makes infinite loops stoppable. */
-export function runPythonDebug(code: string, onEvent: (event: PythonDebugEvent) => void) {
+export function runPythonDebug(
+  code: string,
+  onEvent: (event: PythonDebugEvent) => void,
+  input: { files?: Array<{ path: string; content: string }>; stdin?: string } = {},
+) {
   const worker = new Worker(new URL('./python-debug.worker.ts', import.meta.url), {
     type: 'module',
   });
@@ -44,6 +48,8 @@ export function runPythonDebug(code: string, onEvent: (event: PythonDebugEvent) 
   };
   worker.postMessage({
     code,
+    files: input.files ?? [],
+    stdin: input.stdin ?? '',
     indexURL: new URL(`${import.meta.env.BASE_URL}python-runtime/`, window.location.href).href,
   });
   return () => finish({ type: 'stopped' });

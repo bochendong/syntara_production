@@ -1,0 +1,38 @@
+.feedback-demo {
+  display: flex;
+  height: 100dvh;
+  flex-direction: column;
+  padding: 10px;
+  box-sizing: border-box;
+  background: #f4f4f6;
+}
+.feedback-demo > .native-problem-practice {
+  min-height: 0;
+  flex: 1;
+}
+.feedback-demo-controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 12px 10px;
+  font-size: 12px;
+  color: #64748b;
+}
+.feedback-demo-controls strong {
+  color: #0f172a;
+}
+.feedback-demo-controls button {
+  padding: 6px 12px;
+  border: 1px solid #dbe3ed;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+}
+.feedback-demo-controls button[aria-pressed='true'] {
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}

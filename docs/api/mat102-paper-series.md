@@ -1,5 +1,13 @@
 # MAT102 试卷系列标签
 
+## 筛选结果与连续练习
+
+题库首页和章节页共用系列、难度、题型及搜索条件。点击题目或开始练习时，做题器复制完整筛选结果的 ID 顺序；分页仅限制列表显示数量，不截断练习范围。列表与答题卡按该结果连续编号，做题器优先显示筛选题组标题。顶部、底部的上一题／下一题使用同一导航方法，不按当前题目的知识点扩展题组，也不跳过已答对的题。到达筛选结果末尾后，下一题禁用。
+
+验收命令：`node --test scripts/maintenance/verify-problem-practice-scope.test.mjs`。本机 Vite 的 `/filter-practice-preview.html` 使用独立样例验证跨章节、系列／难度／题型组合以及已答对题的导航，不提交测试服学生作答。
+
+## 系列标签维护
+
 `scripts/learn/tag-mat102-paper-series.mjs` 为测试服 UTM-MAT102 的模拟卷题补充可搜索的试卷系列标签。它只修改题目的 `tags` 和 `updatedAt`，并在实际修改后将课程 `contentVersion` 加一，供客户端同步。
 
 - TT1 A–H：`TT1模拟A卷` 等，每卷 10 道选择题、4 道大题。

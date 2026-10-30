@@ -44,13 +44,20 @@ type CustomTest = {
   running: boolean;
 };
 
-function TestFiles({ files }: { files: Array<{ path: string; content: string }> }) {
+function TestFiles({
+  files,
+  openFirst = false,
+}: {
+  files: Array<{ path: string; content: string }>;
+  openFirst?: boolean;
+}) {
   if (!files.length) return null;
   return (
     <div className="flex flex-wrap gap-1.5">
       {files.map((file, index) => (
         <details
           key={`${file.path}-${index}`}
+          open={openFirst && index === 0}
           className="group rounded-xl border border-sky-100 bg-white/80 text-xs shadow-sm open:w-full"
         >
           <summary className="cursor-pointer list-none px-3 py-1 font-mono font-semibold text-sky-800">
@@ -157,6 +164,12 @@ export function NativeCodePlayground({
   const inputFiles = files.filter((file) => file.role !== 'expected_output');
   return (
     <>
+      {inputFiles.length ? (
+        <section aria-label="输入文件" className="native-code-input-files">
+          <h3>输入文件</h3>
+          <TestFiles files={inputFiles} openFirst />
+        </section>
+      ) : null}
       <NativeCodeTests
         code={code}
         tests={tests}
@@ -269,7 +282,6 @@ export function NativeCodePlayground({
                 className="block w-full resize-y rounded-lg border border-slate-200 bg-white/90 px-3 py-1.5 font-mono text-xs text-slate-700 outline-none focus:border-sky-400"
               />
             ) : null}
-            <TestFiles files={inputFiles} />
           </section>
         </>
       ) : null}
