@@ -254,3 +254,83 @@ export function racketNewlineEdit(value: string, start: number, end = start) {
     caret: start + insert.length,
   };
 }
+
+const OPENERS: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
+const CLOSERS = new Set([')', ']', '}']);
+
+/**
+ * Pair every bracket in the source, skipping strings, comments and #\( character literals.
+ * Unmatched or mismatched brackets map to -1.
+ */
+export function racketBracketPairs(value: string): Map<number, number> {
+  const pairs = new Map<number, number>();
+  const open: number[] = [];
+  let i = 0;
+  while (i < value.length) {
+    const char = value[i];
+    if (char === ';') {
+      const end = value.indexOf('\n', i);
+      i = end === -1 ? value.length : end;
+    } else if (value.startsWith('#|', i)) {
+      let depth = 1;
+      i += 2;
+      while (i < value.length && depth) {
+        if (value.startsWith('|#', i)) {
+          depth -= 1;
+          i += 2;
+        } else if (value.startsWith('#|', i)) {
+          depth += 1;
+          i += 2;
+        } else i += 1;
+      }
+    } else if (value.startsWith('#\\', i)) {
+      i += 3;
+      while (i < value.length && /[A-Za-z]/.test(value[i])) i += 1;
+    } else if (char === '"') {
+      i += 1;
+      while (i < value.length && value[i] !== '"') i += value[i] === '\\' ? 2 : 1;
+      i += 1;
+    } else if (OPENERS[char]) {
+      open.push(i);
+      i += 1;
+    } else if (CLOSERS.has(char)) {
+      const start = open.pop();
+      if (start === undefined) pairs.set(i, -1);
+      else if (OPENERS[value[start]] !== char) {
+        pairs.set(i, -1);
+        pairs.set(start, -1);
+      } else {
+        pairs.set(i, start);
+        pairs.set(start, i);
+      }
+      i += 1;
+    } else i += 1;
+  }
+  for (const start of open) pairs.set(start, -1);
+  return pairs;
+}
+
+/**
+ * The bracket pair next to the caret, DrRacket style: just after a closer wins, then just
+ * before an opener, then just before a closer / just after an opener. `matched: false`
+ * marks a bracket with no partner (only `open` is set, at that bracket).
+ */
+export function racketBracketAtCaret(
+  value: string,
+  caret: number,
+  pairs = racketBracketPairs(value),
+): { open: number; close: number; matched: boolean } | null {
+  const candidates = [caret - 1, caret, caret, caret - 1];
+  const wanted = [CLOSERS, OPENERS, CLOSERS, OPENERS];
+  for (let index = 0; index < candidates.length; index += 1) {
+    const at = candidates[index];
+    const char = value[at];
+    if (at < 0 || !char || !pairs.has(at)) continue;
+    const isWanted = wanted[index] === CLOSERS ? CLOSERS.has(char) : Boolean(OPENERS[char]);
+    if (!isWanted) continue;
+    const partner = pairs.get(at)!;
+    if (partner === -1) return { open: at, close: at, matched: false };
+    return { open: Math.min(at, partner), close: Math.max(at, partner), matched: true };
+  }
+  return null;
+}
