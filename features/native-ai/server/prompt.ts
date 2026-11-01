@@ -1,3 +1,4 @@
+import { problemCoachInstruction, problemCoachRules } from '@/lib/problem-bank/problem-coach';
 import type { NativeChatRequest } from './schema';
 
 function section(title: string, lines: string[]): string {
@@ -20,6 +21,24 @@ export function buildNativeChatSystemPrompt(input: NativeChatRequest): string {
   }
   const { course, context, surface } = input;
   const english = course.language === 'en-US';
+  if (context.problemCoach) {
+    const coach = context.problemCoach;
+    return [
+      `课程：「${course.name}」${course.code ? `（${course.code}）` : ''}。`,
+      problemCoachRules(english ? 'en-US' : 'zh-CN'),
+      '支持 Markdown 和 LaTeX。',
+      section('学生正在做的题', [coach.problem]),
+      section('这一轮', [problemCoachInstruction(coach.move)]),
+      section(
+        '相关学习记忆',
+        context.memories
+          .slice(0, 8)
+          .map((memory) => `- [${memory.kind}] ${memory.title}：${memory.text}`),
+      ),
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  }
   const phone = surface === 'phone';
   const practiceEnabled = !phone && context.problems.length > 0;
 

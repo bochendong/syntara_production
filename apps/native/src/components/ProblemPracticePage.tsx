@@ -142,6 +142,7 @@ import {
   type ProblemLearningEvent,
 } from '../data/problem-learning-snapshot';
 import { ProblemSolutionConfirmation } from './problem-bank/ProblemSolutionConfirmation';
+import { ProblemAiCoachButton, ProblemAiCoachPanel } from './problem-bank/ProblemAiCoach';
 import {
   hasBilingualProblem,
   localizeProblem,
@@ -451,6 +452,8 @@ export function ProblemPracticePage({
   const sheetAnchorRef = useRef<HTMLDivElement>(null);
   const sheetTriggerRef = useRef<HTMLButtonElement>(null);
   const [submissionNotice, setSubmissionNotice] = useState<SubmissionFeedback | null>(null);
+  const [coachOpen, setCoachOpen] = useState(false);
+  const [coachBusy, setCoachBusy] = useState(false);
   const stackedPanes = useStackedPanes();
   const [partDrafts, setPartDrafts] = useState<Record<string, LocalPartAnswer>>({});
   const [stemCollapsed, setStemCollapsed] = useState(true);
@@ -1297,6 +1300,7 @@ export function ProblemPracticePage({
   const persistLearningAction = async (
     event: ProblemLearningEvent,
     nextAnswer: LocalProblemAnswer,
+    options: { openSolution?: boolean } = {},
   ) => {
     if (!currentProblem || snapshotBusy) return false;
     setSubmissionNotice(null);
@@ -1354,8 +1358,10 @@ export function ProblemPracticePage({
       } else if (event === 'solution_viewed') {
         setSolutionSeen(true);
         setSolutionConfirm(false);
-        setSolutionNotice('查看前的作答与求助记录已保存。');
-        setRightTab('solution');
+        if (options.openSolution !== false) {
+          setSolutionNotice('查看前的作答与求助记录已保存。');
+          setRightTab('solution');
+        }
       }
       return true;
     } catch (cause) {
@@ -1661,6 +1667,12 @@ export function ProblemPracticePage({
           ) : null}
         </div>
         <div className="pp-header-tools">
+          <ProblemAiCoachButton
+            open={coachOpen}
+            busy={coachBusy}
+            disabled={loading}
+            onClick={() => setCoachOpen((open) => !open)}
+          />
           {hasBilingualProblem(currentProblem) ? (
             <ContentLanguageSwitch
               label="题目语言"
@@ -1700,6 +1712,32 @@ export function ProblemPracticePage({
           <X size={22} />
         </button>
       </header>
+
+      {coachOpen && currentProblem ? (
+        <ProblemAiCoachPanel
+          problem={displayedProblem ?? currentProblem}
+          answer={
+            isMultipart
+              ? { kind: 'parts', parts: { ...savedParts.answers, ...partDrafts } }
+              : answer
+          }
+          latestAttempt={document?.attempts[0]}
+          runOutput={[debugResult.output, debugResult.error].filter(Boolean).join('\n')}
+          onClose={() => setCoachOpen(false)}
+          onBusyChange={setCoachBusy}
+          onSolutionAsked={() => {
+            // 和点「答案」一样留一条求助记录，但不切到参考答案页。
+            if (solutionSeen || !answer) return;
+            void persistLearningAction(
+              'solution_viewed',
+              isMultipart
+                ? { kind: 'parts', parts: { ...savedParts.answers, ...partDrafts } }
+                : answer,
+              { openSolution: false },
+            );
+          }}
+        />
+      ) : null}
 
       {finish === 'shown' ? (
         <PracticeFinish

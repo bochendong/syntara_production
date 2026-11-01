@@ -123,6 +123,18 @@ export const nativeChatRequestSchema = z.object({
         )
         .max(40)
         .default([]),
+      /**
+       * 做题页「问 AI」：学生正在做的这道题（App 端拼好的题面、作答、测试结果、参考答案）。
+       * 有它时助教按提示梯子引导，不直接给答案。
+       */
+      problemCoach: z
+        .object({
+          problemId: shortText(200),
+          title: shortText(300),
+          problem: z.string().max(12_000),
+          move: z.enum(['hint', 'next', 'check', 'solution', 'ask']),
+        })
+        .optional(),
     })
     .default({ notes: [], memories: [], calendar: [], attempts: [], problems: [] }),
 });

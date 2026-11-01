@@ -34,6 +34,13 @@ export interface NativeChatContext {
     excerpt?: string;
     status?: string | null;
   }>;
+  /** 做题页「问 AI」：正在做的这道题（题面、作答、测试结果、参考答案拼成一段）。 */
+  problemCoach?: {
+    problemId: string;
+    title: string;
+    problem: string;
+    move: 'hint' | 'next' | 'check' | 'solution' | 'ask';
+  };
 }
 
 export interface NativeChatPayload {
