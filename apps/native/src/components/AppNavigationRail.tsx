@@ -18,12 +18,13 @@ export function AppNavigationRail({
     <nav className="app-navigation-rail" aria-label="全局导航">
       <button
         type="button"
-        aria-label="聊天"
-        title="聊天"
+        aria-label="首页"
+        title="首页"
         aria-current={active === 'chat' ? 'page' : undefined}
         onClick={onOpenChat}
       >
         <Home size={22} strokeWidth={1.7} aria-hidden />
+        <span className="app-navigation-label">首页</span>
       </button>
       <button
         type="button"
@@ -34,6 +35,7 @@ export function AppNavigationRail({
         onClick={onOpenStore}
       >
         <Store size={22} strokeWidth={1.7} aria-hidden />
+        <span className="app-navigation-label">商城</span>
       </button>
       <button
         type="button"
@@ -43,6 +45,7 @@ export function AppNavigationRail({
         onClick={onOpenCalendar}
       >
         <CalendarDays size={22} strokeWidth={1.7} aria-hidden />
+        <span className="app-navigation-label">日历</span>
       </button>
       <button
         type="button"
