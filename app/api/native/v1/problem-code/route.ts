@@ -106,6 +106,23 @@ export async function POST(request: NextRequest) {
         language,
         courseIdentity,
       });
+      // 跑测试的结果留一条记录（不改做题进度），连续跑不过会变成学习记忆里的卡点。
+      if (!loaded.isTeacherPreview && target !== 'code' && judged.status !== 'error') {
+        try {
+          await createNotebookProblemAttempt({
+            userId: principal.userId,
+            problemId,
+            kind: 'run',
+            status: judged.status,
+            score: judged.score,
+            answer: { code },
+            result: judged.result,
+            preserveProgress: true,
+          });
+        } catch (error) {
+          console.warn('[native-problem-code] run record failed', { problemId, error });
+        }
+      }
       return publicApiSuccess(requestId, { saved: false, ...judged });
     }
     const id = `native_code_${attemptId}`;

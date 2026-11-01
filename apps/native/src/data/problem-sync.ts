@@ -189,6 +189,40 @@ export async function queueProblemAttempt(
   );
 }
 
+/**
+ * 在本机跑了一次公开/隐藏测试：不存本地作答，只排进上传队列，
+ * 服务器据此判断「连续跑不过」并写进学习记忆。
+ */
+export async function queueProblemTestRun(
+  repository: LocalRepository,
+  input: {
+    courseId: string;
+    problemId: string;
+    code: string;
+    passed: boolean;
+    target: 'public' | 'secret';
+    feedback?: string;
+  },
+): Promise<void> {
+  if (!(await isPlatformCourse(repository, input.courseId))) return;
+  const upload: NativeProblemAttemptUpload = {
+    id: `run_${crypto.randomUUID().replace(/-/g, '')}`,
+    problemId: input.problemId,
+    run: input.target,
+    status: input.passed ? 'passed' : 'failed',
+    score: null,
+    answer: { code: input.code.slice(0, 120_000) },
+    feedback: input.feedback?.slice(0, 8000) ?? null,
+    createdAt: Date.now(),
+  };
+  const outbox = readJson<Outbox>(OUTBOX_KEY, {});
+  outbox[input.courseId] = [...(outbox[input.courseId] ?? []), upload].slice(-OUTBOX_LIMIT);
+  writeJson(OUTBOX_KEY, outbox);
+  await flushProblemAttempts(repository, input.courseId).catch((cause) =>
+    console.warn('[problem-sync] test run upload failed', cause),
+  );
+}
+
 async function flushProblemAttempts(repository: LocalRepository, courseId: string): Promise<void> {
   for (;;) {
     const pending = readJson<Outbox>(OUTBOX_KEY, {})[courseId] ?? [];

@@ -104,6 +104,7 @@ export function NativeCodePlayground({
   onRunHiddenTests,
   language,
   onRunScript,
+  onTestRun,
 }: {
   code: string;
   files: NotebookCodeFile[];
@@ -120,6 +121,8 @@ export function NativeCodePlayground({
   language?: string;
   /** Racket 等不能在浏览器跑的语言：「自己试」交给服务器运行整段代码 */
   onRunScript?: (program: string) => Promise<BrowserScriptResult>;
+  /** 每跑完一次公开/隐藏测试回报结果，供学习记忆判断「连续跑不过」 */
+  onTestRun?: (code: string, passed: boolean, target: 'public' | 'secret') => void;
 }) {
   const nextId = useRef(1);
   const [customTests, setCustomTests] = useState<CustomTest[]>([
@@ -178,6 +181,7 @@ export function NativeCodePlayground({
         files={files}
         onRunTests={onRunTests}
         onPublicTestResult={onPublicTestResult}
+        onTestRun={onTestRun}
         language={language}
         assumedHelpersHint={!onRunScript}
       />
@@ -308,6 +312,7 @@ export function NativeCodePlayground({
                 files={files}
                 tests={hiddenTests.cases.map((test, index) => ({ ...test, id: `hidden-${index}` }))}
                 onRunTests={onRunHiddenTests}
+                onTestRun={onTestRun}
               />
               {hiddenTests.hasScript ? (
                 <p className="native-code-hidden-note">

@@ -26,6 +26,7 @@ export function NativeCodeTests({
   language,
   assumedHelpersHint = true,
   onPublicTestResult,
+  onTestRun,
 }: {
   code: string;
   tests: TestCase[];
@@ -36,6 +37,8 @@ export function NativeCodeTests({
   /** 服务器跑测试的代码小问才提示「假定辅助函数正确」；Racket 整题也走服务器，不提示 */
   assumedHelpersHint?: boolean;
   onPublicTestResult?: (code: string, passed: boolean) => void;
+  /** 测试真的跑完了一次（不含运行环境出错）：用来记录「连续跑不过」 */
+  onTestRun?: (code: string, passed: boolean, target: 'public' | 'secret') => void;
 }) {
   const [results, setResults] = useState<Record<string, CaseResult>>({});
   const [running, setRunning] = useState<string[]>([]);
@@ -49,6 +52,14 @@ export function NativeCodeTests({
       const next = { ...results, ...updates };
       setResults(next);
       onPublicTestResult?.(submittedCode, allPublicTestsPassed(tests, next, submittedCode));
+    };
+    const finished = (updates: Record<string, CaseResult>) => {
+      report(updates);
+      onTestRun?.(
+        submittedCode,
+        Object.values(updates).every((item) => item.passed),
+        label === '隐藏测试' ? 'secret' : 'public',
+      );
     };
     try {
       if (onRunTests) {
@@ -70,7 +81,7 @@ export function NativeCodeTests({
             code: submittedCode,
           };
         }
-        report(updates);
+        finished(updates);
         return;
       }
       const rows = await runPythonRowsInBrowser({
@@ -100,7 +111,7 @@ export function NativeCodeTests({
           updates[row.id] = { passed: value.passed, actual: value.actual, code: submittedCode };
         }
       }
-      report(updates);
+      finished(updates);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       report(

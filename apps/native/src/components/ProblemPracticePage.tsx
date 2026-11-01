@@ -77,7 +77,7 @@ import {
 import { isPlatformCourse } from '../data/chat-sync';
 import { pendingCodeSubmission, clearPendingCodeSubmission } from '../data/code-submission-id';
 import { problemAiGradeRequest } from '../data/problem-ai-grading';
-import { queueProblemAttempt } from '../data/problem-sync';
+import { queueProblemAttempt, queueProblemTestRun } from '../data/problem-sync';
 import { getLocalRepository } from '../data/repository';
 import { accountStorageKey } from '../data/browser-runtime';
 import {
@@ -132,8 +132,8 @@ import { LearningEmptyState } from './LearningEmptyState';
 import { NativeToast } from './NativeToast';
 import { submissionFeedback, type SubmissionFeedback } from '../lib/submission-feedback';
 import { ContentLanguageSwitch } from './ContentLanguageSwitch';
-import { problemSolution } from '../lib/problem-solution';
 import { syncAppMemories } from '../data/course-sync';
+import { problemSolution } from '../lib/problem-solution';
 import {
   saveProblemLearningSnapshot,
   solutionReminderKey,
@@ -2224,6 +2224,21 @@ export function ProblemPracticePage({
                         });
                       }}
                       onRunScript={serverRunsCode ? serverRunCode : undefined}
+                      onTestRun={(code, passed, target) => {
+                        // Racket 的公开测试在服务器上跑，服务器自己会记。
+                        if (serverRunsCode && target === 'public') return;
+                        void getLocalRepository()
+                          .then((repository) =>
+                            queueProblemTestRun(repository, {
+                              courseId: currentProblem.courseId,
+                              problemId: currentProblem.id,
+                              code,
+                              passed,
+                              target,
+                            }),
+                          )
+                          .catch(() => undefined);
+                      }}
                       hiddenTests={revealedHiddenTests['']}
                       onViewHiddenTests={() => requestHiddenTests()}
                       onRunHiddenTests={

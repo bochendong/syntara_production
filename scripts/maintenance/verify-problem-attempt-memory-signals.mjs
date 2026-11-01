@@ -47,6 +47,7 @@ const {
   maybeWriteProblemAttemptMemorySignal,
   planProblemAttemptMemorySignal,
   semanticProblemAttemptPattern,
+  deriveProblemLearningEvidence,
 } = compiledModule.exports;
 assert.equal(
   typeof planProblemAttemptMemorySignal,
@@ -263,11 +264,10 @@ check('error statuses do not become learner failures', () => {
 check('service calls memory projection only after the attempt transaction', () => {
   const transactionIndex = serviceSource.indexOf('const created = (await prismaDb.$transaction');
   const attemptMappedIndex = serviceSource.indexOf('const attempt = mapAttemptRow(created)');
-  const memoryCallIndex = serviceSource.indexOf('await maybeWriteProblemAttemptMemorySignal');
+  const memoryCallIndex = serviceSource.indexOf('await recordProblemAttemptMemorySignal');
   assert.ok(transactionIndex >= 0);
   assert.ok(attemptMappedIndex > transactionIndex);
   assert.ok(memoryCallIndex > attemptMappedIndex);
-  assert.match(serviceSource, /if \(args\.kind !== 'run'\)/);
   assert.match(serviceSource, /learner-memory write failed after commit/);
 });
 
@@ -325,9 +325,8 @@ const fakePrisma = {
           (memory) =>
             memory.ownerId === userId &&
             (memory.id === fallbackId || memory.source === source) &&
-            memory.targetType === targetType &&
             (targetType === 'notebook'
-              ? memory.notebookId === targetId
+              ? memory.targetType === 'notebook' && memory.notebookId === targetId
               : memory.courseId === targetId),
         )
         .sort((left, right) => +new Date(right.updatedAt) - +new Date(left.updatedAt));
@@ -347,6 +346,7 @@ const fakePrisma = {
       const now = new Date();
       const existingIndex = storedMemories.findIndex((memory) => memory.id === params[0]);
       const next = {
+        ...(existingIndex >= 0 ? storedMemories[existingIndex] : {}),
         id: params[0],
         ownerId: params[1],
         courseId: params[2],
@@ -599,7 +599,7 @@ check('a pass on a second same-tag problem resolves and archives the same row', 
     'problem-cross-c',
     'problem-cross-d',
   ]);
-  assert.match(resolvedCrossMemory.title, /弱点已关闭/);
+  assert.match(resolvedCrossMemory.title, /已关闭/);
 });
 
 setPatternAttempts([
@@ -851,6 +851,199 @@ check('an untagged problem cannot close its gap by repeated passes on itself', (
   assert.deepEqual(untaggedMemory.sourceReferences.resolutionPassingProblemIds, [
     untaggedProblemA.id,
   ]);
+});
+
+// ---- Learning signals beyond formal submissions (2026-11-01) ----
+
+function helpEvent(id, event, createdAt, problemId) {
+  return {
+    ...attempt(id, 'pending', createdAt, 'answer', problemId),
+    score: null,
+    result: { event, feedback: '', publicCases: [] },
+  };
+}
+function testRun(id, status, createdAt, problemId, runTarget = 'public') {
+  return {
+    ...attempt(id, status, createdAt, 'run', problemId),
+    result: { feedback: '断言失败', runTarget, publicCases: [] },
+  };
+}
+function evidenceOf(items, problemId = 'p-signal') {
+  return deriveProblemLearningEvidence(
+    items.map((item) => ({
+      attempt: item,
+      problemId,
+      problemTitle: 'signal',
+      problemType: 'code',
+      normalizedTags: ['signals'],
+    })),
+  );
+}
+
+check('viewing the solution before passing counts as one stuck signal', () => {
+  const derived = evidenceOf([helpEvent('ev-solution', 'solution_viewed', 1, 'p-signal')]);
+  assert.equal(derived.length, 1);
+  assert.equal(derived[0].signal, 'solution_viewed');
+  assert.equal(derived[0].attempt.status, 'failed');
+  assert.equal(derived[0].sourceAttemptId, 'ev-solution');
+});
+
+check('viewing the solution after an independent pass is review, not a signal', () => {
+  const derived = evidenceOf([
+    attempt('pass-first', 'passed', 1, 'submit', 'p-signal'),
+    helpEvent('ev-later', 'solution_viewed', 2, 'p-signal'),
+  ]);
+  assert.deepEqual(
+    derived.map((item) => item.signal),
+    ['passed'],
+  );
+});
+
+check('a pass after viewing the answer or hidden tests is not independent', () => {
+  const derived = evidenceOf([
+    helpEvent('ev-hidden', 'hidden_tests_viewed', 1, 'p-signal'),
+    attempt('pass-assisted', 'passed', 2, 'submit', 'p-signal'),
+  ]);
+  assert.deepEqual(
+    derived.map((item) => item.signal),
+    ['hidden_tests_viewed'],
+  );
+});
+
+check(
+  'three failing test runs in a row form one run streak; code-only runs and resets do not',
+  () => {
+    const derived = evidenceOf([
+      testRun('run-a', 'failed', 1, 'p-signal'),
+      testRun('run-code', 'failed', 2, 'p-signal', 'code'),
+      testRun('run-b', 'partial', 3, 'p-signal', 'secret'),
+      helpEvent('ev-reset', 'answer_reset', 4, 'p-signal'),
+      testRun('run-c', 'failed', 5, 'p-signal'),
+      testRun('run-d', 'failed', 6, 'p-signal'),
+      testRun('run-error', 'error', 7, 'p-signal'),
+    ]);
+    assert.equal(derived.length, 1);
+    assert.equal(derived[0].signal, 'run_streak');
+    assert.equal(derived[0].attempt.id, 'run-streak:run-a');
+    assert.equal(derived[0].sourceAttemptId, 'run-c');
+    assert.match(derived[0].attempt.result.feedback, /连续 3 次/);
+  },
+);
+
+check('a passing run or a submission restarts the run streak', () => {
+  const derived = evidenceOf([
+    testRun('r1', 'failed', 1, 'p-signal'),
+    testRun('r2', 'failed', 2, 'p-signal'),
+    testRun('r3', 'passed', 3, 'p-signal'),
+    testRun('r4', 'failed', 4, 'p-signal'),
+    attempt('s1', 'failed', 5, 'submit', 'p-signal'),
+    testRun('r5', 'failed', 6, 'p-signal'),
+    testRun('r6', 'failed', 7, 'p-signal'),
+  ]);
+  assert.deepEqual(
+    derived.map((item) => item.signal),
+    ['formal_failed'],
+  );
+});
+
+const signalProblem = cloneProblem(problem, {
+  id: 'problem-signal-a',
+  title: '列表切片',
+  tags: ['Slicing'],
+});
+const signalProblemB = cloneProblem(problem, {
+  id: 'problem-signal-b',
+  title: '切片步长',
+  tags: ['slicing'],
+});
+const solutionViewA = helpEvent('ev-signal-solution', 'solution_viewed', 31, signalProblem.id);
+const runsB = [
+  testRun('run-signal-1', 'failed', 32, signalProblemB.id),
+  testRun('run-signal-2', 'failed', 33, signalProblemB.id),
+  testRun('run-signal-3', 'failed', 34, signalProblemB.id),
+];
+
+setPatternAttempts([{ problemAttempt: solutionViewA, problem: signalProblem }]);
+const solutionOnlyResult = await maybeWriteProblemAttemptMemorySignal({
+  prisma: fakePrisma,
+  userId: 'user-1',
+  courseId: 'course-1',
+  notebookId: 'notebook-1',
+  problem: signalProblem,
+  attempt: solutionViewA,
+  recentAttempts: [solutionViewA],
+});
+check('one solution view alone stays short-term', () => {
+  assert.equal(solutionOnlyResult.action, 'skipped');
+});
+
+setPatternAttempts([
+  ...runsB.slice(0, 2).map((item) => ({ problemAttempt: item, problem: signalProblemB })),
+  { problemAttempt: solutionViewA, problem: signalProblem },
+]);
+const twoRunsResult = await maybeWriteProblemAttemptMemorySignal({
+  prisma: fakePrisma,
+  userId: 'user-1',
+  courseId: 'course-1',
+  notebookId: 'notebook-1',
+  problem: signalProblemB,
+  attempt: runsB[1],
+  recentAttempts: [runsB[1]],
+});
+check('two failing runs are not yet a streak', () => {
+  assert.equal(twoRunsResult.action, 'skipped');
+});
+
+setPatternAttempts([
+  ...runsB.map((item) => ({ problemAttempt: item, problem: signalProblemB })),
+  { problemAttempt: solutionViewA, problem: signalProblem },
+]);
+const streakResult = await maybeWriteProblemAttemptMemorySignal({
+  prisma: fakePrisma,
+  userId: 'user-1',
+  courseId: 'course-1',
+  notebookId: 'notebook-1',
+  problem: signalProblemB,
+  attempt: runsB[2],
+  recentAttempts: [runsB[2]],
+});
+const signalMemory = storedMemories.find((memory) => memory.id === streakResult.memoryId);
+check('a solution view plus a run streak on the same concept creates one course memory', () => {
+  assert.equal(streakResult.action, 'created');
+  assert.ok(signalMemory);
+  assert.equal(signalMemory.targetType, 'course');
+  assert.equal(signalMemory.notebookId, 'notebook-1');
+  assert.equal(signalMemory.status, 'active');
+  assert.deepEqual(signalMemory.sourceReferences.nonPassingAttemptIds, [
+    'ev-signal-solution',
+    'run-streak:run-signal-1',
+  ]);
+  assert.match(signalMemory.text, /看了参考答案 1 次/);
+  assert.match(signalMemory.text, /运行测试连续失败 1 轮/);
+  assert.match(signalMemory.title, /slicing/);
+});
+
+const assistedPass = attempt('pass-signal-assisted', 'passed', 35, 'submit', signalProblem.id);
+setPatternAttempts([
+  { problemAttempt: assistedPass, problem: signalProblem },
+  ...runsB.map((item) => ({ problemAttempt: item, problem: signalProblemB })),
+  { problemAttempt: solutionViewA, problem: signalProblem },
+]);
+const assistedResult = await maybeWriteProblemAttemptMemorySignal({
+  prisma: fakePrisma,
+  userId: 'user-1',
+  courseId: 'course-1',
+  notebookId: 'notebook-1',
+  problem: signalProblem,
+  attempt: assistedPass,
+  recentAttempts: [assistedPass],
+});
+check('passing right after reading the answer does not mark the gap improving', () => {
+  assert.equal(assistedResult.action, 'skipped');
+  assert.equal(
+    storedMemories.find((memory) => memory.id === streakResult.memoryId).sourceReferences.state,
+    'active_gap',
+  );
 });
 
 console.log(

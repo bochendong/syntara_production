@@ -211,6 +211,8 @@ export const nativeProblemAttemptUploadSchema = z.object({
         feedback: z.string().max(8000).nullable().optional(),
         autoGraded: z.boolean().optional(),
         event: z.enum(['solution_viewed', 'hidden_tests_viewed', 'answer_reset']).optional(),
+        /// 在 App 里跑了一次测试（不算提交，不改进度），只给学习记忆当证据。
+        run: z.enum(['public', 'secret']).optional(),
         progressSnapshot: notebookProblemProgressSnapshotSchema.nullable().optional(),
         parts: z
           .array(
@@ -283,6 +285,28 @@ export async function saveNativeProblemAttempts(
     }
     const score = attempt.score === null ? null : attempt.score * points;
     const createdAt = new Date(Math.min(attempt.createdAt, Date.now()));
+    if (attempt.run && !attempt.event) {
+      await createNotebookProblemAttempt({
+        id: serverAttemptId(attempt.id),
+        createdAt,
+        userId,
+        problemId: attempt.problemId,
+        kind: 'run',
+        status: attempt.status === 'pending' ? 'failed' : attempt.status,
+        score,
+        answer: { code: attempt.answer.code },
+        result: {
+          correct: attempt.status === 'passed',
+          feedback: attempt.feedback ?? '',
+          runTarget: attempt.run,
+          publicCases: [],
+        },
+        timingSource: 'native-test-run',
+        preserveProgress: true,
+      });
+      saved.push(attempt.id);
+      continue;
+    }
     await createNotebookProblemAttempt({
       id: serverAttemptId(attempt.id),
       createdAt,
