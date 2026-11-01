@@ -7,6 +7,7 @@ import {
   DEFAULT_HTDP_LANGUAGE_LEVEL,
   RACKET_DRIVER,
   racketSubmissionSource,
+  runRacketDesignRecipe,
   runRacketJson,
 } from '@/lib/server/racket-runner';
 import { codeTestSummaryFeedback } from '@/lib/problem-bank/attempt-feedback';
@@ -25,7 +26,12 @@ import {
   extractSlotValues,
   isNotebookCodeProblemRecord,
 } from '@/lib/problem-bank';
-import type { HtdpLanguageLevel, NotebookCodeFile } from '@/lib/problem-bank';
+import type {
+  HtdpLanguageLevel,
+  NotebookCodeFile,
+  NotebookDesignRecipeCheck,
+  RacketDesignRecipe,
+} from '@/lib/problem-bank';
 import { validateCourseAnswerContract } from '@/features/memory/domain/course-answer-contract';
 import type { NotebookProblemCourseIdentity } from '@/lib/server/notebook-problems/course-identity';
 
@@ -788,6 +794,29 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
         }
       }
     }
+    const recipe = draft.secretJudge?.designRecipe;
+    if (recipe && draftRuntime.language === 'racket' && errors.length === 0) {
+      const recipeFor = (studentCode: string) =>
+        runRacketDesignRecipe({
+          studentCode,
+          referenceCode: codeReferenceSolution(draft),
+          starterCode: draftStarterCode,
+          level: draftRuntime.level,
+          recipe,
+          timeoutMs: draft.secretJudge?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        });
+      const referenceItems = await recipeFor(codeReferenceSolution(draft));
+      for (const item of referenceItems.filter((entry) => !entry.passed)) {
+        errors.push(`参考答案未通过设计配方检查 ${item.target} ${item.id}：${item.detail ?? ''}`);
+      }
+      if (referenceItems.length === 0) {
+        errors.push(
+          '设计配方没有可检查的项：参考答案里没有 @htdf / @htdd 标签，或 starter 已经全部给出',
+        );
+      } else if ((await recipeFor(draftStarterCode)).every((item) => item.passed)) {
+        errors.push('设计配方检查未能拒绝初始 starter');
+      }
+    }
     return {
       passed: errors.length === 0,
       errors,
@@ -924,6 +953,97 @@ export function enforceCodeSubmissionCourseContract(args: {
   };
 }
 
+const DESIGN_RECIPE_LABELS: Record<NotebookDesignRecipeCheck['id'], [string, string]> = {
+  read: ['读取代码', 'Reading the file'],
+  signature: ['@signature', '@signature'],
+  template_origin: ['@template-origin', '@template-origin'],
+  dd_template_rules: ['@dd-template-rules', '@dd-template-rules'],
+  template: ['模板', 'Template'],
+  test_validity: ['测试是否正确', 'Tests are correct'],
+  test_thoroughness: ['测试是否覆盖全面', 'Tests are thorough'],
+};
+
+function designRecipeFeedback(items: NotebookDesignRecipeCheck[], locale: JudgeLocale): string {
+  const failed = items.filter((item) => !item.passed);
+  const heading =
+    locale === 'zh-CN'
+      ? `设计配方：通过 ${items.length - failed.length}/${items.length}。`
+      : `Design recipe: ${items.length - failed.length}/${items.length} checks passed.`;
+  return [
+    heading,
+    ...failed.map((item) => {
+      const label = DESIGN_RECIPE_LABELS[item.id][locale === 'zh-CN' ? 0 : 1];
+      return `- ${item.target ? `${item.target} ` : ''}${label}${item.detail ? `：${item.detail}` : ''}`;
+    }),
+  ].join('\n');
+}
+
+/** The reference solution the design recipe is compared with (hidden from students). */
+function designRecipeReference(problem: NotebookProblemRecord): string {
+  return problem.grading.type === 'code'
+    ? problem.grading.solutionCode?.trim() || problem.grading.referenceAnswer?.trim() || ''
+    : '';
+}
+
+/**
+ * Racket problems with a design recipe score partially: the recipe share is split evenly
+ * over its checks and the rest follows the fraction of tests passed. Full marks need every
+ * test and every check.
+ */
+async function applyDesignRecipe(args: {
+  problem: NotebookProblemRecord;
+  recipe: RacketDesignRecipe;
+  level: HtdpLanguageLevel;
+  code: string;
+  timeoutMs: number;
+  testsPassed: number;
+  testsTotal: number;
+  evaluated: CodeJudgeEvaluation;
+  locale: JudgeLocale;
+}): Promise<CodeJudgeEvaluation> {
+  const referenceCode = designRecipeReference(args.problem);
+  if (!referenceCode || !isNotebookCodeProblemRecord(args.problem)) return args.evaluated;
+  const items = (
+    await runRacketDesignRecipe({
+      studentCode: args.code,
+      referenceCode,
+      starterCode: args.problem.publicContent.starterCode,
+      level: args.level,
+      recipe: args.recipe,
+      timeoutMs: args.timeoutMs,
+    })
+  ).map((item) => ({
+    ...item,
+    target: item.target.slice(0, 120),
+    detail: item.detail?.slice(0, 2000),
+  }));
+  const points = args.problem.points;
+  const recipeShare = items.length === 0 ? 0 : args.testsTotal === 0 ? 1 : args.recipe.weight / 100;
+  const testFraction = args.testsTotal === 0 ? 1 : args.testsPassed / args.testsTotal;
+  const recipeFraction =
+    items.length === 0 ? 1 : items.filter((item) => item.passed).length / items.length;
+  const allPassed = testFraction === 1 && recipeFraction === 1;
+  const earned = allPassed
+    ? points
+    : Math.round(points * ((1 - recipeShare) * testFraction + recipeShare * recipeFraction));
+  return {
+    status: allPassed ? 'passed' : earned > 0 ? 'partial' : 'failed',
+    score: earned,
+    result: {
+      ...args.evaluated.result,
+      correct: allPassed,
+      earnedPoints: earned,
+      feedback: [
+        args.testsTotal > 0 ? args.evaluated.result.feedback : undefined,
+        items.length > 0 ? designRecipeFeedback(items, args.locale) : undefined,
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+      designRecipe: items,
+    },
+  };
+}
+
 export async function judgeNotebookCodeProblem(args: {
   problem: NotebookProblemRecord;
   secretJudge?: NotebookProblemSecretJudge;
@@ -1006,6 +1126,48 @@ export async function judgeNotebookCodeProblem(args: {
   const secretFiles = [...publicFiles, ...runnerFiles(args.secretJudge?.files)];
 
   const payload = buildCodePayload(problem, args.secretJudge, args.kind, runTarget);
+  const designRecipe =
+    runtime.language === 'racket' && designRecipeReference(problem)
+      ? args.secretJudge?.designRecipe
+      : undefined;
+
+  // A design-recipe-only problem (e.g. write an HtDD template) has no tests to run.
+  if (
+    args.kind === 'submit' &&
+    designRecipe &&
+    runtime.language === 'racket' &&
+    payload.publicCases.length === 0 &&
+    payload.secretCases.length === 0
+  ) {
+    try {
+      return await applyDesignRecipe({
+        problem,
+        recipe: designRecipe,
+        level: runtime.level,
+        code,
+        timeoutMs: payload.timeoutMs,
+        testsPassed: 0,
+        testsTotal: 0,
+        evaluated: {
+          status: 'failed',
+          score: 0,
+          result: { correct: false, earnedPoints: 0, publicCases: [] },
+        },
+        locale,
+      });
+    } catch (error) {
+      return {
+        status: 'error',
+        score: 0,
+        result: {
+          correct: false,
+          feedback: error instanceof Error ? error.message : String(error),
+          earnedPoints: 0,
+          publicCases: [],
+        },
+      };
+    }
+  }
 
   if (args.kind === 'run' && runTarget === 'code') {
     try {
@@ -1242,7 +1404,20 @@ export async function judgeNotebookCodeProblem(args: {
       userAnswer: args.userAnswer,
       courseIdentity: args.courseIdentity,
       locale,
-      evaluated,
+      evaluated:
+        designRecipe && runtime.language === 'racket'
+          ? await applyDesignRecipe({
+              problem,
+              recipe: designRecipe,
+              level: runtime.level,
+              code,
+              timeoutMs: payload.timeoutMs,
+              testsPassed: publicPassed + secretPassed,
+              testsTotal: publicCaseResults.length + secretCases.length,
+              evaluated,
+              locale,
+            })
+          : evaluated,
     });
   } catch (error) {
     return {

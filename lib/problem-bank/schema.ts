@@ -537,6 +537,27 @@ export const notebookProblemPartSecretJudgeSchema = z.object({
   files: z.array(notebookCodeFileSchema).max(8).optional(),
 });
 
+/// Racket 设计配方评分（像 UBC 的 spd-grader）：标准答案取自 grading 里的参考代码，
+/// 比对 @signature / @template-origin / @dd-template-rules / 模板，并用参考答案检查学生自己写的测试
+export const racketDesignRecipeSchema = z.object({
+  /// 要不要比对 @template 和 fn-for-... 模板：MT1 之前 true，之后 false；不填时参考答案写了且 starter 没给就查
+  checkTemplate: z.boolean().optional(),
+  /// 设计配方占这题分数的百分比，其余按测试通过的比例给
+  weight: z.number().int().min(0).max(100).default(30),
+  /// 学生的测试要覆盖的情况：predicate 用参考函数的参数名写，如 (empty? lon)
+  thoroughness: z
+    .array(
+      z.object({
+        target: z.string().trim().min(1).max(80),
+        description: z.string().trim().min(1).max(200),
+        predicate: z.string().trim().min(1).max(2000),
+      }),
+    )
+    .max(24)
+    .default([]),
+});
+export type RacketDesignRecipe = z.infer<typeof racketDesignRecipeSchema>;
+
 export const notebookProblemSecretJudgeSchema = z.object({
   /// Private reference helpers, added only after the student's locked ranges are validated.
   supportCode: z.string().max(40000).optional(),
@@ -549,6 +570,8 @@ export const notebookProblemSecretJudgeSchema = z.object({
   files: z.array(notebookCodeFileSchema).max(8).optional(),
   /// 大题里的代码小问：按 label 存各自的隐藏测试
   parts: z.record(notebookProblemPartLabelSchema, notebookProblemPartSecretJudgeSchema).optional(),
+  /// 只用于 Racket 题
+  designRecipe: racketDesignRecipeSchema.optional(),
 });
 
 export const notebookProblemRecordSchema = z.object({
@@ -659,6 +682,25 @@ export const notebookCodeCaseSummarySchema = z.object({
 
 export const notebookCodeRunTargetSchema = z.enum(['code', 'public', 'secret']);
 
+export const notebookDesignRecipeCheckIdSchema = z.enum([
+  'read',
+  'signature',
+  'template_origin',
+  'dd_template_rules',
+  'template',
+  'test_validity',
+  'test_thoroughness',
+]);
+
+/// 一条设计配方检查：target 是 @htdf 的函数名或 @htdd 的类型名
+export const notebookDesignRecipeCheckSchema = z.object({
+  id: notebookDesignRecipeCheckIdSchema,
+  target: z.string().max(120),
+  passed: z.boolean(),
+  detail: z.string().max(2000).optional(),
+});
+export type NotebookDesignRecipeCheck = z.infer<typeof notebookDesignRecipeCheckSchema>;
+
 export const notebookTableCellResultSchema = z.object({
   key: z.string().trim().min(1).max(140),
   correct: z.boolean(),
@@ -706,6 +748,8 @@ export const notebookProblemAttemptResultSchema = z.object({
   secretSummary: notebookCodeCaseSummarySchema.optional(),
   parts: z.array(notebookProblemPartResultSchema).optional(),
   cells: z.array(notebookTableCellResultSchema).optional(),
+  /// Racket 设计配方检查（提交时）
+  designRecipe: z.array(notebookDesignRecipeCheckSchema).optional(),
   /// 运行后程序新写出 / 改过的文件
   files: z
     .array(z.object({ path: z.string().max(120), content: z.string().max(200_000) }))

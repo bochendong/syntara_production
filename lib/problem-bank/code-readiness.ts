@@ -88,6 +88,19 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
     return Array.from(new Set(errors));
   }
 
+  // Racket problems graded only by the design recipe (e.g. write an HtDD template) need no tests.
+  const hasTests =
+    content.publicTestCode !== undefined ||
+    draft.secretJudge?.secretTestCode !== undefined ||
+    content.publicTests.length > 0 ||
+    secretTests.length > 0;
+  if (content.language === 'racket' && draft.secretJudge?.designRecipe && !hasTests) {
+    const recipeErrors = errors.filter((error) => !error.includes('sampleIO'));
+    if (!content.starterCode?.trim()) recipeErrors.push('代码题缺少学生编辑器 starterCode');
+    if (!solution) recipeErrors.push('代码题缺少参考答案');
+    return Array.from(new Set(recipeErrors));
+  }
+
   if (!content.starterCode?.trim()) errors.push('代码题缺少学生编辑器 starterCode');
   // Source questions may specify their interface and examples in the supplied
   // header/docstring. Fixed presentation sections must not force filler text.
