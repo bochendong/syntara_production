@@ -153,7 +153,7 @@ import {
   cleanupCourseChatAttachments,
   prepareCourseChatAttachmentsForModel,
 } from '@/lib/chat/ephemeral-course-chat-attachments';
-import { buildProblemExplainPrompt } from '@/lib/chat/problem-explain-prompt';
+import { ProblemAiCoachButton } from '@/components/problem-bank/problem-ai-coach';
 import { createLearnActionExecutionResult } from '@/features/learn-core/client-actions';
 import {
   applyLearningCalendarDelete,
@@ -202,7 +202,6 @@ import type {
   ChatContextCompression,
   ChatMessageMetadata,
   CourseChatContextUsage,
-  CourseChatContext,
   CourseChatTeachingMode,
   LearnAnswerEvidenceSource,
   LearnArtifact,
@@ -221,7 +220,6 @@ import {
   loadPracticePlan,
   previewLearnerProgressCheckpoint,
   recordPracticeAttemptResult,
-  recordLearnerQuestion,
   saveLearnerCourseState,
   savePracticePlan,
   seedLearnerCourseStateFromCourse,
@@ -253,7 +251,6 @@ import {
   pausePracticeSession,
   practiceSessionAnswers,
   practiceSessionSummary,
-  recordPracticeSessionProblemAiHelp,
   recordPracticeSessionAttempt,
   updatePracticeSessionAnswerDraft,
   updatePracticeSessionCurrentProblem,
@@ -934,15 +931,6 @@ type LearnImageAttachment = Omit<
 type LearnRetryTurn = {
   text: string;
   attachments: LearnImageAttachment[];
-};
-
-type PracticeProblemHelpState = {
-  problemId: string;
-  sessionId: string;
-  title: string;
-  answer: string;
-  status: 'loading' | 'ready' | 'error';
-  error?: string;
 };
 
 type LearnModelOption = {
@@ -2750,7 +2738,6 @@ const courseMarkdownClassName = cn(
 );
 
 const PRACTICE_PROBLEM_SELECTION_DECISION_ID = 'learn-practice-problem-selection';
-const PRACTICE_PROBLEM_HELP_TIMEOUT_MS = 60_000;
 
 function makeClientId(prefix: string): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -2956,14 +2943,6 @@ function messageText(message: UIMessage<ChatMessageMetadata>): string {
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
     .map((part) => part.text)
     .join('');
-}
-
-function latestAssistantText(messages: UIMessage<ChatMessageMetadata>[]): string {
-  const assistant = messages
-    .slice()
-    .reverse()
-    .find((message) => message.role === 'assistant' && !message.metadata?.progressOnly);
-  return assistant ? messageText(assistant) : '';
 }
 
 function learnMessagesForCourseAnswerer(
@@ -3416,87 +3395,6 @@ function practiceSessionPlanMeta(plan: PracticePlan, summary?: PracticeSessionSu
     return `${plan.estimatedMinutes > 0 ? `${plan.estimatedMinutes} 分钟 · ` : ''}${plan.problemIds.length || 0} 题`;
   }
   return summary.meta;
-}
-
-function buildLearnerChatContext(args: {
-  snapshot: LearnerCourseSnapshot;
-  state: LearnerCourseState;
-  notebooks: StageListItem[];
-  plans: PracticePlan[];
-  syllabusEvents?: SyllabusCalendarEvent[];
-}): NonNullable<CourseChatContext['learner']> {
-  const orderedNotebooks = orderCourseNotebooks(args.notebooks);
-  const today = localDayKey(new Date());
-  const sortedSyllabusEvents = (args.syllabusEvents || [])
-    .slice()
-    .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
-  const upcomingSyllabusEvents = sortedSyllabusEvents.filter((event) => event.date >= today);
-  const learnerSyllabus =
-    sortedSyllabusEvents.length > 0
-      ? {
-          importedCount: sortedSyllabusEvents.length,
-          upcoming: upcomingSyllabusEvents.slice(0, 12).map((event) => ({
-            title: event.title,
-            kind: event.kind,
-            date: event.date,
-            sourceName: event.sourceName,
-          })),
-          nextAssignment: upcomingSyllabusEvents.find((event) => event.kind === 'assignment'),
-          nextExam: upcomingSyllabusEvents.find((event) => event.kind === 'exam'),
-          nextSchoolProgress: upcomingSyllabusEvents.find((event) => event.kind === 'progress'),
-        }
-      : undefined;
-
-  return {
-    progressKnown: args.snapshot.progressKnown,
-    progressLabel: args.snapshot.progressLabel,
-    progressPercent: args.snapshot.progressPercent,
-    currentNotebookId: args.snapshot.currentNotebook?.id,
-    currentNotebookName: args.snapshot.currentNotebook?.name,
-    courseNotebookIds: orderedNotebooks.map((notebook) => notebook.id),
-    courseNotebookNames: orderedNotebooks.map((notebook) => notebook.name),
-    completedNotebookIds: args.state.completedNotebookIds,
-    attemptedProblemCount: args.snapshot.attemptedProblemCount,
-    totalProblemCount: args.snapshot.totalProblemCount,
-    dueReviewCount: args.snapshot.dueReviewCount,
-    weakConcepts: args.snapshot.weakConcepts,
-    nextConcepts: args.snapshot.nextConcepts,
-    recentQuestions: args.state.recentQuestions.slice(0, 5).map((question) => question.text),
-    recentAttempts: args.state.recentProblemAttempts.slice(0, 8).map((attempt) => ({
-      title: attempt.problemTitle,
-      status: attempt.status,
-      concepts: attempt.concepts,
-    })),
-    activePlans: args.plans.slice(0, 4).map((plan) => ({
-      title: plan.title,
-      mode: plan.mode,
-      status: plan.status,
-      targetConcepts: plan.targetConcepts,
-    })),
-    syllabus: learnerSyllabus
-      ? {
-          ...learnerSyllabus,
-          nextAssignment: learnerSyllabus.nextAssignment
-            ? {
-                title: learnerSyllabus.nextAssignment.title,
-                date: learnerSyllabus.nextAssignment.date,
-              }
-            : undefined,
-          nextExam: learnerSyllabus.nextExam
-            ? {
-                title: learnerSyllabus.nextExam.title,
-                date: learnerSyllabus.nextExam.date,
-              }
-            : undefined,
-          nextSchoolProgress: learnerSyllabus.nextSchoolProgress
-            ? {
-                title: learnerSyllabus.nextSchoolProgress.title,
-                date: learnerSyllabus.nextSchoolProgress.date,
-              }
-            : undefined,
-        }
-      : undefined,
-  };
 }
 
 function mergePlans(local: PracticePlan[], remote: PracticePlan[]): PracticePlan[] {
@@ -6181,13 +6079,7 @@ export function LearnPageClient() {
   const [practicePopupSessionId, setPracticePopupSessionId] = useState<string | null>(null);
   const [practiceHeaderState, setPracticeHeaderState] =
     useState<CourseProblemPracticeHeaderState | null>(null);
-  const [practiceProblemHelp, setPracticeProblemHelp] = useState<PracticeProblemHelpState | null>(
-    null,
-  );
-  const [practiceProblemHelpTabProblemId, setPracticeProblemHelpTabProblemId] = useState<
-    string | null
-  >(null);
-  const [practiceProblemHelpTabActive, setPracticeProblemHelpTabActive] = useState(false);
+  const [practiceAiCoachOpen, setPracticeAiCoachOpen] = useState(false);
   const [syllabusImportMessage, setSyllabusImportMessage] = useState<string | null>(null);
   const [syllabusDialogOpen, setSyllabusDialogOpen] = useState(false);
   const [courseFilesDialogOpen, setCourseFilesDialogOpen] = useState(false);
@@ -7573,38 +7465,6 @@ export function LearnPageClient() {
         'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-white/10',
     });
   }
-  const activePracticeProblemState =
-    activePracticeSession && practiceHeaderState?.problemId
-      ? (activePracticeSession.problemStates[practiceHeaderState.problemId] ?? null)
-      : null;
-  const currentPracticeProblemHelpSessionId =
-    typeof activePracticeProblemState?.aiHelpSessionId === 'string' &&
-    activePracticeProblemState.aiHelpSessionId.trim()
-      ? activePracticeProblemState.aiHelpSessionId.trim()
-      : null;
-  const currentPracticeProblemHelp =
-    practiceProblemHelp &&
-    (!practiceHeaderState?.problemId ||
-      practiceProblemHelp.problemId === practiceHeaderState.problemId)
-      ? practiceProblemHelp
-      : null;
-  const currentPracticeProblemHasAiHelp = Boolean(
-    currentPracticeProblemHelp ||
-    currentPracticeProblemHelpSessionId ||
-    activePracticeProblemState?.stuck,
-  );
-  const currentPracticeProblemHelpTabVisible = Boolean(
-    practiceHeaderState?.problemId &&
-    practiceProblemHelpTabProblemId === practiceHeaderState.problemId,
-  );
-  const currentPracticeProblemHelpTabActive =
-    currentPracticeProblemHelpTabVisible && practiceProblemHelpTabActive;
-  const currentPracticeProblemHelpLoading = currentPracticeProblemHelp?.status === 'loading';
-  const practiceAiHelpHeaderLabel = currentPracticeProblemHelpLoading
-    ? '生成中'
-    : currentPracticeProblemHelpTabVisible
-      ? '重新生成解答'
-      : 'AI 解答';
   const statusCalendarActivities = useMemo<StatusCalendarActivity[]>(() => {
     const todayKey = localDayKey(new Date());
     const sessionPlanIds = new Set(practiceSessions.map((session) => session.planId));
@@ -10656,9 +10516,7 @@ export function LearnPageClient() {
       }
       syncPracticeSessionState(session);
       setPracticeHeaderState(null);
-      setPracticeProblemHelp(null);
-      setPracticeProblemHelpTabProblemId(null);
-      setPracticeProblemHelpTabActive(false);
+      setPracticeAiCoachOpen(false);
       setPracticePopupSessionId(session.id);
     },
     [activeCourseId, localUserId, syncPracticeSessionState],
@@ -10685,9 +10543,7 @@ export function LearnPageClient() {
         syncPracticeSessionState(pausePracticeSession(practicePopupSessionId));
       }
       setPracticeHeaderState(null);
-      setPracticeProblemHelp(null);
-      setPracticeProblemHelpTabProblemId(null);
-      setPracticeProblemHelpTabActive(false);
+      setPracticeAiCoachOpen(false);
       setPracticePopupSessionId(null);
       refreshPracticeSessions();
     },
@@ -10704,8 +10560,6 @@ export function LearnPageClient() {
   const handlePracticeProblemChange = useCallback(
     (problemId: string) => {
       if (!practicePopupSessionId) return;
-      setPracticeProblemHelpTabProblemId(null);
-      setPracticeProblemHelpTabActive(false);
       syncPracticeSessionState(
         updatePracticeSessionCurrentProblem(practicePopupSessionId, problemId),
       );
@@ -10722,321 +10576,6 @@ export function LearnPageClient() {
     },
     [practicePopupSessionId, syncPracticeSessionState],
   );
-
-  const handlePracticeProblemHelpRequest = useCallback(
-    async (options?: { forceRegenerate?: boolean }) => {
-      if (!activeCourse || !activePracticeSession?.id || !practiceHeaderState) return;
-      const forceRegenerate = options?.forceRegenerate ?? false;
-      const problemTitle =
-        practiceHeaderState.problemTitle || practiceHeaderState.problem.title || '这道题';
-      const userText = `我不会这道题，请讲解：${problemTitle}`;
-      const existingHelp =
-        practiceProblemHelp?.problemId === practiceHeaderState.problemId
-          ? practiceProblemHelp
-          : null;
-      if (existingHelp?.status === 'loading') {
-        return;
-      }
-      if (!forceRegenerate && existingHelp?.status === 'ready') {
-        return;
-      }
-      if (!forceRegenerate && existingHelp?.status === 'error') {
-        return;
-      }
-
-      const restoreSavedHelp = (sessionId: string): PracticeProblemHelpState | null => {
-        const trimmedSessionId = sessionId.trim();
-        if (!trimmedSessionId) return null;
-        const savedMessages = readLearnSessionMessages(
-          localUserId,
-          activeCourse.id,
-          trimmedSessionId,
-        );
-        const assistantText =
-          savedMessages
-            .slice()
-            .reverse()
-            .find(
-              (message) =>
-                message.role === 'assistant' &&
-                message.text.trim() &&
-                message.text.trim() !== '正在生成这道题的讲解…',
-            )
-            ?.text.trim() || '';
-        if (!assistantText) return null;
-        const isError =
-          assistantText.includes('题解生成超时') ||
-          assistantText.includes('题解生成失败') ||
-          assistantText.includes('请稍后重试或换一个模型');
-        return {
-          problemId: practiceHeaderState.problemId,
-          sessionId: trimmedSessionId,
-          title: problemTitle,
-          answer: assistantText,
-          status: isError ? 'error' : 'ready',
-          error: isError ? assistantText : undefined,
-        };
-      };
-
-      const persistedHelpSessionId =
-        activePracticeSession.problemStates[
-          practiceHeaderState.problemId
-        ]?.aiHelpSessionId?.trim() || '';
-      const savedHelp = forceRegenerate
-        ? null
-        : (persistedHelpSessionId ? restoreSavedHelp(persistedHelpSessionId) : null) ||
-          learnSessions.reduce<PracticeProblemHelpState | null>((match, session) => {
-            if (match) return match;
-            const savedMessages = readLearnSessionMessages(
-              localUserId,
-              activeCourse.id,
-              session.id,
-            );
-            const hasMatchingQuestion = savedMessages.some(
-              (message) => message.role === 'user' && message.text.trim() === userText,
-            );
-            return hasMatchingQuestion ? restoreSavedHelp(session.id) : null;
-          }, null);
-      if (savedHelp) {
-        setPracticeProblemHelp(savedHelp);
-        setLeftRailCollapsed(false);
-        if (!persistedHelpSessionId) {
-          syncPracticeSessionState(
-            recordPracticeSessionProblemAiHelp({
-              sessionId: activePracticeSession.id,
-              problemId: practiceHeaderState.problemId,
-              helpSessionId: savedHelp.sessionId,
-              timestamp: Date.now(),
-            }),
-          );
-        }
-        return;
-      }
-
-      if (!practiceHeaderState.problemContent) {
-        toast.error('题目内容还没加载完成，请稍后再试。');
-        return;
-      }
-
-      const now = Date.now();
-      const helpSessionId = makeLearnSessionId();
-      const helpTitle = `题解：${problemTitle}`.slice(0, 48);
-      const userMessage: LearnMessage = {
-        id: makeClientId('user-problem-help'),
-        role: 'user',
-        text: userText,
-        createdAt: now,
-      };
-      const loadingMessage: LearnMessage = {
-        id: makeClientId('assistant-problem-help-loading'),
-        role: 'assistant',
-        text: '正在生成这道题的讲解…',
-        createdAt: now + 1,
-      };
-      const initialMessages = [userMessage, loadingMessage];
-      const nextSession: LearnChatSession = {
-        id: helpSessionId,
-        title: helpTitle,
-        createdAt: now,
-        updatedAt: now,
-        messageCount: initialMessages.filter(learnMessageHasContent).length,
-        currentRevision: 0,
-      };
-
-      writeLearnSessionMessages(localUserId, activeCourse.id, helpSessionId, initialMessages);
-      writeLearnSessionTabMessages(localUserId, activeCourse.id, helpSessionId, initialMessages);
-      setLearnSessions((current) => {
-        const next = sortLearnSessionsForList(localUserId, activeCourse.id, [
-          nextSession,
-          ...current,
-        ]);
-        writeLearnSessions(localUserId, activeCourse.id, next);
-        return next;
-      });
-      setLeftRailCollapsed(false);
-      setPracticeProblemHelp({
-        problemId: practiceHeaderState.problemId,
-        sessionId: helpSessionId,
-        title: problemTitle,
-        answer: '',
-        status: 'loading',
-      });
-
-      syncPracticeSessionState(
-        recordPracticeSessionProblemAiHelp({
-          sessionId: activePracticeSession.id,
-          problemId: practiceHeaderState.problemId,
-          helpSessionId,
-          timestamp: now,
-        }),
-      );
-
-      const questionState = recordLearnerQuestion({
-        userId: userId || 'anonymous',
-        courseId: activeCourse.id,
-        text: userText,
-      });
-      const questionSnapshot = summarizeLearnerCourseState({
-        state: questionState,
-        notebooks,
-        problems,
-      });
-      setSnapshot(questionSnapshot);
-      setProgressSelection(progressSelectionFromSnapshot(questionSnapshot));
-      void saveRemoteLearnerCourseState(questionState);
-
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(
-        () => controller.abort(),
-        PRACTICE_PROBLEM_HELP_TIMEOUT_MS,
-      );
-      try {
-        const prompt = [
-          buildProblemExplainPrompt({
-            problem: practiceHeaderState.problem,
-            problemTitle,
-            problemContent: practiceHeaderState.problemContent,
-            notebookName:
-              practiceHeaderState.notebookLabel ||
-              practiceHeaderState.problem.notebookName ||
-              activeCourse.name,
-            currentAnswer: practiceHeaderState.currentAnswer,
-            latestAttempt: practiceHeaderState.latestAttempt,
-          }),
-          '',
-          '课程级补充要求：这次回答会展示在做题弹窗里。请直接给题解，不要生成练习计划或跳转建议；最后给一个很短的“我接下来该怎么做”。',
-        ].join('\n');
-        const result = await askCourseOrchestrator({
-          courseId: activeCourse.id,
-          courseName: activeCourse.name,
-          question: prompt,
-          orchestratorAvatarUrl: activeCourse.avatarUrl,
-          signal: controller.signal,
-          learnerContext: buildLearnerChatContext({
-            snapshot: questionSnapshot,
-            state: questionState,
-            notebooks,
-            plans: recentPlans,
-            syllabusEvents,
-          }),
-          userProfile: { nickname: userName },
-          responseStrength: chatResponseStrength,
-        });
-        const answer = normalizeCourseAssistantAnswer(
-          latestAssistantText(result.messages) ||
-            result.answer ||
-            '这道题暂时没有生成讲解，请稍后再试。',
-        );
-        const lecturePrompt = buildMiniLecturePrompt({
-          question: userText,
-          answer,
-          course: activeCourse,
-        });
-        const finalMessages: LearnMessage[] = [
-          userMessage,
-          {
-            id: makeClientId('assistant-problem-help'),
-            role: 'assistant',
-            text: answer,
-            createdAt: Date.now(),
-            lecturePrompt,
-          },
-        ];
-        writeLearnSessionMessages(localUserId, activeCourse.id, helpSessionId, finalMessages);
-        writeLearnSessionTabMessages(localUserId, activeCourse.id, helpSessionId, finalMessages);
-        setPracticeProblemHelp((current) =>
-          current?.sessionId === helpSessionId
-            ? { ...current, answer, status: 'ready', error: undefined }
-            : current,
-        );
-        const updatedSession: LearnChatSession = {
-          ...nextSession,
-          title: learnSessionTitleFromMessages(finalMessages, helpTitle),
-          updatedAt: Date.now(),
-        };
-        setLearnSessions((current) => {
-          const next = sortLearnSessionsForList(localUserId, activeCourse.id, [
-            updatedSession,
-            ...current.filter((session) => session.id !== helpSessionId),
-          ]);
-          writeLearnSessions(localUserId, activeCourse.id, next);
-          return next;
-        });
-        void syncRemoteLearnConversation({
-          courseId: activeCourse.id,
-          sessionId: helpSessionId,
-          title: updatedSession.title,
-          messages: finalMessages.map(learnMessageToRemotePayload),
-          ownerScope: localUserId,
-        });
-        refreshLearnerSnapshot();
-      } catch (error) {
-        const message = controller.signal.aborted
-          ? '题解生成超时'
-          : error instanceof Error
-            ? error.message
-            : '题解生成失败';
-        const errorText = `${message}。请稍后重试或换一个模型。`;
-        const finalMessages: LearnMessage[] = [
-          userMessage,
-          {
-            id: makeClientId('assistant-problem-help-error'),
-            role: 'assistant',
-            text: errorText,
-            createdAt: Date.now(),
-          },
-        ];
-        writeLearnSessionMessages(localUserId, activeCourse.id, helpSessionId, finalMessages);
-        writeLearnSessionTabMessages(localUserId, activeCourse.id, helpSessionId, finalMessages);
-        setPracticeProblemHelp((current) =>
-          current?.sessionId === helpSessionId
-            ? { ...current, answer: errorText, status: 'error', error: message }
-            : current,
-        );
-        void syncRemoteLearnConversation({
-          courseId: activeCourse.id,
-          sessionId: helpSessionId,
-          title: helpTitle,
-          messages: finalMessages.map(learnMessageToRemotePayload),
-          ownerScope: localUserId,
-        });
-      } finally {
-        window.clearTimeout(timeoutId);
-        dispatchWeeklyUsageUpdated();
-      }
-    },
-    [
-      activeCourse,
-      activePracticeSession,
-      chatResponseStrength,
-      learnSessions,
-      localUserId,
-      notebooks,
-      practiceHeaderState,
-      practiceProblemHelp,
-      problems,
-      recentPlans,
-      refreshLearnerSnapshot,
-      syncPracticeSessionState,
-      syllabusEvents,
-      userId,
-      userName,
-    ],
-  );
-
-  const handlePracticeAiHelpHeaderClick = useCallback(() => {
-    if (!practiceHeaderState?.problemId) return;
-    setPracticeProblemHelpTabProblemId(practiceHeaderState.problemId);
-    setPracticeProblemHelpTabActive(true);
-    void handlePracticeProblemHelpRequest({
-      forceRegenerate: currentPracticeProblemHelpTabVisible && !currentPracticeProblemHelpLoading,
-    });
-  }, [
-    currentPracticeProblemHelpLoading,
-    currentPracticeProblemHelpTabVisible,
-    handlePracticeProblemHelpRequest,
-    practiceHeaderState?.problemId,
-  ]);
 
   const handlePracticeAttemptResolved = useCallback(
     (event: CourseProblemPracticeAttemptResolvedEvent) => {
@@ -14102,31 +13641,14 @@ export function LearnPageClient() {
               </DialogDescription>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handlePracticeAiHelpHeaderClick}
-                disabled={
-                  !activePracticeSummary?.currentProblemId ||
-                  currentPracticeProblemHelpLoading ||
-                  !practiceHeaderState ||
-                  (!practiceHeaderState.problemContent && !currentPracticeProblemHelpSessionId)
-                }
+              <ProblemAiCoachButton
+                open={practiceAiCoachOpen}
+                locale="zh-CN"
+                onClick={() => setPracticeAiCoachOpen((open) => !open)}
                 className={cn(
-                  'h-8 gap-1.5 rounded-full px-3 text-xs font-semibold',
-                  currentPracticeProblemHelpTabVisible
-                    ? 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-300/25 dark:bg-sky-300/10 dark:text-sky-100'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10',
+                  !practiceHeaderState?.problemContent && 'pointer-events-none opacity-50',
                 )}
-              >
-                {currentPracticeProblemHelpLoading ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Brain className="size-3.5" />
-                )}
-                {practiceAiHelpHeaderLabel}
-              </Button>
+              />
               <div className="flex items-center gap-1 rounded-full border border-border bg-background p-1 shadow-sm">
                 <Button
                   type="button"
@@ -14180,16 +13702,8 @@ export function LearnPageClient() {
               onPracticeProblemChange={handlePracticeProblemChange}
               onPracticeAnswerDraftChange={handlePracticeAnswerDraftChange}
               onPracticeAttemptResolved={handlePracticeAttemptResolved}
-              practiceAiHelp={
-                currentPracticeProblemHelpTabVisible
-                  ? {
-                      state: currentPracticeProblemHelp,
-                      hasHelp: currentPracticeProblemHasAiHelp,
-                      active: currentPracticeProblemHelpTabActive,
-                      onActiveChange: setPracticeProblemHelpTabActive,
-                    }
-                  : undefined
-              }
+              aiCoachOpen={practiceAiCoachOpen}
+              onAiCoachOpenChange={setPracticeAiCoachOpen}
             />
           ) : null}
         </div>

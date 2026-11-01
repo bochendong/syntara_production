@@ -116,7 +116,11 @@ export async function runNativeChat(
       model: resolved.model,
       system: buildNativeChatSystemPrompt(input),
       messages: await chatMessages(input),
-      tools: input.scope === 'general' ? undefined : createNativeChatTools(input, proposals),
+      // 做题页「问 AI」只讲这道题，不弹记忆、日程、课堂、选题卡片。
+      tools:
+        input.scope === 'general' || input.context.problemCoach
+          ? undefined
+          : createNativeChatTools(input, proposals),
       stopWhen: stepCountIs(MAX_STEPS),
       maxOutputTokens: input.surface === 'phone' ? 4000 : 6000,
       maxRetries: 0,

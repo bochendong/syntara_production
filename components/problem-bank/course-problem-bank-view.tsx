@@ -51,6 +51,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { AnswerComposer, AnswerComposerToolbar } from '@/components/problem-bank/answer-composer';
+import {
+  ProblemAiCoachButton,
+  ProblemAiCoachPanel,
+} from '@/components/problem-bank/problem-ai-coach';
 import { ProblemEditDialog } from '@/components/problem-bank/problem-edit-dialog';
 import { ProblemDraftForm } from '@/components/problem-bank/problem-draft-form';
 import { ProblemLanguageToggle } from '@/components/problem-bank/problem-language-toggle';
@@ -1125,6 +1129,8 @@ export function CourseProblemBankView({
   onPracticeAttemptResolved,
   onPracticeHeaderStateChange,
   practiceAiHelp,
+  aiCoachOpen: controlledAiCoachOpen,
+  onAiCoachOpenChange,
   showCourseTitle = true,
   showChromeBackground = true,
   showCourseNavigation = false,
@@ -1152,6 +1158,9 @@ export function CourseProblemBankView({
   onPracticeAttemptResolved?: (event: CourseProblemPracticeAttemptResolvedEvent) => void;
   onPracticeHeaderStateChange?: (state: CourseProblemPracticeHeaderState | null) => void;
   practiceAiHelp?: PracticeAiHelpController;
+  /** 做题时的「问 AI」面板；外部顶栏（课程学习弹窗）自己放按钮时由外部控制。 */
+  aiCoachOpen?: boolean;
+  onAiCoachOpenChange?: (open: boolean) => void;
   showCourseTitle?: boolean;
   showChromeBackground?: boolean;
   showCourseNavigation?: boolean;
@@ -1162,6 +1171,16 @@ export function CourseProblemBankView({
   forumCount?: number;
 }) {
   const hasSharedShell = useCourseSpaceShell();
+  const [localAiCoachOpen, setLocalAiCoachOpen] = useState(false);
+  const [aiCoachBusy, setAiCoachBusy] = useState(false);
+  const aiCoachOpen = controlledAiCoachOpen ?? localAiCoachOpen;
+  const setAiCoachOpen = useCallback(
+    (open: boolean) => {
+      if (controlledAiCoachOpen === undefined) setLocalAiCoachOpen(open);
+      onAiCoachOpenChange?.(open);
+    },
+    [controlledAiCoachOpen, onAiCoachOpenChange],
+  );
   const view = useCourseProblemBankController({
     courseId,
     initialNotebookId,
@@ -1964,6 +1983,13 @@ export function CourseProblemBankView({
 
     return (
       <div className="flex shrink-0 items-center gap-1">
+        <ProblemAiCoachButton
+          open={aiCoachOpen}
+          busy={aiCoachBusy}
+          locale={locale}
+          onClick={() => setAiCoachOpen(!aiCoachOpen)}
+          className="mr-1"
+        />
         <Button
           type="button"
           variant="ghost"
@@ -2009,6 +2035,9 @@ export function CourseProblemBankView({
       </div>
     );
   }, [
+    aiCoachBusy,
+    aiCoachOpen,
+    setAiCoachOpen,
     autoArchiving,
     canEditProblems,
     handlePracticeStepChange,
@@ -3012,6 +3041,23 @@ export function CourseProblemBankView({
             : 'p-0',
         )}
       >
+        {isPracticeMode && selectedProblem ? (
+          <ProblemAiCoachPanel
+            open={aiCoachOpen}
+            onOpenChange={setAiCoachOpen}
+            onBusyChange={setAiCoachBusy}
+            courseId={courseId}
+            courseName={courseName}
+            problem={selectedProblem}
+            problemTitle={selectedProblemTitle}
+            problemContent={selectedProblemContent}
+            notebookName={selectedProblemChapterLabel || courseName || ''}
+            currentAnswer={selectedProblemCurrentAnswer}
+            latestAttempt={selectedProblemLatestDetailedAttempt}
+            locale={locale}
+            recordHelpEvents={!canEditProblems && !previewMode && !adminReadOnly}
+          />
+        ) : null}
         {!isPracticeMode ? (
           <>
             <div
