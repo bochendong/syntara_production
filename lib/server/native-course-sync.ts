@@ -121,6 +121,29 @@ function calendarStatus(status: string | null): 'active' | 'completed' | 'cancel
   return 'active';
 }
 
+/** 做题推断出来的卡点在 App 里就是一颗「错题」弹珠。 */
+function nativeMemoryKind(kind: string) {
+  return kind === 'problem_attempt_signal' ? 'mistake' : kind;
+}
+
+/**
+ * App 的星图用 `problem:<id>` / `concept:<名字>` 连线。做题记忆存的是证据对象，
+ * 从里面取出题目和概念标签。
+ */
+function nativeMemoryReferences(value: unknown) {
+  if (Array.isArray(value)) return jsonArray(value);
+  if (!value || typeof value !== 'object') return [];
+  const record = value as { problemIds?: unknown; tags?: unknown };
+  const strings = (input: unknown) =>
+    Array.isArray(input)
+      ? input.filter((item): item is string => typeof item === 'string' && item.trim() !== '')
+      : [];
+  return [
+    ...strings(record.problemIds).map((id) => `problem:${id}`),
+    ...strings(record.tags).map((tag) => `concept:${tag.toLocaleLowerCase()}`),
+  ].slice(0, 12);
+}
+
 const CALENDAR_KINDS = new Set(['assignment', 'exam', 'progress', 'tutorial', 'holiday', 'other']);
 
 /** 课程的笔记列表、学习记忆、日历和课堂清单；笔记正文按需再取。 */
@@ -200,14 +223,14 @@ export async function buildNativeCourseData(
         notebookId: memory.notebookId,
         targetType: memory.targetType,
         scope: memory.scope,
-        kind: memory.kind,
+        kind: nativeMemoryKind(memory.kind),
         status: memory.status,
         source: memory.source,
         title: memory.title,
         text: memory.text,
         reason: memory.reason,
         question: memory.question,
-        sourceReferences: jsonArray(memory.sourceReferences),
+        sourceReferences: nativeMemoryReferences(memory.sourceReferences),
         confidence: null,
         createdAt: timestamp(memory.createdAt),
         updatedAt: timestamp(memory.updatedAt),

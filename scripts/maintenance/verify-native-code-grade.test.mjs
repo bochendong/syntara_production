@@ -224,5 +224,9 @@ test('standalone public run does not grade hidden cases or consume a submission'
   assert.equal(h.calls.length, 1);
   assert.equal(h.calls[0].kind, 'run');
   assert.equal(h.calls[0].runTarget, 'public');
-  assert.equal(h.rows.size, 0);
+  // The run is kept only as learning evidence: a run row that leaves progress alone.
+  const rows = [...h.rows.values()];
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].kind, 'run');
+  assert.equal(rows[0].preserveProgress, true);
 });

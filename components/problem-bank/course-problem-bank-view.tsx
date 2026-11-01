@@ -125,6 +125,7 @@ import {
 } from '@/lib/problem-bank/scoring-policy';
 import { isLocalDemoProblemBankCourse } from '@/lib/teacher/local-demo-problem-bank';
 import {
+  recordCourseProblemEvent,
   runCourseCodeProblem,
   type NotebookProblemClientRecord,
 } from '@/lib/utils/notebook-problem-api';
@@ -1788,6 +1789,28 @@ export function CourseProblemBankView({
     draggingPracticeTab && visiblePracticePanelTabs.has(draggingPracticeTab)
       ? draggingPracticeTab
       : null;
+  const solutionPaneOpen =
+    visiblePracticePaneActive.left === 'solution' || visiblePracticePaneActive.right === 'solution';
+  const solutionViewProblemId =
+    solutionPaneOpen &&
+    !canEditProblems &&
+    !previewMode &&
+    selectedProblem &&
+    selectedProblemSolutionSections.length > 0 &&
+    !isLocalDemoProblemBankCourse(courseId)
+      ? selectedProblem.id
+      : null;
+  const recordedSolutionViews = useRef(new Set<string>());
+  useEffect(() => {
+    // 还没做对就看题解，会成为学习记忆里的一次卡住；服务器判断是否算数。
+    if (!solutionViewProblemId || recordedSolutionViews.current.has(solutionViewProblemId)) return;
+    recordedSolutionViews.current.add(solutionViewProblemId);
+    void recordCourseProblemEvent({
+      courseId,
+      problemId: solutionViewProblemId,
+      event: 'solution_viewed',
+    }).catch(() => undefined);
+  }, [courseId, solutionViewProblemId]);
   const problemEditPaneActive =
     canEditProblems &&
     (visiblePracticePaneActive.left === 'edit' || visiblePracticePaneActive.right === 'edit');

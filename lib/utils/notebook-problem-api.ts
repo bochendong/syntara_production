@@ -693,6 +693,22 @@ export async function selfReportCourseProblem(args: {
   );
 }
 
+/** 打开题解时记一次（还没做对才算数，同一道题只记第一次）；记录失败不影响看题解。 */
+export async function recordCourseProblemEvent(args: {
+  courseId: string;
+  problemId: string;
+  event: 'solution_viewed' | 'hidden_tests_viewed';
+}) {
+  return backendJson<{ recorded: boolean }>(
+    `/api/courses/${encodeURIComponent(args.courseId)}/problems/${encodeURIComponent(args.problemId)}/attempts/event`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: args.event }),
+    },
+  );
+}
+
 export type MultipartCheckupSuggestion = {
   id: string;
   kind: 'merge' | 'split';

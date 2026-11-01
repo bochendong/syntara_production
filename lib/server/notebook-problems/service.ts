@@ -8,6 +8,7 @@ import { courseProblemDedupeKey } from '@/features/problems/domain/problem-dedup
 import { prisma } from '@/lib/server/prisma';
 import { toPrismaJson, toPrismaNullableJson } from '@/lib/server/prisma-json';
 import { problemLayerSql, problemLayerWhere } from '@/lib/server/store-course-layers';
+import { recordProblemAttemptMemorySignal } from '@/lib/server/problem-attempt-memory-signals';
 import {
   buildLegacyProblemDraftsFromScene,
   codeDraftReadinessErrors,
@@ -3656,6 +3657,17 @@ export async function createNotebookProblemAttempt(args: {
   })) as unknown as ProblemAttemptRow;
 
   const attempt = mapAttemptRow(created);
+
+  // 提交、运行测试、查看答案/隐藏测试都可能是「卡住」的证据；写记忆在作答事务之后，失败不影响作答。
+  try {
+    await recordProblemAttemptMemorySignal({ prisma: prismaDb, attempt });
+  } catch (error) {
+    console.warn('[problem-attempt] learner-memory write failed after commit', {
+      attemptId: attempt.id,
+      problemId: attempt.problemId,
+      error,
+    });
+  }
 
   return attempt;
 }

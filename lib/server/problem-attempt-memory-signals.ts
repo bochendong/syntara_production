@@ -14,7 +14,9 @@ const MEMORY_SIGNAL_MIN_NON_PASSING_ATTEMPTS = 2;
 const MEMORY_SIGNAL_SOURCE = 'problem_attempt_inference';
 const MEMORY_SIGNAL_KIND = 'problem_attempt_signal';
 const MAX_EVIDENCE_ATTEMPTS = 30;
-const MAX_PATTERN_ATTEMPT_CANDIDATES = 120;
+const MAX_PATTERN_ATTEMPT_CANDIDATES = 400;
+/** 同一道题连续这么多次「运行测试」没通过，算一次卡住。 */
+const RUN_FAILURE_STREAK = 3;
 
 type ProblemAttemptMemoryState = 'active_gap' | 'improving' | 'resolved';
 
@@ -89,9 +91,30 @@ type ProblemAttemptMemorySignalArgs = {
   userId: string;
   courseId?: string | null;
   notebookId?: string | null;
-  problem: NotebookProblemRecord;
+  problem: SignalProblem;
   attempt: NotebookProblemAttemptRecord;
   recentAttempts: NotebookProblemAttemptRecord[];
+};
+
+type SignalProblem = Pick<
+  NotebookProblemRecord,
+  'id' | 'title' | 'type' | 'tags' | 'courseId' | 'notebookId'
+>;
+
+/**
+ * 做题过程里哪些事算「卡住」：正式提交没过、看了参考答案、看了隐藏测试、
+ * 运行测试连续失败。看答案或隐藏测试之后再做对，不算独立做对。
+ */
+export type ProblemLearningSignal =
+  | 'formal_failed'
+  | 'solution_viewed'
+  | 'hidden_tests_viewed'
+  | 'run_streak'
+  | 'passed';
+
+type DerivedLearningEvidence = PatternAttemptEvidence & {
+  signal: ProblemLearningSignal;
+  sourceAttemptId: string;
 };
 
 type RawStudyMemoryRow = Omit<StudyMemoryRecord, 'createdAt' | 'updatedAt'> & {
@@ -153,6 +176,133 @@ function isReliableLearningAttempt(attempt: NotebookProblemAttemptRecord) {
   return (
     isFormalAttempt(attempt) &&
     (attempt.status === 'passed' || attempt.status === 'failed' || attempt.status === 'partial')
+  );
+}
+
+function attemptEvent(attempt: NotebookProblemAttemptRecord) {
+  const event = attempt.result?.event;
+  return typeof event === 'string' ? event : null;
+}
+
+function isHelpEvent(event: string | null): event is 'solution_viewed' | 'hidden_tests_viewed' {
+  return event === 'solution_viewed' || event === 'hidden_tests_viewed';
+}
+
+function isTestRun(attempt: NotebookProblemAttemptRecord) {
+  return attempt.kind === 'run' && (attempt.result?.runTarget ?? 'public') !== 'code';
+}
+
+/** 便宜的预筛：明显不会产生学习证据的作答直接跳过，不查数据库。 */
+function mayProduceLearningEvidence(attempt: NotebookProblemAttemptRecord) {
+  const event = attemptEvent(attempt);
+  if (event) return isHelpEvent(event);
+  if (isTestRun(attempt)) return isNonPassingAttempt(attempt);
+  return isReliableLearningAttempt(attempt);
+}
+
+function syntheticFailure(
+  item: PatternAttemptEvidence,
+  id: string,
+  feedback: string,
+): NotebookProblemAttemptRecord {
+  return {
+    ...item.attempt,
+    id,
+    kind: 'answer',
+    status: 'failed',
+    result: { ...(item.attempt.result ?? { publicCases: [] }), feedback },
+  } as NotebookProblemAttemptRecord;
+}
+
+/**
+ * 把一道道题的原始记录（提交、运行、查看答案/隐藏测试）换成记忆用的证据：
+ * - 正式提交没过：一次卡住；
+ * - 做对之前看了参考答案或隐藏测试：一次卡住，之后这道题再做对也不算独立做对；
+ * - 运行测试（公开或隐藏）连续 3 次没过：一次卡住，做对或提交后重新计数；
+ * - 只运行代码、重置作答、评测出错：不算。
+ */
+export function deriveProblemLearningEvidence(
+  items: PatternAttemptEvidence[],
+): DerivedLearningEvidence[] {
+  const byProblem = new Map<string, PatternAttemptEvidence[]>();
+  const seen = new Set<string>();
+  for (const item of items) {
+    if (seen.has(item.attempt.id)) continue;
+    seen.add(item.attempt.id);
+    const list = byProblem.get(item.problemId) ?? [];
+    list.push(item);
+    byProblem.set(item.problemId, list);
+  }
+  const derived: DerivedLearningEvidence[] = [];
+  for (const list of byProblem.values()) {
+    list.sort(
+      (left, right) =>
+        left.attempt.createdAt - right.attempt.createdAt ||
+        left.attempt.id.localeCompare(right.attempt.id),
+    );
+    let assisted = false;
+    let passedIndependently = false;
+    let streak = 0;
+    let streakStart: string | null = null;
+    for (const item of list) {
+      const attempt = item.attempt;
+      const event = attemptEvent(attempt);
+      if (event) {
+        if (!isHelpEvent(event) || passedIndependently) continue;
+        assisted = true;
+        derived.push({
+          ...item,
+          attempt: syntheticFailure(
+            item,
+            attempt.id,
+            event === 'solution_viewed'
+              ? '还没做对就查看了参考答案。'
+              : '还没做对就查看了隐藏测试。',
+          ),
+          signal: event,
+          sourceAttemptId: attempt.id,
+        });
+        continue;
+      }
+      if (isFormalAttempt(attempt)) {
+        streak = 0;
+        streakStart = null;
+        if (attempt.status === 'passed') {
+          if (assisted) continue;
+          passedIndependently = true;
+          derived.push({ ...item, signal: 'passed', sourceAttemptId: attempt.id });
+        } else if (isNonPassingAttempt(attempt)) {
+          derived.push({ ...item, signal: 'formal_failed', sourceAttemptId: attempt.id });
+        }
+        continue;
+      }
+      if (!isTestRun(attempt)) continue;
+      if (attempt.status === 'passed') {
+        streak = 0;
+        streakStart = null;
+        continue;
+      }
+      if (!isNonPassingAttempt(attempt)) continue;
+      streak += 1;
+      streakStart ??= attempt.id;
+      if (streak !== RUN_FAILURE_STREAK) continue;
+      const original = attemptFeedback(attempt);
+      derived.push({
+        ...item,
+        attempt: syntheticFailure(
+          item,
+          `run-streak:${streakStart}`,
+          `运行测试连续 ${RUN_FAILURE_STREAK} 次没通过。${original}`.trim(),
+        ),
+        signal: 'run_streak',
+        sourceAttemptId: attempt.id,
+      });
+    }
+  }
+  return derived.sort(
+    (left, right) =>
+      right.attempt.createdAt - left.attempt.createdAt ||
+      right.attempt.id.localeCompare(left.attempt.id),
   );
 }
 
@@ -272,13 +422,13 @@ async function loadPatternAttemptEvidence(args: {
   userId: string;
   target: SignalTarget;
   pattern: SemanticProblemPattern;
-  problem: NotebookProblemRecord;
+  problem: SignalProblem;
   attempt: NotebookProblemAttemptRecord;
   recentAttempts: NotebookProblemAttemptRecord[];
-}) {
+}): Promise<DerivedLearningEvidence[]> {
   const byAttemptId = new Map<string, PatternAttemptEvidence>();
   for (const attempt of [...args.recentAttempts, args.attempt]) {
-    if (!isReliableLearningAttempt(attempt)) continue;
+    if (attempt.problemId !== args.problem.id) continue;
     byAttemptId.set(attempt.id, {
       attempt,
       problemId: args.problem.id,
@@ -288,10 +438,8 @@ async function loadPatternAttemptEvidence(args: {
     });
   }
 
-  // An untagged problem deliberately remains isolated by problem id. The
-  // caller already supplied that problem's recent attempts.
-  if (!args.pattern.isConceptPattern) return [...byAttemptId.values()];
-
+  // Tagged problems share evidence with every same-tag problem in the target.
+  // An untagged problem stays isolated to its own history.
   const rows = await args.prisma.$queryRawUnsafe<RawPatternAttemptRow[]>(
     `
       SELECT
@@ -310,14 +458,15 @@ async function loadPatternAttemptEvidence(args: {
         p."tags" AS "problemTags"
       FROM "NotebookProblemAttempt" AS a
       INNER JOIN "NotebookProblem" AS p ON p."id" = a."problemId"
+      LEFT JOIN "Notebook" AS n ON n."id" = p."notebookId"
       WHERE
         a."userId" = $1
-        AND a."kind"::text IN ('submit', 'answer')
-        AND a."status"::text IN ('passed', 'failed', 'partial')
+        AND a."kind"::text IN ('submit', 'answer', 'run')
         AND (
           ($2 = 'notebook' AND p."notebookId" = $3)
-          OR ($2 = 'course' AND p."courseId" = $3)
+          OR ($2 = 'course' AND COALESCE(p."courseId", n."courseId") = $3)
         )
+        AND ($5::text IS NULL OR a."problemId" = $5)
       ORDER BY a."createdAt" DESC
       LIMIT $4
     `,
@@ -325,17 +474,18 @@ async function loadPatternAttemptEvidence(args: {
     args.target.targetType,
     args.target.targetId,
     MAX_PATTERN_ATTEMPT_CANDIDATES,
+    args.pattern.isConceptPattern ? null : args.problem.id,
   );
   for (const row of rows) {
     const evidence = patternAttemptFromRow(row);
-    if (!sameStrings(evidence.normalizedTags, args.pattern.normalizedTags)) continue;
+    if (args.pattern.isConceptPattern) {
+      if (!sameStrings(evidence.normalizedTags, args.pattern.normalizedTags)) continue;
+    } else if (evidence.problemId !== args.problem.id) {
+      continue;
+    }
     byAttemptId.set(evidence.attempt.id, evidence);
   }
-  return [...byAttemptId.values()].sort(
-    (left, right) =>
-      right.attempt.createdAt - left.attempt.createdAt ||
-      right.attempt.id.localeCompare(left.attempt.id),
-  );
+  return deriveProblemLearningEvidence([...byAttemptId.values()]);
 }
 
 export function planProblemAttemptMemorySignal(args: {
@@ -520,20 +670,21 @@ export function planProblemAttemptMemorySignal(args: {
 function resolveSignalTarget(args: ProblemAttemptMemorySignalArgs): SignalTarget | null {
   const notebookId = args.notebookId?.trim() || args.problem.notebookId?.trim() || null;
   const courseId = args.courseId?.trim() || args.problem.courseId?.trim() || null;
+  // 学习记忆按课程放（App 的记忆页和星图按课程读），notebookId 只用来连到章节。
+  if (courseId) {
+    return {
+      targetType: 'course',
+      targetId: courseId,
+      courseId,
+      notebookId,
+    };
+  }
   if (notebookId) {
     return {
       targetType: 'notebook',
       targetId: notebookId,
       courseId,
       notebookId,
-    };
-  }
-  if (courseId) {
-    return {
-      targetType: 'course',
-      targetId: courseId,
-      courseId,
-      notebookId: null,
     };
   }
   return null;
@@ -570,7 +721,7 @@ function existingEvidence(args: {
   memory: RawStudyMemoryRow | null;
   key: string;
   pattern: SemanticProblemPattern;
-  problem: NotebookProblemRecord;
+  problem: SignalProblem;
   target: SignalTarget;
 }): ExistingProblemAttemptMemory | null {
   if (!args.memory) return null;
@@ -648,60 +799,79 @@ function existingEvidence(args: {
   };
 }
 
+type SignalCounts = Record<Exclude<ProblemLearningSignal, 'passed'>, number>;
+
+function countSignals(evidence: DerivedLearningEvidence[], nonPassingIds: string[]): SignalCounts {
+  const ids = new Set(nonPassingIds);
+  const counts: SignalCounts = {
+    formal_failed: 0,
+    solution_viewed: 0,
+    hidden_tests_viewed: 0,
+    run_streak: 0,
+  };
+  for (const item of evidence) {
+    if (item.signal === 'passed' || !ids.has(item.attempt.id)) continue;
+    counts[item.signal] += 1;
+  }
+  return counts;
+}
+
+function signalSummary(counts: SignalCounts | undefined, fallbackTotal: number) {
+  if (!counts) return `${fallbackTotal} 次没做对`;
+  const parts = [
+    counts.formal_failed ? `提交没过 ${counts.formal_failed} 次` : '',
+    counts.solution_viewed ? `看了参考答案 ${counts.solution_viewed} 次` : '',
+    counts.hidden_tests_viewed ? `看了隐藏测试 ${counts.hidden_tests_viewed} 次` : '',
+    counts.run_streak ? `运行测试连续失败 ${counts.run_streak} 轮` : '',
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join('，') : `${fallbackTotal} 次没做对`;
+}
+
 function memoryText(args: {
-  problem: NotebookProblemRecord;
+  problem: SignalProblem;
   plan: ProblemAttemptMemorySignalPlan;
   latestAttempt: NotebookProblemAttemptRecord | undefined;
   latestNonPassingAttempt: NotebookProblemAttemptRecord | undefined;
   sourceProblems: Array<{ id: string; title: string; type: string }>;
   normalizedTags: string[];
+  signalCounts?: SignalCounts;
 }) {
-  const latestFeedback =
-    attemptFeedback(args.latestAttempt) || '评分结果没有提供更细的错误原因，需要下次继续诊断。';
-  const gapFeedback =
-    attemptFeedback(args.latestNonPassingAttempt) ||
-    '此前未通过记录没有提供更细的错误原因，需要下次继续诊断。';
-  const tags = args.normalizedTags.length > 0 ? args.normalizedTags.join('、') : '暂无标签';
-  const problemTypes = uniqueStrings(
-    args.sourceProblems.map((source) => source.type),
-    [args.problem.type],
-  ).join('、');
-  const sourceSummary = args.sourceProblems
-    .slice(0, 8)
-    .map((source) => `${compact(source.title, 80)}（${source.id}）`)
-    .join('；');
+  const gapFeedback = attemptFeedback(args.latestNonPassingAttempt);
+  const topic =
+    args.normalizedTags.length > 0
+      ? args.normalizedTags.join('、')
+      : compact(args.problem.title, 40);
+  const sourceSummary =
+    args.sourceProblems
+      .slice(0, 6)
+      .map((source) => `「${compact(source.title, 40)}」`)
+      .join('、') || `「${compact(args.problem.title, 40)}」`;
+  const stuck = signalSummary(args.signalCounts, args.plan.nonPassingAttemptIds.length);
 
   if (args.plan.state === 'resolved') {
     return [
-      `状态：弱点已关闭；学生已在 ${args.plan.resolutionPassingProblemIds.length} 道不同的同模式题上完成独立通过。`,
-      '结论：这是迁移复测形成的稳定反证，因此归档长期弱点；不是由单次重复作答直接推断掌握。',
-      `本次反馈：${latestFeedback}`,
-      `此前错因线索：${gapFeedback}`,
-      `概念标签：${tags}；题目类型：${problemTypes}。`,
-      `来源题目：${sourceSummary || `${compact(args.problem.title, 80)}（${args.problem.id}）`}。`,
-      '下一步：保留来源记录供回溯；若同模式后续再次失败，重新激活同一条弱点。',
+      `「${topic}」这个卡点已关闭：之后在 ${args.plan.resolutionPassingProblemIds.length} 道不同的同类题上独立做对了。`,
+      `之前卡住的情况：${stuck}。`,
+      `来源题目：${sourceSummary}。`,
     ].join('\n');
   }
 
   if (args.plan.state === 'improving') {
     return [
-      `状态：改善中；同一学习模式已有 ${args.plan.nonPassingAttemptIds.length} 次未完全通过，最近一次正式作答已通过。`,
-      '进展：本次通过是正向证据，但不能仅凭一次通过宣布稳定掌握。',
-      `本次反馈：${latestFeedback}`,
-      `此前错因线索：${gapFeedback}`,
-      `概念标签：${tags}；题目类型：${problemTypes}。`,
-      `来源题目：${sourceSummary || `${compact(args.problem.title, 80)}（${args.problem.id}）`}。`,
-      '下一步：安排同标签迁移题或间隔复测；再次稳定通过后，才考虑关闭这条长期弱点。',
+      `「${topic}」改善中：之前${stuck}，最近一次独立做对了。`,
+      '再独立做对一道不同的同类题，才算真正过关。',
+      `来源题目：${sourceSummary}。`,
     ].join('\n');
   }
 
   return [
-    `状态：稳定薄弱点；学生在同一学习模式上已有 ${args.plan.nonPassingAttemptIds.length} 次正式作答未完全通过。`,
-    `薄弱证据：最近状态 ${args.plan.latestAttemptStatus}；反馈：${gapFeedback}`,
-    `概念标签：${tags}；题目类型：${problemTypes}。`,
-    `来源题目：${sourceSummary || `${compact(args.problem.title, 80)}（${args.problem.id}）`}。`,
-    '下一步：先根据评分反馈定位错误步骤，再用一个更小的同类题检查修复；不要把重复错误简单归因于粗心。',
-  ].join('\n');
+    `「${topic}」还没过关：${stuck}。`,
+    gapFeedback ? `最近的错因：${gapFeedback}` : '',
+    `来源题目：${sourceSummary}。`,
+    '下次先找出错的那一步，再做一道同类小题确认。',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 async function findExistingMemory(args: {
@@ -723,7 +893,8 @@ async function findExistingMemory(args: {
         AND ("id" = $2 OR "source" = $3)
         AND (
           ($4 = 'notebook' AND "targetType" = 'notebook' AND "notebookId" = $5)
-          OR ($4 = 'course' AND "targetType" = 'course' AND "courseId" = $5)
+          -- 早先按笔记本存的做题记忆也归到课程里，避免同一个卡点出现两颗。
+          OR ($4 = 'course' AND "targetType" IN ('course', 'notebook') AND "courseId" = $5)
         )
       ORDER BY "updatedAt" DESC
       LIMIT 100
@@ -782,6 +953,9 @@ async function upsertMemory(args: {
         $11, NULL, $12::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
       ON CONFLICT ("id") DO UPDATE SET
+        "courseId" = EXCLUDED."courseId",
+        "notebookId" = EXCLUDED."notebookId",
+        "targetType" = EXCLUDED."targetType",
         "kind" = EXCLUDED."kind",
         "status" = EXCLUDED."status",
         "source" = EXCLUDED."source",
@@ -813,7 +987,7 @@ async function upsertMemory(args: {
 export async function maybeWriteProblemAttemptMemorySignal(
   args: ProblemAttemptMemorySignalArgs,
 ): Promise<ProblemAttemptMemorySignalResult> {
-  if (!isReliableLearningAttempt(args.attempt)) {
+  if (!mayProduceLearningEvidence(args.attempt)) {
     const plan = planProblemAttemptMemorySignal({
       attempt: args.attempt,
       recentAttempts: args.recentAttempts,
@@ -871,8 +1045,29 @@ export async function maybeWriteProblemAttemptMemorySignal(
       attempt: args.attempt,
       recentAttempts: args.recentAttempts,
     });
+    const triggerEvidence = patternAttemptEvidence.find(
+      (item) => item.sourceAttemptId === args.attempt.id,
+    );
+    if (!triggerEvidence) {
+      result = {
+        action: 'skipped',
+        state: existing?.state ?? null,
+        reason:
+          'This record is not learning evidence on its own (a short run streak, an assisted pass, or a repeat view).',
+        attemptIds: [],
+        nonPassingAttemptIds: [],
+        passingAttemptIds: [],
+        passingProblemIds: [],
+        resolutionPassingAttemptIds: [],
+        resolutionPassingProblemIds: [],
+        latestAttemptId: args.attempt.id,
+        latestAttemptStatus: args.attempt.status,
+        memoryId: existing?.id || null,
+      };
+      return null;
+    }
     const plan = planProblemAttemptMemorySignal({
-      attempt: args.attempt,
+      attempt: triggerEvidence.attempt,
       recentAttempts: patternAttemptEvidence.map((item) => item.attempt),
       existing: existing?.evidence,
     });
@@ -886,9 +1081,10 @@ export async function maybeWriteProblemAttemptMemorySignal(
     }
 
     const formalAttempts = recentFormalAttempts({
-      attempt: args.attempt,
+      attempt: triggerEvidence.attempt,
       recentAttempts: patternAttemptEvidence.map((item) => item.attempt),
     });
+    const signalCounts = countSignals(patternAttemptEvidence, plan.nonPassingAttemptIds);
     const latestAttempt = formalAttempts.find((attempt) => attempt.id === plan.latestAttemptId);
     const latestNonPassingAttempt = formalAttempts.find(isNonPassingAttempt);
     const representedAttemptIds = new Set(plan.attemptIds);
@@ -950,10 +1146,10 @@ export async function maybeWriteProblemAttemptMemorySignal(
         : compact(args.problem.title, 80);
     const title =
       plan.state === 'resolved'
-        ? `弱点已关闭：${patternTitle}（迁移复测通过）`
+        ? `已关闭：${patternTitle}`
         : plan.state === 'improving'
-          ? `复习进展：${patternTitle}（改善中）`
-          : `稳定薄弱点：${patternTitle}`;
+          ? `改善中：${patternTitle}`
+          : `卡点：${patternTitle}`;
     const writtenMemory = await upsertMemory({
       prisma: tx as PrismaClient,
       id: existing?.id || stableId,
@@ -967,6 +1163,7 @@ export async function maybeWriteProblemAttemptMemorySignal(
         latestNonPassingAttempt,
         sourceProblems,
         normalizedTags: pattern.normalizedTags,
+        signalCounts,
       }),
       reason: plan.reason,
       evidence,
@@ -1006,4 +1203,44 @@ export async function maybeWriteProblemAttemptMemorySignal(
       memoryId: null,
     }
   );
+}
+
+/**
+ * 每次做题记录（提交、运行测试、查看答案/隐藏测试）存好之后调用。
+ * 记忆只是附带产物：任何失败都只记日志，不影响作答本身。
+ */
+export async function recordProblemAttemptMemorySignal(args: {
+  prisma: PrismaClient;
+  attempt: NotebookProblemAttemptRecord;
+}): Promise<ProblemAttemptMemorySignalResult | null> {
+  if (!mayProduceLearningEvidence(args.attempt)) return null;
+  const problem = await args.prisma.notebookProblem.findUnique({
+    where: { id: args.attempt.problemId },
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      tags: true,
+      courseId: true,
+      notebookId: true,
+      notebook: { select: { courseId: true } },
+    },
+  });
+  if (!problem) return null;
+  return maybeWriteProblemAttemptMemorySignal({
+    prisma: args.prisma,
+    userId: args.attempt.userId,
+    courseId: problem.courseId || problem.notebook?.courseId || null,
+    notebookId: problem.notebookId,
+    problem: {
+      id: problem.id,
+      title: problem.title,
+      type: problem.type as SignalProblem['type'],
+      tags: problem.tags,
+      courseId: problem.courseId || problem.notebook?.courseId || null,
+      notebookId: problem.notebookId,
+    },
+    attempt: args.attempt,
+    recentAttempts: [args.attempt],
+  });
 }

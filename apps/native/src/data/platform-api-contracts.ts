@@ -560,6 +560,8 @@ export interface NativeProblemSnapshot {
 /** 一条 App 作答，传到网页题库；id 固定，重复上传只记一次。 */
 export interface NativeProblemAttemptUpload {
   event?: 'solution_viewed' | 'hidden_tests_viewed' | 'answer_reset';
+  /** 在本机跑了一次测试（不是提交）：public 公开测试，secret 隐藏测试 */
+  run?: 'public' | 'secret';
   progressSnapshot?: { status: string; score: number | null; attemptedCount: number } | null;
   id: string;
   problemId: string;
