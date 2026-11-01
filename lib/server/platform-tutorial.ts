@@ -9,7 +9,7 @@ import {
 
 const PLATFORM_USER_ID = 'syntara-platform';
 const PLATFORM_ORGANIZATION_ID = 'syntara-official';
-const TUTORIAL_REVISION = 'platform-tutorial-v2';
+const TUTORIAL_REVISION = 'platform-tutorial-v3';
 
 let ensured: Promise<void> | null = null;
 

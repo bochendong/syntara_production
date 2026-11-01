@@ -129,7 +129,7 @@ const STORE_BACK = '.phone-page:has(.st-page) > .phone-page-header button[aria-l
 const COURSE_TITLE = '[data-onboarding="course-menu"]';
 const LEARNING_BACK =
   '.phone-page:not(:has(.st-page)) > .phone-page-header button[aria-label="返回"], [data-onboarding="page-back"]';
-const CHAT_HOME = '.app-navigation-rail > button[aria-label="聊天"]';
+const CHAT_HOME = '.app-navigation-rail > button[aria-label="首页"]';
 function addedCourseHeading() {
   return `[data-guide-course-id="${CSS.escape(getGuideCourseId())}"]`;
 }
@@ -445,8 +445,16 @@ function GuidedCoach({ userId }: { userId: string }) {
                     selector: '[data-onboarding="materials-drop"]',
                     text: compact
                       ? '点击「笔记」选择课程资料。上传并整理完成后，AI 就能结合这门课里的资料回答你的问题。之后随时从课程的「资料」回到这里。'
-                      : '把讲义、课件或课堂笔记拖进来，也可以点击选择文件。上传并整理完成后，AI 就能结合这门课里的资料回答你的问题。之后随时从课程的「资料」回到这里。',
+                      : '把讲义、课件或课堂笔记拖进来，也可以点击选择文件。上传并整理完成后，AI 就能结合这门课里的资料回答你的问题。之后随时从顶部的「上传」回到这里。',
                   },
+                  ...(!compact
+                    ? [
+                        {
+                          selector: '[data-onboarding="learning-tab-materials"]',
+                          text: '点击顶部最后一个「上传」，导入这门课的讲义、笔记或题目。',
+                        },
+                      ]
+                    : []),
                   {
                     selector: '.learning-float-stack button[aria-label="上传资料"]',
                     text: '点击这里的「＋」，就能进入课程资料上传页。',
@@ -487,8 +495,12 @@ function GuidedCoach({ userId }: { userId: string }) {
                   : step === 'start-chat'
                     ? [
                         {
-                          selector: SIDEBAR_NEW_CHAT,
-                          text: '点击侧边栏上方的「新聊天」，开始一次新的提问。',
+                          selector: compact
+                            ? SIDEBAR_NEW_CHAT
+                            : `${addedCourseHeading()} button[title="新聊天"]`,
+                          text: compact
+                            ? '点击侧边栏上方的「新聊天」，开始一次新的提问。'
+                            : '点击这门课旁的「新聊天」按钮，直接进入这门课的新聊天界面。',
                         },
                         {
                           selector: '[data-onboarding="drawer"]',
@@ -501,7 +513,7 @@ function GuidedCoach({ userId }: { userId: string }) {
                             selector: '.course-tools-menu:has([data-onboarding="tool-materials"])',
                             text: compact
                               ? '课程的资料、笔记、学习进度、记忆球和课堂都在这里。以后点顶部的课程名，就能打开这个菜单。'
-                              : '课程的资料、笔记和题目都在这里，也可以查看学习进度、记忆球和课堂。以后需要时，点课程旁的「⋯」就能找到。',
+                              : '这里可以查看资料、笔记、学习进度和题库，最下面是删除课程。记忆、课堂和上传在顶部常驻标签中；删除课程会先要求确认。',
                           },
                           {
                             selector: compact
@@ -526,21 +538,29 @@ function GuidedCoach({ userId }: { userId: string }) {
                               selector: '.phone-memory-layout',
                               text: '这里有五颗预置示例记忆球。按颜色筛选，或点击珠子查看错题、薄弱点、偏好、反思和学习状态；这些样例不是你的真实学习记录。',
                             },
+                            ...(!compact
+                              ? [
+                                  {
+                                    selector: '[data-onboarding="learning-tab-memory"]',
+                                    text: '点击顶部的「记忆」，查看演示课程的五种颜色示例记忆球。',
+                                  },
+                                ]
+                              : []),
                             {
                               selector: '.learning-float-row[data-tool="memory"]',
                               text: '点击「学习记忆」，看看演示课程里的记忆球。',
                             },
                             {
-                              selector: '.course-tools-menu > [role="menuitem"]:nth-child(4)',
+                              selector: '[data-onboarding="tool-memory"]',
                               text: '点击「学习记忆」，看看五种颜色的示例记忆球。',
                             },
                             {
                               selector: compact
                                 ? COURSE_TITLE
-                                : `${addedCourseHeading()} button[title="学习工具"]`,
+                                : `${addedCourseHeading()} button[title="新聊天"]`,
                               text: compact
                                 ? '点击顶部课程名，再选「学习记忆」。'
-                                : '从课程旁的「⋯ → 学习记忆」查看记忆球。',
+                                : '先打开这门课的新聊天，再点击顶部的「记忆」。',
                             },
                           ]
                         : step === 'ask'
@@ -585,7 +605,11 @@ function GuidedCoach({ userId }: { userId: string }) {
         setGuideStep('prepare');
       if (getGuideStep() === 'return-to-chat' && target.closest(`${CHAT_HOME}, ${STORE_BACK}`))
         setGuideStep('course-added');
-      if (getGuideStep() === 'start-chat' && target.closest(SIDEBAR_NEW_CHAT)) setGuideStep('ask');
+      if (
+        getGuideStep() === 'start-chat' &&
+        target.closest(`${SIDEBAR_NEW_CHAT}, ${addedCourseHeading()} button[title="新聊天"]`)
+      )
+        setGuideStep('ask');
       if (getGuideStep() === 'done' && target.closest('.chat-cite')) setGuideStep('course-menu');
       if (
         getGuideStep() === 'course-menu' &&

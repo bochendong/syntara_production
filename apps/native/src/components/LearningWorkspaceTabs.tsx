@@ -140,7 +140,11 @@ export function LearningWorkspaceTabs({
                   }
                   data-tone={tone}
                 >
-                  <button {...tabProps(page, index + 1)} title={label}>
+                  <button
+                    {...tabProps(page, index + 1)}
+                    title={label}
+                    data-onboarding={`learning-tab-${page}`}
+                  >
                     <LearningToolIcon tool={page} />
                     <span>{label}</span>
                   </button>

@@ -1549,11 +1549,6 @@ textarea:focus-visible {
   background: #f5f3ff;
 }
 
-.native-workspace-dialog.native-review-practice-dialog {
-  width: min(1320px, calc(100vw - 1rem));
-  height: min(860px, 92dvh);
-}
-
 @media (max-width: 640px) {
   .native-review-plan-card > header,
   .native-review-day-content > header {

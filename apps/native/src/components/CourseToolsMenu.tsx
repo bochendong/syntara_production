@@ -76,7 +76,7 @@ export function CourseToolsMenu({
             key: page,
             label,
             icon: <LearningToolIcon tool={page} />,
-            onboarding: page === 'materials' ? 'tool-materials' : undefined,
+            onboarding: `tool-${page}`,
             onSelect: () => onSelect(page),
           })),
         ...(wide && onDelete

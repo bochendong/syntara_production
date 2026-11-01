@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom';
+import { PracticeOverlay } from './PracticeOverlay';
 import { subscribeVisibleRefresh } from '../lib/visible-refresh';
 import { saveSyncedCourseEvents, deleteSyncedCourseEvent } from '../data/calendar-sync';
 import {
@@ -6105,24 +6107,18 @@ export function CourseWorkspace({
           setActiveMiniLecture(null);
         }}
       />
-      <NativeWorkspaceDialog
-        open={Boolean(reviewPracticeLaunch)}
-        onClose={closeReviewPlanPractice}
-        title={
-          reviewPracticeLaunch?.title ||
-          `${workspace.course.courseCode || workspace.course.name} 练习`
-        }
-        description="在弹窗中完成本次选中的题目。"
-        className="native-review-practice-dialog"
-      >
-        {reviewPracticeLaunch ? (
-          <ProblemPracticePage
-            problems={workspace.problems}
-            launch={reviewPracticeLaunch}
-            onBack={closeReviewPlanPractice}
-          />
-        ) : null}
-      </NativeWorkspaceDialog>
+      {reviewPracticeLaunch
+        ? createPortal(
+            <PracticeOverlay onClose={closeReviewPlanPractice}>
+              <ProblemPracticePage
+                problems={workspace.problems}
+                launch={reviewPracticeLaunch}
+                onBack={closeReviewPlanPractice}
+              />
+            </PracticeOverlay>,
+            document.body,
+          )
+        : null}
 
       {memoryDialogOpen ? (
         <NativeWorkspaceDialog

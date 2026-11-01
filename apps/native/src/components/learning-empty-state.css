@@ -32,6 +32,19 @@
   padding-block: 32px;
 }
 
+.native-problem-practice
+  .native-problem-practice-pane-body:has(> .learning-empty-state:only-child) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.native-problem-practice-pane-body > .learning-empty-state:only-child {
+  flex: none;
+  min-height: 0;
+  justify-content: center;
+}
+
 .learning-empty-marbles {
   display: flex;
   padding: 8px;

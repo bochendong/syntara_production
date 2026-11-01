@@ -61,6 +61,16 @@
   border-color: #b7d6fc;
   color: #2563eb;
 }
+.native-code-tests > header > button {
+  border-color: rgb(15 23 42 / 10%);
+  background: #f0fdf4;
+  color: #166534;
+}
+.native-code-tests > header > button:hover:not(:disabled) {
+  border-color: #86efac;
+  background: #dcfce7;
+  color: #166534;
+}
 .native-code-tests button:disabled {
   opacity: 0.5;
   cursor: wait;

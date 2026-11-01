@@ -281,7 +281,7 @@ test('tutorial upgrade is idempotent and confined to the platform-owned fixed co
       findUnique: async () => ({
         id: 'syntara-tutorial',
         ownerId: 'syntara-platform',
-        tags: ['教程'],
+        tags: ['平台入门', 'platform-tutorial-v2'],
       }),
     },
     $transaction: async (fn) => fn(tx),
@@ -293,6 +293,12 @@ test('tutorial upgrade is idempotent and confined to the platform-owned fixed co
   const course = writes.find((x) => x.name === 'course').arg;
   assert.equal(course.where.id, 'syntara-tutorial');
   assert.equal(course.update.name, 'Syntara 演示课程');
+  assert.ok(course.update.tags.includes('platform-tutorial-v3'));
+  const sections = writes.filter((x) => x.name === 'markdownNotebookSection');
+  assert.ok(
+    sections.every((x) => x.arg.where.notebookId_order.notebookId === 'syntara-tutorial-guide'),
+  );
+  assert.ok(sections.every((x) => x.arg.update.sourceMeta.revision === 'platform-tutorial-v3'));
   assert.ok(!('ownerId' in course.update));
 });
 
