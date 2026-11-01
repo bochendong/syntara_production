@@ -1,0 +1,73 @@
+{
+  "date": "2026-11-01",
+  "environment": "staging",
+  "sourceCommit": "9c4961c27eb90787a1f9da87d4fe12ac86f5ceb5",
+  "railwayDeployment": "2bf83843-ecb1-4ea4-82a8-811ef46d0dd3",
+  "status": "SUCCESS",
+  "pullRequests": [
+    {
+      "number": 19,
+      "head": "ebf1d708d38ccd497b2b04a228582133fc32da4f",
+      "url": "https://github.com/bochendong/syntara_production/pull/19"
+    },
+    {
+      "number": 20,
+      "head": "62bffdd718122d6e6d01d10fd081166208742d04",
+      "url": "https://github.com/bochendong/syntara_production/pull/20"
+    }
+  ],
+  "changes": [
+    "Merge practice learning-memory timing and hint-first problem AI coach into codex/staging-next.",
+    "Record memory evidence after saved attempts: failed/partial submissions, solution/hidden-test help and streaks of three failing test runs; combine same-concept evidence in course memory.",
+    "Provide hint, next-step, check and confirmed full-solution actions with per-problem conversation context on web and native practice surfaces.",
+    "Connect web AI full-solution help to the shared recordCourseProblemEvent helper.",
+    "Keep native coach mounted when hidden so closing and reopening preserves the current practice conversation."
+  ],
+  "verification": [
+    "38 problem-attempt memory signal checks passed.",
+    "35 tests across native code grading, problem solutions, first code submit, table bilingual, notebook translations and calculation transport passed; includes the new post-commit memory failure/replay regression.",
+    "6 additional help-event route tests passed: authentication, ordinary hint rejection, progress preservation, teacher preview, repeat views and passed problems.",
+    "Native photo-answer offline validation passed.",
+    "Committed-diff Prettier (27 files), ESLint (26 files), full root TypeScript, native TypeScript and Vite config TypeScript passed.",
+    "Complete staging native-web and Next production build passed, including all six Python judging function bundle checks.",
+    "Railway deployment SUCCESS; 50 existing migrations checked with none pending.",
+    "Live health, source revision and native-web JS/CSS SHA-256 match the verified committed source.",
+    "Authenticated staging browser: real UBC-CPSC110 problem hint returned; close/reopen preserves the reply; next problem starts a separate thread; returning restores the original reply; full solution first click requires confirmation.",
+    "No runtime error entries returned for the post-release acceptance window."
+  ],
+  "liveApplication": {
+    "passed": true,
+    "verifiedAt": "2026-11-01T16:43:39.258Z",
+    "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+    "health": {
+      "status": "ok",
+      "service": "syntara-native",
+      "environment": "staging"
+    },
+    "version": {
+      "version": "0.1.1",
+      "release": "2026.10.28-sync.1",
+      "syncProtocol": 2,
+      "revision": "9c4961c27eb90787a1f9da87d4fe12ac86f5ceb5"
+    },
+    "assets": [
+      {
+        "path": "/native-web/assets/index-B23n8XB4.js",
+        "sha256": "e4514d9bd24c5205ae4f71f623fc0638eaa528245bd79ceac6e432f39958030b",
+        "bytes": 1977028
+      },
+      {
+        "path": "/native-web/assets/index-D7_ErISG.css",
+        "sha256": "870ce47473f825246680318de6085722ef655d63ed91043a13c4c70d0fbec546",
+        "bytes": 415891
+      }
+    ]
+  },
+  "limits": [
+    "Memory writes, thresholds and progress preservation were verified using disposable isolated fixtures; no live student attempts or new learning memories were created for acceptance.",
+    "Only a hint was requested from the live model; confirmed full-solution generation and live help-event persistence were not exercised.",
+    "Legacy Next web coach was compiled and its event endpoint tested offline, but browser acceptance used the deployed native-web /test/app surface.",
+    "No new database migrations or rebuilt desktop/iOS installers; production main was unchanged.",
+    "Non-blocking bundle-size, middleware deprecation and unpdf dynamic dependency build warnings remain."
+  ]
+}
