@@ -37,8 +37,10 @@ class Public(unittest.TestCase):
         self.assertEqual(add(1, 2), ${expected})
 `;
 
-function harness({ description = '', secretExpected = 3 } = {}) {
+function harness({ description = '', secretExpected = 3, memoryFails = false } = {}) {
   const rows = new Map();
+  const memorySignals = [];
+  let inTransaction = false;
   const calls = { transactions: 0, progress: 0, jobs: 0, grades: 0 };
   const tx = {
     notebookProblemAttempt: {
@@ -62,7 +64,12 @@ function harness({ description = '', secretExpected = 3 } = {}) {
   const prisma = {
     $transaction: async (run) => {
       calls.transactions += 1;
-      return run(tx);
+      inTransaction = true;
+      try {
+        return await run(tx);
+      } finally {
+        inTransaction = false;
+      }
     },
     notebookProblemAttempt: { findUnique: async ({ where }) => rows.get(where.id) ?? null },
   };
@@ -70,6 +77,14 @@ function harness({ description = '', secretExpected = 3 } = {}) {
     '@/lib/server/prisma': { prisma },
     '@/lib/server/prisma-json': { toPrismaJson: (value) => value },
     '@/lib/problem-bank': schemas,
+    '@/lib/server/problem-attempt-memory-signals': {
+      recordProblemAttemptMemorySignal: async ({ attempt }) => {
+        assert.equal(inTransaction, false, 'Memory signals run after the attempt transaction');
+        assert(rows.has(attempt.id), 'The attempt must already be saved');
+        memorySignals.push(attempt);
+        if (memoryFails) throw new Error('Disposable memory write failure');
+      },
+    },
     '@/features/background-jobs/server/store': {
       enqueueJob: async () => {
         calls.jobs += 1;
@@ -137,6 +152,7 @@ function harness({ description = '', secretExpected = 3 } = {}) {
   });
   return {
     rows,
+    memorySignals,
     calls,
     service,
     send: async (changes = {}) => {
@@ -177,7 +193,26 @@ test('Python unittest without docstrings succeeds on the first POST and replays 
   assert.equal(replay.body.data.replayed, true);
   assert.deepEqual(replay.body.data.result, first.body.data.result);
   assert.equal(h.rows.size, 1);
+  assert.equal(h.memorySignals.length, 1, 'Replay does not duplicate the memory signal');
   assert.deepEqual(h.calls, { transactions: 1, progress: 1, jobs: 1, grades: 2 });
+});
+
+test('memory failures after commit preserve a successful first submission', async () => {
+  const h = harness({ memoryFails: true });
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    const response = await h.send();
+    assert.equal(response.status, 200);
+    assert.equal(response.body.data.saved, true);
+    assert.equal(h.rows.size, 1);
+    assert.equal(h.memorySignals.length, 1);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0][0], /learner-memory write failed after commit/);
+  } finally {
+    console.warn = originalWarn;
+  }
 });
 
 test('descriptions remain available and hidden-test failure is saved once without becoming a transport failure', async () => {

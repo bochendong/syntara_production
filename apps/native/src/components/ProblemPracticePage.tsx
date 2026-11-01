@@ -1713,8 +1713,9 @@ export function ProblemPracticePage({
         </button>
       </header>
 
-      {coachOpen && currentProblem ? (
+      {currentProblem ? (
         <ProblemAiCoachPanel
+          open={coachOpen}
           problem={displayedProblem ?? currentProblem}
           answer={
             isMultipart

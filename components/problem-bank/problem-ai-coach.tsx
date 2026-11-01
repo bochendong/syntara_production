@@ -23,7 +23,10 @@ import type {
   NotebookProblemPublicContent,
 } from '@/lib/problem-bank';
 import type { ChatMessageMetadata } from '@/lib/types/chat';
-import type { NotebookProblemClientRecord } from '@/lib/utils/notebook-problem-api';
+import {
+  recordCourseProblemEvent,
+  type NotebookProblemClientRecord,
+} from '@/lib/utils/notebook-problem-api';
 import { cn } from '@/lib/utils';
 
 type CoachLocale = 'zh-CN' | 'en-US';
@@ -73,21 +76,6 @@ function assistantText(messages: UIMessage<ChatMessageMetadata>[]): string {
 
 function emptyThread(): CoachThread {
   return { lines: [], conversation: [], lastAnswerKey: '', sending: false };
-}
-
-/**
- * 学生要了完整解答，和打开「题解」一样记一次求助（服务端只记第一次、做对后不记）。
- * TODO: PR #19 合并后改用 lib/utils/notebook-problem-api.ts 的 recordCourseProblemEvent。
- */
-function recordProblemCoachEvent(courseId: string, problemId: string) {
-  void fetch(
-    `/api/courses/${encodeURIComponent(courseId)}/problems/${encodeURIComponent(problemId)}/attempts/event`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'solution_viewed' }),
-    },
-  ).catch(() => undefined);
 }
 
 /** 顶栏上的「AI」弹珠按钮。 */
@@ -290,7 +278,10 @@ export function ProblemAiCoachPanel({
           result.answer.trim() ||
           (locale === 'en-US' ? 'No answer this time. Try again.' : '这次没有生成回答，再试一次。');
         setAssistant({ text, streaming: false }, { conversation: result.messages, sending: false });
-        if (move === 'solution' && recordHelpEvents) recordProblemCoachEvent(courseId, problemId);
+        if (move === 'solution' && recordHelpEvents)
+          void recordCourseProblemEvent({ courseId, problemId, event: 'solution_viewed' }).catch(
+            () => undefined,
+          );
       } catch (error) {
         if (controller.signal.aborted) return;
         const message = error instanceof Error ? error.message : '';

@@ -191,6 +191,7 @@ export function ProblemAiCoachButton({
 
 /** 做题时的 AI 助教：默认只给提示，学生主动要「完整解答」才讲完整。 */
 export function ProblemAiCoachPanel({
+  open,
   problem,
   answer,
   latestAttempt,
@@ -199,6 +200,7 @@ export function ProblemAiCoachPanel({
   onBusyChange,
   onSolutionAsked,
 }: {
+  open: boolean;
   problem: LocalProblem;
   answer: LocalProblemAnswer | null;
   latestAttempt?: LocalProblemAttempt;
@@ -231,7 +233,7 @@ export function ProblemAiCoachPanel({
   useEffect(() => {
     const node = scrollRef.current;
     if (node) node.scrollTop = node.scrollHeight;
-  }, [lines.length, lastLength]);
+  }, [lines.length, lastLength, open]);
 
   const update = useCallback((problemId: string, next: CoachLine[]) => {
     threads.current.set(problemId, next);
@@ -325,6 +327,8 @@ export function ProblemAiCoachPanel({
     setDraft('');
     void send('ask', text);
   };
+
+  if (!open) return null;
 
   return (
     <aside className="pac-panel" role="dialog" aria-label="AI 助教">
