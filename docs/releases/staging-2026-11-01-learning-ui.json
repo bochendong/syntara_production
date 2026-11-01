@@ -1,0 +1,61 @@
+{
+  "date": "2026-11-01",
+  "environment": "staging",
+  "sourceCommit": "23d2c873dd042cac8c9f5ab45cc55593fb3b5a5c",
+  "railwayDeployment": "a4cba599-7e9c-4862-b2c4-f88ffe93702a",
+  "status": "SUCCESS",
+  "changes": [
+    "Persistent labeled learning tabs with reordered tools; navigation rail captions and inline 测试版 branding.",
+    "Course new-chat shortcut and right-opening tools menu; wide menu deletion and reduced items.",
+    "Centered empty states, adjusted empty-chat composition, removed persistent progress-save success notice.",
+    "Practice reset confirmation; code submit beside Run; require current-code public test success before submit.",
+    "Practice recommendation cards remain reopenable and launch only their selected problems.",
+    "Red left-aligned clear-filter action and right-aligned result count; stable store feature artwork on hover and aligned store heading.",
+    "Sparse memory galaxy minimum viewing distance and reduced hover enlargement.",
+    "Local development-only mock store catalog and sparse memory fixtures; staging retains account-backed real data."
+  ],
+  "verification": [
+    "pnpm verify:local: format/lint and full root/native/Vite TypeScript passed.",
+    "11 public-test gate and practice-scope tests passed.",
+    "19 code submission checks passed, including 5 real Python/route/persistence regressions with disposable in-memory database I/O.",
+    "Full staging native-web and Next production build passed; all 6 Python judging function bundle checks passed.",
+    "Railway deployment SUCCESS; health and source revision verified.",
+    "Production JS/CSS SHA-256 match local native-web build at the deployed source commit. Initial pre-commit build differed only because its embedded revision was the previous HEAD; rebuilding after commit resolved both JS filename and hash differences.",
+    "Authenticated staging browser verified inline 测试版, navigation captions, persistent tools, empty-chat layout, direct course new chat, reopening the existing four-question recommendation, submit guard and navigation to public tests, reset confirmation/cancel, centered classroom empty state."
+  ],
+  "liveApplication": {
+    "passed": true,
+    "verifiedAt": "2026-11-01T04:09:06.926Z",
+    "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+    "health": {
+      "status": "ok",
+      "service": "syntara-native",
+      "environment": "staging"
+    },
+    "version": {
+      "version": "0.1.1",
+      "release": "2026.10.28-sync.1",
+      "syncProtocol": 2,
+      "revision": "23d2c873dd042cac8c9f5ab45cc55593fb3b5a5c"
+    },
+    "assets": [
+      {
+        "path": "/native-web/assets/index-BJLYVmT2.js",
+        "sha256": "685a34ddabb3a7167f9b025baa6d3e56fc088414be0e7e0135bd25422ae4358f",
+        "bytes": 1968412
+      },
+      {
+        "path": "/native-web/assets/index-B_t5Q7wS.css",
+        "sha256": "5d7a68f27b413b4c8a5320494e29244332b0305ac60d0e7fe4c621c555ac7ad2",
+        "bytes": 411357
+      }
+    ]
+  },
+  "limits": [
+    "No student attempts were submitted, no reset confirmed, and no live course content changed during acceptance.",
+    "Public-test success followed by an actual graded student submission was not exercised on live student data.",
+    "No new database migrations or rebuilt native installers.",
+    "Local mock catalog/fixtures remain disabled in the staging web application.",
+    "Build completed with non-blocking large-chunk, middleware convention and unpdf dynamic-dependency warnings."
+  ]
+}
