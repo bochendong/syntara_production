@@ -1,0 +1,63 @@
+{
+  "date": "2026-11-01",
+  "environment": "staging",
+  "sourceCommit": "f98e592ab02658cb8732023072ea28015468f91e",
+  "implementationCommit": "a0be6534c352c43526c7f112ec06cf9e24c960f2",
+  "railwayDeployment": "18f3315d-ec91-4e76-84b9-b0ef35667a6a",
+  "status": "SUCCESS",
+  "changes": [
+    "Green Run All button, including hover styling.",
+    "Center the empty attempt-history animation and copy in the answer pane.",
+    "Render recommended/review-plan practice in the shared full-window PracticeOverlay via a body portal, avoiding clipping by the chat workspace.",
+    "Update onboarding home selector, course new-chat transition, wide upload/memory tab targets and menu descriptions; replace positional memory-menu targeting with semantic hooks.",
+    "Update official tutorial instructions for wide/narrow navigation, current-code public-test requirement, reset confirmation and repeatable full-window recommended practice.",
+    "Bump the platform-owned tutorial content revision from v2 to v3 without resetting account onboarding state."
+  ],
+  "verification": [
+    "21 offline onboarding/public-test/practice-scope regressions passed, including upgrading existing v2 official tutorial sections to v3 in disposable fixtures.",
+    "pnpm verify:local passed formatting, lint, root/native/Vite TypeScript.",
+    "Complete staging native-web and Next production build passed, including all 6 Python judging function bundle checks.",
+    "Retry deployment SUCCESS; live health and source revision verified.",
+    "Live JS and CSS SHA-256 exactly match a local native-web build at the deployed revision.",
+    "Authenticated browser verified the existing four-question recommendation opens over the whole viewport, green Run All and centered empty attempt history."
+  ],
+  "firstAttempt": {
+    "deploymentId": "8bf8cb06-726c-43b6-a20e-1e9cbc8627c9",
+    "status": "FAILED",
+    "reason": "Repeated failed to fetch snapshot logs before application build execution. An empty commit retriggered GitHub deployment; implementation tree unchanged."
+  },
+  "liveApplication": {
+    "passed": true,
+    "verifiedAt": "2026-11-01T04:35:16.420Z",
+    "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+    "health": {
+      "status": "ok",
+      "service": "syntara-native",
+      "environment": "staging"
+    },
+    "version": {
+      "version": "0.1.1",
+      "release": "2026.10.28-sync.1",
+      "syncProtocol": 2,
+      "revision": "f98e592ab02658cb8732023072ea28015468f91e"
+    },
+    "assets": [
+      {
+        "path": "/native-web/assets/index-Uc3YYZTA.js",
+        "sha256": "f53ed1e1770b2c3bfd545c8fb134598aa0c39f440dcd8b76c4898e211d2556f8",
+        "bytes": 1968759
+      },
+      {
+        "path": "/native-web/assets/index-B6OWGP2L.css",
+        "sha256": "6d81aa9d119002e9d80b59fad462e1ad44624b8f6b5d571d4a1a1afadb83a32d",
+        "bytes": 411709
+      }
+    ]
+  },
+  "limits": [
+    "Did not submit or reset student attempts, alter user course content, or restart the signed-in account onboarding during acceptance.",
+    "Full new-account onboarding was not replayed against live services; state preservation and content upgrade were verified offline.",
+    "No new database migrations or rebuilt native installers.",
+    "Non-blocking middleware deprecation, large bundle and unpdf dynamic dependency warnings remain."
+  ]
+}
