@@ -97,6 +97,7 @@ export function NativeCodePlayground({
   example,
   tests = [],
   onRunTests,
+  onPublicTestResult,
   className,
   hiddenTests,
   onViewHiddenTests,
@@ -111,6 +112,7 @@ export function NativeCodePlayground({
   example?: string;
   tests?: ReturnType<typeof visibleCodeTests>;
   onRunTests?: ServerCodeTestRun;
+  onPublicTestResult?: (code: string, passed: boolean) => void;
   className?: string;
   hiddenTests?: RevealedHiddenTests;
   onViewHiddenTests?: () => void;
@@ -175,6 +177,7 @@ export function NativeCodePlayground({
         tests={tests}
         files={files}
         onRunTests={onRunTests}
+        onPublicTestResult={onPublicTestResult}
         language={language}
         assumedHelpersHint={!onRunScript}
       />

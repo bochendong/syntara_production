@@ -75,6 +75,7 @@ import {
   type NativeMiniLectureDeck,
 } from './mock-mini-lectures';
 import { NATIVE_MAT136_MOCK_EXAM } from './mock-review-plan';
+import { sparseMemoryPreviewCourses, sparseMemoryPreviewMemories } from './sparse-memory-preview';
 
 type LocalAppMetadata = {
   key: string;
@@ -461,6 +462,26 @@ export class BrowserLocalRepository implements LocalRepository {
     );
   }
 
+  private async installSparseMemoryPreview(): Promise<void> {
+    const key = 'sparse-memory-ui-preview-v1';
+    if (await this.database.appMetadata.get(key)) return;
+    await this.database.transaction(
+      'rw',
+      [this.database.courses, this.database.studyMemories, this.database.appMetadata],
+      async () => {
+        for (const course of sparseMemoryPreviewCourses) {
+          if (!(await this.database.courses.get(course.id)))
+            await this.database.courses.add(course);
+        }
+        for (const memory of sparseMemoryPreviewMemories) {
+          if (!(await this.database.studyMemories.get(memory.id)))
+            await this.database.studyMemories.add(memory);
+        }
+        await this.database.appMetadata.put({ key, value: '1', updatedAt: Date.now() });
+      },
+    );
+  }
+
   async bootstrap(): Promise<void> {
     if (browserApp) {
       await this.database.open();
@@ -511,6 +532,7 @@ export class BrowserLocalRepository implements LocalRepository {
     await this.installBundledMockConversations();
     await this.installBundledCourseEvents();
     await this.installBundledMiniLectures();
+    if (import.meta.env.DEV) await this.installSparseMemoryPreview();
   }
 
   listCourses(): Promise<LocalCourse[]> {

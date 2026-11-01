@@ -748,3 +748,19 @@ final result: passed
 ### Live-phone integration follow-up
 
 Real staging verification at 390 × 844 revealed that the separate phone bank entry in `App.tsx` supplied no upload callback. The toolbar now accepts the existing upload navigation action as a fallback to file selection; the phone entry opens that course's materials upload flow. Desktop file picking is unchanged. The local `upload=route` fixture verifies the fallback trigger, and full format/lint/root/native/Vite type checks plus six relevant regressions pass after the fix. Live follow-up screenshots and deployment details are recorded in the release receipt.
+
+## Empty course chat layout — local iteration, 2026-10-31
+
+Scope: emulate the supplied new-chat reference in the right-hand empty course chat only. Preserve Syntara navigation, course scope, suggestions, and populated-chat behavior. Follow-up user instruction moves the content group slightly lower than the initial layout.
+
+Reference: `/Users/dongbochen/Desktop/截屏2026-10-31 下午11.26.47.png` (3024 × 1656, normalized to 1512 × 828).
+Rendered evidence: `/tmp/syntara-empty-chat-lowered.png` (1456 × 853, desktop empty CSC108 chat).
+Comparison: `/tmp/syntara-empty-chat-comparison.png` combines normalized main-content regions in one image. Compare composition rather than unrelated sidebar widths or product copy.
+
+Initial finding: title, composer, and suggestions sat too high. Fixed the vertical spacer proportions twice, including the user's request to lower the final group. Post-fix comparison shows centered heading above a rounded single-row composer, suggestions below aligned with the input, ample whitespace, no clipped controls. Existing four Syntara suggestions and marble icons intentionally remain. No new image assets required.
+
+Interaction: clicking a suggestion fills the composer; clearing the draft restores the empty state. Existing conversation rendering is outside the new empty-state selector. Browser error log was empty. Format/lint and native TypeScript passed. Desktop-only media rules preserve the compact layout. Platform AI is unavailable in this local preview, so a real AI send/response was not exercised.
+
+No actionable P0/P1/P2 findings within the requested layout scope. Local only; no deployment.
+
+final result: passed

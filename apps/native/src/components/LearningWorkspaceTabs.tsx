@@ -1,16 +1,16 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
-import { ChevronDown, ChevronLeft, MessageCircle, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, MessageCircle } from 'lucide-react';
 import type { CourseLearningPage } from '../lib/native-launch';
 import { LearningToolIcon } from './LearningToolIcon';
 
 /** Each tab carries its marble colour from marble-tokens.css. */
 const tools = {
-  materials: { label: '资料', tone: 'blue' },
-  notes: { label: '笔记', tone: 'amber' },
-  progress: { label: '学习进度', tone: 'green' },
-  memory: { label: '学习记忆', tone: 'purple' },
-  classroom: { label: '课堂', tone: 'pink' },
   problems: { label: '题库', tone: 'blue' },
+  notes: { label: '笔记', tone: 'amber' },
+  progress: { label: '进度', tone: 'green' },
+  memory: { label: '记忆', tone: 'purple' },
+  classroom: { label: '课堂', tone: 'pink' },
+  materials: { label: '上传', tone: 'blue' },
 };
 
 /**
@@ -26,7 +26,6 @@ export function LearningWorkspaceTabs({
   pages,
   activePage,
   onSelect,
-  onClose,
   onChat,
   renderPage,
 }: {
@@ -36,13 +35,13 @@ export function LearningWorkspaceTabs({
   pages: CourseLearningPage[];
   activePage: CourseLearningPage | null;
   onSelect: (page: CourseLearningPage) => void;
-  onClose: (page: CourseLearningPage) => void;
   onChat: () => void;
   renderPage: (page: CourseLearningPage) => ReactNode;
 }) {
   const id = useId();
   const tabRefs = useRef(new Map<CourseLearningPage | 'chat', HTMLButtonElement>());
-  const order: (CourseLearningPage | 'chat')[] = ['chat', ...pages];
+  const visiblePages = compact ? pages : (Object.keys(tools) as CourseLearningPage[]);
+  const order: (CourseLearningPage | 'chat')[] = ['chat', ...visiblePages];
   const current = activePage ?? 'chat';
   useEffect(() => {
     tabRefs.current.get(current)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -60,7 +59,7 @@ export function LearningWorkspaceTabs({
     type: 'button' as const,
     role: 'tab',
     id: id + '-tab-' + tab,
-    'aria-controls': tab === 'chat' ? undefined : id + '-panel-' + tab,
+    'aria-controls': tab === 'chat' || !pages.includes(tab) ? undefined : id + '-panel-' + tab,
     'aria-selected': tab === current,
     tabIndex: tab === current ? 0 : -1,
     onClick: () => select(tab),
@@ -70,10 +69,6 @@ export function LearningWorkspaceTabs({
       if (event.key === 'ArrowLeft') next = order[(index + order.length - 1) % order.length];
       if (event.key === 'Home') next = order[0];
       if (event.key === 'End') next = order.at(-1);
-      if (event.key === 'Delete' && tab !== 'chat') {
-        event.preventDefault();
-        onClose(tab);
-      }
       if (next) {
         event.preventDefault();
         select(next);
@@ -135,7 +130,7 @@ export function LearningWorkspaceTabs({
                 <span>聊天</span>
               </button>
             </div>
-            {pages.map((page, index) => {
+            {visiblePages.map((page, index) => {
               const { label, tone } = tools[page];
               return (
                 <div
@@ -148,17 +143,6 @@ export function LearningWorkspaceTabs({
                   <button {...tabProps(page, index + 1)} title={label}>
                     <LearningToolIcon tool={page} />
                     <span>{label}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="learning-workspace-close"
-                    aria-label={'关闭' + label}
-                    onClick={() => {
-                      onClose(page);
-                      tabRefs.current.get(order[index + 2] ?? order[index])?.focus();
-                    }}
-                  >
-                    <X size={12} strokeWidth={2.2} />
                   </button>
                 </div>
               );

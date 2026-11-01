@@ -560,7 +560,12 @@ export class MemoryGalaxyScene {
     const aspect = this.camera.aspect || 1;
     const half = THREE.MathUtils.degToRad(FOV / 2);
     const padding = this.options.mini || this.options.still ? 1.2 : 1.12;
-    const distance = (Math.max(height / 2, width / 2 / aspect) / Math.tan(half)) * padding + 0.6;
+    // 稀疏星图也保留观赏距离，避免一两颗球被自动铺满整个画面。
+    const minimumDistance = this.options.mini || this.options.still ? 0 : 8;
+    const distance = Math.max(
+      minimumDistance,
+      (Math.max(height / 2, width / 2 / aspect) / Math.tan(half)) * padding + 0.6,
+    );
     this.fitDistance = distance;
     const center = this.toWorld((box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2, 0);
     this.goal = { x: center.x, y: center.y, distance };
@@ -645,14 +650,17 @@ export class MemoryGalaxyScene {
       if (body.grow < 1) body.grow = Math.min(1, body.grow + dt * 2.6);
       // 长出来时先略大一点再回弹。
       const pop = body.grow < 1 ? 1 + Math.sin(body.grow * Math.PI) * 0.35 : 1;
-      const active = body.node.id === this.activeId || body.node.id === this.hoverId;
+      const selected = body.node.id === this.activeId;
+      const hovered = body.node.id === this.hoverId;
+      const active = selected || hovered;
       const pulse = body.node.kind === 'core' ? 1 + this.corePulse * 0.18 : 1;
       // 小号和收藏架上珠子放大一些，不然缩小后只剩一堆点。
       const small = this.options.mini || this.options.still ? 1.35 : 1;
-      const scale = Math.max(0.001, body.grow * pop * (active ? 1.25 : 1) * pulse * small);
+      const emphasis = selected ? 1.25 : hovered ? 1.08 : 1;
+      const scale = Math.max(0.001, body.grow * pop * emphasis * pulse * small);
       const radius = GALAXY_RADIUS[body.node.kind] * scale;
       // 珠子“放”在板上：球心抬起一个半径，选中的再浮起来一点，影子留在下面变淡。
-      const lift = active ? radius * 0.6 : 0;
+      const lift = radius * (selected ? 0.6 : hovered ? 0.12 : 0);
       body.group.position.set(point.x, point.y, radius + lift);
       body.group.scale.setScalar(scale);
       body.shadow.position.set(point.x + radius * 0.25, point.y - radius * 0.35, 0.002);

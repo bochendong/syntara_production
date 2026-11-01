@@ -372,11 +372,18 @@
 
 .pb-filter-result button {
   min-height: 36px;
+  padding: 0 14px;
   border: 0;
-  background: transparent;
-  color: var(--marble-blue-ink);
+  border-radius: 10px;
+  background: #dc2626;
+  color: #fff;
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
+}
+
+.pb-filter-result button:hover {
+  background: #b91c1c;
 }
 
 .pb-redesigned .pb-chapter-body,

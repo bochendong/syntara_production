@@ -782,10 +782,10 @@ export function ProblemBankPage({
             {filterBar}
             {hasFilters ? (
               <div className="pb-filter-result" role="status">
-                <span>找到 {sheetProblems.length} 道题</span>
                 <button type="button" onClick={clearFilters}>
                   清除筛选
                 </button>
+                <span>找到 {sheetProblems.length} 道题</span>
               </div>
             ) : null}
             <div className="pb-chapter-body">
@@ -923,10 +923,10 @@ export function ProblemBankPage({
           {filterBar}
           {hasFilters ? (
             <div className="pb-filter-result" role="status">
-              <span>找到 {sheetProblems.length} 道题</span>
               <button type="button" onClick={clearFilters}>
                 清除筛选
               </button>
+              <span>找到 {sheetProblems.length} 道题</span>
             </div>
           ) : null}
 

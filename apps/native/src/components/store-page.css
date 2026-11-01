@@ -243,9 +243,6 @@
   margin-top: 0;
   background: rgb(255 255 255 / 72%);
 }
-.st-feature.has-scene:hover {
-  background-size: auto, 104%;
-}
 
 .st-feature-copy {
   position: relative;
@@ -779,6 +776,9 @@
 }
 
 @media (min-width: 900px) {
+  .st-head {
+    padding-left: 0;
+  }
   .st-feature {
     height: 380px;
   }

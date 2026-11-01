@@ -170,6 +170,7 @@ import {
   type MiniLectureGenerationState,
 } from './MiniLectureClassroom';
 import { NativeLearningActions } from './NativeLearningActions';
+import { recommendedPracticeIds, practiceLaunchForResults } from '../data/problem-practice-scope';
 import { marbleImages } from '../lib/learning-action-marbles';
 import { LearningToolIcon } from './LearningToolIcon';
 import { LearningEmptyState } from './LearningEmptyState';
@@ -1414,6 +1415,7 @@ export function PhoneChatDrawer<
               Syntara
             </a>
           )}
+          <span className="phone-drawer-beta">测试版</span>
         </h2>
         <button
           type="button"
@@ -1540,6 +1542,40 @@ export function PhoneChatDrawer<
                           <div className="phone-drawer-course-actions">
                             <button
                               type="button"
+                              aria-label={
+                                compact
+                                  ? `${course.courseCode || course.name}：新聊天、编辑、删除`
+                                  : `${course.courseCode || course.name}：新聊天`
+                              }
+                              title="新聊天"
+                              data-onboarding={
+                                course.id === PLATFORM_TUTORIAL_COURSE_ID
+                                  ? 'tutorial-course-menu'
+                                  : undefined
+                              }
+                              aria-haspopup={compact ? 'menu' : undefined}
+                              aria-expanded={
+                                compact ? courseActions?.course.id === course.id : undefined
+                              }
+                              disabled={!compact && newChatDisabled}
+                              onClick={(event) => {
+                                if (!compact) {
+                                  setCourseActions(null);
+                                  setCourseMenu(null);
+                                  onCreateCourseChat(course.id);
+                                  return;
+                                }
+                                setCourseActions(
+                                  courseActions?.course.id === course.id
+                                    ? null
+                                    : { course, anchor: event.currentTarget },
+                                );
+                              }}
+                            >
+                              <SquarePen size={17} strokeWidth={1.7} aria-hidden />
+                            </button>
+                            <button
+                              type="button"
                               aria-label={`${course.courseCode || course.name}学习工具`}
                               title="学习工具"
                               data-onboarding={current ? 'course-tools' : undefined}
@@ -1554,27 +1590,6 @@ export function PhoneChatDrawer<
                               }
                             >
                               <Ellipsis size={18} strokeWidth={1.7} aria-hidden />
-                            </button>
-                            <button
-                              type="button"
-                              aria-label={`${course.courseCode || course.name}：新聊天、编辑、删除`}
-                              title="新聊天"
-                              data-onboarding={
-                                course.id === PLATFORM_TUTORIAL_COURSE_ID
-                                  ? 'tutorial-course-menu'
-                                  : undefined
-                              }
-                              aria-haspopup="menu"
-                              aria-expanded={courseActions?.course.id === course.id}
-                              onClick={(event) =>
-                                setCourseActions(
-                                  courseActions?.course.id === course.id
-                                    ? null
-                                    : { course, anchor: event.currentTarget },
-                                )
-                              }
-                            >
-                              <SquarePen size={17} strokeWidth={1.7} aria-hidden />
                             </button>
                           </div>
                         </div>
@@ -1707,6 +1722,7 @@ export function PhoneChatDrawer<
       {courseActions ? (
         <GlassMenu
           anchor={courseActions.anchor}
+          align="start"
           label={courseActions.course.courseCode || courseActions.course.name}
           onClose={() => setCourseActions(null)}
           items={[
@@ -1737,7 +1753,7 @@ export function PhoneChatDrawer<
                     },
                   },
                 ]),
-            ...(navigation?.onManageCourse
+            ...(compact && navigation?.onManageCourse
               ? [
                   {
                     key: 'delete',
@@ -1761,6 +1777,16 @@ export function PhoneChatDrawer<
       {courseMenu ? (
         <CourseToolsMenu
           anchor={courseMenu.anchor}
+          align="start"
+          wide={!compact}
+          deleteDisabled={!navigation?.onManageCourse}
+          deleteOnboarding={
+            courseMenu.course.id === PLATFORM_TUTORIAL_COURSE_ID ? 'course-delete' : undefined
+          }
+          onDelete={() => {
+            setCourseMenu(null);
+            navigation?.onManageCourse?.(courseMenu.course, 'delete');
+          }}
           courseName={courseMenu.course.courseCode || courseMenu.course.name}
           onClose={() => setCourseMenu(null)}
           onSelect={(page) => {
@@ -3361,11 +3387,6 @@ export function CourseWorkspace({
                 pending.requestId === courseProgressSaveRequestRef.current
               ) {
                 setCourseLearningState(saved);
-                setNotice(
-                  pending.completedNotebookCount
-                    ? `学习进度已保存：完成 ${pending.completedNotebookCount} / ${pending.notebookCount} 本。`
-                    : '学习进度已重置为 0%。',
-                );
               }
             } catch (cause) {
               if (
@@ -4357,6 +4378,29 @@ export function CourseWorkspace({
   const executeLearningAction = useCallback(
     async (message: LocalMessage, action: NativeLearningAction) => {
       if (busyLearningActionId) return;
+      if (action.kind === 'practice.propose_generation') {
+        const requested = payloadStringList(payloadRecord(action.payload).problemIds);
+        const selected =
+          message.metadata?.problemSelection?.problems.map((item) => item.problemId) ?? [];
+        const saved = payloadStringList(payloadRecord(action.result?.output).problemIds);
+        const problemIds = recommendedPracticeIds(
+          requested.length ? requested : saved,
+          selected,
+          workspace.problems,
+        );
+        const launch = practiceLaunchForResults(
+          problemIds.map((id) => ({ id })),
+          problemIds[0],
+          action.label,
+        );
+        if (!launch) {
+          setError('本次推荐的题目在当前课程题库中不可用，请重新选择。');
+          return;
+        }
+        setError(null);
+        setReviewPracticeLaunch(launch);
+        return;
+      }
       if (
         action.kind === 'classroom.propose_temporary_explanation' ||
         action.kind === 'image.propose_generation'
@@ -4507,22 +4551,6 @@ export function CourseWorkspace({
           });
           summary = `已写入本机学习记忆：${memory.title}`;
           output = { memoryId: memory.id };
-        } else if (action.kind === 'practice.propose_generation') {
-          const selectedIds = message.metadata?.problemSelection?.problems.map(
-            (problem) => problem.problemId,
-          );
-          const problemIds = [
-            ...new Set([...payloadStringList(payload.problemIds), ...(selectedIds ?? [])]),
-          ].filter((problemId) => workspace.problems.some((problem) => problem.id === problemId));
-          if (!problemIds.length) {
-            throw new Error('平台没有返回可绑定到本机题库的真实题号，因此没有临时生成题目。');
-          }
-          setReviewPracticeLaunch({
-            problemIds,
-            initialProblemId: problemIds[0],
-          });
-          summary = `已打开 ${problemIds.length} 道本机题库练习。`;
-          output = { problemIds };
         } else if (action.kind === 'review_mode.request_choice') {
           setDraft('我想要讲解后再练题，请按这个方式继续。');
           summary = '已把复习方式带回输入框，仍由你确认发送。';
@@ -5375,6 +5403,37 @@ export function CourseWorkspace({
       onSelectConversation={selectConversation}
     />
   );
+  const emptyChatSuggestions = (
+    <div className="suggestion-row">
+      {(workspace.course.id === PLATFORM_TUTORIAL_COURSE_ID
+        ? [PLATFORM_TUTORIAL_QUESTION, '课程从哪里来？', '怎么删掉一门课？']
+        : [
+            '我现在学到哪里了？',
+            '帮我安排今天复习',
+            phoneLayout ? '拍一道题问助教' : '给我开一个小测',
+            '我最近哪里最薄弱？',
+          ]
+      ).map((suggestion) => (
+        <button
+          type="button"
+          key={suggestion}
+          data-onboarding={suggestion === PLATFORM_TUTORIAL_QUESTION ? 'tutorial-ask' : undefined}
+          onClick={() => {
+            if (suggestion === '拍一道题问助教') {
+              imageInputRef.current?.click();
+              return;
+            }
+            setDraft(suggestion);
+            // 教程里的默认问题点一下就直接问。
+            if (workspace.course.id === PLATFORM_TUTORIAL_COURSE_ID)
+              setAutoSendTick((tick) => tick + 1);
+          }}
+        >
+          {suggestion}
+        </button>
+      ))}
+    </div>
+  );
   const phoneDrawer = renderPhoneDrawer();
   usePublishChatSidebar(phoneDrawer);
 
@@ -5383,7 +5442,7 @@ export function CourseWorkspace({
       ref={workspaceRef}
       onTouchStart={phoneLayout ? handleWorkspaceTouchStart : undefined}
       onTouchEnd={phoneLayout ? handleWorkspaceTouchEnd : undefined}
-      className={`course-workspace${compactLayout ? ' is-compact' : ''}${chatShell ? ' has-persistent-sidebar' : ''}${learningPages.length ? ' has-learning-tabs' : ''}${!phoneLayout && hasMessages ? ' has-learning-rail' : ''}${phonePage && phonePage !== 'profile' && phonePage !== 'calendar' ? ' is-learning-active' : ''}${leftRailCollapsed ? ' workspace-left-collapsed' : ''}${
+      className={`course-workspace${compactLayout ? ' is-compact' : ''}${chatShell ? ' has-persistent-sidebar' : ''}${!compactLayout || learningPages.length ? ' has-learning-tabs' : ''}${!phoneLayout && hasMessages ? ' has-learning-rail' : ''}${phonePage && phonePage !== 'profile' && phonePage !== 'calendar' ? ' is-learning-active' : ''}${leftRailCollapsed ? ' workspace-left-collapsed' : ''}${
         rightRailCollapsed ? ' workspace-right-collapsed' : ''
       }${phoneLayout && mobilePanel === 'sessions' ? ' phone-drawer-open' : ''}${
         phoneLayout ? '' : ' is-split'
@@ -5399,7 +5458,10 @@ export function CourseWorkspace({
         </aside>
       ) : null}
 
-      <main ref={chatDropTargetRef} className="conversation-workspace">
+      <main
+        ref={chatDropTargetRef}
+        className={`conversation-workspace${!hasMessages ? ' is-empty-chat' : ''}`}
+      >
         {updateNoteText ? (
           <CourseUpdateCard text={updateNoteText} onClose={() => setUpdateNote(null)} />
         ) : null}
@@ -5501,37 +5563,7 @@ export function CourseWorkspace({
           {messages.length === 0 ? (
             <div className="conversation-empty-state">
               <h2>今天想从哪里开始？</h2>
-              <div className="suggestion-row">
-                {(workspace.course.id === PLATFORM_TUTORIAL_COURSE_ID
-                  ? [PLATFORM_TUTORIAL_QUESTION, '课程从哪里来？', '怎么删掉一门课？']
-                  : [
-                      '我现在学到哪里了？',
-                      '帮我安排今天复习',
-                      phoneLayout ? '拍一道题问助教' : '给我开一个小测',
-                      '我最近哪里最薄弱？',
-                    ]
-                ).map((suggestion) => (
-                  <button
-                    type="button"
-                    key={suggestion}
-                    data-onboarding={
-                      suggestion === PLATFORM_TUTORIAL_QUESTION ? 'tutorial-ask' : undefined
-                    }
-                    onClick={() => {
-                      if (suggestion === '拍一道题问助教') {
-                        imageInputRef.current?.click();
-                        return;
-                      }
-                      setDraft(suggestion);
-                      // 教程里的默认问题点一下就直接问。
-                      if (workspace.course.id === PLATFORM_TUTORIAL_COURSE_ID)
-                        setAutoSendTick((tick) => tick + 1);
-                    }}
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
+              {compactLayout ? emptyChatSuggestions : null}
             </div>
           ) : (
             <div className="message-stream" aria-label={selectedConversation?.title || '当前会话'}>
@@ -5751,6 +5783,11 @@ export function CourseWorkspace({
               <SendHorizontal size={17} />
             </button>
           </form>
+          {!compactLayout && !hasMessages ? (
+            <div className="conversation-empty-state empty-chat-suggestions">
+              {emptyChatSuggestions}
+            </div>
+          ) : null}
           {notice ? <p className="composer-notice">{notice}</p> : null}
           {error ? <p className="composer-error">{error}</p> : null}
         </footer>
@@ -5773,7 +5810,7 @@ export function CourseWorkspace({
         />
       ) : null}
 
-      {learningPages.length ? (
+      {!compactLayout || learningPages.length ? (
         <LearningWorkspaceTabs
           compact={compactLayout}
           onBack={closePhonePage}
@@ -5783,7 +5820,6 @@ export function CourseWorkspace({
             phonePage && phonePage !== 'profile' && phonePage !== 'calendar' ? phonePage : null
           }
           onSelect={setPhonePage}
-          onClose={closeLearningPage}
           onChat={() => setPhonePage(null)}
           renderPage={(page) => (
             <>
@@ -6072,8 +6108,11 @@ export function CourseWorkspace({
       <NativeWorkspaceDialog
         open={Boolean(reviewPracticeLaunch)}
         onClose={closeReviewPlanPractice}
-        title="MAT136 复习题"
-        description="在弹窗中完成复习计划选择的本地题目。"
+        title={
+          reviewPracticeLaunch?.title ||
+          `${workspace.course.courseCode || workspace.course.name} 练习`
+        }
+        description="在弹窗中完成本次选中的题目。"
         className="native-review-practice-dialog"
       >
         {reviewPracticeLaunch ? (

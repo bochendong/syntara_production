@@ -56,8 +56,12 @@ function actionState(action: NativeLearningAction, busy: boolean, compact: boole
       className: 'is-running',
     };
   if (action.status === 'completed') {
+    if (action.kind === 'practice.propose_generation')
+      return { label: '打开', Icon: FileQuestion, className: '' };
     return { label: compact ? '完成' : '已完成', Icon: CheckCircle2, className: 'is-completed' };
   }
+  if (action.kind === 'practice.propose_generation')
+    return { label: '打开', Icon: FileQuestion, className: '' };
   if (action.status === 'failed') {
     return { label: '重试', Icon: TriangleAlert, className: 'is-failed' };
   }
@@ -101,7 +105,9 @@ export function NativeLearningActions({
         {visibleActions.map((action) => {
           const busy = busyActionId === action.id;
           const state = actionState(action, busy, compact);
-          const disabled = busy || action.status === 'completed';
+          const disabled =
+            busy ||
+            (action.status === 'completed' && action.kind !== 'practice.propose_generation');
           const PresentationIcon = ACTION_PRESENTATION[action.kind].Icon;
           return (
             <article key={action.id} data-learning-action-id={action.id}>

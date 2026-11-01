@@ -5630,6 +5630,16 @@ select,
   border-radius: 6px;
 }
 
+.phone-drawer-beta {
+  display: inline-block;
+  margin-left: 5px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 12px;
+  letter-spacing: 0.06em;
+}
+
 .phone-drawer-home:focus-visible {
   outline: 2px solid #5268a8;
   outline-offset: 4px;
@@ -7241,7 +7251,7 @@ select,
   gap: 6px;
   min-width: 0;
   height: var(--workspace-toolbar-height, 64px);
-  padding: 0 calc(var(--learning-header-side, 160px) + 8px) 2px;
+  padding: 0 calc(var(--learning-header-side, 104px) + 8px) 2px;
 }
 .learning-workspace-bar > * {
   pointer-events: auto;
@@ -7342,13 +7352,14 @@ select,
   gap: 7px;
   min-width: 0;
   height: 34px;
-  padding: 0 5px;
+  padding: 0 9px;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
 }
 .learning-workspace-tab [role='tab'] > span {
-  display: none;
+  display: inline;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -7357,22 +7368,6 @@ select,
 }
 .learning-workspace-tab-chat [role='tab'] > span {
   max-width: 180px;
-}
-.learning-workspace-tab.is-active [role='tab'] {
-  padding-right: 12px;
-}
-.learning-workspace-tab.is-active:not(.learning-workspace-tab-chat) [role='tab'] {
-  padding-right: 2px;
-}
-.learning-workspace-tab.is-active [role='tab'] > span {
-  display: inline;
-  animation: learning-tab-label 240ms ease both;
-}
-@keyframes learning-tab-label {
-  from {
-    opacity: 0;
-    transform: translateX(-4px);
-  }
 }
 /* Small glass marble behind each icon, tinted by the tool. */
 .learning-workspace-marble {
@@ -7404,29 +7399,6 @@ select,
 }
 .learning-workspace-tab:not(.is-active):hover .learning-workspace-marble {
   transform: scale(1.08);
-}
-.learning-workspace-tab .learning-workspace-close {
-  width: 0;
-  height: 22px;
-  padding: 0;
-  overflow: hidden;
-  border-radius: 50%;
-  color: #94a3b8;
-  opacity: 0;
-  transition:
-    width 200ms ease,
-    opacity 200ms ease,
-    margin 200ms ease;
-}
-.learning-workspace-tab.is-active .learning-workspace-close,
-.learning-workspace-tab:focus-within .learning-workspace-close {
-  width: 22px;
-  margin-right: 6px;
-  opacity: 1;
-}
-.learning-workspace-tab .learning-workspace-close:hover {
-  color: #0f172a;
-  background: rgb(15 23 42 / 7%);
 }
 .learning-workspace-tab:not(.is-active):hover {
   background: rgb(255 255 255 / 60%);

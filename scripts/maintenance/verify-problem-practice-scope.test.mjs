@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createJiti } from 'jiti';
 
 const jiti = createJiti(import.meta.url);
-const { practiceLaunchForResults, adjacentPracticeProblem } = jiti(
+const { practiceLaunchForResults, adjacentPracticeProblem, recommendedPracticeIds } = jiti(
   '../../apps/native/src/data/problem-practice-scope.ts',
 );
 const { matchesProblemFilters } = jiti('../../apps/native/src/data/problem-bank-filters.ts');
@@ -45,6 +45,36 @@ const rows = [
   },
 ].map((row) => ({ title: row.id, publicContent: {}, ...row }));
 const base = { query: '', chapter: 'all', difficulty: 'all', type: 'all', series: '' };
+
+test('a recommendation opens only its own ids, preserving order and excluding unrelated selections', () => {
+  const ids = recommendedPracticeIds(
+    ['relation-a2', 'function-a1', 'relation-a2', 'other-course'],
+    ['function-b', 'relation-a1'],
+    rows,
+  );
+  assert.deepEqual(ids, ['relation-a2', 'function-a1']);
+  const first = practiceLaunchForResults(
+    ids.map((id) => ({ id })),
+    ids[0],
+    '推荐练习',
+  );
+  const reopened = practiceLaunchForResults(
+    ids.map((id) => ({ id })),
+    ids[0],
+    '推荐练习',
+  );
+  assert.deepEqual(first, reopened);
+  assert.equal(adjacentPracticeProblem(first.problemIds, 'function-a1', 1), null);
+});
+
+test('legacy recommendations use captured message selection only when explicit ids are absent', () => {
+  assert.deepEqual(recommendedPracticeIds([], ['function-b', 'relation-a1'], rows), [
+    'function-b',
+    'relation-a1',
+  ]);
+  assert.deepEqual(recommendedPracticeIds(['missing'], ['function-b'], rows), []);
+  assert.deepEqual(recommendedPracticeIds([], [], rows), []);
+});
 
 test('series launch captures the visible sequence across chapters and excludes other series', () => {
   const visible = rows.filter((row) =>

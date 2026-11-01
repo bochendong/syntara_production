@@ -5,6 +5,7 @@ import { runPythonRowsInBrowser } from '../../../../../lib/client/browser-python
 import { visibleCodeTests } from '../../../../../lib/problem-bank/visible-code-tests';
 import { highlightCode } from './code-answer-editor';
 import './native-code-tests.css';
+import { allPublicTestsPassed } from '../../data/public-test-gate';
 
 type TestCase = ReturnType<typeof visibleCodeTests>[number];
 type CaseResult = { passed: boolean; actual: string; code: string };
@@ -24,6 +25,7 @@ export function NativeCodeTests({
   label = '公开测试',
   language,
   assumedHelpersHint = true,
+  onPublicTestResult,
 }: {
   code: string;
   tests: TestCase[];
@@ -33,6 +35,7 @@ export function NativeCodeTests({
   language?: string;
   /** 服务器跑测试的代码小问才提示「假定辅助函数正确」；Racket 整题也走服务器，不提示 */
   assumedHelpersHint?: boolean;
+  onPublicTestResult?: (code: string, passed: boolean) => void;
 }) {
   const [results, setResults] = useState<Record<string, CaseResult>>({});
   const [running, setRunning] = useState<string[]>([]);
@@ -41,6 +44,12 @@ export function NativeCodeTests({
     setRunning(cases.map((test) => test.id));
     setError('');
     const submittedCode = code;
+    onPublicTestResult?.(submittedCode, false);
+    const report = (updates: Record<string, CaseResult>) => {
+      const next = { ...results, ...updates };
+      setResults(next);
+      onPublicTestResult?.(submittedCode, allPublicTestsPassed(tests, next, submittedCode));
+    };
     try {
       if (onRunTests) {
         const result = await onRunTests(
@@ -61,7 +70,7 @@ export function NativeCodeTests({
             code: submittedCode,
           };
         }
-        setResults((previous) => ({ ...previous, ...updates }));
+        report(updates);
         return;
       }
       const rows = await runPythonRowsInBrowser({
@@ -91,9 +100,15 @@ export function NativeCodeTests({
           updates[row.id] = { passed: value.passed, actual: value.actual, code: submittedCode };
         }
       }
-      setResults((previous) => ({ ...previous, ...updates }));
+      report(updates);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      const message = cause instanceof Error ? cause.message : String(cause);
+      report(
+        Object.fromEntries(
+          cases.map((test) => [test.id, { code: submittedCode, passed: false, actual: message }]),
+        ),
+      );
+      setError(message);
     } finally {
       setRunning([]);
     }

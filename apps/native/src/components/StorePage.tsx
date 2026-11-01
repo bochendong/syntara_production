@@ -25,6 +25,12 @@ import {
 } from '../lib/onboarding';
 import { onboardingFeaturedCourses } from '../../../../lib/onboarding/store-featured';
 import { groupStoreCoursesByCategory, storeCourseCategory } from '../lib/store-course-categories';
+import {
+  mockStoreEnabled,
+  listMockStoreCourses,
+  getMockStoreCourse,
+  joinMockStoreCourse,
+} from '../data/mock-store';
 import './store-page.css';
 
 /**
@@ -327,7 +333,7 @@ function StoreDetail({
 
   useEffect(() => {
     let cancelled = false;
-    getNativeStoreCourse(course.id)
+    (mockStoreEnabled ? getMockStoreCourse(course.id) : getNativeStoreCourse(course.id))
       .then((next) => {
         if (!cancelled) setDetail(next);
       })
@@ -473,7 +479,7 @@ export function StorePage({
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    listNativeStoreCourses()
+    (mockStoreEnabled ? listMockStoreCourses() : listNativeStoreCourses())
       .then((next) => {
         if (!cancelled) setCourses(next);
       })
@@ -520,7 +526,7 @@ export function StorePage({
 
   const get = async (course: NativeStoreCourse, event: MouseEvent<HTMLButtonElement>) => {
     if (course.joined) {
-      onOpenCourse(course.id);
+      onOpenCourse(mockStoreEnabled ? await joinMockStoreCourse(course.id) : course.id);
       return;
     }
     const marble =
@@ -530,13 +536,15 @@ export function StorePage({
     setJoining(course.id);
     setError(null);
     try {
-      await nativeStoreAction(course.id, 'join');
+      const joinedId = mockStoreEnabled
+        ? await joinMockStoreCourse(course.id)
+        : (await nativeStoreAction(course.id, 'join')).courseId;
       if (course.id === PLATFORM_TUTORIAL_COURSE_ID) completeOnboardingStep('store');
       flyMarble(marble, marbleFor(course));
       setCourses((current) =>
         (current ?? []).map((item) => (item.id === course.id ? { ...item, joined: true } : item)),
       );
-      await onJoined(course.id);
+      await onJoined(joinedId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {

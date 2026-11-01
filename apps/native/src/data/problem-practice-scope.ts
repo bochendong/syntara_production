@@ -1,5 +1,16 @@
 import type { ProblemBankLaunch } from '../components/ProblemBankPage';
 
+/** A recommendation opens its own captured set, never the rest of the message or course. */
+export function recommendedPracticeIds(
+  requested: readonly string[],
+  selected: readonly string[],
+  available: readonly { id: string }[],
+) {
+  const source = requested.length ? requested : selected;
+  const allowed = new Set(available.map((problem) => problem.id));
+  return [...new Set(source)].filter((id) => allowed.has(id));
+}
+
 /** Capture the complete visible result in its current order, independent of chapters. */
 export function practiceLaunchForResults(
   problems: readonly { id: string }[],

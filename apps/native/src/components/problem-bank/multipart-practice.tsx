@@ -69,6 +69,7 @@ function PartCode({
   disabled,
   onChange,
   onRun,
+  onPublicTestResult,
   hiddenTests,
   onViewHiddenTests,
   onRunHiddenTests,
@@ -78,6 +79,7 @@ function PartCode({
   disabled: boolean;
   onChange: (next: LocalPartAnswer) => void;
   onRun?: RunCodePart;
+  onPublicTestResult?: (label: string, code: string, passed: boolean) => void;
   hiddenTests?: RevealedHiddenTests;
   onViewHiddenTests?: (label: string) => void;
   onRunHiddenTests?: RunHiddenCodePart;
@@ -120,6 +122,7 @@ function PartCode({
           files={Array.isArray(content.files) ? (content.files as NotebookCodeFile[]) : []}
           stdin={typeof content.stdin === 'string' ? content.stdin : undefined}
           tests={visibleCodeTests(content)}
+          onPublicTestResult={(code, passed) => onPublicTestResult?.(part.label, code, passed)}
           onRunTests={
             (content.assumedHelpers?.length || serverRuns) && onRun
               ? (candidate) => onRun(part.label, candidate)
@@ -255,6 +258,7 @@ function PartPrompt({
   onEditorFocus,
   result,
   onRunCode,
+  onPublicTestResult,
   hiddenTests,
   onViewHiddenTests,
   onRunHiddenTests,
@@ -270,6 +274,7 @@ function PartPrompt({
   locale: 'zh-CN' | 'en-US';
   onChange: (next: LocalPartAnswer) => void;
   onRunCode?: RunCodePart;
+  onPublicTestResult?: (label: string, code: string, passed: boolean) => void;
   hiddenTests?: RevealedHiddenTests;
   onViewHiddenTests?: (label: string) => void;
   onRunHiddenTests?: RunHiddenCodePart;
@@ -286,6 +291,7 @@ function PartPrompt({
         disabled={disabled}
         onChange={onChange}
         onRun={onRunCode}
+        onPublicTestResult={onPublicTestResult}
         hiddenTests={hiddenTests}
         onViewHiddenTests={onViewHiddenTests}
         onRunHiddenTests={onRunHiddenTests}
@@ -465,6 +471,7 @@ function PartCard({
   onEditorReady,
   onEditorFocus,
   onRunCode,
+  onPublicTestResult,
   hiddenTests,
   onViewHiddenTests,
   onRunHiddenTests,
@@ -480,6 +487,7 @@ function PartCard({
   submitting: boolean;
   onChange: (next: LocalPartAnswer) => void;
   onRunCode?: RunCodePart;
+  onPublicTestResult?: (label: string, code: string, passed: boolean) => void;
   hiddenTests?: RevealedHiddenTests;
   onViewHiddenTests?: (label: string) => void;
   onRunHiddenTests?: RunHiddenCodePart;
@@ -503,6 +511,7 @@ function PartCard({
         onEditorReady={onEditorReady}
         onEditorFocus={onEditorFocus}
         onRunCode={onRunCode}
+        onPublicTestResult={onPublicTestResult}
         hiddenTests={hiddenTests}
         onViewHiddenTests={onViewHiddenTests}
         onRunHiddenTests={onRunHiddenTests}
@@ -555,6 +564,7 @@ export function MultipartPractice({
   onChange,
   onSubmit,
   onRunCode,
+  onPublicTestResult,
   hiddenTests,
   onViewHiddenTests,
   onRunHiddenTests,
@@ -578,6 +588,7 @@ export function MultipartPractice({
   onChange: (label: string, next: LocalPartAnswer) => void;
   onSubmit: (labels: string[]) => void;
   onRunCode?: RunCodePart;
+  onPublicTestResult?: (label: string, code: string, passed: boolean) => void;
   hiddenTests?: Record<string, RevealedHiddenTests>;
   onViewHiddenTests?: (label: string) => void;
   onRunHiddenTests?: RunHiddenCodePart;
@@ -641,6 +652,7 @@ export function MultipartPractice({
       submitting={submitting}
       onChange={(next) => onChange(part.label, next)}
       onRunCode={onRunCode}
+      onPublicTestResult={onPublicTestResult}
       hiddenTests={hiddenTests?.[part.label]}
       onViewHiddenTests={onViewHiddenTests}
       onRunHiddenTests={onRunHiddenTests}

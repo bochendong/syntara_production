@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check } from 'lucide-react';
+import { Check, Trash2 } from 'lucide-react';
 import type { CourseLearningPage } from '../lib/native-launch';
 import { useBackDismiss } from '../lib/use-back-dismiss';
 import { LearningToolIcon } from './LearningToolIcon';
@@ -17,14 +17,19 @@ const tools = [
 function menuPosition(
   anchor: HTMLButtonElement,
   count: number,
-  align: 'end' | 'center',
+  align: 'start' | 'end' | 'center',
   limit?: number,
 ) {
   const rect = anchor.getBoundingClientRect();
   const width = Math.min(216, window.innerWidth - 24);
   const maxHeight = Math.min(limit ?? Infinity, window.innerHeight - 24);
   const height = Math.min(count * 44 + 12, maxHeight);
-  const left = align === 'center' ? rect.left + rect.width / 2 - width / 2 : rect.right - width;
+  const left =
+    align === 'center'
+      ? rect.left + rect.width / 2 - width / 2
+      : align === 'start'
+        ? rect.left
+        : rect.right - width;
   return {
     width,
     left: Math.max(12, Math.min(left, window.innerWidth - width - 12)),
@@ -42,13 +47,21 @@ export function CourseToolsMenu({
   onSelect,
   onClose,
   align = 'end',
+  wide = false,
+  onDelete,
+  deleteDisabled = false,
+  deleteOnboarding,
 }: {
   anchor: HTMLButtonElement;
   courseName: string;
   onSelect: (page: CourseLearningPage) => void;
   onClose: () => void;
   /** 'center'：从聊天顶栏中间的标题往下展开。 */
-  align?: 'end' | 'center';
+  align?: 'start' | 'end' | 'center';
+  wide?: boolean;
+  onDelete?: () => void;
+  deleteDisabled?: boolean;
+  deleteOnboarding?: string;
 }) {
   return (
     <GlassMenu
@@ -56,13 +69,30 @@ export function CourseToolsMenu({
       label={`${courseName}学习工具`}
       align={align}
       onClose={onClose}
-      items={tools.map(({ page, label }) => ({
-        key: page,
-        label,
-        icon: <LearningToolIcon tool={page} />,
-        onboarding: page === 'materials' ? 'tool-materials' : undefined,
-        onSelect: () => onSelect(page),
-      }))}
+      items={[
+        ...tools
+          .filter(({ page }) => !wide || (page !== 'memory' && page !== 'classroom'))
+          .map(({ page, label }) => ({
+            key: page,
+            label,
+            icon: <LearningToolIcon tool={page} />,
+            onboarding: page === 'materials' ? 'tool-materials' : undefined,
+            onSelect: () => onSelect(page),
+          })),
+        ...(wide && onDelete
+          ? [
+              {
+                key: 'delete',
+                label: '删除课程',
+                icon: <Trash2 size={17} strokeWidth={1.7} aria-hidden />,
+                destructive: true,
+                disabled: deleteDisabled,
+                onboarding: deleteOnboarding,
+                onSelect: onDelete,
+              },
+            ]
+          : []),
+      ]}
     />
   );
 }
@@ -75,6 +105,7 @@ export type GlassMenuItem = {
   /** 新手引导圈住的按钮。 */
   onboarding?: string;
   destructive?: boolean;
+  disabled?: boolean;
   selected?: boolean;
   count?: number;
 };
@@ -93,7 +124,7 @@ export function GlassMenu({
   label: string;
   items: GlassMenuItem[];
   onClose: () => void;
-  align?: 'end' | 'center';
+  align?: 'start' | 'end' | 'center';
   className?: string;
   maxHeight?: number;
 }) {
@@ -169,6 +200,7 @@ export function GlassMenu({
           type="button"
           role={item.selected === undefined ? 'menuitem' : 'menuitemradio'}
           aria-checked={item.selected}
+          disabled={item.disabled}
           key={item.key}
           className={
             item.destructive ? 'is-destructive' : item.selected ? 'is-selected' : undefined

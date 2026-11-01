@@ -5,6 +5,9 @@ import { visibleCodeTests } from '../../../../lib/problem-bank/visible-code-test
 import { fillBlankPrompt } from '../../../../lib/problem-bank/fill-blank-presentation';
 import { isValidPhotoAnswerUpload } from '../../../../lib/problem-bank/photo-answer';
 import { PhotoAnswerInput } from './problem-bank/photo-answer-input';
+import { PhoneConfirm } from './PhonePages';
+import { useBackDismiss } from '../lib/use-back-dismiss';
+import { codePassedPublicTests, type PublicTestReceipt } from '../data/public-test-gate';
 import type { PhotoAnswerImage } from '../data/local-problem-grading';
 import {
   useCallback,
@@ -403,6 +406,17 @@ export function ProblemPracticePage({
   const [handwritingReset, setHandwritingReset] = useState(0);
   const [handwritingModes, setHandwritingModes] = useState<Record<string, boolean>>({});
   const [snapshotBusy, setSnapshotBusy] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const publicTestReceipts = useRef(new Map<string, PublicTestReceipt>());
+  const [publicTestRequired, setPublicTestRequired] = useState(false);
+  useBackDismiss(publicTestRequired, () => setPublicTestRequired(false), 40);
+  useBackDismiss(
+    resetConfirm,
+    () => {
+      if (!snapshotBusy) setResetConfirm(false);
+    },
+    40,
+  );
   const [solutionConfirm, setSolutionConfirm] = useState(false);
   const [hiddenConfirm, setHiddenConfirm] = useState<string | null>(null);
   const [revealedHiddenTests, setRevealedHiddenTests] = useState<
@@ -731,6 +745,9 @@ export function ProblemPracticePage({
     setSnapshotBusy(false);
     setSolutionConfirm(false);
     setHiddenConfirm(null);
+    setResetConfirm(false);
+    setPublicTestRequired(false);
+    publicTestReceipts.current.clear();
     setRevealedHiddenTests({});
     setSolutionSeen(false);
     setSolutionError(null);
@@ -828,6 +845,16 @@ export function ProblemPracticePage({
         : answer;
       if (!currentProblem || !answerToSubmit || !answerHasContent(answerToSubmit) || submitting)
         return;
+      if (
+        answerToSubmit.kind === 'code' &&
+        !codePassedPublicTests(
+          publicTestReceipts.current.get(JSON.stringify([currentProblem.id, ''])),
+          answerToSubmit.code,
+        )
+      ) {
+        setPublicTestRequired(true);
+        return;
+      }
       saveDraft();
       const sequence = snapshotSequence.current;
       setSubmissionNotice(null);
@@ -990,6 +1017,8 @@ export function ProblemPracticePage({
   const runCodePart = useCallback(
     async (label: string, code: string): Promise<PartCodeRun | null> => {
       if (!currentProblem) return null;
+      const key = JSON.stringify([currentProblem.id, label]);
+      publicTestReceipts.current.delete(key);
       try {
         const reply = await gradeNativeCode({
           courseId: currentProblem.courseId,
@@ -1001,6 +1030,14 @@ export function ProblemPracticePage({
           mode: 'run',
         });
         const summary = recordValue(reply.result.publicSummary);
+        publicTestReceipts.current.set(key, {
+          code,
+          passed:
+            typeof summary.total === 'number' &&
+            summary.total > 0 &&
+            summary.passed === summary.total &&
+            reply.status !== 'error',
+        });
         const cases = Array.isArray(reply.result.publicCases)
           ? reply.result.publicCases.map(recordValue)
           : [];
@@ -1029,6 +1066,20 @@ export function ProblemPracticePage({
   const submitParts = useCallback(
     async (labels: string[], photoDrafts?: Record<string, LocalPartAnswer>) => {
       if (!currentProblem || !isMultipart || submitting || snapshotBusy) return;
+      if (
+        parts.some((part) => {
+          if (part.type !== 'code' || !labels.includes(part.label)) return false;
+          const draft = partDrafts[part.label];
+          if (!partAnswerHasContent(draft)) return false;
+          return !codePassedPublicTests(
+            publicTestReceipts.current.get(JSON.stringify([currentProblem.id, part.label])),
+            draft?.code ?? '',
+          );
+        })
+      ) {
+        setPublicTestRequired(true);
+        return;
+      }
       const sequence = snapshotSequence.current;
       setSubmissionNotice(null);
       setSubmitting(true);
@@ -1282,6 +1333,7 @@ export function ProblemPracticePage({
       }
       setDocument(saved.document);
       if (event === 'answer_reset') {
+        publicTestReceipts.current.clear();
         setAnswer(nextAnswer);
         if (nextAnswer.kind === 'parts')
           setPartDrafts(Object.fromEntries(parts.map((p) => [p.label, {}])));
@@ -1543,12 +1595,10 @@ export function ProblemPracticePage({
                   className="pp-run-button pp-reset-button"
                   title={isCode ? '恢复起始代码并重新作答' : '清空本次作答'}
                   disabled={loading || submitting || snapshotBusy || debugRunning || photoBusy}
-                  onClick={() =>
-                    void persistLearningAction(
-                      'answer_reset',
-                      emptyAnswerForProblem(currentProblem),
-                    )
-                  }
+                  onClick={() => {
+                    setSolutionError(null);
+                    setResetConfirm(true);
+                  }}
                 >
                   <RotateCcw size={13} />
                   重置
@@ -1592,7 +1642,7 @@ export function ProblemPracticePage({
               onSubmit={() => void submitParts([activePart.label])}
             />
           ) : null}
-          {rightTab !== 'history' && rightTab !== 'solution' && !isMultipart ? (
+          {rightTab !== 'history' && rightTab !== 'solution' && !isMultipart && !isCode ? (
             <button
               type="button"
               className="pp-submit pp-header-submit"
@@ -2036,6 +2086,23 @@ export function ProblemPracticePage({
                     {debugRunning ? '停止' : '运行'}
                   </button>
                 ) : null}
+                {isCode && !isMultipart && rightTab !== 'history' && rightTab !== 'solution' ? (
+                  <button
+                    type="button"
+                    className="pp-submit pp-header-submit"
+                    disabled={
+                      loading ||
+                      !answerHasContent(answer) ||
+                      submitting ||
+                      debugRunning ||
+                      photoBusy ||
+                      snapshotBusy
+                    }
+                    onClick={() => void submitAnswer()}
+                  >
+                    {submitting ? <GlassSpinner size={14} /> : <SendHorizontal size={14} />}提交
+                  </button>
+                ) : null}
                 {handwritingMode &&
                 typeof window !== 'undefined' &&
                 !('__TAURI_INTERNALS__' in window) ? (
@@ -2106,6 +2173,9 @@ export function ProblemPracticePage({
                             draftRef.current.dirty = true;
                           }
                           setAnswer({ kind: 'code', code });
+                          publicTestReceipts.current.delete(
+                            JSON.stringify([currentProblem.id, '']),
+                          );
                         }}
                       />
                     ) : (
@@ -2118,6 +2188,9 @@ export function ProblemPracticePage({
                             draftRef.current.dirty = true;
                           }
                           setAnswer({ kind: 'code', code });
+                          publicTestReceipts.current.delete(
+                            JSON.stringify([currentProblem.id, '']),
+                          );
                         }}
                         locale="zh-CN"
                         language={codeLanguage}
@@ -2144,6 +2217,12 @@ export function ProblemPracticePage({
                       example={codeContent?.sampleIO?.[0]?.input}
                       language={codeLanguage}
                       onRunTests={serverRunsCode ? serverRunPublicTests : undefined}
+                      onPublicTestResult={(code, passed) => {
+                        publicTestReceipts.current.set(JSON.stringify([currentProblem.id, '']), {
+                          code,
+                          passed,
+                        });
+                      }}
                       onRunScript={serverRunsCode ? serverRunCode : undefined}
                       hiddenTests={revealedHiddenTests['']}
                       onViewHiddenTests={() => requestHiddenTests()}
@@ -2209,11 +2288,21 @@ export function ProblemPracticePage({
                     paged={stackedPanes}
                     submitting={submitting || snapshotBusy}
                     error={error}
-                    onChange={(label, next) =>
-                      setPartDrafts((current) => ({ ...current, [label]: next }))
-                    }
+                    onChange={(label, next) => {
+                      if (next.code !== partDrafts[label]?.code)
+                        publicTestReceipts.current.delete(
+                          JSON.stringify([currentProblem.id, label]),
+                        );
+                      setPartDrafts((current) => ({ ...current, [label]: next }));
+                    }}
                     onSubmit={(labels) => void submitParts(labels)}
                     onRunCode={runCodePart}
+                    onPublicTestResult={(label, code, passed) => {
+                      publicTestReceipts.current.set(JSON.stringify([currentProblem.id, label]), {
+                        code,
+                        passed,
+                      });
+                    }}
                     hiddenTests={revealedHiddenTests}
                     onViewHiddenTests={requestHiddenTests}
                     onRunHiddenTests={loadHiddenTests ? undefined : runHiddenTests}
@@ -2422,6 +2511,43 @@ export function ProblemPracticePage({
           </section>
         </div>
       )}
+      {publicTestRequired ? (
+        <PhoneConfirm
+          title="请先通过公开测试"
+          message="提交前，请在「测试」中运行并通过当前代码的全部公开测试。修改或重置代码后需要重新测试。"
+          confirmLabel="去公开测试"
+          cancelLabel="返回作答"
+          onCancel={() => setPublicTestRequired(false)}
+          onConfirm={() => {
+            setPublicTestRequired(false);
+            setRightTab('tests');
+          }}
+        />
+      ) : null}
+      {resetConfirm ? (
+        <PhoneConfirm
+          title="确定重置本题作答？"
+          message={
+            solutionError ??
+            (isCode
+              ? '将恢复起始代码并清空本次作答，历史作答记录会保留。'
+              : '将清空本题当前作答，历史作答记录会保留。')
+          }
+          confirmLabel="确认重置"
+          destructive
+          busy={snapshotBusy}
+          onCancel={() => {
+            if (!snapshotBusy) setResetConfirm(false);
+          }}
+          onConfirm={() => {
+            void persistLearningAction('answer_reset', emptyAnswerForProblem(currentProblem)).then(
+              (saved) => {
+                if (saved) setResetConfirm(false);
+              },
+            );
+          }}
+        />
+      ) : null}
       {solutionConfirm ? (
         <ProblemSolutionConfirmation
           busy={snapshotBusy}
