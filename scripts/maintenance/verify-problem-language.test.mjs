@@ -1,22 +1,13 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import ts from 'typescript';
+import { createJiti } from 'jiti';
 
-const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
-const url = (source) => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
-const compile = (source) =>
-  ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-  }).outputText;
-const i18n = url(compile(read('lib/problem-bank/i18n.ts')));
-const source = compile(read('apps/native/src/lib/problem-language.ts')).replaceAll(
-  "'../../../../lib/problem-bank/i18n'",
-  `'${i18n}'`,
+const jiti = createJiti(import.meta.url);
+const { hasBilingualProblem, localizeProblem } = await jiti.import(
+  '../../apps/native/src/lib/problem-language.ts',
 );
-const { hasBilingualProblem, localizeProblem } = await import(url(source));
-const { gradeLocalProblem, problemOptions } = await import(
-  url(compile(read('apps/native/src/data/local-problem-grading.ts')))
+const { gradeLocalProblem, problemOptions } = await jiti.import(
+  '../../apps/native/src/data/local-problem-grading.ts',
 );
 
 const problem = {

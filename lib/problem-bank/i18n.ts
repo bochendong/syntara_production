@@ -6,6 +6,9 @@ export type LocalizableProblemContent = {
   stem?: string;
   stemTemplate?: string;
   explanation?: string;
+  constraints?: string[];
+  sampleIO?: Array<{ input: string; output: string; explanation?: string }>;
+  assets?: { images?: Array<{ id: string; alt?: string; caption?: string }> };
   options?: Array<{ id: string; label: string }>;
   columns?: Array<{ id: string; header: string; role: 'given' | 'answer'; cellKind: string }>;
   rows?: Array<{ id: string; cells: Record<string, string> }>;
@@ -19,6 +22,9 @@ export type LocalizableProblemContent = {
         stem?: string;
         stemTemplate?: string;
         explanation?: string;
+        constraints?: string[];
+        sampleExplanations?: Array<{ index: number; explanation: string }>;
+        assetTexts?: Array<{ id: string; alt?: string; caption?: string }>;
         options?: Array<{ id: string; label: string }>;
         tableColumns?: Array<{ id: string; header: string }>;
         tableCells?: Array<{ rowId: string; colId: string; value: string }>;
@@ -89,6 +95,30 @@ export function getLocalizedProblemContent<T extends LocalizableProblemContent>(
   if (translation.explanation) {
     next.explanation = translation.explanation;
   }
+  if (translation.constraints) next.constraints = translation.constraints;
+  if (translation.sampleExplanations && next.sampleIO) {
+    const explanations = new Map(
+      translation.sampleExplanations.map((item) => [item.index, item.explanation]),
+    );
+    next.sampleIO = next.sampleIO.map((sample, index) => ({
+      ...sample,
+      ...(explanations.has(index) ? { explanation: explanations.get(index) } : {}),
+    }));
+  }
+  if (translation.assetTexts && next.assets?.images) {
+    const texts = new Map(translation.assetTexts.map((item) => [item.id, item]));
+    next.assets = {
+      ...next.assets,
+      images: next.assets.images.map((image) => {
+        const translated = texts.get(image.id);
+        return {
+          ...image,
+          ...(translated?.alt ? { alt: translated.alt } : {}),
+          ...(translated?.caption ? { caption: translated.caption } : {}),
+        };
+      }),
+    };
+  }
   if (next.type === 'choice' && translation.options?.length) {
     const labelsById = new Map(translation.options.map((option) => [option.id, option.label]));
     next.options = next.options?.map((option) => ({
@@ -130,7 +160,11 @@ export function getLocalizedProblemContent<T extends LocalizableProblemContent>(
         const key = JSON.stringify([row.id, colId]);
         if (
           Object.hasOwn(cells, colId) &&
-          !mayContainCode(cells[colId]) &&
+          (!mayContainCode(cells[colId]) ||
+            (/^(?:\[[A-Za-z]\]\s*)?(?:There|The|This|In |Line |[A-Za-z][\w-]* (?:is|are|has)\b)/.test(
+              cells[colId],
+            ) &&
+              !cells[colId].includes('\n'))) &&
           !duplicates.has(key) &&
           translations.has(key)
         )
@@ -154,6 +188,9 @@ function contentHasTranslation(
     translation?.stem ||
     translation?.stemTemplate ||
     translation?.explanation ||
+    translation?.constraints?.length ||
+    translation?.sampleExplanations?.length ||
+    translation?.assetTexts?.length ||
     translation?.options?.length ||
     translation?.tableColumns?.length ||
     translation?.tableCells?.length ||

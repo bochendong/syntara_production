@@ -8,6 +8,7 @@ import {
   racketNewlineEdit,
 } from '../../../../../lib/problem-bank/racket-editor';
 import './code-answer-editor.css';
+import './racket-code.css';
 
 const INDENT = '    ';
 const PYTHON_KEYWORDS = new Set([
@@ -236,9 +237,7 @@ export function highlightRacket(value: string) {
     return (
       <span key={lineIndex}>
         {result.tokens.map((token, index) =>
-          token.kind === 'text'
-            ? token.text
-            : tokenSpan(TOKEN_CLASS[token.kind], token.text, `${lineIndex}-${index}`),
+          tokenSpan(`racket-token-${token.kind}`, token.text, `${lineIndex}-${index}`),
         )}
         {lineIndex < lines.length - 1 ? '\n' : null}
       </span>

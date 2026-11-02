@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import type { NotebookProblemPublicContent } from './types';
 import { cn } from '../../lib/cn';
-import { highlightPython } from './code-answer-editor';
+import { highlightPython, highlightRacket } from './code-answer-editor';
+import { isRacketLanguage } from '../../../../../lib/problem-bank/racket-editor';
 import { ProblemRichText } from './problem-rich-text';
 import { codeStatementPresentation } from '../../../../../lib/problem-bank/code-statement-presentation';
 
@@ -106,7 +107,13 @@ function CodeStatementCodeBlock({ code, language }: { code: string; language?: s
 
   return (
     <pre className="overflow-x-auto rounded-md border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-[13px] leading-6 text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100">
-      <code>{isPython ? highlightPython(code) : code}</code>
+      <code>
+        {isPython
+          ? highlightPython(code)
+          : isRacketLanguage(language)
+            ? highlightRacket(code)
+            : code}
+      </code>
     </pre>
   );
 }
@@ -170,9 +177,11 @@ function LegacyDescriptionSection({ stem, locale }: { stem: string; locale: 'zh-
 function CodeSamplesSection({
   samples,
   locale,
+  language,
 }: {
   samples: CodeProblemPublicContent['sampleIO'];
   locale: 'zh-CN' | 'en-US';
+  language?: string;
 }) {
   if (samples.length === 0) return null;
 
@@ -199,12 +208,16 @@ function CodeSamplesSection({
                 <span className="font-semibold text-blue-700 dark:text-blue-300">
                   {locale === 'zh-CN' ? '输入:' : 'Input:'}
                 </span>{' '}
-                <span>{sample.input}</span>
+                <span>
+                  {isRacketLanguage(language) ? highlightRacket(sample.input) : sample.input}
+                </span>
                 {'\n'}
                 <span className="font-semibold text-emerald-700 dark:text-emerald-300">
                   {locale === 'zh-CN' ? '输出:' : 'Output:'}
                 </span>{' '}
-                <span>{sample.output}</span>
+                <span>
+                  {isRacketLanguage(language) ? highlightRacket(sample.output) : sample.output}
+                </span>
                 {sample.explanation ? (
                   <>
                     {'\n'}
@@ -226,9 +239,11 @@ function CodeSamplesSection({
 function CodeConstraintsSection({
   constraints,
   locale,
+  language,
 }: {
   constraints: CodeProblemPublicContent['constraints'];
   locale: 'zh-CN' | 'en-US';
+  language?: string;
 }) {
   if (constraints.length === 0) return null;
 
@@ -236,16 +251,22 @@ function CodeConstraintsSection({
     <section className="space-y-4">
       <CodeProblemStatementHeading
         icon={CheckSquare}
-        label={locale === 'zh-CN' ? '约束' : 'Constraints'}
+        label={locale === 'zh-CN' ? '约束限制条件' : 'Constraints'}
         kind="constraints"
       />
       <ul className="space-y-2 text-sm leading-7 text-slate-700 dark:text-slate-200">
         {constraints.map((constraint, index) => (
           <li key={`${constraint}-${index}`} className="flex items-start gap-3">
             <span className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500 dark:bg-teal-400" />
-            <code className="inline-block rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-[13px] leading-6 text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100">
-              {constraint}
-            </code>
+            {isRacketLanguage(language) ? (
+              <div className="min-w-0 flex-1">
+                <ProblemRichText content={constraint} />
+              </div>
+            ) : (
+              <code className="inline-block rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-[13px] leading-6 text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100">
+                {constraint}
+              </code>
+            )}
           </li>
         ))}
       </ul>
@@ -301,9 +322,13 @@ export function CodeProblemStatement({
       ) : (
         <LegacyDescriptionSection stem={stem} locale={locale} />
       )}
-      <CodeSamplesSection samples={samples} locale={locale} />
-      <CodeConstraintsSection constraints={constraints} locale={locale} />
+      <CodeSamplesSection samples={samples} locale={locale} language={content.language} />
       <StarterCodeNote description={starterDescription} locale={locale} />
+      <CodeConstraintsSection
+        constraints={constraints}
+        locale={locale}
+        language={content.language}
+      />
     </div>
   );
 }

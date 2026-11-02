@@ -19,7 +19,7 @@ export type LocalProblemAnswer =
   | { kind: 'choice'; selectedOptionIds: string[] }
   | { kind: 'text'; text: string; images?: PhotoAnswerImage[]; handwriting?: HandwritingAnswer }
   | { kind: 'code'; code: string }
-  | { kind: 'table'; cells: Record<string, string> }
+  | { kind: 'table'; cells: Record<string, string>; sourceCode?: string }
   | { kind: 'blanks'; blanks: Record<string, string> }
   | {
       kind: 'parts';

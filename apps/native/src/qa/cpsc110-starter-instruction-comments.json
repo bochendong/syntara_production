@@ -1,0 +1,119 @@
+{
+  "cmvynv0ka000tld01ezly6y29": [
+    ";; Design a function called stack that takes two strings and returns an image\n;; with the image of the shorter of the two strings displayed above the\n;; image of the longer of the two strings.  If the two strings have the same\n;; length, the image of the first should be above the image of the second.\n;; Use the provided constants as values for the text size and text colour.\n;; Ensure that you follow the complete htdf recipe and include every required\n;; element.  Also include a commented out copy of your function template.\n"
+  ],
+  "cmvynv0kw000vld01qwdonaj5": [
+    ";; For the following type comment, complete the @dd-template-rules tag and\n;; template function definition.  Ensure that you include all required guards,\n;; you may simplify cond questions or not at your choice.\n",
+    ";; Given the data definition for DeliveryStatus from problem 2, design a\n;; function called delivered-before-tomorrow? that consumes a DeliveryStatus\n;; and returns true if the package has been delivered or is expected to be\n;; delivered before the end of day tomorrow.  Be sure to include all HtDF\n;; design elements.\n"
+  ],
+  "cmvynv0l2000xld0194dl7wja": [
+    ";; You are given the following data definitions for Solid and ListOfSolid:\n",
+    ";; Design a function called count-larger that takes a ListOfSolid and a\n;; number and produces the number of solids in the list whose volume\n;; is >= the given number.\n;; Reminder:  the volume of a rectangular solid is given by:\n;;    volume = width * height * depth\n"
+  ],
+  "cmvynv0lk0013ld01si58egbf": [
+    ";; First read through the following PARTIAL data definition.  You do NOT need\n;; to, and you MUST NOT edit or complete the data definition.\n",
+    ";; THE WORK YOU NEED TO DO begins here.\n",
+    ";; Design a function that consumes two numbers and produces a QualComp\n;; representing the relationship between the first number and the second.\n;; Your function must be called compare.\n",
+    ";; You must have a complete design including @htdf, @signature, and @template\n;; annotations, as well as a purpose, tests, a commented out stub and a\n;; function definition.\n"
+  ],
+  "cmvynv0lq0015ld011n85aupx": [
+    ";; Consider the following type comment and partial interpretation:\n",
+    ";; You must complete the following @dd-template-rules annotation and\n;; template.  Note that:\n"
+  ],
+  "cmvynv0n2001lld01niv41gp8": [
+    ";; You are given the following data definitions for Phone and ListOfPhone:\n"
+  ],
+  "cmvynv0nl001pld0166nr2r4s": [
+    ";; Design a function that consumes 3 numbers, and produces true if they are in\n;; ascending order.  For example:\n",
+    ";; The function must be called in-order?  You must include @htdf tag, @signature\n;; tag, purpose, sufficient tests, a commented out stub, a template tag, and a\n;; working function definition. We have provided you with the proper template\n;; tag and template for a function like this.\n"
+  ],
+  "cmvynv0nr001rld01lwdgo50s": [
+    ";; Below is a partial data definition.  It includes just the @htdd tag, and\n;; the type comment.  You do not need the interpretation or the data\n;; examples for this problem.\n",
+    ";; You must complete the @dd-template-rules tag and the actual template\n;; based on the type comment provided.\n",
+    ";; Note that:\n;;  - this problem will be autograded\n;;  - the order of the dd-template rules and the template must be the same\n;;    as in the type comment\n;;  - you must not comment out the @dd-template-rules tag or the\n;;    actual template function\n;;  - any submission for which Check Syntax fails will receive 0 marks\n"
+  ],
+  "cmvynv0o1001tld01gda6nkyh": [
+    ";; Please design a function that consumes a list of images as its first argument\n;; and a number as its second argument.  The function should produce the sum of\n;; the areas of just those images with area greater than the number.\n"
+  ],
+  "cmvynv0of001xld01ifnu8syr": [
+    "#|\n\nConsider the following PARTIAL data definition. You will note that it only\nincludes a structure definition and the type comment.  The, interpretation and\ndata examples are not important for this problem -- do NOT add them.\n\nFor the type comment, you must complete the @dd-template-rules tag and template\nfunction definition.  You are permitted to simplify cond questions, or leave \nthem unsimplified. But you must simplify correctly, and necessary guards must\nbe in place.\n\nNote that this problem will be autograded. Failure to adhere to the following\nmay result in a score as low as 0.\n\n - Your @dd-template-rules and cond question-answer pairs MUST BE IN THE SAME\n   ORDER as the type comment.\n\n - You must not comment out or edit the @htdd tag.\n\n - You must not comment out the @dd-template-rules tag\n\n - You must not comment out the fn-for-foo function definition.\n\n - Your submission must pass the Check Syntax button without any errors.\n\n - You should only edit the @dd-template-rules and template function definition.\n   You must not edit any other parts of the file.\n\n|#\n"
+  ],
+  "cmvynv0pa0029ld01xszaqh1o": [
+    "#|\n\nConsider the following PARTIAL data definition. You will note that it only\nincludes twp structure definitions and the type comment.  The, interpretation\nand data examples are not important for this problem -- do NOT add them.\n\nYou must complete the @dd-template-rules tag and template function definition.\nYou are permitted to simplify cond questions, or leave them unsimplified. But\nif you do simplify you must do so correctly, and any necessary guards must be\nin place.\n\nNote that this problem will be autograded. Failure to adhere to the following\nmay result in a score as low as 0.\n\n - Your @dd-template-rules and cond question-answer pairs MUST BE IN THE SAME\n   ORDER as the type comment.\n\n - You must not comment out or edit the @htdd tag.\n\n - You must not comment out the @dd-template-rules tag\n\n - You must not comment out the fn-for-foo function definition.\n\n - Your submission must pass the Check Syntax button without any errors.\n\n - You should only edit the @dd-template-rules and template function definition.\n   You must not edit any other parts of the file.\n\n|#\n"
+  ],
+  "cmvynv0qe002jld01slvujgtc": [
+    "#|\n\nConsider the following PARTIAL data definition. You will note that it only\nincludes the type comment.  The interpretation and data examples are not\nimportant for this problem -- do NOT add them.\n\nYou must complete the @dd-template-rules tag and template function definition.\nYou are permitted to:\n\n - simplify cond questions by eliminating UNECESSARY guards, or\n - fully guard.\n\nBUT, if you do simplify you must do so correctly, and all necessary guards must\nbe in place.\n\nNote that this problem will be autograded. Failure to adhere to the following\nmay result in a score as low as 0.\n\n - You must not comment out or edit the @htdd tag.\n\n - You must not comment out or delete the @dd-template-rules tag\n\n - Your @dd-template-rules and cond question-answer pairs MUST BE IN THE SAME\n   ORDER AS THE TYPE COMMENT.\n\n - You must not comment out the fn-for-foo function definition.\n\n - Your submission must pass the Check Syntax button without any errors.\n\n - You should only edit the @dd-template-rules and template function definition.\n   You must not edit any other parts of the file.\n\n|#\n"
+  ],
+  "cmvynv0r2002rld011ypeso12": [
+    "#|\n\nConsider the following PARTIAL data definition. You will note that it only\nincludes two structure definitions and the type comment.  The, interpretation\nand data examples are not important for this problem -- do NOT add them.\n\nYou must complete the @dd-template-rules tag and template function definition.\nYou are permitted to simplify cond questions, or leave them unsimplified. But\nif you do simplify you must do so correctly, and any necessary guards must be\nin place.\n\nNote that this problem will be autograded. Failure to adhere to the following\nmay result in a score as low as 0.\n\n - Your @dd-template-rules and cond question-answer pairs MUST BE IN THE SAME\n   ORDER as the type comment.\n\n - You must not comment out or edit the @htdd tag.\n\n - You must not comment out the @dd-template-rules tag\n\n - You must not comment out the fn-for-peat function definition.\n\n - You must not wrap @template around the fn-for-peat function definition.\n\n - Your submission must pass the Check Syntax button without any errors.\n\n - You must not edit above the marked line.\n\n|#\n"
+  ],
+  "cmvynv0s30031ld01018h6eku": [
+    "#|\n\nConsider the following PARTIAL data definition. You will note that it only\nincludes two structure definitions and the type comment.  The, interpretation\nand data examples are not important for this problem -- do NOT add them.\n\nYou must complete the @dd-template-rules tag and template function definition.\nYou are permitted to simplify cond questions, or leave them unsimplified. But\nif you do simplify you must do so correctly, and any necessary guards must be\nin place.\n\nNote that this problem will be autograded. Failure to adhere to the following\nmay result in a score as low as 0.\n\n - Your @dd-template-rules and cond question-answer pairs MUST BE IN THE SAME\n   ORDER as the type comment.\n\n - You must not comment out or edit the @htdd tag.\n\n - You must not comment out the @dd-template-rules tag\n\n - You must not comment out the fn-for-pine function definition.\n\n - You must not wrap @template around the fn-for-pine function definition.\n\n - Your submission must pass the Check Syntax button without any errors.\n\n - You must not edit above the marked line.\n\n|#\n"
+  ],
+  "cmvynv0sw003bld01mcsyn3fl": [
+    ";; Design a function called descending-from-n? that consumes a list of integers\n;; and a natural N and produces true if the list is a descending sequence\n;; starting with N and ending with 1.\n",
+    ";; Note that we include the following within the behaviour of the function:\n",
+    ";; Your solution must include all appropriate tags, a 2 one of table, with\n;; numbered cells, and a clear correspondence between each cell and the\n;; matching cond case in the function.\n",
+    ";; For full credit you should reduce cond cases; but a non-reduced table, with\n;; correct correspondences, and a properly working function will earn more\n;; marks than design with reductions that has incorrect correspondences or\n;; does not work correctly.\n",
+    ";; As always, a file that does not run will lose a significant number of marks.\n;; Run your work often, so that you can check and fix errors as soon as they\n;; creep in.  Also be sure to run every time before you submit.\n"
+  ],
+  "cmvynv0ta003hld011yndpgpy": [
+    ";; Design a function called tree that consumes a positive number and\n;; produces a fractal image like the ones shown in the exam supplement\n;;     http://cs110.students.cs.ubc.ca/exams/trees.pdf\n",
+    ";; You must include all relevant design recipe elements, including a three part\n;; termination argument.\n",
+    ";; As always, a file that does not run will lose a significant number of marks.\n;; Run your work often, so that you can check and fix errors as soon as they\n;; creep in.  Also be sure to run every time before you submit.\n"
+  ],
+  "cmvynv0ti003jld01rlp7yy3v": [
+    ";; Complete the design of the following functions by writing the template tag\n;; and the function definition.  \n",
+    ";; This problem will be autograded.  NOTE that all of the following are required.\n;; Violating one or more will cause your solution to receive 0 marks.\n",
+    ";; Complete the design of count-larger, based on the following data definition\n;; for Solid\n"
+  ],
+  "cmvyop3130005nv01awz3rsck": [
+    ";; This starter file contains one data definition, and then has two separate\n;; function designs you must complete.  Both functions operate on the same\n;; data definition, so this will save you time because you just have to learn\n;; one data definition to design two functions.\n",
+    ";; HINT: One of the problems in this file involves the try-catch template.\n;;       Be sure that you use the template and the @template-origin origin properly.\n",
+    ";; Complete the design of the following function with signature, purpose,\n;; commented out stub, check-expects, @template-origin tag and function.  You must\n;; follow all applicable design rules.\n",
+    ";; The function must consume a TTree and produce the number of nodes in the\n;; tree for which all three children are false.  So, for example:\n",
+    ";; NOTE: If it is reasonable to use the fold-ttree function then you will\n;;       lose 20% marks from an otherwise correct solution if you do not\n;;       use it.\n",
+    ";; The function must consume a TTree and an integer, and search the tree\n;; for the first node with that key.  If found it should produce that node's\n;; value. It should fail if not found.\n"
+  ],
+  "cmvyop31d0007nv01dzgv0g4y": [
+    ";; Complete the design of the following functions by writing the template tag\n;; and the function definition.  \n",
+    ";; These problems will be autograded.  NOTE that all of the following are\n;; required. Violating one or more will cause your solution to receive 0 marks.\n",
+    ";; Complete the design of the following function.\n",
+    ";; Complete the design of the following function. You can and should use\n;; member in your solution.\n",
+    ";; Note that we are giving you a next-countdown function which you must\n;; call.  DO NOT encapsulate it inside the local, leave it at top-level.\n"
+  ],
+  "cmvyop31q000bnv01pntuvelc": [
+    ";; This problem is about grading a student's multiple choice reponses from a\n;; test. It is a 2 one of problem involving the following types:\n",
+    ";; Design a function called grade that consumes ListOfStudentAnswer and \n;; ListOfCorrectAnswer and produces a final grade based on this rubric:\n",
+    ";; NOTE: the list of student answers and the list of correct answers may not be \n;; the same length because a student might not complete the test (so will\n;; provide too few answers) OR the student might provide more answers than \n;; there are questions (e.g., when they misalign their responses on the\n;; card on which they record their responses.)\n",
+    ";; NOTE:\n;;  - you must design this as a 2 one of problem\n;;  - you must include a 2 one of table\n;;  - you must number your table cells and the corresponding\n;;    cond question/answer pairs\n;;  - you may abbreviate ListOfStudentAnswer to LOSA and\n;;    ListOfCorrectAnswer to LOCA \n;;  - for full credit you must use the table to simplify the\n;;    final function definition\n"
+  ],
+  "cmvyop39z002rnv01q5kel1e4": [
+    ";; Design a function called longest-sequence that consumes a list of integers\n;; and produces the longest sequence of consective integers that are each one\n;; larger than the previous integer.  All of the following are examples of\n;; sequences of consecutive integers:\n",
+    ";; Your solution MUST BE TAIL-RECURSIVE.\n",
+    ";; You must include all relevant design recipe elements and @tags.\n",
+    ";; As always, a file that does not run or that produces errors when run will\n;; lose a significant number of marks.  A file with failing tests is much\n;; less bad.  Run your work often, so that you can check and fix errors as\n;; soon as they creep in.  Also be sure to run every time before you submit.\n"
+  ],
+  "cmvyop3pw002xnv010lj3jl4i": [
+    ";; PROBLEM\n",
+    ";; Design a function that consumes a RenderTree and produces an image that\n;; is a simple rendering of the tree.  The rendering should reflect the\n;; structure of the tree.  But keep it SIMPLE.  It doesn't have to look\n;; good, it just has to be a rendering of the tree.  Your function must\n;; be called render, and you must provide all required recipe elements.\n"
+  ],
+  "cmvyop3q3002znv01lbqyn3xt": [
+    ";; PROBLEM\n",
+    ";; Complete the design of the following function by writing the template tag\n;; and the function definition.  Your answer must use built-in abstract\n;; functions.  Any answer that includes any part of the recursive Natural\n;; template or the (listof X) template will receive 0 marks.  You are free\n;; to add additional check-expects if those examples are helpful for you.\n"
+  ],
+  "cmvyop3q80031nv01s59aeeh4": [
+    ";; PROBLEM\n",
+    ";; In this problem you will design a function to decode a secret code.\n;; It's not a very good secret code, so let's hope no one really uses it.\n;; The secret code works like this:\n",
+    ";; You must follow all recipe steps and include all required\n;; recipe elements.\n",
+    ";; You must include all required recipe elements.\n"
+  ],
+  "cmvyop3qf0033nv01ooy2j1ns": [
+    ";; PROBLEM\n",
+    ";; Design a function that:\n;;   - is called find-increasing-path\n;;   - consumes the names of start and destination nodes\n;;   - tries to find a path from start to destination\n;;   - without passing through any node more than once\n;;   - and such that each node on the path has a number > than the prior\n;;     node\n;;   - if found it should produce a list of the names of the nodes in\n;;     order from start to destination for first path found\n;;   - otherwise it should fail\n"
+  ],
+  "cmvyop3qn0035nv01bh0bcjgk": [
+    ";; PROBLEM:\n",
+    ";; In this problem we want you to design a similar function (called bst-dist?),\n;; that consumes a BinaryTree and a Natural (called distance). This function has\n;; one element of additional functionality.  This function should produce true\n;; if for all nodes in the tree\n;;  - the node's key is larger than every key in its left branch\n;;  - the node's key is smaller than every key in its right branch\n;;  - the node's key is at least distance away from every other key in the\n;;    tree - so it is at least distance > or < every other key in the tree\n"
+  ]
+}

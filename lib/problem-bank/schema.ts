@@ -88,6 +88,26 @@ export const notebookProblemLocalizedContentSchema = z.object({
   stem: z.string().trim().min(1).max(16000).optional(),
   stemTemplate: z.string().trim().min(1).max(16000).optional(),
   explanation: z.string().trim().min(1).max(8000).optional(),
+  constraints: z.array(z.string().trim().min(1).max(8000)).max(40).optional(),
+  sampleExplanations: z
+    .array(
+      z.object({
+        index: z.number().int().min(0).max(31),
+        explanation: z.string().trim().min(1).max(4000),
+      }),
+    )
+    .max(32)
+    .optional(),
+  assetTexts: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(120),
+        alt: z.string().trim().min(1).max(2000).optional(),
+        caption: z.string().trim().min(1).max(2000).optional(),
+      }),
+    )
+    .max(8)
+    .optional(),
   options: z.array(notebookChoiceOptionSchema).max(12).optional(),
   // IDs refer to existing table structure; they never create or rename grading keys.
   tableColumns: z
@@ -140,6 +160,25 @@ const notebookProblemPublicBaseSchema = z.object({
   explanation: z.string().trim().min(1).max(8000).optional(),
   assets: notebookProblemAssetsSchema.optional(),
   translations: notebookProblemTranslationsSchema,
+  /// Code answer presentation with the original per-item grading contract retained.
+  racketAnswer: z
+    .object({
+      mode: z.enum(['constants', 'expressions', 'signatures', 'template']),
+      starterCode: z.string().max(40000).optional(),
+      sexpKeys: z.array(z.string().min(1).max(150)).max(160).optional(),
+      templateName: z.string().min(1).max(100).optional(),
+      examples: z
+        .array(
+          z.union([
+            z.string().max(1000),
+            z.boolean(),
+            z.object({ struct: z.string().min(1).max(100) }),
+          ]),
+        )
+        .max(30)
+        .optional(),
+    })
+    .optional(),
 });
 
 export const notebookProblemPublicShortAnswerSchema = notebookProblemPublicBaseSchema.extend({
