@@ -311,6 +311,148 @@ summary()
   assert.equal(noWrap.status, 'partial');
   assert.match(JSON.stringify(noWrap.result), /got Velocity\(speed=1, dir=370\) but expected/);
 
+  // 5. Design recipe: HtDD + HtDF compared with the reference, partial credit per check.
+  const ddReference = `from cs103 import *
+from typing import NamedTuple
+
+Velocity = NamedTuple('Velocity', [('speed', float), ('dir', int)])
+# interp. a velocity with a speed in m/s and a direction in degrees, in range [0, 359]
+V1 = Velocity(9, 22)
+V2 = Velocity(3.4, 180)
+
+@typecheck
+def fn_for_velocity(v: Velocity) -> ...:
+    # template based on compound (2 fields)
+    return ...(v.speed, v.dir)
+
+@typecheck
+def is_fast(v: Velocity) -> bool:
+    \"\"\"
+    returns True if v's speed is above 5 m/s
+    \"\"\"
+    # return True  # stub
+    # return ...(v.speed, v.dir)  # template from Velocity
+    return v.speed > 5
+
+start_testing()
+expect(is_fast(Velocity(9, 22)), True)
+expect(is_fast(Velocity(3.4, 180)), False)
+expect(is_fast(Velocity(5, 0)), False)
+summary()
+`;
+  const ddStarter = `from cs103 import *
+from typing import NamedTuple
+
+# Design a data definition for a velocity and a function is_fast.
+`;
+  const recipeDraft = drafts.normalizeCandidateDraft(
+    {
+      title: 'is_fast',
+      type: 'code',
+      publicContent: {
+        stem: 'Design Velocity and is_fast.',
+        language: 'python',
+        starterCode: ddStarter,
+      },
+      grading: { solutionCode: ddReference },
+      secretJudge: {
+        designRecipe: {
+          weight: 40,
+          thoroughness: [
+            { target: 'is_fast', description: 'a speed of exactly 5', predicate: 'v.speed == 5' },
+          ],
+        },
+      },
+    },
+    'manual',
+  );
+  assert(recipeDraft.publicContent.type === 'code' && recipeDraft.secretJudge);
+  const recipeVerification = await judge.verifyNotebookCodeDraftReferenceAnswer(recipeDraft);
+  console.log('recipe verification', recipeVerification);
+  assert.equal(recipeVerification.passed, true);
+  const recipeProblem = {
+    ...problem,
+    id: 'cs103-is-fast',
+    publicContent: { ...recipeDraft.publicContent, secretConfigPresent: true },
+    grading: { type: 'code' as const, solutionCode: ddReference, publishRequirementsMet: true },
+  };
+  const submitRecipe = (code: string) =>
+    judge.judgeNotebookCodeProblem({
+      problem: recipeProblem,
+      secretJudge: recipeDraft.secretJudge,
+      userAnswer: { code },
+      kind: 'submit',
+    });
+  const failedChecks = (result: Awaited<ReturnType<typeof submitRecipe>>) =>
+    (result.result.designRecipe ?? [])
+      .filter((check) => !check.passed)
+      .map((check) => `${check.id}:${check.target}`)
+      .sort();
+
+  const fullRecipe = await submitRecipe(ddReference);
+  assert.equal(fullRecipe.status, 'passed');
+  assert.equal(fullRecipe.score, 100);
+  assert.ok((fullRecipe.result.designRecipe ?? []).length >= 10);
+
+  // Renamed examples, parameter and template function are fine; the shape is what counts.
+  const renamed = ddReference
+    .replaceAll('V1', 'FAST')
+    .replace('def is_fast(v: Velocity)', 'def is_fast(vel: Velocity)')
+    .replace('return v.speed > 5', 'return vel.speed > 5')
+    .replace(
+      'def fn_for_velocity(v: Velocity) -> ...:\n    # template based on compound (2 fields)\n    return ...(v.speed, v.dir)',
+      'def fn_for_velocity(x: Velocity) -> ...:\n    # template based on compound (2 fields)\n    return ...(x.dir, x.speed)',
+    );
+  const renamedResult = await submitRecipe(renamed);
+  console.log('renamed', failedChecks(renamedResult));
+  assert.deepEqual(failedChecks(renamedResult), []);
+
+  const sloppy = ddReference
+    .replace('@typecheck\ndef is_fast', 'def is_fast')
+    .replace('    # return True  # stub\n', '')
+    .replace('  # template from Velocity', '')
+    .replace(
+      '# interp. a velocity with a speed in m/s and a direction in degrees, in range [0, 359]\n',
+      '',
+    )
+    .replace(
+      'expect(is_fast(Velocity(3.4, 180)), False)',
+      'expect(is_fast(Velocity(3.4, 180)), True)',
+    )
+    .replace('expect(is_fast(Velocity(5, 0)), False)\n', '');
+  const sloppyResult = await submitRecipe(sloppy);
+  console.log('sloppy', sloppyResult.status, sloppyResult.score, sloppyResult.result.feedback);
+  assert.deepEqual(failedChecks(sloppyResult), [
+    'data_definition:Velocity',
+    'stub:is_fast',
+    'template_origin:is_fast',
+    'test_thoroughness:is_fast',
+    'test_validity:is_fast',
+    'typecheck:is_fast',
+  ]);
+  assert.equal(sloppyResult.status, 'partial');
+  assert.ok(sloppyResult.score > 60 && sloppyResult.score < 100);
+  assert.match(
+    sloppyResult.result.feedback ?? '',
+    /1 of 2 test\(s\) disagree with a correct is_fast/,
+  );
+  assert.match(sloppyResult.result.feedback ?? '', /no test covers: a speed of exactly 5/);
+
+  const wrongData = ddReference
+    .replace("('dir', int)", "('dir', str)")
+    .replace('return ...(v.speed, v.dir)\n', 'return ...(v.speed)\n')
+    .replace('def is_fast(v: Velocity) -> bool', 'def is_fast(v: Velocity) -> int');
+  const wrongDataResult = await submitRecipe(wrongData);
+  console.log('wrong data', failedChecks(wrongDataResult));
+  assert.deepEqual(failedChecks(wrongDataResult), [
+    'data_definition:Velocity',
+    'signature:is_fast',
+    'template:fn_for_velocity',
+  ]);
+
+  const unparsable = await submitRecipe('def is_fast(v:\n');
+  assert.deepEqual(failedChecks(unparsable), ['read:']);
+
   console.log('cs103 checks passed');
 }
 
