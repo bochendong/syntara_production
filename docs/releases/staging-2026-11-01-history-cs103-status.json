@@ -1,0 +1,102 @@
+{
+  "date": "2026-11-01",
+  "environment": "staging",
+  "sourceCommit": "9fa09239b2c4f2dff8f4e4e2127f4a45eaffa754",
+  "status": "SUCCESS",
+  "railwayDeployment": "97eeba15-dd15-4ce9-b086-1d363f4f825a",
+  "pullRequests": [
+    {
+      "number": 25,
+      "head": "0a6179dfca79382b7ec65035668a745dd5933edb",
+      "url": "https://github.com/bochendong/syntara_production/pull/25"
+    },
+    {
+      "number": 26,
+      "head": "8af0b712b9ac1d399467d90d3d8e5c133f0eeea0",
+      "url": "https://github.com/bochendong/syntara_production/pull/26"
+    }
+  ],
+  "scope": [
+    "Expandable local attempt submissions, grading feedback, per-part answers, public failures and design-recipe checks.",
+    "CPSC 103 Python runtime and recipe support retained; unedited starter stubs receive no execution-test credit.",
+    "Colored Chinese practice status badges and purple previously-incorrect passed balls; no visible color legend."
+  ],
+  "databaseChanges": false,
+  "coursePublication": {
+    "requestedScopeClarified": "CPSC 103 grading support, not creation of a new course.",
+    "existingSpeedupCourseVerified": {
+      "courseId": "cmvt9k1i90001mz01y3j8l01p",
+      "name": "UBC-CPSC110",
+      "organizationId": "speedup-staging",
+      "listed": true,
+      "publishedProblems": 153
+    }
+  },
+  "localBuild": {
+    "revision": "9fa09239b2c4f2dff8f4e4e2127f4a45eaffa754",
+    "assets": [
+      {
+        "path": "/native-web/assets/index-Dbcdm3IK.js",
+        "sha256": "97c7f63bb09877acee61a064343fead03407681704b5b1732d99937b8bd40590",
+        "bytes": 1991440
+      },
+      {
+        "path": "/native-web/assets/index-CE1CU10z.css",
+        "sha256": "ff0be722cd006509f503f2d328b4574d93279d51a30a9d485a47dfe55f910c36",
+        "bytes": 419965
+      }
+    ]
+  },
+  "verification": [
+    "Committed-diff Prettier and ESLint passed.",
+    "Full root, native app and Vite configuration TypeScript passed.",
+    "Production native-web and Next build passed, including all six Python runtime bundle traces.",
+    "38 non-Racket regression tests passed; five real Racket recipe tests passed after configuring the installed Racket executable.",
+    "Racket judge scenarios, CPSC 103 runtime/design-recipe scenarios and ten Python runtime checks passed.",
+    "Native photo-answer validation passed.",
+    "Local browser: existing failed and passed submissions expand to their saved answers and grading feedback; purple ball and Chinese colored status remain.",
+    "Authenticated deployed /test/app opens the real four-question CSC108 practice and its local-history empty state without creating attempts; local fixture history expands both existing failed and passed submissions."
+  ],
+  "limits": [
+    "Full answer history is still local; this PR does not download cross-device historical attempts.",
+    "No real student submissions were created or reset during release verification.",
+    "Legacy web teacher history was compiled, but browser acceptance focuses on the deployed /test/app surface.",
+    "No database migration or rebuilt desktop/iOS package."
+  ],
+  "liveApplication": {
+    "passed": true,
+    "verifiedAt": "2026-11-02T04:32:18.944Z",
+    "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+    "health": {
+      "status": "ok",
+      "service": "syntara-native",
+      "environment": "staging"
+    },
+    "version": {
+      "version": "0.1.1",
+      "release": "2026.10.28-sync.1",
+      "syncProtocol": 2,
+      "revision": "9fa09239b2c4f2dff8f4e4e2127f4a45eaffa754"
+    },
+    "assets": [
+      {
+        "path": "/native-web/assets/index-Dbcdm3IK.js",
+        "sha256": "97c7f63bb09877acee61a064343fead03407681704b5b1732d99937b8bd40590",
+        "bytes": 1991440
+      },
+      {
+        "path": "/native-web/assets/index-CE1CU10z.css",
+        "sha256": "ff0be722cd006509f503f2d328b4574d93279d51a30a9d485a47dfe55f910c36",
+        "bytes": 419965
+      }
+    ]
+  },
+  "cleanup": {
+    "removedWorktrees": 7,
+    "remainingWorktrees": 14,
+    "branchesPreserved": true,
+    "ignoredFilesBackedUp": true,
+    "backupManifest": "/Users/dongbochen/.codex/release-evidence/practice-history-cs103/worktree-backups/manifest.json",
+    "pendingAndUnmergedWorktreesPreserved": true
+  }
+}
