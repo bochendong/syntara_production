@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarDays, Home, Radio, UserRound, Store } from 'lucide-react';
+import { CalendarDays, GraduationCap, Home, Radio, UserRound, Store } from 'lucide-react';
 import { nativeAccountAvatarUrl } from '../assets';
 import type { AppNavigation } from './app-navigation-context';
 import './app-navigation-rail.css';
@@ -12,6 +12,7 @@ export function AppNavigationRail({
   onOpenStore,
   onOpenSettings,
   onOpenClassroom,
+  onOpenTeach,
 }: AppNavigation & { onOpenChat: () => void }) {
   const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const image = avatarUrl || nativeAccountAvatarUrl(null, null);
@@ -48,6 +49,18 @@ export function AppNavigationRail({
         <CalendarDays size={22} strokeWidth={1.7} aria-hidden />
         <span className="app-navigation-label">日历</span>
       </button>
+      {onOpenTeach ? (
+        <button
+          type="button"
+          aria-label="教学"
+          title="教学：班级和上课"
+          aria-current={active === 'teach' ? 'page' : undefined}
+          onClick={onOpenTeach}
+        >
+          <GraduationCap size={22} strokeWidth={1.7} aria-hidden />
+          <span className="app-navigation-label">教学</span>
+        </button>
+      ) : null}
       {onOpenClassroom ? (
         <button
           type="button"

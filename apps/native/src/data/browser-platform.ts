@@ -96,6 +96,8 @@ export const browserEndpoints: Record<string, { path: string; method?: string }>
   native_store_action: { path: '/api/native/v1/store', method: 'POST' },
   native_get_classroom: { path: '/api/native/v1/classroom' },
   native_classroom_action: { path: '/api/native/v1/classroom', method: 'POST' },
+  native_get_teach: { path: '/api/native/v1/teach' },
+  native_teach_action: { path: '/api/native/v1/teach', method: 'POST' },
   native_upload_material: { path: '/api/native/v1/materials', method: 'POST' },
   native_delete_course: { path: '/api/native/v1/courses', method: 'DELETE' },
   native_edit_course: { path: '/api/native/v1/courses', method: 'PATCH' },

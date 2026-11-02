@@ -115,6 +115,8 @@ pub fn run() {
             platform_api::native_store_action,
             platform_api::native_get_classroom,
             platform_api::native_classroom_action,
+            platform_api::native_get_teach,
+            platform_api::native_teach_action,
             platform_api::native_upload_material,
             platform_api::native_get_onboarding,
             platform_api::native_onboarding_action,

@@ -125,7 +125,6 @@ type SystemAppAction =
   | 'store'
   | 'past_courses'
   | 'usage'
-  | 'classroom'
   | 'sign_out'
   | 'notifications';
 
@@ -234,12 +233,6 @@ const HOME_GRID_SYSTEM_APPS: SystemApp[] = [
 ];
 
 const TEACHER_HOME_GRID_SYSTEM_APPS: SystemApp[] = [
-  {
-    label: '班级与上课',
-    secondary: 'Classroom',
-    iconSrc: '/learn/system-apps/班级上课.svg',
-    action: 'classroom',
-  },
   ...SYSTEM_APPS,
   {
     label: '用量统计',
@@ -621,10 +614,6 @@ export function LearnHomeDashboard({
     }
     if (action === 'usage') {
       onOpenUsage?.();
-      return;
-    }
-    if (action === 'classroom') {
-      router.push('/teacher/classroom');
       return;
     }
     if (action === 'sign_out') {

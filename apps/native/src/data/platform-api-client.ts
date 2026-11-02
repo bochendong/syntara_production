@@ -590,6 +590,161 @@ export function nativeClassroomAction(
   return invokeJson('native_classroom_action', { requestId: crypto.randomUUID(), payload });
 }
 
+export type TeachAttemptStatus = 'pending' | 'passed' | 'failed' | 'partial' | 'error';
+
+export type TeachHome = {
+  currentPeriod: { label: string };
+  courses: Array<{
+    id: string;
+    name: string;
+    courseCode: string | null;
+    avatarUrl: string | null;
+    problemCount: number;
+    currentClass: {
+      id: string;
+      name: string;
+      mine: boolean;
+      memberCount: number;
+      liveSessionId: string | null;
+    } | null;
+    pastClasses: Array<{ id: string; name: string; label: string; memberCount: number }>;
+  }>;
+};
+
+type TeachPerson = { userId: string; name: string; email: string | null; avatarUrl: string | null };
+
+export type TeachClass = {
+  class: {
+    id: string;
+    name: string;
+    joinCode: string;
+    label: string;
+    course: { id: string; name: string; courseCode: string | null };
+  };
+  roster: Array<TeachPerson & { joinedAt: number; source: string }>;
+  visitors: TeachPerson[];
+  sessions: Array<{
+    id: string;
+    status: string;
+    code: string | null;
+    startedAt: number;
+    endedAt: number | null;
+    participantCount: number;
+    itemCount: number;
+  }>;
+  problems: Array<{
+    id: string;
+    title: string;
+    type: string;
+    number: number | null;
+    chapter: { id: string; name: string } | null;
+  }>;
+  progress: Array<{
+    userId: string;
+    problemId: string;
+    status: TeachAttemptStatus;
+    score: number | null;
+    attemptedCount: number;
+  }>;
+};
+
+export type TeachSession = {
+  session: {
+    id: string;
+    status: string;
+    code: string | null;
+    locked: boolean;
+    startedAt: number;
+    endedAt: number | null;
+    class: { id: string; name: string; rosterCount: number };
+    course: { id: string; name: string; courseCode: string | null };
+  };
+  participants: Array<{
+    userId: string;
+    name: string;
+    avatarUrl: string | null;
+    via: string;
+    joinedAt: number;
+  }>;
+  items: Array<{
+    id: string;
+    problemId: string;
+    title: string;
+    type: string;
+    number: number | null;
+    pushedAt: number;
+    closedAt: number | null;
+    answerRevealedAt: number | null;
+    submittedCount: number;
+    passedCount: number;
+    results: Array<{
+      userId: string;
+      status: TeachAttemptStatus;
+      submittedAt: number;
+      attempts: number;
+    }>;
+  }>;
+};
+
+export type TeachProblemChoice = {
+  id: string;
+  title: string;
+  type: string;
+  number: number | null;
+  chapter: { id: string; name: string } | null;
+};
+
+/** 教学页：能开班的课程。 */
+export function getTeachHome(): Promise<TeachHome> {
+  return invokeQuery('native_get_teach', {});
+}
+
+export function getTeachClass(classId: string): Promise<TeachClass> {
+  return invokeQuery('native_get_teach', { classId });
+}
+
+export function getTeachSession(sessionId: string): Promise<TeachSession> {
+  return invokeQuery('native_get_teach', { sessionId });
+}
+
+export async function getTeachProblemChoices(sessionId: string): Promise<TeachProblemChoice[]> {
+  const result = await invokeQuery<{ problems: TeachProblemChoice[] }>('native_get_teach', {
+    choices: sessionId,
+  });
+  return result.problems ?? [];
+}
+
+type TeachClassAction =
+  | { action: 'add-member'; classId: string; email: string }
+  | { action: 'remove-member'; classId: string; userId: string }
+  | { action: 'reset-code'; classId: string };
+
+type TeachSessionAction =
+  | { action: 'push'; sessionId: string; problemIds: string[] }
+  | { action: 'close' | 'reopen' | 'reveal' | 'remove'; sessionId: string; itemId: string }
+  | { action: 'lock'; sessionId: string; locked: boolean }
+  | { action: 'end'; sessionId: string };
+
+function teachAction<T>(payload: unknown): Promise<T> {
+  return invokeJson('native_teach_action', { requestId: crypto.randomUUID(), payload });
+}
+
+export function openTeachClass(courseId: string): Promise<{ classId: string }> {
+  return teachAction({ action: 'open-class', courseId });
+}
+
+export function startTeachSession(classId: string): Promise<{ sessionId: string }> {
+  return teachAction({ action: 'start-session', classId });
+}
+
+export function teachClassAction(payload: TeachClassAction): Promise<TeachClass> {
+  return teachAction(payload);
+}
+
+export function teachSessionAction(payload: TeachSessionAction): Promise<TeachSession> {
+  return teachAction(payload);
+}
+
 /** join：从商城加入课程；seen：打开过加入的课程，熄灭「有更新」。 */
 export function nativeStoreAction(
   courseId: string,
