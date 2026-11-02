@@ -1,0 +1,78 @@
+{
+  "date": "2026-11-02",
+  "kind": "course-content-migration",
+  "environment": "staging",
+  "status": "SUCCESS",
+  "applicationSourceCommit": "7b39312c43c389f6c9782e52f9fdfc02fd07dfc8",
+  "course": {
+    "id": "cmvt9k1i90001mz01y3j8l01p",
+    "name": "UBC-CPSC110",
+    "organization": "Speedup",
+    "listedInStore": true,
+    "versionBefore": 17,
+    "versionAfter": 18
+  },
+  "changes": {
+    "updatedQuestions": 145,
+    "archivedUnsupportedWorldQuestions": 8,
+    "publishedQuestions": 145,
+    "retainedDatabaseRecords": 153,
+    "restoredStructuredRacketAnswering": 47
+  },
+  "preserved": {
+    "questionIds": true,
+    "questionTypes": true,
+    "gradingAndPrivateCheckers": true,
+    "chaptersAndNotebookAssociations": true,
+    "studentAttempts": 3,
+    "progressRecords": 0,
+    "notebooks": 11,
+    "allNotebookContentAndVersionsUnchanged": true,
+    "existingSpeedupListing": true
+  },
+  "verification": {
+    "preMigrationPreview": "passed",
+    "relatedRegressionTests": 22,
+    "databaseReadback": {
+      "passed": true,
+      "courseId": "cmvt9k1i90001mz01y3j8l01p",
+      "version": 18,
+      "organization": "Speedup",
+      "listed": true,
+      "published": 145,
+      "archived": 8,
+      "totalRecords": 153,
+      "attemptsPreserved": 3,
+      "progressPreserved": 0,
+      "notebooksPreserved": 11,
+      "allNotebookContentUnchanged": true,
+      "gradingSecretsIdsAndChapterAssignmentsUnchanged": true,
+      "canonicalReleaseHashesMatched": 145,
+      "lastReleasedAt": "2026-11-02T19:06:04.866Z"
+    },
+    "nativeSyncApi": {
+      "passed": true,
+      "status": 200,
+      "complete": true,
+      "problemIds": 145,
+      "fullPublicContentAndGradingMatched": 145,
+      "archivedWorldQuestionsAbsent": true,
+      "structuredRacketQuestions": 47
+    },
+    "authenticatedBrowser": "Course bank shows 15 chapters and 145 questions. The former step-by-step table question opens a Racket code editor with code/test/history tabs; no submission or reset was performed. Browser error log is empty."
+  },
+  "execution": {
+    "reviewedScript": "scripts/maintenance/sync-cpsc110-reviewed-staging.mjs",
+    "reviewedScriptSha256": "63f503d169346ee6a0c75cf1936ef15b9e5e86745534f440a7be7bcbf34ff1f2",
+    "executionCopySha256": "cdbb3694c60de1ad7934a4e621c19ee9817efc04d08dfde5da413c5582d7f078",
+    "baselineReconciliation": "All 153 substantive rows equal preserved last-release DB rows; only releaseAddedIn/releasedHash and timestamp metadata differ.",
+    "smallExecutionAdjustment": "Finalize the canonical release fingerprint for all 145 published questions and set lastReleasedAt within the same guarded transaction, retaining a single version increment.",
+    "privateBackupsRetained": true,
+    "rawDataAndSecretsCommitted": false
+  },
+  "notes": [
+    "The eight World questions were archived rather than deleted; all 153 records remain.",
+    "This completes the content sync deferred in the morning teacher release.",
+    "No application redeploy, schema migration, desktop installer or production-environment change."
+  ]
+}

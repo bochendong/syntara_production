@@ -40,7 +40,12 @@
   },
   "courseContentSync": {
     "applied": false,
-    "note": "Merge/deploy scope only. Reviewed CPSC110 presentation-content migration and eight World-problem archives remain unapplied."
+    "note": "Merge/deploy scope only. Reviewed CPSC110 presentation-content migration and eight World-problem archives remain unapplied.",
+    "followUp": {
+      "applied": true,
+      "version": 18,
+      "record": "staging-2026-11-02-cpsc110-content-migration.json"
+    }
   },
   "limits": [
     "One empty class was accidentally created during browser acceptance, then guardedly removed after confirming zero members, zero sessions and unchanged creation metadata. No student submissions or enrolments were changed.",
