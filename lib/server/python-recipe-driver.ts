@@ -102,24 +102,34 @@ def template_origins(lines):
     for line in lines:
         match = TEMPLATE_RE.search(line)
         if match:
-            parts = re.split(r",|\band\b|\bwith\b|\+", match.group(1).lower())
-            found.append(sorted(p.strip(" .()") for p in parts if p.strip(" .()")))
+            # "compound (4 fields) and reference rule; limit is an extra parameter" -> parts
+            origin = re.sub(r"\([^)]*\)", "", match.group(1).split(";")[0].lower())
+            parts = re.split(r",|\band\b|\bwith\b|\+", origin)
+            found.append(sorted(p.strip(" .") for p in parts if p.strip(" .")))
     return found
+
+
+def covers_origin(mine, expected):
+    """Every part of the expected origin is named; extra parts (an added parameter) are fine."""
+    return bool(mine) and all(any(e in m or m in e for m in mine[0]) for e in expected[0])
 
 
 def is_stub_comment(line):
     return bool(re.match(r"#\s*return\b.*#\s*stub\b", line, re.I))
 
 
-def template_shape(fn, names):
-    """ast.dump of a template with function and parameter names replaced by position."""
-    mapping = {name: "fn%d" % i for i, name in enumerate(names)}
-    for i, arg in enumerate(fn.args.args):
-        mapping[arg.arg] = "p%d" % i
+def template_shape(fn):
+    """ast.dump of a template with parameters and local variables renamed by position."""
+    mapping = {arg.arg: "p%d" % i for i, arg in enumerate(fn.args.args)}
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id not in mapping:
+            mapping[node.id] = "v%d" % len(mapping)
 
     class Rename(ast.NodeTransformer):
         def visit_Name(self, node):
-            return ast.copy_location(ast.Name(id=mapping.get(node.id, node.id), ctx=node.ctx), node)
+            # Called template functions keep their names (lowercased): fn_for_loan_state(...).
+            name = mapping.get(node.id, node.id.lower() if node.id.startswith("fn_for_") else node.id)
+            return ast.copy_location(ast.Name(id=name, ctx=node.ctx), node)
 
         def visit_arg(self, node):
             return ast.arg(arg=mapping.get(node.arg, node.arg))
@@ -329,14 +339,14 @@ def main():
         compare_template = check_template if check_template is not None else bool(ref_origins and not given_origins)
         if compare_template and ref_origins:
             mine_origins = template_origins(comments(student_text, mine))
-            item("template_origin", name, mine_origins[:1] == ref_origins[:1],
+            item("template_origin", name, covers_origin(mine_origins, ref_origins),
                  "missing '# template based on ...'" if not mine_origins else
                  "your template is based on %s, but %s's should be based on %s"
                  % (", ".join(mine_origins[0]), name, ", ".join(ref_origins[0])))
             ref_code = commented_template(reference_text, fn)
             if is_template_fn:
-                expected_shape = template_shape(fn, template_names)
-                actual_shape = template_shape(mine, [n for n in stu_fns if n.startswith("fn_for_")])
+                expected_shape = template_shape(fn)
+                actual_shape = template_shape(mine)
                 item("template", name, expected_shape == actual_shape,
                      "your template does not match the data definition: expected the shape of\n%s"
                      % "\n".join(ast.unparse(s) for s in body_without_docstring(fn)))
@@ -392,7 +402,8 @@ def main():
                 covered = False
                 for args in arg_lists:
                     try:
-                        if eval(t["predicate"], dict(ns), dict(zip(params, args))):
+                        # One namespace: generator expressions in a predicate can't see eval locals.
+                        if eval(t["predicate"], {**ns, **dict(zip(params, args))}):
                             covered = True
                             break
                     except BaseException:
