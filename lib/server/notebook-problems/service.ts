@@ -689,7 +689,9 @@ function normalizeDraftForPersistence(
     codeErrors.length === 0 &&
     (!isCode || codeVerification?.passed === true);
   const hasSecretTests = Boolean(
-    draft.secretJudge?.secretTestCode?.trim() || (draft.secretJudge?.secretTests?.length ?? 0) > 0,
+    draft.secretJudge?.designRecipe ||
+    draft.secretJudge?.secretTestCode?.trim() ||
+    (draft.secretJudge?.secretTests?.length ?? 0) > 0,
   );
 
   return {

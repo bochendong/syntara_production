@@ -248,6 +248,28 @@ function sourceMetadata(value: unknown) {
   return result;
 }
 
+/** Compare optional empty assets and the derived private-config hint consistently. */
+function comparablePublicContent(value: unknown, secretJudge: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const content = { ...(value as Record<string, unknown>) };
+  const assets = content.assets;
+  if (assets && typeof assets === 'object' && !Array.isArray(assets)) {
+    const record = assets as Record<string, unknown>;
+    if (Object.keys(record).length === 1 && Array.isArray(record.images) && !record.images.length)
+      delete content.assets;
+  }
+  if (
+    content.type === 'code' &&
+    content.language === 'racket' &&
+    secretJudge &&
+    typeof secretJudge === 'object' &&
+    'designRecipe' in secretJudge &&
+    secretJudge.designRecipe
+  )
+    content.secretConfigPresent = true;
+  return content;
+}
+
 type SavedQuestion = {
   ownerId: string | null;
   courseId: string | null;
@@ -284,7 +306,8 @@ function requireExactSavedQuestion(
       row.difficulty === draft.difficulty &&
       row.points === 100 &&
       stable(row.tags) === stable(draft.tags) &&
-      stable(row.publicContentJson) === stable(draft.publicContent) &&
+      stable(comparablePublicContent(row.publicContentJson, row.secret?.secretJudgeJson)) ===
+        stable(comparablePublicContent(draft.publicContent, draft.secretJudge)) &&
       stable(row.gradingJson) === stable(draft.grading) &&
       stable(row.secret?.secretJudgeJson ?? null) === stable(draft.secretJudge ?? null) &&
       stable(sourceMetadata(row.sourceMeta)) === stable(sourceMetadata(draft.sourceMeta)),

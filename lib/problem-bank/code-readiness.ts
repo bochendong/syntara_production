@@ -1,5 +1,6 @@
 import type { NotebookProblemImportDraft } from './schema';
 import { assembleCodeFromSlots } from './code-slots';
+import { isCs103Problem } from './cs103-tests';
 import { formatPartLabel, multipartCodePartDrafts } from './multipart';
 
 export const MIN_PUBLIC_CODE_TESTS = 2;
@@ -58,10 +59,14 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
 
   const errors: string[] = [];
   const content = draft.publicContent;
-  if (new Set(content.sampleIO.map((sample) => sample.input.trim())).size < 2)
-    errors.push('代码题至少需要 2 个可执行并已验证的 sampleIO 示例');
   const secretTests = draft.secretJudge?.secretTests ?? [];
   const solution = codeReferenceSolution(draft);
+  // CPSC 103 starters show their examples as expect() calls, which the public suite runs.
+  const examplesInSuite =
+    content.publicTestCode !== undefined &&
+    isCs103Problem(content.language, content.starterCode, solution);
+  if (!examplesInSuite && new Set(content.sampleIO.map((sample) => sample.input.trim())).size < 2)
+    errors.push('代码题至少需要 2 个可执行并已验证的 sampleIO 示例');
   const functionSignature = content.functionSignature?.trim() || '';
   const runnerAdapter = content.runnerAdapter ?? DEFAULT_RUNNER_ADAPTERS[content.language] ?? '';
   const supported = DEFAULT_RUNNER_ADAPTERS[content.language] === runnerAdapter;
@@ -86,6 +91,23 @@ export function codeDraftReadinessErrors(draft: NotebookProblemImportDraft): str
   }
   if (!supported) {
     return Array.from(new Set(errors));
+  }
+
+  // Problems graded only by the design recipe (e.g. write an HtDD template) need no tests.
+  const hasTests =
+    content.publicTestCode !== undefined ||
+    draft.secretJudge?.secretTestCode !== undefined ||
+    content.publicTests.length > 0 ||
+    secretTests.length > 0;
+  if (
+    (content.language === 'racket' || isCs103Problem(content.language, solution)) &&
+    draft.secretJudge?.designRecipe &&
+    !hasTests
+  ) {
+    const recipeErrors = errors.filter((error) => !error.includes('sampleIO'));
+    if (!content.starterCode?.trim()) recipeErrors.push('代码题缺少学生编辑器 starterCode');
+    if (!solution) recipeErrors.push('代码题缺少参考答案');
+    return Array.from(new Set(recipeErrors));
   }
 
   if (!content.starterCode?.trim()) errors.push('代码题缺少学生编辑器 starterCode');
