@@ -1,21 +1,23 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
+  Check,
   ChevronRight,
   Copy,
   Eye,
   Lock,
   LockOpen,
   Plus,
+  Radio,
   RefreshCw,
   RotateCcw,
   Search,
   Square,
   Trash2,
+  UserMinus,
   UserPlus,
-  X,
 } from 'lucide-react';
 
-import { resolveNativeCourseAvatar } from '../assets';
+import { nativeAccountAvatarUrl, resolveNativeCourseAvatar } from '../assets';
 import {
   getTeachClass,
   getTeachHome,
@@ -252,6 +254,25 @@ function TeachHomeView({
   );
 }
 
+type ClassTab = 'answers' | 'people' | 'sessions';
+
+/** 学生头像：账号上有弹珠头像就用，没有就按 userId 固定挑一颗。 */
+function personAvatar(person: { userId: string; avatarUrl: string | null }) {
+  return person.avatarUrl
+    ? nativeAccountAvatarUrl(null, person.avatarUrl)
+    : resolveNativeCourseAvatar(person.userId, null);
+}
+
+function percent(part: number, whole: number) {
+  return whole ? Math.round((part / whole) * 100) : 0;
+}
+
+function duration(session: { startedAt: number; endedAt: number | null }) {
+  if (!session.endedAt) return '';
+  const minutes = Math.max(1, Math.round((session.endedAt - session.startedAt) / 60_000));
+  return minutes >= 60 ? `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分` : `${minutes} 分钟`;
+}
+
 function TeachClassView({
   classId,
   onBack,
@@ -263,6 +284,7 @@ function TeachClassView({
 }) {
   const load = useCallback(() => getTeachClass(classId), [classId]);
   const { data, setData, error, setError } = usePolled<TeachClass>(load, 20_000);
+  const [tab, setTab] = useState<ClassTab>('answers');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState('');
   const [chapterId, setChapterId] = useState('all');
@@ -300,11 +322,30 @@ function TeachClassView({
     () => new Map((data?.progress ?? []).map((row) => [`${row.userId}:${row.problemId}`, row])),
     [data?.progress],
   );
+  const roster = useMemo(() => data?.roster ?? [], [data?.roster]);
   const students = [
-    ...(data?.roster ?? []).map((person) => ({ ...person, visitor: false })),
+    ...roster.map((person) => ({ ...person, visitor: false })),
     ...(showVisitors ? (data?.visitors ?? []) : []).map((person) => ({ ...person, visitor: true })),
   ];
   const live = data?.sessions.find((session) => session.status === 'live');
+  const pastSessions = data?.sessions.filter((session) => session.status !== 'live') ?? [];
+
+  // 本班（不含旁听）做过 / 做对了多少，全部题目算。
+  const summary = useMemo(() => {
+    const members = new Set(roster.map((person) => person.userId));
+    const all = data?.problems.length ?? 0;
+    let done = 0;
+    let passed = 0;
+    for (const row of data?.progress ?? []) {
+      if (!members.has(row.userId)) continue;
+      done += 1;
+      if (row.status === 'passed') passed += 1;
+    }
+    return {
+      done: percent(done, members.size * all),
+      passed: percent(passed, done),
+    };
+  }, [data?.problems.length, data?.progress, roster]);
 
   const start = async () => {
     if (live) return onOpenSession(live.id);
@@ -328,6 +369,19 @@ function TeachClassView({
     });
   };
 
+  const copyCode = () => {
+    if (!data) return;
+    void navigator.clipboard?.writeText(data.class.joinCode);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  };
+
+  const tabs: Array<{ id: ClassTab; label: string; count: number }> = [
+    { id: 'answers', label: '答题', count: data?.problems.length ?? 0 },
+    { id: 'people', label: '学生', count: roster.length },
+    { id: 'sessions', label: '课堂', count: data?.sessions.length ?? 0 },
+  ];
+
   return (
     <PhonePage
       title={data ? courseLabel(data.class.course) : '班级'}
@@ -337,194 +391,385 @@ function TeachClassView({
       largeTitle
       onBack={onBack}
     >
-      <div className="tp-page">
-        <header className="phone-large-head tp-head">
-          <h1>{data ? courseLabel(data.class.course) : '班级'}</h1>
-          {data ? <span className="tp-term">{data.class.label}</span> : null}
+      <div className="tp-page tc-page">
+        <header className="phone-large-head tc-head">
+          {data ? (
+            <img
+              className="tc-head-marble"
+              src={resolveNativeCourseAvatar(data.class.course.id, data.class.course.courseCode)}
+              alt=""
+            />
+          ) : null}
+          <div className="tc-head-copy">
+            <h1>{data ? courseLabel(data.class.course) : '班级'}</h1>
+            {data ? (
+              <span>
+                {data.class.course.courseCode ? `${data.class.course.name} · ` : ''}
+                {data.class.label}
+              </span>
+            ) : null}
+          </div>
+          {data ? (
+            <button
+              type="button"
+              className={`tc-start${live ? ' is-live' : ''}`}
+              disabled={busy === 'start'}
+              onClick={() => void start()}
+            >
+              {live ? (
+                <span className="tc-live-dot" aria-hidden />
+              ) : (
+                <Radio size={17} aria-hidden />
+              )}
+              {live ? '回到课堂' : '开始上课'}
+            </button>
+          ) : null}
         </header>
         {error ? <p className="phone-page-error">{error}</p> : null}
         {!data && !error ? <GlassSkeletonRows rows={5} height={54} /> : null}
         {data ? (
           <>
-            <section className="tp-hero">
-              <div className="tp-hero-code">
-                <small>班级码</small>
-                <strong>{data.class.joinCode}</strong>
-                <span className="tp-hero-tools">
-                  <button
-                    type="button"
-                    aria-label="复制班级码"
-                    onClick={() => {
-                      void navigator.clipboard?.writeText(data.class.joinCode);
-                      setCopied(true);
-                      window.setTimeout(() => setCopied(false), 1400);
-                    }}
-                  >
-                    <Copy size={15} aria-hidden />
-                    {copied ? '已复制' : null}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="换一个班级码"
-                    disabled={busy === 'reset'}
-                    onClick={() =>
-                      void act('reset', () => teachClassAction({ action: 'reset-code', classId }))
-                    }
-                  >
-                    <RefreshCw size={15} aria-hidden />
-                  </button>
-                </span>
-                <p>学生输一次就进本学期的班</p>
+            <section className="tc-overview">
+              <div className="tc-code">
+                <small>班级码 · 学生输一次就进班</small>
+                <div className="tc-code-row">
+                  <div className="tc-code-keys" aria-label={`班级码 ${data.class.joinCode}`}>
+                    {data.class.joinCode.split('').map((char, index) => (
+                      <span key={index}>{char}</span>
+                    ))}
+                  </div>
+                  <div className="tc-code-tools">
+                    <button type="button" onClick={copyCode} aria-label="复制班级码">
+                      {copied ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />}
+                      {copied ? '已复制' : '复制'}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="换一个班级码"
+                      title="换一个班级码"
+                      disabled={busy === 'reset'}
+                      onClick={() =>
+                        void act('reset', () => teachClassAction({ action: 'reset-code', classId }))
+                      }
+                    >
+                      <RefreshCw
+                        size={15}
+                        aria-hidden
+                        className={busy === 'reset' ? 'is-spinning' : ''}
+                      />
+                    </button>
+                  </div>
+                </div>
               </div>
-              <button
-                type="button"
-                className="tp-start"
-                disabled={busy === 'start'}
-                onClick={() => void start()}
-              >
-                {live ? '回到课堂' : '开始上课'}
+              <button type="button" className="tc-stat" onClick={() => setTab('people')}>
+                <span className="tc-stack" aria-hidden>
+                  {roster.length ? (
+                    roster
+                      .slice(0, 4)
+                      .map((person) => (
+                        <img key={person.userId} src={personAvatar(person)} alt="" />
+                      ))
+                  ) : (
+                    <span className="tp-marble is-empty" style={{ width: 26, height: 26 }} />
+                  )}
+                </span>
+                <strong>{roster.length}</strong>
+                <small>学生{data.visitors.length ? ` · 旁听 ${data.visitors.length}` : ''}</small>
+              </button>
+              <button type="button" className="tc-stat" onClick={() => setTab('answers')}>
+                <span className="tc-tube" aria-hidden>
+                  <i style={{ width: `${summary.done}%` }} />
+                </span>
+                <strong>
+                  {summary.done}
+                  <em>%</em>
+                </strong>
+                <small>完成 · 对 {summary.passed}%</small>
+              </button>
+              <button type="button" className="tc-stat" onClick={() => setTab('sessions')}>
+                <span className="tc-stat-icon" aria-hidden>
+                  {live ? <span className="tc-live-dot" /> : <Radio size={16} />}
+                </span>
+                <strong>{data.sessions.length}</strong>
+                <small>节课{live ? ' · 上课中' : ''}</small>
               </button>
             </section>
 
-            <form className="phone-search tp-add" onSubmit={addMember}>
-              <UserPlus size={17} aria-hidden />
-              <input
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                type="email"
-                placeholder="用邮箱把学生拉进班"
-                aria-label="学生邮箱"
-              />
-              {email ? (
-                <button type="submit" className="tp-add-submit" disabled={busy === 'add'}>
-                  添加
+            <div className="tc-tabs" role="tablist" aria-label="班级">
+              {tabs.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === item.id}
+                  onClick={() => setTab(item.id)}
+                >
+                  {item.label}
+                  <span>{item.count}</span>
                 </button>
-              ) : null}
-            </form>
-
-            <div className="tp-section-head">
-              <p className="phone-group-title">
-                答题 · {data.roster.length} 人 · {problems.length} 题
-              </p>
-              <div className="tp-filters">
-                {chapters.length ? (
-                  <select
-                    value={chapterId}
-                    onChange={(event) => setChapterId(event.target.value)}
-                    aria-label="章节"
-                  >
-                    <option value="all">全部章节</option>
-                    {chapters.map(([id, name]) => (
-                      <option key={id} value={id}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
-                {data.visitors.length ? (
-                  <button
-                    type="button"
-                    aria-pressed={showVisitors}
-                    onClick={() => setShowVisitors((value) => !value)}
-                  >
-                    旁听 {data.visitors.length}
-                  </button>
-                ) : null}
-              </div>
+              ))}
             </div>
-            {students.length ? (
-              <div className="phone-group tp-grid-card">
-                <div className="tp-grid-scroll">
-                  <table className="tp-grid">
-                    <thead>
-                      <tr>
-                        <th className="tp-grid-name" />
-                        {problems.map((problem) => (
-                          <th key={problem.id} title={problemName(problem)}>
-                            {problem.number ?? '·'}
-                          </th>
+
+            {tab === 'answers' ? (
+              <section role="tabpanel" aria-label="答题">
+                {students.length && (chapters.length || data.visitors.length) ? (
+                  <div className="tc-chips">
+                    {chapters.length ? (
+                      <>
+                        <button
+                          type="button"
+                          aria-pressed={chapterId === 'all'}
+                          onClick={() => setChapterId('all')}
+                        >
+                          全部
+                        </button>
+                        {chapters.map(([id, name]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            aria-pressed={chapterId === id}
+                            onClick={() => setChapterId(id)}
+                          >
+                            {name}
+                          </button>
                         ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {students.map((student) => {
-                        const done = problems.filter((problem) =>
-                          progress.has(`${student.userId}:${problem.id}`),
-                        ).length;
-                        return (
-                          <tr key={student.userId}>
-                            <th className="tp-grid-name">
-                              <span>
-                                <strong>{student.name}</strong>
-                                <small>
-                                  {student.visitor ? '旁听 · ' : ''}
-                                  {done}/{problems.length}
-                                </small>
-                              </span>
-                              {!student.visitor ? (
-                                <button
-                                  type="button"
-                                  className="tp-remove"
-                                  aria-label={`把 ${student.name} 移出班级`}
-                                  onClick={() =>
-                                    setRemoving({ userId: student.userId, name: student.name })
-                                  }
-                                >
-                                  <X size={13} aria-hidden />
-                                </button>
-                              ) : null}
+                      </>
+                    ) : null}
+                    {data.visitors.length ? (
+                      <button
+                        type="button"
+                        className="tc-chip-end"
+                        aria-pressed={showVisitors}
+                        onClick={() => setShowVisitors((value) => !value)}
+                      >
+                        <Eye size={13} aria-hidden />
+                        旁听 {data.visitors.length}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {students.length && problems.length ? (
+                  <div className="tc-card tc-grid-card">
+                    <div className="tc-grid-scroll">
+                      <table className="tc-grid">
+                        <thead>
+                          <tr>
+                            <th className="tc-grid-name">
+                              <span>{students.length} 人</span>
                             </th>
                             {problems.map((problem) => {
-                              const row = progress.get(`${student.userId}:${problem.id}`);
+                              const passed = roster.filter(
+                                (person) =>
+                                  progress.get(`${person.userId}:${problem.id}`)?.status ===
+                                  'passed',
+                              ).length;
+                              const rate = percent(passed, roster.length);
                               return (
-                                <td
+                                <th
                                   key={problem.id}
-                                  title={`${problemName(problem)} · ${STATUS[row?.status ?? 'none'].label}${
-                                    row ? ` · ${row.attemptedCount} 次` : ''
-                                  }`}
+                                  title={`${problemName(problem)} · 做对 ${passed}/${roster.length}`}
                                 >
-                                  <Marble status={row?.status ?? 'none'} size={20} />
-                                </td>
+                                  <span className="tc-col-num">{problem.number ?? '·'}</span>
+                                  <span className="tc-col-rate" aria-hidden>
+                                    <i style={{ height: `${Math.max(rate, passed ? 8 : 0)}%` }} />
+                                  </span>
+                                </th>
                               );
                             })}
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <Legend />
-              </div>
-            ) : (
-              <PhoneEmpty title="名单还是空的" hint="把班级码发给学生，或者用邮箱拉人。" />
-            )}
+                        </thead>
+                        <tbody>
+                          {students.map((student) => {
+                            const done = problems.filter((problem) =>
+                              progress.has(`${student.userId}:${problem.id}`),
+                            ).length;
+                            return (
+                              <tr
+                                key={student.userId}
+                                className={student.visitor ? 'is-visitor' : ''}
+                              >
+                                <th className="tc-grid-name">
+                                  <span className="tc-person">
+                                    <img src={personAvatar(student)} alt="" />
+                                    <span>
+                                      <strong>{student.name}</strong>
+                                      <small>
+                                        {student.visitor ? '旁听 · ' : ''}
+                                        {done}/{problems.length}
+                                      </small>
+                                    </span>
+                                  </span>
+                                </th>
+                                {problems.map((problem) => {
+                                  const row = progress.get(`${student.userId}:${problem.id}`);
+                                  return (
+                                    <td
+                                      key={problem.id}
+                                      title={`${problemName(problem)} · ${STATUS[row?.status ?? 'none'].label}${
+                                        row ? ` · ${row.attemptedCount} 次` : ''
+                                      }`}
+                                    >
+                                      <Marble status={row?.status ?? 'none'} size={22} />
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Legend />
+                  </div>
+                ) : students.length ? (
+                  <PhoneEmpty
+                    title="这门课还没有题"
+                    hint="在课程的题库里加题后，这里按人按题显示。"
+                  />
+                ) : (
+                  <PhoneEmpty
+                    title="名单还是空的"
+                    hint="把班级码发给学生，或者在「学生」里用邮箱拉人。"
+                  />
+                )}
+              </section>
+            ) : null}
 
-            {data.sessions.length ? (
-              <>
-                <p className="phone-group-title">上过的课</p>
-                <div className="phone-group">
-                  {data.sessions.map((session) => (
-                    <button
-                      key={session.id}
-                      type="button"
-                      className="phone-row"
-                      onClick={() => onOpenSession(session.id)}
-                    >
-                      <span className="tp-course-copy">
-                        <strong>{clock(session.startedAt)}</strong>
-                        <small>
-                          {session.participantCount} 人 · {session.itemCount} 题
-                        </small>
+            {tab === 'people' ? (
+              <section role="tabpanel" aria-label="学生">
+                <form className="tc-add" onSubmit={addMember}>
+                  <UserPlus size={17} aria-hidden />
+                  <input
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    type="email"
+                    placeholder="学生邮箱"
+                    aria-label="学生邮箱"
+                  />
+                  <button type="submit" disabled={!email.trim() || busy === 'add'}>
+                    <Plus size={15} aria-hidden />
+                    拉进班
+                  </button>
+                </form>
+                {roster.length ? (
+                  <div className="tc-card tc-people">
+                    {roster.map((person) => {
+                      const done = (data.problems ?? []).filter((problem) =>
+                        progress.has(`${person.userId}:${problem.id}`),
+                      ).length;
+                      const share = percent(done, data.problems.length);
+                      return (
+                        <div key={person.userId} className="tc-person-row">
+                          <img src={personAvatar(person)} alt="" />
+                          <span className="tc-person-copy">
+                            <strong>{person.name}</strong>
+                            <small>
+                              {person.email ??
+                                (person.source === 'teacher' ? '老师拉进班' : '班级码进班')}
+                            </small>
+                          </span>
+                          <span
+                            className="tc-person-meter"
+                            title={`做过 ${done}/${data.problems.length}`}
+                          >
+                            <span className="tc-tube is-thin" aria-hidden>
+                              <i style={{ width: `${share}%` }} />
+                            </span>
+                            <small>{share}%</small>
+                          </span>
+                          <button
+                            type="button"
+                            className="tc-icon-button is-danger"
+                            aria-label={`把 ${person.name} 移出班级`}
+                            title="移出班级"
+                            onClick={() =>
+                              setRemoving({ userId: person.userId, name: person.name })
+                            }
+                          >
+                            <UserMinus size={16} aria-hidden />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <PhoneEmpty title="名单还是空的" hint="学生输入班级码就会出现在这里。" />
+                )}
+                {data.visitors.length ? (
+                  <>
+                    <p className="phone-group-title">旁听</p>
+                    <div className="tc-card tc-people">
+                      {data.visitors.map((person) => (
+                        <div key={person.userId} className="tc-person-row is-visitor">
+                          <img src={personAvatar(person)} alt="" />
+                          <span className="tc-person-copy">
+                            <strong>{person.name}</strong>
+                            <small>进过课堂，不在名单里</small>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+              </section>
+            ) : null}
+
+            {tab === 'sessions' ? (
+              <section role="tabpanel" aria-label="课堂">
+                {live ? (
+                  <button type="button" className="tc-live" onClick={() => onOpenSession(live.id)}>
+                    <span className="tc-live-copy">
+                      <small>
+                        <span className="tc-live-dot" aria-hidden />
+                        上课中 · {clock(live.startedAt)}
+                      </small>
+                      <strong>{live.code ?? '—'}</strong>
+                    </span>
+                    <span className="tc-live-stats">
+                      <span>
+                        <strong>{live.participantCount}</strong>
+                        <small>人</small>
                       </span>
-                      {session.status === 'live' ? (
-                        <span className="tp-live-pill">上课中</span>
-                      ) : (
+                      <span>
+                        <strong>{live.itemCount}</strong>
+                        <small>题</small>
+                      </span>
+                    </span>
+                    <ChevronRight size={20} aria-hidden />
+                  </button>
+                ) : null}
+                {pastSessions.length ? (
+                  <div className="tc-card">
+                    {pastSessions.map((session) => (
+                      <button
+                        key={session.id}
+                        type="button"
+                        className="tc-session-row"
+                        onClick={() => onOpenSession(session.id)}
+                      >
+                        <span className="tc-session-date">
+                          <strong>{new Date(session.startedAt).getDate()}</strong>
+                          <small>{new Date(session.startedAt).getMonth() + 1} 月</small>
+                        </span>
+                        <span className="tc-person-copy">
+                          <strong>{clock(session.startedAt)}</strong>
+                          <small>{duration(session)}</small>
+                        </span>
+                        <span className="tc-session-meta">
+                          <span>{session.participantCount} 人</span>
+                          <span>{session.itemCount} 题</span>
+                        </span>
                         <ChevronRight size={16} className="tp-chevron" aria-hidden />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </>
+                      </button>
+                    ))}
+                  </div>
+                ) : !live ? (
+                  <PhoneEmpty
+                    title="还没上过课"
+                    hint="点右上角「开始上课」，学生用 6 位课堂码进来。"
+                  />
+                ) : null}
+              </section>
             ) : null}
           </>
         ) : null}
