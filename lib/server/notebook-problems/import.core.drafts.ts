@@ -1,5 +1,6 @@
 import { problemContentReadinessErrors } from '@/lib/problem-bank/content-readiness';
 import { assembleCodeFromSlots } from '@/lib/problem-bank/code-slots';
+import { cs103TestsFromReference, isCs103Problem } from '@/lib/problem-bank/cs103-tests';
 import type { NotebookCodeSlot } from '@/lib/problem-bank/schema';
 import { randomUUID } from 'node:crypto';
 import { jsonrepair } from 'jsonrepair';
@@ -976,6 +977,33 @@ export function normalizeRawCandidate(
           ? secretJudge.runnerAdapter
           : publicContent.runnerAdapter;
       base.secretJudge = secretJudge;
+    }
+
+    // CPSC 103 references carry their own expect() examples: without tests, judge with those.
+    const solutionCode = pickFirstString(grading.solutionCode);
+    const starterCode = pickFirstString(publicContent.starterCode);
+    const secretJudge = (base.secretJudge ?? {}) as Record<string, unknown>;
+    const hasTests = [
+      publicContent.publicTestCode,
+      publicContent.publicTests,
+      secretJudge.secretTestCode,
+      secretJudge.secretTests,
+    ].some((tests) => (Array.isArray(tests) ? tests.length > 0 : typeof tests === 'string'));
+    const derived =
+      !hasTests && solutionCode && isCs103Problem(codeLanguage, solutionCode, starterCode)
+        ? cs103TestsFromReference({ solutionCode, starterCode })
+        : null;
+    if (derived) {
+      publicContent.publicTestCode = derived.publicTestCode;
+      if (!Array.isArray(publicContent.sampleIO) || publicContent.sampleIO.length < 2) {
+        publicContent.sampleIO = derived.sampleIO;
+      }
+      base.secretJudge = {
+        language: 'python',
+        runnerAdapter: publicContent.runnerAdapter,
+        ...secretJudge,
+        secretTestCode: derived.secretTestCode,
+      };
     }
   }
 
