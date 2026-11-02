@@ -3,7 +3,6 @@ import { HandwritingAnswerInput } from './problem-bank/handwriting-answer-input'
 import { clearHandwritingDrafts, handwritingDraftKey } from '../data/handwriting-draft';
 import { visibleCodeTests } from '../../../../lib/problem-bank/visible-code-tests';
 import { fillBlankPrompt } from '../../../../lib/problem-bank/fill-blank-presentation';
-import { isValidPhotoAnswerUpload } from '../../../../lib/problem-bank/photo-answer';
 import { PhotoAnswerInput } from './problem-bank/photo-answer-input';
 import { PhoneConfirm } from './PhonePages';
 import { useBackDismiss } from '../lib/use-back-dismiss';
@@ -133,6 +132,7 @@ import {
   type PartCodeRun,
 } from './problem-bank/multipart-practice';
 import { LearningEmptyState } from './LearningEmptyState';
+import { AttemptHistory } from './problem-bank/attempt-history';
 import { NativeToast } from './NativeToast';
 import { submissionFeedback, type SubmissionFeedback } from '../lib/submission-feedback';
 import { ContentLanguageSwitch } from './ContentLanguageSwitch';
@@ -506,6 +506,16 @@ export function ProblemPracticePage({
   );
   const codeContent = isCode ? asCodeContent(publicContent) : null;
   const codeLanguage = codeContent?.language ?? 'python';
+  // 「记录」里代码的语言：分小问的大题取第一个代码小问的
+  const historyCodeLanguage = isCode
+    ? codeLanguage
+    : ((Array.isArray(recordValue(publicContent).parts)
+        ? (recordValue(publicContent).parts as unknown[])
+        : []
+      )
+        .map((part) => recordValue(recordValue(part).content))
+        .find((content) => content.type === 'code' && typeof content.language === 'string')
+        ?.language as string | undefined);
   // Racket 在浏览器里跑不了：运行、公开测试和「自己试」都交给服务器判题器
   const serverRunsCode = isRacketLanguage(codeLanguage);
   const codeSlots = codeContent
@@ -1120,7 +1130,10 @@ export function ProblemPracticePage({
             if (isAutoGradedPart(part) && used >= PART_SUBMISSION_LIMIT) return carried;
             let grade = gradeLocalPart(currentProblem, part, draft);
             let tableCells: Array<{ key: string; correct: boolean }> | undefined;
-            let codeSummary: Pick<LocalPartResult, 'publicSummary' | 'secretSummary'> = {};
+            let codeSummary: Pick<
+              LocalPartResult,
+              'publicSummary' | 'secretSummary' | 'caseResults' | 'designRecipe'
+            > = {};
             if (part.type === 'code') {
               // 代码小问在服务器上跑公开 + 隐藏测试；结果和其他小问一起存成整题作答
               try {
@@ -1140,9 +1153,17 @@ export function ProblemPracticePage({
                     ? { passed: item.passed, total: item.total }
                     : undefined;
                 };
+                // 只留没通过的公开测试和设计配方，「记录」里点开能看到具体哪里错了
+                const failedCases = (
+                  Array.isArray(reply.result.publicCases) ? reply.result.publicCases : []
+                ).filter((item) => recordValue(item).passed === false);
                 codeSummary = {
                   publicSummary: summary(reply.result.publicSummary),
                   secretSummary: summary(reply.result.secretSummary),
+                  ...(failedCases.length ? { caseResults: failedCases.slice(0, 12) } : {}),
+                  ...(Array.isArray(reply.result.designRecipe)
+                    ? { designRecipe: reply.result.designRecipe }
+                    : {}),
                 };
                 grade = {
                   status: reply.status,
@@ -2523,49 +2544,11 @@ export function ProblemPracticePage({
 
               {rightTab === 'history' ? (
                 document?.attempts.length ? (
-                  <section className="local-attempt-history">
-                    <h3>本机作答记录</h3>
-                    {document.attempts.slice(0, 8).map((attempt) => (
-                      <article key={attempt.id}>
-                        <span>{new Date(attempt.createdAt).toLocaleString()}</span>
-                        <strong>
-                          {attempt.result?.event === 'solution_viewed'
-                            ? '查看答案前的进度快照'
-                            : attempt.result?.event === 'hidden_tests_viewed'
-                              ? '查看隐藏测试前的进度快照'
-                              : attempt.result?.event === 'answer_reset'
-                                ? '重置作答'
-                                : attempt.status}
-                        </strong>
-                        <span>{attempt.score === null ? '未评分' : `${attempt.score}`}</span>
-                        {Array.isArray(attempt.answer.images) || attempt.answer.parts ? (
-                          <div className="pp-history-photos">
-                            {[
-                              ...(Array.isArray(attempt.answer.images)
-                                ? attempt.answer.images
-                                : []),
-                              ...Object.values(recordValue(attempt.answer.parts)).flatMap(
-                                (part) => {
-                                  const images = recordValue(part).images;
-                                  return Array.isArray(images) ? images : [];
-                                },
-                              ),
-                            ]
-                              .filter((image): image is PhotoAnswerImage =>
-                                Boolean(
-                                  image &&
-                                  typeof image === 'object' &&
-                                  isValidPhotoAnswerUpload(image as PhotoAnswerImage),
-                                ),
-                              )
-                              .map((image) => (
-                                <img key={image.id} src={image.dataUrl} alt={image.name} />
-                              ))}
-                          </div>
-                        ) : null}
-                      </article>
-                    ))}
-                  </section>
+                  <AttemptHistory
+                    key={currentProblem?.id}
+                    attempts={document.attempts}
+                    language={historyCodeLanguage}
+                  />
                 ) : (
                   <LearningEmptyState title="还没有本机作答记录" compact />
                 )

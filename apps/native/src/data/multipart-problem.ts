@@ -54,6 +54,10 @@ export type LocalPartResult = {
   /** 代码小问：公开 / 隐藏测试通过数 */
   publicSummary?: { passed: number; total: number };
   secretSummary?: { passed: number; total: number };
+  /** 代码小问：没通过的公开测试（实际输出 / 报错），只在本机「记录」里看 */
+  caseResults?: unknown[];
+  /** 代码小问：设计配方检查 */
+  designRecipe?: unknown[];
 };
 
 export const PART_SUBMISSION_LIMIT = 3;

@@ -19,8 +19,12 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { highlightPython } from '@/components/problem-bank/code-answer-editor';
-import { toast } from '@/lib/notifications/client-toast';
+import {
+  AttemptCaseList,
+  AttemptCellsView,
+  AttemptCodeView,
+  AttemptPartsDetail,
+} from '@/components/problem-bank/attempt-details';
 import {
   Dialog,
   DialogContent,
@@ -1417,9 +1421,11 @@ function ChoiceAnswerPreviewPanel({
 
 function AttemptAnswerPreview({
   attempt,
+  language,
   locale,
 }: {
   attempt: NotebookProblemAttemptRecord;
+  language?: string;
   locale: 'zh-CN' | 'en-US';
 }) {
   const answer = attempt.answer;
@@ -1443,50 +1449,24 @@ function AttemptAnswerPreview({
     );
   }
 
-  if (answer.code?.trim()) {
+  if (answer.parts && Object.keys(answer.parts).length) {
     return (
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
-          <span className="font-mono text-xs">
-            submission.py · {answer.code.split('\n').length} {locale === 'zh-CN' ? '行' : 'lines'}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(answer.code ?? '');
-                toast.success(locale === 'zh-CN' ? '代码已复制' : 'Code copied');
-              } catch {
-                toast.error(
-                  locale === 'zh-CN'
-                    ? '复制失败，请手动选择代码复制'
-                    : 'Copy failed. Select the code to copy it.',
-                );
-              }
-            }}
-          >
-            {locale === 'zh-CN' ? '复制代码' : 'Copy code'}
-          </Button>
-        </div>
-        <div
-          className="grid max-h-[55vh] grid-cols-[3rem_minmax(0,1fr)] overflow-auto font-mono text-[13px] leading-6"
-          style={{ tabSize: 4 }}
-        >
-          <pre
-            aria-hidden="true"
-            className="sticky left-0 select-none border-r border-slate-200 bg-slate-50 px-2 py-3 text-right text-slate-400"
-          >
-            {answer.code
-              .split('\n')
-              .map((_, i) => i + 1)
-              .join('\n')}
-          </pre>
-          <pre className="min-w-max whitespace-pre px-4 py-3">
-            <code>{highlightPython(answer.code)}</code>
-          </pre>
-        </div>
-      </div>
+      <AttemptPartsDetail
+        answer={answer}
+        result={attempt.result}
+        language={language}
+        locale={locale}
+      />
+    );
+  }
+
+  if (answer.code?.trim()) {
+    return <AttemptCodeView code={answer.code} language={language} locale={locale} />;
+  }
+
+  if (answer.cells && Object.keys(answer.cells).length) {
+    return (
+      <AttemptCellsView cells={answer.cells} results={attempt.result?.cells} locale={locale} />
     );
   }
 
@@ -1524,7 +1504,7 @@ function AttemptAnswerPreview({
   );
 }
 
-function CodeAttemptTestSummary({
+export function CodeAttemptTestSummary({
   attempt,
   locale,
 }: {
@@ -1627,7 +1607,7 @@ const DESIGN_RECIPE_CHECK_LABELS: Record<
 };
 
 /** Design-recipe checks of a submission (Racket or cs103 Python), one row per check, like an autograder report. */
-function DesignRecipeChecklist({
+export function DesignRecipeChecklist({
   attempt,
   locale,
 }: {
@@ -1672,12 +1652,15 @@ export function AttemptHistoryList({
   attempts,
   loading,
   points,
+  language,
   locale,
   className,
 }: {
   attempts: NotebookProblemAttemptRecord[];
   loading: boolean;
   points: number;
+  /** 代码题的语言（python / racket），决定代码高亮和文件名 */
+  language?: string;
   locale: 'zh-CN' | 'en-US';
   className?: string;
 }) {
@@ -1778,6 +1761,7 @@ export function AttemptHistoryList({
               attempts={[selected]}
               loading={false}
               points={points}
+              language={language}
               locale={locale}
               hideNumber
             />
@@ -1793,12 +1777,14 @@ function AttemptHistoryPanel({
   attempts,
   loading,
   points,
+  language,
   locale,
 }: {
   hideNumber?: boolean;
   attempts: NotebookProblemAttemptRecord[];
   loading: boolean;
   points: number;
+  language?: string;
   locale: 'zh-CN' | 'en-US';
 }) {
   if (loading) {
@@ -1854,8 +1840,11 @@ function AttemptHistoryPanel({
             </span>
           </div>
           <div className="space-y-3 p-3">
-            <AttemptAnswerPreview attempt={attempt} locale={locale} />
+            <AttemptAnswerPreview attempt={attempt} language={language} locale={locale} />
             <CodeAttemptTestSummary attempt={attempt} locale={locale} />
+            {attempt.result?.publicCases?.some((testCase) => !testCase.passed) ? (
+              <AttemptCaseList cases={attempt.result.publicCases} locale={locale} />
+            ) : null}
             <DesignRecipeChecklist attempt={attempt} locale={locale} />
             {shouldShowAttemptFeedback(attempt) ? (
               <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-200">
@@ -1863,6 +1852,14 @@ function AttemptHistoryPanel({
                   {locale === 'zh-CN' ? '反馈' : 'Feedback'}
                 </p>
                 <ProblemRichText content={attempt.result?.feedback ?? ''} />
+              </div>
+            ) : null}
+            {attempt.result?.analysis ? (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-200">
+                <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {locale === 'zh-CN' ? '批改说明' : 'Grading notes'}
+                </p>
+                <ProblemRichText content={attempt.result.analysis} />
               </div>
             ) : null}
           </div>

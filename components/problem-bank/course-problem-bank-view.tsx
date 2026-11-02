@@ -1,4 +1,5 @@
 'use client';
+import { attemptCodeLanguage } from '@/components/problem-bank/attempt-details';
 import { InteractiveFillBlank } from './interactive-fill-blank';
 import type { PartFormulaHandle } from '@/lib/problem-bank/use-part-formula-editor';
 import { MultipartAnswerPanel } from './multipart-answer-panel';
@@ -2859,6 +2860,7 @@ export function CourseProblemBankView({
               attempts={selectedProblemAttempts}
               loading={selectedProblemAttemptsLoading}
               points={selectedProblem.points}
+              language={attemptCodeLanguage(selectedProblem.publicContent)}
               locale={locale}
             />
           ) : (
@@ -2866,6 +2868,7 @@ export function CourseProblemBankView({
               attempts={selectedProblemAttempts}
               loading={selectedProblemAttemptsLoading}
               points={selectedProblem.points}
+              language={attemptCodeLanguage(selectedProblem.publicContent)}
               locale={locale}
             />
           )
