@@ -261,6 +261,16 @@ async function main() {
       }),
       true,
     );
+    // ...and that starter alone, without superfact, has not started the design.
+    assert.equal(
+      bodies.designedFunctionsEdited({
+        language: 'racket',
+        code: `;(@htdf superfact)${helper}`,
+        starterCode: `;(@htdf superfact)${helper}`,
+        referenceCode: solutionCode + helper,
+      }),
+      false,
+    );
     const recipeReference = await submitRecipe(solutionCode + helper);
     assert.equal(recipeReference.score, 100);
     const lucky = await submitRecipe(luckyStarter);

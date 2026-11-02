@@ -158,10 +158,10 @@ function commentedStubs(language: string, reference: string): Map<string, string
 }
 
 /**
- * True when at least one function the problem stubs (in the starter, or as the reference's
- * commented-out stub; helpers the starter gives in full don't count) has a body in the student's code that differs from that stub. Functions
- * without a stub, such as templates, don't count. With nothing to compare, the answer counts
- * as edited.
+ * True when the student has started on a function the problem asks them to design: a body that
+ * differs from its stub (the starter's definition, or the reference's commented-out stub), or a
+ * function the reference defines and the starter doesn't. Helpers the starter gives in full
+ * and templates don't count. When the reference designs no such function, the answer counts as edited.
  */
 export function designedFunctionsEdited(args: {
   language: string;
@@ -172,17 +172,15 @@ export function designedFunctionsEdited(args: {
   const bodiesOf = args.language === 'racket' ? racketFunctionBodies : pythonFunctionBodies;
   const starter = bodiesOf(args.starterCode ?? '');
   const commented = commentedStubs(args.language, args.referenceCode);
-  // A starter definition that already matches the reference is a given helper, not a stub.
-  const stubs = new Map(
-    [...bodiesOf(args.referenceCode)].flatMap(([name, body]) => {
-      const stub = starter.get(name) ?? commented.get(name);
-      return stub === undefined || stub === body ? [] : [[name, stub] as const];
-    }),
+  // Templates (bodies with ... placeholders) aren't designed functions.
+  const designed = [...bodiesOf(args.referenceCode)].filter(
+    ([name, body]) => starter.get(name) !== body && !/(^|[\s(])\.\.\.([\s()]|$)/.test(body),
   );
-  if (!stubs.size) return true;
+  if (!designed.length) return true;
   const student = bodiesOf(args.code);
-  return [...stubs].some(([name, stub]) => {
+  return designed.some(([name]) => {
     const mine = student.get(name);
+    const stub = starter.get(name) ?? commented.get(name);
     return mine !== undefined && mine !== stub;
   });
 }
