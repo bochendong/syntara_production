@@ -325,6 +325,20 @@ def fn_for_velocity(v: Velocity) -> ...:
     # template based on compound (2 fields)
     return ...(v.speed, v.dir)
 
+VelocityList = list[Velocity]
+# interp. velocities in the order they were measured
+VL0 = []
+VL1 = [V1, V2]
+
+@typecheck
+def fn_for_velocity_list(lov: VelocityList) -> ...:
+    # template based on arbitrary-sized and reference rule
+    # description of the accumulator
+    acc = ...  # type: ...
+    for v in lov:
+        acc = ...(fn_for_velocity(v), acc)
+    return ...(acc)
+
 @typecheck
 def is_fast(v: Velocity) -> bool:
     \"\"\"
@@ -360,6 +374,12 @@ from typing import NamedTuple
           weight: 40,
           thoroughness: [
             { target: 'is_fast', description: 'a speed of exactly 5', predicate: 'v.speed == 5' },
+            // Generator expressions must see the parameters too.
+            {
+              target: 'is_fast',
+              description: 'a slow velocity',
+              predicate: 'any(v.speed < limit for limit in [5])',
+            },
           ],
         },
       },
@@ -401,8 +421,17 @@ from typing import NamedTuple
     .replace('return v.speed > 5', 'return vel.speed > 5')
     .replace(
       'def fn_for_velocity(v: Velocity) -> ...:\n    # template based on compound (2 fields)\n    return ...(v.speed, v.dir)',
-      'def fn_for_velocity(x: Velocity) -> ...:\n    # template based on compound (2 fields)\n    return ...(x.dir, x.speed)',
-    );
+      'def fn_for_velocity(x: Velocity) -> ...:\n    # template based on compound\n    return ...(x.dir, x.speed)',
+    )
+    .replace(
+      '    for v in lov:\n        acc = ...(fn_for_velocity(v), acc)',
+      '    for one in lov:\n        acc = ...(fn_for_velocity(one), acc)',
+    )
+    .replace(
+      '# template based on arbitrary-sized and reference rule',
+      '# template based on arbitrary-sized (list), reference rule',
+    )
+    .replace('# template from Velocity', '# template based on Velocity; vel is the only input');
   const renamedResult = await submitRecipe(renamed);
   console.log('renamed', failedChecks(renamedResult));
   assert.deepEqual(failedChecks(renamedResult), []);
@@ -441,13 +470,15 @@ from typing import NamedTuple
   const wrongData = ddReference
     .replace("('dir', int)", "('dir', str)")
     .replace('return ...(v.speed, v.dir)\n', 'return ...(v.speed)\n')
-    .replace('def is_fast(v: Velocity) -> bool', 'def is_fast(v: Velocity) -> int');
+    .replace('def is_fast(v: Velocity) -> bool', 'def is_fast(v: Velocity) -> int')
+    .replace('acc = ...(fn_for_velocity(v), acc)', 'acc = ...(v, acc)');
   const wrongDataResult = await submitRecipe(wrongData);
   console.log('wrong data', failedChecks(wrongDataResult));
   assert.deepEqual(failedChecks(wrongDataResult), [
     'data_definition:Velocity',
     'signature:is_fast',
     'template:fn_for_velocity',
+    'template:fn_for_velocity_list',
   ]);
 
   const unparsable = await submitRecipe('def is_fast(v:\n');
