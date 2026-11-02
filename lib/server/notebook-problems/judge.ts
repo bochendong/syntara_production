@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { runPythonJson } from '@/lib/server/python-runner';
 import { CS103_PYTHON_SOURCE, usesCs103 } from '@/lib/problem-bank/cs103-python';
+import { PYTHON_RECIPE_DRIVER } from '@/lib/server/python-recipe-driver';
 import {
   DEFAULT_HTDP_LANGUAGE_LEVEL,
   RACKET_DRIVER,
@@ -513,6 +514,60 @@ function codeRuntimeFor(content: {
     : { language: 'python' };
 }
 
+/** Design-recipe checks apply to HtDP Racket and to Python written against cs103 (CPSC 103). */
+function designRecipeApplies(runtime: CodeRuntime, referenceCode: string): boolean {
+  return Boolean(referenceCode) && (runtime.language === 'racket' || usesCs103(referenceCode));
+}
+
+async function runPythonDesignRecipe(args: {
+  studentCode: string;
+  referenceCode: string;
+  starterCode?: string;
+  recipe: RacketDesignRecipe;
+  timeoutMs: number;
+}): Promise<NotebookDesignRecipeCheck[]> {
+  const tempDir = path.join(os.tmpdir(), `python_recipe_${randomUUID()}`);
+  const codePath = path.join(tempDir, 'submission.py');
+  const runnerPath = path.join(tempDir, 'recipe.py');
+  try {
+    await mkdir(tempDir, { recursive: true });
+    await writeFile(codePath, args.studentCode, 'utf8');
+    await writeFile(runnerPath, PYTHON_RECIPE_DRIVER, 'utf8');
+    const payload = {
+      codePath,
+      referenceText: args.referenceCode,
+      starterText: args.starterCode,
+      cs103Source: CS103_PYTHON_SOURCE,
+      checkTemplate: args.recipe.checkTemplate ?? null,
+      thoroughness: args.recipe.thoroughness,
+    };
+    const result = await runPythonJson<{ items?: NotebookDesignRecipeCheck[] }>({
+      runnerPath,
+      payload,
+      timeoutMs: args.timeoutMs,
+      isolated: true,
+    });
+    return result.items ?? [];
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+function runDesignRecipe(
+  runtime: CodeRuntime,
+  args: {
+    studentCode: string;
+    referenceCode: string;
+    starterCode?: string;
+    recipe: RacketDesignRecipe;
+    timeoutMs: number;
+  },
+): Promise<NotebookDesignRecipeCheck[]> {
+  return runtime.language === 'racket'
+    ? runRacketDesignRecipe({ ...args, level: runtime.level })
+    : runPythonDesignRecipe(args);
+}
+
 async function executeRacketPayload(args: {
   code: string;
   level: HtdpLanguageLevel;
@@ -807,13 +862,16 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
       }
     }
     const recipe = draft.secretJudge?.designRecipe;
-    if (recipe && draftRuntime.language === 'racket' && errors.length === 0) {
+    if (
+      recipe &&
+      designRecipeApplies(draftRuntime, codeReferenceSolution(draft)) &&
+      errors.length === 0
+    ) {
       const recipeFor = (studentCode: string) =>
-        runRacketDesignRecipe({
+        runDesignRecipe(draftRuntime, {
           studentCode,
           referenceCode: codeReferenceSolution(draft),
           starterCode: draftStarterCode,
-          level: draftRuntime.level,
           recipe,
           timeoutMs: draft.secretJudge?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         });
@@ -823,7 +881,9 @@ export async function verifyNotebookCodeDraftReferenceAnswer(
       }
       if (referenceItems.length === 0) {
         errors.push(
-          '设计配方没有可检查的项：参考答案里没有 @htdf / @htdd 标签，或 starter 已经全部给出',
+          draftRuntime.language === 'racket'
+            ? '设计配方没有可检查的项：参考答案里没有 @htdf / @htdd 标签，或 starter 已经全部给出'
+            : '设计配方没有可检查的项：参考答案里的函数和数据定义 starter 已经全部给出',
         );
       } else if ((await recipeFor(draftStarterCode)).every((item) => item.passed)) {
         errors.push('设计配方检查未能拒绝初始 starter');
@@ -967,8 +1027,12 @@ export function enforceCodeSubmissionCourseContract(args: {
 
 const DESIGN_RECIPE_LABELS: Record<NotebookDesignRecipeCheck['id'], [string, string]> = {
   read: ['读取代码', 'Reading the file'],
-  signature: ['@signature', '@signature'],
-  template_origin: ['@template-origin', '@template-origin'],
+  signature: ['签名（@signature）', 'Signature'],
+  typecheck: ['@typecheck', '@typecheck'],
+  purpose: ['目的说明（docstring）', 'Purpose'],
+  stub: ['存根（stub）', 'Stub'],
+  data_definition: ['数据定义', 'Data definition'],
+  template_origin: ['模板来源（template based on）', 'Template origin'],
   dd_template_rules: ['@dd-template-rules', '@dd-template-rules'],
   template: ['模板', 'Template'],
   test_validity: ['测试是否正确', 'Tests are correct'],
@@ -998,14 +1062,14 @@ function designRecipeReference(problem: NotebookProblemRecord): string {
 }
 
 /**
- * Racket problems with a design recipe score partially: the recipe share is split evenly
+ * Problems with a design recipe (Racket or cs103 Python) score partially: the recipe share is split evenly
  * over its checks and the rest follows the fraction of tests passed. Full marks need every
  * test and every check.
  */
 async function applyDesignRecipe(args: {
   problem: NotebookProblemRecord;
   recipe: RacketDesignRecipe;
-  level: HtdpLanguageLevel;
+  runtime: CodeRuntime;
   code: string;
   timeoutMs: number;
   testsPassed: number;
@@ -1016,11 +1080,10 @@ async function applyDesignRecipe(args: {
   const referenceCode = designRecipeReference(args.problem);
   if (!referenceCode || !isNotebookCodeProblemRecord(args.problem)) return args.evaluated;
   const items = (
-    await runRacketDesignRecipe({
+    await runDesignRecipe(args.runtime, {
       studentCode: args.code,
       referenceCode,
       starterCode: args.problem.publicContent.starterCode,
-      level: args.level,
       recipe: args.recipe,
       timeoutMs: args.timeoutMs,
     })
@@ -1140,16 +1203,14 @@ export async function judgeNotebookCodeProblem(args: {
   const secretFiles = [...publicFiles, ...runnerFiles(args.secretJudge?.files)];
 
   const payload = buildCodePayload(problem, args.secretJudge, args.kind, runTarget);
-  const designRecipe =
-    runtime.language === 'racket' && designRecipeReference(problem)
-      ? args.secretJudge?.designRecipe
-      : undefined;
+  const designRecipe = designRecipeApplies(runtime, designRecipeReference(problem))
+    ? args.secretJudge?.designRecipe
+    : undefined;
 
   // A design-recipe-only problem (e.g. write an HtDD template) has no tests to run.
   if (
     args.kind === 'submit' &&
     designRecipe &&
-    runtime.language === 'racket' &&
     payload.publicCases.length === 0 &&
     payload.secretCases.length === 0
   ) {
@@ -1157,7 +1218,7 @@ export async function judgeNotebookCodeProblem(args: {
       return await applyDesignRecipe({
         problem,
         recipe: designRecipe,
-        level: runtime.level,
+        runtime,
         code,
         timeoutMs: payload.timeoutMs,
         testsPassed: 0,
@@ -1418,20 +1479,19 @@ export async function judgeNotebookCodeProblem(args: {
       userAnswer: args.userAnswer,
       courseIdentity: args.courseIdentity,
       locale,
-      evaluated:
-        designRecipe && runtime.language === 'racket'
-          ? await applyDesignRecipe({
-              problem,
-              recipe: designRecipe,
-              level: runtime.level,
-              code,
-              timeoutMs: payload.timeoutMs,
-              testsPassed: publicPassed + secretPassed,
-              testsTotal: publicCaseResults.length + secretCases.length,
-              evaluated,
-              locale,
-            })
-          : evaluated,
+      evaluated: designRecipe
+        ? await applyDesignRecipe({
+            problem,
+            recipe: designRecipe,
+            runtime,
+            code,
+            timeoutMs: payload.timeoutMs,
+            testsPassed: publicPassed + secretPassed,
+            testsTotal: publicCaseResults.length + secretCases.length,
+            evaluated,
+            locale,
+          })
+        : evaluated,
     });
   } catch (error) {
     return {

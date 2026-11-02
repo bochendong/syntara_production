@@ -570,7 +570,7 @@ export const notebookProblemSecretJudgeSchema = z.object({
   files: z.array(notebookCodeFileSchema).max(8).optional(),
   /// 大题里的代码小问：按 label 存各自的隐藏测试
   parts: z.record(notebookProblemPartLabelSchema, notebookProblemPartSecretJudgeSchema).optional(),
-  /// 只用于 Racket 题
+  /// 只用于 Racket 题和用 cs103 写的 Python 题（UBC CPSC 103）
   designRecipe: racketDesignRecipeSchema.optional(),
 });
 
@@ -685,6 +685,10 @@ export const notebookCodeRunTargetSchema = z.enum(['code', 'public', 'secret']);
 export const notebookDesignRecipeCheckIdSchema = z.enum([
   'read',
   'signature',
+  'typecheck',
+  'purpose',
+  'stub',
+  'data_definition',
   'template_origin',
   'dd_template_rules',
   'template',
@@ -692,7 +696,7 @@ export const notebookDesignRecipeCheckIdSchema = z.enum([
   'test_thoroughness',
 ]);
 
-/// 一条设计配方检查：target 是 @htdf 的函数名或 @htdd 的类型名
+/// 一条设计配方检查：target 是 @htdf 的函数名或 @htdd 的类型名（Python 题是函数名或数据定义名）
 export const notebookDesignRecipeCheckSchema = z.object({
   id: notebookDesignRecipeCheckIdSchema,
   target: z.string().max(120),
