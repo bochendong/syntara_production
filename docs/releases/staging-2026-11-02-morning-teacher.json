@@ -1,0 +1,108 @@
+{
+  "date": "2026-11-02",
+  "environment": "staging",
+  "status": "SUCCESS",
+  "sourceCommit": "7b39312c43c389f6c9782e52f9fdfc02fd07dfc8",
+  "branches": [
+    {
+      "name": "codex/cpsc110-review-sync-20261102",
+      "head": "a7a9ee5db0448b09eada895979e957ceee6e004a"
+    },
+    {
+      "name": "codex/teacher-classroom",
+      "head": "a7a5468c01e18315fc8b32dde7142cf81b76ea02",
+      "pullRequest": 27
+    }
+  ],
+  "verification": {
+    "regressionTests": 30,
+    "teacherClassroomDatabaseGroups": 7,
+    "actualHttpRequests": 14,
+    "prettier": "passed",
+    "eslint": "passed",
+    "rootTypes": "passed",
+    "nativeTypes": "passed",
+    "viteConfigTypes": "passed",
+    "productionBuild": "Full native-web and Next production builds passed locally and on Railway; final CSS-only fix also passed targeted formatting and native-web rebuild at 7b39312c.",
+    "pythonBundleTraces": 6,
+    "racketJudge": "passed",
+    "pythonCs103": "passed",
+    "localBrowser": "Reviewed Racket step-by-step question renders its code editor and code/test/history tabs.",
+    "overlayRegression": "Actual ClassroomPanel rendered over a global-page fixture. Clicking its visible close button removes the dialog; the underlying action counter remains zero.",
+    "liveBrowser": "Authenticated staging account opens the Teaching course list and classroom join panel; final screenshot confirms the panel is in front. Closing it removes the dialog and leaves CPSC110 unopened. Browser error log is empty.",
+    "assetMatch": "Exact live JavaScript and CSS SHA-256 match the local native-web build at the final source commit."
+  },
+  "migration": {
+    "name": "20261102120000_teacher_classroom",
+    "localSchemaDiff": "empty after applying committed SQL to the preceding schema",
+    "isolation": "Disposable localhost PostgreSQL 17; unrelated vector columns mapped to bytea in temporary test schemas only.",
+    "staging": "Applied successfully by the initial Railway predeploy; the CSS-only follow-up has no new migration."
+  },
+  "courseContentSync": {
+    "applied": false,
+    "note": "Merge/deploy scope only. Reviewed CPSC110 presentation-content migration and eight World-problem archives remain unapplied."
+  },
+  "limits": [
+    "One empty class was accidentally created during browser acceptance, then guardedly removed after confirming zero members, zero sessions and unchanged creation metadata. No student submissions or enrolments were changed.",
+    "Desktop/iOS packages not rebuilt; their new Tauri commands require a new installer.",
+    "The answer-reveal classroom action records/displays availability; it retains the existing practice-page solution rules."
+  ],
+  "localBuild": {
+    "revision": "7b39312c43c389f6c9782e52f9fdfc02fd07dfc8",
+    "assets": [
+      {
+        "path": "/native-web/assets/index-C_0qNbRN.js",
+        "sha256": "e4cf02668b5471662d0ead5bb5305c27f3832fe4ac12177aa4c529f61faae8ea",
+        "bytes": 2029238
+      },
+      {
+        "path": "/native-web/assets/index-D56Mf5Y6.css",
+        "sha256": "42e6914c468dbc8cc86633e7964a888797863ec40979f67e16ccdade69d95050",
+        "bytes": 434793
+      }
+    ]
+  },
+  "releaseIncident": {
+    "issue": "Classroom dialog at z-index 80 was hidden behind the global Teaching page at 90; a browser close click reached the underlying open-class action.",
+    "fix": "Raise classroom overlay above global pages and navigation (z-index 220).",
+    "cleanup": {
+      "cleaned": true,
+      "classId": "cmvzjunwr0001te01ykebn8h2",
+      "members": 0,
+      "sessions": 0,
+      "createdAt": "2026-11-02T17:45:22.059Z",
+      "learnerDataChanged": false
+    },
+    "studentAttemptsChanged": false
+  },
+  "railwayDeployment": "d2eb5a55-a7e4-44bc-9313-f41237886ae4",
+  "liveApplication": {
+    "passed": true,
+    "verifiedAt": "2026-11-02T17:59:05.560Z",
+    "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+    "health": {
+      "status": "ok",
+      "service": "syntara-native",
+      "environment": "staging"
+    },
+    "version": {
+      "version": "0.1.1",
+      "release": "2026.10.28-sync.1",
+      "syncProtocol": 2,
+      "revision": "7b39312c43c389f6c9782e52f9fdfc02fd07dfc8"
+    },
+    "assets": [
+      {
+        "path": "/native-web/assets/index-C_0qNbRN.js",
+        "sha256": "e4cf02668b5471662d0ead5bb5305c27f3832fe4ac12177aa4c529f61faae8ea",
+        "bytes": 2029238
+      },
+      {
+        "path": "/native-web/assets/index-D56Mf5Y6.css",
+        "sha256": "42e6914c468dbc8cc86633e7964a888797863ec40979f67e16ccdade69d95050",
+        "bytes": 434793
+      }
+    ]
+  },
+  "productionUnchanged": true
+}
