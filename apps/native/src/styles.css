@@ -4823,10 +4823,51 @@ textarea:focus-visible {
 
 .native-problem-practice-progress-note {
   display: inline-flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
+  justify-self: start;
+  max-width: 100%;
   margin: 0;
-  color: #64748b;
+  padding: 7px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.native-problem-practice-progress-note > svg {
+  flex-shrink: 0;
+}
+
+.native-problem-practice-progress-note[data-status='passed'] {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.native-problem-practice-progress-note[data-status='failed'] {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.native-problem-practice-progress-note[data-status='partial'] {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.native-problem-practice-progress-note[data-status='pending'] {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.native-problem-practice-progress-count {
+  padding-left: 8px;
+  border-left: 1px solid currentColor;
   font-size: 12px;
 }
 

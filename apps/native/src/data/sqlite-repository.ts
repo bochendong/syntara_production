@@ -1,4 +1,5 @@
 import Database from '@tauri-apps/plugin-sql';
+import { problemAttemptHasMistake } from './problem-attempt-history';
 import { invoke } from '@tauri-apps/api/core';
 import type {
   LocalAsset,
@@ -1124,9 +1125,8 @@ export class SqliteLocalRepository implements LocalRepository {
   }
 
   async listProblemProgress(courseId: string): Promise<LocalProblemProgress[]> {
-    const rows = await (
-      await this.database()
-    ).select<SqlRow[]>(
+    const database = await this.database();
+    const rows = await database.select<SqlRow[]>(
       `SELECT problem_progress.*
          FROM problem_progress
          INNER JOIN problems ON problems.id = problem_progress.problem_id
@@ -1135,7 +1135,27 @@ export class SqliteLocalRepository implements LocalRepository {
                  problem_progress.updated_at DESC`,
       [courseId],
     );
-    return rows.map(mapProblemProgress);
+    const attempts = await database.select<SqlRow[]>(
+      `SELECT problem_attempts.problem_id, problem_attempts.status, problem_attempts.result_json
+         FROM problem_attempts
+         INNER JOIN problems ON problems.id = problem_attempts.problem_id
+        WHERE problems.course_id = $1 AND problem_attempts.status IN ('failed', 'partial')`,
+      [courseId],
+    );
+    const mistakes = new Set(
+      attempts
+        .filter((row) =>
+          problemAttemptHasMistake({
+            status: stringValue(row.status),
+            result: jsonValue<Record<string, unknown> | null>(row.result_json, null),
+          }),
+        )
+        .map((row) => stringValue(row.problem_id)),
+    );
+    return rows.map((row) => ({
+      ...mapProblemProgress(row),
+      hasIncorrectAttempt: mistakes.has(stringValue(row.problem_id)),
+    }));
   }
 
   async saveProblemAttempt(input: SaveProblemAttemptInput): Promise<SaveProblemAttemptResult> {

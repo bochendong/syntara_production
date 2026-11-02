@@ -121,6 +121,8 @@ export interface LocalProblemAttempt {
 export interface LocalProblemProgress {
   id: string;
   problemId: string;
+  /** Derived from saved attempts when listing progress; not a separate persisted status. */
+  hasIncorrectAttempt?: boolean;
   latestAttemptId: string | null;
   status: string;
   score: number | null;

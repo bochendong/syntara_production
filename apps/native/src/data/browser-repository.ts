@@ -1,4 +1,5 @@
 import { browserApp, browserAccountId } from './browser-runtime';
+import { problemAttemptHasMistake } from './problem-attempt-history';
 import { nativeChannel } from '../channel';
 import Dexie, { type EntityTable } from 'dexie';
 import type {
@@ -627,10 +628,20 @@ export class BrowserLocalRepository implements LocalRepository {
       .where('problemId')
       .anyOf(problems.map((problem) => problem.id))
       .toArray();
-    return progress.sort(
-      (left, right) =>
-        (right.lastAttemptAt ?? 0) - (left.lastAttemptAt ?? 0) || right.updatedAt - left.updatedAt,
-    );
+    const mistakes = new Set<string>();
+    await this.database.problemAttempts
+      .where('problemId')
+      .anyOf(progress.map((item) => item.problemId))
+      .each((attempt) => {
+        if (problemAttemptHasMistake(attempt)) mistakes.add(attempt.problemId);
+      });
+    return progress
+      .map((item) => ({ ...item, hasIncorrectAttempt: mistakes.has(item.problemId) }))
+      .sort(
+        (left, right) =>
+          (right.lastAttemptAt ?? 0) - (left.lastAttemptAt ?? 0) ||
+          right.updatedAt - left.updatedAt,
+      );
   }
 
   async saveProblemAttempt(input: SaveProblemAttemptInput): Promise<SaveProblemAttemptResult> {

@@ -36,6 +36,7 @@ export function notifyProblemProgress() {
 /** 本机作答进度：每道题最新的状态。 */
 export function useProblemStatuses(courseId: string, revision: unknown) {
   const [statuses, setStatuses] = useState<Map<string, ProblemStatus>>(() => new Map());
+  const [mistakes, setMistakes] = useState<Set<string>>(() => new Set());
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const bump = () => setTick((value) => value + 1);
@@ -54,13 +55,18 @@ export function useProblemStatuses(courseId: string, revision: unknown) {
           if (status) next.set(item.problemId, status);
         }
         setStatuses(next);
+        setMistakes(
+          new Set(
+            progress.filter((item) => item.hasIncorrectAttempt).map((item) => item.problemId),
+          ),
+        );
       })
       .catch(() => undefined);
     return () => {
       alive = false;
     };
   }, [courseId, revision, tick]);
-  return [statuses, setStatuses] as const;
+  return [statuses, setStatuses, mistakes] as const;
 }
 
 const DIFFICULTY_TICKS: Record<LocalProblem['difficulty'], number> = {
@@ -75,6 +81,7 @@ export function SheetCell({
   status,
   difficulty,
   current = false,
+  previouslyIncorrect = false,
   title,
   size = 'md',
   fresh = false,
@@ -84,12 +91,19 @@ export function SheetCell({
   status: ProblemStatus | null | undefined;
   difficulty?: LocalProblem['difficulty'];
   current?: boolean;
+  previouslyIncorrect?: boolean;
   title?: string;
   size?: 'sm' | 'md';
   /** 机构新发布的题：右上角一颗小蓝珠。 */
   fresh?: boolean;
   onClick: () => void;
 }) {
+  const recovered = status === 'passed' && previouslyIncorrect;
+  const statusLabel = recovered
+    ? '曾经做错过，现已通过'
+    : status
+      ? STATUS_LABELS[status]
+      : '未作答';
   return (
     <button
       type="button"
@@ -101,13 +115,15 @@ export function SheetCell({
       ]
         .filter(Boolean)
         .join(' ')}
-      title={title}
-      aria-label={`${number === undefined ? title || '我的题目' : `第 ${number} 题`}${status ? `，${STATUS_LABELS[status]}` : ''}`}
+      title={title ? `${title} · ${statusLabel}` : statusLabel}
+      aria-label={`${number === undefined ? title || '我的题目' : `第 ${number} 题`}，${statusLabel}`}
       aria-current={current ? 'true' : undefined}
       onClick={onClick}
     >
       <span className="sheet-cell-orb">
-        {status ? <img src={marbleImages[STATUS_MARBLES[status]]} alt="" /> : null}
+        {status ? (
+          <img src={marbleImages[recovered ? 'purple' : STATUS_MARBLES[status]]} alt="" />
+        ) : null}
         <b>{number ?? '私'}</b>
         {fresh ? <img className="sheet-cell-new" src={marbleImages.blue} alt="新" /> : null}
       </span>

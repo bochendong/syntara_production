@@ -296,7 +296,7 @@ export function ProblemBankPage({
     [workspace.problems],
   );
   const releaseControl = canRelease ? <CourseReleaseButton courseId={courseId} /> : null;
-  const [statuses] = useProblemStatuses(courseId, workspace.problems);
+  const [statuses, , historicalMistakes] = useProblemStatuses(courseId, workspace.problems);
   const layers = useCourseLayers(courseId);
   const [menuTarget, setMenuTarget] = useState<LayerMenuTarget | null>(null);
   const lastAttemptAt = useLastAttemptTimes(courseId, workspace.problems);
@@ -821,6 +821,7 @@ export function ProblemBankPage({
                             <SheetCell
                               number={hasFilters ? index + 1 : numberById.get(problem.id)}
                               status={statuses.get(problem.id)}
+                              previouslyIncorrect={historicalMistakes.has(problem.id)}
                               difficulty={problem.difficulty}
                               title={
                                 problem.chapterName

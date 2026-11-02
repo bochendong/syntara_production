@@ -1,4 +1,5 @@
 import { prepareHandwritingAnswers, prepareProblemHandwriting } from '../data/handwriting-answer';
+import { problemAttemptHasMistake } from '../data/problem-attempt-history';
 import { HandwritingAnswerInput } from './problem-bank/handwriting-answer-input';
 import { clearHandwritingDrafts, handwritingDraftKey } from '../data/handwriting-draft';
 import { visibleCodeTests } from '../../../../lib/problem-bank/visible-code-tests';
@@ -20,6 +21,10 @@ import {
 } from 'react';
 import {
   CheckCircle2,
+  CircleDashed,
+  CircleMinus,
+  CircleX,
+  Clock3,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -157,6 +162,13 @@ type ProblemPracticePageProps = {
 };
 
 type RightTab = 'answer' | 'code' | 'tests' | 'history' | 'solution';
+
+const PROGRESS_PRESENTATION: Record<string, { label: string; icon: typeof CheckCircle2 }> = {
+  passed: { label: '已通过', icon: CheckCircle2 },
+  partial: { label: '部分正确', icon: CircleMinus },
+  failed: { label: '未通过', icon: CircleX },
+  pending: { label: '待批改', icon: Clock3 },
+};
 
 const PANE_RATIO_KEY = 'syntara.practice-pane-ratio';
 const clampPaneRatio = (value: number) => Math.min(75, Math.max(25, value));
@@ -443,7 +455,7 @@ export function ProblemPracticePage({
   const [debugCode, setDebugCode] = useState('');
   const debugSequence = useRef(0);
   const debugRunning = debugResult.phase === 'loading' || debugResult.phase === 'running';
-  const [statuses, setStatuses] = useProblemStatuses(problems[0]?.courseId ?? '', launch);
+  const [statuses, setStatuses, mistakes] = useProblemStatuses(problems[0]?.courseId ?? '', launch);
   const [justGraded, setJustGraded] = useState<ProblemStatus | null>(null);
   const [finish, setFinish] = useState<'hidden' | 'shown' | 'dismissed'>('hidden');
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -1511,6 +1523,9 @@ export function ProblemPracticePage({
         { id: 'history', label: '记录', icon: Terminal },
       ];
 
+  const progressPresentation = PROGRESS_PRESENTATION[document?.progress?.status ?? ''];
+  const ProgressIcon = progressPresentation?.icon ?? CircleDashed;
+
   return (
     <section className="native-problem-practice" aria-label="本地做题器">
       {submissionNotice ? (
@@ -1565,6 +1580,11 @@ export function ProblemPracticePage({
                         size="sm"
                         number={launch.numbers?.[id] ?? index + 1}
                         status={statuses.get(id)}
+                        previouslyIncorrect={
+                          mistakes.has(id) ||
+                          (document?.problem.id === id &&
+                            document.attempts.some(problemAttemptHasMistake))
+                        }
                         current={id === currentId}
                         title={problemMap.get(id)?.title}
                         onClick={() => {
@@ -1970,9 +1990,16 @@ export function ProblemPracticePage({
                 </>
               )}
               {document?.progress ? (
-                <p className="native-problem-practice-progress-note">
-                  <CheckCircle2 size={14} />
-                  {document.progress.status} · 已作答 {document.progress.attemptedCount} 次
+                <p
+                  className="native-problem-practice-progress-note"
+                  data-status={document.progress.status}
+                  role="status"
+                >
+                  <ProgressIcon size={16} aria-hidden="true" />
+                  <strong>{progressPresentation?.label ?? '已作答'}</strong>
+                  <span className="native-problem-practice-progress-count">
+                    已作答 {document.progress.attemptedCount} 次
+                  </span>
                 </p>
               ) : null}
             </div>
