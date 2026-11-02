@@ -1614,15 +1614,19 @@ const DESIGN_RECIPE_CHECK_LABELS: Record<
   { zh: string; en: string }
 > = {
   read: { zh: '读取代码', en: 'Reading the file' },
-  signature: { zh: '@signature', en: '@signature' },
-  template_origin: { zh: '@template-origin', en: '@template-origin' },
+  signature: { zh: '签名（@signature）', en: 'Signature' },
+  typecheck: { zh: '@typecheck', en: '@typecheck' },
+  purpose: { zh: '目的说明（docstring）', en: 'Purpose' },
+  stub: { zh: '存根（stub）', en: 'Stub' },
+  data_definition: { zh: '数据定义', en: 'Data definition' },
+  template_origin: { zh: '模板来源（template based on）', en: 'Template origin' },
   dd_template_rules: { zh: '@dd-template-rules', en: '@dd-template-rules' },
   template: { zh: '模板', en: 'Template' },
   test_validity: { zh: '测试是否正确', en: 'Tests are correct' },
   test_thoroughness: { zh: '测试是否覆盖全面', en: 'Tests are thorough' },
 };
 
-/** Racket design-recipe checks of a submission, one row per check, like an autograder report. */
+/** Design-recipe checks of a submission (Racket or cs103 Python), one row per check, like an autograder report. */
 function DesignRecipeChecklist({
   attempt,
   locale,
