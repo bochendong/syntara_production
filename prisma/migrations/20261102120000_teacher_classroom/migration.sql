@@ -120,4 +120,3 @@ ALTER TABLE "ClassSessionItem" ADD CONSTRAINT "ClassSessionItem_sessionId_fkey" 
 
 -- AddForeignKey
 ALTER TABLE "ClassSessionItem" ADD CONSTRAINT "ClassSessionItem_problemId_fkey" FOREIGN KEY ("problemId") REFERENCES "NotebookProblem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
