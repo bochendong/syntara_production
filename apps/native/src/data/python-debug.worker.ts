@@ -1,4 +1,8 @@
 import type { PyodideInterface } from 'pyodide';
+import {
+  CS103_PYTHON_SOURCE,
+  cs103BootstrapPython,
+} from '../../../../lib/problem-bank/cs103-python';
 
 export type DebugWorkerMessage =
   | { type: 'ready' }
@@ -75,6 +79,9 @@ scope.onmessage = async ({ data: { code, indexURL, files = [], stdin = '' } }) =
       if (file.path.includes('/')) python.FS.mkdirTree(folder);
       python.FS.writeFile(file.path, file.content, { encoding: 'utf8' });
     }
+    // UBC CPSC 103 problems import the course's cs103 library.
+    python.globals.set('_syntara_cs103', CS103_PYTHON_SOURCE);
+    python.runPython(`${cs103BootstrapPython('_syntara_cs103')}\ndel _syntara_cs103`);
     python.globals.set('_syntara_stdin', stdin);
     python.runPython('import sys, io; sys.stdin = io.StringIO(_syntara_stdin); del _syntara_stdin');
     scope.postMessage({ type: 'ready' });

@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runPythonJson } from '@/lib/server/python-runner';
+import { CS103_PYTHON_SOURCE, usesCs103 } from '@/lib/problem-bank/cs103-python';
 import {
   DEFAULT_HTDP_LANGUAGE_LEVEL,
   RACKET_DRIVER,
@@ -174,8 +175,18 @@ def run_table_rows(payload):
     emit({"rows": rows})
 
 
+def install_cs103(source):
+    # UBC CPSC 103's library: @typecheck, expect / summary, parse_int / parse_float
+    import types
+    module = types.ModuleType("cs103")
+    exec(source, module.__dict__)
+    sys.modules["cs103"] = module
+
+
 def main():
     payload = json.loads(sys.argv[1])
+    if payload.get("cs103Source"):
+        install_cs103(payload["cs103Source"])
     work_dir = os.path.dirname(payload["codePath"])
     os.chdir(work_dir)
     written = write_files(payload.get("files"))
@@ -465,6 +476,7 @@ async function executePythonPayload(args: {
 
     const payload = {
       codePath,
+      cs103Source: CS103_PYTHON_SOURCE,
       testCases: args.testCases,
       mode: args.mode ?? 'tests',
       testCode: args.testCases[0]?.testCode,
@@ -1112,8 +1124,10 @@ export async function judgeNotebookCodeProblem(args: {
   }
   const runtime = codeRuntimeFor(content);
   // Racket starters define the stub the student replaces; prepending it would redefine names.
+  // cs103 answers are whole design-recipe files that replace the starter.
   const starterPrelude =
     runtime.language === 'python' &&
+    !usesCs103(content.starterCode) &&
     !slotTemplate &&
     content.starterCode &&
     !code.trim().startsWith(content.starterCode.trim())
