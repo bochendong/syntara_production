@@ -57,7 +57,9 @@ function loadSource(file) {
   const inspectPrivateNormalizer =
     filename === path.join(root, 'lib/server/notebook-problems/service.ts')
       ? '\nexports.normalizeDraftForPersistenceForTest = normalizeDraftForPersistence;'
-      : '';
+      : filename === path.join(root, 'lib/server/course-problem-import.ts')
+        ? '\nexports.comparablePublicContentForTest = comparablePublicContent;'
+        : '';
   new Function('require', 'module', 'exports', compiled.outputText + inspectPrivateNormalizer)(
     localRequire,
     loaded,
@@ -302,6 +304,43 @@ test('same batch retry returns exact receipt without another write or chapter', 
   assert.equal(h.writes, 1);
   assert.equal(h.chapters.size, 1);
 });
+test('replay accepts an optional empty image list without repeating a saved import', async () => {
+  const h = harness();
+  const data = manifest();
+  const actor = { userId: 'owner' };
+  const preview = await h.service.preview(data, actor);
+  const first = await h.service.commit(data, actor, preview.payloadHash);
+  const row = h.questions.get(first.items[0].problem.id);
+  row.publicContentJson = { ...row.publicContentJson, assets: { images: [] } };
+  const replay = await h.service.commit(data, actor, preview.payloadHash);
+  assert.equal(replay.replayed, true);
+  assert.equal(h.writes, 1);
+  row.publicContentJson.assets.images.push({ id: 'unexpected', src: '/unexpected.png' });
+  await assert.rejects(h.service.commit(data, actor, preview.payloadHash), {
+    code: 'readback_conflict',
+  });
+  assert.equal(h.writes, 1);
+});
+
+test('recipe metadata comparison preserves teaching content and ordinary checker flags', () => {
+  const { comparablePublicContentForTest: compare } = loadSource(
+    'lib/server/course-problem-import.ts',
+  );
+  const expected = {
+    type: 'code',
+    language: 'racket',
+    stem: 'Complete Foo',
+    secretConfigPresent: true,
+  };
+  const historical = { ...expected, secretConfigPresent: false };
+  const secret = { designRecipe: { checkTemplate: true, weight: 100, thoroughness: [] } };
+  assert.deepEqual(compare(historical, secret), compare(expected, secret));
+  assert.notDeepEqual(compare(historical, {}), compare(expected, {}));
+  assert.notDeepEqual(
+    compare({ ...historical, stem: 'Changed' }, secret),
+    compare(expected, secret),
+  );
+});
 test('readback refuses a saved shared question changed to a private owner', async () => {
   const h = harness();
   const data = manifest();
@@ -448,6 +487,44 @@ test('reviewed construction tasks, local definitions and two Markdown tables sur
   const legacyDraft = manifest().items[0].draft;
   legacyDraft.publicContent.stem = preparedStems[0];
   assert.ok(normalizeDraftForPersistenceForTest(legacyDraft, 0).validationErrors.length > 0);
+});
+
+test('persistence keeps the hidden-config marker for pure Racket design-recipe grading', () => {
+  const { normalizeDraftForPersistenceForTest } = loadSource(
+    'lib/server/notebook-problems/service.ts',
+  );
+  const draft = {
+    ...manifest().items[0].draft,
+    type: 'code',
+    publicContent: {
+      type: 'code',
+      language: 'racket',
+      runnerAdapter: 'racket-check-expect',
+      htdpLanguageLevel: 'beginner',
+      stem: 'Complete Foo',
+      functionSignature: '(@htdd Foo)',
+      starterCode: '(require spd/tags)\n(@htdd Foo)',
+      publicTests: [],
+      sampleIO: [],
+      secretConfigPresent: true,
+    },
+    grading: {
+      type: 'code',
+      graderKind: 'code_runner',
+      solutionCode: '(require spd/tags)\n(@htdd Foo)',
+      publishRequirementsMet: true,
+    },
+    secretJudge: {
+      language: 'racket',
+      runnerAdapter: 'racket-check-expect',
+      secretTests: [],
+      designRecipe: { checkTemplate: true, weight: 100, thoroughness: [] },
+    },
+    sourceMeta: { codeVerification: { passed: true } },
+  };
+  const saved = normalizeDraftForPersistenceForTest(draft, 0, true);
+  assert.equal(saved.status, 'published');
+  assert.equal(saved.publicContent.secretConfigPresent, true);
 });
 test('same key changed grading/difficulty conflicts and never overwrites', async () => {
   const h = harness();
