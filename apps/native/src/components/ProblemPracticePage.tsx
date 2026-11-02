@@ -7,7 +7,11 @@ import { isValidPhotoAnswerUpload } from '../../../../lib/problem-bank/photo-ans
 import { PhotoAnswerInput } from './problem-bank/photo-answer-input';
 import { PhoneConfirm } from './PhonePages';
 import { useBackDismiss } from '../lib/use-back-dismiss';
-import { codePassedPublicTests, type PublicTestReceipt } from '../data/public-test-gate';
+import {
+  codePassedPublicTests,
+  codeReadyToSubmit,
+  type PublicTestReceipt,
+} from '../data/public-test-gate';
 import type { PhotoAnswerImage } from '../data/local-problem-grading';
 import {
   useCallback,
@@ -496,7 +500,10 @@ export function ProblemPracticePage({
   const chapterTitle = launch.title || displayedProblem?.chapterName || undefined;
   const total = orderedIds.length;
   const isCode = currentProblem ? problemIsCode(currentProblem) : false;
-  const publicContent = displayedProblem ? problemPublicContent(displayedProblem) : {};
+  const publicContent = useMemo(
+    () => (displayedProblem ? problemPublicContent(displayedProblem) : {}),
+    [displayedProblem],
+  );
   const codeContent = isCode ? asCodeContent(publicContent) : null;
   const codeLanguage = codeContent?.language ?? 'python';
   // Racket 在浏览器里跑不了：运行、公开测试和「自己试」都交给服务器判题器
@@ -850,7 +857,8 @@ export function ProblemPracticePage({
         return;
       if (
         answerToSubmit.kind === 'code' &&
-        !codePassedPublicTests(
+        !codeReadyToSubmit(
+          publicContent,
           publicTestReceipts.current.get(JSON.stringify([currentProblem.id, ''])),
           answerToSubmit.code,
         )
@@ -1013,6 +1021,7 @@ export function ProblemPracticePage({
       submitting,
       language,
       stem,
+      publicContent,
     ],
   );
 
