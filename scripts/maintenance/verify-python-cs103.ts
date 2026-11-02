@@ -22,9 +22,12 @@ async function main() {
     return originalResolveFilename.call(this, resolvedRequest, parent, isMain, options);
   };
 
-  const [{ CS103_PYTHON_SOURCE }, judge] = await Promise.all([
+  const [{ CS103_PYTHON_SOURCE }, judge, cs103Tests, drafts, readiness] = await Promise.all([
     import('../../lib/problem-bank/cs103-python'),
     import('../../lib/server/notebook-problems/judge'),
+    import('../../lib/problem-bank/cs103-tests'),
+    import('../../lib/server/notebook-problems/import.core.drafts'),
+    import('../../lib/problem-bank/code-readiness'),
   ]);
 
   // 1. typecheck forms, run in the local CPython (same module source the judge installs).
@@ -204,6 +207,110 @@ summary()
   console.log('script run', JSON.stringify(ran.result.stdout));
   assert.match(ran.result.stdout ?? '', /^2 of 3 tests passed/);
   assert.match(ran.result.stdout ?? '', /failed: got 20\.22 but expected 20/);
+
+  // 3. expect() calls are read from the source: nested brackets, strings, comments, continuation.
+  const parsed = cs103Tests.extractCs103Expects(`from cs103 import *
+start_testing()
+expect(f(1, "a,b"), 2)  # commas in strings
+expect(g([1, 2], {'x': (3, 4)}),
+       [1,  # trailing comment
+        2])
+expect(h("""x)
+y"""), 'it\\'s')
+    expect(indented(1), 1)
+summary()
+`);
+  assert.deepEqual(
+    parsed.map(({ actual, expected }) => [actual, expected.replace(/\s+/g, ' ')]),
+    [
+      ['f(1, "a,b")', '2'],
+      ["g([1, 2], {'x': (3, 4)})", '[1, 2]'],
+      ['h("""x)\ny""")', "'it\\'s'"],
+    ],
+  );
+
+  // 4. A cs103 draft with no tests gets suites from its reference's expects and passes checks.
+  const recipeStarter = `from cs103 import *
+from typing import NamedTuple
+
+Velocity = NamedTuple('Velocity', [('speed', float), ('dir', int)])
+# interp. a velocity with a speed in m/s and a direction in degrees
+V1 = Velocity(9, 22)
+
+@typecheck
+def turn(v: Velocity, d: int) -> Velocity:
+    """
+    returns v turned by d degrees (mod 360)
+    """
+    return V1  # stub
+
+start_testing()
+expect(turn(V1, 0), V1)
+summary()
+`;
+  const recipeSolution = recipeStarter
+    .replace(
+      '    return V1  # stub',
+      '    # return V1  # stub\n    return Velocity(v.speed, (v.dir + d) % 360)',
+    )
+    .replace(
+      'expect(turn(V1, 0), V1)',
+      [
+        'expect(turn(V1, 0), V1)',
+        'expect(turn(V1, 10).dir, 32)',
+        'expect(turn(Velocity(1, 350), 20), Velocity(1, 10))',
+        'expect(turn(Velocity(2.5, 0), 360), Velocity(2.5, 0))',
+        'expect(turn(V1, 338).dir, 0)',
+      ].join('\n'),
+    );
+  const draft = drafts.normalizeCandidateDraft(
+    {
+      title: 'turn',
+      type: 'code',
+      publicContent: {
+        stem: 'Design a function that turns a velocity.',
+        language: 'python',
+        starterCode: recipeStarter,
+      },
+      grading: { solutionCode: recipeSolution },
+    },
+    'manual',
+  );
+  assert.equal(draft.type, 'code');
+  assert(draft.publicContent.type === 'code' && draft.secretJudge);
+  assert.match(draft.publicContent.publicTestCode ?? '', /def test_turn_1\(self\)/);
+  assert.equal((draft.secretJudge.secretTestCode?.match(/def test_/g) ?? []).length, 3);
+  assert.deepEqual(draft.publicContent.sampleIO, [
+    { input: 'turn(V1, 10).dir', output: '32' },
+    { input: 'turn(V1, 338).dir', output: '0' },
+  ]);
+  assert.deepEqual(readiness.codeDraftReadinessErrors(draft), []);
+  const verification = await judge.verifyNotebookCodeDraftReferenceAnswer(draft);
+  console.log('derived verification', verification);
+  assert.equal(verification.passed, true);
+  const now2 = Date.now();
+  const derivedProblem = {
+    ...problem,
+    id: 'cs103-turn',
+    publicContent: { ...draft.publicContent, secretConfigPresent: true },
+    grading: { type: 'code' as const, solutionCode: recipeSolution, publishRequirementsMet: true },
+    createdAt: now2,
+    updatedAt: now2,
+  };
+  const submitTurn = (code: string) =>
+    judge.judgeNotebookCodeProblem({
+      problem: derivedProblem,
+      secretJudge: draft.secretJudge,
+      userAnswer: { code },
+      kind: 'submit',
+    });
+  const turnReference = await submitTurn(recipeSolution);
+  assert.equal(turnReference.status, 'passed');
+  const noWrap = await submitTurn(recipeSolution.replace('(v.dir + d) % 360', 'v.dir + d'));
+  console.log('no wrap', noWrap.status, noWrap.result.feedback);
+  assert.equal(noWrap.status, 'partial');
+  assert.match(JSON.stringify(noWrap.result), /got Velocity\(speed=1, dir=370\) but expected/);
+
   console.log('cs103 checks passed');
 }
 
