@@ -5,6 +5,7 @@ import path from 'node:path';
 import { runPythonJson } from '@/lib/server/python-runner';
 import { CS103_PYTHON_SOURCE, usesCs103 } from '@/lib/problem-bank/cs103-python';
 import { PYTHON_RECIPE_DRIVER } from '@/lib/server/python-recipe-driver';
+import { designedFunctionsEdited } from '@/lib/problem-bank/function-bodies';
 import {
   DEFAULT_HTDP_LANGUAGE_LEVEL,
   RACKET_DRIVER,
@@ -1064,7 +1065,8 @@ function designRecipeReference(problem: NotebookProblemRecord): string {
 /**
  * Problems with a design recipe (Racket or cs103 Python) score partially: the recipe share is split evenly
  * over its checks and the rest follows the fraction of tests passed. Full marks need every
- * test and every check.
+ * test and every check. Tests only count once a designed function's body differs from the
+ * starter's stub, so a stub that happens to pass some tests earns no test credit.
  */
 async function applyDesignRecipe(args: {
   problem: NotebookProblemRecord;
@@ -1094,7 +1096,13 @@ async function applyDesignRecipe(args: {
   }));
   const points = args.problem.points;
   const recipeShare = items.length === 0 ? 0 : args.testsTotal === 0 ? 1 : args.recipe.weight / 100;
-  const testFraction = args.testsTotal === 0 ? 1 : args.testsPassed / args.testsTotal;
+  const edited = designedFunctionsEdited({
+    language: args.runtime.language,
+    code: args.code,
+    starterCode: args.problem.publicContent.starterCode,
+    referenceCode,
+  });
+  const testFraction = args.testsTotal === 0 ? 1 : edited ? args.testsPassed / args.testsTotal : 0;
   const recipeFraction =
     items.length === 0 ? 1 : items.filter((item) => item.passed).length / items.length;
   const allPassed = testFraction === 1 && recipeFraction === 1;
@@ -1110,6 +1118,11 @@ async function applyDesignRecipe(args: {
       earnedPoints: earned,
       feedback: [
         args.testsTotal > 0 ? args.evaluated.result.feedback : undefined,
+        args.testsTotal > 0 && !edited
+          ? args.locale === 'zh-CN'
+            ? '函数体还是初始的 stub，改写函数体之后测试才计分。'
+            : 'The function body is still the starter stub; tests count once you edit it.'
+          : undefined,
         items.length > 0 ? designRecipeFeedback(items, args.locale) : undefined,
       ]
         .filter(Boolean)

@@ -224,6 +224,48 @@ async function main() {
   assert.equal(wrong.status, 'partial');
   assert.equal(wrong.score, 0);
 
+  // With a design recipe, tests only count once the stub's body is edited: a stub that
+  // happens to pass (superfact 0) = 1 earns no test credit, even reformatted or commented.
+  const luckyStarter = starterCode.replace(
+    '(define (superfact n) 0) ;stub',
+    '(define (superfact n) 1) ;stub',
+  );
+  if (luckyStarter !== starterCode) {
+    const recipeProblem = {
+      ...problem,
+      publicContent: { ...problem.publicContent, starterCode: luckyStarter },
+    };
+    const recipeJudge = {
+      ...draft.secretJudge!,
+      designRecipe: { checkTemplate: false, weight: 30, thoroughness: [] },
+    };
+    const submitRecipe = (code: string) =>
+      judge.judgeNotebookCodeProblem({
+        problem: recipeProblem,
+        secretJudge: recipeJudge,
+        userAnswer: { code },
+        kind: 'submit',
+      });
+    const recipeReference = await submitRecipe(solutionCode);
+    assert.equal(recipeReference.score, 100);
+    const lucky = await submitRecipe(luckyStarter);
+    console.log('lucky stub', lucky.status, lucky.score, lucky.result.feedback);
+    assert.equal(lucky.score, 0);
+    assert.match(lucky.result.feedback ?? '', /tests count once you edit it/);
+    const luckyTagged = await submitRecipe(
+      `${solutionCode.replace(/\(define \(superfact n1\)[\s\S]*$/, '')}(define (superfact n)\n  1) ; still the stub\n`,
+    );
+    console.log('lucky stub with tags', luckyTagged.status, luckyTagged.score);
+    assert.equal(luckyTagged.status, 'partial');
+    assert.equal(luckyTagged.score, 30);
+    const factorial = await submitRecipe(
+      `${solutionCode.replace(/\(define \(superfact n1\)[\s\S]*$/, '')}(define (superfact n)\n  (cond [(zero? n) 1]\n        [else (* n (superfact (sub1 n)))]))\n`,
+    );
+    console.log('edited but wrong', factorial.status, factorial.score);
+    assert.equal(factorial.status, 'partial');
+    assert.ok(factorial.score > 30 && factorial.score < 100);
+  }
+
   // Students cannot switch languages: #lang racket is dropped and ISL+ rejects set!.
   const escaped = await submit(
     '#lang racket\n(define counter 0)\n(define (superfact n) (set! counter 1) 1)',

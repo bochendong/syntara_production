@@ -414,6 +414,19 @@ from typing import NamedTuple
   assert.equal(fullRecipe.score, 100);
   assert.ok((fullRecipe.result.designRecipe ?? []).length >= 10);
 
+  // Tests only count once the body is edited: the reference's own stub (return True) passes
+  // one test by luck but earns only the recipe share (40).
+  const luckyStub = await submitRecipe(
+    ddReference.replace('    return v.speed > 5', '    return True'),
+  );
+  console.log('lucky stub', luckyStub.status, luckyStub.score);
+  assert.equal(luckyStub.status, 'partial');
+  assert.equal(luckyStub.score, 40);
+  assert.match(luckyStub.result.feedback ?? '', /tests count once you edit it/);
+  const editedWrong = await submitRecipe(ddReference.replace('v.speed > 5', 'v.speed >= 5'));
+  assert.equal(editedWrong.status, 'partial');
+  assert.ok(editedWrong.score > 40 && editedWrong.score < 100);
+
   // Renamed examples, parameter and template function are fine; the shape is what counts.
   const renamed = ddReference
     .replaceAll('V1', 'FAST')
