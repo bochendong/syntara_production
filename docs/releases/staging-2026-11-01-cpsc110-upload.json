@@ -1,0 +1,137 @@
+{
+  "date": "2026-11-01",
+  "environment": "staging",
+  "sourceCommit": "808a5ddd9802ccacab8aed0bc8503bd42b5677ff",
+  "railwayDeployment": "d2ae7f14-ab7d-4a64-bc71-7a9413881b42",
+  "status": "SUCCESS",
+  "pullRequests": [
+    {
+      "number": 18,
+      "head": "77808b8809ee2c613c2da99c7025a32b17f32e51",
+      "url": "https://github.com/bochendong/syntara_production/pull/18"
+    }
+  ],
+  "changes": [
+    "Merge Racket design-recipe grading, retaining the already deployed learning-memory and AI-coach PRs #19 and #20.",
+    "Keep the frozen upload guide byte-for-byte intact and document recipe grading separately.",
+    "Allow pure Racket recipe questions with no executable tests to submit in native practice.",
+    "Recognize recipe-only private grading in new persistence metadata; readback narrowly reconciles empty image lists and the derived recipe hint, while still checking teaching content, private grading, provenance and chapter identity.",
+    "Preserve concurrent CPSC 103 library, reference-expect tests and Python design-recipe updates from 6869f58a, 731fe084 and 52547a75."
+  ],
+  "content": {
+    "totalQuestions": 153,
+    "newQuestions": 141,
+    "originalQuestionsPreserved": 12,
+    "newTypes": {
+      "code": 90,
+      "table": 43,
+      "short_answer": 8
+    },
+    "notebooksUnchanged": 11,
+    "chapterMappingsVerified": 141,
+    "fullContentAndPrivateGradingVerified": 141,
+    "pilotHiddenTestsFixed": true,
+    "studentProgressUnchanged": true
+  },
+  "store": {
+    "courseId": "cmvt9k1i90001mz01y3j8l01p",
+    "name": "UBC-CPSC110",
+    "organization": {
+      "id": "speedup-staging",
+      "name": "Speedup"
+    },
+    "listed": true,
+    "publishedProblemCount": 153,
+    "notebookCount": 11,
+    "nonOwnerStoreQueryPassed": true,
+    "ownerCoursesHiddenByDesign": true
+  },
+  "imports": {
+    "batchSizes": [50, 50, 41],
+    "batchIds": [
+      "structured_import_642c14edf2baef7ba7267c7c2bd5c7463010a18e",
+      "structured_import_81914e26ddacee88ec47d4a6f1f9328616ca55f8",
+      "structured_import_f6a1e718cc78574fe429e72035c58b8fea91acca"
+    ],
+    "totalReadBack": 141,
+    "createsNotebooks": 0,
+    "topicalChapterMappingsVerified": 141,
+    "codePreflights": 90,
+    "templateQuestionsConvertedToCode": 8,
+    "openWorldProgramRubricsRetained": 8,
+    "sourceSolutionHashMatches": 141,
+    "imageReferences": 31,
+    "uniqueImagesReviewed": 28,
+    "excludedFiles": 12,
+    "excludedReasonCounts": {
+      "wholeExamsNeedSplitting": 3,
+      "missingSolutions": 3,
+      "missingStarter": 1,
+      "officialSolutionsFailTests": 2,
+      "unreliableExtraction": 3
+    }
+  },
+  "pilotFix": {
+    "title": "2024W1 MT1 P5 highest-margin",
+    "removedHelperNameDependentTests": 3,
+    "hiddenTestsNow": 8,
+    "referencePassed": true,
+    "renamedHelperPassed": true,
+    "starterRejected": true
+  },
+  "verification": [
+    "44 merged import, preflight, Racket design-recipe and public-test-gate regression tests passed.",
+    "CPSC 103 runtime, reference-derived tests and Python design-recipe verification passed.",
+    "Committed-diff formatting/lint, full root TypeScript and production Next build passed; separate staging native-web build passed.",
+    "90 real staging code preflights accepted references and rejected starters and incorrect implementations.",
+    "43 tables (283 cells) and prepared short-answer rubric totals checked locally; 141 original reference-solution hashes match source files.",
+    "141 saved questions independently compared including public content, answers, private tests, provenance and chapter assignments.",
+    "12 pilot public records, original 11 notebooks and current backend-account problem progress preserved; pilot P5 private tests corrected separately.",
+    "Admin browser shows Speedup, listed status and 153 questions. Actual store repository queries in a read-only staging transaction confirm non-owner visibility and 11 notebooks.",
+    "Railway SUCCESS, live health and source revision verified; native-web JS and CSS SHA-256 match the committed local build."
+  ],
+  "liveApplication": {
+    "passed": true,
+    "verifiedAt": "2026-11-02T03:13:07.079Z",
+    "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+    "health": {
+      "status": "ok",
+      "service": "syntara-native",
+      "environment": "staging"
+    },
+    "version": {
+      "version": "0.1.1",
+      "release": "2026.10.28-sync.1",
+      "syncProtocol": 2,
+      "revision": "808a5ddd9802ccacab8aed0bc8503bd42b5677ff"
+    },
+    "assets": [
+      {
+        "path": "/native-web/assets/index-GzYQn_F5.js",
+        "sha256": "d93b4e006be5188a521b95e7dff2ceb4eb7c89f607fec6b437fc20f4e2ac3635",
+        "bytes": 1983427
+      },
+      {
+        "path": "/native-web/assets/index-D7_ErISG.css",
+        "sha256": "870ce47473f825246680318de6085722ef655d63ed91043a13c4c70d0fbec546",
+        "bytes": 415891
+      }
+    ]
+  },
+  "incidents": [
+    {
+      "deployment": "c4786c9b-d1a2-45d4-9578-aefa2f7762b7",
+      "result": "Snapshot fetch failed; identical source tree retried and deployed successfully as b41a36c7-e96f-4ca5-9858-f506d8b1139d."
+    },
+    {
+      "result": "Initial batch of 50 committed but its exact readback rejected derived metadata. Independently verified the saved records, deployed the narrow readback fix and replayed the same idempotency key; no duplicate questions were created."
+    }
+  ],
+  "limits": [
+    "12 excluded source files remain local with reasons in the original report.md; they were not uploaded.",
+    "World-program questions retain the prepared open-response rubric rather than claiming executable GUI simulation.",
+    "Content acceptance is based on source/JSON and real grader preflights; no live student attempts were created for verification.",
+    "The owning account does not see its own course in the store by design; institution is Speedup and owner remains the existing account.",
+    "No database migration, lecture rewrite or rebuilt native installer; production main was unchanged."
+  ]
+}
