@@ -31,10 +31,19 @@ import { readPhoneLastChat } from './lib/phone-last-chat';
 import { GlobalCalendarApp } from './components/GlobalCalendarApp';
 import { PhoneConfirm, PhoneProfilePage } from './components/PhonePages';
 import { StorePage } from './components/StorePage';
+import {
+  ClassroomLiveBadge,
+  ClassroomPanel,
+  classroomAvailable,
+  useClassroomState,
+  type ClassroomOpenProblem,
+} from './components/ClassroomPanel';
+import { syncCourseData } from './data/course-sync';
+import { TeachPage } from './components/TeachPage';
 import { OnboardingCoach } from './components/OnboardingCoach';
 import { completeOnboardingStep, PLATFORM_TUTORIAL_COURSE_ID } from './lib/onboarding';
 import { guideCourseCreated } from './lib/onboarding-guide';
-import { deleteNativeCourse, editNativeCourse } from './data/platform-api-client';
+import { deleteNativeCourse, editNativeCourse, getTeachHome } from './data/platform-api-client';
 import { readPlatformCourseMeta } from './lib/platform-course-meta';
 import { resolveNativeCourseAvatar } from './assets';
 import { marbleImages } from './lib/learning-action-marbles';
@@ -95,8 +104,28 @@ function AuthenticatedApp() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const phoneLayout = usePhoneLayout();
+  // 老师上课的课堂码入口：网页版、iPad、电脑 App 有，手机没有（手机不做题）。
+  const classroomEnabled = classroomAvailable(phoneLayout);
+  const [classroomOpen, setClassroomOpen] = useState(false);
+  const classroom = useClassroomState(classroomEnabled, classroomOpen);
+  // 「教学」入口只给能开班的账号（课程所属机构的成员等），手机上没有。
+  const [canTeach, setCanTeach] = useState(false);
+  useEffect(() => {
+    if (!classroomEnabled) return;
+    let cancelled = false;
+    getTeachHome()
+      .then((home) => {
+        if (!cancelled) setCanTeach(home.courses.length > 0);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [classroomEnabled]);
   const compactLayout = useCompactLayout();
-  const [globalPage, setGlobalPage] = useState<'calendar' | 'profile' | 'store' | null>(null);
+  const [globalPage, setGlobalPage] = useState<'calendar' | 'profile' | 'store' | 'teach' | null>(
+    null,
+  );
   const [globalEvents, setGlobalEvents] = useState<LocalCourseEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
@@ -370,6 +399,29 @@ function AuthenticatedApp() {
     });
   }, []);
 
+  // 老师在课上发的题：先把这门课和题同步到本机，再打开平常的做题弹窗。
+  const openClassroomProblem = useCallback<ClassroomOpenProblem>(
+    async ({ courseId, problemIds, problemId, title }) => {
+      const repository = await getLocalRepository();
+      if (!courses.some((course) => course.id === courseId)) await loadCourses();
+      await syncCourseData(repository, courseId);
+      const loaded = await repository.loadCourseWorkspace(courseId);
+      if (!loaded) throw new Error('这门课还没同步到本机，请稍后再试。');
+      const available = problemIds.filter((id) =>
+        loaded.problems.some((problem) => problem.id === id),
+      );
+      if (!available.includes(problemId)) {
+        throw new Error('这道题还没同步到本机，请稍后再试。');
+      }
+      if (selectedCourseId !== courseId || surface === 'launch' || surface === 'general') {
+        openCourse(courseId);
+      }
+      setWorkspace(loaded);
+      openPractice({ problemIds: available, initialProblemId: problemId, title });
+    },
+    [courses, loadCourses, openCourse, openPractice, selectedCourseId, surface],
+  );
+
   // iPad 和桌面的题库在课程工作台右侧，做题是盖在上面的弹窗，关掉就回到刚才的答题卡。
   const backFromPractice = useCallback(() => {
     if (!phoneLayout) {
@@ -572,11 +624,15 @@ function AuthenticatedApp() {
           ? 'settings'
           : globalPage === 'store'
             ? 'store'
-            : 'chat',
+            : globalPage === 'teach'
+              ? 'teach'
+              : 'chat',
     avatarUrl: avatarTheme.avatarUrl,
     onOpenCalendar: () => setGlobalPage('calendar'),
     onOpenStore: () => setGlobalPage('store'),
     onOpenSettings: () => setGlobalPage('profile'),
+    onOpenClassroom: classroomEnabled ? () => setClassroomOpen(true) : undefined,
+    onOpenTeach: classroomEnabled && canTeach ? () => setGlobalPage('teach') : undefined,
     onManageCourse: platformAvailable()
       ? (course, action) => setManagedCourse({ course, action })
       : undefined,
@@ -717,6 +773,8 @@ function AuthenticatedApp() {
                   </div>
                 ) : null}
               </>
+            ) : globalPage === 'teach' ? (
+              <TeachPage onBack={() => setGlobalPage(null)} />
             ) : globalPage === 'store' ? (
               <StorePage
                 onBack={() => setGlobalPage(null)}
@@ -753,6 +811,21 @@ function AuthenticatedApp() {
               />
             )}
           </div>
+        ) : null}
+
+        {classroomEnabled && !classroomOpen && !practiceOverlay ? (
+          <ClassroomLiveBadge sessions={classroom.sessions} onOpen={() => setClassroomOpen(true)} />
+        ) : null}
+        {classroomOpen ? (
+          <ClassroomPanel
+            sessions={classroom.sessions}
+            onSessions={classroom.setSessions}
+            onClose={() => setClassroomOpen(false)}
+            onJoinedCourse={async (courseId) => {
+              if (!courses.some((course) => course.id === courseId)) await loadCourses();
+            }}
+            onOpenProblem={openClassroomProblem}
+          />
         ) : null}
 
         <OnboardingCoach courses={courses} />
