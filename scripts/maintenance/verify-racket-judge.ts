@@ -78,11 +78,13 @@ async function main() {
     judge,
     racket,
     editor,
+    bodies,
   ] = await Promise.all([
     import('../../lib/problem-bank'),
     import('../../lib/server/notebook-problems/judge'),
     import('../../lib/server/racket-runner'),
     import('../../lib/problem-bank/racket-editor'),
+    import('../../lib/problem-bank/function-bodies'),
   ]);
 
   // Editor: DrRacket-style newline indentation and token classes.
@@ -231,9 +233,12 @@ async function main() {
     '(define (superfact n) 1) ;stub',
   );
   if (luckyStarter !== starterCode) {
+    // A helper the starter gives in full is not a stub: submitting the reference must count.
+    const helper = '\n(define (given-helper x) (* x 1))\n';
     const recipeProblem = {
       ...problem,
-      publicContent: { ...problem.publicContent, starterCode: luckyStarter },
+      publicContent: { ...problem.publicContent, starterCode: luckyStarter + helper },
+      grading: { ...problem.grading, solutionCode: solutionCode + helper },
     };
     const recipeJudge = {
       ...draft.secretJudge!,
@@ -246,7 +251,17 @@ async function main() {
         userAnswer: { code },
         kind: 'submit',
       });
-    const recipeReference = await submitRecipe(solutionCode);
+    // Only the helper given, no stub for superfact (as in some finals): the answer is edited.
+    assert.equal(
+      bodies.designedFunctionsEdited({
+        language: 'racket',
+        code: solutionCode + helper,
+        starterCode: `;(@htdf superfact)${helper}`,
+        referenceCode: solutionCode + helper,
+      }),
+      true,
+    );
+    const recipeReference = await submitRecipe(solutionCode + helper);
     assert.equal(recipeReference.score, 100);
     const lucky = await submitRecipe(luckyStarter);
     console.log('lucky stub', lucky.status, lucky.score, lucky.result.feedback);

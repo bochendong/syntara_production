@@ -159,7 +159,7 @@ function commentedStubs(language: string, reference: string): Map<string, string
 
 /**
  * True when at least one function the problem stubs (in the starter, or as the reference's
- * commented-out stub) has a body in the student's code that differs from that stub. Functions
+ * commented-out stub; helpers the starter gives in full don't count) has a body in the student's code that differs from that stub. Functions
  * without a stub, such as templates, don't count. With nothing to compare, the answer counts
  * as edited.
  */
@@ -172,10 +172,11 @@ export function designedFunctionsEdited(args: {
   const bodiesOf = args.language === 'racket' ? racketFunctionBodies : pythonFunctionBodies;
   const starter = bodiesOf(args.starterCode ?? '');
   const commented = commentedStubs(args.language, args.referenceCode);
+  // A starter definition that already matches the reference is a given helper, not a stub.
   const stubs = new Map(
-    [...bodiesOf(args.referenceCode).keys()].flatMap((name) => {
+    [...bodiesOf(args.referenceCode)].flatMap(([name, body]) => {
       const stub = starter.get(name) ?? commented.get(name);
-      return stub === undefined ? [] : [[name, stub] as const];
+      return stub === undefined || stub === body ? [] : [[name, stub] as const];
     }),
   );
   if (!stubs.size) return true;
