@@ -44,6 +44,7 @@ import {
   PanelLeftClose,
   Plus,
   Presentation,
+  Radio,
   Save,
   Search,
   SendHorizontal,
@@ -1457,6 +1458,16 @@ export function PhoneChatDrawer<
               <CalendarDays size={20} strokeWidth={1.8} aria-hidden />
               <span>日历</span>
             </button>
+            {navigation.onOpenClassroom ? (
+              <button
+                type="button"
+                className="phone-drawer-tool"
+                onClick={navigation.onOpenClassroom}
+              >
+                <Radio size={20} strokeWidth={1.8} aria-hidden />
+                <span>上课</span>
+              </button>
+            ) : null}
           </>
         ) : null}
       </nav>

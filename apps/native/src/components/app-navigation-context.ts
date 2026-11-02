@@ -10,6 +10,8 @@ export type AppNavigation = {
   onOpenCalendar: () => void;
   onOpenStore: () => void;
   onOpenSettings: () => void;
+  /** 输课堂码 / 班级码。手机上没有（undefined）。 */
+  onOpenClassroom?: () => void;
   /** 侧栏课程条目菜单里的编辑、删除。 */
   onManageCourse?: (course: LocalCourseSummary, action: 'edit' | 'delete') => void;
 };

@@ -548,6 +548,48 @@ export async function getNativeStoreCourse(courseId: string): Promise<NativeStor
   return result.course;
 }
 
+export type NativeClassroomItem = {
+  id: string;
+  problemId: string;
+  title: string;
+  type: string;
+  number: number | null;
+  open: boolean;
+  answerRevealed: boolean;
+  pushedAt: number;
+  myStatus: 'pending' | 'passed' | 'failed' | 'partial' | 'error' | null;
+};
+
+export type NativeClassroomSession = {
+  id: string;
+  joined: boolean;
+  startedAt: number;
+  className: string;
+  courseId: string;
+  courseName: string;
+  teacherName: string;
+  items: NativeClassroomItem[];
+};
+
+export type NativeClassroomState = { sessions: NativeClassroomSession[] };
+
+/** 正在上的课（自己进了的，或者本班正在上的）和老师发的题。手机端不调用。 */
+export async function getNativeClassroom(): Promise<NativeClassroomState> {
+  const result = await invokeQuery<NativeClassroomState>('native_get_classroom', {});
+  return { sessions: result.sessions ?? [] };
+}
+
+/** join-code：输 6 位课堂码或班级码；join-session：本班的人点「进入课堂」。 */
+export function nativeClassroomAction(
+  payload: { action: 'join-code'; code: string } | { action: 'join-session'; sessionId: string },
+): Promise<
+  NativeClassroomState & {
+    joined: { kind: 'session' | 'class'; courseId: string; sessionId?: string; classId?: string };
+  }
+> {
+  return invokeJson('native_classroom_action', { requestId: crypto.randomUUID(), payload });
+}
+
 /** join：从商城加入课程；seen：打开过加入的课程，熄灭「有更新」。 */
 export function nativeStoreAction(
   courseId: string,

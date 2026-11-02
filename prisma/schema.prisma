@@ -262,6 +262,10 @@ model User {
   forumAttachments          CourseForumAttachment[]      @relation("CourseForumAttachmentUploader")
   externalCourseBindings    ExternalCourseBinding[]      @relation("ExternalCourseBindingActivator")
   externalCourseMemberships ExternalCourseMembership[]
+  taughtClasses             CourseClass[]                @relation("CourseClassTeacher")
+  classMemberships          CourseClassMember[]
+  taughtClassSessions       ClassSession[]               @relation("ClassSessionTeacher")
+  classSessionJoins         ClassSessionParticipant[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -437,6 +441,7 @@ model Course {
   problemTagNodes        CourseProblemTagNode[]
   assignments            CourseAssignment[]
   externalBinding        ExternalCourseBinding?
+  classes                CourseClass[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -567,36 +572,36 @@ model CourseAssignmentSubmission {
 }
 
 model Notebook {
-  id                    String       @id @default(cuid())
-  ownerId               String
-  courseId              String?
-  name                  String
-  description           String?
-  tags                  String[]
-  avatarUrl             String?
-  language              String?
-  style                 String?
-  notebookKind          NotebookKind @default(image)
-  listedInNotebookStore Boolean      @default(false)
-  notebookPriceCents    Int          @default(0)
-  storePublishedAt      DateTime?
-  sourceNotebookId      String?
-  sceneCount            Int          @default(0)
-  sectionCount          Int          @default(0)
-  problemCount          Int          @default(0)
-  publishedProblemCount Int          @default(0)
-  speechReadyCount      Int          @default(0)
-  speechTotalCount      Int          @default(0)
-  speechStatus          String       @default("no_speech")
-  coverSlideJson        Json?
-  coverImagePath        String?
-  mindMapData           Bytes?
-  mindMapMime           String?
-  removedAt             DateTime?
-  contentVersion        Int          @default(1)
+  id                     String       @id @default(cuid())
+  ownerId                String
+  courseId               String?
+  name                   String
+  description            String?
+  tags                   String[]
+  avatarUrl              String?
+  language               String?
+  style                  String?
+  notebookKind           NotebookKind @default(image)
+  listedInNotebookStore  Boolean      @default(false)
+  notebookPriceCents     Int          @default(0)
+  storePublishedAt       DateTime?
+  sourceNotebookId       String?
+  sceneCount             Int          @default(0)
+  sectionCount           Int          @default(0)
+  problemCount           Int          @default(0)
+  publishedProblemCount  Int          @default(0)
+  speechReadyCount       Int          @default(0)
+  speechTotalCount       Int          @default(0)
+  speechStatus           String       @default("no_speech")
+  coverSlideJson         Json?
+  coverImagePath         String?
+  mindMapData            Bytes?
+  mindMapMime            String?
+  removedAt              DateTime?
+  contentVersion         Int          @default(1)
   /// 机构课程公有层：哪一版加进来的（null = 还没随新版发布）、哪一版改过、发布时的 contentVersion
-  releaseAddedIn        Int?
-  releaseUpdatedIn      Int?
+  releaseAddedIn         Int?
+  releaseUpdatedIn       Int?
   releasedContentVersion Int?
 
   owner              User                      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -797,15 +802,16 @@ model NotebookProblem {
   /// 发布新版时题面变了的时间；学员最近一次作答早于它就显示「题目已更新」
   contentUpdatedAt  DateTime?
 
-  owner          User?                          @relation("NotebookProblemOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  course         Course?                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  notebook       Notebook?                      @relation(fields: [notebookId], references: [id], onDelete: SetNull)
-  chapter        CourseProblemChapter?          @relation(fields: [chapterId], references: [id], onDelete: SetNull)
-  secret         NotebookProblemSecret?
-  attempts       NotebookProblemAttempt[]
-  progress       NotebookProblemProgress[]
-  tagAssignments NotebookProblemTagAssignment[]
-  forumPosts     CourseForumPost[]
+  owner             User?                          @relation("NotebookProblemOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  course            Course?                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  notebook          Notebook?                      @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+  chapter           CourseProblemChapter?          @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  secret            NotebookProblemSecret?
+  attempts          NotebookProblemAttempt[]
+  progress          NotebookProblemProgress[]
+  tagAssignments    NotebookProblemTagAssignment[]
+  forumPosts        CourseForumPost[]
+  classSessionItems ClassSessionItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2062,4 +2068,95 @@ model BackgroundJobStep {
   job    BackgroundJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@id([jobId, key])
+}
+
+/// 老师端「班级」：一门课每学期一个班，有自己的名单。老师只看得到本班名单和进过课堂的人的个人答题。
+model CourseClass {
+  id           String             @id @default(cuid())
+  courseId     String
+  academicYear Int
+  academicTerm CourseAcademicTerm
+  name         String             @db.VarChar(160)
+  teacherId    String
+  /// 学生输一次就进本学期名单（6 位字母数字，和 6 位纯数字的课堂码区分开）
+  joinCode     String             @unique @db.VarChar(12)
+  archivedAt   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  course   Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher  User                @relation("CourseClassTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  members  CourseClassMember[]
+  sessions ClassSession[]
+
+  @@unique([courseId, academicYear, academicTerm])
+  @@index([teacherId, updatedAt(sort: Desc)])
+}
+
+model CourseClassMember {
+  classId  String
+  userId   String
+  /// code | teacher
+  source   String   @default("code") @db.VarChar(16)
+  joinedAt DateTime @default(now())
+
+  class CourseClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([classId, userId])
+  @@index([userId, joinedAt(sort: Desc)])
+}
+
+/// 一节课。上课期间 code 是 6 位数字，下课后清空，号码可以复用。
+model ClassSession {
+  id        String    @id @default(cuid())
+  classId   String
+  teacherId String
+  code      String?   @unique @db.VarChar(6)
+  /// live | ended
+  status    String    @default("live") @db.VarChar(12)
+  /// 锁门后新的人不能再输码进来（本班名单里的人仍然可以点进来）
+  locked    Boolean   @default(false)
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  class        CourseClass               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher      User                      @relation("ClassSessionTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  participants ClassSessionParticipant[]
+  items        ClassSessionItem[]
+
+  @@index([classId, startedAt(sort: Desc)])
+  @@index([status, startedAt(sort: Desc)])
+}
+
+model ClassSessionParticipant {
+  sessionId String
+  userId    String
+  /// roster（本班名单点进来）| code（输课堂码进来）
+  via       String   @default("code") @db.VarChar(12)
+  joinedAt  DateTime @default(now())
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, userId])
+  @@index([userId, joinedAt(sort: Desc)])
+}
+
+/// 老师在课上发出的一道题。统计只算「在场的人」在 pushedAt 到 closedAt（或下课）之间的提交，
+/// 所以学生之前在家做过同一道题不会混进来，也不用改各端的提交接口。
+model ClassSessionItem {
+  id               String    @id @default(cuid())
+  sessionId        String
+  problemId        String
+  position         Int
+  pushedAt         DateTime  @default(now())
+  closedAt         DateTime?
+  answerRevealedAt DateTime?
+
+  session ClassSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  problem NotebookProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, problemId])
+  @@index([sessionId, position])
 }
