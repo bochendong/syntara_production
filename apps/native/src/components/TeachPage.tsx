@@ -322,7 +322,7 @@ function TeachClassView({
     () => new Map((data?.progress ?? []).map((row) => [`${row.userId}:${row.problemId}`, row])),
     [data?.progress],
   );
-  const roster = data?.roster ?? [];
+  const roster = useMemo(() => data?.roster ?? [], [data?.roster]);
   const students = [
     ...roster.map((person) => ({ ...person, visitor: false })),
     ...(showVisitors ? (data?.visitors ?? []) : []).map((person) => ({ ...person, visitor: true })),
