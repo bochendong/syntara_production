@@ -20,8 +20,13 @@
       "learnerAttemptsPreserved": 3,
       "notebooksPreserved": 11
     },
-    "productionBuild": "running",
-    "browserReview": "unavailable; browser credits exhausted"
+    "productionBuild": "passed locally after building internal workspace libraries and allowing an 8 GiB Node heap",
+    "browserReview": "unavailable; browser credits exhausted",
+    "sourceRevisionRegression": "passed"
   },
-  "dataSync": "not yet applied"
+  "dataSync": "not yet applied",
+  "failedDeployment": {
+    "id": "cb99e9e7-2391-44a5-8d63-477d02f1e57d",
+    "reason": "CLI source export lacks .git; fixed by recording and reading source-revision.json"
+  }
 }

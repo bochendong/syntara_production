@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { readBuildRevision } from '../../lib/version/source-revision';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -10,7 +12,7 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig({
   define: {
     'import.meta.env.VITE_SYNTARA_REVISION': JSON.stringify(
-      process.env.RAILWAY_GIT_COMMIT_SHA ||
+      readBuildRevision(fileURLToPath(new URL('../../', import.meta.url))) ||
         execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     ),
   },
