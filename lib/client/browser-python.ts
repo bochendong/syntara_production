@@ -6,6 +6,8 @@
  * 每次运行一个新的 Worker：超时直接 terminate，死循环也停得下来。
  */
 
+import { CS103_PYTHON_SOURCE } from '../problem-bank/cs103-python';
+
 const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/';
 const DEFAULT_TIMEOUT_MS = 5000;
 const LOAD_TIMEOUT_MS = 60_000;
@@ -59,8 +61,17 @@ def collect_files(written):
                 changed.append({"path": rel, "content": content[:200000]})
     return changed[:8]
 
+def install_cs103(source):
+    # UBC CPSC 103's library: @typecheck, expect / summary, parse_int / parse_float
+    import types
+    module = types.ModuleType("cs103")
+    exec(source, module.__dict__)
+    sys.modules["cs103"] = module
+
 def run(payload):
     import shutil
+    if payload.get("cs103Source"):
+        install_cs103(payload["cs103Source"])
     os.chdir("/")
     shutil.rmtree("/work", ignore_errors=True)
     os.makedirs("/work", exist_ok=True)
@@ -221,7 +232,13 @@ export function runPythonScriptInBrowser(args: {
   timeoutMs?: number;
 }): Promise<BrowserScriptResult> {
   return runInWorker<BrowserScriptResult>(
-    { mode: 'script', code: args.code, files: args.files ?? [], stdin: args.stdin ?? '' },
+    {
+      mode: 'script',
+      code: args.code,
+      files: args.files ?? [],
+      stdin: args.stdin ?? '',
+      cs103Source: CS103_PYTHON_SOURCE,
+    },
     args.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   );
 }
@@ -234,7 +251,13 @@ export async function runPythonRowsInBrowser(args: {
   timeoutMs?: number;
 }): Promise<BrowserRowResult[]> {
   const result = await runInWorker<{ rows?: BrowserRowResult[] }>(
-    { mode: 'rows', rows: args.rows, setup: args.setup ?? '', files: args.files ?? [] },
+    {
+      mode: 'rows',
+      rows: args.rows,
+      setup: args.setup ?? '',
+      files: args.files ?? [],
+      cs103Source: CS103_PYTHON_SOURCE,
+    },
     args.timeoutMs ?? DEFAULT_TIMEOUT_MS + args.rows.length * 300,
   );
   return result.rows ?? [];

@@ -1,4 +1,5 @@
 import type { NotebookCodeSlot, NotebookProblemPublicCode } from './schema';
+import { usesCs103 } from './cs103-python';
 
 /**
  * 带空位的代码题：template 里 {{slot_id}} 以外的部分锁住，学生只填空位。
@@ -144,6 +145,9 @@ export function deriveTemplateFromStarter(
 ): CodeSlotTemplate | null {
   const source = (starterCode ?? '').replace(/\r\n/g, '\n').trim();
   if (!source) return null;
+  // UBC CPSC 103 (cs103) answers are whole design-recipe files: the student comments out
+  // the stub, adds a template and tests, so nothing outside the body is locked.
+  if (usesCs103(source)) return null;
   const lines = source.split('\n');
   const topLevel = lines
     .map((line, index) => ({ line, index }))
