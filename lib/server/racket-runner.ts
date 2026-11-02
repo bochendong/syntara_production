@@ -1,7 +1,15 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import type { HtdpLanguageLevel } from '@/lib/problem-bank/schema';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import { randomUUID } from 'node:crypto';
+import type {
+  HtdpLanguageLevel,
+  NotebookDesignRecipeCheck,
+  RacketDesignRecipe,
+} from '@/lib/problem-bank/schema';
+import { RACKET_RECIPE_DRIVER } from '@/lib/server/racket-recipe-driver';
 
 const MAX_OUTPUT_BYTES = 1024 * 1024;
 // Loading the HtDP language and spd/tags takes ~0.3s; allow for a cold start.
@@ -23,8 +31,12 @@ const LANGUAGE_LINE_RE = /^[ \t]*#(?:reader|lang)\b.*$/gm;
  * Grading always uses the problem's configured level, so drop every header and
  * add exactly one. */
 export function racketSubmissionSource(code: string, level: HtdpLanguageLevel): string {
-  const body = code.replace(DRRACKET_METADATA_RE, '').replace(LANGUAGE_LINE_RE, '').trim();
-  return `${htdpReaderHeader(level)}\n${body}\n`;
+  return `${htdpReaderHeader(level)}\n${racketSourceBody(code)}\n`;
+}
+
+/** The source without DrRacket's language header lines. */
+export function racketSourceBody(code: string): string {
+  return code.replace(DRRACKET_METADATA_RE, '').replace(LANGUAGE_LINE_RE, '').trim();
 }
 
 // Runs one submission in racket/sandbox: no network, no file access outside the
@@ -292,4 +304,50 @@ export function runRacketJson<T>(input: RacketRunInput): Promise<T> {
     );
     child.stdin?.end();
   });
+}
+
+/**
+ * Design-recipe checks (tags, templates, the student's own tests) against the reference
+ * solution; see racket-recipe-driver.ts. The reference module is only loaded when the
+ * student's tests need checking.
+ */
+export async function runRacketDesignRecipe(args: {
+  studentCode: string;
+  referenceCode: string;
+  starterCode?: string;
+  level: HtdpLanguageLevel;
+  recipe: RacketDesignRecipe;
+  timeoutMs: number;
+}): Promise<NotebookDesignRecipeCheck[]> {
+  const tempDir = path.join(os.tmpdir(), `racket_recipe_${randomUUID()}`);
+  const referencePath = path.join(tempDir, 'reference.rkt');
+  const driverPath = path.join(tempDir, 'recipe.rkt');
+  const payloadPath = path.join(tempDir, 'payload.json');
+  try {
+    await mkdir(tempDir, { recursive: true });
+    await writeFile(referencePath, racketSubmissionSource(args.referenceCode, args.level), 'utf8');
+    await writeFile(driverPath, RACKET_RECIPE_DRIVER, 'utf8');
+    await writeFile(
+      payloadPath,
+      JSON.stringify({
+        studentText: racketSourceBody(args.studentCode),
+        referenceText: racketSourceBody(args.referenceCode),
+        starterText: args.starterCode ? racketSourceBody(args.starterCode) : undefined,
+        referencePath,
+        checkTemplate: args.recipe.checkTemplate ?? null,
+        thoroughness: args.recipe.thoroughness,
+        timeoutMs: args.timeoutMs,
+      }),
+      'utf8',
+    );
+    const result = await runRacketJson<{ items?: NotebookDesignRecipeCheck[] }>({
+      driverPath,
+      payloadPath,
+      timeoutMs: args.timeoutMs,
+      caseCount: 4,
+    });
+    return result.items ?? [];
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
 }
