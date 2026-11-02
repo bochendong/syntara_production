@@ -1,0 +1,3 @@
+# Racket 设计配方判分
+
+**Racket 设计配方 `secretJudge.designRecipe`**（UBC CPSC 110 / spd 风格题）：`{checkTemplate?, weight=30, thoroughness:[{target,description,predicate}]}`。判题时拿 `grading.solutionCode`（完整参考 .rkt）当标准答案，逐个 `@htdf` / `@htdd` 比对学生的 `@signature`、`@template-origin`（集合）、`@dd-template-rules`（多重集合）、`@template (define ...)` 与 `fn-for-...` 模板（函数名、参数名、`...` 参数顺序不计），并用参考函数检查学生自己的 check-expect 是否正确；`thoroughness` 的 predicate 用参考函数的参数名写（如 `(empty? lon)`），要求学生至少一个测试满足。starter 里已经给出的标签、模板和测试不评分。MT1 之前的题要写模板，`checkTemplate` 不填或 true；MT1 之后不写模板，填 false。只考设计配方的题（如只写 HtDD 模板）可以不带任何测试。分数：`weight`% 按通过的检查项平均给，其余按测试通过比例给；全部通过才算对。
