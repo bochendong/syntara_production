@@ -1,0 +1,232 @@
+/* 「记录」：作答一行一颗弹珠，点开看提交和批改 */
+.local-attempt-history.ah article {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border-top: 1px solid rgb(15 23 42 / 8%);
+}
+.ah-row {
+  display: grid;
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 10px;
+  grid-template-columns: 22px minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: var(--radius-sm, 16px);
+  background: transparent;
+  color: #64748b;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.ah-row:hover:not(:disabled) {
+  background: rgb(255 255 255 / 55%);
+}
+.ah-row:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.ah-row > img {
+  width: 22px;
+  height: 22px;
+}
+.ah-title {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.ah-title strong {
+  color: #334155;
+  font-size: 13px;
+}
+.ah-title small {
+  font-size: 11px;
+}
+.ah-row em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #334155;
+  font-size: 12px;
+}
+.ah-chevron {
+  transition: transform 0.18s ease;
+}
+.is-open .ah-chevron {
+  transform: rotate(180deg);
+}
+.ah-detail {
+  display: grid;
+  gap: 10px;
+  padding: 4px 10px 14px 42px;
+  font-size: 13px;
+  color: #334155;
+}
+.ah-block {
+  display: grid;
+  gap: 6px;
+}
+.ah-label {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ah-muted {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+}
+.ah-answer {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.ah-code {
+  max-height: 46vh;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid rgb(15 23 42 / 8%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 75%);
+  font-size: 12px;
+  line-height: 1.55;
+  tab-size: 4;
+}
+.ah-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ah-chips span {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--marble-blue-light, #d3efff);
+  color: var(--marble-blue-ink, #1d4ed8);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ah-chips span.ah-ok {
+  background: var(--marble-green-light, #d8fbe8);
+  color: var(--marble-green-ink, #2f7a4a);
+}
+.ah-chips span.ah-bad {
+  background: var(--marble-pink-light, #ffe2ee);
+  color: var(--marble-pink-ink, #b0306a);
+}
+.ah-cases,
+.ah-recipe {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ah-cases li {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.ah-cases code,
+.ah-recipe code {
+  font-size: 12px;
+  word-break: break-word;
+}
+.ah-cases pre {
+  max-height: 160px;
+  margin: 0;
+  padding: 4px 8px;
+  overflow: auto;
+  border-radius: 8px;
+  background: rgb(15 23 42 / 4%);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ah-cases pre.ah-error {
+  background: var(--marble-pink-light, #ffe2ee);
+  color: var(--marble-pink-ink, #b0306a);
+}
+.ah-recipe li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  font-size: 12px;
+}
+.ah-recipe img {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+}
+.ah-recipe small {
+  display: block;
+  color: var(--marble-pink-ink, #b0306a);
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  word-break: break-word;
+}
+.ah-feedback {
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 60%);
+}
+.ah-cells {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.ah-cells th,
+.ah-cells td {
+  padding: 2px 8px;
+  border-bottom: 1px solid rgb(15 23 42 / 6%);
+  text-align: left;
+}
+.ah-cells th {
+  color: #94a3b8;
+  font-family: ui-monospace, monospace;
+  font-weight: 500;
+}
+.ah-photos {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+.ah-photos img {
+  max-width: 220px;
+  max-height: 160px;
+  border-radius: 10px;
+  object-fit: contain;
+  background: white;
+}
+.ah-parts {
+  display: grid;
+  gap: 10px;
+}
+.ah-parts section {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgb(15 23 42 / 8%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 45%);
+}
+.ah-parts header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.ah-parts header img {
+  width: 16px;
+  height: 16px;
+}
+.ah-parts header em {
+  margin-left: auto;
+  font-style: normal;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

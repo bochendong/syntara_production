@@ -11,12 +11,24 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CodeProblemStatement } from '@/components/problem-bank/code-problem-statement';
-import { renderProblemContentStem } from '@/components/problem-bank/course-problem-bank-helpers';
+import {
+  CodeAttemptTestSummary,
+  DesignRecipeChecklist,
+  renderProblemContentStem,
+} from '@/components/problem-bank/course-problem-bank-helpers';
+import {
+  AttemptCaseList,
+  AttemptCellsView,
+  AttemptCodeView,
+  AttemptPartsDetail,
+  attemptCodeLanguage,
+} from '@/components/problem-bank/attempt-details';
 import { ProblemImageAssets, ProblemRichText } from '@/components/problem-bank/problem-rich-text';
 import {
   notebookProblemAttemptAnswerSchema,
   notebookProblemAttemptResultSchema,
   notebookProblemPublicContentSchema,
+  type NotebookProblemAttemptRecord,
 } from '@/lib/problem-bank';
 import { cn } from '@/lib/utils';
 
@@ -73,6 +85,17 @@ export function ProblemAttemptAnswerView({ attempt }: { attempt: TeacherStudentA
   const result = resultResult.success ? resultResult.data : null;
 
   if (!answer) return <p className="text-sm text-slate-500">这次提交的答案暂时无法显示。</p>;
+  const language = attemptCodeLanguage(attempt.problem.publicContent);
+  // 测试 / 设计配方小结只看 result，按作答记录的形状传进去
+  const recordForChecks = result
+    ? ({
+        id: attempt.id,
+        kind: attempt.kind,
+        status: attempt.status,
+        result,
+        answer,
+      } as unknown as NotebookProblemAttemptRecord)
+    : null;
 
   return (
     <div className="space-y-4">
@@ -125,10 +148,25 @@ export function ProblemAttemptAnswerView({ attempt }: { attempt: TeacherStudentA
         </div>
       ) : null}
 
+      {answer.parts && Object.keys(answer.parts).length ? (
+        <AttemptPartsDetail
+          answer={answer}
+          result={result ?? undefined}
+          language={language}
+          locale="zh-CN"
+        />
+      ) : null}
+
       {answer.code != null ? (
-        <pre className="max-h-[360px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">
-          {answer.code || '未提交代码'}
-        </pre>
+        answer.code.trim() ? (
+          <AttemptCodeView code={answer.code} language={language} locale="zh-CN" />
+        ) : (
+          <p className="text-sm text-slate-500">未提交代码。</p>
+        )
+      ) : null}
+
+      {answer.cells && Object.keys(answer.cells).length ? (
+        <AttemptCellsView cells={answer.cells} results={result?.cells} locale="zh-CN" />
       ) : null}
 
       {answer.text != null ? (
@@ -162,12 +200,33 @@ export function ProblemAttemptAnswerView({ attempt }: { attempt: TeacherStudentA
         </div>
       ) : null}
 
+      {recordForChecks ? (
+        <>
+          <CodeAttemptTestSummary attempt={recordForChecks} locale="zh-CN" />
+          {result?.publicCases?.some((testCase) => !testCase.passed) ? (
+            <AttemptCaseList cases={result.publicCases} locale="zh-CN" />
+          ) : null}
+          <DesignRecipeChecklist attempt={recordForChecks} locale="zh-CN" />
+        </>
+      ) : null}
+
       {result?.feedback ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
           <p className="text-xs font-semibold text-slate-500">判题反馈</p>
-          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-200">
-            {result.feedback}
-          </p>
+          <ProblemRichText
+            content={result.feedback}
+            className="mt-1 text-sm leading-6 text-slate-700 dark:text-slate-200"
+          />
+        </div>
+      ) : null}
+
+      {result?.analysis ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+          <p className="text-xs font-semibold text-slate-500">批改说明</p>
+          <ProblemRichText
+            content={result.analysis}
+            className="mt-1 text-sm leading-6 text-slate-700 dark:text-slate-200"
+          />
         </div>
       ) : null}
     </div>
