@@ -47,7 +47,6 @@ import {
 
 import {
   answerHasContent,
-  buildPublicTestsPython,
   difficultyLabel,
   emptyAnswerForProblem,
   gradeLocalProblem,
@@ -96,13 +95,19 @@ import {
 import { runPythonDebug } from '../data/python-debug-runner';
 import type { LocalProblem, LocalProblemDocument } from '../domain/models';
 import { cn } from '../lib/cn';
-import { CodeAnswerEditor, highlightCode } from './problem-bank/code-answer-editor';
+import { CodeAnswerEditor } from './problem-bank/code-answer-editor';
 import { isRacketLanguage } from '../../../../lib/problem-bank/racket-editor';
 import type { ServerCodeTestRun } from './problem-bank/native-code-tests';
 import type { BrowserScriptResult } from '../../../../lib/client/browser-python';
 import { NativeCodeSlots } from './problem-bank/native-code-slots';
 import { NativeCodePlayground } from './problem-bank/native-code-playground';
 import { NativeTableAnswer } from './problem-bank/native-table-answer';
+import { NativeRacketAnswer } from './problem-bank/native-racket-answer';
+import {
+  racketAnswerSpec,
+  parseRacketTableAnswer,
+  checkRacketTemplate,
+} from '../../../../lib/problem-bank/racket-answer';
 import { gradeNativeTable } from '../data/table-grading';
 import type {
   NotebookProblemPublicTable,
@@ -252,7 +257,11 @@ function restoreAnswerFromAttempt(
       : emptyAnswerForProblem(problem);
   }
   if (record.kind === 'table' && record.cells && typeof record.cells === 'object')
-    return { kind: 'table', cells: record.cells as Record<string, string> };
+    return {
+      kind: 'table',
+      cells: record.cells as Record<string, string>,
+      ...(typeof record.sourceCode === 'string' ? { sourceCode: record.sourceCode } : {}),
+    };
   if (record.kind === 'code' && typeof record.code === 'string') {
     return { kind: 'code', code: record.code };
   }
@@ -307,26 +316,6 @@ function asCodeContent(
         ? (content.assets as Extract<NotebookProblemPublicContent, { type: 'code' }>['assets'])
         : undefined,
   };
-}
-
-function CodeTestcasePanel({ code, language }: { code: string; language?: string }) {
-  const lineNumbers = Array.from(
-    { length: Math.max(1, code.split('\n').length) },
-    (_, index) => index + 1,
-  );
-
-  return (
-    <div className="min-h-0 flex-1 overflow-hidden bg-white">
-      <div className="grid min-h-0 flex-1 grid-cols-[3.25rem_minmax(0,1fr)] overflow-auto bg-white font-mono text-[13px] leading-6 text-slate-900">
-        <pre className="select-none border-r border-slate-200 bg-slate-50 px-3 py-4 text-right text-slate-400">
-          {lineNumbers.join('\n')}
-        </pre>
-        <pre className="min-w-max whitespace-pre px-4 py-4">
-          <code>{highlightCode(code, language)}</code>
-        </pre>
-      </div>
-    </div>
-  );
 }
 
 /** 一组题都做过了：每题一颗弹珠落进玻璃罐，颜色就是结果。 */
@@ -447,9 +436,7 @@ export function ProblemPracticePage({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>('answer');
-  const [leftTab, setLeftTab] = useState<'description' | 'testcase' | 'output' | 'formulas'>(
-    'description',
-  );
+  const [leftTab, setLeftTab] = useState<'description' | 'output' | 'formulas'>('description');
   const [debugResult, setDebugResult] = useState<PythonDebugResult>({
     phase: 'idle',
     output: '',
@@ -517,6 +504,14 @@ export function ProblemPracticePage({
     [displayedProblem],
   );
   const codeContent = isCode ? asCodeContent(publicContent) : null;
+  const structuredRacket = racketAnswerSpec(publicContent);
+  const structuredRacketDraftKey = currentProblem
+    ? problemCodeDraftKey(
+        accountStorageKey('syntara.racket-answer-draft.v1'),
+        currentProblem.courseId,
+        currentProblem.id,
+      )
+    : '';
   const codeLanguage = codeContent?.language ?? 'python';
   // 「记录」里代码的语言：分小问的大题取第一个代码小问的
   const historyCodeLanguage = isCode
@@ -550,13 +545,6 @@ export function ProblemPracticePage({
         )
       : rawStem;
   const options = displayedProblem ? problemOptions(displayedProblem) : [];
-  const testcaseCode = !currentProblem
-    ? ''
-    : serverRunsCode
-      ? (codeContent?.publicTests ?? [])
-          .map((test) => `(check-expect ${test.expression}\n              ${test.expected})`)
-          .join('\n\n')
-      : buildPublicTestsPython(currentProblem);
   const isMultipart = currentProblem ? isMultipartProblem(currentProblem) : false;
   const parts = useMemo(
     () => (displayedProblem && isMultipart ? multipartParts(displayedProblem) : []),
@@ -582,7 +570,10 @@ export function ProblemPracticePage({
     handwritingReset,
   ]);
   const handwritingMode =
-    rightTab === 'answer' && !stackedPanes && Boolean(handwritingModes[handwritingModeKey]);
+    !structuredRacket &&
+    rightTab === 'answer' &&
+    !stackedPanes &&
+    Boolean(handwritingModes[handwritingModeKey]);
   const visibleLeftTab = handwritingMode ? 'description' : leftTab;
   const activePartCode = activePart?.type === 'code' ? asCodeContent(activePart.content) : null;
   const activePartPrompt =
@@ -590,13 +581,14 @@ export function ProblemPracticePage({
       ? fillBlankPrompt(activePart.prompt, partBlankIds(activePart))
       : activePart?.prompt;
   const supportsFormulaReference =
-    answer?.kind === 'text' ||
-    answer?.kind === 'blanks' ||
-    (isMultipart &&
-      Boolean(
-        activePart &&
-        ['short_answer', 'calculation', 'proof', 'fill_blank'].includes(activePart.type),
-      ));
+    !structuredRacket &&
+    (answer?.kind === 'text' ||
+      answer?.kind === 'blanks' ||
+      (isMultipart &&
+        Boolean(
+          activePart &&
+          ['short_answer', 'calculation', 'proof', 'fill_blank'].includes(activePart.type),
+        )));
   const blankFormulaEditor = usePartFormulaEditor({
     disabled: submitting || snapshotBusy,
     onInsertText: (id, text) => {
@@ -937,6 +929,14 @@ export function ProblemPracticePage({
         }
         let tableCells: Array<{ key: string; correct: boolean }> | undefined;
         if (currentProblem.type === 'table' && submittedAnswer.kind === 'table') {
+          if (structuredRacket && submittedAnswer.sourceCode !== undefined) {
+            const parsed = parseRacketTableAnswer(
+              currentProblem.publicContent as NotebookProblemPublicTable,
+              structuredRacket,
+              submittedAnswer.sourceCode,
+            );
+            submittedAnswer = { ...submittedAnswer, cells: parsed.cells };
+          }
           const tableResult = await gradeNativeTable(
             currentProblem.publicContent as NotebookProblemPublicTable,
             currentProblem.grading as NotebookProblemGradingTable,
@@ -944,6 +944,20 @@ export function ProblemPracticePage({
           );
           grade = tableResult;
           tableCells = tableResult.cells;
+        }
+        if (structuredRacket?.mode === 'template' && submittedAnswer.kind === 'text') {
+          const checks = checkRacketTemplate(
+            submittedAnswer.text,
+            String(currentProblem.grading.referenceAnswer || ''),
+            structuredRacket,
+          );
+          const passed = checks.filter((check) => check.passed).length;
+          grade = {
+            status: passed === checks.length ? 'passed' : passed ? 'partial' : 'failed',
+            score: checks.length ? passed / checks.length : 0,
+            feedback: `模板检查通过 ${passed}/${checks.length} 项。`,
+            autoGraded: true,
+          };
         }
         let aiGradingError: string | null = null;
         if (
@@ -1001,7 +1015,11 @@ export function ProblemPracticePage({
                   autoGraded: grade.autoGraded,
                   ...(tableCells ? { cells: tableCells } : {}),
                   ...(serverCodeId ? { serverCodeId, serverCodeResult } : {}),
-                  gradingProvider: grade.autoGraded ? 'syntara-platform-ai' : 'local',
+                  gradingProvider: structuredRacket
+                    ? 'racket-structured'
+                    : grade.autoGraded
+                      ? 'syntara-platform-ai'
+                      : 'local',
                   aiGradingError,
                 },
               });
@@ -1044,6 +1062,7 @@ export function ProblemPracticePage({
       language,
       stem,
       publicContent,
+      structuredRacket,
     ],
   );
 
@@ -1368,6 +1387,7 @@ export function ProblemPracticePage({
         void syncAppMemories(repository, problem.courseId).catch(() => undefined);
       if (sequence !== snapshotSequence.current) return false;
       if (event === 'answer_reset') {
+        if (structuredRacket) window.localStorage.removeItem(structuredRacketDraftKey);
         await clearHandwritingDrafts(
           handwritingDraftKey(
             accountStorageKey('syntara.handwriting.v1'),
@@ -1546,10 +1566,15 @@ export function ProblemPracticePage({
     : [
         {
           id: 'answer',
-          label: isMultipart && activePart?.type === 'code' ? '代码' : '作答',
-          icon: isMultipart && activePart?.type === 'code' ? Code2 : SendHorizontal,
+          label: structuredRacket || (isMultipart && activePart?.type === 'code') ? '代码' : '作答',
+          icon:
+            structuredRacket || (isMultipart && activePart?.type === 'code')
+              ? Code2
+              : SendHorizontal,
         },
-        ...(activePartCode ? [{ id: 'tests' as const, label: '测试', icon: FileCode2 }] : []),
+        ...(activePartCode || structuredRacket
+          ? [{ id: 'tests' as const, label: '测试', icon: FileCode2 }]
+          : []),
         { id: 'history', label: '记录', icon: Terminal },
       ];
 
@@ -1841,15 +1866,6 @@ export function ProblemPracticePage({
                   </button>
                   <button
                     type="button"
-                    className={cn('pp-tab', visibleLeftTab === 'testcase' && 'is-active')}
-                    aria-pressed={visibleLeftTab === 'testcase'}
-                    onClick={() => setLeftTab('testcase')}
-                  >
-                    <FileCode2 size={13} />
-                    测试
-                  </button>
-                  <button
-                    type="button"
                     className={cn('pp-tab', visibleLeftTab === 'output' && 'is-active')}
                     aria-pressed={visibleLeftTab === 'output'}
                     onClick={() => setLeftTab('output')}
@@ -1896,7 +1912,9 @@ export function ProblemPracticePage({
             ) : (
               <header className="pp-pane-head">
                 <img src={marbleImages[DIFFICULTY_MARBLES[currentProblem.difficulty]]} alt="" />
-                <span>{problemTypeLabel(currentProblem.type)}</span>
+                <span>
+                  {structuredRacket ? 'Racket 作答' : problemTypeLabel(currentProblem.type)}
+                </span>
                 <small>{difficultyLabel(currentProblem.difficulty)}</small>
                 {isMultipart ? (
                   <div ref={setPartNavigationTarget} className="mp-navigation-host" />
@@ -1964,8 +1982,6 @@ export function ProblemPracticePage({
                       answer.code !== debugCode
                     }
                   />
-                ) : visibleLeftTab === 'testcase' ? (
-                  <CodeTestcasePanel code={testcaseCode} language={codeLanguage} />
                 ) : (
                   <>
                     <CodeProblemStatement content={codeContent} locale={language} />
@@ -2016,6 +2032,25 @@ export function ProblemPracticePage({
                     content={stem}
                     className="text-[15px] leading-7 text-slate-800"
                   />
+                  {structuredRacket?.mode === 'constants' && currentProblem.type === 'table' ? (
+                    <section
+                      className="mt-6 space-y-3"
+                      aria-label={language === 'zh-CN' ? '题目表述' : 'Statements'}
+                    >
+                      {(publicContent as NotebookProblemPublicTable).rows.map((row) =>
+                        (publicContent as NotebookProblemPublicTable).columns
+                          .filter((column) => column.role === 'given' && column.cellKind === 'text')
+                          .map((column) =>
+                            row.cells[column.id] ? (
+                              <ProblemRichText
+                                key={`${row.id}:${column.id}`}
+                                content={row.cells[column.id]}
+                              />
+                            ) : null,
+                          ),
+                      )}
+                    </section>
+                  ) : null}
                   <ProblemImageAssets content={publicContent as NotebookProblemPublicContent} />
                 </>
               )}
@@ -2116,7 +2151,9 @@ export function ProblemPracticePage({
                 className={cn('pp-header-actions', handwritingMode && 'is-handwriting')}
                 onContextMenu={handwritingMode ? (event) => event.preventDefault() : undefined}
               >
-                {rightTab === 'answer' && (answer?.kind === 'text' || writtenPart) ? (
+                {!structuredRacket &&
+                rightTab === 'answer' &&
+                (answer?.kind === 'text' || writtenPart) ? (
                   <div className="pp-answer-input-actions" role="group" aria-label="作答输入工具">
                     <button
                       type="button"
@@ -2421,9 +2458,36 @@ export function ProblemPracticePage({
                 </div>
               ) : null}
 
-              {rightTab === 'answer' && !isCode && !isMultipart ? (
+              {(rightTab === 'answer' || (structuredRacket && rightTab === 'tests')) &&
+              !isCode &&
+              !isMultipart ? (
                 <>
-                  {currentProblem.type === 'table' && answer?.kind === 'table' ? (
+                  {structuredRacket && (answer?.kind === 'table' || answer?.kind === 'text') ? (
+                    <NativeRacketAnswer
+                      key={`${currentProblem.id}:${handwritingReset}`}
+                      spec={structuredRacket}
+                      content={publicContent}
+                      grading={currentProblem.grading}
+                      value={answer.kind === 'table' ? answer : { text: answer.text }}
+                      draftKey={structuredRacketDraftKey}
+                      activePanel={rightTab === 'tests' ? 'tests' : 'code'}
+                      lastAttemptAt={document?.attempts[0]?.createdAt}
+                      disabled={loading || submitting || snapshotBusy}
+                      onChange={(sourceCode, cells) => {
+                        setFeedback(null);
+                        setAnswer((current) =>
+                          current?.kind === 'table'
+                            ? { ...current, cells, sourceCode }
+                            : current?.kind === 'text'
+                              ? { ...current, text: sourceCode }
+                              : current,
+                        );
+                      }}
+                    />
+                  ) : null}
+                  {!structuredRacket &&
+                  currentProblem.type === 'table' &&
+                  answer?.kind === 'table' ? (
                     <NativeTableAnswer
                       content={publicContent as NotebookProblemPublicTable}
                       locale={language}
@@ -2505,7 +2569,8 @@ export function ProblemPracticePage({
                     </div>
                   ) : null}
 
-                  {(currentProblem.type === 'short_answer' ||
+                  {!structuredRacket &&
+                  (currentProblem.type === 'short_answer' ||
                     currentProblem.type === 'calculation' ||
                     currentProblem.type === 'proof' ||
                     currentProblem.type === 'fill_blank') &&

@@ -1,0 +1,21 @@
+/* DrRacket-style light palette, shared by statements and editable code. */
+.racket-token-text,
+.racket-token-keyword,
+.racket-token-builtin,
+.racket-token-decorator {
+  color: #0000af;
+}
+
+.racket-token-operator {
+  color: #a0522d;
+}
+
+.racket-token-comment {
+  color: #d07000;
+  font-style: normal;
+}
+
+.racket-token-string,
+.racket-token-number {
+  color: #228b22;
+}

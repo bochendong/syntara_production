@@ -42,13 +42,20 @@ for (const name of paths) {
   });
 }
 const record = path.join(os.tmpdir(), `${path.basename(destination)}-manifest.json`);
+const revision = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+const sourceRecord = JSON.stringify({ revision }) + '\n';
+writeFileSync(path.join(destination, 'source-revision.json'), sourceRecord);
+manifest.push({
+  path: 'source-revision.json',
+  sha256: createHash('sha256').update(sourceRecord).digest('hex'),
+});
 writeFileSync(
   record,
   JSON.stringify(
     {
       source: root,
       destination,
-      base: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+      base: revision,
       files: manifest,
     },
     null,

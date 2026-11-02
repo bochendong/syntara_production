@@ -1,0 +1,1762 @@
+{
+  "total": 145,
+  "translated": 145,
+  "method": "Local manual translation; no external translation service",
+  "questions": [
+    {
+      "id": "cmvt9mvko0007mz0130o58ajl",
+      "title": "2024W1 MT1 · P1 Terminology true/false",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [],
+      "duplicateProgramFigureRemoved": true
+    },
+    {
+      "id": "cmvt9mvl20009mz01jn8bz9kt",
+      "title": "2024W1 MT1 · P2 Step-by-step evaluation",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvt9mvl7000bmz01vm0wek36",
+      "title": "2024W1 MT1 · P3 Data definition template (Waldo)",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvt9mvld000dmz019c4rcoiq",
+      "title": "2024W1 MT1 · P4 grade-calculator",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvt9mvln000fmz01rm1imtgp",
+      "title": "2024W1 MT1 · P5 highest-margin",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvt9mvlu000hmz01d67c2grj",
+      "title": "2024W1 Final · P1 Lifted local definitions",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvt9mvly000jmz01v6kpise1",
+      "title": "2024W1 Final · P2 superfact",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [],
+      "formulaLayoutCorrected": true
+    },
+    {
+      "id": "cmvt9mvm6000lmz0108putrsk",
+      "title": "2024W1 Final · P3 skip-da-dee-do",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvt9mvmf000nmz01mp0bck5i",
+      "title": "2024W1 Final · P4 ray-star",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "THICKNESS",
+          "after": "2"
+        }
+      ]
+    },
+    {
+      "id": "cmvt9mvmu000pmz01jqe7phna",
+      "title": "2024W1 Final · P5 find-at-depth",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvt9mvn5000rmz01nmgosrbv",
+      "title": "2024W1 Final · P6 odd-path-visited",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvt9mvnh000tmz01ipxb2mo8",
+      "title": "2024W1 Final · P7 bean bag packing",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(all-packed? (make-ss (list C1) (list)))",
+          "after": "(all-packed? (make-ss (list (make-crate \"YVR\" 20 empty)) (list)))"
+        }
+      ]
+    },
+    {
+      "id": "cmvynv0ka000tld01ezly6y29",
+      "title": "2020 W1 Midterm 1 · P1 stack",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "(above (text \"a\" TEXT-SIZE TEXT-COLOUR) \n                     (text \"abc\" TEXT-SIZE TEXT-COLOUR))",
+          "after": "(above (text \"a\" 30 \"red\") \n                     (text \"abc\" 30 \"red\"))"
+        },
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "(above (text \"b\" TEXT-SIZE TEXT-COLOUR) \n                     (text \"abc\" TEXT-SIZE TEXT-COLOUR))",
+          "after": "(above (text \"b\" 30 \"red\") \n                     (text \"abc\" 30 \"red\"))"
+        }
+      ]
+    },
+    {
+      "id": "cmvynv0kw000vld01qwdonaj5",
+      "title": "2020 W1 Midterm 1 · P2-3 delivered-before-tomorrow?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0l2000xld0194dl7wja",
+      "title": "2020 W1 Midterm 1 · P4 count-larger, volume",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(count-larger LOS2 10)",
+          "after": "(count-larger (cons (make-solid 1 1 1)\n                   (cons (make-solid 1.1 1.2 1.3)\n                         (cons (make-solid 10 20 30) empty))) 10)"
+        }
+      ]
+    },
+    {
+      "id": "cmvynv0lc000zld01daohjztw",
+      "title": "2020 W1 Midterm 1 · P5 Step-by-step evaluation",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0lg0011ld016c9irzmw",
+      "title": "2020 W1 Midterm 1 · P7 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0lk0013ld01si58egbf",
+      "title": "2020 W2 Midterm 1 · P1 compare",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0lq0015ld011n85aupx",
+      "title": "2020 W2 Midterm 1 · P2 Data definition template",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0lz0017ld019wiuaq77",
+      "title": "2020 W2 Midterm 1 · P3 Step-by-step evaluation",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0m8001bld01jphbljqp",
+      "title": "2021 Summer Midterm 1 · P1 Step-by-step evaluation",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0mc001dld01cn8rra20",
+      "title": "2021 Summer Midterm 1 · P2 Data definition template",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0mk001fld01gfpq0vs3",
+      "title": "2021 Summer Midterm 1 · P3 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0mo001hld01d6ic6pbu",
+      "title": "2021 Summer Midterm 1 · P4 wider-than?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0n2001lld01niv41gp8",
+      "title": "2021 Summer Midterm 1 · P6 count, match-brand-and-price?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0nh001nld0158kes4p4",
+      "title": "2021 Winter Midterm 1 · P1 Step-by-step evaluation",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0nl001pld0166nr2r4s",
+      "title": "2021 Winter Midterm 1 · P2 in-order?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0nr001rld01lwdgo50s",
+      "title": "2021 Winter Midterm 1 · P3 Data definition template",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0o1001tld01gda6nkyh",
+      "title": "2021 Winter Midterm 1 · P4 sum-areas-greater-than",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(sum-areas-greater-than (cons I15x10\n                                            (cons I20x30\n                                                  empty))\n                                      150)",
+          "after": "(sum-areas-greater-than (cons (rectangle 15 10 \"solid\" \"blue\")\n                                            (cons (rectangle 20 30 \"solid\" \"red\")\n                                                  empty))\n                                      150)"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(sum-areas-greater-than (cons I15x10\n                                            (cons I20x30\n                                                  empty))\n                                      151)",
+          "after": "(sum-areas-greater-than (cons (rectangle 15 10 \"solid\" \"blue\")\n                                            (cons (rectangle 20 30 \"solid\" \"red\")\n                                                  empty))\n                                      151)"
+        }
+      ]
+    },
+    {
+      "id": "cmvynv0of001xld01ifnu8syr",
+      "title": "2022 W1 Midterm 1 · P1 Data definition template",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0oq0021ld01zyiubhv1",
+      "title": "2022 W1 Midterm 1 · P3 drop-until-odd",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0ow0023ld019tw4idb9",
+      "title": "2022 W1 Midterm 1 · P4 delivery-weight",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0p10025ld019erx1n2j",
+      "title": "2022 W2 Midterm 1 · P1 Step-by-step evaluation",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0p50027ld01kftzytnk",
+      "title": "2022 W2 Midterm 1 · P2 abbrev",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [],
+      "formulaLayoutCorrected": true
+    },
+    {
+      "id": "cmvynv0pa0029ld01xszaqh1o",
+      "title": "2022 W2 Midterm 1 · P3 Data definition template",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0pf002bld01srv2rvl6",
+      "title": "2022 W2 Midterm 1 · P4 product-while",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [],
+      "formulaLayoutCorrected": true
+    },
+    {
+      "id": "cmvynv0px002fld0158oarhrv",
+      "title": "2023 W1 Midterm 1 · P1 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0q8002hld01qioworb8",
+      "title": "2023 W1 Midterm 1 · P2 Step-by-step evaluation",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0qe002jld01slvujgtc",
+      "title": "2023 W1 Midterm 1 · P3 Data definition template",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0qk002lld01xdce9tbc",
+      "title": "2023 W1 Midterm 1 · P4 package-required-dims",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [],
+      "formulaLayoutCorrected": true
+    },
+    {
+      "id": "cmvynv0qq002nld01ll7o84oa",
+      "title": "2023 W1 Midterm 1 · P5 multiply-odds",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [],
+      "formulaLayoutCorrected": true
+    },
+    {
+      "id": "cmvynv0qx002pld013nfexibq",
+      "title": "2023 W2 Midterm 1 · P1 Step-by-step evaluation",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0r2002rld011ypeso12",
+      "title": "2023 W2 Midterm 1 · P2 Design",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0rh002vld01r21c6fn4",
+      "title": "2023 W2 Midterm 1 · P4 valid-password?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0ro002xld01vjn8pb2h",
+      "title": "2023 W2 Midterm 1 · P5 filter-grocery-total",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(filter-grocery-total\n               (cons G1 (cons G2 (cons G3 (cons G4 empty))))\n               \"dairy\")",
+          "after": "(filter-grocery-total\n               (cons (make-grocery \"apple\" 1.59 false \"fruit\") (cons (make-grocery \"yogurt\" 7.99 true \"dairy\") (cons (make-grocery \"string cheese\" 10.99 false \"dairy\") (cons (make-grocery \"ground beef\" 8.49 true \"meat\") empty))))\n               \"dairy\")"
+        }
+      ]
+    },
+    {
+      "id": "cmvynv0rx002zld017edydtwx",
+      "title": "2024 W2 Midterm 1 · P1 rotate-tall-images",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0s30031ld01018h6eku",
+      "title": "2024 W2 Midterm 1 · P2 Design",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0sg0035ld016uldn4xd",
+      "title": "2024 W2 Midterm 1 · P4 Step-by-step evaluation",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0sl0037ld01pgv4c7vh",
+      "title": "2024 W2 Midterm 1 · P5 avail-tickets",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(avail-tickets 240 (cons T1 (cons T2 empty)))",
+          "after": "(avail-tickets 240 (cons (make-ticket \"Found Heaven\" 150 \"General Admission\" false) (cons (make-ticket \"Era's Tour\" 5000 \"VIP\" true) empty)))"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(avail-tickets 15 (cons T2 (cons T4 empty)))",
+          "after": "(avail-tickets 15 (cons (make-ticket \"Era's Tour\" 5000 \"VIP\" true) (cons (make-ticket \"Pokemon Rap Battle\" 20 \"Last Minute\" false) empty)))"
+        }
+      ]
+    },
+    {
+      "id": "cmvynv0ss0039ld01h5tu5j7u",
+      "title": "2020 W1 Midterm 2 · P2 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0sw003bld01mcsyn3fl",
+      "title": "2020 W1 Midterm 2 · P3 descending-from-n?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0t3003dld01pmx2kq8o",
+      "title": "2020 W1 Midterm 2 · P4 Abstract function signature",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0t6003fld018yw0zxws",
+      "title": "2020 W1 Midterm 2 · P5 Abstract function signature",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvynv0ta003hld011yndpgpy",
+      "title": "2020 W1 Midterm 2 · P6 tree, tr",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(tree (/ CUTOFF SCALE SCALE))",
+          "after": "(tree (/ 10 0.6 0.6))"
+        },
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "(above\n               (beside (rotate 45 (tree (/ CUTOFF SCALE)))\n                       (rotate -45 (tree (/ CUTOFF SCALE))))\n               (tr (/ CUTOFF SCALE SCALE)))",
+          "after": "(above\n               (beside (rotate 45 (tree (/ 10 0.6)))\n                       (rotate -45 (tree (/ 10 0.6))))\n               (tr (/ 10 0.6 0.6)))"
+        },
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "(rectangle 1 10 \"solid\" COLOR)",
+          "after": "(rectangle 1 10 \"solid\" \"black\")"
+        }
+      ]
+    },
+    {
+      "id": "cmvynv0ti003jld01rlp7yy3v",
+      "title": "2020 W1 Midterm 2 · P7 without, count-larger, volume, set=?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3020001nv01u8bp0qu2",
+      "title": "2020 W2 Midterm 2 · P1 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop30y0003nv01jyj1bflu",
+      "title": "2020 W2 Midterm 2 · P2 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3130005nv01awz3rsck",
+      "title": "2020 W2 Midterm 2 · P3-4 fold-ttree, count-leaves, find-val",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(count-leaves TT2)",
+          "after": "(count-leaves (make-node 2 \"two\" #f #f #f))"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(count-leaves TT3)",
+          "after": "(count-leaves (make-node 3 \"three\"\n                       (make-node 2 \"two\" #f #f #f)\n                       (make-node 6 \"six\" #f #f #f)\n                       (make-node 1 \"one\" #f #f #f)))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop31d0007nv01dzgv0g4y",
+      "title": "2020 W2 Midterm 2 · P5-6-7 sum-interval, set-difference, next-countdowns, next-countdown",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop31m0009nv01lcct1rnr",
+      "title": "2021 W1 Midterm 2 · P1 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop31q000bnv01pntuvelc",
+      "title": "2021 W1 Midterm 2 · P2 grade",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop31x000dnv01jp03uets",
+      "title": "2021 W1 Midterm 2 · P3 steps",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "(text \"4\" (* 4 SIZE-FACTOR) \"red\")",
+          "after": "(text \"4\" (* 4 10) \"red\")"
+        },
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "(beside/align \"bottom\"\n                            (text \"3\" (* 3 SIZE-FACTOR) \"blue\")\n                            (text \"2\" (* 2 SIZE-FACTOR) \"orange\")\n                            (text \"1\" (* 1 SIZE-FACTOR) \"blue\"))",
+          "after": "(beside/align \"bottom\"\n                            (text \"3\" (* 3 10) \"blue\")\n                            (text \"2\" (* 2 10) \"orange\")\n                            (text \"1\" (* 1 10) \"blue\"))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop323000fnv01a9d7yfa1",
+      "title": "2021 W2 Midterm 2 · P1 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop32a000hnv01b8ti8yqy",
+      "title": "2021 W2 Midterm 2 · P2 find-grant-with-value",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(find-grant-with-value E8  50 366  2000)",
+          "after": "(find-grant-with-value (make-emp \"Ying\" 1700 empty (list (make-grant  500  40  365) (make-grant 1000  40  730) (make-grant  500  40 1095)))  50 366  2000)"
+        },
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "G17",
+          "after": "(make-grant  500  40  365)"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(find-grant-with-value E8  50 500  4000)",
+          "after": "(find-grant-with-value (make-emp \"Ying\" 1700 empty (list (make-grant  500  40  365) (make-grant 1000  40  730) (make-grant  500  40 1095)))  50 500  4000)"
+        },
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "G17",
+          "after": "(make-grant  500  40  365)"
+        }
+      ],
+      "formulaLayoutCorrected": true
+    },
+    {
+      "id": "cmvyop32k000jnv01hrweuy40",
+      "title": "2021 W2 Midterm 2 · P3 fold-employee, total-vested-by",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(total-vested-by E8  365)",
+          "after": "(total-vested-by (make-emp \"Ying\" 1700 empty (list (make-grant  500  40  365) (make-grant 1000  40  730) (make-grant  500  40 1095)))  365)"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(total-vested-by E8  366)",
+          "after": "(total-vested-by (make-emp \"Ying\" 1700 empty (list (make-grant  500  40  365) (make-grant 1000  40  730) (make-grant  500  40 1095)))  366)"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop32t000lnv01qmo8979b",
+      "title": "2021 W2 Midterm 2 · P4 most-occurrences",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop32z000nnv01a99egemu",
+      "title": "2021 W2 Midterm 2 · P5 euclid",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [],
+      "formulaLayoutCorrected": true
+    },
+    {
+      "id": "cmvyop334000pnv019gc5hydl",
+      "title": "2022 W1 Midterm 2 · P1 profs-with-award",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(profs-with-award \"VGTC\" P4)",
+          "after": "(profs-with-award \"VGTC\" (make-prof \"Heer\"     27847\n                      (list \"Sloan\" \"VGTC\" \"ACM\" \"VisAcademy\")\n                      (list (make-prof \"Bostock\"  6720  empty empty))))"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(profs-with-award \"foo\" P9)",
+          "after": "(profs-with-award \"foo\" (make-prof \"Hanrahan\" 50211\n                      (list \"Turing\" \"Oscar\" \"VisAcademy\")\n                      (list (make-prof \"Munzner\"  12660\n                      (list \"VGTC\" \"VisAcademy\")\n                      (list (make-prof \"Borkin\"   3073  empty empty) (make-prof \"Meyer\"    3880  empty empty))) (make-prof \"Ng\"       12720 (list \"Sloan\" \"Hellman\") empty) (make-prof \"Agrawala\" 21820 (list \"Sloan\" \"SIGGRAPH\") (list (make-prof \"Heer\"     27847\n                      (list \"Sloan\" \"VGTC\" \"ACM\" \"VisAcademy\")\n                      (list (make-prof \"Bostock\"  6720  empty empty))) (make-prof \"Hullman\"  3253\n                      (list \"Google\" \"Microsoft\")\n                      empty))))))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop33a000rnv010eee9gs2",
+      "title": "2022 W1 Midterm 2 · P2 Abstract function signature",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop33n000tnv01wnaf4pnq",
+      "title": "2022 W1 Midterm 2 · P3 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop33w000vnv01x52yd46l",
+      "title": "2022 W1 Midterm 2 · P4 colorbar",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop342000xnv01i6k3lepr",
+      "title": "2022 W1 Midterm 2 · P5 in-this-not-that",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop348000znv019xrwzm5r",
+      "title": "2022 W1 Midterm 2 · P6 decode",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(decode M1    empty)",
+          "after": "(decode (make-packet \"ALL NIGHT\" 4 false)    empty)"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop34e0011nv01u2wvgy2c",
+      "title": "2022 W2 Midterm 2 · P1 get-units",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(get-units CS  9999999 \"research\")",
+          "after": "(get-units (make-unit \"CS\" 10000000 (list \"teach\" \"research\") empty)  9999999 \"research\")"
+        },
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "(list CS)",
+          "after": "(list (make-unit \"CS\" 10000000 (list \"teach\" \"research\") empty))"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(get-units MA 10000000 \"teach\")",
+          "after": "(get-units (make-unit \"MA\" 12000000 (list \"teach\" \"research\") empty) 10000000 \"teach\")"
+        },
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "(list MA)",
+          "after": "(list (make-unit \"MA\" 12000000 (list \"teach\" \"research\") empty))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop34n0013nv01pqw26h46",
+      "title": "2022 W2 Midterm 2 · P2 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop34z0015nv01nop3grxj",
+      "title": "2022 W2 Midterm 2 · P3 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3590017nv01o1xbedec",
+      "title": "2022 W2 Midterm 2 · P4 qselect",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop35f0019nv0177rf5b27",
+      "title": "2022 W2 Midterm 2 · P5 largest",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop35m001bnv0172je5uxv",
+      "title": "2022 W2 Midterm 2 · P6 pyramid",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "(beside/align \"bottom\"\n                            (rectangle SIZE (* SIZE 1) PEN COLOR)\n                            (rectangle SIZE (* SIZE 2) PEN COLOR)\n                            empty-image\n                            (rectangle SIZE (* SIZE 2) PEN COLOR)\n                            (rectangle SIZE (* SIZE 1) PEN COLOR))",
+          "after": "(beside/align \"bottom\"\n                            (rectangle 10 (* 10 1) \"solid\" \"blue\")\n                            (rectangle 10 (* 10 2) \"solid\" \"blue\")\n                            empty-image\n                            (rectangle 10 (* 10 2) \"solid\" \"blue\")\n                            (rectangle 10 (* 10 1) \"solid\" \"blue\"))"
+        },
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "(beside/align \"bottom\"\n                            (rectangle SIZE (* SIZE 1) PEN COLOR)\n                            (rectangle SIZE (* SIZE 2) PEN COLOR)\n                            (rectangle SIZE (* SIZE 3) PEN COLOR)\n                            empty-image\n                            (rectangle SIZE (* SIZE 3) PEN COLOR)\n                            (rectangle SIZE (* SIZE 2) PEN COLOR)\n                            (rectangle SIZE (* SIZE 1) PEN COLOR))",
+          "after": "(beside/align \"bottom\"\n                            (rectangle 10 (* 10 1) \"solid\" \"blue\")\n                            (rectangle 10 (* 10 2) \"solid\" \"blue\")\n                            (rectangle 10 (* 10 3) \"solid\" \"blue\")\n                            empty-image\n                            (rectangle 10 (* 10 3) \"solid\" \"blue\")\n                            (rectangle 10 (* 10 2) \"solid\" \"blue\")\n                            (rectangle 10 (* 10 1) \"solid\" \"blue\"))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop35v001dnv013t36p8nb",
+      "title": "2023 S Midterm 2 · P1 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop35z001fnv01xyrm0zya",
+      "title": "2023 S Midterm 2 · P2 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop363001hnv01c7e2663e",
+      "title": "2023 S Midterm 2 · P4 Abstract function signature",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop368001jnv01mnuigysh",
+      "title": "2023 S Midterm 2 · P5 max-width",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop36d001lnv01s0khvr8a",
+      "title": "2023 S Midterm 2 · P6 explode-pyramid",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop36m001nnv01xavjk1fq",
+      "title": "2023 W1 Midterm 2 · P1 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop36v001pnv01w5snart8",
+      "title": "2023 W1 Midterm 2 · P2 circles",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop371001rnv01bcjqikzx",
+      "title": "2023 W1 Midterm 2 · P3 Lifted definitions",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop375001tnv014getidun",
+      "title": "2023 W1 Midterm 2 · P4 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop379001vnv01yd8u5ad5",
+      "title": "2023 W1 Midterm 2 · P5 find-cave-with-gem",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(find-cave-with-gem C6 \"Q\")",
+          "after": "(find-cave-with-gem (make-cave    150 \"Q\" (make-passage 140 (list (make-cave    130 \"Q\" (make-passage 120 (list (make-cave    100 \"S\" (make-passage 1 empty)) (make-cave    200 \"E\" (make-passage 2 empty)) (make-cave    190 \"E\" (make-passage 2 empty))))) (make-cave     40 \"S\" (make-passage  80 (list (make-cave     50 \"F\" (make-passage 2 empty)))))))) \"Q\")"
+        },
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "C6",
+          "after": "(make-cave    150 \"Q\" (make-passage 140 (list (make-cave    130 \"Q\" (make-passage 120 (list (make-cave    100 \"S\" (make-passage 1 empty)) (make-cave    200 \"E\" (make-passage 2 empty)) (make-cave    190 \"E\" (make-passage 2 empty))))) (make-cave     40 \"S\" (make-passage  80 (list (make-cave     50 \"F\" (make-passage 2 empty))))))))"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(find-cave-with-gem C6 \"F\")",
+          "after": "(find-cave-with-gem (make-cave    150 \"Q\" (make-passage 140 (list (make-cave    130 \"Q\" (make-passage 120 (list (make-cave    100 \"S\" (make-passage 1 empty)) (make-cave    200 \"E\" (make-passage 2 empty)) (make-cave    190 \"E\" (make-passage 2 empty))))) (make-cave     40 \"S\" (make-passage  80 (list (make-cave     50 \"F\" (make-passage 2 empty)))))))) \"F\")"
+        },
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "C3",
+          "after": "(make-cave     50 \"F\" (make-passage 2 empty))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop37f001xnv01tyqih1mi",
+      "title": "2023 W1 Midterm 2 · P6 Abstract function signature",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop37j001znv01pfibar0w",
+      "title": "2023 W1 Midterm 2 · P7 find-min-diameter-to-gem",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(find-min-diameter-to-gem C4 \"S\")",
+          "after": "(find-min-diameter-to-gem (make-cave    130 \"Q\" (make-passage 120 (list (make-cave    100 \"S\" (make-passage 1 empty)) (make-cave    200 \"E\" (make-passage 2 empty)) (make-cave    190 \"E\" (make-passage 2 empty))))) \"S\")"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(find-min-diameter-to-gem C4 \"E\")",
+          "after": "(find-min-diameter-to-gem (make-cave    130 \"Q\" (make-passage 120 (list (make-cave    100 \"S\" (make-passage 1 empty)) (make-cave    200 \"E\" (make-passage 2 empty)) (make-cave    190 \"E\" (make-passage 2 empty))))) \"E\")"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop37p0021nv01r8vp0a52",
+      "title": "2023 W2 Midterm 2 · P1 get-songs-longer-than-n",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(get-songs-longer-than-n (list S1 S2 S3) 189)",
+          "after": "(get-songs-longer-than-n (list (make-song \"Dreaming\" \"Blondie\" 188) (make-song \"I Walk The Line\" \"Johnny Cash\" 165) (make-song \"Wannabe\" \"Spice Girls\" 174)) 189)"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(get-songs-longer-than-n (list S1 S2 S3) 188)",
+          "after": "(get-songs-longer-than-n (list (make-song \"Dreaming\" \"Blondie\" 188) (make-song \"I Walk The Line\" \"Johnny Cash\" 165) (make-song \"Wannabe\" \"Spice Girls\" 174)) 188)"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop37v0023nv014itr8mt3",
+      "title": "2023 W2 Midterm 2 · P2 all-passing-assignments?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3810025nv0125152zu6",
+      "title": "2023 W2 Midterm 2 · P3 sums-up-to-naturals",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [],
+      "formulaLayoutCorrected": true
+    },
+    {
+      "id": "cmvyop3870027nv01j41boxlt",
+      "title": "2023 W2 Midterm 2 · P4 square-odds, foos->bars, replacef",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop38e0029nv019vjehdtj",
+      "title": "2023 W2 Midterm 2 · P5 find-river",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(find-river R6 \"R0\")",
+          "after": "(find-river (make-river \"R6\" false (make-fork \"F3\" (list (make-river \"R4\" false (make-fork \"F1\" (list (make-river \"R0\" true  (make-fork \"F0-0\" empty)) (make-river \"R1\" false (make-fork \"F0-1\" empty)) (make-river \"R2\" true  (make-fork \"F0-2\" empty))))) (make-river \"R5\" true  (make-fork \"F2\" (list (make-river \"R3\" false (make-fork \"F0-3\" empty)))))))) \"R0\")"
+        },
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "R0",
+          "after": "(make-river \"R0\" true  (make-fork \"F0-0\" empty))"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(find-river R6 \"R3\")",
+          "after": "(find-river (make-river \"R6\" false (make-fork \"F3\" (list (make-river \"R4\" false (make-fork \"F1\" (list (make-river \"R0\" true  (make-fork \"F0-0\" empty)) (make-river \"R1\" false (make-fork \"F0-1\" empty)) (make-river \"R2\" true  (make-fork \"F0-2\" empty))))) (make-river \"R5\" true  (make-fork \"F2\" (list (make-river \"R3\" false (make-fork \"F0-3\" empty)))))))) \"R3\")"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop38n002bnv01vbvb2i5a",
+      "title": "2023 W2 Midterm 2 · P6 Abstract function signature",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop38t002dnv01s522imhc",
+      "title": "2024 W2 Midterm 2 · P2 Lifted definitions",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop38x002fnv01sjrgkcot",
+      "title": "2024 W2 Midterm 2 · P3 select",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop394002hnv018btvkw14",
+      "title": "2024 W2 Midterm 2 · P4 koch",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "(beside/align \"bottom\"\n               (rectangle 7 LINE-THICKNESS \"solid\" LINE-COLOR)\n               (rotate  60 (rectangle 7 LINE-THICKNESS \"solid\" LINE-COLOR))\n               (rotate -60 (rectangle 7 LINE-THICKNESS \"solid\" LINE-COLOR))\n               (rectangle 7 LINE-THICKNESS \"solid\" LINE-COLOR))",
+          "after": "(beside/align \"bottom\"\n               (rectangle 7 2 \"solid\" \"black\")\n               (rotate  60 (rectangle 7 2 \"solid\" \"black\"))\n               (rotate -60 (rectangle 7 2 \"solid\" \"black\"))\n               (rectangle 7 2 \"solid\" \"black\"))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop39e002jnv01ag507yap",
+      "title": "2024 W2 Midterm 2 · P5 path-exists?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(path-exists? ONTARIO 4 \"Lake Michigan\")",
+          "after": "(path-exists? (make-join \"Lake Ontario\" 86 80000 (list (make-river \"Niagra\" 17 58000 (make-join \"Lake Erie\" 19 92000 (list (make-river \"Detroit\" 8 45000 (make-join \"Lake Saint Clair\" 3 39000 (list (make-river \"Saint Clair\" 4 65200 (make-join \"Lake Huron\" 59 200000 (list (make-river \"Saint Mary's\" 12 119900 (make-join \"Lake Superior\" 147 220000 empty)) (make-river \"Straits of Mackinac\" 35 15 (make-join \"Lake Michigan\" 85 160000 empty)) (make-river \"North Channel\" 9 150 (make-join \"Georgian Bay\" 20 49 empty))))))))))))) 4 \"Lake Michigan\")"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(path-exists? SUPERIOR 0 \"Lake Michigan\")",
+          "after": "(path-exists? (make-join \"Lake Superior\" 147 220000 empty) 0 \"Lake Michigan\")"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop39l002lnv011yejqr7a",
+      "title": "2024 W2 Midterm 2 · P6 vol-great-lakes, great-lake?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop39r002nnv01hpc1je56",
+      "title": "2024 W2 Midterm 2 · P7 Abstract function signature",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop39v002pnv01p08tv57o",
+      "title": "2020W1 Final · P1 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop39z002rnv01q5kel1e4",
+      "title": "2020W1 Final · P2 longest-sequence",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3po002tnv01u9g9l98v",
+      "title": "2020W1 Final · P3 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3ps002vnv017szjzkk2",
+      "title": "2020W2 Final · P1 Abstract function signature",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3pw002xnv010lj3jl4i",
+      "title": "2020W2 Final · P2 render",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(render RT2)",
+          "after": "(render (make-node (square 20 \"solid\" \"red\") (list (square 20 \"solid\" \"red\") (circle 20 \"solid\" \"blue\") (square 20 \"solid\" \"red\"))))"
+        },
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "(above (square 20 \"solid\" \"red\")\n                                  (beside RT0 RT1 RT0))",
+          "after": "(above (square 20 \"solid\" \"red\")\n                                  (beside (square 20 \"solid\" \"red\") (circle 20 \"solid\" \"blue\") (square 20 \"solid\" \"red\")))"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(render RT3)",
+          "after": "(render (make-node (make-node (square 20 \"solid\" \"red\") (list (square 20 \"solid\" \"red\") (circle 20 \"solid\" \"blue\") (square 20 \"solid\" \"red\"))) (list (circle 20 \"solid\" \"blue\") (square 20 \"solid\" \"red\") (circle 20 \"solid\" \"blue\"))))"
+        },
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "(above (render RT2) (beside RT1 RT0 RT1))",
+          "after": "(above (render (make-node (square 20 \"solid\" \"red\") (list (square 20 \"solid\" \"red\") (circle 20 \"solid\" \"blue\") (square 20 \"solid\" \"red\")))) (beside (circle 20 \"solid\" \"blue\") (square 20 \"solid\" \"red\") (circle 20 \"solid\" \"blue\")))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop3q3002znv01lbqyn3xt",
+      "title": "2020W2 Final · P3 stacked-e-squares",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3q80031nv01s59aeeh4",
+      "title": "2020W2 Final · P4 decode",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3qf0033nv01ooy2j1ns",
+      "title": "2020W2 Final · P5 find-increasing-path",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3qn0035nv01bh0bcjgk",
+      "title": "2021W1 Final · P1 bst-dist?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(bst-dist? BT1 10)",
+          "after": "(bst-dist? (make-node 100 \"a\"\n                       (make-node 50 \"b\"\n                                  (make-node 25 \"c\"\n                                             (make-node 10 \"d\" false false)\n                                             (make-node 30 \"e\" false false))\n                                  (make-node 75 \"c\"\n                                             (make-node 60 \"d\" false false)\n                                             (make-node 80 \"e\" false false)))\n                       (make-node 200 \"f\" false false)) 10)"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(bst-dist? BT2  1)",
+          "after": "(bst-dist? (make-node 100 \"a\"   ;violates left branch rule\n                       (make-node 50 \"b\"\n                                  (make-node 51 \"c\"\n                                             (make-node 10 \"d\" false false)\n                                             (make-node 30 \"e\" false false))\n                                  (make-node 75 \"c\"\n                                             (make-node 60 \"d\" false false)\n                                             (make-node 80 \"e\" false false)))\n                       (make-node 200 \"f\" false false))  1)"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop3r20039nv01cxzx5d60",
+      "title": "2021W1 Final · P3 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3r9003bnv01lp6tlfal",
+      "title": "2021W1 Final · P4 find-increasing-path-sr",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3ri003dnv01u6vs8lkh",
+      "title": "2021W1 Final · P5 find-easiest-increasing-path-tr",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3rp003fnv01vk5y3a4p",
+      "title": "2021W1 Final · P6 Abstract function signature",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3rt003hnv01thwvex9u",
+      "title": "2021W2 Final · P1 challenges-with-hours>=",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(challenges-with-hours>= C2 13)",
+          "after": "(challenges-with-hours>= (make-ch \"Chg 2\" empty (list (make-task \"Task 1\" 10) (make-task \"Task 2\" 14))) 13)"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(challenges-with-hours>= C4 15)",
+          "after": "(challenges-with-hours>= (make-ch \"Chg 4\" (list (make-ch \"Chg 3\" (list (make-ch \"Chg 1\" empty empty) (make-ch \"Chg 2\" empty (list (make-task \"Task 1\" 10) (make-task \"Task 2\" 14)))) (list (make-task \"Task 3\" 7)))) (list (make-task \"Task 4\" 3) (make-task \"Task 5\" 12))) 15)"
+        }
+      ],
+      "formulaLayoutCorrected": true
+    },
+    {
+      "id": "cmvyop3rz003jnv01d87grtn0",
+      "title": "2021W2 Final · P2 Abstract function signature",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3s4003lnv01b9d8mmil",
+      "title": "2021W2 Final · P3 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3s9003nnv01q5cvrrl7",
+      "title": "2021W2 Final · P4 append-all-odd-lengths",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3sf003pnv019y4nk9d6",
+      "title": "2021W2 Final · P5 names-with-eye-color",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(names-with-eye-color \"blue\" (list P1 P2 P3 P4))",
+          "after": "(names-with-eye-color \"blue\" (list (make-person \"Azi\" 25 \"brown\") (make-person \"Ari\" 30 \"green\") (make-person \"Rey\" 35 \"hazel\") (make-person \"Teri\" 40 \"green\")))"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(names-with-eye-color \"green\" (list P1 P2 P3 P4))",
+          "after": "(names-with-eye-color \"green\" (list (make-person \"Azi\" 25 \"brown\") (make-person \"Ari\" 30 \"green\") (make-person \"Rey\" 35 \"hazel\") (make-person \"Teri\" 40 \"green\")))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop3sk003rnv015n6a2b8q",
+      "title": "2021W2 Final · P6 sum-odd-below",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3sr003tnv014bfhfr8n",
+      "title": "2021W2 Final · P7 lookup-star, increasing-magnitude-path",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3t0003vnv01ti5zycj1",
+      "title": "2022W1 Final · P3 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3t8003xnv016mxk92n9",
+      "title": "2022W1 Final · P6 solve, succeeded?, next-search-states",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(solve empty (list G1))",
+          "after": "(solve empty (list (make-gift 1 \"Ely\")))"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(solve (list P1) (list G1))",
+          "after": "(solve (list (make-pkg 1 empty)) (list (make-gift 1 \"Ely\")))"
+        },
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "(list (make-pkg 1 (list G1)))",
+          "after": "(list (make-pkg 1 (list (make-gift 1 \"Ely\"))))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop3tm003znv01tdwykfqv",
+      "title": "2023S Final · P1 Labels",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3u00041nv01o1yjtxjt",
+      "title": "2023S Final · P2 tree-name-string",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(tree-name-string TFOO)",
+          "after": "(tree-name-string (make-tree \"FOO\" (list (make-branch 1 (make-tree \"A\" empty)) (make-branch 2 (make-tree \"B\" empty)))))"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(tree-name-string TBAR)",
+          "after": "(tree-name-string (make-tree \"BAR\" (list (make-branch 3 (make-tree \"C\" empty)))))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop3u60043nv01m0wmym8h",
+      "title": "2023S Final · P4 concat-if",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3uc0045nv01lzfa6cjx",
+      "title": "2023S Final · P5 stack-boxes, box, b/a-b",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3uj0047nv01gsnw38ac",
+      "title": "2023S Final · P6 joins, get-node",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3uo0049nv01i0wx3zq4",
+      "title": "2023W1 Final · P1 sum-between",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3uu004bnv01g3rnr2bb",
+      "title": "2023W1 Final · P2 flip-image-chunks",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3uz004dnv01ph2cg1ln",
+      "title": "2023W1 Final · P3 Lifted definitions",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3v4004fnv01jjve8l7z",
+      "title": "2023W1 Final · P5 drained-centimeters",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3vg004hnv0116ode3vh",
+      "title": "2023W1 Final · P6 one-exit-to-only, generate-node",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3vp004jnv01g3zurp17",
+      "title": "2023W2 Final · P1 rectangles",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3w0004lnv01oefybw1g",
+      "title": "2023W2 Final · P2 spiral",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "input",
+          "before": "(spiral (* CUTOFF DIVISOR) \"green\")",
+          "after": "(spiral (* 5 1.618) \"green\")"
+        },
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "(beside/align \"top\"\n                            (rotate 90 (spiral CUTOFF \"green\"))\n                            (wedge (* DIVISOR CUTOFF) 90 \"outline\" \"green\"))",
+          "after": "(beside/align \"top\"\n                            (rotate 90 (spiral 5 \"green\"))\n                            (wedge (* 1.618 5) 90 \"outline\" \"green\"))"
+        },
+        {
+          "sample": 1,
+          "field": "input",
+          "before": "(spiral (* CUTOFF DIVISOR DIVISOR) \"red\")",
+          "after": "(spiral (* 5 1.618 1.618) \"red\")"
+        },
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "(beside/align \"top\"\n                            (rotate 90 (spiral (* DIVISOR CUTOFF) \"red\"))\n                            (wedge (* CUTOFF DIVISOR DIVISOR) 90 \"outline\"\n                                   \"red\"))",
+          "after": "(beside/align \"top\"\n                            (rotate 90 (spiral (* 1.618 5) \"red\"))\n                            (wedge (* 5 1.618 1.618) 90 \"outline\"\n                                   \"red\"))"
+        }
+      ]
+    },
+    {
+      "id": "cmvyop3w8004nnv01sifhpy7u",
+      "title": "2023W2 Final · P3 sum-max-so-far",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3we004pnv01lz1ilv3b",
+      "title": "2023W2 Final · P4 encode, decode",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3wm004rnv01qeolh0c9",
+      "title": "2023W2 Final · P5 find-path, generate-city",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3wv004tnv013ki67yzb",
+      "title": "2024W2 Final · P1 square-spin",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": [
+        {
+          "sample": 0,
+          "field": "output",
+          "before": "(overlay (rotate (* 45 0)\n                               (square (* 50 (expt SCALE-FACTOR 0))\n                                       \"outline\" \"blue\"))\n                       (rotate (* 45 1)\n                               (square (* 50 (expt SCALE-FACTOR 1))\n                                       \"outline\" \"blue\"))\n                       (rotate (* 45 2)\n                               (square (* 50 (expt SCALE-FACTOR 2))\n                                       \"outline\" \"blue\"))\n                       (rotate (* 45 3)\n                               (square (* 50 (expt SCALE-FACTOR 3))\n                                       \"outline\" \"blue\")))",
+          "after": "(overlay (rotate (* 45 0)\n                               (square (* 50 (expt 1.414 0))\n                                       \"outline\" \"blue\"))\n                       (rotate (* 45 1)\n                               (square (* 50 (expt 1.414 1))\n                                       \"outline\" \"blue\"))\n                       (rotate (* 45 2)\n                               (square (* 50 (expt 1.414 2))\n                                       \"outline\" \"blue\"))\n                       (rotate (* 45 3)\n                               (square (* 50 (expt 1.414 3))\n                                       \"outline\" \"blue\")))"
+        },
+        {
+          "sample": 1,
+          "field": "output",
+          "before": "(overlay (square  30 \"outline\" \"red\")\n                       (rotate  45 (square (* 30 SCALE-FACTOR) \"outline\" \"red\"))\n                       (rotate  90 (square (* 30\n                                              SCALE-FACTOR\n                                              SCALE-FACTOR) \"outline\" \"red\"))\n                       (rotate 135 (square (* 30\n                                              SCALE-FACTOR\n                                              SCALE-FACTOR\n                                              SCALE-FACTOR) \"outline\" \"red\"))\n                       (rotate 180 (square (* 30\n                                              SCALE-FACTOR\n                                              SCALE-FACTOR\n                                              SCALE-FACTOR\n                                              SCALE-FACTOR) \"outline\" \"red\")))",
+          "after": "(overlay (square  30 \"outline\" \"red\")\n                       (rotate  45 (square (* 30 1.414) \"outline\" \"red\"))\n                       (rotate  90 (square (* 30\n                                              1.414\n                                              1.414) \"outline\" \"red\"))\n                       (rotate 135 (square (* 30\n                                              1.414\n                                              1.414\n                                              1.414) \"outline\" \"red\"))\n                       (rotate 180 (square (* 30\n                                              1.414\n                                              1.414\n                                              1.414\n                                              1.414) \"outline\" \"red\")))"
+        }
+      ],
+      "formulaLayoutCorrected": true
+    },
+    {
+      "id": "cmvyop3x5004vnv0148sg83iw",
+      "title": "2024W2 Final · P2 render-longest",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3xb004xnv01rstlnrvc",
+      "title": "2024W2 Final · P4 can-all-eevolve?",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3xi004znv01qd56fupn",
+      "title": "2024W2 Final · P5 do-roll, next-square",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    },
+    {
+      "id": "cmvyop3xt0051nv01e6uxsbft",
+      "title": "2024W2 Final · P6 Abstract function signature",
+      "translation": "locally-authored",
+      "formulaAndExampleReviewed": true,
+      "sampleChanges": []
+    }
+  ],
+  "commentOnlyTasksTranslated": [
+    "cmvynv0lg0011ld016c9irzmw",
+    "cmvynv0lq0015ld011n85aupx",
+    "cmvynv0m40019ld01fen797ys",
+    "cmvynv0mc001dld01cn8rra20",
+    "cmvynv0nr001rld01lwdgo50s",
+    "cmvynv0ss0039ld01h5tu5j7u",
+    "cmvyop30y0003nv01jyj1bflu"
+  ],
+  "restructuredGraphTasks": ["cmvt9mvmu000pmz01jqe7phna", "cmvt9mvn5000rmz01nmgosrbv"],
+  "gradingAndPublicTestsUnchanged": true,
+  "starterCodeUnchangedDuringReview": true,
+  "racketExecutionVerified": false,
+  "followUpPresentationReview": {
+    "allQuestionTypesReviewed": true,
+    "rulesMovedQuestionIds": [
+      "cmvynv0lc000zld01daohjztw",
+      "cmvynv0lq0015ld011n85aupx",
+      "cmvynv0lz0017ld019wiuaq77",
+      "cmvynv0m40019ld01fen797ys",
+      "cmvynv0m8001bld01jphbljqp",
+      "cmvynv0mk001fld01gfpq0vs3",
+      "cmvynv0nh001nld0158kes4p4",
+      "cmvynv0nr001rld01lwdgo50s",
+      "cmvynv0ob001vld01udokxgd3",
+      "cmvynv0om001zld01g7xkruuu",
+      "cmvynv0ow0023ld019tw4idb9",
+      "cmvynv0p10025ld019erx1n2j",
+      "cmvynv0pm002dld01jescsi1w",
+      "cmvynv0px002fld0158oarhrv",
+      "cmvynv0q8002hld01qioworb8",
+      "cmvynv0qx002pld013nfexibq",
+      "cmvynv0rc002tld018ejrw08e",
+      "cmvynv0sa0033ld0166s2o00j",
+      "cmvynv0sg0035ld016uldn4xd",
+      "cmvyop3020001nv01u8bp0qu2",
+      "cmvyop31m0009nv01lcct1rnr",
+      "cmvyop323000fnv01a9d7yfa1",
+      "cmvyop32z000nnv01a99egemu",
+      "cmvyop33a000rnv010eee9gs2",
+      "cmvyop33n000tnv01wnaf4pnq",
+      "cmvyop34n0013nv01pqw26h46",
+      "cmvyop34z0015nv01nop3grxj",
+      "cmvyop35v001dnv013t36p8nb",
+      "cmvyop35z001fnv01xyrm0zya",
+      "cmvyop363001hnv01c7e2663e",
+      "cmvyop36m001nnv01xavjk1fq",
+      "cmvyop371001rnv01bcjqikzx",
+      "cmvyop375001tnv014getidun",
+      "cmvyop37f001xnv01tyqih1mi",
+      "cmvyop37j001znv01pfibar0w",
+      "cmvyop38e0029nv019vjehdtj",
+      "cmvyop38n002bnv01vbvb2i5a",
+      "cmvyop38t002dnv01s522imhc",
+      "cmvyop39r002nnv01hpc1je56",
+      "cmvyop39v002pnv01p08tv57o",
+      "cmvyop3rz003jnv01d87grtn0",
+      "cmvyop3s4003lnv01b9d8mmil",
+      "cmvyop3t0003vnv01ti5zycj1",
+      "cmvyop3tm003znv01tdwykfqv",
+      "cmvyop3u00041nv01o1yjtxjt",
+      "cmvyop3u60043nv01m0wmym8h",
+      "cmvyop3uc0045nv01lzfa6cjx",
+      "cmvyop3uz004dnv01ph2cg1ln",
+      "cmvyop3we004pnv01lz1ilv3b",
+      "cmvyop3wm004rnv01qeolh0c9",
+      "cmvyop3xb004xnv01rstlnrvc",
+      "cmvyop3xt0051nv01e6uxsbft"
+    ],
+    "layoutAdjustedQuestionIds": [
+      "cmvt9mvko0007mz0130o58ajl",
+      "cmvt9mvl20009mz01jn8bz9kt",
+      "cmvt9mvl7000bmz01vm0wek36",
+      "cmvt9mvld000dmz019c4rcoiq",
+      "cmvt9mvln000fmz01rm1imtgp",
+      "cmvt9mvlu000hmz01d67c2grj",
+      "cmvt9mvly000jmz01v6kpise1",
+      "cmvt9mvm6000lmz0108putrsk",
+      "cmvt9mvnh000tmz01ipxb2mo8",
+      "cmvynv0lc000zld01daohjztw",
+      "cmvynv0lg0011ld016c9irzmw",
+      "cmvynv0lq0015ld011n85aupx",
+      "cmvynv0lz0017ld019wiuaq77",
+      "cmvynv0m40019ld01fen797ys",
+      "cmvynv0m8001bld01jphbljqp",
+      "cmvynv0mc001dld01cn8rra20",
+      "cmvynv0mk001fld01gfpq0vs3",
+      "cmvynv0my001jld01n55ur7dm",
+      "cmvynv0nh001nld0158kes4p4",
+      "cmvynv0nr001rld01lwdgo50s",
+      "cmvynv0ob001vld01udokxgd3",
+      "cmvynv0of001xld01ifnu8syr",
+      "cmvynv0om001zld01g7xkruuu",
+      "cmvynv0oq0021ld01zyiubhv1",
+      "cmvynv0ow0023ld019tw4idb9",
+      "cmvynv0p10025ld019erx1n2j",
+      "cmvynv0p50027ld01kftzytnk",
+      "cmvynv0pa0029ld01xszaqh1o",
+      "cmvynv0pf002bld01srv2rvl6",
+      "cmvynv0pm002dld01jescsi1w",
+      "cmvynv0px002fld0158oarhrv",
+      "cmvynv0q8002hld01qioworb8",
+      "cmvynv0qe002jld01slvujgtc",
+      "cmvynv0qk002lld01xdce9tbc",
+      "cmvynv0qx002pld013nfexibq",
+      "cmvynv0r2002rld011ypeso12",
+      "cmvynv0rc002tld018ejrw08e",
+      "cmvynv0rh002vld01r21c6fn4",
+      "cmvynv0ro002xld01vjn8pb2h",
+      "cmvynv0rx002zld017edydtwx",
+      "cmvynv0s30031ld01018h6eku",
+      "cmvynv0sa0033ld0166s2o00j",
+      "cmvynv0sg0035ld016uldn4xd",
+      "cmvynv0sl0037ld01pgv4c7vh",
+      "cmvynv0ss0039ld01h5tu5j7u",
+      "cmvynv0t3003dld01pmx2kq8o",
+      "cmvynv0t6003fld018yw0zxws",
+      "cmvyop3020001nv01u8bp0qu2",
+      "cmvyop30y0003nv01jyj1bflu",
+      "cmvyop31m0009nv01lcct1rnr",
+      "cmvyop323000fnv01a9d7yfa1",
+      "cmvyop32a000hnv01b8ti8yqy",
+      "cmvyop32k000jnv01hrweuy40",
+      "cmvyop32t000lnv01qmo8979b",
+      "cmvyop32z000nnv01a99egemu",
+      "cmvyop33a000rnv010eee9gs2",
+      "cmvyop33n000tnv01wnaf4pnq",
+      "cmvyop348000znv019xrwzm5r",
+      "cmvyop34e0011nv01u2wvgy2c",
+      "cmvyop34n0013nv01pqw26h46",
+      "cmvyop34z0015nv01nop3grxj",
+      "cmvyop3590017nv01o1xbedec",
+      "cmvyop35v001dnv013t36p8nb",
+      "cmvyop35z001fnv01xyrm0zya",
+      "cmvyop363001hnv01c7e2663e",
+      "cmvyop36d001lnv01s0khvr8a",
+      "cmvyop36m001nnv01xavjk1fq",
+      "cmvyop371001rnv01bcjqikzx",
+      "cmvyop375001tnv014getidun",
+      "cmvyop379001vnv01yd8u5ad5",
+      "cmvyop37f001xnv01tyqih1mi",
+      "cmvyop37j001znv01pfibar0w",
+      "cmvyop3810025nv0125152zu6",
+      "cmvyop38e0029nv019vjehdtj",
+      "cmvyop38n002bnv01vbvb2i5a",
+      "cmvyop38t002dnv01s522imhc",
+      "cmvyop39e002jnv01ag507yap",
+      "cmvyop39l002lnv011yejqr7a",
+      "cmvyop39r002nnv01hpc1je56",
+      "cmvyop39v002pnv01p08tv57o",
+      "cmvyop3po002tnv01u9g9l98v",
+      "cmvyop3ps002vnv017szjzkk2",
+      "cmvyop3qv0037nv01g7jodxxr",
+      "cmvyop3r20039nv01cxzx5d60",
+      "cmvyop3r9003bnv01lp6tlfal",
+      "cmvyop3ri003dnv01u6vs8lkh",
+      "cmvyop3rp003fnv01vk5y3a4p",
+      "cmvyop3rt003hnv01thwvex9u",
+      "cmvyop3rz003jnv01d87grtn0",
+      "cmvyop3s4003lnv01b9d8mmil",
+      "cmvyop3sr003tnv014bfhfr8n",
+      "cmvyop3t0003vnv01ti5zycj1",
+      "cmvyop3t8003xnv016mxk92n9",
+      "cmvyop3tm003znv01tdwykfqv",
+      "cmvyop3u00041nv01o1yjtxjt",
+      "cmvyop3uc0045nv01lzfa6cjx",
+      "cmvyop3uj0047nv01gsnw38ac",
+      "cmvyop3uz004dnv01ph2cg1ln",
+      "cmvyop3vg004hnv0116ode3vh",
+      "cmvyop3we004pnv01lz1ilv3b",
+      "cmvyop3wm004rnv01qeolh0c9",
+      "cmvyop3wv004tnv013ki67yzb",
+      "cmvyop3xb004xnv01rstlnrvc",
+      "cmvyop3xi004znv01qd56fupn",
+      "cmvyop3xt0051nv01e6uxsbft"
+    ],
+    "restrictionExamplesReattached": [
+      "cmvyop36v001pnv01w5snart8",
+      "cmvyop38x002fnv01sjrgkcot",
+      "cmvyop3x5004vnv0148sg83iw"
+    ],
+    "starterTestsGradingAndSamplesPreserved": true
+  },
+  "taskCompletenessReview": {
+    "numbers": [
+      6, 7, 13, 14, 15, 18, 29, 31, 58, 61, 62, 65, 66, 19, 23, 30, 69, 90, 93, 99, 100, 106, 129,
+      130, 139, 144, 146, 112, 115, 116, 117, 118, 119, 68, 78, 79, 85, 150
+    ],
+    "source": "Local manual review of public starter-code instructions and purpose comments",
+    "samplesChanged": [7],
+    "starterCodeTestsAndGradingPreserved": true,
+    "browserVerification": "Not performed in this pass: automatic approval review could not be completed because workspace credits were exhausted."
+  },
+  "constantTypographyReview": {
+    "questionNumbers": [13, 61, 69],
+    "change": "Use inline code for program constants; keep surrounding explanation as prose."
+  },
+  "optionalReferenceLinksReview": {
+    "removedVideoLinks": [
+      {
+        "number": 25,
+        "id": "cmvynv0mo001hld01d6ic6pbu",
+        "locale": "en-US"
+      },
+      {
+        "number": 25,
+        "id": "cmvynv0mo001hld01d6ic6pbu",
+        "locale": "zh-CN"
+      }
+    ],
+    "requiredAssetsPreserved": true
+  },
+  "excludedUnsupportedWorldPrograms": {
+    "reason": "User requested removal: animated HtDW programs are not supported here.",
+    "count": 8,
+    "questions": [
+      {
+        "id": "cmvynv0m40019ld01fen797ys",
+        "title": "2020 W2 Midterm 1 · P4 World program",
+        "chapter": "World Programs (HtDW)"
+      },
+      {
+        "id": "cmvynv0my001jld01n55ur7dm",
+        "title": "2021 Summer Midterm 1 · P5 World program",
+        "chapter": "HtDF Design"
+      },
+      {
+        "id": "cmvynv0ob001vld01udokxgd3",
+        "title": "2021 Winter Midterm 1 · P5 World program",
+        "chapter": "World Programs (HtDW)"
+      },
+      {
+        "id": "cmvynv0om001zld01g7xkruuu",
+        "title": "2022 W1 Midterm 1 · P2 World program",
+        "chapter": "World Programs (HtDW)"
+      },
+      {
+        "id": "cmvynv0pm002dld01jescsi1w",
+        "title": "2022 W2 Midterm 1 · P5 World program",
+        "chapter": "World Programs (HtDW)"
+      },
+      {
+        "id": "cmvynv0rc002tld018ejrw08e",
+        "title": "2023 W2 Midterm 1 · P3 World program",
+        "chapter": "World Programs (HtDW)"
+      },
+      {
+        "id": "cmvynv0sa0033ld0166s2o00j",
+        "title": "2024 W2 Midterm 1 · P3 World program",
+        "chapter": "World Programs (HtDW)"
+      },
+      {
+        "id": "cmvyop3qv0037nv01g7jodxxr",
+        "title": "2021W1 Final · P2 World program",
+        "chapter": "World Programs (HtDW)"
+      }
+    ]
+  },
+  "duplicateStarterInstructionReview": {
+    "count": 26,
+    "questionIds": [
+      "cmvynv0ka000tld01ezly6y29",
+      "cmvynv0kw000vld01qwdonaj5",
+      "cmvynv0l2000xld0194dl7wja",
+      "cmvynv0lk0013ld01si58egbf",
+      "cmvynv0lq0015ld011n85aupx",
+      "cmvynv0n2001lld01niv41gp8",
+      "cmvynv0nl001pld0166nr2r4s",
+      "cmvynv0nr001rld01lwdgo50s",
+      "cmvynv0o1001tld01gda6nkyh",
+      "cmvynv0of001xld01ifnu8syr",
+      "cmvynv0pa0029ld01xszaqh1o",
+      "cmvynv0qe002jld01slvujgtc",
+      "cmvynv0r2002rld011ypeso12",
+      "cmvynv0s30031ld01018h6eku",
+      "cmvynv0sw003bld01mcsyn3fl",
+      "cmvynv0ta003hld011yndpgpy",
+      "cmvynv0ti003jld01rlp7yy3v",
+      "cmvyop3130005nv01awz3rsck",
+      "cmvyop31d0007nv01dzgv0g4y",
+      "cmvyop31q000bnv01pntuvelc",
+      "cmvyop39z002rnv01q5kel1e4",
+      "cmvyop3pw002xnv010lj3jl4i",
+      "cmvyop3q3002znv01lbqyn3xt",
+      "cmvyop3q80031nv01s59aeeh4",
+      "cmvyop3qf0033nv01ooy2j1ns",
+      "cmvyop3qn0035nv01bh0bcjgk"
+    ],
+    "programTokensPreserved": true,
+    "gradingAndPublicTestsPreserved": true,
+    "documentationPreserved": "Data type comments, interpretations, constraints, purpose comments and commented-out code are retained."
+  },
+  "flattenedCodeLayoutReview": {
+    "questionIds": ["cmvynv0mk001fld01gfpq0vs3", "cmvyop39v002pnv01p08tv57o"],
+    "languages": ["en-US", "zh-CN"],
+    "nonWhitespaceCharactersPreserved": true
+  }
+}

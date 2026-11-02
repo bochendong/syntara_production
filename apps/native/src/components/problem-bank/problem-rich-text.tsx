@@ -7,6 +7,8 @@ import {
 import { renderMathToHtml, renderTextWithMathToHtml } from '../../lib/math-engine';
 import type { NotebookProblemImageAsset, NotebookProblemPublicContent } from './types';
 import { cn } from '../../lib/cn';
+import { isRacketLanguage, racketLineTokens } from '../../../../../lib/problem-bank/racket-editor';
+import './racket-code.css';
 import {
   protectProblemMath,
   repairProblemProseMath,
@@ -175,6 +177,19 @@ function renderHighlightedPythonCode(code: string): string {
   return html;
 }
 
+function renderHighlightedRacketCode(lines: string[]): string {
+  let state = { blockComment: false, string: false };
+  return lines
+    .map((line) => {
+      const result = racketLineTokens(line, state);
+      state = result.state;
+      return result.tokens
+        .map((token) => `<span class="racket-token-${token.kind}">${escapeHtml(token.text)}</span>`)
+        .join('');
+    })
+    .join('\n');
+}
+
 function renderCodeBlock(lines: string[], language: string): string {
   const normalizedLanguage = sanitizeCodeLanguage(language);
   const className = normalizedLanguage ? ` class="language-${normalizedLanguage}"` : '';
@@ -182,7 +197,9 @@ function renderCodeBlock(lines: string[], language: string): string {
   const renderedCode =
     normalizedLanguage === 'python' || normalizedLanguage === 'py'
       ? renderHighlightedPythonCode(code)
-      : escapeHtml(code);
+      : isRacketLanguage(normalizedLanguage)
+        ? renderHighlightedRacketCode(lines)
+        : escapeHtml(code);
   return `<pre class="not-prose problem-rich-code-block"><code${className}>${renderedCode}</code></pre>`;
 }
 
@@ -530,14 +547,19 @@ function normalizeInlineStructuralMarkdown(text: string): string {
     normalized = normalizeInlinePipeTables(normalized);
   }
 
-  if (
-    /\b(?:Definitions?|included|We say|We define|defined?|conditions?|steps?)\b[^\n]*\s+-\s+/i.test(
-      normalized,
+  // A list introduction only applies to its own line, not arithmetic elsewhere
+  // in the question (for example "Margin = (Price - Cost) / Price").
+  normalized = normalized
+    .split('\n')
+    .map((line) =>
+      /\b(?:Definitions?|included|We say|We define|defined?|conditions?|steps?)\b[^\n]*[\t ]+-[\t ]+/i.test(
+        line,
+      )
+        ? line.replace(/[\t ]+-[\t ]+(?=(?:\$\$)?(?:[A-Z0-9]|\([A-Za-z0-9]))/g, '\n- ')
+        : line,
     )
-  ) {
-    normalized = normalized.replace(/\s+-\s+(?=(?:\$\$)?(?:[A-Z0-9]|\([A-Za-z0-9]))/g, '\n- ');
-    normalized = splitQuestionTextAfterInlineList(normalized);
-  }
+    .join('\n');
+  normalized = splitQuestionTextAfterInlineList(normalized);
 
   return normalized
     .replace(/\n{3,}/g, '\n\n')

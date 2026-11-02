@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-02",
+  "environment": "staging",
+  "branch": "codex/cpsc110-review-sync-20261102",
+  "baseCommit": "573ec1b4ce4bb250912d3d82721d36c293ab8dcf",
+  "status": "verified-candidate",
+  "changes": [
+    "Local manual bilingual review of all 145 retained CPSC110 problems; no external translation service.",
+    "Restore Racket code answering for 47 former table/short-answer tasks, preserving underlying question identities and grading contracts.",
+    "Unify code/tests/history tabs, DrRacket colors, formulas and examples; remove duplicated task boilerplate and first-question figure.",
+    "Plan to archive eight unsupported world-animation problems while retaining grading and learner history."
+  ],
+  "verification": {
+    "regressionTests": 35,
+    "formatAndLint": "passed",
+    "nativeTypes": "passed",
+    "stagingDataPreview": {
+      "updated": 145,
+      "archive": 8,
+      "learnerAttemptsPreserved": 3,
+      "notebooksPreserved": 11
+    },
+    "productionBuild": "passed locally after building internal workspace libraries and allowing an 8 GiB Node heap",
+    "browserReview": "unavailable; browser credits exhausted",
+    "sourceRevisionRegression": "passed"
+  },
+  "dataSync": "not yet applied",
+  "failedDeployment": {
+    "id": "cb99e9e7-2391-44a5-8d63-477d02f1e57d",
+    "reason": "CLI source export lacks .git; fixed by recording and reading source-revision.json"
+  }
+}

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { highlightPython } from '@/components/problem-bank/code-answer-editor';
 import { ProblemRichText } from '@/components/problem-bank/problem-rich-text';
 import { codeStatementPresentation } from '@/lib/problem-bank/code-statement-presentation';
+import { isRacketLanguage } from '@/lib/problem-bank/racket-editor';
 
 type CodeProblemPublicContent = Extract<NotebookProblemPublicContent, { type: 'code' }>;
 type CodeStatementSection = NonNullable<CodeProblemPublicContent['statementSections']>[number];
@@ -225,9 +226,11 @@ function CodeSamplesSection({
 function CodeConstraintsSection({
   constraints,
   locale,
+  language,
 }: {
   constraints: CodeProblemPublicContent['constraints'];
   locale: 'zh-CN' | 'en-US';
+  language?: string;
 }) {
   if (constraints.length === 0) return null;
 
@@ -235,16 +238,22 @@ function CodeConstraintsSection({
     <section className="space-y-4">
       <CodeProblemStatementHeading
         icon={CheckSquare}
-        label={locale === 'zh-CN' ? '约束' : 'Constraints'}
+        label={locale === 'zh-CN' ? '约束限制条件' : 'Constraints'}
         kind="constraints"
       />
       <ul className="space-y-2 text-sm leading-7 text-slate-700 dark:text-slate-200">
         {constraints.map((constraint, index) => (
           <li key={`${constraint}-${index}`} className="flex items-start gap-3">
             <span className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500 dark:bg-teal-400" />
-            <code className="inline-block rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-[13px] leading-6 text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100">
-              {constraint}
-            </code>
+            {isRacketLanguage(language) ? (
+              <div className="min-w-0 flex-1">
+                <ProblemRichText content={constraint} />
+              </div>
+            ) : (
+              <code className="inline-block rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-[13px] leading-6 text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100">
+                {constraint}
+              </code>
+            )}
           </li>
         ))}
       </ul>
@@ -303,8 +312,12 @@ export function CodeProblemStatement({
         <LegacyDescriptionSection stem={stem} locale={locale} />
       )}
       <CodeSamplesSection samples={samples} locale={locale} />
-      <CodeConstraintsSection constraints={constraints} locale={locale} />
       <StarterCodeNote description={starterDescription} locale={locale} />
+      <CodeConstraintsSection
+        constraints={constraints}
+        locale={locale}
+        language={content.language}
+      />
     </div>
   );
 }
