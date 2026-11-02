@@ -164,6 +164,78 @@ export async function getCloudUsageUserLimit(
   return normalizeUserLimit(userId, rows[0]);
 }
 
+/** 管理员保存全站每周额度（网页管理中心和 App 管理页共用）。 */
+export async function saveCloudUsageGlobalLimit(
+  db: DbClient,
+  input: {
+    enabled: boolean;
+    weeklyCostLimitUsd: number | null;
+    weeklyRequestLimit: number | null;
+    updatedBy: string;
+  },
+): Promise<CloudUsageGlobalLimit> {
+  await db.$executeRaw(
+    Prisma.sql`
+      INSERT INTO "CloudUsageGlobalLimit" (
+        "id", "enabled", "weeklyCostLimitUsd", "weeklyRequestLimit", "updatedBy", "updatedAt"
+      )
+      VALUES (
+        'global',
+        ${input.enabled},
+        ${input.weeklyCostLimitUsd},
+        ${input.weeklyRequestLimit},
+        ${input.updatedBy},
+        CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("id") DO UPDATE SET
+        "enabled" = EXCLUDED."enabled",
+        "weeklyCostLimitUsd" = EXCLUDED."weeklyCostLimitUsd",
+        "weeklyRequestLimit" = EXCLUDED."weeklyRequestLimit",
+        "updatedBy" = EXCLUDED."updatedBy",
+        "updatedAt" = CURRENT_TIMESTAMP
+    `,
+  );
+  return getCloudUsageGlobalLimit(db);
+}
+
+/** 管理员保存某个账号的每周额度；null 表示不单独限制（只受全站额度）。 */
+export async function saveCloudUsageUserLimit(
+  db: DbClient,
+  input: {
+    userId: string;
+    weeklyCostLimitUsd: number | null;
+    weeklyRequestLimit: number | null;
+    disabled: boolean;
+    note: string | null;
+    updatedBy: string;
+  },
+): Promise<CloudUsageUserLimit | null> {
+  await db.$executeRaw(
+    Prisma.sql`
+      INSERT INTO "CloudUsageUserLimit" (
+        "userId", "weeklyCostLimitUsd", "weeklyRequestLimit", "disabled", "note", "updatedBy", "updatedAt"
+      )
+      VALUES (
+        ${input.userId},
+        ${input.weeklyCostLimitUsd},
+        ${input.weeklyRequestLimit},
+        ${input.disabled},
+        ${input.note},
+        ${input.updatedBy},
+        CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("userId") DO UPDATE SET
+        "weeklyCostLimitUsd" = EXCLUDED."weeklyCostLimitUsd",
+        "weeklyRequestLimit" = EXCLUDED."weeklyRequestLimit",
+        "disabled" = EXCLUDED."disabled",
+        "note" = EXCLUDED."note",
+        "updatedBy" = EXCLUDED."updatedBy",
+        "updatedAt" = CURRENT_TIMESTAMP
+    `,
+  );
+  return getCloudUsageUserLimit(db, input.userId);
+}
+
 export async function summarizeCloudUsage(
   db: DbClient,
   userId?: string | null,

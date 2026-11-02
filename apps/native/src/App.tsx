@@ -40,10 +40,16 @@ import {
 } from './components/ClassroomPanel';
 import { syncCourseData } from './data/course-sync';
 import { TeachPage } from './components/TeachPage';
+import { AdminPage } from './components/AdminPage';
 import { OnboardingCoach } from './components/OnboardingCoach';
 import { completeOnboardingStep, PLATFORM_TUTORIAL_COURSE_ID } from './lib/onboarding';
 import { guideCourseCreated } from './lib/onboarding-guide';
-import { deleteNativeCourse, editNativeCourse, getTeachHome } from './data/platform-api-client';
+import {
+  deleteNativeCourse,
+  editNativeCourse,
+  getTeachHome,
+  isAdminAccount,
+} from './data/platform-api-client';
 import { readPlatformCourseMeta } from './lib/platform-course-meta';
 import { resolveNativeCourseAvatar } from './assets';
 import { marbleImages } from './lib/learning-action-marbles';
@@ -122,10 +128,22 @@ function AuthenticatedApp() {
       cancelled = true;
     };
   }, [classroomEnabled]);
+  // 「管理」入口（测试服管理员控制台）只给管理员账号。
+  const [canAdmin, setCanAdmin] = useState(false);
+  useEffect(() => {
+    if (!platformAvailable()) return;
+    let cancelled = false;
+    void isAdminAccount().then((admin) => {
+      if (!cancelled) setCanAdmin(admin);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const compactLayout = useCompactLayout();
-  const [globalPage, setGlobalPage] = useState<'calendar' | 'profile' | 'store' | 'teach' | null>(
-    null,
-  );
+  const [globalPage, setGlobalPage] = useState<
+    'calendar' | 'profile' | 'store' | 'teach' | 'admin' | null
+  >(null);
   const [globalEvents, setGlobalEvents] = useState<LocalCourseEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
@@ -626,13 +644,16 @@ function AuthenticatedApp() {
             ? 'store'
             : globalPage === 'teach'
               ? 'teach'
-              : 'chat',
+              : globalPage === 'admin'
+                ? 'admin'
+                : 'chat',
     avatarUrl: avatarTheme.avatarUrl,
     onOpenCalendar: () => setGlobalPage('calendar'),
     onOpenStore: () => setGlobalPage('store'),
     onOpenSettings: () => setGlobalPage('profile'),
     onOpenClassroom: classroomEnabled ? () => setClassroomOpen(true) : undefined,
     onOpenTeach: classroomEnabled && canTeach ? () => setGlobalPage('teach') : undefined,
+    onOpenAdmin: canAdmin ? () => setGlobalPage('admin') : undefined,
     onManageCourse: platformAvailable()
       ? (course, action) => setManagedCourse({ course, action })
       : undefined,
@@ -775,6 +796,8 @@ function AuthenticatedApp() {
               </>
             ) : globalPage === 'teach' ? (
               <TeachPage onBack={() => setGlobalPage(null)} />
+            ) : globalPage === 'admin' ? (
+              <AdminPage onBack={() => setGlobalPage(null)} />
             ) : globalPage === 'store' ? (
               <StorePage
                 onBack={() => setGlobalPage(null)}

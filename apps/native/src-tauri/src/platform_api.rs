@@ -45,6 +45,8 @@ const STORE_PATH: &str = "/api/native/v1/store";
 const CLASSROOM_PATH: &str = "/api/native/v1/classroom";
 /// 老师的「教学」页：班级、名单、上课大屏。
 const TEACH_PATH: &str = "/api/native/v1/teach";
+/// 管理员的「管理」页：全站模型、API Key、账号身份、用量额度。
+const ADMIN_PATH: &str = "/api/native/v1/admin";
 /// 资料页上传的笔记 / 题目。
 const MATERIALS_PATH: &str = "/api/native/v1/materials";
 const ONBOARDING_PATH: &str = "/api/native/v1/onboarding";
@@ -1091,6 +1093,20 @@ pub async fn native_get_teach(request: PlatformQueryRequest) -> Result<Value, St
 #[tauri::command]
 pub async fn native_teach_action(request: PlatformJsonRequest) -> Result<Value, String> {
     post_json(TEACH_PATH, &request, DEFAULT_TIMEOUT).await
+}
+
+#[tauri::command]
+pub async fn native_get_admin(request: PlatformQueryRequest) -> Result<Value, String> {
+    get_json(
+        &path_with_query(ADMIN_PATH, &request.query),
+        request.syntara_token.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn native_admin_action(request: PlatformJsonRequest) -> Result<Value, String> {
+    post_json(ADMIN_PATH, &request, DEFAULT_TIMEOUT).await
 }
 
 #[tauri::command]

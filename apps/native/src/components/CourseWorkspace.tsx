@@ -46,6 +46,7 @@ import {
   Presentation,
   Radio,
   GraduationCap,
+  ShieldCheck,
   Save,
   Search,
   SendHorizontal,
@@ -1473,6 +1474,12 @@ export function PhoneChatDrawer<
               >
                 <Radio size={20} strokeWidth={1.8} aria-hidden />
                 <span>上课</span>
+              </button>
+            ) : null}
+            {navigation.onOpenAdmin ? (
+              <button type="button" className="phone-drawer-tool" onClick={navigation.onOpenAdmin}>
+                <ShieldCheck size={20} strokeWidth={1.8} aria-hidden />
+                <span>管理</span>
               </button>
             ) : null}
           </>

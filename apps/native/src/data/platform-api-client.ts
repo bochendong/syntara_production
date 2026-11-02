@@ -745,6 +745,125 @@ export function teachSessionAction(payload: TeachSessionAction): Promise<TeachSe
   return teachAction(payload);
 }
 
+export type AdminRole = 'USER' | 'STUDENT' | 'TEACHER' | 'ADMIN';
+
+export type AdminUsage = { estimatedCostUsd: number; requestCount: number };
+
+export type AdminLlmConfig = {
+  modelId: string;
+  tierModels: { low: string; medium: string; high: string };
+  baseUrl: string;
+  hasApiKey: boolean;
+  maskedApiKey: string;
+  source: 'database' | 'environment';
+  updatedAt: string | null;
+};
+
+export type AdminGlobalUsage = {
+  limit: {
+    enabled: boolean;
+    weeklyCostLimitUsd: number | null;
+    weeklyRequestLimit: number | null;
+    updatedBy: string | null;
+    updatedAt: string | null;
+  };
+  usage: AdminUsage;
+};
+
+export type AdminOverview = {
+  me: { userId: string; email: string | null };
+  llm: AdminLlmConfig;
+  modelOptions: Array<{ id: string; label: string; description: string }>;
+  providers: Array<{
+    kind: 'image' | 'tts' | 'webSearch';
+    id: string;
+    name: string;
+    configured: boolean;
+    keyLast4: string | null;
+    envName: string | null;
+  }>;
+  usage: AdminGlobalUsage;
+  roleCounts: Record<AdminRole, number>;
+};
+
+export type AdminUser = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+  role: AdminRole;
+  isActive: boolean;
+  createdAt: number;
+  limit: {
+    weeklyCostLimitUsd: number | null;
+    weeklyRequestLimit: number | null;
+    disabled: boolean;
+  } | null;
+  usage: AdminUsage;
+};
+
+/** 只有管理员能拿到 true；其他账号接口返回 403，这里当成 false。 */
+export async function isAdminAccount(): Promise<boolean> {
+  try {
+    const result = await invokeQuery<{ admin?: boolean }>('native_get_admin', { check: 1 });
+    return result.admin === true;
+  } catch {
+    return false;
+  }
+}
+
+/** 管理页总览。不是管理员会报 403。 */
+export function getAdminOverview(): Promise<AdminOverview> {
+  return invokeQuery('native_get_admin', {});
+}
+
+export async function searchAdminUsers(
+  query: string,
+  role: AdminRole | null,
+): Promise<AdminUser[]> {
+  const result = await invokeQuery<{ users: AdminUser[] }>('native_get_admin', {
+    users: 1,
+    query: query.trim() || undefined,
+    role: role ?? undefined,
+  });
+  return result.users ?? [];
+}
+
+function adminAction<T>(payload: unknown): Promise<T> {
+  return invokeJson('native_admin_action', { requestId: crypto.randomUUID(), payload });
+}
+
+export async function saveAdminLlm(input: {
+  modelId?: string;
+  tierModels?: AdminLlmConfig['tierModels'];
+  apiKey?: string;
+  baseUrl?: string;
+}): Promise<AdminLlmConfig> {
+  return (await adminAction<{ llm: AdminLlmConfig }>({ action: 'save-llm', ...input })).llm;
+}
+
+export async function setAdminUserRole(userId: string, role: AdminRole): Promise<AdminUser> {
+  return (await adminAction<{ user: AdminUser }>({ action: 'set-role', userId, role })).user;
+}
+
+export async function setAdminUserLimit(input: {
+  userId: string;
+  weeklyCostLimitUsd: number | null;
+  weeklyRequestLimit: number | null;
+  disabled: boolean;
+}): Promise<AdminUser> {
+  return (await adminAction<{ user: AdminUser }>({ action: 'set-user-limit', ...input })).user;
+}
+
+export async function setAdminGlobalLimit(input: {
+  enabled: boolean;
+  weeklyCostLimitUsd: number | null;
+  weeklyRequestLimit: number | null;
+}): Promise<AdminGlobalUsage> {
+  return (await adminAction<{ usage: AdminGlobalUsage }>({ action: 'set-global-limit', ...input }))
+    .usage;
+}
+
 /** join：从商城加入课程；seen：打开过加入的课程，熄灭「有更新」。 */
 export function nativeStoreAction(
   courseId: string,
