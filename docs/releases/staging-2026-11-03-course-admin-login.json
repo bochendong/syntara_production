@@ -1,0 +1,90 @@
+{
+  "at": "2026-11-03T07:42:01.938Z",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "deploymentId": "c2e25aac-a8fa-450e-80f3-48a9e0d84790",
+  "revision": "22993c4da176a3b06755fc32ce928df96407a8fb",
+  "http": [
+    {
+      "path": "/api/health",
+      "status": 200
+    },
+    {
+      "path": "/api/native/v1/version",
+      "status": 200
+    },
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/test?as=student",
+      "status": 200
+    },
+    {
+      "path": "/test?as=teacher",
+      "status": 200
+    },
+    {
+      "path": "/native-web/index.html",
+      "status": 200
+    }
+  ],
+  "assets": [
+    {
+      "path": "/native-web/assets/index-DCg7RRT9.js",
+      "sha256": "25b4c329f13bef64efbb096054d3c74c2012328c4f1f4762512653b551974560",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/index-DU7OgFZJ.css",
+      "sha256": "dd562d730849a97539b15084975406bc8bb86fe2108e3de581650c7c1c38a4ab",
+      "matched": true
+    }
+  ],
+  "status": "deployed",
+  "pullRequests": [30, 31],
+  "branch": "codex/staging-next",
+  "initialDeployment": {
+    "id": "943561fc-9558-4463-8dba-0f8fb5ff9ebc",
+    "revision": "1ee016e526abae921bcca51f3af45210f280da5e"
+  },
+  "migrations": {
+    "count": 55,
+    "status": "All migrations successfully applied; final rollout reports no pending migrations",
+    "added": [
+      "20261102213000_course_managers",
+      "20261103010000_course_publication_admissions",
+      "20261103090000_course_content_drafts",
+      "20261103090000_teacher_claim_speedup_phone"
+    ]
+  },
+  "verification": {
+    "changedFilesFormatting": true,
+    "changedFilesLint": true,
+    "rootTypes": true,
+    "nativeTypes": true,
+    "productionBuild": true,
+    "disposablePostgresWithPgvector": true,
+    "teacherClaimConcurrency": true,
+    "adminAssignmentConcurrency": true,
+    "classroomFlow": true,
+    "admissionsAndSeparateClassMembership": true,
+    "contentDraftPrivacyAndAtomicPublication": true,
+    "questionArchivePreservesAttempts": true,
+    "authenticatedLocalHttp": true,
+    "realAuthenticatedBrowser": [
+      "teaching course cards",
+      "shared note preview",
+      "grouped question bank",
+      "claimable course list",
+      "student Speedup last-four popup",
+      "teacher startup stays on teaching after reload and suppresses student popup"
+    ],
+    "limitations": [
+      "Used existing Google session; did not repeat a fresh OAuth account-selection flow.",
+      "Real course claims, publication, deletions and phone-tail submissions were not performed during verification; mutating checks used disposable PostgreSQL.",
+      "Desktop and iOS installers were not rebuilt."
+    ]
+  },
+  "productionChanged": false
+}
