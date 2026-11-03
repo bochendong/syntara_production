@@ -302,6 +302,8 @@ function AuthenticatedApp() {
 
   useEffect(() => {
     if (loading || surface !== 'launch') return;
+    // Teacher entry owns the initial screen; restore the last chat only after leaving teaching.
+    if (teacherLogin && classroomEnabled && globalPage === 'teach') return;
     const entry = browserApp ? new URLSearchParams(window.location.search) : null;
     const requested = launchCourses.find((course) => course.id === entry?.get('courseId'));
     const course = requested ?? selectChatCourse(launchCourses, readPhoneLastChat());
@@ -311,7 +313,15 @@ function AuthenticatedApp() {
         requested && entry?.get('page') === 'notes' ? { page: 'notes' } : undefined,
       );
     else if (browserApp) setSurface('general');
-  }, [loading, surface, launchCourses, openRecentCourse]);
+  }, [
+    loading,
+    surface,
+    launchCourses,
+    openRecentCourse,
+    teacherLogin,
+    classroomEnabled,
+    globalPage,
+  ]);
 
   const openGeneralChat = useCallback((draft = '', conversationId: string | null = null) => {
     setInitialGeneralConversationId(conversationId);
