@@ -678,6 +678,25 @@ export async function managedReleaseStatus(db: DbClient, userId: string, courseI
   };
 }
 
+// Stored scores are points; native attempt views use a 0–1 score ratio.
+const attemptScoreRatio = (score: number | null, points: number) =>
+  score !== null && points > 0 ? Math.max(0, Math.min(1, score / points)) : null;
+function managedAttemptResult(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result = value as Record<string, unknown>;
+  if (!Array.isArray(result.parts)) return result;
+  return {
+    ...result,
+    parts: result.parts.map((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+      const part = value as Record<string, unknown>;
+      return typeof part.score === 'number' && typeof part.points === 'number'
+        ? { ...part, score: attemptScoreRatio(part.score, part.points) }
+        : part;
+    }),
+  };
+}
+
 /** Read a bounded page or one full submission, always within this managed public course. */
 export async function getManagedCourseStudentAttempts(
   db: DbClient,
@@ -707,7 +726,7 @@ export async function getManagedCourseStudentAttempts(
         answerJson: true,
         resultJson: true,
         activeDurationMs: true,
-        problem: { select: { title: true, publicContentJson: true } },
+        problem: { select: { title: true, points: true, publicContentJson: true } },
       },
     });
     if (!attempt) throw new CourseAdmissionError(404, '找不到这次做题记录。');
@@ -716,10 +735,10 @@ export async function getManagedCourseStudentAttempts(
       attempt: {
         id: attempt.id,
         status: attempt.status,
-        score: attempt.score,
+        score: attemptScoreRatio(attempt.score, attempt.problem.points),
         createdAt: attempt.createdAt,
         answer: attempt.answerJson,
-        result: attempt.resultJson,
+        result: managedAttemptResult(attempt.resultJson),
         activeDurationMs: attempt.activeDurationMs,
         title: attempt.problem.title,
         language: typeof content?.language === 'string' ? content.language : undefined,
@@ -732,11 +751,25 @@ export async function getManagedCourseStudentAttempts(
     db.notebookProblemAttempt.count({ where }),
     db.notebookProblemAttempt.findMany({
       where,
-      select: { id: true, status: true, score: true, createdAt: true },
+      select: {
+        id: true,
+        status: true,
+        score: true,
+        createdAt: true,
+        problem: { select: { points: true } },
+      },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
   ]);
-  return { attempts, total, page, pageSize };
+  return {
+    attempts: attempts.map(({ problem, ...attempt }) => ({
+      ...attempt,
+      score: attemptScoreRatio(attempt.score, problem.points),
+    })),
+    total,
+    page,
+    pageSize,
+  };
 }

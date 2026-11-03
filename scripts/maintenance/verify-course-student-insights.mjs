@@ -68,6 +68,7 @@ try {
               courseId,
               ownerId,
               type: 'short_answer',
+              points: 100,
               status: 'published',
               order: 0,
               tags: [],
@@ -81,6 +82,7 @@ try {
               userId: users.student.id,
               kind: 'answer',
               status: 'passed',
+              score: 100,
               answerJson: { text: title },
             },
           });
@@ -211,6 +213,29 @@ try {
         const full = await read(users.teacher.id, shared.id, later[0].id);
         assert.equal(full.attempt.answer.code, longCode);
         assert.equal(full.attempt.result.feedback, 'Try again');
+        const passedDetail = await read(users.teacher.id, shared.id, original.id);
+        assert.equal(passedDetail.attempt.score, 1, '100 / 100 points becomes 100%');
+        assert.equal(second.attempts.at(-1).score, 1, 'History uses the same score ratio');
+        const partial = await tx.notebookProblemAttempt.create({
+          data: {
+            problemId: shared.id,
+            userId: users.student.id,
+            kind: 'answer',
+            status: 'partial',
+            score: 50,
+            answerJson: { parts: { a: { text: 'partial' } } },
+            resultJson: { parts: [{ label: 'a', points: 20, score: 10, status: 'partial' }] },
+          },
+        });
+        const partialDetail = await read(users.teacher.id, shared.id, partial.id);
+        assert.equal(partialDetail.attempt.score, 0.5);
+        assert.equal(partialDetail.attempt.result.parts[0].score, 0.5);
+        assert.equal(
+          (await tx.notebookProblemAttempt.findUnique({ where: { id: partial.id } })).score,
+          50,
+          'Stored points stay unchanged',
+        );
+
         const empty = await tx.notebookProblemAttempt.create({
           data: {
             problemId: shared.id,

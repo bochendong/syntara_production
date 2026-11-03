@@ -293,7 +293,7 @@ export function AttemptDetail({
 }) {
   const answer = rec(attempt.answer);
   const result = rec(attempt.result);
-  const server = rec(result.serverCodeResult);
+  const server = rec(result.serverCodeResult ?? result);
   const partResults = Array.isArray(result.parts) ? result.parts.map(rec) : [];
   if (answer.kind === 'parts' || partResults.length) {
     return (
