@@ -160,6 +160,12 @@ try {
           }),
           null,
         );
+        await assert.rejects(
+          drafts.stageContent(tx, owner.id, course.id, 'problems', problem.id, {
+            grading: { type: 'proof', referenceProof: 'Proof' },
+          }),
+          (e) => e.status === 400,
+        );
         const stableTime = (
           await tx.notebook.findUnique({ where: { id: book.id } })
         ).updatedAt.getTime();

@@ -135,6 +135,8 @@ export async function stageContent(
       sourceMeta: payload.sourceMeta ?? {},
       validationErrors: [],
     });
+    if (parsed.type !== parsed.publicContent.type || parsed.type !== parsed.grading.type)
+      throw new CourseAdmissionError(400, '题型、题面和答案类型不一致。');
     const normalized = normalizeDraftForPersistence(
       await withCodeReferenceVerification(parsed),
       payload.order ?? 0,
@@ -244,6 +246,8 @@ export async function applyContentDrafts(db: DbClient, courseId: string) {
         }),
         p.order ?? 0,
       );
+      if (verified.type !== verified.publicContent.type || verified.type !== verified.grading.type)
+        throw new CourseAdmissionError(409, '草稿的题型、题面和答案类型不一致。');
       if (verified.status !== 'published')
         throw new CourseAdmissionError(409, '题目尚未通过发布校验，请打开编辑并重新保存。');
     }
