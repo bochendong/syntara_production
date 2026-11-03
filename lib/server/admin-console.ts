@@ -4,6 +4,11 @@ import { TTS_PROVIDERS } from '@/lib/audio/constants';
 import { IMAGE_PROVIDERS } from '@/lib/media/image-providers';
 import { WEB_SEARCH_PROVIDERS } from '@/lib/web-search/constants';
 import { isAuthorizedAdminIdentity } from '@/lib/server/admin-identity';
+import { normalizeCourseDisplay } from '@/lib/course-space/course-display-name';
+import { pickStableCourseAvatarUrl } from '@/lib/constants/course-avatars';
+import { listAccessibleCoursesForUser } from '@/lib/server/repositories/course-repository';
+import { visibleNativeCourses } from '@/lib/server/native-staging-course';
+import type { DbClient } from '@/lib/server/repositories/types';
 import {
   getCloudUsageGlobalLimit,
   getCloudUsageUserLimit,
@@ -36,7 +41,7 @@ export class AdminConsoleError extends Error {
 
 export type AdminConsoleViewer = { userId: string; email: string | null };
 
-async function readRole(db: PrismaClient, userId: string): Promise<string | null> {
+async function readRole(db: DbClient, userId: string): Promise<string | null> {
   try {
     // 和 requireAdmin 一样单独查 role，老库没有这列时不报错。
     const rows = await db.$queryRaw<Array<{ role: string }>>(
@@ -50,7 +55,7 @@ async function readRole(db: PrismaClient, userId: string): Promise<string | null
 
 /** 用登录账号在库里的身份判断（role = ADMIN 或在 ADMIN_EMAILS / ADMIN_USER_IDS 里），不信请求体。 */
 export async function resolveAdminConsoleViewer(
-  db: PrismaClient,
+  db: DbClient,
   userId: string,
 ): Promise<AdminConsoleViewer | null> {
   const profile = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
@@ -218,36 +223,71 @@ async function withUsage(
   };
 }
 
-/** 按邮箱或名字搜账号；不搜就是最近活跃的 20 个。可以只看某个身份。 */
+/** 按邮箱或名字搜账号，每页最多 20 个；空搜索只列出活跃账号。 */
 export async function searchAdminConsoleUsers(
   db: PrismaClient,
-  input: { query?: string | null; role?: AdminConsoleRole | null },
-): Promise<AdminConsoleUser[]> {
+  input: { query?: string | null; role?: AdminConsoleRole | null; page?: number },
+): Promise<{ users: AdminConsoleUser[]; total: number; page: number; pageSize: number }> {
   const query = input.query?.trim() || '';
+  const pageSize = 20;
+  const where: Prisma.UserWhereInput = {
+    ...(input.role ? { role: input.role } : {}),
+    ...(query
+      ? {
+          OR: [
+            { email: { contains: query, mode: 'insensitive' } },
+            { name: { contains: query, mode: 'insensitive' } },
+            { id: query },
+          ],
+        }
+      : { isActive: true }),
+  };
+  const total = await db.user.count({ where });
+  const requestedPage =
+    typeof input.page === 'number' && Number.isSafeInteger(input.page) && input.page > 0
+      ? input.page
+      : 1;
+  const page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)));
   const users = await db.user.findMany({
-    where: {
-      ...(input.role ? { role: input.role } : {}),
-      ...(query
-        ? {
-            OR: [
-              { email: { contains: query, mode: 'insensitive' as const } },
-              { name: { contains: query, mode: 'insensitive' as const } },
-              { id: query },
-            ],
-          }
-        : { isActive: true }),
-    },
+    where,
     select: USER_SELECT,
-    orderBy: { updatedAt: 'desc' },
-    take: 20,
+    orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
   });
-  return Promise.all(users.map((user) => withUsage(db, user)));
+  return {
+    users: await Promise.all(users.map((user) => withUsage(db, user))),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 async function loadUser(db: PrismaClient, userId: string) {
   const user = await db.user.findUnique({ where: { id: userId }, select: USER_SELECT });
   if (!user) throw new AdminConsoleError(404, '找不到这个账号。');
   return user;
+}
+
+/** 和学生 App 使用同一套课程访问规则，只在展开账号时读取。 */
+export async function getAdminConsoleUserCourses(db: PrismaClient, userId: string) {
+  const user = await loadUser(db, userId);
+  const courses = visibleNativeCourses(
+    process.env,
+    user.id,
+    await listAccessibleCoursesForUser(db, user.id, user.email),
+  );
+  return courses.map((course) => {
+    const display = normalizeCourseDisplay(course);
+    return {
+      id: course.id,
+      name: display.name,
+      courseCode: display.courseCode,
+      university: course.university,
+      avatarUrl: course.avatarUrl?.trim() || pickStableCourseAvatarUrl(course.id),
+      accessRole: course.accessRole,
+    };
+  });
 }
 
 export async function setAdminConsoleUserRole(

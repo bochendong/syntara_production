@@ -465,6 +465,15 @@ export type CommunityCourseListItem = CourseRecord & {
   averageRating?: number;
   reviewCount?: number;
   purchased?: boolean;
+  /** 加入方式：所有人可加入，或需要老师同意（申请时要填的字段）。 */
+  admission?: StoreCourseAdmission;
+  /** 自己的加入申请：pending 待批准，rejected 未通过，approved 已同意。 */
+  applicationStatus?: string | null;
+};
+
+export type StoreCourseAdmission = {
+  mode: 'open' | 'approval';
+  fields: Array<{ id: string; label: string; kind: 'text' | 'phone_last4' }>;
 };
 
 /**

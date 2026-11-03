@@ -112,7 +112,6 @@ import {
 } from '@/components/problem-bank/use-course-problem-bank-controller';
 import { CourseSpaceHeader } from '@/components/course-space/course-space-header';
 import {
-  CourseReleaseButton,
   CourseUpdatePill,
   LayerBadges,
   useCourseLayers,
@@ -1385,7 +1384,6 @@ export function CourseProblemBankView({
     }
   };
   const learnerLayers = courseLayers.layers?.role === 'enrolled' ? courseLayers.layers : null;
-  const ownerLayers = courseLayers.layers?.role === 'owner' ? courseLayers.layers : null;
   const learnerActions =
     canAddPrivateProblems && !isPracticeMode ? (
       <div className="flex flex-wrap items-center gap-2">
@@ -1498,13 +1496,6 @@ export function CourseProblemBankView({
   const bulkDeleteActions =
     canEditProblems && !isPracticeMode ? (
       <div className="flex flex-wrap items-center gap-2">
-        {ownerLayers ? (
-          <CourseReleaseButton
-            courseId={courseId}
-            layers={ownerLayers}
-            onReleased={() => void courseLayers.refresh()}
-          />
-        ) : null}
         <Button size="sm" onClick={() => setCreateDraft(createBlankProblemDraft())}>
           {locale === 'zh-CN' ? '添加题目' : 'Add problem'}
         </Button>

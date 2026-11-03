@@ -68,6 +68,10 @@ export async function GET(request: NextRequest) {
         language: course.language,
         avatarUrl: course.avatarUrl?.trim() || pickStableCourseAvatarUrl(course.id),
         accessRole: course.accessRole,
+        visibility:
+          course.accessRole === 'enrolled' || course.listedInCourseStore
+            ? 'public'
+            : meta?.visibility,
         organizationName: meta?.organizationName ?? null,
         hasUpdate: meta?.hasUpdate ?? false,
         updateSummary: meta?.updateSummary ?? '',
@@ -118,6 +122,7 @@ export async function POST(request: NextRequest) {
         avatarUrl: course.avatarUrl ?? pickStableCourseAvatarUrl(course.id),
         updatedAt: course.updatedAt.toISOString(),
         accessRole: 'owner',
+        visibility: 'private',
       },
     },
     { status: 201 },

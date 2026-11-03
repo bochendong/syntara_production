@@ -119,6 +119,7 @@ pub fn run() {
             platform_api::native_teach_action,
             platform_api::native_get_admin,
             platform_api::native_admin_action,
+            platform_api::native_download_admin_course,
             platform_api::native_upload_material,
             platform_api::native_get_onboarding,
             platform_api::native_onboarding_action,

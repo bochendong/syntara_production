@@ -1,9 +1,18 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { ChevronDown, Gauge, RefreshCw, Search } from 'lucide-react';
 
-import { nativeAccountAvatarUrl } from '../assets';
+import { nativeAccountAvatarUrl, resolveNativeCourseAvatar } from '../assets';
 import {
   getAdminOverview,
+  getAdminUserCourses,
   saveAdminLlm,
   searchAdminUsers,
   setAdminGlobalLimit,
@@ -13,11 +22,14 @@ import {
   type AdminOverview,
   type AdminRole,
   type AdminUser,
+  type AdminUserCourse,
+  type AdminUsersPage,
 } from '../data/platform-api-client';
 import { marbleImages } from '../lib/learning-action-marbles';
 import { GlassSkeletonRows } from './GlassLoadMore';
 import { PhoneConfirm, PhoneEmpty, PhonePage } from './PhonePages';
 import './admin-page.css';
+import { AdminCoursesTab } from './AdminCoursesTab';
 
 /**
  * 「管理」页：测试服管理员控制台，只有管理员账号能看到入口。
@@ -25,12 +37,13 @@ import './admin-page.css';
  * 和网页 /admin 管理中心读写同一份服务端配置。
  */
 
-type Tab = 'models' | 'keys' | 'users' | 'usage';
+type Tab = 'models' | 'keys' | 'users' | 'courses' | 'usage';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'models', label: '模型' },
   { id: 'keys', label: 'Key' },
   { id: 'users', label: '账号' },
+  { id: 'courses', label: '课程' },
   { id: 'usage', label: '用量' },
 ];
 
@@ -166,6 +179,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
             onRoleChanged={() => void reload()}
           />
         ) : null}
+        {overview && tab === 'courses' ? <AdminCoursesTab /> : null}
         {overview && tab === 'usage' ? (
           <UsageTab
             overview={overview}
@@ -449,21 +463,35 @@ function UsersTab({
   onError: (message: string) => void;
   onRoleChanged: () => void;
 }) {
-  const [query, setQuery] = useState('');
-  const [role, setRole] = useState<AdminRole | null>(null);
-  const [users, setUsers] = useState<AdminUser[] | null>(null);
+  const [filters, setFilters] = useState<{ query: string; role: AdminRole | null; page: number }>({
+    query: '',
+    role: null,
+    page: 1,
+  });
+  const { query, role, page } = filters;
+  const [loaded, setLoaded] = useState<{
+    filters: typeof filters;
+    data: AdminUsersPage | null;
+  } | null>(null);
+  const result = loaded?.filters === filters ? loaded.data : null;
+  const loading = loaded?.filters !== filters;
+  const users = result?.users;
   const [openId, setOpenId] = useState<string | null>(null);
+  const searchRef = useRef<HTMLLabelElement>(null);
 
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(
       () => {
-        searchAdminUsers(query, role)
-          .then((rows) => {
-            if (!cancelled) setUsers(rows);
+        searchAdminUsers(query, role, page)
+          .then((data) => {
+            if (!cancelled) setLoaded({ filters, data });
           })
           .catch((cause) => {
-            if (!cancelled) onError(errorText(cause, '读取账号失败'));
+            if (!cancelled) {
+              setLoaded({ filters, data: null });
+              onError(errorText(cause, '读取账号失败'));
+            }
           });
       },
       query ? 300 : 0,
@@ -472,15 +500,38 @@ function UsersTab({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [onError, query, role]);
+  }, [onError, filters, query, role, page]);
 
   const replace = (user: AdminUser) =>
-    setUsers((rows) => rows?.map((row) => (row.id === user.id ? user : row)) ?? rows);
+    setLoaded((current) =>
+      current?.data
+        ? {
+            ...current,
+            data: {
+              ...current.data,
+              users: current.data.users.map((row) => (row.id === user.id ? user : row)),
+            },
+          }
+        : current,
+    );
+
+  const changePage = (nextPage: number) => {
+    setOpenId(null);
+    setFilters({ ...filters, page: nextPage });
+    searchRef.current?.scrollIntoView({ block: 'start' });
+  };
 
   return (
     <>
       <div className="ap-role-chips" role="radiogroup" aria-label="按身份筛选">
-        <button type="button" aria-pressed={role === null} onClick={() => setRole(null)}>
+        <button
+          type="button"
+          aria-pressed={role === null}
+          onClick={() => {
+            setOpenId(null);
+            setFilters({ ...filters, role: null, page: 1 });
+          }}
+        >
           全部
         </button>
         {ROLES.map((item) => (
@@ -488,7 +539,10 @@ function UsersTab({
             key={item.id}
             type="button"
             aria-pressed={role === item.id}
-            onClick={() => setRole(role === item.id ? null : item.id)}
+            onClick={() => {
+              setOpenId(null);
+              setFilters({ ...filters, role: role === item.id ? null : item.id, page: 1 });
+            }}
           >
             <img src={item.marble} alt="" />
             {item.label}
@@ -497,17 +551,25 @@ function UsersTab({
         ))}
       </div>
 
-      <label className="phone-search ap-search">
+      <label className="phone-search ap-search" ref={searchRef}>
         <Search size={16} aria-hidden />
         <input
           type="search"
           placeholder="搜邮箱或名字"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setOpenId(null);
+            setFilters({ ...filters, query: event.target.value, page: 1 });
+          }}
         />
       </label>
 
-      {!users ? <GlassSkeletonRows rows={5} height={58} /> : null}
+      {loading ? <GlassSkeletonRows rows={5} height={58} /> : null}
+      {!loading && !result ? (
+        <button type="button" className="phone-row" onClick={() => setFilters({ ...filters })}>
+          重新加载账号
+        </button>
+      ) : null}
       {users && !users.length ? (
         <PhoneEmpty title="没找到账号" hint="换个邮箱或名字试试。" />
       ) : null}
@@ -523,15 +585,40 @@ function UsersTab({
               onChanged={(next, message, roleChanged) => {
                 replace(next);
                 onSaved(message);
-                if (roleChanged) onRoleChanged();
+                if (roleChanged) {
+                  setOpenId(null);
+                  setFilters({ ...filters, page: result?.page ?? page });
+                  onRoleChanged();
+                }
               }}
               onError={onError}
             />
           ))}
         </div>
       ) : null}
-      {users?.length === 20 ? (
-        <p className="phone-group-footer">只显示前 20 个，搜得更具体一点可以找到其他账号。</p>
+      {result ? (
+        <nav className="ap-pagination" aria-label="账号分页">
+          <span role="status" aria-live="polite">
+            共 {result.total} 个 · 第 {result.page} /{' '}
+            {Math.max(1, Math.ceil(result.total / result.pageSize))} 页
+          </span>
+          <div>
+            <button
+              type="button"
+              disabled={result.page <= 1}
+              onClick={() => changePage(result.page - 1)}
+            >
+              上一页
+            </button>
+            <button
+              type="button"
+              disabled={result.page * result.pageSize >= result.total}
+              onClick={() => changePage(result.page + 1)}
+            >
+              下一页
+            </button>
+          </div>
+        </nav>
       ) : null}
     </>
   );
@@ -544,6 +631,83 @@ function UsageMeter({ used, limit, label }: { used: number; limit: number | null
     <span className={`ap-meter is-${tone}`} aria-label={label}>
       <span style={{ width: `${Math.max(limit ? 4 : 0, ratio * 100)}%` }} />
     </span>
+  );
+}
+
+function UserCourses({ userId }: { userId: string }) {
+  const [courses, setCourses] = useState<AdminUserCourse[] | null>(null);
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getAdminUserCourses(userId)
+      .then((rows) => {
+        if (!cancelled) setCourses(rows);
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(errorText(cause, '暂时无法读取课程。'));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, revision]);
+
+  return (
+    <section className="ap-account-section ap-account-courses" aria-label="账号课程">
+      <div className="ap-section-heading">
+        <h3>已加入课程</h3>
+        {courses ? <span className="ap-course-count">{courses.length} 门</span> : null}
+      </div>
+      <p className="ap-panel-hint">该账号可访问的课程，包含自行创建的课程。</p>
+      {error ? (
+        <div className="ap-course-empty" role="alert">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setError('');
+              setCourses(null);
+              setRevision((value) => value + 1);
+            }}
+          >
+            重新加载
+          </button>
+        </div>
+      ) : !courses ? (
+        <GlassSkeletonRows rows={3} height={54} />
+      ) : courses.length ? (
+        <ul className="ap-course-list">
+          {courses.map((course) => (
+            <li key={course.id}>
+              <img
+                src={resolveNativeCourseAvatar(course.id, course.courseCode, course.avatarUrl)}
+                alt=""
+              />
+              <span className="ap-course-copy">
+                <strong>{course.courseCode || course.name}</strong>
+                <small>
+                  {[
+                    course.courseCode && course.name !== course.courseCode ? course.name : null,
+                    course.university,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || '课程'}
+                </small>
+              </span>
+              <span className="ap-course-access">
+                {course.accessRole === 'owner' ? '自建 / 管理' : '已加入'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="ap-course-empty">
+          <strong>还没有课程</strong>
+          <p>该账号尚未加入或创建课程。</p>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -652,62 +816,94 @@ function UserRow({
 
       {open ? (
         <div className="ap-user-panel">
-          <p className="ap-panel-label">身份</p>
-          <div className="phone-segmented ap-role-segment" role="radiogroup" aria-label="身份">
-            {ROLES.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="radio"
-                aria-checked={user.role === item.id}
-                className={user.role === item.id ? 'is-active' : undefined}
-                disabled={busy || (me && item.id !== 'ADMIN')}
-                onClick={() => pickRole(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          {me ? <p className="ap-panel-hint">不能改自己的管理员身份。</p> : null}
+          <section className="ap-account-identity" aria-label="账号身份">
+            <div>
+              <h3>账号身份</h3>
+              <p className="ap-panel-hint">
+                {me ? '当前账号，保留管理员身份。' : '决定该账号可以使用的功能。'}
+              </p>
+            </div>
+            <div className="phone-segmented ap-role-segment" role="radiogroup" aria-label="身份">
+              {ROLES.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={user.role === item.id}
+                  className={user.role === item.id ? 'is-active' : undefined}
+                  disabled={busy || (me && item.id !== 'ADMIN')}
+                  onClick={() => pickRole(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </section>
 
-          <p className="ap-panel-label">本周额度 · 留空表示只受全站额度限制</p>
-          <div className="ap-limit-grid">
-            <UsageMeter used={user.usage.estimatedCostUsd} limit={costLimit} label="本周成本用量" />
-            <label className="ap-limit-field">
-              <span>成本上限 $</span>
-              <input
-                inputMode="decimal"
-                placeholder="不限"
-                value={cost}
-                onChange={(event) => setCost(event.target.value)}
+          <UserCourses userId={user.id} />
+
+          <section className="ap-account-section ap-account-quota" aria-label="账号用量与额度">
+            <div className="ap-section-heading">
+              <h3>用量与额度</h3>
+              <span className="ap-section-caption">本周</span>
+            </div>
+            <div className="ap-user-usage">
+              <div>
+                <span>已用成本</span>
+                <strong>{money(user.usage.estimatedCostUsd)}</strong>
+              </div>
+              <div>
+                <span>已用请求</span>
+                <strong>
+                  {user.usage.requestCount}
+                  <small> 次</small>
+                </strong>
+              </div>
+            </div>
+            <div className="ap-limit-grid">
+              <UsageMeter
+                used={user.usage.estimatedCostUsd}
+                limit={costLimit}
+                label="本周成本用量"
               />
-            </label>
-            <label className="ap-limit-field">
-              <span>请求上限</span>
-              <input
-                inputMode="numeric"
-                placeholder="不限"
-                value={requests}
-                onChange={(event) => setRequests(event.target.value)}
-              />
-            </label>
-            <button
-              type="button"
-              className="ap-switch"
-              role="switch"
-              aria-checked={disabled}
-              onClick={() => setDisabled((value) => !value)}
-            >
-              暂停这个账号的 AI
-              <span className="ap-switch-track" aria-hidden />
-            </button>
-          </div>
-          <SaveBar
-            dirty={limitDirty}
-            busy={busy}
-            label="保存额度"
-            onSave={() => void saveLimit()}
-          />
+              <label className="ap-limit-field">
+                <span>每周成本上限 $</span>
+                <input
+                  inputMode="decimal"
+                  placeholder="不限"
+                  value={cost}
+                  onChange={(event) => setCost(event.target.value)}
+                />
+              </label>
+              <label className="ap-limit-field">
+                <span>每周请求上限</span>
+                <input
+                  inputMode="numeric"
+                  placeholder="不限"
+                  value={requests}
+                  onChange={(event) => setRequests(event.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="ap-switch"
+                role="switch"
+                aria-checked={disabled}
+                disabled={busy}
+                onClick={() => setDisabled((value) => !value)}
+              >
+                暂停 AI 使用
+                <span className="ap-switch-track" aria-hidden />
+              </button>
+            </div>
+            <p className="ap-panel-hint">留空时只受全站额度限制。</p>
+            <SaveBar
+              dirty={limitDirty}
+              busy={busy}
+              label="保存额度"
+              onSave={() => void saveLimit()}
+            />
+          </section>
         </div>
       ) : null}
 

@@ -8,6 +8,7 @@ import {
   LearnHomeDashboard,
 } from '@/components/learn/learn-home-dashboard';
 import { CreateCourseDialog } from '@/components/courses/create-course-dialog';
+import { WebPendingApplications } from '@/components/learn/web-pending-applications';
 import { completeWebOnboardingStep } from '@/lib/onboarding/web-store';
 import { useAuthSignOut } from '@/lib/hooks/use-auth-sign-out';
 import { useCurrentCourseStore } from '@/lib/store/current-course';
@@ -144,6 +145,11 @@ export function LearnHomePageClient({
         onSignOut={signOut}
         onRetryCourseLoad={() => void loadCourses().catch(() => {})}
       />
+      {preview ? null : (
+        <WebPendingApplications
+          onJoined={() => void loadCourses({ silent: true }).catch(() => undefined)}
+        />
+      )}
       {preview ? null : (
         <CreateCourseDialog
           open={createCourseOpen}

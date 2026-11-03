@@ -1,3 +1,4 @@
+import { contentDrafts, draftAuthority } from '@/lib/server/course-content-drafts';
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
@@ -32,8 +33,48 @@ export async function GET(request: NextRequest) {
   }
   const sinceParam = Number(request.nextUrl.searchParams.get('since'));
   const since = Number.isFinite(sinceParam) && sinceParam > 0 ? sinceParam : null;
-  const data = await readNativeProblems(prisma, principal.userId, courseId, since);
+  const management =
+    request.nextUrl.searchParams.get('managed') === '1'
+      ? await draftAuthority(prisma, principal.userId, courseId)
+      : null;
+  const data = await readNativeProblems(
+    prisma,
+    management?.ownerId || principal.userId,
+    courseId,
+    since,
+  );
   if (!data) return publicApiError(requestId, 404, 'not_found', 'Course not found.');
+  if (request.nextUrl.searchParams.get('managed') === '1') {
+    await draftAuthority(prisma, principal.userId, courseId);
+    const mapped = new Map(data.problems.map((row) => [row.id, row]));
+    for (const row of (await contentDrafts(prisma, courseId)).filter(
+      (row) => row.kind === 'problems',
+    )) {
+      const p = row.payload;
+      mapped.set(row.targetId, {
+        ...(mapped.get(row.targetId) || {}),
+        id: row.targetId,
+        courseId,
+        title: p.title,
+        type: p.type,
+        status: p.status,
+        difficulty: p.difficulty,
+        tags: p.tags || [],
+        notebookId: p.notebookId || null,
+        chapterId: p.chapterId || null,
+        chapterName: null,
+        publicContent: p.publicContentJson,
+        grading: p.gradingJson,
+        layer: 'public',
+        releaseAddedIn: null,
+        contentUpdatedAt: null,
+        createdAt: row.updatedAt.getTime(),
+        updatedAt: row.updatedAt.getTime(),
+      });
+    }
+    data.problems = [...mapped.values()];
+    data.problemIds = data.problems.map((row) => row.id);
+  }
   return publicApiSuccess(requestId, data, NO_STORE);
 }
 

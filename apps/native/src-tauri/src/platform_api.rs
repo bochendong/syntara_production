@@ -4,7 +4,7 @@ use futures_util::StreamExt;
 use reqwest::{Client, Method, Response, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 const DEV_API_BASE_URL: &str = "http://127.0.0.1:3000";
 const COMPILED_API_BASE_URL: Option<&str> = option_env!("SYNTARA_NATIVE_API_BASE_URL");
@@ -1107,6 +1107,90 @@ pub async fn native_get_admin(request: PlatformQueryRequest) -> Result<Value, St
 #[tauri::command]
 pub async fn native_admin_action(request: PlatformJsonRequest) -> Result<Value, String> {
     post_json(ADMIN_PATH, &request, DEFAULT_TIMEOUT).await
+}
+
+/// 固定管理员导出接口；流式保存到下载目录，不接收任意 URL 或磁盘路径。
+#[tauri::command]
+pub async fn native_download_admin_course(
+    app: AppHandle,
+    request: PlatformQueryRequest,
+) -> Result<Value, String> {
+    use std::io::Write;
+    let course_id = request
+        .query
+        .get("courseId")
+        .filter(|id| {
+            !id.is_empty()
+                && id.len() <= 200
+                && id
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+        })
+        .ok_or("课程 ID 无效。")?;
+    let mut query = std::collections::BTreeMap::new();
+    query.insert("export".to_string(), "1".to_string());
+    query.insert("courseId".to_string(), course_id.clone());
+    let response = apply_platform_headers(
+        http_client(LONG_RUNNING_TIMEOUT)?.get(endpoint_url(&path_with_query(ADMIN_PATH, &query))?),
+        request.syntara_token.as_deref(),
+        None,
+        None,
+        None,
+    )
+    .send()
+    .await
+    .map_err(|error| format!("无法下载课程资料：{error}"))?;
+    if !response.status().is_success() {
+        response_json(response).await?;
+        return Err("无法下载课程资料。".to_string());
+    }
+    if !response
+        .headers()
+        .get("Content-Type")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("application/zip"))
+    {
+        return Err("课程资料没有返回有效的 ZIP 文件。".to_string());
+    }
+    let directory = app
+        .path()
+        .download_dir()
+        .or_else(|_| app.path().document_dir())
+        .map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_nanos();
+    let destination = directory.join(format!("course-{course_id}-materials-{stamp}.zip"));
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&destination)
+        .map_err(|error| error.to_string())?;
+    let result: Result<(), String> = async {
+        let mut stream = response.bytes_stream();
+        let mut total = 0usize;
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|error| format!("资料下载中断：{error}"))?;
+            total = total.saturating_add(chunk.len());
+            if total > MAX_DOWNLOAD_BYTES {
+                return Err("资料包超过 256 MB 下载限制。".to_string());
+            }
+            file.write_all(&chunk).map_err(|error| error.to_string())?;
+        }
+        if total == 0 {
+            return Err("课程资料包为空。".to_string());
+        }
+        file.flush().map_err(|error| error.to_string())
+    }
+    .await;
+    drop(file);
+    if let Err(error) = result {
+        let _ = std::fs::remove_file(&destination);
+        return Err(error);
+    }
+    Ok(json!({ "path": destination.to_string_lossy() }))
 }
 
 #[tauri::command]

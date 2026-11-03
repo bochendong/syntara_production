@@ -29,7 +29,6 @@ import {
   type BankFilterGroup,
 } from './ProblemBankFilters';
 import {
-  CourseReleaseButton,
   LayerActionMenu,
   LayerBadges,
   LayerItem,
@@ -67,7 +66,6 @@ type ProblemBankPageProps = {
   onUploadFiles?: (files: File[]) => void;
   /** 从商城加入的课：题目可以删除（公有的只对自己隐藏）、复制到我的，显示「新」。 */
   layered?: boolean;
-  canRelease?: boolean;
   /** 删除、恢复、复制之后重新同步这门课。 */
   onContentChanged?: () => Promise<void> | void;
 };
@@ -287,7 +285,6 @@ export function ProblemBankPage({
   onUpload,
   onUploadFiles,
   layered = false,
-  canRelease = false,
   onContentChanged,
 }: ProblemBankPageProps) {
   const courseId = workspace.course.id;
@@ -295,7 +292,6 @@ export function ProblemBankPage({
     () => new Map(workspace.problems.map((problem) => [problem.id, problem])),
     [workspace.problems],
   );
-  const releaseControl = canRelease ? <CourseReleaseButton courseId={courseId} /> : null;
   const [statuses, , historicalMistakes] = useProblemStatuses(courseId, workspace.problems);
   const layers = useCourseLayers(courseId);
   const [menuTarget, setMenuTarget] = useState<LayerMenuTarget | null>(null);
@@ -688,7 +684,6 @@ export function ProblemBankPage({
         <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
         <div className="pb-scroll">
           <div className="pb-column">
-            {releaseControl}
             <LearningEmptyState
               title="还没有题目"
               action={
@@ -742,7 +737,6 @@ export function ProblemBankPage({
         <BankHeader title={openChapter.title} subtitle={courseLabel} onBack={onBack} />
         <div className="pb-scroll">
           <div className="pb-column">
-            {releaseControl}
             <div className="pb-chapter-head" style={accentVars(openChapter.color)}>
               {chapters.length > 1 || openChapter.key === ALL_CHAPTERS ? (
                 <button
@@ -920,7 +914,6 @@ export function ProblemBankPage({
       <BankHeader title="题库" subtitle={courseLabel} onBack={onBack} />
       <div className="pb-scroll">
         <div className="pb-column">
-          {releaseControl}
           {filterBar}
           {hasFilters ? (
             <div className="pb-filter-result" role="status">

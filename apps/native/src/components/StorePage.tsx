@@ -18,6 +18,8 @@ import {
 import type { NativeStoreCourse, NativeStoreCourseDetail } from '../data/platform-api-contracts';
 import { GlassSkeletonRows } from './GlassLoadMore';
 import { PhoneEmpty, PhonePage } from './PhonePages';
+import { CourseJoinDialog, CoursePrivacyNote } from './CourseJoinDialog';
+import { subscribeVisibleRefresh } from '../lib/visible-refresh';
 import {
   completeOnboardingStep,
   PLATFORM_TUTORIAL_COURSE_ID,
@@ -132,11 +134,19 @@ function GetButton({
   onGet: (course: NativeStoreCourse, event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const joining = state === 'joining';
+  const pending = !course.joined && course.applicationStatus === 'pending';
+  const label = course.joined
+    ? '打开'
+    : pending
+      ? '待批准'
+      : course.admission?.mode === 'approval'
+        ? '申请加入'
+        : '获取';
   return (
     <button
       type="button"
       className={`st-get st-get-${size}${course.joined ? ' is-open' : ''}${joining ? ' is-busy' : ''}`}
-      aria-label={course.joined ? `打开${course.name}` : `获取${course.name}`}
+      aria-label={`${label}${course.name}`}
       data-onboarding={
         course.id === PLATFORM_TUTORIAL_COURSE_ID
           ? course.joined
@@ -144,13 +154,13 @@ function GetButton({
             : 'tutorial-get'
           : undefined
       }
-      disabled={joining}
+      disabled={joining || pending}
       onClick={(event) => {
         event.stopPropagation();
         onGet(course, event);
       }}
     >
-      {joining ? <span className="st-get-ring" aria-hidden /> : course.joined ? '打开' : '获取'}
+      {joining ? <span className="st-get-ring" aria-hidden /> : label}
     </button>
   );
 }
@@ -358,6 +368,7 @@ function StoreDetail({
     merged.sceneCount ? { label: '课堂页', value: compactCount(merged.sceneCount) } : null,
     merged.problemCount ? { label: '题目', value: compactCount(merged.problemCount) } : null,
     merged.university ? { label: '学校', value: merged.university } : null,
+    merged.campus ? { label: '校区', value: merged.campus } : null,
   ].filter(Boolean) as Array<{ label: string; value: string; stars?: number }>;
 
   return (
@@ -384,6 +395,16 @@ function StoreDetail({
               </span>
             ) : null}
             <GetButton course={course} state={state} size="lg" onGet={onGet} />
+            {course.organization && !course.joined ? <CoursePrivacyNote /> : null}
+            {course.admission?.mode === 'approval' && !course.joined ? (
+              <p>
+                {course.applicationStatus === 'pending'
+                  ? '待批准：申请已发送，等老师同意后就能进入课程'
+                  : course.applicationStatus === 'rejected'
+                    ? '上次申请未通过，可以重新填写申请'
+                    : '加入需要老师同意'}
+              </p>
+            ) : null}
           </div>
         </header>
 
@@ -475,19 +496,25 @@ export function StorePage({
   const [joining, setJoining] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [applying, setApplying] = useState<NativeStoreCourse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    (mockStoreEnabled ? listMockStoreCourses() : listNativeStoreCourses())
-      .then((next) => {
-        if (!cancelled) setCourses(next);
-      })
-      .catch((cause) => {
+    const stop = subscribeVisibleRefresh(async () => {
+      try {
+        const next = await (mockStoreEnabled ? listMockStoreCourses() : listNativeStoreCourses());
+        if (!cancelled) {
+          setCourses(next);
+          setError(null);
+        }
+      } catch (cause) {
         if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
-      });
+      }
+    });
     return () => {
       cancelled = true;
+      stop();
     };
   }, [reload]);
 
@@ -509,6 +536,7 @@ export function StorePage({
           course.courseCode,
           course.organization?.name,
           course.university,
+          course.campus,
           subject.label,
           ...course.tags,
         ]
@@ -529,6 +557,11 @@ export function StorePage({
       onOpenCourse(mockStoreEnabled ? await joinMockStoreCourse(course.id) : course.id);
       return;
     }
+    if (course.applicationStatus === 'pending') return;
+    if (course.admission?.mode === 'approval' && !mockStoreEnabled) {
+      setApplying(course);
+      return;
+    }
     const marble =
       event.currentTarget
         .closest('.st-feature-bar, .st-row, .st-detail-head')
@@ -536,9 +569,18 @@ export function StorePage({
     setJoining(course.id);
     setError(null);
     try {
-      const joinedId = mockStoreEnabled
-        ? await joinMockStoreCourse(course.id)
-        : (await nativeStoreAction(course.id, 'join')).courseId;
+      const result = mockStoreEnabled
+        ? { courseId: await joinMockStoreCourse(course.id), status: 'joined' }
+        : await nativeStoreAction(course.id, 'join');
+      if (result.status === 'pending') {
+        setCourses((current) =>
+          (current ?? []).map((item) =>
+            item.id === course.id ? { ...item, applicationStatus: 'pending' } : item,
+          ),
+        );
+        return;
+      }
+      const joinedId = result.courseId;
       if (course.id === PLATFORM_TUTORIAL_COURSE_ID) completeOnboardingStep('store');
       flyMarble(marble, marbleFor(course));
       setCourses((current) =>
@@ -699,6 +741,28 @@ export function StorePage({
           state={stateOf(openCourseData)}
           onBack={() => setOpenId(null)}
           onGet={get}
+        />
+      ) : null}
+      {applying ? (
+        <CourseJoinDialog
+          course={applying}
+          onClose={() => setApplying(null)}
+          onSubmitted={async (status) => {
+            const courseId = applying.id;
+            setCourses((current) =>
+              (current ?? []).map((item) =>
+                item.id === courseId
+                  ? {
+                      ...item,
+                      applicationStatus: status === 'pending' ? 'pending' : 'approved',
+                      joined: status === 'joined',
+                    }
+                  : item,
+              ),
+            );
+            setApplying(null);
+            if (status === 'joined') await onJoined(courseId);
+          }}
         />
       ) : null}
     </>

@@ -22,6 +22,7 @@ import type { CommunityCourseListItem, StoreOrganization } from '@/lib/utils/dat
 import { toast } from '@/lib/notifications/client-toast';
 import { PLATFORM_TUTORIAL_COURSE_ID } from '@/lib/onboarding/spotlight';
 import { cn } from '@/lib/utils';
+import { CourseApplicationDialog } from '@/components/store/course-application-dialog';
 import styles from './store.module.css';
 
 /**
@@ -127,6 +128,15 @@ function flyMarble(from: HTMLElement | null, src: string) {
 
 type GetHandler = (course: Course, event: MouseEvent<HTMLButtonElement>) => void;
 
+/** 获取按钮的字：需要老师同意的课显示申请状态。 */
+function getLabel(course: Course) {
+  if (course.purchased) return '打开';
+  if (course.admission?.mode !== 'approval') return '获取';
+  if (course.applicationStatus === 'pending') return '待批准';
+  if (course.applicationStatus === 'rejected') return '重新申请';
+  return '获取';
+}
+
 function GetButton({ course, busy, onGet }: { course: Course; busy: boolean; onGet: GetHandler }) {
   return (
     <button
@@ -142,7 +152,7 @@ function GetButton({ course, busy, onGet }: { course: Course; busy: boolean; onG
         onGet(course, event);
       }}
     >
-      {busy ? <span className={styles.getRing} aria-hidden /> : course.purchased ? '打开' : '获取'}
+      {busy ? <span className={styles.getRing} aria-hidden /> : getLabel(course)}
     </button>
   );
 }
@@ -300,6 +310,7 @@ export default function CourseStorePage() {
   const staging = useStoreStaging();
   const [courses, setCourses] = useState<Course[] | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [applying, setApplying] = useState<Course | null>(null);
   const [orgFilter, setOrgFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -362,6 +373,11 @@ export default function CourseStorePage() {
   const getCourse: GetHandler = async (course, event) => {
     if (course.purchased) {
       router.push(`${staging ? '/test/app' : '/learn'}?courseId=${encodeURIComponent(course.id)}`);
+      return;
+    }
+    // 加入需要老师同意：填写课程要求的信息（待批准时是改了重发）。
+    if (course.admission?.mode === 'approval' && course.applicationStatus !== 'approved') {
+      setApplying(course);
       return;
     }
     const marble =
@@ -501,6 +517,27 @@ export default function CourseStorePage() {
           </>
         )}
       </main>
+      {applying?.admission ? (
+        <CourseApplicationDialog
+          open
+          onOpenChange={(open) => !open && setApplying(null)}
+          course={{ ...applying, admission: applying.admission }}
+          status={applying.applicationStatus}
+          onSubmitted={(status) => {
+            const id = applying.id;
+            setCourses((current) =>
+              (current ?? []).map((row) =>
+                row.id === id
+                  ? status === 'joined'
+                    ? { ...row, purchased: true }
+                    : { ...row, applicationStatus: 'pending' }
+                  : row,
+              ),
+            );
+            toast.success(status === 'joined' ? '已加入课程' : '申请已发送，等老师同意');
+          }}
+        />
+      ) : null}
     </div>
   );
 }

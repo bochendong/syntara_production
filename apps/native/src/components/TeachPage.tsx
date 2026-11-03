@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from 'react';
+import {
+  Bell,
   ChevronRight,
   Copy,
   Eye,
@@ -15,7 +23,7 @@ import {
   X,
 } from 'lucide-react';
 
-import { resolveNativeCourseAvatar } from '../assets';
+import { profileThemeForAvatar, resolveNativeCourseAvatar } from '../assets';
 import {
   getTeachClass,
   getTeachHome,
@@ -35,6 +43,8 @@ import { marbleImages } from '../lib/learning-action-marbles';
 import { GlassSkeletonRows } from './GlassLoadMore';
 import { PhoneConfirm, PhoneEmpty, PhonePage } from './PhonePages';
 import './teach-page.css';
+import { TeachCourseView } from './TeachCourseView';
+import { CoursePublishDialog } from './CoursePublishDialog';
 
 /**
  * 「教学」页（网页版、iPad、电脑 App；手机没有）：老师的班级和上课。
@@ -43,6 +53,7 @@ import './teach-page.css';
 
 type View =
   | { kind: 'home' }
+  | { kind: 'course'; courseId: string }
   | { kind: 'class'; classId: string }
   | { kind: 'session'; sessionId: string; classId: string | null };
 
@@ -82,7 +93,7 @@ function problemName(problem: { number: number | null; title: string }) {
 }
 
 function courseLabel(course: { courseCode: string | null; name: string }) {
-  return course.courseCode?.trim() || course.name;
+  return course.name.trim() || course.courseCode?.trim() || '';
 }
 
 function clock(timestamp: number) {
@@ -122,8 +133,27 @@ function usePolled<T>(load: () => Promise<T>, intervalMs: number) {
   return { data, setData, error, setError, reload };
 }
 
-export function TeachPage({ onBack }: { onBack: () => void }) {
+export function TeachPage({
+  onBack,
+  mode = 'teaching',
+  onJoinClass,
+  onCourseChanged,
+}: {
+  onBack: () => void;
+  mode?: 'teaching' | 'classroom';
+  onJoinClass?: () => void;
+  onCourseChanged?: () => Promise<void> | void;
+}) {
   const [view, setView] = useState<View>({ kind: 'home' });
+  if (view.kind === 'course')
+    return (
+      <TeachCourseView
+        key={view.courseId}
+        courseId={view.courseId}
+        onBack={() => setView({ kind: 'home' })}
+        onCourseChanged={onCourseChanged}
+      />
+    );
   if (view.kind === 'class') {
     return (
       <TeachClassView
@@ -145,108 +175,264 @@ export function TeachPage({ onBack }: { onBack: () => void }) {
       />
     );
   }
+  if (mode === 'classroom')
+    return (
+      <ClassroomHomeView
+        onBack={onBack}
+        onJoinClass={onJoinClass}
+        onOpenClass={(classId) => setView({ kind: 'class', classId })}
+      />
+    );
   return (
     <TeachHomeView
       onBack={onBack}
-      onOpenClass={(classId) => setView({ kind: 'class', classId })}
-      onOpenSession={(sessionId) => setView({ kind: 'session', sessionId, classId: null })}
+      onOpenCourse={(courseId) => setView({ kind: 'course', courseId })}
     />
   );
 }
 
 function TeachHomeView({
   onBack,
-  onOpenClass,
-  onOpenSession,
+  onOpenCourse,
 }: {
   onBack: () => void;
-  onOpenClass: (classId: string) => void;
-  onOpenSession: (sessionId: string) => void;
+  onOpenCourse: (courseId: string) => void;
 }) {
-  const { data, error, setError } = usePolled<TeachHome>(getTeachHome, 0);
-  const [busy, setBusy] = useState<string | null>(null);
-
-  const open = async (courseId: string) => {
-    setBusy(courseId);
-    try {
-      onOpenClass((await openTeachClass(courseId)).classId);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '开班失败');
-      setBusy(null);
-    }
-  };
+  const { data, error, reload } = usePolled<TeachHome>(getTeachHome, 30_000);
+  const [publishingCourseId, setPublishingCourseId] = useState<string | null>(null);
 
   return (
     <PhonePage title="教学" overlay largeTitle onBack={onBack}>
       <div className="tp-page">
-        <header className="phone-large-head tp-head">
+        <header className="phone-large-head tp-head tp-teaching-head">
           <h1>教学</h1>
-          {data ? <span className="tp-term">{data.currentPeriod.label}</span> : null}
         </header>
         {error ? <p className="phone-page-error">{error}</p> : null}
         {!data && !error ? <GlassSkeletonRows rows={4} height={54} /> : null}
         {data && !data.courses.length ? (
           <PhoneEmpty
-            title="还没有可以开班的课程"
-            hint="机构把你加为课程所属机构的成员后，这里会出现对应课程。"
+            title="还没有管理的课程"
+            hint="创建课程或由管理员分配课程后，就可以在这里管理教学。"
           />
         ) : null}
         {data?.courses.length ? (
           <>
-            <p className="phone-group-title">我的课程</p>
-            <div className="phone-group">
+            <div className="tp-courses-heading">
+              <h2>我管理的课程</h2>
+              <span>{data.courses.length} 门课程</span>
+            </div>
+            <div className="tp-course-grid">
               {data.courses.map((course) => {
-                const current = course.currentClass;
-                const blocked = Boolean(current && !current.mine);
+                const avatar = resolveNativeCourseAvatar(
+                  course.id,
+                  course.courseCode,
+                  course.avatarUrl,
+                );
+                const scene = profileThemeForAvatar(avatar)?.backgroundUrl;
                 return (
-                  <div key={course.id} className="tp-course">
-                    <button
-                      type="button"
-                      className="phone-row tp-course-row"
-                      disabled={blocked || busy === course.id}
-                      onClick={() =>
-                        current?.liveSessionId && current.mine
-                          ? onOpenSession(current.liveSessionId)
-                          : void open(course.id)
-                      }
-                    >
-                      <img
-                        className="tp-course-marble"
-                        src={resolveNativeCourseAvatar(course.id, course.courseCode)}
-                        alt=""
-                      />
-                      <span className="tp-course-copy">
-                        <strong>{courseLabel(course)}</strong>
-                        <small>
-                          {blocked
-                            ? '本学期由其他老师带'
-                            : current
-                              ? `本学期 ${current.memberCount} 人`
-                              : `${course.problemCount} 道题 · 还没开班`}
-                        </small>
-                      </span>
-                      {current?.liveSessionId && current.mine ? (
-                        <span className="tp-live-pill">上课中</span>
-                      ) : !blocked ? (
-                        <span className="tp-get-pill">{current ? '打开' : '开班'}</span>
-                      ) : null}
-                    </button>
-                    {course.pastClasses.length ? (
-                      <div className="tp-past">
-                        {course.pastClasses.map((past) => (
-                          <button key={past.id} type="button" onClick={() => onOpenClass(past.id)}>
-                            {past.label} · {past.memberCount} 人
-                            <ChevronRight size={12} aria-hidden />
-                          </button>
-                        ))}
+                  <article
+                    key={course.id}
+                    className={`tp-course-card${scene ? ' has-course-scene' : ''}`}
+                    aria-label={courseLabel(course)}
+                    style={
+                      scene
+                        ? ({ '--tp-card-scene': `url(${JSON.stringify(scene)})` } as CSSProperties)
+                        : undefined
+                    }
+                  >
+                    <div className="tp-course-card-identity">
+                      <button
+                        type="button"
+                        className="tp-course-card-head tp-course-card-select"
+                        aria-label={`管理课程：${courseLabel(course)}`}
+                        onClick={() => onOpenCourse(course.id)}
+                      >
+                        <img className="tp-course-marble" src={avatar} alt="" />
+                        <div className="tp-course-card-title">
+                          <h3>{courseLabel(course)}</h3>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        className="tp-course-notifications"
+                        aria-label={`${courseLabel(course)}的加入申请，${course.pendingApplications} 人等你同意`}
+                        title="查看加入申请"
+                        onClick={() => onOpenCourse(course.id)}
+                      >
+                        <Bell size={18} aria-hidden />
+                        {course.pendingApplications > 0 ? (
+                          <span className="tp-course-notification-count" aria-hidden>
+                            {course.pendingApplications > 99 ? '99+' : course.pendingApplications}
+                          </span>
+                        ) : null}
+                      </button>
+                    </div>
+                    <dl className="tp-course-card-stats">
+                      <div>
+                        <dt>题库</dt>
+                        <dd>
+                          {course.problemCount}
+                          <span> 道题</span>
+                        </dd>
                       </div>
-                    ) : null}
-                  </div>
+                      <div>
+                        <dt>笔记</dt>
+                        <dd>
+                          {course.notebookCount}
+                          <span> 本</span>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>已添加</dt>
+                        <dd>
+                          {course.learnerCount}
+                          <span> 人</span>
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="tp-course-card-footer">
+                      <div className="tp-course-card-actions">
+                        {course.canPublish ? (
+                          <button
+                            type="button"
+                            className="tp-course-card-publish"
+                            aria-label={`${course.listed ? '发布设置' : '发布'}：${courseLabel(course)}`}
+                            onClick={() => setPublishingCourseId(course.id)}
+                          >
+                            {course.listed ? '发布设置' : '发布'}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="tp-course-card-open"
+                          aria-label={`查看课程：${courseLabel(course)}`}
+                          onClick={() => onOpenCourse(course.id)}
+                        >
+                          管理课程
+                          <ChevronRight size={15} aria-hidden />
+                        </button>
+                      </div>
+                    </div>
+                  </article>
                 );
               })}
             </div>
           </>
         ) : null}
+      </div>
+      {publishingCourseId ? (
+        <CoursePublishDialog
+          courseId={publishingCourseId}
+          onClose={() => setPublishingCourseId(null)}
+          onPublished={async () => {
+            setPublishingCourseId(null);
+            await reload();
+          }}
+        />
+      ) : null}
+    </PhonePage>
+  );
+}
+
+function ClassroomHomeView({
+  onBack,
+  onJoinClass,
+  onOpenClass,
+}: {
+  onBack: () => void;
+  onJoinClass?: () => void;
+  onOpenClass: (classId: string) => void;
+}) {
+  const { data, error } = usePolled<TeachHome>(getTeachHome, 30_000);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
+  const publishedCourses = data?.courses.filter((course) => course.listed) ?? [];
+  return (
+    <PhonePage title="上课" overlay largeTitle onBack={onBack}>
+      <div className="tp-page">
+        <header className="phone-large-head tp-head">
+          <h1>上课</h1>
+          {data ? <span className="tp-term">{data.currentPeriod.label}</span> : null}
+        </header>
+        <div className="tp-courses-heading">
+          <h2>我的班级</h2>
+          {onJoinClass ? (
+            <button type="button" className="tp-course-card-publish" onClick={onJoinClass}>
+              输入课堂码 / 班级码
+            </button>
+          ) : null}
+        </div>
+        {error || actionError ? (
+          <p className="phone-page-error" role="alert">
+            {actionError || error}
+          </p>
+        ) : null}
+        {!data && !error ? <GlassSkeletonRows rows={4} height={54} /> : null}
+        {data && !publishedCourses.length ? (
+          <PhoneEmpty
+            title="暂无可开班的课程"
+            hint="发布课程或由管理员分配已发布的课程后，可以在这里开班。"
+          />
+        ) : null}
+        <div className="tp-course-grid">
+          {publishedCourses.map((course) => {
+            const current = course.currentClass;
+            const blocked = Boolean(current && !current.mine);
+            return (
+              <article key={course.id} className="tp-course-card" aria-label={courseLabel(course)}>
+                <div className="tp-course-card-head">
+                  <img
+                    className="tp-course-marble"
+                    src={resolveNativeCourseAvatar(course.id, course.courseCode, course.avatarUrl)}
+                    alt=""
+                  />
+                  <div className="tp-course-card-title">
+                    <h3>{courseLabel(course)}</h3>
+                    <p>{current ? `${current.memberCount} 位学生` : '课程班级'}</p>
+                  </div>
+                </div>
+                <div className="tp-course-card-footer">
+                  <span className={current?.mine ? 'tp-course-state is-ready' : 'tp-course-state'}>
+                    {current?.liveSessionId && current.mine
+                      ? '上课中'
+                      : blocked
+                        ? '本学期由其他老师带'
+                        : current
+                          ? '本学期已开班'
+                          : '本学期未开班'}
+                  </span>
+                  <button
+                    type="button"
+                    className="tp-course-card-open"
+                    disabled={blocked || Boolean(busy)}
+                    onClick={async () => {
+                      setBusy(course.id);
+                      setActionError('');
+                      try {
+                        onOpenClass((await openTeachClass(course.id)).classId);
+                      } catch (cause) {
+                        setActionError(cause instanceof Error ? cause.message : '开班失败');
+                        setBusy(null);
+                      }
+                    }}
+                  >
+                    {busy === course.id ? '正在打开…' : current ? '打开班级' : '开班'}{' '}
+                    <ChevronRight size={15} aria-hidden />
+                  </button>
+                </div>
+                {course.pastClasses.length ? (
+                  <div className="tp-past">
+                    {course.pastClasses.map((past) => (
+                      <button key={past.id} type="button" onClick={() => onOpenClass(past.id)}>
+                        {past.label} · {past.memberCount} 人<ChevronRight size={12} aria-hidden />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
       </div>
     </PhonePage>
   );

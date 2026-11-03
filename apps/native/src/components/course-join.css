@@ -1,0 +1,79 @@
+/* 加入课程：隐私提示和侧边栏里「待批准 / 未通过」的课。 */
+.cp-privacy-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 14px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.cp-privacy-note::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--marble-blue-mid);
+}
+
+.pca {
+  display: grid;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.pca-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  border-radius: 12px;
+  padding: 4px 8px;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pca-row:hover {
+  background: rgb(118 118 128 / 10%);
+}
+
+.pca-row img {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 999px;
+  object-fit: cover;
+  filter: grayscale(0.5);
+  opacity: 0.7;
+}
+
+.pca-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pca-chip {
+  flex: none;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: rgb(var(--marble-amber-rgb) / 20%);
+  color: var(--marble-amber-ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pca-row.is-rejected .pca-chip {
+  background: rgb(var(--marble-pink-rgb) / 18%);
+  color: var(--marble-pink-deep);
+}

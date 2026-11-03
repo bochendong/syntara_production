@@ -1,3 +1,4 @@
+import { applyContentDrafts, draftAuthority } from './course-content-drafts';
 import { Prisma } from '@/lib/server/generated-prisma';
 import {
   formatCourseUpdateSummary,
@@ -23,7 +24,7 @@ export type CourseContentTarget = 'notebook' | 'problem';
 /** 题目可见：公有的或自己的；公有题不支持隐藏。alias 是 SQL 里 NotebookProblem 的别名。 */
 export function problemLayerSql(userId: string, alias = 'p'): Prisma.Sql {
   const p = Prisma.raw(`"${alias}"`);
-  return Prisma.sql`(${p}."ownerId" IS NULL OR ${p}."ownerId" = ${userId})`;
+  return Prisma.sql`(${p}."status"::text <> 'archived' AND (${p}."ownerId" IS NULL OR ${p}."ownerId" = ${userId}))`;
 }
 
 export async function hiddenCourseContentIds(
@@ -48,7 +49,7 @@ export async function problemLayerWhere(
   // Public questions are read-only; historical hide records must not keep them invisible.
   void db;
   void courseId;
-  return { OR: [{ ownerId: null }, { ownerId: userId }] };
+  return { status: { not: 'archived' }, OR: [{ ownerId: null }, { ownerId: userId }] };
 }
 
 export class PublicProblemReadOnlyError extends Error {
@@ -225,12 +226,15 @@ export type CourseRelease = CourseUpdateSummary & { version: number };
 export async function releaseCourseVersion(
   db: RootDbClient,
   courseId: string,
+  actorId?: string,
 ): Promise<CourseRelease> {
   return db.$transaction(async (tx) => {
     const [course] = await tx.$queryRaw<Array<{ ownerId: string; contentVersion: number }>>`
       SELECT "ownerId", "contentVersion" FROM "Course" WHERE "id" = ${courseId} FOR UPDATE
     `;
     if (!course) throw new CourseContentNotFoundError();
+    if (actorId) await draftAuthority(tx, actorId, courseId);
+    await applyContentDrafts(tx, courseId);
     const version = course.contentVersion + 1;
 
     const addedProblems = await tx.$executeRaw`
@@ -277,6 +281,45 @@ export async function releaseCourseVersion(
     });
     return { version, addedProblems, updatedProblems, addedNotebooks, updatedNotebooks };
   });
+}
+
+/**
+ * 「发布新版」之前：上次发布以来有多少公有内容会被这次发布盖章。条件和 releaseCourseVersion 一致。
+ */
+export async function pendingCourseRelease(
+  db: DbClient,
+  courseId: string,
+  ownerId: string,
+  excluded: string[] = [],
+) {
+  const exclude = excluded.length
+    ? Prisma.sql`AND "id" NOT IN (${Prisma.join(excluded)})`
+    : Prisma.empty;
+  const [row] = await db.$queryRaw<
+    Array<{
+      addedProblems: number;
+      updatedProblems: number;
+      addedNotebooks: number;
+      updatedNotebooks: number;
+    }>
+  >`
+    SELECT
+      (SELECT COUNT(*)::int FROM "NotebookProblem"
+        WHERE "courseId" = ${courseId} AND "ownerId" IS NULL AND "status"::text = 'published'
+          AND "releaseAddedIn" IS NULL ${exclude}) AS "addedProblems",
+      (SELECT COUNT(*)::int FROM "NotebookProblem"
+        WHERE "courseId" = ${courseId} AND "ownerId" IS NULL AND "status"::text = 'published'
+          AND "releaseAddedIn" IS NOT NULL
+          AND "releasedHash" IS DISTINCT FROM ${problemFingerprintSql} ${exclude}) AS "updatedProblems",
+      (SELECT COUNT(*)::int FROM "Notebook"
+        WHERE "courseId" = ${courseId} AND "ownerId" = ${ownerId} AND "removedAt" IS NULL
+          AND "releaseAddedIn" IS NULL ${exclude}) AS "addedNotebooks",
+      (SELECT COUNT(*)::int FROM "Notebook"
+        WHERE "courseId" = ${courseId} AND "ownerId" = ${ownerId} AND "removedAt" IS NULL
+          AND "releaseAddedIn" IS NOT NULL
+          AND "releasedContentVersion" IS DISTINCT FROM "contentVersion" ${exclude}) AS "updatedNotebooks"
+  `;
+  return row;
 }
 
 type SummaryRow = {

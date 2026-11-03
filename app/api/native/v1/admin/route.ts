@@ -6,6 +6,7 @@ import {
   ADMIN_CONSOLE_ROLES,
   AdminConsoleError,
   getAdminConsoleOverview,
+  getAdminConsoleUserCourses,
   resolveAdminConsoleViewer,
   saveAdminConsoleLlm,
   searchAdminConsoleUsers,
@@ -15,6 +16,14 @@ import {
 } from '@/lib/server/admin-console';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import {
+  listAdminManagedCourses,
+  listAdminCourseStudents,
+  removeAdminCourseStudent,
+  searchAdminCourseAssignees,
+  setAdminCourseManager,
+} from '@/lib/server/admin-course-management';
+import { archiveResponse, buildAdminCourseArchive } from '@/lib/server/admin-course-export';
+import {
   publicApiError,
   publicApiRequestId,
   publicApiSuccess,
@@ -22,6 +31,7 @@ import {
 } from '@/lib/server/public-api';
 
 export const runtime = 'nodejs';
+export const maxDuration = 300;
 
 /**
  * App 里的「管理」页（测试服管理员控制台）。只有管理员账号能用：
@@ -44,7 +54,11 @@ function adminError(requestId: string, error: unknown) {
     return publicApiError(
       requestId,
       error.status,
-      error.status === 404 ? 'not_found' : 'invalid_request',
+      error.status === 404
+        ? 'not_found'
+        : error.status === 403
+          ? 'unauthorized'
+          : 'invalid_request',
       error.message,
     );
   }
@@ -53,7 +67,7 @@ function adminError(requestId: string, error: unknown) {
 
 const roleSchema = z.enum(ADMIN_CONSOLE_ROLES);
 
-/** ?check=1 = 只问是不是管理员；?users=1（可带 query / role）= 账号列表；没有参数 = 总览。 */
+/** ?check=1 = 管理员检查；?users=1（可带 query / role / page）= 分页账号；没有参数 = 总览。 */
 export async function GET(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   const admin = await adminFor(request, requestId);
@@ -61,14 +75,66 @@ export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams;
   try {
     if (query.get('check')) return publicApiSuccess(requestId, { admin: true });
+    if (query.get('students') || query.get('export')) {
+      const courseId = query.get('courseId')?.trim();
+      if (!courseId || courseId.length > 200) {
+        return publicApiError(requestId, 400, 'invalid_request', '请选择课程。');
+      }
+      if (query.get('students')) {
+        return publicApiSuccess(
+          requestId,
+          await listAdminCourseStudents(
+            admin.prisma,
+            courseId,
+            query.get('query') || '',
+            Number(query.get('page') || 1),
+          ),
+        );
+      }
+      const course = await admin.prisma.course.findUnique({
+        where: { id: courseId },
+        select: { id: true, name: true, courseCode: true },
+      });
+      if (!course) throw new AdminConsoleError(404, '找不到这门课程。');
+      return archiveResponse(
+        await buildAdminCourseArchive(admin.prisma, [course.id], { materialsOnly: true }),
+        `course-${course.id}-materials`,
+      );
+    }
+    if (query.get('catalog')) {
+      return publicApiSuccess(
+        requestId,
+        await listAdminManagedCourses(
+          admin.prisma,
+          query.get('query') || '',
+          Number(query.get('page') || 1),
+        ),
+      );
+    }
+    if (query.get('assignees')) {
+      return publicApiSuccess(requestId, {
+        users: await searchAdminCourseAssignees(admin.prisma, query.get('query') || ''),
+      });
+    }
+    if (query.get('courses')) {
+      const userId = query.get('userId')?.trim();
+      if (!userId || userId.length > 200) {
+        return publicApiError(requestId, 400, 'invalid_request', '请选择要查看的账号。');
+      }
+      return publicApiSuccess(requestId, {
+        courses: await getAdminConsoleUserCourses(admin.prisma, userId),
+      });
+    }
     if (query.get('users')) {
       const role = roleSchema.safeParse(query.get('role'));
-      return publicApiSuccess(requestId, {
-        users: await searchAdminConsoleUsers(admin.prisma, {
+      return publicApiSuccess(
+        requestId,
+        await searchAdminConsoleUsers(admin.prisma, {
           query: query.get('query'),
           role: role.success ? role.data : null,
+          page: Number(query.get('page') || 1),
         }),
-      });
+      );
     }
     return publicApiSuccess(requestId, await getAdminConsoleOverview(admin.prisma, admin.viewer));
   } catch (error) {
@@ -82,6 +148,13 @@ const costLimit = z.number().min(0).max(1_000_000).nullable();
 const requestLimit = z.number().int().min(0).max(100_000_000).nullable();
 
 const actionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('remove-course-student'), courseId: id, userId: id }),
+  z.object({
+    action: z.literal('set-course-manager'),
+    courseId: id,
+    userId: id,
+    assigned: z.boolean(),
+  }),
   z.object({
     action: z.literal('save-llm'),
     modelId: model.optional(),
@@ -127,6 +200,15 @@ export async function POST(request: NextRequest) {
   const input = parsed.data;
   try {
     switch (input.action) {
+      case 'remove-course-student':
+        return publicApiSuccess(
+          requestId,
+          await prisma.$transaction((tx) => removeAdminCourseStudent(tx, viewer, input)),
+        );
+      case 'set-course-manager':
+        return publicApiSuccess(requestId, {
+          course: await prisma.$transaction((tx) => setAdminCourseManager(tx, viewer, input)),
+        });
       case 'save-llm': {
         const { action: _action, ...llm } = input;
         return publicApiSuccess(requestId, { llm: await saveAdminConsoleLlm(llm) });

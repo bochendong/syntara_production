@@ -139,7 +139,7 @@ function normalizedPath(value: string): string {
   }
 }
 
-function assetResolver(assets: LocalAsset[]): (source: string) => AssetImageSource | null {
+export function assetResolver(assets: LocalAsset[]): (source: string) => AssetImageSource | null {
   const byPath = new Map<string, LocalAsset>();
   for (const asset of assets) byPath.set(asset.path, asset);
   return (source) => {
@@ -211,7 +211,8 @@ function collectImageSources(
   }
 }
 
-function MarkdownBlock({
+/** 笔记里的一段 Markdown（公式、代码、图片）。课程管理的笔记预览也用它。 */
+export function MarkdownBlock({
   markdown,
   resolveAsset,
 }: {

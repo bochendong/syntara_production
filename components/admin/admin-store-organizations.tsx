@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, Loader2, Plus, Sparkles } from 'lucide-react';
+import { Building2, Loader2, Plus } from 'lucide-react';
 import { toast } from '@/lib/notifications/client-toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -80,7 +80,9 @@ export function AdminOrganizationsCard({
           <Building2 className="h-4 w-4" />
           商城机构
         </CardTitle>
-        <CardDescription>商城只展示机构课程。先建机构，再在下方课程里选择机构并上架。</CardDescription>
+        <CardDescription>
+          商城只展示机构课程。先建机构，再在下方课程里选择机构并上架。
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {organizations.length > 0 ? (
@@ -131,7 +133,7 @@ export function AdminOrganizationsCard({
   );
 }
 
-/** 课程行里的商城控制：所属机构、上架、发布新版。 */
+/** 课程行里的商城控制：所属机构、上架。发布更新在老师的「管理课程」页。 */
 export function AdminStoreCourseControls({
   course,
   organizations,
@@ -143,11 +145,7 @@ export function AdminStoreCourseControls({
 }) {
   const [saving, setSaving] = useState(false);
 
-  const patch = async (body: {
-    organizationId?: string | null;
-    listedInCourseStore?: boolean;
-    publishNewVersion?: boolean;
-  }) => {
+  const patch = async (body: { organizationId?: string | null; listedInCourseStore?: boolean }) => {
     setSaving(true);
     try {
       const response = await backendJson<PatchStoreCourseResponse>(
@@ -159,7 +157,6 @@ export function AdminStoreCourseControls({
         },
       );
       onChanged(response.course);
-      if (body.publishNewVersion) toast.success(`已发布 v${response.course.contentVersion}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '更新失败');
     } finally {
@@ -193,18 +190,6 @@ export function AdminStoreCourseControls({
         >
           {course.listedInCourseStore ? '商城上架' : '未上架'}
         </Button>
-        {course.organizationId ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 gap-1 px-2 text-xs"
-            disabled={saving}
-            title="发布新版：已加入的学生会看到更新提示"
-            onClick={() => void patch({ publishNewVersion: true })}
-          >
-            <Sparkles className="h-3.5 w-3.5" />v{course.contentVersion}
-          </Button>
-        ) : null}
       </div>
     </div>
   );

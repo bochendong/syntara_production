@@ -671,7 +671,7 @@ async function listOwnedCourseNotebooks(
   });
 }
 
-function normalizeDraftForPersistence(
+export function normalizeDraftForPersistence(
   draftInput: NotebookProblemImportDraft,
   order: number,
   preservePreparedContent = false,
@@ -747,7 +747,7 @@ function normalizeDraftForPersistence(
   };
 }
 
-async function withCodeReferenceVerification(
+export async function withCodeReferenceVerification(
   draft: NotebookProblemImportDraft,
 ): Promise<NotebookProblemImportDraft> {
   if (draft.type === 'multipart') return withCodePartVerification(draft);

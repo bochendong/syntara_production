@@ -1,0 +1,441 @@
+.cp-dialog {
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100dvh - 40px);
+  border: 1px solid #fff;
+  border-radius: 22px;
+  padding: 0;
+  background: #fafbfc;
+  color: #0f172a;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 20%);
+  overflow: hidden;
+}
+.cp-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.cp-dialog::backdrop {
+  background: rgb(15 23 42 / 28%);
+  backdrop-filter: blur(5px);
+}
+.cp-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px;
+  border-bottom: 1px solid rgb(15 23 42 / 7%);
+}
+.cp-dialog-head h2 {
+  margin: 0;
+  font-size: 21px;
+}
+.cp-dialog-head p {
+  margin: 7px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+.cp-dialog-body {
+  min-height: 0;
+  padding: 22px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.cp-close {
+  display: inline-flex;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  justify-content: center;
+  align-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #eef0f4;
+  color: #64748b;
+  cursor: pointer;
+}
+.cp-form-fields {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  gap: 20px;
+  border: 0;
+}
+.cp-field {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 550;
+}
+.cp-field input,
+.cp-field select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid #dfe3e9;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+}
+.cp-form-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.cp-admission-options {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.cp-admission-options legend {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 550;
+}
+.cp-admission-options label {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e2e6ed;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+.cp-admission-options label:has(input:checked) {
+  border-color: #88baff;
+  background: #f2f7ff;
+}
+.cp-admission-options input {
+  accent-color: #0a84ff;
+}
+.cp-admission-options span {
+  display: grid;
+  gap: 5px;
+}
+.cp-admission-options strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.cp-admission-options small,
+.cp-muted {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.cp-application-fields h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.cp-field-row {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  margin: 14px 0;
+}
+.cp-field-row .cp-field {
+  flex: 1;
+}
+.cp-field-row .cp-close {
+  margin-bottom: 5px;
+}
+.cp-add-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cp-add-fields button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid #dfe3e9;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  cursor: pointer;
+}
+.cp-publish-note {
+  margin: 18px 0 0;
+}
+.cp-error {
+  color: #b42332;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.cp-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+.cp-form-actions button,
+.cp-review-actions button,
+.cp-management-actions button {
+  min-height: 38px;
+  padding: 8px 16px;
+  border: 1px solid #dfe3e9;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cp-form-actions .cp-primary,
+.cp-review-actions .cp-primary {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+}
+.cp-dialog button:disabled,
+.cp-management button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.cp-management-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 24px;
+}
+
+.cp-management .tp-head h1 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cp-management-info {
+  margin-right: auto;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.cp-workspace-overview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  border: 1px solid rgb(15 23 42 / 6%);
+  border-radius: 18px;
+  padding: 18px 20px;
+  background: #fff;
+}
+
+.cp-workspace-avatar {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.cp-workspace-summary {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 5px;
+}
+
+.cp-workspace-summary strong {
+  overflow-wrap: anywhere;
+}
+
+.cp-workspace-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+}
+
+.cp-workspace-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.cp-workspace-tools > button {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgb(15 23 42 / 6%);
+  border-radius: 16px;
+  padding: 16px;
+  background: #fff;
+  color: #526b8d;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cp-workspace-tools > button:hover {
+  background: #f8fafc;
+}
+.cp-workspace-tools > button > span {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 5px;
+}
+.cp-workspace-tools strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+.cp-workspace-tools small {
+  color: #8293a9;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.cp-workspace-tools button:focus-visible,
+.cp-workspace-edit:focus-visible,
+.cp-avatar-grid button:focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
+}
+
+.cp-profile-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #64748b;
+  font-size: 13px;
+}
+.cp-profile-preview img {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.cp-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.cp-avatar-grid button {
+  display: grid;
+  place-items: center;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  padding: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+.cp-avatar-grid button.is-selected {
+  border-color: #0a84ff;
+}
+.cp-avatar-grid img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.cp-review-list {
+  display: grid;
+  gap: 14px;
+}
+.cp-review-card {
+  border: 1px solid rgb(15 23 42 / 6%);
+  border-radius: 16px;
+  padding: 20px;
+  background: #fff;
+}
+.cp-review-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cp-review-person img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.cp-review-person > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+.cp-review-person strong {
+  font-size: 14px;
+}
+.cp-review-person small {
+  color: #64748b;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.cp-review-card dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 36px;
+  margin: 18px 0;
+}
+.cp-review-card dt {
+  color: #64748b;
+  font-size: 12px;
+}
+.cp-review-card dd {
+  margin: 6px 0 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.cp-review-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+.cp-review-footer time {
+  color: #94a3b8;
+  font-size: 12px;
+}
+.cp-review-actions {
+  display: flex;
+  gap: 8px;
+}
+.tp-course-card-head.tp-course-card-select {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tp-pending-applications {
+  align-self: flex-start;
+  border-radius: 8px;
+  padding: 5px 9px;
+  background: #fff1db;
+  color: #a36516;
+  font-size: 12px;
+}
+@media (max-width: 520px) {
+  .cp-dialog-head,
+  .cp-dialog-body {
+    padding: 18px;
+  }
+  .cp-form-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cp-workspace-content {
+  margin: 24px 0 28px;
+}

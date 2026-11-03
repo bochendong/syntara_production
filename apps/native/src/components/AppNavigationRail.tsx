@@ -62,7 +62,7 @@ export function AppNavigationRail({
         <button
           type="button"
           aria-label="教学"
-          title="教学：班级和上课"
+          title="教学：课程管理"
           aria-current={active === 'teach' ? 'page' : undefined}
           onClick={onOpenTeach}
         >
@@ -73,8 +73,9 @@ export function AppNavigationRail({
       {onOpenClassroom ? (
         <button
           type="button"
-          aria-label="进入课堂"
-          title="输课堂码进入课堂"
+          aria-label="上课"
+          title="上课和加入课堂"
+          aria-current={active === 'classroom' ? 'page' : undefined}
           onClick={onOpenClassroom}
         >
           <Radio size={22} strokeWidth={1.7} aria-hidden />

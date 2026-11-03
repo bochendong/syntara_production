@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { courseAdmissionConfig } from '@/lib/server/course-admissions';
 import { prisma } from '@/lib/server/prisma';
 import { requireUserId } from '@/lib/server/api-auth';
 import { safeRoute } from '@/lib/server/json-error-response';
@@ -35,9 +36,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
 
-    const [reviews, purchase] = await Promise.all([
+    const [reviews, purchase, application] = await Promise.all([
       listCourseReviewsWithReviewer(prisma, course.id),
       findCoursePurchase(prisma, userId, course.id),
+      prisma.courseJoinApplication.findUnique({
+        where: { courseId_userId: { courseId: course.id, userId } },
+        select: { status: true, answersJson: true },
+      }),
     ]);
     const notebookPurchases = await listNotebookPurchasesForSources(
       prisma,
@@ -77,6 +82,19 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         speechTotalCount: courseSpeechTotalCount,
         speechStatus: speechStatus(courseSpeechTotalCount, courseSpeechReadyCount),
         ownerName: course.organization?.name ?? ownerDisplayName(course.owner),
+        admission: courseAdmissionConfig(course.admissionConfig),
+        application: application
+          ? {
+              status: application.status,
+              answers: Array.isArray(application.answersJson)
+                ? Object.fromEntries(
+                    (application.answersJson as Array<{ id?: string; value?: string }>)
+                      .filter((answer) => answer?.id && typeof answer.value === 'string')
+                      .map((answer) => [answer.id!, answer.value!]),
+                  )
+                : {},
+            }
+          : null,
         averageRating: reviews.length > 0 ? ratingSum / reviews.length : 0,
         reviewCount: reviews.length,
         purchased: Boolean(purchase),

@@ -1,10 +1,9 @@
 import type { DbClient } from '@/lib/server/repositories/types';
 import { findCourseEnrollment } from '@/lib/server/repositories/course-enrollment-repository';
 
-/** 商城只展示机构课程；用户自己建的课程不再能上架。 */
+/** 所有明确发布到商城的课程，包括无组织的个人课程。 */
 const STORE_COURSE_WHERE = {
   listedInCourseStore: true,
-  organizationId: { not: null },
 } as const;
 
 const STORE_ORGANIZATION_SELECT = {
@@ -15,11 +14,14 @@ export function listPublicStoreCoursesForUser(db: DbClient, userId: string) {
   return db.course.findMany({
     where: {
       ...STORE_COURSE_WHERE,
-      ownerId: { not: userId },
     },
     orderBy: { updatedAt: 'desc' },
     include: {
       owner: { select: { name: true, email: true } },
+      managers: {
+        where: { userId, user: { isActive: true, role: { in: ['TEACHER', 'ADMIN'] } } },
+        select: { userId: true },
+      },
       organization: STORE_ORGANIZATION_SELECT,
       _count: { select: { notebooks: true } },
       notebooks: {
@@ -215,6 +217,7 @@ export function findPublicCourseForEnrollment(
       name: true,
       coursePriceCents: true,
       contentVersion: true,
+      admissionConfig: true,
     },
   });
 }

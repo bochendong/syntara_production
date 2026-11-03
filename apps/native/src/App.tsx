@@ -6,6 +6,7 @@ import { AppNavigationRail } from './components/AppNavigationRail';
 import { AppNavigationContext, type AppNavigation } from './components/app-navigation-context';
 import { browserApp, platformAvailable } from './data/browser-runtime';
 import { CreateCourseDialog } from './components/CreateCourseDialog';
+import { CoursePublishDialog } from './components/CoursePublishDialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
@@ -90,7 +91,7 @@ function AuthenticatedApp() {
   const [creatingCourse, setCreatingCourse] = useState(false);
   const [managedCourse, setManagedCourse] = useState<{
     course: LocalCourseSummary;
-    action: 'edit' | 'delete';
+    action: 'edit' | 'delete' | 'publish';
   } | null>(null);
   const [removingCourse, setRemovingCourse] = useState(false);
   const [chatDraft, setChatDraft] = useState({ text: '', revision: 0 });
@@ -119,13 +120,13 @@ function AuthenticatedApp() {
   useEffect(() => {
     if (!classroomEnabled) return;
     let cancelled = false;
-    getTeachHome()
-      .then((home) => {
-        if (!cancelled) setCanTeach(home.courses.length > 0);
-      })
-      .catch(() => undefined);
+    const unsubscribe = subscribeVisibleRefresh(async () => {
+      const home = await getTeachHome();
+      if (!cancelled) setCanTeach(home.courses.length > 0);
+    });
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [classroomEnabled]);
   // 「管理」入口（测试服管理员控制台）只给管理员账号。
@@ -142,7 +143,7 @@ function AuthenticatedApp() {
   }, []);
   const compactLayout = useCompactLayout();
   const [globalPage, setGlobalPage] = useState<
-    'calendar' | 'profile' | 'store' | 'teach' | 'admin' | null
+    'calendar' | 'profile' | 'store' | 'teach' | 'classroom' | 'admin' | null
   >(null);
   const [globalEvents, setGlobalEvents] = useState<LocalCourseEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -644,14 +645,18 @@ function AuthenticatedApp() {
             ? 'store'
             : globalPage === 'teach'
               ? 'teach'
-              : globalPage === 'admin'
-                ? 'admin'
-                : 'chat',
+              : globalPage === 'classroom'
+                ? 'classroom'
+                : globalPage === 'admin'
+                  ? 'admin'
+                  : 'chat',
     avatarUrl: avatarTheme.avatarUrl,
     onOpenCalendar: () => setGlobalPage('calendar'),
     onOpenStore: () => setGlobalPage('store'),
     onOpenSettings: () => setGlobalPage('profile'),
-    onOpenClassroom: classroomEnabled ? () => setClassroomOpen(true) : undefined,
+    onOpenClassroom: classroomEnabled
+      ? () => (canTeach ? setGlobalPage('classroom') : setClassroomOpen(true))
+      : undefined,
     onOpenTeach: classroomEnabled && canTeach ? () => setGlobalPage('teach') : undefined,
     onOpenAdmin: canAdmin ? () => setGlobalPage('admin') : undefined,
     onManageCourse: platformAvailable()
@@ -710,7 +715,17 @@ function AuthenticatedApp() {
             />
           </PracticeOverlay>
         ) : null}
-        {managedCourse?.action === 'edit' ? (
+        {managedCourse?.action === 'publish' ? (
+          <CoursePublishDialog
+            courseId={managedCourse.course.id}
+            onClose={() => setManagedCourse(null)}
+            onPublished={async () => {
+              await loadCourses(selectedCourseId ?? undefined);
+              await refreshWorkspace();
+              setManagedCourse(null);
+            }}
+          />
+        ) : managedCourse?.action === 'edit' ? (
           <CreateCourseDialog
             editing={{
               name: managedCourse.course.name,
@@ -795,7 +810,21 @@ function AuthenticatedApp() {
                 ) : null}
               </>
             ) : globalPage === 'teach' ? (
-              <TeachPage onBack={() => setGlobalPage(null)} />
+              <TeachPage
+                key="teaching"
+                onBack={() => setGlobalPage(null)}
+                onCourseChanged={async () => {
+                  await loadCourses();
+                  await refreshWorkspace();
+                }}
+              />
+            ) : globalPage === 'classroom' ? (
+              <TeachPage
+                key="classroom"
+                mode="classroom"
+                onBack={() => setGlobalPage(null)}
+                onJoinClass={() => setClassroomOpen(true)}
+              />
             ) : globalPage === 'admin' ? (
               <AdminPage onBack={() => setGlobalPage(null)} />
             ) : globalPage === 'store' ? (

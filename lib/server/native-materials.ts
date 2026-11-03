@@ -245,12 +245,20 @@ export async function uploadNativeMaterial(
   const name = input.name.trim().slice(0, 200) || '未命名资料';
 
   if (input.kind === 'notes') {
+    const course =
+      role === 'owner'
+        ? await prisma.course.findUnique({
+            where: { id: input.courseId },
+            select: { ownerId: true },
+          })
+        : null;
+    const dataOwnerId = course?.ownerId ?? userId;
     const existing = await prisma.notebook.findUnique({
       where: { id: input.clientId },
       select: { ownerId: true, courseId: true },
     });
     if (existing) {
-      return existing.ownerId === userId && existing.courseId === input.courseId
+      return existing.ownerId === dataOwnerId && existing.courseId === input.courseId
         ? { status: 'saved', kind: 'notes', notebookId: input.clientId }
         : { status: 'conflict', message: 'Notebook id is taken.' };
     }
@@ -258,7 +266,7 @@ export async function uploadNativeMaterial(
       await tx.notebook.create({
         data: {
           id: input.clientId,
-          ownerId: userId,
+          ownerId: dataOwnerId,
           courseId: input.courseId,
           name,
           description: '上传的笔记',
