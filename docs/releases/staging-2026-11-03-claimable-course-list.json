@@ -1,0 +1,49 @@
+{
+  "at": "2026-11-03T16:32:38.322968+00:00",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "revision": "69b548bbff51412a1ee960e5067f083a7fea4551",
+  "assets": [
+    {
+      "path": "/native-web/assets/index-CnjotS95.js",
+      "sha256": "47b4a1d2c6ee9999748ba7e3bd00e8378e4c671dbe0c360cf8b71e2edac6d06a",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/index-DNJzKN8o.css",
+      "sha256": "6858b0c8c3e03e709331e863524a0b969daae0d8caa19527ac23576d7745c768",
+      "matched": true
+    }
+  ],
+  "health": true,
+  "authenticatedApi": {
+    "onlyFree": true,
+    "searchExcludesClaimed": true,
+    "claimedCoursesRemainInTeaching": true,
+    "excludedCount": 5,
+    "availableCount": 23
+  },
+  "deploymentId": "3f571bb5-e62f-4bb7-9e0b-06708a135e95",
+  "status": "deployed",
+  "branch": "codex/staging-next",
+  "changes": [
+    "Claim picker and search only return unclaimed courses without an active assigned teacher; database filtering happens before the list limit",
+    "Mine/taken legacy statuses are filtered in the UI; successful claims disappear immediately",
+    "Release-claim entry moved to the claimed course card in teaching, with confirmation; existing release API and course/class data preserved"
+  ],
+  "verification": {
+    "format": true,
+    "lint": true,
+    "rootTypes": true,
+    "nativeTypes": true,
+    "productionBuild": true,
+    "nativeWebBuild": true,
+    "isolatedPostgres": "Self/other claimed courses and active assigned teachers excluded; search exclusion; release/reclaim; claim/assignment concurrency; 301 occupied rows cannot crowd out available courses; existing phone-tail and class-access scenarios pass",
+    "localBrowser": "Legacy mine/taken rows hidden, successful claim disappears, release confirmation from teaching card, released course becomes available again using disposable UI fixtures",
+    "liveBrowser": "Five claimed courses removed from picker; 23 available courses remain; search CSC108 returns no claimable course; five release buttons remain on teaching cards; no live claim/release actions executed",
+    "assetsMatched": true
+  },
+  "migrations": "No schema changes",
+  "productionChanged": false,
+  "claimDataMutated": false,
+  "nativeInstallersRebuilt": false
+}
