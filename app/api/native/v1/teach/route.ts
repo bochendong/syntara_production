@@ -22,6 +22,11 @@ import {
   startClassSession,
   type ClassroomViewer,
 } from '@/lib/server/teacher-classroom';
+import {
+  claimCourse,
+  listClaimableCourses,
+  releaseCourseClaim,
+} from '@/lib/server/teacher-course-claim';
 
 export const runtime = 'nodejs';
 
@@ -38,9 +43,10 @@ async function viewerFor(request: NextRequest, requestId: string) {
   }
   const user = await prisma.user.findUnique({
     where: { id: principal.userId },
-    select: { role: true },
+    select: { role: true, isActive: true },
   });
-  return { userId: principal.userId, role: user?.role ?? null } satisfies ClassroomViewer;
+  if (!user?.isActive) return publicApiError(requestId, 403, 'unauthorized', '账号不可用。');
+  return { userId: principal.userId, role: user.role } satisfies ClassroomViewer;
 }
 
 function classroomError(requestId: string, error: unknown) {
@@ -55,7 +61,10 @@ function classroomError(requestId: string, error: unknown) {
   throw error;
 }
 
-/** ?classId= 班级；?sessionId= 上课大屏；?choices=<sessionId> 可以发的题；都没有 = 课程列表。 */
+/**
+ * ?classId= 班级；?sessionId= 上课大屏；?choices=<sessionId> 可以发的题；
+ * ?claim=1&q= 可以认领的课；都没有 = 课程列表。
+ */
 export async function GET(request: NextRequest) {
   const requestId = publicApiRequestId(request);
   const viewer = await viewerFor(request, requestId);
@@ -65,6 +74,12 @@ export async function GET(request: NextRequest) {
     const classId = query.get('classId');
     const sessionId = query.get('sessionId');
     const choices = query.get('choices');
+    if (query.get('claim')) {
+      return publicApiSuccess(
+        requestId,
+        await listClaimableCourses(viewer, (query.get('q') || '').slice(0, 80)),
+      );
+    }
     if (choices) {
       return publicApiSuccess(requestId, {
         problems: await listSessionProblemChoices(viewer, choices),
@@ -86,6 +101,8 @@ const itemAction = (action: 'close' | 'reopen' | 'reveal' | 'remove') =>
 
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('open-class'), courseId: id }),
+  z.object({ action: z.literal('claim'), courseId: id }),
+  z.object({ action: z.literal('release-claim'), courseId: id }),
   z.object({ action: z.literal('add-member'), classId: id, email: z.string().trim().email() }),
   z.object({ action: z.literal('remove-member'), classId: id, userId: id }),
   z.object({ action: z.literal('reset-code'), classId: id }),
@@ -112,6 +129,12 @@ export async function POST(request: NextRequest) {
   const input = parsed.data;
   try {
     switch (input.action) {
+      case 'claim':
+        await claimCourse(viewer, input.courseId);
+        return publicApiSuccess(requestId, await listTeachableCourses(viewer));
+      case 'release-claim':
+        await releaseCourseClaim(viewer, input.courseId);
+        return publicApiSuccess(requestId, await listTeachableCourses(viewer));
       case 'open-class':
         return publicApiSuccess(requestId, {
           classId: await ensureCurrentTermClass(viewer, input.courseId),

@@ -5,6 +5,7 @@ export function teacherCourseAccessWhere(userId: string): Prisma.CourseWhereInpu
   return {
     OR: [
       { ownerId: userId, externalBinding: null },
+      { claimedTeacherId: userId, claimedTeacher: { isActive: true }, externalBinding: null },
       {
         managers: {
           some: { userId, user: { isActive: true, role: { in: ['TEACHER', 'ADMIN'] } } },

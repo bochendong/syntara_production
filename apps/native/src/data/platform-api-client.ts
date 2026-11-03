@@ -614,6 +614,8 @@ export type TeachHome = {
     listed: boolean;
     canPublish: boolean;
     pendingApplications: number;
+    /** 这门课是我认领的（一门课只能有一位老师认领）。 */
+    claimedByMe: boolean;
     currentClass: {
       id: string;
       name: string;
@@ -743,6 +745,33 @@ function teachAction<T>(payload: unknown): Promise<T> {
   return invokeJson('native_teach_action', { requestId: crypto.randomUUID(), payload });
 }
 
+export type TeachClaimableCourse = {
+  id: string;
+  name: string;
+  courseCode: string | null;
+  avatarUrl: string | null;
+  organizationName: string | null;
+  problemCount: number;
+  claim: 'mine' | 'free' | 'taken';
+};
+
+/** 老师可以认领的机构课（我认领的在前，其次是没人认领的）。 */
+export async function getTeachClaimableCourses(query = ''): Promise<TeachClaimableCourse[]> {
+  const result = await invokeQuery<{ courses: TeachClaimableCourse[] }>('native_get_teach', {
+    claim: '1',
+    ...(query.trim() ? { q: query.trim() } : {}),
+  });
+  return result.courses;
+}
+
+export function claimTeachCourse(courseId: string): Promise<TeachHome> {
+  return teachAction({ action: 'claim', courseId });
+}
+
+export function releaseTeachCourse(courseId: string): Promise<TeachHome> {
+  return teachAction({ action: 'release-claim', courseId });
+}
+
 export function openTeachClass(courseId: string): Promise<{ classId: string }> {
   return teachAction({ action: 'open-class', courseId });
 }
@@ -864,6 +893,7 @@ export type AdminManagedCourse = {
   organizationName: string | null;
   owner: AdminCoursePerson;
   managers: AdminCoursePerson[];
+  claimedTeacher?: AdminCoursePerson | null;
   responsiblePeople: AdminCoursePerson[];
 };
 
@@ -1161,6 +1191,27 @@ export async function nativeOnboardingAction(
     { requestId: crypto.randomUUID(), payload },
   );
   return result.onboarding;
+}
+
+export type SpeedupPhoneState = { needed: boolean; courses: string[] };
+
+/** 学生加入了 Speedup 的课、还没留手机尾号时 needed = true（几门课也只问一次）。 */
+export async function getSpeedupPhoneState(): Promise<SpeedupPhoneState> {
+  const result = await invokeQuery<{ speedupPhone: SpeedupPhoneState }>('native_get_onboarding', {
+    part: 'speedup-phone',
+  });
+  return result.speedupPhone;
+}
+
+export async function saveSpeedupPhoneLast4(last4: string): Promise<SpeedupPhoneState> {
+  const result = await invokeJson<
+    { action: 'speedup-phone'; last4: string },
+    { speedupPhone: SpeedupPhoneState }
+  >('native_onboarding_action', {
+    requestId: crypto.randomUUID(),
+    payload: { action: 'speedup-phone', last4 },
+  });
+  return result.speedupPhone;
 }
 
 /** 资料页的笔记 / 题目写进账号，网页和其他设备都能同步到。 */

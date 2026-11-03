@@ -12,6 +12,9 @@ const db = new PrismaClient({ datasources: { db: { url } } });
 const drafts = await jiti.import(`${root}/lib/server/course-content-drafts.ts`);
 const rollback = new Error('EXPECTED_ROLLBACK');
 const { readNativeProblems } = await jiti.import(root + '/lib/server/native-problem-sync.ts');
+const { buildNativeNotebookArchive } = await jiti.import(
+  root + '/lib/server/native-course-sync.ts',
+);
 const { releaseCourseVersion } = await jiti.import(root + '/lib/server/store-course-layers.ts');
 try {
   await assert.rejects(
@@ -103,6 +106,111 @@ try {
           },
         });
         await tx.courseEnrollment.create({ data: { userId: student.id, courseId: course.id } });
+        const manager = await tx.user.create({
+          data: {
+            email: 'manager-' + suffix + '@example.invalid',
+            role: 'TEACHER',
+            name: 'Manager QA',
+          },
+        });
+        await tx.courseManager.create({
+          data: { courseId: course.id, userId: manager.id, assignedById: owner.id },
+        });
+        const privateQuestion = await tx.notebookProblem.create({
+          data: {
+            courseId: course.id,
+            ownerId: owner.id,
+            title: 'Owner private',
+            type: 'short_answer',
+            status: 'draft',
+            order: 9,
+            tags: [],
+            publicContentJson: { type: 'short_answer', stem: 'Private' },
+            gradingJson: { type: 'short_answer' },
+          },
+        });
+        const privateNote = await tx.notebook.create({
+          data: {
+            courseId: course.id,
+            ownerId: student.id,
+            name: 'Private student note',
+            notebookKind: 'markdown',
+            tags: [],
+          },
+        });
+        const managed = await drafts.readManagedCourseProblems(tx, manager.id, course.id);
+        assert.ok(managed.problemIds.includes(problem.id));
+        assert.ok(!managed.problemIds.includes(privateQuestion.id));
+        assert.deepEqual(managed.progress, []);
+        await assert.rejects(
+          drafts.readManagedCourseProblems(tx, student.id, course.id),
+          (e) => e.status === 403,
+        );
+        assert.equal(
+          (
+            await buildNativeNotebookArchive(tx, manager.id, book.id, {
+              managedCourseId: course.id,
+            })
+          ).notebook.name,
+          'Edited',
+        );
+        assert.equal(
+          await buildNativeNotebookArchive(tx, manager.id, privateNote.id, {
+            managedCourseId: course.id,
+          }),
+          null,
+        );
+        const stableTime = (
+          await tx.notebook.findUnique({ where: { id: book.id } })
+        ).updatedAt.getTime();
+        await tx.notebookProblemSecret.create({
+          data: {
+            problemId: problem.id,
+            secretJudgeJson: { supportCode: '# private support', language: 'python' },
+          },
+        });
+        await drafts.stageContent(tx, owner.id, course.id, 'problems', problem.id, {
+          title: 'Metadata preserved',
+        });
+        await drafts.applyContentDrafts(tx, course.id);
+        assert.equal(
+          (await tx.notebookProblem.findUnique({ where: { id: problem.id } })).sourceMeta
+            .normalizedOrder,
+          0,
+        );
+        assert.equal(
+          (await tx.notebookProblemSecret.findUnique({ where: { problemId: problem.id } }))
+            .secretJudgeJson.supportCode,
+          '# private support',
+        );
+        assert.equal(
+          (await tx.notebook.findUnique({ where: { id: book.id } })).updatedAt.getTime(),
+          stableTime,
+        );
+        await drafts.stageContent(tx, owner.id, course.id, 'problems', problem.id, {
+          status: 'draft',
+        });
+        await tx.notebookProblem.update({
+          where: { id: problem.id },
+          data: { title: 'Live question', updatedAt: new Date(Date.now() + 10000) },
+        });
+        await drafts.stageContent(tx, owner.id, course.id, 'notes', null, {
+          title: 'Ready despite stale question draft',
+          text: '# Ready',
+        });
+        await drafts.applyContentDrafts(tx, course.id);
+        assert.ok(
+          (await drafts.contentDrafts(tx, course.id)).some((row) => row.targetId === problem.id),
+        );
+        await drafts.undoContentDraft(tx, owner.id, course.id, 'problems', problem.id);
+        await drafts.stageContent(tx, owner.id, course.id, 'problems', problem.id, {
+          notebookId: book.id,
+        });
+        await drafts.stageContent(tx, owner.id, course.id, 'notes', book.id, {}, true);
+        await assert.rejects(drafts.applyContentDrafts(tx, course.id), (e) => e.status === 409);
+        assert.equal((await tx.notebook.findUnique({ where: { id: book.id } })).removedAt, null);
+        await drafts.undoContentDraft(tx, owner.id, course.id, 'notes', book.id);
+        await drafts.undoContentDraft(tx, owner.id, course.id, 'problems', problem.id);
         assert.ok(
           (await readNativeProblems(tx, student.id, course.id, null)).problemIds.includes(
             problem.id,

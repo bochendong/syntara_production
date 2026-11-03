@@ -87,6 +87,7 @@ async function canEditPublication(
         isActive: true,
         OR: [
           { role: 'ADMIN' },
+          { claimedCourses: { some: { id: course.id, externalBinding: null } } },
           { role: 'TEACHER', managedCourses: { some: { courseId: course.id } } },
         ],
       },
@@ -109,6 +110,7 @@ export async function canEditCourseProfile(
         isActive: true,
         OR: [
           { role: 'ADMIN' },
+          { claimedCourses: { some: { id: course.id, externalBinding: null } } },
           { role: 'TEACHER', managedCourses: { some: { courseId: course.id } } },
         ],
       },

@@ -22,6 +22,7 @@ const COURSE_SELECT = {
   avatarUrl: true,
   organization: { select: { name: true } },
   owner: { select: PERSON_SELECT },
+  claimedTeacher: { select: PERSON_SELECT },
   managers: {
     orderBy: [{ createdAt: 'asc' }, { userId: 'asc' }],
     select: { user: { select: PERSON_SELECT } },
@@ -33,6 +34,7 @@ function courseView(course: Prisma.CourseGetPayload<{ select: typeof COURSE_SELE
   const people = [
     ...(course.owner.id.startsWith('system:') ? [] : [course.owner]),
     ...course.managers.map((manager) => manager.user),
+    ...(course.claimedTeacher?.isActive ? [course.claimedTeacher] : []),
   ];
   return {
     id: course.id,
@@ -42,6 +44,7 @@ function courseView(course: Prisma.CourseGetPayload<{ select: typeof COURSE_SELE
     organizationName: course.organization?.name ?? null,
     owner: course.owner,
     managers: course.managers.map((manager) => manager.user),
+    claimedTeacher: course.claimedTeacher,
     responsiblePeople: [...new Map(people.map((person) => [person.id, person])).values()],
   };
 }
@@ -221,9 +224,10 @@ export async function setAdminCourseManager(
   if (!(await resolveAdminConsoleViewer(db, viewer.userId))) {
     throw new AdminConsoleError(403, '只有管理员可以分配课程。');
   }
+  await db.$queryRaw`SELECT id FROM "Course" WHERE id = ${input.courseId} FOR UPDATE`;
   const course = await db.course.findUnique({
     where: { id: input.courseId },
-    select: { ownerId: true },
+    select: { ownerId: true, claimedTeacherId: true },
   });
   if (!course) throw new AdminConsoleError(404, '找不到这门课程。');
   if (course.ownerId === input.userId) {
@@ -237,12 +241,35 @@ export async function setAdminCourseManager(
     if (!user.isActive || (user.role !== 'TEACHER' && user.role !== 'ADMIN')) {
       throw new AdminConsoleError(400, '只能分配给启用中的老师或管理员。');
     }
+    if (user.role === 'TEACHER') {
+      const other = await db.courseManager.findFirst({
+        where: {
+          courseId: input.courseId,
+          userId: { not: input.userId },
+          user: { role: 'TEACHER', isActive: true },
+        },
+        select: { userId: true },
+      });
+      if (other)
+        throw new AdminConsoleError(409, '这门课已有负责老师，请先移除原老师的课程管理权限。');
+      // Explicit administrative teacher assignment supersedes self-service claim.
+      if (course.claimedTeacherId && course.claimedTeacherId !== input.userId)
+        await db.course.update({
+          where: { id: input.courseId },
+          data: { claimedTeacherId: null, claimedAt: null },
+        });
+    }
     await db.courseManager.upsert({
       where: { courseId_userId: { courseId: input.courseId, userId: input.userId } },
       create: { courseId: input.courseId, userId: input.userId, assignedById: viewer.userId },
       update: {},
     });
   } else {
+    if (course.claimedTeacherId === input.userId)
+      await db.course.update({
+        where: { id: input.courseId },
+        data: { claimedTeacherId: null, claimedAt: null },
+      });
     await db.courseManager.deleteMany({
       where: { courseId: input.courseId, userId: input.userId },
     });

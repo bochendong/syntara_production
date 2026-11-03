@@ -1,3 +1,4 @@
+import { CourseAdmissionError } from '@/lib/server/course-admissions';
 import { contentDrafts, draftAuthority } from '@/lib/server/course-content-drafts';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -13,8 +14,7 @@ import {
 export const runtime = 'nodejs';
 
 /** App 打开一本网页笔记时下载它的完整内容，存到本机后离线可读。 */
-export async function GET(request: NextRequest) {
-  const requestId = publicApiRequestId(request);
+async function getContent(request: NextRequest, requestId: string) {
   const principal = await requireNativePlatformApi(request, requestId);
   if (principal instanceof NextResponse) return principal;
   const prisma = getOptionalPrisma();
@@ -36,15 +36,17 @@ export async function GET(request: NextRequest) {
     : null;
   const live = await prisma.notebook.findUnique({
     where: { id: notebookId },
-    select: { courseId: true },
+    select: { courseId: true, ownerId: true },
   });
-  if (management && live && live.courseId !== managedCourseId)
+  if (
+    management &&
+    live &&
+    (live.courseId !== managedCourseId || live.ownerId !== management.ownerId)
+  )
     return publicApiError(requestId, 404, 'not_found', 'Notebook not found.');
-  let archive = await buildNativeNotebookArchive(
-    prisma,
-    management?.ownerId || principal.userId,
-    notebookId,
-  );
+  let archive = await buildNativeNotebookArchive(prisma, principal.userId, notebookId, {
+    managedCourseId: managedCourseId || undefined,
+  });
   if (managedCourseId) {
     await draftAuthority(prisma, principal.userId, managedCourseId);
     const draft = (await contentDrafts(prisma, managedCourseId)).find(
@@ -93,4 +95,24 @@ export async function GET(request: NextRequest) {
   return publicApiSuccess(requestId, archive, {
     headers: { 'Cache-Control': 'private, no-store' },
   });
+}
+
+export async function GET(request: NextRequest) {
+  const requestId = publicApiRequestId(request);
+  try {
+    return await getContent(request, requestId);
+  } catch (error) {
+    if (error instanceof CourseAdmissionError)
+      return publicApiError(
+        requestId,
+        error.status,
+        error.status === 403
+          ? 'unauthorized'
+          : error.status === 404
+            ? 'not_found'
+            : 'invalid_request',
+        error.message,
+      );
+    throw error;
+  }
 }

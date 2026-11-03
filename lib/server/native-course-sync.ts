@@ -1,3 +1,4 @@
+import { draftAuthority } from './course-content-drafts';
 import { createHash } from 'node:crypto';
 
 import {
@@ -335,6 +336,7 @@ export async function buildNativeNotebookArchive(
   prisma: PrismaClient,
   userId: string,
   notebookId: string,
+  options: { managedCourseId?: string } = {},
 ) {
   // Keep downloads independent of counters and store fields unrelated to reading.
   const notebook = await prisma.notebook.findUnique({
@@ -359,7 +361,16 @@ export async function buildNativeNotebookArchive(
   });
   if (!notebook || notebook.removedAt || !notebook.courseId) return null;
   const courseId = notebook.courseId;
+  const management = options.managedCourseId
+    ? await draftAuthority(prisma, userId, options.managedCourseId)
+    : null;
   if (
+    management &&
+    (courseId !== options.managedCourseId || notebook.ownerId !== management.ownerId)
+  )
+    return null;
+  if (
+    !management &&
     notebook.ownerId !== userId &&
     !(await canReadCourseNotebook(prisma, userId, courseId, notebookId))
   ) {

@@ -43,6 +43,8 @@ import { syncCourseData } from './data/course-sync';
 import { TeachPage } from './components/TeachPage';
 import { AdminPage } from './components/AdminPage';
 import { OnboardingCoach } from './components/OnboardingCoach';
+import { SpeedupPhoneDialog } from './components/SpeedupPhoneDialog';
+import { readLoginIntent } from './lib/login-intent';
 import { completeOnboardingStep, PLATFORM_TUTORIAL_COURSE_ID } from './lib/onboarding';
 import { guideCourseCreated } from './lib/onboarding-guide';
 import {
@@ -115,20 +117,22 @@ function AuthenticatedApp() {
   const classroomEnabled = classroomAvailable(phoneLayout);
   const [classroomOpen, setClassroomOpen] = useState(false);
   const classroom = useClassroomState(classroomEnabled, classroomOpen);
-  // 「教学」入口只给能开班的账号（课程所属机构的成员等），手机上没有。
+  // 「教学」入口只给能开班的账号（认领了课的老师、课程所属机构的成员等），手机上没有。
+  // 从「老师登录」进来的账号即使还没认领课也有入口，好去认领。
+  const teacherLogin = readLoginIntent() === 'teacher';
   const [canTeach, setCanTeach] = useState(false);
   useEffect(() => {
     if (!classroomEnabled) return;
     let cancelled = false;
     const unsubscribe = subscribeVisibleRefresh(async () => {
       const home = await getTeachHome();
-      if (!cancelled) setCanTeach(home.courses.length > 0);
+      if (!cancelled) setCanTeach(teacherLogin || home.courses.length > 0);
     });
     return () => {
       cancelled = true;
       unsubscribe();
     };
-  }, [classroomEnabled]);
+  }, [classroomEnabled, teacherLogin]);
   // 「管理」入口（测试服管理员控制台）只给管理员账号。
   const [canAdmin, setCanAdmin] = useState(false);
   useEffect(() => {
@@ -144,7 +148,7 @@ function AuthenticatedApp() {
   const compactLayout = useCompactLayout();
   const [globalPage, setGlobalPage] = useState<
     'calendar' | 'profile' | 'store' | 'teach' | 'classroom' | 'admin' | null
-  >(null);
+  >(() => (teacherLogin && classroomEnabled ? 'teach' : null));
   const [globalEvents, setGlobalEvents] = useState<LocalCourseEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
@@ -880,7 +884,8 @@ function AuthenticatedApp() {
           />
         ) : null}
 
-        <OnboardingCoach courses={courses} />
+        {teacherLogin ? null : <OnboardingCoach courses={courses} />}
+        <SpeedupPhoneDialog courseCount={courses.length} />
 
         {toast ? <NativeToast title={toast} /> : null}
       </main>

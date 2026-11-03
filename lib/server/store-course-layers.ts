@@ -228,16 +228,17 @@ export async function releaseCourseVersion(
   courseId: string,
   actorId?: string,
 ): Promise<CourseRelease> {
-  return db.$transaction(async (tx) => {
-    const [course] = await tx.$queryRaw<Array<{ ownerId: string; contentVersion: number }>>`
+  return db.$transaction(
+    async (tx) => {
+      const [course] = await tx.$queryRaw<Array<{ ownerId: string; contentVersion: number }>>`
       SELECT "ownerId", "contentVersion" FROM "Course" WHERE "id" = ${courseId} FOR UPDATE
     `;
-    if (!course) throw new CourseContentNotFoundError();
-    if (actorId) await draftAuthority(tx, actorId, courseId);
-    await applyContentDrafts(tx, courseId);
-    const version = course.contentVersion + 1;
+      if (!course) throw new CourseContentNotFoundError();
+      if (actorId) await draftAuthority(tx, actorId, courseId);
+      await applyContentDrafts(tx, courseId);
+      const version = course.contentVersion + 1;
 
-    const addedProblems = await tx.$executeRaw`
+      const addedProblems = await tx.$executeRaw`
       UPDATE "NotebookProblem"
       SET "updatedAt" = CURRENT_TIMESTAMP, "releaseAddedIn" = ${version}, "releasedHash" = ${problemFingerprintSql}
       WHERE "courseId" = ${courseId}
@@ -245,7 +246,7 @@ export async function releaseCourseVersion(
         AND "releaseAddedIn" IS NULL
         AND "status"::text = 'published'
     `;
-    const updatedProblems = await tx.$executeRaw`
+      const updatedProblems = await tx.$executeRaw`
       UPDATE "NotebookProblem"
       SET "updatedAt" = CURRENT_TIMESTAMP, "releaseUpdatedIn" = ${version},
           "contentUpdatedAt" = CURRENT_TIMESTAMP,
@@ -257,7 +258,7 @@ export async function releaseCourseVersion(
         AND "releaseAddedIn" < ${version}
         AND "releasedHash" IS DISTINCT FROM ${problemFingerprintSql}
     `;
-    const addedNotebooks = await tx.$executeRaw`
+      const addedNotebooks = await tx.$executeRaw`
       UPDATE "Notebook"
       SET "releaseAddedIn" = ${version}, "releasedContentVersion" = "contentVersion"
       WHERE "courseId" = ${courseId}
@@ -265,7 +266,7 @@ export async function releaseCourseVersion(
         AND "removedAt" IS NULL
         AND "releaseAddedIn" IS NULL
     `;
-    const updatedNotebooks = await tx.$executeRaw`
+      const updatedNotebooks = await tx.$executeRaw`
       UPDATE "Notebook"
       SET "releaseUpdatedIn" = ${version}, "releasedContentVersion" = "contentVersion"
       WHERE "courseId" = ${courseId}
@@ -275,12 +276,14 @@ export async function releaseCourseVersion(
         AND "releaseAddedIn" < ${version}
         AND "releasedContentVersion" IS DISTINCT FROM "contentVersion"
     `;
-    await tx.course.update({
-      where: { id: courseId },
-      data: { contentVersion: version, lastReleasedAt: new Date() },
-    });
-    return { version, addedProblems, updatedProblems, addedNotebooks, updatedNotebooks };
-  });
+      await tx.course.update({
+        where: { id: courseId },
+        data: { contentVersion: version, lastReleasedAt: new Date() },
+      });
+      return { version, addedProblems, updatedProblems, addedNotebooks, updatedNotebooks };
+    },
+    { maxWait: 15000, timeout: 60000 },
+  );
 }
 
 /**

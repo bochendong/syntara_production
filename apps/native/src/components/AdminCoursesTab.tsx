@@ -492,6 +492,13 @@ function CourseAssignmentDialog({
   onChanged: (course: AdminManagedCourse) => void;
   onClose: () => void;
 }) {
+  const assignedPeople = [
+    ...new Map(
+      [...course.managers, ...(course.claimedTeacher ? [course.claimedTeacher] : [])].map(
+        (person) => [person.id, person],
+      ),
+    ).values(),
+  ];
   const dialogRef = useRef<HTMLDialogElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
@@ -610,16 +617,18 @@ function CourseAssignmentDialog({
             <PersonIdentity person={course.owner} />
           </div>
         ) : null}
-        {course.managers.length ? (
+        {assignedPeople.length ? (
           <ul className="ap-assigned-people">
-            {course.managers.map((person) => (
+            {assignedPeople.map((person) => (
               <li key={person.id}>
                 <PersonIdentity
                   person={person}
                   hint={
-                    !person.isActive || !['TEACHER', 'ADMIN'].includes(person.role)
-                      ? '当前身份无管理权限'
-                      : undefined
+                    course.claimedTeacher?.id === person.id && person.isActive
+                      ? '已认领这门课'
+                      : !person.isActive || !['TEACHER', 'ADMIN'].includes(person.role)
+                        ? '当前身份无管理权限'
+                        : undefined
                   }
                 />
                 <button
@@ -678,7 +687,7 @@ function CourseAssignmentDialog({
             {users.map((person) => {
               const assigned =
                 person.id === course.owner.id ||
-                course.managers.some((manager) => manager.id === person.id);
+                assignedPeople.some((manager) => manager.id === person.id);
               return (
                 <li key={person.id}>
                   <PersonIdentity

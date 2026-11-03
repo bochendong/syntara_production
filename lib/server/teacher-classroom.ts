@@ -96,7 +96,7 @@ function isAdmin(viewer: ClassroomViewer): boolean {
   return viewer.role === 'ADMIN';
 }
 
-/** 能在哪些课上开班：自己的课、Speedup 老师身份的课、所属机构的课。 */
+/** 能在哪些课上开班：自己认领的课、自己的课、Speedup 老师身份的课、所属机构的课。 */
 export function teachableCourseWhere(userId: string): Prisma.CourseWhereInput {
   return {
     OR: [
@@ -188,6 +188,7 @@ export async function listTeachableCourses(viewer: ClassroomViewer, db: DbClient
         select: { userId: true },
       },
       _count: { select: { joinApplications: { where: { status: 'pending' } } } },
+      claimedTeacherId: true,
       classes: {
         orderBy: [{ academicYear: 'desc' }, { createdAt: 'desc' }],
         select: {
@@ -242,8 +243,12 @@ export async function listTeachableCourses(viewer: ClassroomViewer, db: DbClient
         canPublish:
           !course.externalBinding &&
           (course.ownerId === viewer.userId ||
-            (course.listedInCourseStore && (isAdmin(viewer) || course.managers.length > 0))),
+            (course.listedInCourseStore &&
+              (isAdmin(viewer) ||
+                course.managers.length > 0 ||
+                course.claimedTeacherId === viewer.userId))),
         pendingApplications: course._count.joinApplications,
+        claimedByMe: course.claimedTeacherId === viewer.userId,
         currentClass: current
           ? {
               id: current.id,

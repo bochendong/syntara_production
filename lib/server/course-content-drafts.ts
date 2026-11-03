@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { DbClient } from './repositories/types';
 import {
   canEditCourseProfile,
@@ -32,8 +32,14 @@ type DraftPayload = {
   order: number;
   source?: string;
   sourceMeta?: unknown;
+  secretJudge?: unknown;
+  baseSecretFingerprint?: string;
   dedupeKey: string;
 };
+const secretFingerprint = (value: unknown) =>
+  createHash('sha256')
+    .update(JSON.stringify(value ?? null))
+    .digest('hex');
 type Kind = 'notes' | 'problems';
 export type ContentDraft = {
   courseId: string;
@@ -123,7 +129,9 @@ export async function stageContent(
       tags: payload.tags ?? [],
       publicContent,
       grading,
-      secretJudge: live && 'secret' in live ? live.secret?.secretJudgeJson : undefined,
+      secretJudge:
+        payload.secretJudge ??
+        (live && 'secret' in live ? live.secret?.secretJudgeJson : undefined),
       sourceMeta: payload.sourceMeta ?? {},
       validationErrors: [],
     });
@@ -147,23 +155,19 @@ export async function stageContent(
       points: normalized.points,
       tags: normalized.tags,
       dedupeKey: courseProblemDedupeKey(normalized),
+      sourceMeta: normalized.sourceMeta,
+      secretJudge: normalized.secretJudge,
+      baseSecretFingerprint:
+        previous?.payload.baseSecretFingerprint ??
+        secretFingerprint(live && 'secret' in live ? live.secret?.secretJudgeJson : null),
     };
-    if (
-      payload.chapterId &&
-      !(await db.courseProblemChapter.findFirst({ where: { id: payload.chapterId, courseId } }))
-    )
-      throw new CourseAdmissionError(400, '章节不属于这门课程。');
-    if (
-      payload.notebookId &&
-      !(await db.notebook.findFirst({
-        where: { id: payload.notebookId, courseId, ownerId: course.ownerId, removedAt: null },
-      })) &&
-      !(await contentDrafts(db, courseId)).some(
-        (row) =>
-          row.kind === 'notes' && row.targetId === payload.notebookId && row.operation === 'save',
-      )
-    )
-      throw new CourseAdmissionError(400, '笔记不属于这门课程。');
+    await validateProblemTargets(
+      db,
+      courseId,
+      course.ownerId,
+      payload,
+      await contentDrafts(db, courseId),
+    );
   }
   await put(db, {
     courseId,
@@ -176,9 +180,17 @@ export async function stageContent(
 }
 export async function applyContentDrafts(db: DbClient, courseId: string) {
   const course = await db.course.findUniqueOrThrow({ where: { id: courseId } });
-  const changes = (await contentDrafts(db, courseId)).sort((a, b) =>
-    a.kind === b.kind ? 0 : a.kind === 'notes' ? -1 : 1,
-  );
+  const allChanges = await contentDrafts(db, courseId);
+  const changes = allChanges
+    .filter(
+      (row) =>
+        !(row.kind === 'problems' && row.operation === 'save' && row.payload.status === 'draft'),
+    )
+    .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'notes' ? -1 : 1));
+  const touchedNotebooks = new Set<string>();
+  for (const change of changes)
+    if (change.kind === 'problems' && change.operation === 'save')
+      await validateProblemTargets(db, courseId, course.ownerId, change.payload, allChanges, true);
   for (const draft of changes) {
     if (draft.kind === 'notes')
       await db.$queryRaw`SELECT id FROM "Notebook" WHERE id = ${draft.targetId} FOR UPDATE`;
@@ -187,7 +199,10 @@ export async function applyContentDrafts(db: DbClient, courseId: string) {
     const live =
       draft.kind === 'notes'
         ? await db.notebook.findUnique({ where: { id: draft.targetId } })
-        : await db.notebookProblem.findUnique({ where: { id: draft.targetId } });
+        : await db.notebookProblem.findUnique({
+            where: { id: draft.targetId },
+            include: { secret: true },
+          });
     if (!draft.baseUpdatedAt && live)
       throw new CourseAdmissionError(409, '新增内容的标识已存在，请重新核对。');
     if (
@@ -195,9 +210,47 @@ export async function applyContentDrafts(db: DbClient, courseId: string) {
       (!live || live.updatedAt.getTime() !== draft.baseUpdatedAt.getTime())
     )
       throw new CourseAdmissionError(409, '内容已在其他入口修改，请重新核对后再发布。');
-    if (draft.kind === 'problems' && draft.operation === 'save' && draft.payload.status === 'draft')
-      continue;
+    if (
+      draft.kind === 'problems' &&
+      draft.operation === 'save' &&
+      draft.payload.baseSecretFingerprint &&
+      'secret' in (live || {}) &&
+      secretFingerprint(live && 'secret' in live ? live.secret?.secretJudgeJson : null) !==
+        draft.payload.baseSecretFingerprint
+    )
+      throw new CourseAdmissionError(409, '题目的判分配置已修改，请重新核对草稿。');
+    if (
+      live &&
+      (live.courseId !== courseId ||
+        ('ownerId' in live && live.ownerId !== (draft.kind === 'notes' ? course.ownerId : null)))
+    )
+      throw new CourseAdmissionError(409, '内容已移出当前课程。');
     const p = draft.payload;
+    if (draft.kind === 'problems' && draft.operation === 'save') {
+      const verified = normalizeDraftForPersistence(
+        notebookProblemImportDraftSchema.parse({
+          draftId: draft.targetId,
+          title: p.title,
+          type: p.type,
+          status: p.status,
+          source: p.source ?? 'manual',
+          difficulty: p.difficulty,
+          tags: p.tags,
+          publicContent: p.publicContentJson,
+          grading: p.gradingJson,
+          secretJudge: p.secretJudge,
+          sourceMeta: p.sourceMeta ?? {},
+          validationErrors: [],
+        }),
+        p.order ?? 0,
+      );
+      if (verified.status !== 'published')
+        throw new CourseAdmissionError(409, '题目尚未通过发布校验，请打开编辑并重新保存。');
+    }
+    if (draft.kind === 'problems') {
+      if (live && 'notebookId' in live && live.notebookId) touchedNotebooks.add(live.notebookId);
+      if (p.notebookId) touchedNotebooks.add(p.notebookId);
+    }
     if (draft.operation === 'delete') {
       if (draft.kind === 'notes')
         await db.notebook.update({
@@ -210,6 +263,15 @@ export async function applyContentDrafts(db: DbClient, courseId: string) {
           data: { status: 'archived' },
         });
     } else if (draft.kind === 'notes') {
+      if (live) {
+        const sections = await db.markdownNotebookSection.findMany({
+          where: { notebookId: draft.targetId, courseId },
+          select: { id: true },
+        });
+        const currentIds = new Set(sections.map((section) => section.id));
+        if (p.markdownSections.some((section) => !currentIds.has(section.id)))
+          throw new CourseAdmissionError(409, '笔记小节已变更，请重新核对草稿。');
+      }
       await db.notebook.upsert({
         where: { id: draft.targetId },
         create: {
@@ -250,28 +312,31 @@ export async function applyContentDrafts(db: DbClient, courseId: string) {
         notebookId: p.notebookId ?? null,
         chapterId: p.chapterId ?? null,
         dedupeKey: p.dedupeKey,
+        sourceMeta: toPrismaJson(p.sourceMeta ?? {}),
       };
       await db.notebookProblem.upsert({
         where: { id: draft.targetId },
         create: { ...data, id: draft.targetId, courseId, ownerId: null, order: p.order ?? 0 },
         update: data,
       });
+      if (p.secretJudge)
+        await db.notebookProblemSecret.upsert({
+          where: { problemId: draft.targetId },
+          create: { problemId: draft.targetId, secretJudgeJson: toPrismaJson(p.secretJudge) },
+          update: { secretJudgeJson: toPrismaJson(p.secretJudge) },
+        });
     }
     await db.$executeRaw`DELETE FROM "CourseContentDraft" WHERE "courseId"=${courseId} AND "kind"=${draft.kind} AND "targetId"=${draft.targetId}`;
   }
-  const notebooks = await db.notebook.findMany({
-    where: { courseId, ownerId: course.ownerId },
-    select: { id: true },
-  });
-  for (const notebook of notebooks) {
+  for (const notebookId of touchedNotebooks) {
     const problemCount = await db.notebookProblem.count({
-      where: { notebookId: notebook.id, status: { not: 'archived' } },
+      where: { notebookId, status: { not: 'archived' } },
     });
     const publishedProblemCount = await db.notebookProblem.count({
-      where: { notebookId: notebook.id, status: 'published' },
+      where: { notebookId, status: 'published' },
     });
     await db.notebook.updateMany({
-      where: { id: notebook.id },
+      where: { id: notebookId },
       data: { problemCount, publishedProblemCount },
     });
   }
@@ -288,4 +353,106 @@ export async function undoContentDraft(
   await lockAdmissionCourse(db, courseId);
   await draftAuthority(db, userId, courseId);
   await db.$executeRaw`DELETE FROM "CourseContentDraft" WHERE "courseId"=${courseId} AND "kind"=${kind} AND "targetId"=${id}`;
+}
+
+async function validateProblemTargets(
+  db: DbClient,
+  courseId: string,
+  ownerId: string,
+  payload: DraftPayload,
+  changes: ContentDraft[],
+  lockTargets = false,
+) {
+  if (lockTargets && payload.chapterId)
+    await db.$queryRaw`SELECT id FROM "CourseProblemChapter" WHERE id = ${payload.chapterId} FOR UPDATE`;
+  if (lockTargets && payload.notebookId)
+    await db.$queryRaw`SELECT id FROM "Notebook" WHERE id = ${payload.notebookId} FOR UPDATE`;
+  if (
+    payload.chapterId &&
+    !(await db.courseProblemChapter.findFirst({ where: { id: payload.chapterId, courseId } }))
+  )
+    throw new CourseAdmissionError(409, '题目章节已不存在或不属于当前课程。');
+  if (!payload.notebookId) return;
+  const draft = changes.find((row) => row.kind === 'notes' && row.targetId === payload.notebookId);
+  if (draft?.operation === 'delete')
+    throw new CourseAdmissionError(409, '题目关联的笔记待删除，请先移动题目或撤销笔记删除。');
+  const notebook = await db.notebook.findFirst({
+    where: { id: payload.notebookId, courseId, ownerId, removedAt: null },
+    select: { id: true },
+  });
+  if (!notebook && draft?.operation !== 'save')
+    throw new CourseAdmissionError(409, '题目关联的笔记已不存在或不属于当前课程。');
+}
+
+/** Management previews are complete shared-content snapshots, never another user's learning sync. */
+export async function readManagedCourseProblems(db: DbClient, userId: string, courseId: string) {
+  await draftAuthority(db, userId, courseId);
+  const limit = 3000;
+  const rows = await db.notebookProblem.findMany({
+    where: { courseId, ownerId: null, status: { not: 'archived' } },
+    include: { chapter: { select: { name: true } } },
+    orderBy: [{ order: 'asc' }, { id: 'asc' }],
+    take: limit,
+  });
+  const record = (value: unknown): Record<string, unknown> =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const problems = new Map(
+    rows.map((row) => [
+      row.id,
+      {
+        id: row.id,
+        courseId,
+        title: row.title,
+        type: row.type,
+        status: row.status,
+        difficulty: row.difficulty,
+        tags: row.tags,
+        notebookId: row.notebookId,
+        chapterId: row.chapterId,
+        chapterName: row.chapter?.name ?? null,
+        publicContent: record(row.publicContentJson),
+        grading: record(row.gradingJson),
+        layer: 'public' as const,
+        releaseAddedIn: row.releaseAddedIn,
+        contentUpdatedAt: row.contentUpdatedAt?.getTime() ?? null,
+        createdAt: row.createdAt.getTime(),
+        updatedAt: row.updatedAt.getTime(),
+      },
+    ]),
+  );
+  for (const row of (await contentDrafts(db, courseId)).filter(
+    (draft) => draft.kind === 'problems',
+  )) {
+    const p = row.payload;
+    problems.set(row.targetId, {
+      id: row.targetId,
+      courseId,
+      title: p.title,
+      type: p.type,
+      status: p.status,
+      difficulty: p.difficulty,
+      tags: p.tags,
+      notebookId: p.notebookId ?? null,
+      chapterId: p.chapterId ?? null,
+      chapterName: null,
+      publicContent: p.publicContentJson,
+      grading: p.gradingJson,
+      layer: 'public',
+      releaseAddedIn: null,
+      contentUpdatedAt: null,
+      createdAt: row.updatedAt.getTime(),
+      updatedAt: row.updatedAt.getTime(),
+    });
+  }
+  return {
+    courseId,
+    serverTime: Date.now(),
+    newSinceVersion: null,
+    problemIds: [...problems.keys()],
+    complete: rows.length < limit,
+    problems: [...problems.values()],
+    progress: [],
+  };
 }

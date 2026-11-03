@@ -962,3 +962,47 @@
 .tp-sheet-foot .phone-confirm-button {
   flex: 1;
 }
+
+/* 认领课程 */
+.tp-head .tp-claim-entry {
+  margin-left: 8px;
+}
+
+.tp-head h1 + .tp-claim-entry {
+  margin-left: auto;
+}
+
+.tp-claim-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.tp-claim-empty .phone-confirm-button {
+  min-width: 160px;
+  padding: 0 24px;
+}
+
+.tp-claim-search {
+  margin: 4px 0 14px;
+}
+
+.tp-claim-row {
+  cursor: default;
+}
+
+.tp-get-pill.is-quiet {
+  color: var(--tp-muted);
+}
+
+.tp-get-pill:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.tp-claim-taken {
+  flex: none;
+  color: var(--tp-muted);
+  font-size: 13px;
+}
