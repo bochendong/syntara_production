@@ -469,144 +469,77 @@
   padding-left: 22px;
   font-size: 15px;
 }
-.ccp-problem {
-  display: grid;
-  gap: 14px;
-  max-width: 880px;
-}
-/* 宽屏：题目在左，答案与解析在右 */
-@media (min-width: 1400px) {
-  .ccp-problem {
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-    align-items: start;
-    max-width: none;
-  }
-  .ccp-problem > .ccp-meta {
-    grid-column: 1 / -1;
-  }
-  .ccp-problem > .ccp-solution,
-  .ccp-problem > .ccp-muted {
-    position: sticky;
-    top: 0;
-  }
-}
-.ccp-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.ccp-meta span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 999px;
-  padding: 4px 11px;
-  background: rgb(118 118 128 / 10%);
-  color: #334155;
-  font-size: 12px;
-  font-weight: 600;
-}
-.ccp-meta img {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-}
-.ccp-card {
-  display: grid;
-  gap: 14px;
-  border: 1px solid rgb(15 23 42 / 6%);
-  border-radius: var(--radius-md);
-  padding: 18px 20px;
-  background: #fff;
-}
-.ccp-card h4,
-.ccp-block h4 {
-  margin: 0;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
 .ccp-rich {
   font-size: 15px;
 }
-.ccp-part {
-  display: grid;
-  gap: 10px;
-  border-top: 1px solid rgb(15 23 42 / 6%);
-  padding-top: 14px;
+.ccm-problem-preview {
+  min-width: 0;
 }
-.ccp-options {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.ccp-options li {
+.ccm-problem-toolbar {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  border: 1px solid rgb(15 23 42 / 8%);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 20px;
 }
-.ccp-options li > span {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  background: rgb(118 118 128 / 12%);
+.ccm-problem-type {
+  margin-left: auto;
+  color: #64748b;
   font-size: 12px;
-  font-weight: 700;
 }
-.ccp-options li > div {
-  flex: 1;
+.ccm-problem-difficulty {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #64748b;
+  font-size: 12px;
 }
-.ccp-options li.is-correct {
-  border-color: rgb(var(--marble-green-rgb) / 70%);
-  background: rgb(var(--marble-green-rgb) / 10%);
+.ccm-problem-difficulty img {
+  width: 18px;
+  height: 18px;
 }
-.ccp-options li.is-correct > span {
-  background: var(--marble-green-deep);
-  color: #fff;
+.ccm-problem-content {
+  min-width: 0;
+  max-width: 820px;
+  margin: 0 auto;
 }
-.ccp-options li.is-correct > svg {
-  flex: none;
-  color: var(--marble-green-deep);
+.ccm-problem-statement {
+  display: grid;
+  gap: 20px;
 }
-.ccp-constraints {
+.ccm-problem-part {
+  display: grid;
+  gap: 12px;
+}
+.ccm-problem-part h3 {
   margin: 0;
-  padding-left: 20px;
-  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ccm-problem-preview .pp-solution-content {
+  padding: 0;
+}
+.ccm-problem-preview .native-problem-choice.is-readonly {
+  cursor: default;
+}
+.ccm-problem-preview .native-problem-choice.is-readonly:hover {
+  background: white;
+}
+.ccm-problem-table {
+  overflow-x: auto;
+}
+.ccm-problem-table table {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 14px;
 }
-.ccp-block {
-  display: grid;
-  gap: 8px;
+.ccm-problem-table :is(th, td) {
+  padding: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
 }
-.ccp-test {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 8px;
-}
-.ccp-test pre {
-  margin: 0;
-  overflow-x: auto;
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: #f1f5f9;
-  font-size: 13px;
-  line-height: 1.5;
-}
-.ccp-test pre.is-output {
-  background: rgb(var(--marble-green-rgb) / 12%);
-}
-.ccp-solution {
-  border-color: rgb(var(--marble-purple-rgb) / 35%);
-  background: linear-gradient(180deg, rgb(var(--marble-purple-rgb) / 8%), #fff 60%);
+.problem-reference-part > .pp-solution-content > h3 {
+  display: none;
 }
 
 /* 窄屏：只显示一栏，点条目推入详情 */

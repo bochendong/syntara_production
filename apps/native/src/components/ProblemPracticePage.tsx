@@ -51,7 +51,6 @@ import {
   emptyAnswerForProblem,
   gradeLocalProblem,
   problemIsCode,
-  problemOptions,
   problemPublicContent,
   problemSelectionMode,
   problemStem,
@@ -118,6 +117,12 @@ import type { NotebookCodeSlot, NotebookCodeFile } from '../../../../lib/problem
 import { FormulaReferencePanel } from './problem-bank/formula-reference-panel';
 import { PythonRunOutput, type PythonDebugResult } from './problem-bank/PythonRunOutput';
 import { CodeProblemStatement } from './problem-bank/code-problem-statement';
+import {
+  asCodeContent,
+  ProblemStatement,
+  ProblemChoices,
+  ProblemReferenceAnswer,
+} from './problem-bank/problem-presentation';
 import { ProblemImageAssets, ProblemRichText } from './problem-bank/problem-rich-text';
 import type { NotebookProblemPublicContent } from './problem-bank/types';
 import type { ProblemBankLaunch } from './ProblemBankPage';
@@ -274,48 +279,6 @@ function restoreAnswerFromAttempt(
     };
   }
   return emptyAnswerForProblem(problem);
-}
-
-function asCodeContent(
-  content: Record<string, unknown>,
-): Extract<NotebookProblemPublicContent, { type: 'code' }> {
-  return {
-    type: 'code',
-    stem: typeof content.stem === 'string' ? content.stem : '',
-    language: typeof content.language === 'string' ? content.language : 'python',
-    files: Array.isArray(content.files) ? (content.files as NotebookCodeFile[]) : [],
-    stdin: typeof content.stdin === 'string' ? content.stdin : undefined,
-    starterCode: typeof content.starterCode === 'string' ? content.starterCode : undefined,
-    functionSignature:
-      typeof content.functionSignature === 'string' ? content.functionSignature : undefined,
-    constraints: Array.isArray(content.constraints)
-      ? content.constraints.filter((item): item is string => typeof item === 'string')
-      : [],
-    publicTests: Array.isArray(content.publicTests)
-      ? (content.publicTests as Extract<
-          NotebookProblemPublicContent,
-          { type: 'code' }
-        >['publicTests'])
-      : [],
-    sampleIO: Array.isArray(content.sampleIO)
-      ? (content.sampleIO as Extract<NotebookProblemPublicContent, { type: 'code' }>['sampleIO'])
-      : [],
-    statementSections: Array.isArray(content.statementSections)
-      ? (content.statementSections as Extract<
-          NotebookProblemPublicContent,
-          { type: 'code' }
-        >['statementSections'])
-      : [],
-    starterCodeDescription:
-      typeof content.starterCodeDescription === 'string'
-        ? content.starterCodeDescription
-        : undefined,
-    explanation: typeof content.explanation === 'string' ? content.explanation : undefined,
-    assets:
-      content.assets && typeof content.assets === 'object'
-        ? (content.assets as Extract<NotebookProblemPublicContent, { type: 'code' }>['assets'])
-        : undefined,
-  };
 }
 
 /** 一组题都做过了：每题一颗弹珠落进玻璃罐，颜色就是结果。 */
@@ -544,7 +507,6 @@ export function ProblemPracticePage({
             : [],
         )
       : rawStem;
-  const options = displayedProblem ? problemOptions(displayedProblem) : [];
   const isMultipart = currentProblem ? isMultipartProblem(currentProblem) : false;
   const parts = useMemo(
     () => (displayedProblem && isMultipart ? multipartParts(displayedProblem) : []),
@@ -1983,10 +1945,10 @@ export function ProblemPracticePage({
                     }
                   />
                 ) : (
-                  <>
-                    <CodeProblemStatement content={codeContent} locale={language} />
-                    <ProblemImageAssets content={publicContent as NotebookProblemPublicContent} />
-                  </>
+                  <ProblemStatement
+                    content={{ ...publicContent, type: 'code' }}
+                    locale={language}
+                  />
                 )
               ) : isMultipart ? (
                 <div className={cn('mp-stem', stackedPanes && stemCollapsed && 'is-collapsed')}>
@@ -2028,10 +1990,7 @@ export function ProblemPracticePage({
                 </div>
               ) : (
                 <>
-                  <ProblemRichText
-                    content={stem}
-                    className="text-[15px] leading-7 text-slate-800"
-                  />
+                  <ProblemStatement content={publicContent} stem={stem} locale={language} />
                   {structuredRacket?.mode === 'constants' && currentProblem.type === 'table' ? (
                     <section
                       className="mt-6 space-y-3"
@@ -2051,7 +2010,6 @@ export function ProblemPracticePage({
                       )}
                     </section>
                   ) : null}
-                  <ProblemImageAssets content={publicContent as NotebookProblemPublicContent} />
                 </>
               )}
               {document?.progress ? (
@@ -2268,26 +2226,7 @@ export function ProblemPracticePage({
               )}
             >
               {rightTab === 'solution' && solutionSeen && solution ? (
-                <section className="pp-solution-content" aria-label="参考答案">
-                  <h3>参考答案</h3>
-                  {solutionNotice ? (
-                    <p className="pp-solution-notice" role="status">
-                      {solutionNotice}
-                    </p>
-                  ) : null}
-                  {solution.answer ? <ProblemRichText content={solution.answer} /> : null}
-                  {solution.code ? (
-                    <pre className="pp-solution-code">
-                      <code>{solution.code}</code>
-                    </pre>
-                  ) : null}
-                  {solution.explanation ? (
-                    <>
-                      <h4>解析</h4>
-                      <ProblemRichText content={solution.explanation} />
-                    </>
-                  ) : null}
-                </section>
+                <ProblemReferenceAnswer problem={displayedProblem!} notice={solutionNotice} />
               ) : null}
               {(rightTab === 'code' || rightTab === 'tests') &&
               isCode &&
@@ -2505,30 +2444,11 @@ export function ProblemPracticePage({
                     />
                   ) : null}
                   {currentProblem.type === 'choice' && answer?.kind === 'choice' ? (
-                    <div className="native-problem-practice-choices">
-                      {options.map((option) => {
-                        const selected = answer.selectedOptionIds.includes(option.id);
-                        return (
-                          <button
-                            key={option.id}
-                            type="button"
-                            className={
-                              selected
-                                ? 'native-problem-choice native-problem-choice-selected'
-                                : 'native-problem-choice'
-                            }
-                            onClick={() => toggleChoice(option.id)}
-                          >
-                            <strong>
-                              {selected ? <img src={marbleImages.blue} alt="" /> : option.id}
-                            </strong>
-                            <span>
-                              <ProblemRichText content={option.label} />
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <ProblemChoices
+                      problem={displayedProblem!}
+                      selectedIds={answer.selectedOptionIds}
+                      onSelect={toggleChoice}
+                    />
                   ) : null}
 
                   {currentProblem.type === 'fill_blank' && answer?.kind === 'blanks' ? (

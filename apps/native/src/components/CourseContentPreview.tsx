@@ -1,13 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { BookOpen, FileText } from 'lucide-react';
 import { getNativeNotebook } from '../data/platform-api-client';
 import type { NativeNotebookArchive } from '../data/platform-api-contracts';
 import type { LocalProblem } from '../domain/models';
-import { difficultyLabel, problemOptions, problemTypeLabel } from '../data/local-problem-grading';
-import { problemSolution } from '../lib/problem-solution';
+import { difficultyLabel, problemTypeLabel } from '../data/local-problem-grading';
 import { DIFFICULTY_MARBLES, marbleImages } from '../lib/learning-action-marbles';
 import { assetResolver, MarkdownBlock } from './LocalResourceViewer';
-import { ProblemImageAssets, ProblemRichText } from './problem-bank/problem-rich-text';
+import { ProblemRichText } from './problem-bank/problem-rich-text';
+import {
+  ProblemStatement,
+  ProblemChoices,
+  ProblemReferenceAnswer,
+} from './problem-bank/problem-presentation';
+import './course-pages.css';
 
 const text = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 const records = (value: unknown): Array<Record<string, unknown>> =>
@@ -71,129 +76,131 @@ export function NotePreview({ archive }: { archive: NativeNotebookArchive }) {
   );
 }
 
-function ProblemBody({ problem }: { problem: LocalProblem }) {
-  const content = problem.publicContent;
-  const correct = Array.isArray(problem.grading.correctOptionIds)
-    ? (problem.grading.correctOptionIds as unknown[])
-    : [];
-  const options = problemOptions(problem);
-  const signature = text(content.functionSignature);
-  const constraints = Array.isArray(content.constraints)
-    ? content.constraints.map(text).filter(Boolean)
-    : [];
-  const tests = [...records(content.sampleIO), ...records(content.publicTests)];
-  const starter = text(content.starterCode);
-  return (
-    <>
-      <ProblemRichText content={text(content.stem)} className="ccp-rich" />
-      <ProblemImageAssets content={content as { assets?: { images?: [] } }} />
-      {signature ? <ProblemRichText content={fence(signature)} className="ccp-rich" /> : null}
-      {options.length ? (
-        <ol className="ccp-options">
-          {options.map((option) => (
-            <li key={option.id} className={correct.includes(option.id) ? 'is-correct' : ''}>
-              <span>{option.id}</span>
-              <ProblemRichText content={option.label} className="ccp-rich" />
-              {correct.includes(option.id) ? (
-                <CheckCircle2 size={16} aria-label="正确答案" />
-              ) : null}
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      {constraints.length ? (
-        <ul className="ccp-constraints">
-          {constraints.map((constraint) => (
-            <li key={constraint}>{constraint}</li>
-          ))}
-        </ul>
-      ) : null}
-      {tests.length ? (
-        <div className="ccp-block">
-          <h4>示例与公开测试</h4>
-          {tests.map((test, index) => {
-            const input = text(test.input) || text(test.expression);
-            const output = text(test.output) || text(test.expected) || text(test.expectedOutput);
-            return (
-              <div key={index} className="ccp-test">
-                {input ? <pre>{input}</pre> : null}
-                {output ? <pre className="is-output">{output}</pre> : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-      {starter ? (
-        <div className="ccp-block">
-          <h4>初始代码</h4>
-          <ProblemRichText content={fence(starter, text(content.language) || 'python')} />
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-/** 课程管理里题目的只读预览：题干、选项、小问、答案和解析。没有作答区。 */
+/** Management uses the same question and reference components as the practice page. */
 export function ProblemPreview({ problem }: { problem: LocalProblem }) {
-  const solution = problemSolution(problem);
-  const parts =
-    problem.type === 'multipart'
-      ? (records(problem.publicContent.parts) as Array<{
-          label: string;
-          content: Record<string, unknown>;
-        }>)
-      : [];
-  const gradeParts = records(problem.grading.parts);
+  const [tab, setTab] = useState<'description' | 'solution'>('description');
+  const id = useId();
   return (
-    <div className="ccp-problem">
-      <div className="ccp-meta">
-        <span>{problemTypeLabel(problem.type)}</span>
-        <span>
+    <div className="ccm-problem-preview">
+      <div className="ccm-problem-toolbar">
+        <div className="pp-tabs" role="tablist" aria-label="题目预览">
+          {(['description', 'solution'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={`pp-tab${tab === value ? ' is-active' : ''}`}
+              role="tab"
+              id={`${id}-${value}`}
+              aria-selected={tab === value}
+              tabIndex={tab === value ? 0 : -1}
+              aria-controls={`${id}-panel`}
+              onClick={() => setTab(value)}
+              onKeyDown={(event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const next =
+                  event.key === 'Home'
+                    ? 'description'
+                    : event.key === 'End'
+                      ? 'solution'
+                      : tab === 'description'
+                        ? 'solution'
+                        : 'description';
+                setTab(next);
+                const buttons =
+                  event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+                    '[role="tab"]',
+                  );
+                buttons?.[next === 'description' ? 0 : 1].focus();
+              }}
+            >
+              {value === 'description' ? <FileText size={14} /> : <BookOpen size={14} />}
+              {value === 'description' ? '题目' : '参考答案'}
+            </button>
+          ))}
+        </div>
+        <span className="ccm-problem-type">{problemTypeLabel(problem.type)}</span>
+        <span className="ccm-problem-difficulty">
           <img src={marbleImages[DIFFICULTY_MARBLES[problem.difficulty] ?? 'blue']} alt="" />
           {difficultyLabel(problem.difficulty)}
         </span>
-        {problem.chapterName ? <span>{problem.chapterName}</span> : null}
       </div>
-      <article className="ccp-card">
-        {parts.length ? (
-          <>
-            <ProblemRichText content={text(problem.publicContent.stem)} className="ccp-rich" />
-            {parts.map((part) => (
-              <section key={part.label} className="ccp-part">
-                <h4>小问 ({part.label})</h4>
-                <ProblemBody
-                  problem={{
-                    ...problem,
-                    type: String(part.content.type),
-                    publicContent: part.content,
-                    grading:
-                      (gradeParts.find((grade) => grade.label === part.label)?.grading as Record<
-                        string,
-                        unknown
-                      >) ?? {},
-                  }}
-                />
-              </section>
-            ))}
-          </>
+      <div
+        id={`${id}-panel`}
+        role="tabpanel"
+        aria-labelledby={`${id}-${tab}`}
+        tabIndex={0}
+        className="ccm-problem-content"
+      >
+        {tab === 'solution' ? (
+          <ProblemReferenceAnswer problem={problem} />
         ) : (
-          <ProblemBody problem={problem} />
+          <ManagedProblemStatement problem={problem} />
         )}
-      </article>
-      {solution.answer || solution.code || solution.explanation ? (
-        <article className="ccp-card ccp-solution">
-          <h4>答案与解析</h4>
-          {solution.answer ? (
-            <ProblemRichText content={solution.answer} className="ccp-rich" />
-          ) : null}
-          {solution.code ? <ProblemRichText content={fence(solution.code)} /> : null}
-          {solution.explanation ? (
-            <ProblemRichText content={solution.explanation} className="ccp-rich" />
-          ) : null}
-        </article>
-      ) : (
-        <p className="ccp-muted">这道题还没有参考答案。</p>
-      )}
+      </div>
+    </div>
+  );
+}
+
+function ManagedProblemStatement({ problem }: { problem: LocalProblem }) {
+  const content = problem.publicContent;
+  const parts = problem.type === 'multipart' ? records(content.parts) : [];
+  const rows = records(content.rows);
+  const columns = records(content.columns);
+  return (
+    <div className="ccm-problem-statement">
+      <ProblemStatement content={{ ...content, type: problem.type }} />
+      {problem.type === 'choice' ? <ProblemChoices problem={problem} /> : null}
+      {parts.map((part) => (
+        <section key={String(part.label)} className="ccm-problem-part">
+          <h3>小问 ({String(part.label)})</h3>
+          <ManagedProblemStatement
+            problem={{
+              ...problem,
+              type: String((part.content as Record<string, unknown>).type),
+              publicContent: part.content as Record<string, unknown>,
+            }}
+          />
+        </section>
+      ))}
+      {problem.type === 'table' && rows.length && columns.length ? (
+        <div className="ccm-problem-table">
+          <table>
+            <thead>
+              <tr>
+                {columns.map((column) => (
+                  <th key={String(column.id)}>{text(column.label) || text(column.id)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={String(row.id)}>
+                  {columns.map((column) => (
+                    <td key={String(column.id)}>
+                      <ProblemRichText
+                        content={
+                          text(
+                            (row.cells as Record<string, unknown> | undefined)?.[String(column.id)],
+                          ) || '—'
+                        }
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      {typeof content.starterCode === 'string' && content.starterCode.trim() ? (
+        <section className="ccm-problem-part">
+          <h3>初始代码</h3>
+          <ProblemRichText
+            content={fence(content.starterCode, text(content.language) || 'python')}
+          />
+        </section>
+      ) : null}
     </div>
   );
 }

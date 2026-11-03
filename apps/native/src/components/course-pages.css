@@ -1665,11 +1665,11 @@ span.pb-row-marble img {
   padding: 4px 18px 20px;
 }
 
-.native-problem-practice .native-problem-practice-choices {
+:is(.native-problem-practice, .ccm-problem-preview) .native-problem-practice-choices {
   gap: 10px;
 }
 
-.native-problem-practice .native-problem-choice {
+:is(.native-problem-practice, .ccm-problem-preview) .native-problem-choice {
   grid-template-columns: 32px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
@@ -1683,11 +1683,11 @@ span.pb-row-marble img {
     transform 160ms ease;
 }
 
-.native-problem-practice .native-problem-choice:active {
+:is(.native-problem-practice, .ccm-problem-preview) .native-problem-choice:active {
   transform: scale(0.985);
 }
 
-.native-problem-practice .native-problem-choice > strong {
+:is(.native-problem-practice, .ccm-problem-preview) .native-problem-choice > strong {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -1696,7 +1696,7 @@ span.pb-row-marble img {
   font-size: 14px;
 }
 
-.native-problem-practice .native-problem-choice > strong img {
+:is(.native-problem-practice, .ccm-problem-preview) .native-problem-choice > strong img {
   width: 32px;
   height: 32px;
   animation: pp-marble-drop 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -1709,17 +1709,17 @@ span.pb-row-marble img {
   }
 }
 
-.native-problem-practice .native-problem-choice > span {
+:is(.native-problem-practice, .ccm-problem-preview) .native-problem-choice > span {
   color: #0f172a;
   font-size: 15px;
 }
 
-.native-problem-practice .native-problem-choice-selected {
+:is(.native-problem-practice, .ccm-problem-preview) .native-problem-choice-selected {
   border-color: rgb(56 189 248 / 45%);
   background: rgb(240 249 255 / 90%);
 }
 
-.native-problem-practice .native-problem-choice-selected > strong {
+:is(.native-problem-practice, .ccm-problem-preview) .native-problem-choice-selected > strong {
   background: transparent;
 }
 
@@ -3951,7 +3951,9 @@ span.pb-row-marble img {
 }
 
 /* 选项里的代码：直接铺在选项卡片上，不再套一层卡片。 */
-.native-problem-practice .native-problem-choice .problem-rich-code-block {
+:is(.native-problem-practice, .ccm-problem-preview)
+  .native-problem-choice
+  .problem-rich-code-block {
   margin: 0;
   padding: 0;
   border: 0;
