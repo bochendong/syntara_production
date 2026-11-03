@@ -32,6 +32,11 @@ import {
   listNativeStoreCourses,
   markNativeCourseSeen,
 } from '@/lib/server/native-store';
+import {
+  courseAiRulesInputSchema,
+  listCourseAiRules,
+  saveCourseAiRules,
+} from '@/lib/server/course-ai-rules';
 import { getOptionalPrisma } from '@/lib/server/prisma-safe';
 import { findCourseAccessRole } from '@/lib/server/repositories/course-enrollment-repository';
 import {
@@ -119,6 +124,7 @@ async function getStore(request: NextRequest, requestId: string) {
     ['problemGroupsOf', listManagedProblemGroups],
     ['studentsOf', listManagedCourseStudents],
     ['releaseOf', managedReleaseStatus],
+    ['aiRulesOf', listCourseAiRules],
   ] as const) {
     const id = request.nextUrl.searchParams.get(param)?.trim();
     if (!id) continue;
@@ -227,6 +233,11 @@ const actionSchema = z.union([
   }),
   z.object({
     courseId: z.string().trim().min(1).max(200),
+    action: z.literal('save-ai-rules'),
+    rules: courseAiRulesInputSchema,
+  }),
+  z.object({
+    courseId: z.string().trim().min(1).max(200),
     action: z.literal('update-course-profile'),
     profile: courseProfileSchema,
   }),
@@ -311,6 +322,12 @@ async function postStore(request: NextRequest, requestId: string) {
       { timeout: 60000 },
     );
     return publicApiSuccess(requestId, { saved: true });
+  }
+  if (parsed.data.action === 'save-ai-rules') {
+    return publicApiSuccess(
+      requestId,
+      await saveCourseAiRules(prisma, principal.userId, courseId, parsed.data.rules),
+    );
   }
   if (parsed.data.action === 'update-course-profile') {
     const profile = parsed.data.profile;

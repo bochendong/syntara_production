@@ -9,6 +9,7 @@ import type {
   LocalStudyMemory,
 } from '../domain/models';
 import type { LocalRepository } from '../data/repository';
+import { findFocusedProblem, focusedProblemText } from './problem-focus';
 import type { NativeChatContext, NativeChatSurface } from './types';
 
 const MAX_NOTES = 6;
@@ -53,6 +54,17 @@ function readableText(value: unknown, output: string[] = [], depth = 0): string[
   return output;
 }
 
+/**
+ * 笔记 Markdown 里内嵌的 data: 图片（一本 CPSC 110 讲义 90% 以上是 base64）会被切成乱码片段，
+ * 还会随机命中检索词。切块前换成一个占位。
+ */
+export function withoutInlineImages(markdown: string): string {
+  return markdown
+    .replace(/!\[([^\]]*)\]\(data:[^)]*\)/g, (_, alt: string) => (alt ? `[图：${alt}]` : '[图]'))
+    .replace(/<img[^>]+src=["']data:[^"']*["'][^>]*>/gi, '[图]')
+    .replace(/data:[a-z]+\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]{100,}/gi, '[图]');
+}
+
 function chunksOf(document: LocalNotebookDocument): NoteChunk[] {
   const notebook = document.notebook;
   const sections = document.markdownSections.length
@@ -67,7 +79,7 @@ function chunksOf(document: LocalNotebookDocument): NoteChunk[] {
           text: readableText(page.content).join('\n'),
         }));
   return sections.flatMap((section) => {
-    const text = section.text.trim();
+    const text = withoutInlineImages(section.text).trim();
     if (!text) return [];
     const parts: string[] = [];
     for (let start = 0; start < text.length; start += CHUNK_CHARS) {
@@ -224,7 +236,11 @@ export async function buildNativeChatContext(
     .map((message) => message.text.slice(0, 600))
     .join('\n');
 
-  const searched = readableNotebooks.slice(-MAX_SEARCHED_NOTEBOOKS);
+  // 学生还没标记学习进度时，不能一条笔记都不给：从整门课的笔记里检索，并告诉助教进度未设置。
+  const progressUnset = readableNotebooks.length === 0;
+  const searched = (progressUnset ? workspace.notebooks : readableNotebooks).slice(
+    -MAX_SEARCHED_NOTEBOOKS,
+  );
   const chunks = (
     await Promise.all(searched.map((notebook) => notebookChunks(repository, notebook)))
   ).flat();
@@ -296,6 +312,7 @@ export async function buildNativeChatContext(
       completedNotebooks: groupNotebookTranslations(readableNotebooks).length,
       totalNotebooks: groupNotebookTranslations(workspace.notebooks).length,
       currentNotebook: currentNotebook?.name ?? null,
+      ...(progressUnset ? { unset: true } : {}),
     },
     notes,
     memories,
@@ -333,6 +350,14 @@ export async function buildNativeChatContext(
         },
       ];
     });
+    // 学生点名了某道题：把题面原文和参考答案带上，不然助教只看得到标题。
+    const focused = findFocusedProblem(workspace.problems, question, earlier);
+    if (focused)
+      context.focusProblem = {
+        id: focused.id,
+        title: focused.title.slice(0, 300),
+        text: focusedProblemText(focused),
+      };
     const problemTerms = [...primary, ...secondary];
     context.problems = workspace.problems
       .filter((problem) => problem.status !== 'archived')

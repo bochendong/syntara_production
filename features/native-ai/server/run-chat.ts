@@ -3,6 +3,9 @@ import { stepCountIs } from 'ai';
 import type { NextRequest } from 'next/server';
 
 import { streamLLM } from '@/lib/ai/llm';
+import { loadCourseAiRulesForChat } from '@/lib/server/course-ai-rules';
+import { getOptionalPrisma } from '@/lib/server/prisma-safe';
+import { getRequestContext } from '@/lib/server/request-context';
 import { resolveModelFromHeaders } from '@/lib/server/resolve-model';
 
 import { fileTextBlock, readNativeChatFiles } from './attachments';
@@ -15,6 +18,20 @@ const LECTURE_REQUEST =
   /课堂|小课|微课|讲一节|上一节|做成.{0,6}(课|讲解|幻灯片)|生成.{0,8}讲解|幻灯片|slides?|ppt|图解|配图|画图.{0,4}讲|可视化|动画|视频|lecture|lesson/i;
 
 const MAX_STEPS = 4;
+
+/** 这门课老师设的 AI 规则；读不到（无数据库、无权限、出错）就当没有。 */
+async function loadCourseRules(input: NativeChatRequest) {
+  const courseId = input.scope === 'course' ? input.course.id : undefined;
+  const userId = getRequestContext()?.userId;
+  const prisma = getOptionalPrisma();
+  if (!courseId || !userId || !prisma) return [];
+  try {
+    return await loadCourseAiRulesForChat(prisma, userId, courseId);
+  } catch (error) {
+    console.warn('[native-chat] course rules unavailable', error);
+    return [];
+  }
+}
 
 async function chatMessages(input: NativeChatRequest): Promise<ModelMessage[]> {
   const last = input.messages.length - 1;
@@ -110,11 +127,12 @@ export async function runNativeChat(
   input: NativeChatRequest,
 ): Promise<ReadableStream<Uint8Array>> {
   const resolved = await resolveModelFromHeaders(request, { allowOpenAIModelOverride: true });
+  const courseRules = await loadCourseRules(input);
   const proposals: NativeChatProposals = { actions: [], classroom: null, problemSelection: null };
   const result = await streamLLM(
     {
       model: resolved.model,
-      system: buildNativeChatSystemPrompt(input),
+      system: buildNativeChatSystemPrompt(input, courseRules),
       messages: await chatMessages(input),
       // 做题页「问 AI」只讲这道题，不弹记忆、日程、课堂、选题卡片。
       tools:

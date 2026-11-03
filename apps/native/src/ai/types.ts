@@ -8,6 +8,8 @@ export interface NativeChatContext {
     completedNotebooks: number;
     totalNotebooks: number;
     currentNotebook?: string | null;
+    /** 学生还没标记学习进度；这时笔记来自整门课。 */
+    unset?: boolean;
   };
   notes: Array<{
     id: string;
@@ -34,6 +36,8 @@ export interface NativeChatContext {
     excerpt?: string;
     status?: string | null;
   }>;
+  /** 学生在聊天里点名的那道题：题面原文 + 参考答案（只给助教判断用）。 */
+  focusProblem?: { id: string; title: string; text: string };
   /** 做题页「问 AI」：正在做的这道题（题面、作答、测试结果、参考答案拼成一段）。 */
   problemCoach?: {
     problemId: string;

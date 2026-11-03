@@ -1,12 +1,37 @@
 import { problemCoachInstruction, problemCoachRules } from '@/lib/problem-bank/problem-coach';
 import type { NativeChatRequest } from './schema';
 
+/** 题库列表的摘要：App 发来的是 publicContent 的 JSON 片段，只留题干文字。 */
+function problemExcerpt(excerpt: string): string {
+  const stem = /"stem"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(excerpt)?.[1] ?? '';
+  return stem
+    .replace(/\\n/g, ' ')
+    .replace(/\\"/g, '"')
+    .replace(/#+\s*|\s+/g, ' ')
+    .trim()
+    .slice(0, 160);
+}
+
 function section(title: string, lines: string[]): string {
   return lines.length ? `## ${title}\n${lines.join('\n')}` : '';
 }
 
+/** 老师在「管理课程 → AI 规则」里设的规则包；排在通用回答习惯之前。 */
+export function courseRulesSection(rules: Array<{ content: string }>): string {
+  if (!rules.length) return '';
+  return [
+    '## 这门课的规则（老师设定，必须遵守）',
+    '下面是这门课的老师定下的作答规则。它们优先于你的通用知识和习惯写法；课程笔记和规则冲突时以规则为准，题目原文明确给了别的要求时以题目为准。',
+    '你写出的每一段代码、每一个示例都必须符合这些规则，哪怕学生没有提到格式。',
+    ...rules.map((rule, index) => `### 规则 ${index + 1}\n${rule.content}`),
+  ].join('\n\n');
+}
+
 /** 手机 / 桌面端助教的 system prompt。和网页端的提示词完全独立。 */
-export function buildNativeChatSystemPrompt(input: NativeChatRequest): string {
+export function buildNativeChatSystemPrompt(
+  input: NativeChatRequest,
+  courseRules: Array<{ content: string }> = [],
+): string {
   if (input.scope === 'general') {
     return [
       '你是 Syntara，一位耐心、直接的 AI 助手。这是普通聊天，不属于任何课程。',
@@ -27,6 +52,7 @@ export function buildNativeChatSystemPrompt(input: NativeChatRequest): string {
       `课程：「${course.name}」${course.code ? `（${course.code}）` : ''}。`,
       problemCoachRules(english ? 'en-US' : 'zh-CN'),
       '支持 Markdown 和 LaTeX。',
+      courseRulesSection(courseRules),
       section('学生正在做的题', [coach.problem]),
       section('这一轮', [problemCoachInstruction(coach.move)]),
       section(
@@ -78,11 +104,13 @@ export function buildNativeChatSystemPrompt(input: NativeChatRequest): string {
   ].join('\n');
 
   const today = context.today ? `今天是 ${context.today}。` : '';
-  const progress = context.progress
-    ? `学习进度：已学完 ${context.progress.completedNotebooks} / ${context.progress.totalNotebooks} 本笔记${
-        context.progress.currentNotebook ? `，正在学「${context.progress.currentNotebook}」` : ''
-      }。只基于已学内容讲，超前内容可以提但要说明“后面会学到”。`
-    : '';
+  const progress = context.progress?.unset
+    ? `学生还没有标记学习进度（共 ${context.progress.totalNotebooks} 本笔记），下面的笔记来自整门课，可以直接用。`
+    : context.progress
+      ? `学习进度：已学完 ${context.progress.completedNotebooks} / ${context.progress.totalNotebooks} 本笔记${
+          context.progress.currentNotebook ? `，正在学「${context.progress.currentNotebook}」` : ''
+        }。只基于已学内容讲，超前内容可以提但要说明“后面会学到”。`
+      : '';
   const courseInfo = section(
     '课程',
     [course.description ? course.description.slice(0, 1500) : '', today, progress].filter(Boolean),
@@ -127,12 +155,38 @@ export function buildNativeChatSystemPrompt(input: NativeChatRequest): string {
           (problem) =>
             `- id=${problem.id} ${problem.title}${problem.tags.length ? ` [${problem.tags.join(', ')}]` : ''}${
               problem.difficulty ? ` 难度:${problem.difficulty}` : ''
-            }${problem.status ? ` 状态:${problem.status}` : ''}`,
+            }${problem.status ? ` 状态:${problem.status}` : ''}${
+              problem.excerpt && problemExcerpt(problem.excerpt)
+                ? `\n  摘要：${problemExcerpt(problem.excerpt)}`
+                : ''
+            }`,
         ),
       )
     : '';
 
-  return [role, style, tools, courseInfo, notes, memories, calendar, attempts, problems]
+  const rules = courseRulesSection(courseRules);
+  const focus =
+    !phone && context.focusProblem
+      ? section('学生提到的这道题（题库原文和参考答案）', [
+          '回答时以这份原文为准：数据定义名、函数名、要求都照它写；不要编造原文里没有的内容。',
+          '对错、答案都以【参考答案】为准，不要自己另推一套；参考答案和你的判断不一样时，按参考答案讲清原因。',
+          '学生没要答案时先讲考点、给提示，不主动把答案全写出来；学生要答案或要对答案时，按参考答案给。',
+          context.focusProblem.text,
+        ])
+      : '';
+  return [
+    role,
+    rules,
+    style,
+    tools,
+    courseInfo,
+    focus,
+    notes,
+    memories,
+    calendar,
+    attempts,
+    problems,
+  ]
     .filter(Boolean)
     .join('\n\n');
 }

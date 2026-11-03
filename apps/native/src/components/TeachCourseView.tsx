@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MoreHorizontal, Search, Send, Store, Upload, UserRoundPen } from 'lucide-react';
 import { bundledMarbleAvatar, nativeAccountAvatarUrl, resolveNativeCourseAvatar } from '../assets';
 import { CourseContentManager } from './CourseContentManager';
+import { CourseAiRulesView } from './CourseAiRulesView';
 import { CourseUploadSheet } from './CourseUploadSheet';
 import { CourseStudentsView } from './CourseStudentsView';
 import { CourseModal } from './CourseModal';
@@ -25,7 +26,7 @@ import { GlassSkeletonRows } from './GlassLoadMore';
 import './course-publication.css';
 import './teach-course-view.css';
 
-type Tab = ManagedContentKind | 'students' | 'applications';
+type Tab = ManagedContentKind | 'rules' | 'students' | 'applications';
 
 /**
  * 「教学」里的单门课程管理：头部是课程、「发布更新」、「上传」和更多菜单（资料、商城）；
@@ -160,6 +161,7 @@ export function TeachCourseView({
       ? [
           { id: 'notes' as const, label: '笔记', count: counts.notes },
           { id: 'problems' as const, label: '题库', count: counts.problems },
+          { id: 'rules' as const, label: 'AI 规则' },
         ]
       : []),
     { id: 'students', label: '课程学生' },
@@ -335,6 +337,10 @@ export function TeachCourseView({
             onDirtyChange={setContentDirty}
             onChanged={contentChanged}
           />
+        ) : null}
+
+        {publication && activeTab === 'rules' ? (
+          <CourseAiRulesView courseId={courseId} onDirtyChange={setContentDirty} />
         ) : null}
 
         {publication && activeTab === 'students' ? (

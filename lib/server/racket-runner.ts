@@ -9,7 +9,10 @@ import type {
   NotebookDesignRecipeCheck,
   RacketDesignRecipe,
 } from '@/lib/problem-bank/schema';
-import { RACKET_RECIPE_DRIVER } from '@/lib/server/racket-recipe-driver';
+import {
+  RACKET_RECIPE_DRIVER,
+  racketStubAndPurposeChecks,
+} from '@/lib/server/racket-recipe-driver';
 
 const MAX_OUTPUT_BYTES = 1024 * 1024;
 // Loading the HtDP language and spd/tags takes ~0.3s; allow for a cold start.
@@ -270,6 +273,17 @@ function racketEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
+/**
+ * spd/tags is vendored in vendor/racket/spd. Adding vendor/racket to the collection
+ * search path makes `(require spd/tags)` resolve even when the build's
+ * `raco pkg install` did not reach the runtime image (seen on staging 2026-11-03).
+ */
+function racketArgs(input: RacketRunInput): string[] {
+  const vendored = path.join(process.cwd(), 'vendor', 'racket');
+  const args = existsSync(path.join(vendored, 'spd', 'tags.rkt')) ? ['-S', vendored] : [];
+  return [...args, input.driverPath, input.payloadPath];
+}
+
 export function runRacketJson<T>(input: RacketRunInput): Promise<T> {
   // The driver limits every evaluation; this outer limit only catches a stuck process.
   const outerTimeout = Math.min(
@@ -279,7 +293,7 @@ export function runRacketJson<T>(input: RacketRunInput): Promise<T> {
   return new Promise((resolve, reject) => {
     const child = execFile(
       process.env.RACKET_EXECUTABLE?.trim() || 'racket',
-      [input.driverPath, input.payloadPath],
+      racketArgs(input),
       {
         timeout: outerTimeout,
         killSignal: 'SIGKILL',
@@ -346,7 +360,20 @@ export async function runRacketDesignRecipe(args: {
       timeoutMs: args.timeoutMs,
       caseCount: 4,
     });
-    return result.items ?? [];
+    const items = result.items ?? [];
+    // Stub and purpose checks go right after the function's signature check.
+    for (const check of racketStubAndPurposeChecks({
+      studentText: racketSourceBody(args.studentCode),
+      referenceText: racketSourceBody(args.referenceCode),
+      starterText: args.starterCode ? racketSourceBody(args.starterCode) : undefined,
+    })) {
+      const at = items.findIndex((item) => item.id === 'signature' && item.target === check.target);
+      let insertAt = at < 0 ? items.length : at + 1;
+      while (insertAt < items.length && ['stub', 'purpose'].includes(items[insertAt].id))
+        insertAt += 1;
+      items.splice(insertAt, 0, check);
+    }
+    return items;
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   }

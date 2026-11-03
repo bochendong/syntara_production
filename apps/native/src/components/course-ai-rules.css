@@ -1,0 +1,137 @@
+/* 课程管理「AI 规则」：一条规则一张玻璃卡。 */
+
+.car-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.car-bar .cp-muted {
+  margin: 0;
+  max-width: 640px;
+}
+
+.car-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.car-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.car-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--tcv-line);
+  border-radius: var(--radius-md, 18px);
+  padding: 12px 14px 14px;
+  background: var(--tcv-glass);
+  box-shadow: var(--tcv-shadow);
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+}
+
+.car-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.car-card-head img {
+  width: 20px;
+  height: 20px;
+}
+
+.car-card-head strong {
+  flex: 1;
+  font-size: 14px;
+}
+
+.car-count {
+  color: var(--tp-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.car-count.is-over {
+  color: #d9485f;
+  font-weight: 600;
+}
+
+.car-card-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tp-muted);
+  cursor: pointer;
+}
+
+.car-card-head button:hover:not(:disabled) {
+  background: rgb(15 23 42 / 6%);
+  color: var(--tp-ink);
+}
+
+.car-card-head button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.car-card textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid rgb(15 23 42 / 8%);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgb(255 255 255 / 70%);
+  color: var(--tp-ink);
+  font:
+    13px/1.55 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+
+.car-card textarea:focus {
+  outline: 2px solid rgb(99 102 241 / 35%);
+  outline-offset: 1px;
+}
+
+.car-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  border: 1px dashed rgb(15 23 42 / 14%);
+  border-radius: var(--radius-md, 18px);
+  padding: 28px 16px;
+  background: var(--tcv-glass);
+  color: var(--tp-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.car-empty img {
+  width: 36px;
+  height: 36px;
+}
+
+.car-empty span {
+  color: var(--tp-muted);
+  font-size: 13px;
+}
+
+.car-add {
+  justify-self: start;
+}
