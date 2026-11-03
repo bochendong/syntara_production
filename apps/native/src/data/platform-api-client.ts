@@ -755,7 +755,7 @@ export type TeachClaimableCourse = {
   claim: 'mine' | 'free' | 'taken';
 };
 
-/** 老师可以认领的机构课（我认领的在前，其次是没人认领的）。 */
+/** 尚未被认领、也没有负责老师的机构课。 */
 export async function getTeachClaimableCourses(query = ''): Promise<TeachClaimableCourse[]> {
   const result = await invokeQuery<{ courses: TeachClaimableCourse[] }>('native_get_teach', {
     claim: '1',

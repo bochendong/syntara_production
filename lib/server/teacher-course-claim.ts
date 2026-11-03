@@ -30,7 +30,7 @@ export type ClaimableCourse = {
   avatarUrl: string | null;
   organizationName: string | null;
   problemCount: number;
-  /** mine = 我认领的；free = 还没人认领；taken = 已被其他老师认领 */
+  /** 认领列表只返回 free；保留旧状态类型以兼容现有客户端。 */
   claim: 'mine' | 'free' | 'taken';
 };
 
@@ -54,43 +54,33 @@ export async function listClaimableCourses(
 ): Promise<{ courses: ClaimableCourse[] }> {
   await assertActiveClaimant(prisma, viewer.userId);
   const rows = await prisma.course.findMany({
-    where: { AND: [claimableCourseWhere(), searchWhere(query)] },
-    // 我认领的在前，其次是还没人认领的。
-    orderBy: [{ claimedAt: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }],
-    take: 300,
+    where: {
+      AND: [claimableCourseWhere(), searchWhere(query)],
+      claimedTeacherId: null,
+      managers: { none: { user: { role: 'TEACHER', isActive: true } } },
+    },
+    orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    take: CLAIM_LIST_LIMIT,
     select: {
       id: true,
       name: true,
       courseCode: true,
       avatarUrl: true,
       publishedProblemCount: true,
-      claimedTeacherId: true,
-      claimedTeacher: { select: { isActive: true } },
-      managers: { where: { user: { role: 'TEACHER', isActive: true } }, select: { userId: true } },
       organization: { select: { name: true } },
     },
   });
-  const rank = { mine: 0, free: 1, taken: 2 } as const;
-  const courses = rows
-    .map(
-      (row): ClaimableCourse => ({
-        id: row.id,
-        name: row.name,
-        courseCode: row.courseCode,
-        avatarUrl: row.avatarUrl,
-        organizationName: row.organization?.name ?? null,
-        problemCount: row.publishedProblemCount,
-        claim:
-          row.claimedTeacherId === viewer.userId
-            ? 'mine'
-            : (row.claimedTeacherId && row.claimedTeacher?.isActive) ||
-                row.managers.some((manager) => manager.userId !== viewer.userId)
-              ? 'taken'
-              : 'free',
-      }),
-    )
-    .sort((a, b) => rank[a.claim] - rank[b.claim])
-    .slice(0, CLAIM_LIST_LIMIT);
+  const courses = rows.map(
+    (row): ClaimableCourse => ({
+      id: row.id,
+      name: row.name,
+      courseCode: row.courseCode,
+      avatarUrl: row.avatarUrl,
+      organizationName: row.organization?.name ?? null,
+      problemCount: row.publishedProblemCount,
+      claim: 'free',
+    }),
+  );
   return { courses };
 }
 

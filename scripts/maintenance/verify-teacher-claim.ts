@@ -112,8 +112,8 @@ async function main() {
     });
   };
   const mineOf = async (viewer: typeof A) =>
-    (await claim.listClaimableCourses(viewer, run)).courses
-      .filter((c) => c.claim === 'mine')
+    (await classroom.listTeachableCourses(viewer)).courses
+      .filter((c) => c.claimedByMe)
       .map((c) => c.id);
 
   // 1. 只有机构课能认领；个人课不在列表里
@@ -142,8 +142,16 @@ async function main() {
   );
   await expectError(claim.claimCourse(B, cpsc.id), 409);
   const seenByB = (await claim.listClaimableCourses(B, run)).courses;
-  assert.equal(seenByB.find((c) => c.id === cpsc.id)?.claim, 'taken');
-  assert.equal(seenByB[seenByB.length - 1]?.id, cpsc.id, '已被认领的排在最后');
+  assert.ok(!seenByB.some((c) => c.id === cpsc.id), '其他老师认领的课程不出现在认领列表');
+  assert.ok(
+    !(await claim.listClaimableCourses(A, run)).courses.some((c) => c.id === cpsc.id),
+    '自己认领的课程也不出现在认领列表',
+  );
+  assert.deepEqual(
+    (await claim.listClaimableCourses(A, `${run}-CPSC`)).courses,
+    [],
+    '搜索同样排除已认领课程',
+  );
   assert.deepEqual(await mineOf(A), [cpsc.id]);
   assert.equal(await findCourseAccessRole(prisma, teacherA.id, cpsc.id), 'owner');
   const rights = await admissions.getCoursePublication(prisma, teacherA.id, cpsc.id);
@@ -175,6 +183,10 @@ async function main() {
   // 4. 退出认领：只有认领的老师能退；退出后别人可以认领
   await expectError(claim.releaseCourseClaim(B, cpsc.id), 404);
   await claim.releaseCourseClaim(A, cpsc.id);
+  assert.ok(
+    (await claim.listClaimableCourses(B, run)).courses.some((c) => c.id === cpsc.id),
+    '退出认领后重新出现在列表',
+  );
   await claim.claimCourse(B, cpsc.id);
   assert.ok((await mineOf(B)).includes(cpsc.id));
   assert.ok(!(await mineOf(A)).includes(cpsc.id));
@@ -188,9 +200,14 @@ async function main() {
 
   await assign(mat.id, managerTeacher.id);
   await expectError(claim.claimCourse(A, mat.id), 409);
-  assert.equal(
-    (await claim.listClaimableCourses(A, run)).courses.find((c) => c.id === mat.id)?.claim,
-    'taken',
+  assert.ok(
+    !(await claim.listClaimableCourses(A, run)).courses.some((c) => c.id === mat.id),
+    '已分配负责老师的课程不出现在列表',
+  );
+  const managerViewer = { userId: managerTeacher.id, role: 'TEACHER' };
+  assert.ok(
+    !(await claim.listClaimableCourses(managerViewer, run)).courses.some((c) => c.id === mat.id),
+    '负责老师本人也不会在认领列表看到该课程',
   );
   await assign(mat.id, managerTeacher.id, false);
   await assign(mat.id, admin.id);
@@ -256,6 +273,31 @@ async function main() {
   assert.equal(saved?.speedupPhoneLast4, '0428');
   assert.ok(saved?.speedupPhoneSavedAt);
   console.log('ok  Speedup 手机尾号只问一次');
+
+  // 已认领课程必须在数据库取列表上限之前排除，避免可认领课程被挤出。
+  const occupied = Array.from({ length: 301 }, (_, index) => ({
+    id: `${run}-occupied-${index}`,
+    ownerId: owner.id,
+    organizationId: speedup.id,
+    name: `${run}-limit A${index}`,
+    courseCode: `${run}-LIMIT-${index}`,
+    listedInCourseStore: true,
+    claimedTeacherId: teacherA.id,
+    claimedAt: new Date(),
+  }));
+  const available = Array.from({ length: 2 }, (_, index) => ({
+    id: `${run}-available-${index}`,
+    ownerId: owner.id,
+    organizationId: speedup.id,
+    name: `${run}-limit Z${index}`,
+    courseCode: `${run}-LIMIT-FREE-${index}`,
+    listedInCourseStore: true,
+  }));
+  await prisma.course.createMany({ data: [...occupied, ...available] });
+  const afterLimit = (await claim.listClaimableCourses(B, `${run}-LIMIT`)).courses;
+  assert.deepEqual(new Set(afterLimit.map((c) => c.id)), new Set(available.map((c) => c.id)));
+  assert.ok(afterLimit.every((c) => c.claim === 'free'));
+  console.log('ok  已认领课程在查询上限前排除');
 
   await prisma.$disconnect();
 }

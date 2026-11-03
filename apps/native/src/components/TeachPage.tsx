@@ -215,6 +215,23 @@ function TeachHomeView({
 }) {
   const { data, error, reload } = usePolled<TeachHome>(getTeachHome, 30_000);
   const [publishingCourseId, setPublishingCourseId] = useState<string | null>(null);
+  const [releasing, setReleasing] = useState<TeachHome['courses'][number] | null>(null);
+  const [releaseBusy, setReleaseBusy] = useState(false);
+  const [releaseError, setReleaseError] = useState('');
+  const release = async () => {
+    if (!releasing) return;
+    setReleaseBusy(true);
+    setReleaseError('');
+    try {
+      await releaseTeachCourse(releasing.id);
+      setReleasing(null);
+      await reload();
+    } catch (cause) {
+      setReleaseError(cause instanceof Error ? cause.message : '退出失败');
+    } finally {
+      setReleaseBusy(false);
+    }
+  };
   useEffect(() => {
     if (!data || data.courses.length || autoClaimShown || readLoginIntent() !== 'teacher') return;
     autoClaimShown = true;
@@ -232,6 +249,11 @@ function TeachHomeView({
           </button>
         </header>
         {error ? <p className="phone-page-error">{error}</p> : null}
+        {releaseError ? (
+          <p className="phone-page-error" role="alert">
+            {releaseError}
+          </p>
+        ) : null}
         {!data && !error ? <GlassSkeletonRows rows={4} height={54} /> : null}
         {data && !data.courses.length ? (
           <div className="tp-claim-empty">
@@ -318,6 +340,19 @@ function TeachHomeView({
                     </dl>
                     <div className="tp-course-card-footer">
                       <div className="tp-course-card-actions">
+                        {course.claimedByMe ? (
+                          <button
+                            type="button"
+                            className="tp-course-card-publish"
+                            aria-label={`退出认领：${courseLabel(course)}`}
+                            onClick={() => {
+                              setReleaseError('');
+                              setReleasing(course);
+                            }}
+                          >
+                            退出认领
+                          </button>
+                        ) : null}
                         {course.canPublish ? (
                           <button
                             type="button"
@@ -346,6 +381,17 @@ function TeachHomeView({
           </>
         ) : null}
       </div>
+      {releasing ? (
+        <PhoneConfirm
+          title="退出认领？"
+          message={`${courseLabel(releasing)} 会回到可认领列表，已开的班和课堂记录保留。`}
+          confirmLabel="退出"
+          destructive
+          busy={releaseBusy}
+          onConfirm={() => void release()}
+          onCancel={() => setReleasing(null)}
+        />
+      ) : null}
       {publishingCourseId ? (
         <CoursePublishDialog
           courseId={publishingCourseId}
@@ -464,17 +510,18 @@ function ClassroomHomeView({
   );
 }
 
-/** 认领课程：一门课只能由一位老师认领，先到先得，不用审批；自己认领的可以退出。 */
+/** 认领列表只显示无人认领的课程；退出认领在「我管理的课程」里操作。 */
 function TeachClaimView({ onBack }: { onBack: () => void }) {
   const [query, setQuery] = useState('');
   const [courses, setCourses] = useState<TeachClaimableCourse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [releasing, setReleasing] = useState<TeachClaimableCourse | null>(null);
 
   const load = useCallback(async (text: string) => {
     try {
-      setCourses(await getTeachClaimableCourses(text));
+      setCourses(
+        (await getTeachClaimableCourses(text)).filter((course) => course.claim === 'free'),
+      );
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '没加载出来');
@@ -486,24 +533,19 @@ function TeachClaimView({ onBack }: { onBack: () => void }) {
     return () => window.clearTimeout(timer);
   }, [load, query]);
 
-  const act = async (course: TeachClaimableCourse, release: boolean) => {
+  const act = async (course: TeachClaimableCourse) => {
     setBusy(course.id);
     setError(null);
     try {
-      if (release) await releaseTeachCourse(course.id);
-      else await claimTeachCourse(course.id);
+      await claimTeachCourse(course.id);
       await load(query);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : release ? '退出失败' : '认领失败');
       await load(query);
+      setError(cause instanceof Error ? cause.message : '认领失败');
     } finally {
       setBusy(null);
-      setReleasing(null);
     }
   };
-
-  const mine = courses?.filter((course) => course.claim === 'mine') ?? [];
-  const others = courses?.filter((course) => course.claim !== 'mine') ?? [];
 
   const row = (course: TeachClaimableCourse) => (
     <div key={course.id} className="phone-row tp-course-row tp-claim-row">
@@ -524,27 +566,14 @@ function TeachClaimView({ onBack }: { onBack: () => void }) {
             .join(' · ')}
         </small>
       </span>
-      {course.claim === 'mine' ? (
-        <button
-          type="button"
-          className="tp-get-pill is-quiet"
-          disabled={busy === course.id}
-          onClick={() => setReleasing(course)}
-        >
-          已认领
-        </button>
-      ) : course.claim === 'taken' ? (
-        <span className="tp-claim-taken">已有老师</span>
-      ) : (
-        <button
-          type="button"
-          className="tp-get-pill"
-          disabled={busy !== null}
-          onClick={() => void act(course, false)}
-        >
-          {busy === course.id ? '认领中' : '认领'}
-        </button>
-      )}
+      <button
+        type="button"
+        className="tp-get-pill"
+        disabled={busy !== null}
+        onClick={() => void act(course)}
+      >
+        {busy === course.id ? '认领中' : '认领'}
+      </button>
     </div>
   );
 
@@ -565,33 +594,19 @@ function TeachClaimView({ onBack }: { onBack: () => void }) {
         </label>
         {error ? <p className="phone-page-error">{error}</p> : null}
         {!courses && !error ? <GlassSkeletonRows rows={5} height={54} /> : null}
-        {mine.length ? (
-          <>
-            <p className="phone-group-title">我认领的</p>
-            <div className="phone-group">{mine.map(row)}</div>
-          </>
-        ) : null}
-        {courses && others.length ? (
+        {courses?.length ? (
           <>
             <p className="phone-group-title">{query ? '搜索结果' : '可以认领'}</p>
-            <div className="phone-group">{others.map(row)}</div>
+            <div className="phone-group">{courses.map(row)}</div>
           </>
         ) : null}
         {courses && !courses.length ? (
-          <PhoneEmpty title="没有找到课程" hint="换个课号或机构名试试。" />
+          <PhoneEmpty
+            title={query ? '没有找到可认领课程' : '暂无可认领课程'}
+            hint={query ? '换个课号或机构名试试。' : '已被认领的课程不会显示在这里。'}
+          />
         ) : null}
       </div>
-      {releasing ? (
-        <PhoneConfirm
-          title="退出认领？"
-          message={`${courseLabel(releasing)} 会回到可认领列表，已开的班和课堂记录保留。`}
-          confirmLabel="退出"
-          destructive
-          busy={busy === releasing.id}
-          onConfirm={() => void act(releasing, true)}
-          onCancel={() => setReleasing(null)}
-        />
-      ) : null}
     </PhonePage>
   );
 }
