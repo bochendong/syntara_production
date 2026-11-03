@@ -1,0 +1,45 @@
+{
+  "at": "2026-11-03T08:08:16.313Z",
+  "origin": "https://native-api-staging-staging-95a1.up.railway.app",
+  "deploymentId": "f11e8b78-7b9d-4ee0-ab9a-4a2f499bbcd9",
+  "revision": "f8cb4b792ffd91d638c5065501c9087237f4df98",
+  "http": [
+    {
+      "path": "/api/health",
+      "status": 200
+    },
+    {
+      "path": "/api/native/v1/version",
+      "status": 200
+    }
+  ],
+  "assets": [
+    {
+      "path": "/native-web/assets/index-Bv_xq8gt.js",
+      "sha256": "157f6f64c98a2b3fcceaebdd24736d97ae013f67b5c935c85f5eefbe02c4a614",
+      "matched": true
+    },
+    {
+      "path": "/native-web/assets/index-DU7OgFZJ.css",
+      "sha256": "dd562d730849a97539b15084975406bc8bb86fe2108e3de581650c7c1c38a4ab",
+      "matched": true
+    }
+  ],
+  "status": "deployed",
+  "branch": "codex/staging-next",
+  "change": "Course owners, assigned teachers/managers, active course claimants and administrators can view enrolled student insights; roster and detail share the same authorization. Organization membership alone is insufficient.",
+  "verification": {
+    "format": true,
+    "lint": true,
+    "rootTypes": true,
+    "productionBuild": true,
+    "nativeWebBuild": true,
+    "rollbackPostgresRegression": "owner, assigned teacher, administrator, claimant; unrelated, revoked, inactive and organization-only users denied; private and cross-course attempts/questions excluded; private-course basic-info policy retained",
+    "authenticatedLocalHttp": "Teacher roster/detail 200; unrelated teacher, student and revoked teacher 403; disposable fixtures removed",
+    "liveBrowser": "Existing authenticated staging session displays course student insights, attempts and questions without the former owner-only error",
+    "assetsMatched": true
+  },
+  "migrations": "No schema changes",
+  "productionChanged": false,
+  "studentDataMutated": false
+}
