@@ -156,6 +156,12 @@ def readable_text(value, out=None, depth=0):
     return out
 
 
+def without_inline_images(md):
+    md = re.sub(r'!\[([^\]]*)\]\(data:[^)]*\)', lambda m: f'[图：{m.group(1)}]' if m.group(1) else '[图]', md)
+    md = re.sub(r'<img[^>]+src=["\']data:[^"\']*["\'][^>]*>', '[图]', md, flags=re.I)
+    return re.sub(r'data:[a-z]+/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]{100,}', '[图]', md, flags=re.I)
+
+
 def chunks_of(doc):
     nb = doc['notebook']
     if doc.get('markdownSections'):
@@ -165,7 +171,7 @@ def chunks_of(doc):
                 for p in sorted(doc.get('notebookPages', []), key=lambda p: p['order'])]
     out = []
     for sid, title, text in secs:
-        text = (text or '').strip()
+        text = without_inline_images(text or '').strip() if NEW_CONTEXT else (text or '').strip()
         if not text:
             continue
         parts = [text[i:i + CHUNK_CHARS] for i in range(0, len(text), CHUNK_CHARS)]
@@ -200,6 +206,92 @@ def score(chunk, primary, secondary):
     return total
 
 
+# Mirror of apps/native/src/ai/problem-focus.ts (set SYNTARA_OLD_CONTEXT=1 to mimic the App before 2026-11-03).
+NEW_CONTEXT = not os.environ.get('SYNTARA_OLD_CONTEXT')
+CN = dict(zip('一二三四五六七八九', range(1, 10)))
+
+
+def _cn(v):
+    if v.isdigit():
+        return int(v)
+    if v == '十':
+        return 10
+    if v.startswith('十'):
+        return 10 + CN.get(v[1], 0)
+    if v.endswith('十'):
+        return CN.get(v[0], 0) * 10
+    return CN.get(v, 0)
+
+
+def exam_key(t):
+    t = unicodedata.normalize('NFKC', t).lower()
+    t = re.sub(r'第\s*([0-9一二三四五六七八九十]+)\s*(?:题|問|问|道)', lambda m: f' p{_cn(m.group(1))} ', t)
+    t = re.sub(r'\b(?:q|question|problem)\s*(\d+)', r' p\1 ', t)
+    t = re.sub(r'midterm|期中考试|期中', 'mt', t)
+    t = re.sub(r'期末考试|期末|final exam', 'final', t)
+    t = t.replace('winter', 'w').replace('summer', 's')
+    return re.sub(r'\s+', '', t)
+
+
+def _idents(title):
+    tail = title.split('·')[-1]
+    return [w.lower() for w in re.findall(r'[a-z][a-z0-9]*(?:[-_][a-z0-9]+)+[?!]?|[a-z]{4,}[?!]', tail, re.I)]
+
+
+def _exam(title):
+    head, _, tail = title.partition('·')
+    sitting = exam_key(head)
+    nums = [f'p{n}' for m in re.findall(r'p(\d+(?:-\d+)*)', exam_key(tail)) for n in m.split('-')]
+    return (sitting, nums) if sitting and nums else None
+
+
+def focused_problem(problems, question, earlier=''):
+    for text in (question, earlier):
+        if not text.strip():
+            continue
+        key, lower, ranked = exam_key(text), text.lower(), []
+        for p in problems:
+            if p.get('status') == 'archived':
+                continue
+            v = 10 if any(w in lower for w in _idents(p['title'])) else 0
+            ex = _exam(p['title'])
+            if ex and ex[0] in key:
+                v += 3
+                rest = key.split(ex[0], 1)[1]
+                if any(re.search(n + r'(?!\d)', rest) for n in ex[1]):
+                    v += 6
+            if v >= 9:
+                ranked.append((v, p))
+        ranked.sort(key=lambda x: -x[0])
+        if ranked and (len(ranked) == 1 or ranked[0][0] > ranked[1][0]):
+            return ranked[0][1]
+        if ranked:
+            return None
+    return None
+
+
+def focused_problem_text(p):
+    c = p.get('publicContent') or {}
+    st = lambda v: v.strip() if isinstance(v, str) else ''
+    lst = lambda v: v if isinstance(v, list) else []
+    rows = [' | '.join(st(x) for x in (r.get('cells') or {}).values() if st(x)) for r in lst(c.get('rows'))]
+    opts = [f"{st(o.get('id'))}. {st(o.get('label')) or st(o.get('text'))}" for o in lst(c.get('options'))]
+    parts = [f"({pt.get('label', '')}) {st((pt.get('content') or {}).get('stem')) or st((pt.get('content') or {}).get('prompt'))}" for pt in lst(c.get('parts'))]
+    cons = [st(x) for x in lst(c.get('constraints')) if st(x)]
+    samples = [f"{st(x.get('input'))} → {st(x.get('output'))}" for x in lst(c.get('sampleIO'))]
+    out = '\n\n'.join(x for x in [
+        f"标题：{p['title']}（id={p['id']}）",
+        '题面：\n' + (st(c.get('stem')) or st(c.get('stemTemplate')) or p['title']),
+        '要判断的陈述：\n' + '\n'.join('- ' + r for r in rows if r) if any(rows) else '',
+        '选项：\n' + '\n'.join(opts) if opts else '',
+        '小问：\n' + '\n'.join(parts) if parts else '',
+        '起始代码：\n```\n' + st(c.get('starterCode')) + '\n```' if st(c.get('starterCode')) else '',
+        '要求：\n' + '\n'.join('- ' + x for x in cons) if cons else '',
+        '样例：\n' + '\n'.join(samples) if samples else '',
+    ] if x)
+    return out[:9000] + ('\n…（后面省略）' if len(out) > 9000 else '')
+
+
 def readable_notebooks(notebooks, progress_mode, learning_progress):
     # Simplified groupNotebookTranslations: courses here have no translations.
     if progress_mode == 'all':
@@ -221,7 +313,8 @@ def readable_notebooks(notebooks, progress_mode, learning_progress):
 def build_context(course_data, problems, messages, surface, progress_mode):
     notebooks = course_data['notebooks']
     readable = readable_notebooks(notebooks, progress_mode, course_data.get('learningProgress'))
-    searched = readable[-MAX_SEARCHED_NOTEBOOKS:]
+    unset = NEW_CONTEXT and not readable
+    searched = (notebooks if unset else readable)[-MAX_SEARCHED_NOTEBOOKS:]
     chunks = [c for nb in searched for c in chunks_of(notebook_archive(nb))]
     question = messages[-1]['text']
     earlier = '\n'.join(m['text'][:600] for m in messages[-5:-1])
@@ -242,9 +335,14 @@ def build_context(course_data, problems, messages, surface, progress_mode):
         notes.append({k: c[k] for k in ('id', 'notebookId', 'notebook', 'title')} | {'content': content})
     ctx = {'today': date.today().isoformat(),
            'progress': {'completedNotebooks': len(readable), 'totalNotebooks': len(notebooks),
-                        'currentNotebook': readable[-1]['name'] if readable else None},
+                        'currentNotebook': readable[-1]['name'] if readable else None,
+                        **({'unset': True} if unset else {})},
            'notes': notes, 'memories': [], 'calendar': [], 'attempts': [], 'problems': []}
     if surface != 'phone':
+        if NEW_CONTEXT:
+            focus = focused_problem(problems, question, earlier)
+            if focus:
+                ctx['focusProblem'] = {'id': focus['id'], 'title': focus['title'][:300], 'text': focused_problem_text(focus)}
         terms = primary + secondary
         live = [p for p in problems if p.get('status') != 'archived']
         live.sort(key=lambda p: -sum(t in normalized(p['title'] + ' ' + ' '.join(p.get('tags', []))) for t in terms))
@@ -252,7 +350,8 @@ def build_context(course_data, problems, messages, surface, progress_mode):
                             'difficulty': p.get('difficulty'), 'tags': p.get('tags', [])[:12],
                             'excerpt': json.dumps(p.get('publicContent'), ensure_ascii=False)[:600],
                             'status': None} for p in live[:40]]
-    debug = {'readableNotebooks': len(readable), 'chunksSearched': len(chunks), 'fallback': fallback,
+    debug = {'focusProblem': ctx.get('focusProblem', {}).get('title'), 'progressUnset': bool(unset),
+             'readableNotebooks': len(readable), 'chunksSearched': len(chunks), 'fallback': fallback,
              'scores': [(c['notebook'], c['title'], v) for c, v in scored[:8]]}
     return ctx, debug
 
