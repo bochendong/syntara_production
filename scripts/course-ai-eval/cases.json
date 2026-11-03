@@ -1,0 +1,112 @@
+{
+ "CPSC110": [
+  {
+   "id": "c1",
+   "q": "CPSC 110 里 HtDF 设计配方有哪些步骤？每一步要写什么？",
+   "expect": "UBC 顺序/内容：@htdf 名字、@signature、purpose、examples(check-expect)、stub(注释掉)、@template-origin/@template、函数体；用 spd tags"
+  },
+  {
+   "id": "c2",
+   "q": "帮我设计一个函数 double，输入一个数字，返回它的两倍。按课上的格式写完整。",
+   "expect": "(@htdf double) (@signature Number -> Number) ;; purpose, check-expect ≥2, ;(define (double n) 0) stub, (@template-origin Number) (@template (define (double n) (... n))), body (* 2 n); 不用 #lang racket/let/for"
+  },
+  {
+   "id": "c3",
+   "q": "帮我写一个 HtDD：TrafficLight 表示红绿灯，只能是 \"red\"、\"yellow\"、\"green\" 之一。",
+   "expect": "(@htdd TrafficLight) ;; TrafficLight is one of: - \"red\" ... ;; interp. ;; <examples are redundant for enumerations> (@dd-template-rules one-of atomic-distinct x3) fn-for-traffic-light cond string=? 不用 else"
+  },
+  {
+   "id": "c4",
+   "q": "设计一个函数 sum，输入一个 ListOfNumber，返回所有数字的和。",
+   "expect": "需要/引用 ListOfNumber HtDD (one-of empty, (cons Number ListOfNumber)), self-reference template: (cond [(empty? lon) 0] [else (+ (first lon) (sum (rest lon)))]); @template-origin ListOfNumber; 不用 foldr/apply/for/let/set!/lambda"
+  },
+  {
+   "id": "c5",
+   "q": "Racket 里怎么写一个 for 循环把 1 到 10 加起来？",
+   "expect": "指出 CPSC 110 的 BSL/ISL 没有 for 循环/赋值，用递归（Natural 模板）或后期的 build-list/foldr；不应给 for/fold、#lang racket"
+  },
+  {
+   "id": "c6",
+   "q": "设计一个 HtDD：Ball 有 x 和 y 坐标，然后设计函数 move-right，把球往右移 5。",
+   "expect": "(@htdd Ball) (define-struct ball (x y)) ;; Ball is (make-ball Number Number) ;; interp. examples, (@dd-template-rules compound), fn-for-ball 模板; 函数 @template-origin Ball, (make-ball (+ (ball-x b) 5) (ball-y b))"
+  },
+  {
+   "id": "c7",
+   "q": "什么时候 itemization 的 cond 要用 else？enumeration 呢？",
+   "expect": "讲义：normal enumerations should not use else (large enumerations 可以); itemizations 最后一个问题总用 else；cond 问题要用 type predicate guard"
+  },
+  {
+   "id": "c8",
+   "q": "用 tail recursion + accumulator 写 sum，把 ListOfNumber 加起来。课上要求的格式是什么？",
+   "expect": "local 包装 + acc 参数 + ;; acc: Number; the sum of elements seen so far (invariant) + (@template-origin ListOfNumber accumulator)；ISL 语法"
+  },
+  {
+   "id": "c9",
+   "q": "用 abstract function 写一个函数 only-positive，输入 ListOfNumber，只保留正数。",
+   "expect": "(@template-origin use-abstract-fn) (filter positive? lon) 或 local/lambda；signature (listof Number) -> (listof Number)；ISL"
+  },
+  {
+   "id": "c10",
+   "q": "2024W1 Midterm 1 的第一题考的是什么？我应该怎么复习？",
+   "expect": "能定位题库里的 2024W1 MT1 P1 terminology true/false，并 select_practice 推这道题"
+  },
+  {
+   "id": "c11",
+   "q": "这题怎么做？请给我完整答案。\n\nDesign a function that consumes a list of integers. The function should compute the product of all odd integers in the given list. For example:\n(multiply-odds (cons 3 (cons 1 (cons 2 (cons 4 (cons 7 empty)))))) should produce 21.\n\nYour function design must include an @htdf tag, @signature tag, purpose, commented out stub, appropriate tests, a @template-origin tag, a @template tag, and a function definition.",
+   "expect": "BSL 自然递归；空表返回 1；完整 recipe；用 starter 的 ListOfInteger",
+   "problemId": "cmvynv0qq002nld01ll7o84oa"
+  },
+  {
+   "id": "c12",
+   "q": "题库里 2022 W1 期中 1 的 drop-until-odd 这题我不会，给我讲讲思路。",
+   "expect": "找到这道题（select_practice / 引用题号），讲 ListOfNatural 模板：empty -> empty; odd? first -> lon; else 递归 rest；不直接给全答案或至少符合 BSL"
+  }
+ ],
+ "CSC108": [
+  {
+   "id": "p1",
+   "q": "帮我写一个函数 count_vowels(s)，返回字符串里元音字母的个数。",
+   "expect": "多大 FDR：header 带类型注解 (s: str) -> int；docstring 第一句 'Return the number of vowels in s.' 提到参数名；≥2 个 >>> 例子含边界(空字符串)；无 Args:/Returns:/:param；必要时 Precondition"
+  },
+  {
+   "id": "p2",
+   "q": "CSC108 的 docstring 应该怎么写？有什么格式要求？",
+   "expect": "Function Design Recipe: examples, header(type contract), description(Return ... 用参数名), body, test; doctest >>>; Precondition: 行"
+  },
+  {
+   "id": "p3",
+   "q": "我写的 docstring 对吗？\n\ndef average(nums):\n    # 求平均值\n    \"\"\"\n    Args:\n        nums: a list of numbers\n    Returns:\n        the average\n    \"\"\"\n    return sum(nums) / len(nums)",
+   "expect": "指出：缺类型注解；docstring 必须是函数体第一条语句（注释在前其实也行但不推荐）；不用 Google Args/Returns；应 'Return the average of the numbers in nums.'；加 >>> 例子；Precondition: len(nums) > 0"
+  },
+  {
+   "id": "p4",
+   "q": "写一个函数 is_palindrome(word)，判断单词是不是回文。",
+   "expect": "def is_palindrome(word: str) -> bool: \"\"\"Return True if and only if word ... >>> 例子 True/False\"\"\""
+  },
+  {
+   "id": "p5",
+   "q": "写一个函数，把列表里所有偶数原地翻倍（不返回新列表）。",
+   "expect": "-> None；docstring 'Modify lst so that ...'（不是 Return）；例子用 >>> lst = [..] / >>> f(lst) / >>> lst；Precondition 可选"
+  },
+  {
+   "id": "p6",
+   "q": "写一个函数 read_scores(filename)，读一个 CSV 文件（第一行是表头，第二列是分数），返回所有分数的列表。",
+   "expect": "类似讲义 CSV 例子：with open / csv.reader / next(reader) 跳表头；docstring 描述 + >>> 例子；类型注解 -> list[int]/list[float]"
+  },
+  {
+   "id": "p7",
+   "q": "Precondition 是什么意思？什么时候要在 docstring 里写？",
+   "expect": "precondition = 调用者必须满足的条件；函数不检查；写 'Precondition: ...' 一行"
+  },
+  {
+   "id": "p8",
+   "q": "for 循环和 while 循环什么时候用哪个？举个例子。",
+   "expect": "引用 Loop 笔记；例子函数也应带 CSC108 docstring"
+  },
+  {
+   "id": "p9",
+   "q": "写一个函数 get_initials(full_name)，比如 'Ada Lovelace' 返回 'AL'。",
+   "expect": "FDR docstring: Return ..., >>> 例子, Precondition: full_name 有至少一个单词"
+  }
+ ]
+}
