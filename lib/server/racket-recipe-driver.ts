@@ -334,7 +334,7 @@ export const RACKET_RECIPE_DRIVER = String.raw`
 // Stub and purpose live in comments, which the driver's reader drops, so they are
 // checked on the source text. Like the Python driver, each is required for every
 // function the reference designs with @htdf, unless the reference has none or the
-// starter already gives it.
+// starter already gives it (a stub only when the starter has it commented out).
 
 type RecipeCommentCheck = {
   id: 'stub' | 'purpose';
@@ -410,10 +410,9 @@ export function racketStubAndPurposeChecks(args: {
     const arity = defineArity(args.referenceText.replace(/^[ \t]*;.*$/gm, ''), name);
     const given = starter.get(name) ?? '';
     const mine = student.get(name);
-    // The starter gives the stub when it has one, commented or live (e.g. `(define (f n) 0) ;stub`).
-    const stubGiven =
-      hasStub(given, name, arity) ||
-      defineArity((args.starterText ?? '').replace(/^[ \t]*;.*$/gm, ''), name) !== null;
+    // Only a starter whose stub is already commented out gives it. A live starter stub
+    // (`(define (f n) 0) ;stub`) still has to be commented out by the student.
+    const stubGiven = hasStub(given, name, arity) || hasStub(args.starterText ?? '', name, arity);
     if (hasStub(refSection, name, arity) && !stubGiven) {
       items.push(
         mine === undefined

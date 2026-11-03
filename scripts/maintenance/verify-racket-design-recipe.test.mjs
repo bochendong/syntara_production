@@ -184,10 +184,25 @@ test('the stub and purpose are required and checked on the source text', async (
   );
 });
 
-test('a stub and purpose the starter already gives are not checked', async () => {
-  const givenStarter = `${ddStarter}(@htdf delivered-before-tomorrow?)\n(@signature DeliveryStatus -> Boolean)\n;; produce true if the package is delivered or will be before eod tomorrow\n(define (delivered-before-tomorrow? ds) false) ; stub\n`;
+test('a stub the starter gives commented out, and a given purpose, are not checked', async () => {
+  const givenStarter = `${ddStarter}(@htdf delivered-before-tomorrow?)\n(@signature DeliveryStatus -> Boolean)\n;; produce true if the package is delivered or will be before eod tomorrow\n;(define (delivered-before-tomorrow? ds) false) ; stub\n`;
   const items = await ddCheck(noStub.replace(/^;; produce true.*\n/m, ''), givenStarter);
   assert(!items.some((item) => item.id === 'stub' || item.id === 'purpose'), JSON.stringify(items));
+});
+
+// A live starter stub still has to end up commented out in the student's file.
+const liveStarter = `${ddStarter}(@htdf delivered-before-tomorrow?)\n(@signature DeliveryStatus -> Boolean)\n;; produce true if the package is delivered or will be before eod tomorrow\n(define (delivered-before-tomorrow? ds) false) ; stub\n`;
+
+test('a live stub in the starter must be commented out', async () => {
+  const kept = await ddCheck(ddReference, liveStarter);
+  assert.deepEqual(failedIds(kept), []);
+  assert(
+    kept.some((item) => item.id === 'stub' && item.passed),
+    JSON.stringify(kept),
+  );
+  assert.deepEqual(failedIds(await ddCheck(noStub, liveStarter)), [
+    'stub:delivered-before-tomorrow?',
+  ]);
 });
 
 test('a full answer without the stub no longer scores 100', async () => {
@@ -249,4 +264,26 @@ test('a full answer without the stub no longer scores 100', async () => {
   assert.equal(withoutStub.status, 'partial');
   assert(withoutStub.score < 100);
   assert.match(withoutStub.result.feedback, /Stub/);
+
+  // With a live starter stub: the unedited starter earns no test credit and fails the stub
+  // check; the reference (stub commented out, body written) still scores 100.
+  const liveProblem = {
+    ...problem,
+    publicContent: { ...problem.publicContent, starterCode: liveStarter },
+  };
+  const submitLive = (code) =>
+    judge.judgeNotebookCodeProblem({
+      problem: liveProblem,
+      secretJudge,
+      userAnswer: { code },
+      kind: 'submit',
+    });
+  assert.equal((await submitLive(ddReference)).score, 100);
+  const unedited = await submitLive(liveStarter);
+  assert.notEqual(unedited.status, 'passed');
+  assert.match(unedited.result.feedback, /tests count once you edit it/);
+  assert(
+    unedited.result.designRecipe.some((item) => item.id === 'stub' && !item.passed),
+    JSON.stringify(unedited.result.designRecipe),
+  );
 });
