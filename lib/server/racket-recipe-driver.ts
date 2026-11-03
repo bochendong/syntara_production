@@ -329,3 +329,119 @@ export const RACKET_RECIPE_DRIVER = String.raw`
 
 (main)
 `.trim();
+
+// ---------------------------------------------------------------------------
+// Stub and purpose live in comments, which the driver's reader drops, so they are
+// checked on the source text. Like the Python driver, each is required for every
+// function the reference designs with @htdf, unless the reference has none or the
+// starter already gives it.
+
+type RecipeCommentCheck = {
+  id: 'stub' | 'purpose';
+  target: string;
+  passed: boolean;
+  detail?: string;
+};
+
+const escapeName = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** name -> the source text from its (@htdf ...) up to the next @htdf / @htdd / @problem. */
+function htdfSections(text: string): Map<string, string> {
+  const sections = new Map<string, string>();
+  const starts = [...text.matchAll(/^[ \t]*\(@(htdf|htdd|problem)\b([^)]*)\)/gm)];
+  starts.forEach((match, index) => {
+    if (match[1] !== 'htdf') return;
+    const end = index + 1 < starts.length ? starts[index + 1].index : text.length;
+    const section = text.slice(match.index, end);
+    for (const name of match[2].trim().split(/\s+/).filter(Boolean)) sections.set(name, section);
+  });
+  return sections;
+}
+
+/** Parameter count of `(define (name a b ...)` in code, or null when there is none. */
+function defineArity(code: string, name: string): number | null {
+  const header = code.match(
+    new RegExp(`\\(define\\s*[([]\\s*${escapeName(name)}((?:\\s+[^\\s()[\\]]+)*)\\s*[)\\]]`),
+  );
+  return header ? header[1].trim().split(/\s+/).filter(Boolean).length : null;
+}
+
+/** Commented-out defines of name: `;(define (f x) 0) ; stub`, `#;(define ...)` or inside `#| |#`. */
+function commentedDefines(section: string, name: string): string[] {
+  const found: string[] = [];
+  const head = `\\(define\\s*[([]\\s*${escapeName(name)}[\\s)\\]]`;
+  for (const match of section.matchAll(new RegExp(`^[ \\t]*;+[ \\t]*(${head}.*)$`, 'gm')))
+    found.push(match[1]);
+  for (const match of section.matchAll(new RegExp(`#;\\s*(${head}[^\\n]*)`, 'g')))
+    found.push(match[1]);
+  for (const block of section.matchAll(/#\|([\s\S]*?)\|#/g)) {
+    for (const match of block[1].matchAll(new RegExp(`(${head}[^\\n]*)`, 'g')))
+      found.push(match[1]);
+  }
+  return found;
+}
+
+function hasStub(section: string, name: string, arity: number | null): boolean {
+  return commentedDefines(section, name).some(
+    (define) => arity === null || defineArity(define, name) === arity,
+  );
+}
+
+/** A `;` comment with words after the @signature (not commented-out code). */
+function hasPurpose(section: string): boolean {
+  const signature = section.search(/\(@signature\b/);
+  const lines = section.slice(Math.max(signature, 0)).split('\n');
+  return lines.some((line) => {
+    const comment = line.match(/^[ \t]*;+[ \t]*(.*)$/)?.[1].trim() ?? '';
+    return !comment.startsWith('(') && /[A-Za-z]{2,}\W+[A-Za-z]{2,}/.test(comment);
+  });
+}
+
+export function racketStubAndPurposeChecks(args: {
+  studentText: string;
+  referenceText: string;
+  starterText?: string;
+}): RecipeCommentCheck[] {
+  const reference = htdfSections(args.referenceText);
+  const starter = htdfSections(args.starterText ?? '');
+  const student = htdfSections(args.studentText);
+  const items: RecipeCommentCheck[] = [];
+  for (const [name, refSection] of reference) {
+    const arity = defineArity(args.referenceText.replace(/^[ \t]*;.*$/gm, ''), name);
+    const given = starter.get(name) ?? '';
+    const mine = student.get(name);
+    // The starter gives the stub when it has one, commented or live (e.g. `(define (f n) 0) ;stub`).
+    const stubGiven =
+      hasStub(given, name, arity) ||
+      defineArity((args.starterText ?? '').replace(/^[ \t]*;.*$/gm, ''), name) !== null;
+    if (hasStub(refSection, name, arity) && !stubGiven) {
+      items.push(
+        mine === undefined
+          ? { id: 'stub', target: name, passed: false, detail: `missing (@htdf ${name})` }
+          : hasStub(mine, name, arity)
+            ? { id: 'stub', target: name, passed: true }
+            : {
+                id: 'stub',
+                target: name,
+                passed: false,
+                detail: `keep the stub as a comment, e.g. ;(define (${name}${' x'.repeat(arity ?? 1)}) ...) ; stub`,
+              },
+      );
+    }
+    if (hasPurpose(refSection) && !hasPurpose(given)) {
+      items.push(
+        mine === undefined
+          ? { id: 'purpose', target: name, passed: false, detail: `missing (@htdf ${name})` }
+          : hasPurpose(mine)
+            ? { id: 'purpose', target: name, passed: true }
+            : {
+                id: 'purpose',
+                target: name,
+                passed: false,
+                detail: `write a purpose comment after the @signature of ${name}`,
+              },
+      );
+    }
+  }
+  return items;
+}

@@ -9,7 +9,10 @@ import type {
   NotebookDesignRecipeCheck,
   RacketDesignRecipe,
 } from '@/lib/problem-bank/schema';
-import { RACKET_RECIPE_DRIVER } from '@/lib/server/racket-recipe-driver';
+import {
+  RACKET_RECIPE_DRIVER,
+  racketStubAndPurposeChecks,
+} from '@/lib/server/racket-recipe-driver';
 
 const MAX_OUTPUT_BYTES = 1024 * 1024;
 // Loading the HtDP language and spd/tags takes ~0.3s; allow for a cold start.
@@ -357,7 +360,20 @@ export async function runRacketDesignRecipe(args: {
       timeoutMs: args.timeoutMs,
       caseCount: 4,
     });
-    return result.items ?? [];
+    const items = result.items ?? [];
+    // Stub and purpose checks go right after the function's signature check.
+    for (const check of racketStubAndPurposeChecks({
+      studentText: racketSourceBody(args.studentCode),
+      referenceText: racketSourceBody(args.referenceCode),
+      starterText: args.starterCode ? racketSourceBody(args.starterCode) : undefined,
+    })) {
+      const at = items.findIndex((item) => item.id === 'signature' && item.target === check.target);
+      let insertAt = at < 0 ? items.length : at + 1;
+      while (insertAt < items.length && ['stub', 'purpose'].includes(items[insertAt].id))
+        insertAt += 1;
+      items.splice(insertAt, 0, check);
+    }
+    return items;
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   }
