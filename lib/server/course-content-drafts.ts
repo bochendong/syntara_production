@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { DbClient } from './repositories/types';
+import type { CourseUpdateSummary } from '@/lib/course-space/course-update-summary';
 import {
   canEditCourseProfile,
   CourseAdmissionError,
@@ -50,6 +51,36 @@ export type ContentDraft = {
   baseUpdatedAt: Date | null;
   updatedAt: Date;
 };
+/** Only independent, unapplied drafts can contain changes that students cannot see yet. */
+export function summarizeContentDrafts(drafts: ContentDraft[]) {
+  const summary: CourseUpdateSummary & { deletions: number; draftCount: number } = {
+    addedProblems: 0,
+    updatedProblems: 0,
+    addedNotebooks: 0,
+    updatedNotebooks: 0,
+    deletions: 0,
+    draftCount: 0,
+  };
+  for (const draft of drafts) {
+    if (draft.operation === 'delete') {
+      summary.deletions += 1;
+    } else if (draft.kind === 'problems' && draft.payload.status === 'draft') {
+      summary.draftCount += 1;
+    } else {
+      const key =
+        draft.kind === 'notes'
+          ? draft.baseUpdatedAt
+            ? 'updatedNotebooks'
+            : 'addedNotebooks'
+          : draft.baseUpdatedAt
+            ? 'updatedProblems'
+            : 'addedProblems';
+      summary[key] += 1;
+    }
+  }
+  return summary;
+}
+
 export async function draftAuthority(db: DbClient, userId: string, courseId: string) {
   const course = await requireCourseManagement(db, userId, courseId);
   if (!(await canEditCourseProfile(db, userId, course)))
@@ -344,7 +375,8 @@ export async function applyContentDrafts(db: DbClient, courseId: string) {
       data: { problemCount, publishedProblemCount },
     });
   }
-  await refreshCourseSummaryFields(db, courseId);
+  if (changes.length) await refreshCourseSummaryFields(db, courseId);
+  return changes;
 }
 
 export async function undoContentDraft(

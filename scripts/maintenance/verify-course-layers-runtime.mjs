@@ -113,6 +113,7 @@ try {
     console.log('Baseline fixtures seeded in disposable schema.');
   } else {
     const layers = await jiti.import('../../lib/server/store-course-layers.ts');
+    const drafts = await jiti.import('../../lib/server/course-content-drafts.ts');
     const access = await jiti.import(
       '../../lib/server/repositories/course-enrollment-repository.ts',
     );
@@ -289,33 +290,35 @@ try {
     )._max.problemNumber;
     assert.equal(maxAfter, publicMaxBefore, 'private content never consumes public numbering');
     const snapshotTime = Date.now();
-    await db.notebookProblem.update({
-      where: { id: ids.problem },
-      data: { title: 'Edited public question' },
+    await drafts.stageContent(db, ids.publisher, ids.course, 'problems', ids.problem, {
+      title: 'Edited public question',
     });
-    await db.notebookProblem.create({
-      data: problemData('qa-new-problem', ids.public, { problemNumber: 2, order: 2 }),
-    });
-    await db.notebook.create({
-      data: {
-        id: 'qa-new-notebook',
-        ownerId: ids.publisher,
-        courseId: ids.course,
-        name: '05 New',
-        tags: [],
+    await drafts.stageContent(db, ids.publisher, ids.course, 'problems', null, {
+      title: 'qa-new-problem',
+      type: 'short_answer',
+      status: 'published',
+      notebookId: ids.public,
+      publicContent: { type: 'short_answer', stem: 'Explain a new idea.' },
+      grading: {
+        type: 'short_answer',
+        referenceAnswer: 'A new idea.',
+        rubric: 'Correctly explain the idea.',
       },
     });
-    await db.notebook.update({
-      where: { id: ids.public },
-      data: { contentVersion: { increment: 1 } },
+    await drafts.stageContent(db, ids.publisher, ids.course, 'notes', null, {
+      title: '05 New',
+      text: '# New notebook',
     });
-    await db.notebookProblem.create({
-      data: problemData('qa-public-draft', ids.public, {
-        status: 'draft',
-        problemNumber: 3,
-        order: 3,
-      }),
+    await drafts.stageContent(db, ids.publisher, ids.course, 'notes', ids.public, {
+      title: '01 Updated public',
     });
+    await drafts.stageContent(db, ids.publisher, ids.course, 'problems', null, {
+      title: 'qa-public-draft',
+      text: 'Unready question',
+    });
+    const pending = await drafts.contentDrafts(db, ids.course);
+    const newProblemId = pending.find((row) => row.payload.title === 'qa-new-problem').targetId;
+    const newNotebookId = pending.find((row) => row.payload.name === '05 New').targetId;
     const release = await layers.releaseCourseVersion(db, ids.course);
     assert.equal(release.addedProblems, 1);
     assert.equal(release.updatedProblems, 1);
@@ -324,14 +327,12 @@ try {
     const beforeSeen = await layers.courseLayersForUser(db, ids.a, ids.course);
     assert.equal(beforeSeen.update.addedProblems, 1);
     assert.equal(beforeSeen.update.updatedProblems, 1);
-    assert.ok(beforeSeen.newNotebookIds.includes('qa-new-notebook'));
+    assert.ok(beforeSeen.newNotebookIds.includes(newNotebookId));
     await access.markCourseEnrollmentSeen(db, ids.a, ids.course);
     assert.equal((await layers.courseLayersForUser(db, ids.a, ids.course)).update, null);
     const snapshot = await sync.readNativeProblems(db, ids.a, ids.course, snapshotTime);
     assert.ok(
-      snapshot.problems.some(
-        (p) => p.id === 'qa-new-problem' && p.releaseAddedIn === release.version,
-      ),
+      snapshot.problems.some((p) => p.id === newProblemId && p.releaseAddedIn === release.version),
     );
     assert.ok(
       snapshot.problems.some(
@@ -350,8 +351,8 @@ try {
     ]);
     assert.equal(
       new Set(concurrent.map((r) => r.version)).size,
-      2,
-      'concurrent release versions are serialized',
+      1,
+      'concurrent empty releases keep the current version',
     );
     assert.ok(
       concurrent.every(
