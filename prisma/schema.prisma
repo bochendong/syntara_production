@@ -203,6 +203,9 @@ model User {
   nativeAppActivatedAt   DateTime?
   /// 新手引导的进度：{ status, marks }，见 lib/server/onboarding.ts。
   onboarding             Json?
+  /// Speedup 机构要求的手机尾号（4 位），学生第一次登录时填一次，只记录不比对。
+  speedupPhoneLast4      String?   @db.VarChar(4)
+  speedupPhoneSavedAt    DateTime?
 
   accounts                   Account[]
   sessions                   Session[]
@@ -263,6 +266,7 @@ model User {
   externalCourseBindings    ExternalCourseBinding[]      @relation("ExternalCourseBindingActivator")
   externalCourseMemberships ExternalCourseMembership[]
   taughtClasses             CourseClass[]                @relation("CourseClassTeacher")
+  claimedCourses            Course[]                     @relation("CourseClaimedTeacher")
   classMemberships          CourseClassMember[]
   taughtClassSessions       ClassSession[]               @relation("ClassSessionTeacher")
   classSessionJoins         ClassSessionParticipant[]
@@ -412,6 +416,10 @@ model Course {
 
   owner                  User                      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   organization           Organization?             @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  /// 认领这门课的老师：一门课只能有一位，老师在「教学」里自己认领，不用审批。
+  claimedTeacherId       String?
+  claimedAt              DateTime?
+  claimedTeacher         User?                     @relation("CourseClaimedTeacher", fields: [claimedTeacherId], references: [id], onDelete: SetNull)
   notebooks              Notebook[]
   notebookPages          NotebookPage[]
   markdownSections       MarkdownNotebookSection[]
@@ -449,6 +457,7 @@ model Course {
   @@index([ownerId, updatedAt(sort: Desc)])
   @@index([ownerId, academicYear, academicTerm])
   @@index([listedInCourseStore, updatedAt(sort: Desc)])
+  @@index([claimedTeacherId])
   @@index([organizationId, listedInCourseStore, updatedAt(sort: Desc)])
 }
 

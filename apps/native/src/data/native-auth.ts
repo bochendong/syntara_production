@@ -9,6 +9,7 @@ import {
   type NativeDeviceUser,
 } from './platform-api-client';
 import { registerNativePlatformTokenProvider } from './platform-auth-token';
+import { clearLoginIntent } from '../lib/login-intent';
 
 const DEVICE_ID_STORAGE_KEY = 'syntara.native.device-id.v1';
 const AUTH_CHANGED_EVENT = 'syntara-native-auth-changed';
@@ -214,6 +215,7 @@ export async function validateNativeAuthSession(): Promise<NativeAuthSession | n
 }
 
 export async function logoutNativeAuthSession(): Promise<void> {
+  clearLoginIntent();
   if (browserApp) {
     const csrf = await fetch('/api/auth/csrf', { credentials: 'same-origin' }).then((r) =>
       r.json(),

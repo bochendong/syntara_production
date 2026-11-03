@@ -117,10 +117,12 @@ const coverSwitch = (kind: TransitionKind | undefined, rainSwitch = RAIN_SWITCH)
   kind === 'rain' ? rainSwitch : kind === 'pixel' || kind === 'vortex' ? COVER_SWITCH : null;
 
 export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean }) {
-  const loginHref = googleTest ? '/test' : '/login';
-  const loginLabel = '开始学习';
+  const loginHref = googleTest ? '/test?as=student' : '/login';
+  // 测试服把登录分成学生 / 老师两个入口；老师登录后先认领自己教的课。
+  const teacherLoginHref = googleTest ? '/test?as=teacher' : null;
+  const loginLabel = googleTest ? '学生登录' : '开始学习';
   const loginHint = googleTest
-    ? '测试版用 Google 账号登录。'
+    ? '测试版用 Google 账号登录。老师登录后先认领自己教的课。'
     : '用 SpeedUp 账号登录，再从课程页进入 Syntara。';
   const storyRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -720,8 +722,13 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
             下载桌面版
           </Link>
           <Link href={loginHref} className={styles.navLogin}>
-            登录
+            {teacherLoginHref ? '学生登录' : '登录'}
           </Link>
+          {teacherLoginHref ? (
+            <Link href={teacherLoginHref} className={styles.navLogin}>
+              老师登录
+            </Link>
+          ) : null}
         </div>
       </header>
 
@@ -750,9 +757,15 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
                 <Link href={loginHref} className={styles.primary}>
                   {loginLabel}
                 </Link>
-                <button type="button" className={styles.ghost} onClick={() => goTo(1)}>
-                  先看看
-                </button>
+                {teacherLoginHref ? (
+                  <Link href={teacherLoginHref} className={styles.ghost}>
+                    老师登录
+                  </Link>
+                ) : (
+                  <button type="button" className={styles.ghost} onClick={() => goTo(1)}>
+                    先看看
+                  </button>
+                )}
               </div>
               <p className={styles.loginHint}>{loginHint}</p>
             </div>
@@ -866,9 +879,16 @@ export function SyntaraLanding({ googleTest = false }: { googleTest?: boolean })
             ? '不用下载，用 Google 账号登录就能在浏览器里用。'
             : '在网页上领一个激活码，手机上就能接着聊天、看笔记和小课堂。'}
         </p>
-        <Link href={loginHref} className={styles.primary}>
-          {loginLabel}
-        </Link>
+        <div className={styles.heroActions}>
+          <Link href={loginHref} className={styles.primary}>
+            {loginLabel}
+          </Link>
+          {teacherLoginHref ? (
+            <Link href={teacherLoginHref} className={styles.ghost}>
+              老师登录
+            </Link>
+          ) : null}
+        </div>
         <p className={styles.loginHint}>{loginHint}</p>
         <p className={styles.rainHint}>点空白处，弹珠会动</p>
         <footer className={styles.footer}>© {new Date().getFullYear()} Syntara</footer>

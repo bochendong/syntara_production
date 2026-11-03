@@ -41,6 +41,8 @@ import {
 import { syncCourseData } from './data/course-sync';
 import { TeachPage } from './components/TeachPage';
 import { OnboardingCoach } from './components/OnboardingCoach';
+import { SpeedupPhoneDialog } from './components/SpeedupPhoneDialog';
+import { readLoginIntent } from './lib/login-intent';
 import { completeOnboardingStep, PLATFORM_TUTORIAL_COURSE_ID } from './lib/onboarding';
 import { guideCourseCreated } from './lib/onboarding-guide';
 import { deleteNativeCourse, editNativeCourse, getTeachHome } from './data/platform-api-client';
@@ -108,23 +110,26 @@ function AuthenticatedApp() {
   const classroomEnabled = classroomAvailable(phoneLayout);
   const [classroomOpen, setClassroomOpen] = useState(false);
   const classroom = useClassroomState(classroomEnabled, classroomOpen);
-  // 「教学」入口只给能开班的账号（课程所属机构的成员等），手机上没有。
+  // 「教学」入口只给能开班的账号（认领了课的老师、课程所属机构的成员等），手机上没有。
+  // 从「老师登录」进来的账号即使还没认领课也有入口，好去认领。
+  const teacherLogin = readLoginIntent() === 'teacher';
   const [canTeach, setCanTeach] = useState(false);
   useEffect(() => {
     if (!classroomEnabled) return;
     let cancelled = false;
     getTeachHome()
       .then((home) => {
-        if (!cancelled) setCanTeach(home.courses.length > 0);
+        if (!cancelled) setCanTeach(teacherLogin || home.courses.length > 0);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [classroomEnabled]);
+  }, [classroomEnabled, teacherLogin]);
   const compactLayout = useCompactLayout();
+  // 老师登录后直接打开「教学」（手机没有教学页）。
   const [globalPage, setGlobalPage] = useState<'calendar' | 'profile' | 'store' | 'teach' | null>(
-    null,
+    () => (teacherLogin && classroomEnabled ? 'teach' : null),
   );
   const [globalEvents, setGlobalEvents] = useState<LocalCourseEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -828,7 +833,8 @@ function AuthenticatedApp() {
           />
         ) : null}
 
-        <OnboardingCoach courses={courses} />
+        {teacherLogin ? null : <OnboardingCoach courses={courses} />}
+        <SpeedupPhoneDialog courseCount={courses.length} />
 
         {toast ? <NativeToast title={toast} /> : null}
       </main>

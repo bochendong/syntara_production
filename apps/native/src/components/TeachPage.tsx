@@ -17,6 +17,10 @@ import {
 
 import { resolveNativeCourseAvatar } from '../assets';
 import {
+  claimTeachCourse,
+  getTeachClaimableCourses,
+  releaseTeachCourse,
+  type TeachClaimableCourse,
   getTeachClass,
   getTeachHome,
   getTeachProblemChoices,
@@ -32,6 +36,7 @@ import {
   type TeachSession,
 } from '../data/platform-api-client';
 import { marbleImages } from '../lib/learning-action-marbles';
+import { readLoginIntent } from '../lib/login-intent';
 import { GlassSkeletonRows } from './GlassLoadMore';
 import { PhoneConfirm, PhoneEmpty, PhonePage } from './PhonePages';
 import './teach-page.css';
@@ -43,6 +48,7 @@ import './teach-page.css';
 
 type View =
   | { kind: 'home' }
+  | { kind: 'claim' }
   | { kind: 'class'; classId: string }
   | { kind: 'session'; sessionId: string; classId: string | null };
 
@@ -136,6 +142,9 @@ export function TeachPage({ onBack }: { onBack: () => void }) {
       />
     );
   }
+  if (view.kind === 'claim') {
+    return <TeachClaimView onBack={() => setView({ kind: 'home' })} />;
+  }
   if (view.kind === 'session') {
     return (
       <TeachSessionView
@@ -150,21 +159,33 @@ export function TeachPage({ onBack }: { onBack: () => void }) {
       onBack={onBack}
       onOpenClass={(classId) => setView({ kind: 'class', classId })}
       onOpenSession={(sessionId) => setView({ kind: 'session', sessionId, classId: null })}
+      onOpenClaim={() => setView({ kind: 'claim' })}
     />
   );
 }
+
+// 老师登录后第一次进教学页、还没有课时，直接进认领页（只自动跳一次）。
+let autoClaimShown = false;
 
 function TeachHomeView({
   onBack,
   onOpenClass,
   onOpenSession,
+  onOpenClaim,
 }: {
   onBack: () => void;
   onOpenClass: (classId: string) => void;
   onOpenSession: (sessionId: string) => void;
+  onOpenClaim: () => void;
 }) {
   const { data, error, setError } = usePolled<TeachHome>(getTeachHome, 0);
   const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => {
+    if (!data || data.courses.length || autoClaimShown) return;
+    if (readLoginIntent() !== 'teacher') return;
+    autoClaimShown = true;
+    onOpenClaim();
+  }, [data, onOpenClaim]);
 
   const open = async (courseId: string) => {
     setBusy(courseId);
@@ -182,14 +203,20 @@ function TeachHomeView({
         <header className="phone-large-head tp-head">
           <h1>教学</h1>
           {data ? <span className="tp-term">{data.currentPeriod.label}</span> : null}
+          <button type="button" className="tp-get-pill tp-claim-entry" onClick={onOpenClaim}>
+            <Plus size={14} aria-hidden />
+            认领课程
+          </button>
         </header>
         {error ? <p className="phone-page-error">{error}</p> : null}
         {!data && !error ? <GlassSkeletonRows rows={4} height={54} /> : null}
         {data && !data.courses.length ? (
-          <PhoneEmpty
-            title="还没有可以开班的课程"
-            hint="机构把你加为课程所属机构的成员后，这里会出现对应课程。"
-          />
+          <div className="tp-claim-empty">
+            <PhoneEmpty title="还没有认领课程" hint="认领你教的课，就能开班、上课。" />
+            <button type="button" className="phone-confirm-button is-primary" onClick={onOpenClaim}>
+              认领课程
+            </button>
+          </div>
         ) : null}
         {data?.courses.length ? (
           <>
@@ -248,6 +275,138 @@ function TeachHomeView({
           </>
         ) : null}
       </div>
+    </PhonePage>
+  );
+}
+
+/** 认领课程：一门课只能由一位老师认领，先到先得，不用审批；自己认领的可以退出。 */
+function TeachClaimView({ onBack }: { onBack: () => void }) {
+  const [query, setQuery] = useState('');
+  const [courses, setCourses] = useState<TeachClaimableCourse[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [releasing, setReleasing] = useState<TeachClaimableCourse | null>(null);
+
+  const load = useCallback(async (text: string) => {
+    try {
+      setCourses(await getTeachClaimableCourses(text));
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '没加载出来');
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(query), query ? 250 : 0);
+    return () => window.clearTimeout(timer);
+  }, [load, query]);
+
+  const act = async (course: TeachClaimableCourse, release: boolean) => {
+    setBusy(course.id);
+    setError(null);
+    try {
+      if (release) await releaseTeachCourse(course.id);
+      else await claimTeachCourse(course.id);
+      await load(query);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : release ? '退出失败' : '认领失败');
+      await load(query);
+    } finally {
+      setBusy(null);
+      setReleasing(null);
+    }
+  };
+
+  const mine = courses?.filter((course) => course.claim === 'mine') ?? [];
+  const others = courses?.filter((course) => course.claim !== 'mine') ?? [];
+
+  const row = (course: TeachClaimableCourse) => (
+    <div key={course.id} className="phone-row tp-course-row tp-claim-row">
+      <img
+        className="tp-course-marble"
+        src={resolveNativeCourseAvatar(course.id, course.courseCode)}
+        alt=""
+      />
+      <span className="tp-course-copy">
+        <strong>{courseLabel(course)}</strong>
+        <small>
+          {[
+            course.courseCode && course.name !== course.courseCode ? course.name : null,
+            course.organizationName,
+            `${course.problemCount} 道题`,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </small>
+      </span>
+      {course.claim === 'mine' ? (
+        <button
+          type="button"
+          className="tp-get-pill is-quiet"
+          disabled={busy === course.id}
+          onClick={() => setReleasing(course)}
+        >
+          已认领
+        </button>
+      ) : course.claim === 'taken' ? (
+        <span className="tp-claim-taken">已有老师</span>
+      ) : (
+        <button
+          type="button"
+          className="tp-get-pill"
+          disabled={busy !== null}
+          onClick={() => void act(course, false)}
+        >
+          {busy === course.id ? '认领中' : '认领'}
+        </button>
+      )}
+    </div>
+  );
+
+  return (
+    <PhonePage title="认领课程" overlay largeTitle onBack={onBack}>
+      <div className="tp-page">
+        <header className="phone-large-head tp-head">
+          <h1>认领课程</h1>
+        </header>
+        <label className="phone-search tp-claim-search">
+          <Search size={17} aria-hidden />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜课号、课程名或机构"
+            type="search"
+          />
+        </label>
+        {error ? <p className="phone-page-error">{error}</p> : null}
+        {!courses && !error ? <GlassSkeletonRows rows={5} height={54} /> : null}
+        {mine.length ? (
+          <>
+            <p className="phone-group-title">我认领的</p>
+            <div className="phone-group">{mine.map(row)}</div>
+          </>
+        ) : null}
+        {courses && others.length ? (
+          <>
+            <p className="phone-group-title">{query ? '搜索结果' : '可以认领'}</p>
+            <div className="phone-group">{others.map(row)}</div>
+          </>
+        ) : null}
+        {courses && !courses.length ? (
+          <PhoneEmpty title="没有找到课程" hint="换个课号或机构名试试。" />
+        ) : null}
+      </div>
+      {releasing ? (
+        <PhoneConfirm
+          title="退出认领？"
+          message={`${courseLabel(releasing)} 会回到可认领列表，已开的班和课堂记录保留。`}
+          confirmLabel="退出"
+          destructive
+          busy={busy === releasing.id}
+          onConfirm={() => void act(releasing, true)}
+          onCancel={() => setReleasing(null)}
+        />
+      ) : null}
     </PhonePage>
   );
 }
