@@ -511,11 +511,12 @@ export async function getManagedCourseStudent(
   };
   if (!course.organizationId) return { student, insights: null };
   const publicProblem = { courseId, ownerId: null };
-  const [progress, attemptCount, attempts, questions] = await Promise.all([
-    db.notebookProblemProgress.groupBy({
-      by: ['status'],
-      where: { userId: studentId, problem: publicProblem },
-      _count: { _all: true },
+  const [attempted, passed, attemptCount, attempts, questions, recentProblems] = await Promise.all([
+    db.notebookProblem.count({
+      where: { ...publicProblem, attempts: { some: { userId: studentId } } },
+    }),
+    db.notebookProblem.count({
+      where: { ...publicProblem, attempts: { some: { userId: studentId, status: 'passed' } } },
     }),
     db.notebookProblemAttempt.count({ where: { userId: studentId, problem: publicProblem } }),
     db.notebookProblemAttempt.findMany({
@@ -549,9 +550,31 @@ export async function getManagedCourseStudent(
       orderBy: [{ createdAt: 'desc' }],
       take: 20,
     }),
+    db.notebookProblemAttempt.groupBy({
+      by: ['problemId'],
+      where: { userId: studentId, problem: publicProblem },
+      _count: { _all: true },
+      _max: { createdAt: true },
+      orderBy: [{ _max: { createdAt: 'desc' } }, { problemId: 'asc' }],
+      take: 20,
+    }),
   ]);
-  const attempted = progress.reduce((sum, row) => sum + row._count._all, 0);
-  const passed = progress.find((row) => row.status === 'passed')?._count._all ?? 0;
+  const problems = await db.notebookProblem.findMany({
+    where: { ...publicProblem, id: { in: recentProblems.map((row) => row.problemId) } },
+    select: {
+      id: true,
+      title: true,
+      chapter: { select: { name: true } },
+      attempts: {
+        where: { userId: studentId },
+        select: { status: true },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 1,
+      },
+      _count: { select: { attempts: { where: { userId: studentId, status: 'passed' } } } },
+    },
+  });
+  const byId = new Map(problems.map((problem) => [problem.id, problem]));
   const lastActiveAt = [attempts[0]?.createdAt, questions[0]?.createdAt]
     .filter((value): value is Date => Boolean(value))
     .sort((a, b) => b.getTime() - a.getTime())[0];
@@ -563,6 +586,23 @@ export async function getManagedCourseStudent(
       accuracy: attempted ? passed / attempted : null,
       attemptCount,
       lastActiveAt: lastActiveAt ?? null,
+      problems: recentProblems.flatMap((row) => {
+        const problem = byId.get(row.problemId);
+        if (!problem) return [];
+        return [
+          {
+            id: problem.id,
+            title: problem.title,
+            chapterName: problem.chapter?.name ?? null,
+            status:
+              problem._count.attempts > 0
+                ? ('passed' as const)
+                : (problem.attempts[0]?.status ?? 'pending'),
+            attemptCount: row._count._all,
+            lastAttemptAt: row._max.createdAt!,
+          },
+        ];
+      }),
       attempts: attempts.map((attempt) => ({
         id: attempt.id,
         problemId: attempt.problem.id,
@@ -635,5 +675,101 @@ export async function managedReleaseStatus(db: DbClient, userId: string, courseI
     canRelease: await canEditCourseProfile(db, userId, course),
     lastReleasedAt: course.lastReleasedAt,
     version: course.contentVersion,
+  };
+}
+
+// Stored scores are points; native attempt views use a 0–1 score ratio.
+const attemptScoreRatio = (score: number | null, points: number) =>
+  score !== null && points > 0 ? Math.max(0, Math.min(1, score / points)) : null;
+function managedAttemptResult(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result = value as Record<string, unknown>;
+  if (!Array.isArray(result.parts)) return result;
+  return {
+    ...result,
+    parts: result.parts.map((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+      const part = value as Record<string, unknown>;
+      return typeof part.score === 'number' && typeof part.points === 'number'
+        ? { ...part, score: attemptScoreRatio(part.score, part.points) }
+        : part;
+    }),
+  };
+}
+
+/** Read a bounded page or one full submission, always within this managed public course. */
+export async function getManagedCourseStudentAttempts(
+  db: DbClient,
+  userId: string,
+  courseId: string,
+  studentId: string,
+  problemId: string,
+  requestedPage = 1,
+  attemptId?: string,
+) {
+  const course = await requireStudentManagement(db, userId, courseId);
+  if (!course.organizationId) throw new CourseAdmissionError(403, '私有课程不显示学生的做题记录。');
+  const enrollment = await db.courseEnrollment.findFirst({
+    where: { courseId, userId: studentId, source: { in: STORE_SOURCES } },
+    select: { id: true },
+  });
+  if (!enrollment) throw new CourseAdmissionError(404, '这个学生不在这门课里。');
+  const where = { userId: studentId, problemId, problem: { courseId, ownerId: null } };
+  if (attemptId) {
+    const attempt = await db.notebookProblemAttempt.findFirst({
+      where: { ...where, id: attemptId },
+      select: {
+        id: true,
+        status: true,
+        score: true,
+        createdAt: true,
+        answerJson: true,
+        resultJson: true,
+        activeDurationMs: true,
+        problem: { select: { title: true, points: true, publicContentJson: true } },
+      },
+    });
+    if (!attempt) throw new CourseAdmissionError(404, '找不到这次做题记录。');
+    const content = attempt.problem.publicContentJson as { language?: unknown } | null;
+    return {
+      attempt: {
+        id: attempt.id,
+        status: attempt.status,
+        score: attemptScoreRatio(attempt.score, attempt.problem.points),
+        createdAt: attempt.createdAt,
+        answer: attempt.answerJson,
+        result: managedAttemptResult(attempt.resultJson),
+        activeDurationMs: attempt.activeDurationMs,
+        title: attempt.problem.title,
+        language: typeof content?.language === 'string' ? content.language : undefined,
+      },
+    };
+  }
+  const page = Number.isFinite(requestedPage) ? Math.max(1, Math.floor(requestedPage)) : 1;
+  const pageSize = 20;
+  const [total, attempts] = await Promise.all([
+    db.notebookProblemAttempt.count({ where }),
+    db.notebookProblemAttempt.findMany({
+      where,
+      select: {
+        id: true,
+        status: true,
+        score: true,
+        createdAt: true,
+        problem: { select: { points: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+  ]);
+  return {
+    attempts: attempts.map(({ problem, ...attempt }) => ({
+      ...attempt,
+      score: attemptScoreRatio(attempt.score, problem.points),
+    })),
+    total,
+    page,
+    pageSize,
   };
 }

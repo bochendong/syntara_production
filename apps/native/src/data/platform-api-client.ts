@@ -1396,6 +1396,14 @@ export type ManagedCourseStudent = {
     accuracy: number | null;
     attemptCount: number;
     lastActiveAt: string | null;
+    problems: Array<{
+      id: string;
+      title: string;
+      chapterName: string | null;
+      status: 'pending' | 'passed' | 'failed' | 'partial' | 'error';
+      attemptCount: number;
+      lastAttemptAt: string;
+    }>;
     attempts: Array<{
       id: string;
       problemId: string;
@@ -1415,6 +1423,41 @@ export function getManagedCourseStudent(
   userId: string,
 ): Promise<ManagedCourseStudent> {
   return invokeQuery('native_get_store', { studentOf: courseId, userId });
+}
+export type ManagedStudentAttempt = {
+  id: string;
+  status: 'pending' | 'passed' | 'failed' | 'partial' | 'error';
+  score: number | null;
+  createdAt: string;
+};
+export type ManagedStudentAttemptPage = {
+  attempts: ManagedStudentAttempt[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+export type ManagedStudentAttemptDetail = ManagedStudentAttempt & {
+  title: string;
+  language?: string;
+  answer: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+  activeDurationMs: number | null;
+};
+export function getManagedStudentAttempts(
+  courseId: string,
+  userId: string,
+  problemId: string,
+  page = 1,
+): Promise<ManagedStudentAttemptPage> {
+  return invokeQuery('native_get_store', { studentOf: courseId, userId, problemId, page });
+}
+export function getManagedStudentAttempt(
+  courseId: string,
+  userId: string,
+  problemId: string,
+  attemptId: string,
+): Promise<{ attempt: ManagedStudentAttemptDetail }> {
+  return invokeQuery('native_get_store', { studentOf: courseId, userId, problemId, attemptId });
 }
 export type MyCourseApplication = {
   id: string;

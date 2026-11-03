@@ -2,6 +2,7 @@ import { stageContent, undoContentDraft } from '@/lib/server/course-content-draf
 import {
   listManagedCourseContent,
   getManagedCourseStudent,
+  getManagedCourseStudentAttempts,
   listManagedCourseStudents,
   listManagedProblemGroups,
   managedReleaseStatus,
@@ -90,9 +91,26 @@ async function getStore(request: NextRequest, requestId: string) {
     const studentId = request.nextUrl.searchParams.get('userId')?.trim() ?? '';
     if (studentOf.length > 200 || !studentId || studentId.length > 200)
       throw new CourseAdmissionError(400, '请求无效。');
+    const problemId = request.nextUrl.searchParams.get('problemId')?.trim();
+    const attemptId = request.nextUrl.searchParams.get('attemptId')?.trim();
+    if (
+      (problemId && problemId.length > 200) ||
+      (attemptId && (!problemId || attemptId.length > 200))
+    )
+      throw new CourseAdmissionError(400, '请求无效。');
     return publicApiSuccess(
       requestId,
-      await getManagedCourseStudent(prisma, principal.userId, studentOf, studentId),
+      problemId
+        ? await getManagedCourseStudentAttempts(
+            prisma,
+            principal.userId,
+            studentOf,
+            studentId,
+            problemId,
+            Number(request.nextUrl.searchParams.get('page') || 1),
+            attemptId,
+          )
+        : await getManagedCourseStudent(prisma, principal.userId, studentOf, studentId),
       { headers: { 'Cache-Control': 'private, no-store' } },
     );
   }

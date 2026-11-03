@@ -7,9 +7,8 @@ import { PrismaClient } from '@prisma/client';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const jiti = createJiti(import.meta.url, { alias: { '@': root } });
-const { listManagedCourseStudents, getManagedCourseStudent } = await jiti.import(
-  `${root}/lib/server/course-content-management.ts`,
-);
+const { listManagedCourseStudents, getManagedCourseStudent, getManagedCourseStudentAttempts } =
+  await jiti.import(`${root}/lib/server/course-content-management.ts`);
 const url = process.env.COURSE_INSIGHTS_TEST_DATABASE_URL;
 assert.ok(url, 'Set COURSE_INSIGHTS_TEST_DATABASE_URL to a disposable local database.');
 assert.ok(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Local fixtures only.');
@@ -69,6 +68,7 @@ try {
               courseId,
               ownerId,
               type: 'short_answer',
+              points: 100,
               status: 'published',
               order: 0,
               tags: [],
@@ -82,6 +82,7 @@ try {
               userId: users.student.id,
               kind: 'answer',
               status: 'passed',
+              score: 100,
               answerJson: { text: title },
             },
           });
@@ -141,7 +142,140 @@ try {
             ['Course question'],
           );
         }
+        const shared = await tx.notebookProblem.findFirst({
+          where: { courseId: course.id, ownerId: null },
+        });
+        const privateProblem = await tx.notebookProblem.findFirst({
+          where: { courseId: course.id, ownerId: users.student.id },
+        });
+        const original = await tx.notebookProblemAttempt.findFirst({
+          where: { problemId: shared.id },
+        });
+        const longCode = 'print("full submission")\n'.repeat(60);
+        const later = Array.from({ length: 24 }, (_, index) => ({
+          id: randomUUID(),
+          problemId: shared.id,
+          userId: users.student.id,
+          kind: 'answer',
+          status: 'failed',
+          score: 0,
+          createdAt: new Date(original.createdAt.getTime() + 1000 + index),
+          answerJson: { code: longCode },
+          resultJson: {
+            feedback: 'Try again',
+            serverCodeResult: { publicSummary: { passed: 0, total: 2 } },
+          },
+        }));
+        await tx.notebookProblemAttempt.createMany({ data: later });
+        // A later failure must not erase a previous pass, including outside the recent 20 submissions.
+        await tx.notebookProblemProgress.updateMany({
+          where: { problemId: shared.id },
+          data: { status: 'failed' },
+        });
+        const grouped = await getManagedCourseStudent(
+          tx,
+          users.teacher.id,
+          course.id,
+          users.student.id,
+        );
+        assert.equal(grouped.insights.problems.length, 1);
+        assert.equal(grouped.insights.problems[0].status, 'passed');
+        assert.equal(grouped.insights.problems[0].attemptCount, 25);
+        assert.equal(grouped.insights.passed, 1);
+        assert.equal(grouped.insights.attemptCount, 25);
+        const history = (page) =>
+          getManagedCourseStudentAttempts(
+            tx,
+            users.teacher.id,
+            course.id,
+            users.student.id,
+            shared.id,
+            page,
+          );
+        const first = await history(1);
+        const second = await history(2);
+        assert.equal(first.total, 25);
+        assert.equal(first.attempts.length, 20);
+        assert.equal(second.attempts.length, 5);
+        assert.equal(new Set([...first.attempts, ...second.attempts].map((a) => a.id)).size, 25);
+        assert.equal(second.attempts.at(-1).id, original.id);
+        assert.ok(!('answerJson' in first.attempts[0]), 'List payload excludes full answers');
+        const read = (userId, problemId, attemptId, studentId = users.student.id) =>
+          getManagedCourseStudentAttempts(
+            tx,
+            userId,
+            course.id,
+            studentId,
+            problemId,
+            1,
+            attemptId,
+          );
+        const full = await read(users.teacher.id, shared.id, later[0].id);
+        assert.equal(full.attempt.answer.code, longCode);
+        assert.equal(full.attempt.result.feedback, 'Try again');
+        const passedDetail = await read(users.teacher.id, shared.id, original.id);
+        assert.equal(passedDetail.attempt.score, 1, '100 / 100 points becomes 100%');
+        assert.equal(second.attempts.at(-1).score, 1, 'History uses the same score ratio');
+        const partial = await tx.notebookProblemAttempt.create({
+          data: {
+            problemId: shared.id,
+            userId: users.student.id,
+            kind: 'answer',
+            status: 'partial',
+            score: 50,
+            answerJson: { parts: { a: { text: 'partial' } } },
+            resultJson: { parts: [{ label: 'a', points: 20, score: 10, status: 'partial' }] },
+          },
+        });
+        const partialDetail = await read(users.teacher.id, shared.id, partial.id);
+        assert.equal(partialDetail.attempt.score, 0.5);
+        assert.equal(partialDetail.attempt.result.parts[0].score, 0.5);
+        assert.equal(
+          (await tx.notebookProblemAttempt.findUnique({ where: { id: partial.id } })).score,
+          50,
+          'Stored points stay unchanged',
+        );
+
+        const empty = await tx.notebookProblemAttempt.create({
+          data: {
+            problemId: shared.id,
+            userId: users.student.id,
+            kind: 'answer',
+            status: 'pending',
+            answerJson: {},
+          },
+        });
+        assert.deepEqual((await read(users.teacher.id, shared.id, empty.id)).attempt.answer, {});
+        const privateAttempt = await tx.notebookProblemAttempt.findFirst({
+          where: { problemId: privateProblem.id },
+        });
+        await assert.rejects(
+          read(users.teacher.id, privateProblem.id, privateAttempt.id),
+          (e) => e.status === 404,
+        );
+        await assert.rejects(
+          read(users.teacher.id, shared.id, privateAttempt.id),
+          (e) => e.status === 404,
+        );
+        await assert.rejects(
+          read(users.teacher.id, shared.id, original.id, users.outsider.id),
+          (e) => e.status === 404,
+        );
+        const otherAttempt = await tx.notebookProblemAttempt.findFirst({
+          where: { problem: { courseId: other.id } },
+        });
+        await assert.rejects(
+          read(users.teacher.id, otherAttempt.problemId, otherAttempt.id),
+          (e) => e.status === 404,
+        );
+        for (const name of ['owner', 'teacher', 'admin', 'claimed']) {
+          assert.equal(
+            (await read(users[name].id, shared.id, original.id)).attempt.id,
+            original.id,
+          );
+        }
         const denied = async (userId) => {
+          await assert.rejects(read(userId, shared.id, original.id), (e) => e.status === 403);
           await assert.rejects(
             listManagedCourseStudents(tx, userId, course.id),
             (e) => e.status === 403,
@@ -151,7 +285,9 @@ try {
             (e) => e.status === 403,
           );
         };
-        for (const name of ['student', 'outsider', 'orgMember']) await denied(users[name].id);
+        for (const name of ['student', 'outsider', 'orgMember']) {
+          await denied(users[name].id);
+        }
         await assert.rejects(
           getManagedCourseStudent(tx, users.teacher.id, course.id, users.outsider.id),
           (e) => e.status === 404,
@@ -169,6 +305,7 @@ try {
           (await getManagedCourseStudent(tx, users.owner.id, course.id, users.student.id)).insights,
           null,
         );
+        await assert.rejects(read(users.owner.id, shared.id, original.id), (e) => e.status === 403);
         throw rollback;
       },
       { timeout: 30000 },
@@ -176,7 +313,7 @@ try {
     (error) => error === rollback,
   );
   console.log(
-    'PASS: owner, assigned teacher, administrator and claimant access; course/private isolation; unrelated, revoked and inactive accounts denied; private-course policy preserved. Fixtures rolled back.',
+    'PASS: owner, assigned teacher, administrator and claimant access; course/private isolation; unrelated, revoked and inactive accounts denied; private-course policy preserved. 25-attempt pagination, sticky pass, full answers and record isolation verified. Fixtures rolled back.',
   );
 } finally {
   await db.$disconnect();

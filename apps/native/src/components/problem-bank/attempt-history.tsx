@@ -282,10 +282,18 @@ function PartsView({
   );
 }
 
-function AttemptDetail({ attempt, language }: { attempt: LocalProblemAttempt; language?: string }) {
+export function AttemptDetail({
+  attempt,
+  language,
+  answerLabel = '我的提交',
+}: {
+  attempt: Pick<LocalProblemAttempt, 'answer' | 'result'>;
+  language?: string;
+  answerLabel?: string;
+}) {
   const answer = rec(attempt.answer);
   const result = rec(attempt.result);
-  const server = rec(result.serverCodeResult);
+  const server = rec(result.serverCodeResult ?? result);
   const partResults = Array.isArray(result.parts) ? result.parts.map(rec) : [];
   if (answer.kind === 'parts' || partResults.length) {
     return (
@@ -301,7 +309,7 @@ function AttemptDetail({ attempt, language }: { attempt: LocalProblemAttempt; la
   return (
     <div className="ah-detail">
       <div className="ah-block">
-        <p className="ah-label">我的提交</p>
+        <p className="ah-label">{answerLabel}</p>
         <AnswerView answer={answer} language={language} />
       </div>
       <TestSummaries
