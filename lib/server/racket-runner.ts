@@ -270,6 +270,17 @@ function racketEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
+/**
+ * spd/tags is vendored in vendor/racket/spd. Adding vendor/racket to the collection
+ * search path makes `(require spd/tags)` resolve even when the build's
+ * `raco pkg install` did not reach the runtime image (seen on staging 2026-11-03).
+ */
+function racketArgs(input: RacketRunInput): string[] {
+  const vendored = path.join(process.cwd(), 'vendor', 'racket');
+  const args = existsSync(path.join(vendored, 'spd', 'tags.rkt')) ? ['-S', vendored] : [];
+  return [...args, input.driverPath, input.payloadPath];
+}
+
 export function runRacketJson<T>(input: RacketRunInput): Promise<T> {
   // The driver limits every evaluation; this outer limit only catches a stuck process.
   const outerTimeout = Math.min(
@@ -279,7 +290,7 @@ export function runRacketJson<T>(input: RacketRunInput): Promise<T> {
   return new Promise((resolve, reject) => {
     const child = execFile(
       process.env.RACKET_EXECUTABLE?.trim() || 'racket',
-      [input.driverPath, input.payloadPath],
+      racketArgs(input),
       {
         timeout: outerTimeout,
         killSignal: 'SIGKILL',
