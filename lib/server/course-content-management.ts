@@ -1,8 +1,7 @@
-import { contentDrafts } from './course-content-drafts';
+import { contentDrafts, summarizeContentDrafts } from './course-content-drafts';
 import { randomUUID } from 'node:crypto';
 import type { DbClient } from '@/lib/server/repositories/types';
 import { refreshCourseSummaryFields } from '@/lib/server/repositories/notebook-repository';
-import { pendingCourseRelease } from '@/lib/server/store-course-layers';
 import { hasTeacherCourseAccess } from './external-course-access';
 import {
   DuplicateCourseProblemError,
@@ -586,35 +585,13 @@ export async function getManagedCourseStudent(
 }
 
 /**
- * 头部「发布」按钮：上次发布以来有多少新增 / 改过的公有内容。
+ * 头部「发布」按钮：只统计独立草稿中尚未对学生生效的改动。
  * 只有课程主人能发布（机构课程和私有课程都可以，和 store 路由里的 release 动作同一条规则）。
  */
 export async function managedReleaseStatus(db: DbClient, userId: string, courseId: string) {
   const course = await managedCourse(db, userId, courseId);
   const drafts = await contentDrafts(db, courseId);
-  const pending = await pendingCourseRelease(
-    db,
-    courseId,
-    course.ownerId,
-    drafts.map((row) => row.targetId),
-  );
-  const deletions = drafts.filter((row) => row.operation === 'delete').length;
-  const draftCount = drafts.filter(
-    (row) => row.kind === 'problems' && row.operation === 'save' && row.payload.status === 'draft',
-  ).length;
-  for (const row of drafts) {
-    if (row.operation === 'delete' || (row.kind === 'problems' && row.payload.status === 'draft'))
-      continue;
-    const key =
-      row.kind === 'notes'
-        ? row.baseUpdatedAt
-          ? 'updatedNotebooks'
-          : 'addedNotebooks'
-        : row.baseUpdatedAt
-          ? 'updatedProblems'
-          : 'addedProblems';
-    pending[key] += 1;
-  }
+  const { deletions, draftCount, ...pending } = summarizeContentDrafts(drafts);
   return {
     ...pending,
     deletions,

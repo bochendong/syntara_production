@@ -1,4 +1,8 @@
-import { applyContentDrafts, draftAuthority } from './course-content-drafts';
+import {
+  applyContentDrafts,
+  draftAuthority,
+  summarizeContentDrafts,
+} from './course-content-drafts';
 import { Prisma } from '@/lib/server/generated-prisma';
 import {
   formatCourseUpdateSummary,
@@ -217,10 +221,11 @@ export async function listHiddenCourseContent(
 
 const problemFingerprintSql = Prisma.sql`md5(COALESCE("title", '') || "publicContentJson"::text || "gradingJson"::text)`;
 
-export type CourseRelease = CourseUpdateSummary & { version: number };
+export type CourseRelease = CourseUpdateSummary & { version: number; deletions: number };
 
 /**
- * 发布者「发布新版」：contentVersion +1，并给上次发布以来新增 / 改过的公有内容盖上这个版本号。
+ * 发布者「发布新版」：应用独立草稿，仅给本次真正发布的内容盖版本号。
+ * 正式表里的内容已对学生生效，缺少旧版标记也不能重新算作待发布。
  * 加入的人据此看到「有更新」摘要、「新」弹珠和「题目已更新」。
  */
 export async function releaseCourseVersion(
@@ -235,94 +240,61 @@ export async function releaseCourseVersion(
     `;
       if (!course) throw new CourseContentNotFoundError();
       if (actorId) await draftAuthority(tx, actorId, courseId);
-      await applyContentDrafts(tx, courseId);
+      const changes = await applyContentDrafts(tx, courseId);
+      const { draftCount: _draftCount, ...summary } = summarizeContentDrafts(changes);
+      if (!changes.length) return { version: course.contentVersion, ...summary };
       const version = course.contentVersion + 1;
+      const ids = (kind: 'notes' | 'problems', added: boolean) =>
+        changes
+          .filter(
+            (row) => row.kind === kind && row.operation === 'save' && !row.baseUpdatedAt === added,
+          )
+          .map((row) => row.targetId);
+      const addedProblems = ids('problems', true);
+      const updatedProblems = ids('problems', false);
+      const addedNotebooks = ids('notes', true);
+      const updatedNotebooks = ids('notes', false);
 
-      const addedProblems = await tx.$executeRaw`
+      if (addedProblems.length)
+        await tx.$executeRaw`
       UPDATE "NotebookProblem"
       SET "updatedAt" = CURRENT_TIMESTAMP, "releaseAddedIn" = ${version}, "releasedHash" = ${problemFingerprintSql}
-      WHERE "courseId" = ${courseId}
-        AND "ownerId" IS NULL
-        AND "releaseAddedIn" IS NULL
-        AND "status"::text = 'published'
+      WHERE "courseId" = ${courseId} AND "ownerId" IS NULL
+        AND "id" IN (${Prisma.join(addedProblems)}) AND "status"::text = 'published'
     `;
-      const updatedProblems = await tx.$executeRaw`
+      if (updatedProblems.length)
+        await tx.$executeRaw`
       UPDATE "NotebookProblem"
       SET "updatedAt" = CURRENT_TIMESTAMP, "releaseUpdatedIn" = ${version},
+          "releaseAddedIn" = COALESCE("releaseAddedIn", 0),
           "contentUpdatedAt" = CURRENT_TIMESTAMP,
           "releasedHash" = ${problemFingerprintSql}
-      WHERE "courseId" = ${courseId}
-        AND "ownerId" IS NULL
-        AND "status"::text = 'published'
-        AND "releaseAddedIn" IS NOT NULL
-        AND "releaseAddedIn" < ${version}
-        AND "releasedHash" IS DISTINCT FROM ${problemFingerprintSql}
+      WHERE "courseId" = ${courseId} AND "ownerId" IS NULL
+        AND "id" IN (${Prisma.join(updatedProblems)}) AND "status"::text = 'published'
     `;
-      const addedNotebooks = await tx.$executeRaw`
+      if (addedNotebooks.length)
+        await tx.$executeRaw`
       UPDATE "Notebook"
       SET "releaseAddedIn" = ${version}, "releasedContentVersion" = "contentVersion"
-      WHERE "courseId" = ${courseId}
-        AND "ownerId" = ${course.ownerId}
-        AND "removedAt" IS NULL
-        AND "releaseAddedIn" IS NULL
+      WHERE "courseId" = ${courseId} AND "ownerId" = ${course.ownerId}
+        AND "id" IN (${Prisma.join(addedNotebooks)}) AND "removedAt" IS NULL
     `;
-      const updatedNotebooks = await tx.$executeRaw`
+      if (updatedNotebooks.length)
+        await tx.$executeRaw`
       UPDATE "Notebook"
-      SET "releaseUpdatedIn" = ${version}, "releasedContentVersion" = "contentVersion"
-      WHERE "courseId" = ${courseId}
-        AND "ownerId" = ${course.ownerId}
-        AND "removedAt" IS NULL
-        AND "releaseAddedIn" IS NOT NULL
-        AND "releaseAddedIn" < ${version}
-        AND "releasedContentVersion" IS DISTINCT FROM "contentVersion"
+      SET "releaseUpdatedIn" = ${version}, "releasedContentVersion" = "contentVersion",
+          "releaseAddedIn" = COALESCE("releaseAddedIn", 0)
+      WHERE "courseId" = ${courseId} AND "ownerId" = ${course.ownerId}
+        AND "id" IN (${Prisma.join(updatedNotebooks)}) AND "removedAt" IS NULL
     `;
       await tx.course.update({
         where: { id: courseId },
         data: { contentVersion: version, lastReleasedAt: new Date() },
       });
-      return { version, addedProblems, updatedProblems, addedNotebooks, updatedNotebooks };
+      return { version, ...summary };
     },
     { maxWait: 15000, timeout: 60000 },
   );
-}
-
-/**
- * 「发布新版」之前：上次发布以来有多少公有内容会被这次发布盖章。条件和 releaseCourseVersion 一致。
- */
-export async function pendingCourseRelease(
-  db: DbClient,
-  courseId: string,
-  ownerId: string,
-  excluded: string[] = [],
-) {
-  const exclude = excluded.length
-    ? Prisma.sql`AND "id" NOT IN (${Prisma.join(excluded)})`
-    : Prisma.empty;
-  const [row] = await db.$queryRaw<
-    Array<{
-      addedProblems: number;
-      updatedProblems: number;
-      addedNotebooks: number;
-      updatedNotebooks: number;
-    }>
-  >`
-    SELECT
-      (SELECT COUNT(*)::int FROM "NotebookProblem"
-        WHERE "courseId" = ${courseId} AND "ownerId" IS NULL AND "status"::text = 'published'
-          AND "releaseAddedIn" IS NULL ${exclude}) AS "addedProblems",
-      (SELECT COUNT(*)::int FROM "NotebookProblem"
-        WHERE "courseId" = ${courseId} AND "ownerId" IS NULL AND "status"::text = 'published'
-          AND "releaseAddedIn" IS NOT NULL
-          AND "releasedHash" IS DISTINCT FROM ${problemFingerprintSql} ${exclude}) AS "updatedProblems",
-      (SELECT COUNT(*)::int FROM "Notebook"
-        WHERE "courseId" = ${courseId} AND "ownerId" = ${ownerId} AND "removedAt" IS NULL
-          AND "releaseAddedIn" IS NULL ${exclude}) AS "addedNotebooks",
-      (SELECT COUNT(*)::int FROM "Notebook"
-        WHERE "courseId" = ${courseId} AND "ownerId" = ${ownerId} AND "removedAt" IS NULL
-          AND "releaseAddedIn" IS NOT NULL
-          AND "releasedContentVersion" IS DISTINCT FROM "contentVersion" ${exclude}) AS "updatedNotebooks"
-  `;
-  return row;
 }
 
 type SummaryRow = {
