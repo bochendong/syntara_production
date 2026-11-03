@@ -1,4 +1,5 @@
 import type { LocalProblem } from '../domain/models';
+import { problemSolution } from '../lib/problem-solution';
 
 /**
  * 学生在聊天里点名题库里的某道题（「2024W1 MT1 第一题」「drop-until-odd 这题」）时，
@@ -99,7 +100,7 @@ const str = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 const clip = (value: string, max: number) =>
   value.length > max ? `${value.slice(0, max)}\n…（后面省略）` : value;
 
-/** 题面原文（不含答案）：题干、表格陈述、选项、小问、起始代码、要求、样例。 */
+/** 题面原文：题干、表格陈述、选项、小问、起始代码、要求、样例，最后附参考答案（只给助教判断用）。 */
 export function focusedProblemText(problem: LocalProblem): string {
   const content = (problem.publicContent ?? {}) as Record<string, unknown>;
   const list = (value: unknown) => (Array.isArray(value) ? value : []);
@@ -128,7 +129,15 @@ export function focusedProblemText(problem: LocalProblem): string {
       return `${str(record.input)} → ${str(record.output)}`;
     })
     .filter((line) => line.length > 3);
-  return clip(
+  const solution = problemSolution(problem);
+  const reference = [
+    solution.answer,
+    solution.code ? `\`\`\`\n${solution.code}\n\`\`\`` : '',
+    solution.explanation,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  const statement = clip(
     [
       `标题：${problem.title}（id=${problem.id}）`,
       `题面：\n${str(content.stem) || str(content.stemTemplate) || problem.title}`,
@@ -141,6 +150,9 @@ export function focusedProblemText(problem: LocalProblem): string {
     ]
       .filter(Boolean)
       .join('\n\n'),
-    9000,
+    reference ? 6000 : 9000,
   );
+  return reference
+    ? `${statement}\n\n【参考答案（只给你判断用）】\n${clip(reference, 3000)}`
+    : statement;
 }

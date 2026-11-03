@@ -167,8 +167,10 @@ export function buildNativeChatSystemPrompt(
   const rules = courseRulesSection(courseRules);
   const focus =
     !phone && context.focusProblem
-      ? section('学生提到的这道题（题库原文，不含答案）', [
-          '回答时以这份原文为准：数据定义名、函数名、要求都照它写；不要编造原文里没有的内容。学生要思路时先给提示，不直接给完整答案。',
+      ? section('学生提到的这道题（题库原文和参考答案）', [
+          '回答时以这份原文为准：数据定义名、函数名、要求都照它写；不要编造原文里没有的内容。',
+          '对错、答案都以【参考答案】为准，不要自己另推一套；参考答案和你的判断不一样时，按参考答案讲清原因。',
+          '学生没要答案时先讲考点、给提示，不主动把答案全写出来；学生要答案或要对答案时，按参考答案给。',
           context.focusProblem.text,
         ])
       : '';
